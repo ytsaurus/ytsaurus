@@ -233,7 +233,7 @@ public:
     }
 
     TCellBundle* CreateCellBundle(
-        const TString& name,
+        const std::string& name,
         std::unique_ptr<TCellBundle> holder,
         TTabletCellOptionsPtr options) override
     {
@@ -401,7 +401,7 @@ public:
     }
 
     TArea* CreateArea(
-        const TString& name,
+        const std::string& name,
         TCellBundle* cellBundle,
         TObjectId hintId) override
     {
@@ -1072,7 +1072,7 @@ public:
         return CellBundlesPerTypeMap_[cellarType];
     }
 
-    TCellBundle* FindCellBundleByName(const TString& name, ECellarType cellarType, bool activeLifeStageOnly) override
+    TCellBundle* FindCellBundleByName(const std::string& name, ECellarType cellarType, bool activeLifeStageOnly) override
     {
         auto* cellBundle = DoFindCellBundleByName(name, cellarType);
         if (!cellBundle) {
@@ -1089,7 +1089,7 @@ public:
         }
     }
 
-    TCellBundle* GetCellBundleByNameOrThrow(const TString& name, ECellarType cellarType, bool activeLifeStageOnly) override
+    TCellBundle* GetCellBundleByNameOrThrow(const std::string& name, ECellarType cellarType, bool activeLifeStageOnly) override
     {
         auto* cellBundle = DoFindCellBundleByName(name, cellarType);
         if (!cellBundle) {
@@ -1126,7 +1126,7 @@ public:
         return cellBundle;
     }
 
-    void RenameCellBundle(TCellBundle* cellBundle, const TString& newName) override
+    void RenameCellBundle(TCellBundle* cellBundle, const std::string& newName) override
     {
         if (newName == cellBundle->GetName()) {
             return;
@@ -1146,7 +1146,7 @@ public:
         cellBundle->SetName(newName);
     }
 
-    void RenameArea(TArea* area, const TString& newName) override
+    void RenameArea(TArea* area, const std::string& newName) override
     {
         if (newName == area->GetName()) {
             return;
@@ -1182,7 +1182,7 @@ public:
         }
     }
 
-    TArea* GetAreaByNameOrThrow(TCellBundle* cellBundle, const TString& name) override
+    TArea* GetAreaByNameOrThrow(TCellBundle* cellBundle, const std::string& name) override
     {
         if (auto it = cellBundle->Areas().find(name)) {
             return it->second;
@@ -1703,7 +1703,7 @@ private:
             const auto& cellBundle = cell->CellBundle();
             protoInfo->set_options(ConvertToYsonString(cellBundle->GetOptions()).ToString());
 
-            protoInfo->set_cell_bundle(cellBundle->GetName());
+            protoInfo->set_cell_bundle(ToProto<TProtobufString>(cellBundle->GetName()));
 
             YT_LOG_DEBUG("Occupant creation requested (Address: %v, CellId: %v, PeerId: %v)",
                 node->GetDefaultAddress(),
@@ -2730,20 +2730,20 @@ private:
         }
     }
 
-    TCellBundle* DoFindCellBundleByName(const TString& name, ECellarType cellarType)
+    TCellBundle* DoFindCellBundleByName(const std::string& name, ECellarType cellarType)
     {
         auto it = NameToCellBundleMap_[cellarType].find(name);
         return it == NameToCellBundleMap_[cellarType].end() ? nullptr : it->second;
     }
 
-    static void ValidateCellBundleName(const TString& name)
+    static void ValidateCellBundleName(const std::string& name)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Cell bundle name cannot be empty");
         }
     }
 
-    static void ValidateAreaName(const TString& name)
+    static void ValidateAreaName(const std::string& name)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Area name cannot be empty");

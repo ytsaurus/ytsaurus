@@ -42,7 +42,7 @@ public:
         TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
-        auto name = attributes->GetAndRemove<TString>("name");
+        auto name = attributes->GetAndRemove<std::string>("name");
         // These three are optional.
         auto priority = attributes->FindAndRemove<int>("priority");
         auto transient = attributes->FindAndRemove<bool>("transient");

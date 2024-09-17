@@ -68,7 +68,7 @@ private:
         return TBase::DoInvoke(context);
     }
 
-    TSubject* GetSubject(const TString& name)
+    TSubject* GetSubject(const std::string& name)
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* subject = securityManager->FindSubjectByNameOrAlias(name, false /*activeLifeStageOnly*/);

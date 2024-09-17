@@ -206,7 +206,7 @@ public:
         return bundle;
     }
 
-    TChaosCellBundle* GetChaosCellBundleByNameOrThrow(const TString& name, bool activeLifeStageOnly) const override
+    TChaosCellBundle* GetChaosCellBundleByNameOrThrow(const std::string& name, bool activeLifeStageOnly) const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         auto* cellBundle = cellManager->GetCellBundleByNameOrThrow(name, ECellarType::Chaos, true);
@@ -251,7 +251,7 @@ private:
 
     const TAlienClusterRegistryPtr AlienClusterRegistry_;
     const IAlienCellSynchronizerPtr AlienCellSynchronizer_;
-    THashSet<TString> EnabledMetadataClusters_;
+    THashSet<std::string> EnabledMetadataClusters_;
 
     //! Contains native trunk nodes for which IsQueue() is true.
     THashSet<TChaosReplicatedTableNode*> Queues_;
@@ -497,7 +497,7 @@ private:
 
     void HydraReplicateAlienClusterRegistry(NProto::TReqReplicateAlienClusterRegistry* request)
     {
-        auto indexToName =FromProto<std::vector<TString>>(request->clusters());
+        auto indexToName = FromProto<std::vector<std::string>>(request->clusters());
         AlienClusterRegistry_->Reset(std::move(indexToName));
 
         YT_LOG_DEBUG("Alien cluster registry is reset (ActualClusters: %v)",

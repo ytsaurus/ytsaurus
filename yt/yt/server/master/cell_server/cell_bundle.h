@@ -56,8 +56,6 @@ class TCellBundle
     , public TRefTracked<TCellBundle>
 {
 public:
-    DECLARE_BYVAL_RW_PROPERTY(TString, Name);
-
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
     DEFINE_BYVAL_RW_PROPERTY(NTabletClient::TTabletCellOptionsPtr, Options);
@@ -68,7 +66,7 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<TCellBase*>, Cells);
 
-    using TAreaMap = THashMap<TString, TArea*>;
+    using TAreaMap = THashMap<std::string, TArea*>;
     DEFINE_BYREF_RW_PROPERTY(TAreaMap, Areas);
     DEFINE_BYVAL_RW_PROPERTY(TArea*, DefaultArea);
 
@@ -77,6 +75,9 @@ public:
 
 public:
     explicit TCellBundle(TCellBundleId id);
+
+    void SetName(const std::string& name);
+    const std::string& GetName() const;
 
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
@@ -87,7 +88,7 @@ public:
     virtual void Save(NCellMaster::TSaveContext& context) const;
     virtual void Load(NCellMaster::TLoadContext& context);
 
-    TArea* GetAreaOrThrow(const TString& name);
+    TArea* GetAreaOrThrow(const std::string& name);
 
     NCellarClient::ECellarType GetCellarType() const;
 

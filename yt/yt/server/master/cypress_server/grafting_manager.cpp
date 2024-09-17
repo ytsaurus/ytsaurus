@@ -372,7 +372,7 @@ private:
             scionNode->DirectAcd().SetEntries(*directAcl);
         }
 
-        if (auto ownerName = explicitAttributes->FindAndRemove<TString>(EInternedAttributeKey::Owner.Unintern())) {
+        if (auto ownerName = explicitAttributes->FindAndRemove<std::string>(EInternedAttributeKey::Owner.Unintern())) {
             if (auto* owner = securityManager->FindSubjectByNameOrAlias(*ownerName, /*activeLifeStageOnly*/ true)) {
                 scionNode->Acd().SetOwner(owner);
             } else {

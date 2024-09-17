@@ -104,7 +104,7 @@ public:
         UnregisterShard(shard);
     }
 
-    TZookeeperShard* FindZookeeperShardByName(const TString& name) const override
+    TZookeeperShard* FindZookeeperShardByName(const std::string& name) const override
     {
         Bootstrap_->VerifyPersistentStateRead();
 

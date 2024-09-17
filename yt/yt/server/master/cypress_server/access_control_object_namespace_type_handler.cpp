@@ -54,7 +54,7 @@ public:
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
-        auto name = attributes->GetAndRemove<TString>(EInternedAttributeKey::Name.Unintern());
+        auto name = attributes->GetAndRemove<std::string>(EInternedAttributeKey::Name.Unintern());
         return cypressManager->CreateAccessControlObjectNamespace(name, hintId);
     }
 
@@ -63,7 +63,7 @@ public:
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
-        auto name = attributes->Get<TString>(EInternedAttributeKey::Name.Unintern());
+        auto name = attributes->Get<std::string>(EInternedAttributeKey::Name.Unintern());
         return cypressManager->FindAccessControlObjectNamespaceByName(name);
     }
 

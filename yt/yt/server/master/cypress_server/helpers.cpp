@@ -540,7 +540,7 @@ std::optional<TString> GetEffectiveAnnotation(TCypressNode* node)
     return ancestor ? ancestor->TryGetAnnotation() : std::nullopt;
 }
 
-void ValidateAccessControlObjectNamespaceName(const TString& name)
+void ValidateAccessControlObjectNamespaceName(const std::string& name)
 {
     static const auto maxNameLength = 1024;
 
@@ -563,7 +563,7 @@ void ValidateAccessControlObjectNamespaceName(const TString& name)
     }
 }
 
-void ValidateAccessControlObjectName(const TString& name)
+void ValidateAccessControlObjectName(const std::string& name)
 {
     static const auto maxNameLength = 1024;
 

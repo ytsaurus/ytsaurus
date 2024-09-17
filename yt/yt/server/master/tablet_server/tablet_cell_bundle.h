@@ -30,14 +30,14 @@ namespace NYT::NTabletServer {
 
 struct TTabletCellBundleProfilingCounters
 {
-    TTabletCellBundleProfilingCounters(TString bundleName);
+    explicit TTabletCellBundleProfilingCounters(const std::string& bundleName);
 
     NProfiling::TGauge TabletCountLimit;
     NProfiling::TGauge TabletCountUsage;
     NProfiling::TGauge TabletStaticMemoryLimit;
     NProfiling::TGauge TabletStaticMemoryUsage;
 
-    TString BundleName;
+    std::string BundleName;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

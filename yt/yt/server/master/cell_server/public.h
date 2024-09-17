@@ -70,8 +70,8 @@ DECLARE_ENTITY_TYPE(TArea, TAreaId, NObjectClient::TObjectIdEntropyHash)
 
 DECLARE_MASTER_OBJECT_TYPE(TCellBundle)
 
-extern const TString DefaultCellBundleName;
-extern const TString DefaultAreaName;
+extern const std::string DefaultCellBundleName;
+extern const std::string DefaultAreaName;
 
 using TCellSet = TCompactVector<std::pair<const TCellBase*, int>, NCellarClient::TypicalCellarSize>;
 

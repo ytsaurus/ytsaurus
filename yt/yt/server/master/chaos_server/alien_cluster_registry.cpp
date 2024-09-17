@@ -8,7 +8,7 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int TAlienClusterRegistry::GetOrRegisterAlienClusterIndex(const TString& clusterName)
+int TAlienClusterRegistry::GetOrRegisterAlienClusterIndex(const std::string& clusterName)
 {
     if (auto it = NameToIndex_.find(clusterName)) {
         return it->second;
@@ -20,7 +20,7 @@ int TAlienClusterRegistry::GetOrRegisterAlienClusterIndex(const TString& cluster
     return alienClusterIndex;
 }
 
-const TString& TAlienClusterRegistry::GetAlienClusterName(int alienClusterIndex) const
+const std::string& TAlienClusterRegistry::GetAlienClusterName(int alienClusterIndex) const
 {
     YT_VERIFY(alienClusterIndex < std::ssize(IndexToName_));
     return IndexToName_[alienClusterIndex];
@@ -43,17 +43,17 @@ void TAlienClusterRegistry::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    auto indexToName = Load<std::vector<TString>>(context);
+    auto indexToName = Load<std::vector<std::string>>(context);
 
     Reset(std::move(indexToName));
 }
 
-const std::vector<TString>& TAlienClusterRegistry::GetIndexToName() const
+const std::vector<std::string>& TAlienClusterRegistry::GetIndexToName() const
 {
     return IndexToName_;
 }
 
-void TAlienClusterRegistry::Reset(std::vector<TString> indexToName)
+void TAlienClusterRegistry::Reset(std::vector<std::string> indexToName)
 {
     IndexToName_ = std::move(indexToName);
 

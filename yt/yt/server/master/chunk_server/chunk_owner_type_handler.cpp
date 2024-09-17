@@ -131,8 +131,8 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
 
     auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
 
-    auto primaryMediumName = combinedAttributes->GetAndRemove<TString>("primary_medium", NChunkClient::DefaultStoreMediumName);
-    auto hunkPrimaryMediumName = combinedAttributes->GetAndRemove<TString>("hunk_primary_medium", primaryMediumName);
+    auto primaryMediumName = combinedAttributes->GetAndRemove<std::string>("primary_medium", NChunkClient::DefaultStoreMediumName);
+    auto hunkPrimaryMediumName = combinedAttributes->GetAndRemove<std::string>("hunk_primary_medium", primaryMediumName);
     auto* primaryMedium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);
     auto* hunkPrimaryMedium = chunkManager->GetMediumByNameOrThrow(hunkPrimaryMediumName);
 

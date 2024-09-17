@@ -145,7 +145,7 @@ private:
         const TCreateNodeContext& context) override
     {
         const auto& cypressManager = GetBootstrap()->GetCypressManager();
-        auto originalTargetPath = context.ExplicitAttributes->GetAndRemove<TString>("target_path");
+        auto originalTargetPath = context.ExplicitAttributes->GetAndRemove<NYPath::TYPath>("target_path");
         auto originalLinkPath = cypressManager->GetNodePath(context.ServiceTrunkNode, context.Transaction) + context.UnresolvedPathSuffix;
 
         auto enableSymlinkCyclicityCheck = GetDynamicCypressManagerConfig()->EnableSymlinkCyclicityCheck;
@@ -344,7 +344,7 @@ private:
     {
         auto implHolder = TBase::DoCreate(id, context);
 
-        auto originalTargetPath = context.ExplicitAttributes->GetAndRemove<TString>("target_path");
+        auto originalTargetPath = context.ExplicitAttributes->GetAndRemove<NYPath::TYPath>("target_path");
         implHolder->SetTargetPath(originalTargetPath);
 
         YT_LOG_DEBUG("Sequoia link created (LinkId: %v, TargetPath: %v)",

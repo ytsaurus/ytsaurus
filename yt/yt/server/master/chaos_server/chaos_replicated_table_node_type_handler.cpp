@@ -83,13 +83,13 @@ private:
     {
         auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
 
-        auto optionalChaosCellBundleName = combinedAttributes->FindAndRemove<TString>("chaos_cell_bundle");
-        if (!optionalChaosCellBundleName) {
+        auto chaosCellBundleName = combinedAttributes->FindAndRemove<std::string>("chaos_cell_bundle");
+        if (!chaosCellBundleName) {
             THROW_ERROR_EXCEPTION("\"chaos_cell_bundle\" is neither specified nor inherited");
         }
 
         const auto& chaosManager = GetBootstrap()->GetChaosManager();
-        auto* chaosCellBundle = chaosManager->GetChaosCellBundleByNameOrThrow(*optionalChaosCellBundleName, /*activeLifeStageOnly*/ true);
+        auto* chaosCellBundle = chaosManager->GetChaosCellBundleByNameOrThrow(*chaosCellBundleName, /*activeLifeStageOnly*/ true);
 
         auto replicationCardId = combinedAttributes->GetAndRemove<TReplicationCardId>("replication_card_id", {});
         if (replicationCardId && TypeFromId(replicationCardId) != EObjectType::ReplicationCard) {
