@@ -1,13 +1,16 @@
 from collections import defaultdict
 
-from yt_odin_checks.lib.system_quotas import get_quota_holders_resource_usage
-from yt_odin_checks.lib.system_quotas import get_resource_usage_in_precents
-from yt_odin_checks.lib.system_quotas import is_resource_exhausted
-from yt_odin_checks.lib.system_quotas import get_cluster_name
-from yt_odin_checks.lib.system_quotas import get_quota_holder_threshold
-from yt_odin_checks.lib.system_quotas import build_link_to_account
-from yt_odin_checks.lib.system_quotas import build_link_to_bundle
+from yt_odin_checks.lib.system_quotas import (
+    get_quota_holders_resource_usage, get_resource_usage_in_precents,
+    is_resource_exhausted, get_cluster_name, get_quota_holder_threshold)
 from yt_odin_checks.lib.check_runner import main
+
+try:
+    from yt_odin_checks.lib.yandex_helpers import get_account_link
+    from yt_odin_checks.lib.yandex_helpers import get_bundle_link
+except ImportError:
+    get_account_link = lambda cluster, account: ""  # noqa
+    get_bundle_link = lambda cluster, bundle: ""  # noqa
 
 
 class BaseConfig:
@@ -34,13 +37,13 @@ class BundleConfig(BaseConfig):
 
 
 class AccountFacade:
-    build_link_to_quota_holder = build_link_to_account
+    build_link_to_quota_holder = get_account_link
     holder_map_name = "accounts"
     holder_type = "Account"
 
 
 class BundleFacade:
-    build_link_to_quota_holder = build_link_to_bundle
+    build_link_to_quota_holder = get_bundle_link
     holder_map_name = "tablet_cell_bundles"
     holder_type = "Bundle"
 
