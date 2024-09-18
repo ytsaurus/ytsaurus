@@ -892,10 +892,13 @@ def read_table_structured(table, row_type, table_reader=None, unordered=None,
                           response_parameters=None, enable_read_parallel=None, client=None):
     """Reads rows from table in structured format. Cf. docstring for read_table"""
     schema = _try_get_schema(table, client=client)
-    control_attributes = {
-        "enable_row_index": True,
-        "enable_range_index": True,
-    }
+    if enable_read_parallel:
+        control_attributes = None
+    else:
+        control_attributes = {
+            "enable_row_index": True,
+            "enable_range_index": True,
+        }
     py_schema = _SchemaRuntimeCtx() \
         .set_validation_mode_from_config(config=get_config(client)) \
         .create_row_py_schema(row_type, schema, control_attributes=control_attributes)
