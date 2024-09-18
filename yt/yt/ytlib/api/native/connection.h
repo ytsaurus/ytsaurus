@@ -176,7 +176,7 @@ class TStickyGroupSizeCache
 public:
     struct TKey
     {
-        std::optional<TString> Key;
+        std::optional<std::string> Key;
         TSharedRefArray Message;
 
         operator size_t() const;
