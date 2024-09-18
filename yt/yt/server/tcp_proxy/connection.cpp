@@ -65,7 +65,7 @@ void HandleConnection(
     auto Logger = TcpProxyLogger().WithTag("ConnectionId: %v", connectionId);
 
     YT_LOG_DEBUG("Connection accepted (SourceAddress: %v, DestinationAddress: %v)",
-        sourceConnection->RemoteAddress(),
+        sourceConnection->GetRemoteAddress(),
         destinationAddress);
 
     auto onDestinationDialed = BIND([=] (const TErrorOr<IConnectionPtr>& connectionOrError) {

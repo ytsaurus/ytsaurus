@@ -81,7 +81,7 @@ private:
         return Format("chaos cell %v", cell->GetId());
     }
 
-    TString DoGetPath(const TChaosCell* cell) override
+    NYPath::TYPath DoGetPath(const TChaosCell* cell) override
     {
         return Format("//sys/chaos_cells/%v", cell->GetId());
     }
