@@ -35,8 +35,6 @@ void TObjectServiceDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
         .Default(1);
-    registrar.Parameter("alert_on_mixed_read_write_batch", &TThis::AlertOnMixedReadWriteBatch)
-        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
