@@ -16,6 +16,7 @@ SRCS(
     http_authenticator.cpp
     private.cpp
     profilers.cpp
+    profiling.cpp
     public.cpp
     zookeeper_bootstrap_proxy.cpp
 

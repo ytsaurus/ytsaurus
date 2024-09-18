@@ -62,6 +62,7 @@ target_sources(yt-server-http_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/http_authenticator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/profilers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/profiling.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/zookeeper_bootstrap_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/config.cpp
