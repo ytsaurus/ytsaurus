@@ -372,6 +372,30 @@ class TestTypedApi(object):
         read_rows = list(yt.read_table(table))
         assert read_rows == []
 
+    @authors("ermolovd")
+    def test_parallel_read_control_attrs(self):
+        table = "//tmp/table"
+        yt.remove(table, force=True)
+        yt.create("table", table, attributes={"schema": TableSchema.from_row_type(TheRow)})
+        yt.write_table(table, ROW_DICTS)
+        iterator = yt.read_table_structured(table, TheRow, enable_read_parallel=True)
+        row = next(iterator)
+        with pytest.raises(yt.YtError, match="RowIndex is not available"):
+            iterator.get_row_index()
+        with pytest.raises(yt.YtError, match="RangeIndex is not available"):
+            iterator.get_range_index()
+        assert row == ROWS[0]
+
+        row = next(iterator)
+        with pytest.raises(yt.YtError, match="RowIndex is not available"):
+            iterator.get_row_index()
+        with pytest.raises(yt.YtError, match="RangeIndex is not available"):
+            iterator.get_range_index()
+        assert row == ROWS[1]
+
+        with pytest.raises(StopIteration):
+            next(iterator)
+
     @authors("denvr")
     def test_write_with_append(self):
         table = "//tmp/table"
@@ -1938,3 +1962,24 @@ class TestTypedApi(object):
         assert client.get(path + "/@uncompressed_data_size") == 1326
         assert cnt.filtered_total_calls == 8
         assert cnt.filtered_raises == 4
+
+    @authors("ermolovd")
+    def test_parallel_read_correctness(self):
+        prepared_rows = [TheRow(
+            int32_field=i,
+            str_field=f'i: {i}',
+            struct_field=Struct(
+                str_field=f'struct {i}',
+                uint8_field=i % 255,
+            ),
+        ) for i in range(2000)]
+
+        table = "//tmp/table"
+        yt.remove(table, force=True)
+        yt.create("table", table, attributes={"schema": TableSchema.from_row_type(TheRow)})
+        yt.write_table_structured(table, TheRow, prepared_rows)
+
+        rows_read_sequentially = list(yt.read_table_structured(table, TheRow))
+        rows_read_in_parallel = list(yt.read_table_structured(table, TheRow, enable_read_parallel=True))
+
+        assert rows_read_sequentially == rows_read_in_parallel

@@ -597,14 +597,18 @@ private:
             context->KeySwitch = parser->ParseBoolean();
         }
         if (HasRowIndex_) {
-            if (auto rowIndex = ParseRowIndex(parser); rowIndex != ERowIndex::ConsecutiveRow) {
+            if (auto rowIndex = ParseRowIndex(parser); rowIndex != ConsecutiveRowIndex) {
                 context->RowIndex = rowIndex;
             }
+        } else {
+            context->RowIndex = ControlAttributeNotAvailable;
         }
         if (HasRangeIndex_) {
             if (auto optionalRangeIndex = ParseOptionalInt64(parser)) {
                 context->RangeIndex = *optionalRangeIndex;
             }
+        } else {
+            context->RangeIndex = ControlAttributeNotAvailable;
         }
         if (OtherColumnsConverter_) {
             auto field = PyObjectPtr((*OtherColumnsConverter_)(parser));
@@ -632,11 +636,11 @@ private:
         auto tag = parser->ParseVariant8Tag();
         switch (tag) {
             case 0:
-                return ERowIndex::ConsecutiveRow;
+                return ConsecutiveRowIndex;
             case 1:
                 return parser->ParseInt64();
             case 2:
-                return ERowIndex::NotAvailable;
+                return ControlAttributeNotAvailable;
             default:
                 THROW_ERROR_EXCEPTION("Expected variant8 tag in range [0, 3), got %v", tag);
         }
