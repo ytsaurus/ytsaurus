@@ -32,6 +32,9 @@ void TBlackboxServiceConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("blackbox_service_id", &TThis::BlackboxServiceId)
         .Default("blackbox");
+    registrar.Parameter("concurrency_limit", &TThis::ConcurrencyLimit)
+        .GreaterThan(0)
+        .Default(10);
     registrar.Parameter("request_timeout", &TThis::RequestTimeout)
         .Default(TDuration::Seconds(15));
     registrar.Parameter("attempt_timeout", &TThis::AttemptTimeout)
@@ -40,6 +43,10 @@ void TBlackboxServiceConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("use_lowercase_login", &TThis::UseLowercaseLogin)
         .Default(true);
+
+    registrar.Postprocessor([] (TThis* config) {
+        config->HttpClient->MaxIdleConnections = 10;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

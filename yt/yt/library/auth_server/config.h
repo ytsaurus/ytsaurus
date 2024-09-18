@@ -46,6 +46,7 @@ public:
     bool Secure;
     TString BlackboxServiceId;
 
+    int ConcurrencyLimit;
     TDuration RequestTimeout;
     TDuration AttemptTimeout;
     TDuration BackoffTimeout;
