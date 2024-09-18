@@ -110,20 +110,20 @@ void TDynamicTabletNodeTrackerConfig::Register(TRegistrar registrar)
 void TDynamicCellHydraPersistenceSynchronizerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("use_hydra_persistence_directory", &TThis::UseHydraPersistenceDirectory)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("migrate_to_virtual_cell_maps", &TThis::MigrateToVirtualCellMaps)
         .Default(false);
     registrar.Parameter("synchronization_period", &TThis::SynchronizationPeriod)
-        .Default(TDuration::Seconds(60));
+        .Default(TDuration::Seconds(10));
     registrar.Parameter("max_cells_to_register_in_cypress_per_iteration", &TThis::MaxCellsToRegisterInCypressPerIteration)
         .GreaterThanOrEqual(0)
-        .Default(200);
+        .Default(500);
     registrar.Parameter("max_cells_to_unregister_from_cypress_per_iteration", &TThis::MaxCellsToUnregisterFromCypressPerIteration)
         .GreaterThanOrEqual(0)
-        .Default(200);
+        .Default(500);
     registrar.Parameter("max_cell_acl_updates_per_iteration", &TThis::MaxCellAclUpdatesPerIteration)
         .GreaterThanOrEqual(0)
-        .Default(20);
+        .Default(200);
     registrar.Parameter("list_alive_cells_request_size_limit", &TThis::ListAliveCellsRequestSizeLimit)
         .GreaterThanOrEqual(0)
         .Default(50000)
