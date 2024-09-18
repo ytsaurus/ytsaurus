@@ -1,8 +1,8 @@
 from yt_odin_checks.lib.check_runner import main
 try:
-    from yt_odin_checks.lib.yandex_helpers import get_link
+    from yt_odin_checks.lib.yandex_helpers import get_odin_metric_link
 except ImportError:
-    get_link = lambda cluster, check: ""  # noqa
+    get_odin_metric_link = lambda cluster, check: ""  # noqa
 
 import collections
 
@@ -30,7 +30,7 @@ def run_check(yt_client, logger, options, states):
     logger.info(state[1])
     state = state[0], "{} {}".format(
         state[1],
-        get_link(options["cluster_name"], "operations_count"))
+        get_odin_metric_link(options["cluster_name"], "operations_count"))
     logger.info("Operations count threshold: {}, children node thresholds WARN/CRIT: {}/{}".format(
                 options["operations_count_threshold"],
                 options["recoursive_node_count_warn"],

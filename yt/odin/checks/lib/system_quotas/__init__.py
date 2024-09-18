@@ -75,14 +75,6 @@ def get_cluster_name(yt_client):
     return yt_client.config.get("proxy", {}).get("url", "").split('.')[0]
 
 
-def build_link_to_account(cluster, account):
-    return f"https://yt.yandex-team.ru/{cluster}/accounts/general?account={account}"
-
-
-def build_link_to_bundle(cluster, bundle):
-    return f"https://yt.yandex-team.ru/{cluster}/tablet_cell_bundles/tablet_cells?activeBundle={bundle}"
-
-
 def _get_now_time():
     return datetime.now().time()
 
