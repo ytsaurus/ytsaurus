@@ -85,6 +85,7 @@ private:
             std::any Tag;
             TSharedRefArray Message;
             std::optional<size_t> Hash;
+            bool Mutating;
 
             NApi::NNative::TStickyGroupSizeCache::TKey GetKey() const;
         };
@@ -220,6 +221,8 @@ public:
     private:
         TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> CurrentReqFuture_;
         bool IsFirstBatch_ = true;
+
+        std::vector<int> InFlightSubbatchIndexToGlobalIndex_;
 
         std::optional<int> StickyGroupSize_;
         bool EnableClientStickiness_ = false;
