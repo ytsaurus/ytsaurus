@@ -11,12 +11,17 @@ using namespace NFormats;
 static const TString TimestampAttributeKey = "ts";
 static const TString ThreadIdAttributeKey = "tid";
 
+static const THashSet<TString> TraceAttributeKeyWhitelist = {
+    TimestampAttributeKey,
+    ThreadIdAttributeKey,
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTraceConsumer::TTraceConsumer(TJobTraceEventProcessorPtr jobTraceEventProcessor)
     : JobTraceEventProcessor_(std::move(jobTraceEventProcessor))
     , Attributes_(NYTree::CreateEphemeralAttributes())
-    , AttributeConsumer_(Attributes_.Get())
+    , AttributeConsumer_(Attributes_.Get(), TraceAttributeKeyWhitelist)
     , JsonWriter_(CreateJsonWriter())
 { }
 
