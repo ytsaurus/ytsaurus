@@ -5,6 +5,7 @@
 #include "private.h"
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/http.h>
@@ -47,6 +48,7 @@ public:
         , HttpClient_(Config_->Secure
             ? NHttps::CreateClient(Config_->HttpClient, std::move(poller))
             : NHttp::CreateClient(Config_->HttpClient, std::move(poller)))
+        , Invoker_(CreateBoundedConcurrencyInvoker(NRpc::TDispatcher::Get()->GetLightInvoker(), Config_->ConcurrencyLimit))
         , BlackboxCalls_(profiler.Counter("/blackbox_calls"))
         , BlackboxCallErrors_(profiler.Counter("/blackbox_call_errors"))
         , BlackboxCallFatalErrors_(profiler.Counter("/blackbox_call_fatal_errors"))
@@ -57,8 +59,14 @@ public:
         const TString& method,
         const THashMap<TString, TString>& params) override
     {
-        return BIND(&TBlackboxService::DoCall, MakeStrong(this), method, params)
-            .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
+        auto callId = TGuid::Create();
+        auto deadline = TInstant::Now() + Config_->RequestTimeout;
+        YT_LOG_DEBUG("Blackbox call scheduled (CallId: %v, Deadline: %v)",
+            callId,
+            deadline);
+
+        return BIND(&TBlackboxService::DoCall, MakeStrong(this), method, params, callId, deadline)
+            .AsyncVia(Invoker_)
             .Run();
     }
 
@@ -76,6 +84,7 @@ private:
     const ITvmServicePtr TvmService_;
 
     const NHttp::IClientPtr HttpClient_;
+    const IInvokerPtr Invoker_;
 
     NProfiling::TCounter BlackboxCalls_;
     NProfiling::TCounter BlackboxCallErrors_;
@@ -85,11 +94,10 @@ private:
 private:
     INodePtr DoCall(
         const TString& method,
-        const THashMap<TString, TString>& params)
+        const THashMap<TString, TString>& params,
+        TGuid callId,
+        TInstant deadline)
     {
-        auto deadline = TInstant::Now() + Config_->RequestTimeout;
-        auto callId = TGuid::Create();
-
         TSafeUrlBuilder builder;
         builder.AppendString(Format("%v://%v:%v/blackbox?",
             Config_->Secure ? "https" : "http",
