@@ -76,7 +76,7 @@ private:
                 return true;
 
             case EInternedAttributeKey::Name:
-                Bootstrap_->GetSecurityManager()->RenameNetworkProject(networkProject, ConvertTo<TString>(value));
+                Bootstrap_->GetSecurityManager()->RenameNetworkProject(networkProject, ConvertTo<std::string>(value));
                 return true;
 
             default:

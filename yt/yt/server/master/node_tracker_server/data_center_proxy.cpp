@@ -79,7 +79,7 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::Name: {
-                auto newName = ConvertTo<TString>(value);
+                auto newName = ConvertTo<std::string>(value);
                 nodeTracker->RenameDataCenter(dc, newName);
                 return true;
             }

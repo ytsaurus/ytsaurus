@@ -155,7 +155,7 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::Name: {
-                cellManager->RenameArea(area, ConvertTo<TString>(value));
+                cellManager->RenameArea(area, ConvertTo<std::string>(value));
                 return true;
             }
 

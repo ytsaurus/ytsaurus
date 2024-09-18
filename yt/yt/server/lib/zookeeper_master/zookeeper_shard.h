@@ -15,7 +15,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TZookeeperShardId, ShardId);
 
     //! Name of the shard.
-    DEFINE_BYVAL_RW_PROPERTY(TString, Name);
+    DEFINE_BYVAL_RW_PROPERTY(std::string, Name);
 
     //! Path of the shard root.
     DEFINE_BYVAL_RW_PROPERTY(TZookeeperPath, RootPath);

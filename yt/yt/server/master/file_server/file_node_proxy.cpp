@@ -86,7 +86,7 @@ private:
                 return;
 
             case EInternedAttributeKey::FileName:
-                ConvertTo<TString>(newValue);
+                ConvertTo<std::string>(newValue);
                 return;
 
             default:

@@ -27,7 +27,7 @@ struct IZookeeperManager
         TZookeeperShardId HintId;
 
         //! Name of the shard.
-        TString Name;
+        std::string Name;
 
         //! Path of the shard root.
         TZookeeperPath RootPath;

@@ -350,12 +350,12 @@ protected:
 
 private:
     void SetReplicationFactor(int replicationFactor);
-    void SetPrimaryMedium(const TString& primaryMediumName);
-    void SetHunkPrimaryMedium(const TString& hunkPrimaryMediumName);
+    void SetPrimaryMedium(const std::string& primaryMediumName);
+    void SetHunkPrimaryMedium(const std::string& hunkPrimaryMediumName);
     std::optional<NChunkServer::TChunkReplication> DoSetMedia(const NChunkServer::TSerializableChunkReplication& serializableReplication);
     std::optional<int> DoSetPrimaryMedium(TCompositeNodeBase* node,
         const std::optional<NChunkServer::TChunkReplication>& replication,
-        const TString& primaryMediumName,
+        const std::string& primaryMediumName,
         std::optional<int> oldPrimaryMediumIndex,
         NChunkServer::TChunkReplication& newReplication);
     void SetMedia(const NChunkServer::TSerializableChunkReplication& serializableReplication);
