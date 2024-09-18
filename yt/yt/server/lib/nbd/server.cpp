@@ -235,7 +235,7 @@ private:
         void FiberMain()
         {
             YT_LOG_INFO("Connection accepted (RemoteAddress: %v)",
-                Connection_->RemoteAddress());
+                Connection_->GetRemoteAddress());
 
             try {
                 try {

@@ -52,7 +52,7 @@ public:
         return DoGetName(object->As<TImpl>());
     }
 
-    TString GetPath(const TObject* object) override
+    NYPath::TYPath GetPath(const TObject* object) override
     {
         return DoGetPath(object->As<TImpl>());
     }
@@ -152,7 +152,7 @@ protected:
         return object->GetLowercaseObjectName();
     }
 
-    virtual TString DoGetPath(const TImpl* object)
+    virtual NYPath::TYPath DoGetPath(const TImpl* object)
     {
         return object->GetObjectPath();
     }
