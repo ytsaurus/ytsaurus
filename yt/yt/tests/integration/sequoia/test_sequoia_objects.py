@@ -470,7 +470,7 @@ class TestSequoiaQueues(YTEnvSetup):
         wait(lambda: len(get_row('//tmp/m2')) == 0)
 
     @authors("danilalexeev")
-    def test_link_integrate_isolate(self):
+    def test_link_unreachable(self):
         create("table", "//tmp/t1")
         link("//tmp/t1", "//tmp/a/b/c/d/l1", recursive=True)
 
