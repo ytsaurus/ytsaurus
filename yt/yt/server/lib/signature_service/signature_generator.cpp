@@ -87,11 +87,11 @@ void TSignatureGenerator::Rotate()
 
     KeyPair_->Sign(toSign, result.Signature_);
 
-    YT_LOG_TRACE(
-        "Created signature (SignatureId: %v, Header: %v, Payload: %v)",
-        signatureId,
-        header,
-        ConvertToYsonString(result.Payload_, EYsonFormat::Text).ToString());
+//    YT_LOG_TRACE(
+//        "Created signature (SignatureId: %v, Header: %v, Payload: %v)",
+//        signatureId,
+//        header,
+//        ConvertToYsonString(result.Payload_, EYsonFormat::Text).ToString());
 
     return result;
 }

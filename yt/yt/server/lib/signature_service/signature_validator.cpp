@@ -47,10 +47,10 @@ bool TSignatureValidator::Validate(const TSignature& signature)
     try {
         header = ConvertTo<TSignatureHeader>(signature.Header_);
     } catch(const std::exception& ex) {
-        YT_LOG_WARNING(
-            "Received invalid signature header (Header: %v, Error: %v)",
-            signature.Header_.ToString(),
-            ex);
+//        YT_LOG_WARNING(
+//            "Received invalid signature header (Header: %v, Error: %v)",
+//            signature.Header_.ToString(),
+//            ex);
         return false;
     }
 
