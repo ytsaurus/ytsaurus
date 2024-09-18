@@ -106,6 +106,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/timestamp_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/transaction.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/transaction_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/row_batch_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/row_stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/wire_row_stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/bundle_controller_client/bundle_controller_client.cpp
