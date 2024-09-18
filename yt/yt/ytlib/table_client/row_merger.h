@@ -96,6 +96,11 @@ private:
 
     TMutableUnversionedRow MergedRow_;
     TCompactVector<bool, TypicalColumnCount> ValidValues_;
+
+    TNestedTableMerger NestedMerger_;
+    std::vector<std::vector<TVersionedValue>> NestedKeyColumns_;
+    std::vector<std::vector<TVersionedValue>> NestedValueColumns_;
+    int PartialRowCount_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
