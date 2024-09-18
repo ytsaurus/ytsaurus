@@ -91,8 +91,7 @@ private:
     static bool CanCreateSequoiaType(EObjectType type)
     {
         return
-            type == EObjectType::SequoiaMapNode ||
-            type == EObjectType::SequoiaLink ||
+            IsSequoiaNode(type) ||
             IsScalarType(type) ||
             IsChunkOwnerType(type);
     }

@@ -123,6 +123,7 @@ private:
     TFuture<bool> IsBroken() const
     {
         try {
+            // TODO(danilalexeev): Resolve this attribute at Cypress Proxies for Sequoia Link Nodes.
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             const auto* linkNode = GetThisImpl();
             const auto& client = Bootstrap_->GetRootClient();

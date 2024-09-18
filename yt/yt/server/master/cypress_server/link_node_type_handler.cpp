@@ -72,15 +72,6 @@ private:
         branchedNode->SetTargetPath(originatingNode->GetTargetPath());
     }
 
-    void DoMerge(
-        TLinkNode* originatingNode,
-        TLinkNode* branchedNode) override
-    {
-        TBase::DoMerge(originatingNode, branchedNode);
-
-        originatingNode->SetTargetPath(branchedNode->GetTargetPath());
-    }
-
     void DoClone(
         TLinkNode* sourceNode,
         TLinkNode* clonedTrunkNode,
