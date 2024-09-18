@@ -159,7 +159,7 @@ func (a *Agent) processRunningOperations(runningOps []yt.OperationStatus) error 
 	var wg sync.WaitGroup
 	wg.Add(workerNumber)
 
-	for range workerNumber {
+	for i := 0; i < workerNumber; i++ {
 		go func() {
 			defer wg.Done()
 
