@@ -31,7 +31,7 @@ struct IChaosManager
 
     virtual TChaosCellBundle* FindChaosCellBundle(TChaosCellId id) = 0;
     virtual TChaosCellBundle* GetChaosCellBundleOrThrow(TChaosCellBundleId id) = 0;
-    virtual TChaosCellBundle* GetChaosCellBundleByNameOrThrow(const TString& name, bool activeLifeStageOnly) const = 0;
+    virtual TChaosCellBundle* GetChaosCellBundleByNameOrThrow(const std::string& name, bool activeLifeStageOnly) const = 0;
 
     virtual void SetChaosCellBundle(TChaosReplicatedTableNode* node, TChaosCellBundle* cellBundle) = 0;
 

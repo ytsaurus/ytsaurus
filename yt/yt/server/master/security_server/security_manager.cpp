@@ -861,7 +861,7 @@ public:
     }
 
     void ThrowInvalidResourceLimitsChange(
-        const TString& accountName,
+        const std::string& accountName,
         const TViolatedClusterResourceLimits& violated)
     {
         TStringStream output;
@@ -1525,7 +1525,7 @@ public:
             });
     }
 
-    TAccountResourceUsageLease* CreateAccountResourceUsageLease(const TString& accountName, TTransactionId transactionId, TObjectId hintId)
+    TAccountResourceUsageLease* CreateAccountResourceUsageLease(const std::string& accountName, TTransactionId transactionId, TObjectId hintId)
     {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
@@ -1701,7 +1701,7 @@ public:
     }
 
 
-    TGroup* CreateGroup(const TString& name, TObjectId hintId)
+    TGroup* CreateGroup(const std::string& name, TObjectId hintId)
     {
         ValidateSubjectName(name);
 
@@ -1816,7 +1816,7 @@ public:
         return subject;
     }
 
-    TNetworkProject* CreateNetworkProject(const TString& name, TObjectId hintId)
+    TNetworkProject* CreateNetworkProject(const std::string& name, TObjectId hintId)
     {
         if (FindNetworkProjectByName(name)) {
             THROW_ERROR_EXCEPTION(
@@ -1947,7 +1947,7 @@ public:
         networkProject->SetName(newName);
     }
 
-    TProxyRole* CreateProxyRole(const TString& name, EProxyKind proxyKind, TObjectId hintId)
+    TProxyRole* CreateProxyRole(const std::string& name, EProxyKind proxyKind, TObjectId hintId)
     {
         if (ProxyRoleNameMaps_[proxyKind].contains(name)) {
             THROW_ERROR_EXCEPTION(
@@ -3082,7 +3082,7 @@ private:
         return user;
     }
 
-    TGroup* DoCreateGroup(TGroupId id, const TString& name)
+    TGroup* DoCreateGroup(TGroupId id, const std::string& name)
     {
         auto groupHolder = TPoolAllocator::New<TGroup>(id);
         groupHolder->SetName(name);
@@ -3096,7 +3096,7 @@ private:
         return group;
     }
 
-    TNetworkProject* DoCreateNetworkProject(TNetworkProjectId id, const TString& name)
+    TNetworkProject* DoCreateNetworkProject(TNetworkProjectId id, const std::string& name)
     {
         auto networkProjectHolder = TPoolAllocator::New<TNetworkProject>(id);
         networkProjectHolder->SetName(name);
@@ -3110,7 +3110,7 @@ private:
         return networkProject;
     }
 
-    TProxyRole* DoCreateProxyRole(TProxyRoleId id, const TString& name, EProxyKind proxyKind)
+    TProxyRole* DoCreateProxyRole(TProxyRoleId id, const std::string& name, EProxyKind proxyKind)
     {
         auto proxyRoleHolder = TPoolAllocator::New<TProxyRole>(id);
         proxyRoleHolder->SetName(name);
@@ -4017,7 +4017,7 @@ private:
             Bootstrap_->GetObjectManager());
     }
 
-    bool EnsureBuiltinGroupInitialized(TGroup*& group, TGroupId& id, const TString& name)
+    bool EnsureBuiltinGroupInitialized(TGroup*& group, TGroupId& id, const std::string& name)
     {
         if (group) {
             return false;
@@ -4048,7 +4048,7 @@ private:
         return true;
     }
 
-    bool EnsureBuiltinAccountInitialized(TAccount*& account, TAccountId id, const TString& name)
+    bool EnsureBuiltinAccountInitialized(TAccount*& account, TAccountId id, const std::string& name)
     {
         if (account) {
             return false;
@@ -4979,8 +4979,8 @@ TObject* TAccountTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<TString>("name");
-    auto parentName = attributes->GetAndRemove<TString>("parent_name", NSecurityClient::RootAccountName);
+    auto name = attributes->GetAndRemove<std::string>("name");
+    auto parentName = attributes->GetAndRemove<std::string>("parent_name", NSecurityClient::RootAccountName);
     auto* parent = Owner_->GetAccountByNameOrThrow(parentName, true /*activeLifeStageOnly*/);
     attributes->Set("hint_id", hintId);
 
@@ -4991,8 +4991,8 @@ TObject* TAccountTypeHandler::CreateObject(
 std::optional<TObject*> TAccountTypeHandler::FindObjectByAttributes(
     const NYTree::IAttributeDictionary* attributes)
 {
-    auto name = attributes->Get<TString>("name");
-    auto parentName = attributes->Get<TString>("parent_name", RootAccountName);
+    auto name = attributes->Get<std::string>("name");
+    auto parentName = attributes->Get<std::string>("parent_name", RootAccountName);
     auto* parent = Owner_->GetAccountByNameOrThrow(parentName, true /*activeLifeStageOnly*/);
 
     return parent->FindChild(name);
@@ -5043,7 +5043,7 @@ TObject* TAccountResourceUsageLeaseTypeHandler::CreateObject(
     IAttributeDictionary* attributes)
 {
     auto transactionId = attributes->GetAndRemove<TTransactionId>("transaction_id");
-    auto accountName = attributes->GetAndRemove<TString>("account");
+    auto accountName = attributes->GetAndRemove<std::string>("account");
 
     return Owner_->CreateAccountResourceUsageLease(accountName, transactionId, hintId);
 }
@@ -5065,7 +5065,7 @@ TObject* TUserTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<TString>("name");
+    auto name = attributes->GetAndRemove<std::string>("name");
 
     return Owner_->CreateUser(name, hintId);
 }
@@ -5073,7 +5073,7 @@ TObject* TUserTypeHandler::CreateObject(
 std::optional<TObject*> TUserTypeHandler::FindObjectByAttributes(
     const NYTree::IAttributeDictionary* attributes)
 {
-    auto name = attributes->Get<TString>("name");
+    auto name = attributes->Get<std::string>("name");
 
     return Owner_->FindUserByNameOrAlias(name, /*activeLifeStageOnly*/ true);
 }
@@ -5102,7 +5102,7 @@ TObject* TGroupTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<TString>("name");
+    auto name = attributes->GetAndRemove<std::string>("name");
 
     return Owner_->CreateGroup(name, hintId);
 }
@@ -5123,7 +5123,7 @@ void TGroupTypeHandler::DoZombifyObject(TGroup* group)
 std::optional<TObject*> TGroupTypeHandler::FindObjectByAttributes(
     const NYTree::IAttributeDictionary* attributes)
 {
-    auto name = attributes->Get<TString>("name");
+    auto name = attributes->Get<std::string>("name");
 
     return Owner_->FindGroupByNameOrAlias(name);
 }
@@ -5139,7 +5139,7 @@ TObject* TNetworkProjectTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<TString>("name");
+    auto name = attributes->GetAndRemove<std::string>("name");
 
     return Owner_->CreateNetworkProject(name, hintId);
 }
@@ -5168,7 +5168,7 @@ TObject* TProxyRoleTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<TString>("name");
+    auto name = attributes->GetAndRemove<std::string>("name");
     auto proxyKind = attributes->GetAndRemove<EProxyKind>("proxy_kind");
 
     return Owner_->CreateProxyRole(name, proxyKind, hintId);

@@ -116,7 +116,7 @@ private:
 
         std::vector<TFuture<NNative::TSyncAlienCellsResult>> asyncAlienClusterInfos;
         std::vector<int> clusterIndexes;
-        std::vector<TString> clusterNames;
+        std::vector<std::string> clusterNames;
         std::vector<IClientPtr> clients;
 
         NNative::TSyncAlienCellOptions options{

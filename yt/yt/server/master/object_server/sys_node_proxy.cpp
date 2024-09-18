@@ -72,7 +72,7 @@ private:
             .SetOpaque(true));
     }
 
-    static void ValidateClusterName(const TString& clusterName)
+    static void ValidateClusterName(const std::string& clusterName)
     {
         if (clusterName.size() > MaxClusterNameLength) {
             THROW_ERROR_EXCEPTION("Cluster name is too long")

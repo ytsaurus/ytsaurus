@@ -165,7 +165,7 @@ public:
 
     TTabletCellBundle* FindTabletCellBundle(TTabletCellBundleId id);
     TTabletCellBundle* GetTabletCellBundleOrThrow(TTabletCellBundleId id);
-    TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const TString& name, bool activeLifeStageOnly);
+    TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const std::string& name, bool activeLifeStageOnly);
     TTabletCellBundle* GetDefaultTabletCellBundle();
     void SetTabletCellBundle(TTabletOwnerBase* table, TTabletCellBundle* cellBundle);
 
@@ -221,14 +221,14 @@ private:
     void DestroyTabletCell(TTabletCell* cell);
 
     TTabletCellBundle* CreateTabletCellBundle(
-        const TString& name,
+        const std::string& name,
         NObjectClient::TObjectId hintId,
         TTabletCellOptionsPtr options);
     void DestroyTabletCellBundle(TTabletCellBundle* cellBundle);
 
     TTableReplica* CreateTableReplica(
         NTableServer::TReplicatedTableNode* table,
-        const TString& clusterName,
+        const std::string& clusterName,
         const NYPath::TYPath& replicaPath,
         ETableReplicaMode mode,
         bool preserveTimestamps,

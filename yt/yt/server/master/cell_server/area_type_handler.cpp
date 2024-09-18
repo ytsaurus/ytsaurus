@@ -43,9 +43,9 @@ public:
         TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
-        auto name = attributes->GetAndRemove<TString>("name");
+        auto name = attributes->GetAndRemove<std::string>("name");
         auto cellBundleId = attributes->FindAndRemove<TCellBundleId>("cell_bundle_id");
-        auto cellBundleName = attributes->FindAndRemove<TString>("cell_bundle");
+        auto cellBundleName = attributes->FindAndRemove<std::string>("cell_bundle");
         auto cellarType = attributes->FindAndRemove<ECellarType>("cellar_type");
 
         if (!cellBundleId && !cellBundleName) {

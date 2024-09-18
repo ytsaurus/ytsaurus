@@ -48,7 +48,7 @@ public:
         const auto& zookeeperManager = Bootstrap_->GetZookeeperManager();
         return zookeeperManager->CreateZookeeperShard({
             .HintId = hintId,
-            .Name = attributes->GetAndRemove<TString>("name"),
+            .Name = attributes->GetAndRemove<std::string>("name"),
             .RootPath = attributes->GetAndRemove<TZookeeperPath>("root_path"),
             .CellTag = attributes->GetAndRemove<TCellTag>("cell_tag", Bootstrap_->GetPrimaryCellTag()),
         });

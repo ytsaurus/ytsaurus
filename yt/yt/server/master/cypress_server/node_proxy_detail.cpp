@@ -1792,7 +1792,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     if (explicitAttributes) {
         optionalTargetPath = explicitAttributes->Find<TYPath>("target_path");
 
-        auto optionalAccount = explicitAttributes->FindAndRemove<TString>("account");
+        auto optionalAccount = explicitAttributes->FindAndRemove<std::string>("account");
         if (optionalAccount) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             account = securityManager->GetAccountByNameOrThrow(*optionalAccount, true /*activeLifeStageOnly*/);

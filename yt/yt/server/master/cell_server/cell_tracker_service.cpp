@@ -14,6 +14,8 @@
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 namespace NYT::NCellServer {
 
 using namespace NCellMaster;
@@ -21,6 +23,8 @@ using namespace NCellBalancerClient;
 using namespace NHydra;
 using namespace NRpc;
 using namespace NYson;
+
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,7 +147,7 @@ private:
             const TCellBundle& cellBundle)
         {
             ToProto(protoCellBundle->mutable_bundle_id(), cellBundle.GetId());
-            protoCellBundle->set_name(cellBundle.GetName());
+            protoCellBundle->set_name(ToProto<TProtobufString>(cellBundle.GetName()));
             protoCellBundle->set_independent_peers(cellBundle.GetOptions()->IndependentPeers);
             protoCellBundle->set_cell_balancer_config(ConvertToYsonString(cellBundle.CellBalancerConfig()).ToString());
             for (const auto& [areaId, area] : cellBundle.Areas()) {

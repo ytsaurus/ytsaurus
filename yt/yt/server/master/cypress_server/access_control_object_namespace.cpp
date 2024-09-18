@@ -13,7 +13,7 @@ TAccessControlObjectNamespace::TAccessControlObjectNamespace(
     , Acd_(this)
 { }
 
-TAccessControlObject* TAccessControlObjectNamespace::FindMember(const TString& memberName) const
+TAccessControlObject* TAccessControlObjectNamespace::FindMember(const std::string& memberName) const
 {
     auto it = Members_.find(memberName);
     return it == Members_.end() ? nullptr : it->second;

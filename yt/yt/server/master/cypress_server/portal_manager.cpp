@@ -330,10 +330,9 @@ private:
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
     }
 
-    TSubject* DeserializeOwner(const TString& ownerName)
+    TSubject* DeserializeOwner(const std::string& ownerName)
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-
         auto* owner = securityManager->FindSubjectByNameOrAlias(ownerName, /*activeLifeStageOnly*/ false);
         if (!owner) {
             YT_LOG_ALERT("Serialized subject is missing (SubjectNameOrAlias: %v)",
@@ -553,7 +552,7 @@ private:
             node->DirectAcd().SetEntries(*directAcl);
         }
 
-        if (auto ownerName = explicitAttributes->FindAndRemove<TString>(EInternedAttributeKey::Owner.Unintern())) {
+        if (auto ownerName = explicitAttributes->FindAndRemove<std::string>(EInternedAttributeKey::Owner.Unintern())) {
             if (auto* owner = DeserializeOwner(*ownerName)) {
                 node->Acd().SetOwner(owner);
             }

@@ -44,7 +44,7 @@ NObjectServer::TObject* TCellBundleTypeHandlerBase<TImpl>::DoCreateObject(
     NYTree::IAttributeDictionary* attributes,
     NTabletClient::TTabletCellOptionsPtr options)
 {
-    auto name = attributes->GetAndRemove<TString>("name");
+    auto name = attributes->GetAndRemove<std::string>("name");
 
     const auto& cellManager = TBase::Bootstrap_->GetTamedCellManager();
     return cellManager->CreateCellBundle(name, std::move(holder), std::move(options));

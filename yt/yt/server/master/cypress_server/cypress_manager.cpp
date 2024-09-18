@@ -2443,7 +2443,7 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(AccessControlObjectNamespace, TAccessControlObjectNamespace);
 
     TAccessControlObjectNamespace* CreateAccessControlObjectNamespace(
-        const TString& name,
+        const std::string& name,
         TObjectId hintId = NullObjectId) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -2480,7 +2480,7 @@ public:
     }
 
     TAccessControlObjectNamespace* FindAccessControlObjectNamespaceByName(
-        const TString& name) const override
+        const std::string& name) const override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -2518,8 +2518,8 @@ public:
     }
 
     TAccessControlObject* CreateAccessControlObject(
-        const TString& name,
-        const TString& namespace_,
+        const std::string& name,
+        const std::string& namespace_,
         TObjectId hintId = NullObjectId) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
