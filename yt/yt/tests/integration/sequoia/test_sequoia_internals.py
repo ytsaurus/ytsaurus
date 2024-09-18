@@ -4,6 +4,7 @@ from yt_commands import (
     authors, create, ls, get, remove, build_master_snapshots, raises_yt_error,
     exists, set, copy, move, gc_collect, write_table, read_table, create_user,
     start_transaction, abort_transaction, commit_transaction,
+    execute_batch, make_batch_request, get_batch_output
 )
 
 from yt_sequoia_helpers import (
@@ -414,6 +415,29 @@ class TestSequoiaInternals(YTEnvSetup):
     def test_sequoia_map_node_explicit_creation_is_forbidden(self):
         with raises_yt_error("is internal type and should not be used directly"):
             create("sequoia_map_node", "//tmp/m")
+
+    @authors("danilalexeev")
+    def test_mixed_read_write_batch(self):
+        create("map_node", "//sys/cypress_proxies", ignore_existing=True)
+        set("//sys/cypress_proxies/@config", {
+            "object_service": {
+                "alert_on_mixed_read_write_batch": True,
+            }
+        })
+        sleep(0.5)
+
+        results = execute_batch(
+            [
+                make_batch_request("set", path="//tmp/b", input="b"),
+                make_batch_request("get", return_only_value=True, path="//tmp/a"),
+            ]
+        )
+        # Do not crash.
+
+        assert len(results) == 2
+        assert not get_batch_output(results[0])
+        with raises_yt_error():
+            get_batch_output(results[1])
 
 
 ##################################################################

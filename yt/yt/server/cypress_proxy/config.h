@@ -46,6 +46,9 @@ public:
     //! requests execution.
     int ThreadPoolSize;
 
+    // COMPAT(danilalexeev)
+    bool AlertOnMixedReadWriteBatch;
+
     REGISTER_YSON_STRUCT(TObjectServiceDynamicConfig);
 
     static void Register(TRegistrar registrar);
