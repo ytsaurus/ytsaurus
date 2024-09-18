@@ -102,8 +102,8 @@ class TAdapterBase
 protected:
     TDataStatistics DataStatistics_;
     TCodecStatistics DecompressionStatistics_;
-    TDuration ResponseCompressionTime_ = TDuration::Zero();
-    TDuration HunksDecodingTime_ = TDuration::Zero();
+    TDuration ResponseCompressionTime_;
+    TDuration HunksDecodingTime_;
     int FoundRowCount_ = 0;
     int FoundDataWeight_ = 0;
 };
@@ -128,7 +128,7 @@ protected:
 
     TSharedRef CompressedResult_;
 
-    TCompressingAdapterBase(ICodec* const codec, IMemoryUsageTrackerPtr memoryUsageTracker)
+    TCompressingAdapterBase(ICodec* codec, IMemoryUsageTrackerPtr memoryUsageTracker)
         : Codec_(codec)
         , MemoryUsageTracker_(std::move(memoryUsageTracker))
     { }
