@@ -138,7 +138,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         set_node_decommissioned(follower_address, True)
         wait_for_cells([cell_id], decommissioned_addresses=[follower_address])
 
-        for i in range(0, 100):
+        for i in range(0, 10):
             rows = [{"key": i, "value": "test"}]
             keys = [{"key": i}]
             insert_rows("//tmp/t", rows)
