@@ -122,7 +122,7 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::MediumOverride: {
-                auto mediumName = ConvertTo<TString>(value);
+                auto mediumName = ConvertTo<std::string>(value);
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
                 if (medium->IsOffshore()) {

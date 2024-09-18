@@ -93,7 +93,7 @@ public:
     NCellarClient::ECellarType GetCellarType() const;
 
 private:
-    TString Name_;
+    std::string Name_;
     TDynamicTabletCellOptionsPtr DynamicOptions_;
 
     void InitializeProfilingCounters();

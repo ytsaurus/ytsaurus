@@ -56,7 +56,7 @@ public:
     void UnlinkObject(TObject* object);
 
 protected:
-    TString Name_;
+    std::string Name_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

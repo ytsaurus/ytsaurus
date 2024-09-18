@@ -231,7 +231,7 @@ bool TTabletOwnerProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const
         case EInternedAttributeKey::TabletCellBundle: {
             ValidateNoTransaction();
 
-            auto name = ConvertTo<TString>(value);
+            auto name = ConvertTo<std::string>(value);
             const auto& tabletManager = Bootstrap_->GetTabletManager();
             auto* cellBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name, /*activeLifeStageOnly*/ true);
 

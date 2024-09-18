@@ -76,7 +76,7 @@ bool TMediumProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
 
     switch (key) {
         case EInternedAttributeKey::Name: {
-            auto newName = ConvertTo<TString>(value);
+            auto newName = ConvertTo<std::string>(value);
             chunkManager->RenameMedium(medium, newName);
             return true;
         }

@@ -250,7 +250,7 @@ private:
             }
 
             case EInternedAttributeKey::PrincipalOwner: {
-                auto name = ConvertTo<TString>(value);
+                auto name = ConvertTo<std::string>(value);
                 auto* owner = securityManager->GetSubjectByNameOrAliasOrThrow(name, true /*activeLifeStageOnly*/);
                 auto* user = securityManager->GetAuthenticatedUser();
                 if (user != owner && !securityManager->IsSuperuser(user)) {

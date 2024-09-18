@@ -1090,7 +1090,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
 
         case EInternedAttributeKey::PrimaryMedium: {
             ValidateStorageParametersUpdate();
-            auto mediumName = ConvertTo<TString>(value);
+            auto mediumName = ConvertTo<std::string>(value);
             auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
             SetPrimaryMedium(medium);
             return true;
@@ -1098,7 +1098,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
 
         case EInternedAttributeKey::HunkPrimaryMedium: {
             ValidateStorageParametersUpdate();
-            auto mediumName = ConvertTo<TString>(value);
+            auto mediumName = ConvertTo<std::string>(value);
             auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
             SetHunkPrimaryMedium(medium);
             return true;

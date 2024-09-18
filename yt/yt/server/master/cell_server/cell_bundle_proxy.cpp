@@ -260,7 +260,7 @@ bool TCellBundleProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
 
     switch (key) {
         case EInternedAttributeKey::Name: {
-            auto newName = ConvertTo<TString>(value);
+            auto newName = ConvertTo<std::string>(value);
             cellManager->RenameCellBundle(cellBundle, newName);
             return true;
         }

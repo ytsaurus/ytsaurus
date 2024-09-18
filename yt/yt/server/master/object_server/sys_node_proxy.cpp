@@ -97,7 +97,7 @@ private:
 
         switch (internedKey) {
             case EInternedAttributeKey::ClusterName:
-                ValidateClusterName(ConvertTo<TString>(newValue));
+                ValidateClusterName(ConvertTo<std::string>(newValue));
                 return;
 
             case EInternedAttributeKey::ClusterConnection: {

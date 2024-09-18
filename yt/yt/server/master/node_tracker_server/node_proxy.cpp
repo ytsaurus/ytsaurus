@@ -693,7 +693,7 @@ private:
                 return true;
 
             case EInternedAttributeKey::Rack: {
-                auto rackName = ConvertTo<TString>(value);
+                auto rackName = ConvertTo<std::string>(value);
                 auto* host = node->GetHost();
                 if (!host) {
                     THROW_ERROR_EXCEPTION("Cannot set rack for a node without host");

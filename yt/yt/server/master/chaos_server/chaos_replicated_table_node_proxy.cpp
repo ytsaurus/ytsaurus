@@ -201,7 +201,7 @@ private:
             case EInternedAttributeKey::ChaosCellBundle: {
                 ValidateNoTransaction();
 
-                auto name = ConvertTo<TString>(value);
+                auto name = ConvertTo<std::string>(value);
 
                 const auto& chaosManager = Bootstrap_->GetChaosManager();
                 auto* cellBundle = chaosManager->GetChaosCellBundleByNameOrThrow(name, true /*activeLifeStageOnly*/);
