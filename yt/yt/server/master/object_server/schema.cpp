@@ -97,7 +97,7 @@ private:
         return AllSecondaryCellTags();
     }
 
-    TString DoGetName(const TSchemaObject* /*object*/) override
+    std::string DoGetName(const TSchemaObject* /*object*/) override
     {
         return Format("%Qlv schema", Type_);
     }

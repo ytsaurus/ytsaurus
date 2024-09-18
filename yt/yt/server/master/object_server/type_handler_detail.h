@@ -47,7 +47,7 @@ public:
         return DoGetReplicationCellTags(object->As<TImpl>());
     }
 
-    TString GetName(const TObject* object) override
+    std::string GetName(const TObject* object) override
     {
         return DoGetName(object->As<TImpl>());
     }
@@ -147,7 +147,7 @@ protected:
         return EmptyCellTags();
     }
 
-    virtual TString DoGetName(const TImpl* object)
+    virtual std::string DoGetName(const TImpl* object)
     {
         return object->GetLowercaseObjectName();
     }

@@ -50,7 +50,7 @@ public:
     }
 
 private:
-    TString DoGetName(const TChaosCellBundle* cellBundle) override
+    std::string DoGetName(const TChaosCellBundle* cellBundle) override
     {
         return Format("chaos cell bundle %Qv", cellBundle->GetName());
     }

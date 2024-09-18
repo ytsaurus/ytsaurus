@@ -898,7 +898,7 @@ private:
         return externalCellTag == NotReplicatedCellTagSentinel ? TCellTagList() : TCellTagList{externalCellTag};
     }
 
-    TString DoGetName(const TCypressNode* node) override;
+    std::string DoGetName(const TCypressNode* node) override;
     TString DoGetPath(const TCypressNode* node) override;
 
     IObjectProxyPtr DoGetProxy(
@@ -4746,7 +4746,7 @@ void TNodeTypeHandler::DoRecreateObjectAsGhost(TCypressNode* node) noexcept
     Owner_->RecreateNodeAsGhost(node);
 }
 
-TString TNodeTypeHandler::DoGetName(const TCypressNode* node)
+std::string TNodeTypeHandler::DoGetName(const TCypressNode* node)
 {
     return Format("node %v", DoGetPath(node));
 }
