@@ -52,7 +52,7 @@ Some important quantitative metrics in Prometheus:
 - `yt_resource_tracker_memory_usage_rss{service="yt-master"}`: Memory consumption by the master. The threshold must be just under half of the container's memory. The master performs fork to write a snapshot, so there must be a double memory margin.
 - `yt_resource_tracker_memory_usage_rss`: A metric that is also important for other cluster components. It enables you to assess the memory consumption trend to avoid Out of Memory events.
 - `yt_changelogs_available_space{service="yt-master"}`: Free space for changelogs. There is a changelogs storage setting in the master's configuration file. The amount of free space must exceed the value of this setting.
-- `yt_snapshots_available_space{service="yt-master"}`: The same for shapshots.
+- `yt_snapshots_available_space{service="yt-master"}`: The same for snapshots.
 - `yt_logging_min_log_storage_available_space{service="yt-master"}`: The same for logs.
 
 In addition, you should monitor increases in chunks in bad states:
