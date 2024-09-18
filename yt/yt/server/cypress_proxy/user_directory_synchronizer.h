@@ -25,7 +25,7 @@ struct IUserDirectorySynchronizer
     //! Returns a future that will be set after the next sync.
     //! Starts the synchronizer if not started yet.
     //! If the force flag is set, synchronization will start immediately
-    virtual TFuture<void> NextSync(bool synchronizeImmediately = false) = 0;
+    virtual TFuture<void> NextSync(bool force = false) = 0;
 
     //! Returns a future that was set by the most recent sync.
     //! Starts the synchronizer if not started yet.
@@ -33,6 +33,9 @@ struct IUserDirectorySynchronizer
 
     //! Raised with each synchronization (either successful or not).
     DECLARE_INTERFACE_SIGNAL(void(const TError&), Synchronized);
+
+    //! Raised when user descriptor is updated.
+    DECLARE_INTERFACE_SIGNAL(void(const std::string&), UserDescriptorUpdated);
 };
 
 DEFINE_REFCOUNTED_TYPE(IUserDirectorySynchronizer)
@@ -41,8 +44,7 @@ IUserDirectorySynchronizerPtr CreateUserDirectorySynchronizer(
     TUserDirectorySynchronizerConfigPtr config,
     NApi::IClientPtr client,
     TUserDirectoryPtr userDirectory,
-    IInvokerPtr invoker,
-    TCallbackList<void(const TString&)>* reconfigurationCallback);
+    IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
