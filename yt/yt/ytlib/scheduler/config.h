@@ -1160,7 +1160,7 @@ public:
 
     //! If |true| shell environment would not inherit variables
     //! starting with "YT_" such as "YT_JOB_ID"
-    bool IgnoreYtVariablesInShellEnvironment;
+    bool IgnoreYTVariablesInShellEnvironment;
 
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
