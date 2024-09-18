@@ -59,6 +59,7 @@ RECURSE(
     scheduler
     security_server
     shell
+    signature_service
     table_server
     tablet_balancer
     tablet_node
