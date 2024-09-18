@@ -2251,10 +2251,12 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         wait(_check_forced_compaction)
 
     @authors("akozhikhov")
-    def test_value_compression_simple(self):
+    @pytest.mark.parametrize("in_memory_mode", ["none", "compressed", "uncompressed"])
+    def test_value_compression_simple(self, in_memory_mode):
         sync_create_cells(1)
         self._create_table()
         self._setup_for_dictionary_compression("//tmp/t")
+        set("//tmp/t/@in_memory_mode", in_memory_mode)
         sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": "value" + str(i) + "x" * 100} for i in range(100)]
