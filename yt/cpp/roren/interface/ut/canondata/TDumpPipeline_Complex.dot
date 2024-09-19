@@ -1,0 +1,19 @@
+digraph pipeline {
+    "MeaningfulRead" [shape=box];
+    "MeaningfulRead" -> "first" [label = "id=0, type=\"long\""];
+    "MeaningfulRead" -> "ParDo" [label = "id=0, type=\"long\""];
+    "first" [shape=box];
+    "first" -> "second" [label = "id=1, type=\"unsigned long\""];
+    "second" [shape=box];
+    "second" -> "third" [label = "id=2, type=\"unsigned long\""];
+    "third" [shape=box];
+    "ParDo" [shape=box];
+    "ParDo" -> "ParDo2" [label = "id=3, type=\"double\""];
+    "ParDo2" [shape=box];
+    "ParDo2" -> "ParDo3" [label = "id=4, type=\"float\""];
+    "ParDo2" -> "Size" [label = "id=4, type=\"float\""];
+    "ParDo3" [shape=box];
+    "Size" [shape=box];
+    "Size" -> "ParDo4" [label = "id=5, type=\"char\""];
+    "ParDo4" [shape=box];
+}
