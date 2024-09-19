@@ -2299,37 +2299,33 @@ private:
             return std::ssize(Strategy_->IdToTree_);
         }
 
-        std::vector<TString> GetKeys(const i64 limit) const final
+        std::vector<std::string> GetKeys(const i64 limit) const final
         {
             VERIFY_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers_);
 
-            if (limit == 0) {
-                return {};
-            }
-
-            std::vector<TString> keys;
+            std::vector<std::string> keys;
             keys.reserve(std::min(limit, std::ssize(Strategy_->IdToTree_)));
             for (const auto& [id, tree] : Strategy_->IdToTree_) {
-                keys.push_back(id);
-                if (std::ssize(keys) == limit) {
+                if (std::ssize(keys) >= limit) {
                     break;
                 }
+                keys.push_back(id);
             }
 
             return keys;
         }
 
-        IYPathServicePtr FindItemService(const TStringBuf treeId) const final
+        IYPathServicePtr FindItemService(const std::string& treeId) const final
         {
             VERIFY_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers_);
 
-            const auto treeIterator = Strategy_->IdToTree_.find(treeId);
-            if (treeIterator == std::cend(Strategy_->IdToTree_)) {
+            // TODO(babenko): switch to std::string
+            const auto it = Strategy_->IdToTree_.find(treeId);
+            if (it == std::cend(Strategy_->IdToTree_)) {
                 return nullptr;
             }
 
-            const auto& tree = treeIterator->second;
-
+            const auto& tree = it->second;
             return tree->GetOrchidService();
         }
   };

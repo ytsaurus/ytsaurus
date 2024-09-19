@@ -1142,9 +1142,9 @@ private:
             , CommitMapField_(commitMapField)
         { }
 
-        std::vector<TString> GetKeys(i64 limit) const override
+        std::vector<std::string> GetKeys(i64 limit) const override
         {
-            std::vector<TString> keys;
+            std::vector<std::string> keys;
 
             if (auto owner = Owner_.Lock()) {
                 const auto& commitMap = (owner.Get())->*CommitMapField_;
@@ -1169,7 +1169,7 @@ private:
             return 0;
         }
 
-        IYPathServicePtr FindItemService(TStringBuf key) const override
+        IYPathServicePtr FindItemService(const std::string& key) const override
         {
             auto owner = Owner_.Lock();
             if (!owner) {
@@ -1198,9 +1198,9 @@ private:
             : Owner_(std::move(owner))
         { }
 
-        std::vector<TString> GetKeys(i64 limit) const override
+        std::vector<std::string> GetKeys(i64 limit) const override
         {
-            std::vector<TString> keys;
+            std::vector<std::string> keys;
 
             if (auto owner = Owner_.Lock()) {
                 keys.reserve(std::min(limit, std::ssize(owner->ParticipantMap_)));
@@ -1223,7 +1223,7 @@ private:
             return 0;
         }
 
-        IYPathServicePtr FindItemService(TStringBuf key) const override
+        IYPathServicePtr FindItemService(const std::string& key) const override
         {
             auto owner = Owner_.Lock();
             if (!owner) {

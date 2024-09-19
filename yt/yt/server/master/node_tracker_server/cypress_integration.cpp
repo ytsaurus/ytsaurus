@@ -173,7 +173,7 @@ protected:
     const std::optional<ENodeFlavor> Flavor_;
 
 private:
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->FindNodeByAddress(TString(key));
@@ -399,13 +399,16 @@ public:
     { }
 
 private:
-    std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
-        std::vector<TString> keys;
+        std::vector<std::string> keys;
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& nodes = nodeTracker->Nodes();
-        keys.reserve(nodes.size());
+        keys.reserve(std::min(limit, std::ssize(nodes)));
         for (auto [nodeId, node] : nodes) {
+            if (std::ssize(keys) >= limit) {
+                break;
+            }
             if (!IsObjectAlive(node)) {
                 continue;
             }
@@ -454,13 +457,16 @@ public:
     { }
 
 private:
-    std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
-        std::vector<TString> keys;
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& nodes = nodeTracker->GetNodesWithFlavor(*Flavor_);
-        keys.reserve(nodes.size());
+        std::vector<std::string> keys;
+        keys.reserve(std::min(limit, std::ssize(nodes)));
         for (auto* node : nodes) {
+            if (std::ssize(keys) >= limit) {
+                break;
+            }
             if (!IsObjectAlive(node)) {
                 continue;
             }
@@ -501,14 +507,17 @@ public:
     using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& hostMap = nodeTracker->Hosts();
 
-        std::vector<TString> keys;
-        keys.reserve(hostMap.GetSize());
+        std::vector<std::string> keys;
+        keys.reserve(std::min(limit, hostMap.GetSize()));
         for (auto [hostId, host] : hostMap) {
+            if (std::ssize(keys) >= limit) {
+                break;
+            }
             if (!IsObjectAlive(host)) {
                 continue;
             }
@@ -524,7 +533,7 @@ private:
         return nodeTracker->Hosts().GetSize();
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* host = nodeTracker->FindHostByName(TString(key));
@@ -559,11 +568,14 @@ public:
     using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
-        std::vector<TString> keys;
+        std::vector<std::string> keys;
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         for (auto [rackId, rack] : nodeTracker->Racks()) {
+            if (std::ssize(keys) >= limit) {
+                break;
+            }
             keys.push_back(rack->GetName());
         }
         return keys;
@@ -575,7 +587,7 @@ private:
         return nodeTracker->Racks().GetSize();
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* rack = nodeTracker->FindRackByName(TString(key));
@@ -610,11 +622,14 @@ public:
     using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
-        std::vector<TString> keys;
+        std::vector<std::string> keys;
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         for (auto [dataCenterId, dataCenter] : nodeTracker->DataCenters()) {
+            if (std::ssize(keys) >= limit) {
+                break;
+            }
             keys.push_back(dataCenter->GetName());
         }
         return keys;
@@ -626,7 +641,7 @@ private:
         return nodeTracker->DataCenters().GetSize();
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         auto* dc = nodeTracker->FindDataCenterByName(TString(key));

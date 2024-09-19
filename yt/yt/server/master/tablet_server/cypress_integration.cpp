@@ -31,10 +31,10 @@ public:
     using TVirtualMulticellMapBase::TVirtualMulticellMapBase;
 
 private:
-    TFuture<std::vector<TObjectId>> GetKeys(i64 sizeLimit) const override
+    TFuture<std::vector<TObjectId>> GetKeys(i64 limit) const override
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        return MakeFuture(ToObjectIds(GetValues(tabletManager->Tablets(), sizeLimit)));
+        return MakeFuture(ToObjectIds(GetValues(tabletManager->Tablets(), limit)));
     }
 
     bool IsValid(TObject* object) const override
@@ -82,10 +82,10 @@ public:
     using TVirtualMulticellMapBase::TVirtualMulticellMapBase;
 
 private:
-    TFuture<std::vector<TObjectId>> GetKeys(i64 sizeLimit) const override
+    TFuture<std::vector<TObjectId>> GetKeys(i64 limit) const override
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        return MakeFuture(ToObjectIds(GetValues(tabletManager->TabletActions(), sizeLimit)));
+        return MakeFuture(ToObjectIds(GetValues(tabletManager->TabletActions(), limit)));
     }
 
     bool IsValid(TObject* object) const override

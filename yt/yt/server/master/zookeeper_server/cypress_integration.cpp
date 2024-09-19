@@ -21,14 +21,17 @@ public:
     using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
         const auto& zookeeperManager = Bootstrap_->GetZookeeperManager();
         const auto& shards = zookeeperManager->ZookeeperShards();
 
-        std::vector<TString> keys;
-        keys.reserve(shards.size());
+        std::vector<std::string> keys;
+        keys.reserve(std::min(limit, std::ssize(shards)));
         for (auto [shardId, shard] : shards) {
+            if (std::ssize(keys) >= limit) {
+                break;
+            }
             keys.push_back(shard->GetName());
         }
 
@@ -41,7 +44,7 @@ private:
         return zookeeperManager->ZookeeperShards().size();
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& zookeeperManager = Bootstrap_->GetZookeeperManager();
         auto* shard = zookeeperManager->FindZookeeperShardByName(TString(key));
