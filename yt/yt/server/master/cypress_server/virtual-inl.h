@@ -37,9 +37,9 @@ protected:
     NCellMaster::TBootstrap* const Bootstrap_;
     const NHydra::TReadOnlyEntityMap<TValue>* const Map_;
 
-    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
-        return ConvertToStrings(NYT::GetKeys(*Map_, sizeLimit));
+        return ConvertToStrings(NYT::GetKeys(*Map_, limit));
     }
 
     i64 GetSize() const override
@@ -47,7 +47,7 @@ protected:
         return Map_->GetSize();
     }
 
-    NYTree::IYPathServicePtr FindItemService(TStringBuf key) const override
+    NYTree::IYPathServicePtr FindItemService(const std::string& key) const override
     {
         auto id = NHydra::TEntityKey<TValue>::FromString(key);
         auto* object = Map_->Find(id);

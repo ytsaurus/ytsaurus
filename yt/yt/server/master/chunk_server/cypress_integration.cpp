@@ -53,12 +53,12 @@ public:
 private:
     const TChunkLocationUuidMap* const ChunkLocations_;
 
-    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
-        std::vector<TString> keys;
-        keys.reserve(std::min(sizeLimit, std::ssize(*ChunkLocations_)));
+        std::vector<std::string> keys;
+        keys.reserve(std::min(limit, std::ssize(*ChunkLocations_)));
         for (auto [locationUuid, location] : *ChunkLocations_) {
-            if (std::ssize(keys) >= sizeLimit) {
+            if (std::ssize(keys) >= limit) {
                 break;
             }
             keys.push_back(ToString(locationUuid));
@@ -71,7 +71,7 @@ private:
         return std::ssize(*ChunkLocations_);
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         auto* const* location = ChunkLocations_->FindPtr(TChunkLocationUuid::FromString(key));
         if (!location || !IsObjectAlive(*location)) {
@@ -329,13 +329,13 @@ private:
         }
     }
 
-    TFuture<std::vector<TObjectId>> GetKeys(i64 sizeLimit) const override
+    TFuture<std::vector<TObjectId>> GetKeys(i64 limit) const override
     {
         if (Type_ == EObjectType::ChunkMap) {
             const auto& chunkManager = Bootstrap_->GetChunkManager();
-            return MakeFuture(ToObjectIds(GetValues(chunkManager->Chunks(), sizeLimit)));
+            return MakeFuture(ToObjectIds(GetValues(chunkManager->Chunks(), limit)));
         } else if (IsLocal()) {
-            return MakeFuture(GetFilteredChunkIds(sizeLimit));
+            return MakeFuture(GetFilteredChunkIds(limit));
         } else {
             Bootstrap_->GetHydraFacade()->RequireLeader();
 
@@ -348,7 +348,7 @@ private:
                 auto proxy = TObjectServiceProxy::FromDirectMasterChannel(channel);
                 auto batchReq = proxy.ExecuteBatch();
                 auto req = TCypressYPathProxy::Enumerate(GetWellKnownPath(GetLocalChunkMapType()));
-                req->set_limit(sizeLimit);
+                req->set_limit(limit);
                 batchReq->AddRequest(req, "enumerate");
                 responseFutures.push_back(batchReq->Invoke());
             }
@@ -360,7 +360,7 @@ private:
                         auto rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspEnumerate>("enumerate");
                         const auto& rsp = rspOrError.ValueOrThrow();
                         for (const auto& protoItem : rsp->items()) {
-                            if (std::ssize(keys) >= sizeLimit) {
+                            if (std::ssize(keys) >= limit) {
                                 break;
                             }
 
@@ -627,10 +627,10 @@ public:
     using TVirtualMulticellMapBase::TVirtualMulticellMapBase;
 
 private:
-    TFuture<std::vector<TObjectId>> GetKeys(i64 sizeLimit) const override
+    TFuture<std::vector<TObjectId>> GetKeys(i64 limit) const override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        return MakeFuture(ToObjectIds(GetValues(chunkManager->ChunkViews(), sizeLimit)));
+        return MakeFuture(ToObjectIds(GetValues(chunkManager->ChunkViews(), limit)));
     }
 
     bool IsValid(TObject* object) const override
@@ -672,10 +672,10 @@ public:
     using TVirtualMulticellMapBase::TVirtualMulticellMapBase;
 
 private:
-    TFuture<std::vector<TObjectId>> GetKeys(i64 sizeLimit) const override
+    TFuture<std::vector<TObjectId>> GetKeys(i64 limit) const override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        return MakeFuture(ToObjectIds(GetValues(chunkManager->ChunkLists(), sizeLimit)));
+        return MakeFuture(ToObjectIds(GetValues(chunkManager->ChunkLists(), limit)));
     }
 
     bool IsValid(TObject* object) const override
@@ -717,11 +717,14 @@ public:
     using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
-        std::vector<TString> keys;
+        std::vector<std::string> keys;
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         for (auto [mediumId, medium] : chunkManager->Media()) {
+            if (std::ssize(keys) >= limit) {
+                break;
+            }
             keys.push_back(medium->GetName());
         }
         return keys;
@@ -733,7 +736,7 @@ private:
         return chunkManager->Media().GetSize();
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* medium = chunkManager->FindMediumByName(TString(key));

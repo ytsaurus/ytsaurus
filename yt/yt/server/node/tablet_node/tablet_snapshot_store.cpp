@@ -276,12 +276,10 @@ private:
             return New<TOrchidService>(std::move(store));
         }
 
-        std::vector<TString> GetKeys(i64 limit) const override
+        std::vector<std::string> GetKeys(i64 limit) const override
         {
             if (auto owner = Owner_.Lock()) {
-                auto keys = owner->GetTabletIds();
-                keys.resize(std::min(limit, std::ssize(keys)));
-                return keys;
+                return owner->GetTabletIds(limit);
             }
             return {};
         }
@@ -289,12 +287,13 @@ private:
         i64 GetSize() const override
         {
             if (auto owner = Owner_.Lock()) {
-                return owner->GetTabletIds().size();
+                // TODO(babenko): optimize
+                return std::ssize(owner->GetTabletIds(std::numeric_limits<i64>::max()));
             }
             return 0;
         }
 
-        IYPathServicePtr FindItemService(TStringBuf key) const override
+        IYPathServicePtr FindItemService(const std::string& key) const override
         {
             if (auto owner = Owner_.Lock()) {
                 auto snapshots = owner->GetTabletSnapshots(TTabletId::FromString(key));
@@ -322,6 +321,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, TabletSnapshotsSpinLock_);
     THashMultiMap<TTabletId, TTabletSnapshotPtr> TabletIdToSnapshot_;
+    THashMap<TTabletId, int> TabletIdToSnapshotCount_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     const IYPathServicePtr OrchidService_;
@@ -428,15 +428,17 @@ private:
         }
     }
 
-    std::vector<TString> GetTabletIds() const
+    std::vector<std::string> GetTabletIds(i64 limit) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
         auto guard = ReaderGuard(TabletSnapshotsSpinLock_);
 
-        std::vector<TString> result;
+        std::vector<std::string> result;
         TTabletId last;
-        result.reserve(TabletIdToSnapshot_.size());
         for (const auto& [key, _] : TabletIdToSnapshot_) {
+            if (std::ssize(result) >= limit) {
+                break;
+            }
             if (last != key) {
                 result.push_back(ToString(key));
                 last = key;

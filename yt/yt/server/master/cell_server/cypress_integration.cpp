@@ -79,10 +79,12 @@ public:
     using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        return ConvertToStrings(GetValues(cellManager->Areas(), sizeLimit), TObjectIdFormatter());
+        // TODO(babenko): switch to std::string
+        auto keys = ConvertToStrings(GetValues(cellManager->Areas(), limit), TObjectIdFormatter());
+        return {keys.begin(), keys.end()};
     }
 
     virtual bool IsValid(TObject* object) const
@@ -96,7 +98,7 @@ private:
         return std::ssize(cellManager->Areas());
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         auto* area = cellManager->Areas().Find(TAreaId::FromString(key));
@@ -220,10 +222,10 @@ public:
 private:
     const ECellarType CellarType_;
 
-    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        return ToNames(GetItems(cellManager->CellBundles(CellarType_), sizeLimit));
+        return ToNames(GetItems(cellManager->CellBundles(CellarType_), limit));
     }
 
     i64 GetSize() const override
@@ -232,7 +234,7 @@ private:
         return std::ssize(cellManager->CellBundles(CellarType_));
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         auto* cellBundle = cellManager->FindCellBundleByName(TString(key), CellarType_, false /*activeLifeStageOnly*/);
@@ -277,14 +279,17 @@ private:
     TBootstrap* const Bootstrap_;
     const ECellarType CellarType_;
 
-    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        auto cells = GetItems(cellManager->Cells(CellarType_), sizeLimit);
-        std::vector<TString> result;
-        result.reserve(cells.size());
+        auto cells = GetItems(cellManager->Cells(CellarType_), limit);
+        std::vector<std::string> result;
+        result.reserve(std::min(limit, std::ssize(cells)));
         for (const auto& cell : cells) {
-            result.push_back(Format("%v", cell->GetId()));
+            if (std::ssize(result) >= limit) {
+                break;
+            }
+            result.push_back(ToString(cell->GetId()));
         }
         return result;
     }
@@ -295,7 +300,7 @@ private:
         return std::ssize(cellManager->Cells(CellarType_));
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         auto* cell = cellManager->FindCell(TTamedCellId::FromString(key));

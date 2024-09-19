@@ -118,25 +118,24 @@ public:
         return std::ssize(JobTracker_->RegisteredNodes_);
     }
 
-    std::vector<TString> GetKeys(i64 limit) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
         VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 
-        std::vector<TString> keys;
+        std::vector<std::string> keys;
         keys.reserve(std::min(limit, GetSize()));
         for (const auto& [nodeId, nodeInfo] : JobTracker_->RegisteredNodes_) {
             if (std::ssize(keys) >= limit) {
                 break;
             }
 
-            // TOOD(babenko): migrate to std::string
-            keys.push_back(TString(nodeInfo.NodeAddress));
+            keys.push_back(nodeInfo.NodeAddress);
         }
 
         return keys;
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 
@@ -241,11 +240,11 @@ public:
         return size;
     }
 
-    std::vector<TString> GetKeys(i64 limit) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
         VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 
-        std::vector<TString> keys;
+        std::vector<std::string> keys;
         keys.reserve(std::min(limit, GetSize()));
         for (const auto& [nodeId, nodeInfo] : JobTracker_->RegisteredNodes_) {
             const auto& nodeJobs = nodeInfo.Jobs;
@@ -261,7 +260,7 @@ public:
         return keys;
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 
@@ -348,18 +347,18 @@ public:
         return size;
     }
 
-    std::vector<TString> GetKeys(i64 limit) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
         VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 
-        std::vector<TString> keys;
+        std::vector<std::string> keys;
         keys.reserve(std::min(limit, GetSize()));
         for (const auto& [nodeId, nodeInfo] : JobTracker_->RegisteredNodes_) {
             const auto& nodeJobs = nodeInfo.Jobs;
 
             for (const auto& [_, allocationInfo] : nodeJobs.Allocations) {
                 if (std::ssize(keys) >= limit) {
-                    return keys;
+                    break;
                 }
                 if (const auto& runningJob = allocationInfo.GetRunningJob()) {
                     keys.push_back(ToString(runningJob->JobId));
@@ -367,7 +366,7 @@ public:
 
                 for (const auto& [jobId, _] : allocationInfo.GetFinishedJobs()) {
                     if (std::ssize(keys) >= limit) {
-                        return keys;
+                        break;
                     }
                     keys.push_back(ToString(jobId));
                 }
@@ -375,14 +374,14 @@ public:
 
             for (const auto& [jobId, _] : nodeJobs.JobsToAbort) {
                 if (std::ssize(keys) >= limit) {
-                    return keys;
+                    break;
                 }
                 keys.push_back(ToString(jobId));
             }
 
             for (const auto& [jobId, _] : nodeJobs.JobsToRelease) {
                 if (std::ssize(keys) >= limit) {
-                    return keys;
+                    break;
                 }
                 keys.push_back(ToString(jobId));
             }
@@ -391,7 +390,7 @@ public:
         return keys;
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 
@@ -482,11 +481,11 @@ public:
         return std::ssize(JobTracker_->RegisteredOperations_);
     }
 
-    std::vector<TString> GetKeys(i64 limit) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
         VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 
-        std::vector<TString> keys;
+        std::vector<std::string> keys;
         keys.reserve(std::min(limit, GetSize()));
         for (const auto& [operationId, operationInfo] : JobTracker_->RegisteredOperations_) {
             if (std::ssize(keys) >= limit) {
@@ -499,7 +498,7 @@ public:
         return keys;
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 

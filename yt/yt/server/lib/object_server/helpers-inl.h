@@ -9,13 +9,12 @@ namespace NYT::NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-std::vector<TString> ToNames(const std::vector<T>& objects)
+std::vector<std::string> ToNames(const std::vector<T>& objects)
 {
-    std::vector<TString> names;
+    std::vector<std::string> names;
     names.reserve(objects.size());
     for (const auto* object : objects) {
-        // TODO(babenko): switch to std::string
-        names.push_back(TString(object->GetName()));
+        names.push_back(object->GetName());
     }
     return names;
 }

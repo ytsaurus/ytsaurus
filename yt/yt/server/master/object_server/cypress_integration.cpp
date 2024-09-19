@@ -99,7 +99,7 @@ private:
         return "//sys/estimated_creation_time";
     }
 
-    std::vector<TString> GetKeys(i64 /*limit*/) const override
+    std::vector<std::string> GetKeys(i64 /*limit*/) const override
     {
         return {};
     }
@@ -109,7 +109,7 @@ private:
         return std::numeric_limits<i64>::max();
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         TObjectId objectId;
         if (!TObjectId::FromString(key, &objectId)) {

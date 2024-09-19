@@ -2160,13 +2160,13 @@ private:
                 SetOpaque(false);
             }
 
-            std::vector<TString> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const
+            std::vector<std::string> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const
             {
-                std::vector<TString> keys;
+                std::vector<std::string> keys;
                 keys.reserve(std::min<i64>(GetSize(), limit));
 
                 for (const auto& [id, _] : JobController_->IdToJob_) {
-                    if (std::ssize(keys) == limit) {
+                    if (std::ssize(keys) >= limit) {
                         break;
                     }
 
@@ -2181,7 +2181,7 @@ private:
                 return std::ssize(JobController_->IdToJob_);
             }
 
-            IYPathServicePtr FindItemService(TStringBuf key) const
+            IYPathServicePtr FindItemService(const std::string& key) const
             {
                 // NB: There is no guarantee that obtained key is
                 // still valid due to potential context switches
@@ -2214,13 +2214,13 @@ private:
                 SetOpaque(false);
             }
 
-            std::vector<TString> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const
+            std::vector<std::string> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const
             {
-                std::vector<TString> keys;
+                std::vector<std::string> keys;
                 keys.reserve(std::min<i64>(GetSize(), limit));
 
                 for (const auto& [id, _] : JobController_->IdToAllocations_) {
-                    if (std::ssize(keys) == limit) {
+                    if (std::ssize(keys) >= limit) {
                         break;
                     }
 
@@ -2235,7 +2235,7 @@ private:
                 return std::ssize(JobController_->IdToAllocations_);
             }
 
-            IYPathServicePtr FindItemService(TStringBuf key) const
+            IYPathServicePtr FindItemService(const std::string& key) const
             {
                 // NB: There is no guarantee that obtained key is
                 // still valid due to potential context switches

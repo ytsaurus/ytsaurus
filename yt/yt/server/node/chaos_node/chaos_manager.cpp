@@ -353,9 +353,9 @@ private:
                 ->Via(invoker);
         }
 
-        std::vector<TString> GetKeys(i64 limit) const override
+        std::vector<std::string> GetKeys(i64 limit) const override
         {
-            std::vector<TString> keys;
+            std::vector<std::string> keys;
             if (auto owner = Owner_.Lock()) {
                 for (const auto& [replicationCardId, _] : owner->ReplicationCards()) {
                     if (std::ssize(keys) >= limit) {
@@ -375,7 +375,7 @@ private:
             return 0;
         }
 
-        IYPathServicePtr FindItemService(TStringBuf key) const override
+        IYPathServicePtr FindItemService(const std::string& key) const override
         {
             if (auto owner = Owner_.Lock()) {
                 if (auto replicationCard = owner->FindReplicationCard(TReplicationCardId::FromString(key))) {

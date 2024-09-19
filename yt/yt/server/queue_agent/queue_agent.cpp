@@ -80,29 +80,29 @@ public:
         return Owner_->LeadingObjectCount_[ObjectKind_];
     }
 
-    std::vector<TString> GetKeys(i64 limit) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
         auto guard = ReaderGuard(Owner_->ObjectLock_);
 
         const auto& objectMap = Owner_->Objects_[ObjectKind_];
         const auto& objectToHost = Owner_->ObjectToHost_;
 
-        std::vector<TString> keys;
+        std::vector<std::string> keys;
         keys.reserve(std::min(std::ssize(objectMap), limit));
         for (const auto& [key, _] : objectMap) {
+            if (std::ssize(keys) >= limit) {
+                break;
+            }
             if (auto it = objectToHost.find(key); it == objectToHost.end() || it->second != Owner_->AgentId_) {
                 continue;
             }
 
             keys.push_back(ToString(key));
-            if (std::ssize(keys) == limit) {
-                break;
-            }
         }
         return keys;
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         auto guard = ReaderGuard(Owner_->ObjectLock_);
 
