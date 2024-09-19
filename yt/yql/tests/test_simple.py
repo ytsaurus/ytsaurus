@@ -8,6 +8,8 @@ from yt_commands import (authors, create, create_user, sync_mount_table,
 
 from yt_env_setup import YTEnvSetup
 
+import yt_error_codes
+
 import pytest
 
 
@@ -119,12 +121,12 @@ class TestYqlAgentBan(TestQueriesYqlBase):
     NUM_YQL_AGENTS = 1
     YQL_AGENT_DYNAMIC_CONFIG = {"state_check_period": 2000}
 
-    def query_fails():
+    def _test_query_fails():
         query = start_query("yql", 'select 1')
         query.track()
         return False
 
-    def query_completes():
+    def _test_query_completes():
         query = start_query("yql", 'select 1')
         try:
             query.track()
@@ -137,13 +139,13 @@ class TestYqlAgentBan(TestQueriesYqlBase):
         address = yql_agent.yql_agent.addresses[0]
         set(f"//sys/yql_agent/instances/{address}/@banned", True)
 
-        with raises_yt_error() as err:
-            wait(TestYqlAgentBan.query_fails)
+        with raises_yt_error(yt_error_codes.Unavailable) as err:
+            wait(TestYqlAgentBan._test_query_fails)
         assert err[0].contains_text("No alive peers found")
 
         set(f"//sys/yql_agent/instances/{address}/@banned", False)
 
-        wait(TestYqlAgentBan.query_completes)
+        wait(TestYqlAgentBan._test_query_completes)
 
     @authors("mpereskokova")
     def test_yql_agent_ban_on_existing_queries(self, query_tracker, yql_agent):
@@ -160,8 +162,9 @@ class TestYqlAgentBan(TestQueriesYqlBase):
         address = yql_agent.yql_agent.addresses[0]
         set(f"//sys/yql_agent/instances/{address}/@banned", True)
 
-        with raises_yt_error():
-            wait(TestYqlAgentBan.query_fails)
+        with raises_yt_error(yt_error_codes.Unavailable) as err:
+            wait(TestYqlAgentBan._test_query_fails)
+        assert err[0].contains_text("No alive peers found")
 
         set("//sys/pools/small/@resource_limits/user_slots", 1)
         long_query.track()

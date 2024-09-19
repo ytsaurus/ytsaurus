@@ -56,8 +56,8 @@ private:
         context->SetResponseInfo("QueryId: %v", queryId);
 
         if (StateChecker_->IsComponentBanned()) {
-            YT_LOG_INFO("Yql agent was banned, failing query (QueryId: %v, User: %v)", queryId, impersonationUser);
-            THROW_ERROR_EXCEPTION(NYqlClient::EErrorCode::YqlAgentBanned, "Yql agent was banned");
+            YT_LOG_INFO("Yql agent is banned, failing query (QueryId: %v, User: %v)", queryId, impersonationUser);
+            THROW_ERROR_EXCEPTION(NYqlClient::EErrorCode::YqlAgentBanned, "Yql agent is banned");
         }
 
         auto responseFuture = YqlAgent_->StartQuery(queryId, impersonationUser, *request);

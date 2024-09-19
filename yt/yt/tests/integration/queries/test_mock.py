@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     add_member, authors, create_access_control_object, remove,
     make_ace, raises_yt_error, wait, create_user, print_debug, select_rows,
-    set, insert_rows)
+    set, get, insert_rows, generate_uuid)
 
 from yt_error_codes import AuthorizationErrorCode, ResolveErrorCode
 
@@ -212,21 +212,21 @@ class TestQueryTrackerBan(YTEnvSetup):
     }
     QUERY_TRACKER_DYNAMIC_CONFIG = {"state_check_period": 2000}
 
-    def query_fails():
+    def _test_query_fails():
         start_query("mock", "run_forever")
         return False
 
     @authors("mpereskokova")
     def test_query_tracker_ban(self, query_tracker):
-        addresses = query_tracker.query_tracker.addresses
-        set(f"//sys/query_tracker/instances/{addresses[0]}/@banned", True)
+        address = query_tracker.query_tracker.addresses[0]
+        set(f"//sys/query_tracker/instances/{address}/@banned", True)
 
         with raises_yt_error() as err:
-            wait(TestQueryTrackerBan.query_fails)
+            wait(TestQueryTrackerBan._test_query_fails)
         assert err[0].contains_text("No alive peers found")
-        time.sleep(3)  # NB(mpereskokova): Sleep for multiple active_query_acquisition_periods, to ensure, that no new queries will be acquired
+        wait(lambda: get(f"//sys/query_tracker/instances/{address}/orchid/@banned"), ignore_exceptions=True)
 
-        guid = "eb334625-4a579e0c-b99d5757-78866429"
+        guid = generate_uuid()
         insert_rows("//sys/query_tracker/active_queries", [{
             "query_id": guid,
             "engine": "mock",
@@ -238,7 +238,7 @@ class TestQueryTrackerBan(YTEnvSetup):
         time.sleep(3)  # NB(mpereskokova): Sleep for multiple active_query_acquisition_periods, to ensure, that inserted query won't be launched
         assert list(select_rows(f'* from [//sys/query_tracker/active_queries] WHERE query_id = "{guid}"'))[0]["state"] == "pending"
 
-        set(f"//sys/query_tracker/instances/{addresses[0]}/@banned", False)
+        set(f"//sys/query_tracker/instances/{address}/@banned", False)
         query = Query(guid)
         wait(lambda: query.get_state() == "running", ignore_exceptions=True)
 
