@@ -104,7 +104,7 @@ A special `$cumulative_data_weight` system column of the `uint64` type can be sp
 
 When you add this column to the schema of an existing table (via unmounting and the `alter_table` query), the initial value of `$cumulative_data_weight` is taken from the table chunk metadata.
 
-## Change visibility, strong/weak commit ordering
+## Change visibility, strong/weak commit ordering { #commit_ordering }
 
 The consistency level of ordered dynamic tables is fundamentally lower than that of sorted dynamic tables: committed data may not generally be visible immediately after a commit and may not be added in the order in which the commits occurred.
 
