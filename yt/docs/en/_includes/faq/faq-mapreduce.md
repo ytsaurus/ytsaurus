@@ -1,3 +1,5 @@
+# FAQ
+
 #### **Q: Where do I get the simplest client and a step-by-step procedure for running MapReduce?**
 
 **A:** We recommend reviewing the Trial section as well as reading about working with {{product-name}} from the console.
@@ -5,12 +7,12 @@
 ------
 #### **Q: Are table numbers/names always available in transactions?**
 
-**A:** Table numbers are available at all stages except the [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md) reduce phase. Table numbers are also available in the native C++ wrapper.
+**A:** Table numbers are available at all stages except the [MapReduce](../../user-guide/data-processing/operations/mapreduce.md) reduce phase. Table numbers are also available in the native C++ wrapper.
 
 ------
 #### **Q: If a cluster is running several tasks concurrently, how do they get assigned slots?**
 
-**A:** {{product-name}} assigns slots based on the fair share algorithm with the number of slots recomputed dynamically while the task is running. For more information, see [Scheduler and pools](../../../user-guide/data-processing/scheduler/scheduler-and-pools.md).
+**A:** {{product-name}} assigns slots based on the fair share algorithm with the number of slots recomputed dynamically while the task is running. For more information, see [Scheduler and pools](../../user-guide/data-processing/scheduler/scheduler-and-pools.md).
 
 ------
 #### **Q: What are the factors that go into the overhead of merging a table with a small delta of the same table?**
@@ -46,9 +48,9 @@ If you are getting this error when you start a MapReduce, you need to configure 
 
 The name of the `JOB_IO` section is selected as follows:
 
-1. For operations with a single job type ([Map](../../../user-guide/data-processing/operations/map.md), [Reduce](../../../user-guide/data-processing/operations/reduce.md), [Merge](../../../user-guide/data-processing/operations/merge.md), and so on), `JOB_IO = job_io`.
+1. For operations with a single job type ([Map](../../user-guide/data-processing/operations/map.md), [Reduce](../../user-guide/data-processing/operations/reduce.md), [Merge](../../user-guide/data-processing/operations/merge.md), and so on), `JOB_IO = job_io`.
 2. For Sort operations, `JOB_IO = partition_job_io | sort_job_io | merge_job_io`, and we recommend doubling all limits until you find the right ones.
-3. For [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md) operations, `JOB_IO = map_job_io | sort_job_io | reduce_job_io`. You can increase certain limits if you are sure where exactly large rows occur.
+3. For [MapReduce](../../user-guide/data-processing/operations/mapreduce.md) operations, `JOB_IO = map_job_io | sort_job_io | reduce_job_io`. You can increase certain limits if you are sure where exactly large rows occur.
 
 The maximum value is `max_row_weight` equal to 128 MB.
 
@@ -73,9 +75,9 @@ If you are getting this error when you start a MapReduce, you need to configure 
 
 The name of the `JOB_IO` section is selected as follows:
 
-1. For operations with a single job type ([Map](../../../user-guide/data-processing/operations/map.md), [Reduce](../../../user-guide/data-processing/operations/reduce.md), [Merge](../../../user-guide/data-processing/operations/merge.md), etc), `JOB_IO = job_io`.
+1. For operations with a single job type ([Map](../../user-guide/data-processing/operations/map.md), [Reduce](../../user-guide/data-processing/operations/reduce.md), [Merge](../../user-guide/data-processing/operations/merge.md), etc), `JOB_IO = job_io`.
 2. For sort operations, `JOB_IO = partition_job_io | sort_job_io | merge_job_io`, we recommend increasing all the limits right away.
-3. For [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md) operations, `JOB_IO = map_job_io | sort_job_io | reduce_job_io`. You can raise individual limits if you are certain where exactly large rows occur but it is better to increase all limits as well.
+3. For [MapReduce](../../user-guide/data-processing/operations/mapreduce.md) operations, `JOB_IO = map_job_io | sort_job_io | reduce_job_io`. You can raise individual limits if you are certain where exactly large rows occur but it is better to increase all limits as well.
 
 The maximum value of `max_key_weight` is 256 KB.
 
@@ -88,7 +90,7 @@ Chunk boundary keys are stored on master servers; therefore, raising limits is p
 <!-- ------
 #### **Q: При работе джобов, написанных с использованием пакета yandex-yt-python, возникает ошибка «Unicode symbols above 255 are not supported». Что делать?**
 
-**A:** Следует прочитать в разделе [Форматы](../../../user-guide/storage/formats#json) про формат JSON. Можно либо отказаться от использования JSON в пользу [YSON](../../../user-guide/storage/formats#yson), либо указать `encode_utf8=false`. -->
+**A:** Следует прочитать в разделе [Форматы](../../user-guide/storage/formats#json) про формат JSON. Можно либо отказаться от использования JSON в пользу [YSON](../../user-guide/storage/formats#yson), либо указать `encode_utf8=false`. -->
 
 ------
 #### **Q: Why is reduce_combiner taking a long time? What should I do?**
@@ -140,7 +142,7 @@ yt.wrapper.file_commands.md5sum = custom_md5sum
 ------
 #### **Q: Which account will own stored intermediate data for MapReduce and Sort?**
 
-**A:** The default account used is `intermediate` but you can change this behavior by overriding the `intermediate_data_account` parameter in the operation spec. For more information, see [Operation settings.](../../../user-guide/data-processing/operations/operations-options.md)
+**A:** The default account used is `intermediate` but you can change this behavior by overriding the `intermediate_data_account` parameter in the operation spec. For more information, see [Operation settings.](../../user-guide/data-processing/operations/operations-options.md)
 
 ------
 #### **Q: Which account will own stored operation output?**
@@ -161,7 +163,7 @@ An alternative way of solving the problem is by using the `pivot_keys` option ex
 ------
 #### **Q: I am attempting to use sorted MapReduce output. And using input keys for the output. The jobs are crashing and returning "Output table ... is not sorted: job outputs have overlapping key ranges" or "Sort order violation". What seems to be the problem?**
 
-**A:** Sorted operation output is only possible if jobs produce collections of rows in non-intersecting ranges. In [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md), input rows are grouped based on a hash of the key. Therefore, in the scenario described, job ranges will intersect. To work around the issue, you need to use [Sort](../../../user-guide/data-processing/operations/sort.md) and [Reduce](../../../user-guide/data-processing/operations/reduce.md) in combination.
+**A:** Sorted operation output is only possible if jobs produce collections of rows in non-intersecting ranges. In [MapReduce](../../user-guide/data-processing/operations/mapreduce.md), input rows are grouped based on a hash of the key. Therefore, in the scenario described, job ranges will intersect. To work around the issue, you need to use [Sort](../../user-guide/data-processing/operations/sort.md) and [Reduce](../../user-guide/data-processing/operations/reduce.md) in combination.
 
 ------
 #### **Q: When I start an operation, I get "Maximum allowed data weight ... exceeded». What do I do about it?**
@@ -171,21 +173,21 @@ An alternative way of solving the problem is by using the `pivot_keys` option ex
 ------
 #### **Q: When I launch a Reduce or a MapReduce, I can see that the amount of data coming in to the reduce jobs varies greatly. What is the reason, and how do I make the split more uniform?**
 
-The large amounts of data may be the result of skewed input meaning that some keys have noticeably more data corresponding to them than others. In this case, you might want to come up with a different solution for the problem being worked, such as try using [combiners](../../../user-guide/data-processing/operations/reduce.md#rabota-s-bolshimi-klyuchami-—-reduce_combiner).
+The large amounts of data may be the result of skewed input meaning that some keys have noticeably more data corresponding to them than others. In this case, you might want to come up with a different solution for the problem being worked, such as try using [combiners](../../user-guide/data-processing/operations/reduce.md#rabota-s-bolshimi-klyuchami-—-reduce_combiner).
 
-If the error arises in a [Reduce](../../../user-guide/data-processing/operations/reduce.md) whose input includes more than one table (normally, dozens or hundreds), the scheduler may not have enough samples to break input data down more precisely and achieve uniformity. It is a good idea to utilize [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md) instead of [Reduce](../../../user-guide/data-processing/operations/reduce.md) in this case.
+If the error arises in a [Reduce](../../user-guide/data-processing/operations/reduce.md) whose input includes more than one table (normally, dozens or hundreds), the scheduler may not have enough samples to break input data down more precisely and achieve uniformity. It is a good idea to utilize [MapReduce](../../user-guide/data-processing/operations/mapreduce.md) instead of [Reduce](../../user-guide/data-processing/operations/reduce.md) in this case.
 
 ------
 #### **Q: A running Sort or MapReduce generates "Intermediate data skew is too high (see "Partitions" tab). Operation is likely to have stragglers». What should I do?** { #intermediatedataskew }
 
-**A:** This means that partitioning broke data down in a grossly non-uniform manner. For a [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md), this makes an input data skew highly likely (some keys have noticeably more data corresponding to them than others).
+**A:** This means that partitioning broke data down in a grossly non-uniform manner. For a [MapReduce](../../user-guide/data-processing/operations/mapreduce.md), this makes an input data skew highly likely (some keys have noticeably more data corresponding to them than others).
 
-This is also possible for a [Sort](../../../user-guide/data-processing/operations/sort.md) and is related to the nature of the data and the sampling method. There is no simple solution for this issue as far as [Sort](../../../user-guide/data-processing/operations/sort.md) is concerned. We recommend contacting the system administrator.
+This is also possible for a [Sort](../../user-guide/data-processing/operations/sort.md) and is related to the nature of the data and the sampling method. There is no simple solution for this issue as far as [Sort](../../user-guide/data-processing/operations/sort.md) is concerned. We recommend contacting the system administrator.
 
 ------
 #### **Q: How do I reduce the limit on job crashes that causes the entire operation to end in an error?**
 
-**A:** The limit is controlled by the `max_failed_job_count` setting. For more information, see [Operation settings.](../../../user-guide/data-processing/operations/operations-options.md)
+**A:** The limit is controlled by the `max_failed_job_count` setting. For more information, see [Operation settings.](../../user-guide/data-processing/operations/operations-options.md)
 
 ------
 #### **Q: The operation page displays "Average job duration is smaller than 25 seconds, try increasing data_size_per_job in operation spec"?** { #shortjobsduration }
@@ -200,7 +202,7 @@ This is also possible for a [Sort](../../../user-guide/data-processing/operation
    * For `partition` jobs: `data_size_per_partition_job`.
    * For `final_sort` jobs: `partition_data_size`.
 
-The default values are listed in the [sections](../../../user-guide/data-processing/operations/overview.md) on specific operation types.
+The default values are listed in the [sections](../../user-guide/data-processing/operations/overview.md) on specific operation types.
 
 ------
 #### **Q: The operation page is displaying "Aborted jobs time ratio ... is is too high. Scheduling is likely to be inefficient. Consider increasing job count to make individual jobs smaller"?** { #longabortedjobs }
@@ -230,7 +232,7 @@ Or simply read the data:
 ------
 #### **Q: A running operation remains in pending mode a long time. When will it execute?** { #operationpending }
 
-**A:** The {{product-name}} system has a limitation on the number of concurrently **executing** operations in each pool (as opposed to operations launched, or accepted for execution). By default, this limit is not large (around 10). Whenever a pool's limit on the number of executing operations is reached, new operations are queued. Queued operations will proceed when previous operations in the same pool exit. The limit on the number of executing operations is applicable at all levels of the pool hierarchy, that is to say, that if an operation is launched in pool A, it may be classified as pending not only if the limit is reached in pool A itself but also in any of pool A's parents. For more information on pools and pool configuration, please see [Scheduler and pools](../../../user-guide/data-processing/scheduler/scheduler-and-pools.md). If there is a reasonable need to run more operations concurrently, you need to send a request to the system administrator.
+**A:** The {{product-name}} system has a limitation on the number of concurrently **executing** operations in each pool (as opposed to operations launched, or accepted for execution). By default, this limit is not large (around 10). Whenever a pool's limit on the number of executing operations is reached, new operations are queued. Queued operations will proceed when previous operations in the same pool exit. The limit on the number of executing operations is applicable at all levels of the pool hierarchy, that is to say, that if an operation is launched in pool A, it may be classified as pending not only if the limit is reached in pool A itself but also in any of pool A's parents. For more information on pools and pool configuration, please see [Scheduler and pools](../../user-guide/data-processing/scheduler/scheduler-and-pools.md). If there is a reasonable need to run more operations concurrently, you need to send a request to the system administrator.
 
 ------
 #### **Q: A running operation generates the following warning: "Excessive job spec throttling is detected". What does it mean?** { #excessivejobspecthrottling }
@@ -240,7 +242,7 @@ Or simply read the data:
 ------
 #### **Q: A running operation generates the following message: "Average cpu usage... is lower than requested 'cpu_limit'». What does it mean?** { #lowcpuusage }
 
-**A:** The message means that the operation is using much less CPU than requested. By default, a single HyperThreading core is requested. This results in an operation blocking more CPU resources than it is using thereby making the use of the pool's CPU quota inefficient. If this behavior is expected, you should reduce the operation's cpu_limit (you can set it to a fraction), or else, you might review the operation jobs' runtime [statistics](../../../user-guide/problems/jobstatistics.md) profiling the job while it is running to understand what it is doing.
+**A:** The message means that the operation is using much less CPU than requested. By default, a single HyperThreading core is requested. This results in an operation blocking more CPU resources than it is using thereby making the use of the pool's CPU quota inefficient. If this behavior is expected, you should reduce the operation's cpu_limit (you can set it to a fraction), or else, you might review the operation jobs' runtime [statistics](../../user-guide/problems/jobstatistics.md) profiling the job while it is running to understand what it is doing.
 
 ------
 #### **Q: A running operation displays the following warning: "Estimated duration of this operation is about ... days". What does it mean?** { #operationtoolong }
@@ -261,7 +263,7 @@ Or simply read the data:
 ------
 #### **Q: A running operation generates warning "Operation has jobs that use less than F% of requested tmpfs size". What does it mean?** { #unusedtmpfsspace }
 
-**A:** You request a tmpfs for jobs in the specification (you can view the warning attributes to find out which specific jobs) but are not using the entire file system (apart from certain thresholds). tmpfs size is included into the memory limit, which means that a job requests a lot of memory but does not use it in the end. First, this reduces actual memory utilization in your cluster. Second, large tmpfs requests may slow down job scheduling since it is much more likely that the cluster will have a slot with 1 GB of memory than one with 15 GB. You should order as much tmpfs as your jobs actually need. You can review warning attributes or look at the [statistic](../../../user-guide/problems/jobstatistics.md) for `user_job/tmpfs_size` to find out about actual use of tmpfs by jobs.
+**A:** You request a tmpfs for jobs in the specification (you can view the warning attributes to find out which specific jobs) but are not using the entire file system (apart from certain thresholds). tmpfs size is included into the memory limit, which means that a job requests a lot of memory but does not use it in the end. First, this reduces actual memory utilization in your cluster. Second, large tmpfs requests may slow down job scheduling since it is much more likely that the cluster will have a slot with 1 GB of memory than one with 15 GB. You should order as much tmpfs as your jobs actually need. You can review warning attributes or look at the [statistic](../../user-guide/problems/jobstatistics.md) for `user_job/tmpfs_size` to find out about actual use of tmpfs by jobs.
 
 ------
 #### **Q: When I lunch an operation, I get error "No online node can satisfy the resource demand". What do I do?**
@@ -276,9 +278,9 @@ Or simply read the data:
 
 **A:** When jobs are bing built, the scheduler estimates that one job is getting too much data (hundreds of gigabytes), and the scheduler is unable to make a smaller job. The following options are available:
 
-* When you are using [Reduce](../../../user-guide/data-processing/operations/reduce.md), and the input table has a monster key meaning that a single row in the first table corresponds to a large number of rows in another, as a result of the [Reduce](../../../user-guide/data-processing/operations/reduce.md) guarantee, all rows with this key must go into a single job, and the job will run indefinitely. You should use [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md) with the trivial mapper and the reduce combiner to pre-process monster keys.
-* There are very many input tables being fed to an operation (100 or more) because chunks at the range boundary are not being counted precisely. The general observation is that the more input tables the less efficient the use of sorted input. You may want to use [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md).
-* When using [Merge](../../../user-guide/data-processing/operations/merge.md), this error may result from suboptimal scheduler operation. You should contact the mailbox `community@ytsaurus.tech`.
+* When you are using [Reduce](../../user-guide/data-processing/operations/reduce.md), and the input table has a monster key meaning that a single row in the first table corresponds to a large number of rows in another, as a result of the [Reduce](../../user-guide/data-processing/operations/reduce.md) guarantee, all rows with this key must go into a single job, and the job will run indefinitely. You should use [MapReduce](../../user-guide/data-processing/operations/mapreduce.md) with the trivial mapper and the reduce combiner to pre-process monster keys.
+* There are very many input tables being fed to an operation (100 or more) because chunks at the range boundary are not being counted precisely. The general observation is that the more input tables the less efficient the use of sorted input. You may want to use [MapReduce](../../user-guide/data-processing/operations/mapreduce.md).
+* When using [Merge](../../user-guide/data-processing/operations/merge.md), this error may result from suboptimal scheduler operation. You should contact the mailbox `community@ytsaurus.tech`.
 
 The above recommendations notwithstanding, if you are certain that you would like to launch the operation anyway and are ready for it to take a very long time, you can increase the value of the `max_data_weight_per_job` parameter, which will start the operation.
 

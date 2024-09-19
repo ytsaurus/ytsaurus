@@ -1,1 +1,0 @@
-{% include [FAQ CHYT](../../_includes/user-guide/faq/_includes/faq-chyt.md) %}

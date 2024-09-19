@@ -1,3 +1,5 @@
+# FAQ
+
 #### **Q: Can I put an arbitrary YSON structure in a table cell?**
 
 **A:** Yes. You can use columns of type `any`.
@@ -6,7 +8,7 @@
 
 #### **Q: Can I modify a table's schema?**
 
-**A:** Yes. You can find examples and limits in the [Table schema](../../../user-guide/storage/static-schema.md#create) section.
+**A:** Yes. You can find examples and limits in the [Table schema](../../user-guide/storage/static-schema.md#create) section.
 
 ------
 
@@ -24,17 +26,17 @@ yt unmount-table --sync //home/path/to/table
 yt set //home/path/to/table/@primary_medium ssd_blobs
 yt mount-table --sync //home/path/to/table
 ```
-Immediately after you set the attribute, new data will start writing to an SSD while old data will be moved in the background. For more information about controlling this process and tracking its progress, please see the section on [static tables](../../../user-guide/storage/static-tables.md#medium).
+Immediately after you set the attribute, new data will start writing to an SSD while old data will be moved in the background. For more information about controlling this process and tracking its progress, please see the section on [static tables](../../user-guide/storage/static-tables.md#medium).
 
 ------
 #### **Q: What do I do if table reads are slow?**
 
-**A:** There is a [dedicated page](../../../user-guide/problems/slow-read.md) about this.
+**A:** There is a [dedicated page](../../user-guide/problems/slow-read.md) about this.
 
 ------
 #### **Q: How do I reduce the number of chunks I am using in my quota?**
 
-**A**: If these chunks are taken up by tables (which is the most common scenario), you need to run a [Merge](../../../user-guide/data-processing/operations/merge.md) with `combine_chunks = %true`.
+**A**: If these chunks are taken up by tables (which is the most common scenario), you need to run a [Merge](../../user-guide/data-processing/operations/merge.md) with `combine_chunks = %true`.
 This will rebuild your table from larger chunks, thereby reducing the use of chunks within your quota. You can use a command-line command to run the operation replacing `src table` and `dst table`:
 
 ```
@@ -48,4 +50,4 @@ Also, files may use many chunks in certain situations. For instance, when small 
 ------
 #### **Q: I am getting the Format "YamredDsv" is disabled error. What should I do?**
 
-**A:** The `YAMRED_DSV` format is no longer supported. Use a different [format](../../../user-guide/storage/formats.md#formaty-predstavleniya-tablichnyh-dannyh).
+**A:** The `YAMRED_DSV` format is no longer supported. Use a different [format](../../user-guide/storage/formats.md#formaty-predstavleniya-tablichnyh-dannyh).

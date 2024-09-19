@@ -1,3 +1,5 @@
+# FAQ
+
 #### **Q: When working with dynamic tables from Python API or C++ API, I get the "Sticky transaction 1935-3cb03-4040001-e8723e5a is not found" error, what should I do?**
 
 **A:** The answer depends on how the transactions are used. If a master transaction is used, then this is a pointless action and you must set the query outside the transaction. To do this, you can either create a separate client or explicitly specify that the query must be run under a null transaction (`with client.Transaction(transaction_id="0-0-0-0"): ...`).
@@ -16,7 +18,7 @@ Full use of tablet transactions in Python API is only possible via RPC-proxy (`y
 ------
 #### **Q: When querying a dynamic table, I get the "Maximum block size limit violated" error**
 
-**A:** The query involves a dynamic table once converted from a static table. The `block_size` parameter was not specified. If you receive an error like this, make sure you follow all the instructions from the [section](../../../user-guide/dynamic-tables/mapreduce.md) about converting a static table into a dynamic table. If block size is large, you need to increase `max_unversioned_block_size` to 32 MB and re-mount the table. This can happen, if the table's cells store large binary data that are stored in a single block in their entirety.
+**A:** The query involves a dynamic table once converted from a static table. The `block_size` parameter was not specified. If you receive an error like this, make sure you follow all the instructions from the [section](../../user-guide/dynamic-tables/mapreduce.md) about converting a static table into a dynamic table. If block size is large, you need to increase `max_unversioned_block_size` to 32 MB and re-mount the table. This can happen, if the table's cells store large binary data that are stored in a single block in their entirety.
 
 ------
 #### **Q: When querying a dynamic table, I get the "Too many overlapping stores in tablet" error**
@@ -31,7 +33,7 @@ Full use of tablet transactions in Python API is only possible via RPC-proxy (`y
 ------
 #### **Q: When querying a dynamic table, I get the "Too many stores in tablet, all writes disabled" error**
 
-**A:** The tablet is too large. Get the table to have more tablets. Note that [auto-sharding](../../../user-guide/dynamic-tables/tablet-balancing.md) limits the number of tablets to the number of cells multiplied by the value of the `tablet_balancer_config/tablet_to_cell_ratio` parameter.
+**A:** The tablet is too large. Get the table to have more tablets. Note that [auto-sharding](../../user-guide/dynamic-tables/tablet-balancing.md) limits the number of tablets to the number of cells multiplied by the value of the `tablet_balancer_config/tablet_to_cell_ratio` parameter.
 
 ------
 #### **Q: When querying a dynamic table, I get the error "Tablet ... is not known"**
@@ -51,7 +53,7 @@ Full use of tablet transactions in Python API is only possible via RPC-proxy (`y
 ------
 #### **Q: In tablet_errors, I see the "Too many write timestamps in a versioned row" or "Too many delete timestamps in a versioned row" error**
 
-**A:** Sorted dynamic tables store many versions of the same value at the same time. In lookup format, each key can have no more than 2^16 versions. A simple solution is to use a column format (`@optimize_for = scan`). In reality, such a large number of versions is not necessary and they occur as a result of misconfiguration or a programming error. For example, when specifying `atomicity=none`, you can update the same table key with great frequency (in this mode, there is no row locking and transactions with overlapping time ranges can update the same key). This is not recommended. If writing a large number of versions results from a product need, such as frequent delta writes in aggregation columns, set the `@merge_rows_on_flush=%true` table attribute and correctly [configure TTL deletion](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#remove_old_data) so that only a small number of actually needed versions are written to the chunk in a flush.
+**A:** Sorted dynamic tables store many versions of the same value at the same time. In lookup format, each key can have no more than 2^16 versions. A simple solution is to use a column format (`@optimize_for = scan`). In reality, such a large number of versions is not necessary and they occur as a result of misconfiguration or a programming error. For example, when specifying `atomicity=none`, you can update the same table key with great frequency (in this mode, there is no row locking and transactions with overlapping time ranges can update the same key). This is not recommended. If writing a large number of versions results from a product need, such as frequent delta writes in aggregation columns, set the `@merge_rows_on_flush=%true` table attribute and correctly [configure TTL deletion](../../user-guide/dynamic-tables/sorted-dynamic-tables.md#remove_old_data) so that only a small number of actually needed versions are written to the chunk in a flush.
 
 ------
 #### **Q: When querying Select Rows, I get the "Maximum expression depth exceeded" error**
@@ -76,12 +78,12 @@ There are a few problems with the first option. The problem is that queries are 
 
 ------
 #### **Q: I get the "No healthy tablet cells in bundle" error after creating a bundle**
-**A:** If this error occurs after you create a bundle, check whether you [allocated](../../../user-guide/dynamic-tables/dynamic-tables-resources#upravlenie-instansami) instances within the bundle. You can find them in the "Instances" tab of the bundle's page.
+**A:** If this error occurs after you create a bundle, check whether you [allocated](../../user-guide/dynamic-tables/dynamic-tables-resources#upravlenie-instansami) instances within the bundle. You can find them in the "Instances" tab of the bundle's page.
 {% endif %}
 ------
 #### **Q: How do I clear a replicated table using a CLI?**
 
-**A:** You can't clear a replicated table atomically, but you can clear individual replicas using the [Erase](../../../user-guide/data-processing/operations/erase.md) operation. To do this, you need to [enable](../../../user-guide/dynamic-tables/bulk-insert.md) bulk insert for the entire cluster by setting:
+**A:** You can't clear a replicated table atomically, but you can clear individual replicas using the [Erase](../../user-guide/data-processing/operations/erase.md) operation. To do this, you need to [enable](../../user-guide/dynamic-tables/bulk-insert.md) bulk insert for the entire cluster by setting:
 
 - `//sys/@config/tablet_manager/enable_bulk_insert` to `%true`
 - `//sys/controller_agents/config/enable_bulk_insert_for_everyone` to `%true` (note the missing `@` symbol)
@@ -99,7 +101,7 @@ $ yt create document //sys/controller_agents/config --attributes '{value={}}'
 
 **A:** This error occurs due to read-write conflicts – you attempt to read by a key used by a concurrent transaction. The system must wait for the result of that transaction to ensure the required level of isolation between transactions.
 
-If you don't require strict consistency, you can [weaken](../../../user-guide/dynamic-tables/sorted-dynamic-tables#chtenie-stroki) the isolation level for the reading transaction.
+If you don't require strict consistency, you can [weaken](../../user-guide/dynamic-tables/sorted-dynamic-tables#chtenie-stroki) the isolation level for the reading transaction.
 
 ------
 #### **Q: When writing to a dynamic table, I get the "Row lock conflict due to concurrent ... write" error**
@@ -108,4 +110,4 @@ If you don't require strict consistency, you can [weaken](../../../user-guide/dy
 
 In general, to eliminate conflicts caused by writing to the same key from multiple locations, you need to revise your logic for writing to dynamic tables.
 
-In some scenarios, weakening [guarantees](../../../user-guide/dynamic-tables/transactions#conflicts) may help. For example, you can use `atomicity=none` mode or shared write lock mode. Before you weaken the guarantees, be sure to read the documentation to find out whether the side effects can impact you.
+In some scenarios, weakening [guarantees](../../user-guide/dynamic-tables/transactions#conflicts) may help. For example, you can use `atomicity=none` mode or shared write lock mode. Before you weaken the guarantees, be sure to read the documentation to find out whether the side effects can impact you.
