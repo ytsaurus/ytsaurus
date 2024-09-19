@@ -513,7 +513,7 @@ public:
     NApi::TFileWriterConfigPtr ErrorFileWriter;
 
     i64 BufferRowCount;
-    bool UseAdaptiveRowCount;
+    std::optional<bool> UseAdaptiveRowCount;
     std::optional<int> PipeCapacity;
     bool UseDeliveryFencedPipeWriter;
 
