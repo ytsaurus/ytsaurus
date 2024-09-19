@@ -69,12 +69,12 @@ public:
     bool IsBalancingAllowed(const TGlobalGroupTag& groupTag) const
     {
         auto now = Now();
-        if (now - InstanceStartTime_ < TimeoutOnStart_) {
+        if (now - InstanceStartTime_ < TimeoutOnStart_.load()) {
             return false;
         }
 
         auto it = GroupToLastBalancingTime_.find(groupTag);
-        return it == GroupToLastBalancingTime_.end() || now - it->second >= Timeout_;
+        return it == GroupToLastBalancingTime_.end() || now - it->second >= Timeout_.load();
     }
 
     void Start()
@@ -88,9 +88,15 @@ public:
         GroupToLastBalancingTime_[groupTag] = Now();
     }
 
+    void Reconfigure(TDuration timeoutOnStart, TDuration timeout)
+    {
+        TimeoutOnStart_.store(timeoutOnStart);
+        Timeout_.store(timeout);
+    }
+
 private:
-    const TDuration TimeoutOnStart_;
-    const TDuration Timeout_;
+    std::atomic<TDuration> TimeoutOnStart_;
+    std::atomic<TDuration> Timeout_;
     TInstant InstanceStartTime_;
     THashMap<TGlobalGroupTag, TInstant> GroupToLastBalancingTime_;
 };
@@ -577,6 +583,9 @@ void TTabletBalancer::OnDynamicConfigChanged(
     }
 
     ActionManager_->Reconfigure(newConfig->ActionManager);
+    ParameterizedBalancingScheduler_.Reconfigure(
+        newConfig->ParameterizedTimeoutOnStart.value_or(Config_->ParameterizedTimeoutOnStart),
+        newConfig->ParameterizedTimeout.value_or(Config_->ParameterizedTimeout));
 
     YT_LOG_DEBUG(
         "Updated tablet balancer dynamic config (OldConfig: %v, NewConfig: %v)",
