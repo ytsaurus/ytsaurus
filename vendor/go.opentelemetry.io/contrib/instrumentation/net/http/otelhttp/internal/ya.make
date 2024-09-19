@@ -1,0 +1,4 @@
+RECURSE(
+    semconv
+    semconvutil
+)
