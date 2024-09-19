@@ -149,6 +149,7 @@ func NewApp[UserConfigType any]() (app App, userConfig *UserConfigType, err erro
 			err = fmt.Errorf("cannot parse configuration: %w", err)
 			return
 		}
+
 		return
 	}
 
