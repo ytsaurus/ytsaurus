@@ -1,0 +1,10 @@
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TInputMessage {
+    optional string Value = 1 [(NYT.column_name) = "value"];
+}
+
+message TOutputMessage {
+    optional string Value = 1 [(NYT.column_name) = "value"];
+    optional int32 Size = 2 [(NYT.column_name) = "size"];
+}
