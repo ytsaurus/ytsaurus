@@ -75,6 +75,13 @@ private:
     NProfiling::TEventTimer TimeBetweenAcknowledgedHeartbeatsCounter_;
     NProfiling::TEventTimer TimeBetweenFullyProcessedHeartbeatsCounter_;
 
+    NProfiling::TCounter PendingResourceHolderHeartbeatSkippedCounter_;
+    NProfiling::TCounter NotEnoughResourcesHeartbeatSkippedCounter_;
+
+    NProfiling::TCounter ResourcesAcquiredHeartbeatRequestedCounter_;
+    NProfiling::TCounter ResourcesReleasedHeartbeatRequestedCounter_;
+    NProfiling::TCounter AllocationFinishedHeartbeatRequestedCounter_;
+
     THashSet<TAllocationPtr> FinishedAllocations_;
 
     const NTracing::TSamplerPtr TracingSampler_;

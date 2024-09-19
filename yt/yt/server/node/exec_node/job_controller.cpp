@@ -120,13 +120,14 @@ public:
         , TmpfsLimitGauge_(Profiler_.Gauge("/tmpfs/limit"))
         , JobProxyMaxMemoryGauge_(Profiler_.Gauge("/job_proxy_max_memory"))
         , UserJobMaxMemoryGauge_(Profiler_.Gauge("/user_job_max_memory"))
+        , JobCleanupTimer_(Profiler_.TimeHistogram("/job_cleanup_duration", GetJobCleanupTimerBounds()))
     {
         YT_VERIFY(Bootstrap_);
 
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
         Profiler_.AddProducer("/gpu_utilization", GpuUtilizationBuffer_);
-        Profiler_.AddProducer("", ActiveJobCountBuffer_);
+        Profiler_.AddProducer("", JobCountBuffer_);
     }
 
     void Initialize() override
@@ -501,6 +502,13 @@ public:
         JobProxyExitProfiler_.OnProcessExit(error, delay);
     }
 
+    void OnJobCleanupFinished(TDuration duration) final
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        JobCleanupTimer_.Record(duration);
+    }
+
     void EvictThrottlingRequest(TGuid id)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -567,7 +575,7 @@ private:
     TProfiler Profiler_;
     TProcessExitProfiler JobProxyExitProfiler_;
     TBufferedProducerPtr GpuUtilizationBuffer_ = New<TBufferedProducer>();
-    TBufferedProducerPtr ActiveJobCountBuffer_ = New<TBufferedProducer>();
+    TBufferedProducerPtr JobCountBuffer_ = New<TBufferedProducer>();
     THashMap<EJobState, TCounter> JobFinalStateCounters_;
 
     // Chunk cache counters.
@@ -579,6 +587,8 @@ private:
     TGauge TmpfsLimitGauge_;
     TGauge JobProxyMaxMemoryGauge_;
     TGauge UserJobMaxMemoryGauge_;
+
+    TEventTimer JobCleanupTimer_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ResourceAdjustmentExecutor_;
@@ -768,11 +778,12 @@ private:
         static const TString jobProxyMaxMemorySensorName = "/job_proxy/max_memory/sum";
         static const TString userJobMaxMemorySensorName = "/user_job/max_memory/sum";
 
-        ActiveJobCountBuffer_->Update([this] (ISensorWriter* writer) {
+        JobCountBuffer_->Update([this] (ISensorWriter* writer) {
             TWithTagGuard tagGuard(writer, "origin", FormatEnum(EJobOrigin::Scheduler));
 
             writer->AddGauge("/active_job_count", std::size(IdToJob_));
             writer->AddGauge("/allocation_count", std::size(IdToAllocations_));
+            writer->AddGauge("/waiting_allocation_count", std::size(AllocationsWaitingForResources_));
 
             int runningJobCount = 0;
             for (const auto& [_, allocation] : IdToAllocations_) {
@@ -2270,6 +2281,16 @@ private:
             std::vector{
                 std::move(staticOrchidService),
                 std::move(dynamicOrchidService)});
+    }
+
+    static std::vector<TDuration> GetJobCleanupTimerBounds()
+    {
+        return {
+            TDuration::Seconds(1),
+            TDuration::Seconds(5),
+            TDuration::Seconds(30),
+            TDuration::Seconds(120),
+        };
     }
 };
 
