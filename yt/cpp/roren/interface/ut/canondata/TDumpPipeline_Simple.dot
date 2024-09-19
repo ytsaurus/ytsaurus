@@ -1,0 +1,7 @@
+digraph pipeline {
+    "MeaningfulRead" [shape=box];
+    "MeaningfulRead" -> "MeaningfulParDo" [label = "id=0, type=\"long\""];
+    "MeaningfulParDo" [shape=box];
+    "MeaningfulParDo" -> "MeaningfulWrite" [label = "id=1, type=\"unsigned long\""];
+    "MeaningfulWrite" [shape=box];
+}
