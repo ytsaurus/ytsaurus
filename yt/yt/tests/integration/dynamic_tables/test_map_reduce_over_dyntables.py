@@ -597,6 +597,186 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         check_all_operations(error_checker, only_input_query=True)
 
+    @authors("dave11ar")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("enable_dynamic_store_read", [False, True])
+    def test_versioned_map_reduce_write(self, enable_dynamic_store_read):
+        versioned_read_options = {"read_mode": "latest_timestamp"}
+        operation_read_options = "<versioned_read_options={read_mode=latest_timestamp}>"
+        operation_write_options = "<versioned_write_options={write_mode=latest_timestamp}>"
+
+        input = "//tmp/t_input"
+        default_schema = [
+            {"name": "k", "type": "int64", "sort_order": "ascending"},
+            {"name": "v1", "type": "int64"},
+            {"name": "v2", "type": "int64"},
+            {"name": "v3", "type": "int64"},
+        ]
+
+        sync_create_cells(1)
+
+        create_dynamic_table(input, schema=default_schema, enable_dynamic_store_read=enable_dynamic_store_read)
+        sync_mount_table(input)
+
+        def check_all_operations(checker, only_input_query=False):
+            checker(map, command="cat")
+            checker(merge, mode="ordered")
+            if not only_input_query:
+                checker(reduce, reduce_by="k", command="cat")
+                checker(map_reduce, reduce_by="k", mapper_command="cat", reducer_command="cat")
+
+                with raises_yt_error('Versioned write mode "latest_timestamp" is not supported for sort operation'):
+                    checker(sort, sort_by="k")
+
+        eq_timestamp_rows_count = 10
+        rows = [{"k": i, "v1": i * 2, "v2": i * 3, "v3": i * 4} for i in range(eq_timestamp_rows_count)]
+        insert_rows(input, rows)
+
+        insert_rows(input, [{"k": eq_timestamp_rows_count, "v1": 1, "v2": 2, "v3": 3}])
+        insert_rows(input, [{"k": eq_timestamp_rows_count, "v2": 4}], update=True)
+        insert_rows(input, [{"k": eq_timestamp_rows_count, "v3": 5}], update=True)
+        sync_flush_table(input)
+
+        def create_output_table(schema):
+            output = f"//tmp/t_output{generate_uuid()}"
+            create_dynamic_table(output, schema=schema)
+            sync_mount_table(output)
+            return output
+
+        def get_input_schema(input_schema_columns):
+            return (
+                [{"name": name, "type": "uint64" if name.startswith("$timestamp:") else "int64"} for name in input_schema_columns]
+                if input_schema_columns is not None
+                else None
+            )
+
+        def get_v_ts(i):
+            return select_rows(
+                f"[$timestamp:v{i}] as t from [{input}] where k = {eq_timestamp_rows_count}",
+                versioned_read_options=versioned_read_options,
+            )[0]["t"]
+
+        def check_single_ts(i):
+            output = create_output_table(default_schema)
+
+            def checker(operation, **args):
+                operation(
+                    in_=f"{operation_read_options}{input}",
+                    out=f"{operation_write_options}{output}",
+                    **args,
+                )
+
+                row = select_rows(
+                    f"k from [{output}] where [$timestamp:v{i}] = {get_v_ts(i)}",
+                    versioned_read_options=versioned_read_options,
+                )
+                assert len(row) == 1
+                assert row[0]["k"] == eq_timestamp_rows_count
+
+            check_all_operations(checker)
+
+        check_single_ts(1)
+        check_single_ts(2)
+        check_single_ts(3)
+
+        def chunk_view_timestamp_checker(input_query, input_schema_columns, no_ts_column):
+            output = create_output_table(default_schema)
+
+            def checker(operation, **args):
+                operation(
+                    in_=f"{operation_read_options}{input}",
+                    out=f"{operation_write_options}{output}",
+                    spec={
+                        "input_query": input_query,
+                        "input_schema": get_input_schema(input_schema_columns),
+                    },
+                    **args,
+                )
+
+                column_ts = f"$timestamp:{no_ts_column}"
+
+                def get_query(path):
+                    return f"[{column_ts}] from [{path}] where k = {eq_timestamp_rows_count}"
+
+                input_row = select_rows(
+                    get_query(input),
+                    versioned_read_options=versioned_read_options,
+                )
+
+                rows = select_rows(
+                    get_query(output),
+                    versioned_read_options=versioned_read_options,
+                )
+                assert len(rows) == 1
+                assert rows[0][column_ts] > input_row[0][column_ts]
+
+            check_all_operations(checker, only_input_query=True)
+
+        chunk_view_timestamp_checker(
+            "k, v1, v2, v3, [$timestamp:v1], [$timestamp:v2]",
+            ["k", "v1", "v2", "v3", "$timestamp:v1", "$timestamp:v2"],
+            "v3",
+        )
+        chunk_view_timestamp_checker(
+            "k, v1, v2, v3, [$timestamp:v1], [$timestamp:v3]",
+            ["k", "v1", "v2", "v3", "$timestamp:v1", "$timestamp:v3"],
+            "v2",
+        )
+        chunk_view_timestamp_checker(
+            "k, v1, v2, v3, [$timestamp:v2], [$timestamp:v3]",
+            ["k", "v1", "v2", "v3", "$timestamp:v2", "$timestamp:v3"],
+            "v1",
+        )
+
+        def check_query(output_schema_columns, input_query, input_schema_columns, name_mapping):
+            output_schema = [{"name": output_schema_columns[0], "type": "int64", "sort_order": "ascending"}]
+            for i in range(1, len(output_schema_columns)):
+                output_schema.append({"name": output_schema_columns[i], "type": "int64"})
+
+            output = create_output_table(output_schema)
+
+            def checker(operation, **args):
+                operation(
+                    in_=f"{operation_read_options}{input}",
+                    out=f"{operation_write_options}{output}",
+                    spec={
+                        "input_query": input_query,
+                        "input_schema": get_input_schema(input_schema_columns),
+                    },
+                    **args,
+                )
+
+                input_columns = []
+                output_columns = []
+                for (i, o) in name_mapping.items():
+                    input_columns.append(i)
+                    output_columns.append(o)
+
+                def get_rows(path, key_column):
+                    return select_rows(
+                        f'* from [{path}] where {key_column} = {eq_timestamp_rows_count}',
+                        versioned_read_options=versioned_read_options,
+                    )
+
+                input_rows = get_rows(input, input_schema_columns[0])
+                output_rows = get_rows(output, output_schema_columns[0])
+
+                assert len(input_rows) == len(output_rows) == 1
+
+                for (i, o) in name_mapping.items():
+                    assert input_rows[0][i] == output_rows[0][o]
+                    if i != input_schema_columns[0]:
+                        assert input_rows[0][f"$timestamp:{i}"] == output_rows[0][f"$timestamp:{o}"]
+
+            check_all_operations(checker, only_input_query=True)
+
+        check_query(
+            output_schema_columns=["kk", "vv1", "vv2"],
+            input_query="k as kk, v1 as vv1, v2 as vv2, [$timestamp:v1] as [$timestamp:vv1], [$timestamp:v2] as [$timestamp:vv2]",
+            input_schema_columns=["k", "v1", "v2", "$timestamp:v1", "$timestamp:v2"],
+            name_mapping={"k": "kk", "v1": "vv1", "v2": "vv2"},
+        )
+
 
 ##################################################################
 

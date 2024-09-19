@@ -5,6 +5,7 @@
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/versioned_io_options.h>
 
 #include <yt/yt/client/security_client/public.h>
 
@@ -52,6 +53,7 @@ struct TTableUploadOptions
     TEpochSchema TableSchema;
     TMasterTableSchemaId SchemaId;
     ETableSchemaModification SchemaModification;
+    TVersionedWriteOptions VersionedWriteOptions;
     ETableSchemaMode SchemaMode;
     EOptimizeFor OptimizeFor;
     std::optional<NChunkClient::EChunkFormat> ChunkFormat;

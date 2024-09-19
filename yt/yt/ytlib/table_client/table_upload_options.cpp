@@ -101,6 +101,10 @@ void TTableUploadOptions::Persist(const NPhoenix::TPersistenceContext& context)
     }
     Persist(context, SchemaId);
     Persist(context, SchemaModification);
+    // COMPAT(dave11ar): NControllerAgent::ESnapshotVersion::VersionedMapReduceWrite
+    if (context.GetVersion() >= 301515) {
+        Persist(context, VersionedWriteOptions);
+    }
     Persist(context, SchemaMode);
     Persist(context, OptimizeFor);
     // COMPAT(babenko): NControllerAgent::ESnapshotVersion::ChunkFormat
@@ -314,6 +318,21 @@ TTableUploadOptions GetTableUploadOptions(
             << TErrorAttribute("path", path);
     }
     result.SchemaModification = path.GetSchemaModification();
+
+    auto versionedWriteOptions = path.GetVersionedWriteOptions();
+    if (!dynamic && versionedWriteOptions.WriteMode != EVersionedIOMode::Default) {
+        THROW_ERROR_EXCEPTION("YPath attribute \"versioned_write_options/write_mode\" can have value %Qlv only for dynamic tables",
+            versionedWriteOptions.WriteMode)
+            << TErrorAttribute("path", path);
+    }
+    if (versionedWriteOptions.WriteMode != EVersionedIOMode::Default && path.GetSchemaModification() != ETableSchemaModification::None) {
+        THROW_ERROR_EXCEPTION("YPath attributes \"versioned_write_options/write_mode\" and \"schema_modification\""
+            "can not be set in non-trivial state together: \"versioned_write_options/write_mode\" is %Qlv, \"schema_modification\" is %Qlv",
+            versionedWriteOptions.WriteMode,
+            path.GetSchemaModification())
+            << TErrorAttribute("path", path);
+    }
+    result.VersionedWriteOptions = versionedWriteOptions;
 
     if (!dynamic && path.GetPartiallySorted()) {
         THROW_ERROR_EXCEPTION("YPath attribute \"partially_sorted\" can be set only for dynamic tables")

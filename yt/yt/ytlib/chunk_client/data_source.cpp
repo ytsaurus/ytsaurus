@@ -108,6 +108,7 @@ void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource
     }
 
     ToProto(protoDataSource->mutable_versioned_read_options(), dataSource.GetVersionedReadOptions());
+    ToProto(protoDataSource->mutable_versioned_write_options(), dataSource.GetVersionedWriteOptions());
 }
 
 void FromProto(
@@ -181,6 +182,9 @@ void FromProto(
 
     if (protoDataSource.has_versioned_read_options()) {
         dataSource->SetVersionedReadOptions(FromProto<TVersionedReadOptions>(protoDataSource.versioned_read_options()));
+    }
+    if (protoDataSource.has_versioned_write_options()) {
+        dataSource->SetVersionedWriteOptions(FromProto<TVersionedWriteOptions>(protoDataSource.versioned_write_options()));
     }
 }
 
