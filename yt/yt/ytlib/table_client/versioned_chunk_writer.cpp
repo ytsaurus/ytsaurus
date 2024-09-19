@@ -4,7 +4,6 @@
 #include "chunk_meta_extensions.h"
 #include "config.h"
 #include "helpers.h"
-#include "private.h"
 #include "row_merger.h"
 #include "versioned_block_writer.h"
 #include "versioned_row_digest.h"
@@ -33,6 +32,7 @@
 #include <yt/yt/client/table_client/versioned_writer.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/core/misc/range.h>
 #include <yt/yt/core/misc/random.h>

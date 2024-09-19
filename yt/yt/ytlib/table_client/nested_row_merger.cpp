@@ -1,12 +1,12 @@
 #include "nested_row_merger.h"
 #include "config.h"
-#include "private.h"
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/unversioned_value.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/core/misc/heap.h>
 

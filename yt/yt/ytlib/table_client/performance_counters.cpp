@@ -1,8 +1,8 @@
 #include "performance_counters.h"
-#include "private.h"
 
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 

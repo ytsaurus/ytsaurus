@@ -1,6 +1,5 @@
 #include "helpers.h"
 #include "config.h"
-#include "private.h"
 #include "schemaless_chunk_writer.h"
 #include "schemaless_multi_chunk_reader.h"
 #include "table_ypath_proxy.h"
@@ -38,6 +37,7 @@
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 

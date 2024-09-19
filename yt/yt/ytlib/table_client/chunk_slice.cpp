@@ -1,6 +1,5 @@
 #include "chunk_slice.h"
 
-#include "private.h"
 #include "chunk_meta_extensions.h"
 #include "key_set.h"
 
@@ -10,6 +9,7 @@
 #include <yt/yt/client/table_client/key_bound.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
 

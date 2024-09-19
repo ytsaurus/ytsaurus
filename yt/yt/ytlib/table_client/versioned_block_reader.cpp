@@ -1,5 +1,4 @@
 #include "versioned_block_reader.h"
-#include "private.h"
 #include "versioned_block_writer.h"
 #include "schemaless_block_reader.h"
 #include "hunks.h"
@@ -11,6 +10,7 @@
 
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 

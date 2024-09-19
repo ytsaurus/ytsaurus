@@ -2,7 +2,6 @@
 
 #include "chunk_meta_extensions.h"
 #include "key_set.h"
-#include "private.h"
 
 #include <yt/yt/ytlib/chunk_client/config.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
@@ -17,6 +16,7 @@
 #include <yt/yt/client/rpc/helpers.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 

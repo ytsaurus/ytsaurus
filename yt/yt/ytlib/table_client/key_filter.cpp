@@ -1,9 +1,9 @@
 #include "key_filter.h"
-#include "private.h"
 
 #include <yt/yt/ytlib/table_client/config.h>
 
 #include <yt/yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/library/xor_filter/xor_filter.h>
 
