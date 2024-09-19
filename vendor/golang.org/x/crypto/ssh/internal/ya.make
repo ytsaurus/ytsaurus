@@ -1,3 +1,0 @@
-RECURSE(
-    bcrypt_pbkdf
-)
