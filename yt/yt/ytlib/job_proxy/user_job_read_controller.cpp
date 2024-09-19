@@ -61,7 +61,7 @@ public:
         , OnNetworkRelease_(onNetworkRelease)
         , UserJobIOFactory_(userJobIOFactory)
         , UdfDirectory_(std::move(udfDirectory))
-        , Guesser_(JobSpecHelper_->GetJobIOConfig()->UseAdaptiveRowCount
+        , Guesser_(JobSpecHelper_->GetJobIOConfig()->UseAdaptiveRowCount.value_or(false)
             ? threshold
             : TDuration::Zero())
     {
