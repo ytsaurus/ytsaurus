@@ -4,7 +4,6 @@
 #include "chunk_meta_extensions.h"
 #include "config.h"
 #include "dictionary_compression_session.h"
-#include "private.h"
 #include "schemaless_chunk_reader.h"
 #include "schemaless_multi_chunk_reader.h"
 #include "versioned_chunk_writer.h"
@@ -24,6 +23,7 @@
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 

@@ -2,7 +2,6 @@
 #include "nested_row_merger.h"
 
 #include "config.h"
-#include "private.h"
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
@@ -12,6 +11,7 @@
 #include <yt/yt/client/table_client/versioned_row.h>
 
 #include <yt/yt/client/tablet_client/watermark_runtime_data.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
 

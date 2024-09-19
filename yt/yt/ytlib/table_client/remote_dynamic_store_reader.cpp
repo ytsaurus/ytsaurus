@@ -1,6 +1,5 @@
 #include "remote_dynamic_store_reader.h"
 #include "schemaless_chunk_reader.h"
-#include "private.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -25,6 +24,7 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 #include <yt/yt/client/chunk_client/helpers.h>

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "private.h"
 #include "column_filter_dictionary.h"
 
 #include <yt/yt/client/table_client/columnar_statistics.h>
@@ -8,6 +7,8 @@
 #include <yt/yt/ytlib/chunk_client/fetcher.h>
 
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
+
+#include <yt/yt/client/table_client/private.h>
 
 namespace NYT::NTableClient {
 

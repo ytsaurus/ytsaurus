@@ -10,7 +10,6 @@
 #include "helpers.h"
 #include "hunks.h"
 #include "overlapping_reader.h"
-#include "private.h"
 #include "remote_dynamic_store_reader.h"
 #include "row_merger.h"
 #include "schemaless_block_reader.h"
@@ -56,6 +55,7 @@
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 

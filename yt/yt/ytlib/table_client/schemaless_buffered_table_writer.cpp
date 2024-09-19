@@ -1,5 +1,4 @@
 #include "schemaless_buffered_table_writer.h"
-#include "private.h"
 #include "config.h"
 #include "schemaless_chunk_writer.h"
 
@@ -8,6 +7,7 @@
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/client/ypath/rich.h>
 

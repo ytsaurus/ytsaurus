@@ -1,5 +1,4 @@
 #include "row_merger.h"
-#include "private.h"
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
@@ -7,6 +6,7 @@
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 

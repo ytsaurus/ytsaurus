@@ -1,7 +1,6 @@
 
 #include "schemaless_chunk_reader.h"
 #include "helpers.h"
-#include "private.h"
 #include "hunks.h"
 #include "chunk_reader_base.h"
 #include "chunk_state.h"
@@ -34,6 +33,7 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/numeric_helpers.h>

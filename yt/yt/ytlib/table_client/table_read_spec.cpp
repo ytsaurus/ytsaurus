@@ -1,6 +1,5 @@
 #include "table_read_spec.h"
 
-#include "private.h"
 #include "helpers.h"
 #include "chunk_meta_extensions.h"
 
@@ -15,6 +14,8 @@
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 

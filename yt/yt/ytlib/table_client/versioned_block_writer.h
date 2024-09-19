@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "private.h"
 #include "block.h"
 #include "chunk_index.h"
 #include "chunk_meta_extensions.h"
@@ -12,6 +11,7 @@
 
 #include <yt/yt/client/table_client/public.h>
 #include <yt/yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/core/misc/bitmap.h>
 

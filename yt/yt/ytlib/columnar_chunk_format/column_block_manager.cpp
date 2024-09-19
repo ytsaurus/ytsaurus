@@ -11,6 +11,7 @@
 
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/client/table_client/config.h>
 

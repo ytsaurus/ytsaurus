@@ -1,6 +1,6 @@
 #pragma once
 
-#include "private.h"
+#include <yt/yt/client/table_client/private.h>
 
 #include <library/cpp/yt/string/format.h>
 
