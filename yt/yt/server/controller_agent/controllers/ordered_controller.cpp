@@ -445,7 +445,7 @@ protected:
                     inputTables[index]->Teleportable = CheckTableSchemaCompatibility(
                         *inputTables[index]->Schema,
                         *OutputTables_[0]->TableUploadOptions.TableSchema.Get(),
-                        {.IgnoreSortOrder = false}).first == ESchemaCompatibility::FullyCompatible;
+                        {}).first == ESchemaCompatibility::FullyCompatible;
                 }
             }
         }
@@ -642,9 +642,10 @@ private:
                     ValidateOutputSchemaOrdered();
                     if (!Spec_->InputQuery) {
                         ValidateOutputSchemaCompatibility({
-                            .IgnoreSortOrder = false,
                             .ForbidExtraComputedColumns = false,
                             .IgnoreStableNamesDifference = true,
+                            .AllowTimestampColumns = table->TableUploadOptions.VersionedWriteOptions.WriteMode ==
+                                EVersionedIOMode::LatestTimestamp,
                         });
                     }
                 }
@@ -1032,6 +1033,12 @@ private:
     void PrepareOutputTables() override
     {
         auto& table = OutputTables_[0];
+
+        if (auto writeMode = table->TableUploadOptions.VersionedWriteOptions.WriteMode; writeMode != EVersionedIOMode::Default) {
+            THROW_ERROR_EXCEPTION("Versioned write mode %Qlv is not supported for erase operation",
+                writeMode);
+        }
+
         table->TableUploadOptions.UpdateMode = EUpdateMode::Overwrite;
         table->TableUploadOptions.LockMode = ELockMode::Exclusive;
 
@@ -1051,10 +1058,7 @@ private:
                         const auto& [compatibility, error] = CheckTableSchemaCompatibility(
                             *InputManager->GetInputTables()[0]->Schema,
                             *table->TableUploadOptions.TableSchema.Get(),
-                            {
-                                .IgnoreSortOrder = false,
-                                .IgnoreStableNamesDifference = true,
-                            });
+                            {.IgnoreStableNamesDifference = true});
 
                         if (compatibility != ESchemaCompatibility::FullyCompatible) {
                             THROW_ERROR_EXCEPTION(error);

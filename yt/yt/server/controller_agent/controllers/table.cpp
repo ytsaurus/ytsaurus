@@ -132,6 +132,7 @@ bool TOutputTable::IsBeginUploadCompleted() const
 bool TOutputTable::SupportsTeleportation() const
 {
     return TableUploadOptions.SchemaModification == ETableSchemaModification::None &&
+        Path.GetVersionedWriteOptions().WriteMode == EVersionedIOMode::Default &&
         !Path.GetOutputTimestamp();
 }
 

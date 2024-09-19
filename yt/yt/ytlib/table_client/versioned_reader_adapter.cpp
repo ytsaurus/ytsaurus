@@ -2,10 +2,11 @@
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 
-#include <yt/yt/client/table_client/versioned_reader.h>
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
-#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/versioned_reader.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
@@ -152,8 +153,8 @@ IVersionedReaderPtr CreateVersionedReaderAdapter(
     if (!columnFilter.IsUniversal()) {
         TColumnFilter::TIndexes columnFilterIndexes;
 
-        for (int i = 0; i < schema->GetKeyColumnCount(); ++i) {
-            columnFilterIndexes.push_back(i);
+        for (int index = 0; index < schema->GetKeyColumnCount(); ++index) {
+            columnFilterIndexes.push_back(index);
         }
         for (int index : columnFilter.GetIndexes()) {
             if (index >= schema->GetKeyColumnCount()) {
@@ -175,9 +176,11 @@ class TTimestampResettingAdapter
 public:
     TTimestampResettingAdapter(
         IVersionedReaderPtr underlyingReader,
-        TTimestamp timestamp)
+        TTimestamp timestamp,
+        bool isChunkVersioned)
         : TVersionedReaderAdapterBase(std::move(underlyingReader))
         , Timestamp_(timestamp)
+        , IsChunkVersioned_(isChunkVersioned)
     { }
 
     TFuture<void> Open() override
@@ -187,6 +190,28 @@ public:
 
 private:
     const TTimestamp Timestamp_;
+    // NB: Versioned chunks produced with unversioned_update schema modification contain fake timestamp equal to MinTimestamp.
+    // Versioned map-reduce may produce versioned chunks where some values have genuine timestamps and other have fake ones.
+    // Unversioned chunks may contain arbitrary timestamps but they are never genuine.
+    // So we reset only MinTimestamp for versioned chunks and any timestamp for unversioned ones.
+    const bool IsChunkVersioned_;
+
+    int GetWriteTimestampCount(const TVersionedRow& row) const
+    {
+        if (IsChunkVersioned_) {
+            return row.GetWriteTimestampCount();
+        }
+
+        bool minTimestampExists = false;
+        bool substituteTimestampExists = false;
+        for (auto writeTimestamp : row.WriteTimestamps()) {
+            minTimestampExists |= writeTimestamp == MinTimestamp;
+            substituteTimestampExists |= writeTimestamp == Timestamp_;
+        }
+
+        // All MinTimestamp's will be replaced with Timestamp_, so if we already have Timestamp_, it will be counted twice.
+        return row.GetWriteTimestampCount() - static_cast<int>(minTimestampExists && substituteTimestampExists);
+    }
 
     TVersionedRow MakeVersionedRow(TVersionedRow row) override
     {
@@ -194,7 +219,7 @@ private:
             return TVersionedRow();
         }
 
-        YT_VERIFY(row.GetWriteTimestampCount() <= 1);
+        YT_VERIFY(row.GetWriteTimestampCount() <= 1 || IsChunkVersioned_);
         YT_VERIFY(row.GetDeleteTimestampCount() <= 1);
 
         auto versionedRow = TMutableVersionedRow::Allocate(
@@ -215,16 +240,50 @@ private:
             versionedRow.BeginValues(),
             row.BeginValues(),
             sizeof(TVersionedValue) * row.GetValueCount());
+
         for (auto& value : versionedRow.Values()) {
-            value.Timestamp = Timestamp_;
+            if (!IsChunkVersioned_ || value.Timestamp == MinTimestamp) {
+                value.Timestamp = Timestamp_;
+            }
         }
 
         // Write/delete timestamps.
         if (row.GetWriteTimestampCount() > 0) {
-            versionedRow.WriteTimestamps()[0] = Timestamp_;
+            if (!IsChunkVersioned_) {
+                *versionedRow.BeginWriteTimestamps() = Timestamp_;
+            } else if (versionedRow.GetWriteTimestampCount() == row.GetWriteTimestampCount() - 1 || // Timestamp_ equals to one of row timestamps.
+                *(row.EndWriteTimestamps() - 1) != MinTimestamp)
+            {
+                ::memcpy(
+                    versionedRow.BeginWriteTimestamps(),
+                    row.BeginWriteTimestamps(),
+                    sizeof(TTimestamp) * versionedRow.GetWriteTimestampCount());
+            } else {
+                auto writeTimestamps = row.BeginWriteTimestamps();
+                auto versionedWriteTimestamps = versionedRow.BeginWriteTimestamps();
+
+                // Here we find position of first timestamp less then Timestamp_ (there is no equal timestamp since we check it in previous statement).
+                // We copy prefix of write timestamps, set Timestamp_ on this position and copy suffix of timestamps.
+                for (int index = 0; index < row.GetWriteTimestampCount(); ++index) {
+                    if (writeTimestamps[index] < Timestamp_) {
+                        versionedWriteTimestamps[index] = Timestamp_;
+                        if (index != row.GetWriteTimestampCount() - 1) {
+                            ::memcpy(
+                                versionedRow.BeginWriteTimestamps() + index + 1,
+                                row.BeginWriteTimestamps() + index,
+                                sizeof(TTimestamp) * (row.GetWriteTimestampCount() - index - 1));
+                        }
+
+                        break;
+                    }
+
+                    versionedWriteTimestamps[index] = writeTimestamps[index];
+                }
+            }
         }
+
         if (row.GetDeleteTimestampCount() > 0) {
-            versionedRow.DeleteTimestamps()[0] = Timestamp_;
+            *versionedRow.BeginDeleteTimestamps() = Timestamp_;
         }
 
         return versionedRow;
@@ -237,11 +296,13 @@ DEFINE_REFCOUNTED_TYPE(TTimestampResettingAdapter)
 
 IVersionedReaderPtr CreateTimestampResettingAdapter(
     IVersionedReaderPtr underlyingReader,
-    TTimestamp timestamp)
+    TTimestamp timestamp,
+    EChunkFormat chunkFormat)
 {
     return New<TTimestampResettingAdapter>(
         std::move(underlyingReader),
-        timestamp);
+        timestamp,
+        IsTableChunkFormatVersioned(chunkFormat));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

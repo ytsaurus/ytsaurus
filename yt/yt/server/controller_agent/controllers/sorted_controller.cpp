@@ -584,8 +584,7 @@ protected:
                     inputTable->Teleportable = CheckTableSchemaCompatibility(
                         *inputTable->Schema,
                         *OutputTables_[*tableIndex]->TableUploadOptions.TableSchema.Get(),
-                        {.IgnoreSortOrder = false}).first == ESchemaCompatibility::FullyCompatible;
-
+                        {}).first == ESchemaCompatibility::FullyCompatible;
                     if (GetJobType() == EJobType::SortedReduce) {
                         inputTable->Teleportable &= inputTable->Path.GetTeleport();
                     }
@@ -906,6 +905,8 @@ public:
                         .IgnoreSortOrder = true,
                         .ForbidExtraComputedColumns = false,
                         .IgnoreStableNamesDifference = true,
+                        .AllowTimestampColumns = table->TableUploadOptions.VersionedWriteOptions.WriteMode ==
+                            EVersionedIOMode::LatestTimestamp,
                     });
                 }
                 break;

@@ -1316,7 +1316,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             if (chunkState->OverrideTimestamp) {
                 return CreateTimestampResettingAdapter(
                     std::move(reader),
-                    chunkState->OverrideTimestamp);
+                    chunkState->OverrideTimestamp,
+                    chunkState->ChunkMeta->GetChunkFormat());
             } else {
                 return reader;
             }

@@ -3242,6 +3242,11 @@ private:
                 << TErrorAttribute("sort_by", Spec->SortBy);
         }
 
+        if (auto writeMode = table->TableUploadOptions.VersionedWriteOptions.WriteMode; writeMode != EVersionedIOMode::Default) {
+            THROW_ERROR_EXCEPTION("Versioned write mode %Qlv is not supported for sort operation",
+                writeMode);
+        }
+
         switch (Spec->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
                 if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {

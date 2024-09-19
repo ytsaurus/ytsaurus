@@ -1854,7 +1854,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     if (chunkState->OverrideTimestamp) {
         return CreateTimestampResettingAdapter(
             std::move(reader),
-            chunkState->OverrideTimestamp);
+            chunkState->OverrideTimestamp,
+            chunkMeta->GetChunkFormat());
     } else {
         return reader;
     }
@@ -1920,7 +1921,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         : TChunkColumnMapping(chunkState->TableSchema, chunkMeta->ChunkSchema())
             .BuildVersionedSimpleSchemaIdMapping(columnFilter);
 
-    switch (chunkMeta->GetChunkFormat()) {
+    auto chunkFormat = chunkMeta->GetChunkFormat();
+    switch (chunkFormat) {
         case EChunkFormat::TableVersionedSimple:
         case EChunkFormat::TableVersionedSlim:
         case EChunkFormat::TableVersionedIndexed: {
@@ -2038,13 +2040,14 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
         default:
             THROW_ERROR_EXCEPTION("Unsupported format %Qlv",
-                chunkMeta->GetChunkFormat());
+                chunkFormat);
     }
 
     if (chunkState->OverrideTimestamp) {
         return CreateTimestampResettingAdapter(
             std::move(reader),
-            chunkState->OverrideTimestamp);
+            chunkState->OverrideTimestamp,
+            chunkFormat);
     } else {
         return reader;
     }
