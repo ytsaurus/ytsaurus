@@ -331,6 +331,8 @@ void TDirectoryConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("permissions", &TThis::Permissions)
         .Default();
+    registrar.Parameter("override", &TThis::Override)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -380,8 +382,13 @@ void TRootDirectoryBuilderTool::operator()(const TDirectoryBuilderConfigPtr& arg
 
         for (const auto& directory : rootDirectoryConfig->Directories) {
             if (NFS::Exists(directory->Path)) {
+                if (!directory->Override) {
+                    continue;
+                }
+
                 NFS::RemoveRecursive(directory->Path);
             }
+
             NFs::MakeDirectory(
                 directory->Path,
                 NFs::EFilePermission::FP_SECRET_FILE);

@@ -158,6 +158,10 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TString DefaultExecutorStderrPath = "logs/ytserver_exec_stderr";
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1164,6 +1168,24 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
     YT_VERIFY(environment);
 
     auto createRootFS = [&] () -> std::optional<TRootFS> {
+        TString stderrPath;
+        if (Config_->ExecutorStderrPath) {
+            stderrPath = *Config_->ExecutorStderrPath;
+        } else {
+            stderrPath = NFS::CombinePaths(
+                GetPreparationPath(),
+                DefaultExecutorStderrPath);
+        }
+
+        if (!NFS::Exists(stderrPath)) {
+            NFS::MakeDirRecursive(NFS::GetDirectoryName(stderrPath));
+            TFile file(stderrPath, CreateNew | WrOnly);
+        }
+
+        NFS::SetPermissions(
+            stderrPath,
+            /*permissions*/ 0666);
+
         if (!Config_->RootPath) {
             YT_LOG_INFO("Job is not using custom rootfs");
             return std::nullopt;
@@ -1198,7 +1220,9 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
         }
 
         // Temporary workaround for nirvana - make tmp directories writable.
-        auto tmpPath = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), GetSandboxRelPath(ESandboxKind::Tmp));
+        auto tmpPath = NFS::CombinePaths(
+            NFs::CurrentWorkingDirectory(),
+            GetSandboxRelPath(ESandboxKind::Tmp));
 
         rootFS.Binds.push_back(TBind{
             .SourcePath = tmpPath,
@@ -1217,6 +1241,22 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
                 .SourcePath = bind->ExternalPath,
                 .TargetPath = bind->InternalPath,
                 .ReadOnly = bind->ReadOnly,
+            });
+        }
+
+        if (Config_->ExecutorStderrPath) {
+            rootFS.Binds.push_back(TBind{
+                .SourcePath = stderrPath,
+                .TargetPath = stderrPath,
+                .ReadOnly = false,
+            });
+        } else {
+            rootFS.Binds.push_back(TBind{
+                .SourcePath = stderrPath,
+                .TargetPath = NFS::CombinePaths(
+                    GetSlotPath(),
+                    DefaultExecutorStderrPath),
+                .ReadOnly = false,
             });
         }
 
