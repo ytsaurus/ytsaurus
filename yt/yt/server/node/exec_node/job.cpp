@@ -2476,6 +2476,9 @@ void TJob::Cleanup()
 
     CleanupFinished_.Set();
 
+    YT_VERIFY(FinishTime_);
+    Bootstrap_->GetJobController()->OnJobCleanupFinished(TInstant::Now() - *FinishTime_);
+
     YT_LOG_INFO("Job finished (JobState: %v)", GetState());
 }
 
