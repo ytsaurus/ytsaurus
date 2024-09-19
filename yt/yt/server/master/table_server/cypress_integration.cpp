@@ -27,10 +27,10 @@ public:
     using TVirtualMulticellMapBase::TVirtualMulticellMapBase;
 
 private:
-    TFuture<std::vector<TObjectId>> GetKeys(i64 sizeLimit) const override
+    TFuture<std::vector<TObjectId>> GetKeys(i64 limit) const override
     {
         const auto& tableManager = Bootstrap_->GetTableManager();
-        return MakeFuture(NYT::GetKeys(tableManager->MasterTableSchemas(), sizeLimit));
+        return MakeFuture(NYT::GetKeys(tableManager->MasterTableSchemas(), limit));
     }
 
     bool IsValid(TObject* object) const override

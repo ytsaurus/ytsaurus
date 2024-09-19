@@ -24,9 +24,9 @@ public:
     using TVirtualMulticellMapBase::TVirtualMulticellMapBase;
 
 private:
-    TFuture<std::vector<TObjectId>> GetKeys(i64 sizeLimit) const override
+    TFuture<std::vector<TObjectId>> GetKeys(i64 limit) const override
     {
-        return MakeFuture(NYT::GetKeys(Locks(), sizeLimit));
+        return MakeFuture(NYT::GetKeys(Locks(), limit));
     }
 
     bool IsValid(TObject* object) const override
@@ -80,22 +80,20 @@ public:
     using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
-        std::vector<TString> result;
+        std::vector<std::string> keys;
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         for (auto [id, node] : cypressManager->AccessControlObjectNamespaces()) {
+            if (ssize(keys) >= limit) {
+                break;
+            }
             if (!IsObjectAlive(node)) {
                 continue;
             }
-
-            if (ssize(result) >= sizeLimit) {
-                break;
-            }
-
-            result.push_back(node->GetName());
+            keys.push_back(node->GetName());
         }
-        return result;
+        return keys;
     }
 
     i64 GetSize() const override
@@ -104,7 +102,7 @@ private:
         return cypressManager->GetAccessControlObjectNamespaceCount();
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->FindAccessControlObjectNamespaceByName(TString(key));

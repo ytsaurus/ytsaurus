@@ -36,9 +36,9 @@ private:
         return static_cast<const T*>(this)->Transactions();
     }
 
-    TFuture<std::vector<TObjectId>> GetKeys(i64 sizeLimit) const override
+    TFuture<std::vector<TObjectId>> GetKeys(i64 limit) const override
     {
-        return MakeFuture(ToObjectIds(Transactions(), sizeLimit));
+        return MakeFuture(ToObjectIds(Transactions(), limit));
     }
 
     bool IsValid(TObject* object) const override
@@ -146,17 +146,17 @@ public:
 private:
     using TBase = TVirtualMapBase;
 
-    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        std::vector<TString> result;
-        result.reserve(std::min<size_t>(transactionManager->ForeignTransactions().size(), sizeLimit));
+        std::vector<std::string> result;
+        result.reserve(std::min(limit, std::ssize(transactionManager->ForeignTransactions())));
 
         for (auto transaction : transactionManager->ForeignTransactions()) {
-            if (std::ssize(result) >= sizeLimit) {
+            if (std::ssize(result) >= limit) {
                 break;
             }
-            result.emplace_back(ToString(transaction->GetId()));
+            result.push_back(ToString(transaction->GetId()));
         }
 
         return result;
@@ -165,10 +165,10 @@ private:
     i64 GetSize() const override
     {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        return transactionManager->ForeignTransactions().size();
+        return std::ssize(transactionManager->ForeignTransactions());
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->FindTransaction(TObjectId::FromString(key));
