@@ -74,9 +74,26 @@ func newOutput(config *Config, logConfig JSONLogConfig, task timbertruck.TaskArg
 	return
 }
 
+func patchConfig(config *Config) (err error) {
+	if config.Hostname == "" {
+		config.Hostname, err = os.Hostname()
+		if err != nil {
+			err = fmt.Errorf("cannot get hostname: %v", err)
+			return
+		}
+	}
+	return
+}
+
 func main() {
 	app, config := app.MustNewApp[Config]()
 	defer app.Close()
+
+	err := patchConfig(config)
+	if err != nil {
+		app.Fatalf("%v", err)
+		return
+	}
 
 	for _, jsonLogConfig := range config.JSONLogs {
 		app.AddStream(jsonLogConfig.StreamConfig, func(task timbertruck.TaskArgs) (p *pipelines.Pipeline, err error) {
@@ -89,7 +106,7 @@ func main() {
 		})
 	}
 
-	err := app.Run()
+	err = app.Run()
 	if err != nil {
 		app.Fatalf("%v", err)
 	}
