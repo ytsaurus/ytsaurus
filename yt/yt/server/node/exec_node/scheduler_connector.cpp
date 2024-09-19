@@ -44,6 +44,8 @@ using namespace NScheduler;
 
 static constexpr auto& Logger = ExecNodeLogger;
 
+static const auto HeartbeatOutOfBandAttemptsProfiler = SchedulerConnectorProfiler().WithPrefix("/heartbeat_out_of_band_attempts");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerConnector::TSchedulerConnector(IBootstrap* bootstrap)
@@ -59,6 +61,26 @@ TSchedulerConnector::TSchedulerConnector(IBootstrap* bootstrap)
     , TimeBetweenSentHeartbeatsCounter_(SchedulerConnectorProfiler().Timer("/time_between_sent_heartbeats"))
     , TimeBetweenAcknowledgedHeartbeatsCounter_(SchedulerConnectorProfiler().Timer("/time_between_acknowledged_heartbeats"))
     , TimeBetweenFullyProcessedHeartbeatsCounter_(SchedulerConnectorProfiler().Timer("/time_between_fully_processed_heartbeats"))
+    , PendingResourceHolderHeartbeatSkippedCounter_(
+        HeartbeatOutOfBandAttemptsProfiler
+            .WithTag("reason", "pending_resource_holders")
+            .Counter("/skipped"))
+    , NotEnoughResourcesHeartbeatSkippedCounter_(
+        HeartbeatOutOfBandAttemptsProfiler
+            .WithTag("reason", "not_enough_resources")
+            .Counter("/skipped"))
+    , ResourcesAcquiredHeartbeatRequestedCounter_(
+        HeartbeatOutOfBandAttemptsProfiler
+            .WithTag("reason", "resources_acquired")
+            .Counter("/requested"))
+    , ResourcesReleasedHeartbeatRequestedCounter_(
+        HeartbeatOutOfBandAttemptsProfiler
+            .WithTag("reason", "resources_released")
+            .Counter("/requested"))
+    , AllocationFinishedHeartbeatRequestedCounter_(
+        HeartbeatOutOfBandAttemptsProfiler
+            .WithTag("reason", "allocation_finished")
+            .Counter("/requested"))
     , TracingSampler_(New<TSampler>(
         DynamicConfig_.Acquire()->TracingSampler,
         SchedulerConnectorProfiler().WithPrefix("/tracing")))
@@ -131,14 +153,29 @@ void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded()
             NJobAgent::EResourcesState::Pending,
             NJobAgent::EResourcesState::Acquired,
         });
-    auto freeResources = MakeNonnegative(resourceLimits - resourceUsage);
+    auto freeResources = ToJobResources(ToNodeResources(MakeNonnegative(resourceLimits - resourceUsage)));
 
-    bool hasPendingResourceHolders = jobResourceManager->GetPendingResourceHolderCount() > 0;
-    if (!Dominates(MinSpareResources_, ToJobResources(ToNodeResources(freeResources))) &&
-        !hasPendingResourceHolders)
-    {
-        scheduleOutOfBandHeartbeat();
+    auto pendingResourceHolderCount = jobResourceManager->GetPendingResourceHolderCount();
+    if (pendingResourceHolderCount > 0) {
+        PendingResourceHolderHeartbeatSkippedCounter_.Increment();
+        YT_LOG_DEBUG(
+            "Skipping out of band heartbeat because of pending resource holders (PendingResourceHolderCount: %v)",
+            pendingResourceHolderCount);
+
+        return;
     }
+
+    if (Dominates(MinSpareResources_, freeResources)) {
+        NotEnoughResourcesHeartbeatSkippedCounter_.Increment();
+        YT_LOG_DEBUG(
+            "Skipping out of band heartbeat because of not enough resources (FreeResources: %v, MinSpareResources: %v)",
+            freeResources,
+            MinSpareResources_);
+
+        return;
+    }
+
+    scheduleOutOfBandHeartbeat();
 }
 
 void TSchedulerConnector::SendOutOfBandHeartbeatIfNeeded()
@@ -153,12 +190,16 @@ void TSchedulerConnector::OnResourcesAcquired()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    ResourcesAcquiredHeartbeatRequestedCounter_.Increment();
+
     SendOutOfBandHeartbeatIfNeeded();
 }
 
 void TSchedulerConnector::OnResourcesReleased()
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    ResourcesReleasedHeartbeatRequestedCounter_.Increment();
 
     if (DynamicConfig_.Acquire()->SendHeartbeatOnResourcesReleased) {
         SendOutOfBandHeartbeatIfNeeded();
@@ -168,6 +209,10 @@ void TSchedulerConnector::OnResourcesReleased()
 void TSchedulerConnector::SetMinSpareResources(const NScheduler::TJobResources& minSpareResources)
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+
+    YT_LOG_INFO(
+        "Seting new min spare resources (MinSpareResources: %v)",
+        minSpareResources);
 
     MinSpareResources_ = minSpareResources;
 }
@@ -181,6 +226,8 @@ void TSchedulerConnector::EnqueueFinishedAllocation(TAllocationPtr allocation)
         allocation->GetId());
 
     FinishedAllocations_.emplace(std::move(allocation));
+
+    AllocationFinishedHeartbeatRequestedCounter_.Increment();
 
     HeartbeatExecutor_->ScheduleOutOfBand();
 }
