@@ -1,4 +1,5 @@
 #include "shuffle_service.h"
+#include "shuffle_service_proxy.h"
 
 #include <yt/yt/client/api/rpc_proxy/helpers.h>
 
@@ -16,14 +17,6 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServiceDescriptor GetServiceDescriptor()
-{
-    return TServiceDescriptor("ShuffleService")
-        .SetProtocolVersion(TProtocolVersion{0, 0});
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TShuffleService
     : public TServiceBase
 {
@@ -33,9 +26,9 @@ public:
         TLogger logger,
         TString localServerAddress)
         : TServiceBase(
-              invoker,
-              GetServiceDescriptor(),
-              std::move(logger))
+            invoker,
+            TShuffleServiceProxy::GetDescriptor(),
+            std::move(logger))
         , LocalServerAddress_(std::move(localServerAddress))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartShuffle));
@@ -61,7 +54,7 @@ public:
 
     DECLARE_RPC_SERVICE_METHOD(NShuffle::NProto, FetchChunks)
     {
-        ThrowUnimplemented("RetrieveChunks");
+        ThrowUnimplemented("FetchChunks");
     }
 
 private:
