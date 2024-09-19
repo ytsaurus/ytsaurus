@@ -217,7 +217,7 @@ jobs:
 
           if [ "${{ inputs.update-remote-cache }}" == "true" ]
           then
-            BUILD_FLAGS="${BUILD_FLAGS} --yt-put"
+            BUILD_FLAGS="${BUILD_FLAGS} --yt-put --yt-max-store-size=1000000000000"
           fi
 
           STRIP_VALUE=no
