@@ -1,5 +1,6 @@
 RECURSE(
     chaos_cells
+    bundle_hotfix
     clock_quorum_health
     controller_agent_alerts
     controller_agent_count
