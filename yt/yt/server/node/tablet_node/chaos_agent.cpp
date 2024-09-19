@@ -154,7 +154,14 @@ private:
         UpdateReplicationCard(newEra);
 
         if (auto guard = TAsyncSemaphoreGuard::TryAcquire(ConfigurationLock_)) {
-            ReconfigureTabletWriteMode();
+            try {
+                ReconfigureTabletWriteMode();
+            } catch (std::exception& ex) {
+                auto error = TError(ex)
+                    << TErrorAttribute("tablet_id", Tablet_->GetId())
+                    << TErrorAttribute("table_path", Tablet_->GetTablePath());
+                YT_LOG_ERROR(error, "Failed to reconfigure tablet write mode");
+            }
         } else {
             YT_LOG_DEBUG("Skipping reconfiguration because configuration lock is held");
         }
