@@ -133,14 +133,17 @@ class Static {
   using CreateSampleUserDataCallback = void*();
   using CopySampleUserDataCallback = void*(void*);
   using DestroySampleUserDataCallback = void(void*);
+  using ComputeSampleUserDataHashCallback = size_t(void*);
 
   static void SetSampleUserDataCallbacks(
       CreateSampleUserDataCallback create,
       CopySampleUserDataCallback copy,
-      DestroySampleUserDataCallback destroy) {
+      DestroySampleUserDataCallback destroy,
+      ComputeSampleUserDataHashCallback compute_hash) {
     create_sample_user_data_callback_ = create;
     copy_sample_user_data_callback_ = copy;
     destroy_sample_user_data_callback_ = destroy;
+    compute_sample_user_data_hash_callback_ = compute_hash;
   }
 
   static void* CreateSampleUserData() {
@@ -156,6 +159,11 @@ class Static {
   static void DestroySampleUserData(void* user_data) {
     if (destroy_sample_user_data_callback_)
       destroy_sample_user_data_callback_(user_data);
+  }
+  static size_t ComputeSampleUserDataHash(void* user_data) {
+    if (compute_sample_user_data_hash_callback_)
+      return compute_sample_user_data_hash_callback_(user_data);
+    return 0;
   }
 
   static bool ABSL_ATTRIBUTE_ALWAYS_INLINE IsOnFastPath() {
@@ -207,6 +215,7 @@ class Static {
   static CreateSampleUserDataCallback* create_sample_user_data_callback_;
   static CopySampleUserDataCallback* copy_sample_user_data_callback_;
   static DestroySampleUserDataCallback* destroy_sample_user_data_callback_;
+  static ComputeSampleUserDataHashCallback* compute_sample_user_data_hash_callback_;
   ABSL_CONST_INIT static PeakHeapTracker peak_heap_tracker_;
   ABSL_CONST_INIT static NumaTopology<kNumaPartitions, kNumBaseClasses>
       numa_topology_;
