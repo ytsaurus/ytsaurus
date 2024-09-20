@@ -6,6 +6,19 @@ Is released as a docker image.
 
 **All releases:**
 
+{% cut "**2.3.0**" %}
+
+The major feature of SPYT 2.3.0 is support for Spark 3.3.x. Other notable features are:
+
+- Support for extended Datetime types such as Date32, Datetime32, Timestamp64, Interval64
+- Support for table properties in Spark SQL
+- Support for writing using Hive partitioning schema
+- Support for specifying random port for Shuffle service in inner standalone cluster
+- Fix for runtime statistics
+- Bug-Fixes for user-provided schema and for dataframes persisting
+
+{% endcut %}
+
 {% cut "**2.2.0**" %}
 
 - Support for reading from multiple {{product-name}} clusters.
