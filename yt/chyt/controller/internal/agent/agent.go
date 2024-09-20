@@ -42,8 +42,8 @@ type Agent struct {
 	backgroundStopCh chan struct{}
 	healthState      *agentHealthState
 
-	opletBatchCh    chan map[string]*strawberry.Oplet
-	scalingTargetCh chan scalingRequest
+	opletInfoBatchCh chan []strawberry.OpletInfoForScaler
+	scalingTargetCh  chan scalingRequest
 }
 
 func NewAgent(proxy string, ytc yt.Client, l log.Logger, controller strawberry.Controller, config *Config) *Agent {
@@ -388,7 +388,7 @@ func (a *Agent) background() {
 			a.healthState.SetTrackOpsState(nil)
 		case <-ticker.C:
 			a.pass()
-		case a.opletBatchCh <- a.getOpletMappingCopy():
+		case a.opletInfoBatchCh <- a.getOpletInfoForScaler():
 			continue
 		case scT := <-a.scalingTargetCh:
 			oplet, ok := a.aliasToOp[scT.OpletAlias]
@@ -405,12 +405,15 @@ func (a *Agent) background() {
 	}
 }
 
-func (a *Agent) getOpletMappingCopy() map[string]*strawberry.Oplet {
-	newMap := make(map[string]*strawberry.Oplet, len(a.aliasToOp))
-	for k, v := range a.aliasToOp {
-		newMap[k] = v
+func (a *Agent) getOpletInfoForScaler() []strawberry.OpletInfoForScaler {
+	opletInfos := make([]strawberry.OpletInfoForScaler, 0, len(a.aliasToOp))
+	for _, o := range a.aliasToOp {
+		if o.Active() && !o.Suspended() {
+			opID, _ := o.OperationInfo()
+			opletInfos = append(opletInfos, strawberry.OpletInfoForScaler{Alias: o.Alias(), OperationID: opID, ControllerSpeclet: o.ControllerSpeclet()})
+		}
 	}
-	return newMap
+	return opletInfos
 }
 
 func (a *Agent) GetAgentInfo() strawberry.AgentInfo {
@@ -487,7 +490,7 @@ func (a *Agent) Start() {
 		a.OperationNamespace(),
 		a.l)
 
-	a.opletBatchCh = make(chan map[string]*strawberry.Oplet)
+	a.opletInfoBatchCh = make(chan []strawberry.OpletInfoForScaler)
 	a.scalingTargetCh = make(chan scalingRequest)
 	go a.runScaler()
 
@@ -512,19 +515,19 @@ func (a *Agent) runScaler() {
 			var wg sync.WaitGroup
 			wg.Add(workerNumber)
 
-			oplets := <-a.opletBatchCh
+			opletInfos := <-a.opletInfoBatchCh
 
-			opletsChan := make(chan *strawberry.Oplet, len(oplets))
+			opletsChan := make(chan strawberry.OpletInfoForScaler, len(opletInfos))
 
 			for i := 0; i < workerNumber; i++ {
 				go func() {
 					defer wg.Done()
-					for oplet := range opletsChan {
-						target, err := oplet.GetScalerTarget(a.ctx)
+					for opletInfo := range opletsChan {
+						target, err := a.controller.GetScalerTarget(a.ctx, opletInfo)
 						if err != nil {
 							a.l.Error(
 								"Got error getting scaler target",
-								log.String("alias", oplet.Alias()),
+								log.String("alias", opletInfo.Alias),
 								log.Error(err),
 							)
 							continue
@@ -532,22 +535,21 @@ func (a *Agent) runScaler() {
 						if target != nil {
 							a.l.Info(
 								"Oplet must be scaled",
-								log.String("alias", oplet.Alias()),
+								log.String("alias", opletInfo.Alias),
 								log.Int("target_instance_count", target.InstanceCount),
 							)
-							opID, _ := oplet.OperationInfo()
 							a.scalingTargetCh <- scalingRequest{
-								OpletAlias:    oplet.Alias(),
+								OpletAlias:    opletInfo.Alias,
 								InstanceCount: target.InstanceCount,
-								OperationID:   opID, // Might already be different from the running op id.
+								OperationID:   opletInfo.OperationID, // Might already be different from the running op id.
 							}
 						}
 					}
 				}()
 			}
 
-			for _, oplet := range oplets {
-				opletsChan <- oplet
+			for _, opletInfo := range opletInfos {
+				opletsChan <- opletInfo
 			}
 			close(opletsChan)
 

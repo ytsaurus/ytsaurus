@@ -244,6 +244,10 @@ func (oplet *Oplet) UpToDateWithCypress() bool {
 	return !oplet.pendingUpdateFromCypressNode
 }
 
+func (oplet *Oplet) Suspended() bool {
+	return oplet.persistentState.YTOpSuspended
+}
+
 func (oplet *Oplet) OperationInfo() (yt.OperationID, yt.OperationState) {
 	return oplet.persistentState.YTOpID, oplet.persistentState.YTOpState
 }
@@ -437,6 +441,7 @@ func (oplet *Oplet) EnsureOperationInValidState(ctx context.Context) error {
 		if err := oplet.resumeOp(ctx, reason); err != nil {
 			return err
 		}
+		oplet.pendingResume = false
 	}
 
 	return nil
@@ -568,14 +573,6 @@ func (oplet *Oplet) needsResume() (needsResume bool, reason string) {
 		return true, "pendingResume is set"
 	}
 	return false, "up to date"
-}
-
-func (oplet *Oplet) GetScalerTarget(ctx context.Context) (*ScalerTarget, error) {
-	if !oplet.Active() {
-		return nil, nil
-	}
-	target, err := oplet.c.GetScalerTarget(ctx, oplet)
-	return target, err
 }
 
 func (oplet *Oplet) needsBackoff() bool {
@@ -1221,4 +1218,10 @@ func (oplet *Oplet) GetBriefInfo() (briefInfo OpletBriefInfo) {
 	}
 
 	return
+}
+
+type OpletInfoForScaler struct {
+	Alias             string
+	OperationID       yt.OperationID
+	ControllerSpeclet any
 }

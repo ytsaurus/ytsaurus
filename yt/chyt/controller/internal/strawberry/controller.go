@@ -2,7 +2,6 @@ package strawberry
 
 import (
 	"context"
-
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
@@ -50,7 +49,7 @@ type Controller interface {
 	// GetScalerTarget checks whether YT operation should be scaled and returns required scaling parameters.
 	// Returns `nil` if scaling is not required.
 	// May be called concurrently since it is accessed from `runScaler`, not from `backgroud` goroutine.
-	GetScalerTarget(ctx context.Context, oplet *Oplet) (*ScalerTarget, error)
+	GetScalerTarget(ctx context.Context, opletInfo OpletInfoForScaler) (*ScalerTarget, error)
 }
 
 type ControllerFactory struct {
