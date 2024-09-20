@@ -242,6 +242,8 @@ func newDaemonApp(config Config) (app *daemonApp, err error) {
 		}
 	}
 	app.logger = slog.New(slog.NewJSONHandler(logFile, nil))
+	misc.SetLogrotatingLogger(app.logger)
+	misc.LogLoggingStarted(app.logger)
 
 	solomonRegistryOptions := solomon.NewRegistryOpts()
 	if config.AdminPanel != nil && config.AdminPanel.MonitoringTags != nil {

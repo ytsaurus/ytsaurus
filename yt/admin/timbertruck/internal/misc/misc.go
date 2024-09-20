@@ -4,16 +4,40 @@ import (
 	"errors"
 	"io"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+
+	"go.ytsaurus.tech/library/go/core/buildinfo"
 )
+
+var logrotatingLoggerLock sync.Mutex
+var logrotatingLogger *slog.Logger
 
 type LogrotatingFile struct {
 	path string
 	file *os.File
 	lock sync.Mutex
+}
+
+func SetLogrotatingLogger(logger *slog.Logger) {
+	logrotatingLoggerLock.Lock()
+	defer logrotatingLoggerLock.Unlock()
+
+	logrotatingLogger = logger
+}
+
+func getLogrotatingLogger() *slog.Logger {
+	logrotatingLoggerLock.Lock()
+	defer logrotatingLoggerLock.Unlock()
+
+	return logrotatingLogger
+}
+
+func LogLoggingStarted(logger *slog.Logger) {
+	logger.Info("Logging started", "version", buildinfo.Info.ProgramVersion)
 }
 
 // Open new file and register SIGHUP handler to reopen it.
@@ -34,6 +58,11 @@ func NewLogrotatingFile(path string) (result io.WriteCloser, err error) {
 			err = logrotating.reopen()
 			if err != nil {
 				log.Default().Printf("Failed to reopen log file: %v", err)
+				continue
+			}
+			logger := getLogrotatingLogger()
+			if logger != nil {
+				LogLoggingStarted(logger)
 			}
 		}
 	}()
