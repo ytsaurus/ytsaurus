@@ -237,8 +237,9 @@ private:
 
     void WriteBatchWithExpBackoff(const TBatch& batch)
     {
-        auto minRepeatDelay = ReporterConfig_.Acquire()->MinRepeatDelay;
-        auto delay = minRepeatDelay;
+        const auto& reporterConfig = ReporterConfig_.Acquire();
+        auto delay = reporterConfig->MinRepeatDelay;
+        auto maxRepeatDelay = reporterConfig->MaxRepeatDelay;
         while (IsEnabled()) {
             auto dropped = DroppedCount_.exchange(0);
             if (dropped > 0) {
@@ -260,10 +261,7 @@ private:
                     GetPendingCount());
             }
             TDelayedExecutor::WaitForDuration(RandomDuration(delay));
-            delay *= 2;
-            if (delay > minRepeatDelay) {
-                delay = minRepeatDelay;
-            }
+            delay = std::min(maxRepeatDelay, delay * 2);
         }
     }
 
