@@ -161,7 +161,9 @@ private:
         auto result = WaitFor(QueryClient_->CheckPermission(User_, principalAclPath, EPermission::Use, options))
             .ValueOrThrow();
         if (result.Action != NSecurityClient::ESecurityAction::Allow) {
-            THROW_ERROR_EXCEPTION("User %Qv has no access to clique %v", User_, Clique_);
+            THROW_ERROR_EXCEPTION("User %Qv has no access to clique %Qv",
+                User_,
+                Clique_);
         }
     }
 
