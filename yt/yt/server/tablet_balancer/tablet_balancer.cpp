@@ -161,9 +161,12 @@ private:
     TInstant PreciseCurrentIterationStartTime_;
     // Logical iteration start time used for iteration scheduling.
     TInstant CurrentIterationStartTime_;
+    // To prevent all next iterations from being skipped due to inaccurate timing and formula matching.
+    TInstant FirstIterationStartTime_;
+
+    i64 IterationIndex_;
     THashMap<TGlobalGroupTag, TInstant> GroupPreviousIterationStartTime_;
     mutable THashMap<TGlobalGroupTag, THashMap<EBalancingMode, TEventTimer>> IterationProfilingTimers_;
-    i64 IterationIndex_;
 
     NProfiling::TCounter PickPivotFailures_;
     THashMap<TGlobalGroupTag, TTableParameterizedMetricTrackerPtr> GroupToParameterizedMetricTracker_;
@@ -276,6 +279,7 @@ void TTabletBalancer::Start()
         DynamicConfig_.Acquire()->Period.value_or(Config_->Period));
 
     GroupsToMoveOnNextIteration_.clear();
+    FirstIterationStartTime_ = Now();
 
     ParameterizedBalancingScheduler_.Start();
 
@@ -677,7 +681,8 @@ bool TTabletBalancer::DidBundleBalancingTimeHappen(
             } else {
                 // First balance of this group in this instance
                 // so it's ok to balance if this time is satisfied by the formula.
-                timePoint = CurrentIterationStartTime_;
+                // But it is not ok to skip all iterations until the first one fits the formula perfectly.
+                timePoint = FirstIterationStartTime_;
             }
 
             if (timePoint > CurrentIterationStartTime_) {
