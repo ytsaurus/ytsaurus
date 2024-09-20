@@ -703,6 +703,7 @@ public:
     TDictConverter(IConverterPtr keyConverter, IConverterPtr valueConverter)
         : KeyConverter_(std::move(keyConverter))
         , ValueConverter_(std::move(valueConverter))
+        , ConvertToMap_(DB::DataTypeMap::checkKeyType(KeyConverter_->GetDataType()))
     { }
 
     void InitColumn() override
@@ -755,18 +756,33 @@ public:
         columns.emplace_back(std::move(valueColumn));
         auto columnTuple = DB::ColumnTuple::create(std::move(columns));
         auto columnArray = DB::ColumnArray::create(std::move(columnTuple), columnOffsets);
-        return DB::ColumnMap::create(std::move(columnArray));
+
+        if (ConvertToMap_) {
+            return DB::ColumnMap::create(std::move(columnArray));
+        } else {
+            return columnArray;
+        }
     }
 
     DB::DataTypePtr GetDataType() const override
     {
-        return std::make_shared<DB::DataTypeMap>(KeyConverter_->GetDataType(), ValueConverter_->GetDataType());
+        auto tupleDataType = std::make_shared<DB::DataTypeTuple>(
+            std::vector<DB::DataTypePtr>{KeyConverter_->GetDataType(), ValueConverter_->GetDataType()},
+            std::vector<std::string>{"keys", "values"});
+        auto nestedDataType = std::make_shared<DB::DataTypeArray>(std::move(tupleDataType));
+
+        if (ConvertToMap_) {
+            return std::make_shared<DB::DataTypeMap>(std::move(nestedDataType));
+        } else {
+            return nestedDataType;
+        }
     }
 
 private:
     IConverterPtr KeyConverter_;
     IConverterPtr ValueConverter_;
     DB::ColumnVector<ui64>::MutablePtr ColumnOffsets_;
+    bool ConvertToMap_;
     ui64 ItemCount_ = 0;
 };
 
@@ -1320,6 +1336,12 @@ private:
     {
         auto keyConverter = CreateConverter(descriptor.DictKey());
         auto valueConverter = CreateConverter(descriptor.DictValue());
+
+        // Not all types that can be used as a dict key in YT can also be used as keys in a CH Map.
+        // In case the key type does not satisfy CH constraints we perform read-only conversion.
+        if (!DB::DataTypeMap::checkKeyType(keyConverter->GetDataType())) {
+            ValidateReadOnly(descriptor);
+        }
 
         return std::make_unique<TDictConverter>(std::move(keyConverter), std::move(valueConverter));
     }
