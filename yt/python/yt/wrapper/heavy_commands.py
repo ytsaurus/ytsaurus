@@ -331,7 +331,7 @@ def _try_get_size(path, client, request_size):
 
 
 def _get_read_progress_reporter(size_hint, filename_hint, client, filelike=False):
-    if sys.stderr.isatty():
+    if hasattr(sys.stderr, 'isatty') and sys.stderr.isatty():
         enable_progress_bar = get_config(client)["read_progress_bar"]["enable"]
     else:
         enable_progress_bar = False
