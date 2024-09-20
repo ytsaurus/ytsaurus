@@ -2110,7 +2110,7 @@ private:
         }
 
         writeTimestamps.erase(std::unique(writeTimestamps.begin(), writeTimestamps.end()), writeTimestamps.end());
-        std::sort(writeTimestamps.begin(), writeTimestamps.end());
+        std::sort(writeTimestamps.begin(), writeTimestamps.end(), std::greater<TTimestamp>());
 
         auto versionedRow = TMutableVersionedRow::Allocate(
             RowBuffer_->GetPool(),

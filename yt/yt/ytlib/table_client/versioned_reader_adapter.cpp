@@ -196,9 +196,9 @@ private:
     // So we reset only MinTimestamp for versioned chunks and any timestamp for unversioned ones.
     const bool IsChunkVersioned_;
 
-    int GetWriteTimestampCount(const TVersionedRow& row) const
+    int GetWriteTimestampCountAfterResetting(const TVersionedRow& row) const
     {
-        if (IsChunkVersioned_) {
+        if (!IsChunkVersioned_) {
             return row.GetWriteTimestampCount();
         }
 
@@ -226,7 +226,7 @@ private:
             &MemoryPool_,
             row.GetKeyCount(),
             row.GetValueCount(),
-            row.GetWriteTimestampCount(),
+            GetWriteTimestampCountAfterResetting(row),
             row.GetDeleteTimestampCount());
 
         // Keys.
