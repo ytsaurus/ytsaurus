@@ -8,7 +8,7 @@ from yt_commands import (
     authors, create_dynamic_table, wait, create, ls, get, move, create_user, make_ace,
     insert_rows, raises_yt_error, select_rows, delete_rows, sorted_dicts, generate_uuid,
     write_local_file, reshard_table, sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
-    WaitFailed)
+    WaitFailed, create_table_replica, sync_enable_table_replica)
 
 from yt_type_helpers import (
     decimal_type,
@@ -87,6 +87,33 @@ class TestQuery(DynamicTablesBase):
         )
 
         sync_mount_table(path)
+        insert_rows(path, data)
+
+    def _create_replicated_table(self, path, schema, data):
+        create(
+            "replicated_table",
+            path,
+            attributes={
+                "dynamic": True,
+                "schema": schema,
+            },
+        )
+        replica_id = create_table_replica(path, self.get_cluster_name(0), path + "_replica", attributes={
+            "mode": "sync"
+        })
+        create(
+            "table",
+            path + "_replica",
+            attributes={
+                "dynamic": True,
+                "schema": schema,
+                "upstream_replica_id": replica_id
+            })
+
+        sync_enable_table_replica(replica_id)
+
+        sync_mount_table(path)
+        sync_mount_table(path + "_replica")
         insert_rows(path, data)
 
     @authors("sandello")
@@ -1937,8 +1964,7 @@ class TestQuery(DynamicTablesBase):
                 {"key": 2, "nestedA": [5, 6], "nestedB": ["5"]},
                 {"key": 3, "nestedA": [7], "nestedB": ["7", "8"]},
                 {"key": 4, "nestedA": None, "nestedB": []},
-            ],
-        )
+            ])
 
         actual = select_rows("key, flattenedA, flattenedB from [//tmp/t] array join nestedA as flattenedA, nestedB as flattenedB limit 100")
         expected = [
@@ -1961,7 +1987,7 @@ class TestQuery(DynamicTablesBase):
     @authors("sabdenovch")
     def test_array_join_with_table_join(self):
         sync_create_cells(1)
-        self._create_table(
+        self._create_replicated_table(
             "//tmp/a",
             [
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
@@ -1975,7 +2001,7 @@ class TestQuery(DynamicTablesBase):
             ],
         )
 
-        self._create_table(
+        self._create_replicated_table(
             "//tmp/b",
             [
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
