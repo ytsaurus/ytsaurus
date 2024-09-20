@@ -821,6 +821,40 @@ TEST_F(TYTToCHConversionTest, DictIntString)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
+TEST_F(TYTToCHConversionTest, DictWithUnsupportedKeyType)
+{
+    std::vector<TString> ysonStrings = {
+        "[[42; foo]; [27; bar]]",
+        "[[#; empty]]",
+        "[[-1; \"\"]]",
+    };
+    auto ysons = ToYsonStringBufs(ysonStrings);
+
+    auto logicalType = DictLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)), SimpleLogicalType(ESimpleLogicalValueType::String));
+    auto expectedDataType = std::make_shared<DB::DataTypeArray>(
+        std::make_shared<DB::DataTypeTuple>(
+            std::vector<DB::DataTypePtr>{DB::makeNullable(std::make_shared<DB::DataTypeInt32>()), std::make_shared<DB::DataTypeString>()},
+            std::vector<std::string>{"keys", "values"}
+        )
+    );
+
+    TComplexTypeFieldDescriptor desctiptor(logicalType);
+    ExpectTypeConversion(desctiptor, expectedDataType);
+
+    std::vector<DB::Field> expectedFields{
+        DB::Array{DB::Tuple{DB::Field(42), DB::Field("foo")}, DB::Tuple{DB::Field(27), DB::Field("bar")}},
+        DB::Array{DB::Tuple{DB::Field(), DB::Field("empty")}},
+        DB::Array{DB::Tuple{DB::Field(-1), DB::Field("")}},
+    };
+
+    auto [anyUnversionedValues, anyUnversionedValuesOwner] = YsonStringBufsToAnyUnversionedValues(ysons);
+    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, TColumnSchema(/*name*/ "", logicalType));
+
+    ExpectDataConversion(desctiptor, ysons, expectedFields);
+    ExpectDataConversion(desctiptor, anyUnversionedValues, expectedFields);
+    ExpectDataConversion(desctiptor, ytColumn, expectedFields);
+}
+
 TEST_F(TYTToCHConversionTest, OptionalTupleInt32String)
 {
     std::vector<TString> ysonStringsOptionalTupleInt32String = {
@@ -1180,6 +1214,9 @@ TEST_F(TYTToCHConversionTest, ReadOnlyConversions)
         TColumnSchema(
             /*name*/ "",
             SimpleLogicalType(ESimpleLogicalValueType::Json)),
+        TColumnSchema(
+            /*name*/ "",
+            DictLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)), SimpleLogicalType(ESimpleLogicalValueType::String))),
     };
     for (const auto& columnSchema : readOnlyColumnSchemas) {
         TComplexTypeFieldDescriptor descriptor(columnSchema);

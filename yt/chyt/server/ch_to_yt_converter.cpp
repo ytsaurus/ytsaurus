@@ -387,7 +387,7 @@ class TMapConverter
     : public IConverter
 {
 public:
-    explicit TMapConverter(IConverterPtr keyConverter, IConverterPtr valueConverter, IConverterPtr nestedConverter)
+    TMapConverter(IConverterPtr keyConverter, IConverterPtr valueConverter, IConverterPtr nestedConverter)
         : KeyConverter_(std::move(keyConverter))
         , ValueConverter_(std::move(valueConverter))
         , NestedConverter_(std::move(nestedConverter))
