@@ -48,11 +48,9 @@ type Controller interface {
 	GetOpBriefAttributes(parsedSpeclet any) map[string]any
 
 	// GetScalerTarget checks whether YT operation should be scaled and returns required scaling parameters.
-	// Return `nil` is scaling is not required.
+	// Returns `nil` if scaling is not required.
+	// May be called concurrently since it is accessed from `runScaler`, not from `backgroud` goroutine.
 	GetScalerTarget(ctx context.Context, oplet *Oplet) (*ScalerTarget, error)
-
-	// NonRestartingOpSpecletFields returns "set" of fields that should not cause oplet restart when changed.
-	NonRestartingOpSpecletFields() map[string]struct{}
 }
 
 type ControllerFactory struct {
@@ -64,6 +62,6 @@ type ControllerFactory struct {
 }
 
 type ScalerTarget struct {
-	InstanceCount int64
+	InstanceCount int
 	Reason        string
 }

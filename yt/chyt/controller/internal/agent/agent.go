@@ -393,9 +393,13 @@ func (a *Agent) background() {
 		case scT := <-a.scalingTargetCh:
 			oplet, ok := a.aliasToOp[scT.OpletAlias]
 			if !ok {
-				a.l.Warnf("Oplet %s not found, skipping scaling")
-			} else {
+				a.l.Warn("Oplet not found, skipping scaling", log.String("alias", scT.OpletAlias))
+			}
+			opID, _ := oplet.OperationInfo()
+			if scT.OperationID == opID {
 				oplet.SetPendingScaling(scT.InstanceCount)
+			} else {
+				a.l.Warn("Skipping scaling due to operation id mismatch")
 			}
 		}
 	}
@@ -518,12 +522,25 @@ func (a *Agent) runScaler() {
 					for oplet := range opletsChan {
 						target, err := oplet.GetScalerTarget(a.ctx)
 						if err != nil {
-							a.l.Errorf("Got error processing %s: %v", oplet.Alias(), err)
+							a.l.Error(
+								"Got error getting scaler target",
+								log.String("alias", oplet.Alias()),
+								log.Error(err),
+							)
 							continue
 						}
 						if target != nil {
-							a.l.Infof("Scaling %s -> %d", oplet.Alias(), target.InstanceCount)
-							a.scalingTargetCh <- scalingRequest{OpletAlias: oplet.Alias(), InstanceCount: target.InstanceCount}
+							a.l.Info(
+								"Oplet must be scaled",
+								log.String("alias", oplet.Alias()),
+								log.Int("target_instance_count", target.InstanceCount),
+							)
+							opID, _ := oplet.OperationInfo()
+							a.scalingTargetCh <- scalingRequest{
+								OpletAlias:    oplet.Alias(),
+								InstanceCount: target.InstanceCount,
+								OperationID:   opID, // Might already be different from the running op id.
+							}
 						}
 					}
 				}()
@@ -568,5 +585,6 @@ func (a *Agent) CheckHealth() error {
 
 type scalingRequest struct {
 	OpletAlias    string
-	InstanceCount int64
+	OperationID   yt.OperationID
+	InstanceCount int
 }

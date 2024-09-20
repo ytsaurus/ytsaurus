@@ -36,7 +36,7 @@ func (c *Config) YTAuthCookieNameOrDefault() string {
 	return DefaultYTAuthCookieName
 }
 
-func (c *Config) LastActivityRelUrlOrDefault() string {
+func (c *Config) LastActivityURLPathOrDefault() string {
 	if c.LastActivityURLPath != nil {
 		return *c.LastActivityURLPath
 	}
@@ -183,7 +183,7 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 					Name:         "idle_timeout",
 					Type:         strawberry.TypeYson,
 					CurrentValue: speclet.IdleTimeout,
-					DefaultValue: 0,
+					DefaultValue: DefaultIdleTimeout,
 					MinValue:     0,
 					Description:  "Jupyt operation will be suspended in case of no activity for the specified time.",
 				},
@@ -251,7 +251,7 @@ func (c *Controller) GetScalerTarget(ctx context.Context, oplet *strawberry.Ople
 		return nil, err
 	}
 
-	lastActivityRelUrl := c.config.LastActivityRelUrlOrDefault()
+	lastActivityRelUrl := c.config.LastActivityURLPathOrDefault()
 	lastActivityUrl := fmt.Sprintf("%s/%s", endpointInfo.Address, lastActivityRelUrl)
 	resp, err := http.Get(lastActivityUrl)
 	if err != nil {
@@ -279,7 +279,11 @@ func (c *Controller) GetScalerTarget(ctx context.Context, oplet *strawberry.Ople
 	sinceLastActivity := time.Now().Sub(jupyterResponse.LastActivity)
 	if speclet.EnableIdleSuspension && sinceLastActivity > speclet.IdleTimeoutOrDefault() {
 		reason := fmt.Sprintf("idle time %d > %d", sinceLastActivity, speclet.IdleTimeout)
-		c.l.Infof("%s %s should be suspended: %s", c.Family(), oplet.Alias(), reason)
+		c.l.Info(
+			"oplet should be suspended",
+			log.String("alias", oplet.Alias()),
+			log.String("reason", reason),
+		)
 		return &strawberry.ScalerTarget{
 			InstanceCount: 0,
 			Reason:        reason,
@@ -287,10 +291,6 @@ func (c *Controller) GetScalerTarget(ctx context.Context, oplet *strawberry.Ople
 	}
 
 	return nil, nil
-}
-
-func (c *Controller) NonRestartingOpSpecletFields() map[string]struct{} {
-	return map[string]struct{}{"EnableIdleSuspension": {}, "IdleTimeout": {}, "ResumeMarker": {}}
 }
 
 func parseConfig(rawConfig yson.RawValue) Config {

@@ -10,8 +10,8 @@ type Speclet struct {
 	Memory *uint64 `yson:"memory"`
 
 	JupyterDockerImage   string         `yson:"jupyter_docker_image"`
-	IdleTimeout          *yson.Duration `yson:"idle_timeout"`
-	EnableIdleSuspension bool           `yson:"enable_idle_suspension"`
+	IdleTimeout          *yson.Duration `yson:"idle_timeout" requires_restart:"false"`
+	EnableIdleSuspension bool           `yson:"enable_idle_suspension" requires_restart:"false"`
 }
 
 const (

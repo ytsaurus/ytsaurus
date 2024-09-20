@@ -397,10 +397,6 @@ func (c *Controller) GetScalerTarget(ctx context.Context, oplet *strawberry.Ople
 	return nil, nil
 }
 
-func (c *Controller) NonRestartingOpSpecletFields() map[string]struct{} {
-	return map[string]struct{}{}
-}
-
 func parseConfig(rawConfig yson.RawValue) Config {
 	var controllerConfig Config
 	if rawConfig != nil {
