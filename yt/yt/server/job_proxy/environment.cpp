@@ -47,8 +47,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString RootFSBinaryDirectory("/ext_bin/");
-
 #ifdef _linux_
 static constexpr auto ResourceUsageUpdatePeriod = TDuration::MilliSeconds(1000);
 #endif
@@ -324,16 +322,6 @@ public:
             auto volumeCreationResult = WaitFor(PortoExecutor_->CreateVolume(newPath, properties));
             auto volumePath = HandleVolumeCreationError(volumeCreationResult);
 
-            // TODO(gritukan): ytserver-exec can be resolved into something strange in tests,
-            // so let's live with exec in layer for a while.
-            if (!Config_->UseExecFromLayer) {
-                rootFS.Binds.push_back(TBind{
-                    .SourcePath = ResolveBinaryPath(ExecProgramName).ValueOrThrow(),
-                    .TargetPath = RootFSBinaryDirectory + ExecProgramName,
-                    .ReadOnly = true,
-                });
-            }
-
             launcher->SetRoot(rootFS);
         }
 
@@ -570,6 +558,11 @@ public:
             .ThrowOnError();
     }
 
+    bool UseExecFromLayer() const override
+    {
+        return Config_->UseExecFromLayer;
+    }
+
     IUserJobEnvironmentPtr CreateUserJobEnvironment(
         TJobId jobId,
         const TUserJobEnvironmentOptions& options) override
@@ -774,6 +767,11 @@ public:
     std::optional<i64> GetJobOOMKillCount() const noexcept override
     {
         return std::nullopt;
+    }
+
+    bool UseExecFromLayer() const override
+    {
+        return false;
     }
 
     IUserJobEnvironmentPtr CreateUserJobEnvironment(
@@ -1068,6 +1066,11 @@ public:
             YT_LOG_WARNING(ex, "Failed to get OOM kill count");
             return std::nullopt;
         }
+    }
+
+    bool UseExecFromLayer() const override
+    {
+        return false;
     }
 
     IUserJobEnvironmentPtr CreateUserJobEnvironment(
