@@ -76,6 +76,10 @@ void ExecuteFilterStep(TBlockWithFilter& blockWithFilter, const TFilterInfo& fil
         currentFilter.resize_fill(rowCount, 1);
     }
 
+    auto throwIllegalType = [&] {
+        THROW_ERROR_EXCEPTION("Illegal type for filter in PREWHERE: %Qv", filterColumn->getName());
+    };
+
     // Combine current filter and filter column.
     // Note that filter column is either UInt8 or Nullable(UInt8).
     if (const auto* nullableFilterColumn = DB::checkAndGetColumn<DB::ColumnNullable>(filterColumn.get())) {
@@ -85,7 +89,9 @@ void ExecuteFilterStep(TBlockWithFilter& blockWithFilter, const TFilterInfo& fil
         YT_VERIFY(std::ssize(nullMap) == rowCount);
 
         const auto* nestedColumn = DB::checkAndGetColumn<DB::ColumnVector<DB::UInt8>>(nullableFilterColumn->getNestedColumn());
-        YT_VERIFY(nestedColumn);
+        if (!nestedColumn) {
+            throwIllegalType();
+        }
         const auto& values = nestedColumn->getData();
         YT_VERIFY(std::ssize(values) == rowCount);
 
@@ -94,7 +100,9 @@ void ExecuteFilterStep(TBlockWithFilter& blockWithFilter, const TFilterInfo& fil
         }
     } else {
         const auto* valueColumn = DB::checkAndGetColumn<DB::ColumnVector<DB::UInt8>>(filterColumn.get());
-        YT_VERIFY(valueColumn);
+        if (!valueColumn) {
+            throwIllegalType();
+        }
         const auto& values = valueColumn->getData();
         YT_VERIFY(std::ssize(values) == rowCount);
 
