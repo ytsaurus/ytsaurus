@@ -140,13 +140,13 @@ struct IMulticellManager
     /*!
      *  \note Thread affinity: any
      */
-    virtual TString GetMasterCellName(NObjectClient::TCellTag cellTag) const = 0;
+    virtual std::string GetMasterCellName(NObjectClient::TCellTag cellTag) const = 0;
 
     //! Returns master cell tag or std::nullopt, if there is no cell with given name.
     /*!
      *  \note Thread affinity: any
      */
-    virtual std::optional<NObjectClient::TCellTag> FindMasterCellTagByName(const TString& cellName) const = 0;
+    virtual std::optional<NObjectClient::TCellTag> FindMasterCellTagByName(const std::string& cellName) const = 0;
 
     //! Returns the list of cell tags for all registered master cells (other than the local one),
     //! in a stable order.
