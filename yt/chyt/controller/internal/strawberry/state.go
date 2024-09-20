@@ -11,8 +11,11 @@ import (
 // It is written to the cypress when changed and is read from the cypress when the cypress revision is changed.
 // The persistence of the state is needed for fault tolerance.
 type PersistentState struct {
-	YTOpID    yt.OperationID    `yson:"yt_operation_id"`
-	YTOpState yt.OperationState `yson:"yt_operation_state"`
+	YTOpID        yt.OperationID    `yson:"yt_operation_id"`
+	YTOpState     yt.OperationState `yson:"yt_operation_state"`
+	YTOpSuspended bool              `yson:"yt_operation_suspended"`
+
+	ResumeMarker string `yson:"resume_marker"`
 
 	IncarnationIndex int `yson:"incarnation_index"`
 

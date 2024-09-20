@@ -236,6 +236,14 @@ func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {
 	return nil
 }
 
+func (c *Controller) GetScalerTarget(ctx context.Context, oplet *strawberry.Oplet) (*strawberry.ScalerTarget, error) {
+	return nil, nil
+}
+
+func (c *Controller) NonRestartingOpSpecletFields() map[string]struct{} {
+	return map[string]struct{}{}
+}
+
 func parseConfig(rawConfig yson.RawValue) Config {
 	var controllerConfig Config
 	if rawConfig != nil {

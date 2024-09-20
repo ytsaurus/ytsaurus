@@ -1,23 +1,32 @@
 package jupyt
 
 import (
+	"bytes"
 	"context"
-
+	"encoding/json"
+	"fmt"
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yterrors"
+	"io"
+	"net/http"
+	"time"
 )
 
 type Config struct {
-	YTAuthCookieName *string           `yson:"yt_auth_cookie_name"`
-	ExtraEnvVars     map[string]string `yson:"extra_env_vars"`
+	YTAuthCookieName    *string           `yson:"yt_auth_cookie_name"`
+	ExtraEnvVars        map[string]string `yson:"extra_env_vars"`
+	LastActivityURLPath *string           `yson:"last_activity_url_path"`
+	Command             *string           `yson:"command"`
 }
 
 const (
-	DefaultYTAuthCookieName = ""
+	DefaultYTAuthCookieName    = ""
+	DefaultLastActivityURLPath = "api/status"
+	DefaultCommand             = "bash -x start.sh /opt/conda/bin/jupyter lab --ip '*' --port $YT_PORT_0 --LabApp.token='' --allow-root >&2"
 )
 
 func (c *Config) YTAuthCookieNameOrDefault() string {
@@ -25,6 +34,20 @@ func (c *Config) YTAuthCookieNameOrDefault() string {
 		return *c.YTAuthCookieName
 	}
 	return DefaultYTAuthCookieName
+}
+
+func (c *Config) LastActivityRelUrlOrDefault() string {
+	if c.LastActivityURLPath != nil {
+		return *c.LastActivityURLPath
+	}
+	return DefaultLastActivityURLPath
+}
+
+func (c *Config) CommandOrDefault() string {
+	if c.Command != nil {
+		return *c.Command
+	}
+	return DefaultCommand
 }
 
 type Controller struct {
@@ -40,7 +63,7 @@ func (c *Controller) UpdateState() (changed bool, err error) {
 }
 
 func (c *Controller) buildCommand(speclet *Speclet) (command string, env map[string]string) {
-	cmd := "bash -x start.sh /opt/conda/bin/jupyter lab --ip '*' --port $YT_PORT_0 --LabApp.token='' --allow-root >&2"
+	cmd := c.config.CommandOrDefault()
 	jupyterEnv := map[string]string{
 		"NB_GID":  "0",
 		"NB_UID":  "0",
@@ -140,6 +163,33 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 			},
 		},
 		{
+			Title: "Enable idle timeout suspension",
+			Options: []strawberry.OptionDescriptor{
+				{
+					Title:        "Enable idle timeout suspension",
+					Name:         "enable_idle_timeout_suspension",
+					Type:         strawberry.TypeBool,
+					CurrentValue: speclet.EnableIdleSuspension,
+					DefaultValue: false,
+					Description:  "Jupyt operation will be suspended in case of no activity if enabled.",
+				},
+			},
+		},
+		{
+			Title: "Idle timeout",
+			Options: []strawberry.OptionDescriptor{
+				{
+					Title:        "Idle timeout",
+					Name:         "idle_timeout",
+					Type:         strawberry.TypeYson,
+					CurrentValue: speclet.IdleTimeout,
+					DefaultValue: 0,
+					MinValue:     0,
+					Description:  "Jupyt operation will be suspended in case of no activity for the specified time.",
+				},
+			},
+		},
+		{
 			Title: "Resources",
 			Options: []strawberry.OptionDescriptor{
 				{
@@ -191,6 +241,56 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 	}
 	*filePaths = append(*filePaths, serverConfigYTPath)
 	return nil
+}
+
+func (c *Controller) GetScalerTarget(ctx context.Context, oplet *strawberry.Oplet) (*strawberry.ScalerTarget, error) {
+	opID, _ := oplet.OperationInfo()
+
+	endpointInfo, err := getEndpoint(ctx, c.ytc, opID)
+	if err != nil {
+		return nil, err
+	}
+
+	lastActivityRelUrl := c.config.LastActivityRelUrlOrDefault()
+	lastActivityUrl := fmt.Sprintf("%s/%s", endpointInfo.Address, lastActivityRelUrl)
+	resp, err := http.Get(lastActivityUrl)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("jupyter responded with error: %s", body)
+	}
+	var jupyterResponse struct {
+		LastActivity time.Time `json:"last_activity"`
+	}
+	err = json.NewDecoder(bytes.NewReader(body)).Decode(&jupyterResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	speclet := oplet.ControllerSpeclet().(Speclet)
+	sinceLastActivity := time.Now().Sub(jupyterResponse.LastActivity)
+	if speclet.EnableIdleSuspension && sinceLastActivity > speclet.IdleTimeoutOrDefault() {
+		reason := fmt.Sprintf("idle time %d > %d", sinceLastActivity, speclet.IdleTimeout)
+		c.l.Infof("%s %s should be suspended: %s", c.Family(), oplet.Alias(), reason)
+		return &strawberry.ScalerTarget{
+			InstanceCount: 0,
+			Reason:        reason,
+		}, nil
+	}
+
+	return nil, nil
+}
+
+func (c *Controller) NonRestartingOpSpecletFields() map[string]struct{} {
+	return map[string]struct{}{"EnableIdleSuspension": {}, "IdleTimeout": {}, "ResumeMarker": {}}
 }
 
 func parseConfig(rawConfig yson.RawValue) Config {

@@ -69,13 +69,16 @@ type FieldDiff struct {
 	NewValue any `yson:"new_value" json:"new_value"`
 }
 
-func specletDiff(oldSpeclet, newSpeclet any) map[string]FieldDiff {
+func specletDiff(oldSpeclet, newSpeclet any, fieldsToIgnore map[string]struct{}) map[string]FieldDiff {
 	if !reflect.DeepEqual(reflect.TypeOf(oldSpeclet), reflect.TypeOf(newSpeclet)) {
 		return nil
 	}
 	diff := make(map[string]FieldDiff)
 	for _, field := range reflect.VisibleFields(reflect.TypeOf(oldSpeclet)) {
 		if field.Anonymous {
+			continue
+		}
+		if _, ok := fieldsToIgnore[field.Name]; ok {
 			continue
 		}
 		old := reflect.ValueOf(oldSpeclet).FieldByIndex(field.Index).Interface()
