@@ -32,7 +32,7 @@ func newAdminPanel(logger *slog.Logger, metrics *solomon.Registry, config AdminP
 	}()
 
 	panel = &adminPanel{}
-	panel.logger = logger.With("component", "admin_panel")
+	panel.logger = logger.With("component", "AdminPanel")
 
 	mux := http.NewServeMux()
 
@@ -53,6 +53,11 @@ func newAdminPanel(logger *slog.Logger, metrics *solomon.Registry, config AdminP
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write(buffer.Bytes())
 		}
+	})
+	// "For testing purposes"
+	mux.HandleFunc("/log-error", func(w http.ResponseWriter, r *http.Request) {
+		panel.logger.Error("Log error requested")
+		_, _ = io.WriteString(w, "Error is logged!")
 	})
 
 	loggingMux := loggingMiddleware{

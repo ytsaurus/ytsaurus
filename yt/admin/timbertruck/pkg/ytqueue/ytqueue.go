@@ -38,7 +38,7 @@ type OutputConfig struct {
 }
 
 func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[pipelines.Row], err error) {
-	arcLogger := misc.NewSlogArcadiaAdapter(config.Logger.With("component", "ytclient"))
+	arcLogger := misc.NewArcadiaLevelCappingLogger(config.Logger, "ytclient")
 	ytConfig := yt.Config{
 		Proxy:     config.Cluster,
 		ProxyRole: config.RPCProxyRole,

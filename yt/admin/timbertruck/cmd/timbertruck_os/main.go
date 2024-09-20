@@ -55,7 +55,7 @@ func newOutput(config *Config, logConfig JSONLogConfig, task timbertruck.TaskArg
 				RPCProxyRole: ytQueueConfig.RPCProxyRole,
 				SessionID:    sessionID,
 				Token:        ytToken,
-				Logger:       task.Controller.Logger().With("component", "yt"),
+				Logger:       task.Controller.Logger(),
 			}
 
 			var ytOutput pipelines.Output[pipelines.Row]

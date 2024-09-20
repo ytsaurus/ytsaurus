@@ -153,14 +153,14 @@ func (tt *TimberTruck) Serve(ctx context.Context) error {
 		curHandler := &tt.handlers[i]
 		err = curHandler.initStagingDir()
 		if err != nil {
-			tt.logger.Error("Stream initialized error", "error", err)
+			tt.logger.Error("Error initializing stream", "error", err)
 			continue
 		}
 		fileEventChan := make(chan FileEvent, 16)
 		err = tt.fsWatcher.AddLogPath(curHandler.config.LogFile, fileEventChan)
 		if err != nil {
 			close(fileEventChan)
-			tt.logger.Error("Error initializing stream", "error", err)
+			tt.logger.Error("Cannot watch stream path", "error", err)
 			continue
 		}
 		defer close(fileEventChan)
@@ -171,7 +171,7 @@ func (tt *TimberTruck) Serve(ctx context.Context) error {
 		_, err = os.Stat(curHandler.config.LogFile)
 		if err != nil {
 			if err != ErrNotFound {
-				tt.logger.Error("Cannot stat log path", "path", tt.handlers[i].config.LogFile, "error", err)
+				tt.logger.Warn("Cannot stat log path", "path", tt.handlers[i].config.LogFile, "error", err)
 			} else {
 				fileEventChan <- FileRemoveOrRenameEvent
 			}
@@ -513,7 +513,7 @@ func (h *streamHandler) ProcessTaskQueue(ctx context.Context) {
 		taskController := taskController{
 			path:      task.StagedPath,
 			datastore: h.timberTruck.datastore,
-			logger:    h.logger.With("component", "pipeline"),
+			logger:    h.logger.With("component", "Pipeline"),
 		}
 
 		var p *pipelines.Pipeline
@@ -535,7 +535,6 @@ func (h *streamHandler) ProcessTaskQueue(ctx context.Context) {
 					level = slog.LevelError
 				}
 				h.logger.Log(context.Background(), level, "Error creating pipeline", "error", err)
-				h.logger.Error("Error creating pipeline", "error", err)
 
 				time.Sleep(backoff)
 				backoff *= 2

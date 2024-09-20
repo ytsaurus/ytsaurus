@@ -186,6 +186,10 @@ func NewApp[UserConfigType any]() (app App, userConfig *UserConfigType, err erro
 	return
 }
 
+//
+// DAEMON APP
+//
+
 type daemonApp struct {
 	config Config
 
@@ -233,6 +237,12 @@ func newDaemonApp(config Config) (app *daemonApp, err error) {
 		return
 	}
 
+	solomonRegistryOptions := solomon.NewRegistryOpts()
+	if config.AdminPanel != nil && config.AdminPanel.MonitoringTags != nil {
+		solomonRegistryOptions.SetTags(config.AdminPanel.MonitoringTags)
+	}
+	app.metrics = solomon.NewRegistry(solomonRegistryOptions)
+
 	var logFile io.Writer = os.Stderr
 	if config.LogFile != "" {
 		logFile, err = misc.NewLogrotatingFile(config.LogFile)
@@ -241,15 +251,16 @@ func newDaemonApp(config Config) (app *daemonApp, err error) {
 			return
 		}
 	}
-	app.logger = slog.New(slog.NewJSONHandler(logFile, nil))
+	errorCounter := app.metrics.Counter("tt.application.error_log_count")
+	errorCounter.Add(0)
+	app.logger = slog.New(
+		newLogErrorTracker(
+			slog.NewJSONHandler(logFile, nil),
+			errorCounter,
+		),
+	)
 	misc.SetLogrotatingLogger(app.logger)
 	misc.LogLoggingStarted(app.logger)
-
-	solomonRegistryOptions := solomon.NewRegistryOpts()
-	if config.AdminPanel != nil && config.AdminPanel.MonitoringTags != nil {
-		solomonRegistryOptions.SetTags(config.AdminPanel.MonitoringTags)
-	}
-	app.metrics = solomon.NewRegistry(solomonRegistryOptions)
 
 	var prevExitIsClean bool
 	prevExitIsClean, app.errorExitDetectorClose, err = errorExitDetector(app.logger, config.WorkDir)
@@ -410,6 +421,10 @@ func resolveAppConfig(userConfig any) (appConfig *Config, err error) {
 	return
 }
 
+//
+// ONE SHOT APP
+//
+
 type oneShotAppTask struct {
 	config  timbertruck.StreamConfig
 	newFunc timbertruck.NewPipelineFunc
@@ -552,5 +567,43 @@ func startProfiling(logger *slog.Logger) func() {
 		for _, f := range cleanupFuncList {
 			f()
 		}
+	}
+}
+
+//
+// LOG ERROR TRACKER
+//
+
+type logErrorTrackingHandler struct {
+	underlying slog.Handler
+	counter    metrics.Counter
+}
+
+func newLogErrorTracker(underlying slog.Handler, counter metrics.Counter) slog.Handler {
+	return logErrorTrackingHandler{underlying, counter}
+}
+
+func (t logErrorTrackingHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return t.underlying.Enabled(ctx, level)
+}
+
+func (t logErrorTrackingHandler) Handle(ctx context.Context, record slog.Record) error {
+	if record.Level >= slog.LevelError {
+		t.counter.Inc()
+	}
+	return t.underlying.Handle(ctx, record)
+}
+
+func (t logErrorTrackingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return logErrorTrackingHandler{
+		underlying: t.underlying.WithAttrs(attrs),
+		counter:    t.counter,
+	}
+}
+
+func (t logErrorTrackingHandler) WithGroup(name string) slog.Handler {
+	return logErrorTrackingHandler{
+		underlying: t.underlying.WithGroup(name),
+		counter:    t.counter,
 	}
 }
