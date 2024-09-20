@@ -20,7 +20,7 @@ from yt_commands import (
     get_in_sync_replicas, generate_timestamp, MaxTimestamp, raises_yt_error,
     create_table_replica, sync_enable_table_replica, get_tablet_infos, set_node_banned,
     suspend_chaos_cells, resume_chaos_cells, merge, add_maintenance, remove_maintenance,
-    sync_freeze_table, lock, get_tablet_errors, create_tablet_cell_bundle, create_area)
+    sync_freeze_table, lock, get_tablet_errors, create_tablet_cell_bundle, create_area, link)
 
 from yt_type_helpers import make_schema
 
@@ -265,6 +265,25 @@ class TestChaos(ChaosTestBase):
         insert_rows("//tmp/t", values)
 
         assert lookup_rows("//tmp/t", [{"key": 0}]) == values
+        wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values)
+
+    @authors("osidorkin")
+    def test_read_write_chaos_table_via_symlink_to_replica(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
+        ]
+        self._create_chaos_tables(cell_id, replicas)
+        link("//tmp/t", "//tmp/l")
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/l", values)
+
+        assert lookup_rows("//tmp/l", [{"key": 0}]) == values
         wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values)
 
     @authors("ponasenko-rs")
