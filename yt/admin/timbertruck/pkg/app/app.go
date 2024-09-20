@@ -164,6 +164,13 @@ func NewApp[UserConfigType any]() (app App, userConfig *UserConfigType, err erro
 		if err != nil {
 			return
 		}
+		if appConfig.Hostname == "" {
+			appConfig.Hostname, err = os.Hostname()
+			if err != nil {
+				err = fmt.Errorf("cannot resolve hostname: %w", err)
+				return
+			}
+		}
 		app, err = newDaemonApp(*appConfig)
 	} else if oneShotConfigPath != "" {
 		err = readConfiguration(oneShotConfigPath, userConfig)
