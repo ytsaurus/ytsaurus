@@ -154,7 +154,7 @@ DEFINE_REFCOUNTED_TYPE(TWorldInitializerConfig)
 struct TMasterCellDescriptor
     : public NYTree::TYsonStruct
 {
-    std::optional<TString> Name;
+    std::optional<std::string> Name;
     std::optional<EMasterCellRoles> Roles;
 
     REGISTER_YSON_STRUCT(TMasterCellDescriptor);

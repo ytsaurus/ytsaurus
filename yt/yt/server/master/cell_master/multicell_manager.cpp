@@ -329,7 +329,7 @@ public:
         return RoleMasterCellCounts_[cellRole].load();
     }
 
-    TString GetMasterCellName(TCellTag cellTag) const override
+    std::string GetMasterCellName(TCellTag cellTag) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -338,7 +338,7 @@ public:
         return GetOrCrash(MasterCellNameMap_, cellTag);
     }
 
-    std::optional<TCellTag> FindMasterCellTagByName(const TString& cellName) const override
+    std::optional<TCellTag> FindMasterCellTagByName(const std::string& cellName) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -558,8 +558,8 @@ private:
     TEnumIndexedArray<EMasterCellRole, std::atomic<int>> RoleMasterCellCounts_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterCellNamesLock_);
-    THashMap<TCellTag, TString> MasterCellNameMap_;
-    THashMap<TString, TCellTag> NameMasterCellMap_;
+    THashMap<TCellTag, std::string> MasterCellNameMap_;
+    THashMap<std::string, TCellTag> NameMasterCellMap_;
 
     static const TCellTagList EmptyCellTagList;
 
@@ -1531,7 +1531,7 @@ private:
         return GetDefaultMasterCellRoles(cellTag);
     }
 
-    TString ComputeMasterCellNameFromConfig(TCellTag cellTag)
+    std::string ComputeMasterCellNameFromConfig(TCellTag cellTag)
     {
         const auto& config = GetDynamicConfig();
         auto it = config->CellDescriptors.find(cellTag);
