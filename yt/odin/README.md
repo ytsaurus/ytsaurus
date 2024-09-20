@@ -76,6 +76,23 @@ yt_odin_webservice --config odin_webservice_config.json
 
 ### Docker image
 
+#### With yt libraries from pip
+
+It is possible to build a self-confined Odin image using the main YTsaurus [Dockerfile](./../docker/ytsaurus/Dockerfile). The image will be built using a [multi-stage build](https://docs.docker.com/build/building/multi-stage/) approach where only the necessary runtime files and dependencies are preserved in the final stage.
+
+To build the image run the following command:
+```bash
+cd $SOURCE_ROOT
+
+docker build -t ytsaurus-odin:latest --build-arg ROOT_IMAGE=python-base --target odin -f ./yt/docker/ytsaurus/Dockerfile .
+```
+
+The last argument is the location of the YTsaurus source root, which is the current directory, `$SOURCE_ROOT`, in the snippet above.
+
+#### With yt libraries from source (deprecated)
+
+> **_NOTE:_**  This approach is a bit outdated and might require manual intervention to work. In the future building from sources will be supported within the first approach.
+
 It is possible to build a self-confined Odin image using the provided [Dockerfile](./Dockerfile). The image will be built using a [multi-stage build](https://docs.docker.com/build/building/multi-stage/) approach where only the necessary runtime files and dependencies are preserved in the final stage.
 
 To build the image run the following commands:
@@ -86,6 +103,8 @@ cd $SOURCE_ROOT/yt/odin
 # ytsaurus-odin:latest is the label:tag of the resulting image
 docker build -t ytsaurus-odin:latest .
 ```
+
+#### Running odin from docker container
 
 To run Odin inside a container do the following:
 
