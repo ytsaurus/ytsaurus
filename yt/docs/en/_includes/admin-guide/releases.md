@@ -313,9 +313,22 @@ Publishes as docker images.
 
 Publishes as docker images.
 
-**Current release:** 2.2.0 (`ghcr.io/ytsaurus/spyt:2.2.0`)
+**Current release:** 2.3.0 (`ghcr.io/ytsaurus/spyt:2.3.0`)
 
 **All releases:**
+
+{% cut "**2.3.0**" %}
+
+The major feature of SPYT 2.3.0 is support for Spark 3.3.x. Other notable features are:
+
+- Support for extended Datetime types such as Date32, Datetime32, Timestamp64, Interval64
+- Support for table properties in Spark SQL
+- Support for writing using Hive partitioning schema
+- Support for specifying random port for Shuffle service in inner standalone cluster
+- Fix for runtime statistics
+- Bug-Fixes for user-provided schema and for dataframes persisting
+
+{% endcut %}
 
 {% cut "**2.2.0**" %}
 
