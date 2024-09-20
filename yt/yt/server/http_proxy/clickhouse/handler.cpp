@@ -960,7 +960,7 @@ private:
         auto error = WaitFor(future);
         if (!error.IsOK()) {
             if (error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
-                auto replyError = TError("User %Qv has no access to clique %v",
+                auto replyError = TError("User %Qv has no access to clique %Qv",
                     User_,
                     CliqueAlias_)
                     << error;
@@ -971,7 +971,7 @@ private:
             } else {
                 ReplyWithError(
                     EStatusCode::BadRequest,
-                    TError("Failed to authorize user %Qv to clique %v",
+                    TError("Failed to authorize user %Qv to clique %Qv",
                         User_,
                         CliqueAlias_)
                         << error);
