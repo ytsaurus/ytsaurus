@@ -1105,7 +1105,7 @@ func (oplet *Oplet) Pass(ctx context.Context, checkOpLiveness bool) error {
 	}
 
 	if oplet.strawberrySpeclet.ResumeMarker != oplet.persistentState.ResumeMarker {
-		//oplet.SetPendingScaling(1)
+		// Maybe put into persistent state, so resuming will be not interrupted by strawberry restart?
 		oplet.pendingResume = true
 		oplet.persistentState.ResumeMarker = oplet.strawberrySpeclet.ResumeMarker
 		oplet.persistentState.YTOpSpeclet = oplet.specletYson
