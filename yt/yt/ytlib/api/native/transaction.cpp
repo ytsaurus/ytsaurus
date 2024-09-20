@@ -1322,11 +1322,12 @@ private:
                             }
 
                             const auto& clusterName = transaction->Client_->GetNativeConnection()->GetClusterName().value();
-                            if (!NChaosClient::IsReplicaLocationValid(replica, TableInfo_->Path, clusterName)) {
+                            if (!NChaosClient::IsReplicaLocationValid(replica, TableInfo_->PhysicalPath, clusterName)) {
                                 THROW_ERROR_EXCEPTION("Table uses upstream_replica_id of other replica")
                                     << TErrorAttribute("upstream_replica_id", TableInfo_->UpstreamReplicaId)
                                     << TErrorAttribute("replication_card_id", TableInfo_->ReplicationCardId)
                                     << TErrorAttribute("table_path", TableInfo_->Path)
+                                    << TErrorAttribute("table_physical_path", TableInfo_->PhysicalPath)
                                     << TErrorAttribute("expected_path", replica->ReplicaPath)
                                     << TErrorAttribute("table_cluster", clusterName)
                                     << TErrorAttribute("expected_cluster", replica->ClusterName);
