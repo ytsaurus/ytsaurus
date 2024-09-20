@@ -30,8 +30,7 @@ public class MultiExecutorRequestTask<R> {
             List<ClientEntry> clients,
             Function<BaseYTsaurusClient, CompletableFuture<R>> callback,
             MultiExecutorMonitoring executorMonitoring
-    )
-    {
+    ) {
         this.callback = callback;
         this.executorMonitoring = executorMonitoring;
         this.delayedSubrequestTasks = clients.stream().map((clientEntry) -> new DelayedSubrequestTask(
@@ -79,8 +78,7 @@ public class MultiExecutorRequestTask<R> {
                 MultiYTsaurusClient.YTsaurusClientOptions clientOptions,
                 Duration effectivePenalty,
                 Consumer<Boolean> completionConsumer
-        )
-        {
+        ) {
             this.clientOptions = clientOptions;
             this.effectivePenalty = effectivePenalty;
             this.completionConsumer = completionConsumer;
@@ -141,8 +139,7 @@ public class MultiExecutorRequestTask<R> {
                             }
 
                             if ((error == null || isLastTask) &&
-                                    status.compareAndSet(Status.IN_PROGRESS, Status.COMPLETED))
-                            {
+                                    status.compareAndSet(Status.IN_PROGRESS, Status.COMPLETED)) {
                                 clientEntry.reportComplete(error == null);
                                 if (error == null) {
                                     requestFuture.complete(value);
