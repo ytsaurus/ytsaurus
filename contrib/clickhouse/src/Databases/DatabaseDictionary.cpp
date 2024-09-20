@@ -1,3 +1,4 @@
+#include <Databases/DatabaseFactory.h>
 #include <Databases/DatabaseDictionary.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/ExternalDictionariesLoader.h>
@@ -140,4 +141,14 @@ void DatabaseDictionary::shutdown()
 {
 }
 
+void registerDatabaseDictionary(DatabaseFactory & factory)
+{
+    auto create_fn = [](const DatabaseFactory::Arguments & args)
+    {
+        return make_shared<DatabaseDictionary>(
+            args.database_name,
+            args.context);
+    };
+    factory.registerDatabase("Dictionary", create_fn);
+}
 }

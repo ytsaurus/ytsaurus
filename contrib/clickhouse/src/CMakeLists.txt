@@ -604,6 +604,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/NormalizeAndEvaluateConstantsVisitor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/TablesDependencyGraph.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/TablesLoader.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/registerDatabases.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/removeWhereConditionPlaceholder.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/CacheDictionary.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/CacheDictionaryUpdateQueue.cpp
