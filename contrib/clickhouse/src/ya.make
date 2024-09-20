@@ -600,6 +600,7 @@ SRCS(
     Databases/NormalizeAndEvaluateConstantsVisitor.cpp
     Databases/TablesDependencyGraph.cpp
     Databases/TablesLoader.cpp
+    Databases/registerDatabases.cpp
     Databases/removeWhereConditionPlaceholder.cpp
     Dictionaries/CacheDictionary.cpp
     Dictionaries/CacheDictionaryUpdateQueue.cpp
