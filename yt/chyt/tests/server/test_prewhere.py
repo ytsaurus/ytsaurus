@@ -312,3 +312,19 @@ class TestClickHousePrewhere(ClickHouseTestBase):
                 clique.make_query("select * from `//tmp/t` prewhere int")
             with raises_yt_error(QueryFailedError):
                 clique.make_query("select * from `//tmp/t` prewhere str")
+
+    @authors("dakovalkov")
+    def test_short_circuit(self):
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "a", "type": "int64", "required": True},
+                {"name": "b", "type": "string", "required": True},
+                {"name": "c", "type": "int64", "required": True},
+            ],
+        })
+        write_table("//tmp/t", [{"a": 1, "b": "abcd", "c": 1}, {"a": 2, "b": "1999-10-01", "c": 2}])
+
+        config_patch = self.get_config_patch(optimize_move_to_prewhere=False)
+        with Clique(1, config_patch=config_patch) as clique:
+            query = "select * from `//tmp/t` prewhere a = 2 and toDate(b) = '1999-10-01'"
+            assert clique.make_query(query) == [{"a": 2, "b": "1999-10-01", "c": 2}]
