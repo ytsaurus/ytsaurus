@@ -21,7 +21,7 @@ public:
     void Start();
 
 protected:
-    std::vector<TString> GetInstanceTags() const override;
+    std::vector<std::string> GetInstanceTags() const override;
 
 private:
     NClusterNode::IBootstrap* const Bootstrap_;

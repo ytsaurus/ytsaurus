@@ -109,7 +109,7 @@ const NProto::TNodeResources& InfiniteNodeResources();
 NObjectClient::TObjectId ObjectIdFromNodeId(TNodeId nodeId, NObjectClient::TCellTag);
 TNodeId NodeIdFromObjectId(NObjectClient::TObjectId objectId);
 
-void ValidateNodeTags(const std::vector<TString>& tags);
+void ValidateNodeTags(const std::vector<std::string>& tags);
 
 ////////////////////////////////////////////////////////////////////////////////
 

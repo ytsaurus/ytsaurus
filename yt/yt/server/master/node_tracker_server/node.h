@@ -119,11 +119,11 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TMulticellDescriptors, MulticellDescriptors);
 
     //! Tags specified by user in "user_tags" attribute.
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TString>, UserTags);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<std::string>, UserTags);
     //! Tags received from node during registration (those typically come from config).
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TString>, NodeTags);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<std::string>, NodeTags);
     //! User tags plus node tags.
-    DEFINE_BYREF_RO_PROPERTY(THashSet<TString>, Tags);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<std::string>, Tags);
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, RegisterTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
@@ -467,8 +467,8 @@ private:
     void SetHost(THost* host);
     void SetDisableWriteSessions(bool value);
 
-    void SetNodeTags(const std::vector<TString>& tags);
-    void SetUserTags(const std::vector<TString>& tags);
+    void SetNodeTags(const std::vector<std::string>& tags);
+    void SetUserTags(const std::vector<std::string>& tags);
     void RebuildTags();
 
     void SetFlavors(const THashSet<ENodeFlavor>& newFlavors);

@@ -60,7 +60,7 @@ void TBundleDynamicConfigManager::Start()
         }));
 }
 
-std::vector<TString> TBundleDynamicConfigManager::GetInstanceTags() const
+std::vector<std::string> TBundleDynamicConfigManager::GetInstanceTags() const
 {
     return Bootstrap_->GetLocalDescriptor().GetTags();
 }

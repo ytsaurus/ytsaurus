@@ -21,8 +21,8 @@ public:
     void SetBanMessage(const TString& message) override;
     TString GetBanMessage() const override;
 
-    void SetProxyRole(const std::optional<TString>& role) override;
-    std::optional<TString> GetProxyRole() const override;
+    void SetProxyRole(const std::optional<std::string>& role) override;
+    std::optional<std::string> GetProxyRole() const override;
 
     bool SetAvailableState(bool available) override;
     bool GetAvailableState() const override;
@@ -30,7 +30,7 @@ public:
     bool GetOperableState() const override;
     void ValidateOperable() const override;
 
-    DEFINE_SIGNAL_OVERRIDE(void(const std::optional<TString>&), OnProxyRoleChanged);
+    DEFINE_SIGNAL_OVERRIDE(void(const std::optional<std::string>&), OnProxyRoleChanged);
 
 private:
     std::atomic<bool> Banned_ = false;
@@ -38,7 +38,7 @@ private:
 
     TAtomicObject<TString> BanMessage_;
 
-    TAtomicObject<std::optional<TString>> ProxyRole_;
+    TAtomicObject<std::optional<std::string>> ProxyRole_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,13 +63,13 @@ TString TProxyCoordinator::GetBanMessage() const
     return BanMessage_.Load();
 }
 
-void TProxyCoordinator::SetProxyRole(const std::optional<TString>& role)
+void TProxyCoordinator::SetProxyRole(const std::optional<std::string>& role)
 {
     ProxyRole_.Store(role);
     OnProxyRoleChanged_.Fire(role);
 }
 
-std::optional<TString> TProxyCoordinator::GetProxyRole() const
+std::optional<std::string> TProxyCoordinator::GetProxyRole() const
 {
     return ProxyRole_.Load();
 }

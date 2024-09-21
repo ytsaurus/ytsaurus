@@ -35,11 +35,11 @@ public:
     }
 
 private:
-    std::vector<TString> BaseTags_;
+    std::vector<std::string> BaseTags_;
 
-    TAtomicObject<TString> ProxyRole_;
+    TAtomicObject<std::string> ProxyRole_;
 
-    std::vector<TString> GetInstanceTags() const override
+    std::vector<std::string> GetInstanceTags() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -49,7 +49,7 @@ private:
         return tags;
     }
 
-    void OnProxyRoleChanged(const TString& newRole)
+    void OnProxyRoleChanged(const std::string& newRole)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

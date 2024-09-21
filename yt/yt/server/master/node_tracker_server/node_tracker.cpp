@@ -556,7 +556,7 @@ public:
         }
     }
 
-    void SetNodeUserTags(TNode* node, const std::vector<TString>& tags) override
+    void SetNodeUserTags(TNode* node, const std::vector<std::string>& tags) override
     {
         UpdateNodeCounters(node, -1);
         node->SetUserTags(tags);
@@ -1015,7 +1015,7 @@ private:
         TAddressMap Addresses;
         std::string DefaultAddress;
         TTransactionId LeaseTransactionId;
-        std::vector<TString> Tags;
+        std::vector<std::string> Tags;
         THashSet<ENodeFlavor> Flavors;
         bool ExecNodeIsNotDataNode;
         std::string HostName;
@@ -1062,13 +1062,13 @@ private:
 
     void FillResponseNodeTags(
         ::google::protobuf::RepeatedPtrField<TProtoStringType>* rspTags,
-        const THashSet<TString>& tags)
+        const THashSet<std::string>& tags)
     {
         TCompactVector<TString, 16> sortedTags(tags.begin(), tags.end());
         std::sort(sortedTags.begin(), sortedTags.end());
         rspTags->Reserve(sortedTags.size());
-        for (auto& tag : sortedTags) {
-            rspTags->Add(std::move(tag));
+        for (const auto& tag : sortedTags) {
+            rspTags->Add(ToProto<TProtobufString>(tag));
         }
     }
 
@@ -1313,7 +1313,7 @@ private:
             .Addresses = addresses,
             .DefaultAddress = address,
             .LeaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id()),
-            .Tags = FromProto<std::vector<TString>>(request->tags()),
+            .Tags = FromProto<std::vector<std::string>>(request->tags()),
             .Flavors = std::move(flavors),
             .ExecNodeIsNotDataNode = request->exec_node_is_not_data_node(),
             // COMPAT(gritukan)
@@ -1398,7 +1398,7 @@ private:
             .Addresses = addresses,
             .DefaultAddress = address,
             .LeaseTransactionId = NullTransactionId,
-            .Tags = FromProto<std::vector<TString>>(request->tags()),
+            .Tags = FromProto<std::vector<std::string>>(request->tags()),
             .Flavors = FromProto<THashSet<ENodeFlavor>>(request->flavors()),
             .ExecNodeIsNotDataNode = request->exec_node_is_not_data_node(),
             .HostName = request->host_name(),

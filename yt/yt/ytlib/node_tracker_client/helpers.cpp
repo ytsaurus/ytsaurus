@@ -219,7 +219,7 @@ TNodeId NodeIdFromObjectId(TObjectId objectId)
     return TNodeId(CounterFromId(objectId));
 }
 
-void ValidateNodeTags(const std::vector<TString>& tags)
+void ValidateNodeTags(const std::vector<std::string>& tags)
 {
     for (const auto& tag : tags) {
         try {

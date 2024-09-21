@@ -41,7 +41,7 @@ struct TProxyEntry
     : public NYTree::TYsonStruct
 {
     TString Endpoint;
-    TString Role;
+    std::string Role;
 
     TLivenessPtr Liveness;
 
@@ -61,7 +61,7 @@ struct TCoordinatorProxy
     : public TRefCounted
 {
     const TProxyEntryPtr Entry;
-    std::atomic<i64> Dampening{0};
+    std::atomic<i64> Dampening = 0;
 
     explicit TCoordinatorProxy(const TProxyEntryPtr& proxyEntry);
 };
@@ -83,8 +83,8 @@ public:
     bool IsBanned() const;
     bool CanHandleHeavyRequests() const;
 
-    std::vector<TProxyEntryPtr> ListProxyEntries(std::optional<TString> roleFilter, bool includeDeadAndBanned = false);
-    TProxyEntryPtr AllocateProxy(const TString& role);
+    std::vector<TProxyEntryPtr> ListProxyEntries(std::optional<std::string> roleFilter, bool includeDeadAndBanned = false);
+    TProxyEntryPtr AllocateProxy(const std::string& role);
     TProxyEntryPtr GetSelf();
 
     const TCoordinatorConfigPtr& GetConfig() const;
@@ -94,7 +94,7 @@ public:
     bool IsUnavailable(TInstant at) const;
 
     //! Raised when proxy role changes.
-    DEFINE_SIGNAL(void(const TString&), OnSelfRoleChanged);
+    DEFINE_SIGNAL(void(const std::string&), OnSelfRoleChanged);
 
     TDuration GetDeathAge() const;
 
@@ -126,7 +126,7 @@ private:
 
     void UpdateState();
     std::vector<TCoordinatorProxyPtr> ListCypressProxies();
-    std::vector<TCoordinatorProxyPtr> ListProxies(std::optional<TString> roleFilter, bool includeDeadAndBanned = false);
+    std::vector<TCoordinatorProxyPtr> ListProxies(std::optional<std::string> roleFilter, bool includeDeadAndBanned = false);
 
     TLivenessPtr GetSelfLiveness();
 };

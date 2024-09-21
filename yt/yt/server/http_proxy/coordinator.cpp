@@ -195,7 +195,7 @@ bool TCoordinator::CanHandleHeavyRequests() const
     return Self_->Entry->Role != "control";
 }
 
-std::vector<TCoordinatorProxyPtr> TCoordinator::ListProxies(std::optional<TString> roleFilter, bool includeDeadAndBanned)
+std::vector<TCoordinatorProxyPtr> TCoordinator::ListProxies(std::optional<std::string> roleFilter, bool includeDeadAndBanned)
 {
     std::vector<TCoordinatorProxyPtr> proxies;
     {
@@ -254,7 +254,7 @@ std::vector<TCoordinatorProxyPtr> TCoordinator::ListProxies(std::optional<TStrin
     return filtered;
 }
 
-std::vector<TProxyEntryPtr> TCoordinator::ListProxyEntries(std::optional<TString> roleFilter, bool includeDeadAndBanned)
+std::vector<TProxyEntryPtr> TCoordinator::ListProxyEntries(std::optional<std::string> roleFilter, bool includeDeadAndBanned)
 {
     std::vector<TProxyEntryPtr> result;
     auto proxies = ListProxies(roleFilter, includeDeadAndBanned);
@@ -264,7 +264,7 @@ std::vector<TProxyEntryPtr> TCoordinator::ListProxyEntries(std::optional<TString
     return result;
 }
 
-TProxyEntryPtr TCoordinator::AllocateProxy(const TString& role)
+TProxyEntryPtr TCoordinator::AllocateProxy(const std::string& role)
 {
     auto proxies = ListProxies(role);
 

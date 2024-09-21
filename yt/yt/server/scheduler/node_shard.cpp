@@ -921,7 +921,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         execNode->SetInfinibandCluster(std::move(infinibandCluster));
 
         auto oldState = execNode->GetMasterState();
-        auto tags = TBooleanFormulaTags(attributes.Get<THashSet<TString>>("tags"));
+        auto tags = TBooleanFormulaTags(attributes.Get<THashSet<std::string>>("tags"));
 
         if (oldState == NNodeTrackerClient::ENodeState::Online && newState != NNodeTrackerClient::ENodeState::Online) {
             // NOTE: Tags will be validated when node become online, no need in additional check here.

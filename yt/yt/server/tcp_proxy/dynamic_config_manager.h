@@ -21,10 +21,10 @@ class TDynamicConfigManager
 public:
     explicit TDynamicConfigManager(IBootstrap* bootstrap);
 
-    std::vector<TString> GetInstanceTags() const override;
+    std::vector<std::string> GetInstanceTags() const override;
 
 private:
-    const std::vector<TString> InstanceTags_;
+    const std::vector<std::string> InstanceTags_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicConfigManager)
