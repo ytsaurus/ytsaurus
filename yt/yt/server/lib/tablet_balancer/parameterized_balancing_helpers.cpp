@@ -94,15 +94,26 @@ void FormatValue(TStringBuilderBase* builder, const TParameterizedReassignSolver
 {
     builder->AppendFormat(
         "MaxMoveActionCount: %v, NodeDeviationThreshold: %v, CellDeviationThreshold: %v, "
-        "MinRelativeMetricImprovement: %v, Metric: %v",
+        "MinRelativeMetricImprovement: %v, Metric: %v, Factors: %v",
         config.MaxMoveActionCount,
         config.NodeDeviationThreshold,
         config.CellDeviationThreshold,
         config.MinRelativeMetricImprovement,
-        config.Metric);
+        config.Metric,
+        config.Factors);
 }
 
-void FormatValue(TStringBuilderBase* builder, const TParameterizedResharderConfig& config, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TComponentFactorConfigPtr& config, TStringBuf /*format*/)
+{
+    builder->AppendFormat(
+        "CellFactor: %v, NodeFactor: %v, TableCellFactor: %v, TableNodeFactor: %v",
+        config->Cell,
+        config->Node,
+        config->TableCell,
+        config->TableNode);
+}
+
+void FormatValue(TStringBuilderBase* builder, const TParameterizedResharderConfig& config, TStringBuf /*format*/)
 {
     builder->AppendFormat(
         "EnableReshardByDefault: %v, Metric: %v",
