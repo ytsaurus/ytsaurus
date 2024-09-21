@@ -90,7 +90,7 @@ Y_FORCE_INLINE void DestroyRefCountedImpl(T* obj)
         return;
     }
 
-    YT_ASSERT(offset < std::numeric_limits<ui16>::max());
+    YT_ASSERT(offset < (1ULL << PackedPtrTagBits));
 
     auto* vTablePtr = reinterpret_cast<TPackedPtr*>(basePtr);
     *vTablePtr = TTaggedPtr<void(void*, ui16)>(&NYT::NDetail::TMemoryReleaser<T>::Do, offset).Pack();
