@@ -160,7 +160,7 @@ private:
             }
 
             case EInternedAttributeKey::NodeTagFilter: {
-                cellManager->SetAreaNodeTagFilter(area, ConvertTo<TString>(value));
+                cellManager->SetAreaNodeTagFilter(area, ConvertTo<std::string>(value));
                 return true;
             }
 

@@ -932,10 +932,10 @@ TEST_F(TFairShareTreeElementTest, TestSchedulingTagFilterResourceLimits)
 
     TJobResourcesWithQuotaList nodeResourceLimitsList = {nodeResources1, nodeResources2, nodeResources3, nodeResources134};
 
-    TBooleanFormulaTags tags1(THashSet<TString>({"tag_1"}));
-    TBooleanFormulaTags tags2(THashSet<TString>({"tag_2"}));
-    TBooleanFormulaTags tags3(THashSet<TString>({"tag_3"}));
-    TBooleanFormulaTags tags134(THashSet<TString>({"tag_1", "tag_3", "tag_4"}));
+    TBooleanFormulaTags tags1(THashSet<std::string>({"tag_1"}));
+    TBooleanFormulaTags tags2(THashSet<std::string>({"tag_2"}));
+    TBooleanFormulaTags tags3(THashSet<std::string>({"tag_3"}));
+    TBooleanFormulaTags tags134(THashSet<std::string>({"tag_1", "tag_3", "tag_4"}));
     std::vector<TBooleanFormulaTags> tagList = {tags1, tags2, tags3, tags134};
 
     std::vector<TExecNodePtr> execNodes(4);

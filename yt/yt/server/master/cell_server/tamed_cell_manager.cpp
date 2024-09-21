@@ -1174,7 +1174,7 @@ public:
         area->SetName(newName);
     }
 
-    void SetAreaNodeTagFilter(TArea* area, const TString& formula) override
+    void SetAreaNodeTagFilter(TArea* area, const std::string& formula) override
     {
         if (area->NodeTagFilter().GetFormula() != formula) {
             area->NodeTagFilter() = MakeBooleanFormula(formula);

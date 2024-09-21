@@ -167,7 +167,7 @@ private:
     struct TProxy
     {
         TProxyAddressMap Addresses;
-        TString Role;
+        std::string Role;
     };
 
     std::vector<TProxy> AvailableProxies_;
@@ -392,7 +392,7 @@ private:
                 YT_LOG_INFO("Proxy has been %v (Path: %v)", banned ? "banned" : "unbanned", ProxyPath_);
             }
 
-            auto role = attributes->Find<TString>(RoleAttributeName);
+            auto role = attributes->Find<std::string>(RoleAttributeName);
             ProxyCoordinator_->SetProxyRole(role);
 
             if (role) {
@@ -411,7 +411,7 @@ private:
                 const auto& attributes = child.second->Attributes();
 
                 bool banned = attributes.Get(BannedAttributeName, false);
-                auto role = attributes.Get<TString>(RoleAttributeName, DefaultRpcProxyRole);
+                auto role = attributes.Get<std::string>(RoleAttributeName, DefaultRpcProxyRole);
                 auto addresses = attributes.Get<TProxyAddressMap>(AddressesAttributeName, {});
                 bool alive = static_cast<bool>(child.second->AsMap()->FindChild(AliveNodeName));
 

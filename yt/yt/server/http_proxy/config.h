@@ -42,7 +42,7 @@ public:
     bool Announce;
 
     std::optional<TString> PublicFqdn;
-    std::optional<TString> DefaultRoleFilter;
+    std::optional<std::string> DefaultRoleFilter;
 
     TDuration HeartbeatInterval;
     TDuration DeathAge;
@@ -238,7 +238,7 @@ public:
 
     bool RetryRequestQueueSizeLimitExceeded;
 
-    TString Role;
+    std::string Role;
 
     TCoordinatorConfigPtr Coordinator;
     TApiConfigPtr Api;

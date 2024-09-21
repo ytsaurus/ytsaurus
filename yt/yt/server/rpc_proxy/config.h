@@ -148,7 +148,7 @@ public:
     TString DynamicConfigPath;
     bool UseTaggedDynamicConfig;
 
-    TString Role;
+    std::string Role;
 
     TProxyMemoryLimitsPtr MemoryLimits;
 

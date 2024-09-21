@@ -21,7 +21,7 @@ TDynamicConfigManager::TDynamicConfigManager(IBootstrap* bootstrap)
     , InstanceTags_({bootstrap->GetConfig()->Role})
 { }
 
-std::vector<TString> TDynamicConfigManager::GetInstanceTags() const
+std::vector<std::string> TDynamicConfigManager::GetInstanceTags() const
 {
     return InstanceTags_;
 }

@@ -330,7 +330,7 @@ public:
      * These tags are merged with others (e.g. provided by user and provided by master) to form
      * the full set of tags.
      */
-    std::vector<TString> Tags;
+    std::vector<std::string> Tags;
 
     //! Name of the host node is running on.
     std::optional<std::string> HostName;

@@ -213,7 +213,7 @@ public:
     virtual void SetNodeHost(TNode* node, THost* host) = 0;
 
     //! Sets the user tags for the node.
-    virtual void SetNodeUserTags(TNode* node, const std::vector<TString>& tags) = 0;
+    virtual void SetNodeUserTags(TNode* node, const std::vector<std::string>& tags) = 0;
 
     //! Creates a mutation that updates node's resource usage and limits.
     virtual std::unique_ptr<NHydra::TMutation> CreateUpdateNodeResourcesMutation(

@@ -71,7 +71,7 @@ public:
 
 protected:
     //! Returns the list of instance tags.
-    virtual std::vector<TString> GetInstanceTags() const;
+    virtual std::vector<std::string> GetInstanceTags() const;
 
 private:
     const TDynamicConfigManagerOptions Options_;
@@ -95,7 +95,7 @@ private:
     TConfigPtr AppliedConfig_;
     TConfigPtr InitialConfig_;
 
-    std::vector<TString> InstanceTags_;
+    std::vector<std::string> InstanceTags_;
 
     //! This promise becomes set when dynamic config was loaded
     //! for the first time.

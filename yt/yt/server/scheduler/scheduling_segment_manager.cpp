@@ -776,7 +776,7 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
 
 void TSchedulingSegmentManager::ValidateInfinibandClusterTags(TUpdateSchedulingSegmentsContext* context) const
 {
-    static const TString InfinibandClusterTagPrefix = InfinibandClusterNameKey + ":";
+    static const std::string InfinibandClusterTagPrefix = InfinibandClusterNameKey + ":";
 
     if (!Config_->EnableInfinibandClusterTagValidation) {
         return;
@@ -789,9 +789,9 @@ void TSchedulingSegmentManager::ValidateInfinibandClusterTags(TUpdateSchedulingS
                 << TErrorAttribute("configured_infiniband_clusters", Config_->InfinibandClusters);
         }
 
-        std::vector<TString> infinibandClusterTags;
+        std::vector<std::string> infinibandClusterTags;
         for (const auto& tag : node.Tags.GetSourceTags()) {
-            if (tag.StartsWith(InfinibandClusterTagPrefix)) {
+            if (tag.starts_with(InfinibandClusterTagPrefix)) {
                 infinibandClusterTags.push_back(tag);
             }
         }

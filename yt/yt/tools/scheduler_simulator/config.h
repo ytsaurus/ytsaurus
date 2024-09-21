@@ -81,7 +81,7 @@ class TNodeGroupConfig
 public:
     int Count;
     TNodeResourcesConfigPtr ResourceLimits;
-    THashSet<TString> Tags;
+    THashSet<std::string> Tags;
 
     REGISTER_YSON_STRUCT(TNodeGroupConfig);
 

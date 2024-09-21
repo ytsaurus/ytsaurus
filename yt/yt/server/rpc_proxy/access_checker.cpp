@@ -89,7 +89,7 @@ private:
 
     std::atomic<bool> Enabled_;
 
-    TAtomicObject<std::optional<TString>> ProxyRole_;
+    TAtomicObject<std::optional<std::string>> ProxyRole_;
 
     void OnDynamicConfigChanged(
         const TProxyDynamicConfigPtr& /*oldConfig*/,
@@ -100,7 +100,7 @@ private:
         Enabled_.store(newConfig->AccessChecker->Enabled.value_or(Config_->Enabled));
     }
 
-    void OnProxyRoleChanged(const std::optional<TString>& newRole)
+    void OnProxyRoleChanged(const std::optional<std::string>& newRole)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

@@ -93,7 +93,7 @@ public:
         const TAddressMap& rpcAddresses,
         const TAddressMap& skynetHttpAddresses,
         const TAddressMap& monitoringHttpAddresses,
-        const std::vector<TString>& nodeTags)
+        const std::vector<std::string>& nodeTags)
         : Bootstrap_(bootstrap)
         , Config_(Bootstrap_->GetConfig()->MasterConnector)
         , RpcAddresses_(rpcAddresses)
@@ -212,7 +212,7 @@ public:
         auto dataCenter = response->has_data_center() ? std::make_optional(response->data_center()) : std::nullopt;
         UpdateDataCenter(dataCenter);
 
-        auto tags = FromProto<std::vector<TString>>(response->tags());
+        auto tags = FromProto<std::vector<std::string>>(response->tags());
         UpdateTags(std::move(tags));
 
         Bootstrap_->SetDecommissioned(response->decommissioned());
@@ -328,7 +328,7 @@ private:
     const TAddressMap SkynetHttpAddresses_;
     const TAddressMap MonitoringHttpAddresses_;
 
-    const std::vector<TString> NodeTags_;
+    const std::vector<std::string> NodeTags_;
 
     TCancelableContextPtr MasterConnectionContext_;
 
@@ -430,7 +430,7 @@ private:
             LocalDescriptor_.GetTags());
     }
 
-    void UpdateTags(std::vector<TString> tags)
+    void UpdateTags(std::vector<std::string> tags)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -612,7 +612,7 @@ private:
 
         // COMPAT(pogorelov): Remove when all masters will be 24.1.
         if (rsp->tags_size() > 0) {
-            auto tags = FromProto<std::vector<TString>>(rsp->tags());
+            auto tags = FromProto<std::vector<std::string>>(rsp->tags());
             UpdateTags(std::move(tags));
         }
 
@@ -700,7 +700,7 @@ IMasterConnectorPtr CreateMasterConnector(
     const NNodeTrackerClient::TAddressMap& rpcAddresses,
     const NNodeTrackerClient::TAddressMap& skynetHttpAddresses,
     const NNodeTrackerClient::TAddressMap& monitoringHttpAddresses,
-    const std::vector<TString>& nodeTags)
+    const std::vector<std::string>& nodeTags)
 {
     return New<TMasterConnector>(
         bootstrap,

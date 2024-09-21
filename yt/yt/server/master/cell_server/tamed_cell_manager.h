@@ -71,7 +71,7 @@ public:
         NObjectClient::TObjectId hintId) = 0;
     virtual void RenameArea(TArea* area, const std::string& name) = 0;
     virtual void ZombifyArea(TArea* area) = 0;
-    virtual void SetAreaNodeTagFilter(TArea* area, const TString& formula) = 0;
+    virtual void SetAreaNodeTagFilter(TArea* area, const std::string& formula) = 0;
     virtual TArea* GetAreaByNameOrThrow(TCellBundle* cellBundle, const std::string& name) = 0;
 
     virtual void UpdateCellArea(TCellBase* cell, TArea* area) = 0;

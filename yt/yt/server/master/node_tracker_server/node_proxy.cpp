@@ -715,7 +715,7 @@ private:
                 return true;
 
             case EInternedAttributeKey::UserTags:
-                nodeTracker->SetNodeUserTags(node, ConvertTo<std::vector<TString>>(value));
+                nodeTracker->SetNodeUserTags(node, ConvertTo<std::vector<std::string>>(value));
                 return true;
 
             default:

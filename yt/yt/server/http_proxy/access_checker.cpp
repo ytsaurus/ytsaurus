@@ -82,11 +82,11 @@ private:
 
     const TPermissionCachePtr Cache_;
 
-    TAtomicObject<TString> ProxyRole_;
+    TAtomicObject<std::string> ProxyRole_;
 
     std::atomic<bool> Enabled_;
 
-    void OnProxyRoleUpdated(const TString& newRole)
+    void OnProxyRoleUpdated(const std::string& newRole)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

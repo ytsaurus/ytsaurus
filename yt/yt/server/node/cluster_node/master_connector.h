@@ -118,7 +118,7 @@ IMasterConnectorPtr CreateMasterConnector(
     const NNodeTrackerClient::TAddressMap& rpcAddresses,
     const NNodeTrackerClient::TAddressMap& skynetHttpAddresses,
     const NNodeTrackerClient::TAddressMap& monitoringHttpAddresses,
-    const std::vector<TString>& nodeTags);
+    const std::vector<std::string>& nodeTags);
 
 ////////////////////////////////////////////////////////////////////////////////
 
