@@ -245,8 +245,6 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
         if (configOrError.FindMatching(NYTree::EErrorCode::ResolveError) && Config_->IgnoreConfigAbsence) {
             YT_LOG_INFO("Dynamic config node does not exist (ConfigPath: %v)",
                 Options_.ConfigPath);
-            // XXX
-            // return false;
         } else {
             THROW_ERROR_EXCEPTION(
                 NDynamicConfig::EErrorCode::FailedToFetchDynamicConfig,
