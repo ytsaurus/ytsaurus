@@ -2,11 +2,45 @@
 
 #include <yt/yt/client/table_client/schema.h>
 
+#include <Functions/IFunction.h>
 #include <Storages/MergeTree/MergeTreeBaseSelectProcessor.h>
 
 namespace NYT::NClickHouseServer {
 
 using namespace NTableClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+DB::DataTypesWithConstInfo GetDataTypesWithConstInfo(const DB::ActionsDAG::NodeRawConstPtrs& nodes)
+{
+    DB::DataTypesWithConstInfo types;
+    types.reserve(nodes.size());
+    for (const auto& child : nodes) {
+        bool isConst = child->column && isColumnConst(*child->column);
+        types.push_back({child->result_type, isConst});
+    }
+    return types;
+}
+
+bool HasShortCircuitActions(const DB::ActionsDAGPtr& actionsDag)
+{
+    if (!actionsDag) {
+        return false;
+    }
+    for (const auto& node : actionsDag->getNodes()) {
+        if (node.function_base) {
+            auto arguments = GetDataTypesWithConstInfo(node.children);
+            if (node.function_base->isSuitableForShortCircuitArgumentsExecution(arguments)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,10 +72,23 @@ TReadPlanWithFilterPtr BuildReadPlanWithPrewhere(
     const DB::PrewhereInfoPtr& prewhereInfo,
     const DB::Settings& settings)
 {
+    bool enableMultiplePrewhereReadSteps = settings.enable_multiple_prewhere_read_steps;
+
+    // Do not split conditions with short circuit functions to multiple prewhere steps,
+    // because short circuit works only within one step.
+    // E.g. `user_id = 1 and toDate(dt) = '1999-10-01'` should not be splited,
+    // because `toDate` may throw an exception.
+    if (enableMultiplePrewhereReadSteps &&
+        settings.short_circuit_function_evaluation != DB::ShortCircuitFunctionEvaluation::DISABLE &&
+        HasShortCircuitActions(prewhereInfo->prewhere_actions))
+    {
+        enableMultiplePrewhereReadSteps = false;
+    }
+
     auto prewhereActions = DB::IMergeTreeSelectAlgorithm::getPrewhereActions(
         prewhereInfo,
         DB::ExpressionActionsSettings::fromSettings(settings, DB:: CompileExpressions::yes),
-        settings.enable_multiple_prewhere_read_steps);
+        enableMultiplePrewhereReadSteps);
 
     std::vector<TReadStepWithFilter> steps;
     steps.reserve(prewhereActions.steps.size() + 1);
