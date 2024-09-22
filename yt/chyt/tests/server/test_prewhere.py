@@ -328,3 +328,12 @@ class TestClickHousePrewhere(ClickHouseTestBase):
         with Clique(1, config_patch=config_patch) as clique:
             query = "select * from `//tmp/t` prewhere a = 2 and toDate(b) = '1999-10-01'"
             assert clique.make_query(query) == [{"a": 2, "b": "1999-10-01", "c": 2}]
+            # NB: CHYT-1220
+            query = """
+                select * from `//tmp/t`
+                prewhere
+                    (a in [2, 3]) and
+                    (toDateTime('1999-11-01 00:00:00') >= (toDate(b) as dt)) and
+                    (dt >= toDateTime('1999-09-01 00:00:00'))
+            """
+            assert clique.make_query(query) == [{"a": 2, "b": "1999-10-01", "c": 2}]
