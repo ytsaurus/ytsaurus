@@ -1521,8 +1521,8 @@ public:
             LayerMeta_.Path);
 
         Location_->RemoveLayer(LayerMeta_.Id)
-            .Subscribe(BIND([] (const TError& result) {
-                YT_LOG_ERROR_IF(!result.IsOK(), result, "Layer remove failed");
+            .Subscribe(BIND([layerId = LayerMeta_.Id] (const TError& result) {
+                YT_LOG_ERROR_IF(!result.IsOK(), result, "Failed to remove layer `%v`", layerId);
             }));
     }
 
