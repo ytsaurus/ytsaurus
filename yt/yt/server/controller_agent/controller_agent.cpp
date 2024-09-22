@@ -1206,7 +1206,7 @@ private:
         WaitFor(MasterConnector_->UpdateConfig())
             .ThrowOnError();
 
-        YT_LOG_INFO("Config updates");
+        YT_LOG_INFO("Config updated");
     }
 
     void PerformHandshake()
