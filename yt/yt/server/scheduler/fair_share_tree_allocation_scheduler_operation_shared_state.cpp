@@ -197,8 +197,8 @@ void TFairShareTreeAllocationSchedulerOperationSharedState::DoUpdatePreemptibleA
         TJobResources resourceUsage,
         const TJobResources& resourceUsageBound,
         const TResourceVector& fairShareBound,
-        const std::function<void(TAllocationProperties*)>& onMovedLeftToRight,
-        const std::function<void(TAllocationProperties*)>& onMovedRightToLeft)
+        const CInvocable<void(TAllocationProperties*)> auto& onMovedLeftToRight,
+        const CInvocable<void(TAllocationProperties*)> auto& onMovedRightToLeft)
     {
         auto initialResourceUsage = resourceUsage;
 
