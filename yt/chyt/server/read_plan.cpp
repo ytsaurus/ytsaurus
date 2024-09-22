@@ -30,7 +30,7 @@ bool HasShortCircuitActions(const DB::ActionsDAGPtr& actionsDag)
         return false;
     }
     for (const auto& node : actionsDag->getNodes()) {
-        if (node.function_base) {
+        if (node.type == DB::ActionsDAG::ActionType::FUNCTION) {
             auto arguments = GetDataTypesWithConstInfo(node.children);
             if (node.function_base->isSuitableForShortCircuitArgumentsExecution(arguments)) {
                 return true;
