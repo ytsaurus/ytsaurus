@@ -1248,6 +1248,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
             snapshot.Version = ToUnderlying(GetCurrentSnapshotVersion());
             snapshot.Blocks = {TSharedRef::FromString(stringStream.Str())};
             DoLoadSnapshot(snapshot);
+            UpdateConfig(Config);
             AlertManager_->StartPeriodicActivity();
         }
 
