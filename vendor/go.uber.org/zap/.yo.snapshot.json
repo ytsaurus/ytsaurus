@@ -1,0 +1,311 @@
+{
+	"Version": "v1.27.0",
+	"GoVersion": "1.19",
+	"Sum": "h1:aJMhYGrd5QSmlpLMr2MftRKl7t8J8PTZPA732ud/XR8=",
+	"Packages": {
+		"go.uber.org/zap": {
+			"Imports": [
+				"bytes",
+				"encoding/json",
+				"errors",
+				"flag",
+				"fmt",
+				"go.uber.org/multierr",
+				"go.uber.org/zap/internal",
+				"go.uber.org/zap/internal/bufferpool",
+				"go.uber.org/zap/internal/pool",
+				"go.uber.org/zap/internal/stacktrace",
+				"go.uber.org/zap/zapcore",
+				"io",
+				"log",
+				"math",
+				"net/http",
+				"net/url",
+				"os",
+				"path/filepath",
+				"sort",
+				"strings",
+				"sync",
+				"sync/atomic",
+				"time"
+			],
+			"TestImports": [
+				"bytes",
+				"encoding/json",
+				"errors",
+				"flag",
+				"fmt",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"go.uber.org/goleak",
+				"go.uber.org/multierr",
+				"go.uber.org/zap",
+				"go.uber.org/zap/internal/exit",
+				"go.uber.org/zap/internal/stacktrace",
+				"go.uber.org/zap/internal/ztest",
+				"go.uber.org/zap/zapcore",
+				"go.uber.org/zap/zaptest/observer",
+				"io",
+				"io/fs",
+				"log",
+				"math",
+				"net",
+				"net/http",
+				"net/http/httptest",
+				"net/url",
+				"os",
+				"os/exec",
+				"path/filepath",
+				"regexp",
+				"runtime",
+				"strconv",
+				"strings",
+				"sync",
+				"sync/atomic",
+				"testing",
+				"time"
+			]
+		},
+		"go.uber.org/zap/buffer": {
+			"Imports": [
+				"go.uber.org/zap/internal/pool",
+				"strconv",
+				"time"
+			],
+			"TestImports": [
+				"bytes",
+				"github.com/stretchr/testify/assert",
+				"strings",
+				"sync",
+				"testing",
+				"time"
+			]
+		},
+		"go.uber.org/zap/internal": {
+			"Imports": [
+				"go.uber.org/zap/zapcore"
+			],
+			"TestImports": null
+		},
+		"go.uber.org/zap/internal/bufferpool": {
+			"Imports": [
+				"go.uber.org/zap/buffer"
+			],
+			"TestImports": null
+		},
+		"go.uber.org/zap/internal/color": {
+			"Imports": [
+				"fmt"
+			],
+			"TestImports": [
+				"github.com/stretchr/testify/assert",
+				"testing"
+			]
+		},
+		"go.uber.org/zap/internal/exit": {
+			"Imports": [
+				"os"
+			],
+			"TestImports": [
+				"github.com/stretchr/testify/assert",
+				"go.uber.org/zap/internal/exit",
+				"testing"
+			]
+		},
+		"go.uber.org/zap/internal/pool": {
+			"Imports": [
+				"sync"
+			],
+			"TestImports": [
+				"github.com/stretchr/testify/require",
+				"go.uber.org/zap/internal/pool",
+				"runtime/debug",
+				"sync",
+				"testing"
+			]
+		},
+		"go.uber.org/zap/internal/readme": {
+			"Imports": [
+				"flag",
+				"fmt",
+				"io",
+				"log",
+				"os",
+				"os/exec",
+				"sort",
+				"strconv",
+				"strings",
+				"text/template",
+				"time"
+			],
+			"TestImports": null
+		},
+		"go.uber.org/zap/internal/stacktrace": {
+			"Imports": [
+				"go.uber.org/zap/buffer",
+				"go.uber.org/zap/internal/bufferpool",
+				"go.uber.org/zap/internal/pool",
+				"runtime"
+			],
+			"TestImports": [
+				"bytes",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"strings",
+				"testing"
+			]
+		},
+		"go.uber.org/zap/internal/ztest": {
+			"Imports": [
+				"bytes",
+				"errors",
+				"io",
+				"log",
+				"os",
+				"sort",
+				"strconv",
+				"strings",
+				"sync",
+				"time"
+			],
+			"TestImports": [
+				"github.com/stretchr/testify/assert",
+				"sync/atomic",
+				"testing",
+				"time"
+			]
+		},
+		"go.uber.org/zap/zapcore": {
+			"Imports": [
+				"bufio",
+				"bytes",
+				"encoding/base64",
+				"encoding/json",
+				"errors",
+				"fmt",
+				"go.uber.org/multierr",
+				"go.uber.org/zap/buffer",
+				"go.uber.org/zap/internal/bufferpool",
+				"go.uber.org/zap/internal/color",
+				"go.uber.org/zap/internal/exit",
+				"go.uber.org/zap/internal/pool",
+				"io",
+				"math",
+				"reflect",
+				"runtime",
+				"strings",
+				"sync",
+				"sync/atomic",
+				"time",
+				"unicode/utf8"
+			],
+			"TestImports": [
+				"bytes",
+				"encoding/json",
+				"errors",
+				"flag",
+				"fmt",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"go.uber.org/goleak",
+				"go.uber.org/multierr",
+				"go.uber.org/zap",
+				"go.uber.org/zap/buffer",
+				"go.uber.org/zap/internal/bufferpool",
+				"go.uber.org/zap/internal/exit",
+				"go.uber.org/zap/internal/ztest",
+				"go.uber.org/zap/zapcore",
+				"go.uber.org/zap/zaptest",
+				"go.uber.org/zap/zaptest/observer",
+				"gopkg.in/yaml.v3",
+				"io",
+				"math",
+				"math/rand",
+				"net/url",
+				"os",
+				"reflect",
+				"runtime",
+				"strings",
+				"sync",
+				"sync/atomic",
+				"testing",
+				"testing/quick",
+				"time",
+				"unicode/utf8"
+			]
+		},
+		"go.uber.org/zap/zapgrpc": {
+			"Imports": [
+				"fmt",
+				"go.uber.org/zap",
+				"go.uber.org/zap/zapcore"
+			],
+			"TestImports": [
+				"fmt",
+				"github.com/stretchr/testify/require",
+				"go.uber.org/zap",
+				"go.uber.org/zap/zapcore",
+				"go.uber.org/zap/zaptest/observer",
+				"testing"
+			]
+		},
+		"go.uber.org/zap/zapio": {
+			"Imports": [
+				"bytes",
+				"go.uber.org/zap",
+				"go.uber.org/zap/zapcore",
+				"io"
+			],
+			"TestImports": [
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"go.uber.org/zap",
+				"go.uber.org/zap/zapcore",
+				"go.uber.org/zap/zapio",
+				"go.uber.org/zap/zaptest/observer",
+				"io",
+				"log",
+				"testing"
+			]
+		},
+		"go.uber.org/zap/zaptest": {
+			"Imports": [
+				"bytes",
+				"go.uber.org/zap",
+				"go.uber.org/zap/internal/ztest",
+				"go.uber.org/zap/zapcore",
+				"time"
+			],
+			"TestImports": [
+				"errors",
+				"fmt",
+				"github.com/stretchr/testify/assert",
+				"go.uber.org/zap",
+				"go.uber.org/zap/internal/ztest",
+				"go.uber.org/zap/zapcore",
+				"io",
+				"strings",
+				"testing",
+				"time"
+			]
+		},
+		"go.uber.org/zap/zaptest/observer": {
+			"Imports": [
+				"go.uber.org/zap/internal",
+				"go.uber.org/zap/zapcore",
+				"strings",
+				"sync",
+				"time"
+			],
+			"TestImports": [
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"go.uber.org/zap",
+				"go.uber.org/zap/zapcore",
+				"go.uber.org/zap/zaptest/observer",
+				"testing",
+				"time"
+			]
+		}
+	}
+}

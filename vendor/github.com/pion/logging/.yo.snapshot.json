@@ -1,0 +1,25 @@
+{
+	"Version": "v0.2.2",
+	"GoVersion": "1.12",
+	"Sum": "h1:M9+AIj/+pxNsDfAT64+MAVgJO0rsyLnoJKCqf//DoeY=",
+	"Packages": {
+		"github.com/pion/logging": {
+			"Imports": [
+				"fmt",
+				"io",
+				"log",
+				"os",
+				"strings",
+				"sync",
+				"sync/atomic"
+			],
+			"TestImports": [
+				"bytes",
+				"github.com/pion/logging",
+				"os",
+				"strings",
+				"testing"
+			]
+		}
+	}
+}

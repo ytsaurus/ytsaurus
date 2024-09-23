@@ -1,0 +1,47 @@
+{
+	"Version": "v1.1.0",
+	"GoVersion": "1.13",
+	"Sum": "h1:eLKJA0d02Lf0mVpIDgYnqXcUn0GqVmEFny3VuID1U3M=",
+	"Packages": {
+		"github.com/andybalholm/brotli": {
+			"Imports": [
+				"compress/gzip",
+				"encoding/binary",
+				"errors",
+				"fmt",
+				"github.com/andybalholm/brotli/matchfinder",
+				"io",
+				"math",
+				"math/bits",
+				"net/http",
+				"runtime",
+				"strings",
+				"sync"
+			],
+			"TestImports": [
+				"bytes",
+				"compress/gzip",
+				"fmt",
+				"github.com/andybalholm/brotli/matchfinder",
+				"io",
+				"io/ioutil",
+				"log",
+				"math",
+				"math/rand",
+				"os",
+				"testing",
+				"time"
+			]
+		},
+		"github.com/andybalholm/brotli/matchfinder": {
+			"Imports": [
+				"encoding/binary",
+				"fmt",
+				"io",
+				"math/bits",
+				"runtime"
+			],
+			"TestImports": null
+		}
+	}
+}

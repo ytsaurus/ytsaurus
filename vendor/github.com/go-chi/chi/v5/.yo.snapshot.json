@@ -1,0 +1,86 @@
+{
+	"Version": "v5.0.12",
+	"GoVersion": "1.14",
+	"Sum": "h1:9euLV5sTrTNTRUU9POmDUvfxyj6LAABLUcEWO+JJb4s=",
+	"Packages": {
+		"github.com/go-chi/chi/v5": {
+			"Imports": [
+				"context",
+				"fmt",
+				"net/http",
+				"regexp",
+				"sort",
+				"strconv",
+				"strings",
+				"sync"
+			],
+			"TestImports": [
+				"bytes",
+				"context",
+				"fmt",
+				"io",
+				"io/ioutil",
+				"log",
+				"net",
+				"net/http",
+				"net/http/httptest",
+				"sync",
+				"testing",
+				"time"
+			]
+		},
+		"github.com/go-chi/chi/v5/middleware": {
+			"Imports": [
+				"bufio",
+				"bytes",
+				"compress/flate",
+				"compress/gzip",
+				"context",
+				"crypto/rand",
+				"crypto/subtle",
+				"encoding/base64",
+				"errors",
+				"expvar",
+				"fmt",
+				"github.com/go-chi/chi/v5",
+				"io",
+				"io/ioutil",
+				"log",
+				"net",
+				"net/http",
+				"net/http/pprof",
+				"os",
+				"path",
+				"runtime",
+				"runtime/debug",
+				"strconv",
+				"strings",
+				"sync",
+				"sync/atomic",
+				"time"
+			],
+			"TestImports": [
+				"bufio",
+				"bytes",
+				"compress/flate",
+				"compress/gzip",
+				"crypto/tls",
+				"fmt",
+				"github.com/go-chi/chi/v5",
+				"io",
+				"io/ioutil",
+				"net",
+				"net/http",
+				"net/http/httptest",
+				"net/url",
+				"path",
+				"reflect",
+				"runtime",
+				"strings",
+				"sync",
+				"testing",
+				"time"
+			]
+		}
+	}
+}

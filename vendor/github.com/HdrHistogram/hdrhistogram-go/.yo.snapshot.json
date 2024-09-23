@@ -1,0 +1,40 @@
+{
+	"Version": "v1.1.2",
+	"GoVersion": "1.14",
+	"Sum": "h1:5IcZpTvzydCQeHzK4Ef/D5rrSqwxob0t8PQPMybUNFM=",
+	"Packages": {
+		"github.com/HdrHistogram/hdrhistogram-go": {
+			"Imports": [
+				"bufio",
+				"bytes",
+				"compress/zlib",
+				"encoding/base64",
+				"encoding/binary",
+				"fmt",
+				"io",
+				"io/ioutil",
+				"math",
+				"math/bits",
+				"regexp",
+				"sort",
+				"strconv",
+				"strings",
+				"time"
+			],
+			"TestImports": [
+				"bytes",
+				"fmt",
+				"github.com/HdrHistogram/hdrhistogram-go",
+				"github.com/google/go-cmp/cmp",
+				"github.com/stretchr/testify/assert",
+				"gonum.org/v1/gonum/stat/distuv",
+				"io/ioutil",
+				"math",
+				"math/rand",
+				"os",
+				"reflect",
+				"testing"
+			]
+		}
+	}
+}

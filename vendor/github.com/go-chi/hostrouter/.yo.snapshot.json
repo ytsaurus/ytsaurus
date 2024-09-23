@@ -1,0 +1,17 @@
+{
+	"Version": "v0.2.0",
+	"GoVersion": "1.16",
+	"Sum": "h1:GwC7TZz8+SlJN/tV/aeJgx4F+mI5+sp+5H1PelQUjHM=",
+	"Packages": {
+		"github.com/go-chi/hostrouter": {
+			"Imports": [
+				"github.com/go-chi/chi/v5",
+				"net/http",
+				"strings"
+			],
+			"TestImports": [
+				"testing"
+			]
+		}
+	}
+}

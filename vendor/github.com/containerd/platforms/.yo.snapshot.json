@@ -1,0 +1,39 @@
+{
+	"Version": "v0.2.1",
+	"GoVersion": "1.20",
+	"Sum": "h1:zvwtM3rz2YHPQsF2CHYM8+KtB5dvhISiXh5ZpSBQv6A=",
+	"Packages": {
+		"github.com/containerd/platforms": {
+			"Imports": [
+				"bufio",
+				"bytes",
+				"errors",
+				"fmt",
+				"github.com/containerd/log",
+				"github.com/opencontainers/image-spec/specs-go/v1",
+				"golang.org/x/sys/unix",
+				"golang.org/x/sys/windows",
+				"os",
+				"path",
+				"regexp",
+				"runtime",
+				"strconv",
+				"strings",
+				"sync"
+			],
+			"TestImports": [
+				"errors",
+				"fmt",
+				"github.com/opencontainers/image-spec/specs-go/v1",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"golang.org/x/sys/windows",
+				"path",
+				"reflect",
+				"runtime",
+				"sort",
+				"testing"
+			]
+		}
+	}
+}

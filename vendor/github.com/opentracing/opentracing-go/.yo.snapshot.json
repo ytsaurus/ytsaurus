@@ -1,0 +1,100 @@
+{
+	"Version": "v1.2.0",
+	"GoVersion": "1.14",
+	"Sum": "h1:uEJPy/1a5RIPAJ0Ov+OIO8OxWu77jEv+1B0VhjKrZUs=",
+	"Packages": {
+		"github.com/opentracing/opentracing-go": {
+			"Imports": [
+				"context",
+				"errors",
+				"github.com/opentracing/opentracing-go/log",
+				"net/http",
+				"time"
+			],
+			"TestImports": [
+				"context",
+				"github.com/opentracing/opentracing-go/log",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"net/http",
+				"reflect",
+				"strconv",
+				"strings",
+				"testing",
+				"time"
+			]
+		},
+		"github.com/opentracing/opentracing-go/ext": {
+			"Imports": [
+				"github.com/opentracing/opentracing-go",
+				"github.com/opentracing/opentracing-go/log"
+			],
+			"TestImports": [
+				"fmt",
+				"github.com/opentracing/opentracing-go",
+				"github.com/opentracing/opentracing-go/ext",
+				"github.com/opentracing/opentracing-go/log",
+				"github.com/opentracing/opentracing-go/mocktracer",
+				"github.com/stretchr/testify/assert",
+				"reflect",
+				"testing"
+			]
+		},
+		"github.com/opentracing/opentracing-go/harness": {
+			"Imports": [
+				"bytes",
+				"github.com/opentracing/opentracing-go",
+				"github.com/opentracing/opentracing-go/log",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/suite",
+				"testing",
+				"time"
+			],
+			"TestImports": [
+				"github.com/opentracing/opentracing-go",
+				"testing"
+			]
+		},
+		"github.com/opentracing/opentracing-go/log": {
+			"Imports": [
+				"fmt",
+				"math",
+				"reflect"
+			],
+			"TestImports": [
+				"errors",
+				"fmt",
+				"github.com/stretchr/testify/assert",
+				"io",
+				"testing"
+			]
+		},
+		"github.com/opentracing/opentracing-go/mocktracer": {
+			"Imports": [
+				"fmt",
+				"github.com/opentracing/opentracing-go",
+				"github.com/opentracing/opentracing-go/ext",
+				"github.com/opentracing/opentracing-go/log",
+				"net/url",
+				"reflect",
+				"strconv",
+				"strings",
+				"sync",
+				"sync/atomic",
+				"time"
+			],
+			"TestImports": [
+				"github.com/opentracing/opentracing-go",
+				"github.com/opentracing/opentracing-go/ext",
+				"github.com/opentracing/opentracing-go/log",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"net/http",
+				"reflect",
+				"sync",
+				"testing",
+				"time"
+			]
+		}
+	}
+}
