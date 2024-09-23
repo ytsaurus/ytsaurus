@@ -66,11 +66,7 @@ void TTransactionWriteRecord::Load(TLoadContext& context)
     Load(context, RowCount);
     Load(context, DataWeight);
     Load(context, SyncReplicaIds);
-
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= ETabletReign::JournalHunks) {
-        Load(context, HunkChunksInfo);
-    }
+    Load(context, HunkChunksInfo);
 }
 
 i64 TTransactionWriteRecord::GetByteSize() const

@@ -5,8 +5,6 @@
 #include "automaton.h"
 #include "tablet_slot.h"
 #include "transaction.h"
-// COMPAT(aleksandra-zh)
-#include "tablet_manager.h"
 #include "serialize.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
@@ -21,9 +19,6 @@
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
-
-// COMPAT(aleksandra-zh)
-#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/yt/server/node/tablet_node/transaction_manager.pb.h>
 
@@ -686,11 +681,6 @@ public:
         return Decommission_ && PersistentTransactionMap_.empty();
     }
 
-    ETabletReign GetSnapshotReign() const override
-    {
-        return SnapshotReign_;
-    }
-
     void RegisterTransactionActionHandlers(
         TTransactionActionDescriptor<TTransaction> descriptor) override
     {
@@ -723,11 +713,6 @@ private:
 
     bool Decommission_ = false;
     bool Removing_ = false;
-
-    bool RestoreHunkLocks_ = false;
-
-    ETabletReign SnapshotReign_ = TEnumTraits<ETabletReign>::GetMaxValue();
-
 
     IYPathServicePtr OrchidService_;
 
@@ -837,8 +822,6 @@ private:
 
         SerializingTransactionHeaps_.clear();
 
-        const auto& tabletManager = Host_->GetTabletManager();
-
         for (auto [transactionId, transaction] : PersistentTransactionMap_) {
             auto state = transaction->GetPersistentState();
             YT_VERIFY(transaction->GetTransientState() == state);
@@ -852,20 +835,6 @@ private:
             {
                 RegisterPrepareTimestamp(transaction);
             }
-
-            if (RestoreHunkLocks_ && state == ETransactionState::PersistentCommitPrepared) {
-                for (const auto& action : transaction->Actions()) {
-                    if (action.Type == NTabletServer::NProto::TReqUpdateTabletStores::default_instance().GetTypeName()) {
-                        NTabletServer::NProto::TReqUpdateTabletStores req;
-                        DeserializeProto(&req, TRef::FromString(action.Value));
-                        tabletManager->RestoreHunkLocks(transaction, &req);
-                    }
-                }
-            }
-        }
-
-        if (RestoreHunkLocks_) {
-            tabletManager->ValidateHunkLocks();
         }
 
         for (auto& [_, heap] : SerializingTransactionHeaps_) {
@@ -977,11 +946,6 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         PersistentTransactionMap_.LoadKeys(context);
-
-        SnapshotReign_ = context.GetVersion();
-        Automaton_->RememberReign(static_cast<NHydra::TReign>(SnapshotReign_));
-
-        RestoreHunkLocks_ = SnapshotReign_ < ETabletReign::RestoreHunkLocks;
     }
 
     void LoadValues(TLoadContext& context)
@@ -1009,7 +973,6 @@ private:
         MinCommitTimestamp_.reset();
         Decommission_ = false;
         Removing_ = false;
-        RestoreHunkLocks_ = false;
     }
 
 
@@ -1085,10 +1048,7 @@ private:
         if (transaction->GetTransient()) {
             // COMPAT(ifsmirnov)
             auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
-            if (reign >= ETabletReign::RegisterTxActionsShouldPersistTx ||
-                (reign >= ETabletReign::RegisterTxActionsShouldPersistTx_23_1 &&
-                    reign < ETabletReign::Avenues))
-            {
+            if (reign >= ETabletReign::RegisterTxActionsShouldPersistTx) {
                 transaction = MakeTransactionPersistentOrThrow(transactionId);
             }
         }

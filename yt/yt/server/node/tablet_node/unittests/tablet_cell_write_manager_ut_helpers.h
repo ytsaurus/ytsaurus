@@ -131,12 +131,6 @@ public:
         return result;
     }
 
-    const ITabletManagerPtr& GetTabletManager() override
-    {
-        static const ITabletManagerPtr result;
-        return result;
-    }
-
     void Shutdown()
     {
         YT_VERIFY(HydraManager_->GetPendingMutationCount() == 0);

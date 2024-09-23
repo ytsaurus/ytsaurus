@@ -37,8 +37,6 @@ struct ITransactionManagerHost
     virtual NObjectClient::TCellTag GetNativeCellTag() = 0;
     virtual const NApi::NNative::IConnectionPtr& GetNativeConnection() = 0;
     virtual NHydra::TCellId GetCellId() = 0;
-    // COMPAT(aleksandra-zh)
-    virtual const ITabletManagerPtr& GetTabletManager() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionManagerHost)
@@ -135,9 +133,6 @@ struct ITransactionManager
     //! Returns true if transaction manager is decommissioned and there are
     //! no alive transactions in it, so tablet cell can be safely removed.
     virtual bool IsDecommissioned() const = 0;
-
-    // COMPAT(gritukan)
-    virtual ETabletReign GetSnapshotReign() const = 0;
 
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 };

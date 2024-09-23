@@ -391,11 +391,6 @@ private:
             FromProto(&allocatedDynamicStoreId, request->dynamic_store_id());
         }
 
-        // COMPAT(ifsmirnov)
-        if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) < ETabletReign::SendDynamicStoreInBackup) {
-            allocatedDynamicStoreId = {};
-        }
-
         const auto& tabletManager = Slot_->GetTabletManager();
         auto* tablet = tabletManager->FindTablet(tabletId);
         if (!tablet) {

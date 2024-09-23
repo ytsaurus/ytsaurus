@@ -996,8 +996,6 @@ public:
     bool UseColumnarStatisticsDefault;
 
     //! Mimics the old behavior when output dynamic tables with atomicity=none were not locked.
-    // COMPAT(ifsmirnov): do not change this option until ETabletReign::FixBulkInsertAtomicityNone
-    // is deployed to tablet nodes!
     bool LockNonAtomicOutputDynamicTables;
 
     double UserJobMemoryDigestPrecision;
