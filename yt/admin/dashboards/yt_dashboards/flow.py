@@ -29,7 +29,7 @@ def build_resource_usage():
         .stack(False)
         .all("host")
         .row()
-            .cell("Total CPU (Controller)", FlowController("yt.resource_tracker.total_cpu")
+            .cell("Total VCPU (Controller)", FlowController("yt.resource_tracker.total_vcpu")
                 .aggr("thread")
                 .unit("UNIT_PERCENT"))
             .cell(
@@ -40,7 +40,7 @@ def build_resource_usage():
                     .group_by_labels("host", "v -> group_lines(\"sum\", top_avg(1, v))"))
             .cell("Memory (Controller)", FlowController("yt.resource_tracker.memory_usage.rss").unit("UNIT_BYTES_SI"))
         .row()
-            .cell("Total CPU (Worker)", FlowWorker("yt.resource_tracker.total_cpu")
+            .cell("Total VCPU (Worker)", FlowWorker("yt.resource_tracker.total_vcpu")
                 .aggr("thread")
                 .unit("UNIT_PERCENT"))
             .cell(
