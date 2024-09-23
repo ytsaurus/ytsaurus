@@ -3,7 +3,8 @@ from yt_queue_agent_test_base import TestQueueAgentBase
 from yt_commands import (
     authors, create, create_queue_producer_session, get, insert_rows, remove,
     remove_queue_producer_session, select_rows, wait_for_tablet_state,
-    push_queue_producer, raises_yt_error, start_transaction, commit_transaction)
+    push_queue_producer, raises_yt_error, start_transaction, commit_transaction,
+    sorted_dicts)
 
 from yt_type_helpers import normalize_schema, make_schema
 
@@ -197,7 +198,7 @@ class TestProducerApi(TestQueueAgentBase):
             assert rows[0]["user_meta"] == user_meta
 
     def _check_queue(self, queue_path, row_count):
-        rows = select_rows(f"* from [{queue_path}]")
+        rows = sorted_dicts(select_rows(f"* from [{queue_path}]"))
         assert len(rows) == row_count
         for row_index, row in enumerate(rows):
             assert row["data"] == f"row{row_index + 1}"
