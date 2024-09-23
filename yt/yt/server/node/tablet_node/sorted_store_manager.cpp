@@ -261,28 +261,21 @@ void TSortedStoreManager::PrepareRow(TTransaction* transaction, const TSortedDyn
     rowRef.Store->PrepareRow(transaction, rowRef.Row);
 }
 
-bool TSortedStoreManager::CommitRow(
+void TSortedStoreManager::CommitRow(
     TTransaction* transaction,
     const NTableClient::TWireProtocolWriteCommand& command,
     const TSortedDynamicRowRef& rowRef)
 {
-    bool keyDiffers = false;
-    auto validateWireKey = [&] (TUnversionedRow row) {
+    auto verifyWireKey = [&] (TUnversionedRow row) {
         const auto& comparer = ActiveStore_->GetRowKeyComparer();
-        if (comparer(rowRef.Row, ToKeyRef(row, KeyColumnCount_)) != 0) {
-            keyDiffers = true;
-        }
+        YT_VERIFY(comparer(rowRef.Row, ToKeyRef(row, KeyColumnCount_)) == 0);
     };
 
     Visit(command,
-        [&] (const TWriteRowCommand& command) { validateWireKey(command.Row); },
-        [&] (const TDeleteRowCommand& command) { validateWireKey(command.Row); },
-        [&] (const TWriteAndLockRowCommand& command) { validateWireKey(command.Row); },
+        [&] (const TWriteRowCommand& command) { verifyWireKey(command.Row); },
+        [&] (const TDeleteRowCommand& command) { verifyWireKey(command.Row); },
+        [&] (const TWriteAndLockRowCommand& command) { verifyWireKey(command.Row); },
         [&] (auto) { YT_ABORT(); });
-
-    if (keyDiffers) {
-        return false;
-    }
 
     auto applyCommand = [&] (
         const TSortedDynamicStorePtr& store,
@@ -306,8 +299,6 @@ bool TSortedStoreManager::CommitRow(
         applyCommand(ActiveStore_, migratedRow);
         ActiveStore_->CommitRow(transaction, migratedRow, rowRef.LockMask);
     }
-
-    return true;
 }
 
 void TSortedStoreManager::AbortRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
