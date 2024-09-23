@@ -861,9 +861,9 @@ public:
         return this->ConstRef();
     }
 
-    operator TStringType&() {
-        return this->MutRef();
-    }
+    // operator TStringType&() {
+    //     return this->MutRef();
+    // }
 
     /*
      * Following overloads of "operator+" aim to choose the cheapest implementation depending on
