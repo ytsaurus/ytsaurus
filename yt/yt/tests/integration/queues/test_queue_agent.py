@@ -2252,6 +2252,8 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
 
 
 class TestMultiClusterReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
+    NUM_TEST_PARTITIONS = 2
+
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
             "policy": "watching",
@@ -2442,6 +2444,7 @@ class TestMultiClusterReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjec
         _create_chaos_queue_consumer_pair,
         _create_replicated_queue_consumer_pair,
     ])
+    @pytest.mark.timeout(150)
     def test_replicated_trim(self, create_queue_consumer_pair):
         queue, queue_replicas, consumer, consumer_replicas = create_queue_consumer_pair(self)
 
