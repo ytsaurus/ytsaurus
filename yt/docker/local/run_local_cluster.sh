@@ -182,7 +182,7 @@ if [ -z "$(which docker)" ]; then
 refer to the instructions at URL $url"
 fi
 
-yt_image=sha256:d43b953fa37e8365243703b18b666e2abdad681287c6285044affba4a2fda63d
+yt_image=ghcr.io/ytsaurus/local:$yt_version
 ui_image=ghcr.io/ytsaurus/ui:$ui_version
 
 if [ -n "$local_cypress_dir" ]; then
@@ -194,9 +194,9 @@ if [ -n "$local_cypress_dir" ]; then
     fi
 fi
 
-#if [ "$yt_skip_pull" = "false" -o -z "$yt_skip_pull" ]; then
-#    docker pull $yt_image
-#fi
+if [ "$yt_skip_pull" = "false" -o -z "$yt_skip_pull" ]; then
+    docker pull $yt_image
+fi
 
 if [ "$ui_skip_pull" = "false" -o -z "$ui_skip_pull" ]; then
     docker pull $ui_image
