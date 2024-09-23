@@ -1,0 +1,669 @@
+{
+	"Version": "v2.30.0+incompatible",
+	"GoVersion": "",
+	"Sum": "h1:D6wyKGCecFaSRUpo8lCVbaOOb6ThwMmTEbhRwtKR97o=",
+	"Packages": {
+		"github.com/uber/jaeger-client-go": {
+			"Imports": [
+				"bytes",
+				"context",
+				"encoding/binary",
+				"encoding/json",
+				"errors",
+				"fmt",
+				"github.com/opentracing/opentracing-go",
+				"github.com/opentracing/opentracing-go/ext",
+				"github.com/opentracing/opentracing-go/log",
+				"github.com/uber/jaeger-client-go/internal/baggage",
+				"github.com/uber/jaeger-client-go/internal/reporterstats",
+				"github.com/uber/jaeger-client-go/internal/spanlog",
+				"github.com/uber/jaeger-client-go/internal/throttler",
+				"github.com/uber/jaeger-client-go/log",
+				"github.com/uber/jaeger-client-go/thrift",
+				"github.com/uber/jaeger-client-go/thrift-gen/jaeger",
+				"github.com/uber/jaeger-client-go/thrift-gen/sampling",
+				"github.com/uber/jaeger-client-go/thrift-gen/zipkincore",
+				"github.com/uber/jaeger-client-go/utils",
+				"github.com/uber/jaeger-lib/metrics",
+				"go.uber.org/atomic",
+				"io",
+				"io/ioutil",
+				"log",
+				"math",
+				"math/rand",
+				"net/http",
+				"net/url",
+				"os",
+				"reflect",
+				"strconv",
+				"strings",
+				"sync",
+				"sync/atomic",
+				"time"
+			],
+			"TestImports": [
+				"bytes",
+				"context",
+				"encoding/base64",
+				"errors",
+				"fmt",
+				"github.com/opentracing/opentracing-go",
+				"github.com/opentracing/opentracing-go/ext",
+				"github.com/opentracing/opentracing-go/harness",
+				"github.com/opentracing/opentracing-go/log",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"github.com/stretchr/testify/suite",
+				"github.com/uber/jaeger-client-go/internal/baggage",
+				"github.com/uber/jaeger-client-go/internal/reporterstats",
+				"github.com/uber/jaeger-client-go/internal/throttler",
+				"github.com/uber/jaeger-client-go/log",
+				"github.com/uber/jaeger-client-go/testutils",
+				"github.com/uber/jaeger-client-go/thrift",
+				"github.com/uber/jaeger-client-go/thrift-gen/agent",
+				"github.com/uber/jaeger-client-go/thrift-gen/jaeger",
+				"github.com/uber/jaeger-client-go/thrift-gen/sampling",
+				"github.com/uber/jaeger-client-go/thrift-gen/zipkincore",
+				"github.com/uber/jaeger-client-go/utils",
+				"github.com/uber/jaeger-lib/metrics",
+				"github.com/uber/jaeger-lib/metrics/metricstest",
+				"io",
+				"math",
+				"net/http",
+				"runtime",
+				"strconv",
+				"strings",
+				"sync",
+				"sync/atomic",
+				"testing",
+				"time"
+			]
+		},
+		"github.com/uber/jaeger-client-go/config": {
+			"Imports": [
+				"errors",
+				"fmt",
+				"github.com/opentracing/opentracing-go",
+				"github.com/pkg/errors",
+				"github.com/uber/jaeger-client-go",
+				"github.com/uber/jaeger-client-go/internal/baggage/remote",
+				"github.com/uber/jaeger-client-go/internal/throttler/remote",
+				"github.com/uber/jaeger-client-go/rpcmetrics",
+				"github.com/uber/jaeger-client-go/transport",
+				"github.com/uber/jaeger-client-go/utils",
+				"github.com/uber/jaeger-lib/metrics",
+				"io",
+				"net/url",
+				"os",
+				"strconv",
+				"strings",
+				"time"
+			],
+			"TestImports": [
+				"fmt",
+				"github.com/opentracing/opentracing-go",
+				"github.com/opentracing/opentracing-go/ext",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"github.com/uber/jaeger-client-go",
+				"github.com/uber/jaeger-client-go/config",
+				"github.com/uber/jaeger-client-go/log",
+				"github.com/uber/jaeger-client-go/transport",
+				"github.com/uber/jaeger-lib/metrics",
+				"github.com/uber/jaeger-lib/metrics/metricstest",
+				"io",
+				"log",
+				"os",
+				"testing",
+				"time"
+			]
+		},
+		"github.com/uber/jaeger-client-go/crossdock": {
+			"Imports": [
+				"github.com/opentracing/opentracing-go",
+				"github.com/uber/jaeger-client-go",
+				"github.com/uber/jaeger-client-go/crossdock/client",
+				"github.com/uber/jaeger-client-go/crossdock/common",
+				"github.com/uber/jaeger-client-go/crossdock/log",
+				"github.com/uber/jaeger-client-go/crossdock/server",
+				"github.com/uber/jaeger-client-go/log",
+				"io",
+				"os"
+			],
+			"TestImports": null
+		},
+		"github.com/uber/jaeger-client-go/crossdock/client": {
+			"Imports": [
+				"context",
+				"fmt",
+				"github.com/crossdock/crossdock-go",
+				"github.com/uber/jaeger-client-go/crossdock/common",
+				"github.com/uber/jaeger-client-go/crossdock/log",
+				"github.com/uber/jaeger-client-go/crossdock/thrift/tracetest",
+				"github.com/uber/jaeger-client-go/utils",
+				"net",
+				"net/http",
+				"sync",
+				"time"
+			],
+			"TestImports": [
+				"github.com/crossdock/crossdock-go",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"github.com/uber/jaeger-client-go",
+				"github.com/uber/jaeger-client-go/crossdock/common",
+				"github.com/uber/jaeger-client-go/crossdock/log",
+				"github.com/uber/jaeger-client-go/crossdock/server",
+				"github.com/uber/jaeger-client-go/log",
+				"net/url",
+				"strings",
+				"testing"
+			]
+		},
+		"github.com/uber/jaeger-client-go/crossdock/common": {
+			"Imports": [
+				"bytes",
+				"context",
+				"encoding/json",
+				"github.com/opentracing/opentracing-go",
+				"github.com/opentracing/opentracing-go/ext",
+				"github.com/uber/jaeger-client-go/crossdock/thrift/tracetest",
+				"github.com/uber/jaeger-client-go/utils",
+				"net/http"
+			],
+			"TestImports": null
+		},
+		"github.com/uber/jaeger-client-go/crossdock/endtoend": {
+			"Imports": [
+				"encoding/json",
+				"fmt",
+				"github.com/opentracing/opentracing-go",
+				"github.com/opentracing/opentracing-go/ext",
+				"github.com/uber/jaeger-client-go",
+				"github.com/uber/jaeger-client-go/config",
+				"github.com/uber/jaeger-client-go/crossdock/common",
+				"github.com/uber/jaeger-client-go/crossdock/log",
+				"net/http",
+				"sync",
+				"time"
+			],
+			"TestImports": [
+				"bytes",
+				"github.com/opentracing/opentracing-go",
+				"github.com/stretchr/testify/assert",
+				"github.com/uber/jaeger-client-go",
+				"github.com/uber/jaeger-client-go/config",
+				"github.com/uber/jaeger-client-go/log",
+				"net/http",
+				"net/http/httptest",
+				"testing",
+				"time"
+			]
+		},
+		"github.com/uber/jaeger-client-go/crossdock/log": {
+			"Imports": [
+				"log"
+			],
+			"TestImports": null
+		},
+		"github.com/uber/jaeger-client-go/crossdock/server": {
+			"Imports": [
+				"context",
+				"encoding/json",
+				"errors",
+				"fmt",
+				"github.com/opentracing/opentracing-go",
+				"github.com/opentracing/opentracing-go/ext",
+				"github.com/uber/jaeger-client-go",
+				"github.com/uber/jaeger-client-go/crossdock/common",
+				"github.com/uber/jaeger-client-go/crossdock/endtoend",
+				"github.com/uber/jaeger-client-go/crossdock/log",
+				"github.com/uber/jaeger-client-go/crossdock/thrift/tracetest",
+				"io/ioutil",
+				"net",
+				"net/http",
+				"strings",
+				"sync"
+			],
+			"TestImports": [
+				"context",
+				"fmt",
+				"github.com/opentracing/opentracing-go",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"github.com/uber/jaeger-client-go",
+				"github.com/uber/jaeger-client-go/crossdock/common",
+				"github.com/uber/jaeger-client-go/crossdock/log",
+				"github.com/uber/jaeger-client-go/crossdock/thrift/tracetest",
+				"testing"
+			]
+		},
+		"github.com/uber/jaeger-client-go/crossdock/thrift/tracetest": {
+			"Imports": [
+				"bytes",
+				"context",
+				"database/sql/driver",
+				"errors",
+				"fmt",
+				"github.com/uber/jaeger-client-go/thrift",
+				"time"
+			],
+			"TestImports": null
+		},
+		"github.com/uber/jaeger-client-go/internal/baggage": {
+			"Imports": null,
+			"TestImports": [
+				"github.com/stretchr/testify/assert",
+				"testing"
+			]
+		},
+		"github.com/uber/jaeger-client-go/internal/baggage/remote": {
+			"Imports": [
+				"context",
+				"fmt",
+				"github.com/uber/jaeger-client-go",
+				"github.com/uber/jaeger-client-go/internal/baggage",
+				"github.com/uber/jaeger-client-go/thrift-gen/baggage",
+				"github.com/uber/jaeger-client-go/utils",
+				"net/url",
+				"sync",
+				"time"
+			],
+			"TestImports": [
+				"encoding/json",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"github.com/uber/jaeger-client-go",
+				"github.com/uber/jaeger-client-go/internal/baggage",
+				"github.com/uber/jaeger-client-go/thrift-gen/baggage",
+				"github.com/uber/jaeger-lib/metrics",
+				"github.com/uber/jaeger-lib/metrics/metricstest",
+				"go.uber.org/atomic",
+				"io",
+				"net/http",
+				"net/http/httptest",
+				"net/url",
+				"testing",
+				"time"
+			]
+		},
+		"github.com/uber/jaeger-client-go/internal/reporterstats": {
+			"Imports": null,
+			"TestImports": null
+		},
+		"github.com/uber/jaeger-client-go/internal/spanlog": {
+			"Imports": [
+				"encoding/json",
+				"fmt",
+				"github.com/opentracing/opentracing-go/log"
+			],
+			"TestImports": null
+		},
+		"github.com/uber/jaeger-client-go/internal/throttler": {
+			"Imports": null,
+			"TestImports": [
+				"github.com/stretchr/testify/assert",
+				"testing"
+			]
+		},
+		"github.com/uber/jaeger-client-go/internal/throttler/remote": {
+			"Imports": [
+				"fmt",
+				"github.com/pkg/errors",
+				"github.com/uber/jaeger-client-go",
+				"github.com/uber/jaeger-client-go/utils",
+				"net/url",
+				"sync",
+				"sync/atomic",
+				"time"
+			],
+			"TestImports": [
+				"encoding/json",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"github.com/uber/jaeger-client-go",
+				"github.com/uber/jaeger-client-go/internal/throttler",
+				"github.com/uber/jaeger-client-go/log",
+				"github.com/uber/jaeger-lib/metrics/metricstest",
+				"io",
+				"net/http",
+				"net/http/httptest",
+				"net/url",
+				"sync",
+				"testing",
+				"time"
+			]
+		},
+		"github.com/uber/jaeger-client-go/log": {
+			"Imports": [
+				"bytes",
+				"fmt",
+				"log",
+				"sync"
+			],
+			"TestImports": [
+				"github.com/stretchr/testify/assert",
+				"testing"
+			]
+		},
+		"github.com/uber/jaeger-client-go/log/zap": {
+			"Imports": [
+				"context",
+				"fmt",
+				"github.com/opentracing/opentracing-go",
+				"github.com/opentracing/opentracing-go/log",
+				"github.com/uber/jaeger-client-go",
+				"go.uber.org/zap",
+				"go.uber.org/zap/zapcore"
+			],
+			"TestImports": [
+				"context",
+				"github.com/golang/mock/gomock",
+				"github.com/opentracing/opentracing-go",
+				"github.com/opentracing/opentracing-go/ext",
+				"github.com/opentracing/opentracing-go/log",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"github.com/uber/jaeger-client-go",
+				"github.com/uber/jaeger-client-go/log/zap/mock_opentracing",
+				"go.uber.org/zap",
+				"go.uber.org/zap/zapcore",
+				"go.uber.org/zap/zaptest/observer",
+				"testing",
+				"time"
+			]
+		},
+		"github.com/uber/jaeger-client-go/log/zap/mock_opentracing": {
+			"Imports": [
+				"github.com/golang/mock/gomock",
+				"github.com/opentracing/opentracing-go",
+				"github.com/opentracing/opentracing-go/log",
+				"reflect"
+			],
+			"TestImports": null
+		},
+		"github.com/uber/jaeger-client-go/metrics/prometheus": {
+			"Imports": null,
+			"TestImports": [
+				"github.com/prometheus/client_golang/prometheus",
+				"github.com/stretchr/testify/require",
+				"github.com/uber/jaeger-client-go",
+				"github.com/uber/jaeger-lib/metrics/prometheus",
+				"testing"
+			]
+		},
+		"github.com/uber/jaeger-client-go/rpcmetrics": {
+			"Imports": [
+				"github.com/opentracing/opentracing-go",
+				"github.com/opentracing/opentracing-go/ext",
+				"github.com/uber/jaeger-client-go",
+				"github.com/uber/jaeger-lib/metrics",
+				"strconv",
+				"sync",
+				"time"
+			],
+			"TestImports": [
+				"fmt",
+				"github.com/opentracing/opentracing-go",
+				"github.com/opentracing/opentracing-go/ext",
+				"github.com/stretchr/testify/assert",
+				"github.com/uber/jaeger-client-go",
+				"github.com/uber/jaeger-lib/metrics/metricstest",
+				"testing",
+				"time"
+			]
+		},
+		"github.com/uber/jaeger-client-go/testutils": {
+			"Imports": [
+				"bytes",
+				"context",
+				"encoding/json",
+				"errors",
+				"fmt",
+				"github.com/uber/jaeger-client-go/thrift",
+				"github.com/uber/jaeger-client-go/thrift-gen/agent",
+				"github.com/uber/jaeger-client-go/thrift-gen/jaeger",
+				"github.com/uber/jaeger-client-go/thrift-gen/sampling",
+				"github.com/uber/jaeger-client-go/thrift-gen/zipkincore",
+				"github.com/uber/jaeger-client-go/utils",
+				"net",
+				"net/http",
+				"net/http/httptest",
+				"sync",
+				"sync/atomic"
+			],
+			"TestImports": [
+				"context",
+				"fmt",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"github.com/uber/jaeger-client-go/thrift-gen/jaeger",
+				"github.com/uber/jaeger-client-go/thrift-gen/sampling",
+				"github.com/uber/jaeger-client-go/utils",
+				"net",
+				"testing",
+				"time"
+			]
+		},
+		"github.com/uber/jaeger-client-go/thrift": {
+			"Imports": [
+				"bufio",
+				"bytes",
+				"compress/zlib",
+				"context",
+				"crypto/tls",
+				"encoding/base64",
+				"encoding/binary",
+				"encoding/json",
+				"errors",
+				"fmt",
+				"io",
+				"io/ioutil",
+				"log",
+				"math",
+				"os",
+				"strconv",
+				"sync",
+				"sync/atomic",
+				"time"
+			],
+			"TestImports": null
+		},
+		"github.com/uber/jaeger-client-go/thrift-gen/agent": {
+			"Imports": [
+				"bytes",
+				"context",
+				"fmt",
+				"github.com/uber/jaeger-client-go/thrift",
+				"github.com/uber/jaeger-client-go/thrift-gen/jaeger",
+				"github.com/uber/jaeger-client-go/thrift-gen/zipkincore",
+				"time"
+			],
+			"TestImports": null
+		},
+		"github.com/uber/jaeger-client-go/thrift-gen/baggage": {
+			"Imports": [
+				"bytes",
+				"context",
+				"fmt",
+				"github.com/uber/jaeger-client-go/thrift",
+				"time"
+			],
+			"TestImports": null
+		},
+		"github.com/uber/jaeger-client-go/thrift-gen/jaeger": {
+			"Imports": [
+				"bytes",
+				"context",
+				"database/sql/driver",
+				"errors",
+				"fmt",
+				"github.com/uber/jaeger-client-go/thrift",
+				"time"
+			],
+			"TestImports": null
+		},
+		"github.com/uber/jaeger-client-go/thrift-gen/sampling": {
+			"Imports": [
+				"bytes",
+				"context",
+				"database/sql/driver",
+				"errors",
+				"fmt",
+				"github.com/uber/jaeger-client-go/thrift",
+				"time"
+			],
+			"TestImports": null
+		},
+		"github.com/uber/jaeger-client-go/thrift-gen/zipkincore": {
+			"Imports": [
+				"bytes",
+				"context",
+				"database/sql/driver",
+				"errors",
+				"fmt",
+				"github.com/uber/jaeger-client-go/thrift",
+				"time"
+			],
+			"TestImports": null
+		},
+		"github.com/uber/jaeger-client-go/transport": {
+			"Imports": [
+				"bytes",
+				"context",
+				"fmt",
+				"github.com/uber/jaeger-client-go",
+				"github.com/uber/jaeger-client-go/thrift",
+				"github.com/uber/jaeger-client-go/thrift-gen/jaeger",
+				"io",
+				"io/ioutil",
+				"net/http",
+				"time"
+			],
+			"TestImports": [
+				"context",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"github.com/uber/jaeger-client-go",
+				"github.com/uber/jaeger-client-go/thrift",
+				"github.com/uber/jaeger-client-go/thrift-gen/jaeger",
+				"io/ioutil",
+				"net/http",
+				"sync",
+				"testing",
+				"time"
+			]
+		},
+		"github.com/uber/jaeger-client-go/transport/zipkin": {
+			"Imports": [
+				"bytes",
+				"context",
+				"fmt",
+				"github.com/uber/jaeger-client-go",
+				"github.com/uber/jaeger-client-go/log",
+				"github.com/uber/jaeger-client-go/thrift",
+				"github.com/uber/jaeger-client-go/thrift-gen/zipkincore",
+				"io/ioutil",
+				"net/http",
+				"time"
+			],
+			"TestImports": [
+				"context",
+				"fmt",
+				"github.com/opentracing/opentracing-go",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"github.com/uber/jaeger-client-go",
+				"github.com/uber/jaeger-client-go/log",
+				"github.com/uber/jaeger-client-go/thrift",
+				"github.com/uber/jaeger-client-go/thrift-gen/zipkincore",
+				"github.com/uber/jaeger-client-go/transport/zipkin",
+				"io/ioutil",
+				"log",
+				"net/http",
+				"net/http/httptest",
+				"sync",
+				"testing",
+				"time"
+			]
+		},
+		"github.com/uber/jaeger-client-go/utils": {
+			"Imports": [
+				"context",
+				"encoding/binary",
+				"encoding/json",
+				"errors",
+				"fmt",
+				"github.com/uber/jaeger-client-go/log",
+				"github.com/uber/jaeger-client-go/thrift",
+				"github.com/uber/jaeger-client-go/thrift-gen/agent",
+				"github.com/uber/jaeger-client-go/thrift-gen/jaeger",
+				"github.com/uber/jaeger-client-go/thrift-gen/zipkincore",
+				"io",
+				"io/ioutil",
+				"math/rand",
+				"net",
+				"net/http",
+				"strconv",
+				"strings",
+				"sync",
+				"sync/atomic",
+				"time"
+			],
+			"TestImports": [
+				"context",
+				"fmt",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/mock",
+				"github.com/stretchr/testify/require",
+				"github.com/uber/jaeger-client-go/log",
+				"github.com/uber/jaeger-client-go/thrift-gen/zipkincore",
+				"math/rand",
+				"net",
+				"net/http",
+				"net/http/httptest",
+				"runtime",
+				"syscall",
+				"testing",
+				"time"
+			]
+		},
+		"github.com/uber/jaeger-client-go/x": {
+			"Imports": [
+				"encoding/json",
+				"fmt",
+				"github.com/uber/jaeger-client-go",
+				"sync/atomic"
+			],
+			"TestImports": [
+				"encoding/json",
+				"fmt",
+				"github.com/opentracing/opentracing-go",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"github.com/uber/jaeger-client-go",
+				"github.com/uber/jaeger-client-go/testutils",
+				"github.com/uber/jaeger-client-go/thrift-gen/sampling",
+				"sync",
+				"testing",
+				"time"
+			]
+		},
+		"github.com/uber/jaeger-client-go/zipkin": {
+			"Imports": [
+				"github.com/opentracing/opentracing-go",
+				"github.com/uber/jaeger-client-go",
+				"strconv",
+				"strings"
+			],
+			"TestImports": [
+				"github.com/opentracing/opentracing-go",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"github.com/uber/jaeger-client-go",
+				"strconv",
+				"testing"
+			]
+		}
+	}
+}

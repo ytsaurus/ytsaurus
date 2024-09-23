@@ -1,0 +1,24 @@
+{
+	"Version": "v0.3.1",
+	"GoVersion": "1.13",
+	"Sum": "h1:/FpZ+JaygUR/lZP2NlFI2DVfrOEMAIKP5wWEJdoYe9E=",
+	"Packages": {
+		"github.com/cpuguy83/dockercfg": {
+			"Imports": [
+				"encoding/base64",
+				"encoding/json",
+				"errors",
+				"fmt",
+				"os",
+				"os/exec",
+				"path/filepath",
+				"runtime",
+				"strings"
+			],
+			"TestImports": [
+				"encoding/base64",
+				"testing"
+			]
+		}
+	}
+}

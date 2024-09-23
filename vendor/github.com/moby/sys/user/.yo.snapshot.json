@@ -1,0 +1,29 @@
+{
+	"Version": "v0.1.0",
+	"GoVersion": "1.17",
+	"Sum": "h1:WmZ93f5Ux6het5iituh9x2zAG7NFY9Aqi49jjE1PaQg=",
+	"Packages": {
+		"github.com/moby/sys/user": {
+			"Imports": [
+				"bufio",
+				"bytes",
+				"errors",
+				"fmt",
+				"golang.org/x/sys/unix",
+				"io",
+				"os",
+				"strconv",
+				"strings"
+			],
+			"TestImports": [
+				"fmt",
+				"io",
+				"reflect",
+				"sort",
+				"strconv",
+				"strings",
+				"testing"
+			]
+		}
+	}
+}

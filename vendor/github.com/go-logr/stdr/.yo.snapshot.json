@@ -1,0 +1,30 @@
+{
+	"Version": "v1.2.2",
+	"GoVersion": "1.16",
+	"Sum": "h1:hSWxHoqTgW2S2qGc0LTAI563KZ5YKYRhT3MFKZMbjag=",
+	"Packages": {
+		"github.com/go-logr/stdr": {
+			"Imports": [
+				"github.com/go-logr/logr",
+				"github.com/go-logr/logr/funcr",
+				"log",
+				"os"
+			],
+			"TestImports": [
+				"errors",
+				"github.com/go-logr/stdr",
+				"log",
+				"os"
+			]
+		},
+		"github.com/go-logr/stdr/example": {
+			"Imports": [
+				"github.com/go-logr/logr",
+				"github.com/go-logr/stdr",
+				"log",
+				"os"
+			],
+			"TestImports": null
+		}
+	}
+}

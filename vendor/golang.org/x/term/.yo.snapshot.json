@@ -1,0 +1,28 @@
+{
+	"Version": "v0.23.0",
+	"GoVersion": "1.18",
+	"Sum": "h1:F6D4vR+EHoL9/sWAWgAR1H2DcHr4PareCbAaCo1RpuU=",
+	"Packages": {
+		"golang.org/x/term": {
+			"Imports": [
+				"bytes",
+				"golang.org/x/sys/unix",
+				"golang.org/x/sys/windows",
+				"io",
+				"os",
+				"runtime",
+				"strconv",
+				"sync",
+				"unicode/utf8"
+			],
+			"TestImports": [
+				"bytes",
+				"golang.org/x/term",
+				"io",
+				"os",
+				"runtime",
+				"testing"
+			]
+		}
+	}
+}

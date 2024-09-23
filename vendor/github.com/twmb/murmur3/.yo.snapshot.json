@@ -1,0 +1,32 @@
+{
+	"Version": "v1.1.8",
+	"GoVersion": "1.11",
+	"Sum": "h1:8Yt9taO/WN3l08xErzjeschgZU2QSrwm1kclYq+0aRg=",
+	"Packages": {
+		"github.com/twmb/murmur3": {
+			"Imports": [
+				"hash",
+				"math/bits"
+			],
+			"TestImports": [
+				"crypto/rand",
+				"encoding/binary",
+				"fmt",
+				"github.com/twmb/murmur3/testdata",
+				"hash",
+				"io",
+				"strconv",
+				"testing",
+				"testing/quick",
+				"unsafe"
+			]
+		},
+		"github.com/twmb/murmur3/testdata": {
+			"Imports": [
+				"C",
+				"unsafe"
+			],
+			"TestImports": null
+		}
+	}
+}

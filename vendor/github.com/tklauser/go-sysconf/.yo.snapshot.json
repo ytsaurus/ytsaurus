@@ -1,0 +1,38 @@
+{
+	"Version": "v0.3.12",
+	"GoVersion": "1.13",
+	"Sum": "h1:0QaGUFOdQaIVdPgfITYzaTegZvdCjmYO52cSFAEVmqU=",
+	"Packages": {
+		"github.com/tklauser/go-sysconf": {
+			"Imports": [
+				"bufio",
+				"errors",
+				"fmt",
+				"github.com/tklauser/numcpus",
+				"golang.org/x/sys/unix",
+				"io/ioutil",
+				"os",
+				"runtime",
+				"strconv",
+				"strings",
+				"sync"
+			],
+			"TestImports": [
+				"bytes",
+				"fmt",
+				"github.com/tklauser/go-sysconf",
+				"os",
+				"os/exec",
+				"strconv",
+				"strings",
+				"testing"
+			]
+		},
+		"github.com/tklauser/go-sysconf/cgotest": {
+			"Imports": null,
+			"TestImports": [
+				"testing"
+			]
+		}
+	}
+}

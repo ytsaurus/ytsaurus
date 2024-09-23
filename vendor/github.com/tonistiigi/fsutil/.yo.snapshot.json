@@ -1,0 +1,160 @@
+{
+	"Version": "v0.0.0-20230629203738-36ef4d8c0dbb",
+	"GoVersion": "1.19",
+	"Sum": "h1:uUe8rNyVXM8moActoBol6Xf6xX2GMr7SosR2EywMvGg=",
+	"Packages": {
+		"github.com/tonistiigi/fsutil": {
+			"Imports": [
+				"archive/tar",
+				"bytes",
+				"context",
+				"fmt",
+				"github.com/Microsoft/go-winio",
+				"github.com/containerd/continuity/sysx",
+				"github.com/moby/patternmatcher",
+				"github.com/opencontainers/go-digest",
+				"github.com/pkg/errors",
+				"github.com/tonistiigi/fsutil/types",
+				"golang.org/x/sync/errgroup",
+				"golang.org/x/sys/unix",
+				"golang.org/x/sys/windows",
+				"hash",
+				"io",
+				"io/fs",
+				"os",
+				"path",
+				"path/filepath",
+				"runtime",
+				"sort",
+				"strconv",
+				"strings",
+				"sync",
+				"syscall",
+				"time"
+			],
+			"TestImports": [
+				"bytes",
+				"context",
+				"crypto/sha256",
+				"fmt",
+				"github.com/containerd/continuity/fs/fstest",
+				"github.com/opencontainers/go-digest",
+				"github.com/pkg/errors",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"github.com/tonistiigi/fsutil/types",
+				"golang.org/x/sync/errgroup",
+				"golang.org/x/sys/unix",
+				"hash",
+				"io",
+				"net",
+				"os",
+				"path/filepath",
+				"runtime",
+				"strings",
+				"sync",
+				"syscall",
+				"testing",
+				"time"
+			]
+		},
+		"github.com/tonistiigi/fsutil/cmd/receive": {
+			"Imports": [
+				"context",
+				"flag",
+				"github.com/tonistiigi/fsutil",
+				"github.com/tonistiigi/fsutil/util",
+				"os"
+			],
+			"TestImports": null
+		},
+		"github.com/tonistiigi/fsutil/cmd/send": {
+			"Imports": [
+				"context",
+				"flag",
+				"github.com/tonistiigi/fsutil",
+				"github.com/tonistiigi/fsutil/util",
+				"os"
+			],
+			"TestImports": null
+		},
+		"github.com/tonistiigi/fsutil/cmd/walk": {
+			"Imports": [
+				"context",
+				"flag",
+				"github.com/tonistiigi/fsutil",
+				"os",
+				"strings"
+			],
+			"TestImports": null
+		},
+		"github.com/tonistiigi/fsutil/copy": {
+			"Imports": [
+				"context",
+				"fmt",
+				"github.com/Microsoft/go-winio",
+				"github.com/containerd/continuity/fs",
+				"github.com/containerd/continuity/sysx",
+				"github.com/moby/patternmatcher",
+				"github.com/pkg/errors",
+				"github.com/tonistiigi/fsutil",
+				"golang.org/x/sys/unix",
+				"golang.org/x/sys/windows",
+				"io",
+				"math",
+				"os",
+				"path",
+				"path/filepath",
+				"runtime",
+				"strings",
+				"sync",
+				"syscall",
+				"time"
+			],
+			"TestImports": [
+				"context",
+				"crypto/sha256",
+				"fmt",
+				"github.com/containerd/continuity/fs/fstest",
+				"github.com/pkg/errors",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"github.com/tonistiigi/fsutil",
+				"golang.org/x/sys/unix",
+				"os",
+				"path/filepath",
+				"runtime",
+				"sort",
+				"strings",
+				"testing",
+				"time"
+			]
+		},
+		"github.com/tonistiigi/fsutil/types": {
+			"Imports": [
+				"bytes",
+				"fmt",
+				"github.com/gogo/protobuf/proto",
+				"github.com/gogo/protobuf/sortkeys",
+				"io",
+				"math",
+				"math/bits",
+				"os",
+				"reflect",
+				"strconv",
+				"strings"
+			],
+			"TestImports": null
+		},
+		"github.com/tonistiigi/fsutil/util": {
+			"Imports": [
+				"context",
+				"encoding/binary",
+				"github.com/tonistiigi/fsutil",
+				"io",
+				"sync"
+			],
+			"TestImports": null
+		}
+	}
+}

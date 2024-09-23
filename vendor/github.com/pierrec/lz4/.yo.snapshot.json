@@ -1,0 +1,72 @@
+{
+	"Version": "v2.6.1+incompatible",
+	"GoVersion": "",
+	"Sum": "h1:9UY3+iC23yxF0UfGaYrGplQ+79Rg+h/q9FV9ix19jjM=",
+	"Packages": {
+		"github.com/pierrec/lz4": {
+			"Imports": [
+				"encoding/binary",
+				"errors",
+				"fmt",
+				"github.com/pierrec/lz4/internal/xxh32",
+				"io",
+				"io/ioutil",
+				"math/bits",
+				"os",
+				"runtime",
+				"runtime/debug",
+				"strings",
+				"sync"
+			],
+			"TestImports": [
+				"bufio",
+				"bytes",
+				"encoding/base64",
+				"fmt",
+				"github.com/pierrec/lz4",
+				"io",
+				"io/ioutil",
+				"os",
+				"reflect",
+				"strings",
+				"testing"
+			]
+		},
+		"github.com/pierrec/lz4/cmd/lz4c": {
+			"Imports": [
+				"code.cloudfoundry.org/bytefmt",
+				"flag",
+				"fmt",
+				"github.com/pierrec/cmdflag",
+				"github.com/pierrec/lz4",
+				"github.com/schollz/progressbar",
+				"io",
+				"os",
+				"strings",
+				"sync/atomic"
+			],
+			"TestImports": null
+		},
+		"github.com/pierrec/lz4/fuzz": {
+			"Imports": [
+				"bytes",
+				"github.com/pierrec/lz4",
+				"io"
+			],
+			"TestImports": null
+		},
+		"github.com/pierrec/lz4/internal/xxh32": {
+			"Imports": [
+				"encoding/binary"
+			],
+			"TestImports": [
+				"encoding/binary",
+				"github.com/frankban/quicktest",
+				"github.com/pierrec/lz4/internal/xxh32",
+				"hash/crc32",
+				"hash/fnv",
+				"testing"
+			]
+		}
+	}
+}
