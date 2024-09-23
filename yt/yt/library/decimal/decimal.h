@@ -32,9 +32,6 @@ public:
 
 public:
     //! Maximum precision supported by YT.
-    //! NB: For compatibility reasons the maximum precision represented by a 128 bit
-    //! integer is 35. Numbers with precision from 36 to 38 and higher are represented
-    //! as 256 bit integers.
     static constexpr int MaxPrecision = 76;
     static constexpr int MaxBinarySize = 32;
 
@@ -64,22 +61,14 @@ public:
     static TStringBuf WriteBinary64(int precision, i64 value, char* buffer, size_t bufferLength);
     static TStringBuf WriteBinary128(int precision, TValue128 value, char* buffer, size_t bufferLength);
     static TStringBuf WriteBinary256(int precision, TValue256 value, char* buffer, size_t bufferLength);
-    // This function can only be used for precisions in range [36, 38]. Such values fit into
-    // int128, but are represented as int256 in YT for compatibility with YQL. This function
-    // is useful for interop with decimal implementations in other systems (ex: CHYT).
-    static TStringBuf WriteBinary128As256(int precision, TValue128 value, char* buffer, size_t bufferLength);
 
     // Writes either 32-bit, 64-bit or 128-bit binary value depending on precision, provided a TValue128.
-    static TStringBuf WriteBinaryVariadic(int precision, TValue128 value, char* buffer, size_t bufferLength);
+    static TStringBuf WriteBinary128Variadic(int precision, TValue128 value, char* buffer, size_t bufferLength);
 
     static i32 ParseBinary32(int precision, TStringBuf buffer);
     static i64 ParseBinary64(int precision, TStringBuf buffer);
     static TValue128 ParseBinary128(int precision, TStringBuf buffer);
     static TValue256 ParseBinary256(int precision, TStringBuf buffer);
-    // This function can only be used for precisions in range [36, 38]. Such values fit into
-    // int128, but are represented as int256 in YT for compatibility with YQL. This function
-    // is useful for interop with decimal implementations in other systems (ex: CHYT).
-    static TValue128 ParseBinary256As128(int precision, TStringBuf buffer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

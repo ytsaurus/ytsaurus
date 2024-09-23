@@ -435,15 +435,15 @@ void TUncheckedSkiffWriter::WriteUint128(TUint128 value)
 
 void TUncheckedSkiffWriter::WriteInt256(const TInt256& value)
 {
-    for (int partIndex = 0; partIndex < 4; ++partIndex) {
-        WriteSimple<ui64>(value.Parts[partIndex]);
+    for (auto part : value.Parts) {
+        WriteSimple<ui64>(part);
     }
 }
 
 void TUncheckedSkiffWriter::WriteUint256(const TUint256& value)
 {
-    for (int partIndex = 0; partIndex < 4; ++partIndex) {
-        WriteSimple<ui64>(value.Parts[partIndex]);
+    for (auto part : value.Parts) {
+        WriteSimple<ui64>(part);
     }
 }
 

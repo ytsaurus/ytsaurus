@@ -127,7 +127,7 @@ class TestComposite(ClickHouseTestBase):
                 "type_v3": decimal_type(30, 10),
             },
             {
-                "name": "decimal128_256",
+                "name": "decimal128_no_yql",
                 "type_v3": decimal_type(38, 10)
             },
             {
@@ -140,7 +140,7 @@ class TestComposite(ClickHouseTestBase):
             "decimal32": encode_decimal("1.1", 9, 2),
             "decimal64": encode_decimal("1234.1234", 15, 5),
             "decimal128": encode_decimal("123456789.123456789", 30, 10),
-            "decimal128_256": encode_decimal("123456789.123456789", 38, 10),
+            "decimal128_no_yql": encode_decimal("123456789.123456789", 38, 10),
             "decimal256": encode_decimal("123456789.123456789", 70, 10),
         }
         write_table("//tmp/t", [row])
@@ -150,7 +150,7 @@ class TestComposite(ClickHouseTestBase):
                 {"name": "decimal32", "type": "Decimal(9, 2)"},
                 {"name": "decimal64", "type": "Decimal(15, 5)"},
                 {"name": "decimal128", "type": "Decimal(30, 10)"},
-                {"name": "decimal128_256", "type": "Decimal(38, 10)"},
+                {"name": "decimal128_no_yql", "type": "Decimal(38, 10)"},
                 {"name": "decimal256", "type": "Decimal(70, 10)"},
             ]
 
@@ -158,7 +158,7 @@ class TestComposite(ClickHouseTestBase):
                 "decimal32": 1.1,
                 "decimal64": 1234.1234,
                 "decimal128": 123456789.123456789,
-                "decimal128_256": 123456789.123456789,
+                "decimal128_no_yql": 123456789.123456789,
                 "decimal256": 123456789.123456789,
             }]
 
@@ -167,7 +167,7 @@ class TestComposite(ClickHouseTestBase):
                     toDecimal32(10.5, 5) as decimal32,
                     toDecimal64(100.005, 10) as decimal64,
                     CAST(0.000005, 'Decimal(35, 15)') as decimal128,
-                    toDecimal128(15.43, 2) as decimal128_256,
+                    toDecimal128(15.43, 2) as decimal128_no_yql,
                     toDecimal256(42.424242424242, 10) as decimal256'''
 
             clique.make_query(create_query)
@@ -187,7 +187,7 @@ class TestComposite(ClickHouseTestBase):
                         "type_v3": decimal_type(35, 15),
                     },
                     {
-                        "name": "decimal128_256",
+                        "name": "decimal128_no_yql",
                         "type_v3": decimal_type(38, 2),
                     },
                     {
@@ -203,7 +203,7 @@ class TestComposite(ClickHouseTestBase):
                 "decimal32": encode_decimal("10.5", 9, 5),
                 "decimal64": encode_decimal("100.005", 18, 10),
                 "decimal128": encode_decimal("0.000005", 35, 15),
-                "decimal128_256": encode_decimal("15.43", 38, 2),
+                "decimal128_no_yql": encode_decimal("15.43", 38, 2),
                 "decimal256": encode_decimal("42.4242424242", 76, 10),
             }]
 

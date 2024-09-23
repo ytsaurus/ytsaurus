@@ -32,20 +32,20 @@ using i256 = TDecimal::TValue256;
 constexpr i256 operator-(i256 value) noexcept
 {
     // Invert.
-    for (int partIndex = 0; partIndex < 8; ++partIndex) {
+    for (int partIndex = 0; partIndex < std::ssize(value.Parts); ++partIndex) {
         value.Parts[partIndex] = ~value.Parts[partIndex];
     }
 
     // Add 1.
-    for (int partIndex = 0; partIndex < 8 && ++value.Parts[partIndex] == 0; ++partIndex) { }
+    for (int partIndex = 0; partIndex < std::ssize(value.Parts) && ++value.Parts[partIndex] == 0; ++partIndex) { }
 
     return value;
 }
 
 constexpr std::strong_ordering operator<=>(const i256& lhs, const i256& rhs)
 {
-    bool lhsIsNegative = lhs.Parts[7] & (1u << 31);
-    bool rhsIsNegative = rhs.Parts[7] & (1u << 31);
+    bool lhsIsNegative = lhs.Parts.back() & (1u << 31);
+    bool rhsIsNegative = rhs.Parts.back() & (1u << 31);
 
     if (lhsIsNegative && !rhsIsNegative) {
         return std::strong_ordering::less;
@@ -55,7 +55,7 @@ constexpr std::strong_ordering operator<=>(const i256& lhs, const i256& rhs)
         return std::strong_ordering::greater;
     }
 
-    for (int partIndex = 7; partIndex >= 0; --partIndex) {
+    for (int partIndex = std::ssize(lhs.Parts) - 1; partIndex >= 0; --partIndex) {
         if (lhs.Parts[partIndex] != rhs.Parts[partIndex]) {
             return lhs.Parts[partIndex] <=> rhs.Parts[partIndex];
         }
@@ -69,7 +69,6 @@ constexpr bool operator==(const i256& lhs, const i256& rhs)
 {
     return lhs.Parts == rhs.Parts;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,7 +95,7 @@ constexpr bool operator==(const ui256& lhs, const ui256& rhs)
 constexpr ui256 operator+(ui256 lhs, const ui256& rhs)
 {
     ui64 carry = 0;
-    for (int partIndex = 0; partIndex < 8; ++partIndex) {
+    for (int partIndex = 0; partIndex < std::ssize(lhs.Parts); ++partIndex) {
         carry += lhs.Parts[partIndex];
         carry += rhs.Parts[partIndex];
         lhs.Parts[partIndex] = carry;
@@ -111,8 +110,8 @@ Y_FORCE_INLINE constexpr ui256 ShiftUp(ui256 value)
 {
     static_assert(Shift >= 0 && Shift <= 32);
 
-    value.Parts[7] <<= Shift;
-    for (int partIndex = 6; partIndex >= 0; --partIndex) {
+    value.Parts.back() <<= Shift;
+    for (int partIndex = std::ssize(value.Parts) - 2; partIndex >= 0; --partIndex) {
         value.Parts[partIndex + 1] |= value.Parts[partIndex] >> (32 - Shift);
         value.Parts[partIndex] <<= Shift;
     }
@@ -137,25 +136,39 @@ constexpr bool ValidDecimalUnderlyingUnsignedInteger =
     std::is_same_v<T, ui256>;
 
 template <typename T>
+Y_FORCE_INLINE constexpr T GetNan()
+{
+    if constexpr (std::is_same_v<T, i256>) {
+        constexpr i32 i32Max = std::numeric_limits<i32>::max();
+        constexpr ui32 ui32Max = std::numeric_limits<ui32>::max();
+
+        return {ui32Max, ui32Max, ui32Max, ui32Max, ui32Max, ui32Max, ui32Max, i32Max};
+    } else {
+        return std::numeric_limits<T>::max();
+    }
+}
+
+template <typename T>
+Y_FORCE_INLINE constexpr T GetPlusInf()
+{
+    if constexpr (std::is_same_v<T, i256>) {
+        constexpr i32 i32Max = std::numeric_limits<i32>::max();
+        constexpr ui32 ui32Max = std::numeric_limits<ui32>::max();
+
+        return {ui32Max - 1, ui32Max, ui32Max, ui32Max, ui32Max, ui32Max, ui32Max, i32Max};
+    } else {
+        return std::numeric_limits<T>::max() - 1;
+    }
+}
+
+template <typename T>
 struct TDecimalTraits
 {
     static_assert(ValidDecimalUnderlyingInteger<T>);
 
-    static constexpr T Nan = std::numeric_limits<T>::max();
-    static constexpr T PlusInf = std::numeric_limits<T>::max() - 1;
+    static constexpr T Nan = GetNan<T>();
+    static constexpr T PlusInf = GetPlusInf<T>();
     static constexpr T MinusInf = -PlusInf;
-};
-
-template <>
-struct TDecimalTraits<i256>
-{
-    static_assert(ValidDecimalUnderlyingInteger<i256>);
-
-    static constexpr i32 Int32Max = std::numeric_limits<i32>::max();
-    static constexpr ui32 UInt32Max = std::numeric_limits<ui32>::max();
-    static constexpr i256 Nan = {UInt32Max, UInt32Max, UInt32Max, UInt32Max, UInt32Max, UInt32Max, UInt32Max, Int32Max};
-    static constexpr i256 PlusInf = {UInt32Max - 1, UInt32Max, UInt32Max, UInt32Max, UInt32Max, UInt32Max, UInt32Max, Int32Max};
-    static constexpr i256 MinusInf = -PlusInf;
 };
 
 template <typename T>
@@ -164,7 +177,7 @@ Y_FORCE_INLINE constexpr bool IsNegativeInteger(T value)
     static_assert(ValidDecimalUnderlyingInteger<T>);
 
     if constexpr (std::is_same_v<T, i256>) {
-        return value.Parts[7] & (1u << 31);
+        return value.Parts.back() & (1u << 31);
     } else {
         return value < 0;
     }
@@ -195,8 +208,8 @@ Y_FORCE_INLINE constexpr auto DecimalIntegerToSigned(T value)
     } else if constexpr (std::is_same_v<T, ui128>) {
         return i128(value);
     } else {
-        using TU = std::make_signed_t<T>;
-        return static_cast<TU>(value);
+        using TS = std::make_signed_t<T>;
+        return static_cast<TS>(value);
     }
 }
 
@@ -207,17 +220,17 @@ Y_FORCE_INLINE constexpr auto DecimalIntegerToSigned(T value)
 //! so they are the only ones actually implemented for our custom i256/ui256.
 
 template <typename T>
-Y_FORCE_INLINE constexpr auto MSBFlip(T value)
+Y_FORCE_INLINE constexpr auto FlipMSB(T value)
 {
     static_assert(ValidDecimalUnderlyingInteger<T>);
 
     if constexpr (std::is_same_v<T, i256>) {
-        value.Parts[7] ^= (1u << 31);
+        value.Parts.back() ^= (1u << 31);
         return value;
     } else {
-        constexpr auto one = DecimalIntegerToUnsigned(T{1});
+        constexpr auto One = DecimalIntegerToUnsigned(T{1});
         // Bit operations are only valid with unsigned types.
-        return T(DecimalIntegerToUnsigned(value) ^ (one << (sizeof(T) * 8 - 1)));
+        return T(DecimalIntegerToUnsigned(value) ^ (One << (sizeof(T) * 8 - 1)));
     }
 }
 
@@ -228,7 +241,7 @@ Y_FORCE_INLINE constexpr ui32 GetNextDigit(T value, T* nextValue)
 
     if constexpr (std::is_same_v<T, ui256>) {
         ui64 remainder = 0;
-        for (int partIndex = 7; partIndex >= 0; --partIndex) {
+        for (int partIndex = std::ssize(value.Parts) - 1; partIndex >= 0; --partIndex) {
             // Everything should fit into long long since we are dividing by 10.
             auto step = std::lldiv(value.Parts[partIndex] + (remainder << 32), 10);
             value.Parts[partIndex] = step.quot;
@@ -237,9 +250,9 @@ Y_FORCE_INLINE constexpr ui32 GetNextDigit(T value, T* nextValue)
         *nextValue = value;
         return remainder;
     } else {
-        constexpr auto ten = T{10};
-        *nextValue = value / ten;
-        return static_cast<ui32>(value % ten);
+        constexpr auto Ten = T{10};
+        *nextValue = value / Ten;
+        return static_cast<ui32>(value % Ten);
     }
 }
 
@@ -258,26 +271,6 @@ Y_FORCE_INLINE constexpr T MultiplyByTen(T value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDecimal::TValue256 Value128ToValue256(TDecimal::TValue128 value)
-{
-    TDecimal::TValue256 result;
-    std::memcpy(&result, &value, sizeof(value));
-    std::fill(
-        result.Parts.begin() + 4,
-        result.Parts.end(),
-        value.High < 0 ? std::numeric_limits<ui32>::max() : 0u);
-    return result;
-}
-
-TDecimal::TValue128 Value256ToValue128(const TDecimal::TValue256& value)
-{
-    TDecimal::TValue128 result;
-    std::memcpy(&result, &value, sizeof(result));
-    return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 constexpr int GetDecimalBinaryValueSize(int precision)
 {
     if (precision > 0) {
@@ -285,7 +278,7 @@ constexpr int GetDecimalBinaryValueSize(int precision)
             return 4;
         } else if (precision <= 18) {
             return 8;
-        } else if (precision <= 35) {
+        } else if (precision <= 38) {
             return 16;
         } else if (precision <= 76) {
             return 32;
@@ -332,7 +325,7 @@ static constexpr i128 Decimal128IntegerMaxValueTable[] = {
     //         hex_value[-16:],
     //         hex_value[:-16] or "0",
     //         precision))
-    // for i in range(19, 36):
+    // for i in range(19, 39):
     //     print_max_decimal(i)
     //
     i128{static_cast<ui64>(0x8ac7230489e7fffful)} | (i128{static_cast<ui64>(0x0ul)} << 64), // 19
@@ -352,6 +345,9 @@ static constexpr i128 Decimal128IntegerMaxValueTable[] = {
     i128{static_cast<ui64>(0x38c15b09fffffffful)} | (i128{static_cast<ui64>(0x314dc6448d93ul)} << 64), // 33
     i128{static_cast<ui64>(0x378d8e63fffffffful)} | (i128{static_cast<ui64>(0x1ed09bead87c0ul)} << 64), // 34
     i128{static_cast<ui64>(0x2b878fe7fffffffful)} | (i128{static_cast<ui64>(0x13426172c74d82ul)} << 64), // 35
+    i128{static_cast<ui64>(0xb34b9f0ffffffffful)} | (i128{static_cast<ui64>(0xc097ce7bc90715ul)} << 64), // 36
+    i128{static_cast<ui64>(0x00f4369ffffffffful)} | (i128{static_cast<ui64>(0x785ee10d5da46d9ul)} << 64), // 37
+    i128{static_cast<ui64>(0x098a223ffffffffful)} | (i128{static_cast<ui64>(0x4b3b4ca85a86c47aul)} << 64), // 38
 };
 
 static constexpr i256 Decimal256IntegerMaxValueTable[] = {
@@ -369,12 +365,9 @@ static constexpr i256 Decimal256IntegerMaxValueTable[] = {
     //     joined_parts = ", ".join(f"static_cast<ui32>(0x{part}u)" for part in parts)
     //     print(f"{{{joined_parts}}}, // {precision}")
     //
-    // for i in range(36, 77):
+    // for i in range(39, 77):
     //     print_max_decimal(i)
     //
-    {static_cast<ui32>(0xffffffffu), static_cast<ui32>(0xb34b9f0fu), static_cast<ui32>(0x7bc90715u), static_cast<ui32>(0xc097ceu), static_cast<ui32>(0x0u), static_cast<ui32>(0x0u), static_cast<ui32>(0x0u), static_cast<ui32>(0x0u)}, // 36
-    {static_cast<ui32>(0xffffffffu), static_cast<ui32>(0x00f4369fu), static_cast<ui32>(0xd5da46d9u), static_cast<ui32>(0x785ee10u), static_cast<ui32>(0x0u), static_cast<ui32>(0x0u), static_cast<ui32>(0x0u), static_cast<ui32>(0x0u)}, // 37
-    {static_cast<ui32>(0xffffffffu), static_cast<ui32>(0x098a223fu), static_cast<ui32>(0x5a86c47au), static_cast<ui32>(0x4b3b4ca8u), static_cast<ui32>(0x0u), static_cast<ui32>(0x0u), static_cast<ui32>(0x0u), static_cast<ui32>(0x0u)}, // 38
     {static_cast<ui32>(0xffffffffu), static_cast<ui32>(0x5f65567fu), static_cast<ui32>(0x8943acc4u), static_cast<ui32>(0xf050fe93u), static_cast<ui32>(0x2u), static_cast<ui32>(0x0u), static_cast<ui32>(0x0u), static_cast<ui32>(0x0u)}, // 39
     {static_cast<ui32>(0xffffffffu), static_cast<ui32>(0xb9f560ffu), static_cast<ui32>(0x5ca4bfabu), static_cast<ui32>(0x6329f1c3u), static_cast<ui32>(0x1du), static_cast<ui32>(0x0u), static_cast<ui32>(0x0u), static_cast<ui32>(0x0u)}, // 40
     {static_cast<ui32>(0xffffffffu), static_cast<ui32>(0x4395c9ffu), static_cast<ui32>(0x9e6f7cb5u), static_cast<ui32>(0xdfa371a1u), static_cast<ui32>(0x125u), static_cast<ui32>(0x0u), static_cast<ui32>(0x0u), static_cast<ui32>(0x0u)}, // 41
@@ -431,11 +424,11 @@ Y_FORCE_INLINE constexpr auto GetDecimalMaxIntegerValue(int precision)
         YT_VERIFY(precision >= 10 && precision <= 18);
         return Decimal64IntegerMaxValueTable[precision - 10];
     } else if constexpr (std::is_same_v<T, i128>) {
-        YT_VERIFY(precision >= 19 && precision <= 35);
+        YT_VERIFY(precision >= 19 && precision <= 38);
         return Decimal128IntegerMaxValueTable[precision - 19];
     } else if constexpr (std::is_same_v<T, i256>) {
-        YT_VERIFY(precision >= 36 && precision <= 76);
-        return Decimal256IntegerMaxValueTable[precision - 36];
+        YT_VERIFY(precision >= 39 && precision <= 76);
+        return Decimal256IntegerMaxValueTable[precision - 39];
     } else {
         YT_ABORT();
     }
@@ -445,10 +438,10 @@ template <typename T>
 static Y_FORCE_INLINE T DecimalHostToInet(T value)
 {
     if constexpr (std::is_same_v<T, i256> || std::is_same_v<T, ui256>) {
-        for (int partIndex = 0; partIndex < 4; ++partIndex) {
+        for (int partIndex = 0; partIndex < std::ssize(value.Parts) / 2; ++partIndex) {
             value.Parts[partIndex] = ::HostToInet(value.Parts[partIndex]);
-            value.Parts[7 - partIndex] = ::HostToInet(value.Parts[7 - partIndex]);
-            std::swap(value.Parts[partIndex], value.Parts[7 - partIndex]);
+            value.Parts[std::size(value.Parts) - 1 - partIndex] = ::HostToInet(value.Parts[std::size(value.Parts) - 1 - partIndex]);
+            std::swap(value.Parts[partIndex], value.Parts[std::size(value.Parts) - 1 - partIndex]);
         }
         return value;
     } else if constexpr (std::is_same_v<T, i128> || std::is_same_v<T, ui128>) {
@@ -462,10 +455,10 @@ template <typename T>
 static Y_FORCE_INLINE T DecimalInetToHost(T value)
 {
     if constexpr (std::is_same_v<T, i256> || std::is_same_v<T, ui256>) {
-        for (int partIndex = 0; partIndex < 4; ++partIndex) {
+        for (int partIndex = 0; partIndex < std::ssize(value.Parts) / 2; ++partIndex) {
             value.Parts[partIndex] = ::InetToHost(value.Parts[partIndex]);
-            value.Parts[7 - partIndex] = ::InetToHost(value.Parts[7 - partIndex]);
-            std::swap(value.Parts[partIndex], value.Parts[7 - partIndex]);
+            value.Parts[std::size(value.Parts) - 1 - partIndex] = ::InetToHost(value.Parts[std::size(value.Parts) - 1 - partIndex]);
+            std::swap(value.Parts[partIndex], value.Parts[std::size(value.Parts) - 1 - partIndex]);
         }
         return value;
     } else if constexpr (std::is_same_v<T, i128> || std::is_same_v<T, ui128>) {
@@ -480,13 +473,13 @@ static T DecimalBinaryToIntegerUnchecked(TStringBuf binaryValue)
 {
     T result;
     memcpy(&result, binaryValue.Data(), sizeof(result));
-    return MSBFlip(DecimalInetToHost(result));
+    return FlipMSB(DecimalInetToHost(result));
 }
 
 template<typename T>
 static void DecimalIntegerToBinaryUnchecked(T decodedValue, void* buf)
 {
-    auto preparedValue = DecimalHostToInet(MSBFlip(decodedValue));
+    auto preparedValue = DecimalHostToInet(FlipMSB(decodedValue));
     memcpy(buf, &preparedValue, sizeof(preparedValue));
 }
 
@@ -638,10 +631,10 @@ T DecimalTextToInteger(TStringBuf textValue, int precision, int scale)
     int beforePoint = 0;
     int afterPoint = 0;
 
-    auto addDigit = [&] (auto cur) {
+    auto addDigit = [&] (auto digit) {
         // We use this type to avoid warnings about casting signed types to unsigned/narrowing ints.
         // Ugly, but this way we don't need to define cumbersome constructors for TValue256.
-        ui16 currentDigit = *cur - '0';
+        ui16 currentDigit = *digit - '0';
         if (currentDigit < 0 || currentDigit > 9) {
             ThrowInvalidDecimal(textValue, precision, scale);
         }
@@ -877,7 +870,7 @@ TStringBuf TDecimal::WriteBinary128(int precision, TValue128 value, char* buffer
     return TStringBuf{buffer, sizeof(TValue128)};
 }
 
-TStringBuf TDecimal::WriteBinaryVariadic(int precision, TValue128 value, char* buffer, size_t bufferLength)
+TStringBuf TDecimal::WriteBinary128Variadic(int precision, TValue128 value, char* buffer, size_t bufferLength)
 {
     const size_t resultLength = GetValueBinarySize(precision);
     switch (resultLength) {
@@ -899,19 +892,6 @@ TStringBuf TDecimal::WriteBinary256(int precision, TValue256 value, char* buffer
     YT_VERIFY(bufferLength >= resultLength);
 
     DecimalIntegerToBinaryUnchecked(std::move(value), buffer);
-    return TStringBuf{buffer, sizeof(TValue256)};
-}
-
-TStringBuf TDecimal::WriteBinary128As256(int precision, TValue128 value, char* buffer, size_t bufferLength)
-{
-    const size_t resultLength = GetValueBinarySize(precision);
-    // Implies precision >= 35.
-    CheckDecimalIntBits<TValue256>(precision);
-    // Implies precision <= 38.
-    CheckDecimalFitsInto128Bits(precision);
-    YT_VERIFY(bufferLength >= resultLength);
-
-    DecimalIntegerToBinaryUnchecked(Value128ToValue256(value), buffer);
     return TStringBuf{buffer, sizeof(TValue256)};
 }
 
@@ -950,15 +930,6 @@ TDecimal::TValue256 TDecimal::ParseBinary256(int precision, TStringBuf buffer)
 {
     CheckBufferLength<i256>(precision, buffer.Size());
     return DecimalBinaryToIntegerUnchecked<i256>(buffer);
-}
-
-TDecimal::TValue128 TDecimal::ParseBinary256As128(int precision, TStringBuf buffer)
-{
-    // Implies precision >= 35.
-    CheckBufferLength<i256>(precision, buffer.Size());
-    // Implies precision <= 38.
-    CheckDecimalFitsInto128Bits(precision);
-    return Value256ToValue128(DecimalBinaryToIntegerUnchecked<i256>(buffer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

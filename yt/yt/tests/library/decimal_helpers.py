@@ -30,7 +30,7 @@ def _get_decimal_byte_size(precision):
         return 4
     elif precision <= 18:
         return 8
-    elif precision <= 35:
+    elif precision <= 38:
         return 16
     else:
         return 32

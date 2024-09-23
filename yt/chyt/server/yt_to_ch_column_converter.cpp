@@ -3,8 +3,6 @@
 #include "config.h"
 #include "columnar_conversion.h"
 #include "custom_data_types.h"
-// TODO(achulkov2): Is this include needed?
-#include "helpers.h"
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/logical_type.h>
@@ -971,7 +969,6 @@ public:
 
     TDecimalConverter(int precision, int scale)
         : Precision_(precision)
-        , YTDecimalSize_(TDecimal::GetValueBinarySize(Precision_))
         , DataType_(std::make_shared<DB::DataTypeDecimal<TClickHouseDecimal>>(precision, scale))
     { }
 
@@ -987,7 +984,7 @@ public:
         auto ysonItem = cursor->GetCurrent();
         auto data = ysonItem.UncheckedAsString();
 
-        YT_ASSERT(std::ssize(data) == YTDecimalSize_);
+        YT_ASSERT(data.size() == DecimalSize);
 
         ParseAndPushBackDecimal(data);
 
@@ -1048,7 +1045,6 @@ public:
 
 private:
     int Precision_;
-    i64 YTDecimalSize_;
     DB::DataTypePtr DataType_;
     DB::MutableColumnPtr Column_;
     TDecimalColumn* DecimalColumn_;
@@ -1064,13 +1060,7 @@ private:
             auto parsedValue = TDecimal::ParseBinary64(Precision_, ytValue);
             memcpy(&chValue, &parsedValue, DecimalSize);
         } else if constexpr (std::is_same_v<TUnderlyingIntegerType, DB::Int128>) {
-            // For compatibility with YQL, decimals with precision from 36 to
-            // 38, which technically fit into 128 bits, are represented with 256
-            // bits in YT. ClickHouse uses 128 bits to represent decimals with
-            // these precisions, so the binary sizes are different.
-            auto parsedValue = YTDecimalSize_ == DecimalSize
-                ? TDecimal::ParseBinary128(Precision_, ytValue)
-                : TDecimal::ParseBinary256As128(Precision_, ytValue);
+            auto parsedValue = TDecimal::ParseBinary128(Precision_, ytValue);
             memcpy(&chValue, &parsedValue, DecimalSize);
         } else if constexpr (std::is_same_v<TUnderlyingIntegerType, DB::Int256>) {
             auto parsedValue = TDecimal::ParseBinary256(Precision_, ytValue);
