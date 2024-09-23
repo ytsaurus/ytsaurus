@@ -25,6 +25,8 @@
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 #include <yt/yt/server/lib/rpc_proxy/security_manager.h>
 
+#include <yt/yt/server/lib/user_job/config.h>
+
 #include <yt/yt/server/exec/user_job_synchronizer.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -152,13 +154,10 @@ using namespace NProfiling;
 using namespace NTracing;
 using namespace NTransactionClient;
 using namespace NStatisticPath;
+using namespace NUserJob;
 
 using NYT::FromProto;
 using NYT::ToProto;
-
-////////////////////////////////////////////////////////////////////////////////
-
-const TString DefaultExecutorStderrPath = "logs/ytserver_exec_stderr";
 
 ////////////////////////////////////////////////////////////////////////////////
 
