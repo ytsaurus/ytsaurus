@@ -193,7 +193,7 @@ class TestQueriesChyt(ClickHouseTestBase):
                 authenticated_user="u1",
             )
 
-            with raises_yt_error("User \"u1\" has no access to clique ch_alias"):
+            with raises_yt_error("User \"u1\" has no access to clique \"ch_alias\""):
                 query.track()
 
     @authors("gudqeit")
