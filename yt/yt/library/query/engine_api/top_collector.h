@@ -135,26 +135,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTopCollectorWithHashMap
-    : public TTopCollectorBase
-{
-public:
-    TTopCollectorWithHashMap(
-        i64 limit,
-        TComparerFunction comparer,
-        size_t rowSize,
-        IMemoryChunkProviderPtr memoryChunkProvider,
-        TLookupRows* const hashMap);
-
-    virtual void OnInsert(const TPIValue* insertedRow) override;
-    virtual void OnEvict(const TPIValue* evictedRow) override;
-
-private:
-    TLookupRows* const HashMap_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NQueryClient
 
 #define TOP_COLLECTOR_INL_H

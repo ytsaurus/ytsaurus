@@ -47,19 +47,6 @@ struct TCodegenFragmentInfos
 
 DEFINE_REFCOUNTED_TYPE(TCodegenFragmentInfos)
 
-DECLARE_REFCOUNTED_STRUCT(TCodegenOrderOpInfos)
-
-struct TCodegenOrderOpInfos final
-{
-    TCodegenFragmentInfosPtr FragmentInfos;
-    std::vector<size_t> ExprIds;
-    std::vector<EValueType> OrderColumnTypes;
-    std::vector<EValueType> SourceSchema;
-    std::vector<bool> IsDesc;
-};
-
-DEFINE_REFCOUNTED_TYPE(TCodegenOrderOpInfos)
-
 using TCodegenAggregateInit = std::function<TCGValue(TCGBaseContext& builder, Value* buffer)>;
 using TCodegenAggregateUpdate = std::function<TCGValue(TCGBaseContext& builder, Value* buffer, TCGValue aggState, std::vector<TCGValue> newValues)>;
 using TCodegenAggregateMerge = std::function<TCGValue(TCGBaseContext& builder, Value* buffer, TCGValue dstAggState, TCGValue aggState)>;
@@ -257,8 +244,7 @@ TGroupOpSlots MakeCodegenGroupOp(
     bool allAggregatesFirst,
     bool isMerge,
     bool checkForNullGroupKey,
-    i64 commonPrefixWithPrimaryKey,
-    const TCodegenOrderOpInfosPtr& combineGroupOpWithOrderOp,
+    size_t commonPrefixWithPrimaryKey,
     TComparerManagerPtr comparerManager);
 
 size_t MakeCodegenGroupTotalsOp(
