@@ -234,26 +234,4 @@ void TTopCollector::OnEvict(const TPIValue* /*evictedRow*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTopCollectorWithHashMap::TTopCollectorWithHashMap(
-    i64 limit,
-    TComparerFunction comparer,
-    size_t rowSize,
-    IMemoryChunkProviderPtr memoryChunkProvider,
-    TLookupRows* const hashMap)
-    : TTopCollectorBase(limit, comparer, rowSize, std::move(memoryChunkProvider))
-    , HashMap_(hashMap)
-{ }
-
-void TTopCollectorWithHashMap::OnInsert(const TPIValue* insertedRow)
-{
-    HashMap_->insert(insertedRow);
-}
-
-void TTopCollectorWithHashMap::OnEvict(const TPIValue* evictedRow)
-{
-    HashMap_->erase(evictedRow);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NQueryClient

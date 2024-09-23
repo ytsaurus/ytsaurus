@@ -1041,12 +1041,8 @@ public:
         NWebAssembly::TCompartmentFunction<TComparerFunction> prefixEqComparer,
         NWebAssembly::TCompartmentFunction<THasherFunction> groupHasher,
         NWebAssembly::TCompartmentFunction<TComparerFunction> groupComparer,
-        int groupKeySize,
-        int groupStateSize,
-        bool combineGroupOpWithOrderOp,
-        int orderKeySize,
-        i64 orderOpLimit,
-        NWebAssembly::TCompartmentFunction<TComparerFunction> orderOpComparer,
+        int keySize,
+        int rowSize,
         bool shouldCheckForNullGroupKey,
         bool allAggregatesAreFirst,
         void** consumeIntermediateClosure,
@@ -1106,12 +1102,6 @@ public:
     // At the end of the group operation all rows should be flushed.
     Y_FORCE_INLINE bool IsFlushed() const;
 
-    // We combine grouping and ordering if query has `ORDER BY` and sorting key does not contain aggregates.
-    Y_FORCE_INLINE bool IsCombinedWithOrderOp() const;
-
-    // Returns tagged pointer when incoming row is inserted and is new.
-    Y_FORCE_INLINE const TPIValue* InsertIntermediateWhenCombinedWithOrderOp(TPIValue* row);
-
 private:
     TExpressionContext Context_;
     TExpressionContext AggregatedContext_;
@@ -1122,11 +1112,8 @@ private:
     const NWebAssembly::TCompartmentFunction<TComparerFunction> PrefixEqComparer_;
 
     TLookupRows GroupedIntermediateRows_;
-    const int GroupKeySize_;
-    const int GroupStateSize_;
-    const int OrderKeySize_;
-
-    std::unique_ptr<TTopCollectorWithHashMap> TopCollector_ = nullptr;
+    const int KeySize_;
+    const int RowSize_;
 
     // When executing a query with `with totals`, we store data for `totals` using the null grouping key.
     // Thus, rows with a null grouping key should lead to an execution error.
@@ -1184,12 +1171,8 @@ TGroupByClosure::TGroupByClosure(
     NWebAssembly::TCompartmentFunction<TComparerFunction> prefixEqComparer,
     NWebAssembly::TCompartmentFunction<THasherFunction> groupHasher,
     NWebAssembly::TCompartmentFunction<TComparerFunction> groupComparer,
-    int groupKeySize,
-    int groupStateSize,
-    bool combineGroupOpWithOrderOp,
-    int orderKeySize,
-    i64 orderOpLimit,
-    NWebAssembly::TCompartmentFunction<TComparerFunction> orderOpComparer,
+    int keySize,
+    int rowSize,
     bool shouldCheckForNullGroupKey,
     bool allAggregatesAreFirst,
     void** consumeIntermediateClosure,
@@ -1208,9 +1191,8 @@ TGroupByClosure::TGroupByClosure(
         InitialGroupOpHashtableCapacity,
         groupHasher,
         groupComparer)
-    , GroupKeySize_(groupKeySize)
-    , GroupStateSize_(groupStateSize)
-    , OrderKeySize_(orderKeySize)
+    , KeySize_(keySize)
+    , RowSize_(rowSize)
     , ShouldCheckForNullGroupKey_(shouldCheckForNullGroupKey)
     , AllAggregatesAreFirst_(allAggregatesAreFirst)
     , ConsumeIntermediateClosure_(consumeIntermediateClosure)
@@ -1223,20 +1205,7 @@ TGroupByClosure::TGroupByClosure(
     , ConsumeTotals_(consumeTotals)
     , FlushContext_(MakeExpressionContext(TIntermediateBufferTag(), chunkProvider))
 {
-    GroupedIntermediateRows_.set_empty_key(
-        NDetail::TRowComparer::MakeSentinel(NDetail::TRowComparer::ESentinelType::Empty));
-
-    GroupedIntermediateRows_.set_deleted_key(
-        NDetail::TRowComparer::MakeSentinel(NDetail::TRowComparer::ESentinelType::Deleted));
-
-    if (combineGroupOpWithOrderOp) {
-        TopCollector_ = std::make_unique<TTopCollectorWithHashMap>(
-            orderOpLimit,
-            orderOpComparer,
-            GroupKeySize_ + GroupStateSize_ + OrderKeySize_,
-            chunkProvider,
-            &GroupedIntermediateRows_);
-    }
+    GroupedIntermediateRows_.set_empty_key(nullptr);
 }
 
 void TGroupByClosure::UpdateTagAndFlushIfNeeded(const TExecutionContext* context, EStreamTag tag)
@@ -1255,11 +1224,11 @@ void TGroupByClosure::ValidateGroupKeyIsNotNull(TPIValue* row) const
         return;
     }
 
-    row = ConvertPointerFromWasmToHost(row, GroupKeySize_);
+    row = ConvertPointerFromWasmToHost(row, KeySize_);
 
     if (std::all_of(
         &row[0],
-        &row[GroupKeySize_],
+        &row[KeySize_],
         [] (const TPIValue& value) {
             return value.Type == EValueType::Null;
         }))
@@ -1319,7 +1288,7 @@ const TPIValue* TGroupByClosure::InsertIntermediate(const TExecutionContext* con
         ++GroupedRowCount_;
         YT_VERIFY(std::ssize(Intermediate_) <= context->GroupRowLimit);
 
-        for (int index = 0; index < GroupKeySize_; ++index) {
+        for (int index = 0; index < KeySize_; ++index) {
             CapturePIValue(&Context_, &row[index], EAddressSpace::WebAssembly, EAddressSpace::WebAssembly);
         }
     }
@@ -1334,7 +1303,7 @@ const TPIValue* TGroupByClosure::InsertAggregated(const TExecutionContext* /*con
     Aggregated_.push_back(row);
     ++GroupedRowCount_;
 
-    for (int index = 0; index < GroupKeySize_ + GroupStateSize_; ++index) {
+    for (int index = 0; index < RowSize_; ++index) {
         CapturePIValue(&AggregatedContext_, &row[index], EAddressSpace::WebAssembly, EAddressSpace::WebAssembly);
     }
 
@@ -1347,7 +1316,7 @@ const TPIValue* TGroupByClosure::InsertTotals(const TExecutionContext* /*context
 
     Totals_.push_back(row);
 
-    for (int index = 0; index < GroupKeySize_ + GroupStateSize_; ++index) {
+    for (int index = 0; index < KeySize_; ++index) {
         CapturePIValue(&TotalsContext_, &row[index], EAddressSpace::WebAssembly, EAddressSpace::WebAssembly);
     }
 
@@ -1356,15 +1325,6 @@ const TPIValue* TGroupByClosure::InsertTotals(const TExecutionContext* /*context
 
 void TGroupByClosure::Flush(const TExecutionContext* context, EStreamTag incomingTag)
 {
-    if (Y_UNLIKELY(IsCombinedWithOrderOp())) {
-        YT_VERIFY(CurrentSegment_ == EGroupOpProcessingStage::RightBorder);
-        auto rows = TopCollector_->GetRows();
-        auto begin = rows.data() + std::min(context->Offset, std::ssize(rows));
-        auto end = rows.data() + std::min(context->Offset + context->Limit, std::ssize(rows));
-        FlushIntermediate(context, begin, end);
-        return;
-    }
-
     if (Y_UNLIKELY(CurrentSegment_ == EGroupOpProcessingStage::RightBorder)) {
         if (!Aggregated_.empty()) {
             FlushAggregated(context, Aggregated_.data(), Aggregated_.data() + Aggregated_.size());
@@ -1455,27 +1415,6 @@ bool TGroupByClosure::IsFlushed() const
     return Intermediate_.empty() && Aggregated_.empty() && Totals_.empty();
 }
 
-bool TGroupByClosure::IsCombinedWithOrderOp() const
-{
-    return TopCollector_ != nullptr;
-}
-
-const TPIValue* TGroupByClosure::InsertIntermediateWhenCombinedWithOrderOp(TPIValue* row)
-{
-    auto it = GroupedIntermediateRows_.find(row);
-    if (it != GroupedIntermediateRows_.end()) {
-        return *it;
-    }
-
-    auto* inserted = TopCollector_->AddRow(row);
-    if (inserted) {
-        ++GroupedRowCount_;
-        return std::bit_cast<const TPIValue*>(std::bit_cast<ui64>(inserted) | (1ULL << 48));
-    }
-
-    return nullptr;
-}
-
 template <typename TFlushFunction>
 void TGroupByClosure::FlushWithBatching(
     const TExecutionContext* /*context*/,
@@ -1552,7 +1491,6 @@ namespace NRoutines {
 
 // Returns nullptr when no more rows are needed.
 // Returns pointer different to |row| if incoming row is intermediate and should be updated.
-// Returns tagged pointer if group op is combined with order op and the incoming row is inserted and is new.
 const TPIValue* InsertGroupRow(
     TExecutionContext* context,
     TGroupByClosure* closure,
@@ -1560,14 +1498,6 @@ const TPIValue* InsertGroupRow(
     ui64 rowTagAsUint)
 {
     auto rowTag = static_cast<EStreamTag>(rowTagAsUint);
-
-    if (closure->IsCombinedWithOrderOp()) {
-        YT_ASSERT(rowTag == EStreamTag::Intermediate);
-        // We intentionally do not call ValidateGroupedRowCount here since the row count is bounded by `LIMIT`.
-        // NB(dtorilov): Here we can early stop processing for the NodeThread execution level.
-        closure->ValidateGroupKeyIsNotNull(row);
-        return closure->InsertIntermediateWhenCombinedWithOrderOp(row);
-    }
 
     closure->UpdateTagAndFlushIfNeeded(context, rowTag);
 
@@ -1613,11 +1543,8 @@ void GroupOpHelper(
     TComparerFunction* prefixEqComparerFunction,
     THasherFunction* groupHasherFunction,
     TComparerFunction* groupComparerFunction,
-    int groupKeySize,
-    int groupStateSize,
-    bool combineGroupOpWithOrderOp,
-    int orderKeySize,
-    TComparerFunction* orderOpComparerFunction,
+    int keySize,
+    int valuesCount,
     bool shouldCheckForNullGroupKey,
     bool allAggregatesAreFirst,
     void** collectRowsClosure,
@@ -1644,8 +1571,6 @@ void GroupOpHelper(
     auto groupHasher = PrepareFunction(groupHasherFunction);
     auto groupComparer = PrepareFunction(groupComparerFunction);
 
-    auto orderOpComparer = PrepareFunction(orderOpComparerFunction);
-
     auto consumeIntermediate = PrepareFunction(consumeIntermediateFunction);
     auto consumeAggregated = PrepareFunction(consumeAggregatedFunction);
     auto consumeDelta = PrepareFunction(consumeDeltaFunction);
@@ -1664,12 +1589,8 @@ void GroupOpHelper(
         prefixEqComparer,
         groupHasher,
         groupComparer,
-        groupKeySize,
-        groupStateSize,
-        combineGroupOpWithOrderOp,
-        orderKeySize,
-        context->Offset + context->Limit,
-        orderOpComparer,
+        keySize,
+        keySize + valuesCount,
         shouldCheckForNullGroupKey,
         allAggregatesAreFirst,
         groupByInCompatMode ? compatConsumeIntermediateClosure : consumeIntermediateClosure,
