@@ -324,8 +324,7 @@ TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(
 {
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
 
-    bool sandboxInsideTmpfs = WaitFor(
-        BIND([=] {
+    return BIND([=, this_ = MakeStrong(this)] {
             for (const auto& tmpfsVolume : options.TmpfsVolumes) {
                 // TODO(gritukan): Implement a function that joins absolute path with a relative path and returns
                 // real path without filesystem access.
@@ -338,19 +337,19 @@ TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(
             return false;
         })
         .AsyncVia(LightInvoker_)
-        .Run())
-        .ValueOrThrow();
+        .Run()
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (bool sandboxInsideTmpfs) {
+            const auto& invoker = sandboxInsideTmpfs
+                ? LightInvoker_
+                : HeavyInvoker_;
 
-    const auto& invoker = sandboxInsideTmpfs
-        ? LightInvoker_
-        : HeavyInvoker_;
-
-    return BIND(&TSlotLocation::DoPrepareSandboxDirectories, MakeStrong(this),
-        slotIndex,
-        options,
-        sandboxInsideTmpfs)
-        .AsyncVia(invoker)
-        .Run();
+            return BIND(&TSlotLocation::DoPrepareSandboxDirectories, MakeStrong(this),
+                slotIndex,
+                options,
+                sandboxInsideTmpfs)
+                .AsyncVia(invoker)
+                .Run();
+        }));
 }
 
 TFuture<void> TSlotLocation::DoMakeSandboxFile(
