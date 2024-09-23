@@ -479,11 +479,7 @@ void TOrderedDynamicStore::Load(TLoadContext& context)
     TOrderedStoreBase::Load(context);
 
     using NYT::Load;
-
-    // COMPAT(aleksandra-zh).
-    if (context.GetVersion() >= ETabletReign::JournalHunks) {
-        Load(context, HunkStoreRefs_);
-    }
+    Load(context, HunkStoreRefs_);
 }
 
 TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()

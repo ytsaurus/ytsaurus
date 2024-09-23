@@ -79,14 +79,7 @@ void THunkStore::Load(TLoadContext& context)
 
     Load(context, MarkedSealable_);
     Load(context, TabletIdToLockCount_);
-
-    // COMPAT(gritukan)
-    if (context.GetVersion() < ETabletReign::LockingState) {
-        Load(context, LockingState_.ExclusiveLockTransactionId_);
-        Load(context, LockingState_.SharedLockTransactionIds_);
-    } else {
-        Load(context, LockingState_);
-    }
+    Load(context, LockingState_);
 }
 
 void THunkStore::Lock(TTabletId tabletId)

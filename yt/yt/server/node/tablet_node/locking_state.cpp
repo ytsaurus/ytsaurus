@@ -129,10 +129,6 @@ void TLockingState::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    if (context.GetVersion() < ETabletReign::LockingState) {
-        return;
-    }
-
     Load(context, ExclusiveLockTransactionId_);
     Load(context, SharedLockTransactionIds_);
 }

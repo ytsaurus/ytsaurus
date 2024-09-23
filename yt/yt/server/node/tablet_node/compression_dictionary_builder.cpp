@@ -17,6 +17,8 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
+#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
 

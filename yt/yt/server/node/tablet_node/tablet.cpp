@@ -1113,10 +1113,7 @@ void TTablet::Load(TLoadContext& context)
         Load(context, CustomRuntimeData_);
     }
 
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= ETabletReign::JournalHunks) {
-        HunkLockManager_->Load(context);
-    }
+    HunkLockManager_->Load(context);
 
     UpdateOverlappingStoreCount();
     DynamicStoreCount_ = ComputeDynamicStoreCount();
