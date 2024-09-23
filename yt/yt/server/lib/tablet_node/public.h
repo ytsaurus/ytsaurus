@@ -117,9 +117,9 @@ DEFINE_AMBIGUOUS_ENUM_WITH_UNDERLYING_TYPE(ETabletState, int,
     // Freeze workflow.
     ((FreezeFirst)              (6)) // sentinel
     ((FreezeWaitingForLocks)    (6))
-    ((FreezeFlushPending)       (7)) // transient, transition to UnmountFlushing is pending
+    ((FreezeFlushPending)       (7)) // transient, transition to FreezeFlushing is pending
     ((FreezeFlushing)           (8))
-    ((FreezePending)            (9)) // transient, transition to Unmounted is pending
+    ((FreezePending)            (9)) // transient, transition to Frozen is pending
     ((Frozen)                  (10))
     ((FreezeLast)              (10)) // sentinel
 
