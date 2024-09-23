@@ -13,6 +13,7 @@ def run_check(secrets, yt_client: YtClient, logger: Logger, options, states):
     client = yt_client
     cluster_name = options["cluster_name"]
     temp_path = options["temp_tables_path"]
+    tablet_cell_bundle = options["tablet_cell_bundle"]
     # NB(apachee): Timeout for wait on requests, which depend on registration cache.
     wait_timeout = options["wait_timeout"]
     now = datetime.now()
@@ -49,6 +50,7 @@ def run_check(secrets, yt_client: YtClient, logger: Logger, options, states):
         client.create("table", queue_path, attributes={
             "dynamic": True,
             "schema": queue_schema,
+            "tablet_cell_bundle": tablet_cell_bundle,
         })
 
         # NB(apachee): If mounting is too slow, then either consumer creation
@@ -58,7 +60,9 @@ def run_check(secrets, yt_client: YtClient, logger: Logger, options, states):
         client.mount_table(queue_path, sync=False)
 
         try:
-            client.create("queue_consumer", consumer_path)
+            client.create("queue_consumer", consumer_path, attributes={
+                "tablet_cell_bundle": tablet_cell_bundle,
+            })
         except Exception as ex:
             logger.warning("Failed to create queue_consumer using queue_consumer type handler: %s", ex)
 
@@ -71,6 +75,7 @@ def run_check(secrets, yt_client: YtClient, logger: Logger, options, states):
                     {"name": "offset", "type": "uint64", "required": True},
                     {"name": "meta", "type": "any", "required": False},
                 ],
+                "tablet_cell_bundle": tablet_cell_bundle,
             })
             client.mount_table(consumer_path, sync=True)
 
