@@ -279,7 +279,7 @@ void TTabletBalancer::Start()
         DynamicConfig_.Acquire()->Period.value_or(Config_->Period));
 
     GroupsToMoveOnNextIteration_.clear();
-    FirstIterationStartTime_ = Now();
+    FirstIterationStartTime_ = TruncatedNow();
 
     ParameterizedBalancingScheduler_.Start();
 
