@@ -16,47 +16,9 @@
 
 #include <yt/yt/core/rpc/authentication_identity.h>
 
-#include <yt/yt/core/misc/persistent_queue.h>
-#include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/ring_queue.h>
-
 #include <library/cpp/yt/memory/ref_tracked.h>
 
 namespace NYT::NTabletNode {
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(gritukan): Move to tablet write manager.
-struct TTransactionWriteRecord
-{
-    TTransactionWriteRecord() = default;
-    TTransactionWriteRecord(
-        TTabletId tabletId,
-        TSharedRef data,
-        int rowCount,
-        i64 byteSize,
-        const TSyncReplicaIdList& syncReplicaIds,
-        const std::optional<NTableClient::THunkChunksInfo>& hunkChunksInfo);
-
-    TTabletId TabletId;
-    TSharedRef Data;
-    int RowCount = 0;
-    i64 DataWeight = 0;
-    TSyncReplicaIdList SyncReplicaIds;
-
-    std::optional<NTableClient::THunkChunksInfo> HunkChunksInfo;
-
-    void Save(TSaveContext& context) const;
-    void Load(TLoadContext& context);
-
-    i64 GetByteSize() const;
-};
-
-constexpr size_t TransactionWriteLogChunkSize = 256;
-using TTransactionWriteLog = TPersistentQueue<TTransactionWriteRecord, TransactionWriteLogChunkSize>;
-using TTransactionWriteLogSnapshot = TPersistentQueueSnapshot<TTransactionWriteRecord, TransactionWriteLogChunkSize>;
-
-i64 GetWriteLogRowCount(const TTransactionWriteLog& writeLog);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,10 +46,6 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletId>, TabletsToUpdateReplicationProgress);
     DEFINE_BYVAL_RW_PROPERTY(bool, CompatSerializationForced);
-
-    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, CompatImmediateLockedWriteLog);
-    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, CompatImmediateLocklessWriteLog);
-    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, CompatDelayedLocklessWriteLog);
 
     DEFINE_BYREF_RW_PROPERTY(TTransactionSignature, PersistentPrepareSignature, InitialTransactionSignature);
     DEFINE_BYREF_RW_PROPERTY(TTransactionSignature, TransientPrepareSignature, InitialTransactionSignature);

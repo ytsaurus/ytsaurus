@@ -1,6 +1,5 @@
 #include "transaction.h"
 
-#include "hunks_serialization.h"
 #include "serialize.h"
 
 #include <yt/yt/server/lib/lease_server/lease_manager.h>
@@ -27,63 +26,6 @@ using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTransactionWriteRecord::TTransactionWriteRecord(
-    TTabletId tabletId,
-    TSharedRef data,
-    int rowCount,
-    i64 dataWeight,
-    const TSyncReplicaIdList& syncReplicaIds,
-    const std::optional<NTableClient::THunkChunksInfo>& hunkChunksInfo)
-    : TabletId(tabletId)
-    , Data(std::move(data))
-    , RowCount(rowCount)
-    , DataWeight(dataWeight)
-    , SyncReplicaIds(syncReplicaIds)
-    , HunkChunksInfo(hunkChunksInfo)
-{ }
-
-void TTransactionWriteRecord::Save(TSaveContext& context) const
-{
-    using NYT::Save;
-    Save(context, TabletId);
-    Save(context, Data);
-    Save(context, RowCount);
-    Save(context, DataWeight);
-    Save(context, SyncReplicaIds);
-    Save(context, HunkChunksInfo);
-}
-
-void TTransactionWriteRecord::Load(TLoadContext& context)
-{
-    using NYT::Load;
-    Load(context, TabletId);
-    Load(context, Data);
-    Load(context, RowCount);
-    Load(context, DataWeight);
-    Load(context, SyncReplicaIds);
-
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= ETabletReign::JournalHunks) {
-        Load(context, HunkChunksInfo);
-    }
-}
-
-i64 TTransactionWriteRecord::GetByteSize() const
-{
-    return Data.Size();
-}
-
-i64 GetWriteLogRowCount(const TTransactionWriteLog& writeLog)
-{
-    i64 result = 0;
-    for (const auto& entry : writeLog) {
-        result += entry.RowCount;
-    }
-    return result;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
