@@ -1267,7 +1267,7 @@ TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(
     // Process executor should have access to write logs before process start.
     config->Directories.push_back(getDirectory(
         GetSandboxPath(slotIndex, ESandboxKind::Logs),
-        uid,
+        nodeUid,
         /*permissions*/ 0755,
         /*override*/ false));
 
