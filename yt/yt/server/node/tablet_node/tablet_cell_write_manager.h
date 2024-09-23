@@ -16,9 +16,9 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Tablet write manager is closely linked to the tablet manager which acts as a host
-//! for tablet write manager. The following interface specifies methods of tablet manager
-//! required by the tablet write manager and provides means for unit-testing of tablet write manager.
+//! Tablet cell write manager is closely linked to the tablet manager which acts as a host
+//! for tablet cell write manager. The following interface specifies methods of tablet manager
+//! required by the tablet cell write manager and provides means for unit-testing of tablet cell write manager.
 struct ITabletCellWriteManagerHost
     : public virtual TRefCounted
 {
