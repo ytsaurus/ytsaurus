@@ -81,7 +81,7 @@ def run_check(secrets, yt_client, logger, options, states):
                     generic_alerts_by_stage_cluster[queue_agent_stage_cluster][instance][alert] = error
 
                 for inner_error in error.inner_errors:
-                    if inner_error.attributes.get("cluster") == cluster_name:
+                    if inner_error.attributes.get("cluster", None) == cluster_name:
                         logger.error(f"Collected relevant alert {alert} with error {error.simplify()}")
                         logger.error(f"Relevant inner error: {inner_error.simplify()}")
                         all_errors.append(str(error.simplify()))
@@ -90,19 +90,22 @@ def run_check(secrets, yt_client, logger, options, states):
                         # we consider this alert generic for the corresponding queue agent.
                         generic_alerts_by_stage_cluster[queue_agent_stage_cluster][instance][alert] = error
 
-        short_instances_info = f"(Failed: {failed_instance_count}, Banned: {banned_instance_count}, Total: {len(queue_agent_instances)})"
-        if (banned_instance_count + failed_instance_count) * 2 > queue_agent_instances_count:
-            raise YtError(f"More than half of all queue agent instances are not available {short_instances_info}",
-                          inner_errors=instances_errors)
-        elif has_non_transport_error:
-            raise YtError(f"There are {failed_instance_count} failed instances with some of them having non-transport error {short_instances_info}",
-                          inner_errors=instances_errors)
-        elif failed_instance_count > 0:
-            description = str(YtError(f"There are {failed_instance_count} failed instances and {banned_instance_count} banned instances out of {len(queue_agent_instances)} instances",
-                                      inner_errors=instances_errors))
-            return states.PARTIALLY_AVAILABLE_STATE, description
-        else:
-            logger.info(f"There are {failed_instance_count} failed instances and {banned_instance_count} banned instances out of {len(queue_agent_instances)} instances")
+        # NB(apachee): These errors only make sense on the same cluster as Queue Agent instances.
+        if queue_agent_stage_cluster == cluster_name:
+            short_instances_info = f"(Failed: {failed_instance_count}, Banned: {banned_instance_count}, Total: {len(queue_agent_instances)})"
+            if (banned_instance_count + failed_instance_count) * 2 > queue_agent_instances_count:
+                raise YtError(f"More than half of all queue agent instances are not available {short_instances_info}",
+                              inner_errors=instances_errors)
+            elif has_non_transport_error:
+                raise YtError(f"There are {failed_instance_count} failed instances with some of them having non-transport error {short_instances_info}",
+                              inner_errors=instances_errors)
+            elif failed_instance_count > 0:
+                description = str(YtError(f"There are {failed_instance_count} failed instances and {banned_instance_count} banned instances out of {len(queue_agent_instances)} instances",
+                                          inner_errors=instances_errors))
+                logger.error(description)
+                return states.PARTIALLY_AVAILABLE_STATE, description
+            else:
+                logger.info(f"There are {failed_instance_count} failed instances and {banned_instance_count} banned instances out of {len(queue_agent_instances)} instances")
 
     if cluster_name in queue_agent_stage_clusters:
         logger.info("Checking for generic alerts for queue agent stage on our cluster %s", cluster_name)
