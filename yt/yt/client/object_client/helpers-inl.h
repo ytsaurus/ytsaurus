@@ -130,7 +130,7 @@ inline TObjectId MakeWellKnownId(
         type,
         cellTag,
         counter,
-        static_cast<ui32>(static_cast<ui32>(cellTag.Underlying()) * 901517ULL ^ 0x140a8383ULL);
+        static_cast<ui32>(static_cast<ui32>(cellTag.Underlying()) * 901517ULL ^ 0x140a8383ULL));
 }
 
 inline TObjectId MakeSchemaObjectId(
