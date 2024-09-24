@@ -1217,13 +1217,13 @@ TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(
     config->UserId = nodeUid;
     config->Permissions = 0755;
 
-    auto getDirectory = [] (TString path, std::optional<int> userId, int permissions, bool override) {
+    auto getDirectory = [] (TString path, std::optional<int> userId, int permissions, bool removeIfExists) {
         auto directory = New<TDirectoryConfig>();
 
         directory->Path = path;
         directory->UserId = userId;
         directory->Permissions = permissions;
-        directory->Override = override;
+        directory->RemoveIfExists = removeIfExists;
 
         return directory;
     };
@@ -1234,42 +1234,42 @@ TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(
         GetSandboxPath(slotIndex, ESandboxKind::Home),
         uid,
         /*permissions*/ 0777,
-        /*override*/ true));
+        /*removeIfExists*/ true));
 
     // Tmp is accessible for everyone.
     config->Directories.push_back(getDirectory(
         GetSandboxPath(slotIndex, ESandboxKind::Tmp),
         uid,
         /*permissions*/ 0777,
-        /*override*/ true));
+        /*removeIfExists*/ true));
 
     // CUDA library should have an access to cores directory to write GPU core dump into it.
     config->Directories.push_back(getDirectory(
         GetSandboxPath(slotIndex, ESandboxKind::Cores),
         uid,
         /*permissions*/ 0777,
-        /*override*/ true));
+        /*removeIfExists*/ true));
 
     // Pipes are accessible for everyone.
     config->Directories.push_back(getDirectory(
         GetSandboxPath(slotIndex, ESandboxKind::Pipes),
         uid,
         /*permissions*/ 0777,
-        /*override*/ true));
+        /*removeIfExists*/ true));
 
     // Node should have access to user sandbox during job preparation.
     config->Directories.push_back(getDirectory(
         GetSandboxPath(slotIndex, ESandboxKind::User),
         nodeUid,
         /*permissions*/ 0755,
-        /*override*/ true));
+        /*removeIfExists*/ true));
 
     // Process executor should have access to write logs before process start.
     config->Directories.push_back(getDirectory(
         GetSandboxPath(slotIndex, ESandboxKind::Logs),
         nodeUid,
         /*permissions*/ 0755,
-        /*override*/ false));
+        /*removeIfExists*/ false));
 
     return config;
 }

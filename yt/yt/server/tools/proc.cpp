@@ -331,7 +331,7 @@ void TDirectoryConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("permissions", &TThis::Permissions)
         .Default();
-    registrar.Parameter("override", &TThis::Override)
+    registrar.Parameter("remove_if_exists", &TThis::RemoveIfExists)
         .Default(true);
 }
 
@@ -382,7 +382,7 @@ void TRootDirectoryBuilderTool::operator()(const TDirectoryBuilderConfigPtr& arg
 
         for (const auto& directory : rootDirectoryConfig->Directories) {
             if (NFS::Exists(directory->Path)) {
-                if (!directory->Override) {
+                if (!directory->RemoveIfExists) {
                     continue;
                 }
 

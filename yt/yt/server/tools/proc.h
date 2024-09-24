@@ -230,7 +230,7 @@ struct TDirectoryConfig
     TString Path;
     std::optional<int> UserId;
     std::optional<int> Permissions;
-    bool Override;
+    bool RemoveIfExists;
 
     REGISTER_YSON_STRUCT(TDirectoryConfig);
 
