@@ -380,6 +380,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("pipe_reader_timeout_threshold", &TThis::PipeReaderTimeoutThreshold)
         .Default(TDuration::Seconds(30));
 
+    registrar.Parameter("enable_root_volume_disk_quota", &TThis::EnableRootVolumeDiskQuota)
+        .Default(false);
+
     registrar.Preprocessor([] (TThis* config) {
         config->SolomonExporter->EnableSelfProfiling = false;
         config->SolomonExporter->WindowSize = 1;

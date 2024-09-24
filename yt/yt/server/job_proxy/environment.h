@@ -125,6 +125,8 @@ struct TUserJobEnvironmentOptions
     NContainers::EEnablePorto EnablePorto = NContainers::EEnablePorto::None;
 
     i64 ThreadLimit;
+
+    bool EnableRootVolumeDiskQuota = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

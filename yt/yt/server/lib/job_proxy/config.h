@@ -469,6 +469,10 @@ public:
     std::optional<int> OperationsArchiveVersion;
     TDuration PipeReaderTimeoutThreshold;
 
+    //! Enable root volume disk quota.
+    //! Apply the quota to the entire RootFs instead of the sandbox and tmp folders individually.
+    bool EnableRootVolumeDiskQuota;
+
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
 
     static void Register(TRegistrar registrar);
