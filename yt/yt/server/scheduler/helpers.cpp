@@ -215,6 +215,7 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
 {
     static const std::vector<TStatisticsDescription> statisticsHints = {
         {"time/total", "Time from the moment of job creation until the scheduler receives information about its completion or failure", "ms"},
+        {"time/wait_for_resources", "Time from the moment of job creation until the job starts", "ms"},
         {"time/prepare", "Time of job preparation before the job proxy is launched", "ms"},
         {"time/artifacts_download", "Job's artifact files downloading to the chunk cache duration", "ms"},
         {"time/prepare_root_fs", "Root Porto volume preparation duration", "ms"},
