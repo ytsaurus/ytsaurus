@@ -1141,14 +1141,6 @@ def _build_http_proxy_config(proxy_dir,
         cypress_proxy_rpc_ports,
         queue_agent_rpc_ports)
 
-    # COMPAT(max42)
-    # (22, 4) would suffice in the condition if only REX tests did not use yt binaries from package.
-    # Therefore, this compat may be safely removed even when 23.1 branch is released.
-    # By that moment package in Arcadia is, hopefully, fresh enough, and compat-tests in trunk
-    # are done against 23.1.
-    if version.abi <= (23, 1):
-        update_inplace(driver_config, cluster_connection)
-
     proxy_configs = []
 
     for index in xrange(yt_config.http_proxy_count):
