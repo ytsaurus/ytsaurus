@@ -20,10 +20,23 @@ template <typename T>
 concept CRow = !CMultiRow<T> && (std::same_as<std::decay_t<T>, T> || std::same_as<std::decay_t<T>&&, T>);
 
 template <typename TItem>
+concept CPCollection = TIsSpecializationOf<TPCollection, TItem>::value;
+
+template <typename T>
+class TIsPCollectionTuple : public std::false_type {};
+
+template <CPCollection... TItems>
+class TIsPCollectionTuple<std::tuple<TItems...>> : public std::true_type {};
+
+template <typename TItem>
+concept CPCollectionTuple = TIsPCollectionTuple<TItem>::value;
+
+template <typename TItem>
 concept CRorenGraphItem =
     std::is_same_v<TItem, void> ||
     std::is_same_v<TItem, TMultiPCollection> ||
-    TIsSpecializationOf<TPCollection, TItem>::value;
+    CPCollection<TItem> ||
+    CPCollectionTuple<TItem>;
 
 template <typename TTransform, typename TInput>
 concept CApplicableTo = requires(const TTransform& transform, const TInput& input)
