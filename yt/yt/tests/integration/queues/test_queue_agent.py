@@ -1877,7 +1877,8 @@ class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
     def test_no_alerts(self, policy):
         self._apply_dynamic_config_patch({
             "cypress_synchronizer": {
-                "policy": policy
+                "policy": policy,
+                "enable": False,
             }
         })
 
@@ -1889,6 +1890,14 @@ class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
 
         self._create_and_register_queue(q1)
         self._create_and_register_consumer(c1)
+
+        self._apply_dynamic_config_patch({
+            "cypress_synchronizer": {
+                "policy": policy,
+                "enable": True,
+            }
+        })
+
         orchid.wait_fresh_pass()
 
         queues = self._get_queues_and_check_invariants(expected_count=1)
