@@ -372,6 +372,13 @@ TEST_F(TQueryPrepareTest, MisuseAggregateFunction)
     ExpectPrepareThrowsWithDiagnostics(
         "sum(a) from [//t]",
         ContainsRegex("Misuse of aggregate .*"));
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+
+    ExpectPrepareThrowsWithDiagnostics(
+        "argmin(a, a) from [//t]",
+        ContainsRegex("Misuse of aggregate .*"));
 }
 
 TEST_F(TQueryPrepareTest, FailedTypeInference)
