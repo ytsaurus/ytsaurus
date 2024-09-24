@@ -1,5 +1,7 @@
 # Query Tracker
 
+## Introduction
+
 Query Tracker is a {{product-name}} component that allows working with the system using human-readable queries in SQL-like languages. The user sends queries to Query Tracker, they are executed by the engine, and the execution result is returned to the user.
 
 With Query Tracker, you can:
@@ -8,6 +10,7 @@ With Query Tracker, you can:
 + Track query execution.
 + Save query results.
 + View query history.
++ Share queries with others.
 
 [Example of working with Query Tracker](#example).
 
@@ -20,13 +23,13 @@ In this way, you can process data using different languages and runtime environm
 Currently supported execution engines include:
 
 + [YT QL](../../../user-guide/dynamic-tables/dyn-query-language.md)
-   + A query language built in YT. Only supports dynamic tables.
+  + A query language built in YT. Only supports dynamic tables.
 + [YQL](../../../yql/index.md)
-   + Executes the query on YQL agents, which break the query into individual YT operations (map, reduce, ...), start them, then retrieve and return the result.
+  + Executes the query on YQL agents, which break the query into individual YT operations (map, reduce, ...), start them, then retrieve and return the result.
 + [CHYT](../../../user-guide/data-processing/chyt/about-chyt.md)
-   + Executes the query on a clique.
+  + Executes the query on a clique.
 + [SPYT](../../../user-guide/data-processing/spyt/overview.md)
-   + Executes the query on the Spark cluster.
+  + Executes the query on the Spark cluster.
 
 ## API {#api}
 
@@ -45,13 +48,13 @@ Optional parameters:
 
 + `files`: List of files for the query in YSON format.
 + `settings`: Additional query parameters in YSON format.
-   + For [CHYT](../../../user-guide/data-processing/chyt/about-chyt.md), you must set a clique alias using the `clique` parameter. Default value is the public clique.
-   + For [SPYT](../../../user-guide/data-processing/spyt/overview.md), you must set the housekeeping directory of an existing Spark cluster using the `discovery_path` parameter.
+  + For [CHYT](../../../user-guide/data-processing/chyt/about-chyt.md), you must set a clique alias using the `clique` parameter. Default value is the public clique.
+  + For [SPYT](../../../user-guide/data-processing/spyt/overview.md), you must set the housekeeping directory of an existing Spark cluster using the `discovery_path` parameter.
 + `draft`: Used to mark draft queries. These queries are terminated automatically without execution.
 + `annotations`: Arbitrary annotations to the query. They can make it easier to search for queries. Specified in YSON format.
-+ `access_control_object`: Name of the object at `//sys/access_control_object_namespaces/queries/` that controls access to the query for other users.
++ `access_control_objects`: List of objects at `//sys/access_control_object_namespaces/queries/` that controls access to the query for other users.
 
-Example: `start_query(engine="yql", query="SELECT * FROM my_table", access_control_object="my_aco")`
+Example: `start_query(engine="yql", query="SELECT * FROM my_table", access_control_objects=["my_aco"])`
 
 ### abort_query {#abort-query}
 
@@ -140,13 +143,13 @@ Required parameters:
 Optional parameters:
 
 + `annotations`: New annotations for the query.
-+ `access_control_object`: New access control object for the query.
++ `access_control_objects`: New access control object list for the query.
 
-Example: `alter_query(query_id="my_query_id", access_control_object="my_new_aco")`.
+Example: `alter_query(query_id="my_query_id", access_control_object=["my_new_aco"])`.
 
 ## Access control {#access-control}
 
-To manage access to queries and their results, the query can store an optional `access_control_object` string that points to `//sys/access_control_object_namespaces/queries/[access_control_object]`.
+To manage access to queries and their results, the query includes a list of `access_control_objects` strings that point to `//sys/access_control_object_namespaces/queries/[access_control_object]`.
 
 An Access Control Object (ACO) is an object with the `@principal_acl` attribute. It sets access rules in the same manner as `@acl` does for Cypress nodes. For more information, see [Access control](../../../user-guide/storage/access-control.md).
 
@@ -155,6 +158,7 @@ You can create an ACO through the user interface or by calling the [create](../.
 `yt create access_control_object --attr '{namespace=queries;name=my_aco}'`.
 
 All APIs use ACOs to verify access:
+
 + `Use` grants access to the query.
 + `Read` grants access to the query results.
 + `Administer` grants the permission to modify and stop the query.
@@ -172,19 +176,21 @@ Detailed information on each API method:
 A few things to keep in mind:
 
 + The query creator always has access to their queries.
-+ If a query doesn't have an ACO, the default `nobody` ACO is used for verification.
++ If a query has multiple ACOs, you only need to have access to one of them to get access to all of them.
 
-For convenience, ytsaurus-k8s-operator creates the following ACOs:
+For convenience, "ytsaurus-k8s-operator" creates the following ACOs:
+
 + `nobody`. Doesn't grant any permissions.
 + `everyone`. Grants `Use` and `Read` permissions to all users.
 + `everyone-use`. Grants `Use` permissions to all users.
++ `everyone-share`. The same as "everyone", but not displayed in `list_queries`
 
 ## Example {#example}
 
 A typical usage scenario for Query Tracker is as follows:
 
 1. Sending a query for execution.
-   + `start_query(engine="yql", query="SELECT * from //home/me/my_table", access_control_object="my_team_aco")`.
+   + `start_query(engine="yql", query="SELECT * from //home/me/my_table", access_control_objects=["my_team_aco"])`.
 2. Getting a list of our available queries.
    + `list_queries()`.
 3. Getting information about our query.
@@ -196,4 +202,4 @@ A typical usage scenario for Query Tracker is as follows:
 6. Reading the result.
    + `read_query_result(query_id="my_query_id", result_index=0)`.
 7. Changing the ACO of the query to make it accessible to everyone.
-   + `alter_query(query_id="my_query_id", access_control_object="share_with_everyone_aco")`.
+   + `alter_query(query_id="my_query_id", access_control_objects=["everyone"])`.
