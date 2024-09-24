@@ -542,8 +542,9 @@ def add_dump_parquet_parser(add_parser):
     add_ypath_argument(parser, "table", hybrid=True)
     parser.add_argument("--output-path", type=str, required=False)
     parser.add_argument("--output-file", type=str, required=False)
-    parser.add_argument("--enable-several-files", type=bool, required=False)
-    parser.add_argument("--unordered", type=bool, required=False)
+    parser.add_argument("--enable-several-files", action="store_true",
+                        help="allowing parquet to be written to multiple files")
+    parser.add_argument("--unordered", action="store_true")
 
 
 @copy_docstring_from(yt.upload_parquet)
