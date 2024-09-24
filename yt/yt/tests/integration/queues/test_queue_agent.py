@@ -2909,7 +2909,9 @@ class TestQueueStaticExportBase(TestQueueAgentBase):
 
 
 class TestQueueStaticExport(TestQueueStaticExportBase):
-    @authors("cherepashka", "nadya73")
+    NUM_TEST_PARTITIONS = 2
+
+    @authors("cherepashka", "achulkov2", "nadya73")
     @pytest.mark.parametrize("queue_external_cell_tag", [10, 11, 12])
     def test_multicell_export(self, queue_external_cell_tag):
         if getattr(self, "ENABLE_TMP_PORTAL", False) and queue_external_cell_tag == 10:
