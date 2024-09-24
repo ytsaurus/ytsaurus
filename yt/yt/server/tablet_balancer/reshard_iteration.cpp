@@ -113,6 +113,13 @@ public:
                 continue;
             }
 
+            if (!table->Sorted) {
+                YT_LOG_WARNING("Ordered table cannot be parameterized resharded (TableId: %v, TablePath: %v)",
+                    id,
+                    table->Path);
+                continue;
+            }
+
             tables.push_back(table);
         }
         return tables;
