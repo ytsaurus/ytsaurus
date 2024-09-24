@@ -132,9 +132,20 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
     auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
 
     auto primaryMediumName = combinedAttributes->GetAndRemove<std::string>("primary_medium", NChunkClient::DefaultStoreMediumName);
-    auto hunkPrimaryMediumName = combinedAttributes->GetAndRemove<std::string>("hunk_primary_medium", primaryMediumName);
+    auto hunkPrimaryMediumName = combinedAttributes->FindAndRemove<std::string>("hunk_primary_medium");
     auto* primaryMedium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);
-    auto* hunkPrimaryMedium = chunkManager->GetMediumByNameOrThrow(hunkPrimaryMediumName);
+    auto* hunkPrimaryMedium = hunkPrimaryMediumName
+        ? chunkManager->GetMediumByNameOrThrow(*hunkPrimaryMediumName)
+        : nullptr;
+
+    auto primaryMediumIndex = primaryMedium->GetIndex();
+    auto hunkPrimaryMediumIndex = hunkPrimaryMedium
+        ? std::make_optional(hunkPrimaryMedium->GetIndex())
+        : std::nullopt;
+
+    auto effectiveHunkPrimaryMediumIndex = hunkPrimaryMediumIndex
+        ? *hunkPrimaryMediumIndex
+        : primaryMediumIndex;
 
     const auto& securityManager = this->GetBootstrap()->GetSecurityManager();
     securityManager->ValidatePermission(primaryMedium, EPermission::Use);
@@ -149,10 +160,10 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
     auto* node = nodeHolder.get();
 
     try {
-        node->SetPrimaryMediumIndex(primaryMedium->GetIndex());
-        node->SetHunkPrimaryMediumIndex(hunkPrimaryMedium->GetIndex());
-        node->Replication().Set(primaryMedium->GetIndex(), TReplicationPolicy(replicationFactor, false));
-        node->HunkReplication().Set(hunkPrimaryMedium->GetIndex(), TReplicationPolicy(replicationFactor, false));
+        node->SetPrimaryMediumIndex(primaryMediumIndex);
+        node->SetHunkPrimaryMediumIndex(hunkPrimaryMediumIndex);
+        node->Replication().Set(primaryMediumIndex, TReplicationPolicy(replicationFactor, false));
+        node->HunkReplication().Set(effectiveHunkPrimaryMediumIndex, TReplicationPolicy(replicationFactor, false));
 
         node->SetCompressionCodec(compressionCodec);
         node->SetErasureCodec(erasureCodec);
@@ -637,8 +648,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBeginCopy(
     Save(*context, node->GetEnableSkynetSharing());
     Save(*context, node->GetChunkMergerMode());
 
-    auto* hunkMedium = chunkManager->GetMediumByIndexOrThrow(node->GetHunkPrimaryMediumIndex());
-    Save(*context, hunkMedium);
+    Save(*context, node->GetHunkPrimaryMediumIndex());
     Save(*context, node->HunkReplication());
 
     context->RegisterExternalCellTag(node->GetExternalCellTag());
@@ -677,8 +687,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoEndCopy(
     trunkNode->SetEnableSkynetSharing(Load<bool>(*context));
     trunkNode->SetChunkMergerMode(Load<EChunkMergerMode>(*context));
 
-    auto* hunkMedium = Load<TMedium*>(*context);
-    trunkNode->SetHunkPrimaryMediumIndex(hunkMedium->GetIndex());
+    trunkNode->SetHunkPrimaryMediumIndex(Load<std::optional<int>>(*context));
+
     Load(*context, trunkNode->HunkReplication());
 
     if (!trunkNode->IsExternal()) {

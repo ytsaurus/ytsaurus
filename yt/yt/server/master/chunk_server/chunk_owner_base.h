@@ -34,7 +34,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TChunkReplication, Replication);
     DEFINE_BYREF_RW_PROPERTY(TChunkReplication, HunkReplication);
     DEFINE_BYVAL_RW_PROPERTY(int, PrimaryMediumIndex, NChunkClient::DefaultStoreMediumIndex);
-    DEFINE_BYVAL_RW_PROPERTY(int, HunkPrimaryMediumIndex, NChunkClient::DefaultStoreMediumIndex);
     DEFINE_BYREF_RW_PROPERTY(TChunkOwnerDataStatistics, SnapshotStatistics);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TInternedSecurityTags, SnapshotSecurityTags);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TInternedSecurityTags, DeltaSecurityTags);
@@ -75,6 +74,12 @@ public:
     TChunkOwnerDataStatistics* MutableDeltaStatistics();
 
     NSecurityServer::TSecurityTags ComputeSecurityTags() const;
+
+    std::optional<int> GetHunkPrimaryMediumIndex() const;
+    void SetHunkPrimaryMediumIndex(std::optional<int> hunkPrimaryMediumIndex);
+    void RemoveHunkPrimaryMediumIndex();
+
+    int GetEffectiveHunkPrimaryMediumIndex() const;
 
     // COMPAT (h0pless): Once clients are sending table schema options during begin upload:
     //   - move fields from TCommonUploadContext to TBeginUploadContext;
@@ -134,6 +139,7 @@ public:
     void Load(NCellMaster::TLoadContext& context) override;
 
 private:
+    int HunkPrimaryMediumIndex_ = NChunkClient::GenericMediumIndex;
     std::unique_ptr<TChunkOwnerDataStatistics> DeltaStatistics_;
     TEnumIndexedArray<EChunkListContentType, NChunkServer::TChunkListPtr> ChunkLists_;
 
