@@ -51,20 +51,33 @@ class TestClickHousePrewhere(ClickHouseTestBase):
                 "table",
                 "//tmp/t1",
                 attributes={
-                    "schema": [{"name": "value", "type": "int64", "required": required}],
+                    "schema": [
+                        {"name": "value1", "type": "int64", "required": required},
+                        {"name": "value2", "type": "int64", "required": required},
+                        {"name": "value3", "type": "int64", "required": required},
+                    ],
                     "optimize_for": optimize_for,
                 },
             )
-            write_table("//tmp/t1", [{"value": 0}, {"value": 1}, {"value": 2}, {"value": 3}])
+            write_table("//tmp/t1", [{"value1": i, "value2": i, "value3": i} for i in range(4)])
 
             assert clique.make_query('select count() from "//tmp/t1"') == [{"count()": 4}]
-            assert clique.make_query('select count() from "//tmp/t1" prewhere (value < 3)') == [{"count()": 3}]
-            assert clique.make_query('select count(*) from "//tmp/t1" prewhere (value < 3)') == [{"count()": 3}]
-            assert clique.make_query('select count(value) from "//tmp/t1" prewhere (value < 3)') == [
-                {"count(value)": 3}
+            assert clique.make_query('select count() from "//tmp/t1" prewhere (value1 < 3)') == [{"count()": 3}]
+            assert clique.make_query('select count(*) from "//tmp/t1" prewhere (value1 < 3)') == [{"count()": 3}]
+            assert clique.make_query('select count(value1) from "//tmp/t1" prewhere (value1 < 3)') == [
+                {"count(value1)": 3}
             ]
-            assert clique.make_query('select count() from "//tmp/t1" prewhere (value < 3)') == [{"count()": 3}]
-            assert clique.make_query('select any(0) from "//tmp/t1" prewhere (value < 3)') == [{"any(0)": 0}]
+            assert clique.make_query('select count() from "//tmp/t1" prewhere (value1 < 3)') == [{"count()": 3}]
+            assert clique.make_query('select any(0) from "//tmp/t1" prewhere (value1 < 3)') == [{"any(0)": 0}]
+
+            # CHYT-1222
+            settings = {"optimize_move_to_prewhere": 1}
+            query = 'select count(*) from "//tmp/t1" where value1 != 1 and value2 != 2 and (value1 != 2 or value2 != 3)'
+            assert clique.make_query(query, settings=settings) == [{"count()": 2}]
+            query = 'select count(*) from "//tmp/t1" where (value1 != 1 and value2 != 2) and 1=1'
+            assert clique.make_query(query, settings=settings) == [{"count()": 2}]
+            query = 'select count(value3) from "//tmp/t1" where value1 != 1 and value2 != 2 and true'
+            assert clique.make_query(query, settings=settings) == [{"count(value3)": 2}]
 
             create(
                 "table",
