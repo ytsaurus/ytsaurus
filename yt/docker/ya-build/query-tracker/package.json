@@ -1,0 +1,84 @@
+{
+    "meta": {
+        "name": "query-tracker",
+        "maintainer": "YT team",
+        "description": "Query Tracker image built with yt client libraries from source files",
+        "version": "local-{revision}",
+    },
+    "params": {
+        "format": "docker",
+        "docker_target": "query-tracker",
+        "docker_build_arg": {
+            "PYTHON_BUILD_BASE": "build-ytsaurus-python-binaries",
+        },
+    },
+    "include": [
+      "yt/docker/ya-build/base/package.json",
+    ],
+    "data": [
+        {
+            "source": {
+                "type": "RELATIVE",
+                "path": "build_yql/yt/yql/agent/bin/ytserver-yql-agent",
+            },
+            "destination": {
+                "path": "/",
+            },
+        },
+        {
+            "source": {
+                "type": "ARCADIA",
+                "path": "yt/python/yt/environment/init_query_tracker_state.py",
+            },
+            "destination": {
+                "path": "/",
+            },
+        },
+        {
+            "source": {
+                "type": "RELATIVE",
+                "path": "build_yql/ydb/library/yql/tools/mrjob/mrjob",
+            },
+            "destination": {
+                "path": "/",
+            },
+        },
+        {
+            "source": {
+                "type": "RELATIVE",
+                "path": "build_yql/ydb/library/yql/yt/dq_vanilla_job/dq_vanilla_job",
+            },
+            "destination": {
+                "path": "/",
+            },
+        },
+        {
+            "source": {
+                "type": "RELATIVE",
+                "path": "build_yql/ydb/library/yql/yt/dq_vanilla_job.lite/dq_vanilla_job.lite",
+            },
+            "destination": {
+                "path": "/",
+            },
+        },
+        {
+            "source": {
+                "type": "ARCADIA",
+                "path": "yt/docker/ytsaurus/credits/query-tracker/mrjob.CREDITS",
+            },
+            "destination": {
+                "path": "/credits/mrjob.CREDITS",
+            },
+        },
+        {
+            "source": {
+                "type": "RELATIVE",
+                "path": "build_yql/yql_shared_libraries/yql",
+            },
+            "destination": {
+                "path": "/",
+            },
+        },
+    ],
+}
+
