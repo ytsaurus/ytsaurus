@@ -1,12 +1,12 @@
 #include "sequoia_actions_executor.h"
 
 #include "cypress_manager.h"
-#include "node_proxy.h"
+#include "node_detail.h"
 #include "helpers.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/yt/server/master/cypress_server/node_detail.h>
+#include <yt/yt/server/lib/sequoia/helpers.h>
 
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
@@ -20,6 +20,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NCellMaster;
 using namespace NObjectClient;
+using namespace NSequoiaServer;
 using namespace NTransactionServer;
 using namespace NTransactionSupervisor;
 
@@ -66,6 +67,12 @@ public:
             .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareCloneNode, Unretained(this)),
             .Commit = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitCloneNode, Unretained(this)),
             .Abort = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraAbortCloneNode, Unretained(this)),
+        });
+        transactionManager->RegisterTransactionActionHandlers<TReqLockNode>({
+            .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAndCommitLockNode, Unretained(this)),
+        });
+        transactionManager->RegisterTransactionActionHandlers<TReqUnlockNode>({
+            .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAndCommitUnlockNode, Unretained(this)),
         });
     }
 
@@ -179,8 +186,9 @@ private:
         // TODO(h0pless): Add cypress transaction id here.
         auto versionedNodeId = TVersionedObjectId(nodeId, NullObjectId);
 
-        auto node = Bootstrap_->GetCypressManager()->GetNode(versionedNodeId);
-        Bootstrap_->GetObjectManager()->UnrefObject(node);
+        if (auto node = Bootstrap_->GetCypressManager()->GetNode(versionedNodeId)) {
+            Bootstrap_->GetObjectManager()->UnrefObject(node);
+        }
     }
 
     void HydraPrepareAttachChild(
@@ -196,11 +204,27 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* parent = cypressManager->GetNodeOrThrow(TVersionedNodeId(parentId));
 
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto cypressTransactionId = YT_PROTO_OPTIONAL(*request, transaction_id, TTransactionId)
+            .value_or(NullTransactionId);
+        TTransaction* cypressTransaction = cypressTransactionId
+            ? transactionManager->GetTransactionOrThrow(cypressTransactionId)
+            : nullptr;
+
         VerifySequoiaNode(parent);
         auto beingCreated = parent->MutableSequoiaProperties()->BeingCreated;
         THROW_ERROR_EXCEPTION_IF(
             !beingCreated && !options.LatePrepare,
             "Operation is not atomic for user");
+
+        if (options.LatePrepare) {
+            cypressManager->LockNode(
+                parent,
+                cypressTransaction,
+                TLockRequest::MakeSharedChild(request->key()));
+        } else {
+            YT_VERIFY(parent->MutableSequoiaProperties()->BeingCreated);
+        }
     }
 
     void HydraCommitAttachChild(
@@ -209,6 +233,8 @@ private:
         const TTransactionCommitOptions& /*options*/)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        // XXX(kvk1920): support transactions.
 
         auto parentId = FromProto<TNodeId>(request->parent_id());
         auto childId = FromProto<TNodeId>(request->child_id());
@@ -245,7 +271,7 @@ private:
         // This is temporary logic.
         // TODO(cherepashka): In future DetachChild should remove child from parent node proxy.
         if (childIt == children.KeyToChild().end()) {
-            YT_LOG_FATAL("Sequoia map node has no such child (ParentId: %v, Key: %v)",
+            YT_LOG_ALERT("Sequoia map node has no such child (ParentId: %v, Key: %v)",
                 parentId,
                 request->key());
             return;
@@ -264,7 +290,27 @@ private:
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->GetNodeOrThrow(TVersionedNodeId(nodeId));
+        auto* trunkNode = cypressManager->GetNodeOrThrow(TVersionedNodeId(nodeId));
+        if (!IsObjectAlive(trunkNode)) {
+            THROW_ERROR_EXCEPTION("No such node %v", nodeId);
+        }
+
+        VerifySequoiaNode(trunkNode);
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto cypressTransactionId = YT_PROTO_OPTIONAL(*request, transaction_id, TTransactionId)
+            .value_or(NullTransactionId);
+        TTransaction* cypressTransaction = cypressTransactionId
+            ? transactionManager->GetTransactionOrThrow(cypressTransactionId)
+            : nullptr;
+
+        if (TypeFromId(nodeId) == EObjectType::Rootstock && cypressTransaction) {
+            THROW_ERROR_EXCEPTION("Rootstock cannot be removed under transaction");
+        }
+
+        cypressManager
+            ->CheckExclusiveLock(trunkNode, cypressTransaction)
+            .ThrowOnError();
     }
 
     void HydraCommitRemoveNode(
@@ -277,6 +323,21 @@ private:
         auto nodeId = FromProto<TNodeId>(request->node_id());
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->GetNode(TVersionedObjectId(nodeId));
+
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+        if (cypressTransactionId) {
+            // NB: removal in transaction is not supported but lock conflict
+            // detection is already implemented. We want to test it.
+
+            // XXX(kvk1920): support it.
+            YT_LOG_WARNING("Sequoia node removal in transaction is not supported yet");
+            return;
+        }
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* cypressTransaction = cypressTransactionId
+            ? transactionManager->GetTransaction(cypressTransactionId)
+            : nullptr;
 
         if (!IsObjectAlive(node)) {
             YT_LOG_ALERT(
@@ -299,7 +360,15 @@ private:
             }
             auto parentProxy = cypressManager->GetNodeProxy(parentNode);
             parentProxy->AsMap()->RemoveChild(cypressManager->GetNodeProxy(node));
+        } else if (cypressTransaction) {
+            // XXX(kvk1920): tests for chunk owners removal.
+            auto* branchedNode = cypressManager->LockNode(node, cypressTransaction, ELockMode::Exclusive);
+            branchedNode->MutableSequoiaProperties()->Tombstone = true;
         } else {
+            // Lock is already checked in prepare. Nobody cannot lock this node
+            // between prepare and commit of Sequoia tx due to
+            //   - exlusive lock in "node_id_to_path" Sequoia table;
+            //   - barrier for Sequoia tx
             Bootstrap_->GetObjectManager()->UnrefObject(node);
         }
     }
@@ -313,12 +382,28 @@ private:
         YT_VERIFY(options.Persistent);
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
+        YT_VERIFY(IsScalarType(TypeFromId(nodeId)));
+
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->GetNodeOrThrow(TVersionedNodeId(nodeId));
+        VerifySequoiaNode(node);
 
-        auto type = node->GetType();
-        if (!IsScalarType(type)) {
-            THROW_ERROR_EXCEPTION("Invalid set request for node %v", nodeId);
+        YT_VERIFY(node->MutableSequoiaProperties()->BeingCreated || options.LatePrepare);
+
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+        TTransaction* cypressTransaction = nullptr;
+        if (cypressTransactionId) {
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            cypressTransaction = transactionManager->GetTransactionOrThrow(cypressTransactionId);
+        }
+
+        if (!options.LatePrepare) {
+            // If node is just created nobody can lock it concurrently so we can
+            // just lock it in commit stage of Sequoia tx.
+            YT_VERIFY(node->MutableSequoiaProperties()->BeingCreated);
+        } else {
+            // We have to check lock conflicts.
+            cypressManager->LockNode(node, cypressTransaction, ELockMode::Exclusive);
         }
     }
 
@@ -333,6 +418,12 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->GetNode(TVersionedObjectId(nodeId));
 
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* cypressTransaction = cypressTransactionId
+            ? transactionManager->GetTransaction(cypressTransactionId)
+            : nullptr;
+
         if (!IsObjectAlive(node)) {
             YT_LOG_ALERT(
                 "Attempted to set unexisting Sequoia node; ignored "
@@ -345,7 +436,7 @@ private:
         VerifySequoiaNode(node);
 
         SetNodeFromProducer(
-            cypressManager->GetNodeProxy(node),
+            cypressManager->GetNodeProxy(node, cypressTransaction),
             ConvertToProducer(TYsonString(request->value())),
             /*builder*/ nullptr);
     }
@@ -439,11 +530,78 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto nodeId = FromProto<TNodeId>(request->dst_id());
-        // TODO(kvk1920): Add cypress transaction id here.
+        // XXX(kvk1920): Add cypress transaction id here.
         auto versionedNodeId = TVersionedObjectId(nodeId, NullObjectId);
 
-        auto node = Bootstrap_->GetCypressManager()->GetNode(versionedNodeId);
-        Bootstrap_->GetObjectManager()->UnrefObject(node);
+        if (auto node = Bootstrap_->GetCypressManager()->GetNode(versionedNodeId)) {
+            Bootstrap_->GetObjectManager()->UnrefObject(node);
+        }
+    }
+
+    void HydraPrepareAndCommitLockNode(
+        TTransaction* /*transaction*/,
+        NProto::TReqLockNode* request,
+        const TTransactionPrepareOptions& options)
+    {
+        YT_VERIFY(options.LatePrepare);
+
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* trunkNode = cypressManager->GetNodeOrThrow(TVersionedNodeId{nodeId});
+
+        if (!IsObjectAlive(trunkNode)) {
+            YT_LOG_ALERT("Attempted to lock zombie Sequoia node (NodeId: %v)",
+                nodeId);
+            THROW_ERROR_EXCEPTION("Cypress node %v is not alive", nodeId);
+        }
+
+        VerifySequoiaNode(trunkNode);
+
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        // Shoud be validated in Cypress proxy.
+        YT_VERIFY(cypressTransactionId);
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* cypressTransaction = transactionManager->GetTransactionOrThrow(cypressTransactionId);
+
+        auto mode = CheckedEnumCast<ELockMode>(request->mode());
+        auto childKey = YT_PROTO_OPTIONAL(*request, child_key);
+        auto attributeKey = YT_PROTO_OPTIONAL(*request, attribute_key);
+        auto timestamp = request->timestamp();
+        bool waitable = request->waitable();
+
+        // It was checked on Cypress proxy.
+        YT_VERIFY(CheckLockRequest(mode, childKey, attributeKey).IsOK());
+
+        auto proxy = cypressManager->GetNodeProxy(trunkNode, cypressTransaction);
+        auto lockId = FromProto<TLockId>(request->lock_id());
+        auto lockRequest = CreateLockRequest(mode, childKey, attributeKey, timestamp);
+        proxy->Lock(lockRequest, waitable, lockId);
+    }
+
+    void HydraPrepareAndCommitUnlockNode(
+        TTransaction* /*transaction*/,
+        NProto::TReqUnlockNode* request,
+        const TTransactionPrepareOptions& options)
+    {
+        YT_VERIFY(options.LatePrepare);
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+        auto* trunkNode = cypressManager->GetNodeOrThrow(TVersionedNodeId(nodeId));
+        VerifySequoiaNode(trunkNode);
+
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+        // Shoud be validated in Cypress proxy.
+        YT_VERIFY(cypressTransactionId);
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* cypressTransaction = transactionManager->GetTransaction(cypressTransactionId);
+
+        auto proxy = cypressManager->GetNodeProxy(trunkNode, cypressTransaction);
+        proxy->Unlock();
     }
 };
 

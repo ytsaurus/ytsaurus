@@ -8,23 +8,29 @@
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
+#include <yt/yt/server/lib/sequoia/helpers.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NObjectClient;
 using namespace NObjectServer;
-using namespace NTransactionServer;
-using namespace NYTree;
-using namespace NYson;
-using namespace NYPath;
 using namespace NSecurityServer;
+using namespace NSequoiaServer;
+using namespace NTransactionServer;
+using namespace NYPath;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TKeyToCypressNode& GetMapNodeChildMap(
+namespace {
+
+template <class TImpl, class TChild>
+const NDetail::TKeyToCypressNodeImpl<TChild>& GetMapNodeChildMapImpl(
     const ICypressManagerPtr& cypressManager,
-    TCypressMapNode* trunkNode,
+    TImpl* trunkNode,
     TTransaction* transaction,
-    TKeyToCypressNode* storage)
+    NDetail::TKeyToCypressNodeImpl<TChild>* storage)
 {
     YT_ASSERT(trunkNode->IsTrunk());
 
@@ -37,7 +43,7 @@ const TKeyToCypressNode& GetMapNodeChildMap(
     storage->clear();
     auto originators = cypressManager->GetNodeReverseOriginators(transaction, trunkNode);
     for (const auto* node : originators) {
-        const auto* mapNode = node->As<TCypressMapNode>();
+        const auto* mapNode = node->template As<TImpl>();
         const auto& keyToChild = mapNode->KeyToChild();
 
         if (mapNode->GetLockMode() == ELockMode::None ||
@@ -60,6 +66,28 @@ const TKeyToCypressNode& GetMapNodeChildMap(
     }
 
     return *storage;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TKeyToCypressNode& GetMapNodeChildMap(
+    const ICypressManagerPtr& cypressManager,
+    TCypressMapNode* trunkNode,
+    TTransaction* transaction,
+    TKeyToCypressNode* storage)
+{
+    return GetMapNodeChildMapImpl(cypressManager, trunkNode, transaction, storage);
+}
+
+const TKeyToCypressNodeId& GetMapNodeChildMap(
+    const ICypressManagerPtr& cypressManager,
+    TSequoiaMapNode* trunkNode,
+    TTransaction* transaction,
+    TKeyToCypressNodeId* storage)
+{
+    return GetMapNodeChildMapImpl(cypressManager, trunkNode, transaction, storage);
 }
 
 std::vector<TCypressNode*> GetMapNodeChildList(
@@ -324,14 +352,15 @@ void AttachChildToSequoiaNodeOrThrow(
     const std::string& childKey,
     TNodeId childId)
 {
+    // XXX(kvk1920): handle transactions.
+
     auto type = trunkParent->GetType();
     YT_VERIFY(type == EObjectType::Scion || type == EObjectType::SequoiaMapNode);
     auto* sequoiaTrunkNode = trunkParent->As<TSequoiaMapNode>();
     auto& children = sequoiaTrunkNode->MutableChildren();
-    if (children.Contains(childKey)) {
-        THROW_ERROR_EXCEPTION("Node %Qv already has child %Qv",
-            sequoiaTrunkNode->ImmutableSequoiaProperties()->Path,
-            childKey);
+    if (auto it = children.KeyToChild().find(childKey); it != children.KeyToChild().end()) {
+        // NB: "ignore_existing" flag is validated in Cypress proxy.
+        children.Remove(childKey, it->second);
     }
     children.Insert(childKey, childId);
 }
@@ -559,5 +588,27 @@ void ValidateAccessControlObjectName(const std::string& name)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCypressServer
+TLockRequest CreateLockRequest(
+    ELockMode mode,
+    const std::optional<TString>& childKey,
+    const std::optional<TString>& attributeKey,
+    TTimestamp timestamp)
+{
+    YT_ASSERT(CheckLockRequest(mode, childKey, attributeKey).IsOK());
 
+    TLockRequest lockRequest;
+    if (childKey) {
+        lockRequest = TLockRequest::MakeSharedChild(*childKey);
+    } else if (attributeKey) {
+        lockRequest = TLockRequest::MakeSharedAttribute(*attributeKey);
+    } else {
+        lockRequest = TLockRequest(mode);
+    }
+    lockRequest.Timestamp = timestamp;
+
+    return lockRequest;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NCypressServer

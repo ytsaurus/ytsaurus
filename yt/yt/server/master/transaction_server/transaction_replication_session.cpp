@@ -362,13 +362,28 @@ TTransactionReplicationSessionBase::DoInvokeReplicationRequests()
         asyncResults.emplace_back(request->Invoke());
     }
 
+    const auto& transactionManager = Bootstrap_->GetTransactionManager();
+    const auto& transactionPresenceCache = transactionManager->GetTransactionPresenceCache();
+
+    std::vector<TTransactionId> mirroredTransactionsToReplicate(
+        MirroredTransactionIds_.begin(),
+        MirroredTransactionIds_.end());
+
+    mirroredTransactionsToReplicate.erase(
+        std::remove_if(
+            mirroredTransactionsToReplicate.begin(),
+            mirroredTransactionsToReplicate.end(),
+            [&] (TTransactionId transactionId) {
+                return transactionPresenceCache->GetTransactionPresence(transactionId) !=
+                    ETransactionPresence::None;
+            }),
+        mirroredTransactionsToReplicate.end());
+
     return {
         .NonMirrored = asyncResults,
         .Mirrored = ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
             Bootstrap_,
-            std::vector<TTransactionId>(
-                MirroredTransactionIds_.begin(),
-                MirroredTransactionIds_.end())),
+            std::move(mirroredTransactionsToReplicate)),
     };
 }
 

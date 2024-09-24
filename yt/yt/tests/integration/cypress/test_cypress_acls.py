@@ -1707,90 +1707,95 @@ class TestCypressAcls(CheckPermissionBase):
 
         request_func(path="//tmp/dir", key="owner", value="u2", user="u2", force=True)
 
-    @authors("vovamelnikov")
+    @authors("h0pless")
     def test_attribute_based_access_control(self):
-        create_user("u")
-        create_user("v")
-        set("//sys/users/u/@tags", ['foo', 'baz', 'foo'])
+        create_user("smoothie_lover")
+        create_user("kvas_enjoyer")
+        set("//sys/users/smoothie_lover/@tags", ["smoothie", "drinks", "smoothie"])
 
-        tags = get("//sys/users/u/@tags")
-        assert {i for i in tags} == {"foo", "baz"}
+        tags = get("//sys/users/smoothie_lover/@tags")
+        assert {i for i in tags} == {"smoothie", "drinks"}
         assert len(tags) == 2
 
         create(
             "map_node",
-            "//tmp/dir",
+            "//tmp/drinks_discussion",
             attributes={
+                "inherit_acl": False,
                 "acl": [
-                    make_ace("allow", "everyone", ["administer", "read", "write", "create"], subject_tag_filter="foo"),
-                    make_ace("deny", "everyone", ["administer", "read", "write", "create"], subject_tag_filter="!baz"),
+                    make_ace("allow", "everyone", ["administer", "read", "write", "create"], subject_tag_filter="drinks"),
                 ],
             },
         )
-        create(
-            "map_node",
-            "//tmp/dir/d",
-            attributes={
-                "acl": [
-                    make_ace("deny", "everyone", ["administer", "read", "write", "create"], subject_tag_filter="baz"),
-                ],
-            },
-            authenticated_user="u",
-        )
-
-        with pytest.raises(YtError, match="Access denied for user"):
-            create(
-                "map_node",
-                "//tmp/dir/d1",
-                attributes={
-                    "acl": [
-                        make_ace("deny", "everyone", ["administer", "read", "write", "create"], subject_tag_filter="baz"),
-                    ],
-                },
-                authenticated_user="v",
-            )
-        with pytest.raises(YtError, match="Access denied for user"):
-            create(
-                "map_node",
-                "//tmp/dir/d/d1",
-                attributes={
-                    "acl": [
-                        make_ace("deny", "everyone", ["administer", "read", "write", "create"], subject_tag_filter="baz"),
-                    ],
-                },
-                authenticated_user="u",
-            )
-
-    @authors("h0pless")
-    def test_fix_attribute_based_access_control(self):
-        create_user("smoothie_lover")
-        set("//sys/users/smoothie_lover/@tags", ['smoothie'])
 
         create(
             "map_node",
-            "//tmp/smoothie_discussion",
+            "//tmp/drinks_discussion/smoothie_topic",
             attributes={
                 "acl": [
                     make_ace("deny", "everyone", ["administer", "read", "write", "create"], subject_tag_filter="!smoothie"),
                 ],
             },
-        )
-
-        set("//sys/@config/security_manager/fix_subject_tag_filter_iterator_never_skipping_first_ace", False)
-        # Trying to evaluate rule "deny" for "everyone" even though filter is not satisfied for user.
-        with pytest.raises(YtError, match="Access denied for user"):
-            create(
-                "table",
-                "//tmp/smoothie_discussion/topic",
-                authenticated_user="smoothie_lover",
-            )
-
-        set("//sys/@config/security_manager/fix_subject_tag_filter_iterator_never_skipping_first_ace", True)
-        create(
-            "table",
-            "//tmp/smoothie_discussion/topic",
             authenticated_user="smoothie_lover",
         )
+
+        # Missing tag "drinks".
+        with raises_yt_error("Access denied for user"):
+            create(
+                "map_node",
+                "//tmp/drinks_discussion/carbonated_drinks_topic",
+                authenticated_user="kvas_enjoyer",
+            )
+        set("//sys/users/kvas_enjoyer/@tags", ["drinks"])
+
+        # Even though user has no "kvas" or "beer" tag, they still can give access to it.
+        create(
+            "map_node",
+            "//tmp/drinks_discussion/carbonated_drinks_topic",
+            attributes={
+                "acl": [
+                    make_ace("allow", "everyone", ["administer", "read", "write", "create"], subject_tag_filter="beer|kvas"),
+                ],
+            },
+            authenticated_user="kvas_enjoyer",
+        )
+
+        # Because user has "drinks" role inherited from above user has access to the node.
+        create(
+            "map_node",
+            "//tmp/drinks_discussion/carbonated_drinks_topic/top_10_kvas",
+            authenticated_user="kvas_enjoyer",
+        )
+        set("//tmp/drinks_discussion/carbonated_drinks_topic/@inherit_acl", False)
+
+        # With inherit_acl set to false user loses the ability to create anything there without "kvas" or "beer" roles.
+        with raises_yt_error("Access denied for user"):
+            create(
+                "map_node",
+                "//tmp/drinks_discussion/carbonated_drinks_topic/best_kvas_in_my_oblast",
+                authenticated_user="kvas_enjoyer",
+            )
+        set("//sys/users/kvas_enjoyer/@tags/end", "kvas")
+
+        # And now role tags are satisfied!
+        create(
+            "map_node",
+            "//tmp/drinks_discussion/carbonated_drinks_topic/best_kvas_in_my_oblast",
+            authenticated_user="kvas_enjoyer",
+        )
+
+        # And finally check that filtering by "!" works.
+        create(
+            "map_node",
+            "//tmp/drinks_discussion/smoothie_topic/my_favorite_smoothie_place",
+            authenticated_user="smoothie_lover",
+        )
+        with raises_yt_error("Access denied for user"):
+            create(
+                "map_node",
+                "//tmp/drinks_discussion/smoothie_topic/top_10_kvas",
+                authenticated_user="kvas_enjoyer",
+            )
 
     @authors("vovamelnikov")
     def test_user_tags_limits(self):

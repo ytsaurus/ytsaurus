@@ -173,6 +173,7 @@ public:
     TDuration CreateChunksPeriod;
     TDuration TransactionUpdatePeriod;
     TDuration SessionFinalizationPeriod;
+    TDuration ScheduleChunkReplacePeriod;
 
     int CreateChunksBatchSize;
     int SessionFinalizationBatchSize;
@@ -193,6 +194,8 @@ public:
     bool RespectAccountSpecificToggle;
 
     int MaxNodesBeingMerged;
+
+    int MaxChunkListsWithChunksBeingReplaced;
 
     int MaxAllowedBackoffReschedulingsPerSession;
 

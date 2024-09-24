@@ -44,7 +44,9 @@ public:
         }
     }
 
-    TFuture<THashMap<TObjectId, TErrorOr<TTypedResponsePtr>>> Invoke()
+    using TVectorizedResponse = THashMap<TObjectId, TErrorOr<TTypedResponsePtr>>;
+
+    TFuture<TVectorizedResponse> Invoke()
     {
         for (const auto& [cellTag, objectIds] : CellTagToObjectId_) {
             PrepareRequests(cellTag, objectIds);

@@ -182,6 +182,10 @@ public:
         const TLockRequest& request,
         bool recursive = false) = 0;
 
+    virtual TError CheckExclusiveLock(
+        TCypressNode* trunkNode,
+        NTransactionServer::TTransaction* transaction) = 0;
+
     struct TCreateLockResult
     {
         TLock* Lock;
@@ -192,7 +196,8 @@ public:
         TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& request,
-        bool waitable) = 0;
+        bool waitable,
+        TLockId lockIdHint = {}) = 0;
 
     //! Releases and destroys all acquired locks on the specified node for the
     //! specified transaction. Also destroys all pending locks. Adjusts the

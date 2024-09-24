@@ -13,7 +13,7 @@
 #include "link_node.h"
 #include "link_node_type_handler.h"
 #include "lock_proxy.h"
-#include "node_detail.h"
+#include "node_proxy_detail.h"
 #include "portal_entrance_node.h"
 #include "portal_entrance_type_handler.h"
 #include "portal_exit_node.h"
@@ -1734,6 +1734,11 @@ public:
             .IsOK();
     }
 
+    virtual TError CheckExclusiveLock(TCypressNode* trunkNode, TTransaction* transaction) override
+    {
+        return CheckLock(trunkNode, transaction, ELockMode::Exclusive, /*recursive*/ false);
+    }
+
     TCypressNode* LockNode(
         TCypressNode* trunkNode,
         TTransaction* transaction,
@@ -1747,12 +1752,8 @@ public:
         YT_VERIFY(!recursive || request.Key.Kind == ELockKeyKind::None);
         YT_VERIFY(!transaction || IsObjectAlive(transaction));
 
-        auto error = CheckLock(
-            trunkNode,
-            transaction,
-            request,
-            recursive);
-        error.ThrowOnError();
+        CheckLock(trunkNode, transaction, request, recursive)
+            .ThrowOnError();
 
         if (IsLockRedundant(trunkNode, transaction, request)) {
             return GetVersionedNode(trunkNode, transaction);
@@ -2151,7 +2152,8 @@ public:
         TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& request,
-        bool waitable) override
+        bool waitable,
+        TLockId lockIdHint) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
@@ -2176,7 +2178,7 @@ public:
 
         // Is it OK?
         if (error.IsOK()) {
-            auto* lock = DoCreateLock(trunkNode, transaction, request, false);
+            auto* lock = DoCreateLock(trunkNode, transaction, request, false, lockIdHint);
             auto* branchedNode = DoAcquireLock(lock);
             return {lock, branchedNode};
         }
@@ -2187,7 +2189,7 @@ public:
         }
 
         // Will wait.
-        return {DoCreateLock(trunkNode, transaction, request, false), nullptr};
+        return {DoCreateLock(trunkNode, transaction, request, false, lockIdHint), nullptr};
     }
 
     void SetModified(TCypressNode* node, EModificationType modificationType) override
@@ -2380,6 +2382,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
+
+        if (IsSequoiaId(trunkNode->GetId())) {
+            return false;
+        }
 
         auto* currentNode = trunkNode;
         while (true) {
@@ -3495,7 +3501,7 @@ private:
         return true;
     }
 
-    static bool IsParentTransaction(
+    static bool IsAncestorTransaction(
         TTransaction* transaction,
         TTransaction* parent)
     {
@@ -3515,7 +3521,7 @@ private:
     {
         return
             !requestingTransaction ||
-            !IsParentTransaction(requestingTransaction, existingTransaction);
+            !IsAncestorTransaction(requestingTransaction, existingTransaction);
     }
 
     TCypressNode* DoAcquireLock(
@@ -3661,10 +3667,13 @@ private:
         TCypressNode* trunkNode,
         TTransaction* transaction,
         const TLockRequest& request,
-        bool implicit)
+        bool implicit,
+        TLockId lockIdHint = {})
     {
+        YT_VERIFY(transaction);
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::Lock);
+        auto id = objectManager->GenerateId(EObjectType::Lock, lockIdHint);
         auto lockHolder = TPoolAllocator::New<TLock>(id);
         auto* lock = LockMap_.Insert(id, std::move(lockHolder));
 

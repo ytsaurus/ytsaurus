@@ -39,6 +39,8 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/server/lib/sequoia/helpers.h>
+
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -85,6 +87,7 @@ using namespace NSecurityServer;
 using namespace NTabletServer;
 using namespace NChaosServer;
 using namespace NCypressClient;
+using namespace NSequoiaServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1565,69 +1568,66 @@ void TNontemplateCypressNodeProxyBase::SetChildNode(
     YT_ABORT();
 }
 
-DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
+void TNontemplateCypressNodeProxyBase::Lock(const TLockRequest& request, bool waitable, TLockId lockIdHint)
 {
-    DeclareMutating();
+    DoLock(request, waitable, lockIdHint);
+}
 
-    auto mode = CheckedEnumCast<ELockMode>(request->mode());
-    bool waitable = request->waitable();
-
-    if (mode != ELockMode::Snapshot &&
-        mode != ELockMode::Shared &&
-        mode != ELockMode::Exclusive)
-    {
-        THROW_ERROR_EXCEPTION("Invalid lock mode %Qlv",
-            mode);
-    }
-
-    TLockRequest lockRequest;
-    if (request->has_child_key()) {
-        if (mode != ELockMode::Shared) {
-            THROW_ERROR_EXCEPTION("Only %Qlv locks are allowed on child keys, got %Qlv",
-                ELockMode::Shared,
-                mode);
-        }
-        lockRequest = TLockRequest::MakeSharedChild(request->child_key());
-    } else if (request->has_attribute_key()) {
-        if (mode != ELockMode::Shared) {
-            THROW_ERROR_EXCEPTION("Only %Qlv locks are allowed on attribute keys, got %Qlv",
-                ELockMode::Shared,
-                mode);
-        }
-        lockRequest = TLockRequest::MakeSharedAttribute(request->attribute_key());
-    } else {
-        lockRequest = TLockRequest(mode);
-    }
-
-    lockRequest.Timestamp = request->timestamp();
-
-    context->SetRequestInfo("Mode: %v, Key: %v, Waitable: %v",
-        mode,
-        lockRequest.Key,
-        waitable);
-
+TNontemplateCypressNodeProxyBase::TLockResult TNontemplateCypressNodeProxyBase::DoLock(
+    const TLockRequest& request,
+    bool waitable,
+    TLockId lockIdHint)
+{
     ValidateTransaction();
     ValidatePermission(
         EPermissionCheckScope::This,
-        mode == ELockMode::Snapshot ? EPermission::Read : EPermission::Write);
+        request.Mode == ELockMode::Snapshot ? EPermission::Read : EPermission::Write);
     ValidateLockPossible();
 
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     auto lockResult = cypressManager->CreateLock(
         TrunkNode_,
         Transaction_,
-        lockRequest,
+        request,
+        waitable,
+        lockIdHint);
+
+    auto externalTransactionId = Transaction_->GetId();
+    if (TrunkNode_->IsExternal()) {
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        externalTransactionId = transactionManager->ExternalizeTransaction(
+            Transaction_,
+            {TrunkNode_->GetExternalCellTag()});
+    }
+
+    return {std::move(lockResult), externalTransactionId};
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
+{
+    DeclareMutating();
+
+    auto mode = CheckedEnumCast<ELockMode>(request->mode());
+    auto childKey = YT_PROTO_OPTIONAL(*request, child_key);
+    auto attributeKey = YT_PROTO_OPTIONAL(*request, attribute_key);
+    auto timestamp = request->timestamp();
+    bool waitable = request->waitable();
+
+    CheckLockRequest(mode, childKey, attributeKey)
+        .ThrowOnError();
+
+    auto lockRequest = CreateLockRequest(mode, childKey, attributeKey, timestamp);
+
+    context->SetRequestInfo("Mode: %v, Key: %v, Waitable: %v",
+        mode,
+        lockRequest.Key,
         waitable);
 
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    auto [lockResult, externalTransactionId] = DoLock(lockRequest, waitable, /*hintLockId*/ {});
+
     auto externalCellTag = TrunkNode_->IsExternal()
         ? TrunkNode_->GetExternalCellTag()
-        : multicellManager->GetCellTag();
-
-    const auto& transactionManager = Bootstrap_->GetTransactionManager();
-    auto externalTransactionId = TrunkNode_->IsExternal()
-        ? transactionManager->ExternalizeTransaction(Transaction_, {externalCellTag})
-        : Transaction_->GetId();
+        : Bootstrap_->GetCellTag();
 
     auto lockId = lockResult.Lock->GetId();
     auto revision = lockResult.BranchedNode ? lockResult.BranchedNode->GetRevision() : NHydra::NullRevision;
@@ -1647,17 +1647,22 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     context->Reply();
 }
 
+void TNontemplateCypressNodeProxyBase::Unlock()
+{
+    ValidateTransaction();
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
+
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    cypressManager->UnlockNode(TrunkNode_, Transaction_);
+}
+
 DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Unlock)
 {
     DeclareMutating();
 
     context->SetRequestInfo();
 
-    ValidateTransaction();
-    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
-
-    const auto& cypressManager = Bootstrap_->GetCypressManager();
-    cypressManager->UnlockNode(TrunkNode_, Transaction_);
+    Unlock();
 
     context->SetResponseInfo();
 

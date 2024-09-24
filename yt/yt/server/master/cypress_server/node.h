@@ -257,6 +257,12 @@ public:
         // Sequoia tx even has a special method for it!
         bool BeingCreated = false;
 
+        // Removal of Cypress node in transaction is handled in parent map-node,
+        // but we cannot do the same for Sequoia nodes. Therefore, we mark
+        // removed branches as tombstone, merge this flag properly and remove
+        // trunk node on topmost transaction commit.
+        bool Tombstone = false;
+
         void Save(NCellMaster::TSaveContext& context) const;
         void Load(NCellMaster::TLoadContext& context);
     };

@@ -166,6 +166,7 @@ private:
     NConcurrency::TPeriodicExecutorPtr ScheduleExecutor_;
     NConcurrency::TPeriodicExecutorPtr ChunkCreatorExecutor_;
     NConcurrency::TPeriodicExecutorPtr StartTransactionExecutor_;
+    NConcurrency::TPeriodicExecutorPtr ReplaceChunksExecutor_;
     NConcurrency::TPeriodicExecutorPtr FinalizeSessionExecutor_;
 
     TJobEpoch JobEpoch_ = InvalidJobEpoch;
@@ -216,6 +217,15 @@ private:
 
     // After creating chunks, before scheduling (waiting for node heartbeat to schedule jobs).
     std::queue<TMergeJobInfo> JobsAwaitingNodeHeartbeat_;
+
+    // Nodes awaiting chunk replacement.
+    struct TChunkListAwaitingChunkReplacement
+    {
+        NCypressClient::TObjectId NodeId;
+        NCypressClient::TObjectId ChunkListId;
+    };
+    std::queue<TChunkListAwaitingChunkReplacement> ChunkListsAwaitingChunkReplacement_;
+    int ChunkListsWithChunksBeingReplaced_ = 0;
 
     // Already merged nodes waiting to be erased from NodesBeingMerged_.
     struct TMergeSessionResult
@@ -315,6 +325,7 @@ private:
         IJobSchedulingContext* context,
         const TMergeJobInfo& jobInfo);
 
+    void ScheduleChunkReplaces();
     void ScheduleReplaceChunks(
         NCypressClient::TObjectId nodeId,
         TChunkListId parentChunkListId,

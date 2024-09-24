@@ -134,7 +134,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TAccountResourceUsageLeaseSet, AccountResourceUsageLeases);
 
     // Sequoia stuff.
-    DEFINE_BYVAL_RW_PROPERTY(bool, IsSequoiaTransaction, false);
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(SequoiaTransaction, false);
     DEFINE_BYREF_RW_PROPERTY(NSequoiaClient::NProto::TWriteSet, SequoiaWriteSet);
     DEFINE_BYVAL_RW_PROPERTY(NRpc::TAuthenticationIdentity, AuthenticationIdentity, NRpc::GetRootAuthenticationIdentity());
 
@@ -192,6 +192,9 @@ public:
 
     void SetSuccessorTransactionLeaseCount(int newLeaseCount);
     int GetSuccessorTransactionLeaseCount() const;
+
+    //! Can be confused with IsSequiaTransaction().
+    bool IsSequoia() const = delete;
 
 private:
     void IncrementRecursiveLockCount();

@@ -101,7 +101,7 @@ private:
             *attributes,
             transactionId);
 
-        transaction->SetIsSequoiaTransaction(true);
+        transaction->SetSequoiaTransaction(true);
         transaction->SequoiaWriteSet().CopyFrom(request->write_set());
 
         for (const auto& protoData : request->actions()) {

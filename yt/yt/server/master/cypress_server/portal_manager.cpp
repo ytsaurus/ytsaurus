@@ -2,6 +2,7 @@
 
 #include "cypress_manager.h"
 #include "helpers.h"
+#include "node_proxy_detail.h"
 #include "portal_entrance_node.h"
 #include "portal_exit_node.h"
 #include "private.h"

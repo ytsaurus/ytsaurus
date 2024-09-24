@@ -889,8 +889,7 @@ private:
         if (!cellTags.empty() && hydraManager->GetReadOnly()) {
             THROW_ERROR_EXCEPTION(
                 NHydra::EErrorCode::ReadOnly,
-                "Cannot synchronize with cells when read-only mode is active (CellTags: %v)",
-                cellTags);
+                "Cannot synchronize with cells when read-only mode is active");
         }
 
         // NB: we always have to wait all current prepared transactions to
