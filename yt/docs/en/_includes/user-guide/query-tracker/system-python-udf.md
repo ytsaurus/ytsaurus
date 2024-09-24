@@ -23,7 +23,7 @@ Each of these steps is explained in detail below.
 You can add your script as:
 
 - Regular string literal. For example, `$script = "def foo(): return 'bar'"`.
-- Multi-line string literal (a YQL extension). You must enclose this literal in the `@@` characters, which are similar to triple quotes in Python. The `#py` comment enables Python syntax highlighting in the YQL editor:
+- Multi-line string literal (YQL extension). You must enclose this literal in the `@@` characters, which are similar to triple quotes in Python. The `#py` comment enables Python syntax highlighting in the YQL editor:
 
   ```yql
   $script = @@#py
@@ -32,7 +32,7 @@ You can add your script as:
   @@
   ```
 
-- Named file attached to the query. You must include the file content in your query by using the [FileContent](../../../yql/builtins/basic.md#file-content-path) function. For example, `$script = FileContent("foo.py")`.
+- Named file attached to the query. You can include the file content in your query by using the [FileContent](../../../yql/builtins/basic.md#file-content-path) function. For example, `$script = FileContent("foo.py")`.
 
 ### Declare function name and signature
 
@@ -44,7 +44,7 @@ Example of declaring a function name and signature:
 - `$f` and `$script`: [Named YQL expressions](../../../yql/syntax/expressions.md#named-nodes).
   - `$f`: Ready-to-use function.
   - `$script`: Python script mentioned in the previous section.
-- `SystemPython3_8::`: Fixed prefix for declaring a Python function. `System` means that Python must be used from the environment at runtime. `3_8` indicates the Python version to be used.
+- `SystemPython3_8::`: Fixed prefix for declaring a Python function. `System` means that Python will be taken from the environment at runtime. `3_8` indicates the Python version to be used.
   - As of the time of writing this article, versions `3_8` – `3_12` are available.
 - `foo`: Name of the function to be called, defined in the `$script`.
 - `Callable<()->String>`: Function signature description. The empty brackets indicate that the function doesn't accept any arguments. `String` after the arrow means that the function returns a string. Example of a function signature with arguments: `Callable<(String, Uint32)->Double>`.
@@ -77,9 +77,9 @@ You can nest containers into each other. For example, `List<Tuple<Int32,Int32>>`
 
 When you use `List` and `Dict`, the read-only `yql.TList` and `yql.TDict` objects are passed to the function arguments.
 
-The objects' specifics:
+The object's specifics:
 
-- They are read-only. This means that you can't make any changes to these objects without copying them because another part of the current query, for example, a neighboring function, may use the same object.
+- They are read-only. This means that you can't make any changes to these objects without copying them because another part of the current query may use the same object. For example, a neighboring function.
 - At the cost of potentially slow copying, you can get a real list object from them by iterating for partial copying. For dictionaries, you also need to call `iteritems()`. By setting the `_yql_lazy_input` attribute value to False on the function itself, you can enable automatic copying of lists and dictionaries to "list" and "dict". This mechanism works recursively for nested containers.
 - To get the number of elements, you can call `len(my_arg)`.
 - To get the latest set of available methods, call `dir(my_arg)`. [Example](#tlist-methods).
@@ -175,7 +175,7 @@ def get_dir(lst):
 SELECT $u(AsList());
 ```
 
-### Calling Llama
+### Inferencing Llama
 
 You need an appropriate environment that you can get using the following Dockerfile:
 

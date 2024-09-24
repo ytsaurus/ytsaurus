@@ -176,14 +176,14 @@ Detailed information on each API method:
 A few things to keep in mind:
 
 + The query creator always has access to their queries.
-+ If a query has multiple ACOs, you only need to have access to one of them to get access to all of them.
++ If a query has multiple ACOs, you only need to have access to one of them to get access to the query.
 
 For convenience, "ytsaurus-k8s-operator" creates the following ACOs:
 
 + `nobody`. Doesn't grant any permissions.
 + `everyone`. Grants `Use` and `Read` permissions to all users.
 + `everyone-use`. Grants `Use` permissions to all users.
-+ `everyone-share`. The same as "everyone", but not displayed in `list_queries`
++ `everyone-share`. The same as "everyone", but is not returned in `list_queries`.
 
 ## Example {#example}
 
