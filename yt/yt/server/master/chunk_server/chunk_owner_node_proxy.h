@@ -54,6 +54,8 @@ protected:
 
     bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value, bool force) override;
 
+    bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
+
     struct TFetchContext
     {
         NNodeTrackerClient::EAddressType AddressType = NNodeTrackerClient::EAddressType::InternalRpc;

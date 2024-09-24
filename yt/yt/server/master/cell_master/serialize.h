@@ -243,6 +243,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveCompatAroundAclSubjectTagFilterValidation)              (2738))  // h0pless
     ((CypressLocksInSequoia)                                        (2739))  // kvk1920
     ((RemoveStuckAttributes)                                        (2740))  // aleksandra-zh
+    ((OptionalHunkPrimaryMedium)                                    (2741))  // kazachonok
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
