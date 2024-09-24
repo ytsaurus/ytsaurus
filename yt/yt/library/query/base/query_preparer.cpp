@@ -1901,7 +1901,9 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
         operandTypers.reserve(functionExpr->Arguments.size());
         std::vector<int> formalArguments;
 
-        YT_VERIFY(AfterGroupBy_);
+        if (!AfterGroupBy_) {
+            THROW_ERROR_EXCEPTION("Misuse of aggregate function %Qv", functionName);
+        }
 
         AfterGroupBy_ = false;
         for (const auto& argument : functionExpr->Arguments) {
