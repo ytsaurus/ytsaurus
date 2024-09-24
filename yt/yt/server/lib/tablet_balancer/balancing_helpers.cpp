@@ -367,13 +367,14 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
     auto correlationId = TGuid::Create();
     YT_LOG_DEBUG_IF(enableVerboseLogging,
         "Planning to create reshard action (Tablets: %v, TabletSizes: %v, TabletCount: %v, "
-        "TotalSize: %v, FirstTabletIndex: %v, LastTabletIndex: %v, CorrelationId: %v)",
+        "TotalSize: %v, FirstTabletIndex: %v, LastTabletIndex: %v, TableId: %v, CorrelationId: %v)",
         tablets,
         sizes,
         newTabletCount,
         size,
         startIndex,
         endIndex,
+        table->Id,
         correlationId);
 
     return {TReshardDescriptor{
