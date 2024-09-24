@@ -1631,7 +1631,7 @@ print(json.dumps(input))
     @authors("arkady-e1ppa")
     @pytest.mark.parametrize("ordered", [False, True])
     def test_adaptive_buffer_row_count(self, ordered):
-        skip_if_old(self.Env, (24, 1), "Option is not present in older binaries")
+        skip_if_old(self.Env, (24, 2), "Option is not present in older binaries")
 
         input_table = "//tmp/in"
         output_table = "//tmp/out"
