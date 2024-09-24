@@ -93,7 +93,12 @@ TReadPlanWithFilterPtr BuildReadPlanWithPrewhere(
     std::vector<TReadStepWithFilter> steps;
     steps.reserve(prewhereActions.steps.size() + 1);
 
-    bool needFilter = false;
+    // NB: If we split prewhere actions into several steps, there would be several filter columns.
+    // We have two options:
+    // 1. Combine all these columns using the `and()` function and return a new filter column to CH.
+    // 2. Apply all filters on our side.
+    // The second option is easier.
+    bool needFilter = prewhereActions.steps.size() > 1;
 
     THashMap<std::string, TColumnSchema> columnNameToSchema;
     for (const auto& column: columns) {
