@@ -3661,7 +3661,9 @@ void TOperationControllerBase::ProcessAllocationEvent(TAllocationEvent&& eventSu
         OnJobAborted(std::move(jobSummary));
     }
 
-    AllocationMap_.erase(allocationIt);
+    if (ShouldProcessJobEvents()) {
+        AllocationMap_.erase(allocationIt);
+    }
 }
 
 void TOperationControllerBase::SafeOnAllocationAborted(TAbortedAllocationSummary&& abortedAllocationSummary)
