@@ -219,16 +219,29 @@ func (a *Agent) processOplets() {
 	wg.Add(workerNumber)
 
 	opletsChan := make(chan *strawberry.Oplet, len(a.aliasToOp))
-
+	workerPassDur := make([]time.Duration, workerNumber)
+	workerMaxPassDur := make([]struct {
+		dur   time.Duration
+		alias string
+	}, workerNumber)
 	for i := 0; i < workerNumber; i++ {
-		go func() {
+		go func(idx int) {
 			defer wg.Done()
 			for oplet := range opletsChan {
+				start := time.Now()
+
 				// We don't need to check the liveness of the operation in the agent,
 				// since we do it while processing the result of the operation listing.
 				_ = oplet.Pass(a.ctx, false /*checkOpLiveness*/)
+
+				passDur := time.Since(start)
+				workerPassDur[idx] += passDur
+				if passDur > workerMaxPassDur[idx].dur {
+					workerMaxPassDur[idx].dur = passDur
+					workerMaxPassDur[idx].alias = oplet.Alias()
+				}
 			}
-		}()
+		}(i)
 	}
 
 	for _, oplet := range a.aliasToOp {
@@ -237,7 +250,32 @@ func (a *Agent) processOplets() {
 	close(opletsChan)
 
 	wg.Wait()
-	a.l.Info("finished processing oplets", log.Duration("elapsed_time", time.Since(startedAt)))
+
+	logFields := make([]log.Field, 0, 5)
+	logFields = append(logFields, log.Duration("elapsed_time", time.Since(startedAt)))
+	var totalPassDur time.Duration
+	var maxPassDur time.Duration
+	var maxPassAlias string
+	for i := 0; i < workerNumber; i++ {
+		totalPassDur += workerPassDur[i]
+		if workerMaxPassDur[i].dur > maxPassDur {
+			maxPassDur = workerMaxPassDur[i].dur
+			maxPassAlias = workerMaxPassDur[i].alias
+		}
+	}
+	var avgPassTime time.Duration
+	var avgWorkerTime time.Duration
+	if len(a.aliasToOp) > 0 {
+		avgPassTime = totalPassDur / time.Duration(len(a.aliasToOp))
+	}
+	if workerNumber > 0 {
+		avgWorkerTime = totalPassDur / time.Duration(workerNumber)
+	}
+	logFields = append(logFields, log.Duration("max_pass_time", maxPassDur), log.String("max_pass_alias", maxPassAlias))
+	logFields = append(logFields, log.Duration("avg_pass_time", avgPassTime))
+	logFields = append(logFields, log.Duration("avg_worker_time", avgWorkerTime))
+
+	a.l.Info("finished processing oplets", logFields...)
 }
 
 func (a *Agent) pass() {
