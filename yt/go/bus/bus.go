@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/nop"
@@ -175,6 +176,7 @@ type Bus struct {
 	conn    net.Conn
 	logger  log.Logger
 	once    sync.Once
+	closed  atomic.Bool
 }
 
 func NewBus(conn net.Conn, options Options) *Bus {
@@ -199,6 +201,7 @@ func (c *Bus) setLogger(l log.Logger) {
 
 func (c *Bus) Close() {
 	c.once.Do(func() {
+		c.closed.Store(true)
 		if err := c.conn.Close(); err != nil {
 			c.logger.Error("Connection close error", log.Error(err))
 		}
@@ -242,7 +245,11 @@ func (c *Bus) Send(packetID guid.GUID, packetData [][]byte, opts *busSendOptions
 func (c *Bus) Receive() (busMsg, error) {
 	packet, err := c.receive(c.conn)
 	if err != nil {
-		c.logger.Error("Receive error", log.Error(err))
+		if !c.closed.Load() || !errors.Is(err, net.ErrClosed) {
+			c.logger.Error("Receive error", log.Error(err))
+		} else {
+			c.logger.Debug("Unable to receive from closed connection", log.Error(err))
+		}
 		return busMsg{}, err
 	}
 
