@@ -21,11 +21,12 @@ ARG ROOT_IMAGE="ubuntu-base"
 
 FROM mirror.gcr.io/ubuntu:focal AS ubuntu-base
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
-  python3-pip \
-  python3.8  \
-  python3.8-distutils \
-  linux-tools-generic
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+      python3-pip \
+      python3.8  \
+      python3.8-distutils \
+      linux-tools-generic
 
 ##########################################################################################
 
@@ -42,31 +43,36 @@ USER root
 
 WORKDIR /tmp
 
-RUN apt-get update && apt-get install -y software-properties-common python3-launchpadlib
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+      software-properties-common \
+      python3-launchpadlib
 RUN add-apt-repository ppa:deadsnakes/ppa
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
-  curl \
-  dnsutils \
-  gdb \
-  iproute2 \
-  iputils-ping \
-  less \
-  libidn11-dev \
-  lsb-release \
-  lsof \
-  python3.11 \
-  python3.11-venv \
-  strace \
-  telnet \
-  tini \
-  unzip \
-  zstd \
-  google-perftools \
-  procps \
-  jq \
-  htop \
-  && rm -rf /var/lib/apt/lists/*
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+      curl \
+      dnsutils \
+      gdb \
+      iproute2 \
+      iputils-ping \
+      less \
+      libidn11-dev \
+      lsb-release \
+      lsof \
+      python3.11 \
+      python3.11-venv \
+      strace \
+      telnet \
+      tini \
+      unzip \
+      zstd \
+      google-perftools \
+      procps \
+      jq \
+      htop \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 ##########################################################################################
 
@@ -282,7 +288,7 @@ ARG BUILD_ROOT="${ODIN_ROOT}/build"
 ARG PYTHON_ROOT="${ODIN_ROOT}/python"
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
+    && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y --no-install-recommends \
       ca-certificates \
       curl \
       build-essential \
@@ -306,11 +312,11 @@ RUN . ${ODIN_VIRTUAL_ENV}/bin/activate \
 RUN . ${ODIN_VIRTUAL_ENV}/bin/activate \
     && pip install -r ${ODIN_SOURCE_ROOT}/requirements.txt \
     && pip install ytsaurus-client ytsaurus-yson ytsaurus-rpc-driver \
-  && pip install $PYTHON_ROOT/dist/*
+    && pip install $PYTHON_ROOT/dist/*
 
 RUN mkdir -p ${ODIN_CHECKS_DIR} \
     && mkdir -p ${ODIN_CHECKS_DATA_DIR} \
-    && for CHECK in $(find ${ODIN_SOURCE_ROOT}/checks/bin -mindepth 1 -maxdepth 1 -type d -not -name "ya.make"); do \
+    && for CHECK in $(find ${ODIN_SOURCE_ROOT}/checks/bin -mindepth 1 -maxdepth 1 -type d); do \
       CHECK=$(basename ${CHECK}); \
       mkdir -p ${ODIN_CHECKS_DIR}/${CHECK}; \
       ln -sf ${ODIN_VIRTUAL_ENV}/bin/${CHECK} ${ODIN_CHECKS_DIR}/${CHECK}/${CHECK}; \
