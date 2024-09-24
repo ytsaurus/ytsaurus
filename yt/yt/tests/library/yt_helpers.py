@@ -14,8 +14,6 @@ import pytest
 import json
 import inspect
 
-MAX_DECIMAL_PRECISION = 35
-
 
 class JobCountProfiler:
     def __init__(self, state, tags=None, **kwargs):

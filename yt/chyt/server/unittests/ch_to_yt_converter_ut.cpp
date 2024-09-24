@@ -377,17 +377,21 @@ TEST_F(TCHToYTConversionTest, Decimal)
             TString binary = TDecimal::TextToBinary(value, precision, scale);
             ysonStrings.emplace_back(ConvertToYsonString(binary).ToString());
 
-            if (precision <= 9) {
-                auto parsedValue = TDecimal::ParseBinary32(precision, binary);
-                fields.emplace_back(DB::DecimalField(DB::Decimal32(parsedValue), scale));
-            } else if (precision <= 18) {
-                auto parsedValue = TDecimal::ParseBinary64(precision, binary);
-                fields.emplace_back(DB::DecimalField(DB::Decimal64(parsedValue), scale));
-            } else {
-                auto ytValue = TDecimal::ParseBinary128(precision, binary);
-                DB::Decimal128 chValue;
-                std::memcpy(&chValue, &ytValue, sizeof(ytValue));
+            auto addDecimalField = [&]<typename DecimalType>(TString value) {
+                auto chValue = std::make_shared<DB::DataTypeDecimal<DecimalType>>(precision, scale)->parseFromString(value);
                 fields.emplace_back(DB::DecimalField(chValue, scale));
+            };
+
+            if (precision <= static_cast<int>(DB::DecimalUtils::max_precision<DB::Decimal32>)) {
+                addDecimalField.operator()<DB::Decimal32>(value);
+            } else if (precision <= static_cast<int>(DB::DecimalUtils::max_precision<DB::Decimal64>)) {
+                addDecimalField.operator()<DB::Decimal64>(value);
+            } else if (precision <= static_cast<int>(DB::DecimalUtils::max_precision<DB::Decimal128>)) {
+                addDecimalField.operator()<DB::Decimal128>(value);
+            } else if (precision <= static_cast<int>(DB::DecimalUtils::max_precision<DB::Decimal256>)) {
+                addDecimalField.operator()<DB::Decimal256>(value);
+            } else {
+                YT_ABORT();
             }
         }
 

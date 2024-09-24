@@ -42,7 +42,8 @@ from copy import deepcopy
 INTERESTING_DECIMAL_PRECISION_LIST = [
     1, 5, 9,  # 4 bytes
     10, 15, 18,  # 8 bytes
-    19, 25, MAX_DECIMAL_PRECISION,  # 16 bytes
+    19, 25, 35,  # 16 bytes
+    36, 45, 55, 65, MAX_DECIMAL_PRECISION,  # 32 bytes
 ]
 
 POSITIONAL_YSON = yson.loads(b"<complex_type_mode=positional>yson")
@@ -561,8 +562,10 @@ class TestComplexTypes(YTEnvSetup):
 class TestComplexTypesMisc(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
+    NUM_TEST_PARTITIONS = 3
+
     @authors("ermolovd")
-    @pytest.mark.parametrize("precision", list(range(3, 36)))
+    @pytest.mark.parametrize("precision", list(range(3, 77)))
     def test_decimal_various_precision(self, precision):
         table1 = SingleColumnTable(decimal_type(precision, 2), "lookup")
         table1.check_good_value(encode_decimal(decimal.Decimal("3.12"), precision, 2))
@@ -574,19 +577,26 @@ class TestComplexTypesMisc(YTEnvSetup):
         table1.check_bad_value(None)
 
     @authors("ermolovd")
-    @pytest.mark.parametrize("type_v3", [
-        decimal_type(MAX_DECIMAL_PRECISION, 2),
-        optional_type(decimal_type(MAX_DECIMAL_PRECISION, 2)),
-        tagged_type("foo", decimal_type(MAX_DECIMAL_PRECISION, 2)),
-        optional_type(tagged_type("foo", decimal_type(MAX_DECIMAL_PRECISION, 2))),
-        tagged_type("bar", optional_type(decimal_type(MAX_DECIMAL_PRECISION, 2))),
-        tagged_type("bar", optional_type(tagged_type("foo", decimal_type(MAX_DECIMAL_PRECISION, 2)))),
-    ])
-    def test_decimal_optional_tagged_combinations(self, type_v3):
+    @pytest.mark.parametrize(
+        "type_v3, precision",
+        [
+            (type, precision)
+            for precision in [9, 18, 35, MAX_DECIMAL_PRECISION]
+            for type in [
+                decimal_type(precision, 2),
+                optional_type(decimal_type(precision, 2)),
+                tagged_type("foo", decimal_type(precision, 2)),
+                optional_type(tagged_type("foo", decimal_type(precision, 2))),
+                tagged_type("bar", optional_type(decimal_type(precision, 2))),
+                tagged_type("bar", optional_type(tagged_type("foo", decimal_type(precision, 2)))),
+            ]
+        ],
+    )
+    def test_decimal_optional_tagged_combinations(self, type_v3, precision):
         table1 = SingleColumnTable(type_v3, "lookup")
-        table1.check_good_value(encode_decimal(decimal.Decimal("3.12"), MAX_DECIMAL_PRECISION, 2))
-        table1.check_good_value(encode_decimal(decimal.Decimal("1" * 33), MAX_DECIMAL_PRECISION, 2))
-        table1.check_bad_value(encode_decimal(decimal.Decimal("1" * 34), MAX_DECIMAL_PRECISION, 2))
+        table1.check_good_value(encode_decimal(decimal.Decimal("3.12"), precision, 2))
+        table1.check_good_value(encode_decimal(decimal.Decimal("1" * (precision - 2)), precision, 2))
+        table1.check_bad_value(encode_decimal(decimal.Decimal("1" * (precision - 1)), precision, 2))
 
         table1.check_bad_value(5)
         table1.check_bad_value("foo")

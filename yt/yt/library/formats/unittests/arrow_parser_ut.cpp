@@ -549,8 +549,8 @@ TEST(TArrowParserTest, DecimalVariousPrecisions)
     auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
         TColumnSchema("decimal128_10_3", DecimalLogicalType(10, 3)),
         TColumnSchema("decimal128_35_3", DecimalLogicalType(35, 3)),
-        TColumnSchema("decimal128_38_3", EValueType::String),
-        TColumnSchema("decimal256_76_3", EValueType::String),
+        TColumnSchema("decimal128_38_3", DecimalLogicalType(38, 3)),
+        TColumnSchema("decimal256_76_3", DecimalLogicalType(76, 3)),
     });
 
     TCollectingValueConsumer collectedRows(tableSchema);
@@ -577,12 +577,22 @@ TEST(TArrowParserTest, DecimalVariousPrecisions)
             "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0c\x45"s, "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"s,
             "\x7f\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xf5\x62"s, "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x54\x0b\xe3\xff"s,
         };
-    std::vector<TString> expectedValues128_38_3 = values;
-    std::vector<TString> expectedValues128_76_3 = values;
+    std::vector<TString> expectedValues128_38_3 =
+        {
+            "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0c\x45"s, "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"s,
+            "\x7f\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xf5\x62"s, "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x54\x0b\xe3\xff"s
+        };
+    std::vector<TString> expectedValues256_76_3 =
+        {
+            "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0c\x45"s,
+            "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"s,
+            "\x7f\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xf5\x62"s,
+            "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x54\x0b\xe3\xff"s,
+        };
     ASSERT_EQ(expectedValues128_10_3, collectStrings("decimal128_10_3"));
     ASSERT_EQ(expectedValues128_35_3, collectStrings("decimal128_35_3"));
     ASSERT_EQ(expectedValues128_38_3, collectStrings("decimal128_38_3"));
-    ASSERT_EQ(expectedValues128_76_3, collectStrings("decimal256_76_3"));
+    ASSERT_EQ(expectedValues256_76_3, collectStrings("decimal256_76_3"));
 }
 
 TEST(TArrowParserTest, BlockingInput)

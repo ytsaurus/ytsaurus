@@ -28,6 +28,7 @@
 #include <DataTypes/IDataType.h>
 #include <DataTypes/DataTypeInterval.h>
 #include <DataTypes/DataTypeString.h>
+#include <DataTypes/DataTypesDecimal.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <DataTypes/DataTypeNothing.h>
 #include <DataTypes/DataTypeNullable.h>
@@ -948,9 +949,18 @@ TEST_F(TYTToCHConversionTest, Decimal)
         "1234567890123456789012345.12345",
         "123456789012345678901234567890.12345",
         "1234567890123456789012345.1234567890",
+        "-123456789012345678901234567890.12345", // 35, 5
+        "1234567890123456789012345678901.12345", // 36, 5,
+        "-1234567890123456789012345678901234.123", // 37, 3
+        "123456789012345678901234567890123.12345", // 38, 5
+        "-123456789012345678901234567890123456.123", // 39, 3
+        "-1234567890123456789012345678901234567890.321", // 43, 3
+        "1234567890123456789012345678901234567890123456789012345678901234567890.321", // 73, 3
+        "1234567890123456789012345678901234567890123456789012345678901234567890.12345", // 75, 5
+        "1234567890123456789012345678901234567890123456789012345678901234567890123.321", // 76, 3
     };
 
-    for (int precision : {5, 9, 10, 15, 18, 19, 30, 35}) {
+    for (int precision : {5, 9, 10, 15, 18, 19, 30, 35, 36, 37, 38, 39, 55, 76}) {
         for (int scale : {3, 5, 10}) {
             if (scale >= precision) {
                 continue;
@@ -970,17 +980,21 @@ TEST_F(TYTToCHConversionTest, Decimal)
                 TString binary = TDecimal::TextToBinary(value, precision, scale);
                 ysonStrings.emplace_back(ConvertToYsonString(binary).ToString());
 
-                if (precision <= 9) {
-                    auto parsedValue = TDecimal::ParseBinary32(precision, binary);
-                    expectedFields.emplace_back(DB::DecimalField(DB::Decimal32(parsedValue), scale));
-                } else if (precision <= 18) {
-                    auto parsedValue = TDecimal::ParseBinary64(precision, binary);
-                    expectedFields.emplace_back(DB::DecimalField(DB::Decimal64(parsedValue), scale));
-                } else {
-                    auto ytValue = TDecimal::ParseBinary128(precision, binary);
-                    DB::Decimal128 chValue;
-                    std::memcpy(&chValue, &ytValue, sizeof(ytValue));
+                auto addDecimalField = [&]<typename DecimalType>(TString value) {
+                    auto chValue = std::make_shared<DB::DataTypeDecimal<DecimalType>>(precision, scale)->parseFromString(value);
                     expectedFields.emplace_back(DB::DecimalField(chValue, scale));
+                };
+
+                if (precision <= static_cast<int>(DB::DecimalUtils::max_precision<DB::Decimal32>)) {
+                    addDecimalField.operator()<DB::Decimal32>(value);
+                } else if (precision <= static_cast<int>(DB::DecimalUtils::max_precision<DB::Decimal64>)) {
+                    addDecimalField.operator()<DB::Decimal64>(value);
+                } else if (precision <= static_cast<int>(DB::DecimalUtils::max_precision<DB::Decimal128>)) {
+                    addDecimalField.operator()<DB::Decimal128>(value);
+                } else if (precision <= static_cast<int>(DB::DecimalUtils::max_precision<DB::Decimal256>)) {
+                    addDecimalField.operator()<DB::Decimal256>(value);
+                } else {
+                    YT_ABORT();
                 }
             }
             YT_VERIFY(ysonStrings.size() > 0);
@@ -1001,6 +1015,11 @@ TEST_F(TYTToCHConversionTest, Decimal)
         }
     }
 }
+
+// TODO(achulkov2, dakovalkov): I do not like the tests below. We are essentially reimplementing the conversion
+// with TDecimal::ParseBinaryXX, so what is the point? They should be reimplemented using the same
+// native CH-parsing approach as above. There is also a ton of copy and paste that should be
+// eliminated.
 
 // Mostly copy-pasted from TestDecimal.
 TEST_F(TYTToCHConversionTest, OptionalDecimal)

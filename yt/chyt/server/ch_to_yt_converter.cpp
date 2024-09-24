@@ -503,7 +503,8 @@ class TDecimalConverter
 public:
     static_assert(std::is_same_v<TUnderlyingIntegerType, DB::Int32>
         || std::is_same_v<TUnderlyingIntegerType, DB::Int64>
-        || std::is_same_v<TUnderlyingIntegerType, DB::Int128>);
+        || std::is_same_v<TUnderlyingIntegerType, DB::Int128>
+        || std::is_same_v<TUnderlyingIntegerType, DB::Int256>);
 
     using TClickHouseDecimal = DB::Decimal<TUnderlyingIntegerType>;
     using TDecimalColumn = DB::ColumnDecimal<TClickHouseDecimal>;
@@ -584,6 +585,10 @@ private:
             TDecimal::TValue128 value;
             memcpy(&value, chValue, DecimalSize);
             TDecimal::WriteBinary128(Precision_, value, ytValue, DecimalSize);
+        } else if constexpr (std::is_same_v<TUnderlyingIntegerType, DB::Int256>) {
+            TDecimal::TValue256 value;
+            memcpy(&value, chValue, DecimalSize);
+            TDecimal::WriteBinary256(Precision_, value, ytValue, DecimalSize);
         } else {
             YT_ABORT();
         }
@@ -1033,10 +1038,10 @@ private:
         int precision = DB::getDecimalPrecision(*dataType);
         int scale = DB::getDecimalScale(*dataType);
 
-        if (precision > 35) {
+        if (precision > MaxSupportedCHDecimalPrecision) {
             THROW_ERROR_EXCEPTION("ClickHouse type %Qv is not representable as YT type: "
-                "maximum decimal precision in YT is 35",
-                DataType_->getName())
+                "maximum decimal precision in YT is %v",
+                DataType_->getName(), MaxSupportedCHDecimalPrecision)
                 << TErrorAttribute("docs", "https://ytsaurus.tech/docs/en/user-guide/storage/data-types#schema_decimal");
         }
 
@@ -1048,10 +1053,7 @@ private:
             case DB::TypeIndex::Decimal128:
                 return std::make_unique<TDecimalConverter<DB::Int128>>(precision, scale);
             case DB::TypeIndex::Decimal256:
-                // Decimal256 has precision in range [39:76], which is more than
-                // maximum supported precision in YT decimal type (35).
-                // We should not get here because precision has already been checked.
-                YT_ABORT();
+                return std::make_unique<TDecimalConverter<DB::Int256>>(precision, scale);
             default:
                 YT_ABORT();
         }

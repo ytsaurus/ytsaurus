@@ -201,6 +201,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReplicationCollocationOptions_24_1)                           (2595))  // akozhikhov
     ((NestedAggregateColumns_24_1)                                  (2596))  // lukyan
     ((DynamicTableSchemaContraint)                                  (2597))  // whatsername
+    ((Decimal256_24_1)                                              (2598))  // achulkov2
     // 24.2 starts here.
     ((Start_24_2)                                                   (2700))  //
     ((DropLegacyClusterNodeMap)                                     (2701))  // babenko
@@ -243,6 +244,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveCompatAroundAclSubjectTagFilterValidation)              (2738))  // h0pless
     ((CypressLocksInSequoia)                                        (2739))  // kvk1920
     ((RemoveStuckAttributes)                                        (2740))  // aleksandra-zh
+    ((Decimal256)                                                   (2741))  // achulkov2
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

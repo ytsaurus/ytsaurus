@@ -41,6 +41,8 @@ constexpr int SentinelMaxStringLength = 50;
 
 constexpr int YqlOperationIdLength = 24;
 
+constexpr int MaxSupportedCHDecimalPrecision = 76;
+
 extern const TString CacheUserName;
 extern const TString ChytSqlObjectsUserName;
 extern const TString InternalRemoteUserName;
