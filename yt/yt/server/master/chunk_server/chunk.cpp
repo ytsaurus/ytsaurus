@@ -313,7 +313,9 @@ void TChunk::RemoveReplica(
     auto* data = MutableReplicasData();
     if (approved) {
         --data->ApprovedReplicaCount;
-        YT_ASSERT(data->ApprovedReplicaCount >= 0);
+        if (data->ApprovedReplicaCount < 0) {
+            data->ApprovedReplicaCount = 0;
+        }
     }
 
     auto storedReplicas = data->GetStoredReplicas();
