@@ -135,6 +135,7 @@ public:
     const NCypressServer::IGraftingManagerPtr& GetGraftingManager() const;
     const IHydraFacadePtr& GetHydraFacade() const;
     const IEpochHistoryManagerPtr& GetEpochHistoryManager() const;
+    const IPersistentStateTransientCachePtr& GetPersistentStateTransientCache() const;
     const IWorldInitializerPtr& GetWorldInitializer() const;
     const NObjectServer::IObjectManagerPtr& GetObjectManager() const;
     const NObjectServer::IObjectServicePtr& GetObjectService() const;
@@ -227,6 +228,7 @@ protected:
     NCypressServer::ISequoiaActionsExecutorPtr SequoiaActionsExecutor_;
     IHydraFacadePtr HydraFacade_;
     IEpochHistoryManagerPtr EpochHistoryManager_;
+    IPersistentStateTransientCachePtr PersistentStateTransientCache_;
     IWorldInitializerPtr WorldInitializer_;
     IResponseKeeperManagerPtr ResponseKeeperManager_;
     NObjectServer::IObjectManagerPtr ObjectManager_;

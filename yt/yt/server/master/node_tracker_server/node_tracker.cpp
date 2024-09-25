@@ -19,6 +19,7 @@
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/persistent_state_transient_cache.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/master/cell_server/cellar_node_tracker.h>
@@ -1827,6 +1828,10 @@ private:
         }
 
         NodesWithImaginaryLocations_.clear();
+
+        Bootstrap_
+            ->GetPersistentStateTransientCache()
+            ->ResetNodeDefaultAddresses();
     }
 
     void OnAfterSnapshotLoaded() override
@@ -1838,6 +1843,10 @@ private:
         AddressToNodeMap_.clear();
         HostNameToNodeMap_.clear();
         TransactionToNodeMap_.clear();
+
+        Bootstrap_
+            ->GetPersistentStateTransientCache()
+            ->ResetNodeDefaultAddresses();
 
         AggregatedOnlineNodeCount_ = 0;
 
@@ -2459,15 +2468,19 @@ private:
 
     void InsertToAddressMaps(TNode* node)
     {
-        YT_VERIFY(AddressToNodeMap_.emplace(node->GetDefaultAddress(), node).second);
+        EmplaceOrCrash(AddressToNodeMap_, node->GetDefaultAddress(), node);
         for (const auto& [_, address] : node->GetAddressesOrThrow(EAddressType::InternalRpc)) {
             HostNameToNodeMap_.emplace(std::string(GetServiceHostName(address)), node);
         }
+
+        Bootstrap_
+            ->GetPersistentStateTransientCache()
+            ->UpdateNodeDefaultAddress(node->GetId(), node->GetDefaultAddress());
     }
 
     void RemoveFromAddressMaps(TNode* node)
     {
-        YT_VERIFY(AddressToNodeMap_.erase(node->GetDefaultAddress()) == 1);
+        EraseOrCrash(AddressToNodeMap_, node->GetDefaultAddress());
         for (const auto& [_, address] : node->GetAddressesOrThrow(EAddressType::InternalRpc)) {
             auto hostNameRange = HostNameToNodeMap_.equal_range(std::string(GetServiceHostName(address)));
             for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
@@ -2477,6 +2490,10 @@ private:
                 }
             }
         }
+
+        Bootstrap_
+            ->GetPersistentStateTransientCache()
+            ->UpdateNodeDefaultAddress(node->GetId(), std::nullopt);
     }
 
     void RemoveFromNodeLists(TNode* node)

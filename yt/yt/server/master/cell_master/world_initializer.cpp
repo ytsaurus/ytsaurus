@@ -3,6 +3,7 @@
 #include "private.h"
 #include "config.h"
 #include "hydra_facade.h"
+#include "persistent_state_transient_cache.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
@@ -103,47 +104,11 @@ public:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* rootNode = cypressManager->GetRootNode();
         auto isInitialized = !rootNode->KeyToChild().empty();
-        if (CachedIsInitialized_.load(std::memory_order::relaxed) != isInitialized) {
-            CachedIsInitialized_.store(isInitialized, std::memory_order::release);
-        }
+
+        auto& transientCache = Bootstrap_->GetPersistentStateTransientCache();
+        transientCache->UpdateWorldInitializationStatus(isInitialized);
+
         return isInitialized;
-    }
-
-    void ValidateInitialized_AnyThread() override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto throwNotInitialized = [] (const TError& nested) {
-            TError error(NRpc::EErrorCode::Unavailable, "Cluster is not initialized");
-            if (!nested.IsOK()) {
-                error <<= nested;
-            }
-            THROW_ERROR error;
-        };
-
-        if (CachedIsInitialized_.load(std::memory_order::acquire)) {
-            return;
-        }
-
-        auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic);
-        if (!invoker) {
-            // The absence of invoker means we're between epochs now.
-            throwNotInitialized({});
-        }
-
-        auto isInitializedOrError = WaitFor(BIND([weakThis = MakeWeak(this)] () {
-            if (auto strongThis = weakThis.Lock()) {
-                return strongThis->IsInitialized();
-            }
-
-            return false;
-        })
-            .AsyncVia(std::move(invoker))
-            .Run());
-
-        if (!isInitializedOrError.ValueOrDefault(false)) {
-            throwNotInitialized(isInitializedOrError);
-        }
     }
 
     void ValidateInitialized() override
@@ -174,11 +139,9 @@ private:
     TAtomicObject<std::vector<TYPath>> OrchidAddresses_;
     TAtomicObject<THashMap<TYPath, TYsonString>> OrchidAddressToAnnotations_;
 
-    std::atomic<bool> CachedIsInitialized_ = false;
-
     void OnLeaderActive()
     {
-        CachedIsInitialized_.store(false, std::memory_order::release);
+        Bootstrap_->GetPersistentStateTransientCache()->UpdateWorldInitializationStatus(false);
 
         // NB: Initialization cannot be carried out here since not all subsystems
         // are fully initialized yet.
@@ -190,17 +153,17 @@ private:
 
     void OnStopLeading()
     {
-        CachedIsInitialized_.store(false, std::memory_order::release);
+        Bootstrap_->GetPersistentStateTransientCache()->UpdateWorldInitializationStatus(false);
     }
 
     void OnStartFollowing()
     {
-        CachedIsInitialized_.store(false, std::memory_order::release);
+        Bootstrap_->GetPersistentStateTransientCache()->UpdateWorldInitializationStatus(false);
     }
 
     void OnStopFollowing()
     {
-        CachedIsInitialized_.store(false, std::memory_order::release);
+        Bootstrap_->GetPersistentStateTransientCache()->UpdateWorldInitializationStatus(false);
     }
 
     void ScheduleInitialize(TDuration delay = TDuration::Zero())
