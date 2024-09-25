@@ -619,8 +619,8 @@ public:
             , ReplicatedTable_(replicatedTable)
             , Id_(data.Id)
             , ClusterName_(std::move(data.ClusterName))
-            , TablePath_(std::move(data.TablePath))
             , ContentType_(data.ContentType)
+            , TablePath_(std::move(data.TablePath))
             , Enabled_(data.Enabled)
             , TrackingEnabled_(data.TrackingEnabled)
         {
@@ -707,6 +707,11 @@ public:
             return ContentType_;
         }
 
+        void SetTablePath(TString tablePath)
+        {
+            TablePath_ = std::move(tablePath);
+        }
+
         void SetMode(ETableReplicaMode mode)
         {
             auto oldState = State_;
@@ -772,9 +777,9 @@ public:
 
         const TTableReplicaId Id_;
         const TString ClusterName_;
-        const TYPath TablePath_;
         const ETableReplicaContentType ContentType_;
 
+        TYPath TablePath_;
         bool Enabled_;
         bool TrackingEnabled_;
         EReplicaState State_;
@@ -1771,6 +1776,7 @@ private:
                 it->second.SetMode(data.Mode);
                 it->second.SetEnabled(data.Enabled);
                 it->second.SetTrackingPolicy(data.TrackingEnabled);
+                it->second.SetTablePath(std::move(data.TablePath));
             }
         }));
     }

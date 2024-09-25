@@ -2575,26 +2575,36 @@ private:
         if (request->has_enabled()) {
             options.Enabled = request->enabled();
         }
+
         if (request->has_mode()) {
             options.Mode = CheckedEnumCast<ETableReplicaMode>(request->mode());
         }
+
         if (request->has_preserve_timestamps()) {
             options.PreserveTimestamps = request->preserve_timestamps();
         }
+
         if (request->has_atomicity()) {
             options.Atomicity = CheckedEnumCast<EAtomicity>(request->atomicity());
         }
+
         if (request->has_enable_replicated_table_tracker()) {
             options.EnableReplicatedTableTracker = request->enable_replicated_table_tracker();
         }
 
-        context->SetRequestInfo("ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v, EnableReplicatedTableTracker: %v",
+        if (request->has_replica_path()) {
+            options.ReplicaPath = request->replica_path();
+        }
+
+        context->SetRequestInfo("ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v, "
+            "EnableReplicatedTableTracker: %v, ReplicaPath: %v",
             replicaId,
             options.Enabled,
             options.Mode,
             options.Atomicity,
             options.PreserveTimestamps,
-            options.EnableReplicatedTableTracker);
+            options.EnableReplicatedTableTracker,
+            options.ReplicaPath);
 
         ExecuteCall(
             context,
