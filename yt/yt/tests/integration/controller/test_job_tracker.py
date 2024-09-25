@@ -454,6 +454,15 @@ class TestJobTrackerRaces(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "job_tracker": {
+                "node_disconnection_timeout": 200,
+            },
+            "snapshot_period": 3000,
+        },
+    }
+
     @authors("pogorelov")
     def test_concurrent_settle_job_request_and_allocation_finish(self):
         aborted_job_profiler = JobCountProfiler(
@@ -500,6 +509,44 @@ class TestJobTrackerRaces(YTEnvSetup):
         op2.track()
 
         op1.track()
+
+    @authors("pogorelov")
+    def test_node_disconnection_during_settle_job_request(self):
+        update_controller_agent_config(
+            "job_tracker/testing_options/delay_in_settle_job",
+            {
+                "duration": 3000,
+                "type": "async",
+            },
+        )
+        op = run_test_vanilla(
+            "sleep 0.1",
+            job_count=1,
+        )
+
+        (node_address, ) = ls("//sys/cluster_nodes")
+        wait(lambda: len(ls(f"//sys/cluster_nodes/{node_address}/orchid/exec_node/job_controller/allocations")) == 1)
+        (allocation1, ) = ls(f"//sys/cluster_nodes/{node_address}/orchid/exec_node/job_controller/allocations")
+
+        controller_agent_address = get(op.get_path() + "/@controller_agent_address")
+
+        wait(lambda: exists(f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker/allocations/{allocation1}"))
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "controller_agent_connector": {
+                    "heartbeat_executor": {
+                        "period": 3000,
+                    }
+                },
+            },
+        })
+
+        wait(lambda: not exists(f"//sys/cluster_nodes/{node_address}/orchid/exec_node/job_controller/allocations/{allocation1}"))
+
+        wait(lambda: not exists(f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker/allocations/{allocation1}"))
+
+        op.abort()
 
 
 ##################################################################
