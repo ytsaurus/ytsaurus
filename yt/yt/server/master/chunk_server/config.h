@@ -682,8 +682,6 @@ public:
 
     bool EnableChunkSchemas;
 
-    bool SchemalessEndUploadPreservesTableSchema;
-
     //! Forces rack awareness for erasure parts during write targets allocation.
     bool ForceRackAwarenessForErasureParts;
 
