@@ -335,6 +335,19 @@ items:
           when: audience == "public"
           items:
             - include: { mode: link, path: yql/toc.yaml }
+        - name: Решение проблем
+          when: audience == "public"
+          items:
+            - name: Отладка MapReduce программ
+              href: user-guide/problems/mapreduce-debug.md
+            - name: Диагностика медленных джобов
+              href: user-guide/problems/jobshell-and-slowjobs.md
+            - name: Медленное чтение файлов и таблиц
+              href: user-guide/problems/slow-read.md
+            - name: Статистики джобов
+              href: user-guide/problems/jobstatistics.md
+            - name: Локальная отладка джобов
+              href: user-guide/problems/jobtool.md
       - name: Распределённые блокировки
         when: audience == "public"
         items:
@@ -353,15 +366,6 @@ items:
             href: user-guide/proxy/http-reference.md
           - name: gRPC-прокси
             href: user-guide/proxy/grpc.md
-      - name: Решение проблем
-        when: audience == "public"
-        items:
-          - name: Диагностика медленных джобов
-            href: user-guide/problems/jobshell-and-slowjobs.md
-          - name: Медленное чтение файлов и таблиц
-            href: user-guide/problems/slow-read.md
-          - name: Статистики джобов
-            href: user-guide/problems/jobstatistics.md
       - name: Импорт и экспорт данных
         when: audience == "public"
         items:
