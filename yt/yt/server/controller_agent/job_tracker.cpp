@@ -1052,6 +1052,19 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
     auto jobInfoOrError = WaitFor(
         asyncJobInfo);
 
+    if (Config_->TestingOptions) {
+        MaybeDelay(Config_->TestingOptions->DelayInSettleJob);
+    }
+
+    // NB(pogorelov): Node may be unregistered concurrently.
+    nodeInfo = FindNodeInfo(nodeId);
+    if (!nodeInfo) {
+        YT_LOG_INFO("Node has been unregistered from job tracker during settle job request processing");
+
+        THROW_ERROR_EXCEPTION("Node has been unregistered from job tracker during settle job request processing")
+            << TErrorAttribute("incarnation_id", IncarnationId_);
+    }
+
     // NB(pogorelov): Allocation may finish concurrently.
     allocationInfo = nodeInfo->Jobs.FindAllocation(allocationId);
     if (!allocationInfo) {
