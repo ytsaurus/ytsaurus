@@ -2127,11 +2127,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
             tableSchema,
             tableSchemaId);
 
-        const auto& configManager = Bootstrap_->GetConfigManager();
-        const auto& dynamicConfig = configManager->GetConfig()->ChunkManager;
-        if (tableSchema || tableSchemaId ||
-            !dynamicConfig->SchemalessEndUploadPreservesTableSchema)
-        {
+        if (tableSchema || tableSchemaId) {
             // Either a new client that sends schema info with BeginUpload,
             // or an old client that aims for an empty schema.
             // If the first case, we should leave the table schema intact.
