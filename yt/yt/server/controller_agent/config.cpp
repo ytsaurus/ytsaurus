@@ -572,6 +572,12 @@ void TUserFileLimitsPatchConfig::Register(TRegistrar registrar)
         .Default();
 }
 
+void TJobTrackerTestingOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("delay_in_settle_job", &TThis::DelayInSettleJob)
+        .Default();
+}
+
 void TJobTrackerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("node_disconnection_timeout", &TThis::NodeDisconnectionTimeout)
@@ -592,6 +598,8 @@ void TJobTrackerConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("check_node_heartbeat_sequential_id", &TThis::CheckNodeHeartbeatSequentialId)
         .Default(false);
+    registrar.Parameter("testing_options", &TThis::TestingOptions)
+        .Default();
 }
 
 void TDockerRegistryConfig::Register(TRegistrar registrar)

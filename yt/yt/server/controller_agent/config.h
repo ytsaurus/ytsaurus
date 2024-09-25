@@ -705,6 +705,20 @@ DEFINE_REFCOUNTED_TYPE(TUserFileLimitsPatchConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobTrackerTestingOptions
+    : public NYTree::TYsonStruct
+{
+public:
+    NScheduler::TDelayConfigPtr DelayInSettleJob;
+
+    REGISTER_YSON_STRUCT(TJobTrackerTestingOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DECLARE_REFCOUNTED_CLASS(TJobTrackerTestingOptions)
+DEFINE_REFCOUNTED_TYPE(TJobTrackerTestingOptions)
+
 class TJobTrackerConfig
     : public NYTree::TYsonStruct
 {
@@ -719,6 +733,8 @@ public:
 
     bool EnableGracefulAbort;
     bool CheckNodeHeartbeatSequentialId;
+
+    TJobTrackerTestingOptionsPtr TestingOptions;
 
     REGISTER_YSON_STRUCT(TJobTrackerConfig);
 
