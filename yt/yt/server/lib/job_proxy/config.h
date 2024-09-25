@@ -358,6 +358,7 @@ public:
     //! Docker image to build root volume as part of a container.
     std::optional<TString> DockerImage;
 
+    // COMPAT(artemagafonov): RootFS is always writable, so the flag should be removed after the update of all nodes.
     bool MakeRootFSWritable;
 
     //! Enable mount of fuse device to user job container.
