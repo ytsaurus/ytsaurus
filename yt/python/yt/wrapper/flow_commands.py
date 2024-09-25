@@ -1,5 +1,6 @@
 from .common import set_param
 from .driver import make_request, make_formatted_request, get_structured_format
+from .dynamic_table_commands import select_rows
 from .ypath import YPath
 
 
@@ -198,3 +199,29 @@ def get_flow_view(pipeline_path, view_path=None, format=None, client=None):
         format=format,
         client=client)
     return result
+
+
+def get_controller_logs(pipeline_path, count, offset=None, client=None):
+    """Get YT Flow controller logs
+
+    :param pipeline_path: path to pipeline
+    :param count: the number of last logs
+    :param offset: id of start log row
+    """
+
+    assert count > 0, "'count' must be positive"
+
+    if offset is None:
+        last_offset = list(select_rows(
+            f"MAX([$row_index]) AS value FROM [{pipeline_path}/controller_logs] GROUP BY [$tablet_index]",
+            raw=False,
+            client=client))[0]
+        offset = max(last_offset["value"] - count + 1, 0)
+
+    end = offset + count - 1
+    result = list(select_rows(
+        f"host, data FROM [{pipeline_path}/controller_logs] WHERE [$tablet_index] = 0 AND [$row_index] BETWEEN {offset} AND {end}",
+        raw=False,
+        client=client))
+
+    return result, offset + len(result)

@@ -17,6 +17,7 @@ from yt.wrapper.constants import GETTINGSTARTED_DOC_URL, TUTORIAL_DOC_URL
 from yt.wrapper.default_config import get_default_config, RemotePatchableValueBase
 from yt.wrapper.admin_commands import add_switch_leader_parser
 from yt.wrapper.dirtable_commands import add_dirtable_parsers
+from yt.wrapper.flow_commands import get_controller_logs
 from yt.wrapper.spec_builders import (
     MapSpecBuilder, ReduceSpecBuilder, MapReduceSpecBuilder, EraseSpecBuilder,
     MergeSpecBuilder, SortSpecBuilder, JoinReduceSpecBuilder, RemoteCopySpecBuilder,
@@ -2445,6 +2446,7 @@ def add_flow_parser(root_subparsers):
     add_flow_remove_pipeline_dynamic_spec_parser(add_flow_subparser)
     add_flow_get_pipeline_state_parser(add_flow_subparser)
     add_flow_get_flow_view_parser(add_flow_subparser)
+    add_flow_show_logs_parser(add_flow_subparser)
 
 
 def add_flow_start_pipeline_parser(add_parser):
@@ -2544,6 +2546,44 @@ def add_flow_get_flow_view_parser(add_parser):
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
     add_structured_format_argument(parser, default=output_format)
     parser.add_argument("--view-path", help="Path to part of the view")
+
+
+@copy_docstring_from(get_controller_logs)
+def show_flow_logs(**kwargs):
+    attach = kwargs.pop("attach")
+    rate = kwargs.pop("rate")
+    print_host = kwargs.pop("print_host")
+
+    def format(value):
+        prefix = ""
+        if print_host:
+            prefix = f"Host: {value['host']}\t"
+        return prefix + value["data"] + "\n"
+
+    if not attach:
+        result, _ = get_controller_logs(**kwargs)
+        write_silently((format(value) for value in result), True)
+        return
+
+    offset = None
+    while True:
+        result, offset = get_controller_logs(offset=offset, **kwargs)
+        write_silently((format(value) for value in result), True)
+        time.sleep(rate)
+
+
+def add_flow_show_logs_parser(add_parser):
+    parser = add_parser("show-logs", show_flow_logs,
+                        help="Show YT FLow logs")
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    parser.add_argument("--count", type=int, default=25,
+                        help="The number of last logs")
+    parser.add_argument("--attach", action="store_true", default=False,
+                        help="Attach to the logs stream")
+    parser.add_argument("--rate", type=int, default=2,
+                        help="Logs reading period in seconds")
+    parser.add_argument("--print-host", action="store_true", default=False,
+                        help="Print controller's hostname")
 
 
 @copy_docstring_from(yt.run_command_with_lock)
