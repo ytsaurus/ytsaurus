@@ -1071,6 +1071,8 @@ public:
 
     TDuration IOStatisticsUpdateTimeout;
 
+    std::optional<double> ReadMetaTimeoutFraction;
+
     TIOThroughputMeterConfigPtr IOThroughputMeter;
 
     TRemoveChunkJobDynamicConfigPtr RemoveChunkJob;

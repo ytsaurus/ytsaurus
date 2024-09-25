@@ -973,6 +973,24 @@ private:
         });
     }
 
+    template <class TContext>
+    TChunkReadOptions BuildReadMetaOption(const TIntrusivePtr<TContext>& context)
+    {
+        TChunkReadOptions options;
+        options.WorkloadDescriptor = GetRequestWorkloadDescriptor(context);
+        options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
+        auto readMetaTimeoutFraction = GetDynamicConfig()->ReadMetaTimeoutFraction;
+
+        if (context->GetTimeout() && context->GetStartTime() && readMetaTimeoutFraction) {
+            options.Deadline =
+                *context->GetStartTime() +
+                *context->GetTimeout() * readMetaTimeoutFraction.value();
+        }
+
+        return options;
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockSet)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
@@ -1582,9 +1600,7 @@ private:
         const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->GetChunkOrThrow(chunkId, AllMediaIndex);
 
-        TChunkReadOptions options;
-        options.WorkloadDescriptor = workloadDescriptor;
-        options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        auto options = BuildReadMetaOption(context);
 
         struct TReadMetaResult
         {
@@ -1644,14 +1660,12 @@ private:
         }).AsyncVia(Bootstrap_->GetStorageHeavyInvoker())));
     }
 
-    template <class TRequests>
+    template <class TContext, class TRequests>
     TFuture<std::vector<TErrorOr<TRefCountedChunkMetaPtr>>> GetChunkMetasForRequests(
-        const TWorkloadDescriptor& workloadDescriptor,
+        const TIntrusivePtr<TContext>& context,
         const TRequests& requests)
     {
-        TChunkReadOptions options;
-        options.WorkloadDescriptor = workloadDescriptor;
-        options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        auto options = BuildReadMetaOption(context);
 
         std::vector<TFuture<TRefCountedChunkMetaPtr>> chunkMetaFutures;
         for (const auto& request : requests) {
@@ -1680,7 +1694,7 @@ private:
 
         ValidateOnline();
 
-        GetChunkMetasForRequests(workloadDescriptor, request->chunk_requests())
+        GetChunkMetasForRequests(context, request->chunk_requests())
             .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>>& resultsError) {
                 if (!resultsError.IsOK()) {
                     context->Reply(resultsError);
@@ -1777,7 +1791,7 @@ private:
 
         ValidateOnline();
 
-        GetChunkMetasForRequests(workloadDescriptor, request->slice_requests())
+        GetChunkMetasForRequests(context, request->slice_requests())
             .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>>& resultsError) {
                 if (!resultsError.IsOK()) {
                     context->Reply(resultsError);
@@ -1866,7 +1880,7 @@ private:
 
         ValidateOnline();
 
-        GetChunkMetasForRequests(workloadDescriptor, request->sample_requests())
+        GetChunkMetasForRequests(context, request->sample_requests())
             .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>>& resultsError) {
                 if (!resultsError.IsOK()) {
                     context->Reply(resultsError);
@@ -2158,9 +2172,7 @@ private:
                 columnStableNames.emplace_back(TString(nameTable->GetNameOrThrow(id)));
             }
 
-            TChunkReadOptions options;
-            options.WorkloadDescriptor = workloadDescriptor;
-            options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+            auto options = BuildReadMetaOption(context);
 
             auto chunkMetaFuture = chunk->ReadMeta(options)
                 .Apply(BIND(
