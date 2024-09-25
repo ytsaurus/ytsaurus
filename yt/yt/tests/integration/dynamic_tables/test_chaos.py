@@ -900,6 +900,42 @@ class TestChaos(ChaosTestBase):
         wait(lambda: _pull_rows(2) == values)
         wait(lambda: _pull_rows(1) == values)
 
+    @authors("osidorkin")
+    def test_replica_move(self):
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t0"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t1"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r1"},
+        ]
+
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows(replicas[0]["replica_path"], values)
+        assert lookup_rows(replicas[1]["replica_path"], [{"key": 0}]) == values
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, mode="async")
+
+        sync_unmount_table(replicas[1]["replica_path"])
+        new_replica_path = "//tmp/t2"
+        alter_table_replica(replica_ids[1], replica_path=new_replica_path)
+        move(replicas[1]["replica_path"], new_replica_path)
+        replicas[1]["replica_path"] = new_replica_path
+        sync_mount_table(replicas[1]["replica_path"])
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, mode="sync")
+
+        values1 = [{"key": 1, "value": "1"}]
+        insert_rows(replicas[0]["replica_path"], values1)
+        assert lookup_rows(replicas[0]["replica_path"], [{"key": 1}]) == values1
+        assert lookup_rows(replicas[1]["replica_path"], [{"key": 1}]) == values1
+        assert lookup_rows(replicas[1]["replica_path"], [{"key": 0}]) == values
+
+        with pytest.raises(YtResponseError):
+            alter_table_replica(replica_ids[1], replica_path=replicas[0]["replica_path"])
+
     @authors("savrus")
     @pytest.mark.parametrize("content", ["data", "queue", "both"])
     def test_resharded_replication(self, content):
