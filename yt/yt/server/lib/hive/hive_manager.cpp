@@ -622,7 +622,8 @@ private:
                 firstMessageId,
                 firstMessageId + messageCount - 1);
 
-            mailbox->SetNextTransientIncomingMessageId(nextTransientIncomingMessageId + messageCount);
+            nextTransientIncomingMessageId += messageCount;
+            mailbox->SetNextTransientIncomingMessageId(nextTransientIncomingMessageId);
         }
 
         response->set_next_transient_incoming_message_id(nextTransientIncomingMessageId);
