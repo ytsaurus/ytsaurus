@@ -2836,7 +2836,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyConfig->GpuIndexes.push_back(slot->GetDeviceIndex());
     }
 
-    proxyConfig->MakeRootFSWritable = UserJobSpec_ && UserJobSpec_->make_rootfs_writable();
+    // COMPAT(artemagafonov): RootFS is always writable, so the flag should be removed after the update of all nodes.
+    proxyConfig->MakeRootFSWritable = true;
 
     // TODO(ignat): add option to disable fuse within exec node.
     proxyConfig->EnableFuse = UserJobSpec_ && UserJobSpec_->enable_fuse();
