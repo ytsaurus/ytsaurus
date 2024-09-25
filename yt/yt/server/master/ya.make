@@ -17,6 +17,7 @@ SRCS(
     cell_master/master_hydra_service.cpp
     cell_master/multi_phase_cell_sync_session.cpp
     cell_master/multicell_manager.cpp
+    cell_master/persistent_state_transient_cache.cpp
     cell_master/proto/alert_manager.proto
     cell_master/proto/epoch_history_manager.proto
     cell_master/proto/multicell_manager.proto

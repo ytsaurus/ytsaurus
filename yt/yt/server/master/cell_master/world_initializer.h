@@ -16,11 +16,6 @@ public:
     //! Checks if the cluster is initialized. Throws if not.
     virtual void ValidateInitialized() = 0;
 
-    //! Does the same thing as ValidateInitialized() but thread-safe.
-    // TODO(kvk1920): move it into the separate interface like
-    // IWorldInitializationObserver.
-    virtual void ValidateInitialized_AnyThread() = 0;
-
     //! Returns |true| if provision lock is active.
     //! May only be called on the primary cell.
     virtual bool HasProvisionLock() = 0;
