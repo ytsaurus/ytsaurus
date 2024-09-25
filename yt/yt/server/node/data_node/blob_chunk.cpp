@@ -277,9 +277,22 @@ void TBlobChunkBase::DoReadMeta(
 
     TRefCountedChunkMetaPtr meta;
     TWallTimer readTimer;
+
+    auto finalize = Finally([&] {
+        auto readTime = readTimer.GetElapsedTime();
+
+        session->Options.ChunkReaderStatistics->MetaReadFromDiskTime.fetch_add(
+            DurationToValue(readTime),
+            std::memory_order::relaxed);
+
+        auto& performanceCounters = Location_->GetPerformanceCounters();
+        performanceCounters.BlobChunkMetaReadTime.Record(readTime);
+    });
+
     try {
         auto reader = GetReader();
-        meta = WaitFor(reader->GetMeta(session->Options))
+        meta = WaitFor(reader->GetMeta(session->Options)
+            .WithDeadline(session->Options.Deadline))
             .ValueOrThrow();
     } catch (const std::exception& ex) {
         auto error = TError(ex);
@@ -305,20 +318,12 @@ void TBlobChunkBase::DoReadMeta(
         return;
     }
 
-    auto readTime = readTimer.GetElapsedTime();
-
-    session->Options.ChunkReaderStatistics->MetaReadFromDiskTime.fetch_add(
-        DurationToValue(readTime),
-        std::memory_order::relaxed);
-
-    auto& performanceCounters = Location_->GetPerformanceCounters();
-    performanceCounters.BlobChunkMetaReadTime.Record(readTime);
-
+    readTimer.Stop();
     YT_LOG_DEBUG("Finished reading chunk meta (ChunkId: %v, LocationId: %v, ReadSessionId: %v, ReadTime: %v)",
         Id_,
         Location_->GetId(),
         session->Options.ReadSessionId,
-        readTime);
+        readTimer.GetElapsedTime());
 
     Context_->ChunkMetaManager->EndInsertCachedMeta(std::move(cookie), std::move(meta));
 }
