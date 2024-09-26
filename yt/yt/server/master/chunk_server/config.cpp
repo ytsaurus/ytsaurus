@@ -702,9 +702,6 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_chunk_schemas", &TThis::EnableChunkSchemas)
         .Default(true);
 
-    registrar.Parameter("schemaless_end_upload_preserves_table_schema", &TThis::SchemalessEndUploadPreservesTableSchema)
-        .Default(true);
-
     registrar.Parameter("enable_two_random_choices_write_target_allocation", &TThis::EnableTwoRandomChoicesWriteTargetAllocation)
         .Default(false)
         .DontSerializeDefault();
