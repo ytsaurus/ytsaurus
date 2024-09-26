@@ -55,6 +55,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((TeleportedOutputRowCount)             (301515))
     // 24.2 starts here
     ((BumpTo_24_2)                          (301600))
+    ((DropLegacyWirePartitionKeys)          (301601))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

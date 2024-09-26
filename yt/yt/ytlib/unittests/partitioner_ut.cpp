@@ -2,6 +2,7 @@
 #include <yt/yt/ytlib/table_client/partitioner.h>
 
 #include <yt/yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/key_bound.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -29,15 +30,15 @@ TUnversionedOwningRow MakeRow(std::vector<int> values, bool addMax = false)
 
 TEST(TPartitionerTest, Ordered)
 {
-    auto keySetWriter = New<TKeySetWriter>();
-    keySetWriter->WriteKey(TUnversionedRow(MakeRow({1})));
-    keySetWriter->WriteKey(TUnversionedRow(MakeRow({6}, /*addMax*/ true)));
-    keySetWriter->WriteKey(TUnversionedRow(MakeRow({8})));
-    keySetWriter->WriteKey(TUnversionedRow(MakeRow({8})));
-    auto wirePivots = keySetWriter->Finish();
+    std::vector<TOwningKeyBound> partitionLowerBounds;
+    partitionLowerBounds.emplace_back(TOwningKeyBound::MakeUniversal(/*isUpper*/ false));
+    partitionLowerBounds.push_back(TOwningKeyBound::FromRow(MakeRow({1}), /*isInclusive*/ true, /*isUpper*/ false));
+    partitionLowerBounds.push_back(TOwningKeyBound::FromRow(MakeRow({6}), /*isInclusive*/ false, /*isUpper*/ false));
+    partitionLowerBounds.push_back(TOwningKeyBound::FromRow(MakeRow({8}), /*isInclusive*/ true, /*isUpper*/ false));
+    partitionLowerBounds.push_back(TOwningKeyBound::FromRow(MakeRow({8}), /*isInclusive*/ true, /*isUpper*/ false));
 
     TComparator comparator(std::vector<ESortOrder>({ESortOrder::Ascending}));
-    auto partitioner = CreateOrderedPartitioner(wirePivots, comparator);
+    auto partitioner = CreateOrderedPartitioner(std::move(partitionLowerBounds), comparator);
 
     EXPECT_EQ(5, partitioner->GetPartitionCount());
     EXPECT_EQ(0, partitioner->GetPartitionIndex(MakeRow({0})));
