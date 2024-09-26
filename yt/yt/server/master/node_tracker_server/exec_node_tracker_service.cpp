@@ -2,12 +2,11 @@
 
 #include "private.h"
 #include "exec_node_tracker.h"
-#include "node.h"
-#include "node_tracker.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/world_initializer.h>
+#include <yt/yt/server/master/cell_master/master_hydra_service.h>
 
 #include <yt/yt/ytlib/exec_node_tracker_client/exec_node_tracker_service_proxy.h>
 
@@ -23,14 +22,16 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExecNodeTrackerService
-    : public NRpc::TServiceBase
+    : public THydraServiceBase
 {
 public:
     explicit TExecNodeTrackerService(TBootstrap* bootstrap)
-        : TServiceBase(
+        : THydraServiceBase(
+            bootstrap->GetHydraFacade()->GetHydraManager(),
             TDispatcher::Get()->GetHeavyInvoker(),
             TExecNodeTrackerServiceProxy::GetDescriptor(),
             NodeTrackerServerLogger(),
+            CreateMulticellUpstreamSynchronizer(bootstrap),
             NRpc::TServiceOptions{
                 .RealmId = bootstrap->GetCellId(),
                 .Authenticator =bootstrap->GetNativeAuthenticator(),
