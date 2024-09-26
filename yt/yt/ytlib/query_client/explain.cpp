@@ -52,6 +52,7 @@ void GetReadRangesInfo(
     queryOptions.VerboseLogging = options.VerboseLogging;
     queryOptions.NewRangeInference = options.NewRangeInference;
     queryOptions.MaxSubqueries = options.MaxSubqueries;
+    queryOptions.MinRowCountPerSubquery = options.MinRowCountPerSubquery;
 
     auto Logger = MakeQueryLogger(query);
 

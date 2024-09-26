@@ -615,10 +615,11 @@ private:
                 // Copy query to generate new id.
                 auto bottomQuery = New<TQuery>(*bottomQueryPattern);
 
-                YT_LOG_DEBUG("Delegating subquery (SubQueryId: %v, Address: %v, MaxSubqueries: %v)",
+                YT_LOG_DEBUG("Delegating subquery (SubQueryId: %v, Address: %v, MaxSubqueries: %v, MinRowCountPerSubquery: %v)",
                     bottomQuery->Id,
                     address,
-                    options.MaxSubqueries);
+                    options.MaxSubqueries,
+                    options.MinRowCountPerSubquery);
 
                 return Delegate(
                     bottomQuery,
