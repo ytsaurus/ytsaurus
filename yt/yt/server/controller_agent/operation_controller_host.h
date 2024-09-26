@@ -111,7 +111,8 @@ public:
     void ReleaseJobs(std::vector<TJobToRelease> jobs) override;
     void AbortJob(
         TJobId jobId,
-        NScheduler::EAbortReason abortReason) override;
+        NScheduler::EAbortReason abortReason,
+        bool requestNewJob) override;
 
     std::optional<TJobMonitoringDescriptor> TryAcquireJobMonitoringDescriptor(TOperationId operationId) override;
     bool ReleaseJobMonitoringDescriptor(TOperationId operationId, TJobMonitoringDescriptor descriptor) override;

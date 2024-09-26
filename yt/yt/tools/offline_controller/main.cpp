@@ -131,7 +131,8 @@ public:
 
     void AbortJob(
         TJobId /*jobId*/,
-        NScheduler::EAbortReason /*abortReason*/) override
+        NScheduler::EAbortReason /*abortReason*/,
+        bool /*requestNewJob*/) override
     {
         YT_UNIMPLEMENTED();
     }

@@ -1386,6 +1386,18 @@ DEFINE_REFCOUNTED_TYPE(TOptionalUserJobSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGangManagerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    REGISTER_YSON_STRUCT(TGangManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DECLARE_REFCOUNTED_CLASS(TGangManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TGangManagerConfig)
+
 class TVanillaTaskSpec
     : public TMandatoryUserJobSpec
 {
@@ -1398,6 +1410,8 @@ public:
     std::vector<NYPath::TRichYPath> OutputTablePaths;
 
     bool RestartCompletedJobs;
+
+    TGangManagerConfigPtr GangManager;
 
     REGISTER_YSON_STRUCT(TVanillaTaskSpec);
 

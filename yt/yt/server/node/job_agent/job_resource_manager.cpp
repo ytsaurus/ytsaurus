@@ -1854,6 +1854,13 @@ void TResourceHolder::PrepareResourcesRelease() noexcept
     }
 }
 
+EResourcesState TResourceHolder::GetState() const noexcept
+{
+    auto guard = ReaderGuard(ResourcesLock_);
+
+    return State_;
+}
+
 TJobResources TResourceHolder::TotalResourceUsage() const noexcept
 {
     VERIFY_SPINLOCK_AFFINITY(ResourcesLock_);

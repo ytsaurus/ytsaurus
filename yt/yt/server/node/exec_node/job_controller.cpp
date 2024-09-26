@@ -1210,7 +1210,7 @@ private:
             for (const auto& protoJobToConfirm : response->jobs_to_confirm()) {
                 auto jobToConfirm = FromProto<NControllerAgent::TJobToConfirm>(protoJobToConfirm);
 
-                YT_LOG_DEBUG("Controller agent requested to confirm job (JobId: %v, AgentDescriptor: %v)", jobToConfirm.JobId, agentDescriptor);
+                YT_LOG_DEBUG("Controller agent requested to confirm job (JobId: %v)", jobToConfirm.JobId);
 
                 if (auto job = FindJob(jobToConfirm.JobId)) {
                     if (job->GetControllerAgentDescriptor() != agentDescriptor) {
@@ -1231,21 +1231,18 @@ private:
 
             if (auto job = FindJob(jobId)) {
                 YT_LOG_DEBUG(
-                    "Controller agent requested to interrupt job (JobId: %v, InterruptionReason: %v, AgentDescriptor: %v)",
+                    "Controller agent requested to interrupt job (JobId: %v, InterruptionReason: %v)",
                     jobId,
-                    interruptionReason,
-                    agentDescriptor);
+                    interruptionReason);
 
-                job->Interrupt(
-                    timeout,
+                InterruptJob(
+                    job,
                     interruptionReason,
-                    /*preemptionReason*/ std::nullopt,
-                    /*preemptedFor*/ std::nullopt);
+                    timeout);
             } else {
                 YT_LOG_WARNING(
-                    "Controller agent requested to interrupt a non-existent job (JobId: %v, AgentDescriptor: %v)",
-                    jobId,
-                    agentDescriptor);
+                    "Controller agent requested to interrupt a non-existent job (JobId: %v)",
+                    jobId);
             }
         }
 
@@ -1271,17 +1268,16 @@ private:
 
             if (auto job = FindJob(jobToAbort.JobId)) {
                 YT_LOG_DEBUG(
-                    "Controller agent requested to abort job (JobId: %v, AgentDescriptor: %v)",
+                    "Controller agent requested to abort job (JobId: %v, RequestNewJobs: %v)",
                     jobToAbort.JobId,
-                    agentDescriptor);
+                    jobToAbort.RequestNewJob);
 
-                AbortJob(job, jobToAbort.AbortReason, jobToAbort.Graceful);
+                AbortJob(job, jobToAbort.AbortReason, jobToAbort.Graceful, jobToAbort.RequestNewJob);
             } else {
                 YT_LOG_WARNING(
-                    "Controller agent requested to abort a non-existent job (JobId: %v, AbortReason: %v, AgentDescriptor: %v)",
+                    "Controller agent requested to abort a non-existent job (JobId: %v, AbortReason: %v)",
                     jobToAbort.JobId,
-                    jobToAbort.AbortReason,
-                    agentDescriptor);
+                    jobToAbort.AbortReason);
             }
         }
 
@@ -1291,23 +1287,21 @@ private:
 
             if (auto job = FindJob(jobId)) {
                 YT_LOG_DEBUG(
-                    "Controller agent requested to remove job (JobId: %v, AgentDescriptor: %v, ReleaseFlags: %v)",
+                    "Controller agent requested to remove job (JobId: %v, ReleaseFlags: %v)",
                     jobId,
-                    agentDescriptor,
                     jobToRemove.ReleaseFlags);
 
                 if (job->IsFinished()) {
                     RemoveJob(job, jobToRemove.ReleaseFlags);
                 } else {
                     YT_LOG_DEBUG("Requested to remove running job; aborting job (JobId: %v, JobState: %v)", jobId, job->GetState());
-                    AbortJob(job, EAbortReason::Other);
+                    AbortJob(job, EAbortReason::Other, /*graceful*/ false, /*requestNewJob*/ false);
                     RemoveJob(job, jobToRemove.ReleaseFlags);
                 }
             } else {
                 YT_LOG_WARNING(
-                    "Controller agent requested to remove a non-existent job (JobId: %v, AgentDescriptor: %v)",
-                    jobId,
-                    agentDescriptor);
+                    "Controller agent requested to remove a non-existent job (JobId: %v)",
+                    jobId);
             }
         }
 
@@ -1315,9 +1309,8 @@ private:
             auto operationId = NYT::FromProto<TOperationId>(protoOperationId);
 
             YT_LOG_DEBUG(
-                "Operation is not handled by agent, reset it for jobs (OperationId: %v, AgentDescriptor: %v)",
-                operationId,
-                agentDescriptor);
+                "Operation is not handled by agent, reset it for jobs (OperationId: %v)",
+                operationId);
 
             UpdateOperationControllerAgent(operationId, {});
         }
@@ -1630,11 +1623,24 @@ private:
         allocation->Abort(std::move(error));
     }
 
-    void AbortJob(const TJobPtr& job, EAbortReason abortReason, bool graceful = false)
+    void AbortJob(const TJobPtr& job, EAbortReason abortReason, bool graceful, bool requestNewJob)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_INFO("Aborting job (JobId: %v, AbortReason: %v)",
+        if (const auto& allocation = job->GetAllocation();
+            !allocation || allocation->IsFinished())
+        {
+            auto Logger = NExecNode::Logger().WithTag("JobId: %v", job->GetId());
+            if (allocation) {
+                Logger.AddTag("AllocationId: %v", allocation->GetId());
+            }
+
+            YT_LOG_INFO("Job abortion skipped since it is not settled in running allocation");
+            return;
+        }
+
+        YT_LOG_INFO(
+            "Aborting job (JobId: %v, AbortReason: %v)",
             job->GetId(),
             abortReason);
 
@@ -1642,14 +1648,35 @@ private:
             << TErrorAttribute("abort_reason", abortReason)
             << TErrorAttribute("graceful_abort", graceful);
 
-        DoAbortJob(job, std::move(error), graceful);
+        DoAbortJob(job, std::move(error), graceful, requestNewJob);
     }
 
-    void DoAbortJob(const TJobPtr& job, TError abortionError, bool graceful = false)
+    void DoAbortJob(const TJobPtr& job, TError abortionError, bool graceful, bool requestNewJob)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        job->Abort(std::move(abortionError), graceful);
+        YT_VERIFY(job->GetAllocation());
+
+        job->GetAllocation()->AbortJob(std::move(abortionError), graceful, requestNewJob);
+    }
+
+    void InterruptJob(const TJobPtr& job, EInterruptReason interruptionReason, TDuration interruptionTimeout)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        if (const auto& allocation = job->GetAllocation();
+            !allocation || allocation->IsFinished())
+        {
+            auto Logger = NExecNode::Logger().WithTag("JobId: %v", job->GetId());
+            if (allocation) {
+                Logger.AddTag("AllocationId: %v", allocation->GetId());
+            }
+
+            YT_LOG_INFO("Job interruption skipped since it is not settled in running allocation");
+            return;
+        }
+
+        job->GetAllocation()->InterruptJob(interruptionReason, interruptionTimeout);
     }
 
     void RemoveJob(
@@ -1663,7 +1690,7 @@ private:
 
         auto jobId = job->GetId();
 
-        YT_LOG_WARNING_IF(
+        YT_LOG_DEBUG_IF(
             job->GetAllocation(),
             "Removing job settled in allocation (JobId: %v)",
             job->GetId());
@@ -1862,11 +1889,10 @@ private:
         for (const auto& job : GetJobs()) {
             try {
                 YT_LOG_DEBUG(error, "Trying to interrupt job (JobId: %v)", job->GetId());
-                job->Interrupt(
-                    GetDynamicConfig()->DisabledJobsInterruptionTimeout,
+                InterruptJob(
+                    job,
                     EInterruptReason::JobsDisabledOnNode,
-                    /*preemptionReason*/ {},
-                    /*preemptedFor*/ {});
+                    GetDynamicConfig()->DisabledJobsInterruptionTimeout);
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Failed to interrupt job");
             }

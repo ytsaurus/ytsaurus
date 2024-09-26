@@ -211,6 +211,8 @@ TJob::TJob(
     VERIFY_THREAD_AFFINITY(JobThread);
     YT_VERIFY(JobInputCache_);
 
+    YT_LOG_DEBUG("Creating job");
+
     PackBaggageFromJobSpec(TraceContext_, JobSpec_, OperationId_, Id_);
 
     SupportedMonitoringSensors_ = CommonConfig_->UserJobMonitoring->Sensors;
@@ -225,6 +227,7 @@ TJob::TJob(
 
 TJob::~TJob()
 {
+    YT_LOG_DEBUG("Destroying job");
     // Offload job spec destruction to a large thread pool.
     NRpc::TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(
         BIND_NO_PROPAGATE([jobSpec = std::move(JobSpec_)]{ }));
@@ -1689,6 +1692,8 @@ bool TJob::GetStored() const
 void TJob::SetStored()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
+
+    YT_LOG_DEBUG("Requested to store job");
 
     Stored_ = true;
     LastStoredTime_ = TInstant::Now();

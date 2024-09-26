@@ -131,6 +131,15 @@ public:
         PreparationCanceled_ = true;
     }
 
+    void Prepare() override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        VerifyEnabled();
+
+        PreparationCanceled_ = false;
+    }
+
     TFuture<void> RunJobProxy(
         NJobProxy::TJobProxyInternalConfigPtr config,
         TJobId jobId,

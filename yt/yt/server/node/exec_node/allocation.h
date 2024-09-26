@@ -11,6 +11,16 @@ namespace NYT::NExecNode {
 class TAllocation
     : public NJobAgent::TResourceOwner
 {
+    class TEvent
+    {
+    public:
+        void Fire() noexcept;
+        bool Consume() noexcept;
+
+    private:
+        bool Fired_ = false;
+    };
+
 public:
     // TODO(pogorelov): Implement one-shot signals and use it here.
     DEFINE_SIGNAL(void(TAllocationPtr allocation, TDuration waitingForResourcesTimeout), AllocationPrepared);
@@ -69,6 +79,12 @@ public:
 
     NYTree::IYPathServicePtr GetOrchidService();
 
+    bool IsRunning() const noexcept;
+    bool IsFinished() const noexcept;
+
+    void AbortJob(TError error, bool graceful, bool requestNewJob);
+    void InterruptJob(NScheduler::EInterruptReason interruptionReason, TDuration interruptionTimeout);
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
@@ -99,6 +115,8 @@ private:
 
     bool Preempted_ = false;
     TError FinishError_;
+
+    TEvent SettlementNewJobOnAbortRequested_;
 
     const TAllocationConfigPtr& GetConfig() const noexcept;
 
