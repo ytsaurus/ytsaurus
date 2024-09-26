@@ -1744,6 +1744,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         : NCodegen::EExecutionBackend::Native;
     queryOptions.EnableCodeCache = options.EnableCodeCache;
     queryOptions.MaxSubqueries = options.MaxSubqueries;
+    queryOptions.MinRowCountPerSubquery = options.MinRowCountPerSubquery;
     queryOptions.WorkloadDescriptor = options.WorkloadDescriptor;
     queryOptions.InputRowLimit = inputRowLimit;
     queryOptions.OutputRowLimit = outputRowLimit;

@@ -3868,6 +3868,9 @@ private:
         if (request->has_use_lookup_cache()) {
             options.UseLookupCache = request->use_lookup_cache();
         }
+        if (request->has_min_row_count_per_subquery()) {
+            options.MinRowCountPerSubquery = request->min_row_count_per_subquery();
+        }
 
         auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
         options.DetailedProfilingInfo = detailedProfilingInfo;
