@@ -3028,6 +3028,7 @@ private:
         fluent
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "running_operation_count", element->RunningOperationCount())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "lightweight_running_operation_count", element->LightweightRunningOperationCount())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "schedulable_operation_count", element->SchedulableOperationCount())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "pool_operation_count", element->GetChildOperationCount())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "operation_count", element->OperationCount())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "max_running_operation_count", element->GetMaxRunningOperationCount())
