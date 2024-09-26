@@ -14,20 +14,22 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_library(library-cpp-resource)
+add_library(cpp-containers-absl_flat_hash)
 
 
-target_link_libraries(library-cpp-resource PUBLIC
+target_include_directories(cpp-containers-absl_flat_hash PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp
+)
+
+target_link_libraries(cpp-containers-absl_flat_hash PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  cpp-containers-absl_flat_hash
-  cpp-blockcodecs-core
-  blockcodecs-codecs-zstd
+  abseil-cpp-absl-container
 )
 
-target_sources(library-cpp-resource PRIVATE
-  ${PROJECT_SOURCE_DIR}/library/cpp/resource/registry.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/resource/resource.cpp
+target_sources(cpp-containers-absl_flat_hash PRIVATE
+  ${PROJECT_SOURCE_DIR}/library/cpp/containers/absl_flat_hash/flat_hash_map.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/containers/absl_flat_hash/flat_hash_set.cpp
 )
 
