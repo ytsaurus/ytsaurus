@@ -56,11 +56,17 @@ public:
         if (options.Mode) {
             req->set_mode(ToProto<int>(*options.Mode));
         }
+
         if (options.Enabled) {
             req->set_enabled(*options.Enabled);
         }
+
         if (options.EnableReplicatedTableTracker) {
             req->set_enable_replicated_table_tracker(*options.EnableReplicatedTableTracker);
+        }
+
+        if(options.ReplicaPath) {
+            req->set_replica_path(*options.ReplicaPath);
         }
 
         WaitFor(req->Invoke())

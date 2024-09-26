@@ -163,6 +163,7 @@ message TReqAlterTableReplica
     optional int32 mode = 3; // NTabletClient::ETableReplicaMode
     optional bool enabled = 4;
     optional bool enable_replicated_table_tracker = 5;
+    optional string replica_path = 6;
 }
 
 message TRspAlterTableReplica

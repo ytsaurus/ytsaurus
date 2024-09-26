@@ -237,11 +237,16 @@ private:
             ? std::make_optional(request->enabled())
             : std::nullopt;
 
-        context->SetRequestInfo("ReplicationCardId: %v, ReplicaId: %v, Mode: %v, Enabled: %v",
+        auto replicaPath = request->has_replica_path()
+            ? std::make_optional(request->replica_path())
+            : std::nullopt;
+
+        context->SetRequestInfo("ReplicationCardId: %v, ReplicaId: %v, Mode: %v, Enabled: %v, ReplicaPath: %v",
             replicationCardId,
             replicaId,
             mode,
-            enabled);
+            enabled,
+            replicaPath);
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->AlterTableReplica(std::move(context));
