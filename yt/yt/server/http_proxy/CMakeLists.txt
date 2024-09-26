@@ -52,6 +52,7 @@ target_sources(yt-server-http_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/access_checker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/api.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/bootstrap.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/component_discovery.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/coordinator.cpp
@@ -64,6 +65,7 @@ target_sources(yt-server-http_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/profilers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/profiling.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/solomon_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/zookeeper_bootstrap_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/discovery_cache.cpp
