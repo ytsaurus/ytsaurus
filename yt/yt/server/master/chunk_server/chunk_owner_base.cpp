@@ -162,6 +162,15 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() >= EMasterReign::HunkMedia) {
         Load(context, HunkReplication_);
         Load(context, HunkPrimaryMediumIndex_);
+
+        // COMPAT(kazachonok)
+        auto optionalHunkPrimaryMediumIndex = GetHunkPrimaryMediumIndex();
+        if (context.GetVersion() < EMasterReign::OptionalHunkPrimaryMedium
+            && optionalHunkPrimaryMediumIndex
+            && *optionalHunkPrimaryMediumIndex == PrimaryMediumIndex_)
+        {
+            RemoveHunkPrimaryMediumIndex();
+        }
     }
 }
 
@@ -283,6 +292,34 @@ TChunkOwnerDataStatistics* TChunkOwnerBase::MutableDeltaStatistics()
 TSecurityTags TChunkOwnerBase::ComputeSecurityTags() const
 {
     return *SnapshotSecurityTags_ + *DeltaSecurityTags_;
+}
+
+std::optional<int> TChunkOwnerBase::GetHunkPrimaryMediumIndex() const
+{
+    return HunkPrimaryMediumIndex_ == GenericMediumIndex
+        ? std::nullopt
+        : std::make_optional(HunkPrimaryMediumIndex_);
+}
+
+void TChunkOwnerBase::SetHunkPrimaryMediumIndex(std::optional<int> hunkPrimaryMediumIndex)
+{
+    if (hunkPrimaryMediumIndex) {
+        HunkPrimaryMediumIndex_ = *hunkPrimaryMediumIndex;
+    } else {
+        RemoveHunkPrimaryMediumIndex();
+    }
+}
+
+void TChunkOwnerBase::RemoveHunkPrimaryMediumIndex()
+{
+    HunkPrimaryMediumIndex_ = GenericMediumIndex;
+}
+
+int TChunkOwnerBase::GetEffectiveHunkPrimaryMediumIndex() const
+{
+    return HunkPrimaryMediumIndex_ == GenericMediumIndex
+        ? PrimaryMediumIndex_
+        : HunkPrimaryMediumIndex_;
 }
 
 void TChunkOwnerBase::ParseCommonUploadContext(const TCommonUploadContext& /*context*/)

@@ -693,8 +693,10 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
         .SetWritable(true)
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkPrimaryMedium)
+        .SetPresent(node->GetHunkPrimaryMediumIndex().has_value())
         .SetWritable(true)
-        .SetReplicated(true));
+        .SetReplicated(true)
+        .SetRemovable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CompressionCodec)
         .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ErasureCodec)
@@ -840,8 +842,11 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
 
         case EInternedAttributeKey::HunkPrimaryMedium: {
             const auto& chunkManager = Bootstrap_->GetChunkManager();
-            auto primaryHunkMediumIndex = node->GetHunkPrimaryMediumIndex();
-            auto* medium = chunkManager->GetMediumByIndex(primaryHunkMediumIndex);
+            auto hunkPrimaryMediumIndex = node->GetHunkPrimaryMediumIndex();
+            if (!hunkPrimaryMediumIndex) {
+                break;
+            }
+            auto* medium = chunkManager->GetMediumByIndex(*hunkPrimaryMediumIndex);
 
             BuildYsonFluently(consumer)
                 .Value(medium->GetName());
@@ -1274,6 +1279,23 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     return TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value, force);
 }
 
+bool TChunkOwnerNodeProxy::RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key)
+{
+    auto* node = GetThisImpl<TChunkOwnerBase>();
+
+    switch (key) {
+        case EInternedAttributeKey::HunkPrimaryMedium: {
+            node->RemoveHunkPrimaryMediumIndex();
+            return true;
+        }
+
+        default:
+            break;
+    }
+
+    return TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(key);
+}
+
 void TChunkOwnerNodeProxy::OnStorageParametersUpdated()
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
@@ -1356,7 +1378,8 @@ void TChunkOwnerNodeProxy::SetReplication(const TChunkReplication& replication)
 void TChunkOwnerNodeProxy::SetHunkReplication(const TChunkReplication& replication)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
-    auto name = DoSetReplication(&node->HunkReplication(), replication, node->GetHunkPrimaryMediumIndex());
+    auto effectiveMediumIndex = node->GetEffectiveHunkPrimaryMediumIndex();
+    auto name = DoSetReplication(&node->HunkReplication(), replication, effectiveMediumIndex);
     YT_LOG_DEBUG(
         "Chunk owner hunk replication changed (NodeId: %v, Replication: %v, HunkReplication %v)",
         node->GetId(),

@@ -1858,10 +1858,14 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         set("//tmp/q/@hunk_storage_node", "//tmp/h")
         sync_mount_table("//tmp/h")
 
-        hunk_primary_medium = get("//tmp/q/@hunk_primary_medium")
-        assert hunk_primary_medium == medium
-        hunk_media = get("//tmp/q/@hunk_media")
-        assert hunk_primary_medium in hunk_media
+        assert not exists("//tmp/q/@hunk_primary_medium")
+
+        set("//tmp/q/@hunk_primary_medium", medium)
+        assert get("//tmp/q/@hunk_primary_medium") == medium
+        assert medium in get("//tmp/q/@hunk_media").keys()
+
+        remove("//tmp/q/@hunk_primary_medium")
+        assert not exists("//tmp/q/@hunk_primary_medium")
 
     @authors("kivedernikov")
     def test_requisitions_hunk_media(self):
