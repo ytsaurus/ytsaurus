@@ -195,6 +195,7 @@ IJobDirectoryManagerPtr TSlotLocation::GetJobDirectoryManager()
 std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
     int slotIndex,
     TUserSandboxOptions options,
+    bool ignoreQuota,
     bool sandboxInsideTmpfs)
 {
     ValidateEnabled();
@@ -206,7 +207,7 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
     auto userId = SlotIndexToUserId_(slotIndex);
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
 
-    auto shouldApplyQuota = Config_->EnableDiskQuota && options.DiskSpaceLimit;
+    auto shouldApplyQuota = Config_->EnableDiskQuota && options.DiskSpaceLimit && !ignoreQuota;
 
     if (shouldApplyQuota && !sandboxInsideTmpfs) {
         try {
@@ -278,7 +279,11 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
         }
 
         try {
-            auto properties = TJobDirectoryProperties{tmpfsVolume.Size, std::nullopt, userId};
+            auto properties = TJobDirectoryProperties{
+                .DiskSpaceLimit = tmpfsVolume.Size,
+                .InodeLimit = std::nullopt,
+                .UserId = userId
+            };
             WaitFor(JobDirectoryManager_->CreateTmpfsDirectory(tmpfsPath, properties))
                 .ThrowOnError();
 
@@ -320,7 +325,8 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
 
 TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(
     int slotIndex,
-    TUserSandboxOptions options)
+    TUserSandboxOptions options,
+    bool ignoreQuota)
 {
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
 
@@ -346,6 +352,7 @@ TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(
             return BIND(&TSlotLocation::DoPrepareSandboxDirectories, MakeStrong(this),
                 slotIndex,
                 options,
+                ignoreQuota,
                 sandboxInsideTmpfs)
                 .AsyncVia(invoker)
                 .Run();

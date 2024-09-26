@@ -371,7 +371,8 @@ public:
     }
 
     TFuture<std::vector<TString>> PrepareSandboxDirectories(
-        const TUserSandboxOptions& options) override
+        const TUserSandboxOptions& options,
+        bool ignoreQuota) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -384,7 +385,8 @@ public:
             [&] {
                 return Location_->PrepareSandboxDirectories(
                     SlotIndex_,
-                    options);
+                    options,
+                    ignoreQuota);
             });
     }
 
