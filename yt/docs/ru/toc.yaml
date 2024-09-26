@@ -182,6 +182,8 @@ items:
               href: user-guide/data-processing/scheduler/preemption.md
             - name: Интегральные гарантии
               href: user-guide/data-processing/scheduler/integral-guarantees.md
+            - name: Лимиты на количество операций
+              href: user-guide/data-processing/scheduler/operations-limits.md
             - name: Динамический учёт потребления CPU
               href: user-guide/data-processing/scheduler/job-cpu-monitor.md
             - name: Подбор памяти для джобов
