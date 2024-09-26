@@ -53,7 +53,8 @@ struct IUserSlot
     //! Sets up quotas and tmpfs.
     //! Returns tmpfs paths if any.
     virtual TFuture<std::vector<TString>> PrepareSandboxDirectories(
-        const TUserSandboxOptions& options) = 0;
+        const TUserSandboxOptions& options,
+        bool ignoreQuota = false) = 0;
 
     virtual TFuture<void> MakeLink(
         TJobId jobId,

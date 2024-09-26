@@ -43,7 +43,8 @@ public:
     //! Returns list of tmpfs paths.
     TFuture<std::vector<TString>> PrepareSandboxDirectories(
         int slotIndex,
-        TUserSandboxOptions options);
+        TUserSandboxOptions options,
+        bool ignoreQuota);
 
     TFuture<void> MakeSandboxCopy(
         TJobId jobId,
@@ -205,6 +206,7 @@ private:
     std::vector<TString> DoPrepareSandboxDirectories(
         int slotIndex,
         TUserSandboxOptions options,
+        bool ignoreQuota,
         bool sandboxInsideTmpfs);
 
     void BuildSlotRootDirectory(int slotIndex);

@@ -447,6 +447,12 @@ public:
     {
         YT_LOG_INFO("Started preparing artifacts");
 
+        if (UserJobEnvironment_->HasRootFS() && Config_->EnableRootVolumeDiskQuota) {
+            RunTool<TCreateDirectoryAsRootTool>(CombinePaths(
+                *Config_->RootPath,
+                Format("slot/%v", GetSandboxRelPath(ESandboxKind::User))));
+        }
+
         // Prepare user artifacts.
         for (const auto& file : UserJobSpec_.files()) {
             if (!file.bypass_artifact_cache() && !file.copy_file()) {
@@ -491,6 +497,28 @@ public:
             Host_->GetPreparationPath(),
             GetSandboxRelPath(ESandboxKind::User));
         auto artifactPath = CombinePaths(sandboxPath, artifactName);
+
+        auto canCopyToRootFS = [&] (const TString& artifactPath) {
+            if (!Config_->EnableRootVolumeDiskQuota) {
+                return false;
+            }
+
+            for (const auto& tmpfsPath : Config_->TmpfsManager->TmpfsPaths) {
+                if (artifactPath.StartsWith(tmpfsPath)) {
+                    return false;
+                }
+            }
+
+            return true;
+        };
+
+        if (UserJobEnvironment_->HasRootFS() && canCopyToRootFS(artifactPath)) {
+            auto sandboxPath = CombinePaths(
+                *Config_->RootPath,
+                Format("slot/%v", GetSandboxRelPath(ESandboxKind::User)));
+            artifactPath = CombinePaths(sandboxPath, artifactName);
+            YT_LOG_INFO("Copy artifact directly to rootFS (ArtifactPath %v)", artifactPath);
+        }
 
         auto onError = [&] (const TError& error) {
             Host_->OnArtifactPreparationFailed(artifactName, artifactPath, error);
@@ -677,7 +705,8 @@ private:
         return UserJobEnvironment_->SpawnUserProcess(
             ExecProgramName,
             {"--config", Host_->AdjustPath(GetExecutorConfigPath())},
-            CombinePaths(Host_->GetSlotPath(), GetSandboxRelPath(ESandboxKind::User)));
+            CombinePaths(Host_->GetSlotPath(), GetSandboxRelPath(ESandboxKind::User)),
+            UserId_);
     }
 
     void InitShellManager()

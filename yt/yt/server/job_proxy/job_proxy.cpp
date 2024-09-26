@@ -161,6 +161,10 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TString ExecutorConfigFileName = "executor_config.yson";
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1202,13 +1206,63 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
             .IsRootReadOnly = false,
         };
 
-        // Please observe the hierarchy of binds for correct mounting!
-        // TODO(don-dron): Make topological sorting.
-        rootFS.Binds.push_back(TBind{
-            .SourcePath = GetPreparationPath(),
-            .TargetPath = GetSlotPath(),
-            .ReadOnly = false
-        });
+        if (Config_->EnableRootVolumeDiskQuota) {
+            auto preparationPath = GetPreparationPath();
+            auto slotPath = GetSlotPath();
+
+            auto addBind = [&] (ESandboxKind sandboxKind) {
+                auto sandboxRelPath = GetSandboxRelPath(sandboxKind);
+                rootFS.Binds.push_back(TBind{
+                    .SourcePath = NFS::CombinePaths(
+                        preparationPath,
+                        sandboxRelPath),
+                    .TargetPath = NFS::CombinePaths(
+                        slotPath,
+                        sandboxRelPath),
+                    .ReadOnly = false,
+                });
+            };
+
+            addBind(ESandboxKind::Home);
+            addBind(ESandboxKind::Cores);
+            addBind(ESandboxKind::Pipes);
+            addBind(ESandboxKind::Logs);
+
+            rootFS.Binds.push_back(TBind{
+                .SourcePath = NFS::CombinePaths(
+                    preparationPath,
+                    ExecutorConfigFileName),
+                .TargetPath = NFS::CombinePaths(
+                    slotPath,
+                    ExecutorConfigFileName),
+                .ReadOnly = true,
+            });
+        } else {
+            // Please observe the hierarchy of binds for correct mounting!
+            // TODO(don-dron): Make topological sorting.
+            rootFS.Binds.push_back(TBind{
+                .SourcePath = GetPreparationPath(),
+                .TargetPath = GetSlotPath(),
+                .ReadOnly = false,
+            });
+
+            // Temporary workaround for nirvana - make tmp directories writable.
+            auto tmpPath = NFS::CombinePaths(
+                NFs::CurrentWorkingDirectory(),
+                GetSandboxRelPath(ESandboxKind::Tmp));
+
+            rootFS.Binds.push_back(TBind{
+                .SourcePath = tmpPath,
+                .TargetPath = "/tmp",
+                .ReadOnly = false,
+            });
+
+            rootFS.Binds.push_back(TBind{
+                .SourcePath = tmpPath,
+                .TargetPath = "/var/tmp",
+                .ReadOnly = false,
+            });
+        }
 
         for (const auto& tmpfsPath : Config_->TmpfsManager->TmpfsPaths) {
             rootFS.Binds.push_back(TBind{
@@ -1217,23 +1271,6 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
                 .ReadOnly = false,
             });
         }
-
-        // Temporary workaround for nirvana - make tmp directories writable.
-        auto tmpPath = NFS::CombinePaths(
-            NFs::CurrentWorkingDirectory(),
-            GetSandboxRelPath(ESandboxKind::Tmp));
-
-        rootFS.Binds.push_back(TBind{
-            .SourcePath = tmpPath,
-            .TargetPath = "/tmp",
-            .ReadOnly = false,
-        });
-
-        rootFS.Binds.push_back(TBind{
-            .SourcePath = tmpPath,
-            .TargetPath = "/var/tmp",
-            .ReadOnly = false,
-        });
 
         for (const auto& bind : Config_->Binds) {
             rootFS.Binds.push_back(TBind{
