@@ -35,6 +35,7 @@ message TJobToAbort
     required NYT.NProto.TGuid job_id = 1;
     optional int32 abort_reason = 2;
     optional bool graceful = 3 [default = false];
+    optional bool request_new_job = 4 [default = false];
 }
 
 message TJobToInterrupt

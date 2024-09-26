@@ -43,6 +43,8 @@ struct IUserSlot
 
     virtual void CancelPreparation() = 0;
 
+    virtual void Prepare() = 0;
+
     virtual TFuture<void> RunJobProxy(
         NJobProxy::TJobProxyInternalConfigPtr config,
         TJobId jobId,

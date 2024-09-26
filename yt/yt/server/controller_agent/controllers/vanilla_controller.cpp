@@ -33,6 +33,35 @@ using namespace NYson;
 
 class TVanillaController;
 
+class TGangManager
+{
+public:
+    TGangManager(
+        TVanillaController* controller,
+        const TVanillaOperationOptionsPtr& config);
+
+    void Persist(const TPersistenceContext& context);
+
+    const TString& GetCurrentIncanation() const noexcept;
+
+    void TrySwitchToNewIncarnation(bool operationIsReviving);
+
+    void TrySwitchToNewIncarnation(const TString& consideredIncarnation, bool operationIsReviving);
+
+    void UpdateConfig(const TVanillaOperationOptionsPtr& config) noexcept;
+
+private:
+    bool Enabled_ = false;
+    TString Incarnation_;
+
+    TVanillaController* VanillaOperationController_ = nullptr;
+
+    bool IsEnabled() const noexcept;
+    TString GenerateNewIncarnation();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TVanillaTask
     : public TTask
 {
@@ -73,10 +102,11 @@ public:
 
     bool IsJobInterruptible() const override;
 
-protected:
-    bool IsInputDataWeightHistogramSupported() const override;
+    void TrySwitchToNewOperationIncarnation(const TJobletPtr& joblet, bool operationIsReviving);
 
-    TJobSplitterConfigPtr GetJobSplitterConfig() const override;
+    bool IsJobRestartingEnabled() const noexcept;
+
+    int GetTargetJobCount() const noexcept;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaTask, 0x55e9aacd);
@@ -88,6 +118,10 @@ private:
 
     //! This chunk pool does not really operate with chunks, it is used as an interface for a job counter in it.
     IPersistentChunkPoolOutputPtr VanillaChunkPool_;
+
+    bool IsInputDataWeightHistogramSupported() const override;
+
+    TJobSplitterConfigPtr GetJobSplitterConfig() const override;
 
     void InitJobSpecTemplate();
 };
@@ -150,7 +184,15 @@ public:
 
     void InitUserJobSpec(
         NControllerAgent::NProto::TUserJobSpec* proto,
-        TJobletPtr joblet) const override;
+        const TJobletPtr& joblet) const override;
+
+    bool OnJobFailed(
+        TJobletPtr joblet,
+        std::unique_ptr<TFailedJobSummary> jobSummary) final;
+
+    bool OnJobAborted(
+        TJobletPtr joblet,
+        std::unique_ptr<TAbortedJobSummary> jobSummary) final;
 
     TJobletPtr CreateJoblet(
         TTask* task,
@@ -159,6 +201,10 @@ public:
         int taskJobIndex,
         std::optional<TString> poolPath,
         bool treeIsTentative) final;
+
+    void UpdateConfig(const TControllerAgentConfigPtr& config) final;
+
+    void TrySwitchToNewOperationIncarnation(const TJobletPtr& joblet, bool operationIsReviving);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaController, 0x99fa99ae);
@@ -169,10 +215,108 @@ private:
     std::vector<TVanillaTaskPtr> Tasks_;
     std::vector<std::vector<TOutputTablePtr>> TaskOutputTables_;
 
+    TGangManager GangManager_;
+
     void ValidateOperationLimits();
+
+    TError CheckJobsIncarnationsEqual() const;
+
+    bool ShouldRestartJobsOnRevival() const;
+
+    void OnOperationRevived() final;
+    void BuildControllerInfoYson(NYTree::TFluentMap fluent) const final;
+
+    void TrySwitchToNewOperationIncarnation(bool operationIsReviving);
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaController);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TGangManager::TGangManager(
+    TVanillaController* controller,
+    const TVanillaOperationOptionsPtr& config)
+    : Enabled_(config->GangManager->Enabled)
+    , Incarnation_(GenerateNewIncarnation())
+    , VanillaOperationController_(controller)
+{
+    const auto& Logger = VanillaOperationController_->GetLogger();
+    YT_LOG_INFO(
+        "Gang manager created (OperationIncarnation: %v, Enabled: %v)",
+        Incarnation_,
+        Enabled_);
+}
+
+void TGangManager::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Enabled_);
+    Persist(context, Incarnation_);
+}
+
+const TString& TGangManager::GetCurrentIncanation() const noexcept
+{
+    return Incarnation_;
+}
+
+void TGangManager::TrySwitchToNewIncarnation(bool operationIsReviving)
+{
+    const auto& Logger = VanillaOperationController_->GetLogger();
+
+    if (!IsEnabled()) {
+        YT_LOG_INFO("Switching operation to new incarnation is disabled by config");
+        return;
+    }
+
+    auto oldIncarnation = std::exchange(Incarnation_, GenerateNewIncarnation());
+
+    YT_LOG_INFO(
+        "Switching operation to new incarnation (From: %v, To: %v)",
+        oldIncarnation,
+        Incarnation_);
+
+    VanillaOperationController_->RestartAllRunningJobsPreservingAllocations(operationIsReviving);
+}
+
+void TGangManager::TrySwitchToNewIncarnation(const TString& consideredIncarnation, bool operationIsReviving)
+{
+    if (consideredIncarnation == Incarnation_) {
+        TrySwitchToNewIncarnation(operationIsReviving);
+    }
+}
+
+void TGangManager::UpdateConfig(const TVanillaOperationOptionsPtr& config) noexcept
+{
+    if (config->GangManager->Enabled != Enabled_) {
+        const auto& Logger = VanillaOperationController_->GetLogger();
+
+        auto getState = [] (bool enabled) -> std::string_view {
+            if (enabled) {
+                return "Enabled";
+            } else {
+                return "Disabled";
+            }
+        };
+
+        YT_LOG_DEBUG(
+            "Reconfiguring gang manager (OldState: %v, NewState: %v)",
+            getState(Enabled_),
+            getState(config->GangManager->Enabled));
+
+        Enabled_ = config->GangManager->Enabled;
+    }
+}
+
+bool TGangManager::IsEnabled() const noexcept
+{
+    return Enabled_;
+}
+
+TString TGangManager::GenerateNewIncarnation()
+{
+    return ToString(TGuid::Create());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -284,6 +428,29 @@ bool TVanillaTask::IsJobInterruptible() const
     return Spec_->InterruptionSignal.has_value();
 }
 
+void TVanillaTask::TrySwitchToNewOperationIncarnation(const TJobletPtr& joblet, bool operationIsReviving)
+{
+    if (IsJobRestartingEnabled()) {
+        YT_LOG_DEBUG("Trying to switch operation to new incarnation");
+
+        auto* vanillaController = dynamic_cast<TVanillaController*>(TaskHost_);
+        YT_VERIFY(vanillaController);
+        vanillaController->TrySwitchToNewOperationIncarnation(joblet, operationIsReviving);
+    } else {
+        YT_LOG_DEBUG("Job restarting is disabled, skip new incarnation operation switch");
+    }
+}
+
+bool TVanillaTask::IsJobRestartingEnabled() const noexcept
+{
+    return static_cast<bool>(Spec_->GangManager);
+}
+
+int TVanillaTask::GetTargetJobCount() const noexcept
+{
+    return Spec_->JobCount;
+}
+
 bool TVanillaTask::IsInputDataWeightHistogramSupported() const
 {
     return false;
@@ -327,8 +494,9 @@ TVanillaController::TVanillaController(
         options,
         host,
         operation)
-    , Spec_(spec)
+    , Spec_(std::move(spec))
     , Options_(options)
+    , GangManager_(this, GetConfig()->VanillaOperationOptions)
 { }
 
 void TVanillaController::Persist(const TPersistenceContext& context)
@@ -340,6 +508,10 @@ void TVanillaController::Persist(const TPersistenceContext& context)
     Persist(context, Options_);
     Persist(context, Tasks_);
     Persist(context, TaskOutputTables_);
+
+    if (context.GetVersion() >= ESnapshotVersion::IntroduceGangManager) {
+        Persist(context, GangManager_);
+    }
 }
 
 void TVanillaController::CustomMaterialize()
@@ -355,6 +527,7 @@ void TVanillaController::CustomMaterialize()
             streamDescriptor->TargetDescriptor = TDataFlowGraph::SinkDescriptor;
             streamDescriptors.push_back(std::move(streamDescriptor));
         }
+
         auto task = New<TVanillaTask>(
             this,
             taskSpec,
@@ -509,10 +682,46 @@ void TVanillaController::ValidateSnapshot() const
 
 void TVanillaController::InitUserJobSpec(
     NControllerAgent::NProto::TUserJobSpec* proto,
-    TJobletPtr joblet) const
+    const TJobletPtr& joblet) const
 {
-    TOperationControllerBase::InitUserJobSpec(proto, std::move(joblet));
-    proto->add_environment(Format("YT_OPERATION_INCARNATION=%v", 0));
+    VERIFY_INVOKER_AFFINITY(GetJobSpecBuildInvoker());
+
+    TOperationControllerBase::InitUserJobSpec(proto, joblet);
+    proto->add_environment(Format("YT_OPERATION_INCARNATION=%v", joblet->OperationIncarnation));
+}
+
+bool TVanillaController::OnJobFailed(
+    TJobletPtr joblet,
+    std::unique_ptr<TFailedJobSummary> jobSummary)
+{
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+
+    if (!TOperationControllerBase::OnJobFailed(joblet, std::move(jobSummary))) {
+        return false;
+    }
+
+    if (joblet->JobType == EJobType::Vanilla) {
+        static_cast<TVanillaTask*>(joblet->Task)->TrySwitchToNewOperationIncarnation(joblet, /*operationIsReviving*/ true);
+    }
+
+    return true;
+}
+
+bool TVanillaController::OnJobAborted(
+    TJobletPtr joblet,
+    std::unique_ptr<TAbortedJobSummary> jobSummary)
+{
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+
+    if (!TOperationControllerBase::OnJobAborted(joblet, std::move(jobSummary))) {
+        return false;
+    }
+
+    if (joblet->JobType == EJobType::Vanilla) {
+        static_cast<TVanillaTask*>(joblet->Task)->TrySwitchToNewOperationIncarnation(joblet, /*operationIsReviving*/ true);
+    }
+
+    return true;
 }
 
 TJobletPtr TVanillaController::CreateJoblet(
@@ -523,6 +732,8 @@ TJobletPtr TVanillaController::CreateJoblet(
     std::optional<TString> poolPath,
     bool treeIsTentative)
 {
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
+
     auto joblet = TOperationControllerBase::CreateJoblet(
         task,
         jobId,
@@ -531,9 +742,21 @@ TJobletPtr TVanillaController::CreateJoblet(
         std::move(poolPath),
         treeIsTentative);
 
-    joblet->OperationIncarnation = "0";
+    joblet->OperationIncarnation = GangManager_.GetCurrentIncanation();
 
     return joblet;
+}
+
+void TVanillaController::UpdateConfig(const TControllerAgentConfigPtr& config)
+{
+    GangManager_.UpdateConfig(config->VanillaOperationOptions);
+}
+
+void TVanillaController::TrySwitchToNewOperationIncarnation(const TJobletPtr& joblet, bool operationIsReviving)
+{
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+
+    GangManager_.TrySwitchToNewIncarnation(joblet->OperationIncarnation, operationIsReviving);
 }
 
 void TVanillaController::ValidateOperationLimits()
@@ -555,6 +778,112 @@ void TVanillaController::ValidateOperationLimits()
             totalJobCount,
             Options_->MaxTotalJobCount);
     }
+}
+
+TError TVanillaController::CheckJobsIncarnationsEqual() const
+{
+    VERIFY_INVOKER_POOL_AFFINITY(InvokerPool);
+
+    if (empty(AllocationMap_)) {
+        return TError();
+    }
+
+    const TJoblet* joblet = nullptr;
+    for (const auto& [id, allocation] : AllocationMap_) {
+        if (allocation.Joblet) {
+            if (!joblet) {
+                joblet = allocation.Joblet.Get();
+                continue;
+            }
+
+            if (allocation.Joblet->OperationIncarnation != joblet->OperationIncarnation) {
+                return TError("Some jobs were settled in different operation incarnations")
+                    << TErrorAttribute("first_job_id", joblet->JobId)
+                    << TErrorAttribute("first_job_operation_incarnation", joblet->OperationIncarnation)
+                    << TErrorAttribute("second_job_id", allocation.Joblet->JobId)
+                    << TErrorAttribute("second_job_operation_incarnation", allocation.Joblet->OperationIncarnation);
+            }
+        }
+    }
+
+    return TError();
+}
+
+bool TVanillaController::ShouldRestartJobsOnRevival() const
+{
+    VERIFY_INVOKER_POOL_AFFINITY(InvokerPool);
+
+    if (auto error = CheckJobsIncarnationsEqual(); !error.IsOK()) {
+        // NB(pogorelov): If some jobs are in different operation incarnations then switching to new incarnation was enabled before revival, so we do not check spec.
+        YT_LOG_DEBUG(
+            error,
+            "Some of revived jobs are in different operation incarnations, switching to new incarnation");
+
+        return true;
+    }
+
+    THashMap<TTask*, int> jobCountByTasks;
+    for (const auto& [id, allocation] : AllocationMap_) {
+        if (allocation.Joblet && allocation.Joblet->JobType == EJobType::Vanilla) {
+            ++jobCountByTasks[allocation.Joblet->Task];
+        }
+    }
+
+    for (const auto& task : Tasks_) {
+        if (!task->IsJobRestartingEnabled()) {
+            continue;
+        }
+
+        auto jobCountIt = jobCountByTasks.find(static_cast<TTask*>(task.Get()));
+        if (jobCountIt == end(jobCountByTasks)) {
+            YT_LOG_DEBUG(
+                "No jobs started in task, switching to new incarnation (TaskName: %v)",
+                task->GetTitle());
+
+            return true;
+        }
+
+        if (auto jobCount = jobCountIt->second;
+            jobCount != task->GetTargetJobCount())
+        {
+            YT_LOG_DEBUG(
+                "Not all jobs started in task, switching to new incarnation (TaskName: %v, RevivedJobCount: %v, TargetJobCount: %v)",
+                task->GetTitle(),
+                jobCount,
+                task->GetTargetJobCount());
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void TVanillaController::OnOperationRevived()
+{
+    VERIFY_INVOKER_POOL_AFFINITY(InvokerPool);
+
+    TOperationControllerBase::OnOperationRevived();
+
+    if (ShouldRestartJobsOnRevival()) {
+        TrySwitchToNewOperationIncarnation(/*operationIsReviving*/ false);
+    }
+}
+
+void TVanillaController::BuildControllerInfoYson(TFluentMap fluent) const
+{
+    VERIFY_INVOKER_POOL_AFFINITY(InvokerPool);
+
+    TOperationControllerBase::BuildControllerInfoYson(fluent);
+
+    fluent.Item("operation_incarnation").Value(GangManager_.GetCurrentIncanation());
+}
+
+void TVanillaController::TrySwitchToNewOperationIncarnation(bool operationIsReviving)
+{
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+
+    GangManager_.TrySwitchToNewIncarnation(operationIsReviving);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
