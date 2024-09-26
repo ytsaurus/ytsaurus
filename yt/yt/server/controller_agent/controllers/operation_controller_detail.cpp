@@ -8193,6 +8193,8 @@ void TOperationControllerBase::RegisterTeleportChunk(
 
     RegisterOutputRows(chunk->GetRowCount(), tableIndex);
 
+    TeleportedOutputRowCount += chunk->GetRowCount();
+
     YT_LOG_DEBUG("Teleport chunk registered (Table: %v, ChunkId: %v, Key: %v)",
         tableIndex,
         chunk->GetChunkId(),
@@ -9987,6 +9989,12 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, TotalEstimatedInputCompressedDataSize);
     Persist(context, TotalEstimatedInputDataWeight);
     Persist(context, UnavailableIntermediateChunkCount);
+
+    // COMPAT(yuryalekseev)
+    if (context.GetVersion() >= ESnapshotVersion::TeleportedOutputRowCount) {
+        Persist(context, TeleportedOutputRowCount);
+    }
+
     // COMPAT(coteeq)
     if (context.GetVersion() >= ESnapshotVersion::InputManagerIntroduction) {
         Persist(context, InputManager);

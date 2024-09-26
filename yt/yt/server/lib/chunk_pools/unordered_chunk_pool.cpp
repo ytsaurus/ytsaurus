@@ -287,7 +287,8 @@ public:
                     {
                         YT_LOG_DEBUG("Teleported single chunk (ChunkId: %v, NodeId: %v, IdealDataWeightPerJob: %v, TableIndex: %v, "
                                 "ChunkCount: %v, DataWeight: %v, RowCount: %v, ValueCount: %v, MaxBlockSize: %v, RangeIndex: %v, IsTrivial: %v, "
-                                "IsTeleportable: %v, IsLegacy: %v, StripeIndexesSize: %v, FreeStripesSize: %v, Pending: %v, Blocked: %v)",
+                                "IsTeleportable: %v, IsLegacy: %v, HasLimits: %v, LegacyLowerLimit: %v, LegacyUpperLimit: %v, "
+                                "LowerLimit: %v, UpperLimit: %v, StripeIndexesSize: %v, FreeStripesSize: %v, Pending: %v, Blocked: %v)",
                             dataSlice->GetSingleUnversionedChunk()->GetChunkId(),
                             nodeId,
                             idealDataWeightPerJob,
@@ -301,6 +302,11 @@ public:
                             dataSlice->IsTrivial(),
                             dataSlice->IsTeleportable,
                             dataSlice->IsLegacy,
+                            dataSlice->HasLimits(),
+                            dataSlice->LegacyLowerLimit(),
+                            dataSlice->LegacyUpperLimit(),
+                            dataSlice->LowerLimit(),
+                            dataSlice->UpperLimit(),
                             stripeIndexesSize,
                             freeStripesSize,
                             jobCounter->GetPending(),
@@ -530,6 +536,7 @@ private:
     bool TryTeleportChunk(const TLegacyDataSlicePtr dataSlice)
     {
         if (!dataSlice->IsTrivial() ||
+            dataSlice->HasLimits() ||
             dataSlice->Type == NChunkClient::EDataSourceType::VersionedTable ||
             !InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsTeleportable())
         {
@@ -550,6 +557,11 @@ private:
 
         return false;
     }
+
+    bool IsTrivialLimit(const TInputSliceLimit& limit, i64 defaultRowIndex)
+    {
+        return limit.RowIndex.value_or(defaultRowIndex) == defaultRowIndex && (!limit.KeyBound || limit.KeyBound.IsUniversal());
+    };
 
     // XXX(max42): looks like this comment became obsolete even
     // before I got into this company.
@@ -589,11 +601,20 @@ private:
                     RowBuffer_);
 
                 for (auto& slice : slices) {
+                    TInputSliceLimit lowerLimit;
+                    if (!IsTrivialLimit(slice->LowerLimit(), 0)) {
+                        lowerLimit = slice->LowerLimit();
+                    }
+                    TInputSliceLimit upperLimit;
+                    if (!IsTrivialLimit(slice->UpperLimit(), chunk->GetTotalRowCount())) {
+                        upperLimit = slice->UpperLimit();
+                    }
+
                     auto newDataSlice = New<TLegacyDataSlice>(
                         EDataSourceType::UnversionedTable,
                         TLegacyDataSlice::TChunkSliceList{slice},
-                        slice->LowerLimit(),
-                        slice->UpperLimit());
+                        lowerLimit,
+                        upperLimit);
                     newDataSlice->CopyPayloadFrom(*dataSlice);
                     // XXX
                     newDataSlice->GetInputStreamIndex();
@@ -601,16 +622,31 @@ private:
                 }
             } else {
                 for (const auto& slice : CreateErasureInputChunkSlices(chunk, codecId)) {
+                    slice->TransformToNewKeyless();
+
                     auto smallerSlices = slice->SliceEvenly(
                         JobSizeConstraints_->GetInputSliceDataWeight(),
                         JobSizeConstraints_->GetInputSliceRowCount(),
                         RowBuffer_);
 
                     for (auto& smallerSlice : smallerSlices) {
+                        YT_VERIFY(!smallerSlice->IsLegacy);
+
+                        TInputSliceLimit lowerLimit;
+                        if (!IsTrivialLimit(smallerSlice->LowerLimit(), 0)) {
+                            lowerLimit = smallerSlice->LowerLimit();
+                        }
+                        TInputSliceLimit upperLimit;
+                        if (!IsTrivialLimit(smallerSlice->UpperLimit(), chunk->GetTotalRowCount())) {
+                            upperLimit = smallerSlice->UpperLimit();
+                        }
+
                         auto newDataSlice = New<TLegacyDataSlice>(
                             EDataSourceType::UnversionedTable,
-                            TLegacyDataSlice::TChunkSliceList{std::move(smallerSlice)});
-                        newDataSlice->TransformToNewKeyless();
+                            TLegacyDataSlice::TChunkSliceList{smallerSlice},
+                            lowerLimit,
+                            upperLimit);
+
                         newDataSlice->CopyPayloadFrom(*dataSlice);
                         // XXX
                         newDataSlice->GetInputStreamIndex();
