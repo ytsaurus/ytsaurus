@@ -128,6 +128,15 @@ private:
         } else if constexpr (PythonType == EPythonType::Str) {
             static_assert(WireType == EWireType::String32);
             // We are parsing either a field of type Utf8 or String encoded in UTF-8.
+            // Check if obj is string
+            if (!PyUnicode_Check(obj)) {
+                auto objValue = Repr(Py::Object(obj));
+                objValue.resize(1024);
+                THROW_ERROR_EXCEPTION("Expected value of type str, got type %v, value %v",
+                    Repr(Py::Object(obj).type()),
+                    objValue
+                );
+            }
             auto bytesObj = PyObjectPtr(PyUnicode_AsUTF8String(obj));
             if (!bytesObj) {
                 throw Py::Exception();

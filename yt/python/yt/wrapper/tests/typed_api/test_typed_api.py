@@ -1983,3 +1983,20 @@ class TestTypedApi(object):
         rows_read_in_parallel = list(yt.read_table_structured(table, TheRow, enable_read_parallel=True))
 
         assert rows_read_sequentially == rows_read_in_parallel
+
+    @authors("ilyaibraev")
+    def test_structured_write_str_on_int(self):
+        client = yt.YtClient(config=yt.config.config)
+
+        @yt.yt_dataclass
+        class RowInt:
+            value: int
+
+        @yt.yt_dataclass
+        class RowStr:
+            value: str
+
+        path = "//tmp/test_structured_write_str_on_int"
+
+        with pytest.raises(YtError, match="Expected value of type str, got type <class \'int\'>, value 3123"):
+            client.write_table_structured(path, RowStr, [RowInt(value=3123)])
