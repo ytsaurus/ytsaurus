@@ -157,8 +157,6 @@ type Oplet struct {
 	pendingScaling bool
 	// targetInstanceCount is the number of jobs the oplet should be scaled to.
 	targetInstanceCount int
-	// pendingResume indicates whether oplet's operation must be resumed.
-	pendingResume bool
 
 	cypressNode  ypath.Path
 	l            log.Logger
@@ -397,19 +395,6 @@ func (oplet *Oplet) CheckOperationLiveness(ctx context.Context) error {
 		log.String("operation_id", opID.String()),
 		log.String("operation_state", string(ytOp.State)))
 
-	// oplet.persistentState.YTOpSuspended = ytOp.Suspended
-	// ytOp.Suspend always returns false, so let's use running job count until it's fixed
-	// TODO: wait for https://github.com/ytsaurus/ytsaurus/commit/f3d2c695fb7ad70cb690b25f782a8f83980490ed to be released
-	jobRes, err := oplet.systemClient.ListJobs(ctx, opID, &yt.ListJobsOptions{JobState: &yt.JobRunning})
-	if err != nil {
-		return err
-	}
-	if len(jobRes.Jobs) == 0 {
-		oplet.persistentState.YTOpSuspended = true
-	} else {
-		oplet.persistentState.YTOpSuspended = false
-	}
-
 	oplet.UpdateOpStatus(ytOp)
 
 	return nil
@@ -441,7 +426,6 @@ func (oplet *Oplet) EnsureOperationInValidState(ctx context.Context) error {
 		if err := oplet.resumeOp(ctx, reason); err != nil {
 			return err
 		}
-		oplet.pendingResume = false
 	}
 
 	return nil
@@ -569,8 +553,8 @@ func (oplet *Oplet) needsResume() (needsResume bool, reason string) {
 	if !oplet.strawberrySpeclet.ActiveOrDefault() {
 		return false, "oplet is in inactive state"
 	}
-	if oplet.pendingResume {
-		return true, "pendingResume is set"
+	if oplet.strawberrySpeclet.ResumeMarker != oplet.persistentState.ResumeMarker {
+		return true, "resume marker changed"
 	}
 	return false, "up to date"
 }
@@ -818,6 +802,7 @@ func (oplet *Oplet) suspendOp(ctx context.Context, reason string) error {
 		oplet.setError(err)
 	} else {
 		oplet.persistentState.YTOpSuspended = true
+		oplet.pendingScaling = false
 	}
 	return err
 }
@@ -834,6 +819,7 @@ func (oplet *Oplet) resumeOp(ctx context.Context, reason string) error {
 		oplet.setError(err)
 	} else {
 		oplet.persistentState.YTOpSuspended = false
+		oplet.persistentState.ResumeMarker = oplet.strawberrySpeclet.ResumeMarker
 	}
 	return err
 }
@@ -1099,14 +1085,6 @@ func (oplet *Oplet) Pass(ctx context.Context, checkOpLiveness bool) error {
 	// Skip further processing if the oplet does not belong to the controller or is broken.
 	if oplet.Broken() || oplet.Inappropriate() || oplet.needsBackoff() {
 		return err
-	}
-
-	if oplet.strawberrySpeclet.ResumeMarker != oplet.persistentState.ResumeMarker {
-		// Maybe put into persistent state, so resuming will be not interrupted by strawberry restart?
-		oplet.pendingResume = true
-		oplet.persistentState.ResumeMarker = oplet.strawberrySpeclet.ResumeMarker
-		oplet.persistentState.YTOpSpeclet = oplet.specletYson
-		oplet.persistentState.YTOpSpecletRevision = oplet.persistentState.SpecletRevision
 	}
 
 	if err == nil && checkOpLiveness {

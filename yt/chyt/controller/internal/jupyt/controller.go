@@ -244,6 +244,12 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 }
 
 func (c *Controller) GetScalerTarget(ctx context.Context, opletInfo strawberry.OpletInfoForScaler) (*strawberry.ScalerTarget, error) {
+	speclet := opletInfo.ControllerSpeclet.(Speclet)
+
+	if !speclet.EnableIdleSuspension {
+		return nil, nil
+	}
+
 	endpointInfo, err := getEndpoint(ctx, c.ytc, opletInfo.OperationID)
 	if err != nil {
 		return nil, err
@@ -273,9 +279,8 @@ func (c *Controller) GetScalerTarget(ctx context.Context, opletInfo strawberry.O
 		return nil, err
 	}
 
-	speclet := opletInfo.ControllerSpeclet.(Speclet)
 	sinceLastActivity := time.Now().Sub(jupyterResponse.LastActivity)
-	if speclet.EnableIdleSuspension && sinceLastActivity > speclet.IdleTimeoutOrDefault() {
+	if sinceLastActivity > speclet.IdleTimeoutOrDefault() {
 		reason := fmt.Sprintf("idle time %d > %d", sinceLastActivity, speclet.IdleTimeout)
 		c.l.Info(
 			"oplet should be suspended",

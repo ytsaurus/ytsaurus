@@ -43,7 +43,7 @@ type Agent struct {
 	healthState      *agentHealthState
 
 	opletInfoBatchCh chan []strawberry.OpletInfoForScaler
-	scalingTargetCh  chan scalingRequest
+	scalingTargetCh  chan []scalingRequest
 }
 
 func NewAgent(proxy string, ytc yt.Client, l log.Logger, controller strawberry.Controller, config *Config) *Agent {
@@ -390,16 +390,18 @@ func (a *Agent) background() {
 			a.pass()
 		case a.opletInfoBatchCh <- a.getOpletInfoForScaler():
 			continue
-		case scT := <-a.scalingTargetCh:
-			oplet, ok := a.aliasToOp[scT.OpletAlias]
-			if !ok {
-				a.l.Warn("Oplet not found, skipping scaling", log.String("alias", scT.OpletAlias))
-			}
-			opID, _ := oplet.OperationInfo()
-			if scT.OperationID == opID {
-				oplet.SetPendingScaling(scT.InstanceCount)
-			} else {
-				a.l.Warn("Skipping scaling due to operation id mismatch")
+		case scTs := <-a.scalingTargetCh:
+			for _, scT := range scTs {
+				oplet, ok := a.aliasToOp[scT.OpletAlias]
+				if !ok {
+					a.l.Warn("Oplet not found, skipping scaling", log.String("alias", scT.OpletAlias))
+				}
+				opID, _ := oplet.OperationInfo()
+				if scT.OperationID == opID {
+					oplet.SetPendingScaling(scT.InstanceCount)
+				} else {
+					a.l.Warn("Skipping scaling due to operation id mismatch")
+				}
 			}
 		}
 	}
@@ -491,7 +493,7 @@ func (a *Agent) Start() {
 		a.l)
 
 	a.opletInfoBatchCh = make(chan []strawberry.OpletInfoForScaler)
-	a.scalingTargetCh = make(chan scalingRequest)
+	a.scalingTargetCh = make(chan []scalingRequest)
 	go a.runScaler()
 
 	go a.background()
@@ -519,6 +521,8 @@ func (a *Agent) runScaler() {
 
 			opletsChan := make(chan strawberry.OpletInfoForScaler, len(opletInfos))
 
+			scalingTargetsCh := make(chan scalingRequest, len(opletInfos))
+
 			for i := 0; i < workerNumber; i++ {
 				go func() {
 					defer wg.Done()
@@ -538,7 +542,7 @@ func (a *Agent) runScaler() {
 								log.String("alias", opletInfo.Alias),
 								log.Int("target_instance_count", target.InstanceCount),
 							)
-							a.scalingTargetCh <- scalingRequest{
+							scalingTargetsCh <- scalingRequest{
 								OpletAlias:    opletInfo.Alias,
 								InstanceCount: target.InstanceCount,
 								OperationID:   opletInfo.OperationID, // Might already be different from the running op id.
@@ -554,6 +558,14 @@ func (a *Agent) runScaler() {
 			close(opletsChan)
 
 			wg.Wait()
+			close(scalingTargetsCh)
+
+			scalingTargets := make([]scalingRequest, 0, len(opletInfos))
+			for scT := range scalingTargetsCh {
+				scalingTargets = append(scalingTargets, scT)
+			}
+			a.scalingTargetCh <- scalingTargets
+
 			a.l.Info("Finished scaler", log.Duration("elapsed_time", time.Since(startedAt)))
 		}
 	}
