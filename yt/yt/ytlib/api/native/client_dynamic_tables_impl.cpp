@@ -543,7 +543,6 @@ private:
         auto mountCacheWaitTime = timer.GetElapsedTime();
 
         if (DetailedProfilingInfo_ && tableInfo->EnableDetailedProfiling) {
-            DetailedProfilingInfo_->EnableDetailedTableProfiling = true;
             DetailedProfilingInfo_->MountCacheWaitTime += mountCacheWaitTime;
         }
 
@@ -1538,7 +1537,10 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
 
     auto cache = New<TStickyTableMountInfoCache>(Connection_->GetTableMountCache());
+
+    NProfiling::TWallTimer timer;
     GetQueryTableInfos(astQuery, cache);
+    auto getMountInfoTime = timer.GetElapsedTime();
 
     TransformWithIndexStatement(&parsedQuery->AstHead, cache);
 
@@ -1706,7 +1708,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         });
     }
 
-    NProfiling::TWallTimer timer;
+    timer.Restart();
     const auto& permissionCache = Connection_->GetPermissionCache();
     auto permissionCheckErrors = WaitFor(permissionCache->GetMany(permissionKeys))
         .ValueOrThrow();
@@ -1719,15 +1721,10 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto permissionCacheWaitTime = timer.GetElapsedTime();
 
     if (options.DetailedProfilingInfo) {
-        const auto& path = astQuery->Table.Path;
-        timer.Restart();
-        auto tableInfo = WaitFor(cache->GetTableInfo(path))
-            .ValueOrThrow();
-        auto mountCacheWaitTime = timer.GetElapsedTime();
-        if (tableInfo->EnableDetailedProfiling) {
+        if (tableInfos[0]->EnableDetailedProfiling) {
             options.DetailedProfilingInfo->EnableDetailedTableProfiling = true;
-            options.DetailedProfilingInfo->TablePath = path;
-            options.DetailedProfilingInfo->MountCacheWaitTime += mountCacheWaitTime;
+            options.DetailedProfilingInfo->TablePath = tableInfos[0]->Path;
+            options.DetailedProfilingInfo->MountCacheWaitTime += getMountInfoTime;
             options.DetailedProfilingInfo->PermissionCacheWaitTime += permissionCacheWaitTime;
         }
     }
