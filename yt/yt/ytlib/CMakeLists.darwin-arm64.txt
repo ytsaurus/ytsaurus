@@ -225,7 +225,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_participant_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_supervisor_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/yql_client/proto/yql_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/shuffle_service/proto/shuffle_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/shuffle_client/proto/shuffle_service.proto
 )
 
 target_sources(yt-yt-ytlib PRIVATE
@@ -587,7 +587,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_client/transaction_listener.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_client/transaction_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/yql_client/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/shuffle_service/shuffle_service.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.cpp
@@ -724,7 +723,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_participant_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_supervisor_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/yql_client/proto/yql_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/shuffle_service/proto/shuffle_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/shuffle_client/proto/shuffle_service.pb.h
 )
 
 

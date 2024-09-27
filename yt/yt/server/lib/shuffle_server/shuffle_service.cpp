@@ -1,19 +1,20 @@
 #include "shuffle_service.h"
-#include "shuffle_service_proxy.h"
 
 #include <yt/yt/client/api/rpc_proxy/helpers.h>
 
-#include <yt/yt/ytlib/shuffle_service/proto/shuffle_service.pb.h>
+#include <yt/yt/ytlib/shuffle_client/shuffle_service_proxy.h>
+#include <yt/yt/ytlib/shuffle_client/proto/shuffle_service.pb.h>
 
 #include <yt/yt/core/rpc/public.h>
 #include <yt/yt/core/rpc/service_detail.h>
 
-namespace NYT::NShuffle {
+namespace NYT::NShuffleServer {
 
 using namespace NApi;
-using namespace NRpcProxy;
 using namespace NLogging;
 using namespace NRpc;
+using namespace NRpcProxy;
+using namespace NShuffleClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,22 +38,22 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FetchChunks));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NShuffle::NProto, StartShuffle)
+    DECLARE_RPC_SERVICE_METHOD(NShuffleClient::NProto, StartShuffle)
     {
         ThrowUnimplemented("StartShuffle");
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NShuffle::NProto, FinishShuffle)
+    DECLARE_RPC_SERVICE_METHOD(NShuffleClient::NProto, FinishShuffle)
     {
         ThrowUnimplemented("FinishShuffle");
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NShuffle::NProto, RegisterChunks)
+    DECLARE_RPC_SERVICE_METHOD(NShuffleClient::NProto, RegisterChunks)
     {
         ThrowUnimplemented("RegisterChunks");
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NShuffle::NProto, FetchChunks)
+    DECLARE_RPC_SERVICE_METHOD(NShuffleClient::NProto, FetchChunks)
     {
         ThrowUnimplemented("FetchChunks");
     }
@@ -76,4 +77,4 @@ NRpc::IServicePtr CreateShuffleService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NShuffle
+} // namespace NYT::NShuffleServer

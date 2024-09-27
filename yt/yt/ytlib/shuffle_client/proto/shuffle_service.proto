@@ -1,4 +1,4 @@
-package NYT.NShuffle.NProto;
+package NYT.NShuffleClient.NProto;
 
 import "yt_proto/yt/client/chunk_client/proto/chunk_spec.proto";
 

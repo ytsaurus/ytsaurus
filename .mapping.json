@@ -3385,6 +3385,7 @@
   "yt/yt/server/lib/security_server/CMakeLists.txt":"",
   "yt/yt/server/lib/sequoia/CMakeLists.txt":"",
   "yt/yt/server/lib/shell/CMakeLists.txt":"",
+  "yt/yt/server/lib/shuffle_server/CMakeLists.txt":"",
   "yt/yt/server/lib/signature_service/CMakeLists.txt":"",
   "yt/yt/server/lib/signature_service/unittests/CMakeLists.txt":"",
   "yt/yt/server/lib/signature_service/unittests/mock/CMakeLists.txt":"",
