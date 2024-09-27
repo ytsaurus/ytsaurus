@@ -17,6 +17,8 @@ public:
 
     bool IsComponentBanned() const;
 
+    NYTree::IYPathServicePtr GetOrchidService() const;
+
 private:
     const NLogging::TLogger Logger;
 
@@ -28,6 +30,7 @@ private:
     std::atomic<bool> Banned_ = false;
 
     void DoCheckState();
+    void DoBuildOrchid(NYson::IYsonConsumer* consumer) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TStateChecker)

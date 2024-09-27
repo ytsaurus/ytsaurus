@@ -24,6 +24,8 @@ struct IQueryTracker
     virtual void Start() = 0;
 
     virtual void Reconfigure(const TQueryTrackerDynamicConfigPtr& config) = 0;
+
+    virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IQueryTracker)

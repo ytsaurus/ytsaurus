@@ -120,6 +120,12 @@ public:
         Engines_[EQueryEngine::Spyt]->Reconfigure(config->SpytEngine);
     }
 
+    IYPathServicePtr GetOrchidService() const override
+    {
+        auto producer = BIND(&TQueryTracker::DoBuildOrchid, MakeStrong(this));
+        return IYPathService::FromProducer(producer);
+    }
+
 private:
     const TString SelfAddress_;
     const IInvokerPtr ControlInvoker_;
@@ -146,6 +152,8 @@ private:
     };
 
     THashMap<TQueryId, TAcquiredQuery> AcquiredQueries_;
+
+    std::atomic<int> AcquisitionIterations_ = 0;
 
     void OnHealthCheck()
     {
@@ -182,6 +190,8 @@ private:
     void AcquireQueries()
     {
         VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+
+        AcquisitionIterations_.fetch_add(1);
 
         auto traceContext = TTraceContext::NewRoot("QuerySelect");
         auto guard = TCurrentTraceContextGuard(traceContext);
@@ -754,6 +764,14 @@ private:
 
             return aliveTransactions;
         }));
+    }
+
+    void DoBuildOrchid(IYsonConsumer* consumer) const
+    {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("acquisition_iterations").Value(AcquisitionIterations_.load())
+            .EndMap();
     }
 };
 

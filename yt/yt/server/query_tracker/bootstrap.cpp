@@ -202,6 +202,10 @@ void TBootstrap::DoRun()
             "/core_dumper",
             CreateVirtualNode(CoreDumper_->CreateOrchidService()));
     }
+    SetNodeByYPath(
+        orchidRoot,
+        "/query_tracker",
+        CreateVirtualNode(QueryTracker_->GetOrchidService()));
     SetBuildAttributes(
         orchidRoot,
         "query_tracker");
@@ -216,6 +220,10 @@ void TBootstrap::DoRun()
         NativeClient_,
         Format("%v/instances/%v", Config_->Root, ToYPathLiteral(SelfAddress_)),
         DynamicConfigManager_->GetConfig()->QueryTracker->StateCheckPeriod);
+    SetNodeByYPath(
+        orchidRoot,
+        "/state_checker",
+        CreateVirtualNode(StateChecker_->GetOrchidService()));
 
     RpcServer_->RegisterService(CreateAdminService(
         ControlInvoker_,
