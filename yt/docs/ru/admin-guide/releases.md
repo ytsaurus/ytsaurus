@@ -27,7 +27,7 @@ Thanks to multiple outside contributors for the active participation in {{produc
 
 ## Kubernetes operator
 
-{% include notitle [SPYT](../_includes/releases/k8s.md) %}
+{% include notitle [k8s](../_includes/releases/k8s.md) %}
 
 ## Python YSON
 
