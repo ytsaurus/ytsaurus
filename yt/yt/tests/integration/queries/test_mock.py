@@ -17,7 +17,6 @@ from collections import Counter
 from builtins import set as Set
 
 import pytest
-import time
 
 
 def expect_queries(queries, list_result, incomplete=False):
@@ -224,7 +223,7 @@ class TestQueryTrackerBan(YTEnvSetup):
         with raises_yt_error() as err:
             wait(TestQueryTrackerBan._test_query_fails)
         assert err[0].contains_text("No alive peers found")
-        wait(lambda: get(f"//sys/query_tracker/instances/{address}/orchid/@banned"), ignore_exceptions=True)
+        wait(lambda: get(f"//sys/query_tracker/instances/{address}/orchid/state_checker/banned"), ignore_exceptions=True)
 
         guid = generate_uuid()
         insert_rows("//sys/query_tracker/active_queries", [{
@@ -235,7 +234,10 @@ class TestQueryTrackerBan(YTEnvSetup):
             "state": "pending",
             "settings": {}
         }])
-        time.sleep(3)  # NB(mpereskokova): Sleep for multiple active_query_acquisition_periods, to ensure, that inserted query won't be launched
+
+        acquisition_iterations = get(f"//sys/query_tracker/instances/{address}/orchid/query_tracker/acquisition_iterations")
+        wait(lambda: get(f"//sys/query_tracker/instances/{address}/orchid/query_tracker/acquisition_iterations") - acquisition_iterations >= 3)
+
         assert list(select_rows(f'* from [//sys/query_tracker/active_queries] WHERE query_id = "{guid}"'))[0]["state"] == "pending"
 
         set(f"//sys/query_tracker/instances/{address}/@banned", False)

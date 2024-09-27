@@ -24,7 +24,7 @@ TStateChecker::TStateChecker(IInvokerPtr invoker, IClientPtr nativeClient, TYPat
     Banned_.store(false);
     StateCheckerExecutor_ = New<TPeriodicExecutor>(
         Invoker_,
-        BIND(&TStateChecker::DoCheckState, MakeStrong(this)),
+        BIND(&TStateChecker::DoCheckState, MakeWeak(this)),
         stateCheckPeriod);
 }
 
@@ -41,6 +41,12 @@ void TStateChecker::SetPeriod(TDuration stateCheckPeriod)
 bool TStateChecker::IsComponentBanned() const
 {
     return Banned_.load();
+}
+
+IYPathServicePtr TStateChecker::GetOrchidService() const
+{
+    auto producer = BIND(&TStateChecker::DoBuildOrchid, MakeStrong(this));
+    return IYPathService::FromProducer(producer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,24 +69,19 @@ void TStateChecker::DoCheckState()
             .ValueOrThrow();
         auto instance = ConvertToNode(yson);
 
-        auto banned = false;
-        if (instance->Attributes().Contains(BannedAttributeName)) {
-            banned = instance->Attributes().Get<bool>(BannedAttributeName);
-        }
-
-        auto previousBanned = Banned_.exchange(banned);
-        if (previousBanned != banned) {
-            auto orchidBannedPath = InstancePath_ + "/orchid/@banned";
-
-            YT_LOG_DEBUG("Updating orchid node (Path: %v, Banned: %v)", orchidBannedPath, banned);
-            WaitFor(NativeClient_->SetNode(orchidBannedPath, ConvertToYsonString(banned)))
-                .ThrowOnError();
-            YT_LOG_DEBUG("Orchid node updated");
-        }
-
+        Banned_.store(
+            instance->Attributes().Get<bool>(BannedAttributeName, false));
     } catch (std::exception& ex) {
         YT_LOG_ERROR(ex, "Failed checking component state");
     }
+}
+
+void TStateChecker::DoBuildOrchid(IYsonConsumer* consumer) const
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("banned").Value(IsComponentBanned())
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

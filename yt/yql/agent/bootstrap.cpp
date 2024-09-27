@@ -199,6 +199,10 @@ void TBootstrap::DoRun()
         NativeClient_,
         Format("%v/instances/%v", Config_->Root, ToYPathLiteral(AgentId_)),
         DynamicConfigManager_->GetConfig()->YqlAgent->StateCheckPeriod);
+    SetNodeByYPath(
+        orchidRoot,
+        "/state_checker",
+        CreateVirtualNode(StateChecker_->GetOrchidService()));
 
     RpcServer_->RegisterService(CreateAdminService(
         ControlInvoker_,
