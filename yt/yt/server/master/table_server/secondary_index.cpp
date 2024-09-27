@@ -43,10 +43,8 @@ void TSecondaryIndex::Load(TLoadContext& context)
         Load(context, TableId_);
         Load(context, IndexTableId_);
     } else {
-        auto* table = Load<TTableNode*>(context);
-        auto* indexTable = Load<TTableNode*>(context);
-        TableId_ = table->GetId();
-        IndexTableId_ = indexTable->GetId();
+        Load<TTableNode*>(context, CompatTable_);
+        Load<TTableNode*>(context, CompatIndexTable_);
     }
     Load(context, Kind_);
     // COMPAT(sabdenovch)
@@ -60,6 +58,12 @@ void TSecondaryIndex::Load(TLoadContext& context)
     {
         Load(context, Predicate_);
     }
+}
+
+void TSecondaryIndex::SetIdsFromCompat()
+{
+    TableId_ = CompatTable_->GetId();
+    IndexTableId_ = CompatIndexTable_->GetId();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1388,6 +1388,9 @@ private:
     // COMPAT(cherepashka, achulkov2)
     bool NeedToAddReplicatedQueues_ = false;
 
+    // COMPAT(sabdenovch)
+    bool NeedToFillTableIdsForSecondaryIndices_ = false;
+
     //! Contains native trunk nodes for which IsQueue() is true.
     THashSet<TTableNode*> Queues_;
     //! Contains native trunk nodes for which IsQueueConsumer() is true.
@@ -1748,6 +1751,11 @@ private:
         if (context.GetVersion() >= EMasterReign::SecondaryIndex) {
             SecondaryIndexMap_.LoadKeys(context);
         }
+
+        // COMPAT(sabdenovch)
+        if (context.GetVersion() < EMasterReign::SecondaryIndexExternalCellTag) {
+            NeedToFillTableIdsForSecondaryIndices_ = true;
+        }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -1964,6 +1972,13 @@ private:
                         RegisterQueue(replicatedTableNode);
                     }
                 }
+            }
+        }
+
+        // COMPAT(sabdenovch)
+        if (NeedToFillTableIdsForSecondaryIndices_) {
+            for (const auto& [id, secondaryIndex] : SecondaryIndexMap_) {
+                secondaryIndex->SetIdsFromCompat();
             }
         }
     }
