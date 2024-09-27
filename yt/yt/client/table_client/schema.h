@@ -505,12 +505,14 @@ void ValidateColumnSchema(
     const TColumnSchema& columnSchema,
     bool isTableSorted = false,
     bool isTableDynamic = false,
-    bool allowUnversionedUpdateColumns = false);
+    bool allowUnversionedUpdateColumns = false,
+    bool allowTimestampColumns = false);
 
 void ValidateTableSchema(
     const TTableSchema& schema,
     bool isTableDynamic = false,
-    bool allowUnversionedUpdateColumns = false);
+    bool allowUnversionedUpdateColumns = false,
+    bool allowTimestampColumns = false);
 
 void ValidateNoDescendingSortOrder(const TTableSchema& schema);
 

@@ -829,7 +829,7 @@ TKeyColumns TTableSchema::GetKeyColumns() const
 
 int TTableSchema::GetColumnCount() const
 {
-    return static_cast<int>(Columns().size());
+    return ssize(Columns());
 }
 
 std::vector<TString> TTableSchema::GetColumnNames() const
@@ -1770,7 +1770,8 @@ void ValidateDynamicTableKeyColumnCount(int count)
 void ValidateSystemColumnSchema(
     const TColumnSchema& columnSchema,
     bool isTableSorted,
-    bool allowUnversionedUpdateColumns)
+    bool allowUnversionedUpdateColumns,
+    bool allowTimestampColumns)
 {
     static const auto allowedSortedTablesSystemColumns = THashMap<TString, ESimpleLogicalValueType>{
         {EmptyValueColumnName, ESimpleLogicalValueType::Int64},
@@ -1824,6 +1825,13 @@ void ValidateSystemColumnSchema(
         }
     }
 
+    if (allowTimestampColumns) {
+        if (name.StartsWith(TimestampColumnPrefix)) {
+            validateType(ESimpleLogicalValueType::Uint64);
+            return;
+        }
+    }
+
     // Unexpected system column.
     THROW_ERROR_EXCEPTION("System column name %Qv is not allowed here",
         name);
@@ -1847,7 +1855,8 @@ void ValidateColumnSchema(
     const TColumnSchema& columnSchema,
     bool isTableSorted,
     bool isTableDynamic,
-    bool allowUnversionedUpdateColumns)
+    bool allowUnversionedUpdateColumns,
+    bool allowTimestampColumns)
 {
     static const auto allowedAggregates = THashSet<TString>{
         "sum",
@@ -1873,7 +1882,11 @@ void ValidateColumnSchema(
         ValidateColumnName(name);
 
         if (stableName.Underlying().StartsWith(SystemColumnNamePrefix) || name.StartsWith(SystemColumnNamePrefix)) {
-            ValidateSystemColumnSchema(columnSchema, isTableSorted, allowUnversionedUpdateColumns);
+            ValidateSystemColumnSchema(
+                columnSchema,
+                isTableSorted,
+                allowUnversionedUpdateColumns,
+                allowTimestampColumns);
         }
 
         {
@@ -2208,7 +2221,11 @@ void ValidateSchemaAttributes(const TTableSchema& schema)
     }
 }
 
-void ValidateTableSchema(const TTableSchema& schema, bool isTableDynamic, bool allowUnversionedUpdateColumns)
+void ValidateTableSchema(
+    const TTableSchema& schema,
+    bool isTableDynamic,
+    bool allowUnversionedUpdateColumns,
+    bool allowTimestampColumns)
 {
     int totalTypeComplexity = 0;
     for (const auto& column : schema.Columns()) {
@@ -2216,7 +2233,8 @@ void ValidateTableSchema(const TTableSchema& schema, bool isTableDynamic, bool a
             column,
             schema.IsSorted(),
             isTableDynamic,
-            allowUnversionedUpdateColumns);
+            allowUnversionedUpdateColumns,
+            allowTimestampColumns);
         if (!schema.GetStrict() && column.IsRenamed()) {
             THROW_ERROR_EXCEPTION("Renamed column %v in non-strict schema",
                 column.GetDiagnosticNameString());
