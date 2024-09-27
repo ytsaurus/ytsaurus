@@ -3164,6 +3164,281 @@ TEST_F(TQueryEvaluateTest, GroupByString)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, GroupByOrderBy)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64},
+        {"c", EValueType::Int64},
+        {"d", EValueType::Int64},
+    });
+
+    std::vector<TString> source = {
+        "a=1;b=0;c=11;d=9",
+        "a=2;b=1;c=12;d=8",
+        "a=3;b=2;c=13;d=7",
+
+        "a=4;b=0;c=14;d=6",
+        "a=5;b=1;c=15;d=5",
+        "a=6;b=2;c=16;d=4",
+
+        "a=7;b=0;c=17;d=3",
+        "a=8;b=1;c=18;d=2",
+        "a=9;b=2;c=19;d=1",
+    };
+
+    {
+        auto resultSplit = MakeSplit({
+            {"t", EValueType::Int64},
+            {"b", EValueType::Int64},
+        });
+
+        auto result = YsonToRows({
+            "t=18;b=2",
+            "t=15;b=1",
+            "t=12;b=0",
+        }, resultSplit);
+
+        Evaluate(
+            "sum(a) as t, b FROM [//t] group by b order by b desc limit 3",
+            split,
+            source,
+            ResultMatcher(result));
+    }
+
+    {
+        auto resultSplit = MakeSplit({
+            {"t", EValueType::Int64},
+            {"b", EValueType::Int64},
+        });
+
+        auto result = YsonToRows({
+            "t=18;b=2",
+            "t=15;b=1",
+            "t=12;b=0",
+        }, resultSplit);
+
+        Evaluate(
+            "sum(a) as t, b FROM [//t] group by b order by b desc, sum(a) limit 3",
+            split,
+            source,
+            ResultMatcher(result));
+
+        Evaluate(
+            "sum(a) as t, b FROM [//t] group by b order by b desc, t limit 3",
+            split,
+            source,
+            ResultMatcher(result));
+
+        Evaluate(
+            "sum(a) as t, b FROM [//t] group by b order by b desc, avg(a) limit 3",
+            split,
+            source,
+            ResultMatcher(result));
+    }
+
+    {
+        auto resultSplit = MakeSplit({
+            {"a", EValueType::Int64},
+        });
+
+        auto result = YsonToRows({
+            "a=0",
+            "a=1",
+            "a=2",
+        }, resultSplit);
+
+        Evaluate(
+            "a from [//t] group by a % 3 as a order by a limit 3",
+            split,
+            source,
+            ResultMatcher(result));
+    }
+
+    {
+        auto resultSplit = MakeSplit({
+            {"c", EValueType::Int64},
+        });
+
+        auto result = YsonToRows({
+            "c=13",
+            "c=11",
+            "c=12",
+        }, resultSplit);
+
+        Evaluate(
+            "min(c) as c from [//t] group by a % 3 as m, b order by m, b limit 3",
+            split,
+            source,
+            ResultMatcher(result));
+    }
+
+    {
+        auto resultSplit = MakeSplit({
+            {"d", EValueType::Int64},
+            {"a", EValueType::Int64},
+            {"b", EValueType::Int64},
+        });
+
+        auto result = YsonToRows({
+            "d=7;a=3;b=2;",
+            "d=6;a=4;b=0;",
+            "d=5;a=5;b=1;",
+        }, resultSplit);
+
+        Evaluate(
+            "d, a, b from [//t] group by d, a, b order by a, b offset 2 limit 3",
+            split,
+            source,
+            ResultMatcher(result));
+
+        Evaluate(
+            "d, a, b from [//t] group by d, a, b order by a, b, d desc offset 2 limit 3",
+            split,
+            source,
+            ResultMatcher(result));
+    }
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, GroupByOrderBy2)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::String},
+        {"c", EValueType::Int64},
+        {"d", EValueType::Int64},
+    });
+
+    std::vector<TString> source = {
+        "a=1;b=a;c=1;d=1",
+        "a=2;b=a;c=2;d=2",
+        "a=3;b=b;c=3;d=3",
+
+        "a=4;b=a;c=4;d=1",
+        "a=5;b=b;c=1;d=2",
+        "a=6;b=a;c=2;d=3",
+
+        "a=7;b=b;c=3;d=1",
+        "a=8;b=b;c=4;d=2",
+        "a=9;b=a;c=1;d=3",
+    };
+
+    {
+        auto resultSplit = MakeSplit({
+            {"t", EValueType::Int64},
+            {"b", EValueType::String},
+            {"c", EValueType::Int64},
+        });
+
+        auto result = YsonToRows({
+            "t=10;b=a;c=1",
+            "t=8;b=a;c=2",
+            "t=4;b=a;c=4",
+
+            "t=5;b=b;c=1",
+            "t=10;b=b;c=3",
+            "t=8;b=b;c=4",
+        }, resultSplit);
+
+        Evaluate(
+            "sum(a) as t, b, c FROM [//t] group by b, c order by b, c limit 6",
+            split,
+            source,
+            ResultMatcher(result));
+    }
+
+    {
+        auto resultSplit = MakeSplit({
+            {"b", EValueType::String},
+            {"c", EValueType::Int64},
+            {"d", EValueType::Int64},
+            {"s", EValueType::Int64},
+        });
+
+        auto result = YsonToRows({
+            "b=a;c=1;d=1;s=2",
+
+            "b=b;c=1;d=2;s=3",
+
+            "b=a;c=1;d=3;s=4",
+            "b=a;c=2;d=2;s=4",
+            "b=b;c=3;d=1;s=4",
+
+            "b=a;c=2;d=3;s=5",
+            "b=a;c=4;d=1;s=5",
+
+            "b=b;c=3;d=3;s=6",
+            "b=b;c=4;d=2;s=6",
+        }, resultSplit);
+
+        Evaluate(
+            "b, c, d, c + d as s FROM [//t] group by b, c, d order by s, b, c limit 9",
+            split,
+            source,
+            ResultMatcher(result));
+    }
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, GroupByOrderBy3)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64},
+    });
+
+    std::vector<TString> source = {
+        "a=1;b=0",
+        "a=2;b=1",
+        "a=3;b=2",
+
+        "a=4;b=0",
+        "a=5;b=1",
+        "a=6;b=2",
+
+        "a=7;b=0",
+        "a=8;b=1",
+        "a=9;b=2",
+    };
+
+    {
+        auto resultSplit = MakeSplit({
+            {"t", EValueType::Int64},
+            {"b", EValueType::Int64},
+        });
+
+        auto result = YsonToRows({
+            "t=12;b=0",
+        }, resultSplit);
+
+        Evaluate(
+            "sum(a) as t, b FROM [//t] where b = 0 group by b order by b limit 3",
+            split,
+            source,
+            ResultMatcher(result));
+    }
+
+    {
+        auto resultSplit = MakeSplit({
+            {"t", EValueType::Int64},
+            {"b", EValueType::Int64},
+        });
+
+        auto result = YsonToRows({ }, resultSplit);
+
+        Evaluate(
+            "sum(a) as t, b FROM [//t] where b = 4 group by b order by b limit 3",
+            split,
+            source,
+            ResultMatcher(result));
+    }
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, GroupByWithAvgCoordinated)
 {
     auto split = MakeSplit({
@@ -3269,6 +3544,7 @@ TEST_F(TQueryEvaluateTest, GroupByOrderByCoordinated1)
         {"a=7;b=0;c=17;d=3", "a=8;b=1;c=18;d=2", "a=9;b=2;c=19;d=1"},
     };
 
+    // TODO(dtorilov): disjoint test with non-optimized out group op.
     {
         // Simple.
         auto resultSplit = MakeSplit({{"m", EValueType::Int64}});
@@ -3941,6 +4217,32 @@ TEST_F(TQueryEvaluateTest, GroupByWithNoKeyColumnsInTableSchema)
         auto resultSplit = MakeSplit({{"a", EValueType::Int64}, {"b", EValueType::Int64}});
         auto result = YsonToRows({"a=0;b=0", "a=1;b=1", "a=2;b=2", "a=3;b=3", "a=4;b=4"}, resultSplit);
         EvaluateCoordinatedGroupBy("a, sum(b) as b from [//t] group by a limit 1000", split, sources, ResultMatcher(result));
+    }
+}
+
+TEST_F(TQueryEvaluateTest, GroupByWithIdenticalOrderKey)
+{
+    auto split = MakeSplit({
+        {"k0", EValueType::Int64, ESortOrder::Ascending},
+        {"v1", EValueType::Int64},
+        {"v2", EValueType::Int64},
+    });
+
+    auto sources = std::vector<std::vector<TString>>{
+        {
+            "k0=0;v1=1;v2=42",
+            "k0=1;v1=2;v2=1",
+        },
+        {
+            "k0=2;v1=2;v2=42",
+            "k0=3;v1=1;v2=1",
+        },
+    };
+
+    {
+        auto resultSplit = MakeSplit({{"m", EValueType::Int64}});
+        auto result = YsonToRows({"m=1"}, resultSplit);
+        EvaluateCoordinatedGroupBy("min(v2) as m from [//t] group by v1 order by (v1-v1) limit 1", split, sources, ResultMatcher(result));
     }
 }
 
