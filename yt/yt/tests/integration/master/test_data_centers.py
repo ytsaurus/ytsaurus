@@ -4,20 +4,21 @@ from yt_commands import (
     authors, create, ls, get, set, exists, remove, create_data_center, create_rack,
     remove_data_center, write_file, wait, sync_control_chunk_replicator,
     read_journal, write_journal, write_table, wait_until_sealed,
-    get_nodes, get_racks, get_data_centers, get_singular_chunk_id)
+    get_nodes, set_nodes_banned, get_racks, get_data_centers, get_singular_chunk_id)
 
 from yt.environment.helpers import assert_items_equal
 
-from yt.common import YtError
+from yt.common import YtError, WaitFailed
 
 import pytest
 
 import builtins
+import math
 
 ##################################################################
 
 
-class TestDataCenters(YTEnvSetup):
+class TestDataCentersBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 20
 
@@ -180,6 +181,10 @@ class TestDataCenters(YTEnvSetup):
     def _ban_data_centers(self, data_centers):
         set("//sys/@config/chunk_manager/banned_storage_data_centers", data_centers)
 
+##################################################################
+
+
+class TestDataCenters(TestDataCentersBase):
     @authors("shakurov")
     def test_create(self):
         create_data_center("d")
@@ -474,9 +479,205 @@ class TestDataCenters(YTEnvSetup):
 
         wait(lambda: not get("#{}/@replication_status/default/unsafely_placed".format(chunk_id)))
 
+##################################################################
+
+
+class TestFaultyDataCenters(TestDataCentersBase):
+    def _init_faulty_data_center_aware_replicator(self):
+        self._init_data_center_aware_replicator()
+        set("//sys/@config/chunk_manager/replicator_enabled_check_period", 2000)
+        set("//sys/@config/chunk_manager/data_center_failure_detector/enable", True)
+
+    @authors("koloshmet")
+    def test_faulty_data_center_detection_default(self):
+        self._init_faulty_data_center_aware_replicator()
+
+        assert get("//sys/@chunk_replicator_enabled")
+        assert not get("//sys/@faulty_storage_data_centers")
+        assert not get("//sys/@config/chunk_manager/data_center_failure_detector/data_center_thresholds")
+
+        default_thresholds = {
+            "online_node_count_to_disable": 0,
+            "online_node_count_to_enable": 0,
+            "online_node_fraction_to_disable": 0.0,
+            "online_node_fraction_to_enable": 0.0,
+        }
+        assert get("//sys/@config/chunk_manager/data_center_failure_detector/default_thresholds") == default_thresholds
+
+        nodes = get_nodes()
+
+        set_nodes_banned(nodes, True)
+
+        with pytest.raises(WaitFailed):
+            wait(lambda: len(get("//sys/@faulty_storage_data_centers")) > 0, timeout=10)
+
+        with pytest.raises(YtError):
+            self._create_chunk(replication_factor=3)
+
+    @authors("koloshmet")
+    def test_faulty_data_center_detection_default_preset(self):
+        self._init_faulty_data_center_aware_replicator()
+
+        nodes = get_nodes()
+
+        def has_alert(msg):
+            for alert in get("//sys/@master_alerts"):
+                print(alert)
+                if msg in str(alert):
+                    return True
+            return False
+
+        default_thresholds = {
+            "online_node_fraction_to_disable": 0.5,
+            "online_node_fraction_to_enable": 0.5,
+        }
+        set("//sys/@config/chunk_manager/data_center_failure_detector/default_thresholds", default_thresholds)
+        set_nodes_banned(nodes, True)
+
+        wait(lambda: has_alert("Storage data center \"d0\" considered faulty"))
+        wait(lambda: sorted(get("//sys/@faulty_storage_data_centers")) == ["d0", "d1", "d2"])
+
+        with pytest.raises(YtError):
+            self._create_chunk(replication_factor=3)
+
+        set_nodes_banned(nodes, False)
+
+        wait(lambda: not get("//sys/@faulty_storage_data_centers"))
+
+        default_thresholds = {
+            "online_node_count_to_disable": 1,
+            "online_node_count_to_enable": 1,
+        }
+        set("//sys/@config/chunk_manager/data_center_failure_detector/default_thresholds", default_thresholds)
+        set_nodes_banned(nodes, True)
+
+        wait(lambda: has_alert("Storage data center \"d2\" considered faulty"))
+        wait(lambda: sorted(get("//sys/@faulty_storage_data_centers")) == ["d0", "d1", "d2"])
+
+        with pytest.raises(YtError):
+            self._create_chunk(replication_factor=3)
+
+    @authors("koloshmet")
+    def test_faulty_data_center_detection_dc_preset(self):
+        self._init_faulty_data_center_aware_replicator()
+
+        nodes = get_nodes()
+
+        def has_alert(msg):
+            for alert in get("//sys/@master_alerts"):
+                print(alert)
+                if msg in str(alert):
+                    return True
+            return False
+
+        d0_thresholds = {
+            "online_node_count_to_disable": 1,
+            "online_node_count_to_enable": 1,
+        }
+        set("//sys/@config/chunk_manager/data_center_failure_detector/data_center_thresholds", {"d0": d0_thresholds})
+        set_nodes_banned(nodes, True)
+
+        wait(lambda: has_alert("Storage data center \"d0\" considered faulty"))
+        wait(lambda: get("//sys/@faulty_storage_data_centers") == ["d0"])
+
+        set_nodes_banned(nodes, False)
+
+        wait(lambda: not get("//sys/@faulty_storage_data_centers"))
+
+    @authors("koloshmet")
+    def test_faulty_data_center_detection_real_preset(self):
+        self._init_faulty_data_center_aware_replicator()
+
+        nodes = get_nodes()
+
+        def has_alert(msg):
+            for alert in get("//sys/@master_alerts"):
+                print(alert)
+                if msg in str(alert):
+                    return True
+            return False
+
+        d0_nodes = []
+        for node in nodes:
+            if get("//sys/cluster_nodes/{}/@data_center".format(node)) == "d0":
+                d0_nodes.append(node)
+
+        d0_thresholds = {
+            "online_node_fraction_to_disable": 0.5,
+            "online_node_fraction_to_enable": 0.5,
+        }
+        set("//sys/@config/chunk_manager/data_center_failure_detector/data_center_thresholds", {"d0": d0_thresholds})
+        set_nodes_banned(d0_nodes, True)
+
+        wait(lambda: has_alert("Storage data center \"d0\" considered faulty"))
+        wait(lambda: get("//sys/@faulty_storage_data_centers") == ["d0"])
+
+        chunk_id = self._create_chunk(replication_factor=3)
+        assert "d0" not in self._get_replica_data_centers(chunk_id)
+
+        set_nodes_banned(d0_nodes, False)
+
+        wait(lambda: not get("//sys/@faulty_storage_data_centers"))
+        wait(lambda: "d0" in self._get_replica_data_centers(chunk_id))
+
+    @authors("koloshmet")
+    def test_faulty_data_center_detection_thresholds_preset(self):
+        self._init_faulty_data_center_aware_replicator()
+
+        d0_thresholds = {
+            "online_node_fraction_to_disable": 0.4,
+            "online_node_fraction_to_enable": 0.6,
+        }
+        set("//sys/@config/chunk_manager/data_center_failure_detector/data_center_thresholds", {"d0": d0_thresholds})
+
+        d0_nodes = []
+        for node in get_nodes():
+            if get("//sys/cluster_nodes/{}/@data_center".format(node)) == "d0":
+                d0_nodes.append(node)
+
+        mid = len(d0_nodes) // 2
+        first_quartile = mid // 2
+        last_quartile = math.ceil(len(d0_nodes) * 3 / 4)
+
+        set_nodes_banned(d0_nodes[:mid], True)
+        with pytest.raises(WaitFailed):
+            wait(lambda: len(get("//sys/@faulty_storage_data_centers")) > 0, timeout=10)
+
+        set_nodes_banned(d0_nodes[mid:last_quartile], True)
+        wait(lambda: get("//sys/@faulty_storage_data_centers") == ["d0"])
+
+        set_nodes_banned(d0_nodes[mid:last_quartile], False)
+        with pytest.raises(WaitFailed):
+            wait(lambda: not get("//sys/@faulty_storage_data_centers"), timeout=10)
+
+        set_nodes_banned(d0_nodes[:first_quartile], False)
+        wait(lambda: not get("//sys/@faulty_storage_data_centers"))
+
+    @authors("koloshmet")
+    def test_faulty_data_center_detection_replicator_disabled(self):
+        self._init_faulty_data_center_aware_replicator()
+
+        nodes = get_nodes()
+
+        default_thresholds = {
+            "online_node_fraction_to_disable": 0.5,
+            "online_node_fraction_to_enable": 0.5,
+        }
+        set("//sys/@config/chunk_manager/data_center_failure_detector/default_thresholds", default_thresholds)
+        set("//sys/@config/chunk_manager/safe_online_node_count", self.NUM_NODES // 2)
+        set_nodes_banned(nodes, True)
+
+        with pytest.raises(WaitFailed):
+            wait(lambda: len(get("//sys/@faulty_storage_data_centers")) > 0, timeout=10)
 
 ##################################################################
 
 
 class TestDataCentersMulticell(TestDataCenters):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+##################################################################
+
+
+class TestFaultyDataCentersMulticell(TestFaultyDataCenters):
     NUM_SECONDARY_MASTER_CELLS = 2

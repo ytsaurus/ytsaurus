@@ -861,6 +861,14 @@ public:
         return FlavoredNodeStatistics_[flavor];
     }
 
+    TAggregatedNodeStatistics GetDataCenterNodeStatistics(const TDataCenter* dataCenter) override
+    {
+        MaybeRebuildAggregatedNodeStatistics();
+
+        auto guard = ReaderGuard(NodeStatisticsLock_);
+        return GetOrCrash(DataCenterNodeStatistics_, dataCenter);
+    }
+
     int GetOnlineNodeCount() override
     {
         return AggregatedOnlineNodeCount_;
@@ -964,6 +972,7 @@ private:
     TCpuInstant NodeStatisticsUpdateDeadline_ = 0;
     TAggregatedNodeStatistics AggregatedNodeStatistics_;
     TEnumIndexedArray<ENodeFlavor, TAggregatedNodeStatistics> FlavoredNodeStatistics_;
+    THashMap<const TDataCenter*, TAggregatedNodeStatistics> DataCenterNodeStatistics_;
 
     // Cf. YT-7009.
     // Maintain a dedicated counter of alive racks since RackMap_ may contain zombies.
@@ -2684,6 +2693,7 @@ private:
         for (auto flavor : TEnumTraits<ENodeFlavor>::GetDomainValues()) {
             FlavoredNodeStatistics_[flavor] = TAggregatedNodeStatistics();
         }
+        DataCenterNodeStatistics_.clear();
 
         auto increment = [] (
             NNodeTrackerClient::TIOStatistics* statistics,
@@ -2702,23 +2712,21 @@ private:
                 continue;
             }
 
-            // It's forbidden to capture structured binding in lambda, so we copy #node here.
-            auto* node_ = node;
             auto updateStatistics = [&] (TAggregatedNodeStatistics* statistics) {
-                statistics->BannedNodeCount += node_->IsBanned();
-                statistics->DecommissinedNodeCount += node_->IsDecommissioned();
-                statistics->WithAlertsNodeCount += !node_->Alerts().empty();
+                statistics->BannedNodeCount += node->IsBanned();
+                statistics->DecommissinedNodeCount += node->IsDecommissioned();
+                statistics->WithAlertsNodeCount += !node->Alerts().empty();
 
-                if (node_->GetAggregatedState() != ENodeState::Online) {
+                if (node->GetAggregatedState() != ENodeState::Online) {
                     ++statistics->OfflineNodeCount;
                     return;
                 }
                 statistics->OnlineNodeCount++;
 
-                const auto& nodeStatistics = node_->DataNodeStatistics();
+                const auto& nodeStatistics = node->DataNodeStatistics();
                 for (const auto& location : nodeStatistics.chunk_locations()) {
                     int mediumIndex = location.medium_index();
-                    if (!node_->IsDecommissioned()) {
+                    if (!node->IsDecommissioned()) {
                         statistics->SpacePerMedium[mediumIndex].Available += location.available_space();
                         statistics->TotalSpace.Available += location.available_space();
                     }
@@ -2735,6 +2743,7 @@ private:
             for (auto flavor : node->Flavors()) {
                 updateStatistics(&FlavoredNodeStatistics_[flavor]);
             }
+            updateStatistics(&DataCenterNodeStatistics_[node->GetDataCenter()]);
         }
 
         NodeStatisticsUpdateDeadline_ =

@@ -710,6 +710,9 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(32)
         .DontSerializeDefault();
 
+    registrar.Parameter("data_center_failure_detector", &TThis::DataCenterFailureDetector)
+        .DefaultNew();
+
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
@@ -765,6 +768,55 @@ void TS3ConnectionConfig::Register(TRegistrar registrar)
 
 void TS3ClientConfig::Register(TRegistrar /*registrar*/)
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDynamicDataCenterFaultThresholdsConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("online_node_count_to_disable", &TThis::OnlineNodeCountToDisable)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+    registrar.Parameter("online_node_count_to_enable", &TThis::OnlineNodeCountToEnable)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+    registrar.Parameter("online_node_fraction_to_disable", &TThis::OnlineNodeFractionToDisable)
+        .InRange(0.0, 1.0)
+        .Default(0.0);
+    registrar.Parameter("online_node_fraction_to_enable", &TThis::OnlineNodeFractionToEnable)
+        .InRange(0.0, 1.0)
+        .Default(0.0);
+
+    registrar.Postprocessor([] (TThis* config) {
+        auto throwIfEnableThresholdLessThanDisable = [] (std::string_view thresholdType) {
+            THROW_ERROR_EXCEPTION(
+                "\"online_node_%v_to_disable\" must be less or equal"
+                "than \"online_node_%v_to_enable\"",
+                thresholdType,
+                thresholdType);
+        };
+
+        if (config->OnlineNodeCountToDisable > config->OnlineNodeCountToEnable) {
+            throwIfEnableThresholdLessThanDisable("count");
+        }
+        if (config->OnlineNodeFractionToDisable > config->OnlineNodeFractionToEnable) {
+            throwIfEnableThresholdLessThanDisable("fraction");
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDynamicDataCenterFailureDetectorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
+    registrar.Parameter("default_thresholds", &TThis::DefaultThresholds)
+        .DefaultNew();
+
+    registrar.Parameter("data_center_thresholds", &TThis::DataCenterThresholds)
+        .Default();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
