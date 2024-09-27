@@ -1382,7 +1382,9 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         New<TRowBuffer>(TSchemalessMergingMultiChunkReaderBufferTag()),
         versionedReadSchema->GetColumnCount(),
         versionedReadSchema->GetKeyColumnCount(),
-        timestampedColumnFilter,
+        // NB(dave11ar): `timestampedColumnFilter` can be used with empty `timestampColumnMapping`,
+        // it is just additional protection from critical bugs on production.
+        timestampColumnMapping.empty() ? TColumnFilter::MakeUniversal() : timestampedColumnFilter,
         connection->GetColumnEvaluatorCache()->Find(versionedReadSchema),
         retentionTimestamp,
         timestampColumnMapping);
