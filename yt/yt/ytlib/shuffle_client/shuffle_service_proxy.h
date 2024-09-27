@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/yt/ytlib/shuffle_service/proto/shuffle_service.pb.h>
+#include <yt/yt/ytlib/shuffle_client/proto/shuffle_service.pb.h>
 
 #include <yt/yt/core/rpc/client.h>
 
-namespace NYT::NShuffle {
+namespace NYT::NShuffleClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,4 +22,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NShuffle
+} // namespace NYT::NShuffleClient

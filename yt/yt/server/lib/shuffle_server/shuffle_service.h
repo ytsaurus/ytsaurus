@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/rpc/service.h>
 
-namespace NYT::NShuffle {
+namespace NYT::NShuffleServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,4 +13,4 @@ NRpc::IServicePtr CreateShuffleService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NShuffle
+} // namespace NYT::NShuffleServer

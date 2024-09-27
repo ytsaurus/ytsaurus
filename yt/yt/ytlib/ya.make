@@ -515,9 +515,7 @@ SRCS(
 
     yql_client/proto/yql_service.proto
 
-    shuffle_service/shuffle_service.cpp
-
-    shuffle_service/proto/shuffle_service.proto
+    shuffle_client/proto/shuffle_service.proto
 )
 
 GENERATE_YT_RECORD(
