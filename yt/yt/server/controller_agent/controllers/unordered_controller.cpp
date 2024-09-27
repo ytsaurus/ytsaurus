@@ -306,7 +306,7 @@ protected:
                     InputManager->GetInputTables()[index]->Teleportable = CheckTableSchemaCompatibility(
                         *InputManager->GetInputTables()[index]->Schema,
                         *OutputTables_[0]->TableUploadOptions.TableSchema.Get(),
-                        {.IgnoreSortOrder = false}).first == ESchemaCompatibility::FullyCompatible;
+                        {}).first == ESchemaCompatibility::FullyCompatible;
                 }
             }
         }
@@ -854,9 +854,10 @@ private:
 
                     if (!Spec->InputQuery) {
                         ValidateOutputSchemaCompatibility({
-                            .IgnoreSortOrder = true,
                             .ForbidExtraComputedColumns = false,
                             .IgnoreStableNamesDifference = true,
+                            .AllowTimestampColumns = table->TableUploadOptions.VersionedWriteOptions.WriteMode ==
+                                EVersionedIOMode::LatestTimestamp,
                         });
                     }
                 }

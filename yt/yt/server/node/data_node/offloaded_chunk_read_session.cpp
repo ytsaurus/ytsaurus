@@ -268,7 +268,8 @@ private:
                 if (chunkState->OverrideTimestamp) {
                     reader = CreateTimestampResettingAdapter(
                         std::move(reader),
-                        chunkState->OverrideTimestamp);
+                        chunkState->OverrideTimestamp,
+                        chunkMeta->GetChunkFormat());
                 }
             }
         } else {

@@ -8,6 +8,7 @@
 #include "table_ypath_proxy.h"
 #include "helpers.h"
 #include "skynet_column_evaluator.h"
+#include "timestamped_schema_helpers.h"
 #include "versioned_chunk_writer.h"
 
 #include <yt/yt/ytlib/table_chunk_format/column_writer.h>
@@ -1005,15 +1006,15 @@ public:
         : TNontemplateMultiChunkWriterBase(
             config,
             options,
-            client,
+            std::move(client),
             std::move(localHostName),
             cellTag,
             transactionId,
             schemaId,
             parentChunkListId,
-            trafficMeter,
-            throttler,
-            blockCache)
+            std::move(trafficMeter),
+            std::move(throttler),
+            std::move(blockCache))
         , Config_(std::move(config))
         , Options_(std::move(options))
         , NameTable_(std::move(nameTable))
@@ -1098,7 +1099,12 @@ protected:
             ValidateDuplicateIds(row);
 
             int columnCount = Schema_->GetColumnCount();
-            int maxColumnCount = columnCount + (Schema_->GetStrict() ? 0 : row.GetCount());
+            int additionalColumnCount = Schema_->GetStrict()
+                ? (Options_->VersionedWriteOptions.WriteMode == EVersionedIOMode::LatestTimestamp
+                       ? Schema_->GetValueColumnCount()
+                       : 0)
+                : row.GetCount();
+            int maxColumnCount = columnCount + additionalColumnCount;
             auto mutableRow = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), maxColumnCount);
 
             for (int i = 0; i < columnCount; ++i) {
@@ -1124,7 +1130,7 @@ protected:
                     mutableRow[id].Id = id;
                 } else {
                     // Validate non-schema columns for
-                    if (Schema_->GetStrict()) {
+                    if (Schema_->GetStrict() && id >= maxColumnCount) {
                         THROW_ERROR_EXCEPTION(
                             EErrorCode::SchemaViolation,
                             "Unknown column %Qv in strict schema",
@@ -1440,7 +1446,13 @@ public:
             CurrentBufferCapacity_ += BlockWriters_.back()->GetCapacity();
         }
 
-        ChunkWriterFactory_ = [=, this] (IChunkWriterPtr underlyingWriter) {
+        ChunkWriterFactory_ = [
+            =,
+            config = std::move(config),
+            options = std::move(options),
+            blockCache = std::move(blockCache),
+            this
+        ] (IChunkWriterPtr underlyingWriter){
             return New<TPartitionChunkWriter>(
                 config,
                 options,
@@ -1730,13 +1742,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TUnversionedUpdateMultiChunkWriterTag {};
-
-class TUnversionedUpdateMultiChunkWriter
+template <class TTag>
+class TVersionedSchemalessMultiChunkWriterBase
     : public TSchemalessMultiChunkWriterBase
 {
 public:
-    TUnversionedUpdateMultiChunkWriter(
+    TVersionedSchemalessMultiChunkWriterBase(
         TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
         NNative::IClientPtr client,
@@ -1747,28 +1758,29 @@ public:
         TChunkListId parentChunkListId,
         std::function<IVersionedChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
         TNameTablePtr nameTable,
-        TTableSchemaPtr schema,
+        TTableSchemaPtr logicalSchema,
+        TTableSchemaPtr physicalSchema,
         TLegacyOwningKey lastKey,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache)
         : TSchemalessMultiChunkWriterBase(
-            config,
-            options,
-            client,
+            std::move(config),
+            std::move(options),
+            std::move(client),
             std::move(localHostName),
             cellTag,
             transactionId,
             schemaId,
             parentChunkListId,
-            nameTable,
-            schema->ToUnversionedUpdate(),
-            lastKey,
-            trafficMeter,
-            throttler,
-            blockCache)
+            std::move(nameTable),
+            std::move(logicalSchema),
+            std::move(lastKey),
+            std::move(trafficMeter),
+            std::move(throttler),
+            std::move(blockCache))
+        , PhysicalSchema_(std::move(physicalSchema))
         , CreateChunkWriter_(std::move(createChunkWriter))
-        , OriginalSchema_(std::move(schema))
         , ChunkNameTable_(TNameTable::FromSchemaStable(*Schema_))
     { }
 
@@ -1797,10 +1809,12 @@ public:
         }
     }
 
+protected:
+    TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TTag());
+    TTableSchemaPtr PhysicalSchema_;
+
 private:
     const std::function<IVersionedChunkWriterPtr(IChunkWriterPtr)> CreateChunkWriter_;
-    TTableSchemaPtr OriginalSchema_;
-    TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TUnversionedUpdateMultiChunkWriterTag());
     TNameTablePtr ChunkNameTable_;
 
     IVersionedChunkWriterPtr CurrentWriter_;
@@ -1817,6 +1831,53 @@ private:
         return CurrentWriter_;
     }
 
+    virtual TVersionedRow MakeVersionedRow(const TUnversionedRow row) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TUnversionedUpdateMultiChunkWriterTag {};
+
+class TUnversionedUpdateMultiChunkWriter
+    : public TVersionedSchemalessMultiChunkWriterBase<TUnversionedUpdateMultiChunkWriterTag>
+{
+public:
+    TUnversionedUpdateMultiChunkWriter(
+        TTableWriterConfigPtr config,
+        TTableWriterOptionsPtr options,
+        NNative::IClientPtr client,
+        TString localHostName,
+        TCellTag cellTag,
+        TTransactionId transactionId,
+        TMasterTableSchemaId schemaId,
+        TChunkListId parentChunkListId,
+        std::function<IVersionedChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
+        TNameTablePtr nameTable,
+        TTableSchemaPtr schema,
+        TLegacyOwningKey lastKey,
+        TTrafficMeterPtr trafficMeter,
+        IThroughputThrottlerPtr throttler,
+        IBlockCachePtr blockCache)
+        : TVersionedSchemalessMultiChunkWriterBase<TUnversionedUpdateMultiChunkWriterTag>(
+            config,
+            options,
+            client,
+            std::move(localHostName),
+            cellTag,
+            transactionId,
+            schemaId,
+            parentChunkListId,
+            createChunkWriter,
+            nameTable,
+            schema->ToUnversionedUpdate(),
+            std::move(schema),
+            lastKey,
+            trafficMeter,
+            throttler,
+            blockCache)
+    { }
+
+private:
     EUnversionedUpdateDataFlags FlagsFromValue(TUnversionedValue value) const
     {
         return value.Type == EValueType::Null
@@ -1883,7 +1944,7 @@ private:
 
                 bool isMissing = Any(FlagsFromValue(flags) & EUnversionedUpdateDataFlags::Missing);
 
-                const auto& columnSchema = OriginalSchema_->Columns()[originalId];
+                const auto& columnSchema = PhysicalSchema_->Columns()[originalId];
                 if (columnSchema.Required()) {
                     if (isMissing) {
                         THROW_ERROR_EXCEPTION(
@@ -1904,13 +1965,13 @@ private:
         }
     }
 
-    TVersionedRow MakeVersionedRow(const TUnversionedRow row)
+    TVersionedRow MakeVersionedRow(const TUnversionedRow row) override
     {
         if (!row) {
             return TVersionedRow();
         }
 
-        int keyColumnCount = OriginalSchema_->GetKeyColumnCount();
+        int keyColumnCount = PhysicalSchema_->GetKeyColumnCount();
 
         for (int index = 0; index < keyColumnCount; ++index) {
             YT_ASSERT(row[index].Id == index);
@@ -1983,6 +2044,97 @@ private:
         }
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TLatestTimestampMultiChunkWriterTag {};
+
+class TLatestTimestampMultiChunkWriter
+    : public TVersionedSchemalessMultiChunkWriterBase<TLatestTimestampMultiChunkWriterTag>
+{
+public:
+    TLatestTimestampMultiChunkWriter(
+        TTableWriterConfigPtr config,
+        TTableWriterOptionsPtr options,
+        NNative::IClientPtr client,
+        TString localHostName,
+        TCellTag cellTag,
+        TTransactionId transactionId,
+        TMasterTableSchemaId schemaId,
+        TChunkListId parentChunkListId,
+        std::function<IVersionedChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
+        TNameTablePtr nameTable,
+        TTableSchemaPtr schema,
+        TLegacyOwningKey lastKey,
+        TTrafficMeterPtr trafficMeter,
+        IThroughputThrottlerPtr throttler,
+        IBlockCachePtr blockCache)
+        : TVersionedSchemalessMultiChunkWriterBase<TLatestTimestampMultiChunkWriterTag>(
+            config,
+            options,
+            client,
+            std::move(localHostName),
+            cellTag,
+            transactionId,
+            schemaId,
+            parentChunkListId,
+            createChunkWriter,
+            nameTable,
+            ToLatestTimestampSchema(schema),
+            schema,
+            lastKey,
+            trafficMeter,
+            throttler,
+            blockCache)
+    { }
+
+private:
+    TVersionedRow MakeVersionedRow(const TUnversionedRow row) override
+    {
+        if (!row) {
+            return TVersionedRow();
+        }
+
+        int keyColumnCount = PhysicalSchema_->GetKeyColumnCount();
+        int valueColumnCount = PhysicalSchema_->GetValueColumnCount();
+        int columnCount = PhysicalSchema_->GetColumnCount();
+
+        YT_VERIFY(static_cast<int>(row.GetCount()) == keyColumnCount + valueColumnCount * 2);
+
+        std::vector<TTimestamp> writeTimestamps(valueColumnCount);
+        for (int columnIndex = columnCount; columnIndex < columnCount + valueColumnCount; ++columnIndex) {
+            const auto& timestampColumn = row[columnIndex];
+            writeTimestamps[columnIndex - columnCount] = timestampColumn.Type == EValueType::Null
+                ? MinTimestamp
+                : timestampColumn.Data.Uint64;
+        }
+
+        writeTimestamps.erase(std::unique(writeTimestamps.begin(), writeTimestamps.end()), writeTimestamps.end());
+        std::sort(writeTimestamps.begin(), writeTimestamps.end(), std::greater<TTimestamp>());
+
+        auto versionedRow = TMutableVersionedRow::Allocate(
+            RowBuffer_->GetPool(),
+            keyColumnCount,
+            valueColumnCount,
+            writeTimestamps.size(),
+            /*deleteTimestampCount*/ 0);
+
+        ::memcpy(versionedRow.BeginKeys(), row.Begin(), sizeof(TUnversionedValue) * keyColumnCount);
+
+        auto* currentValue = versionedRow.BeginValues();
+        for (int columnIndex = keyColumnCount; columnIndex < columnCount; ++columnIndex, ++currentValue) {
+            const auto& timestampColumn = row[columnIndex + valueColumnCount];
+            *currentValue = MakeVersionedValue(row[columnIndex], timestampColumn.Type == EValueType::Null
+                ? MinTimestamp
+                : timestampColumn.Data.Uint64);
+        }
+
+        std::copy(writeTimestamps.begin(), writeTimestamps.end(), versionedRow.BeginWriteTimestamps());
+
+        return versionedRow;
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
@@ -2003,6 +2155,48 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
+    switch (options->VersionedWriteOptions.WriteMode) {
+        case EVersionedIOMode::Default:
+            break;
+
+        case EVersionedIOMode::LatestTimestamp: {
+            auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
+                return CreateVersionedChunkWriter(
+                    config,
+                    options,
+                    schema,
+                    std::move(underlyingWriter),
+                    dataSink,
+                    blockCache);
+            };
+
+            auto writer = New<TLatestTimestampMultiChunkWriter>(
+                config,
+                options,
+                client,
+                localHostName,
+                cellTag,
+                transactionId,
+                schemaId,
+                parentChunkListId,
+                createChunkWriter,
+                nameTable,
+                schema,
+                lastKey,
+                trafficMeter,
+                throttler,
+                blockCache);
+
+            writer->Init();
+
+            return writer;
+        }
+
+        default:
+            THROW_ERROR_EXCEPTION("Versioned table write mode %Qlv is not supported by chunk writer",
+                options->VersionedWriteOptions.WriteMode);
+    }
+
     switch (options->SchemaModification) {
         case ETableSchemaModification::None: {
             auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
@@ -2328,6 +2522,7 @@ private:
             Options_->ChunkFormat = TableUploadOptions_.ChunkFormat;
             Options_->EvaluateComputedColumns = TableUploadOptions_.TableSchema->HasMaterializedComputedColumns();
             Options_->TableSchema = GetSchema();
+            Options_->VersionedWriteOptions = TableUploadOptions_.VersionedWriteOptions;
 
             auto chunkWriterConfig = attributes.FindYson("chunk_writer");
             if (chunkWriterConfig) {
@@ -2359,7 +2554,7 @@ private:
                     auto checkResult = CheckTableSchemaCompatibility(
                         *chunkSchema,
                         *TableUploadOptions_.TableSchema.Get(),
-                        {.IgnoreSortOrder = false});
+                        {.AllowTimestampColumns = TableUploadOptions_.VersionedWriteOptions.WriteMode == EVersionedIOMode::LatestTimestamp});
                     if (!checkResult.second.IsOK()) {
                         YT_LOG_FATAL(
                             checkResult.second,

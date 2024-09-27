@@ -6228,6 +6228,8 @@ void TOperationControllerBase::GetOutputTablesSchema()
 
         table->TableWriterOptions->SchemaModification = table->TableUploadOptions.SchemaModification;
 
+        table->TableWriterOptions->VersionedWriteOptions = table->TableUploadOptions.VersionedWriteOptions;
+
         YT_LOG_DEBUG("Received output table schema (Path: %v, Schema: %v, SchemaMode: %v, LockMode: %v)",
             path,
             *table->TableUploadOptions.TableSchema,

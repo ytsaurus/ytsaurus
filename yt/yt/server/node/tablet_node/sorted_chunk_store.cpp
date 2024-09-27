@@ -1014,7 +1014,8 @@ private:
         if (needSetTimestamp && chunk->OverrideTimestamp_) {
             underlyingReader = CreateTimestampResettingAdapter(
                 std::move(underlyingReader),
-                chunk->OverrideTimestamp_);
+                chunk->OverrideTimestamp_,
+                static_cast<EChunkFormat>(chunk->ChunkMeta_->format()));
         }
 
         UnderlyingReader_ = CreateVersionedPerformanceCountingReader(
@@ -1262,7 +1263,8 @@ IVersionedReaderPtr TSortedChunkStore::MaybeWrapWithTimestampResettingAdapter(
     if (OverrideTimestamp_) {
         return CreateTimestampResettingAdapter(
             std::move(underlyingReader),
-            OverrideTimestamp_);
+            OverrideTimestamp_,
+            static_cast<EChunkFormat>(ChunkMeta_->format()));
     } else {
         return underlyingReader;
     }
