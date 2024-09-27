@@ -65,14 +65,9 @@ class TGroupHasher
 {
 public:
     // Intentionally implicit.
-    TGroupHasher(NWebAssembly::TCompartmentFunction<THasherFunction> hashser)
-        : Hasher_(hashser)
-    { }
+    TGroupHasher(NWebAssembly::TCompartmentFunction<THasherFunction> hasher);
 
-    ui64 operator () (const TPIValue* row) const
-    {
-        return Hasher_(row);
-    }
+    ui64 operator () (const TPIValue* row) const;
 
 private:
     NWebAssembly::TCompartmentFunction<THasherFunction> Hasher_;
@@ -81,16 +76,19 @@ private:
 class TRowComparer
 {
 public:
-    // Intentionally implicit.
-    TRowComparer(NWebAssembly::TCompartmentFunction<TComparerFunction> comparer)
-        : Comparer_(comparer)
-    { }
-
-    bool operator () (const TPIValue* lhs, const TPIValue* rhs) const
+    enum class ESentinelType : ui64
     {
-        return (lhs == rhs) ||
-            (lhs && rhs && Comparer_(lhs, rhs));
-    }
+        Empty = 0,
+        Deleted = 1,
+    };
+
+    static const TPIValue* MakeSentinel(ESentinelType type);
+    static bool IsSentinel(const TPIValue* value);
+
+    // Intentionally implicit.
+    TRowComparer(NWebAssembly::TCompartmentFunction<TComparerFunction> comparer);
+
+    bool operator () (const TPIValue* lhs, const TPIValue* rhs) const;
 
 private:
     NWebAssembly::TCompartmentFunction<TComparerFunction> Comparer_;
