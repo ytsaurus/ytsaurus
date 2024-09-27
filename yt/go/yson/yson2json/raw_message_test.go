@@ -57,6 +57,23 @@ func TestRawMessage_MarshalYSON(t *testing.T) {
 			Output:   `[{a=[{b=[];c=3;d=#;};];};]`,
 			UseInt64: true,
 		},
+		{
+			Input:    `{"$value": {"x": "y"}, "$attributes": {"attr": 10}}`,
+			Output:   `<attr=10;>{x=y;}`,
+			UseInt64: true,
+		},
+		{
+			Input:    `{"$value": null, "$attributes": {"attr1": 10, "attr2": true}}`,
+			Output:   `<attr1=10;attr2=%true;>#`,
+			UseInt64: true,
+		},
+		{
+			Input: `{"schema":{
+"$value": [{"name": "id","type_v3": "int64"},{"name": "val","type_v3": "utf8"}],
+"$attributes": {"strict": true}
+}}`,
+			Output: `{schema=<strict=%true;>[{name=id;"type_v3"=int64;};{name=val;"type_v3"=utf8;};];}`,
+		},
 	} {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
 			m := RawMessage{

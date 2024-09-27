@@ -4,9 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 
 	"go.ytsaurus.tech/yt/go/yson"
+)
+
+const (
+	valueKey      = "$value"
+	attributesKey = "$attributes"
 )
 
 // RawMessage is type that wraps raw JSON message and marshals it directly to YSON using streaming API
@@ -94,8 +100,27 @@ func (m RawMessage) MarshalYSON(w *yson.Writer) error {
 				w.EndList()
 				inMap = inMap[:len(inMap)-1]
 			case '{':
-				w.BeginMap()
-				inMap = append(inMap, true)
+				key, err := parseStringToken(d)
+				if err != nil {
+					return fmt.Errorf("failed to parse map key: %w", err)
+				}
+				if key == valueKey || key == attributesKey {
+					valueWithAttrs, err := parseValueWithAttributes(d, key)
+					if err != nil {
+						return fmt.Errorf("failed to parse value with attributes: %w", err)
+					}
+					if err = valueWithAttrs.marshalYSON(w, m.UseInt64, m.UseUint64); err != nil {
+						return fmt.Errorf("failed to marshal value with attributes: %w", err)
+					}
+					if err := parseObjectFinishDelim(d); err != nil {
+						return err
+					}
+				} else {
+					w.BeginMap()
+					inMap = append(inMap, true)
+					mapKey = true
+					w.MapKeyString(key)
+				}
 			case '}':
 				w.EndMap()
 				inMap = inMap[:len(inMap)-1]
@@ -124,6 +149,87 @@ func (m RawMessage) MarshalYSON(w *yson.Writer) error {
 	}
 
 	return w.Err()
+}
+
+type valueWithAttributes struct {
+	value      json.RawMessage
+	attributes map[string]json.RawMessage
+}
+
+func (v *valueWithAttributes) marshalYSON(w *yson.Writer, useInt64, useUint64 bool) error {
+	w.BeginAttrs()
+	for k, v := range v.attributes {
+		w.MapKeyString(k)
+		rawMessage := RawMessage{JSON: v, UseInt64: useInt64, UseUint64: useUint64}
+		if err := rawMessage.MarshalYSON(w); err != nil {
+			return fmt.Errorf("failed to marshal attribute %q: %w", k, err)
+		}
+	}
+	w.EndAttrs()
+
+	rawMessage := RawMessage{JSON: v.value, UseInt64: useInt64, UseUint64: useUint64}
+	if err := rawMessage.MarshalYSON(w); err != nil {
+		return fmt.Errorf("failed to marshal value: %w", err)
+	}
+	return nil
+}
+
+func parseValueWithAttributes(d *json.Decoder, firstKey string) (*valueWithAttributes, error) {
+	var valueWithAttrs valueWithAttributes
+	keyToDecodedValue := map[string]any{
+		valueKey:      &valueWithAttrs.value,
+		attributesKey: &valueWithAttrs.attributes,
+	}
+	secondKey := valueKey
+	if firstKey == valueKey {
+		secondKey = attributesKey
+	}
+
+	if err := d.Decode(keyToDecodedValue[firstKey]); err != nil {
+		return nil, err
+	}
+
+	nextKey, err := parseStringToken(d)
+	if err != nil {
+		return nil, err
+	}
+
+	if nextKey != secondKey {
+		return nil, fmt.Errorf("%s without %s", firstKey, secondKey)
+	}
+
+	if err := d.Decode(keyToDecodedValue[secondKey]); err != nil {
+		return nil, err
+	}
+
+	return &valueWithAttrs, nil
+}
+
+func parseStringToken(d *json.Decoder) (string, error) {
+	tok, err := d.Token()
+	if err != nil {
+		return "", err
+	}
+	s, ok := tok.(string)
+	if !ok {
+		return "", fmt.Errorf("token %v is not a string", s)
+	}
+	return s, nil
+}
+
+func parseObjectFinishDelim(d *json.Decoder) error {
+	tok, err := d.Token()
+	if err != nil {
+		return err
+	}
+	delim, ok := tok.(json.Delim)
+	if !ok {
+		return fmt.Errorf("token %v is not a delim", tok)
+	}
+	if delim != '}' {
+		return fmt.Errorf("token %v is not an object finish delim", tok)
+	}
+	return nil
 }
 
 var (
