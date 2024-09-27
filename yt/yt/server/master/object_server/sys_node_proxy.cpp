@@ -174,6 +174,11 @@ private:
                     .Value(chunkManager->IsChunkSealerEnabled());
                 return true;
 
+            case EInternedAttributeKey::FaultyStorageDataCenters:
+                BuildYsonFluently(consumer)
+                    .Value(chunkManager->GetFaultyStorageDataCenterNames());
+                return true;
+
             case EInternedAttributeKey::RegisteredMasterCellTags:
                 BuildYsonFluently(consumer)
                     .Value(multicellManager->GetRegisteredMasterCellTags());
