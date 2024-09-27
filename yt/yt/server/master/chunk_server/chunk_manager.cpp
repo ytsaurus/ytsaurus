@@ -1877,6 +1877,11 @@ public:
         return ForeignChunks_;
     }
 
+    THashSet<TString> GetFaultyStorageDataCenterNames() const override
+    {
+        return ChunkPlacement_->GetFaultyStorageDataCenterNames();
+    }
+
     bool IsChunkReplicatorEnabled() override
     {
         return ChunkReplicator_->IsReplicatorEnabled();

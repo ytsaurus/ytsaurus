@@ -424,6 +424,8 @@ private:
 
     void StartRequisitionUpdates(int shardIndex);
     void StopRequisitionUpdates(int shardIndex);
+
+    bool ComputeReplicatorEnablement() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReplicator)

@@ -300,6 +300,41 @@ DEFINE_REFCOUNTED_TYPE(TDynamicDataNodeTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicDataCenterFaultThresholdsConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    int OnlineNodeCountToDisable;
+    int OnlineNodeCountToEnable;
+    double OnlineNodeFractionToDisable;
+    double OnlineNodeFractionToEnable;
+
+    REGISTER_YSON_STRUCT(TDynamicDataCenterFaultThresholdsConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicDataCenterFaultThresholdsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicDataCenterFailureDetectorConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TDynamicDataCenterFaultThresholdsConfigPtr DefaultThresholds;
+    THashMap<TString, TDynamicDataCenterFaultThresholdsConfigPtr> DataCenterThresholds;
+    bool Enable;
+
+    REGISTER_YSON_STRUCT(TDynamicDataCenterFailureDetectorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicDataCenterFailureDetectorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TChunkTreeBalancerSettings
     : public NYTree::TYsonStruct
 {
@@ -668,6 +703,8 @@ public:
 
     //! Set of storage data centers on which replica placement is forbidden.
     THashSet<TString> BannedStorageDataCenters;
+
+    TDynamicDataCenterFailureDetectorConfigPtr DataCenterFailureDetector;
 
     TDuration ProfilingPeriod;
 

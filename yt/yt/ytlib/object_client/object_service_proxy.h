@@ -60,6 +60,11 @@ public:
     TFuture<TIntrusivePtr<typename TTypedRequest::TTypedResponse>>
     Execute(TIntrusivePtr<TTypedRequest> innerRequest);
 
+    template <std::derived_from<NYTree::TYPathRequest>... TTypedRequests>
+        requires (sizeof...(TTypedRequests) > 0)
+    TFuture<std::tuple<TIntrusivePtr<typename TTypedRequests::TTypedResponse>...>>
+    ExecuteAll(TIntrusivePtr<TTypedRequests>... innerRequests);
+
     class TReqExecuteBatchBase;
     class TReqExecuteBatch;
     class TReqExecuteBatchWithRetries;

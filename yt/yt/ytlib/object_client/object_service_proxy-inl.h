@@ -94,6 +94,22 @@ TObjectServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
     }));
 }
 
+template <std::derived_from<NYTree::TYPathRequest>... TTypedRequests>
+    requires (sizeof...(TTypedRequests) > 0)
+TFuture<std::tuple<TIntrusivePtr<typename TTypedRequests::TTypedResponse>...>>
+TObjectServiceProxy::ExecuteAll(TIntrusivePtr<TTypedRequests>... innerRequests)
+{
+    auto outerRequest = ExecuteBatch();
+    (outerRequest->AddRequest(innerRequests), ...);
+    return outerRequest->Invoke().Apply(BIND([] (const TRspExecuteBatchPtr& outerResponse) {
+        int index = -1;
+        return std::tuple([&] {
+            ++index;
+            return outerResponse->GetResponse<typename TTypedRequests::TTypedResponse>(index).ValueOrThrow();
+        }()...);
+    }));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectClient

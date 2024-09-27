@@ -53,6 +53,11 @@ public:
 
     bool IsDataCenterFeasible(const NNodeTrackerServer::TDataCenter* dataCenter) const;
 
+    THashSet<TString> GetFaultyStorageDataCenterNames() const;
+
+    void CheckFaultyDataCentersOnPrimaryMaster();
+    void SetFaultyDataCentersOnSecondaryMaster(const THashSet<TString>& faultyDataCenters);
+
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TChunk* chunk,
@@ -175,11 +180,14 @@ private:
     bool EnableTwoRandomChoicesWriteTargetAllocation_ = false;
     int NodesToCheckBeforeGivingUpOnWriteTargetAllocation_ = 0;
     bool IsDataCenterAware_ = false;
+    bool IsDataCenterFailureDetectorEnabled_ = false;
 
     THashSet<const NNodeTrackerServer::TDataCenter*> StorageDataCenters_;
     THashSet<const NNodeTrackerServer::TDataCenter*> BannedStorageDataCenters_;
+    THashSet<const NNodeTrackerServer::TDataCenter*> FaultyStorageDataCenters_;
     THashSet<const NNodeTrackerServer::TDataCenter*> AliveStorageDataCenters_;
     std::vector<TError> DataCenterSetErrors_;
+    std::vector<TError> DataCenterFaultErrors_;
 
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/);
 
@@ -241,6 +249,10 @@ private:
     bool IsConsistentChunkPlacementEnabled() const;
 
     void RecomputeDataCenterSets();
+
+    TError ComputeDataCenterFaultiness(
+        const NNodeTrackerServer::TDataCenter* dataCenter,
+        bool dataCenterIsEnabled) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkPlacement)

@@ -8,6 +8,8 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/world_initializer.h>
 
 #include <yt/yt/server/master/node_tracker_server/data_center.h>
 #include <yt/yt/server/master/node_tracker_server/host.h>
@@ -19,6 +21,7 @@
 
 #include <util/random/fast.h>
 
+#include <ranges>
 #include <array>
 
 namespace NYT::NChunkServer {
@@ -327,10 +330,13 @@ void TChunkPlacement::Clear()
 
     MediumToLoadFactorToNode_.clear();
     IsDataCenterAware_ = false;
+    IsDataCenterFailureDetectorEnabled_ = false;
     StorageDataCenters_.clear();
     BannedStorageDataCenters_.clear();
+    FaultyStorageDataCenters_.clear();
     AliveStorageDataCenters_.clear();
     DataCenterSetErrors_.clear();
+    DataCenterFaultErrors_.clear();
 }
 
 void TChunkPlacement::Initialize()
@@ -348,9 +354,15 @@ void TChunkPlacement::Initialize()
 void TChunkPlacement::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     IsDataCenterAware_ = GetDynamicConfig()->UseDataCenterAwareReplicator;
+    IsDataCenterFailureDetectorEnabled_ = GetDynamicConfig()->DataCenterFailureDetector->Enable;
     EnableTwoRandomChoicesWriteTargetAllocation_ = GetDynamicConfig()->EnableTwoRandomChoicesWriteTargetAllocation;
     NodesToCheckBeforeGivingUpOnWriteTargetAllocation_ = GetDynamicConfig()->NodesToCheckBeforeGivingUpOnWriteTargetAllocation;
 
+    // If enabled recompute must respect calculated before faulty datacenters
+    if (!IsDataCenterFailureDetectorEnabled_) {
+        FaultyStorageDataCenters_.clear();
+        DataCenterFaultErrors_.clear();
+    }
     RecomputeDataCenterSets();
 }
 
@@ -405,6 +417,71 @@ void TChunkPlacement::OnDataCenterChanged(TDataCenter* /*dataCenter*/)
 bool TChunkPlacement::IsDataCenterFeasible(const TDataCenter* dataCenter) const
 {
     return AliveStorageDataCenters_.contains(dataCenter);
+}
+
+THashSet<TString> TChunkPlacement::GetFaultyStorageDataCenterNames() const
+{
+    THashSet<TString> result;
+    for (const auto* faultyDataCenter : FaultyStorageDataCenters_) {
+        result.insert(faultyDataCenter->GetName());
+    }
+    return result;
+}
+
+void TChunkPlacement::CheckFaultyDataCentersOnPrimaryMaster()
+{
+    // If replicator is not data center aware, data center sets are not required.
+    if (!IsDataCenterAware_ || !IsDataCenterFailureDetectorEnabled_) {
+        return;
+    }
+
+    DataCenterFaultErrors_.clear();
+    auto oldFaultyStorageDataCenters = std::exchange(FaultyStorageDataCenters_, {});
+
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+    for (const auto& dataCenterName : GetDynamicConfig()->StorageDataCenters) {
+        auto* dataCenter = nodeTracker->FindDataCenterByName(dataCenterName);
+        if (!IsObjectAlive(dataCenter)) {
+            auto error = TError("Storage data center %Qv not found",
+                dataCenter);
+            DataCenterFaultErrors_.push_back(std::move(error));
+            continue;
+        }
+        auto dataCenterIsEnabled = !oldFaultyStorageDataCenters.contains(dataCenter);
+        if (auto error = ComputeDataCenterFaultiness(dataCenter, dataCenterIsEnabled); !error.IsOK()) {
+            if (!BannedStorageDataCenters_.contains(dataCenter)) {
+                DataCenterFaultErrors_.push_back(std::move(error));
+            }
+            InsertOrCrash(FaultyStorageDataCenters_, dataCenter);
+        }
+    }
+
+    RecomputeDataCenterSets();
+}
+
+void TChunkPlacement::SetFaultyDataCentersOnSecondaryMaster(const THashSet<TString>& faultyDataCenters)
+{
+    // If replicator is not data center aware, data center sets are not required.
+    if (!IsDataCenterAware_ || !IsDataCenterFailureDetectorEnabled_) {
+        return;
+    }
+
+    FaultyStorageDataCenters_.clear();
+    DataCenterFaultErrors_.clear();
+
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+    for (const auto& faultyDataCenterName : faultyDataCenters) {
+        auto* dataCenter = nodeTracker->FindDataCenterByName(faultyDataCenterName);
+        if (IsObjectAlive(dataCenter)) {
+            InsertOrCrash(FaultyStorageDataCenters_, dataCenter);
+        } else {
+            auto error = TError("Received faulty storage data center %Qv not found",
+                dataCenter);
+            DataCenterFaultErrors_.push_back(std::move(error));
+        }
+    }
+
+    RecomputeDataCenterSets();
 }
 
 TNodeList TChunkPlacement::AllocateWriteTargets(
@@ -1230,12 +1307,12 @@ bool TChunkPlacement::IsConsistentChunkPlacementEnabled() const
 void TChunkPlacement::RecomputeDataCenterSets()
 {
     // At first, clear everything.
-    auto oldStorageDataCenters = std::move(StorageDataCenters_);
-    auto oldBannedStorageDataCenters = std::move(BannedStorageDataCenters_);
-    auto oldAliveStorageDataCenters = std::move(AliveStorageDataCenters_);
+    auto oldStorageDataCenters = std::exchange(StorageDataCenters_, {});
+    auto oldBannedStorageDataCenters = std::exchange(BannedStorageDataCenters_, {});
+    auto oldAliveStorageDataCenters = std::exchange(AliveStorageDataCenters_, {});
     DataCenterSetErrors_.clear();
 
-    auto refreshGuard = Finally([&] {
+    auto refreshGuard = Finally([&] () noexcept {
         if (StorageDataCenters_ != oldStorageDataCenters ||
             BannedStorageDataCenters_ != oldBannedStorageDataCenters ||
             AliveStorageDataCenters_ != oldAliveStorageDataCenters)
@@ -1277,10 +1354,17 @@ void TChunkPlacement::RecomputeDataCenterSets()
         }
     }
 
-    for (auto* dataCenter : StorageDataCenters_) {
-        if (!BannedStorageDataCenters_.contains(dataCenter)) {
-            InsertOrCrash(AliveStorageDataCenters_, dataCenter);
-        }
+    for (const auto& error : DataCenterFaultErrors_) {
+        DataCenterSetErrors_.push_back(error);
+    }
+
+    auto isStorageDataCenterAlive = [this] (const TDataCenter* dataCenter) {
+        auto isBanned = BannedStorageDataCenters_.contains(dataCenter);
+        auto isFaulty = FaultyStorageDataCenters_.contains(dataCenter);
+        return !isBanned && !isFaulty;
+    };
+    for (auto* aliveDataCenter : StorageDataCenters_ | std::views::filter(isStorageDataCenterAlive)) {
+        InsertOrCrash(AliveStorageDataCenters_, aliveDataCenter);
     }
 
     THashSet<const TDataCenter*> livenessChangedDataCenters;
@@ -1302,6 +1386,49 @@ void TChunkPlacement::RecomputeDataCenterSets()
             }
         }
     }
+}
+
+TError TChunkPlacement::ComputeDataCenterFaultiness(const TDataCenter* dataCenter, bool dataCenterIsEnabled) const
+{
+    const auto& config = GetDynamicConfig()->DataCenterFailureDetector;
+
+    const auto& dataCenterThresholdsMap = config->DataCenterThresholds;
+    auto dataCenterThresholds = GetOrDefault(
+        dataCenterThresholdsMap, dataCenter->GetName(), config->DefaultThresholds);
+
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+    auto dataCenterStatistics = nodeTracker->GetDataCenterNodeStatistics(dataCenter);
+
+    auto onlineNodeCount = dataCenterStatistics.OnlineNodeCount;
+    auto targetOnlineNodeCount = dataCenterIsEnabled
+        ? dataCenterThresholds->OnlineNodeCountToDisable
+        : dataCenterThresholds->OnlineNodeCountToEnable;
+    if (onlineNodeCount < targetOnlineNodeCount) {
+        auto error = TError(
+            "Storage data center %Qv considered faulty: %v, needed >= %v but got %v",
+            dataCenter->GetName(),
+            dataCenterIsEnabled ? "enough offline nodes to disable" : "too few online nodes to enable",
+            onlineNodeCount,
+            targetOnlineNodeCount);
+        return error;
+    }
+
+    auto totalNodeCount = onlineNodeCount + dataCenterStatistics.OfflineNodeCount;
+    auto onlineFraction = static_cast<double>(onlineNodeCount) / totalNodeCount;
+    auto targetFraction = dataCenterIsEnabled
+        ? dataCenterThresholds->OnlineNodeFractionToDisable
+        : dataCenterThresholds->OnlineNodeFractionToEnable;
+    if (onlineFraction < targetFraction) {
+        auto error = TError(
+            "Storage data center %Qv considered faulty: %v, fraction needed >= %v but got %v",
+            dataCenter->GetName(),
+            dataCenterIsEnabled ? "enough offline nodes to disable" : "too few online nodes to enable",
+            onlineFraction,
+            targetFraction);
+        return error;
+    }
+
+    return {};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
