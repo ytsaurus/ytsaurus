@@ -480,6 +480,7 @@ class TestTwoRandomChoicesWriteTargetAllocation(YTEnvSetup):
     NUM_NODES = 10
 
     @authors("h0pless")
+    @pytest.mark.timeout(120)
     def test_power_of_two_choices_write_target_allocation(self):
         set("//sys/@config/chunk_manager/enable_two_random_choices_write_target_allocation", True)
         set("//sys/@config/chunk_manager/nodes_to_check_before_giving_up_on_write_target_allocation", 8)
