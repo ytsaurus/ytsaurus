@@ -36,15 +36,16 @@ func (c *activeTaskCounter) Do() {
 		return
 	}
 
-	for name := range c.counter {
-		c.counter[name] = 0
-	}
-
 	for i := range tasks {
 		c.counter[tasks[i].StreamName]++
 	}
 
 	for name, count := range c.counter {
-		c.metrics[name].Set(int64(count))
+		intGauge, ok := c.metrics[name]
+		// There might be active tasks from old configuration.
+		// We account only active configuration.
+		if ok {
+			intGauge.Set(int64(count))
+		}
 	}
 }
