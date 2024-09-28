@@ -36,6 +36,10 @@ func (c *activeTaskCounter) Do() {
 		return
 	}
 
+	for name := range c.counter {
+		c.counter[name] = 0
+	}
+
 	for i := range tasks {
 		c.counter[tasks[i].StreamName]++
 	}
