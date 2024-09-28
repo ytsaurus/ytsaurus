@@ -174,8 +174,11 @@ class ChaosTestBase(DynamicTablesBase):
 
     def _sync_replication_era(self, card_id, replicas=None):
         replication_card = self._sync_replication_card(card_id)
-        if not replicas:
-            replicas = replication_card["replicas"].values()
+        card_replicas = replication_card["replicas"].values()
+
+        def _present(replica):
+            return any([r["cluster_name"] == replica["cluster_name"] and r["replica_path"] == replica["replica_path"] for r in replicas])
+        replicas = [replica for replica in card_replicas if _present(replica)] if replicas else card_replicas
 
         def _enabled(replica):
             return replica["enabled"] if "enabled" in replica else (replica["state"] in ["enabled", "enabling"])
