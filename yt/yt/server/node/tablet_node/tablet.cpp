@@ -1407,6 +1407,13 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex, TDuration splitDela
     mergedPartition->GetSampleKeys()->Keys = MakeSharedRange(std::move(mergedSampleKeys), std::move(rowBuffer));
 
     if (!immediateSplitKeys.empty()) {
+        if (immediateSplitKeys[0] != mergedPartition->GetPivotKey()) {
+            YT_VERIFY(mergedPartition->GetPivotKey() < immediateSplitKeys[0]);
+            immediateSplitKeys.insert(
+                immediateSplitKeys.begin(),
+                mergedPartition->GetPivotKey());
+        }
+
         YT_VERIFY(immediateSplitKeys[0] == mergedPartition->GetPivotKey());
         mergedPartition->RequestImmediateSplit(std::move(immediateSplitKeys));
     }
