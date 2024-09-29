@@ -384,8 +384,6 @@ private:
                     tabletInfo->CellId = FromProto<TCellId>(protoTabletInfo.cell_id());
                 }
 
-                Owner_->TabletInfoOwnerCache_.Insert(tabletInfo->TabletId, MakeWeak(tableInfo));
-
                 tableInfo->Tablets.push_back(tabletInfo);
                 if (tabletInfo->State == ETabletState::Mounted) {
                     tableInfo->MountedTablets.push_back(tabletInfo);
@@ -422,6 +420,10 @@ private:
             } else {
                 tableInfo->LowerCapBound = MakeUnversionedOwningRow(static_cast<int>(0));
                 tableInfo->UpperCapBound = MakeUnversionedOwningRow(static_cast<int>(tableInfo->Tablets.size()));
+            }
+
+            for (const auto& tabletInfo : tableInfo->Tablets) {
+                Owner_->TabletInfoOwnerCache_.Insert(tabletInfo->TabletId, MakeWeak(tableInfo));
             }
 
             YT_LOG_DEBUG("Table mount info received (TableId: %v, TabletCount: %v, Dynamic: %v, PrimaryRevision: %x, SecondaryRevision: %x)",
