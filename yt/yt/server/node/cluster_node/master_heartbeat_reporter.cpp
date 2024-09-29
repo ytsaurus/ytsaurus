@@ -127,13 +127,12 @@ public:
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-    IBootstrapBase* const Bootstrap_;
 
+    IBootstrapBase* const Bootstrap_;
     const bool ReportHeartbeatsToAllSecondaryMasters_;
+    const IMasterHeartbeatReporterCallbacksPtr Callbacks_;
 
     THashSet<TCellTag> MasterCellTags_;
-
-    IMasterHeartbeatReporterCallbacksPtr Callbacks_;
 
     TRetryingPeriodicExecutorOptions Options_;
     THashMap<TCellTag, TRetryingPeriodicExecutorPtr> Executors_;
