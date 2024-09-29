@@ -444,7 +444,7 @@ class TestSolomonProxy(HttpProxyTestBase):
         assert self.filter_sensors(rpc_proxy_sensors, host="rpc-proxy") == rpc_proxy_sensors
 
         # Instance name.
-        http_proxy_instance_sensors = self.get_sensors(params={"instance": f"localhost:{self.Env.configs["http_proxy"][0]["port"]}"})
+        http_proxy_instance_sensors = self.get_sensors(params={"instance": f"localhost:{self.Env.configs['http_proxy'][0]['port']}"})
         assert self.filter_sensors(http_proxy_instance_sensors, host="http-proxy") == http_proxy_instance_sensors
         assert self.get_instance_count(http_proxy_instance_sensors) == 1
 
