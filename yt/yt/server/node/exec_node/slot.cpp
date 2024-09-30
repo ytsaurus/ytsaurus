@@ -138,6 +138,7 @@ public:
         VerifyEnabled();
 
         PreparationCanceled_ = false;
+        CleanProcessesFuture_.Reset();
     }
 
     TFuture<void> RunJobProxy(
