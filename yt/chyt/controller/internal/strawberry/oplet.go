@@ -816,12 +816,18 @@ func (oplet *Oplet) resumeOp(ctx context.Context, reason string) error {
 		nil,
 	)
 	if err != nil {
-		oplet.setError(err)
-	} else {
-		oplet.persistentState.YTOpSuspended = false
-		oplet.persistentState.ResumeMarker = oplet.strawberrySpeclet.ResumeMarker
+		if yterrors.ContainsErrorCode(err, yterrors.CodeInvalidOperationState) {
+			oplet.l.Warn("operation cannot be resumed from its current state")
+		} else {
+			oplet.setError(err)
+			return err
+		}
 	}
-	return err
+
+	oplet.persistentState.YTOpSuspended = false
+	oplet.persistentState.ResumeMarker = oplet.strawberrySpeclet.ResumeMarker
+
+	return nil
 }
 
 func (oplet *Oplet) getOpACL() (acl []yt.ACE) {
