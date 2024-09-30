@@ -17,7 +17,6 @@ class TestSchedulerUserStatistics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
-    USE_PORTO = True
 
     @authors("tramsmm")
     def test_job_statistics(self):
