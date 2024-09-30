@@ -26,7 +26,6 @@ import uuid
 import calendar
 import datetime
 import traceback
-from typing import Optional, Dict
 
 
 app = Flask("yt_odin_webservice")
@@ -138,7 +137,7 @@ def create_solomon_timed_out_sensors(records):
 
 
 def get_prometheus_metric_line(
-        metric_name: str, metric_value: float, timestamp: Optional[int], labels: Optional[Dict[str, str]] = None
+        metric_name: str, metric_value: float, timestamp: int | None, labels: dict[str, str] | None = None
 ):
     label_str = "{" + ",".join(f"{k}=\"{v}\"" for k, v in labels.items()) + "}" if labels else ""
     result_parts = [
@@ -167,12 +166,12 @@ def solomon_duration():
     return jsonify({"sensors": duration_sensors + timed_out_sensors})
 
 
-@app.route("/prom")
+@app.route("/prometheus")
 def prometheus():
     now = datetime.datetime.now(datetime.timezone.utc)
-    period = datetime.timedelta(seconds=int(request.args.get("period", 60)))
-    start_timestamp = int(calendar.timegm((now - period).utctimetuple()))
-    stop_timestamp = int(calendar.timegm(now.utctimetuple()))
+    period = datetime.timedelta(seconds=int(request.args.get("period", 90)))
+    start_timestamp = int((now - period).timestamp())
+    stop_timestamp = int(now.timestamp())
     db_records = extract_all_records(start_timestamp, stop_timestamp)
 
     last_records_per_service = {}
