@@ -1,7 +1,6 @@
 package jupyt
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -244,7 +243,7 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 	return nil
 }
 
-func (c *Controller) GetScalerTarget(ctx context.Context, opletInfo strawberry.OpletInfoForScaler) (*strawberry.ScalerTarget, error) {
+func (c *Controller) GetScalerTarget(ctx context.Context, opletInfo strawberry.OpletInfosForScaler) (*strawberry.ScalerTarget, error) {
 	speclet := opletInfo.ControllerSpeclet.(Speclet)
 
 	if !speclet.EnableIdleSuspension {
@@ -275,12 +274,12 @@ func (c *Controller) GetScalerTarget(ctx context.Context, opletInfo strawberry.O
 	var jupyterResponse struct {
 		LastActivity time.Time `json:"last_activity"`
 	}
-	err = json.NewDecoder(bytes.NewReader(body)).Decode(&jupyterResponse)
+	err = json.Unmarshal(body, &jupyterResponse)
 	if err != nil {
 		return nil, err
 	}
 
-	sinceLastActivity := time.Now().Sub(jupyterResponse.LastActivity)
+	sinceLastActivity := time.Since(jupyterResponse.LastActivity)
 	if sinceLastActivity > speclet.IdleTimeoutOrDefault() {
 		reason := fmt.Sprintf("idle time %d > %d", sinceLastActivity, speclet.IdleTimeout)
 		c.l.Info(

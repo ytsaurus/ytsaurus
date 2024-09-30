@@ -537,7 +537,7 @@ func (oplet *Oplet) needsSuspend() (needsSuspend bool, reason string) {
 	if !oplet.HasYTOperation() {
 		return false, "oplet does not have running yt operation"
 	}
-	if !oplet.strawberrySpeclet.ActiveOrDefault() {
+	if !oplet.Active() {
 		return false, "oplet is in inactive state"
 	}
 	if oplet.pendingScaling && oplet.targetInstanceCount == 0 {
@@ -550,7 +550,7 @@ func (oplet *Oplet) needsResume() (needsResume bool, reason string) {
 	if !oplet.HasYTOperation() {
 		return false, "oplet does not have running yt operation"
 	}
-	if !oplet.strawberrySpeclet.ActiveOrDefault() {
+	if !oplet.Active() {
 		return false, "oplet is in inactive state"
 	}
 	if oplet.strawberrySpeclet.ResumeMarker != oplet.persistentState.ResumeMarker {
@@ -948,6 +948,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 	oplet.persistentState.YTOpID = opID
 	oplet.persistentState.YTOpState = yt.StateInitializing
 	oplet.persistentState.YTOpSuspended = false
+	oplet.persistentState.ResumeMarker = oplet.strawberrySpeclet.ResumeMarker
 	oplet.infoState.YTOpStartTime = yson.Time{}
 	oplet.infoState.YTOpFinishTime = yson.Time{}
 
@@ -991,7 +992,6 @@ func (oplet *Oplet) updateOpParameters(ctx context.Context, reason string) error
 				},
 			},
 		}
-		oplet.pendingScaling = false
 	}
 
 	err := oplet.systemClient.UpdateOperationParameters(
@@ -1010,6 +1010,8 @@ func (oplet *Oplet) updateOpParameters(ctx context.Context, reason string) error
 
 	oplet.persistentState.YTOpACL = opACL
 	oplet.persistentState.YTOpPool = oplet.strawberrySpeclet.Pool
+
+	oplet.pendingScaling = false
 
 	return nil
 }
@@ -1198,7 +1200,7 @@ func (oplet *Oplet) GetBriefInfo() (briefInfo OpletBriefInfo) {
 	return
 }
 
-type OpletInfoForScaler struct {
+type OpletInfosForScaler struct {
 	Alias             string
 	OperationID       yt.OperationID
 	ControllerSpeclet any

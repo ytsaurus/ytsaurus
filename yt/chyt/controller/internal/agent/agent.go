@@ -42,7 +42,7 @@ type Agent struct {
 	backgroundStopCh chan struct{}
 	healthState      *agentHealthState
 
-	opletInfoBatchCh chan []strawberry.OpletInfoForScaler
+	opletInfoBatchCh chan []strawberry.OpletInfosForScaler
 	scalingTargetCh  chan []scalingRequest
 }
 
@@ -395,6 +395,7 @@ func (a *Agent) background() {
 				oplet, ok := a.aliasToOp[scT.OpletAlias]
 				if !ok {
 					a.l.Warn("Oplet not found, skipping scaling", log.String("alias", scT.OpletAlias))
+					continue
 				}
 				opID, _ := oplet.OperationInfo()
 				if scT.OperationID == opID {
@@ -407,12 +408,12 @@ func (a *Agent) background() {
 	}
 }
 
-func (a *Agent) getOpletInfoForScaler() []strawberry.OpletInfoForScaler {
-	opletInfos := make([]strawberry.OpletInfoForScaler, 0, len(a.aliasToOp))
+func (a *Agent) getOpletInfoForScaler() []strawberry.OpletInfosForScaler {
+	opletInfos := make([]strawberry.OpletInfosForScaler, 0, len(a.aliasToOp))
 	for _, o := range a.aliasToOp {
 		if o.Active() && !o.Suspended() {
 			opID, _ := o.OperationInfo()
-			opletInfos = append(opletInfos, strawberry.OpletInfoForScaler{Alias: o.Alias(), OperationID: opID, ControllerSpeclet: o.ControllerSpeclet()})
+			opletInfos = append(opletInfos, strawberry.OpletInfosForScaler{Alias: o.Alias(), OperationID: opID, ControllerSpeclet: o.ControllerSpeclet()})
 		}
 	}
 	return opletInfos
@@ -492,7 +493,7 @@ func (a *Agent) Start() {
 		a.OperationNamespace(),
 		a.l)
 
-	a.opletInfoBatchCh = make(chan []strawberry.OpletInfoForScaler)
+	a.opletInfoBatchCh = make(chan []strawberry.OpletInfosForScaler)
 	a.scalingTargetCh = make(chan []scalingRequest)
 	go a.runScaler()
 
@@ -519,7 +520,7 @@ func (a *Agent) runScaler() {
 
 			opletInfos := <-a.opletInfoBatchCh
 
-			opletsChan := make(chan strawberry.OpletInfoForScaler, len(opletInfos))
+			opletsChan := make(chan strawberry.OpletInfosForScaler, len(opletInfos))
 
 			scalingTargetsCh := make(chan scalingRequest, len(opletInfos))
 

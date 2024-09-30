@@ -15,6 +15,9 @@ type PersistentState struct {
 	YTOpState     yt.OperationState `yson:"yt_operation_state"`
 	YTOpSuspended bool              `yson:"yt_operation_suspended"`
 
+	// ResumeMarker is an identificator of the last `resume` action,
+	// so we know that the operation must be resumed
+	// if the value ResumeMarker is different from the value in strawberrySpeclet.
 	ResumeMarker string `yson:"resume_marker"`
 
 	IncarnationIndex int `yson:"incarnation_index"`

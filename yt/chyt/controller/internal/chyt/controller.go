@@ -393,7 +393,7 @@ func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {
 	}
 }
 
-func (c *Controller) GetScalerTarget(ctx context.Context, opletInfo strawberry.OpletInfoForScaler) (*strawberry.ScalerTarget, error) {
+func (c *Controller) GetScalerTarget(ctx context.Context, opletInfo strawberry.OpletInfosForScaler) (*strawberry.ScalerTarget, error) {
 	return nil, nil
 }
 
