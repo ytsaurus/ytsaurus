@@ -151,8 +151,10 @@ void TOutputTable::Persist(const TPersistenceContext& context)
     Persist(context, TableUploadOptions);
     Persist(context, TableWriterOptions);
     Persist(context, OutputType);
-    if (context.GetVersion() >= ESnapshotVersion::AddChunkSchemas) {
-        Persist(context, OriginalTableSchemaRevision);
+    if (ESnapshotVersion::AddChunkSchemas <= context.GetVersion()
+        && context.GetVersion() < ESnapshotVersion::DropOriginalTableSchemaRevision) {
+        NHydra::TRevision originalTableSchemaRevision;
+        Persist(context, originalTableSchemaRevision);
     }
     Persist(context, Type);
     Persist(context, DataStatistics);
