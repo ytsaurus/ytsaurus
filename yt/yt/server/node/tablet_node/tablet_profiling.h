@@ -92,15 +92,27 @@ struct TSelectRowsCounters
         const NTableClient::TTableSchemaPtr& schema);
 
     NProfiling::TCounter RowCount;
+    NProfiling::TCounter MissingRowCount;
     NProfiling::TCounter DataWeight;
     NProfiling::TCounter UnmergedRowCount;
+    NProfiling::TCounter UnmergedMissingRowCount;
     NProfiling::TCounter UnmergedDataWeight;
+    NProfiling::TCounter WastedUnmergedDataWeight;
+
     NProfiling::TTimeCounter CpuTime;
     NProfiling::TTimeCounter DecompressionCpuTime;
     NYT::NProfiling::TEventTimer SelectDuration;
+
     TRangeFilterCounters RangeFilterCounters;
+    TKeyFilterCounters KeyFilterCounters;
+
     NChunkClient::TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
     NTableClient::THunkChunkReaderCounters HunkChunkReaderCounters;
+
+    NProfiling::TCounter CacheHits;
+    NProfiling::TCounter CacheOutdated;
+    NProfiling::TCounter CacheMisses;
+    NProfiling::TCounter CacheInserts;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
