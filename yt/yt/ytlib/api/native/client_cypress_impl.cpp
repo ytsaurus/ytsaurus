@@ -1985,9 +1985,8 @@ private:
         auto req = TChunkOwnerYPathProxy::EndUpload(DstObject_.GetObjectIdPath());
         *req->mutable_statistics() = DataStatistics_;
 
-        // COMPAT(h0pless): remove this when clients will send table schema options during begin upload.
+        // COMPAT(h0pless): remove this when all masters are 24.2.
         if (CommonType_ == EObjectType::Table) {
-            ToProto(req->mutable_table_schema(), OutputTableSchema_);
             req->set_schema_mode(static_cast<int>(OutputTableSchemaMode_));
         }
 

@@ -2694,11 +2694,10 @@ private:
             }
             req->set_compression_codec(ToProto<int>(TableUploadOptions_.CompressionCodec));
             req->set_erasure_codec(ToProto<int>(TableUploadOptions_.ErasureCodec));
-
-            // COMPAT(h0pless): remove this when clients will send table schema options during begin upload.
-            ToProto(req->mutable_table_schema(), TableUploadOptions_.TableSchema.Get());
-            req->set_schema_mode(ToProto<int>(TableUploadOptions_.SchemaMode));
             req->set_optimize_for(ToProto<int>(TableUploadOptions_.OptimizeFor));
+
+            // COMPAT(h0pless): remove this when all masters are 24.2.
+            req->set_schema_mode(ToProto<int>(TableUploadOptions_.SchemaMode));
 
             if (TableUploadOptions_.SecurityTags) {
                 ToProto(req->mutable_security_tags()->mutable_items(), *TableUploadOptions_.SecurityTags);
