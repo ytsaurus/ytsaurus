@@ -1,14 +1,16 @@
 #include "node_proxy.h"
 
+#include "action_helpers.h"
 #include "private.h"
-
 #include "bootstrap.h"
+#include "config.h"
 #include "helpers.h"
 #include "node_proxy_base.h"
 #include "path_resolver.h"
 #include "sequoia_tree_visitor.h"
 #include "sequoia_service.h"
 #include "sequoia_session.h"
+#include "response_keeper.h"
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
@@ -30,6 +32,7 @@
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
+#include <yt/yt/ytlib/sequoia_client/transaction.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
 #include <yt/yt/ytlib/transaction_client/helpers.h>
@@ -56,6 +59,7 @@ using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
+using namespace NRpc;
 using namespace NSequoiaClient;
 using namespace NSequoiaServer;
 using namespace NTableClient;
@@ -296,6 +300,47 @@ protected:
         contextPtr->Reply();
     }
 
+    // Constructs the response message, saves it into Sequoia response keeper if needed, commits sequoia session and replies with constructed message.
+    void FinishSequoiaSessionAndReply(
+        const auto& contextPtr,
+        TCellId coordinatorCellId,
+        bool commitSession)
+    {
+        auto responseMessage = CreateResponseMessage(contextPtr->Response(), contextPtr->Response().Attachments());
+
+        auto mutationId = contextPtr->GetMutationId();
+        const auto& responseKeeper = Bootstrap_->GetResponseKeeper();
+        if (commitSession && mutationId) {
+            responseKeeper->KeepResponse(SequoiaSession_->SequoiaTransaction(), mutationId, responseMessage);
+        }
+
+        // TODO(cherepashka): after `set` is done, make all responses with mutationId handled correctly.
+        if (commitSession) {
+            try {
+                SequoiaSession_->Commit(coordinatorCellId);
+            } catch (const std::exception& ex) {
+                auto useResponseKeeper = mutationId && responseKeeper->GetDynamicConfig()->Enable;
+                if (useResponseKeeper) {
+                    // NB: if commit failed, then some error related to dynamic tables occured and client will receive it,
+                    // so we should save this error in case of retries on client side.
+                    auto sequoiaTransaction = WaitFor(StartCypressProxyTransaction(Bootstrap_->GetSequoiaClient()))
+                        .ValueOrThrow();
+                    responseKeeper->KeepResponse(sequoiaTransaction, mutationId, TError(ex));
+                    WaitFor(sequoiaTransaction->Commit({
+                        .CoordinatorCellId = coordinatorCellId,
+                        .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
+                    }))
+                        .ThrowOnError();
+                }
+                THROW_ERROR_EXCEPTION(ex);
+            }
+        } else {
+            SequoiaSession_->Abort();
+        }
+
+        contextPtr->Reply(responseMessage);
+    }
+
     struct TSubtreeReplacementResult
     {
         //! The target node (or subtree) will be a child of this node.
@@ -396,9 +441,7 @@ protected:
 
         SequoiaSession_->SetNode(Id_, NYson::TYsonString(request->value()));
 
-        SequoiaSession_->Commit(CellIdFromObjectId(Id_));
-
-        context->Reply();
+        FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
     }
 
     void RemoveSelf(
@@ -433,9 +476,7 @@ protected:
         }
 
         // Detaching child for subtree root should be done in late prepare.
-        SequoiaSession_->Commit(CellIdFromCellTag(subtreeRootCell));
-
-        context->Reply();
+        FinishSequoiaSessionAndReply(context, CellIdFromCellTag(subtreeRootCell), /*commitSession*/ true);
     }
 
     void ExistsAttribute(
@@ -560,15 +601,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
                 type);
         }
 
-        // TODO(h0pless): If lockExisting - lock the node.
-        SequoiaSession_->Abort();
-
         ToProto(response->mutable_node_id(), Id_);
         response->set_cell_tag(ToProto<int>(CellTagFromId(Id_)));
 
         context->SetResponseInfo("ExistingNodeId: %v", Id_);
-        context->Reply();
 
+        // TODO(h0pless): If lockExisting - lock the node.
+        FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ false);
         return;
     }
 
@@ -586,8 +625,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
         explicitAttributes.Get(),
         targetParentNodeId);
 
-    SequoiaSession_->Commit(CellIdFromObjectId(attachmentPointNodeId));
-
     ToProto(response->mutable_node_id(), createdNodeId);
     response->set_cell_tag(ToProto<int>(CellTagFromId(createdNodeId)));
 
@@ -596,7 +633,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
     context->SetResponseInfo("NodeId: %v, CellTag: %v",
         createdNodeId,
         CellTagFromId(createdNodeId));
-    context->Reply();
+
+    FinishSequoiaSessionAndReply(context, CellIdFromObjectId(attachmentPointNodeId), /*commitSession*/ true);
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
@@ -698,14 +736,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
             ThrowAlreadyExists(Path_);
         }
 
-        // TODO(h0pless): If lockExisting - lock the node.
-        SequoiaSession_->Abort();
-
         ToProto(response->mutable_node_id(), Id_);
 
         context->SetResponseInfo("ExistingNodeId: %v", Id_);
-        context->Reply();
 
+        // TODO(h0pless): If lockExisting - lock the node.
+        FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ false);
         return;
     }
 
@@ -745,12 +781,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
         destinationParentId,
         options);
 
-    SequoiaSession_->Commit(CellIdFromObjectId(attachmentPointNodeId));
-
     ToProto(response->mutable_node_id(), destinationId);
 
     context->SetResponseInfo("NodeId: %v", destinationId);
-    context->Reply();
+
+    FinishSequoiaSessionAndReply(context, CellIdFromObjectId(attachmentPointNodeId), /*commitSession*/ true);
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Unlock)
@@ -774,10 +809,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Unlock)
     context->SetRequestInfo();
 
     SequoiaSession_->UnlockNode(Id_);
-    SequoiaSession_->Commit(CellIdFromObjectId(Id_));
 
     context->SetResponseInfo();
-    context->Reply();
+
+    FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
@@ -827,6 +862,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
 
     auto lockId = SequoiaSession_->LockNode(Id_, mode, childKey, attributeKey, timestamp, waitable);
 
+    // TODO(cherepashka): add response for `Lock` into sequoia response keeper via dataless write rows.
     SequoiaSession_->Commit(CellIdFromObjectId(Id_));
 
     const auto& client = Bootstrap_->GetNativeRootClient();
@@ -1083,9 +1119,7 @@ private:
         auto producer = ConvertToProducer(NYson::TYsonString(request->value()));
         producer.Run(&setter);
 
-        SequoiaSession_->Commit(CellIdFromObjectId(Id_));
-
-        context->Reply();
+        FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
     }
 
     void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
@@ -1204,6 +1238,7 @@ private:
         writer.Flush();
 
         response->set_value(stream.Str());
+
         context->Reply();
     }
 
@@ -1265,9 +1300,7 @@ private:
         auto producer = ConvertToProducer(NYson::TYsonString(request->value()));
         producer.Run(&builder);
 
-        SequoiaSession_->Commit(CellIdFromObjectId(Id_));
-
-        context->Reply();
+        FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
     }
 
     void RemoveRecursive(
@@ -1293,6 +1326,7 @@ private:
         if (!force) {
             ThrowNoSuchChild(Path_, tokenizer.GetLiteralValue());
         }
+
         context->Reply();
     }
 };
@@ -1319,9 +1353,6 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
     auto children = WaitFor(SequoiaSession_->FetchChildren(Id_))
         .ValueOrThrow();
 
-    // Should be no-op.
-    SequoiaSession_->Abort();
-
     response->set_value(BuildYsonStringFluently()
         .BeginList()
             .DoFor(children, [&] (TFluentList fluent, const auto& child) {
@@ -1329,7 +1360,8 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
                     .Item().Value(child.ChildKey);
             })
         .EndList().ToString());
-    context->Reply();
+
+    FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
