@@ -319,14 +319,14 @@ private:
             auto request = weakRequest.Lock();
             if (request && !request->Set.test_and_set()) {
                 NTracing::TTraceContextFinishGuard guard(std::move(request->TraceContext));
-                YT_LOG_DEBUG(
-                    "Canceled waiting for throttler (Amount: %v)",
-                    amount);
                 request->Promise.Set(TError(NYT::EErrorCode::Canceled, "Throttled request canceled")
                     << error);
 
                 // NB(coteeq): Weak ref will break cycle "promise -> this -> request -> promise"
                 if (auto this_ = weakThis.Lock()) {
+                    YT_LOG_DEBUG(
+                        "Canceled waiting for throttler (Amount: %v)",
+                        amount);
                     QueueTotalAmount_ -= amount;
                     QueueSizeGauge_.Update(QueueTotalAmount_);
                 }
