@@ -15,6 +15,7 @@ SRCS(
     path_resolver.cpp
     program.cpp
     rootstock_proxy.cpp
+    response_keeper.cpp
     sequoia_service.cpp
     sequoia_session.cpp
     sequoia_tree_visitor.cpp

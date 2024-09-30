@@ -1254,6 +1254,10 @@ def _build_native_driver_configs(master_connection_configs,
                     "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
                 }
             }
+            if len(cypress_proxy_rpc_ports) > 0:
+                cypress_proxy_addresses = ["{}:{}".format(yt_config.fqdn, rpc_port) for rpc_port in cypress_proxy_rpc_ports]
+                cell_connection_config["cypress_proxy"] = {}
+                cell_connection_config["cypress_proxy"]["addresses"] = cypress_proxy_addresses
 
             if yt_config.mock_tvm_id is not None:
                 cell_connection_config["tvm_id"] = yt_config.mock_tvm_id

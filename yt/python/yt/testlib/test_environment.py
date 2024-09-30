@@ -188,7 +188,7 @@ class YtTestEnvironment(object):
 
         self.env = YTInstance(self.sandbox_dir, yt_config,
                               modify_configs_func=modify_configs,
-                              modify_dynamic_configs_func=modify_node_dynamic_config,
+                              modify_dynamic_configs_func={"node": modify_node_dynamic_config},
                               kill_child_processes=True)
 
         try:
