@@ -14,6 +14,7 @@
 #include <yt/yt/ytlib/sequoia_client/records/path_forks.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_snapshots.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/child_forks.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/response_keeper.record.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
@@ -82,6 +83,7 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
         XX(PathFork, "path_forks", PathForks)
         XX(NodeSnapshot, "node_snapshots", NodeSnapshots)
         XX(ChildFork, "child_forks", ChildForks)
+        XX(SequoiaResponseKeeper, "response_keeper", ResponseKeeper)
         default:
             YT_ABORT();
     }

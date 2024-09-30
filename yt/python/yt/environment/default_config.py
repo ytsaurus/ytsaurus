@@ -945,6 +945,13 @@ def get_cypress_proxy_config():
 """)
 
 
+def get_dynamic_cypress_proxy_config():
+    return yson.loads(b"""
+{
+}
+""")
+
+
 def get_replicated_table_tracker_config():
     return yson.loads(b"""
 {
