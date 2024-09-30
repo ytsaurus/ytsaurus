@@ -2,6 +2,8 @@
 
 #include "random_access_file_reader.h"
 
+#include <yt/yt/server/lib/squash_fs/squash_fs_layout_builder.h>
+
 namespace NYT::NNbd {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,6 +20,8 @@ struct IImageReader
     virtual i64 GetSize() const = 0;
 
     virtual TReadersStatistics GetStatistics() const = 0;
+
+    virtual TString GetPath() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IImageReader)
@@ -25,19 +29,14 @@ DEFINE_REFCOUNTED_TYPE(IImageReader)
 ////////////////////////////////////////////////////////////////////////////////
 
 IImageReaderPtr CreateCypressFileImageReader(
-    std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
-    NYPath::TYPath path,
-    NApi::NNative::IClientPtr client,
-    NConcurrency::IThroughputThrottlerPtr inThrottler,
-    NConcurrency::IThroughputThrottlerPtr outRpsThrottler,
-    IInvokerPtr invoker,
+    IRandomAccessFileReaderPtr reader,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IImageReaderPtr CreateVirtualSquashFSImageReader(
     std::unordered_map<NYPath::TYPath, std::vector<NChunkClient::NProto::TChunkSpec>> pathToChunkSpecs,
-    NSquashFS::TSquashFSImagePtr image,
+    NSquashFS::TSquashFSLayoutPtr layout,
     NApi::NNative::IClientPtr client,
     NConcurrency::IThroughputThrottlerPtr inThrottler,
     NConcurrency::IThroughputThrottlerPtr outRpsThrottler,

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include <yt/yt/server/lib/nbd/public.h>
 
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 
@@ -36,11 +36,7 @@ struct TSquashFSData
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSquashFSImageTag {};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSquashFSImage
+class TSquashFSLayout
     : public TRefCounted
 {
 public:
@@ -48,12 +44,12 @@ public:
     DEFINE_BYREF_RO_PROPERTY_NO_INIT(std::vector<TArtifactDescription>, Files);
 
 public:
-    explicit TSquashFSImage(TSquashFSData data);
+    explicit TSquashFSLayout(TSquashFSData data);
 
     TSharedRef ReadHead(
         i64 offset,
         i64 length) const;
-    i64 GetHeaderSize() const;
+    i64 GetHeadSize() const;
 
     TSharedRef ReadTail(
         i64 offset,
@@ -71,11 +67,12 @@ private:
     i64 TailOffset_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TSquashFSImage)
+DECLARE_REFCOUNTED_CLASS(TSquashFSLayout)
+DEFINE_REFCOUNTED_TYPE(TSquashFSLayout)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSquashFSBuilderOptions
+struct TSquashFSLayoutBuilderOptions
 {
     ui32 BlockSize = 128_KB;
     ui32 Uid = 0;
@@ -85,7 +82,7 @@ struct TSquashFSBuilderOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISquashFSBuilder
+struct ISquashFSLayoutBuilder
     : public virtual TRefCounted
 {
     // Adds directories and file to file system.
@@ -96,14 +93,15 @@ struct ISquashFSBuilder
         ui16 permissions) = 0;
 
     // Builds squashFs that contains all directories and files added previously.
-    virtual TSquashFSImagePtr Build() = 0;
+    virtual TSquashFSLayoutPtr Build() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ISquashFSBuilder)
+DECLARE_REFCOUNTED_STRUCT(ISquashFSLayoutBuilder)
+DEFINE_REFCOUNTED_TYPE(ISquashFSLayoutBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISquashFSBuilderPtr CreateSquashFSBuilder(TSquashFSBuilderOptions options = {});
+ISquashFSLayoutBuilderPtr CreateSquashFSLayoutBuilder(TSquashFSLayoutBuilderOptions options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
