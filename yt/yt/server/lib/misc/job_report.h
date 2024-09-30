@@ -70,8 +70,6 @@ void Serialize(const TJobInterruptionInfo& interruptionInfo, NYson::IYsonConsume
 class TJobReport
 {
 public:
-    size_t EstimateSize() const;
-
     TJobReport ExtractSpec() const;
     TJobReport ExtractStderr() const;
     TJobReport ExtractFailContext() const;
