@@ -243,7 +243,7 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 	return nil
 }
 
-func (c *Controller) GetScalerTarget(ctx context.Context, opletInfo strawberry.OpletInfosForScaler) (*strawberry.ScalerTarget, error) {
+func (c *Controller) GetScalerTarget(ctx context.Context, opletInfo strawberry.OpletInfoForScaler) (*strawberry.ScalerTarget, error) {
 	speclet := opletInfo.ControllerSpeclet.(Speclet)
 
 	if !speclet.EnableIdleSuspension {

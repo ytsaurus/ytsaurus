@@ -1200,7 +1200,7 @@ func (oplet *Oplet) GetBriefInfo() (briefInfo OpletBriefInfo) {
 	return
 }
 
-type OpletInfosForScaler struct {
+type OpletInfoForScaler struct {
 	Alias             string
 	OperationID       yt.OperationID
 	ControllerSpeclet any
