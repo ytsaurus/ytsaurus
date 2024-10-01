@@ -161,7 +161,9 @@ void TSequoiaSession::Commit(TCellId coordinatorCellId)
 
     WaitFor(SequoiaTransaction_->Commit({
         .CoordinatorCellId = coordinatorCellId,
-        .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
+        .CoordinatorPrepareMode = coordinatorCellId
+            ? ETransactionCoordinatorPrepareMode::Late
+            : ETransactionCoordinatorPrepareMode::Early,
     }))
         .ThrowOnError();
 }

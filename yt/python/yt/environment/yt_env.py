@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 from .configs_provider import _init_logging, build_configs
-from .default_config import get_dynamic_cypress_proxy_config, get_dynamic_master_config, get_dynamic_queue_agent_config
+from .default_config import get_dynamic_master_config, get_dynamic_queue_agent_config
 from .helpers import (
     read_config, write_config, is_dead, OpenPortIterator,
     wait_for_removing_file_lock, get_value_from_config, WaitFailed,
@@ -190,10 +190,7 @@ class YTInstance(object):
                  modify_driver_logging_config_func=None):
         self.path = os.path.realpath(os.path.abspath(path))
         self.yt_config = yt_config
-        if modify_dynamic_configs_func is None:
-            self.modify_dynamic_configs_func = dict()
-        else:
-            self.modify_dynamic_configs_func = modify_dynamic_configs_func
+        self.modify_dynamic_configs_func = modify_dynamic_configs_func
 
         self.id = yt_config.cluster_name
 
@@ -634,8 +631,7 @@ class YTInstance(object):
             queue_agent_dynamic_config = None
             if self.yt_config.queue_agent_count > 0:
                 queue_agent_dynamic_config = self._apply_queue_agent_dynamic_config(client)
-            if self.yt_config.cypress_proxy_count > 0:
-                self._apply_cypress_proxy_dynamic_config(client)
+
             # TODO(nadya73): fill kafka proxy dynamic config.
 
             if self.yt_config.node_count > 0 and not self.yt_config.defer_node_start:
@@ -2243,23 +2239,12 @@ class YTInstance(object):
     def _apply_nodes_dynamic_config(self, client):
         patched_dynamic_node_config = get_patched_dynamic_node_config(self.yt_config)
 
-        if "nodes" in self.modify_dynamic_configs_func.keys():
-            self.modify_dynamic_configs_func["nodes"](patched_dynamic_node_config, self.abi_version)
+        if self.modify_dynamic_configs_func is not None:
+            self.modify_dynamic_configs_func(patched_dynamic_node_config, self.abi_version)
 
         client.set("//sys/cluster_nodes/@config", patched_dynamic_node_config)
 
         return patched_dynamic_node_config["%true"]
-
-    def _apply_cypress_proxy_dynamic_config(self, client):
-        dynamic_cypress_proxy_config = get_dynamic_cypress_proxy_config()
-
-        if "cypress_proxy" in self.modify_dynamic_configs_func.keys():
-            self.modify_dynamic_configs_func["cypress_proxy"](dynamic_cypress_proxy_config, self.abi_version)
-
-        client.create("map_node", "//sys/cypress_proxies", ignore_existing=True)
-        client.set("//sys/cypress_proxies/@config", dynamic_cypress_proxy_config, force=True)
-
-        return dynamic_cypress_proxy_config
 
     def restore_default_node_dynamic_config(self):
         client = self._create_cluster_client()

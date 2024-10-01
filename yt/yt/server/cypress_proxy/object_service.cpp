@@ -9,7 +9,6 @@
 #include "path_resolver.h"
 #include "sequoia_service.h"
 #include "sequoia_session.h"
-#include "response_keeper.h"
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -397,12 +396,6 @@ private:
         // parsed before in order to predict if subrequest should be handled by
         // master.
         auto context = CreateSequoiaServiceContext(subrequest->RequestMessage);
-
-        const auto& responseKeeper = Owner_->Bootstrap_->GetResponseKeeper();
-        if (auto response = responseKeeper->FindResponse(context, session->SequoiaTransaction())) {
-           return response;
-        }
-
         auto invokeResult = CreateSequoiaService(Owner_->Bootstrap_)
             ->TryInvoke(context, session, resolveResult);
         switch (invokeResult) {
@@ -418,6 +411,8 @@ private:
 
     void InvokeSequoiaRequests()
     {
+        auto client = Owner_->Bootstrap_->GetSequoiaClient();
+
         for (int index = 0; index < std::ssize(Subrequests_); ++index) {
             auto& subrequest = Subrequests_[index];
             auto target = subrequest.Target;

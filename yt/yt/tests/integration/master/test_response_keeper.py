@@ -1,6 +1,10 @@
 from yt_env_setup import YTEnvSetup
 
-from yt_commands import authors, generate_uuid, get, create, raises_yt_error
+from yt_commands import authors, generate_uuid, get, create
+
+from yt.common import YtError
+
+import pytest
 
 import time
 
@@ -29,59 +33,21 @@ class TestResponseKeeper(YTEnvSetup):
         time.sleep(1.6)
 
         # Denied by mutation idempotizer.
-        with raises_yt_error("Mutation is already applied"):
+        with pytest.raises(YtError, match="Mutation is already applied"):
             create("table", "//tmp/t", mutation_id=mutation_id)
 
         # Denined by response keeper.
-        with raises_yt_error("Duplicate request is not marked"):
+        with pytest.raises(YtError, match="Duplicate request is not marked"):
             create("table", "//tmp/t", mutation_id=mutation_id)
 
         # Replied from response keeper.
-        with raises_yt_error("Mutation is already applied"):
+        with pytest.raises(YtError, match="Mutation is already applied"):
             create("table", "//tmp/t", mutation_id=mutation_id, retry=True)
 
         time.sleep(1.6)
 
         # Denied by mutation idempotizer again.
-        with raises_yt_error("Mutation is already applied"):
+        with pytest.raises(YtError, match="Mutation is already applied"):
             create("table", "//tmp/t", mutation_id=mutation_id)
 
         assert get("//tmp/t/@id") == table_id
-
-
-class TestSequoiaResponseKeeper(YTEnvSetup):
-    USE_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = True
-    VALIDATE_SEQUOIA_TREE_CONSISTENCY = True
-    NUM_CYPRESS_PROXIES = 1
-    NUM_HTTP_PROXIES = 0
-    NUM_RPC_PROXIES = 0
-
-    NUM_SECONDARY_MASTER_CELLS = 2
-    MASTER_CELL_DESCRIPTORS = {
-        "10": {"roles": ["sequoia_node_host"]},
-        "11": {"roles": ["sequoia_node_host"]},
-    }
-
-    DELTA_DYNAMIC_CYPRESS_PROXY_CONFIG = {
-        "object_service": {
-            "allow_bypass_master_resolve": True,
-        },
-        "response_keeper": {
-            "enable": True,
-        },
-    }
-
-    @authors("cherepashka")
-    def test_idempotent_create(self):
-        mutation_id = generate_uuid()
-        table_id = create("table", "//tmp/t", mutation_id=mutation_id)
-
-        # Denined by Sequoia response keeper.
-        with raises_yt_error("Duplicate request is not marked"):
-            create("table", "//tmp/t", mutation_id=mutation_id)
-
-        # Responded by Sequoia response keeper.
-        assert table_id == create("table", "//tmp/t", mutation_id=mutation_id, retry=True)
-
-        assert table_id == get("//tmp/t/@id")

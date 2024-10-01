@@ -415,7 +415,6 @@ class YTEnvSetup(object):
     DELTA_QUEUE_AGENT_CONFIG = {}
     DELTA_KAFKA_PROXY_CONFIG = {}
     DELTA_CYPRESS_PROXY_CONFIG = {}
-    DELTA_DYNAMIC_CYPRESS_PROXY_CONFIG = {}
 
     USE_PORTO = False  # Enables use_slot_user_id, use_porto_for_servers, jobs_environment_type="porto"
     USE_SLOT_USER_ID = None  # If set explicitly, overrides USE_PORTO.
@@ -608,10 +607,7 @@ class YTEnvSetup(object):
     @classmethod
     def create_yt_cluster_instance(cls, index, path):
         modify_configs_func = functools.partial(cls.apply_config_patches, cluster_index=index, cluster_path=path)
-        modify_dynamic_configs_func = {
-            "nodes": functools.partial(cls.apply_node_dynamic_config_patches, cluster_index=index),
-            "cypress_proxy": functools.partial(cls.apply_cypres_proxy_dynamic_config_patches, cluster_index=index),
-        }
+        modify_dynamic_configs_func = functools.partial(cls.apply_dynamic_config_patches, cluster_index=index)
         modify_driver_logging_config_func = cls.modify_driver_logging_config
 
         yt.logger.info("Creating cluster instance")
@@ -991,23 +987,17 @@ class YTEnvSetup(object):
                 driver=ground_driver)
             yt_commands.mount_table(table_path, driver=ground_driver)
 
-        unapproved_chunk_replicas_path = DESCRIPTORS.unapproved_chunk_replicas.get_default_path()
-        yt_commands.set(f"{unapproved_chunk_replicas_path}/@mount_config/min_data_versions", 0, driver=ground_driver)
-        yt_commands.set(f"{unapproved_chunk_replicas_path}/@mount_config/max_data_versions", 1, driver=ground_driver)
-        yt_commands.set(f"{unapproved_chunk_replicas_path}/@mount_config/min_data_ttl", 0, driver=ground_driver)
-        yt_commands.set(f"{unapproved_chunk_replicas_path}/@mount_config/max_data_ttl", 2000, driver=ground_driver)
-
-        response_keeper_path = DESCRIPTORS.unapproved_chunk_replicas.get_default_path()
-        yt_commands.set(f"{response_keeper_path}/@mount_config/min_data_versions", 0, driver=ground_driver)
-        yt_commands.set(f"{response_keeper_path}/@mount_config/max_data_versions", 1, driver=ground_driver)
-        yt_commands.set(f"{response_keeper_path}/@mount_config/min_data_ttl", 0, driver=ground_driver)
-        yt_commands.set(f"{response_keeper_path}/@mount_config/max_data_ttl", 1000, driver=ground_driver)
+        path = DESCRIPTORS.unapproved_chunk_replicas.get_default_path()
+        yt_commands.set("{}/@mount_config/min_data_versions".format(path), 0, driver=ground_driver)
+        yt_commands.set("{}/@mount_config/max_data_versions".format(path), 1, driver=ground_driver)
+        yt_commands.set("{}/@mount_config/min_data_ttl".format(path), 0, driver=ground_driver)
+        yt_commands.set("{}/@mount_config/max_data_ttl".format(path), 5000, driver=ground_driver)
 
         for descriptor in DESCRIPTORS.as_dict().values():
             yt_commands.wait_for_tablet_state(descriptor.get_default_path(), "mounted", driver=ground_driver)
 
     @classmethod
-    def apply_node_dynamic_config_patches(cls, config, ytserver_version, cluster_index):
+    def apply_dynamic_config_patches(cls, config, ytserver_version, cluster_index):
         delta_node_config = cls.get_param("DELTA_DYNAMIC_NODE_CONFIG", cluster_index)
 
         update_inplace(config, delta_node_config)
@@ -1029,14 +1019,6 @@ class YTEnvSetup(object):
                 "expire_after_failed_update_time": 1000,
                 "expire_after_access_time": 120000,
             }
-
-        return config
-
-    @classmethod
-    def apply_cypres_proxy_dynamic_config_patches(cls, config, ytserver_version, cluster_index):
-        delta_cypress_proxy_config = cls.get_param("DELTA_DYNAMIC_CYPRESS_PROXY_CONFIG", cluster_index)
-
-        update_inplace(config, delta_cypress_proxy_config)
 
         return config
 
