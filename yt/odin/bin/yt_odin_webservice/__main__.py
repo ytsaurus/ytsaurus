@@ -171,6 +171,7 @@ def prometheus():
     # https://github.com/prometheus/docs/blob/main/content/docs/instrumenting/exposition_formats.md
     # https://prometheus.io/docs/prometheus/latest/configuration/configuration/#scrape_config
     now = datetime.datetime.now(datetime.timezone.utc)
+    # `period` is the number of seconds (from now) for which we will request data.
     period = datetime.timedelta(seconds=int(request.args.get("period", 90)))
     start_timestamp = int((now - period).timestamp())
     stop_timestamp = int(now.timestamp())
