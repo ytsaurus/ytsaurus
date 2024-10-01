@@ -29,7 +29,6 @@ DEFINE_ENUM(ESequoiaTable,
     (NodeSnapshots)
     (PathForks)
     (ChildForks)
-    (ResponseKeeper)
 );
 
 DEFINE_ENUM(EGroundUpdateQueue,
@@ -54,8 +53,6 @@ struct TDependentTransaction;
 struct TNodeFork;
 struct TPathFork;
 struct TNodeSnapshot;
-
-struct TSequoiaResponseKeeper;
 
 } // namespace NRecords
 
