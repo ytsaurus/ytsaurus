@@ -85,7 +85,7 @@ usage: yt create [-h] [--params PARAMS] [--type TYPE] [--path PATH] [-r] [-i] [-
 
 #### Positional Arguments
 
-> `type`    one of table, file, document, account, user, list_node, map_node, string_node, int64_node, uint64_node, double_node, …
+> `type`    one of table, file, document, account, user, map_node, string_node, int64_node, uint64_node, double_node, …
 
 > `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
@@ -93,7 +93,7 @@ usage: yt create [-h] [--params PARAMS] [--type TYPE] [--path PATH] [-r] [-i] [-
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--type`    one of table, file, document, account, user, list_node, map_node, string_node, int64_node, uint64_node, double_node, …
+> `--type`    one of table, file, document, account, user, map_node, string_node, int64_node, uint64_node, double_node, …
 
 > `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
@@ -258,7 +258,7 @@ usage: yt find [-h] [--params PARAMS] [--path PATH] [--name NAME] [--type TYPE] 
 
 > , ?, [seq], [!seq]
 
-> `--type`    one of table, file, document, account, user, list_node, map_node, string_node, int64_node, uint64_node, double_node, …
+> `--type`    one of table, file, document, account, user, map_node, string_node, int64_node, uint64_node, double_node, …
 
 > `--account`
 

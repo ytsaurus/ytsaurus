@@ -439,11 +439,19 @@ yt.get("//home/string_node", format="json")  # Output: '"abcde"'
 yt.set("//home/string_node/@mykey", "value")  # Set the attribute
 yt.get("//home/string_node/@mykey")  # Output: "value"
 
-## Create a list and append to it the number 7 and a string
-yt.create("list_node", "//home/lst")
-yt.set("//home/lst/end", 7)
-yt.set("//home/lst/end", "cabbage")
-yt.get("//home/lst")  # Output: [7L, "cabbage"]
+## Create a document and use it as a dictonary
+yt.create("document", "//home/doc")
+yt.set("//home/doc", {"number": 7, "vegetable": "tomato"})
+yt.get("//home/doc")  # Output: [7L, "tomato"]
+yt.set("//home/doc/vegetable", "cabbage")
+yt.get("//home/doc")  # Output: [7L, "cabbage"]
+
+## Create a document and append number and a string to it
+yt.create("document", "//home/doc-list")
+yt.set("//home/doc-list", [])
+yt.set("//home/doc-list/end", 7)
+yt.set("//home/doc-list/end", "cabbage")
+yt.get("//home/doc-list")  # Output: [7L, "cabbage"]
 ```
 
 - [copy](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.copy) and [move](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.move): Copy/move the Cypress node. To learn more about the option value, see [section](../../../user-guide/storage/cypress-example.md#copy_move).
