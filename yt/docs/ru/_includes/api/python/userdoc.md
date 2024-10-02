@@ -438,11 +438,19 @@ yt.get("//home/string_node", format="json")  # Output: '"abcde"'
 yt.set("//home/string_node/@mykey", "value")  # Установить атрибут
 yt.get("//home/string_node/@mykey")  # Output: "value"
 
-## Создает список и добавляет в его конец число 7 и строку
-yt.create("list_node", "//home/lst")
-yt.set("//home/lst/end", 7)
-yt.set("//home/lst/end", "cabbage")
-yt.get("//home/lst")  # Output: [7L, "cabbage"]
+## Создаёт документ и использует его в качестве словаря
+yt.create("document", "//home/doc")
+yt.set("//home/doc", {"number": 7, "vegetable": "tomato"})
+yt.get("//home/doc")  # Output: [7L, "tomato"]
+yt.set("//home/doc/vegetable", "cabbage")
+yt.get("//home/doc")  # Output: [7L, "cabbage"]
+
+## Создаёт документ и использует в качестве списка, записывая в конец число и строку
+yt.create("document", "//home/doc-list")
+yt.set("//home/doc-list", [])
+yt.set("//home/doc-list/end", 7)
+yt.set("//home/doc-list/end", "cabbage")
+yt.get("//home/doc-list")  # Output: [7L, "cabbage"]
 ```
 
 - [copy](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.copy) и [move](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.move) — скопировать/переместить узел Кипариса. Подробнее про значение опций можно прочитать в [разделе](../../../user-guide/storage/cypress-example.md#copy_move).

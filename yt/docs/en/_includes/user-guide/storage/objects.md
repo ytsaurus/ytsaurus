@@ -57,7 +57,7 @@ A Cypress node can contain a value of the primitive type: string, number, dict, 
 | `uint64_node` | A Cypress node containing an unsigned integer |
 | `double_node` | A Cypress node containing a real number |
 | `map_node` | Dict in Cypress (keys are strings, values are other nodes). By analogy with a file system, this is a folder |
-| `list_node` | An ordered list in Cypress (values are other nodes) |
+| `list_node` | **Deprecated, consider using documents instead.** An ordered list in Cypress (values are other nodes) |
 | `boolean_node` | A Cypress node containing a Boolean value |
 
 ### Internal objects { #internal_objects }
