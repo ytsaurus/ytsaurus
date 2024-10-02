@@ -1,4 +1,5 @@
 #include "image_reader.h"
+#include "squash_fs_image_builder.h"
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
@@ -30,19 +31,35 @@ class TCypressFileImageReader
 {
 public:
     TCypressFileImageReader(
-        IRandomAccessFileReaderPtr reader,
+        std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
+        TYPath path,
+        IClientPtr client,
+        IThroughputThrottlerPtr inThrottler,
+        IThroughputThrottlerPtr outRpsThrottler,
+        IInvokerPtr invoker,
         TLogger logger)
-        : Reader_(std::move(reader))
-        , Logger(std::move(logger.WithTag("Path: %v", Reader_->GetPath())))
+        : Path_(std::move(path))
+        , Client_(std::move(client))
+        , InThrottler_(std::move(inThrottler))
+        , OutRpsThrottler_(std::move(outRpsThrottler))
+        , Logger(std::move(logger.WithTag("Path: %v", Path_)))
+        , Reader_(CreateRandomAccessFileReader(
+            std::move(chunkSpecs),
+            Path_,
+            Client_,
+            InThrottler_,
+            OutRpsThrottler_,
+            std::move(invoker),
+            Logger))
     { }
 
     void Initialize() override
     {
-        YT_LOG_INFO("Initializing cypress file image reader");
+        YT_LOG_INFO("Initializing Cypress file image reader");
 
         Reader_->Initialize();
 
-        YT_LOG_INFO("Initialized cypress file image reader");
+        YT_LOG_INFO("Initialized Cypress file image reader");
     }
 
     TFuture<TSharedRef> Read(
@@ -64,14 +81,13 @@ public:
         return Reader_->GetStatistics();
     }
 
-    TString GetPath() const override
-    {
-        return Reader_->GetPath();
-    }
-
 private:
-    const IRandomAccessFileReaderPtr Reader_;
+    const TYPath Path_;
+    const IClientPtr Client_;
+    const IThroughputThrottlerPtr InThrottler_;
+    const IThroughputThrottlerPtr OutRpsThrottler_;
     const TLogger Logger;
+    const IRandomAccessFileReaderPtr Reader_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,21 +102,21 @@ class TVirtualSquashFSImageReader
 public:
     TVirtualSquashFSImageReader(
         std::unordered_map<TYPath, std::vector<NChunkClient::NProto::TChunkSpec>> pathToChunkSpecs,
-        TSquashFSLayoutPtr layout,
+        TSquashFSImagePtr image,
         IClientPtr client,
         IThroughputThrottlerPtr inThrottler,
         IThroughputThrottlerPtr outRpsThrottler,
         IInvokerPtr invoker,
         TLogger logger)
-        : Layout_(std::move(layout))
+        : Image_(std::move(image))
         , Client_(std::move(client))
         , InThrottler_(std::move(inThrottler))
         , OutRpsThrottler_(std::move(outRpsThrottler))
         , Invoker_(std::move(invoker))
         , Logger(std::move(logger.WithTag("VirtualImageId: %v", TGuid::Create())))
-        , Size_(Layout_->GetSize())
+        , Size_(Image_->GetSize())
     {
-        const auto& files = Layout_->Files();
+        const auto& files = Image_->Files();
         Readers_.resize(std::ssize(files));
 
         for (int i = 0; i < std::ssize(files); ++i) {
@@ -156,18 +172,18 @@ public:
         std::vector<TFuture<TSharedRef>> readFutures;
 
         // Read the head from the image.
-        i64 headSize = Layout_->GetHeadSize();
+        i64 headSize = Image_->GetHeaderSize();
         if (offset < headSize) {
             i64 sizeWithinHead = std::min(headSize - offset, length);
             readFutures.push_back(MakeFuture(
-                Layout_->ReadHead(offset, sizeWithinHead)));
+                Image_->ReadHead(offset, sizeWithinHead)));
 
             offset += sizeWithinHead;
             length -= sizeWithinHead;
         }
 
         // Read the files from the readers.
-        const auto& files = Layout_->Files();
+        const auto& files = Image_->Files();
         for (int i = 0; i < std::ssize(files); ++i) {
             auto& part = files[i];
             auto partBegin = part.Offset;
@@ -197,8 +213,8 @@ public:
         }
 
         // Read the tail from the image.
-        i64 tailOffset = Layout_->GetTailOffset();
-        i64 tailSize = Layout_->GetTailSize();
+        i64 tailOffset = Image_->GetTailOffset();
+        i64 tailSize = Image_->GetTailSize();
         if (length > 0 &&
             tailOffset <= offset &&
             offset < tailOffset + tailSize)
@@ -208,7 +224,7 @@ public:
             i64 sizeWithinTail = endWithinTail - beginWithinTail;
 
             readFutures.push_back(MakeFuture(
-                Layout_->ReadTail(beginWithinTail, sizeWithinTail)));
+                Image_->ReadTail(beginWithinTail, sizeWithinTail)));
 
             offset += sizeWithinTail;
             length -= sizeWithinTail;
@@ -243,21 +259,16 @@ public:
         for (const auto& reader : Readers_) {
             auto readerStatistics = reader->GetStatistics();
             cumulativeStatistics.ReadBytes += readerStatistics.ReadBytes;
-            cumulativeStatistics.DataBytesReadFromCache += readerStatistics.DataBytesReadFromCache;
-            cumulativeStatistics.DataBytesReadFromDisk += readerStatistics.DataBytesReadFromDisk;
-            cumulativeStatistics.MetaBytesReadFromDisk += readerStatistics.MetaBytesReadFromDisk;
+            cumulativeStatistics.ReadBlockBytesFromCache += readerStatistics.ReadBlockBytesFromCache;
+            cumulativeStatistics.ReadBlockBytesFromDisk += readerStatistics.ReadBlockBytesFromDisk;
+            cumulativeStatistics.ReadBlockMetaBytesFromDisk += readerStatistics.ReadBlockMetaBytesFromDisk;
         }
 
         return cumulativeStatistics;
     }
 
-    TString GetPath() const override
-    {
-        return "virtual";
-    }
-
 private:
-    const TSquashFSLayoutPtr Layout_;
+    const TSquashFSImagePtr Image_;
     const IClientPtr Client_;
     const IThroughputThrottlerPtr InThrottler_;
     const IThroughputThrottlerPtr OutRpsThrottler_;
@@ -270,11 +281,21 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IImageReaderPtr CreateCypressFileImageReader(
-    IRandomAccessFileReaderPtr reader,
+    std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
+    TYPath path,
+    IClientPtr client,
+    IThroughputThrottlerPtr inThrottler,
+    IThroughputThrottlerPtr outRpsThrottler,
+    IInvokerPtr invoker,
     TLogger logger)
 {
     return New<TCypressFileImageReader>(
-        std::move(reader),
+        std::move(chunkSpecs),
+        std::move(path),
+        std::move(client),
+        std::move(inThrottler),
+        std::move(outRpsThrottler),
+        std::move(invoker),
         std::move(logger));
 }
 
@@ -282,7 +303,7 @@ IImageReaderPtr CreateCypressFileImageReader(
 
 IImageReaderPtr CreateVirtualSquashFSImageReader(
     std::unordered_map<TYPath, std::vector<NChunkClient::NProto::TChunkSpec>> pathToChunkSpecs,
-    TSquashFSLayoutPtr layout,
+    TSquashFSImagePtr image,
     IClientPtr client,
     IThroughputThrottlerPtr inThrottler,
     IThroughputThrottlerPtr outRpsThrottler,
@@ -291,7 +312,7 @@ IImageReaderPtr CreateVirtualSquashFSImageReader(
 {
     return New<TVirtualSquashFSImageReader>(
         std::move(pathToChunkSpecs),
-        std::move(layout),
+        std::move(image),
         std::move(client),
         std::move(inThrottler),
         std::move(outRpsThrottler),

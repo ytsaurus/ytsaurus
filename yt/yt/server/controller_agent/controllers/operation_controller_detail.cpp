@@ -2923,7 +2923,8 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
                     *req->mutable_statistics() = table->DataStatistics;
 
                     if (!table->IsFile()) {
-                        // COMPAT(h0pless): remove this when all masters are 24.2.
+                        // COMPAT(h0pless): remove this when masters will receive schema in BeginUpload.
+                        ToProto(req->mutable_table_schema(), table->TableUploadOptions.TableSchema.Get());
                         req->set_schema_mode(ToProto<int>(table->TableUploadOptions.SchemaMode));
 
                         req->set_optimize_for(ToProto<int>(table->TableUploadOptions.OptimizeFor));
@@ -6290,6 +6291,9 @@ void TOperationControllerBase::GetOutputTablesSchema()
         // Will be used by AddOutputTableSpecs.
         table->TableUploadOptions.SchemaId = table->SchemaId;
 
+        // Saving it here to make sure that we notice table schema change in PrepareOutputTables (if there is any).
+        table->OriginalTableSchemaRevision = table->TableUploadOptions.TableSchema.GetRevision();
+
         if (table->Dynamic) {
             if (!table->TableUploadOptions.TableSchema->IsSorted()) {
                 THROW_ERROR_EXCEPTION("Only sorted dynamic table can be updated")
@@ -6325,10 +6329,9 @@ void TOperationControllerBase::GetOutputTablesSchema()
 
         table->TableWriterOptions->VersionedWriteOptions = table->TableUploadOptions.VersionedWriteOptions;
 
-        YT_LOG_DEBUG("Received output table schema (Path: %v, Schema: %v, SchemaId: %v, SchemaMode: %v, LockMode: %v)",
+        YT_LOG_DEBUG("Received output table schema (Path: %v, Schema: %v, SchemaMode: %v, LockMode: %v)",
             path,
             *table->TableUploadOptions.TableSchema,
-            table->TableUploadOptions.SchemaId,
             table->TableUploadOptions.SchemaMode,
             table->TableUploadOptions.LockMode);
     }
@@ -6665,18 +6668,13 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
                 req->Tag() = table;
 
                 if (!table->IsFile()) {
-                    // Schema revision should be equal to 1 iff schema does not change
-                    // between being fetched from master while preparing output tables
-                    // and sent to master during begin upload.
-                    if (table->TableUploadOptions.TableSchema.GetRevision() == 1) {
-                        YT_LOG_INFO("Sending schema id (SchemaId: %v)",
-                            table->TableUploadOptions.SchemaId);
+                    auto schemaChanged = table->OriginalTableSchemaRevision != table->TableUploadOptions.TableSchema.GetRevision();
+                    if (!schemaChanged) {
                         YT_VERIFY(table->TableUploadOptions.SchemaId);
                         ToProto(req->mutable_table_schema_id(), table->TableUploadOptions.SchemaId);
                     } else {
                         // Sending schema, since in this case it might be not registered on master yet.
-                        YT_LOG_DEBUG("Sending full table schema to master during begin upload (TableSchemaRevision: %v)",
-                            table->TableUploadOptions.TableSchema.GetRevision());
+                        YT_LOG_DEBUG("Sending full table schema to master during begin upload");
                         ToProto(req->mutable_table_schema(), table->TableUploadOptions.TableSchema.Get());
                     }
 

@@ -1,0 +1,349 @@
+Warn: Failed to get token: No SSH keys found
+================================================================================
+How to setup Ya tool authorization
+* By default ya tool takes your default SSH private key and exchanges it for OAuth token. For this to work
+  the public key must be added to Staff and the private one must reside in one of its default locations or be provided
+  by means of agent forwarding. Check if you have forwarded your SSH key to the remote host correctly.
+  The ya whoami command allows you to validate the token and even prefetch it for future uses.
+* There's an option to fetch the access token manually:
+  https://oauth.yandex-team.ru/authorize?response_type=token&client_id=f4d36b7671004ed9850148fa645acac6
+  Put the token into .ya_token file in your home directory (/home/ignat), and set proper permissions.
+  Alternatively you may set the token using env variable:
+  *nix: export YA_TOKEN="<token>"
+  Windows cmd: set YA_TOKEN="<token>"
+  Windows PowerShell: $env:YA_TOKEN="<token>"
+  Keep your access token in secret and never share it with anyone.
+* If your local username differs from the Staff login, you can specify the correct login via environment variable:
+  *nix: export YA_USER="<username>"
+  Windows cmd: set YA_USER="<username>"
+  Windows PowerShell: $env:YA_USER="<username>"
+* If token is still not being fetched by ya tool, report the issue to devtools@ please.
+================================================================================
+Test TFairSharePackingJobResourcesRatioTest::TestConstructor started
+Test TFairSharePackingJobResourcesRatioTest::TestConstructor finished
+Test TFairSharePackingJobResourcesRatioTest::TestOnes started
+Test TFairSharePackingJobResourcesRatioTest::TestOnes finished
+Test TFairSharePackingJobResourcesRatioTest::TestZeros started
+Test TFairSharePackingJobResourcesRatioTest::TestZeros finished
+Test TFairSharePackingAnglePackingMetricTest::TestPerfectJobHasZeroMetricValue started
+Test TFairSharePackingAnglePackingMetricTest::TestPerfectJobHasZeroMetricValue finished
+Test TFairSharePackingAnglePackingMetricTest::TestCompareDifferentAngles started
+Test TFairSharePackingAnglePackingMetricTest::TestCompareDifferentAngles finished
+Test TFairShareStrategyOperationControllerTest::TestConcurrentScheduleAllocationCallsThrottling started
+Test TFairShareStrategyOperationControllerTest::TestConcurrentScheduleAllocationCallsThrottling finished
+Test TFairShareStrategyOperationControllerTest::TestConcurrentScheduleAllocationExecDurationThrottling started
+Test TFairShareStrategyOperationControllerTest::TestConcurrentScheduleAllocationExecDurationThrottling finished
+Test TFairShareStrategyOperationControllerTest::TestConcurrentControllerScheduleAllocationCallsRegularization started
+Test TFairShareStrategyOperationControllerTest::TestConcurrentControllerScheduleAllocationCallsRegularization finished
+Test TFairShareStrategyOperationControllerTest::TestScheduleAllocationTimeout started
+Test TFairShareStrategyOperationControllerTest::TestScheduleAllocationTimeout finished
+Test TFairShareTreeElementTest::TestSatisfactionRatio started
+Test TFairShareTreeElementTest::TestSatisfactionRatio finished
+Test TFairShareTreeElementTest::TestResourceLimits started
+Test TFairShareTreeElementTest::TestResourceLimits finished
+Test TFairShareTreeElementTest::TestSchedulingTagFilterResourceLimits started
+Test TFairShareTreeElementTest::TestSchedulingTagFilterResourceLimits finished
+Test TFairShareTreeElementTest::TestFractionalResourceLimits started
+Test TFairShareTreeElementTest::TestFractionalResourceLimits finished
+Test TFairShareTreeElementTest::TestBestAllocationShare started
+Test TFairShareTreeElementTest::TestBestAllocationShare finished
+Test TFairShareTreeElementTest::TestOperationCountLimits started
+Test TFairShareTreeElementTest::TestOperationCountLimits finished
+Test TFairShareTreeElementTest::TestIncorrectStatusDueToPrecisionError started
+Test TFairShareTreeElementTest::TestIncorrectStatusDueToPrecisionError finished
+Test TFairShareTreeElementTest::TestVolumeOverflowDistributionSimple started
+Test TFairShareTreeElementTest::TestVolumeOverflowDistributionSimple finished
+Test TFairShareTreeElementTest::TestVolumeOverflowDistributionWithMinimalVolumeShares started
+Test TFairShareTreeElementTest::TestVolumeOverflowDistributionWithMinimalVolumeShares finished
+Test TFairShareTreeElementTest::TestVolumeOverflowDistributionIfPoolDoesNotAcceptIt started
+Test TFairShareTreeElementTest::TestVolumeOverflowDistributionIfPoolDoesNotAcceptIt finished
+Test TFairShareTreeElementTest::TestVolumeOverflowDistributionWithLimitedAcceptablePool started
+Test TFairShareTreeElementTest::TestVolumeOverflowDistributionWithLimitedAcceptablePool finished
+Test TFairShareTreeElementTest::TestAccumulatedResourceVolumeRatioBeforeFairShareUpdate started
+Test TFairShareTreeElementTest::TestAccumulatedResourceVolumeRatioBeforeFairShareUpdate finished
+Test TFairShareTreeElementTest::TestPoolCapacityDoesntDecreaseExistingAccumulatedVolume started
+Test TFairShareTreeElementTest::TestPoolCapacityDoesntDecreaseExistingAccumulatedVolume finished
+Test TFairShareTreeElementTest::TestGetPoolPath started
+Test TFairShareTreeElementTest::TestGetPoolPath finished
+Test TFairShareTreeAllocationSchedulerTest::TestUpdatePreemptibleAllocationsList started
+Test TFairShareTreeAllocationSchedulerTest::TestUpdatePreemptibleAllocationsList finished
+Test TFairShareTreeAllocationSchedulerTest::DontSuggestMoreResourcesThanOperationNeeds started
+Test TFairShareTreeAllocationSchedulerTest::DontSuggestMoreResourcesThanOperationNeeds finished
+Test TFairShareTreeAllocationSchedulerTest::DoNotPreemptAllocationsIfFairShareRatioEqualToDemandRatio started
+Test TFairShareTreeAllocationSchedulerTest::DoNotPreemptAllocationsIfFairShareRatioEqualToDemandRatio finished
+Test TFairShareTreeAllocationSchedulerTest::TestConditionalPreemption started
+Test TFairShareTreeAllocationSchedulerTest::TestConditionalPreemption finished
+Test TFairShareTreeAllocationSchedulerTest::TestSchedulableOperationsOrder started
+Test TFairShareTreeAllocationSchedulerTest::TestSchedulableOperationsOrder finished
+Test TFairShareTreeAllocationSchedulerTest::TestSchedulableChildSetWithBatchScheduling started
+Test TFairShareTreeAllocationSchedulerTest::TestSchedulableChildSetWithBatchScheduling finished
+Test TFairShareTreeAllocationSchedulerTest::TestSchedulableChildSetWithoutBatchScheduling started
+Test TFairShareTreeAllocationSchedulerTest::TestSchedulableChildSetWithoutBatchScheduling finished
+Test TFairShareTreeAllocationSchedulerTest::TestCollectConsideredSchedulableChildrenPerPool started
+Test TFairShareTreeAllocationSchedulerTest::TestCollectConsideredSchedulableChildrenPerPool finished
+Test TFairShareTreeAllocationSchedulerTest::TestGuaranteePriorityScheduling started
+Test TFairShareTreeAllocationSchedulerTest::TestGuaranteePriorityScheduling finished
+Test TFairShareTreeAllocationSchedulerTest::TestBuildDynamicAttributesListFromSnapshot started
+Test TFairShareTreeAllocationSchedulerTest::TestBuildDynamicAttributesListFromSnapshot finished
+Test TJobMetricsTest::TestIsEmpty started
+Test TJobMetricsTest::TestIsEmpty finished
+Test TScheduler::SplitTimeIntervalByHours started
+Test TScheduler::SplitTimeIntervalByHours finished
+2024-08-05 23:12:53,531869	W	Strategy	Aborting late allocation (AllocationId: 66377f43-36151ed8-9740584e-4d8885b4, OperationId: 58e5318d-6492d90a-d52be17b-9ca28cf9)	ActionQueue	fffeef8f9010e30d	
+/home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/fair_share_tree_job_scheduler_ut.cpp:1544:
+Value of: dynamicAttributes.Active
+  Actual: false
+Expected: true
+/home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/fair_share_tree_job_scheduler_ut.cpp:1481:
+Actual function call count doesn't match EXPECT_CALL(operationControllerStrategyHost, ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))...
+         Expected: to be called twice
+           Actual: never called - unsatisfied and active
+/home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/fair_share_tree_job_scheduler_ut.cpp:1481:
+Actual function call count doesn't match EXPECT_CALL(operationControllerStrategyHost, ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))...
+         Expected: to be called twice
+           Actual: never called - unsatisfied and active
+/home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/fair_share_tree_job_scheduler_ut.cpp:1481:
+Actual function call count doesn't match EXPECT_CALL(operationControllerStrategyHost, ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))...
+         Expected: to be called twice
+           Actual: never called - unsatisfied and active
+/home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/fair_share_tree_job_scheduler_ut.cpp:1481:
+Actual function call count doesn't match EXPECT_CALL(operationControllerStrategyHost, ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))...
+         Expected: to be called twice
+           Actual: never called - unsatisfied and active
+/home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/fair_share_tree_job_scheduler_ut.cpp:1481:
+Actual function call count doesn't match EXPECT_CALL(operationControllerStrategyHost, ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))...
+         Expected: to be called twice
+           Actual: never called - unsatisfied and active
+2024-08-05 23:12:53,544958	I	Scheduler	Updating applied specified resource limits (NewSpecifiedResourceLimits: {UserSlots: 6, Cpu: 7.000000, Gpu: 536870911, Memory: 0MB, Network: 2305843009213693951}, CurrentSpecifiedResourceLimits: <null>, Pool: PoolA, SchedulingMode: FairShare)	unittester-sche		
+2024-08-05 23:12:53,548839	I	Strategy	Updated SSD priority preemption media (OldSsdPriorityPreemptionMedia: <null>, NewSsdPriorityPreemptionMedia: [])	unittester-sche		
+2024-08-05 23:12:53,549996	I	Strategy	Updated SSD priority preemption media (OldSsdPriorityPreemptionMedia: <null>, NewSsdPriorityPreemptionMedia: [])	unittester-sche		
+2024-08-05 23:12:53,552336	I	Strategy	Updated SSD priority preemption media (OldSsdPriorityPreemptionMedia: <null>, NewSsdPriorityPreemptionMedia: [])	unittester-sche		
+2024-08-05 23:12:53,553522	I	Strategy	Updated SSD priority preemption media (OldSsdPriorityPreemptionMedia: <null>, NewSsdPriorityPreemptionMedia: [])	unittester-sche		
+2024-08-05 23:12:53,553664	I	Scheduler	Pool starvation status changed (Current: NonStarving, New: Starving, Pool: guaranteed, SchedulingMode: FairShare)	unittester-sche		
+2024-08-05 23:12:53,553672	I	Scheduler	Operation starvation status changed (Current: NonStarving, New: Starving, OperationId: 610d5df6-36e8b217-960f9447-67f23ce9)	unittester-sche		
+2024-08-05 23:12:53,555644	I	Strategy	Updated SSD priority preemption media (OldSsdPriorityPreemptionMedia: <null>, NewSsdPriorityPreemptionMedia: [])	unittester-sche		
+2024-08-05 23:12:53,559344	I	Strategy	Updated SSD priority preemption media (OldSsdPriorityPreemptionMedia: <null>, NewSsdPriorityPreemptionMedia: [])	unittester-sche		
+2024-08-05 23:12:53,561995	I	Strategy	Updated SSD priority preemption media (OldSsdPriorityPreemptionMedia: <null>, NewSsdPriorityPreemptionMedia: [])	unittester-sche		
+Test TFairShareTreeElementTest::TestSchedulingTagFilterResourceLimits finished
+Test TFairShareTreeElementTest::TestAccumulatedResourceVolumeRatioBeforeFairShareUpdate finished
+Test TFairSharePackingAnglePackingMetricTest::TestPerfectJobHasZeroMetricValue finished
+Test TFairShareTreeElementTest::TestVolumeOverflowDistributionSimple finished
+Test TFairShareTreeElementTest::TestOperationCountLimits finished
+Test TFairShareTreeAllocationSchedulerTest::TestCollectConsideredSchedulableChildrenPerPool finished
+Test TFairShareTreeElementTest::TestVolumeOverflowDistributionWithMinimalVolumeShares finished
+Test TScheduler::SplitTimeIntervalByHours finished
+Test TFairShareTreeElementTest::TestSatisfactionRatio finished
+Test TFairShareStrategyOperationControllerTest::TestConcurrentScheduleAllocationCallsThrottling finished
+Test TFairShareStrategyOperationControllerTest::TestConcurrentScheduleAllocationExecDurationThrottling finished
+Test TFairShareTreeElementTest::TestResourceLimits finished
+Test TFairShareStrategyOperationControllerTest::TestConcurrentControllerScheduleAllocationCallsRegularization finished
+Test TFairShareTreeAllocationSchedulerTest::TestSchedulableOperationsOrder finished
+Test TFairShareTreeElementTest::TestGetPoolPath finished
+Test TFairShareTreeElementTest::TestPoolCapacityDoesntDecreaseExistingAccumulatedVolume finished
+Test TJobMetricsTest::TestIsEmpty finished
+Test TFairSharePackingJobResourcesRatioTest::TestZeros finished
+Test TFairShareTreeElementTest::TestBestAllocationShare finished
+Test TFairShareTreeAllocationSchedulerTest::TestConditionalPreemption finished
+Test TFairShareTreeAllocationSchedulerTest::TestUpdatePreemptibleAllocationsList finished
+Test TFairShareTreeElementTest::TestVolumeOverflowDistributionWithLimitedAcceptablePool finished
+Test TFairShareTreeAllocationSchedulerTest::TestGuaranteePriorityScheduling finished
+Test TFairSharePackingJobResourcesRatioTest::TestConstructor finished
+Test TFairShareTreeAllocationSchedulerTest::TestSchedulableChildSetWithBatchScheduling finished
+Test TFairSharePackingJobResourcesRatioTest::TestOnes finished
+Test TFairShareTreeElementTest::TestVolumeOverflowDistributionIfPoolDoesNotAcceptIt finished
+Test TFairSharePackingAnglePackingMetricTest::TestCompareDifferentAngles finished
+Test TFairShareTreeElementTest::TestFractionalResourceLimits finished
+Test TFairShareStrategyOperationControllerTest::TestScheduleAllocationTimeout finished
+Test TFairShareTreeElementTest::TestIncorrectStatusDueToPrecisionError finished
+Test TFairShareTreeAllocationSchedulerTest::DontSuggestMoreResourcesThanOperationNeeds finished
+Test TFairShareTreeAllocationSchedulerTest::TestBuildDynamicAttributesListFromSnapshot finished
+Test TFairShareTreeAllocationSchedulerTest::DoNotPreemptAllocationsIfFairShareRatioEqualToDemandRatio finished
+Test TFairShareTreeAllocationSchedulerTest::TestSchedulableChildSetWithoutBatchScheduling finished
+2024-08-05 23:12:53,563265	I	Strategy	Updated SSD priority preemption media (OldSsdPriorityPreemptionMedia: <null>, NewSsdPriorityPreemptionMedia: [])	unittester-sche		
+2024-08-05 23:12:53,565271	I	Strategy	Updated SSD priority preemption media (OldSsdPriorityPreemptionMedia: <null>, NewSsdPriorityPreemptionMedia: [])	unittester-sche		
+2024-08-05 23:12:53,566325	I	Strategy	Updated SSD priority preemption media (OldSsdPriorityPreemptionMedia: <null>, NewSsdPriorityPreemptionMedia: [])	unittester-sche		
+
+yt/yt/server/scheduler/unittests <gtest> [size:medium]
+------ sole chunk ran 35 tests (total:4.99s - test:4.95s)
+[good] TFairShareTreeElementTest::TestSchedulingTagFilterResourceLimits [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestSchedulingTagFilterResourceLimits.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestSchedulingTagFilterResourceLimits.out
+[good] TFairShareTreeElementTest::TestAccumulatedResourceVolumeRatioBeforeFairShareUpdate [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestAccumulatedResourceVolumeRatioBeforeFairShareUpdate.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestAccumulatedResourceVolumeRatioBeforeFairShareUpdate.out
+[good] TFairSharePackingAnglePackingMetricTest::TestPerfectJobHasZeroMetricValue [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairSharePackingAnglePackingMetricTest.TestPerfectJobHasZeroMetricValue.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairSharePackingAnglePackingMetricTest.TestPerfectJobHasZeroMetricValue.out
+[good] TFairShareTreeElementTest::TestVolumeOverflowDistributionSimple [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestVolumeOverflowDistributionSimple.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestVolumeOverflowDistributionSimple.out
+[good] TFairShareTreeElementTest::TestOperationCountLimits [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestOperationCountLimits.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestOperationCountLimits.out
+[good] TFairShareTreeAllocationSchedulerTest::TestCollectConsideredSchedulableChildrenPerPool [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeAllocationSchedulerTest.TestCollectConsideredSchedulableChildrenPerPool.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeAllocationSchedulerTest.TestCollectConsideredSchedulableChildrenPerPool.out
+[good] TFairShareTreeElementTest::TestVolumeOverflowDistributionWithMinimalVolumeShares [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestVolumeOverflowDistributionWithMinimalVolumeShares.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestVolumeOverflowDistributionWithMinimalVolumeShares.out
+[good] TScheduler::SplitTimeIntervalByHours [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TScheduler.SplitTimeIntervalByHours.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TScheduler.SplitTimeIntervalByHours.out
+[good] TFairShareTreeElementTest::TestSatisfactionRatio [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestSatisfactionRatio.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestSatisfactionRatio.out
+[good] TFairShareStrategyOperationControllerTest::TestConcurrentScheduleAllocationCallsThrottling [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareStrategyOperationControllerTest.TestConcurrentScheduleAllocationCallsThrottling.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareStrategyOperationControllerTest.TestConcurrentScheduleAllocationCallsThrottling.out
+[good] TFairShareStrategyOperationControllerTest::TestConcurrentScheduleAllocationExecDurationThrottling [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareStrategyOperationControllerTest.TestConcurrentScheduleAllocationExecDurationThrottling.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareStrategyOperationControllerTest.TestConcurrentScheduleAllocationExecDurationThrottling.out
+[good] TFairShareTreeElementTest::TestResourceLimits [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestResourceLimits.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestResourceLimits.out
+[good] TFairShareStrategyOperationControllerTest::TestConcurrentControllerScheduleAllocationCallsRegularization [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareStrategyOperationControllerTest.TestConcurrentControllerScheduleAllocationCallsRegularization.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareStrategyOperationControllerTest.TestConcurrentControllerScheduleAllocationCallsRegularization.out
+[good] TFairShareTreeAllocationSchedulerTest::TestSchedulableOperationsOrder [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeAllocationSchedulerTest.TestSchedulableOperationsOrder.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeAllocationSchedulerTest.TestSchedulableOperationsOrder.out
+[good] TFairShareTreeElementTest::TestGetPoolPath [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestGetPoolPath.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestGetPoolPath.out
+[good] TFairShareTreeElementTest::TestPoolCapacityDoesntDecreaseExistingAccumulatedVolume [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestPoolCapacityDoesntDecreaseExistingAccumulatedVolume.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestPoolCapacityDoesntDecreaseExistingAccumulatedVolume.out
+[good] TJobMetricsTest::TestIsEmpty [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TJobMetricsTest.TestIsEmpty.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TJobMetricsTest.TestIsEmpty.out
+[good] TFairSharePackingJobResourcesRatioTest::TestZeros [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairSharePackingJobResourcesRatioTest.TestZeros.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairSharePackingJobResourcesRatioTest.TestZeros.out
+[good] TFairShareTreeElementTest::TestBestAllocationShare [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestBestAllocationShare.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestBestAllocationShare.out
+[good] TFairShareTreeAllocationSchedulerTest::TestConditionalPreemption [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeAllocationSchedulerTest.TestConditionalPreemption.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeAllocationSchedulerTest.TestConditionalPreemption.out
+[good] TFairShareTreeAllocationSchedulerTest::TestUpdatePreemptibleAllocationsList [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeAllocationSchedulerTest.TestUpdatePreemptibleAllocationsList.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeAllocationSchedulerTest.TestUpdatePreemptibleAllocationsList.out
+[good] TFairShareTreeElementTest::TestVolumeOverflowDistributionWithLimitedAcceptablePool [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestVolumeOverflowDistributionWithLimitedAcceptablePool.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestVolumeOverflowDistributionWithLimitedAcceptablePool.out
+[good] TFairShareTreeAllocationSchedulerTest::TestGuaranteePriorityScheduling [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeAllocationSchedulerTest.TestGuaranteePriorityScheduling.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeAllocationSchedulerTest.TestGuaranteePriorityScheduling.out
+[good] TFairSharePackingJobResourcesRatioTest::TestConstructor [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairSharePackingJobResourcesRatioTest.TestConstructor.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairSharePackingJobResourcesRatioTest.TestConstructor.out
+[fail] TFairShareTreeAllocationSchedulerTest::TestSchedulableChildSetWithBatchScheduling [default-linux-x86_64-relwithdebinfo] (0.00s)
+/home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/fair_share_tree_job_scheduler_ut.cpp:1544:
+Value of: dynamicAttributes.Active
+  Actual: false
+Expected: true
+
+
+/home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/fair_share_tree_job_scheduler_ut.cpp:1481:
+Actual function call count doesn't match EXPECT_CALL(operationControllerStrategyHost, ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))...
+         Expected: to be called twice
+           Actual: never called - unsatisfied and active
+
+
+/home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/fair_share_tree_job_scheduler_ut.cpp:1481:
+Actual function call count doesn't match EXPECT_CALL(operationControllerStrategyHost, ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))...
+         Expected: to be called twice
+           Actual: never called - unsatisfied and active
+
+
+/home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/fair_share_tree_job_scheduler_ut.cpp:1481:
+Actual function call count doesn't match EXPECT_CALL(operationControllerStrategyHost, ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))...
+         Expected: to be called twice
+           Actual: never called - unsatisfied and active
+
+
+/home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/fair_share_tree_job_scheduler_ut.cpp:1481:
+Actual function call count doesn't match EXPECT_CALL(operationControllerStrategyHost, ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))...
+         Expected: to be called twice
+           Actual: never called - unsatisfied and active
+
+
+/home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/fair_share_tree_job_scheduler_ut.cpp:1481:
+Actual function call count doesn't match EXPECT_CALL(operationControllerStrategyHost, ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))...
+         Expected: to be called twice
+           Actual: never called - unsatisfied and active
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeAllocationSchedulerTest.TestSchedulableChildSetWithBatchScheduling.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeAllocationSchedulerTest.TestSchedulableChildSetWithBatchScheduling.out
+[good] TFairSharePackingJobResourcesRatioTest::TestOnes [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairSharePackingJobResourcesRatioTest.TestOnes.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairSharePackingJobResourcesRatioTest.TestOnes.out
+[good] TFairShareTreeElementTest::TestVolumeOverflowDistributionIfPoolDoesNotAcceptIt [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestVolumeOverflowDistributionIfPoolDoesNotAcceptIt.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestVolumeOverflowDistributionIfPoolDoesNotAcceptIt.out
+[good] TFairSharePackingAnglePackingMetricTest::TestCompareDifferentAngles [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairSharePackingAnglePackingMetricTest.TestCompareDifferentAngles.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairSharePackingAnglePackingMetricTest.TestCompareDifferentAngles.out
+[good] TFairShareTreeElementTest::TestFractionalResourceLimits [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestFractionalResourceLimits.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestFractionalResourceLimits.out
+[good] TFairShareStrategyOperationControllerTest::TestScheduleAllocationTimeout [default-linux-x86_64-relwithdebinfo] (4.01s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareStrategyOperationControllerTest.TestScheduleAllocationTimeout.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareStrategyOperationControllerTest.TestScheduleAllocationTimeout.out
+[good] TFairShareTreeElementTest::TestIncorrectStatusDueToPrecisionError [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestIncorrectStatusDueToPrecisionError.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeElementTest.TestIncorrectStatusDueToPrecisionError.out
+[good] TFairShareTreeAllocationSchedulerTest::DontSuggestMoreResourcesThanOperationNeeds [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeAllocationSchedulerTest.DontSuggestMoreResourcesThanOperationNeeds.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeAllocationSchedulerTest.DontSuggestMoreResourcesThanOperationNeeds.out
+[good] TFairShareTreeAllocationSchedulerTest::TestBuildDynamicAttributesListFromSnapshot [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeAllocationSchedulerTest.TestBuildDynamicAttributesListFromSnapshot.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeAllocationSchedulerTest.TestBuildDynamicAttributesListFromSnapshot.out
+[good] TFairShareTreeAllocationSchedulerTest::DoNotPreemptAllocationsIfFairShareRatioEqualToDemandRatio [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeAllocationSchedulerTest.DoNotPreemptAllocationsIfFairShareRatioEqualToDemandRatio.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeAllocationSchedulerTest.DoNotPreemptAllocationsIfFairShareRatioEqualToDemandRatio.out
+[good] TFairShareTreeAllocationSchedulerTest::TestSchedulableChildSetWithoutBatchScheduling [default-linux-x86_64-relwithdebinfo] (0.00s)
+Logsdir: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff
+Stderr: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeAllocationSchedulerTest.TestSchedulableChildSetWithoutBatchScheduling.err
+Stdout: /home/ignat/arc/arcadia/yt/yt/server/scheduler/unittests/test-results/gtest/testing_out_stuff/TFairShareTreeAllocationSchedulerTest.TestSchedulableChildSetWithoutBatchScheduling.out
+------ FAIL: 34 - GOOD, 1 - FAIL yt/yt/server/scheduler/unittests
+
+Total 1 suite:
+	1 - FAIL
+Total 35 tests:
+	34 - GOOD
+	1 - FAIL
+Failed

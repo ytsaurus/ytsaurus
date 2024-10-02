@@ -1,0 +1,82 @@
+package NYT.NOrm.NExample.NClient.NProto.NDataModel;
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+
+option java_package = "ru.yandex.yt.yt.orm.example.client.proto.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt/orm/example/client/proto/data_model";
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.object_type) = {
+    camel_case_name: "MotherShip"
+    snake_case_name: "mother_ship"
+    primary_key: ["id"]
+    parent: "Nexus"
+    type_value: 101
+    watch_logs: [
+        { snake_case_name: "watch_log" }
+    ]
+    custom_type_handler: true
+    custom_cpp_object: true
+    skip_store_without_changes: true
+    revision_trackers: [
+        {
+            tracker_path: "/spec/revision"
+            tracked_paths: ["/spec"]
+            excluded_paths: ["/spec/capacity", "/spec/sector_names"]
+        },
+        {
+            tracker_path: "/meta/revision"
+            tracked_paths: ["/meta"]
+            excluded_paths: ["/meta/release_year"]
+        }
+    ]
+    attribute_sensors: [
+        {
+            path: "/spec/templar_count"
+            policy: ASP_ATTRIBUTE_VALUE_AS_TAG
+        }
+    ]
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TMotherShipMetaMixin
+{
+    optional int64 id = 1 [
+        (NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM
+    ];
+    optional int64 nexus_id = 101 [
+        (NYT.NOrm.NClient.NProto.add_tags) = "nexus_id"
+    ];
+    optional fixed64 revision = 102 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.not_initializable) = true,
+        (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY
+    ];
+    optional int64 release_year = 103 [(NYT.NOrm.NClient.NProto.column) = true];
+}
+
+message TMotherShipSpecMixin
+{
+    optional int64 templar_count = 1;
+
+    optional int64 executor_id = 2 [
+        (NYT.NOrm.NClient.NProto.foreign_key) = "Executor",
+        (NYT.NOrm.NClient.NProto.no_foreign_view) = true
+    ];
+
+    optional fixed64 revision = 3 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.not_initializable) = true,
+        (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY
+    ];
+
+    optional int64 capacity = 4;
+
+    repeated string sector_names = 5 [(NYT.NOrm.NClient.NProto.column) = true];
+
+    optional int64 price = 6 [(NYT.NOrm.NClient.NProto.column) = true];
+}
+
+////////////////////////////////////////////////////////////////////////////////

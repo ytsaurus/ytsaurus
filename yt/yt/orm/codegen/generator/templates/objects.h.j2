@@ -1,0 +1,99 @@
+// AUTOMATICALLY GENERATED. DO NOT EDIT!
+{%- import "/macros.proto.j2" as macros %}
+{%- import "/macros_object.j2" as macros_object %}
+
+#pragma once
+{##}
+{%- if not yp_compatible %}
+#include "db_schema.h"
+#include "object_detail.h"
+{%- else %}
+#include <yp/server/master/objects/db_schema.h>
+#include <yp/server/master/objects/object.h>
+{%- endif %}
+
+#include <{{ client_schema_h }}>
+#include <{{ server_proto_path }}/etc.pb.h>
+
+// TODO(bulatman): Include schema_transitive.h instead.
+{% for i in public_imports %}
+#include <{{ i | replace(".proto", ".pb.h") }}>
+{%- endfor %}
+
+#include <yt/yt/orm/server/objects/data_model_object.h>
+#include <yt/yt/orm/server/objects/reference_attribute.h>
+#include <yt/yt/orm/server/objects/semaphore_detail.h>
+#include <yt/yt/orm/server/objects/semaphore_set_detail.h>
+
+{%- if not yp_compatible %}
+#include <yt/yt/orm/library/mpl/types.h>
+{%- endif %}
+
+#include <library/cpp/yt/memory/ref_tracked.h>
+
+#include <util/generic/string.h>
+#include <util/system/types.h>
+
+#include <vector>
+
+{%- for object in objects if (dont_skip_cpp or not object.skip_cpp) and object.custom_cpp_object %}
+{%- if loop.first %}
+
+namespace {{ cpp_server_plugins_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+{%- endif %}
+class T{{ object.camel_case_name }};
+{%- if loop.last %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // {{ cpp_server_plugins_namespace }}
+{%- endif %}
+{%- endfor %}
+
+// NYT::NOrm::NServer::NObjects namespace is intentional: there are a bunch of template specializations within it (e.g.: `TObjectKeyTraits`),
+// which are required by templated classes within the namespace (e.g.: `TAttributeSchema::SetAttribute(TManyToOneAttributeDescriptor)`).
+namespace NYT::NOrm::NServer::NObjects {
+
+////////////////////////////////////////////////////////////////////////////////
+
+{%- for object in objects if dont_skip_cpp or not object.skip_cpp %}
+
+{{ macros_object.declare_object_key_traits(object, cpp_objects_namespace) }}
+
+{%- endfor %}
+
+{%- for object in objects if (dont_skip_cpp or not object.skip_cpp) and (object.custom_cpp_object) %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+{{ macros_object.declare_object_plugin_traits(object, cpp_objects_namespace, cpp_server_plugins_namespace) }}
+
+{%- endfor %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NOrm::NServer::NObjects
+
+namespace {{ cpp_objects_namespace }} {
+
+{%- for object in objects if dont_skip_cpp or not object.skip_cpp %}
+
+////////////////////////////////////////////////////////////////////////////////
+{##}
+{{- macros_object.declare_object(object, cpp_server_proto_namespace, cpp_objects_namespace, yp_compatible) }}
+
+{%- endfor %}
+
+{%- if not yp_compatible %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+{{ macros_object.objects_traits(objects) }}
+
+{%- endif %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace {{ cpp_objects_namespace }}

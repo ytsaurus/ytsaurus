@@ -1,0 +1,229 @@
+package NYT.NOrm.NExample.NClient.NProto.NDataModel;
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+
+option java_package = "ru.yandex.yt.yt.orm.example.client.proto.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt/orm/example/client/proto/data_model";
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.object_type) = {
+    camel_case_name: "ManualId"
+    snake_case_name: "manual_id"
+    primary_key: ["str_id", "i64_id", "ui64_id"]
+    type_value: 200
+    custom_type_handler: true
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TManualIdMetaMixin
+{
+    optional string str_id = 1 [
+        (NYT.NOrm.NClient.NProto.generation_policy) = GP_MANUAL,
+        (NYT.NOrm.NClient.NProto.min_length) = 5,
+        (NYT.NOrm.NClient.NProto.max_length) = 10,
+        (NYT.NOrm.NClient.NProto.valid_charset) = "abcde"
+    ];
+    optional int64 i64_id = 2 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_MANUAL];
+    optional uint64 ui64_id = 3 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_MANUAL];
+}
+
+message TManualIdSpecMixin
+{
+    optional string str_value = 1 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.generation_policy) = GP_MANUAL,
+        (NYT.NOrm.NClient.NProto.min_length) = 2,
+        (NYT.NOrm.NClient.NProto.max_length) = 3,
+        (NYT.NOrm.NClient.NProto.valid_charset) = "fo"
+    ];
+    optional int32 i32_value = 2 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.generation_policy) = GP_MANUAL,
+        (NYT.NOrm.NClient.NProto.min_value) = "-50",
+        (NYT.NOrm.NClient.NProto.max_value) = "50",
+        (NYT.NOrm.NClient.NProto.storage_type) = "int64"
+    ];
+    optional uint32 ui32_value = 3 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.generation_policy) = GP_MANUAL,
+        (NYT.NOrm.NClient.NProto.min_value) = "0",
+        (NYT.NOrm.NClient.NProto.max_value) = "50",
+        (NYT.NOrm.NClient.NProto.storage_type) = "uint64"
+    ];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.object_type) = {
+    camel_case_name: "RandomId"
+    snake_case_name: "random_id"
+    primary_key: ["str_id", "i64_id", "ui64_id"]
+    type_value: 201
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TRandomIdMetaMixin
+{
+    optional string str_id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM];
+    optional int64 i64_id = 2 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM];
+    optional uint64 ui64_id = 3 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM];
+}
+
+message TRandomIdSpecMixin
+{
+    optional string str_value = 1 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM
+    ];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.object_type) = {
+    camel_case_name: "TimestampId"
+    snake_case_name: "timestamp_id"
+    primary_key: ["i64_id", "ui64_id"]
+    type_value: 202
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TTimestampIdMetaMixin
+{
+    optional int64 i64_id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_TIMESTAMP];
+    optional uint64 ui64_id = 2 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_TIMESTAMP];
+}
+
+message TTimestampIdSpecMixin
+{
+    optional uint64 ui64_value = 1 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.generation_policy) = GP_TIMESTAMP
+    ];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.object_type) = {
+    camel_case_name: "BufferedTimestampId"
+    snake_case_name: "buffered_timestamp_id"
+    primary_key: ["i64_id", "ui64_id"]
+    type_value: 203
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TBufferedTimestampIdMetaMixin
+{
+    optional int64 i64_id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_BUFFERED_TIMESTAMP];
+    optional uint64 ui64_id = 2 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_BUFFERED_TIMESTAMP];
+}
+
+message TBufferedTimestampIdSpecMixin
+{
+    optional int64 i64_value = 1 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.generation_policy) = GP_TIMESTAMP
+    ];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.object_type) = {
+    camel_case_name: "IndexedIncrementId"
+    snake_case_name: "indexed_increment_id"
+    primary_key: ["i64_id"]
+    custom_null_key: "-1000"
+    type_value: 204
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TIndexedIncrementIdMetaMixin
+{
+    optional int64 i64_id = 1 [
+        (NYT.NOrm.NClient.NProto.generation_policy) = GP_INDEXED_INCREMENT,
+        (NYT.NOrm.NClient.NProto.min_value) = "-42",
+        (NYT.NOrm.NClient.NProto.max_value) = "57",
+        (NYT.NOrm.NClient.NProto.index_for_increment) = "primary_key"
+    ];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// option (NYT.NOrm.NClient.NProto.object_type) = {
+//     camel_case_name: "IndexedIncrementValue"
+//     snake_case_name: "indexed_increment_value"
+//     primary_key: ["str_id"]
+//     type_value: 205
+// };
+
+// option (NYT.NOrm.NClient.NProto.index) = {
+//     object_type_snake_case_name: "indexed_increment_value"
+//     camel_case_name: "IndexedIncrementValueByUi64Value"
+//     snake_case_name: "indexed_increment_value_by_ui64_value"
+//     key: ["/spec/ui64_value"]
+//     mode: IM_ENABLED
+// };
+
+////////////////////////////////////////////////////////////////////////////////
+
+// message TIndexedIncrementValueMetaMixin
+// {
+//     optional string str_id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM];
+// }
+
+// message TIndexedIncrementValueSpecMixin
+// {
+//     optional uint32 ui32_value = 1 [
+//         (NYT.NOrm.NClient.NProto.column) = true,
+//         (NYT.NOrm.NClient.NProto.generation_policy) = GP_INDEXED_INCREMENT,
+//         (NYT.NOrm.NClient.NProto.min_value) = "43",
+//         (NYT.NOrm.NClient.NProto.max_value) = "142",
+//         (NYT.NOrm.NClient.NProto.index_for_increment) = "indexed_increment_value_by_ui64_value"
+//     ];
+// }
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.object_type) = {
+    camel_case_name: "MultipolicyId"
+    snake_case_name: "multipolicy_id"
+    primary_key: ["str_id", "i64_id", "ui64_id", "another_ui64_id"]
+    type_value: 206
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TMultipolicyIdMetaMixin
+{
+    optional string str_id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_MANUAL];
+    optional int64 i64_id = 2 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM];
+    optional uint64 ui64_id = 3 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_TIMESTAMP];
+    optional uint64 another_ui64_id = 4 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_BUFFERED_TIMESTAMP];
+}
+
+message TMultipolicyIdSpecMixin
+{
+    optional string str_value = 1 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.generation_policy) = GP_MANUAL
+    ];
+    optional int64 i64_value = 2 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM
+    ];
+    optional uint64 ui64_value = 3 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.generation_policy) = GP_TIMESTAMP
+    ];
+    optional uint64 another_ui64_value = 4 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.generation_policy) = GP_BUFFERED_TIMESTAMP
+    ];
+}
+
+////////////////////////////////////////////////////////////////////////////////

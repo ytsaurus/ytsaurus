@@ -26,13 +26,12 @@ public:
         : Predicate_(std::move(predicate))
         , KeyColumns_(std::move(keyColumns))
         , Schema_(std::move(schema))
-        , RowBuffer_(New<TRowBuffer>())
         , QueryConstraintsHolder_(KeyColumns_.size())
     {
         QueryConstraint_ = QueryConstraintsHolder_.ExtractFromExpression(
             Predicate_,
             KeyColumns_,
-            RowBuffer_);
+            New<TRowBuffer>());
     }
 
     bool CanSkip(
@@ -85,7 +84,6 @@ private:
     const TKeyColumns KeyColumns_;
     const TTableSchemaPtr Schema_;
 
-    TRowBufferPtr RowBuffer_;
     TConstraintsHolder QueryConstraintsHolder_;
     TConstraintRef QueryConstraint_;
 };

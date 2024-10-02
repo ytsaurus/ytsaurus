@@ -17,9 +17,9 @@ namespace NYT::NNbd {
 struct TReadersStatistics
 {
     i64 ReadBytes = 0;
-    i64 DataBytesReadFromCache = 0;
-    i64 DataBytesReadFromDisk = 0;
-    i64 MetaBytesReadFromDisk = 0;
+    i64 ReadBlockBytesFromCache = 0;
+    i64 ReadBlockBytesFromDisk = 0;
+    i64 ReadBlockMetaBytesFromDisk = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,8 +36,6 @@ struct IRandomAccessFileReader
     virtual i64 GetSize() const = 0;
 
     virtual TReadersStatistics GetStatistics() const = 0;
-
-    virtual NYPath::TYPath GetPath() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IRandomAccessFileReader);

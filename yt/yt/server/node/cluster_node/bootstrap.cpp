@@ -807,8 +807,11 @@ private:
 
         Connection_ = NApi::NNative::CreateConnection(
             Config_->ClusterConnection,
-            std::move(connectionOptions));
-
+            std::move(connectionOptions),
+            /*clusterDirectoryOverride*/ nullptr,
+            // NB(don-dron): Tracking client memory is especially important only for tablet nodes.
+            // Exceeding memory limit on exe nodes can lead to loss of connection with master, when memory is overcommitted by jobs.
+            IsTabletNode() ? NodeMemoryUsageTracker_ : nullptr);
         Connection_->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(BIND_NO_PROPAGATE(&TBootstrap::OnMasterCellDirectoryChanged, this));
 
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);

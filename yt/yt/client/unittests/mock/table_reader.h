@@ -12,7 +12,7 @@ class TMockTableReader
     : public ITableReader
 {
 public:
-    explicit TMockTableReader(NTableClient::TTableSchemaPtr schema);
+    TMockTableReader(const NTableClient::TTableSchemaPtr& schema);
 
     MOCK_METHOD(i64, GetStartRowIndex, (), (const, override));
 
@@ -31,8 +31,8 @@ public:
     const NTableClient::TTableSchemaPtr& GetTableSchema() const override;
 
 private:
-    const NTableClient::TTableSchemaPtr Schema_;
-    const NTableClient::TNameTablePtr NameTable_;
+    NTableClient::TTableSchemaPtr Schema_;
+    NTableClient::TNameTablePtr NameTable_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMockTableReader);

@@ -1,0 +1,43 @@
+// AUTOMATICALLY GENERATED. DO NOT EDIT!
+{%- import "/macros.proto.j2" as macros %}
+{%- import "/macros_typehandler.j2" as macros_typehandler %}
+
+#include "type_handler_impls.h"
+
+#include <yt/yt/orm/server/objects/attribute_schema.h>
+#include <yt/yt/orm/server/objects/build_tags.h>
+#include <yt/yt/orm/server/objects/watch_log.h>
+{%- for object in objects -%}
+{%- if object.custom_cpp_object %}
+#include <{{ cpp_server_plugins_path }}/{{ object.snake_case_name }}.h>
+{% endif -%}
+{%- if object.yp_compat_includes +%}
+{%+ for include in object.yp_compat_includes %}
+#include <{{include}}>
+{%- endfor -%}
+{% endif -%}
+{% endfor %}
+
+#include <yt/yt/orm/client/objects/registry.h>
+
+namespace {{ cpp_objects_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using NYT::NOrm::NServer::NMaster::IBootstrap;
+using NYT::NOrm::NServer::NObjects::IObjectTypeHandler;
+using NYT::NOrm::NServer::NObjects::ISession;
+using NYT::NOrm::NServer::NObjects::TTagSet;
+using NYT::NOrm::NServer::NObjects::TObjectFilter;
+using NYT::NOrm::NServer::NObjects::ESetUpdateObjectMode;
+
+using TDBFields = std::vector<const NYT::NOrm::NServer::NObjects::TDBField*>;
+
+{%- for object in objects if dont_skip_cpp or not object.skip_cpp %}
+
+{{ macros_typehandler.define_type_handler_impl(object, cpp_data_model_proto_namespace, cpp_server_plugins_namespace, database_options, yp_compatible) }}
+
+////////////////////////////////////////////////////////////////////////////////
+{%- endfor %}
+
+} // namespace {{ cpp_objects_namespace }}

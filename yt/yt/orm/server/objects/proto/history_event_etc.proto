@@ -1,0 +1,19 @@
+package NYT.NOrm.NServer.NObjects.NProto;
+
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message THistoryEventEtc
+{
+    message TTransactionContext
+    {
+        map<string, string> items = 1 [(NYT.NYson.NProto.yson_map) = true];
+    }
+
+    optional TTransactionContext transaction_context = 1;
+    repeated string history_enabled_attributes = 2;
+    optional string user_tag = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

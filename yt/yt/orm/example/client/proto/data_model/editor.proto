@@ -1,0 +1,77 @@
+package NYT.NOrm.NExample.NClient.NProto.NDataModel;
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+
+option java_package = "ru.yandex.yt.yt.orm.example.client.proto.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt/orm/example/client/proto/data_model";
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.object_type) = {
+    camel_case_name: "Editor"
+    snake_case_name: "editor"
+    primary_key: ["id"]
+    type_value: 4
+    meta_base_message_type_name: "NYT.NOrm.NExample.NClient.NProto.NDataModel.TSomeMeta"
+    spec_message_type_name: "NYT.NOrm.NExample.NClient.NProto.NDataModel.TSomeSpec"
+    status_message_type_name: "NYT.NOrm.NExample.NClient.NProto.NDataModel.TSomeStatus"
+    custom_type_handler: true
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "editor"
+    camel_case_name: "EditorsByName"
+    snake_case_name: "editors_by_name"
+    key: ["/spec/name"]
+    mode: IM_ENABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "editor"
+    camel_case_name: "EditorsByAchievements"
+    snake_case_name: "editors_by_achievements"
+    key: ["/spec/achievements"]
+    mode: IM_DISABLED // Redefine to EIndexMode::Building in config.
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "editor"
+    camel_case_name: "EditorsByPost"
+    snake_case_name: "editors_by_post"
+    key: ["/spec/post"]
+    mode: IM_BUILDING
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "editor"
+    camel_case_name: "EditorsByPhoneNumber"
+    snake_case_name: "editors_by_phone_number"
+    key: ["/spec/phone_number"]
+    mode: IM_BUILDING
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TSomeMetaMixin
+{
+    optional string id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM];
+}
+
+message TSomeSpecMixin
+{
+    optional string name = 1;
+    repeated string achievements = 2 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.storage_type) = "string"
+    ];
+    optional string post = 3;
+    optional string phone_number = 4 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.storage_type) = "string"
+    ];
+}
+
+message TSomeStatusMixin
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

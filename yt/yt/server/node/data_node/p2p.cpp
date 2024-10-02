@@ -76,10 +76,10 @@ void TP2PBlockCache::UpdateConfig(const TP2PConfigPtr& config)
         DynamicConfig_ = config;
     }
 
-    StaleSessionCleaup_->SetPeriod(GetConfig()->SessionCleaupPeriod);
+    StaleSessionCleaup_->SetPeriod(Config()->SessionCleaupPeriod);
 }
 
-TP2PConfigPtr TP2PBlockCache::GetConfig()
+TP2PConfigPtr TP2PBlockCache::Config()
 {
     auto guard = Guard(ConfigLock_);
     if (DynamicConfig_) {
@@ -110,7 +110,7 @@ void TP2PBlockCache::FinishSessionIteration(TGuid sessionId, i64 iteration)
 
 TFuture<void> TP2PBlockCache::WaitSessionIteration(TGuid sessionId, i64 iteration)
 {
-    auto config = GetConfig();
+    auto config = Config();
     if (!config->Enabled) {
         return VoidFuture;
     }
@@ -205,7 +205,7 @@ void TP2PBlockCache::OnRemoved(const TP2PBlockPtr& value)
 
 void TP2PBlockCache::CleanupOldSessions()
 {
-    auto sessionCutoff = TInstant::Now() - GetConfig()->SessionTTL;
+    auto sessionCutoff = TInstant::Now() - Config()->SessionTTL;
 
     auto guard = Guard(Lock_);
 

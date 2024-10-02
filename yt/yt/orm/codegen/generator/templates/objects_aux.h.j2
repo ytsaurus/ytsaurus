@@ -1,0 +1,40 @@
+// AUTOMATICALLY GENERATED. DO NOT EDIT!
+{%- import "/macros_object.j2" as macros_object %}
+
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/orm/library/mpl/types.h>
+
+{%- for object in objects if (dont_skip_cpp or not object.skip_cpp) and object.custom_cpp_object %}
+{%- if loop.first %}
+
+namespace {{ cpp_server_plugins_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+{%- endif %}
+class T{{ object.camel_case_name }};
+{%- if loop.last %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // {{ cpp_server_plugins_namespace }}
+{%- endif %}
+{%- endfor %}
+
+// NYT::NOrm::NServer::NObjects namespace is intentional: there are a bunch of template specializations within it (e.g.: `TObjectKeyTraits`),
+// which are required by templated classes within the namespace (e.g.: `TAttributeSchema::SetAttribute(TManyToOneAttributeDescriptor)`).
+namespace NYT::NOrm::NServer::NObjects {
+
+////////////////////////////////////////////////////////////////////////////////
+
+{%- for object in objects if dont_skip_cpp or not object.skip_cpp %}
+
+{{ macros_object.declare_object_key_traits(object, cpp_objects_namespace) }}
+
+{%- endfor %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NOrm::NServer::NObjects

@@ -1,0 +1,8 @@
+RECURSE_ROOT_RELATIVE(yt/yt/orm/example/codegen/test)
+
+IF (NOT OPENSOURCE)
+    INCLUDE(ya_non_opensource.inc)
+ENDIF()
+
+# DEVTOOLSSUPPORT-47333.
+NO_BUILD_IF(OPENSOURCE)

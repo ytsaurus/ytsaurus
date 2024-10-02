@@ -1,0 +1,16 @@
+LIBRARY()
+
+INCLUDE(${ARCADIA_ROOT}/yt/yt/orm/ya_cpp.make.inc)
+
+PEERDIR(
+    yt/yt/orm/client/misc/autogen
+
+    yt/yt/core
+)
+
+SRCS(
+    protobuf_helpers.cpp
+    public.cpp
+)
+
+END()

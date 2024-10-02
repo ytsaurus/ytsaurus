@@ -1,0 +1,93 @@
+// AUTOMATICALLY GENERATED. DO NOT EDIT!
+{%- import "/macros.proto.j2" as macros %}
+{%- import "/macros_typehandler.j2" as macros_typehandler %}
+
+#include "{{ object.snake_case_name }}_type_handler_impl.h"
+{%- if object.custom_cpp_object %}
+{##}
+#include <{{ cpp_server_plugins_path }}/{{ object.snake_case_name }}.h>
+{%- endif %}
+{%- if database_options.enable_custom_base_type_handler %}
+{##}
+#include <{{ cpp_server_custom_base_type_handler_path }}>
+{%- endif %}
+
+#include <yt/yt/orm/server/objects/attribute_schema.h>
+#include <yt/yt/orm/server/objects/build_tags.h>
+#include <yt/yt/orm/server/objects/watch_log.h>
+
+{%- if object.builtin %}
+#include <yt/yt/orm/server/objects/{{ object.snake_case_name }}_type_handler_detail.h>
+{%- endif %}
+
+#include <yt/yt/orm/client/objects/registry.h>
+
+{%- if cpp_server_plugins_namespace %}
+
+namespace {{ cpp_server_plugins_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<NYT::NOrm::NServer::NObjects::IObjectTypeHandler>
+Create{{ object.camel_case_name }}TypeHandler(
+    NYT::NOrm::NServer::NMaster::IBootstrap* bootstrap,
+    NYT::NOrm::NServer::NObjects::TObjectManagerConfigPtr config);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace {{ cpp_server_plugins_namespace }}
+
+{%- endif %}
+
+namespace {{ cpp_objects_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using NYT::NOrm::NServer::NMaster::IBootstrap;
+using NYT::NOrm::NServer::NObjects::IObjectTypeHandler;
+using NYT::NOrm::NServer::NObjects::ISession;
+using NYT::NOrm::NServer::NObjects::TTagSet;
+using NYT::NOrm::NServer::NObjects::THistoryEnabledAttributeSchema;
+using NYT::NOrm::NServer::NObjects::TObjectFilter;
+using NYT::NOrm::NServer::NObjects::ESetUpdateObjectMode;
+
+using TDBFields = std::vector<const NYT::NOrm::NServer::NObjects::TDBField*>;
+
+{{ macros_typehandler.define_type_handler_impl(object, cpp_data_model_proto_namespace, cpp_server_plugins_namespace, database_options, False) }}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IObjectTypeHandler> Create{{ object.camel_case_name }}TypeHandler(
+    IBootstrap* bootstrap,
+    NYT::NOrm::NServer::NObjects::TObjectManagerConfigPtr config)
+{
+{%- if object.custom_type_handler %}
+    return {{ cpp_server_plugins_namespace }}::Create{{ object.camel_case_name }}TypeHandler(
+        bootstrap,
+        std::move(config));
+{%- elif object.snake_case_name == "schema" %}
+    return NYT::NOrm::NServer::NObjects::CreateSchemaTypeHandler<TSchemaTypeHandler>(
+        bootstrap,
+        std::move(config));
+{%- elif object.snake_case_name == "semaphore" %}
+    return NYT::NOrm::NServer::NObjects::CreateSemaphoreTypeHandler<
+        TFinalSemaphore,
+        {{ cpp_data_model_proto_namespace }}::TSemaphore,
+        TSemaphoreTypeHandler>(bootstrap, std::move(config));
+{%- elif object.snake_case_name == "semaphore_set" %}
+    return NYT::NOrm::NServer::NObjects::CreateSemaphoreSetTypeHandler<
+        TFinalSemaphoreSet,
+        {{ cpp_data_model_proto_namespace }}::TSemaphoreSet,
+        TSemaphoreSetTypeHandler>(bootstrap, std::move(config));
+{%- elif object.builtin %}
+    return NYT::NOrm::NServer::NObjects::Create{{ object.camel_case_name }}TypeHandler<
+        T{{ object.camel_case_name }},
+        T{{ object.camel_case_name }}TypeHandler>(bootstrap, std::move(config));
+{%- else %}
+    return std::make_unique<T{{ object.camel_case_name }}TypeHandler>(bootstrap, std::move(config));
+{%- endif %}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace {{ cpp_objects_namespace }}

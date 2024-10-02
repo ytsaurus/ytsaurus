@@ -8,7 +8,6 @@ PEERDIR(
 SRCDIR(tools/enum_parser/parse_enum)
 
 RESOURCE(
-    digit_separator.h /digit_separator
     enums.h /enums
     badcode.h /badcode
     unbalanced.h /unbalanced

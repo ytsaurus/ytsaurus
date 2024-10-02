@@ -1,0 +1,55 @@
+package NYT.NOrm.NExample.NClient.NProto.NDataModel;
+
+option java_package = "ru.yandex.yt.yt.orm.example.client.proto.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt/orm/example/client/proto/data_model";
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Current history table.
+option (NYT.NOrm.NClient.NProto.history_tables) = {
+    primary_table_name: "history_events",
+    index_table_name: "history_index",
+
+    optimize_for_ascending_time: true,
+    do_not_optimize_event_type_order: true,
+    use_deprecated_hashing: true,
+};
+
+// Target history table.
+option (NYT.NOrm.NClient.NProto.history_tables) = {
+    primary_table_name: "history_events_v2",
+    index_table_name: "history_index_v2",
+
+    optimize_for_ascending_time: false,
+    do_not_optimize_event_type_order: false,
+    use_deprecated_hashing: false,
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.enable_annotations) = true;
+option (NYT.NOrm.NClient.NProto.enable_finalizers) = true;
+
+// https://st.yandex-team.ru/YTORM-524
+option (NYT.NOrm.NClient.NProto.parent_key_storage_policy) = PKSP_PREFIX_WITH_SEPARATE_PARENTS_TABLE;
+option (NYT.NOrm.NClient.NProto.no_legacy_parents_table) = true;
+
+option (NYT.NOrm.NClient.NProto.object_with_reference_removal_policy) = OWRRP_REMOVAL_ALLOWED;
+
+option (NYT.NOrm.NClient.NProto.enable_custom_base_type_handler) = true;
+
+option (NYT.NOrm.NClient.NProto.default_enum_storage_type) = "int64";
+
+option (NYT.NOrm.NClient.NProto.enable_history_snapshot_column) = true;
+
+// Note: do not copy this setting into your project. VC_DO_NOT_VALIDATE is used to simplify
+// migration tests in Example (we want to build two versions of the master binary).
+option (NYT.NOrm.NClient.NProto.version_compatibility) = VC_DO_NOT_VALIDATE;
+
+option (NYT.NOrm.NClient.NProto.enable_asynchronous_removals) = true;
+
+option (NYT.NOrm.NClient.NProto.remove_legacy_meta_account_id) = true;
+
+////////////////////////////////////////////////////////////////////////////////

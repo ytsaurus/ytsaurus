@@ -1,0 +1,46 @@
+{
+    "exectest.run[client_misc]": [
+        {
+            "uri": "file://exectest.run_client_misc_/client_misc"
+        }
+    ],
+    "exectest.run[client_native]": [
+        {
+            "uri": "file://exectest.run_client_native_/client_native"
+        }
+    ],
+    "exectest.run[client_objects]": [
+        {
+            "uri": "file://exectest.run_client_objects_/client_objects"
+        }
+    ],
+    "exectest.run[data_model_proto]": {
+        "uri": "file://exectest.run_data_model_proto_/client_schema.proto"
+    },
+    "exectest.run[main_cpp]": {
+        "uri": "file://exectest.run_main_cpp_/main.cpp"
+    },
+    "exectest.run[objects_lib]": [
+        {
+            "uri": "file://exectest.run_objects_lib_/objects_lib"
+        }
+    ],
+    "exectest.run[program_lib]": [
+        {
+            "uri": "file://exectest.run_program_lib_/program_lib"
+        }
+    ],
+    "exectest.run[proto_api]": [
+        {
+            "uri": "file://exectest.run_proto_api_/proto_api"
+        }
+    ],
+    "exectest.run[server_proto]": [
+        {
+            "uri": "file://exectest.run_server_proto_/server_proto"
+        }
+    ],
+    "exectest.run[yt_schema]": {
+        "uri": "file://exectest.run_yt_schema_/schema.py"
+    }
+}

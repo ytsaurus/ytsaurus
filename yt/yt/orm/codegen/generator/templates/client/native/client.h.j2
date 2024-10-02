@@ -1,0 +1,23 @@
+// AUTOMATICALLY GENERATED. DO NOT EDIT!
+
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/orm/client/native/client.h>
+
+namespace {{ client_native_cpp_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Token will be taken from env {{ default_db_name.upper() }}_TOKEN.
+//! If the {{ default_db_name.upper() }}_TOKEN was empty, token will be taken from ~/.{{ default_db_name }}/token.
+TString FindToken();
+
+NYT::NOrm::NClient::NNative::IClientPtr CreateClient(
+    TConnectionConfigPtr config,
+    NYT::NOrm::NClient::NNative::TClientOptions clientOptions = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace {{ client_native_cpp_namespace }}

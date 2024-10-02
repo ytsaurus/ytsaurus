@@ -1,0 +1,15 @@
+package NYT.NOrm.NServer.NAccessControl.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TGetUserAccessAllowedToContinuationToken
+{
+    // The first object returned will have object key strictly greater than this.
+    // The key is serialized via ToProto().
+    optional string object_key = 2;
+
+    reserved "object_id";
+    reserved 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

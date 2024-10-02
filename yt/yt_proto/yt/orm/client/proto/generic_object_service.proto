@@ -1,0 +1,595 @@
+package NYT.NOrm.NClient.NGeneric.NProto;
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+
+import "yt_proto/yt/client/api/rpc_proxy/proto/api_service.proto";
+
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+
+option java_package = "ru.yandex.yt.orm.client.api";
+option go_package = "go.ytsaurus.tech/yt/yt_proto/yt/orm/client/proto;client";
+
+message TCommonRequestOptions
+{
+    // If true then method call returns performance statistics.
+    optional bool fetch_performance_statistics = 1;
+
+    // Overrides default ORM option and allows underlying storage to perform full scan.
+    optional bool allow_full_scan = 2;
+}
+
+message TPerformanceStatistics
+{
+    // Number of DB read phases during the execution.
+    // Each phase consists of a number of read requests executed simultaneously.
+    optional int64 read_phase_count = 1;
+
+    message TSelectQueryStatistics
+    {
+        optional string table_name = 1;
+        repeated NYT.NApi.NRpcProxy.NProto.TQueryStatistics statistics = 2;
+    }
+
+    repeated TSelectQueryStatistics select_query_statistics = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TAttributeSelector
+{
+    // YPaths of requested attributes.
+    repeated string paths = 1;
+}
+
+message TAttributeList
+{
+    reserved 1;
+
+    // Contains single element if TGetObjectOptions.fetch_root_object is true.
+    // Otherwise contains one element per every TAttributeSelector.path in the same order if fetch_values is true.
+    // Otherwise contains no element.
+    repeated NClient.NProto.TPayload value_payloads = 2;
+
+    // Timestamp order coincides with that of TAttributeSelector.paths.
+    // Empty if TGetObjectOptions.fetch_timestamps is false.
+    repeated uint64 timestamps = 3;
+}
+
+message TMethodCall
+{
+    optional string path = 1;
+    optional NYT.NOrm.NClient.NProto.TPayload value_payload = 2;
+}
+
+message TObjectFilter
+{
+    // Textual query string (YP dialect).
+    optional string query = 1;
+}
+
+message TSelectLimit
+{
+    // Maximum number of results to fetch.
+    optional int64 value = 1;
+}
+
+message TSelectOffset
+{
+    // Number of leading results to skip.
+    optional int64 value = 1;
+}
+
+message TSetUpdate
+{
+    // YPath pointing to the attribute to set.
+    optional string path = 1;
+
+    reserved 2;
+
+    // Attribute value.
+    optional NClient.NProto.TPayload value_payload = 4;
+
+    // If true then missing intermediate nodes along the #path do not cause an error.
+    optional bool recursive = 3;
+
+    // If true apply update with shared write lock.
+    optional bool shared_write = 5;
+
+    // Update mode for aggregate column.
+    optional NYT.NOrm.NClient.NProto.EAggregateMode aggregate_mode = 6;
+}
+
+message TSetRootUpdate
+{
+    // List of YPath pointing to the attributes to set.
+    repeated string paths = 1;
+
+    // Attribute value.
+    optional NClient.NProto.TPayload value_payload = 2;
+
+    // If true then missing intermediate nodes along the #path do not cause an error.
+    optional bool recursive = 3;
+
+    // If true apply updates with shared write lock.
+    optional bool shared_write = 4;
+
+    // Update mode for aggregate column.
+    optional NYT.NOrm.NClient.NProto.EAggregateMode aggregate_mode = 5;
+}
+
+message TRemoveUpdate
+{
+    // YPath pointing to the attribute to remove.
+    optional string path = 1;
+
+    // If true then missing intermediate nodes along the #path do not cause an error.
+    optional bool force = 2;
+
+    // If true apply update with shared write lock.
+    optional bool shared_write = 3;
+
+    // Update mode for aggregate column.
+    optional NYT.NOrm.NClient.NProto.EAggregateMode aggregate_mode = 4;
+}
+
+message TLockUpdate
+{
+    // YPath pointing to the attribute to lock.
+    optional string path = 1;
+
+    // Lock type to use.
+    optional NClient.NProto.ELockType lock_type = 2;
+}
+
+message TAttributeTimestampPrerequisite
+{
+    // YPath pointing to the attribute to check.
+    optional string path = 1;
+
+    // For the prerequisite to succeed, the actual timestamp must not exceed this one.
+    optional uint64 timestamp = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Parameters for updating an existing object in the context of a |Create| request ("upsert").
+// Contents are similar to the corresponding fields in |Update|.
+// A message with empty contents simply prevents an exception in |Create|.
+message TUpdateIfExisting
+{
+    // Update these paths in the existing object.
+    // Values are taken from the corresponding paths in |attributes|, unless supplied directly in
+    // |set_updates| (for the case of setting a different value when creating vs. updating).
+    repeated TSetUpdate set_updates = 1;
+
+    // Same as |set_updates|, except |value_payload|, if present for the case of different values
+    // when creating vs. updating, is a partially-filled tree with the same root as |attributes|,
+    // instead of individual values. If a path is missing from |value_payload|, it will be picked
+    // up from |attributes|.
+    repeated TSetRootUpdate set_root_updates = 4;
+
+    // Remove these paths in the existing object.
+    repeated TRemoveUpdate remove_updates = 2;
+
+    // Lock these paths in the existing object.
+    repeated TLockUpdate lock_updates = 3;
+
+    repeated TMethodCall method_calls = 6;
+
+    // Prerequisites to check.
+    repeated TAttributeTimestampPrerequisite attribute_timestamp_prerequisites = 5;
+}
+
+message TReqCreateObject
+{
+    // Transaction id.
+    // If missing, just creates the object w/o any transaction.
+    // The request must be sent to the master owning the transaction.
+    optional string transaction_id = 1;
+
+    // Type of the object to create.
+    optional int32 object_type = 2;
+
+    reserved 3;
+
+    // Object attributes.
+    optional NClient.NProto.TPayload attributes_payload = 4;
+
+    // Format to use in response. None will respond with object_id and fqid. Yson or proto will
+    // leave these empty and fill meta with /meta of the newly created object.
+    optional NClient.NProto.EPayloadFormat format = 5;
+
+    // If a matching object already exists (key fields must be supplied in attributes),
+    // update the existing object instead of failing.
+    optional TUpdateIfExisting update_if_existing = 6;
+
+    // Common request options.
+    optional TCommonRequestOptions common_options = 7;
+}
+
+message TRspCreateObject
+{
+    // Object id (filled if requested format is NONE and the object has a single string key).
+    // Deprecated, switch to using meta in a format of your choice.
+    optional string object_id = 1 [deprecated = true];
+
+    // Commit timestamp in case the request was issued outside of an explicit transaction.
+    optional uint64 commit_timestamp = 2;
+
+    // Fqid of the newly created object (filled if requested format is NONE).
+    // Deprecated, switch to using meta in a format of your choice.
+    optional string fqid = 3 [deprecated = true];
+
+    // Metadata of the newly created object, if requested instead of separate fields.
+    optional NClient.NProto.TPayload meta = 4;
+
+    // Performance statistics for transparency if requested.
+    optional TPerformanceStatistics performance_statistics = 5;
+
+    optional TAttributeList results = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemoveObject
+{
+    // Transaction id.
+    // If missing, just removes the object w/o any transaction.
+    // The request must be sent to the master owning the transaction.
+    optional string transaction_id = 1;
+
+    reserved 2;
+
+    // A subset of the object's /meta identifying the object to remove.
+    optional NYT.NOrm.NClient.NProto.TPayload meta = 4;
+
+    // Type of the object to remove.
+    optional int32 object_type = 3;
+
+    // If false, fails with an error on nonexistent object.
+    // If true, ignores nonexistent object.
+    optional bool ignore_nonexistent = 5;
+
+    // Common request options.
+    optional TCommonRequestOptions common_options = 6;
+
+    // Overrides default references option (see forbid_non_empty_removal reference option and global option).
+    // NB: This option is applied for the whole transaction.
+    optional bool allow_removal_with_non_empty_reference = 7;
+}
+
+message TRspRemoveObject
+{
+    // Commit timestamp in case the request was issued outside of an explicit transaction.
+    optional uint64 commit_timestamp = 1;
+
+    // Performance statistics for transparency if requested.
+    optional TPerformanceStatistics performance_statistics = 2;
+
+    // If object has finalizers, it cannot be removed completely, but only transition to |finalized| state.
+    // It means that object becomes read-only
+    // until all controllers garbage-collect this object and remove their finalizers
+    // after which the object would be removed.
+    //
+    // If this field is non-empty, then object is in |finalized| state and awaits for its finalizers.
+    optional uint64 finalization_start_time = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Note that some update handlers (in particular, validators) are postponed until the transaction commit.
+message TReqUpdateObject
+{
+    // Transaction id.
+    // If missing, just updates the object w/o any transaction.
+    // The request must be sent to the master owning the transaction.
+    optional string transaction_id = 1;
+
+    // Use exactly one of the two following fields.
+    // Id of the object to update, if the type has a single string id field.
+    optional string object_id = 2 [deprecated = true];
+    // A subset of the object's /meta identifying the object to update.
+    optional NClient.NProto.TPayload meta = 8;
+
+    // Type of the object to update.
+    optional int32 object_type = 5;
+
+    // Describes set-like updates.
+    repeated TSetUpdate set_updates = 3;
+
+    // Describes set-like updates with root corresponding to the object type.
+    repeated TSetRootUpdate set_root_updates = 9;
+
+    // Describes remove-like updates.
+    repeated TRemoveUpdate remove_updates = 4;
+
+    // Describes lock-like updates.
+    repeated TLockUpdate lock_updates = 10;
+
+    repeated TMethodCall method_calls = 13;
+
+    // Prerequisites to check.
+    repeated TAttributeTimestampPrerequisite attribute_timestamp_prerequisites = 6;
+
+    reserved 7;
+    reserved "create_nonexistent";
+
+    // If false, fails with an error on nonexistent object.
+    // If true, ignores nonexistent object.
+    optional bool ignore_nonexistent = 12;
+
+    // Common request options.
+    optional TCommonRequestOptions common_options = 11;
+
+    optional NYT.NOrm.NClient.NProto.EPayloadFormat format = 14;
+}
+
+message TRspUpdateObject
+{
+    // Commit timestamp in case the request was issued outside of an explicit transaction.
+    optional uint64 commit_timestamp = 1;
+
+    // Performance statistics for transparency if requested.
+    optional TPerformanceStatistics performance_statistics = 2;
+
+    optional TAttributeList results = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TGetObjectOptions
+{
+    // If false, GetObject(s) fails with an error on nonexistent object(s).
+    // If true, silently returns null TAttributeList for nonexistent objects.
+    optional bool ignore_nonexistent = 1;
+    // If true, silently excludes nonexistent objects, the order of existent objects is preserved.
+    optional bool skip_nonexistent = 5;
+
+    // If true then TAttributeList.value_payloads are filled.
+    optional bool fetch_values = 2 [default = true];
+
+    // If true then TAttributeList.timestamps are filled.
+    optional bool fetch_timestamps = 3;
+
+    // If true then all requested attributes will be merged into
+    // root object corresponding to the object type.
+    optional bool fetch_root_object = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetObject
+{
+    // Only one of the three following options should be specified.
+
+    // Provides snapshot isolation.
+    // If omitted then reads the latest state.
+    optional uint64 timestamp = 1;
+
+    // Transaction id to determine start timestamp.
+    // Used when timestamp is not defined.
+    // The request must be sent to the master owning the transaction.
+    optional string timestamp_by_transaction_id = 9;
+
+    // Transaction id to specify the transaction to read from.
+    // Allows to read uncommitted changes.
+    optional string transaction_id = 10;
+
+    // Use exactly one of the two following fields.
+    // Id of the object to get, if the type has a single string id field.
+    optional string object_id = 2 [deprecated = true];
+    // A subset of the object's /meta identifying the object to get.
+    optional NClient.NProto.TPayload meta = 7;
+
+    // Type of the object to get.
+    optional int32 object_type = 4;
+
+    // Describes which attributes are to fetched.
+    // TRspGetObject.result.attributes will contain exactly this number of attributes.
+    optional TAttributeSelector selector = 3;
+
+    // Format to use in response.
+    optional NClient.NProto.EPayloadFormat format = 5;
+
+    // Specific request options.
+    optional TGetObjectOptions options = 6;
+
+    // Common request options.
+    optional TCommonRequestOptions common_options = 8;
+
+}
+
+message TRspGetObject
+{
+    // The requested attributes.
+    optional TAttributeList result = 1;
+
+    // If TReqGetObject.timestamp is missing, then this contains the actual timestamp
+    // used for reading the DB; otherwise this is just the copy of TRspGetObject.timestamp.
+    optional uint64 timestamp = 2;
+
+    // Performance statistics for transparency if requested.
+    optional TPerformanceStatistics performance_statistics = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetObjects
+{
+    // Only one of the three following options should be specified.
+
+    // Provides snapshot isolation.
+    // If omitted then reads the latest state.
+    optional uint64 timestamp = 1;
+
+    // Transaction id to determine start timestamp.
+    // Used when timestamp is not defined.
+    // The request must be sent to the master owning the transaction.
+    optional string timestamp_by_transaction_id = 7;
+
+    // Transaction id to specify the transaction to read from.
+    // Allows to read uncommitted changes.
+    optional string transaction_id = 9;
+
+    // Type of objects to get.
+    optional int32 object_type = 2;
+
+    message TSubrequest
+    {
+        // Use exactly one of the two following fields.
+        // Id of the object to get, if the type has a single string id field.
+        optional string object_id = 1 [deprecated = true];
+        // A subset of the object's /meta identifying the object to get.
+        optional NClient.NProto.TPayload meta = 2;
+    }
+
+    // Subrequests to serve.
+    repeated TSubrequest subrequests = 3;
+
+    // Describes which attributes to fetch.
+    // TRspGetObjects.results.attributes will contain exactly this number of attributes.
+    optional TAttributeSelector selector = 4;
+
+    // Format to use in response.
+    optional NClient.NProto.EPayloadFormat format = 5;
+
+    // Request options.
+    optional TGetObjectOptions options = 6;
+
+    // Common request options.
+    optional TCommonRequestOptions common_options = 8;
+}
+
+message TRspGetObjects
+{
+    message TSubresponse
+    {
+        // The requested attributes.
+        optional TAttributeList result = 1;
+    }
+
+    // The i-th subresponse here contains the result for the i-th subrequest.
+    repeated TSubresponse subresponses = 1;
+
+    // If TReqGetObject.timestamp is missing, then this contains the actual timestamp
+    // used for reading the DB; otherwise this is just the copy of TRspGetObjects.timestamp.
+    optional uint64 timestamp = 2;
+
+    // Performance statistics for transparency if requested.
+    optional TPerformanceStatistics performance_statistics = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TSelectObjectsOptions
+{
+    // If true then TAttributeList.value_payloads are filled.
+    optional bool fetch_values = 1 [default = true];
+
+    // If true then TAttributeList.timestamps are filled.
+    optional bool fetch_timestamps = 2;
+
+    // Number of leading results to skip.
+    optional int32 offset = 3;
+
+    // Maximum number of results to fetch.
+    optional int32 limit = 4;
+
+    // Continuation token indicates the next record to be fetched. Opaque for the client.
+    optional string continuation_token = 5;
+
+    // If true then all requested attributes will be merged into
+    // root object corresponding to the object type.
+    optional bool fetch_root_object = 6;
+
+    // If true then response will contain matching finalizing objects. Otherwise, they are filtered out.
+    // If not specified, Config's |fetch_finalizing_objects_by_default| is used.
+    optional bool fetch_finalizing_objects = 9;
+
+    reserved 7, 8;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TObjectOrderByExpression
+{
+    optional string expression = 1;
+    optional bool descending = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TObjectOrderBy
+{
+    // List of expressions for ordering objects in response.
+    repeated TObjectOrderByExpression expressions = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TIndex
+{
+    // Index identity.
+    optional string name = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSelectObjects
+{
+    // Provides snapshot isolation.
+    // If omitted then reads the latest state.
+    optional uint64 timestamp = 1;
+
+    // Type of objects to select.
+    optional int32 object_type = 2;
+
+    // Provides means for filtering certain objects.
+    optional TObjectFilter filter = 3;
+
+    // Describes which attributes to fetch.
+    // TRspSelectObjects.results.attributes will contain exactly this number of attributes.
+    optional TAttributeSelector selector = 4;
+
+    reserved 5, 6;
+
+    // Format to use in response.
+    optional NClient.NProto.EPayloadFormat format = 7;
+
+    // Request options.
+    optional TSelectObjectsOptions options = 8;
+
+    optional TObjectOrderBy order_by = 9;
+
+    // If present joins object table with the given index table
+    // for better performance in case of high query selectivity.
+    optional TIndex index = 10;
+
+    // Common request options.
+    optional TCommonRequestOptions common_options = 11;
+
+    // Transaction id to determine start timestamp.
+    // Used when timestamp is not defined.
+    // The request must be sent to the master owning the transaction.
+    optional string timestamp_by_transaction_id = 12;
+}
+
+message TRspSelectObjects
+{
+    // The result set: each element of this list corresponds to a single
+    // matching object.
+    repeated TAttributeList results = 1;
+
+    // If TReqSelectObjects.timestamp is missing, then this contains the actual timestamp
+    // used for reading the DB; otherwise this is just the copy of TReqSelectObjects.timestamp.
+    optional uint64 timestamp = 2;
+
+    // Continuation token should be sent in subsequent requests to fetch the next batch
+    // of objects. Opaque for the client.
+    optional string continuation_token = 3;
+
+    // Performance statistics for transparency if requested.
+    optional TPerformanceStatistics performance_statistics = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,47 @@
+package NYT.NOrm.NExample.NClient.NProto.NDataModel;
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+import "yt_proto/yt/orm/data_model/semaphore.proto";
+
+option java_package = "ru.yandex.yt.yt.orm.example.client.proto.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt/orm/example/client/proto/data_model";
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.object_type) = {
+    camel_case_name: "Nexus"
+    snake_case_name: "nexus"
+    primary_key: ["id"]
+    type_value: 100
+    watch_logs: [
+        { snake_case_name: "watch_log" }
+    ]
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TNexusMetaMixin
+{
+    optional int64 id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM];
+}
+
+message TNexusSpecMixin
+{
+    message NestedMessage {
+        optional string nested_field = 1;
+        optional int64 nested_integer_field = 2;
+    }
+    map<uint64, string> some_map = 1;
+    map<uint64, NestedMessage> some_map_to_message = 2;
+    map<uint64, NestedMessage> some_map_to_message_column = 3 [(NYT.NOrm.NClient.NProto.column) = true];
+}
+
+message TNexusStatusMixin
+{
+    optional NYT.NOrm.NDataModel.TEmbeddedSemaphore column_semaphore = 1 [
+        (NYT.NOrm.NClient.NProto.column) = true
+    ];
+    optional NYT.NOrm.NDataModel.TEmbeddedSemaphore etc_semaphore = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

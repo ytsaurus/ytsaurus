@@ -1,0 +1,33 @@
+package NYT.NOrm.NServer.NObjects.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TWatchQueryContinuationToken
+{
+    reserved 1;
+
+    message TEventIndex
+    {
+        optional int64 row_index = 1;
+        optional int64 event_index = 2;
+        optional int32 tablet_index = 3;
+        reserved 4;
+        optional uint64 timestamp = 5;
+    };
+
+    // Offset for each requested tablet.
+    repeated TEventIndex event_offsets = 2;
+    // Total amount of tablets, can be greater than the number of event offsets.
+    optional int32 tablet_count = 3;
+    // Name of watch log to read events from.
+    optional string log_name = 4;
+
+    // Major version corresponds to the internal continuation token structure.
+    // Minor version is equal to DB version.
+    optional int32 major_version = 5;
+    optional int32 minor_version = 6;
+
+    optional bool read_all_tablets = 7;
+}
+
+////////////////////////////////////////////////////////////////////////////////

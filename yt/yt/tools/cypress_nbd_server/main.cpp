@@ -53,32 +53,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-class TCypressFileBlockDeviceConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    TYPath Path;
-
-    // For testing purposes: how long to sleep before read request
-    TDuration TestSleepBeforeRead;
-
-    REGISTER_YSON_STRUCT(TCypressFileBlockDeviceConfig);
-
-    static void Register(TRegistrar registrar)
-    {
-        registrar.Parameter("path", &TThis::Path)
-            .Default();
-        registrar.Parameter("test_sleep_before_read", &TThis::TestSleepBeforeRead)
-            .Default(TDuration::Zero());
-    }
-};
-
-DECLARE_REFCOUNTED_CLASS(TCypressFileBlockDeviceConfig)
-DEFINE_REFCOUNTED_TYPE(TCypressFileBlockDeviceConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 DECLARE_REFCOUNTED_CLASS(TConfig)
 
 class TConfig
@@ -88,7 +62,7 @@ public:
     TString ClusterUser;
     NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;
     TNbdServerConfigPtr NbdServer;
-    THashMap<TString, TCypressFileBlockDeviceConfigPtr> FileSystemBlockDevices;
+    THashMap<TString, TFileSystemBlockDeviceConfigPtr> FileSystemBlockDevices;
     int ThreadCount;
 
     REGISTER_YSON_STRUCT(TConfig);
@@ -307,7 +281,7 @@ protected:
                 client,
                 logger);
 
-            auto fileReader = CreateRandomAccessFileReader(
+            auto reader = CreateCypressFileImageReader(
                 std::move(chunkSpecs),
                 exportConfig->Path,
                 client,
@@ -316,17 +290,10 @@ protected:
                 threadPool->GetInvoker(),
                 logger);
 
-            auto imageReader = CreateCypressFileImageReader(
-                std::move(fileReader),
-                logger);
-
-            auto config = New<TFileSystemBlockDeviceConfig>();
-            config->TestSleepBeforeRead = exportConfig->TestSleepBeforeRead;
-
             auto device = CreateFileSystemBlockDevice(
                 exportId,
-                std::move(config),
-                std::move(imageReader),
+                exportConfig,
+                std::move(reader),
                 threadPool->GetInvoker(),
                 logger);
 

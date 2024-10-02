@@ -1,0 +1,229 @@
+package NYT.NOrm.NExample.NClient.NProto.NDataModel;
+
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+import "yt_proto/yt/orm/client/proto/object.proto";
+import "yt_proto/yt/orm/data_model/generic.proto";
+
+option java_package = "ru.yandex.yt.yt.orm.example.client.proto.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt/orm/example/client/proto/data_model";
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.object_type) = {
+    camel_case_name: "Cat"
+    snake_case_name: "cat"
+    primary_key: ["id"]
+    type_value: 260
+    watch_logs: [
+        { snake_case_name: "watch_log" }
+    ]
+    skip_store_without_changes: true
+    revision_trackers: [
+        {
+            tracker_path: "/spec/revision"
+            tracked_paths: ["/spec/name", "/spec/favourite_food"]
+        }
+    ]
+    custom_type_handler: true
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "cat"
+    camel_case_name: "CatsByNamesWithPredicate"
+    snake_case_name: "cats_by_names_with_predicate"
+    key: ["/spec/name"]
+    predicate: "[/spec/last_sleep_duration] > 6 and [/spec/last_sleep_duration] < 18"
+    mode: IM_ENABLED
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TCatMetaMixin
+{
+    optional int64 id = 1 [
+        (NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM
+    ];
+    optional string breed = 2 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY
+    ];
+}
+
+enum EMood
+{
+    M_UNKNOWN = 0 [
+        (NYT.NYson.NProto.enum_value_name) = "unknown"
+    ];
+    M_SLEEPY = 1 [
+        (NYT.NYson.NProto.enum_value_name) = "sleepy"
+    ];
+    M_ANGRY = 2 [
+        (NYT.NYson.NProto.enum_value_name) = "angry"
+    ];
+    M_SCARED = 3 [
+        (NYT.NYson.NProto.enum_value_name) = "scared"
+    ];
+    M_PLAYFUL = 4 [
+        (NYT.NYson.NProto.enum_value_name) = "playful"
+    ];
+    M_FRIENDLY = 5 [
+        (NYT.NYson.NProto.enum_value_name) = "friendly"
+    ];
+}
+
+enum EHealthCondition
+{
+    HC_UNKNOWN = 0 [
+        (NYT.NYson.NProto.enum_value_name) = "unknown"
+    ];
+    HC_ILL = 1 [
+        (NYT.NYson.NProto.enum_value_name) = "ill"
+    ];
+    HC_HEALTHY = 2 [
+        (NYT.NYson.NProto.enum_value_name) = "healthy"
+    ];
+}
+
+enum EEyeColor
+{
+    EC_UNKNOWN = 0 [
+        (NYT.NYson.NProto.enum_value_name) = "unknown"
+    ];
+    EC_HAZEL = 1 [
+        (NYT.NYson.NProto.enum_value_name) = "hazel"
+    ];
+    EC_GREEN = 2 [
+        (NYT.NYson.NProto.enum_value_name) = "green"
+    ];
+    EC_BLUE = 3 [
+        (NYT.NYson.NProto.enum_value_name) = "blue"
+    ];
+    EC_ORANGE = 4 [
+        (NYT.NYson.NProto.enum_value_name) = "orange"
+    ];
+}
+
+message TCatSpecMixin
+{
+    optional string name = 1;
+    optional int64 last_sleep_duration = 2 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.opaque) = true,
+        (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY
+    ];
+    optional string favourite_food = 3 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_UPDATABLE
+    ];
+    optional string favourite_toy = 4 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.update_policy) = UP_UPDATABLE
+    ];
+    optional fixed64 revision = 5 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_UPDATABLE
+    ];
+
+    optional EMood mood = 6 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.storage_type) = "int64",
+        (NYT.NOrm.NClient.NProto.custom_column_name) = "mood_state"
+    ];
+    repeated EMood mood_in_previous_days = 7 [
+        (NYT.NOrm.NClient.NProto.storage_type) = "int64"
+    ];
+
+    optional EHealthCondition health_condition = 9 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.storage_type) = "string"
+    ];
+    repeated EHealthCondition health_condition_in_previous_days = 10 [
+        (NYT.NOrm.NClient.NProto.storage_type) = "string"
+    ];
+
+    optional EEyeColor eye_color_with_default_yson_storage_type = 11 [
+        (NYT.NOrm.NClient.NProto.column) = true
+    ];
+    repeated EEyeColor eye_color_of_friend_cats_with_default_yson_storage_type = 12;
+
+    map<string, EEyeColor> friend_cats_to_their_eyes_color = 13;
+
+    optional EEyeColor best_friend_eye_color = 14 [
+        (NYT.NOrm.NClient.NProto.storage_type) = "string"
+    ];
+
+    optional int64 friend_cats_count = 15 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.aggregate) = "sum"
+    ];
+
+    message DayStatistics
+    {
+        optional int32 hours_of_purring = 1;
+        optional int32 number_of_meals = 2;
+    }
+
+    map<uint32, DayStatistics> statistics_for_days_of_year = 16 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.aggregate) = "first"
+    ];
+
+    map<uint64, bool> sleep_time = 17 [
+        (NYT.NYson.NProto.yson_map) = true,
+        (NYT.NOrm.NClient.NProto.computed) = true,
+        (NYT.NOrm.NClient.NProto.opaque) = true
+    ];
+}
+
+message TCatStatusMixin
+{
+
+    message TInner
+    {
+        optional int64 inner_first = 1 [
+            (NYT.NOrm.NClient.NProto.column) = true,
+            (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY
+        ];
+        optional int64 inner_second = 2 [
+            (NYT.NOrm.NClient.NProto.column) = true,
+            (NYT.NOrm.NClient.NProto.update_policy) = UP_UPDATABLE
+        ];
+        optional int64 inner_third = 3 [
+            (NYT.NOrm.NClient.NProto.column) = true
+        ];
+    }
+
+    optional TInner updatable_nested = 1 [
+        (NYT.NOrm.NClient.NProto.update_policy) = UP_UPDATABLE
+    ];
+    optional TInner read_only_nested = 2 [
+        (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY
+    ];
+    optional TInner opaque_ro_nested = 3 [
+        (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY
+    ];
+    optional TInner opaque_nested = 4 [
+        (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_UPDATABLE
+    ];
+}
+
+message TCatTestMethodRequest
+{
+    optional string mouse = 1;
+}
+
+message TCatTestMethodResponse
+{
+    optional string mood = 1;
+}
+
+message TCatControlMixin
+{
+    optional TCatTestMethodResponse catch = 1 [
+        (NYT.NOrm.NClient.NProto.method_argument_type) = "TCatTestMethodRequest"];
+
+    optional NYT.NOrm.NDataModel.TVoid pet = 2 [
+        (NYT.NOrm.NClient.NProto.method_argument_type) = "TVoid"];
+}
+
+////////////////////////////////////////////////////////////////////////////////

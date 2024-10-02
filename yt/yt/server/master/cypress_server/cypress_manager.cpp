@@ -4403,9 +4403,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto mutationContext = GetCurrentMutationContext();
-
         for (const auto& protoId : request->node_ids()) {
             auto nodeId = FromProto<TNodeId>(protoId);
 
@@ -4421,29 +4418,8 @@ private:
                 continue;
             }
 
-            auto noLongerNeedsRemoval = [&] {
-                auto touchTime = trunkNode->GetTouchTime();
-                auto mutationTime = mutationContext->GetTimestamp();
-
-                auto expirationTime = trunkNode->TryGetExpirationTime();
-                auto timeExpired = expirationTime && *expirationTime <= mutationTime;
-
-                auto expirationTimeout = trunkNode->TryGetExpirationTimeout();
-                auto timeoutExpired = expirationTimeout && touchTime + *expirationTimeout <= mutationTime;
-
-                return !timeExpired && !timeoutExpired;
-            };
-
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
             auto path = cypressManager->GetNodePath(trunkNode, nullptr);
-
-            if (noLongerNeedsRemoval()) {
-                YT_LOG_DEBUG("Expired node lifetime was prolonged externally; "
-                    "removal is canceled (NodeId: %v, Path: %v)",
-                    nodeId,
-                    path);
-                continue;
-            }
-
             try {
                 YT_LOG_DEBUG("Removing expired node (NodeId: %v, Path: %v)",
                     nodeId,

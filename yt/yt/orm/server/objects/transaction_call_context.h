@@ -1,0 +1,18 @@
+#pragma once
+
+#include "public.h"
+
+#include <string>
+
+namespace NYT::NOrm::NServer::NObjects {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTransactionCallContext
+{
+    std::string CallerEndpointDescription;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NOrm::NServer::NObjects

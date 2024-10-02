@@ -1,0 +1,47 @@
+#include <yt/yt/build/build.h>
+#include <yt/yt/build/ya_version.h>
+
+#include <util/generic/strbuf.h>
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+// These override weak definitions from yt/build.
+int GetVersionMajor()
+{
+    return @EXAMPLE_VERSION_MAJOR@;
+}
+
+int GetVersionMinor()
+{
+    return @EXAMPLE_VERSION_MINOR@;
+}
+
+int GetVersionPatch()
+{
+    return @EXAMPLE_VERSION_PATCH@;
+}
+
+const char* GetVersion()
+{
+    static auto version = CreateBranchCommitVersion(GetBranch());
+
+    return version.c_str();
+}
+
+const char* GetBuildHost()
+{
+    static auto buildHost = GetYaHostName();
+    return buildHost.data();
+}
+
+const char* GetBuildTime()
+{
+    static auto buildDate = GetYaBuildDate();
+    return buildDate.data();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT

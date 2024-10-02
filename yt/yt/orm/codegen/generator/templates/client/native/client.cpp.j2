@@ -1,0 +1,67 @@
+// AUTOMATICALLY GENERATED. DO NOT EDIT!
+
+#include "client.h"
+#include "connection.h"
+#include "object_service_proxy.h"
+#include "private.h"
+
+#include <{{ client_objects_cpp_path }}/acl.h>
+#include <{{ client_objects_cpp_path }}/type.h>
+#include <{{ client_objects_cpp_path }}/tags.h>
+
+#include <yt/yt/orm/client/native/client_impl.h>
+
+#include <util/folder/dirut.h>
+#include <util/folder/path.h>
+#include <util/stream/file.h>
+#include <util/string/strip.h>
+#include <util/system/env.h>
+
+namespace {{ client_native_cpp_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString FindToken()
+{
+    auto token = Strip(GetEnv("{{ default_db_name.upper() }}_TOKEN"));
+    if (token.empty()) {
+        token = Strip(GetEnv("YT_SECURE_VAULT_{{ default_db_name.upper() }}_TOKEN"));
+    }
+    if (token.empty()) {
+        auto tokenPath = Strip(GetEnv("{{ default_db_name.upper() }}_TOKEN_PATH"));
+        if (tokenPath.empty()) {
+            tokenPath = GetHomeDir() + "/.{{ default_db_name }}/token";
+        }
+        TFsPath path(tokenPath);
+        if (path.IsFile()) {
+            token = Strip(TIFStream(path).ReadAll());
+        }
+    }
+    return token;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYT::NOrm::NClient::NNative::IClientPtr CreateClient(
+    TConnectionConfigPtr config,
+    NYT::NOrm::NClient::NNative::TClientOptions clientOptions)
+{
+    // Connection and client use type registry, make sure it is initialized.
+    auto connection = CreateConnection(std::move(config));
+
+    if (!clientOptions.Token) {
+        clientOptions.Token = FindToken();
+    }
+
+    return NYT::NOrm::NClient::NNative::CreateClient<TObjectServiceProxy>(
+        std::move(connection),
+        {{ client_objects_cpp_namespace }}::CreateObjectTypeRegistry(),
+        {{ client_objects_cpp_namespace }}::CreateTagsRegistry(),
+        {{ client_objects_cpp_namespace }}::CreateAccessControlRegistry(),
+        std::move(clientOptions),
+        Logger);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace {{ client_native_cpp_namespace }}

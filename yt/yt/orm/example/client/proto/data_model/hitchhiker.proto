@@ -1,0 +1,71 @@
+package NYT.NOrm.NExample.NClient.NProto.NDataModel;
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+
+option java_package = "ru.yandex.yt.yt.orm.example.client.proto.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt/orm/example/client/proto/data_model";
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.object_type) = {
+    camel_case_name: "Hitchhiker"
+    snake_case_name: "hitchhiker"
+    primary_key: ["id"]
+    type_value: 42
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+message THitchhikerMetaMixin
+{
+    optional int64 id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_MANUAL];
+
+    optional int64 formative_book_id = 2 [(NYT.NOrm.NClient.NProto.column) = true];
+    optional int64 formative_book_id2 = 3 [(NYT.NOrm.NClient.NProto.column) = true];
+    optional NYT.NOrm.NClient.NProto.TReference formative_book = 4 [
+        (NYT.NOrm.NClient.NProto.reference) = {
+            foreign_type: "book"
+            foreign_backref_path: "/status/formed_hitchhikers"
+            columnar_key_storage: {
+                paths: ["/meta/formative_book_id", "/meta/formative_book_id2"]
+            }
+        }
+    ];
+}
+
+message THitchhikerSpecMixin
+{
+    optional string name = 1;
+    optional uint32 miles_traveled = 2;
+    optional uint64 galaxies_visited = 3;
+    optional int32 x_cord = 4;
+    optional int64 y_cord = 5;
+    optional sint32 z_cord = 6;
+    optional sint64 w_cord = 7;
+    optional sfixed32 card_balance = 8;
+    optional sfixed64 cash_balance = 9;
+    optional fixed32 time_cord = 10;
+    optional fixed64 likes_acquired = 11;
+    optional bool wears_glasses = 12;
+
+    message TBookId
+    {
+        optional int64 id = 1;
+        optional int64 id2 = 5;
+    }
+
+    optional TBookId favorite_book = 13;
+    repeated TBookId hated_books = 14 [(NYT.NOrm.NClient.NProto.column) = true];
+    repeated NYT.NOrm.NClient.NProto.TReference books = 15 [
+        (NYT.NOrm.NClient.NProto.reference) = {
+            foreign_type: "book"
+            foreign_backref_path: "/status/hitchhikers"
+            proto_key_storage: {
+                paths: ["/spec/favorite_book", "/spec/hated_books"]
+                suffixes: ["/id", "/id2"]
+            }
+        }
+    ];
+}
+
+////////////////////////////////////////////////////////////////////////////////

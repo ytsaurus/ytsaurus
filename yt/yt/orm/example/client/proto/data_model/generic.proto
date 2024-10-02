@@ -1,0 +1,40 @@
+package NYT.NOrm.NExample.NClient.NProto.NDataModel;
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+
+option java_package = "ru.yandex.yt.yt.orm.example.client.proto.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt/orm/example/client/proto/data_model";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TGenericObject
+{
+    option (NYT.NOrm.NClient.NProto.output_filename) = "default";
+}
+
+message TGenericObjectMeta
+{
+    optional uint32 ultimate_question_of_life = 100 [
+        (NYT.NOrm.NClient.NProto.computed) = true,
+        (NYT.NOrm.NClient.NProto.opaque) = true,
+        (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false,
+        (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY
+    ];
+}
+
+message TGenericObjectSpec
+{
+    option (NYT.NOrm.NClient.NProto.output_filename) = "default";
+}
+
+message TGenericObjectStatus
+{
+    option (NYT.NOrm.NClient.NProto.output_filename) = "default";
+}
+
+message TGenericObjectControl
+{
+    option (NYT.NOrm.NClient.NProto.output_filename) = "default";
+}
+
+////////////////////////////////////////////////////////////////////////////////

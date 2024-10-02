@@ -33,7 +33,7 @@ class TConnectionReuseWrapper
 public:
     using T::T;
 
-    ~TConnectionReuseWrapper();
+    ~TConnectionReuseWrapper() override;
 
     void SetReusableState(TReusableConnectionStatePtr reusableState);
 

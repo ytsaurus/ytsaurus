@@ -66,6 +66,24 @@ void Serialize(const TJobInterruptionInfo& interruptionInfo, NYson::IYsonConsume
 
 ////////////////////////////////////////////////////////////////////////////////
 
+size_t TJobReport::EstimateSize() const
+{
+    return ::NYT::EstimateSizes(
+        OperationId_.Underlying(),
+        JobId_.Underlying(),
+        Type_,
+        State_,
+        StartTime_,
+        FinishTime_,
+        Error_,
+        Spec_,
+        SpecVersion_,
+        Statistics_,
+        Events_,
+        InterruptionInfo_,
+        Profile_.value_or(NJobAgent::TJobProfile{}).Blob);
+}
+
 TJobReport TJobReport::ExtractSpec() const
 {
     TJobReport copy;

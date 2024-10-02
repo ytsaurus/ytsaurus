@@ -1,5 +1,4 @@
 #include <util/generic/hash.h>
-#include <util/string/ascii.h>
 #include <util/string/cast.h>
 #include <util/generic/hash_set.h>
 #include <util/generic/yexception.h>
@@ -128,10 +127,6 @@ private:
                             break;
 
                         case '\'':
-                            if (QuoteCharIsADigitSeparator()) {
-                                Text_.Data += ch;
-                                break;
-                            }
                             Action(ch);
                             State_ = Character;
 
@@ -359,35 +354,6 @@ private:
             ++data;
             --len;
         }
-    }
-
-    // digit separator in integral literal (ex. 73'709'550'592)
-    bool QuoteCharIsADigitSeparator() const {
-        const TStringBuf data = Text_.Data;
-        if (data.empty()) {
-            return false;
-        }
-        if (!IsAsciiHex(data.back())) {
-            return false;
-        }
-        // check for char literal prefix (ex. `u8'$'`)
-        static constexpr TStringBuf literalPrefixes[] {
-            "u8",
-            "u",
-            "U",
-            "L",
-        };
-        for (const TStringBuf& literalPrefix : literalPrefixes) {
-            if (TStringBuf prev; data.BeforeSuffix(literalPrefix, prev)) {
-                if (!prev.empty() && (IsAsciiAlnum(prev.back()) || prev.back() == '_' || prev.back() == '$')) {
-                    // some macro name ends with an `u8` sequence
-                    continue;
-                }
-                // it is a prefixed character literal
-                return false;
-            }
-        }
-        return true;
     }
 
     inline void Action(char ch) {

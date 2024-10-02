@@ -69,7 +69,7 @@ public:
         TChunkId chunkId,
         const std::vector<int>& blockIndices);
 
-    TP2PConfigPtr GetConfig();
+    TP2PConfigPtr Config();
 
 private:
     TP2PConfigPtr Config_;

@@ -1120,12 +1120,12 @@ private:
 
     void AbortFromReadTimeout()
     {
-        YT_UNUSED_FUTURE(Abort(TError(NYT::EErrorCode::Timeout, "Read timeout")));
+        YT_UNUSED_FUTURE(Abort(TError("Read timeout")));
     }
 
     void AbortFromWriteTimeout()
     {
-        YT_UNUSED_FUTURE(Abort(TError(NYT::EErrorCode::Timeout, "Write timeout")));
+        YT_UNUSED_FUTURE(Abort(TError("Write timeout")));
     }
 
     void OnPeerDisconnected()

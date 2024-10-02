@@ -1,0 +1,78 @@
+package NYT.NOrm.NExample.NClient.NProto.NDataModel;
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+
+option java_package = "ru.yandex.yt.yt.orm.example.client.proto.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt/orm/example/client/proto/data_model";
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.object_type) = {
+    camel_case_name: "NirvanaDMProcessInstance"
+    snake_case_name: "nirvana_dm_process_instance"
+    primary_key: ["id"]
+    type_value: 104
+    watch_logs: [
+        { snake_case_name: "watch_log" }
+    ]
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "nirvana_dm_process_instance"
+    camel_case_name: "NirvanaDMProcessInstancesByCreated"
+    snake_case_name: "nirvana_dm_process_instances_by_created"
+    key: ["/spec/created"]
+    mode: IM_ENABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "nirvana_dm_process_instance"
+    camel_case_name: "NirvanaDMProcessInstancesByDefinitionId"
+    snake_case_name: "nirvana_dm_process_instances_by_definition_id"
+    key: ["/spec/definition_id"]
+    mode: IM_ENABLED
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TNirvanaDMProcessInstanceMetaMixin
+{
+    optional string id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM];
+}
+
+message TNirvanaDMProcessInstanceSpecMixin
+{
+    optional string quota_project_id = 1;
+    optional string created = 2;
+    optional string definition_id = 3;
+    optional string configuration_snapshot_id = 4;
+    optional string created_by_id = 5;
+    optional string status = 6;
+    optional string result = 7;
+    optional double progress = 8;
+    optional string message = 9;
+    optional string details = 10;
+    optional string end_ts = 11;
+    optional bool archived = 12;
+    optional string root_process_instance_id = 13;
+    optional string results_expiration_date = 14;
+    optional int32 version = 15;
+    optional string start_ts = 16;
+    optional string rejection_status = 17;
+    optional string ext_configuration_id = 18;
+    optional string updated = 19;
+    optional string updated_by_id = 20;
+    optional string comment = 21;
+    optional string lifecycle_status = 22;
+    optional string clone_of_id = 23;
+    optional int32 block_count = 24;
+    optional int32 deep_block_count = 25;
+    optional bool exported = 26;
+    optional string external_storage = 27;
+    optional string created_through = 28;
+    optional string parent_instance_id = 29;
+    optional string block_type_id = 30;
+    optional string utilization_id = 31;
+}
+
+////////////////////////////////////////////////////////////////////////////////

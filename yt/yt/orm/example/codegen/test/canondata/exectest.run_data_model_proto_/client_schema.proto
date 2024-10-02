@@ -1,0 +1,1941 @@
+// AUTOMATICALLY GENERATED. DO NOT EDIT!
+
+package NYT.NOrm.NExample.NClient.NProto.NDataModel;
+
+option java_package = "ru.yandex.yt.yt.orm.example.client.proto.data_model.autogen";
+option go_package = "go.ytsaurus.tech/yt/yt/orm/example/client/proto/data_model/autogen";
+
+import "yt/yt/orm/example/client/proto/data_model/book.proto";
+import "yt/yt/orm/example/client/proto/data_model/cat.proto";
+import "yt/yt/orm/example/client/proto/data_model/hitchhiker.proto";
+import "yt/yt/orm/example/client/proto/data_model/nested_columns.proto";
+import "yt/yt/orm/example/client/proto/data_model/nexus.proto";
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
+import "yt_proto/yt/orm/client/proto/object.proto";
+import "yt_proto/yt/orm/data_model/access_control.proto";
+import "yt_proto/yt/orm/data_model/generic.proto";
+
+import public "yt_proto/yt/orm/data_model/finalizers.proto";
+import public "yt_proto/yt/orm/data_model/semaphore.proto";
+import public "yt_proto/yt/orm/data_model/semaphore_set.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+enum EObjectType
+{
+    OT_NULL = 0
+    [(NYT.NYson.NProto.enum_value_name) = "null"];
+
+    OT_BOOK = 1
+    [(NYT.NYson.NProto.enum_value_name) = "book"];
+
+    OT_AUTHOR = 2
+    [(NYT.NYson.NProto.enum_value_name) = "author"];
+
+    OT_PUBLISHER = 3
+    [(NYT.NYson.NProto.enum_value_name) = "publisher"];
+
+    OT_EDITOR = 4
+    [(NYT.NYson.NProto.enum_value_name) = "editor"];
+
+    OT_ILLUSTRATOR = 5
+    [(NYT.NYson.NProto.enum_value_name) = "illustrator"];
+
+    OT_TYPOGRAPHER = 6
+    [(NYT.NYson.NProto.enum_value_name) = "typographer"];
+
+    OT_GENRE = 7
+    [(NYT.NYson.NProto.enum_value_name) = "genre"];
+
+    OT_USER = 9
+    [(NYT.NYson.NProto.enum_value_name) = "user"];
+
+    OT_GROUP = 10
+    [(NYT.NYson.NProto.enum_value_name) = "group"];
+
+    OT_HITCHHIKER = 42
+    [(NYT.NYson.NProto.enum_value_name) = "hitchhiker"];
+
+    OT_NEXUS = 100
+    [(NYT.NYson.NProto.enum_value_name) = "nexus"];
+
+    OT_MOTHER_SHIP = 101
+    [(NYT.NYson.NProto.enum_value_name) = "mother_ship"];
+
+    OT_INTERCEPTOR = 102
+    [(NYT.NYson.NProto.enum_value_name) = "interceptor"];
+
+    OT_EXECUTOR = 103
+    [(NYT.NYson.NProto.enum_value_name) = "executor"];
+
+    OT_NIRVANA_DM_PROCESS_INSTANCE = 104
+    [(NYT.NYson.NProto.enum_value_name) = "nirvana_dm_process_instance"];
+
+    OT_MANUAL_ID = 200
+    [(NYT.NYson.NProto.enum_value_name) = "manual_id"];
+
+    OT_RANDOM_ID = 201
+    [(NYT.NYson.NProto.enum_value_name) = "random_id"];
+
+    OT_TIMESTAMP_ID = 202
+    [(NYT.NYson.NProto.enum_value_name) = "timestamp_id"];
+
+    OT_BUFFERED_TIMESTAMP_ID = 203
+    [(NYT.NYson.NProto.enum_value_name) = "buffered_timestamp_id"];
+
+    OT_INDEXED_INCREMENT_ID = 204
+    [(NYT.NYson.NProto.enum_value_name) = "indexed_increment_id"];
+
+    OT_MULTIPOLICY_ID = 206
+    [(NYT.NYson.NProto.enum_value_name) = "multipolicy_id"];
+
+    OT_EMPLOYER = 207
+    [(NYT.NYson.NProto.enum_value_name) = "employer"];
+
+    OT_NESTED_COLUMNS = 208
+    [(NYT.NYson.NProto.enum_value_name) = "nested_columns"];
+
+    OT_SCHEMA = 256
+    [(NYT.NYson.NProto.enum_value_name) = "schema"];
+
+    OT_WATCH_LOG_CONSUMER = 257
+    [(NYT.NYson.NProto.enum_value_name) = "watch_log_consumer"];
+
+    OT_SEMAPHORE = 258
+    [(NYT.NYson.NProto.enum_value_name) = "semaphore"];
+
+    OT_SEMAPHORE_SET = 259
+    [(NYT.NYson.NProto.enum_value_name) = "semaphore_set"];
+
+    OT_CAT = 260
+    [(NYT.NYson.NProto.enum_value_name) = "cat"];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+enum EAccessControlAction
+{
+    ACA_NONE = 0 [(NYT.NYson.NProto.enum_value_name) = "none"];
+    ACA_ALLOW = 1 [(NYT.NYson.NProto.enum_value_name) = "allow"];
+    ACA_DENY = 2 [(NYT.NYson.NProto.enum_value_name) = "deny"];
+}
+
+enum EAccessControlPermission
+{
+    ACP_NONE = 0 [(NYT.NYson.NProto.enum_value_name) = "none"];
+    ACP_READ = 1 [(NYT.NYson.NProto.enum_value_name) = "read"];
+    ACP_WRITE = 2 [(NYT.NYson.NProto.enum_value_name) = "write"];
+    ACP_CREATE = 3 [(NYT.NYson.NProto.enum_value_name) = "create"];
+    ACP_USE = 6 [(NYT.NYson.NProto.enum_value_name) = "use"];
+    ACP_ADMINISTER = 9 [(NYT.NYson.NProto.enum_value_name) = "administer"];
+}
+
+message TAccessControlEntry
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.EAccessControlAction action = 1 [(NYT.NOrm.NClient.NProto.storage_type) = "int64", (NYT.NYson.NProto.enum_yson_storage_type) = EYST_INT];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.EAccessControlPermission permissions = 2 [(NYT.NOrm.NClient.NProto.storage_type) = "int64", (NYT.NYson.NProto.enum_yson_storage_type) = EYST_INT];
+    repeated string subjects = 3;
+    repeated string attributes = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+enum ETag
+{
+    TAG_SYSTEM = 0 [(NYT.NYson.NProto.enum_value_name) = "system"];
+    TAG_COMPUTED = 1 [(NYT.NYson.NProto.enum_value_name) = "computed"];
+    TAG_MANDATORY = 2 [(NYT.NYson.NProto.enum_value_name) = "mandatory"];
+    TAG_OPAQUE = 3 [(NYT.NYson.NProto.enum_value_name) = "opaque"];
+    TAG_READONLY = 4 [(NYT.NYson.NProto.enum_value_name) = "readonly"];
+    TAG_TOUCH = 5 [(NYT.NYson.NProto.enum_value_name) = "touch"];
+    TAG_META = 6 [(NYT.NYson.NProto.enum_value_name) = "meta"];
+    TAG_SPEC = 7 [(NYT.NYson.NProto.enum_value_name) = "spec"];
+    TAG_STATUS = 8 [(NYT.NYson.NProto.enum_value_name) = "status"];
+    TAG_CONTROL = 9 [(NYT.NYson.NProto.enum_value_name) = "control"];
+    TAG_ANY = 10 [(NYT.NYson.NProto.enum_value_name) = "any"];
+    TAG_PUBLIC_DATA = 64 [(NYT.NYson.NProto.enum_value_name) = "public_data"];
+    TAG_DIGITAL_DATA = 66 [(NYT.NYson.NProto.enum_value_name) = "digital_data"];
+    TAG_MONEY = 67 [(NYT.NYson.NProto.enum_value_name) = "money"];
+    TAG_BOOK_MODERATION = 68 [(NYT.NYson.NProto.enum_value_name) = "book_moderation"];
+    TAG_NEXUS_ID = 69 [(NYT.NYson.NProto.enum_value_name) = "nexus_id"];
+    TAG_TEAL = 70 [(NYT.NYson.NProto.enum_value_name) = "teal"];
+    reserved 11 to 63, 65;
+    reserved "MIXIN_TAG_IGNORED_FIELD";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TObjectMigrateAttributes
+{
+    repeated string target_paths = 1;
+}
+
+message TObjectTouch
+{
+    optional bool lock_removal = 1;
+    optional bool store_event_to_history = 2;
+}
+
+message TObjectTouchIndex
+{
+    reserved 1;
+    reserved "index_name";
+
+    repeated string index_names = 2;
+}
+
+message TObjectTouchRevision
+{
+    optional string path = 1;
+}
+
+message TVoid
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TAuthorMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional string id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TAuthorSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    optional string name = 1 [(NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 age = 2 [(NYT.NOrm.NClient.NProto.column) = true];
+}
+
+message TAuthorStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+    repeated NYT.NOrm.NClient.NProto.TReference book_refs = 1;
+}
+
+message TAuthorControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TAuthor
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TAuthorMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TAuthorSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TAuthorStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TAuthorControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TBookMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    enum EBookType
+    {
+        BT_PAPER = 0;
+        BT_DIGITAL = 1;
+    }
+
+    optional int64 id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional int64 id2 = 5 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional string isbn = 2 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true];
+    optional string custom_meta_etc_test = 3 [(NYT.NOrm.NClient.NProto.column) = false];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TBookMeta.EBookType book_type = 4 [(NYT.NOrm.NClient.NProto.storage_type) = "int64", (NYT.NYson.NProto.enum_yson_storage_type) = EYST_INT];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional int64 publisher_id = 101 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TBookDescription
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    message TBookDesign
+    {
+        message TBookCover
+        {
+            optional bool hardcover = 1;
+            optional string image = 2;
+            optional fixed64 size = 3;
+            optional sfixed32 dpi = 4 [(NYT.NOrm.NClient.NProto.storage_type) = "int64"];
+        }
+
+        optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TBookDescription.TBookDesign.TBookCover cover = 1;
+        optional string color = 2;
+        repeated string illustrations = 3;
+    }
+
+    message TDigitalData
+    {
+        option (NYT.NOrm.NClient.NProto.message_tags) = "digital_data";
+        message TFileData
+        {
+            enum EFormat
+            {
+                F_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
+                F_PDF = 1 [(NYT.NYson.NProto.enum_value_name) = "pdf"];
+                F_EPUB = 2 [(NYT.NYson.NProto.enum_value_name) = "epub"];
+                F_FB2 = 3 [(NYT.NYson.NProto.enum_value_name) = "fb2"];
+            }
+
+            optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TBookDescription.TDigitalData.TFileData.EFormat format = 1 [(NYT.NOrm.NClient.NProto.storage_type) = "int64", (NYT.NYson.NProto.enum_yson_storage_type) = EYST_INT];
+            optional uint64 size = 2;
+        }
+
+        repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TBookDescription.TDigitalData.TFileData available_formats = 1;
+        optional double store_rating = 2;
+        optional double store_price = 3 [(NYT.NOrm.NClient.NProto.add_tags) = "money"];
+    }
+
+    message TChapterDescription
+    {
+        optional string name = 1 [(NYT.NOrm.NClient.NProto.add_tags) = "public_data"];
+    }
+
+    message TPeerReviewInfo
+    {
+        repeated string reviewer_ids = 1 [(NYT.NOrm.NClient.NProto.foreign_key) = "Author", (NYT.NOrm.NClient.NProto.references_table_suffix) = "peer_reviewers", (NYT.NOrm.NClient.NProto.custom_foreign_view_name) = "reviewers", (NYT.NOrm.NClient.NProto.column) = true];
+        optional string summary = 2;
+        repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAuthor reviewers = 10001 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    }
+
+    optional string name = 1 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.field_lock_group) = "web", (NYT.NOrm.NExample.NClient.NProto.NDataModel.my_repeated) = "a", (NYT.NOrm.NExample.NClient.NProto.NDataModel.my_repeated) = "b"];
+    optional int32 year = 2 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.storage_type) = "int64"];
+    optional string font = 3 [(NYT.NOrm.NClient.NProto.column) = true];
+    repeated string genres = 4 [(NYT.NOrm.NClient.NProto.column) = true];
+    repeated string keywords = 5 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.field_lock_group) = "search", (NYT.NOrm.NClient.NProto.add_tags) = "digital_data"];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TBookDescription.TBookDesign design = 6;
+    optional string editor_id = 7 [(NYT.NOrm.NClient.NProto.foreign_key) = "Editor", (NYT.NOrm.NClient.NProto.custom_foreign_view_name) = "editor", (NYT.NOrm.NClient.NProto.column) = true];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TBookDescription.TDigitalData digital_data = 8 [(NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 page_count = 9;
+    repeated string author_ids = 10 [(NYT.NOrm.NClient.NProto.column) = true];
+    repeated NYT.NOrm.NClient.NProto.TReference author_refs = 18 [(NYT.NOrm.NClient.NProto.reference) = {foreign_type: "author" foreign_backref_path: "/status/book_refs" columnar_key_storage { paths: "/spec/author_ids" } view { path: "/spec/authors" number: 10010 } foreign_backref_number: 1}];
+    optional int64 illustrator_id = 11 [(NYT.NOrm.NClient.NProto.foreign_key) = "Illustrator", (NYT.NOrm.NClient.NProto.forbid_removal_with_non_empty_references) = true, (NYT.NOrm.NClient.NProto.custom_foreign_view_name) = "illustrator", (NYT.NOrm.NClient.NProto.column) = true];
+    repeated int64 alternative_publisher_ids = 12 [(NYT.NOrm.NClient.NProto.foreign_key) = "Publisher", (NYT.NOrm.NClient.NProto.forbid_removal_with_non_empty_references) = true, (NYT.NOrm.NClient.NProto.custom_foreign_view_name) = "publishers", (NYT.NOrm.NClient.NProto.forbid_target_object_removal_with_non_empty_references) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TBookDescription.TChapterDescription chapter_descriptions = 13 [(NYT.NOrm.NClient.NProto.column) = true];
+    optional string description = 14;
+    optional int64 cover_illustrator_id = 15 [(NYT.NOrm.NClient.NProto.foreign_key) = "Illustrator", (NYT.NOrm.NClient.NProto.forbid_removal_with_non_empty_references) = true, (NYT.NOrm.NClient.NProto.references_table_suffix) = "cover_illustrator", (NYT.NOrm.NClient.NProto.custom_foreign_view_name) = "cover_illustrator", (NYT.NOrm.NClient.NProto.column) = true];
+    optional fixed64 api_revision = 16 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 in_stock = 17 [(NYT.NOrm.NClient.NProto.field_lock_group) = "warehouse"];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TBookDescription.TPeerReviewInfo peer_review = 19;
+    optional NYT.NOrm.NClient.NProto.ELockType lock_type = 20 [default = LT_EXCLUSIVE];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TEditor editor = 10007 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TIllustrator illustrator = 10011 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TPublisher publishers = 10012 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TIllustrator cover_illustrator = 10015 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAuthor authors = 10010 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TBookStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+    optional bool released = 1 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.field_lock_group) = "status"];
+    repeated int64 hitchhiker_ids = 2;
+    repeated NYT.NOrm.NClient.NProto.TReference hitchhikers = 3 [(NYT.NOrm.NClient.NProto.reference) = {foreign_type: "hitchhiker" foreign_backref_path: "/spec/books" columnar_key_storage { paths: "/status/hitchhiker_ids" }}];
+    repeated int64 formed_hitchhiker_ids = 4;
+    repeated NYT.NOrm.NClient.NProto.TReference formed_hitchhikers = 5 [(NYT.NOrm.NClient.NProto.reference) = {foreign_type: "hitchhiker" foreign_backref_path: "/meta/formative_book" columnar_key_storage { paths: "/status/formed_hitchhiker_ids" }}];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.THitchhiker hitchhikers_view = 10003 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.THitchhiker formed_hitchhikers_view = 10005 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TBookControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "book_moderation", (NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectTouch money_touch = 1 [(NYT.NOrm.NClient.NProto.add_tags) = "money"];
+    optional NYT.NOrm.NDataModel.TObjectTouchIndex touch_index = 1000;
+    optional NYT.NOrm.NDataModel.TObjectTouchRevision touch_revision = 1003;
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TBook
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TBookMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TBookDescription spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TBookStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TBookControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TBufferedTimestampIdMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional int64 i64_id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_BUFFERED_TIMESTAMP, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint64 ui64_id = 2 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_BUFFERED_TIMESTAMP, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TBufferedTimestampIdSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    optional int64 i64_value = 1 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.generation_policy) = GP_TIMESTAMP];
+}
+
+message TBufferedTimestampIdStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+}
+
+message TBufferedTimestampIdControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TBufferedTimestampId
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TBufferedTimestampIdMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TBufferedTimestampIdSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TBufferedTimestampIdStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TBufferedTimestampIdControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TCatMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional int64 id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional string breed = 2 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TCatSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    message DayStatistics
+    {
+        optional int32 hours_of_purring = 1;
+        optional int32 number_of_meals = 2;
+    }
+
+    optional string name = 1;
+    optional int64 last_sleep_duration = 2 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional string favourite_food = 3 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_UPDATABLE];
+    optional string favourite_toy = 4 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_UPDATABLE];
+    optional fixed64 revision = 5 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_UPDATABLE];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.EMood mood = 6 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.storage_type) = "int64", (NYT.NOrm.NClient.NProto.custom_column_name) = "mood_state", (NYT.NYson.NProto.enum_yson_storage_type) = EYST_INT];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.EMood mood_in_previous_days = 7 [(NYT.NOrm.NClient.NProto.storage_type) = "int64", (NYT.NYson.NProto.enum_yson_storage_type) = EYST_INT];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.EHealthCondition health_condition = 9 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.storage_type) = "string", (NYT.NYson.NProto.enum_yson_storage_type) = EYST_STRING];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.EHealthCondition health_condition_in_previous_days = 10 [(NYT.NOrm.NClient.NProto.storage_type) = "string", (NYT.NYson.NProto.enum_yson_storage_type) = EYST_STRING];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.EEyeColor eye_color_with_default_yson_storage_type = 11 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.storage_type) = "int64", (NYT.NYson.NProto.enum_yson_storage_type) = EYST_INT];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.EEyeColor eye_color_of_friend_cats_with_default_yson_storage_type = 12 [(NYT.NOrm.NClient.NProto.storage_type) = "int64", (NYT.NYson.NProto.enum_yson_storage_type) = EYST_INT];
+    map<string, NYT.NOrm.NExample.NClient.NProto.NDataModel.EEyeColor> friend_cats_to_their_eyes_color = 13 [(NYT.NYson.NProto.yson_map) = true];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.EEyeColor best_friend_eye_color = 14 [(NYT.NOrm.NClient.NProto.storage_type) = "string", (NYT.NYson.NProto.enum_yson_storage_type) = EYST_STRING];
+    optional int64 friend_cats_count = 15 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.aggregate) = "sum", (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_UPDATABLE];
+    map<uint32, NYT.NOrm.NExample.NClient.NProto.NDataModel.TCatSpec.DayStatistics> statistics_for_days_of_year = 16 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.aggregate) = "first", (NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_UPDATABLE];
+    map<uint64, bool> sleep_time = 17 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true];
+}
+
+message TCatStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+    message TInner
+    {
+        optional int64 inner_first = 1 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+        optional int64 inner_second = 2 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_UPDATABLE];
+        optional int64 inner_third = 3 [(NYT.NOrm.NClient.NProto.column) = true];
+    }
+
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TCatStatus.TInner updatable_nested = 1 [(NYT.NOrm.NClient.NProto.update_policy) = UP_UPDATABLE];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TCatStatus.TInner read_only_nested = 2 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TCatStatus.TInner opaque_ro_nested = 3 [(NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TCatStatus.TInner opaque_nested = 4 [(NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_UPDATABLE];
+}
+
+message TCatControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TCatTestMethodResponse catch = 1 [(NYT.NOrm.NClient.NProto.method_argument_type) = "TCatTestMethodRequest"];
+    optional NYT.NOrm.NDataModel.TVoid pet = 2 [(NYT.NOrm.NClient.NProto.method_argument_type) = "TVoid"];
+    optional NYT.NOrm.NDataModel.TObjectTouchIndex touch_index = 1000;
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectTouchRevision touch_revision = 1003;
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TCat
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TCatMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TCatSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TCatStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TCatControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TSomeMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional string id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TSomeSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    optional string name = 1;
+    repeated string achievements = 2 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.storage_type) = "string"];
+    optional string post = 3;
+    optional string phone_number = 4 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.storage_type) = "string"];
+}
+
+message TSomeStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+}
+
+message TEditorControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouchIndex touch_index = 1000;
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TEditor
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TSomeMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TSomeSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TSomeStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TEditorControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TEmployer
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "teal";
+    message TMeta
+    {
+        option (NYT.NOrm.NClient.NProto.attributes_updatable_by_superuser_only) = true;
+        option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+        optional string id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_MANUAL, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+        optional string passport = 2 [(NYT.NOrm.NClient.NProto.column) = false, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true];
+        optional string email = 3 [(NYT.NOrm.NClient.NProto.column) = true];
+        optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+        repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+        optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+        optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+        optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+        optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+        optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+        optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+        optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+        optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+        map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+        map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+        optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    }
+
+    message TSpec
+    {
+        option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+        option (NYT.NOrm.NClient.NProto.no_etc_column_suffix) = true;
+    }
+
+    message TStatus
+    {
+        option (NYT.NOrm.NClient.NProto.attributes_updatable_by_superuser_only) = true;
+        option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+        option (NYT.NOrm.NClient.NProto.no_etc_column_suffix) = true;
+        optional string job_title = 1 [(NYT.NOrm.NClient.NProto.column) = false];
+        optional int64 salary = 2 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.generation_policy) = GP_CUSTOM];
+        optional NYT.NOrm.NDataModel.TEmbeddedSemaphore etc_semaphore = 3;
+    }
+
+    message TControl
+    {
+        option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+        message TEmbeddedSemaphore
+        {
+            optional NYT.NOrm.NDataModel.TSemaphoreAcquire acquire = 1;
+            optional NYT.NOrm.NDataModel.TSemaphorePing ping = 2;
+            optional NYT.NOrm.NDataModel.TSemaphoreRelease release = 3;
+        }
+
+        optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+        optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+        optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+        optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+        optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TEmployer.TControl.TEmbeddedSemaphore embedded_semaphore = 1002;
+    }
+
+    optional TMeta meta = 1;
+    optional TSpec spec = 2;
+    optional TStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional TControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TExecutorMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional int64 id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TExecutorSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    optional string first_name = 1;
+    optional string second_name = 2;
+    optional int64 rank = 3;
+}
+
+message TExecutorStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+}
+
+message TExecutorControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TExecutor
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TExecutorMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TExecutorSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TExecutorStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TExecutorControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TGenreMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional string id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_CUSTOM, (NYT.NOrm.NClient.NProto.storage_type) = "string", (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TGenreSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    optional string name = 1;
+    map<string, bool> is_name_substring = 2 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.computed) = true];
+}
+
+message TGenreStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+}
+
+message TGenreControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouchIndex touch_index = 1000;
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TGenre
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TGenreMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TGenreSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TGenreStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TGenreControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TGroupMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional string id = 1 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.storage_type) = "string", (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TGroupSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    option (NYT.NOrm.NClient.NProto.no_etc_column_suffix) = true;
+    repeated string members = 1;
+}
+
+message TGroupStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+}
+
+message TGroupControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TGroup
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TGroupMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TGroupSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TGroupStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TGroupControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message THitchhikerMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional int64 id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_MANUAL, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional int64 formative_book_id = 2 [(NYT.NOrm.NClient.NProto.column) = true];
+    optional int64 formative_book_id2 = 3 [(NYT.NOrm.NClient.NProto.column) = true];
+    optional NYT.NOrm.NClient.NProto.TReference formative_book = 4 [(NYT.NOrm.NClient.NProto.reference) = {foreign_type: "book" foreign_backref_path: "/status/formed_hitchhikers" columnar_key_storage { paths: "/meta/formative_book_id" paths: "/meta/formative_book_id2" }}];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TBook formative_book_view = 10004 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message THitchhikerSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    message TBookId
+    {
+        optional int64 id = 1;
+        optional int64 id2 = 5;
+    }
+
+    optional string name = 1;
+    optional uint32 miles_traveled = 2;
+    optional uint64 galaxies_visited = 3;
+    optional int32 x_cord = 4;
+    optional int64 y_cord = 5;
+    optional sint32 z_cord = 6;
+    optional sint64 w_cord = 7;
+    optional sfixed32 card_balance = 8;
+    optional sfixed64 cash_balance = 9;
+    optional fixed32 time_cord = 10;
+    optional fixed64 likes_acquired = 11;
+    optional bool wears_glasses = 12;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.THitchhikerSpec.TBookId favorite_book = 13;
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.THitchhikerSpec.TBookId hated_books = 14 [(NYT.NOrm.NClient.NProto.column) = true];
+    repeated NYT.NOrm.NClient.NProto.TReference books = 15 [(NYT.NOrm.NClient.NProto.reference) = {foreign_type: "book" foreign_backref_path: "/status/hitchhikers" proto_key_storage { paths: "/spec/favorite_book" paths: "/spec/hated_books" suffixes: "/id" suffixes: "/id2" }}];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TBook books_view = 10015 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message THitchhikerStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+}
+
+message THitchhikerControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message THitchhiker
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.THitchhikerMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.THitchhikerSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.THitchhikerStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.THitchhikerControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TIllustratorMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional int64 uid = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional int64 part_time_job = 2 [(NYT.NOrm.NClient.NProto.foreign_key) = "Publisher", (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TPublisher part_time_job_view = 10002 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional int64 publisher_id = 101 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TIllustratorSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    option (NYT.NOrm.NClient.NProto.no_etc_column_suffix) = true;
+    optional string name = 1;
+}
+
+message TIllustratorStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+}
+
+message TIllustratorControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouchIndex touch_index = 1000;
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TIllustrator
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TIllustratorMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TIllustratorSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TIllustratorStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TIllustratorControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TIndexedIncrementIdMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional int64 i64_id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_INDEXED_INCREMENT, (NYT.NOrm.NClient.NProto.min_value) = "-42", (NYT.NOrm.NClient.NProto.max_value) = "57", (NYT.NOrm.NClient.NProto.index_for_increment) = "primary_key", (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TIndexedIncrementIdSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+}
+
+message TIndexedIncrementIdStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+}
+
+message TIndexedIncrementIdControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TIndexedIncrementId
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TIndexedIncrementIdMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TIndexedIncrementIdSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TIndexedIncrementIdStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TIndexedIncrementIdControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TInterceptorMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional int64 id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional int64 nexus_id = 2 [(NYT.NOrm.NClient.NProto.transitive_key) = "Nexus", (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional int64 mother_ship_id = 101 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TInterceptorSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    optional int64 target_x = 1;
+    optional int64 target_y = 2;
+}
+
+message TInterceptorStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+}
+
+message TInterceptorControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TInterceptor
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TInterceptorMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TInterceptorSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TInterceptorStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TInterceptorControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TManualIdMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional string str_id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_MANUAL, (NYT.NOrm.NClient.NProto.min_length) = 5, (NYT.NOrm.NClient.NProto.max_length) = 10, (NYT.NOrm.NClient.NProto.valid_charset) = "abcde", (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional int64 i64_id = 2 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_MANUAL, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint64 ui64_id = 3 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_MANUAL, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TManualIdSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    optional string str_value = 1 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.generation_policy) = GP_MANUAL, (NYT.NOrm.NClient.NProto.min_length) = 2, (NYT.NOrm.NClient.NProto.max_length) = 3, (NYT.NOrm.NClient.NProto.valid_charset) = "fo"];
+    optional int32 i32_value = 2 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.generation_policy) = GP_MANUAL, (NYT.NOrm.NClient.NProto.min_value) = "-50", (NYT.NOrm.NClient.NProto.max_value) = "50", (NYT.NOrm.NClient.NProto.storage_type) = "int64"];
+    optional uint32 ui32_value = 3 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.generation_policy) = GP_MANUAL, (NYT.NOrm.NClient.NProto.min_value) = "0", (NYT.NOrm.NClient.NProto.max_value) = "50", (NYT.NOrm.NClient.NProto.storage_type) = "uint64"];
+}
+
+message TManualIdStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+}
+
+message TManualIdControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TManualId
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TManualIdMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TManualIdSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TManualIdStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TManualIdControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TMotherShipMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional int64 id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional int64 nexus_id = 101 [(NYT.NOrm.NClient.NProto.add_tags) = "nexus_id", (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional fixed64 revision = 102 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional int64 release_year = 103 [(NYT.NOrm.NClient.NProto.column) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TMotherShipSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    optional int64 templar_count = 1;
+    optional int64 executor_id = 2 [(NYT.NOrm.NClient.NProto.foreign_key) = "Executor", (NYT.NOrm.NClient.NProto.no_foreign_view) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional fixed64 revision = 3 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional int64 capacity = 4;
+    repeated string sector_names = 5 [(NYT.NOrm.NClient.NProto.column) = true];
+    optional int64 price = 6 [(NYT.NOrm.NClient.NProto.column) = true];
+}
+
+message TMotherShipStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+}
+
+message TMotherShipControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectTouchRevision touch_revision = 1003;
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TMotherShip
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TMotherShipMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TMotherShipSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TMotherShipStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TMotherShipControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TMultipolicyIdMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional string str_id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_MANUAL, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional int64 i64_id = 2 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint64 ui64_id = 3 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_TIMESTAMP, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint64 another_ui64_id = 4 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_BUFFERED_TIMESTAMP, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TMultipolicyIdSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    optional string str_value = 1 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.generation_policy) = GP_MANUAL];
+    optional int64 i64_value = 2 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM];
+    optional uint64 ui64_value = 3 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.generation_policy) = GP_TIMESTAMP];
+    optional uint64 another_ui64_value = 4 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.generation_policy) = GP_BUFFERED_TIMESTAMP];
+}
+
+message TMultipolicyIdStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+}
+
+message TMultipolicyIdControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TMultipolicyId
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TMultipolicyIdMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TMultipolicyIdSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TMultipolicyIdStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TMultipolicyIdControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TNestedColumnsMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional int64 id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TNestedColumnsSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    message TSimple
+    {
+        optional string foo = 1;
+    }
+
+    message TInner
+    {
+        option (NYT.NOrm.NClient.NProto.no_etc_column_suffix) = true;
+        optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TSimple direct_singular = 1;
+        repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TSimple direct_repeated = 2;
+        map<string, NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TSimple> direct_map = 3 [(NYT.NYson.NProto.yson_map) = true];
+        optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TSimple column_singular = 4 [(NYT.NOrm.NClient.NProto.column) = true];
+        repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TSimple column_repeated = 5 [(NYT.NOrm.NClient.NProto.column) = true];
+        map<string, NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TSimple> column_map = 6 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    }
+
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TSimple direct_singular = 1;
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TSimple direct_repeated = 2;
+    map<string, NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TSimple> direct_map = 3 [(NYT.NYson.NProto.yson_map) = true];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TSimple column_singular = 4 [(NYT.NOrm.NClient.NProto.column) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TSimple column_repeated = 5 [(NYT.NOrm.NClient.NProto.column) = true];
+    map<string, NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TSimple> column_map = 6 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TInner composite_singular = 7;
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TInner composite_repeated = 8 [(NYT.NOrm.NClient.NProto.ignore_columns) = true];
+    map<string, NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TInner> composite_map = 9 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.ignore_columns) = true];
+}
+
+message TNestedColumnsStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+}
+
+message TNestedColumnsControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TNestedColumns
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TNexusMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional int64 id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TNexusSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    message NestedMessage
+    {
+        optional string nested_field = 1;
+        optional int64 nested_integer_field = 2;
+    }
+
+    map<uint64, string> some_map = 1 [(NYT.NYson.NProto.yson_map) = true];
+    map<uint64, NYT.NOrm.NExample.NClient.NProto.NDataModel.TNexusSpec.NestedMessage> some_map_to_message = 2 [(NYT.NYson.NProto.yson_map) = true];
+    map<uint64, NYT.NOrm.NExample.NClient.NProto.NDataModel.TNexusSpec.NestedMessage> some_map_to_message_column = 3 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NYson.NProto.yson_map) = true];
+}
+
+message TNexusStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+    optional NYT.NOrm.NDataModel.TEmbeddedSemaphore column_semaphore = 1 [(NYT.NOrm.NClient.NProto.column) = true];
+    optional NYT.NOrm.NDataModel.TEmbeddedSemaphore etc_semaphore = 2;
+}
+
+message TNexusControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    message TEmbeddedSemaphore
+    {
+        optional NYT.NOrm.NDataModel.TSemaphoreAcquire acquire = 1;
+        optional NYT.NOrm.NDataModel.TSemaphorePing ping = 2;
+        optional NYT.NOrm.NDataModel.TSemaphoreRelease release = 3;
+    }
+
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TNexusControl.TEmbeddedSemaphore embedded_semaphore = 1002;
+}
+
+message TNexus
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TNexusMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TNexusSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TNexusStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TNexusControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TNirvanaDMProcessInstanceMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional string id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TNirvanaDMProcessInstanceSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    optional string quota_project_id = 1;
+    optional string created = 2;
+    optional string definition_id = 3;
+    optional string configuration_snapshot_id = 4;
+    optional string created_by_id = 5;
+    optional string status = 6;
+    optional string result = 7;
+    optional double progress = 8;
+    optional string message = 9;
+    optional string details = 10;
+    optional string end_ts = 11;
+    optional bool archived = 12;
+    optional string root_process_instance_id = 13;
+    optional string results_expiration_date = 14;
+    optional int32 version = 15;
+    optional string start_ts = 16;
+    optional string rejection_status = 17;
+    optional string ext_configuration_id = 18;
+    optional string updated = 19;
+    optional string updated_by_id = 20;
+    optional string comment = 21;
+    optional string lifecycle_status = 22;
+    optional string clone_of_id = 23;
+    optional int32 block_count = 24;
+    optional int32 deep_block_count = 25;
+    optional bool exported = 26;
+    optional string external_storage = 27;
+    optional string created_through = 28;
+    optional string parent_instance_id = 29;
+    optional string block_type_id = 30;
+    optional string utilization_id = 31;
+}
+
+message TNirvanaDMProcessInstanceStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+}
+
+message TNirvanaDMProcessInstanceControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouchIndex touch_index = 1000;
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TNirvanaDMProcessInstance
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TNirvanaDMProcessInstanceMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TNirvanaDMProcessInstanceSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TNirvanaDMProcessInstanceStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TNirvanaDMProcessInstanceControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPublisherMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional int64 id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TPublisherSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    optional string name = 1 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.field_lock_group) = "web"];
+    optional string editor_in_chief = 2 [(NYT.NOrm.NClient.NProto.foreign_key) = "Editor", (NYT.NOrm.NClient.NProto.forbid_removal_with_non_empty_references) = false, (NYT.NOrm.NClient.NProto.column) = true];
+    optional int64 year_of_fondation = 3;
+    optional int64 illustrator_in_chief = 4 [(NYT.NOrm.NClient.NProto.foreign_key) = "Illustrator", (NYT.NOrm.NClient.NProto.column) = true];
+    optional int64 publisher_group = 5 [(NYT.NOrm.NClient.NProto.foreign_key) = "Publisher", (NYT.NOrm.NClient.NProto.forbid_removal_with_non_empty_references) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string address = 6;
+    optional string number_of_awards = 7;
+    optional int64 non_column_field = 8;
+    optional int64 column_field = 9 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.opaque) = true];
+    repeated int64 featured_illustrators = 102 [(NYT.NOrm.NClient.NProto.foreign_key) = "Illustrator", (NYT.NOrm.NClient.NProto.forbid_removal_with_non_empty_references) = true, (NYT.NOrm.NClient.NProto.references_table_suffix) = "old_featured_illustrators", (NYT.NOrm.NClient.NProto.column) = true];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TEditor editor_in_chief_view = 10002 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TIllustrator illustrator_in_chief_view = 10004 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TPublisher publisher_group_view = 10005 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TIllustrator featured_illustrators_view = 10102 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TPublisherStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_lock_group) = "worker";
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+    optional bool licensed = 1;
+    optional string address = 2;
+    optional int64 number_of_awards = 3;
+    optional int64 non_column_field = 4;
+    repeated int64 non_column_list = 7;
+    optional int64 column_field = 5 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.opaque) = true];
+    repeated int64 column_list = 8 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.opaque) = true];
+    repeated int64 featured_illustrators = 6 [(NYT.NOrm.NClient.NProto.foreign_key) = "Illustrator", (NYT.NOrm.NClient.NProto.forbid_removal_with_non_empty_references) = true, (NYT.NOrm.NClient.NProto.references_table_suffix) = "new_featured_illustrators", (NYT.NOrm.NClient.NProto.column) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TIllustrator featured_illustrators_view = 10006 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TPublisherControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouchIndex touch_index = 1000;
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+    optional NYT.NOrm.NDataModel.TObjectMigrateAttributes migrate_attributes = 1006;
+}
+
+message TPublisher
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TPublisherMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TPublisherSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TPublisherStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TPublisherControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TRandomIdMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional string str_id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional int64 i64_id = 2 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint64 ui64_id = 3 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TRandomIdSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    optional string str_value = 1 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM];
+}
+
+message TRandomIdStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+}
+
+message TRandomIdControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TRandomId
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TRandomIdMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TRandomIdSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TRandomIdStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TRandomIdControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TSchemaMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional string id = 1 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.storage_type) = "string", (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TSchemaSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+}
+
+message TSchemaStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+}
+
+message TSchemaControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TSchema
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TSchemaMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TSchemaSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TSchemaStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TSchemaControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TSemaphoreMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional string id = 1 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.storage_type) = "string", (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional string semaphore_set_id = 4 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TSemaphoreControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TSemaphoreAcquire acquire = 1;
+    optional NYT.NOrm.NDataModel.TSemaphorePing ping = 2;
+    optional NYT.NOrm.NDataModel.TSemaphoreRelease release = 3;
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TSemaphore
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TSemaphoreMeta meta = 1;
+    optional NYT.NOrm.NDataModel.TSemaphoreSpec spec = 2;
+    optional NYT.NOrm.NDataModel.TSemaphoreStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TSemaphoreControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TSemaphoreSetMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional string id = 1 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.storage_type) = "string", (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TSemaphoreSetStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+    option (NYT.NOrm.NClient.NProto.no_etc_column_suffix) = true;
+    map<string, NYT.NOrm.NDataModel.TSemaphoreLeasesByUuid> fresh_leases_by_semaphore = 1 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true];
+}
+
+message TSemaphoreSetControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TSemaphoreSetAcquire acquire = 1;
+    optional NYT.NOrm.NDataModel.TSemaphoreSetPing ping = 2;
+    optional NYT.NOrm.NDataModel.TSemaphoreSetRelease release = 3;
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TSemaphoreSet
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TSemaphoreSetMeta meta = 1;
+    optional NYT.NOrm.NDataModel.TSemaphoreSetSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TSemaphoreSetStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TSemaphoreSetControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TTimestampIdMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional int64 i64_id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_TIMESTAMP, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint64 ui64_id = 2 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_TIMESTAMP, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TTimestampIdSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    optional uint64 ui64_value = 1 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.generation_policy) = GP_TIMESTAMP];
+}
+
+message TTimestampIdStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+}
+
+message TTimestampIdControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TTimestampId
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TTimestampIdMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TTimestampIdSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TTimestampIdStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TTimestampIdControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TTypographerMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional int64 id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional string login = 2 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.mandatory) = true];
+    optional string inn = 3 [(NYT.NOrm.NClient.NProto.mandatory) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional int64 publisher_id = 101 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TTypographerSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    optional string test_mandatory_etc_field = 1 [(NYT.NOrm.NClient.NProto.mandatory) = true];
+    optional string test_mandatory_column_field = 2 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.mandatory) = true];
+}
+
+message TTypographerStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+}
+
+message TTypographerControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouchIndex touch_index = 1000;
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TTypographer
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TTypographerMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TTypographerSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TTypographerStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TTypographerControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TUserMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional string id = 1 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.storage_type) = "string", (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TUserSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    option (NYT.NOrm.NClient.NProto.no_etc_column_suffix) = true;
+    optional bool banned = 1;
+    optional int64 request_weight_rate_limit = 2;
+    optional int32 request_queue_size_limit = 3;
+    optional string execution_pool = 4;
+}
+
+message TUserStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+}
+
+message TUserControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TUser
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TUserMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TUserSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TUserStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TUserControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TWatchLogConsumerMeta
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+    optional string id = 1 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM, (NYT.NOrm.NClient.NProto.storage_type) = "string", (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional uint32 ultimate_question_of_life = 100 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.emit_opaque_as_entity) = false, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TAccessControlEntry acl = 11 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.field_data_group) = "primary", (NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 creation_time = 9 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.column) = true];
+    optional bool inherit_acl = 10 [(NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.column) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+    optional string fqid = 16 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string key = 17 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string parent_key = 18 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional uint64 finalization_start_time = 110 [(NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> finalizers = 111 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.column) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.cpp_override) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    map<string, NYT.NOrm.NDataModel.TFinalizer> active_finalizers = 112 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.opaque) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional EObjectType type = 8 [(NYT.NOrm.NClient.NProto.computed) = true, (NYT.NOrm.NClient.NProto.system) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true];
+}
+
+message TWatchLogConsumerSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+    option (NYT.NOrm.NClient.NProto.no_etc_column_suffix) = true;
+    optional string object_type = 1;
+}
+
+message TWatchLogConsumerStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+    option (NYT.NOrm.NClient.NProto.no_etc_column_suffix) = true;
+    optional uint64 timestamp = 1;
+    optional string continuation_token = 2;
+}
+
+message TWatchLogConsumerControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional NYT.NOrm.NDataModel.TObjectAddFinalizer add_finalizer = 1004;
+    optional NYT.NOrm.NDataModel.TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional NYT.NOrm.NDataModel.TObjectCompleteFinalization complete_finalization = 1005;
+}
+
+message TWatchLogConsumer
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TWatchLogConsumerMeta meta = 1;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TWatchLogConsumerSpec spec = 2;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TWatchLogConsumerStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TWatchLogConsumerControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////

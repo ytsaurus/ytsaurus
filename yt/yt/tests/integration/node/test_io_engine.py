@@ -579,17 +579,21 @@ class BaseTestRpcMemoryTracking(YTEnvSetup):
     @classmethod
     def check_node(self, node, value=32768):
         # 32768 = 16384 + 16384 = ReadBufferSize + WriteBufferSize, see yt/core/bus/tcp/connection.cpp
+        server_connections_sensor = self.get_server_connections_sensor(node)
+        server_connections = server_connections_sensor.get()
+
         client_connections_sensor = self.get_client_connections_sensor(node)
         client_connections = client_connections_sensor.get()
-        if client_connections is None or client_connections == 0:
-            print_debug("No client connections")
+
+        if server_connections is None or server_connections == 0:
+            print_debug("No server connections")
             return False
 
+        total_connections = server_connections + client_connections
         rpc_used = self.get_rpc_memory_used(node)
-        # server connections are not accounted
-        expected_used = value * client_connections
+        expected_used = value * total_connections
         print_debug((
-            f"rpc memory used: {rpc_used}, "
+            f"rpc memory used: {rpc_used}, server connections: {server_connections}, "
             f"client connections: {client_connections}, expected memory used: {expected_used}"
         ))
 

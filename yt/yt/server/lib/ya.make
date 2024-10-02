@@ -61,7 +61,6 @@ RECURSE(
     shell
     shuffle_server
     signature_service
-    squash_fs
     table_server
     tablet_balancer
     tablet_node

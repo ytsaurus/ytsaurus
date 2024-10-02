@@ -1,0 +1,342 @@
+// AUTOMATICALLY GENERATED. DO NOT EDIT!
+
+package NYT.NOrm.NExample.NServer.NProto.NAutogen;
+
+option java_package = "ru.yandex.yt.yt.orm.example.server.proto.autogen";
+option go_package = "go.ytsaurus.tech/yt/yt/orm/example/server/proto/autogen";
+
+import "yt/yt/orm/example/client/proto/data_model/autogen/schema.proto";
+import "yt/yt/orm/example/client/proto/data_model/book.proto";
+import "yt/yt/orm/example/client/proto/data_model/cat.proto";
+import "yt/yt/orm/example/client/proto/data_model/hitchhiker.proto";
+import "yt/yt/orm/example/client/proto/data_model/nested_columns.proto";
+import "yt/yt/orm/example/client/proto/data_model/nexus.proto";
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+import "yt_proto/yt/orm/client/proto/object.proto";
+import "yt_proto/yt/orm/data_model/finalizers.proto";
+import "yt_proto/yt/orm/data_model/semaphore.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TAuthorMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TAuthorSpecEtc
+{
+}
+
+message TBookMetaEtc
+{
+    optional string custom_meta_etc_test = 3 [(NYT.NOrm.NClient.NProto.column) = false];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TBookMeta.EBookType book_type = 4 [(NYT.NOrm.NClient.NProto.storage_type) = "int64", (NYT.NYson.NProto.enum_yson_storage_type) = EYST_INT];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TBookDescriptionEtc
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TBookDescription.TBookDesign design = 6;
+    optional uint64 page_count = 9;
+    optional string description = 14;
+    optional NYT.NOrm.NClient.NProto.ELockType lock_type = 20 [default = LT_EXCLUSIVE];
+}
+
+message TBookDescriptionWarehouseEtc
+{
+    optional uint32 in_stock = 17 [(NYT.NOrm.NClient.NProto.field_lock_group) = "warehouse"];
+}
+
+message TBookDescriptionPeerReviewInfoEtc
+{
+    optional string summary = 2;
+}
+
+message TBookStatusEtc
+{
+    repeated int64 hitchhiker_ids = 2;
+    repeated int64 formed_hitchhiker_ids = 4;
+}
+
+message TBufferedTimestampIdMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TBufferedTimestampIdSpecEtc
+{
+}
+
+message TCatMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TCatSpecEtc
+{
+    optional string name = 1;
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.EMood mood_in_previous_days = 7 [(NYT.NOrm.NClient.NProto.storage_type) = "int64", (NYT.NYson.NProto.enum_yson_storage_type) = EYST_INT];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.EHealthCondition health_condition_in_previous_days = 10 [(NYT.NOrm.NClient.NProto.storage_type) = "string", (NYT.NYson.NProto.enum_yson_storage_type) = EYST_STRING];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.EEyeColor eye_color_of_friend_cats_with_default_yson_storage_type = 12 [(NYT.NOrm.NClient.NProto.storage_type) = "int64", (NYT.NYson.NProto.enum_yson_storage_type) = EYST_INT];
+    map<string, NYT.NOrm.NExample.NClient.NProto.NDataModel.EEyeColor> friend_cats_to_their_eyes_color = 13 [(NYT.NYson.NProto.yson_map) = true];
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.EEyeColor best_friend_eye_color = 14 [(NYT.NOrm.NClient.NProto.storage_type) = "string", (NYT.NYson.NProto.enum_yson_storage_type) = EYST_STRING];
+}
+
+message TCatStatusEtc
+{
+}
+
+message TCatStatusInnerEtc
+{
+}
+
+message TSomeMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TSomeSpecEtc
+{
+    optional string name = 1;
+    optional string post = 3;
+}
+
+message TEmployerMetaEtc
+{
+    optional string passport = 2 [(NYT.NOrm.NClient.NProto.column) = false, (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TEmployerStatusEtc
+{
+    optional string job_title = 1 [(NYT.NOrm.NClient.NProto.column) = false];
+    optional NYT.NOrm.NDataModel.TEmbeddedSemaphore etc_semaphore = 3;
+}
+
+message TExecutorMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TGenreMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TGroupMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message THitchhikerMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message THitchhikerSpecEtc
+{
+    optional string name = 1;
+    optional uint32 miles_traveled = 2;
+    optional uint64 galaxies_visited = 3;
+    optional int32 x_cord = 4;
+    optional int64 y_cord = 5;
+    optional sint32 z_cord = 6;
+    optional sint64 w_cord = 7;
+    optional sfixed32 card_balance = 8;
+    optional sfixed64 cash_balance = 9;
+    optional fixed32 time_cord = 10;
+    optional fixed64 likes_acquired = 11;
+    optional bool wears_glasses = 12;
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.THitchhikerSpec.TBookId favorite_book = 13;
+}
+
+message TIllustratorMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TIndexedIncrementIdMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TInterceptorMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TManualIdMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TManualIdSpecEtc
+{
+}
+
+message TMotherShipMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TMotherShipSpecEtc
+{
+    optional int64 templar_count = 1;
+    optional int64 capacity = 4;
+}
+
+message TMultipolicyIdMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TMultipolicyIdSpecEtc
+{
+}
+
+message TNestedColumnsMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TNestedColumnsSpecEtc
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TSimple direct_singular = 1;
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TSimple direct_repeated = 2;
+    map<string, NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TSimple> direct_map = 3 [(NYT.NYson.NProto.yson_map) = true];
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TInner composite_repeated = 8 [(NYT.NOrm.NClient.NProto.ignore_columns) = true];
+    map<string, NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TInner> composite_map = 9 [(NYT.NYson.NProto.yson_map) = true, (NYT.NOrm.NClient.NProto.ignore_columns) = true];
+}
+
+message TNestedColumnsSpecInnerEtc
+{
+    optional NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TSimple direct_singular = 1;
+    repeated NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TSimple direct_repeated = 2;
+    map<string, NYT.NOrm.NExample.NClient.NProto.NDataModel.TNestedColumnsSpec.TSimple> direct_map = 3 [(NYT.NYson.NProto.yson_map) = true];
+}
+
+message TNexusMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TNexusSpecEtc
+{
+    map<uint64, string> some_map = 1 [(NYT.NYson.NProto.yson_map) = true];
+    map<uint64, NYT.NOrm.NExample.NClient.NProto.NDataModel.TNexusSpec.NestedMessage> some_map_to_message = 2 [(NYT.NYson.NProto.yson_map) = true];
+}
+
+message TNexusStatusEtc
+{
+    optional NYT.NOrm.NDataModel.TEmbeddedSemaphore etc_semaphore = 2;
+}
+
+message TNirvanaDMProcessInstanceMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TPublisherMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TPublisherSpecEtc
+{
+    optional int64 year_of_fondation = 3;
+    optional string address = 6;
+    optional string number_of_awards = 7;
+    optional int64 non_column_field = 8;
+}
+
+message TPublisherStatusEtc
+{
+    optional bool licensed = 1;
+    optional string address = 2;
+    optional int64 number_of_awards = 3;
+    optional int64 non_column_field = 4;
+    repeated int64 non_column_list = 7;
+}
+
+message TRandomIdMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TRandomIdSpecEtc
+{
+}
+
+message TSchemaMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TSemaphoreMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TSemaphoreSetMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TTimestampIdMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TTimestampIdSpecEtc
+{
+}
+
+message TTypographerMetaEtc
+{
+    optional string inn = 3 [(NYT.NOrm.NClient.NProto.mandatory) = true];
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TTypographerSpecEtc
+{
+    optional string test_mandatory_etc_field = 1 [(NYT.NOrm.NClient.NProto.mandatory) = true];
+}
+
+message TUserMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+
+message TWatchLogConsumerMetaEtc
+{
+    optional string uuid = 12 [(NYT.NOrm.NClient.NProto.not_initializable) = true, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY];
+    optional string name = 13 [(NYT.NOrm.NClient.NProto.update_policy) = UP_READ_ONLY, (NYT.NOrm.NClient.NProto.not_updatable) = true, (NYT.NOrm.NClient.NProto.not_initializable) = true];
+}
+////////////////////////////////////////////////////////////////////////////////

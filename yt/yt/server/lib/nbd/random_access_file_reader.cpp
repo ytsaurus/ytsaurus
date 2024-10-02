@@ -113,15 +113,10 @@ public:
     {
         return TReadersStatistics{
             .ReadBytes = ReadBytes_.load(),
-            .DataBytesReadFromCache = ReadBlockBytesFromCache_.load(),
-            .DataBytesReadFromDisk = ReadBlockBytesFromDisk_.load(),
-            .MetaBytesReadFromDisk = ReadBlockMetaBytesFromDisk_.load()
+            .ReadBlockBytesFromCache = ReadBlockBytesFromCache_.load(),
+            .ReadBlockBytesFromDisk = ReadBlockBytesFromDisk_.load(),
+            .ReadBlockMetaBytesFromDisk = ReadBlockMetaBytesFromDisk_.load()
         };
-    }
-
-    TYPath GetPath() const override
-    {
-        return Path_;
     }
 
 private:

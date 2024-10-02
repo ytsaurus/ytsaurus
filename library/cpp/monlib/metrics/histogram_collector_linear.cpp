@@ -23,7 +23,7 @@ namespace NMonitoring {
         {
         }
 
-        void Collect(double value, ui64 count) noexcept override {
+        void Collect(double value, ui64 count) override {
             ui32 index = Max<ui32>();
             if (value <= StartValue_) {
                 index = 0;
@@ -36,7 +36,7 @@ namespace NMonitoring {
             Values_.Add(index, count);
         }
 
-        void Reset() noexcept override {
+        void Reset() override {
             Values_.Reset();
         }
 

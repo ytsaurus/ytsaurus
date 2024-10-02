@@ -1,0 +1,19 @@
+// AUTOMATICALLY GENERATED. DO NOT EDIT!
+
+#pragma once
+
+#include <yt/yt/orm/client/objects/type.h>
+
+namespace NYT::NOrm::NExample::NClient::NObjects {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYT::NOrm::NClient::NObjects::IObjectTypeRegistryPtr CreateObjectTypeRegistry();
+
+////////////////////////////////////////////////////////////////////////////////
+
+void EnsureObjectTypeRegistryInitialized();
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NOrm::NExample::NClient::NObjects

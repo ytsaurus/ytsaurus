@@ -1,0 +1,71 @@
+package NYT.NOrm.NExample.NClient.NProto.NDataModel;
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+import "yt_proto/yt/orm/data_model/semaphore.proto";
+
+option java_package = "ru.yandex.yt.yt.orm.example.client.proto.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt/orm/example/client/proto/data_model";
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.object_type) = {
+    camel_case_name: "Employer"
+    snake_case_name: "employer"
+    primary_key: ["id"]
+    type_value: 207
+    name_supported: true
+    watch_logs: [
+        {
+            snake_case_name: "watch_log"
+        }
+    ]
+    history: {
+        attributes: [
+            // Full object history.
+            { path: "" }
+        ]
+        filter: "[/labels/skip_history]!=true"
+    }
+    custom_type_handler: true
+    enable_tags: true
+    nested_object_field_messages: true
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TEmployerMixin
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "teal";
+    message TMetaMixin
+    {
+        option (NYT.NOrm.NClient.NProto.attributes_updatable_by_superuser_only) = true;
+
+        optional string id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_MANUAL];
+        optional string passport = 2 [
+            (NYT.NOrm.NClient.NProto.column) = false,
+            (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true
+        ];
+        optional string email = 3 [(NYT.NOrm.NClient.NProto.column) = true];
+    }
+
+    message TSpecMixin
+    {
+        option (NYT.NOrm.NClient.NProto.no_etc_column_suffix) = true;
+    }
+
+    message TStatusMixin
+    {
+        option (NYT.NOrm.NClient.NProto.attributes_updatable_by_superuser_only) = true;
+
+        option (NYT.NOrm.NClient.NProto.no_etc_column_suffix) = true;
+
+        optional string job_title = 1 [(NYT.NOrm.NClient.NProto.column) = false];
+        optional int64 salary = 2 [
+            (NYT.NOrm.NClient.NProto.column) = true,
+            (NYT.NOrm.NClient.NProto.generation_policy) = GP_CUSTOM
+        ];
+        optional NYT.NOrm.NDataModel.TEmbeddedSemaphore etc_semaphore = 3;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////

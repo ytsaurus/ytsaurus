@@ -1,0 +1,32 @@
+package NYT.NOrm.NExample.NClient.NProto.NDataModel;
+
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+import "google/protobuf/descriptor.proto";
+
+option java_package = "ru.yandex.yt.yt.orm.example.client.proto.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt/orm/example/client/proto/data_model";
+
+////////////////////////////////////////////////////////////////////////////////
+
+enum ETagMixin
+{
+    MIXIN_TAG_PUBLIC_DATA = 64 [
+        (NYT.NYson.NProto.enum_value_name) = "public_data"
+    ];
+    reserved 65; reserved "MIXIN_TAG_IGNORED_FIELD";
+    MIXIN_TAG_DIGITAL_DATA = 66 [
+        (NYT.NYson.NProto.enum_value_name) = "digital_data"
+    ];
+    MIXIN_TAG_MONEY = 67 [
+        (NYT.NYson.NProto.enum_value_name) = "money"
+    ];
+    MIXIN_TAG_BOOK_MODERATION = 68 [
+        (NYT.NYson.NProto.enum_value_name) = "book_moderation"
+    ];
+    MIXIN_TAG_NEXUS_ID = 69 [
+        (NYT.NYson.NProto.enum_value_name) = "nexus_id"
+    ];
+    MIXIN_TAG_TEAL = 70 [
+        (NYT.NYson.NProto.enum_value_name) = "teal"
+    ];
+}

@@ -1,0 +1,20 @@
+{
+    NUM_MASTERS = 1;
+    NUM_NODES = 3;
+    NUM_SCHEDULERS = 0;
+    NUM_CONTROLLER_AGENTS = 0;
+    DELTA_MASTER_CONFIG = {
+        object_service = {
+            timeout_backoff_lead_time = 100;
+        };
+    };
+    DRIVER_BACKEND = rpc;
+    ENABLE_RPC_PROXY = %true;
+    NUM_RPC_PROXIES = 1;
+    ENABLE_HTTP_PROXY = %true;
+    NUM_HTTP_PROXIES = 1;
+    DELTA_RPC_PROXY_CONFIG = {
+        enable_authentication = %true;
+        cypress_token_authenticator = {};
+    };
+}

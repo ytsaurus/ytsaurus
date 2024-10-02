@@ -1,0 +1,51 @@
+package NYT.NOrm.NExample.NClient.NProto.NDataModel;
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+
+option java_package = "ru.yandex.yt.yt.orm.example.client.proto.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt/orm/example/client/proto/data_model";
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.object_type) = {
+    camel_case_name: "Illustrator"
+    snake_case_name: "illustrator"
+    primary_key: ["uid"]
+    type_value: 5
+    parent: "Publisher"
+    name_supported: true
+    access_control_parent: "part_time_job"
+    history: {
+        attributes: [
+            { path: "/meta" }
+        ]
+    }
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "illustrator"
+    camel_case_name: "IllustratorsByPyblisher"
+    snake_case_name: "illustrators_by_publisher"
+    key: ["/meta/part_time_job"]
+    mode: IM_ENABLED
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TIllustratorMetaMixin
+{
+    optional int64 uid = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM];
+    optional int64 part_time_job = 2 [
+        (NYT.NOrm.NClient.NProto.foreign_key) = "Publisher",
+        (NYT.NOrm.NClient.NProto.opaque) = true];
+}
+
+message TIllustratorSpecMixin
+{
+
+    option (NYT.NOrm.NClient.NProto.no_etc_column_suffix) = true;
+
+    optional string name = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

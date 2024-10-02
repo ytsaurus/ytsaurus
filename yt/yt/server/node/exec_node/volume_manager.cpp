@@ -83,7 +83,6 @@ using namespace NConcurrency;
 using namespace NContainers;
 using namespace NClusterNode;
 using namespace NDataNode;
-using namespace NLogging;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NTools;
@@ -105,60 +104,60 @@ static const TString MountSuffix = "mount";
 
 namespace {
 
-IImageReaderPtr CreateCypressFileImageReader(
-    const TArtifactKey& artifactKey,
-    NApi::NNative::IClientPtr client,
+IBlockDevicePtr CreateFileSystemBlockDevice(
+    TNbdConfigPtr nbdConfig,
     IThroughputThrottlerPtr inThrottler,
     IThroughputThrottlerPtr outRpsThrottler,
+    const TArtifactKey& artifactKey,
+    NApi::NNative::IClientPtr client,
     IInvokerPtr invoker,
-    TLogger logger)
+    const NLogging::TLogger& Logger)
 {
     YT_VERIFY(artifactKey.has_filesystem());
     YT_VERIFY(artifactKey.has_nbd_export_id());
+
+    YT_LOG_INFO("Creating NBD Cypress file block device (Path: %v, FileSystem: %v, ExportId: %v, ChunkSpecs: %v)",
+        artifactKey.data_source().path(),
+        FromProto<ELayerFilesystem>(artifactKey.filesystem()),
+        artifactKey.nbd_export_id(),
+        artifactKey.chunk_specs_size());
+
+    auto config = New<TFileSystemBlockDeviceConfig>();
+    config->Path = artifactKey.data_source().path();
+    config->TestSleepBeforeRead = nbdConfig->Server->TestBlockDeviceSleepBeforeRead;
+    if (config->Path.empty()) {
+        THROW_ERROR_EXCEPTION("Empty file path for filesystem layer")
+            << TErrorAttribute("type_name", artifactKey.GetTypeName())
+            << TErrorAttribute("filesystem", FromProto<ELayerFilesystem>(artifactKey.filesystem()))
+            << TErrorAttribute("access_method", artifactKey.access_method())
+            << TErrorAttribute("nbd_export_id", artifactKey.nbd_export_id());
+    }
 
     std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs(
         artifactKey.chunk_specs().begin(),
         artifactKey.chunk_specs().end());
 
-    auto reader = CreateRandomAccessFileReader(
+    auto reader = CreateCypressFileImageReader(
         std::move(chunkSpecs),
-        artifactKey.data_source().path(),
+        config->Path,
         std::move(client),
         std::move(inThrottler),
         std::move(outRpsThrottler),
-        std::move(invoker),
-        logger);
-
-    return CreateCypressFileImageReader(
-        std::move(reader),
-        std::move(logger));
-}
-
-IBlockDevicePtr CreateFileSystemBlockDevice(
-    TNbdConfigPtr nbdConfig,
-    IImageReaderPtr reader,
-    TString exportId,
-    IInvokerPtr invoker,
-    TLogger Logger)
-{
-    YT_LOG_INFO("Creating file system block device (Path: %v, ExportId: %v, Size: %v)",
-        reader->GetPath(),
-        exportId,
-        reader->GetSize());
-
-    auto config = New<TFileSystemBlockDeviceConfig>();
-    config->TestSleepBeforeRead = nbdConfig->Server->TestBlockDeviceSleepBeforeRead;
+        invoker,
+        Logger());
 
     auto device = CreateFileSystemBlockDevice(
-        std::move(exportId),
+        artifactKey.nbd_export_id(),
         std::move(config),
         std::move(reader),
         std::move(invoker),
-        Logger);
+        Logger());
 
-    YT_LOG_INFO("Created file system block device (Path: %v, Size: %v)",
-        device->GetProfileSensorTag(),
-        device->GetTotalSize());
+    YT_LOG_INFO("Created NBD Cypress file block device (Path: %v, FileSystem: %v, ExportId: %v, ChunkSpecs: %v)",
+        artifactKey.data_source().path(),
+        FromProto<ELayerFilesystem>(artifactKey.filesystem()),
+        artifactKey.nbd_export_id(),
+        artifactKey.chunk_specs_size());
 
     return device;
 }
@@ -2757,39 +2756,66 @@ public:
 
         auto tag = TGuid::Create();
 
-        YT_LOG_DEBUG("Prepare volume (Tag: %v, ArtifactCount: %v)",
+        YT_LOG_DEBUG("Prepare volume (Tag: %v, Artifacts: %v)",
             tag,
             artifactKeys.size());
 
         if (DynamicConfigManager_->GetConfig()->ExecNode->VolumeManager->ThrowOnPrepareVolume) {
             auto error = TError(EErrorCode::RootVolumePreparationFailed, "Throw on prepare volume");
-            YT_LOG_DEBUG(error, "Prepare volume (Tag: %v, ArtifactCount: %v)",
+            YT_LOG_DEBUG(error, "Prepare volume (Tag: %v, Artifacts: %v)",
                 tag,
                 artifactKeys.size());
             THROW_ERROR(error);
         }
 
-        std::vector<TFuture<TOverlayData>> overlayDataFutures;
+        std::vector<int> nbdArtifactPositions;
+        std::vector<TArtifactKey> nbdArtifactKeys;
+        std::vector<int> squashFSArtifactPositions;
+        std::vector<TArtifactKey> squashFSArtifactKeys;
+        std::vector<int> archiveArtifactPositions;
+        std::vector<TArtifactKey> archiveArtifactKeys;
+        for (auto i = 0; i < ssize(artifactKeys); ++i) {
+            const auto& artifactKey = artifactKeys[i];
 
-        for (const auto& artifactKey : artifactKeys) {
             if (FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Nbd) {
-                auto reader = PrepareCypressFileImageReader(
-                    tag,
-                    artifactKey);
-                overlayDataFutures.push_back(PrepareNbdVolume(
-                    tag,
-                    artifactKey,
-                    std::move(reader)));
+                nbdArtifactPositions.push_back(i);
+                nbdArtifactKeys.push_back(artifactKey);
             } else if (FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS) {
-                overlayDataFutures.push_back(PrepareSquashFSVolume(
-                    tag,
-                    artifactKey,
-                    downloadOptions));
+                squashFSArtifactPositions.push_back(i);
+                squashFSArtifactKeys.push_back(artifactKey);
             } else {
-                overlayDataFutures.push_back(PrepareLayer(
-                    tag,
-                    artifactKey,
-                    downloadOptions));
+                archiveArtifactPositions.push_back(i);
+                archiveArtifactKeys.push_back(artifactKey);
+            }
+        }
+
+        std::vector<TFuture<TOverlayData>> overlayDataFutures;
+        overlayDataFutures.resize(artifactKeys.size());
+
+        if (!archiveArtifactKeys.empty()) {
+            auto futures = PrepareLayers(tag, archiveArtifactKeys, downloadOptions);
+            YT_VERIFY(archiveArtifactKeys.size() == futures.size());
+            for (auto i = 0; i < ssize(futures); ++i) {
+                auto position = archiveArtifactPositions[i];
+                overlayDataFutures[position] = std::move(futures[i]);
+            }
+        }
+
+        if (!nbdArtifactKeys.empty()) {
+            auto futures = PrepareNbdVolumes(tag, nbdArtifactKeys);
+            YT_VERIFY(nbdArtifactKeys.size() == futures.size());
+            for (auto i = 0; i < ssize(futures); ++i) {
+                auto position = nbdArtifactPositions[i];
+                overlayDataFutures[position] = std::move(futures[i]);
+            }
+        }
+
+        if (!squashFSArtifactKeys.empty()) {
+            auto futures = PrepareSquashFSVolumes(tag, squashFSArtifactKeys, downloadOptions);
+            YT_VERIFY(squashFSArtifactKeys.size() == futures.size());
+            for (auto i = 0; i < ssize(futures); ++i) {
+                auto position = squashFSArtifactPositions[i];
+                overlayDataFutures[position] = std::move(futures[i]);
             }
         }
 
@@ -2837,8 +2863,7 @@ private:
     TFuture<void> PrepareNbdExport(
         TGuid tag,
         NProfiling::TTagSet tagSet,
-        const TArtifactKey& layer,
-        IImageReaderPtr reader)
+        const TArtifactKey& layer)
     {
         auto future = VoidFuture;
         try {
@@ -2872,8 +2897,10 @@ private:
 
             auto device = CreateFileSystemBlockDevice(
                 Bootstrap_->GetDynamicConfig()->ExecNode->Nbd,
-                std::move(reader),
-                layer.nbd_export_id(),
+                Bootstrap_->GetDefaultInThrottler(),
+                Bootstrap_->GetReadRpsOutThrottler(),
+                layer,
+                std::move(client),
                 nbdServer->GetInvoker(),
                 nbdServer->GetLogger());
 
@@ -2898,80 +2925,58 @@ private:
         return future;
     }
 
-    //! Download and extract tar archive (tar layer).
-    TFuture<TOverlayData> PrepareLayer(
+    //! Download and extract tar archives (tar layers).
+    std::vector<TFuture<TOverlayData>> PrepareLayers(
         TGuid tag,
-        const TArtifactKey& artifactKey,
+        const std::vector<TArtifactKey>& artifactKeys,
         const TArtifactDownloadOptions& downloadOptions)
     {
-        YT_LOG_DEBUG("Prepare layer (Tag: %v, Path: %v)",
+        YT_VERIFY(!artifactKeys.empty());
+
+        YT_LOG_DEBUG("Prepare layers (Tag: %v, Artifacts: %v)",
             tag,
-            artifactKey.data_source().path());
+            artifactKeys.size());
 
-        YT_VERIFY(!artifactKey.has_access_method() || FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Local);
-        YT_VERIFY(!artifactKey.has_filesystem() || FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::Archive);
-        YT_VERIFY(!artifactKey.has_nbd_export_id());
+        std::vector<TFuture<TOverlayData>> futures;
+        futures.reserve(artifactKeys.size());
 
-        return LayerCache_->PrepareLayer(artifactKey, downloadOptions, tag).As<TOverlayData>();
-    }
-
-    IImageReaderPtr PrepareCypressFileImageReader(
-        TGuid tag,
-        const TArtifactKey& artifactKey)
-    {
-        YT_LOG_DEBUG("Prepare cypress file image reader (Tag: %v, Path: %v)",
-            tag,
-            artifactKey.data_source().path());
-
-        auto nbdServer = Bootstrap_->GetNbdServer();
-        if (!nbdServer) {
-            auto error = TError("Nbd server is not present")
-                << TErrorAttribute("tag", tag)
-                << TErrorAttribute("path", artifactKey.data_source().path());
-            THROW_ERROR(error);
+        for (const auto& artifactKey : artifactKeys) {
+            YT_VERIFY(!artifactKey.has_access_method() || FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Local);
+            YT_VERIFY(!artifactKey.has_filesystem() || FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::Archive);
+            YT_VERIFY(!artifactKey.has_nbd_export_id());
+            futures.push_back(LayerCache_->PrepareLayer(artifactKey, downloadOptions, tag).As<TOverlayData>());
         }
 
-        // TODO(yuryalekseev): user
-        auto clientOptions =  NYT::NApi::TClientOptions::FromUser(NSecurityClient::RootUserName);
-        auto client = nbdServer->GetConnection()->CreateNativeClient(clientOptions);
-
-        YT_VERIFY(FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Nbd);
-        YT_VERIFY(artifactKey.has_filesystem());
-        YT_VERIFY(artifactKey.has_nbd_export_id());
-
-        return CreateCypressFileImageReader(
-            artifactKey,
-            client,
-            Bootstrap_->GetDefaultInThrottler(),
-            Bootstrap_->GetReadRpsOutThrottler(),
-            nbdServer->GetInvoker(),
-            nbdServer->GetLogger());
+        return futures;
     }
 
-    //! Create NBD volume.
-    TFuture<TOverlayData> PrepareNbdVolume(
+    //! Create NBD volumes.
+    std::vector<TFuture<TOverlayData>> PrepareNbdVolumes(
         TGuid tag,
-        const TArtifactKey& artifactKey,
-        IImageReaderPtr reader)
+        const std::vector<TArtifactKey>& artifactKeys)
     {
-        YT_VERIFY(reader);
+        YT_VERIFY(!artifactKeys.empty());
 
-        YT_LOG_DEBUG("Prepare NBD volume (Tag: %v, Path: %v)",
+        YT_LOG_DEBUG("Prepare NBD volumes (Tag: %v, Artifacts: %v)",
             tag,
-            artifactKey.data_source().path());
+            artifactKeys.size());
 
-        YT_VERIFY(FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Nbd);
-        YT_VERIFY(artifactKey.has_filesystem());
-        YT_VERIFY(artifactKey.has_nbd_export_id());
+        std::vector<TFuture<TOverlayData>> futures;
+        futures.reserve(artifactKeys.size());
 
-        auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "nbd", /*volumeFilePath*/ artifactKey.data_source().path());
-        TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
-        TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
+        for (const auto& artifactKey : artifactKeys) {
+            YT_VERIFY(FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Nbd);
+            YT_VERIFY(artifactKey.has_filesystem());
+            YT_VERIFY(artifactKey.has_nbd_export_id());
 
-        // There could be a CreateNbdVolume() failure after a successful PrepareNbdExport().
-        // In such cases NBD exports are unregistered by TJob::Cleanup().
-        return PrepareNbdExport(tag, tagSet, artifactKey, reader)
-            .Apply(BIND(
+            auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "nbd", /*volumeFilePath*/ artifactKey.data_source().path());
+            TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
+            TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
+
+            // There could be a CreateNbdVolume() failure after a successful PrepareNbdExport().
+            // In such cases NBD exports are unregistered by TJob::Cleanup().
+            auto exportFuture = PrepareNbdExport(tag, tagSet, artifactKey);
+            auto volumeFuture = exportFuture.Apply(BIND(
                 &TPortoVolumeManager::CreateNbdVolume,
                 MakeStrong(this),
                 tag,
@@ -2983,36 +2988,53 @@ private:
             // and protects from Porto volume leak.
             .ToUncancelable()
             .As<TOverlayData>();
+
+            futures.push_back(std::move(volumeFuture));
+        }
+
+        return futures;
     }
 
-    //! Download SquashFS file and create volume from it.
-    TFuture<TOverlayData> PrepareSquashFSVolume(
+    //! Download SquashFS files and create volumes from them.
+    std::vector<TFuture<TOverlayData>> PrepareSquashFSVolumes(
         TGuid tag,
-        const TArtifactKey& artifactKey,
+        const std::vector<TArtifactKey>& artifactKeys,
         const TArtifactDownloadOptions& downloadOptions)
     {
-        YT_LOG_DEBUG("Prepare squashfs volume (Tag: %v, Path: %v)",
+        YT_VERIFY(!artifactKeys.empty());
+
+        YT_LOG_DEBUG("Prepare squashfs volumes (Tag: %v, Artifacts: %v)",
             tag,
-            artifactKey.data_source().path());
+            artifactKeys.size());
 
-        YT_VERIFY(!artifactKey.has_access_method() || FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Local);
-        YT_VERIFY(FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS);
-        YT_VERIFY(!artifactKey.has_nbd_export_id());
+        std::vector<TFuture<TOverlayData>> futures;
+        futures.reserve(artifactKeys.size());
 
-        return ChunkCache_->DownloadArtifact(artifactKey, downloadOptions)
-            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& chunkCacheArtifact) {
-                auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "squashfs", /*volumeFilePath*/ artifactKey.data_source().path());
-                TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
-                TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
+        for (const auto& artifactKey : artifactKeys) {
+            YT_VERIFY(!artifactKey.has_access_method() || FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Local);
+            YT_VERIFY(FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS);
+            YT_VERIFY(!artifactKey.has_nbd_export_id());
 
-                // We pass chunkCacheArtifact here to later save it in SquashFS volume so that SquashFS file outlives SquashFS volume.
-                return CreateSquashFSVolume(
-                    tag,
-                    std::move(tagSet),
-                    std::move(volumeCreateTimeGuard),
-                    artifactKey,
-                    chunkCacheArtifact);
-            }).AsyncVia(GetCurrentInvoker())).As<TOverlayData>();
+            auto downloadFuture = ChunkCache_->DownloadArtifact(artifactKey, downloadOptions);
+            auto volumeFuture = downloadFuture.Apply(
+                BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& chunkCacheArtifact) {
+                    auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "squashfs", /*volumeFilePath*/ artifactKey.data_source().path());
+                    TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
+                    TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
+
+                    // We pass chunkCacheArtifact here to later save it in SquashFS volume so that SquashFS file outlives SquashFS volume.
+                    return CreateSquashFSVolume(
+                        tag,
+                        std::move(tagSet),
+                        std::move(volumeCreateTimeGuard),
+                        artifactKey,
+                        chunkCacheArtifact);
+                }).AsyncVia(GetCurrentInvoker())).As<TOverlayData>();
+
+            futures.push_back(std::move(volumeFuture));
+        }
+
+        return futures;
     }
 
     TNbdVolumePtr CreateNbdVolume(

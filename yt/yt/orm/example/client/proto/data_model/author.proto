@@ -1,0 +1,50 @@
+package NYT.NOrm.NExample.NClient.NProto.NDataModel;
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+
+option java_package = "ru.yandex.yt.yt.orm.example.client.proto.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt/orm/example/client/proto/data_model";
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.object_type) = {
+    camel_case_name: "Author"
+    snake_case_name: "author"
+    primary_key: ["id"]
+    type_value: 2
+    use_custom_default_acl: true
+    default_acl: [
+        {permissions: ["write"], attributes: ["/spec"]},
+        {permissions: ["read"]}
+    ]
+    default_permissions_attributes: ["/spec"]
+    watch_logs: [
+        {
+            snake_case_name: "watch_log"
+        }
+    ]
+    history: {
+        attributes: [
+            {
+                path: "/spec/age"
+                allowed_in_filter: true
+            },
+            { path: "/spec/name" }
+        ]
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TAuthorMetaMixin
+{
+    optional string id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM];
+}
+
+message TAuthorSpecMixin
+{
+    optional string name = 1 [(NYT.NOrm.NClient.NProto.column) = true];
+    optional uint64 age = 2 [(NYT.NOrm.NClient.NProto.column) = true];
+}
+
+////////////////////////////////////////////////////////////////////////////////

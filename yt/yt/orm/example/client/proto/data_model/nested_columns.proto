@@ -1,0 +1,80 @@
+package NYT.NOrm.NExample.NClient.NProto.NDataModel;
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+
+option java_package = "ru.yandex.yt.yt.orm.example.client.proto.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt/orm/example/client/proto/data_model";
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.object_type) = {
+    camel_case_name: "NestedColumns"
+    snake_case_name: "nested_columns"
+    primary_key: ["id"]
+    type_value: 208
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TNestedColumnsMetaMixin
+{
+    optional int64 id = 1 [
+        (NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM
+    ];
+}
+
+message TNestedColumnsSpecMixin
+{
+    message TSimple
+    {
+        optional string foo = 1;
+    }
+
+    optional TSimple direct_singular = 1;
+    repeated TSimple direct_repeated = 2;
+    map<string, TSimple> direct_map = 3 [(NYT.NYson.NProto.yson_map) = true];
+    optional TSimple column_singular = 4 [(NYT.NOrm.NClient.NProto.column) = true];
+    repeated TSimple column_repeated = 5 [(NYT.NOrm.NClient.NProto.column) = true];
+    map<string, TSimple> column_map = 6 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NYson.NProto.yson_map) = true
+    ];
+
+    message TInner
+    {
+        option (NYT.NOrm.NClient.NProto.no_etc_column_suffix) = true;
+        optional TSimple direct_singular = 1;
+        repeated TSimple direct_repeated = 2;
+        map<string, TSimple> direct_map = 3 [(NYT.NYson.NProto.yson_map) = true];
+        optional TSimple column_singular = 4 [(NYT.NOrm.NClient.NProto.column) = true];
+        repeated TSimple column_repeated = 5 [(NYT.NOrm.NClient.NProto.column) = true];
+        map<string, TSimple> column_map = 6 [
+            (NYT.NOrm.NClient.NProto.column) = true,
+            (NYT.NYson.NProto.yson_map) = true
+        ];
+        optional int64 deprecated_column_singular = 7 [
+            (NYT.NOrm.NClient.NProto.column) = true,
+            (NYT.NOrm.NClient.NProto.deprecated) = true
+        ];
+    }
+
+    optional TInner composite_singular = 7;
+    repeated TInner composite_repeated = 8 [
+        (NYT.NOrm.NClient.NProto.ignore_columns) = true
+    ];
+    map<string, TInner> composite_map = 9 [
+        (NYT.NYson.NProto.yson_map) = true,
+        (NYT.NOrm.NClient.NProto.ignore_columns) = true
+    ];
+    optional int64 deprecated_direct_singular = 10 [
+        (NYT.NOrm.NClient.NProto.deprecated) = true
+    ];
+    optional int64 deprecated_column_singular = 11 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.deprecated) = true
+    ];
+}
+
+////////////////////////////////////////////////////////////////////////////////

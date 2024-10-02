@@ -8,13 +8,13 @@ RECURSE(
     python
     tools
     ytlib
+    orm
 )
 
 IF (NOT OPENSOURCE)
     RECURSE(
         flow
         fuzz
-        orm
         packages/tests_package
         utilities
         scripts

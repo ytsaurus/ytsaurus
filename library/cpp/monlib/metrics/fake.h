@@ -131,11 +131,11 @@ namespace NMonitoring {
         {
         }
 
-        void Record(double value) noexcept override {
+        void Record(double value) override {
             Y_UNUSED(value);
         }
 
-        void Record(double value, ui32 count) noexcept override {
+        void Record(double value, ui32 count) override {
             Y_UNUSED(value, count);
         }
 
@@ -147,7 +147,7 @@ namespace NMonitoring {
             Y_UNUSED(time, consumer);
         }
 
-        void Reset() noexcept override {
+        void Reset() override {
         }
     };
 

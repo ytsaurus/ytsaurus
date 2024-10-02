@@ -231,7 +231,7 @@ std::vector<TString> TComponentDiscoverer::GetCypressPaths(NApi::IClientPtr clie
     auto cypressDirectory = GetCypressDirectory(component);
 
     for (auto& path : paths) {
-        path = Format("%v/%v", cypressDirectory, path);
+        path = cypressDirectory + path;
     }
 
     return paths;

@@ -246,7 +246,6 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveStuckAttributes)                                        (2740))  // aleksandra-zh
     ((OptionalHunkPrimaryMedium)                                    (2741))  // kazachonok
     ((RemoveSchemalessEndUploadPreservesTableSchema)                (2742))  // h0pless
-    ((TtlVerificationInRemoveExpiredNodes)                          (2743))  // koloshmet
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

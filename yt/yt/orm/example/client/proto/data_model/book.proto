@@ -1,0 +1,457 @@
+package NYT.NOrm.NExample.NClient.NProto.NDataModel;
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+import "yt_proto/yt/orm/data_model/generic.proto";
+
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+
+import "google/protobuf/descriptor.proto";
+
+option java_package = "ru.yandex.yt.yt.orm.example.client.proto.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt/orm/example/client/proto/data_model";
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.object_type) = {
+    camel_case_name: "Book"
+    snake_case_name: "book"
+    primary_key: ["id", "id2"]
+    custom_null_key: "0;0"
+    parent: "Publisher"
+    type_value: 1
+    hash_policy: HP_FARM_HASH_PARENT_KEY
+    spec_message_type_name: "NYT.NOrm.NExample.NClient.NProto.NDataModel.TBookDescription"
+    skip_store_without_changes: true
+    enable_tags: true
+    use_custom_default_acl: true
+    default_acl: [{permissions: ["read"]}]
+    watch_logs: [
+        {
+            snake_case_name: "watch_log"
+        },
+        {
+            snake_case_name: "tagged_watch_log",
+            required_tags: ["digital_data"],
+            excluded_tags: ["money"]
+        }
+    ]
+    history: {
+        attributes: [
+            { path: "/spec/alternative_publisher_ids" },
+            { path: "/spec/design/cover/hardcover" },
+            { path: "/spec/design/illustrations" },
+            {
+                path: "/spec/digital_data/available_formats"
+                indexed: true
+                allowed_in_filter: true
+            },
+            { path: "/spec/font" },
+            { path: "/spec/genres" },
+            { path: "/spec/year" },
+            { path: "/status/released" },
+            { path: "/annotations/rating" },
+            { path: "/labels" }
+        ]
+    }
+    revision_trackers: [
+        {
+            tracker_path: "/spec/api_revision"
+            tracked_paths: ["/spec"]
+            restrict_to_lock_group: "api"
+        }
+    ]
+    attribute_sensors: [
+        {
+            path: "/spec/page_count"
+            policy: ASP_ATTRIBUTE_VALUE_AS_TAG
+        }
+    ]
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByYear"
+    snake_case_name: "books_by_year"
+    key: ["/spec/year"]
+    hash_expression: "farm_hash([year])"
+    mode: IM_DISABLED // Redefine to EIndexMode::Enabled in config.
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByFont"
+    snake_case_name: "books_by_font"
+    key: ["/spec/font"]
+    mode: IM_ENABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByYearAndFont"
+    snake_case_name: "books_by_year_and_font"
+    key: ["/spec/year", "/spec/font"]
+    mode: IM_ENABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByGenres"
+    snake_case_name: "books_by_genres"
+    key: ["/spec/genres"]
+    mode: IM_ENABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByKeywords"
+    snake_case_name: "books_by_keywords"
+    key: ["/spec/keywords"]
+    hash_expression: "farm_hash([keywords])"
+    mode: IM_ENABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByIllustrations"
+    snake_case_name: "books_by_illustrations"
+    key: ["/spec/design/illustrations"]
+    mode: IM_ENABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByEditor"
+    snake_case_name: "books_by_editor"
+    key: ["/spec/editor_id"]
+    hash_expression: "farm_hash([editor_id])"
+    mode: IM_ENABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByEditorAndYearWithPredicate"
+    snake_case_name: "books_by_editor_and_year_with_predicate"
+    key: ["/spec/editor_id", "/spec/year"] // NB: `/spec/editor_id` is reference field
+    predicate: "[/spec/font] != \"YS Text\""
+    mode: IM_ENABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByCoverImage"
+    snake_case_name: "books_by_cover_image"
+    key: ["/spec/design/cover/image"]
+    mode: IM_ENABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByCoverSize"
+    snake_case_name: "books_by_cover_size"
+    key: ["/spec/design/cover/size"]
+    mode: IM_ENABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByCoverDpi"
+    snake_case_name: "books_by_cover_dpi"
+    key: ["/spec/design/cover/dpi"]
+    mode: IM_ENABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByPageCount"
+    snake_case_name: "books_by_page_count"
+    key: ["/spec/page_count"]
+    mode: IM_BUILDING
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByName"
+    snake_case_name: "books_by_name"
+    key: ["/spec/name"]
+    mode: IM_DISABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByStoreRating"
+    snake_case_name: "books_by_store_rating"
+    key: ["/spec/digital_data/store_rating"]
+    mode: IM_ENABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByAuthors"
+    snake_case_name: "books_by_authors"
+    key: ["/spec/author_ids"]
+    mode: IM_ENABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByIsbn"
+    snake_case_name: "books_by_isbn"
+    key: ["/meta/isbn"]
+    hash_expression: "farm_hash([isbn])"
+    mode: IM_ENABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByCreationTime"
+    snake_case_name: "books_by_creation_time"
+    key: ["/meta/creation_time"]
+    mode: IM_ENABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByYearAndPageCountWithPredicate"
+    snake_case_name: "books_by_year_and_page_count_with_predicate"
+    key: ["/spec/year", "/spec/page_count"]
+    predicate: "[/spec/design/cover/hardcover] = %true"
+    mode: IM_ENABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByIllustrationsWithPredicate"
+    snake_case_name: "books_by_illustrations_with_predicate"
+    key: ["/spec/design/illustrations"]
+    predicate: "[/spec/font] != \"Arial\" or list_contains([/spec/design/illustrations], \"cat.svg\")"
+    mode: IM_ENABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByIsbnWithPredicate"
+    snake_case_name: "books_by_isbn_with_predicate"
+    key: ["/meta/isbn"]
+    predicate: "[/meta/isbn] != 123123" // Intentional comparison of string and integer.
+    mode: IM_DISABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = { // Checking the operation of index with predicate over 32-bit fields.
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByYearWithPredicate"
+    snake_case_name: "books_by_cover_size_with_predicate"
+    key: ["/spec/year"]
+    predicate: "[/spec/design/cover/dpi] > 100"
+    mode: IM_ENABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "book"
+    camel_case_name: "BooksByPeerReviewers"
+    snake_case_name: "books_by_peer_reviewers"
+    key: ["/spec/peer_review/reviewer_ids"]
+    mode: IM_ENABLED
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+extend google.protobuf.FieldOptions
+{
+    repeated string my_repeated = 100000;
+}
+
+message TBookMetaMixin
+{
+    enum EBookType {
+        BT_PAPER = 0;
+        BT_DIGITAL = 1;
+    }
+
+    optional int64 id = 1 [
+        (NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM
+    ];
+    optional int64 id2 = 5 [
+        (NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM
+    ];
+    optional string isbn = 2 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true
+    ];
+    optional string custom_meta_etc_test = 3 [
+        (NYT.NOrm.NClient.NProto.column) = false
+    ];
+    optional EBookType book_type = 4;
+}
+
+message TBookDescriptionMixin
+{
+    message TBookDesign
+    {
+        message TBookCover
+        {
+            optional bool hardcover = 1;
+            optional string image = 2;
+            optional fixed64 size = 3;
+            optional sfixed32 dpi = 4 [
+                (NYT.NOrm.NClient.NProto.storage_type) = "int64"
+            ];
+        }
+
+        optional TBookCover cover = 1;
+        optional string color = 2;
+        repeated string illustrations = 3;
+    }
+
+    message TDigitalData
+    {
+        option (NYT.NOrm.NClient.NProto.message_tags) = "digital_data";
+        message TFileData
+        {
+            enum EFormat
+            {
+                F_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
+                F_PDF = 1 [(NYT.NYson.NProto.enum_value_name) = "pdf"];
+                F_EPUB = 2 [(NYT.NYson.NProto.enum_value_name) = "epub"];
+                F_FB2 = 3 [(NYT.NYson.NProto.enum_value_name) = "fb2"];
+            }
+            optional EFormat format = 1;
+            optional uint64 size = 2;
+        }
+
+        repeated TFileData available_formats = 1;
+        optional double store_rating = 2;
+        optional double store_price = 3 [(NYT.NOrm.NClient.NProto.add_tags) = "money"];
+    }
+
+    optional string name = 1 [
+        (NYT.NOrm.NClient.NProto.field_lock_group) = "web",
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (my_repeated) = "a",
+        (my_repeated) = "b"
+    ];
+    optional int32 year = 2 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.storage_type) = "int64"
+    ];
+    optional string font = 3 [(NYT.NOrm.NClient.NProto.column) = true];
+    repeated string genres = 4 [(NYT.NOrm.NClient.NProto.column) = true];
+    repeated string keywords = 5 [
+        (NYT.NOrm.NClient.NProto.field_lock_group) = "search",
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.add_tags) = "digital_data"
+    ];
+    optional TBookDesign design = 6;
+    optional string editor_id = 7 [
+        (NYT.NOrm.NClient.NProto.foreign_key) = "Editor",
+        (NYT.NOrm.NClient.NProto.custom_foreign_view_name) = "editor"
+    ];
+    optional TDigitalData digital_data = 8 [
+        (NYT.NOrm.NClient.NProto.column) = true
+    ];
+    optional uint64 page_count = 9;
+
+    repeated string author_ids = 10 [(NYT.NOrm.NClient.NProto.column) = true];
+    repeated NYT.NOrm.NClient.NProto.TReference author_refs = 18 [
+        (NYT.NOrm.NClient.NProto.reference) = {
+            foreign_type: "author"
+            foreign_backref_path: "/status/book_refs"
+            foreign_backref_number: 1
+            columnar_key_storage: {
+                paths: ["/spec/author_ids"]
+            }
+            view: {
+                path: "/spec/authors"
+                number: 10010
+            }
+        }
+    ];
+
+    optional int64 illustrator_id = 11 [
+        (NYT.NOrm.NClient.NProto.foreign_key) = "Illustrator",
+        (NYT.NOrm.NClient.NProto.custom_foreign_view_name) = "illustrator",
+        (NYT.NOrm.NClient.NProto.forbid_removal_with_non_empty_references) = true
+    ];
+    repeated int64 alternative_publisher_ids = 12 [
+        (NYT.NOrm.NClient.NProto.foreign_key) = "Publisher",
+        (NYT.NOrm.NClient.NProto.custom_foreign_view_name) = "publishers",
+        (NYT.NOrm.NClient.NProto.forbid_removal_with_non_empty_references) = true,
+        (NYT.NOrm.NClient.NProto.forbid_target_object_removal_with_non_empty_references) = true
+    ];
+
+    message TChapterDescription
+    {
+        optional string name = 1 [(NYT.NOrm.NClient.NProto.add_tags) = "public_data"];
+    }
+    repeated TChapterDescription chapter_descriptions = 13 [(NYT.NOrm.NClient.NProto.column) = true];
+    optional string description = 14;
+
+    optional int64 cover_illustrator_id = 15 [
+        (NYT.NOrm.NClient.NProto.foreign_key) = "Illustrator",
+        (NYT.NOrm.NClient.NProto.custom_foreign_view_name) = "cover_illustrator",
+        (NYT.NOrm.NClient.NProto.forbid_removal_with_non_empty_references) = true,
+        (NYT.NOrm.NClient.NProto.references_table_suffix) = "cover_illustrator"
+    ];
+
+    optional fixed64 api_revision = 16 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.not_initializable) = true,
+        (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY
+    ];
+
+    optional uint32 in_stock = 17 [
+        (NYT.NOrm.NClient.NProto.field_lock_group) = "warehouse"
+    ];
+
+    message TPeerReviewInfo {
+        repeated string reviewer_ids = 1 [
+            (NYT.NOrm.NClient.NProto.foreign_key) = "Author",
+            (NYT.NOrm.NClient.NProto.references_table_suffix) = "peer_reviewers",
+            (NYT.NOrm.NClient.NProto.custom_foreign_view_name) = "reviewers"
+        ];
+        optional string summary = 2;
+    }
+
+    optional TPeerReviewInfo peer_review = 19;
+
+    optional NYT.NOrm.NClient.NProto.ELockType lock_type = 20 [default = LT_EXCLUSIVE];
+}
+
+message TBookStatusMixin
+{
+    optional bool released = 1 [
+        (NYT.NOrm.NClient.NProto.field_lock_group) = "status",
+        (NYT.NOrm.NClient.NProto.column) = true
+    ];
+
+    repeated int64 hitchhiker_ids = 2;
+    repeated NYT.NOrm.NClient.NProto.TReference hitchhikers = 3 [
+        (NYT.NOrm.NClient.NProto.reference) = {
+            foreign_type: "hitchhiker"
+            foreign_backref_path: "/spec/books"
+            columnar_key_storage: {
+                paths: ["/status/hitchhiker_ids"]
+            }
+        }
+        ];
+
+    repeated int64 formed_hitchhiker_ids = 4;
+    repeated NYT.NOrm.NClient.NProto.TReference formed_hitchhikers = 5 [
+        (NYT.NOrm.NClient.NProto.reference) = {
+            foreign_type: "hitchhiker"
+            foreign_backref_path: "/meta/formative_book"
+            columnar_key_storage: {
+                paths: ["/status/formed_hitchhiker_ids"]
+            }
+        }
+    ];
+
+}
+
+message TBookControlMixin
+{
+    optional NYT.NOrm.NDataModel.TObjectTouch touch = 1001 [(NYT.NOrm.NClient.NProto.add_tags) = "book_moderation"];
+
+    optional NYT.NOrm.NDataModel.TObjectTouch money_touch = 1 [(NYT.NOrm.NClient.NProto.add_tags) = "money"];
+}
+
+////////////////////////////////////////////////////////////////////////////////

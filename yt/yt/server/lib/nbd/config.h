@@ -12,6 +12,7 @@ class TFileSystemBlockDeviceConfig
     : public NYTree::TYsonStruct
 {
 public:
+    TString Path;
     // For testing purposes: how long to sleep before read request
     TDuration TestSleepBeforeRead;
 

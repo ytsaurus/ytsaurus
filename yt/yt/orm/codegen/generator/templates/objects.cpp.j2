@@ -1,0 +1,54 @@
+// AUTOMATICALLY GENERATED. DO NOT EDIT!
+{%- import "/macros_object.j2" as macros_object %}
+
+#include "objects.h"
+
+#include <yt/yt/orm/server/objects/helpers.h>
+
+{%- for object in objects -%}
+{%- if object.custom_cpp_object %}
+#include <{{ cpp_server_plugins_path }}/{{ object.snake_case_name }}.h>
+{%- endif %}
+{%- if object.yp_compat_includes +%}
+{%+ for include in object.yp_compat_includes %}
+#include <{{ include }}>
+{%- endfor -%}
+{% endif -%}
+{% endfor %}
+
+{%- for object in objects if (dont_skip_cpp or not object.skip_cpp) and object.custom_cpp_object %}
+    {%- if loop.first %}
+{##}
+namespace NYT::NOrm::NServer::NObjects {
+
+////////////////////////////////////////////////////////////////////////////////
+    {%- endif %}
+{##}
+{{ macros_object.define_object_plugin_traits(object, cpp_objects_namespace, cpp_server_plugins_namespace) }}
+
+{%- if loop.last %}
+{##}
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NOrm::NServer::NObjects;
+{%- endif %}
+{%- endfor %}
+
+namespace {{ cpp_objects_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using NYT::NOrm::NServer::NObjects::IObjectTypeHandler;
+using NYT::NOrm::NServer::NObjects::ISession;
+
+{%- for object in objects if dont_skip_cpp or not object.skip_cpp %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+{{- macros_object.define_object(object, cpp_objects_namespace) }}
+
+{%- endfor %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace {{ cpp_objects_namespace }}

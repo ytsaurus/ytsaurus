@@ -1,0 +1,220 @@
+// AUTOMATICALLY GENERATED. DO NOT EDIT!
+{%- import "/macros.proto.j2" as macros %}
+
+#include "traits.h"
+
+#include <yt/yt/orm/client/misc/protobuf_helpers.h>
+
+#include <{{ client_schema_h }}>
+
+namespace {{ client_misc_cpp_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+
+{%-set cpp_proto_namespace = data_model_proto_package | proto_to_cpp_namespace %}
+
+{%- for object in objects %}
+
+{%- macro field_name(field) -%}
+    {{ field.snake_case_name }}
+{%- endmacro -%}
+
+{%- macro field_name_by_path(path) -%}
+    {{ path.split("/")[1:] | join("().") }}
+{%- endmacro %}
+
+bool ExtractObjectMetaKeyFields(const {{ object.meta | message_cpp_full_name }}& source, {{ object.meta | message_cpp_full_name }}& destination)
+{
+    bool hasAllKeys = true;
+
+    {%- for field in object.key_fields %}
+    {%- if field.is_optional(proto3) %}
+    if (source.has_{{ field_name(field) }}()) {
+        destination.set_{{ field_name(field) }}(source.{{ field_name(field) }}());
+    } else {
+        hasAllKeys = false;
+    }
+    {%- else %}
+    destination.set_{{ field_name(field) }}(source.{{ field_name(field) }}());
+    {%- endif %}
+    {%- endfor %}
+
+    {%- if object.parent %}
+    {%- for field in object.meta_parent_key_fields %}
+    {%- if field.is_optional(proto3) %}
+    if (source.has_{{ field_name(field) }}()) {
+        destination.set_{{ field_name(field) }}(source.{{ field_name(field) }}());
+    } else {
+        hasAllKeys = false;
+    }
+    {%- else %}
+    destination.set_{{ field_name(field) }}(source.{{ field_name(field) }}());
+    {%- endif %}
+    {%- endfor %}
+    {%- endif %}
+
+    return hasAllKeys;
+}
+
+NYT::NOrm::NClient::NObjects::TObjectKey GetObjectKey(
+    const {{ object.meta | message_cpp_full_name }}& source,
+    bool ensureAllKeysPresent)
+{
+    {%- set optional_primary_key_fields = object.primary_key | selectattr("is_optional", "yields", True, proto3=proto3) | list %}
+    {%- if optional_primary_key_fields | length > 0 %}
+    bool hasAllKeys =
+    {%- for field in optional_primary_key_fields %}
+        source.has_{{ field_name(field) }}(){% if not loop.last %} &&{% endif %}
+    {%- endfor -%};
+    THROW_ERROR_EXCEPTION_IF(ensureAllKeysPresent && !hasAllKeys,
+        "Missing keys for %v",
+        source.GetTypeName());
+    {%- else %}
+    Y_UNUSED(ensureAllKeysPresent);
+    {%- endif %}
+
+    return NYT::NOrm::NClient::NObjects::TObjectKey(
+        {%- for field in object.primary_key %}
+        source.{{ field.snake_case_name }}(){% if not loop.last %},{% endif %}
+        {%- endfor %});
+}
+
+void SetObjectKey(
+    {{ object.meta | message_cpp_full_name }}& destination,
+    const NYT::NOrm::NClient::NObjects::TObjectKey& key)
+{
+    THROW_ERROR_EXCEPTION_IF(0u != key.size() && key.size() != {{ object.primary_key|length }},
+        "Missing keys for %v",
+        destination.GetTypeName());
+    {%- for field in object.primary_key %}
+    destination.Set{{ field.snake_case_name }}(key.GetWithDefault<std::decay_t<decltype(destination.{{ field.snake_case_name }}())>>({{ loop.index0 }}));
+    {%- endfor %}
+}
+
+{%- if object.parent %}
+NYT::NOrm::NClient::NObjects::TObjectKey GetParentKey(
+    const {{ object.meta | message_cpp_full_name }}& source,
+    bool ensureAllKeysPresent)
+{
+    {%- set parent_primary_key_fields = object.meta_parent_primary_key_fields %}
+    {%- set optional_parent_primary_key_fields = parent_primary_key_fields | selectattr("is_optional", "yields", True, proto3=proto3) | list %}
+    {%- if optional_parent_primary_key_fields | length > 0 %}
+    bool hasAllKeys =
+    {%- for field in optional_parent_primary_key_fields %}
+        source.has_{{ field_name(field) }}(){% if not loop.last %} &&{% endif %}
+    {%- endfor -%};
+    THROW_ERROR_EXCEPTION_IF(ensureAllKeysPresent && !hasAllKeys,
+        "Missing parent keys for %v",
+        source.GetTypeName());
+    {%- else %}
+    Y_UNUSED(ensureAllKeysPresent);
+    {%- endif %}
+    return NYT::NOrm::NClient::NObjects::TObjectKey(
+    {%- for field in parent_primary_key_fields %}
+        source.{{ field_name(field) }}(){% if not loop.last %},{% endif %}
+    {%- endfor -%});
+}
+{%- endif %}
+
+void TrySetParentKey(
+    [[ maybe_unused ]] {{ object.meta | message_cpp_full_name }}& destination,
+    [[ maybe_unused ]] const NYT::NOrm::NClient::NObjects::TObjectKey& key)
+{
+    {%- if object.parent %}
+    THROW_ERROR_EXCEPTION_IF(0u != key.size() && key.size() != {{ object.parent.primary_key|length }},
+        "Missing keys for %v",
+        destination.GetTypeName());
+    {%- for field in object.meta_parent_primary_key_fields %}
+    destination.Set{{ field_name(field) }}(key.GetWithDefault<std::decay_t<decltype(destination.{{ field_name(field) }}())>>({{ loop.index0 }}));
+    {%- endfor %}
+    {%- endif %}
+}
+
+NYT::NOrm::NClient::NObjects::TObjectKey GetPrimaryKey(
+    const {{ object.meta | message_cpp_full_name }}& source,
+    bool ensureAllKeysPresent)
+{
+    return {% if object.parent -%} GetParentKey(source, ensureAllKeysPresent) + {% endif %}GetObjectKey(source, ensureAllKeysPresent);
+}
+
+void SetPrimaryKey(
+    {{ object.meta | message_cpp_full_name }}& destination,
+    const NYT::NOrm::NClient::NObjects::TObjectKey& key)
+{
+    {%- set parent_key_length = object.parent.primary_key|length if object.parent else 0 %}
+    THROW_ERROR_EXCEPTION_IF(key.size() != {{ parent_key_length + object.primary_key|length }},
+        "Missing keys for %v",
+        destination.GetTypeName());
+
+    {%- if object.parent %}
+    {%- for field in object.meta_parent_primary_key_fields %}
+    destination.Set{{ field_name(field) }}(key.GetWithDefault<std::decay_t<decltype(destination.{{ field_name(field) }}())>>({{ loop.index0 }}));
+    {%- endfor %}
+    {%- endif %}
+
+    {%- for field in object.primary_key %}
+    destination.Set{{ field_name(field) }}(key.GetWithDefault<std::decay_t<decltype(destination.{{ field_name(field) }}())>>({{ loop.index0 + parent_key_length }}));
+    {%- endfor %}
+}
+
+THashMap<std::pair<EObjectType, NYT::NYPath::TYPath>, std::vector<NYT::NOrm::NClient::NObjects::TObjectKey>> GetReferences(
+    [[maybe_unused]] const {{ cpp_proto_namespace }}::T{{ object.camel_case_name }}& source)
+{
+    THashMap<std::pair<EObjectType, NYT::NYPath::TYPath>, std::vector<NYT::NOrm::NClient::NObjects::TObjectKey>> result;
+    {%- for path, field in object.references_deprecated.items() %}
+        {%- if field.is_repeated %}
+    {
+        {{ cpp_proto_namespace }}::T{{ field.foreign_object_type }} referencedObject;
+        for (const auto& value : source.{{ field_name_by_path(path) }}()) {
+            referencedObject.mutable_meta()->set_{{ field.reference_deprecated.foreign_object.primary_key[0].snake_case_name }}(value);
+            result[std::pair{EObjectType::{{ field.foreign_object_type }}, "{{path}}"}].push_back(GetObjectKey(referencedObject.meta()));
+        }
+    }
+        {%- else %}
+    {
+        {{ cpp_proto_namespace }}::T{{ field.foreign_object_type }} referencedObject;
+        auto value = source.{{ field_name_by_path(path) }}();
+        referencedObject.mutable_meta()->set_{{ field.reference_deprecated.foreign_object.primary_key[0].snake_case_name }}(value);
+        result[std::pair{EObjectType::{{ field.foreign_object_type }}, "{{path}}"}].push_back(GetObjectKey(referencedObject.meta()));
+    }
+        {%- endif %}
+    {%- endfor %}
+    {%- for reference in object.references %}
+        {%- for path in reference.key_storage_paths or () %}
+            {%- if reference.field.is_repeated %}
+    {
+        auto vals = NYT::NOrm::NClient::VectorFromProtoField(source.{{ field_name_by_path(path) }}());
+        for (const auto& value : vals) {
+            {%- if reference.key_storage_suffixes %}
+            {{ cpp_proto_namespace }}::T{{ reference.foreign_object.camel_case_name }} referencedObject;
+                {%- for suffix in reference.key_storage_suffixes -%}
+                    {%- set suffix = suffix[1:] %}
+                    {%- set suffix_index = loop.index0 %}
+            referencedObject.mutable_meta()->set_{{ reference.foreign_object.primary_key[suffix_index].snake_case_name }}(value.{{ suffix }}());
+                {%- endfor %}
+            result[std::pair{EObjectType::{{ reference.foreign_object.camel_case_name }}, "{{path}}"}].push_back(GetObjectKey(referencedObject.meta()));
+
+            {%- else %}
+            {{ cpp_proto_namespace }}::T{{ reference.foreign_object.camel_case_name }} referencedObject;
+            referencedObject.mutable_meta()->set_{{ reference.foreign_object.primary_key[0].snake_case_name }}(value);
+            result[std::pair{EObjectType::{{ reference.foreign_object.camel_case_name }}, "{{path}}"}].push_back(GetObjectKey(referencedObject.meta()));
+            {%- endif %}
+        }
+    }
+            {%- else %}
+    {
+        {{ cpp_proto_namespace }}::T{{ reference.foreign_object.camel_case_name }} referencedObject;
+        auto value = source.{{ field_name_by_path(path) }}();
+        referencedObject.mutable_meta()->set_{{ reference.foreign_object.primary_key[0].snake_case_name }}(value);
+        result[std::pair{EObjectType::{{ reference.foreign_object.camel_case_name }}, "{{path}}"}].push_back(GetObjectKey(referencedObject.meta()));
+    }
+            {%- endif %}
+        {%- endfor %}
+    {%- endfor %}
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+{%- endfor %}
+{{ macros.line_break() }}
+} // namespace {{ client_misc_cpp_namespace }}

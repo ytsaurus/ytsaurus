@@ -11,6 +11,7 @@ SRCS(
     profiler.cpp
     random_access_file_reader.cpp
     server.cpp
+    squash_fs_image_builder.cpp
 )
 
 PEERDIR(
@@ -18,7 +19,6 @@ PEERDIR(
     yt/yt/core
     yt/yt/ytlib
     yt/yt_proto/yt/client
-    yt/yt/server/lib/squash_fs
 )
 
 END()

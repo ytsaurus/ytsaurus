@@ -1,0 +1,7 @@
+package NGTest;
+
+message TTestMessage {
+    optional float Field1 = 1;
+    optional string Field2 = 2;
+    repeated int32 Field3 = 3;
+}

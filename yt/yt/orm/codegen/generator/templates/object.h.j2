@@ -1,0 +1,58 @@
+// AUTOMATICALLY GENERATED. DO NOT EDIT!
+{%- import "/macros_object.j2" as macros_object %}
+
+#pragma once
+
+#include "db_schema.h"
+#include "object_detail.h"
+#include "objects.h"
+{%- if object.foreign_objects %}
+{##}
+{%-for o in object.foreign_objects %}
+#include "{{ o.snake_case_name }}.h"
+{%- endfor %}
+{%- endif %}
+{##}
+{%- if object.root.output_to_default %}
+#include <{{ client_schema_h }}>
+{%- else %}
+#include <{{ data_model_proto_path }}/{{ object.root.output_filename | replace(".proto", ".pb.h") }}>
+{%- endif %}
+#include <{{ server_proto_path }}/etc.pb.h>
+
+#include <yt/yt/orm/server/objects/data_model_object.h>
+#include <yt/yt/orm/server/objects/reference_attribute.h>
+{%- if object.has_embedded_semaphores %}
+#include <yt/yt/orm/server/objects/semaphore_detail.h>
+#include <yt/yt/orm/server/objects/semaphore_set_detail.h>
+{%- endif %}
+
+#include <library/cpp/yt/memory/ref_tracked.h>
+
+#include <util/generic/string.h>
+#include <util/system/types.h>
+
+#include <vector>
+
+{%-if object.custom_cpp_object %}
+
+namespace NYT::NOrm::NServer::NObjects {
+
+////////////////////////////////////////////////////////////////////////////////
+
+{{ macros_object.declare_object_plugin_trait(object, cpp_objects_namespace, cpp_server_plugins_namespace) }}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NOrm::NServer::NObjects
+{%- endif %}
+
+namespace {{ cpp_objects_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+{##}
+{{- macros_object.declare_object(object, cpp_server_proto_namespace, cpp_objects_namespace, False) }}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace {{ cpp_objects_namespace }}

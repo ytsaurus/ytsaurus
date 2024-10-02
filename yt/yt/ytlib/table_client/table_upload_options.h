@@ -41,11 +41,9 @@ public:
 
     void Persist(const NPhoenix::TPersistenceContext& context);
 
-    ui64 Reset();
-
 private:
     TTableSchemaPtr TableSchema_ = New<TTableSchema>();
-    ui64 Revision_ = 0;
+    ui64 Revision_ = 1;
 };
 
 struct TTableUploadOptions

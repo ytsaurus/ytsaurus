@@ -440,7 +440,7 @@ void FetchTableSchemas(
     THashMap<TGuid, std::vector<TTablePtr>> schemaIdToTables;
     THashMap<TCellTag, std::vector<TGuid>> cellTagToSchemaIds;
     for (const auto& table : tables) {
-        auto schemaId = table->SchemaId;
+        const auto& schemaId = table->SchemaId;
         schemaIdToTables[schemaId].push_back(table);
     }
 

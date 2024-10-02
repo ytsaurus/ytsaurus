@@ -1,0 +1,120 @@
+// AUTOMATICALLY GENERATED. DO NOT EDIT!
+
+{%- if not yp_compatible %}
+#include "object_detail.h"
+{%- endif %}
+#include "type_handler_impls.h"
+#include "type_handlers.h"
+
+#include <yt/yt/orm/server/objects/group_type_handler_detail.h>
+#include <yt/yt/orm/server/objects/helpers.h>
+#include <yt/yt/orm/server/objects/schema_type_handler_detail.h>
+#include <yt/yt/orm/server/objects/semaphore_detail.h>
+#include <yt/yt/orm/server/objects/semaphore_set_type_handler_detail.h>
+#include <yt/yt/orm/server/objects/semaphore_type_handler_detail.h>
+#include <yt/yt/orm/server/objects/subject_type_handler_detail.h>
+#include <yt/yt/orm/server/objects/user_type_handler_detail.h>
+#include <yt/yt/orm/server/objects/watch_log_consumer_type_handler_detail.h>
+{%- if database_options.enable_custom_base_type_handler %}
+#include <{{ cpp_server_custom_base_type_handler_path }}>
+{%- endif %}
+
+{%- if cpp_server_plugins_namespace %}
+
+namespace {{ cpp_server_plugins_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+
+{%- for object in objects | selectattr('custom_type_handler') %}
+
+std::unique_ptr<NYT::NOrm::NServer::NObjects::IObjectTypeHandler>
+Create{{ object.camel_case_name }}TypeHandler(
+    NYT::NOrm::NServer::NMaster::IBootstrap* bootstrap,
+    NYT::NOrm::NServer::NObjects::TObjectManagerConfigPtr config);
+
+{%- endfor %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace {{ cpp_server_plugins_namespace }}
+{%- endif %}
+
+namespace {{ cpp_objects_namespace }} {
+
+using NYT::NOrm::NServer::NMaster::IBootstrap;
+using NYT::NOrm::NServer::NObjects::IObjectTypeHandler;
+
+////////////////////////////////////////////////////////////////////////////////
+
+{%- for object in objects if not object.builtin %}
+
+std::unique_ptr<IObjectTypeHandler> Create{{ object.camel_case_name }}TypeHandler(
+    IBootstrap* bootstrap,
+    NYT::NOrm::NServer::NObjects::TObjectManagerConfigPtr config)
+{
+{%- if object.custom_type_handler %}
+    return {{ cpp_server_plugins_namespace }}::Create{{ object.camel_case_name }}TypeHandler(bootstrap, config);
+{%- else %}
+    return std::make_unique<T{{ object.camel_case_name }}TypeHandler>(bootstrap, config);
+{%- endif %}
+
+}
+{%- endfor %}
+
+std::unique_ptr<IObjectTypeHandler> CreateGroupTypeHandler(
+    IBootstrap* bootstrap,
+    NYT::NOrm::NServer::NObjects::TObjectManagerConfigPtr config)
+{
+    return NYT::NOrm::NServer::NObjects::CreateGroupTypeHandler<TGroup, TGroupTypeHandler>(
+        bootstrap,
+        std::move(config));
+}
+
+std::unique_ptr<IObjectTypeHandler> CreateUserTypeHandler(
+    IBootstrap* bootstrap,
+    NYT::NOrm::NServer::NObjects::TObjectManagerConfigPtr config)
+{
+    return NYT::NOrm::NServer::NObjects::CreateUserTypeHandler<TUser, TUserTypeHandler>(bootstrap, std::move(config));
+}
+
+std::unique_ptr<IObjectTypeHandler> CreateSchemaTypeHandler(
+    IBootstrap* bootstrap,
+    NYT::NOrm::NServer::NObjects::TObjectManagerConfigPtr config)
+{
+    return NYT::NOrm::NServer::NObjects::CreateSchemaTypeHandler<TSchemaTypeHandler>(
+        bootstrap,
+        std::move(config));
+}
+
+std::unique_ptr<IObjectTypeHandler> CreateWatchLogConsumerTypeHandler(
+    IBootstrap* bootstrap,
+    NYT::NOrm::NServer::NObjects::TObjectManagerConfigPtr config)
+{
+    return NYT::NOrm::NServer::NObjects::CreateWatchLogConsumerTypeHandler<
+        TWatchLogConsumer,
+        TWatchLogConsumerTypeHandler>(bootstrap, std::move(config));
+}
+
+std::unique_ptr<IObjectTypeHandler> CreateSemaphoreTypeHandler(
+    IBootstrap* bootstrap,
+    NYT::NOrm::NServer::NObjects::TObjectManagerConfigPtr config)
+{
+    return NYT::NOrm::NServer::NObjects::CreateSemaphoreTypeHandler<
+        TFinalSemaphore,
+        {{ cpp_data_model_proto_namespace }}::TSemaphore,
+        TSemaphoreTypeHandler>(bootstrap, std::move(config));
+}
+
+std::unique_ptr<IObjectTypeHandler> CreateSemaphoreSetTypeHandler(
+    IBootstrap* bootstrap,
+    NYT::NOrm::NServer::NObjects::TObjectManagerConfigPtr config)
+{
+    return NYT::NOrm::NServer::NObjects::CreateSemaphoreSetTypeHandler<
+        TFinalSemaphoreSet,
+        {{ cpp_data_model_proto_namespace }}::TSemaphoreSet,
+        TSemaphoreSetTypeHandler>(bootstrap, std::move(config));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace {{ cpp_objects_namespace }}

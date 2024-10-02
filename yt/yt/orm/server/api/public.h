@@ -1,0 +1,14 @@
+#pragma once
+
+#include <yt/yt/core/actions/public.h>
+#include <yt/yt/core/misc/public.h>
+
+namespace NYT::NOrm::NServer::NApi {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TObjectServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NOrm::NServer::NApi

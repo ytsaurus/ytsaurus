@@ -1,0 +1,145 @@
+package NYT.NOrm.NExample.NClient.NProto.NDataModel;
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+
+option java_package = "ru.yandex.yt.yt.orm.example.client.proto.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt/orm/example/client/proto/data_model";
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.object_type) = {
+    camel_case_name: "Publisher"
+    snake_case_name: "publisher"
+    primary_key: ["id"]
+    type_value: 3
+    hash_policy: HP_FARM_HASH_PARENT_OR_OBJECT_KEY
+    watch_logs: [
+        {
+            snake_case_name: "watch_log"
+        }
+    ]
+    history: {
+        attributes: [
+            { path: "/spec/illustrator_in_chief" },
+            { path: "/spec/name" },
+            { path: "/meta" }
+        ]
+        filter: "[/spec/name]!='Secret Publisher'"
+    }
+    custom_type_handler: true
+    attribute_migrations: [
+        {
+            source: "/spec/address"
+            target: "/status/address"
+        },
+        {
+            source: "/spec/number_of_awards"
+            target: "/status/number_of_awards"
+            custom_migrator: true
+            on_conflict: ON_MIGRATION_CONFLICT_USE_TARGET
+            reverse_write: true
+            custom_reverse_writer: true
+        },
+        {
+            source: "/spec/non_column_field"
+            target: "/spec/column_field"
+            reverse_write: true
+        },
+        {
+            source: "/status/column_field"
+            target: "/status/non_column_field"
+        },
+        {
+            source: "/spec/featured_illustrators"
+            target: "/status/featured_illustrators"
+            custom_migrator: true
+            reverse_write: true
+            custom_reverse_writer: true
+        },
+        {
+            source: "/status/column_list"
+            target: "/status/non_column_list"
+            reverse_write: true
+        }
+    ]
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "publisher"
+    camel_case_name: "PublishersByNumberOfAwards"
+    snake_case_name: "publishers_by_number_of_awards"
+    key: ["/status/number_of_awards"]
+    mode: IM_ENABLED
+};
+
+option (NYT.NOrm.NClient.NProto.index) = {
+    object_type_snake_case_name: "publisher"
+    camel_case_name: "PublishersByColumnField"
+    snake_case_name: "publishers_by_column_field"
+    key: ["/spec/column_field"]
+    mode: IM_ENABLED
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPublisherMetaMixin
+{
+    optional int64 id = 1 [(NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM];
+}
+
+message TPublisherSpecMixin
+{
+    optional string name = 1 [
+        (NYT.NOrm.NClient.NProto.field_lock_group) = "web",
+        (NYT.NOrm.NClient.NProto.column) = true
+    ];
+    optional string editor_in_chief = 2 [
+        (NYT.NOrm.NClient.NProto.foreign_key) = "Editor",
+        (NYT.NOrm.NClient.NProto.forbid_removal_with_non_empty_references) = false
+    ];
+    optional int64 year_of_fondation = 3;
+    optional int64 illustrator_in_chief = 4 [(NYT.NOrm.NClient.NProto.foreign_key) = "Illustrator"];
+    optional int64 publisher_group = 5 [
+        (NYT.NOrm.NClient.NProto.foreign_key) = "Publisher",
+        (NYT.NOrm.NClient.NProto.forbid_removal_with_non_empty_references) = true
+    ];
+    optional string address = 6;
+    optional string number_of_awards = 7;
+    optional int64 non_column_field = 8;
+    optional int64 column_field = 9 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.opaque) = true
+    ];
+    repeated int64 featured_illustrators = 102 [
+        (NYT.NOrm.NClient.NProto.foreign_key) = "Illustrator",
+        (NYT.NOrm.NClient.NProto.references_table_suffix) = "old_featured_illustrators",
+        (NYT.NOrm.NClient.NProto.forbid_removal_with_non_empty_references) = true
+    ];
+}
+
+message TPublisherStatusMixin
+{
+    option (NYT.NOrm.NClient.NProto.message_lock_group) = "worker";
+
+    optional bool licensed = 1;
+
+    optional string address = 2;
+    optional int64 number_of_awards = 3;
+    optional int64 non_column_field = 4;
+    repeated int64 non_column_list = 7;
+    optional int64 column_field = 5 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.opaque) = true
+    ];
+    repeated int64 column_list = 8 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.opaque) = true
+    ];
+    repeated int64 featured_illustrators = 6 [
+        (NYT.NOrm.NClient.NProto.foreign_key) = "Illustrator",
+        (NYT.NOrm.NClient.NProto.references_table_suffix) = "new_featured_illustrators",
+        (NYT.NOrm.NClient.NProto.forbid_removal_with_non_empty_references) = true
+    ];
+}
+
+////////////////////////////////////////////////////////////////////////////////

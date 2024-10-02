@@ -1,0 +1,5 @@
+RECURSE(
+    admin
+    client
+    local
+)
