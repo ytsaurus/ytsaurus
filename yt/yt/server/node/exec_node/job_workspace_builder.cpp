@@ -200,7 +200,7 @@ void TJobWorkspaceBuilder::PrepareArtifactBinds()
     ioOperationFutures.reserve(Context_.Artifacts.size());
 
     for (const auto& artifact : Context_.Artifacts) {
-        if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
+        if (artifact.AccessedViaBind) {
             YT_VERIFY(artifact.Chunk);
 
             auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind);
@@ -399,7 +399,9 @@ private:
             VolumePrepareStartTime_ = TInstant::Now();
             UpdateTimers_.Fire(MakeStrong(this));
 
-            YT_LOG_INFO("Preparing root volume (LayerCount: %v)", layerArtifactKeys.size());
+            YT_LOG_INFO("Preparing root volume (LayerCount: %v, HasVirtualSandbox: %v)",
+                layerArtifactKeys.size(),
+                Context_.UserSandboxOptions.VirtualSandboxData.has_value());
 
             for (const auto& layer : layerArtifactKeys) {
                 i64 layerSize = layer.GetCompressedDataSize();

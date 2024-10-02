@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/job_agent/public.h>
 
+#include <yt/yt/server/lib/nbd/image_reader.h>
+
 #include <yt/yt/server/lib/scheduler/public.h>
 
 #include <yt/yt/core/actions/callback.h>
@@ -35,6 +37,12 @@ struct TTmpfsVolume
     i64 Size;
 };
 
+struct TVirtualSandboxData
+{
+    TString NbdExportId;
+    NNbd::IImageReaderPtr Reader;
+};
+
 struct TUserSandboxOptions
 {
     std::vector<TTmpfsVolume> TmpfsVolumes;
@@ -42,6 +50,7 @@ struct TUserSandboxOptions
     std::optional<i64> DiskSpaceLimit;
     bool EnableRootVolumeDiskQuota = false;
     int UserId = 0;
+    std::optional<TVirtualSandboxData> VirtualSandboxData;
 
     TCallback<void(const TError&)> DiskOverdraftCallback;
 };

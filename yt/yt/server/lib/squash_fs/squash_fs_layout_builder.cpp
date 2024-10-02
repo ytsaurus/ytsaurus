@@ -3,7 +3,7 @@
 namespace NYT::NSquashFS {
 
 using namespace NConcurrency;
-using namespace NYPath;
+using namespace NNbd;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -185,9 +185,9 @@ public:
 
     void CreateFile(
         const TString& name,
-        const TYPath& path,
-        i64 size,
-        ui16 permissions);
+        const TString& path,
+        ui16 permissions,
+        IRandomAccessFileReaderPtr reader);
 
     void SortEntries();
 
@@ -206,21 +206,23 @@ class TFile
 {
 public:
     DEFINE_BYREF_RO_PROPERTY_NO_INIT_OVERRIDE(TString, Name);
-    DEFINE_BYVAL_RO_PROPERTY_NO_INIT(TYPath, Path);
+    DEFINE_BYVAL_RO_PROPERTY_NO_INIT(TString, Path);
     DEFINE_BYVAL_RO_PROPERTY_NO_INIT(i64, Size);
     DEFINE_BYVAL_RO_PROPERTY_NO_INIT_OVERRIDE(ui16, Permissions);
     DEFINE_BYVAL_RO_PROPERTY_NO_INIT_OVERRIDE(ui32, Uid);
     DEFINE_BYVAL_RO_PROPERTY_NO_INIT_OVERRIDE(ui32, Gid);
     DEFINE_BYVAL_RO_PROPERTY_NO_INIT_OVERRIDE(ui32, MTime);
+    DEFINE_BYVAL_RO_PROPERTY_NO_INIT(IRandomAccessFileReaderPtr, Reader);
+
 public:
     TFile(
         TString name,
-        TYPath path,
-        i64 size,
+        TString path,
         ui16 permissions,
         ui32 uid,
         ui32 gid,
-        ui32 mTime);
+        ui32 mTime,
+        IRandomAccessFileReaderPtr reader);
 
     TInodePtr GetInode() const override;
     TFileInodePtr GetFileInode() const;
@@ -243,9 +245,9 @@ public:
     explicit TSquashFSLayoutBuilder(TSquashFSLayoutBuilderOptions options);
 
     void AddFile(
-        const TYPath& path,
-        i64 size,
-        ui16 permissions) override;
+        TString path,
+        ui16 permissions,
+        IRandomAccessFileReaderPtr reader) override;
     TSquashFSLayoutPtr Build() override;
 
 private:
@@ -399,14 +401,14 @@ private:
 
         i64 GetSize() const;
 
-        void Dump(std::vector<TArtifactDescription>& files);
+        void Dump(std::vector<IRandomAccessFileReaderPtr>& readers);
 
         void Reset();
 
     private:
         ui32 BlockSize_;
         i64 CurrentOffset_;
-        std::vector<TArtifactDescription> Files_;
+        std::vector<IRandomAccessFileReaderPtr> Readers_;
     };
 
     TInodeTable InodeTable_;
@@ -469,10 +471,14 @@ TSquashFSLayout::TSquashFSLayout(TSquashFSData data)
 {
     i64 offset = std::ssize(Head_);
 
-    for (auto& file : data.Files) {
-        file.Offset = offset;
-        offset += file.Size;
-        Files_.push_back(std::move(file));
+    for (auto& reader : data.Readers) {
+        i64 size = reader->GetSize();
+        Parts_.push_back({
+            .Offset = offset,
+            .Size = size,
+            .Reader = std::move(reader)
+        });
+        offset += size;
     }
 
     TailOffset_ = offset;
@@ -538,29 +544,30 @@ i64 TSquashFSLayout::GetTailSize() const
     return std::ssize(Tail_);
 }
 
+const std::vector<TSquashFSLayout::TPart>& TSquashFSLayout::GetParts() const
+{
+    return Parts_;
+}
+
 void TSquashFSLayout::Dump(IOutputStream& output) const
 {
-    i64 offset = 0;
-
     output.Write(
         Head_.Begin(),
         std::ssize(Head_));
-    offset += std::ssize(Head_);
 
-    for (auto file : Files_) {
-        for (i64 i = 0; i < file.Size; ++i) {
-            output.Write(0);
-        }
-
-        offset += file.Size;
+    for (auto part : Parts_) {
+        auto ref = WaitFor(part.Reader->Read(0, part.Size))
+            .ValueOrThrow("Failed to read part");
+        output.Write(
+            ref.Begin(),
+            std::ssize(ref));
     }
 
     output.Write(
         Tail_.Begin(),
         std::ssize(Tail_));
-    offset += std::ssize(Tail_);
 
-    for (auto i = offset; i < Size_; ++i) {
+    for (auto i = TailOffset_ + std::ssize(Tail_); i < Size_; ++i) {
         output.Write(0);
     }
 }
@@ -596,13 +603,6 @@ void TSquashFSLayout::DumpHexText(IOutputStream& output) const
             output.Write(' ');
         }
     }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-ISquashFSLayoutBuilderPtr CreateSquashFSLayoutBuilder(TSquashFSLayoutBuilderOptions options)
-{
-   return New<TSquashFSLayoutBuilder>(options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -665,9 +665,9 @@ TDirectoryPtr TDirectory::CreateDirectory(const TString& name)
 
 void TDirectory::CreateFile(
     const TString& name,
-    const TYPath& path,
-    i64 size,
-    ui16 permissions)
+    const TString& path,
+    ui16 permissions,
+    IRandomAccessFileReaderPtr reader)
 {
     auto entry = GetEntry(name);
     if (entry) {
@@ -684,11 +684,11 @@ void TDirectory::CreateFile(
     auto newFile = New<TFile>(
         name,
         path,
-        size,
         permissions,
         Uid_,
         Gid_,
-        MTime_);
+        MTime_,
+        std::move(reader));
     Entries_.push_back(newFile);
 }
 
@@ -719,19 +719,20 @@ IEntryPtr TDirectory::GetEntry(const TString& name) const
 
 TFile::TFile(
     TString name,
-    TYPath path,
-    i64 size,
+    TString path,
     ui16 permissions,
     ui32 uid,
     ui32 gid,
-    ui32 mTime)
-    : Name_(name)
+    ui32 mTime,
+    IRandomAccessFileReaderPtr reader)
+    : Name_(std::move(name))
     , Path_(std::move(path))
-    , Size_(size)
+    , Size_(reader->GetSize())
     , Permissions_(permissions)
     , Uid_(uid)
     , Gid_(gid)
     , MTime_(mTime)
+    , Reader_(std::move(reader))
 { }
 
 TInodePtr TFile::GetInode() const
@@ -781,9 +782,9 @@ TSquashFSLayoutBuilder::TSquashFSLayoutBuilder(TSquashFSLayoutBuilderOptions opt
 }
 
 void TSquashFSLayoutBuilder::AddFile(
-    const TYPath& path,
-    i64 size,
-    ui16 permissions)
+    TString path,
+    ui16 permissions,
+    IRandomAccessFileReaderPtr reader)
 {
     auto splittedPath = StringSplitter(path).Split('/').ToList<TString>();
 
@@ -819,9 +820,9 @@ void TSquashFSLayoutBuilder::AddFile(
     validateName(splittedPath.back());
     currentDirectory->CreateFile(
         splittedPath.back(),
-        path,
-        size,
-        permissions);
+        std::move(path),
+        permissions,
+        std::move(reader));
 }
 
 TSquashFSLayoutPtr TSquashFSLayoutBuilder::Build()
@@ -845,7 +846,7 @@ TSquashFSLayoutPtr TSquashFSLayoutBuilder::Build()
     // Dump result.
     TSquashFSData data;
     DumpSuperblock(superblock, data.Head);
-    DataBlocks_.Dump(data.Files);
+    DataBlocks_.Dump(data.Readers);
     InodeTable_.Dump(data.Tail);
     DirectoryTable_.Dump(data.Tail);
     IdTable_.Dump(data.Tail, superblock.InodeTable);
@@ -1376,11 +1377,7 @@ void TSquashFSLayoutBuilder::TDataBlocks::AddFile(const TFilePtr& file)
         i += currentBlockSize;
     }
 
-    Files_.push_back({
-        .Path = file->GetPath(),
-        .Size = static_cast<i64>(file->GetSize()),
-        .Offset = static_cast<i64>(CurrentOffset_)
-    });
+    Readers_.push_back(file->GetReader());
     CurrentOffset_ += size;
 }
 
@@ -1389,15 +1386,22 @@ i64 TSquashFSLayoutBuilder::TDataBlocks::GetSize() const
     return CurrentOffset_;
 }
 
-void TSquashFSLayoutBuilder::TDataBlocks::Dump(std::vector<TArtifactDescription>& files)
+void TSquashFSLayoutBuilder::TDataBlocks::Dump(std::vector<IRandomAccessFileReaderPtr>& readers)
 {
-    files = std::move(Files_);
+    readers = std::move(Readers_);
 }
 
 void TSquashFSLayoutBuilder::TDataBlocks::Reset()
 {
     CurrentOffset_ = 0;
-    Files_.clear();
+    Readers_.clear();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISquashFSLayoutBuilderPtr CreateSquashFSLayoutBuilder(TSquashFSLayoutBuilderOptions options)
+{
+   return New<TSquashFSLayoutBuilder>(options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

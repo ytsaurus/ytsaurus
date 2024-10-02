@@ -57,6 +57,8 @@ struct TArtifact
     bool CopyFile;
     NDataNode::TArtifactKey Key;
     NDataNode::IChunkPtr Chunk;
+    bool AccessedViaBind = false;
+    bool AccessedViaVirtualSandbox = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -348,6 +350,8 @@ private:
     std::vector<NDataNode::TArtifactKey> LayerArtifactKeys_;
     std::optional<TString> DockerImage_;
 
+    std::optional<TVirtualSandboxData> VirtualSandboxData_;
+
     //! Artifact name -> index of the artifact in #Artifacts_ list.
     THashMap<TString, int> UserArtifactNameToIndex_;
 
@@ -500,6 +504,9 @@ private:
 
     void PrepareSandboxDirectories();
 
+    bool CanBeAccessedViaBind(const TArtifact& artifact) const;
+    bool CanBeAccessedViaVirtualSandbox(const TArtifact& artifact) const;
+
     // Build artifacts.
     void InitializeArtifacts();
 
@@ -514,6 +521,8 @@ private:
     static TError BuildJobProxyError(const TError& spawnError);
 
     NContainers::NCri::TCriAuthConfigPtr BuildDockerAuthConfig();
+
+    void BuildVirtualSandbox();
 
     TUserSandboxOptions BuildUserSandboxOptions();
 
