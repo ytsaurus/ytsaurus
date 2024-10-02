@@ -27,6 +27,7 @@ import calendar
 import datetime
 import traceback
 
+
 app = Flask("yt_odin_webservice")
 
 DB_TABLE_CLIENT = None
@@ -135,6 +136,20 @@ def create_solomon_timed_out_sensors(records):
     return sensors
 
 
+def get_prometheus_metric_line(
+        metric_name: str, metric_value: float, timestamp: int | None, labels: dict[str, str] | None = None
+):
+    label_str = "{" + ",".join(f"{k}=\"{v}\"" for k, v in labels.items()) + "}" if labels else ""
+    result_parts = [
+        f"{metric_name}{label_str}",
+        str(metric_value),
+    ]
+    if timestamp is not None:
+        result_parts.append(f"{timestamp}000")
+    result_parts.append("\n")
+    return " ".join(result_parts)
+
+
 @app.route("/solomon")
 def solomon_duration():
     # NB: we assume `now` is a UTC datetime.
@@ -149,6 +164,34 @@ def solomon_duration():
     duration_sensors = create_solomon_duration_sensors(db_records)
     timed_out_sensors = create_solomon_timed_out_sensors(db_records)
     return jsonify({"sensors": duration_sensors + timed_out_sensors})
+
+
+@app.route("/prometheus")
+def prometheus():
+    # https://github.com/prometheus/docs/blob/main/content/docs/instrumenting/exposition_formats.md
+    # https://prometheus.io/docs/prometheus/latest/configuration/configuration/#scrape_config
+    now = datetime.datetime.now(datetime.timezone.utc)
+    # `period` is the number of seconds (from now) for which we will request data.
+    period = datetime.timedelta(seconds=int(request.args.get("period", 90)))
+    start_timestamp = int((now - period).timestamp())
+    stop_timestamp = int(now.timestamp())
+    db_records = extract_all_records(start_timestamp, stop_timestamp)
+
+    last_records_per_service = {}
+    for record in db_records:
+        if (
+                record.service not in last_records_per_service
+                or last_records_per_service[record.service].timestamp < record.timestamp
+        ):
+            last_records_per_service[record.service] = record
+
+    return "".join(
+        get_prometheus_metric_line(
+            service, record.state, record.timestamp,
+            {"sensor": "state", "cluster": record.cluster},
+        )
+        for service, record in last_records_per_service.items()
+    )
 
 
 @app.route("/exists/<string:cluster>")
