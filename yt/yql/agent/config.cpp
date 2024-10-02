@@ -264,7 +264,7 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_dq", &TThis::EnableDq)
         .Default(false);
     registrar.Parameter("libraries", &TThis::Libraries)
-        .Default(GetEphemeralNodeFactory()->CreateMap())
+        .Default({})
         .ResetOnLoad();
 
     registrar.Postprocessor([=] (TThis* config) {

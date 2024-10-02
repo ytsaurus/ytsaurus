@@ -129,7 +129,7 @@ public:
 
     NYTree::INodePtr OperationAttributes;
 
-    NYTree::INodePtr Libraries;
+    THashMap<TString, TString> Libraries;
 
     TString YTTokenPath;
 
