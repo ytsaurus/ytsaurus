@@ -25,7 +25,7 @@ TAG(
 IF (SANITIZER_TYPE)
     REQUIREMENTS(
         sb_vault:YT_TOKEN=value:ignat:robot-yt-test-token
-        cpu:14
+        cpu:16
         ram:32
         ram_disk:4
     )
