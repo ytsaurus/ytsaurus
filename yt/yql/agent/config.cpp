@@ -264,8 +264,7 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_dq", &TThis::EnableDq)
         .Default(false);
     registrar.Parameter("libraries", &TThis::Libraries)
-        .Default({})
-        .ResetOnLoad();
+        .Default();
 
     registrar.Postprocessor([=] (TThis* config) {
         auto gatewayConfig = config->GatewayConfig->AsMap();
