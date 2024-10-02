@@ -129,6 +129,8 @@ public:
 
     NYTree::INodePtr OperationAttributes;
 
+    NYTree::INodePtr Libraries;
+
     TString YTTokenPath;
 
     //! Path to libyqlplugin.so. Ignored when built with -DYQL_NATIVE=yes.
