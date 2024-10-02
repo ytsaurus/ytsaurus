@@ -1,7 +1,7 @@
 {
-	"Version": "v5.0.12",
+	"Version": "v5.1.0",
 	"GoVersion": "1.14",
-	"Sum": "h1:9euLV5sTrTNTRUU9POmDUvfxyj6LAABLUcEWO+JJb4s=",
+	"Sum": "h1:acVI1TYaD+hhedDJ3r54HyA6sExp3HfXq7QWEEY/xMw=",
 	"Packages": {
 		"github.com/go-chi/chi/v5": {
 			"Imports": [
@@ -24,6 +24,7 @@
 				"net",
 				"net/http",
 				"net/http/httptest",
+				"strings",
 				"sync",
 				"testing",
 				"time"
