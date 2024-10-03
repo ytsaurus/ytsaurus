@@ -10,7 +10,7 @@ export IMAGE=ghcr.io/ytsaurus/query-tracker-nightly:dev-2024-07-13-a4d9cf4306665
 mkdir ~/qt
 cd ~/qt
 docker pull $IMAGE
-ID=$(docker create $IMAGE)
+ID=$(docker create $IMAGE false)
 docker export $ID -o image.tar
 docker rm $ID
 ```
