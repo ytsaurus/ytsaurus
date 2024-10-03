@@ -386,7 +386,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("use_followers_for_write_targets_allocation", &TThis::UseFollowersForWriteTargetsAllocation)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("tvm_id", &TThis::TvmId)
         .Default();
