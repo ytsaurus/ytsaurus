@@ -933,16 +933,17 @@ std::optional<TGetJobStderrResponse> TClient::DoGetJobStderrFromNode(
         Logger);
 
     if (!rspOrError.IsOK()) {
-        if (IsNoSuchJobOrOperationError(rspOrError) ||
-            rspOrError.FindMatching(NJobProberClient::EErrorCode::JobIsNotRunning))
+        if (!IsNoSuchJobOrOperationError(rspOrError) &&
+            !rspOrError.FindMatching(NJobProberClient::EErrorCode::JobIsNotRunning))
         {
-            return {};
+            YT_LOG_WARNING(rspOrError, "Failed to get job stderr from job proxy (OperationId: %v, JobId: %v)",
+                operationId,
+                jobId);
         }
-        THROW_ERROR_EXCEPTION("Failed to get job stderr from job proxy")
-            << TErrorAttribute("operation_id", operationId)
-            << TErrorAttribute("job_id", jobId)
-            << std::move(rspOrError);
+
+        return {};
     }
+
     auto rsp = rspOrError.Value();
     return TGetJobStderrResponse{
         .Data = TSharedRef::FromString(rsp->stderr_data()),
