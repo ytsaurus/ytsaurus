@@ -83,4 +83,4 @@ fi
 
 # Copy all shared libraries to a single directory
 mkdir -p ${YQL_BUILD_PATH}/yql_shared_libraries/yql
-find ${YQL_BUILD_PATH} -name 'lib*.so' -print0 | xargs -0 -I '{}' cp '{}' ${YQL_BUILD_PATH}/yql_shared_libraries/yql
+find ${YQL_BUILD_PATH} -name 'lib*.so' -print0 | xargs -0 -I '{}' cp -n '{}' ${YQL_BUILD_PATH}/yql_shared_libraries/yql
