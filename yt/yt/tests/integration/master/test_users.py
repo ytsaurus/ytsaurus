@@ -13,14 +13,12 @@ from yt_commands import (
 
 import yt_error_codes
 
-from yt_helpers import profiler_factory, deferred
+from yt_helpers import profiler_factory
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 
 from yt.yson import YsonBoolean, YsonEntity
-
-from contextlib import contextmanager
 
 import pytest
 import builtins
@@ -839,13 +837,8 @@ class TestRequestThrottling(YTEnvSetup):
 
     @staticmethod
     def _prepare_write_request_throttling_parameters(user):
-        cypress_limit_path = f"//sys/users/{user}/@write_request_rate_limit"
-        old_limit = get(cypress_limit_path)
-
         return {
-            "cypress_limit_path": cypress_limit_path,
-            "throttling_limit": 1,
-            "throttling_limit_reset_function": lambda: set(cypress_limit_path, old_limit),
+            "set_limit_function": lambda: set(f"//sys/users/{user}/@write_request_rate_limit", 1),
             "make_batch_request_function": lambda i: make_batch_request("create", type="map_node", path=f"//tmp/alice-{i:02d}"),
             "request_count": 10,
             # Very conservative, this ratio was closer to 100 in local runs.
@@ -856,16 +849,11 @@ class TestRequestThrottling(YTEnvSetup):
 
     @staticmethod
     def _prepare_read_request_throttling_parameters(user):
-        cypress_limit_path = f"//sys/users/{user}/@read_request_rate_limit"
-        old_limit = get(cypress_limit_path)
-
         create("map_node", "//tmp/read_me")
 
         return {
-            "cypress_limit_path": cypress_limit_path,
-            "throttling_limit": 1,
-            "throttling_limit_reset_function": lambda: set(cypress_limit_path, old_limit),
-            "make_batch_request_function": lambda _: make_batch_request("get", path=f"//tmp/read_me/@owner"),
+            "set_limit_function": lambda: set(f"//sys/users/{user}/@read_request_rate_limit", 1),
+            "make_batch_request_function": lambda _: make_batch_request("get", path="//tmp/read_me/@owner"),
             "request_count": 10,
             # Very conservative, this ratio was closer to 100 (or more) in local runs.
             "throttled_to_non_throttled_ratio_threshold": 5,
@@ -875,12 +863,24 @@ class TestRequestThrottling(YTEnvSetup):
 
     @staticmethod
     def _prepare_automaton_request_throttling_parameters(_):
-        cypress_limit_path = "//sys/@config/object_service/local_write_request_throttler/limit"
+        return {
+            "set_limit_function": lambda: set("//sys/@config/object_service/local_write_request_throttler/limit", 1),
+            "make_batch_request_function": lambda i: make_batch_request("create", type="map_node", path=f"//tmp/alice-{i:02d}"),
+            "request_count": 10,
+            # Very conservative, this ratio was closer to 100 in local runs.
+            "throttled_to_non_throttled_ratio_threshold": 5,
+            # The throttled execution time should be close to 10 seconds, but let's be generous.
+            "throttled_batch_execution_time_lower_bound": 5.0,
+        }
+
+    @staticmethod
+    def _prepare_automaton_and_write_request_throttling_parameters(user):
+        def set_limit():
+            set("//sys/@config/object_service/local_write_request_throttler/limit", 1)
+            set(f"//sys/users/{user}/@write_request_rate_limit", 1)
 
         return {
-            "cypress_limit_path": cypress_limit_path,
-            "throttling_limit": 1,
-            "throttling_limit_reset_function": lambda: remove(cypress_limit_path),
+            "set_limit_function": set_limit,
             "make_batch_request_function": lambda i: make_batch_request("create", type="map_node", path=f"//tmp/alice-{i:02d}"),
             "request_count": 10,
             # Very conservative, this ratio was closer to 100 in local runs.
@@ -894,10 +894,13 @@ class TestRequestThrottling(YTEnvSetup):
         _prepare_write_request_throttling_parameters,
         _prepare_read_request_throttling_parameters,
         _prepare_automaton_request_throttling_parameters,
+        _prepare_automaton_and_write_request_throttling_parameters,
     ])
     def test_request_throttling(self, prepare_test_parameters):
         user = "alice"
         create_user(user)
+
+        print_debug("Performing run without master user throttling")
 
         params = prepare_test_parameters(user)
 
@@ -911,16 +914,17 @@ class TestRequestThrottling(YTEnvSetup):
 
         throttled_batch_execution_time = 0
 
-        with deferred(params["throttling_limit_reset_function"]):
-            set(params["cypress_limit_path"], params["throttling_limit"])
+        print_debug("Performing run with master user throttling")
 
-            start_time = time.time()
+        params["set_limit_function"]()
 
-            request_results = execute_batch([params["make_batch_request_function"](i + params["request_count"]) for i in range(params["request_count"])], authenticated_user=user)
-            for request_result in request_results:
-                raise_batch_error(request_result)
+        start_time = time.time()
 
-            throttled_batch_execution_time = time.time() - start_time
+        request_results = execute_batch([params["make_batch_request_function"](i + params["request_count"]) for i in range(params["request_count"])], authenticated_user=user)
+        for request_result in request_results:
+            raise_batch_error(request_result)
+
+        throttled_batch_execution_time = time.time() - start_time
 
         # This assertion depends on how fast requests are executed without throttling.
         # You can tweak this constant if the test turns out to be flaky, but in this case I would
@@ -947,12 +951,11 @@ class TestRequestThrottling(YTEnvSetup):
 
         start_time = time.time()
 
-        with deferred(lambda: remove(local_write_request_throttler_limit_path)):
-            create_results = execute_batch([make_batch_request("get", path=f"//tmp/read_me/@owner") for i in range(request_count)], authenticated_user="alice")
-            for create_result in create_results:
-                raise_batch_error(create_result)
+        create_results = execute_batch([make_batch_request("get", path="//tmp/read_me/@owner") for i in range(request_count)], authenticated_user="alice")
+        for create_result in create_results:
+            raise_batch_error(create_result)
 
-            no_throttling_batch_execution_time = time.time() - start_time
+        no_throttling_batch_execution_time = time.time() - start_time
 
         # This is also a very generous threshold compared to my local runs.
         # Do not change without some investigation.

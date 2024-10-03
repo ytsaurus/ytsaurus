@@ -1585,61 +1585,53 @@ private:
         return true;
     }
 
-    bool ThrottleRequests()
+    template <EExecutionSessionSubrequestType SubrequestType, EUserWorkloadType WorkloadType>
+    bool DoThrottleRequest(int* currentSubrequestIndex, int* throttledSubrequestIndex)
     {
-        auto doThrottle = [&] (
-            int* currentSubrequestIndex,
-            int* throttledSubrequestIndex,
-            EExecutionSessionSubrequestType subrequestType,
-            EUserWorkloadType workloadType)
-        {
-            while (*throttledSubrequestIndex < *currentSubrequestIndex && *currentSubrequestIndex < TotalSubrequestCount_) {
-                auto subrequestIndex = ++(*throttledSubrequestIndex);
-                if (Subrequests_[subrequestIndex].Type != subrequestType) {
-                    continue;
-                }
+        while (*throttledSubrequestIndex < *currentSubrequestIndex && *currentSubrequestIndex < TotalSubrequestCount_) {
+            auto subrequestIndex = ++(*throttledSubrequestIndex);
+            if (Subrequests_[subrequestIndex].Type != SubrequestType) {
+                continue;
+            }
 
-                const auto& securityManager = Bootstrap_->GetSecurityManager();
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
 
-                auto automatonThrottlerFuture = VoidFuture;
-                if (subrequestType == EExecutionSessionSubrequestType::LocalWrite && User_.Get() != securityManager->GetRootUser()) {
-                    automatonThrottlerFuture = Owner_->LocalWriteRequestThrottler_->Throttle(1);
-                }
+            auto throttlerFuture = securityManager->ThrottleUser(User_.Get(), 1, WorkloadType);;
 
-                // NB: This callback may be executed in an arbitrary thread.
-                auto throttlingResult = automatonThrottlerFuture.Apply(
-                    BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this), user = User_.Get()] {
-                        const auto& securityManager = Bootstrap_->GetSecurityManager();
-                        return securityManager->ThrottleUser(user, 1, workloadType);
-                    }));
-
-                if (!WaitForAndContinue(throttlingResult)) {
-                    YT_LOG_DEBUG("Throttling subrequest (User: %v, SubrequestIndex: %v, SubrequestType: %v, WorkloadType: %v)",
-                        User_->GetName(),
-                        subrequestIndex,
-                        subrequestType,
-                        workloadType);
-                    return false;
+            if constexpr (SubrequestType == EExecutionSessionSubrequestType::LocalWrite) {
+                if (User_.Get() != securityManager->GetRootUser()) {
+                    throttlerFuture = throttlerFuture.Apply(
+                        BIND_NO_PROPAGATE([localWriteThrottlerFuture = Owner_->LocalWriteRequestThrottler_->Throttle(1)] {
+                            return localWriteThrottlerFuture;
+                        }));
                 }
             }
 
-            return true;
-        };
+            if (!WaitForAndContinue(throttlerFuture)) {
+                YT_LOG_DEBUG("Throttling subrequest (User: %v, SubrequestIndex: %v, SubrequestType: %v, WorkloadType: %v)",
+                    User_->GetName(),
+                    subrequestIndex,
+                    SubrequestType,
+                    WorkloadType);
+                return false;
+            }
+        }
 
-        if (!doThrottle(
+        return true;
+    }
+
+    bool ThrottleRequests()
+    {
+        if (!DoThrottleRequest<EExecutionSessionSubrequestType::LocalWrite, EUserWorkloadType::Write>(
             &CurrentAutomatonSubrequestIndex_,
-            &ThrottledAutomatonSubrequestIndex_,
-            EExecutionSessionSubrequestType::LocalWrite,
-            EUserWorkloadType::Write))
+            &ThrottledAutomatonSubrequestIndex_))
         {
             return false;
         }
 
-        if (!doThrottle(
+        if (!DoThrottleRequest<EExecutionSessionSubrequestType::LocalRead, EUserWorkloadType::Read>(
             &CurrentLocalReadSubrequestIndex_,
-            &ThrottledLocalReadSubrequestIndex_,
-            EExecutionSessionSubrequestType::LocalRead,
-            EUserWorkloadType::Read))
+            &ThrottledLocalReadSubrequestIndex_))
         {
             return false;
         }

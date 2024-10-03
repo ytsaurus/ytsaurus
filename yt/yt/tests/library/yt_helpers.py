@@ -7,7 +7,6 @@ import yt.yson as yson
 from yt.wrapper import YtClient
 
 from collections import defaultdict
-from contextlib import contextmanager
 from datetime import datetime
 from dateutil import parser
 from dateutil.tz import tzlocal
@@ -266,11 +265,3 @@ def master_exit_read_only_sync(driver=None):
 
 def wait_until_unlocked(path, driver=None):
     wait(lambda: get(path + "/@lock_count", driver=driver) == 0)
-
-
-@contextmanager
-def deferred(function, *args, **kwargs):
-    try:
-        yield
-    finally:
-        function(*args, **kwargs)
