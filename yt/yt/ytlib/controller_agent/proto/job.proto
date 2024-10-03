@@ -475,6 +475,8 @@ message TJobSpecExt
     optional bool enable_virtual_sandbox = 41 [default = false];
     optional bool ignore_yt_variables_in_shell_environment = 42 [default = false];
 
+    optional bool enable_root_volume_disk_quota = 43 [default = false];
+
     reserved 8, 28;
 }
 

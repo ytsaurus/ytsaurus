@@ -4659,6 +4659,8 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
         jobSpecExt->set_enable_codegen_comparator(Spec_->EnableCodegenComparator);
     }
 
+    jobSpecExt->set_enable_root_volume_disk_quota(Spec_->EnableRootVolumeDiskQuota);
+
     jobSpecExt->set_enable_virtual_sandbox(Spec_->EnableVirtualSandbox);
 
     if (OutputTransaction) {

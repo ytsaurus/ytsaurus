@@ -1123,6 +1123,10 @@ public:
     //! Currently used by simple sort job and partition sort job.
     bool EnableCodegenComparator;
 
+    //! Enable root volume disk quota.
+    //! Apply the quota to the entire RootFs instead of the sandbox and tmp folders individually.
+    bool EnableRootVolumeDiskQuota;
+
     //! Enable virtual sandbox.
     //! Allow access to all immutable files via NBD.
     bool EnableVirtualSandbox;

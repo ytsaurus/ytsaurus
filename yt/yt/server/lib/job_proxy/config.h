@@ -469,6 +469,8 @@ public:
     std::optional<int> OperationsArchiveVersion;
     TDuration PipeReaderTimeoutThreshold;
 
+    bool EnableRootVolumeDiskQuota;
+
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
 
     static void Register(TRegistrar registrar);
