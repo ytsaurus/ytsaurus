@@ -588,6 +588,13 @@ void TAllocation::OnJobFinished(TJobPtr job)
     auto settlementNewJobOnJobAbortRequested = SettlementNewJobOnAbortRequested_.Consume();
 
     auto settleNewJob = [&] {
+        if (Preempted_) {
+            YT_LOG_INFO(
+                "Job finished and allocation is preempted, completing allocation (JobId: %v)",
+                job->GetId());
+            return false;
+        }
+
         if (GetConfig()->EnableMultipleJobs && job->GetState() == EJobState::Completed) {
             YT_LOG_INFO(
                 "Job completed and multiple jobs in allocation enabled, waiting for storing and clenup job to settle new one (JobId: %v)",
@@ -627,6 +634,16 @@ void TAllocation::OnJobFinished(TJobPtr job)
                     YT_LOG_INFO(
                         "Controller agent requested to settle job but allocation is already finished, settling job skipped (JobId: %v)",
                         jobId);
+                    return;
+                }
+
+                if (Preempted_) {
+                    YT_LOG_INFO(
+                        "Controller agent requested to settle job but allocation is preempted, settling job skipped (JobId: %v)",
+                        jobId);
+
+                    Complete();
+
                     return;
                 }
 

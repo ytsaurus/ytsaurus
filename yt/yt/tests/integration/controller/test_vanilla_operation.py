@@ -831,6 +831,10 @@ class TestGangManager(YTEnvSetup):
 
         return incarnation_id
 
+    def _get_job_tracker_orchid_path(self, op):
+        controller_agent_address = op.get_controller_agent_address()
+        return f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker"
+
     @authors("pogorelov")
     def test_restart_on_abortion(self):
         restarted_job_profiler = JobCountProfiler(
@@ -1155,6 +1159,7 @@ class TestGangManager(YTEnvSetup):
         create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
 
         sleeping_op = run_sleeping_vanilla(spec={"pool": "test_pool"}, job_count=(3 - jobs_were_scheduled))
+        wait(lambda: len(get(self._get_job_tracker_orchid_path(sleeping_op) + f"/operations/{sleeping_op.id}/allocations")) == 3 - jobs_were_scheduled)
 
         # Will not start jobs while sleeping_op is running.
         op = run_test_vanilla(
@@ -1166,13 +1171,10 @@ class TestGangManager(YTEnvSetup):
 
         first_incarnation_id = self._get_operation_incarnation(op)
 
-        controller_agent_address = op.get_controller_agent_address()
-        job_tracker_operation_orchid_path = f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker"
-
         if jobs_were_scheduled:
-            wait(lambda: len(get(job_tracker_operation_orchid_path + f"/operations/{op.id}/allocations")) == jobs_were_scheduled)
+            wait(lambda: len(get(self._get_job_tracker_orchid_path(op) + f"/operations/{op.id}/allocations")) == jobs_were_scheduled)
         else:
-            assert len(get(job_tracker_operation_orchid_path + f"/operations/{op.id}/allocations")) == 0
+            assert len(get(self._get_job_tracker_orchid_path(op) + f"/operations/{op.id}/allocations")) == 0
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             sleeping_op.abort()
