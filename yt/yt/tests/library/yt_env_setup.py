@@ -639,7 +639,7 @@ class YTEnvSetup(object):
             use_porto_for_servers=cls.USE_PORTO,
             jobs_environment_type="porto" if cls.USE_PORTO else cls.JOB_ENVIRONMENT_TYPE,
             use_slot_user_id=use_slot_user_id,
-            use_native_client=True,
+            native_client_supported=True,
             master_count=cls.get_param("NUM_MASTERS", index),
             nonvoting_master_count=cls.get_param("NUM_NONVOTING_MASTERS", index),
             secondary_cell_count=secondary_cell_count,

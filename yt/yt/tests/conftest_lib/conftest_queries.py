@@ -20,7 +20,7 @@ class QueryTracker:
     def __init__(self, env, count):
         sync_create_cells(1)
         self.query_tracker = QueryTrackerComponent()
-        self.query_tracker.prepare(env, config={"count": count, "use_native_client": True})
+        self.query_tracker.prepare(env, config={"count": count, "native_client_supported": True})
 
     def __enter__(self):
         self.query_tracker.run()

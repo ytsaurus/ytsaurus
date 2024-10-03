@@ -34,7 +34,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
 
         super(YqlAgent, self).prepare(env, config)
 
-        if config.get("use_native_client", False):
+        if config.get("native_client_supported", False):
             self.client = env.create_native_client()
         else:
             self.client = env.create_client()
