@@ -211,11 +211,12 @@ func (r *Registry) newSubregistry(prefix string, tags map[string]string) *Regist
 	}
 
 	subregistry := &Registry{
-		separator:  r.separator,
-		prefix:     prefix,
-		tags:       tags,
-		rated:      r.rated,
-		useNameTag: r.useNameTag,
+		separator:    r.separator,
+		prefix:       prefix,
+		tags:         tags,
+		rated:        r.rated,
+		useNameTag:   r.useNameTag,
+		streamFormat: r.streamFormat,
 
 		subregistries: r.subregistries,
 		m:             r.m,
