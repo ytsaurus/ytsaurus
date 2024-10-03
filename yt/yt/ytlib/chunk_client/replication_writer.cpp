@@ -559,6 +559,7 @@ private:
         }
 
         if (CurrentGroup_ && CurrentGroup_->GetSize() > 0) {
+            CurrentGroup_->SetCumulativeBlockSize(CumulativeBlockSize_);
             FlushCurrentGroup();
         }
 
