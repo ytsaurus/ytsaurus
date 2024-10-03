@@ -749,6 +749,8 @@ TJobletPtr TVanillaController::CreateJoblet(
 
 void TVanillaController::UpdateConfig(const TControllerAgentConfigPtr& config)
 {
+    TOperationControllerBase::UpdateConfig(config);
+
     GangManager_.UpdateConfig(config->VanillaOperationOptions);
 }
 
