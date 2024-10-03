@@ -13,7 +13,7 @@ INCLUDE(../YaMakeDependsBoilerplate.txt)
 IF (SANITIZER_TYPE)
     REQUIREMENTS(
         cpu:46
-        ram:66
+        ram:70
         ram_disk:12
     )
 ELSE()
