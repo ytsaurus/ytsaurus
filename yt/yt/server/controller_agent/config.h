@@ -573,6 +573,20 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGangManagerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool Enabled;
+
+    REGISTER_YSON_STRUCT(TGangManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DECLARE_REFCOUNTED_CLASS(TGangManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TGangManagerConfig)
+
 class TVanillaOperationOptions
     : public TOperationOptions
 {
@@ -582,6 +596,8 @@ public:
 
     //! Maximum total number of jobs.
     int MaxTotalJobCount;
+
+    TGangManagerConfigPtr GangManager;
 
     REGISTER_YSON_STRUCT(TVanillaOperationOptions);
 

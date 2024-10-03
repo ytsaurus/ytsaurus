@@ -1603,6 +1603,11 @@ class Operation(object):
             controller_agent, self.id
         )
 
+    def get_controller_agent_address(self):
+        path = self.get_path() + "/@controller_agent_address"
+        wait(lambda: exists(path, driver=self._driver))
+        return get(path, driver=self._driver)
+
     def lookup_in_archive(self):
         id_hi, id_lo = uuid_to_parts(self.id)
         rows = lookup_rows("//sys/operations_archive/ordered_by_id", [{"id_hi": id_hi, "id_lo": id_lo}], driver=self._driver)

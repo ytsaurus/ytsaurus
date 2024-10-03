@@ -180,6 +180,8 @@ public:
 
     void PrepareResourcesRelease() noexcept;
 
+    EResourcesState GetState() const noexcept;
+
 private:
     const TGuid Id_;
 

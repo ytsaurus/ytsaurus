@@ -273,9 +273,10 @@ void TOperationControllerHost::ReleaseJobs(std::vector<TJobToRelease> jobsToRele
 
 void TOperationControllerHost::AbortJob(
     TJobId jobId,
-    NScheduler::EAbortReason abortReason)
+    NScheduler::EAbortReason abortReason,
+    bool requestNewJob)
 {
-    JobTrackerOperationHandler_->RequestJobAbortion(jobId, abortReason);
+    JobTrackerOperationHandler_->RequestJobAbortion(jobId, abortReason, requestNewJob);
 }
 
 std::optional<TJobMonitoringDescriptor> TOperationControllerHost::TryAcquireJobMonitoringDescriptor(TOperationId operationId)

@@ -171,7 +171,8 @@ struct IOperationControllerHost
     virtual void ReleaseJobs(std::vector<TJobToRelease> jobs) = 0;
     virtual void AbortJob(
         TJobId jobId,
-        NScheduler::EAbortReason abortReason) = 0;
+        NScheduler::EAbortReason abortReason,
+        bool requestNewJob) = 0;
 
     //! Registers job for monitoring.
     //!

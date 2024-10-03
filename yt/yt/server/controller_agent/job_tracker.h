@@ -204,7 +204,7 @@ private:
     struct TNodeJobs
     {
         THashMap<TJobId, TReleaseJobFlags> JobsToRelease;
-        THashMap<TJobId, EAbortReason> JobsToAbort;
+        THashMap<TJobId, TJobToAbort> JobsToAbort;
 
         THashMap<TAllocationId, TAllocationInfo> Allocations;
 
@@ -404,8 +404,11 @@ private:
         TOperationId operationId,
         const std::vector<TJobToRelease>& jobs);
 
-    void RequestJobAbortion(TJobId jobId, TOperationId operationId, EAbortReason reason);
-
+    void RequestJobAbortion(
+        TJobId jobId,
+        TOperationId operationId,
+        EAbortReason reason,
+        bool requestNewJob);
 
     [[nodiscard]] std::optional<TAllocationInfo>
     EraseAllocationIfNeeded(
@@ -527,7 +530,8 @@ public:
 
     void RequestJobAbortion(
         TJobId jobId,
-        EAbortReason reason);
+        EAbortReason reason,
+        bool requestNewJob);
     void RequestJobInterruption(
         TJobId jobId,
         EInterruptReason reason,

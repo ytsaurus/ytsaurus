@@ -495,12 +495,20 @@ void TRemoteCopyOperationOptions::Register(TRegistrar registrar)
         .Default();
 }
 
+void TGangManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(true);
+}
+
 void TVanillaOperationOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_task_count", &TThis::MaxTaskCount)
         .Default(100);
     registrar.Parameter("max_total_job_count", &TThis::MaxTotalJobCount)
         .Default(100 * 1000);
+    registrar.Parameter("gang_manager", &TThis::GangManager)
+        .DefaultNew();
 }
 
 void TZombieOperationOrchidsConfig::Register(TRegistrar registrar)

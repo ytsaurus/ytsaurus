@@ -57,6 +57,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((BumpTo_24_2)                          (301600))
     ((DropLegacyWirePartitionKeys)          (301601))
     ((VersionedMapReduceWrite)              (301602))
+    ((IntroduceGangManager)                 (301603))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

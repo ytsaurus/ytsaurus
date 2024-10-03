@@ -1254,6 +1254,9 @@ void TMandatoryUserJobSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TGangManagerConfig::Register(TRegistrar /*registrar*/)
+{ }
+
 void TVanillaTaskSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("job_count", &TThis::JobCount)
@@ -1265,6 +1268,15 @@ void TVanillaTaskSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("restart_completed_jobs", &TThis::RestartCompletedJobs)
         .Default(false);
+    registrar.Parameter("gang_manager", &TThis::GangManager)
+        .Default();
+
+    registrar.Postprocessor([] (TVanillaTaskSpec* spec) {
+        if (spec->GangManager && spec->RestartCompletedJobs) {
+            THROW_ERROR_EXCEPTION(
+                "\"gang_manager\" and \"restart_completed_jobs\" can not be turned on both");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

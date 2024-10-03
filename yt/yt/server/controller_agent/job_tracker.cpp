@@ -201,11 +201,12 @@ public:
                         .EndMap();
                 })
                 .Item("jobs_to_abort").DoMapFor(nodeJobs.JobsToAbort, [] (TFluentMap fluent, const auto& pair) {
-                    const auto& [jobId, abortReason] = pair;
+                    const auto& [jobId, jobToAbort] = pair;
 
                     fluent
                         .Item(ToString(jobId)).BeginMap()
-                            .Item("abort_reason").Value(abortReason)
+                            .Item("abort_reason").Value(jobToAbort.AbortReason)
+                            .Item("request_new_job").Value(jobToAbort.RequestNewJob)
                         .EndMap();
                 })
             .EndMap();
@@ -435,7 +436,8 @@ public:
         {
             jobYson = BuildYsonStringFluently().BeginMap()
                     .Item("stage").Value("aborting")
-                    .Item("abort_reason").Value(jobToAbortIt->second)
+                    .Item("abort_reason").Value(jobToAbortIt->second.AbortReason)
+                    .Item("request_new_job").Value(jobToAbortIt->second.RequestNewJob)
                     .Item("node_address").Value(nodeAddress)
                     .Item("allocation_id").Value(AllocationIdFromJobId(jobId))
                 .EndMap();
@@ -1426,18 +1428,17 @@ THashSet<TJobId> TJobTracker::DoProcessAbortedAndReleasedJobsInHeartbeat(
     THashSet<TJobId> jobsToSkip;
     jobsToSkip.reserve(std::size(nodeJobs.JobsToAbort) + std::size(nodeJobs.JobsToRelease));
 
-    for (auto [jobId, abortReason] : nodeJobs.JobsToAbort) {
+    for (const auto& [jobId, jobToAbort] : nodeJobs.JobsToAbort) {
         EmplaceOrCrash(jobsToSkip, jobId);
 
         YT_LOG_INFO(
-            "Request node to abort job (JobId: %v)",
-            jobId);
+            "Request node to abort job (JobId: %v, AbortReason: %v, RequestNewJob: %v)",
+            jobId,
+            jobToAbort.AbortReason,
+            jobToAbort.RequestNewJob);
         NProto::ToProto(
             response->add_jobs_to_abort(),
-            TJobToAbort{
-                .JobId = jobId,
-                .AbortReason = abortReason
-            });
+            jobToAbort);
         ++heartbeatCounters.JobAbortRequestCount;
     }
 
@@ -2310,7 +2311,11 @@ void TJobTracker::DoReleaseJobs(
     }
 }
 
-void TJobTracker::RequestJobAbortion(TJobId jobId, TOperationId operationId, EAbortReason reason)
+void TJobTracker::RequestJobAbortion(
+    TJobId jobId,
+    TOperationId operationId,
+    EAbortReason reason,
+    bool requestNewJob)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
@@ -2382,7 +2387,13 @@ void TJobTracker::RequestJobAbortion(TJobId jobId, TOperationId operationId, EAb
     }
 
     // NB(pogorelov): AbortJobOnNode may be called twice on operation finishing.
-    nodeJobs.JobsToAbort.emplace(jobId, reason);
+    nodeJobs.JobsToAbort.emplace(
+        jobId,
+        TJobToAbort{
+            .JobId = jobId,
+            .AbortReason = reason,
+            .RequestNewJob = requestNewJob,
+        });
 }
 
 std::optional<TJobTracker::TAllocationInfo> TJobTracker::EraseAllocationIfNeeded(
@@ -3323,7 +3334,8 @@ void TJobTrackerOperationHandler::ReleaseJobs(std::vector<TJobToRelease> jobs)
 
 void TJobTrackerOperationHandler::RequestJobAbortion(
     TJobId jobId,
-    EAbortReason reason)
+    EAbortReason reason,
+    bool requestNewJob)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -3334,7 +3346,8 @@ void TJobTrackerOperationHandler::RequestJobAbortion(
         MakeStrong(JobTracker_),
         jobId,
         OperationId_,
-        reason));
+        reason,
+        requestNewJob));
 }
 
 void TJobTrackerOperationHandler::RequestJobInterruption(
