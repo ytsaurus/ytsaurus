@@ -387,14 +387,6 @@ TFuture<TChunkInfo> TBlobSession::DoFinish(
         return MakeFuture<TChunkInfo>(Error_);
     }
 
-    if (PendingBlockMemoryGuard_.GetSize() > 0 || PendingBlockLocationMemoryGuard_.GetSize() > 0) {
-        YT_LOG_ALERT(
-            "Found unexpected non-empty memory guard on the successful end of the session (ChunkId: %v, Memory: %v, LocationMemory: %v)",
-            GetChunkId(),
-            PendingBlockMemoryGuard_.GetSize(),
-            PendingBlockLocationMemoryGuard_.GetSize());
-    }
-
     return Pipeline_->Close(chunkMeta)
         .Apply(BIND(&TBlobSession::OnFinished, MakeStrong(this))
             .AsyncVia(SessionInvoker_));
