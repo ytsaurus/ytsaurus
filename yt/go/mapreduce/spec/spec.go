@@ -122,11 +122,12 @@ type Spec struct {
 	Annotations map[string]any `yson:"annotations"`
 	Description map[string]any `yson:"description,omitempty"`
 
-	Pool                string   `yson:"pool,omitempty"`
-	Weight              float64  `yson:"weight,omitempty"`
-	PoolTrees           []string `yson:"pool_trees,omitempty"`
-	SchedulingTagFilter string   `yson:"scheduling_tag_filter,omitempty"`
-	TentativePoolTrees  []string `yson:"tentative_pool_trees,omitempty"`
+	Pool                     string   `yson:"pool,omitempty"`
+	Weight                   float64  `yson:"weight,omitempty"`
+	PoolTrees                []string `yson:"pool_trees,omitempty"`
+	SchedulingSegmentModules []string `yson:"scheduling_segment_modules,omitempty"`
+	SchedulingTagFilter      string   `yson:"scheduling_tag_filter,omitempty"`
+	TentativePoolTrees       []string `yson:"tentative_pool_trees,omitempty"`
 
 	ResourceLimits *ResourceLimits `yson:"resource_limits,omitempty"`
 
