@@ -1479,8 +1479,6 @@ def _build_cluster_connection_config(yt_config,
             "expire_after_failed_update_time": 500,
         },
         "upload_transaction_timeout": 5000,
-        # TODO(gritukan): Turn on after 22.2 compat tests will be removed.
-        "use_followers_for_write_targets_allocation": False,
     }
 
     if len(cypress_proxy_rpc_ports) > 0:
