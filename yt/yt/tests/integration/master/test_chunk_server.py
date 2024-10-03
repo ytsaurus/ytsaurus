@@ -666,21 +666,25 @@ class TestNodePendingRestart(TestNodePendingRestartBase):
         self.Env.start_nodes()
 
     @authors("danilalexeev")
-    def test_auto_remove_pending_restart_simple(self):
-        set("//sys/@config/node_tracker/pending_restart_lease_timeout", 1000)
+    @pytest.mark.parametrize("wait_for_removal", [True, False])
+    def test_auto_remove_pending_restart1(self, wait_for_removal):
+        set("//sys/@config/node_tracker/pending_restart_lease_timeout", 2000)
 
         node = ls("//sys/cluster_nodes")[0]
-        maintenance_id = add_maintenance("cluster_node", node, "pending_restart", "")[node]
+        for _ in range(4):
+            add_maintenance("cluster_node", node, "pending_restart", "")[node]
 
         assert get(f"//sys/cluster_nodes/{node}/@pending_restart")
 
-        wait(lambda: not get(f"//sys/cluster_nodes/{node}/@pending_restart"), sleep_backoff=1.0)
-
-        assert remove_maintenance("cluster_node", node, id=maintenance_id) == {node: {}}
+        if wait_for_removal:
+            wait(lambda: not get(f"//sys/cluster_nodes/{node}/@pending_restart"), sleep_backoff=1.0)
+            assert remove_maintenance("cluster_node", node, type_="pending_restart") == {node: {}}
+        else:
+            assert remove_maintenance("cluster_node", node, type_="pending_restart") == {node: {"pending_restart": 4}}
 
     @authors("danilalexeev")
-    def test_auto_remove_pending_restart_medium(self):
-        set("//sys/@config/node_tracker/pending_restart_lease_timeout", 1000)
+    def test_auto_remove_pending_restart2(self):
+        set("//sys/@config/node_tracker/pending_restart_lease_timeout", 2000)
 
         nodes = ls("//sys/cluster_nodes")
 
@@ -727,8 +731,9 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
         nodes = get(f"#{chunk_id}/@stored_replicas")[:2]
         node_indexes = [get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(node)) for node in nodes]
 
+        maintenance_ids = {}
         for node in nodes:
-            add_maintenance("cluster_node", node, "pending_restart", "")
+            maintenance_ids.update(add_maintenance("cluster_node", node, "pending_restart", ""))
 
         sleep(0.5)
 
@@ -755,7 +760,8 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
         assert len(ls("//sys/parity_missing_chunks")) == 0
 
         for node in nodes:
-            wait(lambda: not get(f"//sys/cluster_nodes/{node}/@pending_restart"))
+            wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "online")
+            remove_maintenance("cluster_node", node, id=maintenance_ids[str(node)])
 
         # explicit statistics
         status = get("#" + chunk_id + "/@replication_status/default")
