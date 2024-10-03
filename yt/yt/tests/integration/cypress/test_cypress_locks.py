@@ -1765,10 +1765,14 @@ class TestCypressLocksInSequoia(TestCypressLocksMirroredTx):
         "14": {"roles": ["chunk_host"]},
     }
 
-    # NB: of course, it's better to test the default configuration but it's
-    # too slow (+150ms per request).
-    DELTA_DYNAMIC_CYPRESS_PROXY_CONFIG = {
-        "object_service": {
-            "allow_bypass_master_resolve": True,
-        },
-    }
+    def setup_method(self, method):
+        super(TestCypressLocksInSequoia, self).setup_method(method)
+
+        # NB: of course, it's better to test the default configuration but it's
+        # too slow (+150ms per request).
+        create("map_node", "//sys/cypress_proxies", ignore_existing=True)
+        set("//sys/cypress_proxies/@config", {
+            "object_service": {
+                "allow_bypass_master_resolve": True,
+            }
+        })
