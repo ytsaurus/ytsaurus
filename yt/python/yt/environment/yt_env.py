@@ -1849,7 +1849,7 @@ class YTInstance(object):
         return YtClient(config=config)
 
     def _create_cluster_client(self):
-        if self.yt_config.use_native_client:
+        if self.yt_config.native_client_supported:
             return self.create_native_client()
         else:
             return self.create_client()

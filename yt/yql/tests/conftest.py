@@ -28,7 +28,7 @@ class YqlAgent():
             "count": count,
             "path": yatest.common.binary_path("yt/yql/agent/bin"),
             "artifacts_path": _get_artifacts_path(),
-            "use_native_client": True,
+            "native_client_supported": True,
         })
 
     def __enter__(self):

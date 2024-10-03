@@ -11,7 +11,7 @@ class LocalYtConfig(object):
     tmpfs_path = attr.ib(None)
     fqdn = attr.ib("localhost")
     use_porto_for_servers = attr.ib(False)
-    use_native_client = attr.ib(False)
+    native_client_supported = attr.ib(False)
     kill_child_processes = attr.ib(False)
     run_watcher = attr.ib(False)
     optimize_config = attr.ib(False)
