@@ -26,7 +26,7 @@ namespace
 
         TPyState(TArgs&& args)
             : Buffer(std::move(args.Input))
-            , Impl(Arena, reinterpret_cast<const ui8*>(Buffer.Data()), Buffer.Size())
+            , Impl(Arena, reinterpret_cast<const ui8*>(Buffer.data()), Buffer.size())
         {
         }
 
@@ -134,14 +134,14 @@ namespace
             Y_ENSURE(PyInt_Check(args.Get()));
             auto error = PyInt_AsSsize_t(args.Get());
             auto buffer = EncodeErrorProtoAsString(static_cast<NXdeltaAggregateColumn::TStateHeader::EErrorCode>(error));
-            return NPyBind::TPyObjectPtr(PyBytes_FromStringAndSize(buffer.Data(), buffer.Size()));
+            return NPyBind::TPyObjectPtr(PyBytes_FromStringAndSize(buffer.data(), buffer.size()));
         }
 
         NPyBind::TPyObjectPtr CreateBase(NPyBind::TPyObjectPtr args)
         {
             Y_ENSURE(PyBytes_Check(args.Get()));
             auto buffer = EncodeBaseProtoAsString(reinterpret_cast<const ui8*>(PyBytes_AsString(args.Get())), PyBytes_Size(args.Get()));
-            return NPyBind::TPyObjectPtr(PyBytes_FromStringAndSize(buffer.Data(), buffer.Size()));
+            return NPyBind::TPyObjectPtr(PyBytes_FromStringAndSize(buffer.data(), buffer.size()));
         }
 
         NPyBind::TPyObjectPtr CreatePatch(NPyBind::TPyObjectPtr args)
@@ -160,7 +160,7 @@ namespace
                 PyBytes_Size(base),
                 reinterpret_cast<const ui8*>(PyBytes_AsString(state)),
                 PyBytes_Size(state));
-            return NPyBind::TPyObjectPtr(PyBytes_FromStringAndSize(buffer.Data(), buffer.Size()));
+            return NPyBind::TPyObjectPtr(PyBytes_FromStringAndSize(buffer.data(), buffer.size()));
         }
     };
 
