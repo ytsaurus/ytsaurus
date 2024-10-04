@@ -202,6 +202,20 @@ func main() {
 	spareFieldsRegex := regexp.MustCompile(`X__spare\S*`)
 	b = spareFieldsRegex.ReplaceAll(b, []byte("_"))
 
+	// Rename chunk_size field in XDPUmemReg.
+	// When the struct was originally added (CL 136695) the only
+	// field with a prefix was chunk_size, so cgo rewrote the
+	// field to Size. Later Linux added a tx_metadata_len field,
+	// so cgo left chunk_size as Chunk_size (CL 577975).
+	// Go back to Size so that packages like gvisor don't have
+	// to adjust.
+	xdpUmemRegType := regexp.MustCompile(`type XDPUmemReg struct {[^}]*}`)
+	xdpUmemRegStructs := xdpUmemRegType.FindAll(b, -1)
+	for _, s := range xdpUmemRegStructs {
+		newName := bytes.Replace(s, []byte("Chunk_size"), []byte("Size"), 1)
+		b = bytes.Replace(b, s, newName, 1)
+	}
+
 	// Remove cgo padding fields
 	removePaddingFieldsRegex := regexp.MustCompile(`Pad_cgo_\d+`)
 	b = removePaddingFieldsRegex.ReplaceAll(b, []byte("_"))

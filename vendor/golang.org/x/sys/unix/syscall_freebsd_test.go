@@ -53,7 +53,7 @@ func init() {
 }
 
 func testCmd(procName string, procArg string) (*exec.Cmd, error) {
-	exe, err := filepath.Abs(os.Args[0])
+	exe, err := os.Executable()
 	if err != nil {
 		return nil, err
 	}
