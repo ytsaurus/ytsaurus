@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/lib/signature_service/key_pair.h>
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 #include <random>
 
 namespace NYT::NSignatureService {
@@ -9,6 +11,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using namespace NConcurrency;
 using namespace std::chrono_literals;
 
 ////////////////////////////////////////////////////////////////////////////////

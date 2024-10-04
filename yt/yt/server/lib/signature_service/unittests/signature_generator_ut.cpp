@@ -8,6 +8,8 @@
 #include <yt/yt/server/lib/signature_service/signature_header.h>
 #include <yt/yt/server/lib/signature_service/signature_preprocess.h>
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 namespace NYT::NSignatureService {
@@ -16,6 +18,7 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace std::chrono_literals;
+using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
 
@@ -26,12 +29,12 @@ TEST(TSignatureGenerator, Rotate)
     TMockKeyStore store;
     TSignatureGenerator gen(&store);
 
-    gen.Rotate();
+    WaitFor(gen.Rotate()).ThrowOnError();
     EXPECT_EQ(store.Data.size(), 1ULL);
     EXPECT_EQ(store.Data[store.GetOwner()].size(), 1ULL);
     EXPECT_EQ(*store.Data[store.GetOwner()][0], gen.KeyInfo());
 
-    gen.Rotate();
+    WaitFor(gen.Rotate()).ThrowOnError();
     EXPECT_EQ(store.Data.size(), 1ULL);
     EXPECT_EQ(store.Data[store.GetOwner()].size(), 2ULL);
     EXPECT_NE(*store.Data[store.GetOwner()][0], *store.Data[store.GetOwner()][1]);
@@ -44,11 +47,11 @@ TEST(TSignatureGenerator, SimpleSign)
     TMockKeyStore store;
 
     TSignatureGenerator gen(&store);
-    gen.Rotate();
+    WaitFor(gen.Rotate()).ThrowOnError();
 
     auto data = ConvertToYsonString("MyImportantData");
-    TSignature signature = gen.Sign(TYsonString(data));
-    EXPECT_EQ(signature.Payload(), data);
+    TSignaturePtr signature = gen.Sign(TYsonString(data));
+    EXPECT_EQ(signature->Payload(), data);
 
     auto signatureYson = ConvertToNode(ConvertToYsonString(signature));
     auto headerString = signatureYson->AsMap()->GetChildValueOrThrow<TString>("header");
@@ -67,7 +70,7 @@ TEST(TSignatureGenerator, SimpleSign)
         },
         header));
 
-    auto toSign = PreprocessSignature(TYsonString(headerString), signature.Payload());
+    auto toSign = PreprocessSignature(TYsonString(headerString), signature->Payload());
 
     auto signatureNode = ConvertToNode(ConvertToYsonString(signature));
     auto signatureByteString = signatureNode->AsMap()->GetChildValueOrThrow<TString>("signature");

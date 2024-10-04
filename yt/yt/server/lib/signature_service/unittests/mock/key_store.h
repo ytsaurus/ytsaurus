@@ -14,9 +14,9 @@ struct TMockKeyStore
 
     TOwnerId GetOwner() override;
 
-    TKeyInfoPtr GetKey(const TOwnerId& owner, const TKeyId& keyId) override;
+    TFuture<TKeyInfoPtr> GetKey(const TOwnerId& owner, const TKeyId& keyId) override;
 
-    bool RegisterKey(const TKeyInfo& keyInfo) override;
+    TFuture<void> RegisterKey(const TKeyInfo& keyInfo) override;
 
     ~TMockKeyStore() override = default;
 };

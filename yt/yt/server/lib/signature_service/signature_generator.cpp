@@ -10,6 +10,7 @@ namespace NYT::NSignatureService {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using namespace NConcurrency;
 using namespace NLogging;
 using namespace NYson;
 using namespace std::chrono_literals;
@@ -27,21 +28,28 @@ TSignatureGenerator::TSignatureGenerator(IKeyStoreWriter* keyStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSignatureGenerator::Rotate()
+TFuture<void> TSignatureGenerator::Rotate()
 {
     YT_LOG_INFO(
         "Rotating keypair (PreviousKeyPair: %v)",
         (KeyPair_ ? std::optional{KeyPair_->KeyInfo().Meta().Id} : std::nullopt));
-    // TODO(pavook) lock keypair.
+
     auto now = Now();
-    KeyPair_.emplace(TKeyPairMetadata{
+    TKeyPair newKeyPair(TKeyPairMetadata{
         .Owner = Owner_,
         .Id = TKeyId{TGuid::Create()},
         .CreatedAt = now,
         .ValidAfter = now - TimeSyncMargin,
         .ExpiresAt = now + KeyExpirationTime});
-    Store_->RegisterKey(KeyPair_->KeyInfo());
-    YT_LOG_INFO("Rotated keypair (NewKeyPair: %v)", KeyPair_->KeyInfo().Meta().Id);
+
+    return Store_->RegisterKey(newKeyPair.KeyInfo()).Apply(
+        BIND([this, keyPair = std::move(newKeyPair)] () mutable {
+            {
+                auto guard = WriterGuard(KeyPairLock_);
+                KeyPair_ = std::move(keyPair);
+            }
+            YT_LOG_INFO("Rotated keypair (NewKeyPair: %v)", KeyPair_->KeyInfo().Meta().Id);
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,44 +62,53 @@ void TSignatureGenerator::Rotate()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-[[nodiscard]] TSignature TSignatureGenerator::Sign(TYsonString&& payload) const
+[[nodiscard]] TSignaturePtr TSignatureGenerator::Sign(TYsonString&& payload) const
 {
-    if (!KeyPair_) {
-        THROW_ERROR_EXCEPTION("Trying to sign with an uninitialized generator");
-    }
-
     auto signatureId = TGuid::Create();
     auto now = Now();
+    TSignaturePtr result = New<TSignature>();
+    TSignatureHeader header;
 
-    TSignatureHeader header = TSignatureHeaderImpl<TSignatureVersion{0, 1}>{
-        .Issuer = Owner_.Underlying(),
-        .KeypairId = KeyPair_->KeyInfo().Meta().Id.Underlying(),
-        .SignatureId = signatureId,
-        .IssuedAt = now,
-        .ValidAfter = now - TimeSyncMargin,
-        .ExpiresAt = now + SignatureExpirationTime,
-    };
+    {
+        auto guard = ReaderGuard(KeyPairLock_);
 
-    TSignature result;
-    result.Header_ = ConvertToYsonString(header, EYsonFormat::Binary);
-    result.Payload_ = std::move(payload);
+        if (!KeyPair_) {
+            THROW_ERROR_EXCEPTION("Trying to sign with an uninitialized generator");
+        }
 
-    auto toSign = PreprocessSignature(result.Header_, result.Payload_);
+        header = TSignatureHeaderImpl<TSignatureVersion{0, 1}>{
+            .Issuer = Owner_.Underlying(),
+            .KeypairId = KeyPair_->KeyInfo().Meta().Id.Underlying(),
+            .SignatureId = signatureId,
+            .IssuedAt = now,
+            .ValidAfter = now - TimeSyncMargin,
+            .ExpiresAt = now + SignatureExpirationTime,
+        };
 
-    if (!KeyPair_->KeyInfo().Meta().IsValid()) {
-        YT_LOG_WARNING(
-            "Signing with an invalid keypair (SignatureId: %v, KeyPair: %v)",
-            signatureId,
-            KeyPair_->KeyInfo().Meta().Id);
+        result->Header_ = ConvertToYsonString(header, EYsonFormat::Binary);
+        result->Payload_ = std::move(payload);
+
+        auto toSign = PreprocessSignature(result->Header_, result->Payload_);
+
+        if (!KeyPair_->KeyInfo().Meta().IsValid()) {
+            YT_LOG_WARNING(
+                "Signing with an invalid keypair (SignatureId: %v, KeyPair: %v)",
+                signatureId,
+                KeyPair_->KeyInfo().Meta().Id);
+        }
+
+        KeyPair_->Sign(toSign, result->Signature_);
     }
 
-    KeyPair_->Sign(toSign, result.Signature_);
+    YT_LOG_TRACE(
+        "Created signature (SignatureId: %v, Header: %v, Payload: %v)",
+        signatureId,
+        header,
+        ConvertToYsonString(result->Payload_, EYsonFormat::Text).ToString());
 
-//    YT_LOG_TRACE(
-//        "Created signature (SignatureId: %v, Header: %v, Payload: %v)",
-//        signatureId,
-//        header,
-//        ConvertToYsonString(result.Payload_, EYsonFormat::Text).ToString());
+    YT_LOG_DEBUG(
+        "Created signature (SignatureId: %v)",
+        signatureId);
 
     return result;
 }

@@ -10,6 +10,7 @@ namespace NYT::NSignatureService {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using namespace NConcurrency;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,17 +42,17 @@ struct MetadataCheckVisitor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TSignatureValidator::Validate(const TSignature& signature)
+TFuture<bool> TSignatureValidator::Validate(TSignaturePtr signature)
 {
     TSignatureHeader header;
     try {
-        header = ConvertTo<TSignatureHeader>(signature.Header_);
+        header = ConvertTo<TSignatureHeader>(signature->Header_);
     } catch(const std::exception& ex) {
-//        YT_LOG_WARNING(
-//            "Received invalid signature header (Header: %v, Error: %v)",
-//            signature.Header_.ToString(),
-//            ex);
-        return false;
+        YT_LOG_WARNING(
+            "Received invalid signature header (Header: %v, Error: %v)",
+            signature->Header_.ToString(),
+            ex);
+        return MakeFuture(false);
     }
 
     auto signatureId = std::visit([] (auto&& header_) { return header_.SignatureId; }, header);
@@ -59,29 +60,32 @@ bool TSignatureValidator::Validate(const TSignature& signature)
         [] (auto&& header_) { return std::pair{TOwnerId(header_.Issuer), TKeyId(header_.KeypairId)}; },
         header);
 
-    auto key = Store_->GetKey(keyIssuer, keyId);
-    if (!key) {
-        YT_LOG_DEBUG(
-            "Key not found (SignatureId=%v, Issuer=%v, KeyPair=%v)",
-            signatureId,
-            keyIssuer,
-            keyId);
-        return false;
-    }
+    return Store_->GetKey(keyIssuer, keyId).Apply(
+        BIND([this, keyIssuer, keyId, signatureId, header = std::move(header), signature] (TKeyInfoPtr key) {
+            if (!key) {
+                YT_LOG_DEBUG(
+                    "Key not found (SignatureId: %v, Issuer: %v, KeyPair: %v)",
+                    signatureId,
+                    keyIssuer,
+                    keyId);
+                return false;
+            }
 
-    auto toSign = PreprocessSignature(signature.Header_, signature.Payload());
-    if (!key->Verify(toSign, signature.Signature_)) {
-        YT_LOG_DEBUG("Cryptographic verification failed (SignatureId: %v)", signatureId);
-        return false;
-    }
+            auto toSign = PreprocessSignature(signature->Header_, signature->Payload());
 
-    if (!std::visit(MetadataCheckVisitor{}, header)) {
-        YT_LOG_DEBUG("Metadata check failed (SignatureId: %v)", signatureId);
-        return false;
-    }
+            if (!key->Verify(toSign, signature->Signature_)) {
+                YT_LOG_DEBUG("Cryptographic verification failed (SignatureId: %v)", signatureId);
+                return false;
+            }
 
-    YT_LOG_TRACE("Successfully validated (SignatureId: %v)", signatureId);
-    return true;
+            if (!std::visit(MetadataCheckVisitor{}, header)) {
+                YT_LOG_DEBUG("Metadata check failed (SignatureId: %v)", signatureId);
+                return false;
+            }
+
+            YT_LOG_TRACE("Successfully validated (SignatureId: %v)", signatureId);
+            return true;
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

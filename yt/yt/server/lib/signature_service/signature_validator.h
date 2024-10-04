@@ -13,8 +13,7 @@ class TSignatureValidator
 public:
     explicit TSignatureValidator(IKeyStoreReader* store);
 
-    // TODO(pavook) async?
-    [[nodiscard]] bool Validate(const TSignature& signature);
+    TFuture<bool> Validate(TSignaturePtr signature);
 
 private:
     IKeyStoreReader* const Store_;

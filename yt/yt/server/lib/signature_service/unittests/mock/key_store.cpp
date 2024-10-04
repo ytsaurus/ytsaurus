@@ -11,19 +11,19 @@ TOwnerId TMockKeyStore::GetOwner()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TMockKeyStore::RegisterKey(const TKeyInfo& key)
+TFuture<void> TMockKeyStore::RegisterKey(const TKeyInfo& key)
 {
     Data[key.Meta().Owner].emplace_back(New<TKeyInfo>(key.Key(), key.Meta()));
-    return true;
+    return VoidFuture;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TKeyInfoPtr TMockKeyStore::GetKey(const TOwnerId& owner, const TKeyId& keyId)
+TFuture<TKeyInfoPtr> TMockKeyStore::GetKey(const TOwnerId& owner, const TKeyId& keyId)
 {
     auto ownerIt = Data.find(owner);
     if (ownerIt == Data.end()) {
-        return {};
+        return MakeFuture(TKeyInfoPtr());
     }
     auto it = std::ranges::find(
         ownerIt->second,
@@ -31,7 +31,7 @@ TKeyInfoPtr TMockKeyStore::GetKey(const TOwnerId& owner, const TKeyId& keyId)
         [ ](TKeyInfoPtr keyInfo) {
             return keyInfo->Meta().Id;
         });
-    return it != ownerIt->second.end() ? *it : nullptr;
+    return MakeFuture(it != ownerIt->second.end() ? *it : TKeyInfoPtr());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
