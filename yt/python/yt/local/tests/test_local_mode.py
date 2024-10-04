@@ -610,7 +610,10 @@ class TestLocalMode(object):
             assert client.list_queries()["queries"] == []
 
     def test_auth(self):
-        with local_yt(id=_get_id("test_auth"), enable_auth=True) as environment:
+        with local_yt(
+                id=_get_id("test_auth"),
+                enable_auth=True, create_admin_user=True, native_client_supported=True
+        ) as environment:
             proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
             client = YtClient(proxy="localhost:{0}".format(proxy_port))
             with pytest.raises(yt.errors.YtTokenError):
