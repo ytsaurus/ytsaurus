@@ -458,25 +458,40 @@ TEST_P(TParallelUnorderedWriterDeadlockFinishTest_YTSAURUSSUP_767, WriteDeadlock
     // We set invalid row and it is important that error happens in the begin of this batch.
     badBatch[0] = TNode(5);
 
-    auto writer = CreateParallelUnorderedTableWriter<TNode>(
-        client,
-        table,
-        TParallelTableWriterOptions()
-            .ThreadCount(1)
-            .TableWriterOptions(TTableWriterOptions().BufferSize(1_MB))
-    );
+    for (int i = 0; i < 30; ++i) {
+        // We are trying to catch a race here. See below.
+        auto writer = CreateParallelUnorderedTableWriter<TNode>(
+            client,
+            table,
+            TParallelTableWriterOptions()
+                .ThreadCount(1)
+                .TableWriterOptions(TTableWriterOptions().BufferSize(1_MB))
+        );
 
-    writer->AddRowBatch(goodBatch);
-    writer->AddRowBatch(badBatch);
-    writer->AddRowBatch(goodBatch);
+        writer->AddRowBatch(goodBatch);
+        writer->AddRowBatch(badBatch);
+        try {
+            writer->AddRowBatch(goodBatch);
+        } catch (const std::exception& ex) {
+            // Writer can already finish processing previous badBatch
+            // in that case we'll have exception here.
+            //
+            // But this case is not interesting we try again to reproduce the case
+            // described in
+            // https://github.com/ytsaurus/ytsaurus/issues/547
+            EXPECT_THAT(ex.what(), ::testing::HasSubstr("Row should be a map node"));
+            continue;
+        }
 
-    if (finish) {
-        auto finish = [&] {
-            writer->Finish();
-        };
-        EXPECT_THROW_MESSAGE_HAS_SUBSTR(finish(), std::exception, "Row should be a map node");
-    } else {
-        writer->Abort();
+        if (finish) {
+            auto finish = [&] {
+                writer->Finish();
+            };
+            EXPECT_THROW_MESSAGE_HAS_SUBSTR(finish(), std::exception, "Row should be a map node");
+        } else {
+            writer->Abort();
+        }
+        break;
     }
 }
 
