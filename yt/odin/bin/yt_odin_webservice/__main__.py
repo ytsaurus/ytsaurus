@@ -72,6 +72,12 @@ def extract_records(cluster, service, start_timestamp, stop_timestamp):
     return db_client.get_records(service, start_timestamp, stop_timestamp)
 
 
+def extract_cluster_records(cluster, start_timestamp, stop_timestamp):
+    db_client = DB_TABLE_CLIENTS_FOR_CLUSTERS[cluster]
+    services = [service["name"] for service in SERVICES]
+    return db_client.get_records(services, start_timestamp, stop_timestamp)
+
+
 def extract_statuses_and_messages(request_cluster, start_timestamp, stop_timestamp,
                                   request_target, return_state_without_message):
     db_response = extract_records(request_cluster, request_target, start_timestamp, stop_timestamp)
@@ -171,11 +177,22 @@ def prometheus():
     # https://github.com/prometheus/docs/blob/main/content/docs/instrumenting/exposition_formats.md
     # https://prometheus.io/docs/prometheus/latest/configuration/configuration/#scrape_config
     now = datetime.datetime.now(datetime.timezone.utc)
+
     # `period` is the number of seconds (from now) for which we will request data.
     period = datetime.timedelta(seconds=int(request.args.get("period", 90)))
+
+    # `cluster` is the cluster name that is set in the webservice config.
+    # It may be different from cluster name in dyntable with check results.
+    cluster = request.args.get("cluster")
+
     start_timestamp = int((now - period).timestamp())
     stop_timestamp = int(now.timestamp())
-    db_records = extract_all_records(start_timestamp, stop_timestamp)
+
+    if cluster is None:
+        db_records = extract_all_records(start_timestamp, stop_timestamp)
+    else:
+        cluster = strip_cluster_name(cluster)
+        db_records = extract_cluster_records(cluster, start_timestamp, stop_timestamp)
 
     last_records_per_service = {}
     for record in db_records:
