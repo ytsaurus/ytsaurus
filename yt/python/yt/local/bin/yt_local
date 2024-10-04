@@ -240,6 +240,9 @@ def add_start_subparser(subparsers):
 
     parser.add_argument("--enable-auth", action="store_true", default=False,
                         help="Enable authentication")
+
+    parser.add_argument("--create-admin-user", action="store_true", default=False,
+                        help="Create admin user")
     
     parser.add_argument("--native-client-supported", "--use-native-client", action="store_true", default=False,
                         dest="native_client_supported", help="Use native client")

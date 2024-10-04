@@ -615,11 +615,10 @@ class YTInstance(object):
             if self.yt_config.replicated_table_tracker_count > 0:
                 self.start_replicated_table_trackers(sync=False)
 
-            if self.yt_config.enable_auth:
-                # The following `synchroize` might use http client, so the user has to be created before that.
-                self.create_admin_user()
-
             self.synchronize()
+
+            if self.yt_config.create_admin_user:
+                self.create_admin_user()
 
             if not self.yt_config.defer_secondary_cell_start:
                 self.start_secondary_master_cells(sync=False)
