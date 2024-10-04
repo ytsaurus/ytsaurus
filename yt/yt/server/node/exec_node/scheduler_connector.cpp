@@ -44,6 +44,8 @@ using namespace NScheduler;
 
 static constexpr auto& Logger = ExecNodeLogger;
 
+static const auto HeartbeatOutOfBandAttemptsProfiler = SchedulerConnectorProfiler().WithPrefix("/heartbeat_out_of_band_attempts");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerConnector::TSchedulerConnector(IBootstrap* bootstrap)
@@ -59,6 +61,26 @@ TSchedulerConnector::TSchedulerConnector(IBootstrap* bootstrap)
     , TimeBetweenSentHeartbeatsCounter_(SchedulerConnectorProfiler().Timer("/time_between_sent_heartbeats"))
     , TimeBetweenAcknowledgedHeartbeatsCounter_(SchedulerConnectorProfiler().Timer("/time_between_acknowledged_heartbeats"))
     , TimeBetweenFullyProcessedHeartbeatsCounter_(SchedulerConnectorProfiler().Timer("/time_between_fully_processed_heartbeats"))
+    , PendingResourceHolderHeartbeatSkippedCounter_(
+        HeartbeatOutOfBandAttemptsProfiler
+            .WithTag("reason", "pending_resource_holders")
+            .Counter("/skipped"))
+    , NotEnoughResourcesHeartbeatSkippedCounter_(
+        HeartbeatOutOfBandAttemptsProfiler
+            .WithTag("reason", "not_enough_resources")
+            .Counter("/skipped"))
+    , ResourcesAcquiredHeartbeatRequestedCounter_(
+        HeartbeatOutOfBandAttemptsProfiler
+            .WithTag("reason", "resources_acquired")
+            .Counter("/requested"))
+    , ResourcesReleasedHeartbeatRequestedCounter_(
+        HeartbeatOutOfBandAttemptsProfiler
+            .WithTag("reason", "resources_released")
+            .Counter("/requested"))
+    , AllocationFinishedHeartbeatRequestedCounter_(
+        HeartbeatOutOfBandAttemptsProfiler
+            .WithTag("reason", "allocation_finished")
+            .Counter("/requested"))
     , TracingSampler_(New<TSampler>(
         DynamicConfig_.Acquire()->TracingSampler,
         SchedulerConnectorProfiler().WithPrefix("/tracing")))
@@ -74,9 +96,17 @@ void TSchedulerConnector::Initialize()
         &TSchedulerConnector::OnResourcesAcquired,
         MakeWeak(this)));
 
+    jobResourceManager->SubscribeResourcesReleased(BIND_NO_PROPAGATE(
+        &TSchedulerConnector::OnResourcesReleased,
+        MakeWeak(this)));
+
     const auto& masterConnector = Bootstrap_->GetMasterConnector();
-    masterConnector->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TSchedulerConnector::OnMasterConnected, MakeWeak(this)));
-    masterConnector->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TSchedulerConnector::OnMasterDisconnected, MakeWeak(this)));
+    masterConnector->SubscribeMasterConnected(BIND_NO_PROPAGATE(
+        &TSchedulerConnector::OnMasterConnected,
+        MakeWeak(this)));
+    masterConnector->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(
+        &TSchedulerConnector::OnMasterDisconnected,
+        MakeWeak(this)));
 }
 
 void TSchedulerConnector::Start()
@@ -113,19 +143,39 @@ void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded()
 
     const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
     auto resourceLimits = jobResourceManager->GetResourceLimits();
-    auto resourceUsage = jobResourceManager->GetResourceUsage({
-        NJobAgent::EResourcesState::Pending,
-        NJobAgent::EResourcesState::Acquired,
-    });
-    bool hasPendingResourceHolders = jobResourceManager->GetPendingResourceHolderCount() > 0;
+    auto resourceUsage = DynamicConfig_.Acquire()->IncludeReleasingResourcesInSchedulerHeartbeat
+        ? jobResourceManager->GetResourceUsage({
+            NJobAgent::EResourcesState::Pending,
+            NJobAgent::EResourcesState::Acquired,
+            NJobAgent::EResourcesState::Releasing,
+        })
+        : jobResourceManager->GetResourceUsage({
+            NJobAgent::EResourcesState::Pending,
+            NJobAgent::EResourcesState::Acquired,
+        });
+    auto freeResources = ToJobResources(ToNodeResources(MakeNonnegative(resourceLimits - resourceUsage)));
 
-    auto freeResources = MakeNonnegative(resourceLimits - resourceUsage);
+    auto pendingResourceHolderCount = jobResourceManager->GetPendingResourceHolderCount();
+    if (pendingResourceHolderCount > 0) {
+        PendingResourceHolderHeartbeatSkippedCounter_.Increment();
+        YT_LOG_DEBUG(
+            "Skipping out of band heartbeat because of pending resource holders (PendingResourceHolderCount: %v)",
+            pendingResourceHolderCount);
 
-    if (!Dominates(MinSpareResources_, ToJobResources(ToNodeResources(freeResources))) &&
-        !hasPendingResourceHolders)
-    {
-        scheduleOutOfBandHeartbeat();
+        return;
     }
+
+    if (Dominates(MinSpareResources_, freeResources)) {
+        NotEnoughResourcesHeartbeatSkippedCounter_.Increment();
+        YT_LOG_DEBUG(
+            "Skipping out of band heartbeat because of not enough resources (FreeResources: %v, MinSpareResources: %v)",
+            freeResources,
+            MinSpareResources_);
+
+        return;
+    }
+
+    scheduleOutOfBandHeartbeat();
 }
 
 void TSchedulerConnector::SendOutOfBandHeartbeatIfNeeded()
@@ -140,21 +190,18 @@ void TSchedulerConnector::OnResourcesAcquired()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    ResourcesAcquiredHeartbeatRequestedCounter_.Increment();
+
     SendOutOfBandHeartbeatIfNeeded();
 }
 
-void TSchedulerConnector::OnResourcesReleased(
-    EResourcesConsumerType resourcesConsumerType,
-    bool fullyReleased)
+void TSchedulerConnector::OnResourcesReleased()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    // Scheduler connector is subscribed to JobFinished scheduler job controller signal.
-    if (resourcesConsumerType == EResourcesConsumerType::SchedulerAllocation && fullyReleased) {
-        return;
-    }
+    ResourcesReleasedHeartbeatRequestedCounter_.Increment();
 
-    if (DynamicConfig_.Acquire()->SendHeartbeatOnJobFinished) {
+    if (DynamicConfig_.Acquire()->SendHeartbeatOnResourcesReleased) {
         SendOutOfBandHeartbeatIfNeeded();
     }
 }
@@ -162,6 +209,10 @@ void TSchedulerConnector::OnResourcesReleased(
 void TSchedulerConnector::SetMinSpareResources(const NScheduler::TJobResources& minSpareResources)
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+
+    YT_LOG_INFO(
+        "Seting new min spare resources (MinSpareResources: %v)",
+        minSpareResources);
 
     MinSpareResources_ = minSpareResources;
 }
@@ -175,6 +226,8 @@ void TSchedulerConnector::EnqueueFinishedAllocation(TAllocationPtr allocation)
         allocation->GetId());
 
     FinishedAllocations_.emplace(std::move(allocation));
+
+    AllocationFinishedHeartbeatRequestedCounter_.Increment();
 
     HeartbeatExecutor_->ScheduleOutOfBand();
 }
@@ -351,6 +404,36 @@ void TSchedulerConnector::DoPrepareHeartbeatRequest(
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
     context->FinishedAllocations = FinishedAllocations_;
+
+    const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
+
+    {
+        auto resourceLimits = ToNodeResources(jobResourceManager->GetResourceLimits());
+        auto diskResources = jobResourceManager->GetDiskResources();
+
+        bool includeReleasingResources = DynamicConfig_.Acquire()->IncludeReleasingResourcesInSchedulerHeartbeat;
+        auto resourceUsage = includeReleasingResources
+            ? ToNodeResources(jobResourceManager->GetResourceUsage({
+                NJobAgent::EResourcesState::Pending,
+                NJobAgent::EResourcesState::Acquired,
+                NJobAgent::EResourcesState::Releasing,
+            }))
+            : ToNodeResources(jobResourceManager->GetResourceUsage({
+                NJobAgent::EResourcesState::Pending,
+                NJobAgent::EResourcesState::Acquired,
+            }));
+
+        YT_LOG_DEBUG(
+            "Reporting resource usage to scheduler (IncludeReleasingResources: %v, Usage: %v, Limits: %v, DiskResources: %v)",
+            includeReleasingResources,
+            resourceUsage,
+            resourceLimits,
+            diskResources);
+
+        *request->mutable_resource_limits() = resourceLimits;
+        *request->mutable_resource_usage() = resourceUsage;
+        *request->mutable_disk_resources() = diskResources;
+    }
 
     const auto& jobController = Bootstrap_->GetJobController();
     jobController->PrepareSchedulerHeartbeatRequest(request, context);

@@ -5,6 +5,7 @@
 #include "config.h"
 #include "helpers.h"
 #include "private.h"
+#include "component_discovery.h"
 
 #include <yt/yt/ytlib/api/public.h>
 #include <yt/yt/ytlib/api/native/public.h>
@@ -41,7 +42,7 @@ struct TProxyEntry
     : public NYTree::TYsonStruct
 {
     TString Endpoint;
-    TString Role;
+    std::string Role;
 
     TLivenessPtr Liveness;
 
@@ -61,7 +62,7 @@ struct TCoordinatorProxy
     : public TRefCounted
 {
     const TProxyEntryPtr Entry;
-    std::atomic<i64> Dampening{0};
+    std::atomic<i64> Dampening = 0;
 
     explicit TCoordinatorProxy(const TProxyEntryPtr& proxyEntry);
 };
@@ -83,8 +84,8 @@ public:
     bool IsBanned() const;
     bool CanHandleHeavyRequests() const;
 
-    std::vector<TProxyEntryPtr> ListProxyEntries(std::optional<TString> roleFilter, bool includeDeadAndBanned = false);
-    TProxyEntryPtr AllocateProxy(const TString& role);
+    std::vector<TProxyEntryPtr> ListProxyEntries(std::optional<std::string> roleFilter, bool includeDeadAndBanned = false);
+    TProxyEntryPtr AllocateProxy(const std::string& role);
     TProxyEntryPtr GetSelf();
 
     const TCoordinatorConfigPtr& GetConfig() const;
@@ -94,7 +95,7 @@ public:
     bool IsUnavailable(TInstant at) const;
 
     //! Raised when proxy role changes.
-    DEFINE_SIGNAL(void(const TString&), OnSelfRoleChanged);
+    DEFINE_SIGNAL(void(const std::string&), OnSelfRoleChanged);
 
     TDuration GetDeathAge() const;
 
@@ -126,7 +127,7 @@ private:
 
     void UpdateState();
     std::vector<TCoordinatorProxyPtr> ListCypressProxies();
-    std::vector<TCoordinatorProxyPtr> ListProxies(std::optional<TString> roleFilter, bool includeDeadAndBanned = false);
+    std::vector<TCoordinatorProxyPtr> ListProxies(std::optional<std::string> roleFilter, bool includeDeadAndBanned = false);
 
     TLivenessPtr GetSelfLiveness();
 };
@@ -189,62 +190,19 @@ DEFINE_REFCOUNTED_TYPE(TPingHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TInstance
-{
-    TString Type;
-    TString Address;
-    TString Version;
-    TString StartTime;
-    std::optional<TString> JobProxyVersion;
-
-    bool Banned = false;
-    bool Online = true;
-    TString State;
-    TError Error;
-};
-
 class TDiscoverVersionsHandler
     : public NHttp::IHttpHandler
+    , public TComponentDiscoverer
 {
 public:
-    TDiscoverVersionsHandler(
-        TCoordinatorPtr coordinator,
-        NApi::NNative::IConnectionPtr connection,
-        NApi::IClientPtr client,
-        TCoordinatorConfigPtr config);
-
-protected:
-    const TCoordinatorPtr Coordinator_;
-    const NApi::NNative::IConnectionPtr Connection_;
-    const NApi::IClientPtr Client_;
-    const TCoordinatorConfigPtr Config_;
-
-    std::vector<TInstance> ListComponent(const TString& component, const TString& type);
-    std::vector<TInstance> ListProxies(const TString& component, const TString& type);
-    std::vector<TInstance> GetAttributes(
-        const NYPath::TYPath& path,
-        const std::vector<TString>& instances,
-        const TString& type,
-        const NYPath::TYPath& suffix = "/orchid/service");
-    std::vector<TInstance> ListJobProxies();
-};
-
-DEFINE_REFCOUNTED_TYPE(TDiscoverVersionsHandler)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TDiscoverVersionsHandlerV2
-    : public TDiscoverVersionsHandler
-{
-public:
-    using TDiscoverVersionsHandler::TDiscoverVersionsHandler;
+    TDiscoverVersionsHandler(NApi::IClientPtr client, TComponentDiscoveryOptions componentDiscoveryOptions);
 
     void HandleRequest(
         const NHttp::IRequestPtr& req,
         const NHttp::IResponseWriterPtr& rsp) override;
 };
 
-DEFINE_REFCOUNTED_TYPE(TDiscoverVersionsHandlerV2)
+DEFINE_REFCOUNTED_TYPE(TDiscoverVersionsHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 

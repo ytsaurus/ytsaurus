@@ -709,19 +709,30 @@ class YtClient(ClientState):
 
     def dump_parquet(
             self,
-            table, output_file):
+            table,
+            output_file=None, output_path=None, enable_several_files=False, unordered=False):
         """
         Dump table with a strict schema as `Parquet <https://parquet.apache.org/docs>` file
 
         :param table: table
         :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
-        :param output_file: path to output file
+        :param output_file: path to output file, this option is deprecated, please use output_path
         :type output_file: str
+        :param output_path: If option enable_several_files is disabled, you need to put the path to the file here,
+        otherwise the path to the directory where the files in the parquet format will be placed
+        :type output_path: str
+        :param enable_several_files: allowing parquet to be written to multiple files,
+        only makes sense for better acceleration in parallel mode
+        :type enable_several_files: bool
+        :param unordered: if the option is set to false, the order will be as in the original table
+        :type unordered: bool
 
         """
         return client_api.dump_parquet(
-            table, output_file,
-            client=self)
+            table,
+            client=self,
+            output_file=output_file, output_path=output_path, enable_several_files=enable_several_files,
+            unordered=unordered)
 
     def execute_batch(
             self,
@@ -2543,7 +2554,7 @@ class YtClient(ClientState):
             workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None,
             raw=None, execution_pool=None, response_parameters=None, retention_timestamp=None, placeholder_values=None,
             use_canonical_null_relations=None, merge_versioned_rows=None, syntax_version=None, versioned_read_options=None,
-            with_timestamps=None, udf_registry_path=None):
+            with_timestamps=None, udf_registry_path=None, use_lookup_cache=None):
         """
         Executes a SQL-like query on dynamic table.
 
@@ -2566,7 +2577,7 @@ class YtClient(ClientState):
             format=format, raw=raw, execution_pool=execution_pool, response_parameters=response_parameters,
             retention_timestamp=retention_timestamp, placeholder_values=placeholder_values, use_canonical_null_relations=use_canonical_null_relations,
             merge_versioned_rows=merge_versioned_rows, syntax_version=syntax_version, versioned_read_options=versioned_read_options,
-            with_timestamps=with_timestamps, udf_registry_path=udf_registry_path)
+            with_timestamps=with_timestamps, udf_registry_path=udf_registry_path, use_lookup_cache=use_lookup_cache)
 
     def set(
             self,

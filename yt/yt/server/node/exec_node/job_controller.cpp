@@ -120,13 +120,14 @@ public:
         , TmpfsLimitGauge_(Profiler_.Gauge("/tmpfs/limit"))
         , JobProxyMaxMemoryGauge_(Profiler_.Gauge("/job_proxy_max_memory"))
         , UserJobMaxMemoryGauge_(Profiler_.Gauge("/user_job_max_memory"))
+        , JobCleanupTimer_(Profiler_.TimeHistogram("/job_cleanup_duration", GetJobCleanupTimerBounds()))
     {
         YT_VERIFY(Bootstrap_);
 
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
         Profiler_.AddProducer("/gpu_utilization", GpuUtilizationBuffer_);
-        Profiler_.AddProducer("", ActiveJobCountBuffer_);
+        Profiler_.AddProducer("", JobCountBuffer_);
     }
 
     void Initialize() override
@@ -501,6 +502,13 @@ public:
         JobProxyExitProfiler_.OnProcessExit(error, delay);
     }
 
+    void OnJobCleanupFinished(TDuration duration) final
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        JobCleanupTimer_.Record(duration);
+    }
+
     void EvictThrottlingRequest(TGuid id)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -567,7 +575,7 @@ private:
     TProfiler Profiler_;
     TProcessExitProfiler JobProxyExitProfiler_;
     TBufferedProducerPtr GpuUtilizationBuffer_ = New<TBufferedProducer>();
-    TBufferedProducerPtr ActiveJobCountBuffer_ = New<TBufferedProducer>();
+    TBufferedProducerPtr JobCountBuffer_ = New<TBufferedProducer>();
     THashMap<EJobState, TCounter> JobFinalStateCounters_;
 
     // Chunk cache counters.
@@ -579,6 +587,8 @@ private:
     TGauge TmpfsLimitGauge_;
     TGauge JobProxyMaxMemoryGauge_;
     TGauge UserJobMaxMemoryGauge_;
+
+    TEventTimer JobCleanupTimer_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ResourceAdjustmentExecutor_;
@@ -768,11 +778,12 @@ private:
         static const TString jobProxyMaxMemorySensorName = "/job_proxy/max_memory/sum";
         static const TString userJobMaxMemorySensorName = "/user_job/max_memory/sum";
 
-        ActiveJobCountBuffer_->Update([this] (ISensorWriter* writer) {
+        JobCountBuffer_->Update([this] (ISensorWriter* writer) {
             TWithTagGuard tagGuard(writer, "origin", FormatEnum(EJobOrigin::Scheduler));
 
             writer->AddGauge("/active_job_count", std::size(IdToJob_));
             writer->AddGauge("/allocation_count", std::size(IdToAllocations_));
+            writer->AddGauge("/waiting_allocation_count", std::size(AllocationsWaitingForResources_));
 
             int runningJobCount = 0;
             for (const auto& [_, allocation] : IdToAllocations_) {
@@ -1199,7 +1210,7 @@ private:
             for (const auto& protoJobToConfirm : response->jobs_to_confirm()) {
                 auto jobToConfirm = FromProto<NControllerAgent::TJobToConfirm>(protoJobToConfirm);
 
-                YT_LOG_DEBUG("Controller agent requested to confirm job (JobId: %v, AgentDescriptor: %v)", jobToConfirm.JobId, agentDescriptor);
+                YT_LOG_DEBUG("Controller agent requested to confirm job (JobId: %v)", jobToConfirm.JobId);
 
                 if (auto job = FindJob(jobToConfirm.JobId)) {
                     if (job->GetControllerAgentDescriptor() != agentDescriptor) {
@@ -1220,21 +1231,18 @@ private:
 
             if (auto job = FindJob(jobId)) {
                 YT_LOG_DEBUG(
-                    "Controller agent requested to interrupt job (JobId: %v, InterruptionReason: %v, AgentDescriptor: %v)",
+                    "Controller agent requested to interrupt job (JobId: %v, InterruptionReason: %v)",
                     jobId,
-                    interruptionReason,
-                    agentDescriptor);
+                    interruptionReason);
 
-                job->Interrupt(
-                    timeout,
+                InterruptJob(
+                    job,
                     interruptionReason,
-                    /*preemptionReason*/ std::nullopt,
-                    /*preemptedFor*/ std::nullopt);
+                    timeout);
             } else {
                 YT_LOG_WARNING(
-                    "Controller agent requested to interrupt a non-existent job (JobId: %v, AgentDescriptor: %v)",
-                    jobId,
-                    agentDescriptor);
+                    "Controller agent requested to interrupt a non-existent job (JobId: %v)",
+                    jobId);
             }
         }
 
@@ -1260,17 +1268,16 @@ private:
 
             if (auto job = FindJob(jobToAbort.JobId)) {
                 YT_LOG_DEBUG(
-                    "Controller agent requested to abort job (JobId: %v, AgentDescriptor: %v)",
+                    "Controller agent requested to abort job (JobId: %v, RequestNewJobs: %v)",
                     jobToAbort.JobId,
-                    agentDescriptor);
+                    jobToAbort.RequestNewJob);
 
-                AbortJob(job, jobToAbort.AbortReason, jobToAbort.Graceful);
+                AbortJob(job, jobToAbort.AbortReason, jobToAbort.Graceful, jobToAbort.RequestNewJob);
             } else {
                 YT_LOG_WARNING(
-                    "Controller agent requested to abort a non-existent job (JobId: %v, AbortReason: %v, AgentDescriptor: %v)",
+                    "Controller agent requested to abort a non-existent job (JobId: %v, AbortReason: %v)",
                     jobToAbort.JobId,
-                    jobToAbort.AbortReason,
-                    agentDescriptor);
+                    jobToAbort.AbortReason);
             }
         }
 
@@ -1280,23 +1287,21 @@ private:
 
             if (auto job = FindJob(jobId)) {
                 YT_LOG_DEBUG(
-                    "Controller agent requested to remove job (JobId: %v, AgentDescriptor: %v, ReleaseFlags: %v)",
+                    "Controller agent requested to remove job (JobId: %v, ReleaseFlags: %v)",
                     jobId,
-                    agentDescriptor,
                     jobToRemove.ReleaseFlags);
 
                 if (job->IsFinished()) {
                     RemoveJob(job, jobToRemove.ReleaseFlags);
                 } else {
                     YT_LOG_DEBUG("Requested to remove running job; aborting job (JobId: %v, JobState: %v)", jobId, job->GetState());
-                    AbortJob(job, EAbortReason::Other);
+                    AbortJob(job, EAbortReason::Other, /*graceful*/ false, /*requestNewJob*/ false);
                     RemoveJob(job, jobToRemove.ReleaseFlags);
                 }
             } else {
                 YT_LOG_WARNING(
-                    "Controller agent requested to remove a non-existent job (JobId: %v, AgentDescriptor: %v)",
-                    jobId,
-                    agentDescriptor);
+                    "Controller agent requested to remove a non-existent job (JobId: %v)",
+                    jobId);
             }
         }
 
@@ -1304,9 +1309,8 @@ private:
             auto operationId = NYT::FromProto<TOperationId>(protoOperationId);
 
             YT_LOG_DEBUG(
-                "Operation is not handled by agent, reset it for jobs (OperationId: %v, AgentDescriptor: %v)",
-                operationId,
-                agentDescriptor);
+                "Operation is not handled by agent, reset it for jobs (OperationId: %v)",
+                operationId);
 
             UpdateOperationControllerAgent(operationId, {});
         }
@@ -1323,14 +1327,6 @@ private:
         YT_LOG_DEBUG("Preparing scheduler heartbeat request");
 
         const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
-
-        *request->mutable_resource_limits() = ToNodeResources(JobResourceManager_->GetResourceLimits());
-        *request->mutable_resource_usage() = ToNodeResources(JobResourceManager_->GetResourceUsage({
-            NJobAgent::EResourcesState::Pending,
-            NJobAgent::EResourcesState::Acquired,
-        }));
-
-        *request->mutable_disk_resources() = JobResourceManager_->GetDiskResources();
 
         for (auto incarnationId : controllerAgentConnectorPool->GetRegisteredAgentIncarnationIds()) {
             auto* agentDescriptorProto = request->add_registered_controller_agents();
@@ -1627,11 +1623,24 @@ private:
         allocation->Abort(std::move(error));
     }
 
-    void AbortJob(const TJobPtr& job, EAbortReason abortReason, bool graceful = false)
+    void AbortJob(const TJobPtr& job, EAbortReason abortReason, bool graceful, bool requestNewJob)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_INFO("Aborting job (JobId: %v, AbortReason: %v)",
+        if (const auto& allocation = job->GetAllocation();
+            !allocation || allocation->IsFinished())
+        {
+            auto Logger = NExecNode::Logger().WithTag("JobId: %v", job->GetId());
+            if (allocation) {
+                Logger.AddTag("AllocationId: %v", allocation->GetId());
+            }
+
+            YT_LOG_INFO("Job abortion skipped since it is not settled in running allocation");
+            return;
+        }
+
+        YT_LOG_INFO(
+            "Aborting job (JobId: %v, AbortReason: %v)",
             job->GetId(),
             abortReason);
 
@@ -1639,14 +1648,35 @@ private:
             << TErrorAttribute("abort_reason", abortReason)
             << TErrorAttribute("graceful_abort", graceful);
 
-        DoAbortJob(job, std::move(error), graceful);
+        DoAbortJob(job, std::move(error), graceful, requestNewJob);
     }
 
-    void DoAbortJob(const TJobPtr& job, TError abortionError, bool graceful = false)
+    void DoAbortJob(const TJobPtr& job, TError abortionError, bool graceful, bool requestNewJob)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        job->Abort(std::move(abortionError), graceful);
+        YT_VERIFY(job->GetAllocation());
+
+        job->GetAllocation()->AbortJob(std::move(abortionError), graceful, requestNewJob);
+    }
+
+    void InterruptJob(const TJobPtr& job, EInterruptReason interruptionReason, TDuration interruptionTimeout)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        if (const auto& allocation = job->GetAllocation();
+            !allocation || allocation->IsFinished())
+        {
+            auto Logger = NExecNode::Logger().WithTag("JobId: %v", job->GetId());
+            if (allocation) {
+                Logger.AddTag("AllocationId: %v", allocation->GetId());
+            }
+
+            YT_LOG_INFO("Job interruption skipped since it is not settled in running allocation");
+            return;
+        }
+
+        job->GetAllocation()->InterruptJob(interruptionReason, interruptionTimeout);
     }
 
     void RemoveJob(
@@ -1660,7 +1690,7 @@ private:
 
         auto jobId = job->GetId();
 
-        YT_LOG_WARNING_IF(
+        YT_LOG_DEBUG_IF(
             job->GetAllocation(),
             "Removing job settled in allocation (JobId: %v)",
             job->GetId());
@@ -1755,7 +1785,7 @@ private:
 
         auto usage = JobResourceManager_->GetResourceUsage({
             NJobAgent::EResourcesState::Acquired,
-                NJobAgent::EResourcesState::Releasing
+            NJobAgent::EResourcesState::Releasing,
         });
         const auto limits = JobResourceManager_->GetResourceLimits();
         auto schedulerJobs = GetRunningJobsSortedByStartTime();
@@ -1859,11 +1889,10 @@ private:
         for (const auto& job : GetJobs()) {
             try {
                 YT_LOG_DEBUG(error, "Trying to interrupt job (JobId: %v)", job->GetId());
-                job->Interrupt(
-                    GetDynamicConfig()->DisabledJobsInterruptionTimeout,
+                InterruptJob(
+                    job,
                     EInterruptReason::JobsDisabledOnNode,
-                    /*preemptionReason*/ {},
-                    /*preemptedFor*/ {});
+                    GetDynamicConfig()->DisabledJobsInterruptionTimeout);
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Failed to interrupt job");
             }
@@ -2157,13 +2186,13 @@ private:
                 SetOpaque(false);
             }
 
-            std::vector<TString> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const
+            std::vector<std::string> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const
             {
-                std::vector<TString> keys;
+                std::vector<std::string> keys;
                 keys.reserve(std::min<i64>(GetSize(), limit));
 
                 for (const auto& [id, _] : JobController_->IdToJob_) {
-                    if (std::ssize(keys) == limit) {
+                    if (std::ssize(keys) >= limit) {
                         break;
                     }
 
@@ -2178,7 +2207,7 @@ private:
                 return std::ssize(JobController_->IdToJob_);
             }
 
-            IYPathServicePtr FindItemService(TStringBuf key) const
+            IYPathServicePtr FindItemService(const std::string& key) const
             {
                 // NB: There is no guarantee that obtained key is
                 // still valid due to potential context switches
@@ -2211,13 +2240,13 @@ private:
                 SetOpaque(false);
             }
 
-            std::vector<TString> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const
+            std::vector<std::string> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const
             {
-                std::vector<TString> keys;
+                std::vector<std::string> keys;
                 keys.reserve(std::min<i64>(GetSize(), limit));
 
                 for (const auto& [id, _] : JobController_->IdToAllocations_) {
-                    if (std::ssize(keys) == limit) {
+                    if (std::ssize(keys) >= limit) {
                         break;
                     }
 
@@ -2232,7 +2261,7 @@ private:
                 return std::ssize(JobController_->IdToAllocations_);
             }
 
-            IYPathServicePtr FindItemService(TStringBuf key) const
+            IYPathServicePtr FindItemService(const std::string& key) const
             {
                 // NB: There is no guarantee that obtained key is
                 // still valid due to potential context switches
@@ -2278,6 +2307,16 @@ private:
             std::vector{
                 std::move(staticOrchidService),
                 std::move(dynamicOrchidService)});
+    }
+
+    static std::vector<TDuration> GetJobCleanupTimerBounds()
+    {
+        return {
+            TDuration::Seconds(1),
+            TDuration::Seconds(5),
+            TDuration::Seconds(30),
+            TDuration::Seconds(120),
+        };
     }
 };
 

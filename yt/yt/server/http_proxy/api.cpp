@@ -16,7 +16,9 @@
 namespace NYT::NHttpProxy {
 
 using namespace NConcurrency;
+using namespace NFormats;
 using namespace NHttp;
+using namespace NNet;
 using namespace NProfiling;
 using namespace NSecurityClient;
 using namespace NYson;
@@ -64,7 +66,7 @@ TApi::TApi(TBootstrap* bootstrap)
     dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TApi::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
-TString TApi::GetNetworkNameForAddress(const NNet::TNetworkAddress& address) const
+TString TApi::GetNetworkNameForAddress(const TNetworkAddress& address) const
 {
     if (!address.IsIP6()) {
         return DefaultNetworkName_;
@@ -176,8 +178,7 @@ TApi::TProfilingCounters* TApi::GetProfilingCounters(const TUserCommandPair& key
 {
     return Counters_.FindOrInsert(key, [&, this] {
         auto profiler = SparseProfiler_
-            // TODO(babenko): switch to std::string
-            .WithTag("user", TString(key.first))
+            .WithTag("user", key.first)
             .WithTag("command", key.second);
 
         auto counters = std::make_unique<TProfilingCounters>();
@@ -200,6 +201,91 @@ void TApi::IncrementHttpCode(EStatusCode httpStatusCode)
     counter->Increment();
 }
 
+void TApi::IncrementUserCounter(
+    TUserCounterMap* counterMap,
+    const std::string& user,
+    const TString& networkName,
+    const TString& counterName,
+    const TString& tagName,
+    const TString& tagValue,
+    i64 value)
+{
+    counterMap->FindOrInsert(std::pair(user, networkName), [&, this] {
+        return SparseProfiler_
+            .WithTag("user", user)
+            .WithTag(tagName, tagValue)
+            .Counter(counterName);
+    }).first->Increment(value);
+}
+
+void TApi::IncrementBytesOutProfilingCounters(
+    const std::string& user,
+    const TNetworkAddress& clientAddress,
+    i64 bytesOut,
+    const std::optional<TFormat>& outputFormat,
+    const std::optional<TContentEncoding>& outputCompression)
+{
+    auto networkName = GetNetworkNameForAddress(clientAddress);
+
+    IncrementUserCounter(&BytesOut_, user, networkName, "/bytes_out", "network", networkName, bytesOut);
+
+    if (outputFormat) {
+        IncrementUserCounter(
+            &OutputFormatBytes_,
+            user,
+            networkName,
+            "/bytes_out_by_format",
+            "format",
+            FormatEnum(outputFormat->GetType()),
+            bytesOut);
+    }
+
+    if (outputCompression) {
+        IncrementUserCounter(
+            &OutputCompressionBytes_,
+            user,
+            networkName,
+            "/bytes_out_by_compression",
+            "compression",
+            *outputCompression,
+            bytesOut);
+    }
+}
+
+void TApi::IncrementBytesInProfilingCounters(
+    const std::string& user,
+    const TNetworkAddress& clientAddress,
+    i64 bytesIn,
+    const std::optional<TFormat>& inputFormat,
+    const std::optional<TContentEncoding>& inputCompression)
+{
+    auto networkName = GetNetworkNameForAddress(clientAddress);
+
+    IncrementUserCounter(&BytesIn_, user, networkName, "/bytes_in", "network", networkName, bytesIn);
+
+    if (inputFormat) {
+        IncrementUserCounter(
+            &InputFormatBytes_,
+            user,
+            networkName,
+            "/bytes_in_by_format",
+            "format",
+            FormatEnum(inputFormat->GetType()),
+            bytesIn);
+    }
+
+    if (inputCompression) {
+        IncrementUserCounter(
+            &InputCompressionBytes_,
+            user,
+            networkName,
+            "/bytes_in_by_compression",
+            "compression",
+            *inputCompression,
+            bytesIn);
+    }
+}
+
 void TApi::IncrementProfilingCounters(
     const std::string& user,
     const TString& command,
@@ -207,13 +293,7 @@ void TApi::IncrementProfilingCounters(
     TErrorCode apiErrorCode,
     TDuration wallTime,
     TDuration cpuTime,
-    const NNet::TNetworkAddress& clientAddress,
-    i64 bytesIn,
-    i64 bytesOut,
-    const std::optional<NFormats::TFormat>& inputFormat,
-    const std::optional<NFormats::TFormat>& outputFormat,
-    std::optional<TContentEncoding> inputCompression,
-    std::optional<TContentEncoding> outputCompression)
+    const TNetworkAddress& clientAddress)
 {
     auto networkName = GetNetworkNameForAddress(clientAddress);
 
@@ -234,8 +314,7 @@ void TApi::IncrementProfilingCounters(
         HttpCodesByUser_.FindOrInsert({user, *httpStatusCode}, [&, this] {
             return SparseProfiler_
                 .WithTag("http_code", ToString(static_cast<int>(*httpStatusCode)))
-                // TODO(babenko): switch to std::string
-                .WithTag("user", TString(user))
+                .WithTag("user", user)
                 .Counter("/user_http_code_count");
         }).first->Increment();
     }
@@ -243,39 +322,11 @@ void TApi::IncrementProfilingCounters(
     if (apiErrorCode) {
         counters->ApiErrors.FindOrInsert(apiErrorCode, [&, this] {
             return SparseProfiler_
-                // TODO(babenko): switch to std::string
-                .WithTag("user", TString(user))
+                .WithTag("user", user)
                 .WithTag("command", command)
                 .WithTag("error_code", ToString(static_cast<int>(apiErrorCode)))
                 .Counter("/api_error_count");
         }).first->Increment();
-    }
-
-    auto incrementUserCounter = [&, this] (auto& counterMap, auto counterName, auto tagName, auto tagValue, auto value) {
-        counterMap.FindOrInsert(std::pair(user, networkName), [&, this] {
-            return SparseProfiler_
-                // TODO(babenko): switch to std::string
-                .WithTag("user", TString(user))
-                .WithTag(tagName, tagValue)
-                .Counter(counterName);
-        }).first->Increment(value);
-    };
-
-    incrementUserCounter(BytesIn_, "/bytes_in", "network", networkName, bytesIn);
-    incrementUserCounter(BytesOut_, "/bytes_out", "network", networkName, bytesOut);
-
-    if (inputFormat) {
-        incrementUserCounter(InputFormatBytes_, "/bytes_in_by_format", "format", FormatEnum(inputFormat->GetType()), bytesIn);
-    }
-    if (outputFormat) {
-        incrementUserCounter(OutputFormatBytes_, "/bytes_out_by_format", "format", FormatEnum(outputFormat->GetType()), bytesOut);
-    }
-
-    if (inputCompression) {
-        incrementUserCounter(InputCompressionBytes_, "/bytes_in_by_compression", "compression", *inputCompression, bytesIn);
-    }
-    if (outputCompression) {
-        incrementUserCounter(OutputCompressionBytes_, "/bytes_out_by_compression", "compression", *outputCompression, bytesOut);
     }
 }
 

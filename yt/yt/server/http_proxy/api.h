@@ -20,6 +20,7 @@ namespace NYT::NHttpProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 using TUserCommandPair = std::pair<std::string, TString>;
+using TUserCounterMap = NConcurrency::TSyncMap<std::pair<TString, TString>, NProfiling::TCounter>;
 
 class TSemaphoreGuard
 {
@@ -69,6 +70,20 @@ public:
     std::optional<TSemaphoreGuard> AcquireSemaphore(const std::string& user, const TString& command);
     void ReleaseSemaphore(const TUserCommandPair& key);
 
+    void IncrementBytesOutProfilingCounters(
+        const std::string& user,
+        const NNet::TNetworkAddress& clientAddress,
+        i64 bytesOut,
+        const std::optional<NFormats::TFormat>& outputFormat,
+        const std::optional<NHttp::TContentEncoding>& outputCompression);
+
+    void IncrementBytesInProfilingCounters(
+        const std::string& user,
+        const NNet::TNetworkAddress& clientAddress,
+        i64 bytesIn,
+        const std::optional<NFormats::TFormat>& inputFormat,
+        const std::optional<NHttp::TContentEncoding>& inputCompression);
+
     void IncrementProfilingCounters(
         const std::string& user,
         const TString& command,
@@ -76,13 +91,7 @@ public:
         TErrorCode apiErrorCode,
         TDuration wallTime,
         TDuration cpuTime,
-        const NNet::TNetworkAddress& clientAddress,
-        i64 bytesIn,
-        i64 bytesOut,
-        const std::optional<NFormats::TFormat>& inputFormat,
-        const std::optional<NFormats::TFormat>& outputFormat,
-        std::optional<NHttp::TContentEncoding> inputCompression,
-        std::optional<NHttp::TContentEncoding> outputCompression);
+        const NNet::TNetworkAddress& clientAddress);
 
     void IncrementHttpCode(NHttp::EStatusCode httpStatusCode);
 
@@ -133,14 +142,14 @@ private:
 
     NConcurrency::TSyncMap<TUserCommandPair, std::unique_ptr<TProfilingCounters>> Counters_;
 
-    NConcurrency::TSyncMap<std::pair<TString, TString>, NProfiling::TCounter> BytesIn_;
-    NConcurrency::TSyncMap<std::pair<TString, TString>, NProfiling::TCounter> BytesOut_;
+    TUserCounterMap BytesIn_;
+    TUserCounterMap BytesOut_;
 
-    NConcurrency::TSyncMap<std::pair<TString, TString>, NProfiling::TCounter> InputFormatBytes_;
-    NConcurrency::TSyncMap<std::pair<TString, TString>, NProfiling::TCounter> OutputFormatBytes_;
+    TUserCounterMap InputFormatBytes_;
+    TUserCounterMap OutputFormatBytes_;
 
-    NConcurrency::TSyncMap<std::pair<TString, TString>, NProfiling::TCounter> InputCompressionBytes_;
-    NConcurrency::TSyncMap<std::pair<TString, TString>, NProfiling::TCounter> OutputCompressionBytes_;
+    TUserCounterMap InputCompressionBytes_;
+    TUserCounterMap OutputCompressionBytes_;
 
     NConcurrency::TSyncMap<NHttp::EStatusCode, NProfiling::TCounter> HttpCodes_;
     NConcurrency::TSyncMap<std::pair<std::string, NHttp::EStatusCode>, NProfiling::TCounter> HttpCodesByUser_;
@@ -158,6 +167,15 @@ private:
     void OnDynamicConfigChanged(
         const TProxyDynamicConfigPtr& /*oldConfig*/,
         const TProxyDynamicConfigPtr& newConfig);
+
+    void IncrementUserCounter(
+        TUserCounterMap* counterMap,
+        const std::string& user,
+        const TString& networkName,
+        const TString& counterName,
+        const TString& tagName,
+        const TString& tagValue,
+        i64 value);
 };
 
 DEFINE_REFCOUNTED_TYPE(TApi)

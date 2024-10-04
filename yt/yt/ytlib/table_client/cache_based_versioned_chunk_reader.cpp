@@ -7,7 +7,6 @@
 #include "chunk_reader_base.h"
 #include "chunk_state.h"
 #include "config.h"
-#include "private.h"
 #include "schemaless_block_reader.h"
 #include "versioned_block_reader.h"
 #include "versioned_chunk_reader.h"
@@ -32,6 +31,7 @@
 #include <yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/private.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 

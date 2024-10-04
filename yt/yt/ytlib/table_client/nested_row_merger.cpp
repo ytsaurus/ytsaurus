@@ -1,12 +1,12 @@
 #include "nested_row_merger.h"
 #include "config.h"
-#include "private.h"
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/unversioned_value.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/core/misc/heap.h>
 
@@ -307,17 +307,78 @@ TUnversionedValue PackValues(TRange<TUnversionedValue> values, TRowBuffer* rowBu
     }
     writer.OnEndList();
 
-    return rowBuffer->CaptureValue(MakeUnversionedAnyValue(resultYson));
+    return rowBuffer->CaptureValue(MakeUnversionedCompositeValue(resultYson));
+}
+
+void TNestedTableMerger::UnpackKeyColumn(
+    ui16 keyColumnId,
+    int mergeStreamCount,
+    TRange<TVersionedValue> keyColumn,
+    TNestedKeyColumn keyColumnSchema)
+{
+    // Expect each nested column has equal stream count.
+    if (std::ssize(keyColumn) != mergeStreamCount) {
+        auto Logger = TableClientLogger();
+        YT_LOG_ALERT("Merge stream count mismatch (ColumnId: %v, Expected: %v, Actual: %v)",
+            keyColumnId,
+            mergeStreamCount,
+            std::ssize(keyColumn));
+
+        THROW_ERROR_EXCEPTION("Merge stream count mismatch")
+            << TErrorAttribute("column_id", keyColumnId)
+            << TErrorAttribute("expected", mergeStreamCount)
+            << TErrorAttribute("actual", std::ssize(keyColumn));
+    }
+
+    YT_VERIFY(std::ssize(keyColumn) == mergeStreamCount);
+
+    for (int index = 0; index < mergeStreamCount; ++index) {
+        auto timestamp = keyColumn[index].Timestamp;
+
+        if (keyColumnId == 0) {
+            Timestamps_.push_back(timestamp);
+            Offsets_.push_back(UnpackedKeys_[keyColumnId].size());
+        } else {
+            if (Timestamps_[index] != timestamp) {
+                THROW_ERROR_EXCEPTION("Timestamp mismatch in nested key columns")
+                    << TErrorAttribute("column_id", keyColumnId)
+                    << TErrorAttribute("expected", Timestamps_[index])
+                    << TErrorAttribute("actual", timestamp);
+            }
+
+            if (Offsets_[index] != std::ssize(UnpackedKeys_[keyColumnId])) {
+                THROW_ERROR_EXCEPTION("Mismatch item count in nested key columns")
+                    << TErrorAttribute("column_id", keyColumnId)
+                    << TErrorAttribute("expected", Offsets_[index])
+                    << TErrorAttribute("actual", std::ssize(UnpackedKeys_[keyColumnId]));
+            }
+        }
+
+        if (keyColumn[index].Type == EValueType::Null) {
+            continue;
+        }
+
+        UnpackNestedValuesList(
+            &UnpackedKeys_[keyColumnId],
+            keyColumn[index].AsStringBuf(),
+            keyColumnSchema.Type);
+    }
+}
+
+void TNestedTableMerger::Reset(int keyWidth, int mergeStreamCount)
+{
+    Timestamps_.clear();
+    UnpackedKeys_.clear();
+    Offsets_.clear();
+
+    Timestamps_.reserve(mergeStreamCount);
+    UnpackedKeys_.resize(keyWidth);
 }
 
 void TNestedTableMerger::UnpackKeyColumns(
     TRange<TMutableRange<TVersionedValue>> keyColumns,
     TRange<TNestedKeyColumn> keyColumnsSchema)
 {
-    Timestamps_.clear();
-    UnpackedKeys_.clear();
-    Offsets_.clear();
-
     if (keyColumns.Empty()) {
         return;
     }
@@ -325,58 +386,28 @@ void TNestedTableMerger::UnpackKeyColumns(
     int keyWidth = std::ssize(keyColumns);
     auto mergeStreamCount = std::ssize(keyColumns.Front());
 
-    Timestamps_.reserve(mergeStreamCount);
-    UnpackedKeys_.resize(keyWidth);
-
-    // Expect each nested column has equal stream count.
+    Reset(keyWidth, mergeStreamCount);
 
     for (ui16 keyColumnId = 0; keyColumnId < keyWidth; ++keyColumnId) {
-        if (std::ssize(keyColumns[keyColumnId]) != mergeStreamCount) {
-            auto Logger = TableClientLogger();
-            YT_LOG_ALERT("Merge stream count mismatch (ColumnId: %v, Expected: %v, Actual: %v)",
-                keyColumnId,
-                mergeStreamCount,
-                std::ssize(keyColumns[keyColumnId]));
+        UnpackKeyColumn(keyColumnId, mergeStreamCount, keyColumns[keyColumnId], keyColumnsSchema[keyColumnId]);
+    }
+}
 
-            THROW_ERROR_EXCEPTION("Merge stream count mismatch")
-                << TErrorAttribute("column_id", keyColumnId)
-                << TErrorAttribute("expected", mergeStreamCount)
-                << TErrorAttribute("actual", std::ssize(keyColumns[keyColumnId]));
-        }
+void TNestedTableMerger::UnpackKeyColumns(
+    TRange<std::vector<TVersionedValue>> keyColumns,
+    TRange<TNestedKeyColumn> keyColumnsSchema)
+{
+    if (keyColumns.Empty()) {
+        return;
+    }
 
-        YT_VERIFY(std::ssize(keyColumns[keyColumnId]) == mergeStreamCount);
+    int keyWidth = std::ssize(keyColumns);
+    auto mergeStreamCount = std::ssize(keyColumns.Front());
 
-        for (int index = 0; index < mergeStreamCount; ++index) {
-            auto timestamp = keyColumns[keyColumnId][index].Timestamp;
+    Reset(keyWidth, mergeStreamCount);
 
-            if (keyColumnId == 0) {
-                Timestamps_.push_back(timestamp);
-                Offsets_.push_back(UnpackedKeys_[keyColumnId].size());
-            } else {
-                if (Timestamps_[index] != timestamp) {
-                    THROW_ERROR_EXCEPTION("Timestamp mismatch in nested key columns")
-                        << TErrorAttribute("column_id", keyColumnId)
-                        << TErrorAttribute("expected", Timestamps_[index])
-                        << TErrorAttribute("actual", timestamp);
-                }
-
-                if (Offsets_[index] != std::ssize(UnpackedKeys_[keyColumnId])) {
-                    THROW_ERROR_EXCEPTION("Mismatch item count in nested key columns")
-                        << TErrorAttribute("column_id", keyColumnId)
-                        << TErrorAttribute("expected", Offsets_[index])
-                        << TErrorAttribute("actual", std::ssize(UnpackedKeys_[keyColumnId]));
-                }
-            }
-
-            if (keyColumns[keyColumnId][index].Type == EValueType::Null) {
-                continue;
-            }
-
-            UnpackNestedValuesList(
-                &UnpackedKeys_[keyColumnId],
-                keyColumns[keyColumnId][index].AsStringBuf(),
-                keyColumnsSchema[keyColumnId].Type);
-        }
+    for (ui16 keyColumnId = 0; keyColumnId < keyWidth; ++keyColumnId) {
+        UnpackKeyColumn(keyColumnId, mergeStreamCount, keyColumns[keyColumnId], keyColumnsSchema[keyColumnId]);
     }
 }
 

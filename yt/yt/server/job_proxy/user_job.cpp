@@ -136,6 +136,7 @@ using namespace NYPath;
 using namespace NJobProberClient;
 using namespace NJobTrackerClient;
 using namespace NUserJob;
+using namespace NStatisticPath;
 
 using NControllerAgent::NProto::TJobResult;
 using NControllerAgent::NProto::TJobSpec;
@@ -446,6 +447,12 @@ public:
     {
         YT_LOG_INFO("Started preparing artifacts");
 
+        if (UserJobEnvironment_->HasRootFS() && Config_->EnableRootVolumeDiskQuota) {
+            RunTool<TCreateDirectoryAsRootTool>(CombinePaths(
+                *Config_->RootPath,
+                Format("slot/%v", GetSandboxRelPath(ESandboxKind::User))));
+        }
+
         // Prepare user artifacts.
         for (const auto& file : UserJobSpec_.files()) {
             if (!file.bypass_artifact_cache() && !file.copy_file()) {
@@ -490,6 +497,28 @@ public:
             Host_->GetPreparationPath(),
             GetSandboxRelPath(ESandboxKind::User));
         auto artifactPath = CombinePaths(sandboxPath, artifactName);
+
+        auto canCopyToRootFS = [&] (const TString& artifactPath) {
+            if (!Config_->EnableRootVolumeDiskQuota) {
+                return false;
+            }
+
+            for (const auto& tmpfsPath : Config_->TmpfsManager->TmpfsPaths) {
+                if (artifactPath.StartsWith(tmpfsPath)) {
+                    return false;
+                }
+            }
+
+            return true;
+        };
+
+        if (UserJobEnvironment_->HasRootFS() && canCopyToRootFS(artifactPath)) {
+            auto sandboxPath = CombinePaths(
+                *Config_->RootPath,
+                Format("slot/%v", GetSandboxRelPath(ESandboxKind::User)));
+            artifactPath = CombinePaths(sandboxPath, artifactName);
+            YT_LOG_INFO("Copy artifact directly to rootFS (ArtifactPath %v)", artifactPath);
+        }
 
         auto onError = [&] (const TError& error) {
             Host_->OnArtifactPreparationFailed(artifactName, artifactPath, error);
@@ -676,66 +705,63 @@ private:
         return UserJobEnvironment_->SpawnUserProcess(
             ExecProgramName,
             {"--config", Host_->AdjustPath(GetExecutorConfigPath())},
-            CombinePaths(Host_->GetSlotPath(), GetSandboxRelPath(ESandboxKind::User)));
+            CombinePaths(Host_->GetSlotPath(), GetSandboxRelPath(ESandboxKind::User)),
+            UserId_);
     }
 
     void InitShellManager()
     {
 #ifdef _linux_
+        std::vector<TString> shellEnvironment;
+        shellEnvironment.reserve(Environment_.size());
+        std::vector<TString> visibleEnvironment;
+        visibleEnvironment.reserve(Environment_.size());
+
+        for (const auto& variable : Environment_) {
+            if (variable.StartsWith(NControllerAgent::SecureVaultEnvPrefix) &&
+                !UserJobSpec_.enable_secure_vault_variables_in_job_shell())
+            {
+                continue;
+            }
+            if (variable.StartsWith("YT_") &&
+                !Host_->GetJobSpecHelper()->GetJobSpecExt().ignore_yt_variables_in_shell_environment()) {
+                shellEnvironment.push_back(variable);
+            }
+            visibleEnvironment.push_back(variable);
+        }
+
+        auto shellManagerUid = UserId_;
+        if (Config_->TestPollJobShell) {
+            shellManagerUid = std::nullopt;
+            shellEnvironment.push_back("PS1=\"test_job@shell:\\W$ \"");
+        }
+
+        // ToDo(psushin): move ShellManager into user job environment.
+        TShellManagerConfig config{
+            .PreparationDir = Host_->GetPreparationPath(),
+            .WorkingDir = Host_->GetSlotPath(),
+            .UserId = shellManagerUid,
+            .MessageOfTheDay = Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, TStringBuf("\n"))),
+            .Environment = std::move(shellEnvironment),
+            .EnableJobShellSeccopm = Config_->EnableJobShellSeccopm,
+        };
+
         switch (JobEnvironmentType_) {
             case EJobEnvironmentType::Testing:
             case EJobEnvironmentType::Simple:
-                // No shell support.
-                break;
             case EJobEnvironmentType::Cri: {
-                // TODO(abogutksiy): create specific shell manager.
+                ShellManager_ = CreateShellManager(std::move(config));
                 break;
             }
+
             case EJobEnvironmentType::Porto: {
-                auto portoJobEnvironmentConfig = Config_->JobEnvironment.TryGetConcrete<EJobEnvironmentType::Porto>();
-                auto portoExecutor = NContainers::CreatePortoExecutor(portoJobEnvironmentConfig->PortoExecutor, "job-shell");
-
-                std::vector<TString> shellEnvironment;
-                shellEnvironment.reserve(Environment_.size());
-                std::vector<TString> visibleEnvironment;
-                visibleEnvironment.reserve(Environment_.size());
-
-                for (const auto& variable : Environment_) {
-                    if (variable.StartsWith(NControllerAgent::SecureVaultEnvPrefix) &&
-                        !UserJobSpec_.enable_secure_vault_variables_in_job_shell())
-                    {
-                        continue;
-                    }
-                    if (variable.StartsWith("YT_") &&
-                        !Host_->GetJobSpecHelper()->GetJobSpecExt().ignore_yt_variables_in_shell_environment())
-                    {
-                        shellEnvironment.push_back(variable);
-                    }
-                    visibleEnvironment.push_back(variable);
-                }
-
-                auto shellManagerUid = UserId_;
-                if (Config_->TestPollJobShell) {
-                    shellManagerUid = std::nullopt;
-                    shellEnvironment.push_back("PS1=\"test_job@shell:\\W$ \"");
-                }
-
-                std::optional<int> shellManagerGid;
                 // YT-13790.
                 if (Config_->RootPath) {
-                    shellManagerGid = 1001;
+                    config.GroupId = 1001;
                 }
 
-                // ToDo(psushin): move ShellManager into user job environment.
-                TShellManagerConfig config{
-                    .PreparationDir = Host_->GetPreparationPath(),
-                    .WorkingDir = Host_->GetSlotPath(),
-                    .UserId = shellManagerUid,
-                    .GroupId = shellManagerGid,
-                    .MessageOfTheDay = Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, TStringBuf("\n"))),
-                    .Environment = std::move(shellEnvironment),
-                    .EnableJobShellSeccopm = Config_->EnableJobShellSeccopm,
-                };
+                auto portoJobEnvironmentConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->JobEnvironment);
+                auto portoExecutor = NContainers::CreatePortoExecutor(portoJobEnvironmentConfig->PortoExecutor, "job-shell");
 
                 ShellManager_ = CreatePortoShellManager(
                     config,
@@ -1335,15 +1361,15 @@ private:
     void AddCustomStatistics(const INodePtr& sample)
     {
         auto guard = Guard(StatisticsLock_);
-        CustomStatistics_.AddSample("/custom", sample);
+        CustomStatistics_.AddSample("custom"_L, sample);
 
         int customStatisticsCount = 0;
         for (const auto& [path, summary] : CustomStatistics_.Data()) {
-            if (HasPrefix(path, "/custom")) {
-                if (path.size() > MaxCustomStatisticsPathLength) {
+            if (path.StartsWith("custom"_L)) {
+                if (path.Path().size() > MaxCustomStatisticsPathLength) {
                     THROW_ERROR_EXCEPTION(
                         "Custom statistics path is too long: %v > %v",
-                        path.size(),
+                        path.Path().size(),
                         MaxCustomStatisticsPathLength);
                 }
                 ++customStatisticsCount;
@@ -1386,7 +1412,7 @@ private:
             if (auto dataStatistics = UserJobReadController_->GetDataStatistics()) {
                 result.TotalInputStatistics.DataStatistics = *dataStatistics;
             }
-            statistics.AddSample("/data/input/not_fully_consumed", NotFullyConsumed_.load() ? 1 : 0);
+            statistics.AddSample("/data/input/not_fully_consumed"_SP, NotFullyConsumed_.load() ? 1 : 0);
             if (auto codecStatistics = UserJobReadController_->GetDecompressionStatistics()) {
                 result.TotalInputStatistics.CodecStatistics = *codecStatistics;
             }
@@ -1409,13 +1435,13 @@ private:
         // Job environment statistics.
         if (Prepared_) {
             if (auto userJobCpuStatistics = GetUserJobCpuStatistics()) {
-                statistics.AddSample("/user_job/cpu", *userJobCpuStatistics);
+                statistics.AddSample("/user_job/cpu"_SP, *userJobCpuStatistics);
             }
 
             try {
                 auto blockIOStatistics = UserJobEnvironment_->GetBlockIOStatistics()
                     .ValueOrThrow();
-                statistics.AddSample("/user_job/block_io", blockIOStatistics);
+                statistics.AddSample("/user_job/block_io"_SP, blockIOStatistics);
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Unable to get block io statistics for user job");
             }
@@ -1424,37 +1450,38 @@ private:
                 auto networkStatistics = UserJobEnvironment_->GetNetworkStatistics()
                     .ValueOrThrow();
                 if (networkStatistics) {
-                    statistics.AddSample("/user_job/network", *networkStatistics);
+                    statistics.AddSample("/user_job/network"_SP, *networkStatistics);
                 }
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Unable to get network statistics for user job");
             }
 
-            statistics.AddSample("/user_job/woodpecker", Woodpecker_ ? 1 : 0);
+            statistics.AddSample("/user_job/woodpecker"_SP, Woodpecker_ ? 1 : 0);
         }
 
         if (auto time = UserContainerFinalizationTime_.load()) {
-            statistics.AddSample("/user_job/finalization_time", time->MilliSeconds());
+            statistics.AddSample("/user_job/finalization_time"_SP, time->MilliSeconds());
         }
 
         try {
-            TmpfsManager_->DumpTmpfsStatistics(&statistics, "/user_job");
+            TmpfsManager_->DumpTmpfsStatistics(&statistics, "/user_job"_SP);
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to dump user job tmpfs statistics");
         }
 
         try {
-            MemoryTracker_->DumpMemoryUsageStatistics(&statistics, "/user_job");
+            MemoryTracker_->DumpMemoryUsageStatistics(&statistics, "/user_job"_SP);
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to dump user job memory usage statistics");
         }
 
         YT_VERIFY(UserJobSpec_.memory_limit() > 0);
-        statistics.AddSample("/user_job/memory_limit", UserJobSpec_.memory_limit());
-        statistics.AddSample("/user_job/memory_reserve", UserJobSpec_.memory_reserve());
+        statistics.AddSample("/user_job/memory_limit"_SP, UserJobSpec_.memory_limit());
+        statistics.AddSample("/user_job/memory_reserve"_SP, UserJobSpec_.memory_reserve());
 
+        // TODO(pavook) repeating calculation code?
         statistics.AddSample(
-            "/user_job/memory_reserve_factor_x10000",
+            "/user_job/memory_reserve_factor_x10000"_SP,
             static_cast<int>((1e4 * UserJobSpec_.memory_reserve()) / UserJobSpec_.memory_limit()));
 
         // Pipe statistics.
@@ -1485,7 +1512,7 @@ private:
             result.PipeStatistics = pipeStatistics;
         }
 
-        statistics.AddSample("/user_job/profiler_failure_count", JobProfilerFailureCount_);
+        statistics.AddSample("/user_job/profiler_failure_count"_SP, JobProfilerFailureCount_);
 
         return result;
     }

@@ -49,8 +49,7 @@ public:
     void ConfirmRow(TWriteContext* context, const TSortedDynamicRowRef& rowRef);
     void PrepareRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
 
-    // Returns false if key obtained from wire protocol differs from key obtained from #rowRef.
-    bool CommitRow(
+    void CommitRow(
         TTransaction* transaction,
         const NTableClient::TWireProtocolWriteCommand& command,
         const TSortedDynamicRowRef& rowRef);

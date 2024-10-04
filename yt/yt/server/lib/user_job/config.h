@@ -12,6 +12,10 @@ namespace NYT::NUserJob {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TString DefaultExecutorStderrPath = "logs/ytserver_exec_stderr";
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TUserJobSynchronizerConnectionConfig
     : public NYTree::TYsonStruct
 {
@@ -46,6 +50,8 @@ public:
 
     //! User to impersonate before spawning a child process.
     int Uid = -1;
+
+    std::optional<int> Pty;
 
     //! Whether to adjust resource limits to allow core dumps.
     bool EnableCoreDump = false;

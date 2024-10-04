@@ -9,7 +9,7 @@ import (
 	"go.ytsaurus.tech/library/go/core/log"
 )
 
-func NewSlogArcadiaAdapter(l *slog.Logger) log.Logger {
+func newSlogArcadiaAdapter(l *slog.Logger) log.Logger {
 	return &slogArcadiaAdapter{l}
 }
 
@@ -104,5 +104,5 @@ func (s *slogArcadiaAdapter) Warnf(format string, args ...interface{}) {
 
 // WithName implements log.Logger.
 func (s *slogArcadiaAdapter) WithName(name string) log.Logger {
-	return NewSlogArcadiaAdapter(s.logger.With("name", name))
+	return newSlogArcadiaAdapter(s.logger.With("name", name))
 }

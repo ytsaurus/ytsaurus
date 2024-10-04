@@ -17,6 +17,8 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
+#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
 
@@ -469,6 +471,10 @@ private:
             default:
                 THROW_ERROR_EXCEPTION("Unsupported chunk format %Qlv",
                     chunkMeta->GetChunkFormat());
+        }
+        // NB: Cache-based readers do not support filtering in versioned reads as well.
+        if (store->GetInMemoryMode() != EInMemoryMode::None) {
+            produceAllVersions = false;
         }
 
         // TODO(akozhikhov): Prevent block cache pollution when reading here.

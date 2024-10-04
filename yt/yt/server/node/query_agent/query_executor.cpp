@@ -6,14 +6,17 @@
 
 #include <yt/yt/server/node/tablet_node/bootstrap.h>
 #include <yt/yt/server/node/tablet_node/error_manager.h>
+#include <yt/yt/server/node/tablet_node/lookup.h>
 #include <yt/yt/server/node/tablet_node/security_manager.h>
 #include <yt/yt/server/node/tablet_node/slot_manager.h>
+#include <yt/yt/server/node/tablet_node/store.h>
 #include <yt/yt/server/node/tablet_node/tablet.h>
 #include <yt/yt/server/node/tablet_node/tablet_manager.h>
 #include <yt/yt/server/node/tablet_node/tablet_profiling.h>
 #include <yt/yt/server/node/tablet_node/tablet_reader.h>
 #include <yt/yt/server/node/tablet_node/tablet_slot.h>
 #include <yt/yt/server/node/tablet_node/tablet_snapshot_store.h>
+
 
 #include <yt/yt/server/lib/hydra/hydra_manager.h>
 
@@ -487,7 +490,8 @@ public:
         , TabletSnapshots_(Bootstrap_->GetTabletSnapshotStore(), Logger)
         , ChunkReadOptions_{
             .WorkloadDescriptor = QueryOptions_.WorkloadDescriptor,
-            .ReadSessionId = QueryOptions_.ReadSessionId
+            .ReadSessionId = QueryOptions_.ReadSessionId,
+            .MemoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::Query),
         }
     { }
 
@@ -1215,7 +1219,7 @@ private:
             TKeyRef UpperSampleKey;
 
             TRange<TRowRange> Ranges;
-            int Weight = 0;
+            ui64 Weight = 0;
         };
 
         struct TPartitionRanges
@@ -1237,8 +1241,8 @@ private:
 
         std::vector<TTabletRanges> tabletRanges;
 
-        int totalWeight = 0;
-        int maxWeight = 0;
+        ui64 totalWeight = 0;
+        ui64 maxWeight = 0;
 
         for (const auto& dataSource : dataSourcesByTablet) {
             auto tabletId = dataSource.ObjectId;
@@ -1303,15 +1307,19 @@ private:
                     }
                 };
 
+                int partitionIndex = static_cast<int>(partitionIt - partitions.begin());
+
+                TRange<TLegacyKey> paritionSampleKeys = (*partitionIt)->SampleKeys->Keys;
+
                 // Alternatively can group items by original sample ranges with weight 1 and concat them afterwise.
                 // It does not make difference because of original ranges width.
-                std::vector<TKeyRef> sampleKeys;
+                std::vector<TKeyRef> sampleKeyPrefixes;
                 std::vector<int> weights;
                 if (QueryOptions_.MergeVersionedRows) {
                     weights.push_back(1);
 
-                    for (auto key : (*partitionIt)->SampleKeys->Keys) {
-                        sampleKeys.push_back(ToKeyRef(key));
+                    for (auto key : paritionSampleKeys) {
+                        sampleKeyPrefixes.push_back(ToKeyRef(key));
                         weights.push_back(1);
                     }
                 } else {
@@ -1324,31 +1332,70 @@ private:
                     }
 
                     if (QueryOptions_.VerboseLogging) {
-                        YT_LOG_DEBUG("Preparing sample key prefixes (KeyWidth: %v)", keyWidth);
+                        YT_LOG_DEBUG("Preparing sample key prefixes (PartitionIndex: %v, KeyWidth: %v, SamplesInPartition: %v)",
+                            partitionIndex,
+                            keyWidth,
+                            std::ssize(paritionSampleKeys));
                     }
 
-                    std::tie(sampleKeys, weights) = GetSampleKeysForPrefix((*partitionIt)->SampleKeys->Keys, keyWidth);
+                    auto maxKeyWidth = paritionSampleKeys.Empty() ? keyWidth : paritionSampleKeys.Front().GetCount();
+
+                    auto optimalKeyWidth = ExponentialSearch(keyWidth, maxKeyWidth, [&] (size_t keyWidth) {
+                        std::tie(sampleKeyPrefixes, weights) = GetSampleKeysForPrefix(paritionSampleKeys, keyWidth);
+
+                        int maxWeight = 0;
+                        for (auto weight : weights) {
+                            maxWeight = std::max(maxWeight, weight);
+                        }
+
+                        if (QueryOptions_.VerboseLogging) {
+                            YT_LOG_DEBUG("Iteration (KeyWidth: %v, MaxWeight: %v, Weights: %v, SamplePrefixes: %v)",
+                                keyWidth,
+                                maxWeight,
+                                weights,
+                                MakeFormattableView(sampleKeyPrefixes, TKeyFormatter()));
+                        }
+
+                        // Stop when maxWeight is less than square root of sample key count per parittion.
+                        return maxWeight * maxWeight > std::ssize(paritionSampleKeys);
+                    });
+
+                    std::tie(sampleKeyPrefixes, weights) = GetSampleKeysForPrefix(paritionSampleKeys, optimalKeyWidth);
+
+                    if (QueryOptions_.VerboseLogging) {
+                        YT_LOG_DEBUG("Prepared sample key prefixes (KeyWidth: %v, OptimalKeyWidth: %v)", keyWidth, optimalKeyWidth);
+                    }
+
+                    keyWidth = optimalKeyWidth;
                 }
 
-                int partitionIndex = static_cast<int>(partitionIt - partitions.begin());
+                ui64 rowCountInPartition = 0;
+
+                for (const auto& store : (*partitionIt)->Stores) {
+                    rowCountInPartition += store->GetRowCount();
+                }
+
+                ui64 rowCountPerSampleRange = rowCountInPartition / (paritionSampleKeys.size() + 1);
 
                 if (QueryOptions_.VerboseLogging) {
-                    YT_LOG_DEBUG("Processing partition (PartitionIndex: %v, InitialRanges: %v, SamplePrefixes: %v)",
+                    YT_LOG_DEBUG("Processing partition (PartitionIndex: %v, InitialRanges: %v, SamplePrefixes: %v, Weights: %v, RowCountPerSampleRange: %v)",
                         partitionIndex,
                         MakeFormattableView(TRange(rangesIt, rangesItEnd), TRangeFormatter()),
-                        MakeFormattableView(sampleKeys, TKeyFormatter()));
+                        MakeFormattableView(sampleKeyPrefixes, TKeyFormatter()),
+                        weights,
+                        rowCountPerSampleRange);
                 }
 
                 std::vector<TSampleRange> sampleRanges;
                 GroupItemsByShards(
                     TRange(rangesIt, rangesItEnd),
-                    TRange(sampleKeys),
+                    TRange(sampleKeyPrefixes),
                     TPredicate{},
                     [&] (const TKeyRef* sampleIt, TRangeIt rangesIt, TRangeIt rangesItEnd) {
-                        TKeyRef lowerSampleBound = sampleIt == sampleKeys.begin() ? ToKeyRef(MinKey()) : *(sampleIt - 1);
-                        TKeyRef upperSampleBound = sampleIt == sampleKeys.end() ? ToKeyRef(MaxKey()) : *sampleIt;
+                        TKeyRef lowerSampleBound = sampleIt == sampleKeyPrefixes.begin() ? ToKeyRef(MinKey()) : *(sampleIt - 1);
+                        TKeyRef upperSampleBound = sampleIt == sampleKeyPrefixes.end() ? ToKeyRef(MaxKey()) : *sampleIt;
 
-                        auto weight = weights[sampleIt - sampleKeys.begin()];
+                        auto weight = weights[sampleIt - sampleKeyPrefixes.begin()] * rowCountPerSampleRange;
                         totalWeight += weight;
                         if (maxWeight < weight) {
                             maxWeight = weight;
@@ -1365,7 +1412,7 @@ private:
                     YT_LOG_DEBUG("Got grouped by samples ranges (PartitionIndex: %v, SampleRanges: %v)",
                         partitionIndex,
                         MakeFormattableView(sampleRanges, [] (TStringBuilderBase* builder, const TSampleRange& item) {
-                            builder->AppendFormat("Sample: %kv - %kv, Ranges: %v",
+                            builder->AppendFormat("Sample: %kv .. %kv, Ranges: %v",
                                 item.LowerSampleKey,
                                 item.UpperSampleKey,
                                 MakeFormattableView(item.Ranges, TRangeFormatter()));
@@ -1377,20 +1424,24 @@ private:
             tabletRanges.push_back({.PartitionRanges = std::move(partitionRanges), .TabletId = tabletId});
         }
 
+        ui64 minWeightPerSubquery = QueryOptions_.MinRowCountPerSubquery;
         auto maxGroups = std::min(QueryOptions_.MaxSubqueries, Config_->MaxSubqueries);
         YT_VERIFY(maxGroups > 0);
-        int targetGroupCount = std::min(totalWeight == 0 ? 1 : totalWeight / maxWeight, maxGroups);
+
+        auto weightPerSubquery = std::max(maxWeight, std::min(minWeightPerSubquery, totalWeight));
+        int targetGroupCount = std::min<int>(totalWeight == 0 ? 1 : totalWeight / weightPerSubquery, maxGroups);
         YT_VERIFY(targetGroupCount > 0);
 
-        YT_LOG_DEBUG("Regrouping by weight (TotalWeight: %v, MaxWeight %v, MaxGroups: %v, TargetGroupCount: %v)",
+        YT_LOG_DEBUG("Regrouping by weight (TotalWeight: %v, MaxWeight %v, MinWeightPerSubquery: %v, MaxGroups: %v, TargetGroupCount: %v)",
             totalWeight,
             maxWeight,
+            minWeightPerSubquery,
             maxGroups,
             targetGroupCount);
 
-        int currentSummaryWeight = 0;
+        ui64 currentSummaryWeight = 0;
         int groupId = 0;
-        int nextWeight = (groupId + 1) * totalWeight / targetGroupCount;
+        ui64 nextWeight = (groupId + 1) * totalWeight / targetGroupCount;
 
         std::vector<std::vector<TabletReadItems>> groupedReadRanges;
         std::vector<TabletReadItems> tabletBoundsGroup;
@@ -1605,16 +1656,22 @@ private:
                         ChunkReadOptions_.WorkloadDescriptor.Category,
                         std::move(timestampReadOptions),
                         QueryOptions_.MergeVersionedRows);
-                } if (dataSplit.Keys) {
-                    reader = CreateSchemafulLookupTabletReader(
+                } else if (dataSplit.Keys) {
+                    THROW_ERROR_EXCEPTION_IF(!QueryOptions_.MergeVersionedRows,
+                        "Read on full key is incompatible with not merging versioned rows");
+
+                    return CreateLookupSessionReader(
+                        MemoryChunkProvider_,
                         tabletSnapshot,
                         columnFilter,
                         dataSplit.Keys,
                         QueryOptions_.TimestampRange,
+                        QueryOptions_.UseLookupCache,
                         ChunkReadOptions_,
-                        ETabletDistributedThrottlerKind::Select,
-                        ChunkReadOptions_.WorkloadDescriptor.Category,
-                        std::move(timestampReadOptions));
+                        std::move(timestampReadOptions),
+                        Invoker_,
+                        GetProfilingUser(Identity_),
+                        Logger);
                 }
 
                 return New<TProfilingReaderWrapper>(

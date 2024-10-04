@@ -1,0 +1,114 @@
+{
+	"Version": "v0.53.0",
+	"GoVersion": "1.21",
+	"Sum": "h1:4K4tsIXefpVJtvA/8srF4V4y0akAoPHkIslgAkjixJA=",
+	"Packages": {
+		"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp": {
+			"Imports": [
+				"context",
+				"github.com/felixge/httpsnoop",
+				"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconv",
+				"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconvutil",
+				"go.opentelemetry.io/otel",
+				"go.opentelemetry.io/otel/attribute",
+				"go.opentelemetry.io/otel/codes",
+				"go.opentelemetry.io/otel/metric",
+				"go.opentelemetry.io/otel/propagation",
+				"go.opentelemetry.io/otel/semconv/v1.20.0",
+				"go.opentelemetry.io/otel/trace",
+				"io",
+				"net/http",
+				"net/http/httptrace",
+				"net/url",
+				"strings",
+				"sync",
+				"sync/atomic",
+				"time"
+			],
+			"TestImports": [
+				"bytes",
+				"context",
+				"errors",
+				"fmt",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp",
+				"go.opentelemetry.io/otel/attribute",
+				"go.opentelemetry.io/otel/codes",
+				"go.opentelemetry.io/otel/propagation",
+				"go.opentelemetry.io/otel/trace",
+				"io",
+				"log",
+				"net/http",
+				"net/http/httptest",
+				"strings",
+				"testing"
+			]
+		},
+		"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/filters": {
+			"Imports": [
+				"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp",
+				"net/http",
+				"net/textproto",
+				"strings"
+			],
+			"TestImports": [
+				"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp",
+				"net/http",
+				"net/url",
+				"testing"
+			]
+		},
+		"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconv": {
+			"Imports": [
+				"errors",
+				"fmt",
+				"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconvutil",
+				"go.opentelemetry.io/otel/attribute",
+				"go.opentelemetry.io/otel/codes",
+				"go.opentelemetry.io/otel/semconv/v1.20.0",
+				"go.opentelemetry.io/otel/semconv/v1.24.0",
+				"io",
+				"net",
+				"net/http",
+				"os",
+				"strconv",
+				"strings"
+			],
+			"TestImports": [
+				"fmt",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"go.opentelemetry.io/otel/attribute",
+				"net/http",
+				"net/http/httptest",
+				"net/url",
+				"strconv",
+				"testing"
+			]
+		},
+		"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconvutil": {
+			"Imports": [
+				"fmt",
+				"go.opentelemetry.io/otel/attribute",
+				"go.opentelemetry.io/otel/codes",
+				"go.opentelemetry.io/otel/semconv/v1.20.0",
+				"net",
+				"net/http",
+				"strconv",
+				"strings"
+			],
+			"TestImports": [
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"go.opentelemetry.io/otel/attribute",
+				"go.opentelemetry.io/otel/codes",
+				"net/http",
+				"net/http/httptest",
+				"net/url",
+				"strconv",
+				"testing"
+			]
+		}
+	}
+}

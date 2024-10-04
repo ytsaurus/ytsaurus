@@ -103,7 +103,7 @@ public:
 
     TIterator Begin() const;
     TIterator End() const;
-    int GetSize() const;
+    i64 GetSize() const;
 
     // STL interop.
     using key_type = TKey;

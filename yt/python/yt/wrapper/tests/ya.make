@@ -22,12 +22,21 @@ TAG(
     ya:force_sandbox
 )
 
-REQUIREMENTS(
-    sb_vault:YT_TOKEN=value:ignat:robot-yt-test-token
-    cpu:10
-    ram:32
-    ram_disk:4
-)
+IF (SANITIZER_TYPE)
+    REQUIREMENTS(
+        sb_vault:YT_TOKEN=value:ignat:robot-yt-test-token
+        cpu:16
+        ram:32
+        ram_disk:4
+    )
+ELSE()
+    REQUIREMENTS(
+        sb_vault:YT_TOKEN=value:ignat:robot-yt-test-token
+        cpu:10
+        ram:32
+        ram_disk:4
+    )
+ENDIF()
 
 PEERDIR(
     yt/python/yt/wrapper

@@ -47,6 +47,8 @@ public:
     //! Interval between consequent directory updates.
     TDuration SyncPeriod;
 
+    TDuration SyncSplay;
+
     REGISTER_YSON_STRUCT(TUserDirectorySynchronizerConfig);
 
     static void Register(TRegistrar registrar);
@@ -66,6 +68,9 @@ public:
     //! Skip the first phase in the two-phase request execution at master.
     //! When set to |true|, all requests are resolved at Sequoia first.
     bool AllowBypassMasterResolve;
+
+    // COMPAT(danilalexeev)
+    bool AlertOnMixedReadWriteBatch;
 
     REGISTER_YSON_STRUCT(TObjectServiceDynamicConfig);
 

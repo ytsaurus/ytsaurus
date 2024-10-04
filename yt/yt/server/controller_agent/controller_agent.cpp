@@ -1206,7 +1206,7 @@ private:
         WaitFor(MasterConnector_->UpdateConfig())
             .ThrowOnError();
 
-        YT_LOG_INFO("Config updates");
+        YT_LOG_INFO("Config updated");
     }
 
     void PerformHandshake()
@@ -2144,27 +2144,26 @@ private:
             return ControllerAgent_->IdToOperation_.size();
         }
 
-        std::vector<TString> GetKeys(i64 limit) const override
+        std::vector<std::string> GetKeys(i64 limit) const override
         {
-            std::vector<TString> keys;
-            keys.reserve(limit);
+            std::vector<std::string> keys;
+            keys.reserve(std::min(limit, std::ssize(ControllerAgent_->IdToOperation_) + std::ssize(ControllerAgent_->ZombieOperationOrchids_->GetOperationIdToOrchidMap())));
             for (const auto& [operationId, operation] : ControllerAgent_->IdToOperation_) {
-                if (static_cast<i64>(keys.size()) >= limit) {
+                if (std::ssize(keys) >= limit) {
                     break;
                 }
-                keys.emplace_back(ToString(operationId));
+                keys.push_back(ToString(operationId));
             }
-            const auto& zombieOperationOrchids = ControllerAgent_->ZombieOperationOrchids_->GetOperationIdToOrchidMap();
-            for (const auto& [operationId, orchid] : zombieOperationOrchids) {
-                if (static_cast<i64>(keys.size()) >= limit) {
+            for (const auto& [operationId, orchid] : ControllerAgent_->ZombieOperationOrchids_->GetOperationIdToOrchidMap()) {
+                if (std::ssize(keys) >= limit) {
                     break;
                 }
-                keys.emplace_back(ToString(operationId));
+                keys.push_back(ToString(operationId));
             }
             return keys;
         }
 
-        IYPathServicePtr FindItemService(TStringBuf key) const override
+        IYPathServicePtr FindItemService(const std::string& key) const override
         {
             if (!ControllerAgent_->IsConnected()) {
                 return nullptr;

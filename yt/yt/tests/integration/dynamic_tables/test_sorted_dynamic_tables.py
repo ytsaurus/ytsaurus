@@ -1826,14 +1826,6 @@ class TestSortedDynamicTablesPortal(TestSortedDynamicTablesMulticell):
                 "update_period": 100
             }
         },
-        "tablet_node": {
-            "tablet_manager": {
-                # This options is not related to portals, but we want to test
-                # modes both with and without row shuffle, so we do shuffle in
-                # this test.
-                "shuffle_locked_rows": True,
-            }
-        }
     }
 
 

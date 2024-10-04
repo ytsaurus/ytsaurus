@@ -40,6 +40,7 @@ class TNestedTableMerger
 {
 public:
     void UnpackKeyColumns(TRange<TMutableRange<TVersionedValue>> keyColumns, TRange<TNestedKeyColumn> keyColumnsSchema);
+    void UnpackKeyColumns(TRange<std::vector<TVersionedValue>> keyColumns, TRange<TNestedKeyColumn> keyColumnsSchema);
 
     // Can be merged with UnpackKeyColumns.
     void BuildMergeScript();
@@ -67,6 +68,16 @@ private:
 
     std::vector<TUnversionedValue> UnpackedValues_;
     std::vector<TUnversionedValue> ResultValues_;
+
+    void UnpackKeyColumn(
+        ui16 keyColumnId,
+        int mergeStreamCount,
+        TRange<TVersionedValue> keyColumn,
+        TNestedKeyColumn keyColumnSchema);
+
+    void Reset(
+        int keyWidth,
+        int mergeStreamCount);
 
     TUnversionedValue BuildMergedKeyColumns(
         TRange<int> counts,

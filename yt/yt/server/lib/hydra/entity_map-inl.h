@@ -150,9 +150,9 @@ TReadOnlyEntityMap<TValue>::End() const
 }
 
 template <class TValue>
-int TReadOnlyEntityMap<TValue>::GetSize() const
+i64 TReadOnlyEntityMap<TValue>::GetSize() const
 {
-    return static_cast<int>(Map_.size());
+    return std::ssize(Map_);
 }
 
 template <class TValue>

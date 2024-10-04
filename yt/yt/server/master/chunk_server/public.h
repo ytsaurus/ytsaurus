@@ -11,6 +11,8 @@
 
 #include <yt/yt/client/job_tracker_client/public.h>
 
+#include <yt/yt/ytlib/chunk_client/public.h>
+
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/object_client/public.h>
@@ -57,6 +59,7 @@ using NChunkClient::ChunkReplicaIndexBound;
 using NChunkClient::TChunkReplicaWithLocationList;
 using NChunkClient::ChunkShardCount;
 using NChunkClient::TypicalChunkLocationCount;
+using NChunkClient::EChunkListContentType;
 
 using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
@@ -141,6 +144,8 @@ DECLARE_REFCOUNTED_CLASS(TDynamicMasterCellChunkStatisticsCollectorConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkReincarnatorConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkManagerTestingConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicDataCenterFaultThresholdsConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicDataCenterFailureDetectorConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicAllyReplicaManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicConsistentReplicaPlacementConfig)
@@ -211,11 +216,6 @@ DEFINE_ENUM(EChunkListKind,
     ((Hunk)                   (8))
     ((HunkStorageRoot)        (9))
     ((HunkTablet)            (10))
-);
-
-DEFINE_ENUM(EChunkListContentType,
-    ((Main)                   (0))
-    ((Hunk)                   (1))
 );
 
 DEFINE_ENUM_WITH_UNDERLYING_TYPE(EChunkReplicaState, i8,

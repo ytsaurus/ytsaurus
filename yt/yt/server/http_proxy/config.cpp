@@ -29,6 +29,24 @@ using namespace NAuth;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TProfilingEndpointProviderConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("component_type", &TThis::ComponentType);
+    registrar.Parameter("monitoring_port", &TThis::MonitoringPort);
+    registrar.Parameter("shards", &TThis::Shards)
+        .Default({"all"});
+    registrar.Parameter("include_port_in_instance_name", &TThis::IncludePortInInstanceName)
+        .Default(false);
+}
+
+void TSolomonProxyConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("endpoint_providers", &TThis::EndpointProviders)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCoordinatorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
@@ -242,6 +260,9 @@ void TProxyConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("memory_limits", &TThis::MemoryLimits)
+        .DefaultNew();
+
+    registrar.Parameter("solomon_proxy", &TThis::SolomonProxy)
         .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {

@@ -402,8 +402,19 @@ private:
 
         return AllSucceeded(asyncResults).Apply(BIND([] (const std::vector<std::pair<TCellTag, TAccountResourcesMap>>& results) {
             TMulticellAccountResourcesMap multicellMap;
-            for (const auto& pair : results) {
-                YT_VERIFY(multicellMap.insert(pair).second);
+            for (const auto& [cellTag, accountResources] : results) {
+                if (auto it = multicellMap.find(cellTag); it != multicellMap.end()) {
+                    auto& accumulatedResources = it->second;
+                    for (const auto& [name, resources] : accountResources) {
+                        if (auto it = accumulatedResources.find(name); it != accumulatedResources.end()) {
+                            it->second += resources;
+                        } else {
+                            accumulatedResources.emplace(name, resources);
+                        }
+                    }
+                } else {
+                    multicellMap.emplace(cellTag, accountResources);
+                }
             }
             return multicellMap;
         }));
@@ -427,7 +438,7 @@ private:
         const auto* transaction = GetThisImpl();
         TAccountResourcesMap result;
         for (const auto& [account, resources] : transaction->AccountResourceUsage()) {
-            YT_VERIFY(result.emplace(account->GetName(), resources).second);
+            EmplaceOrCrash(result, account->GetName(), resources);
         }
         return MakeFuture(std::pair(cellTag, result));
     }

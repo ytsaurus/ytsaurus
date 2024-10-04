@@ -159,6 +159,11 @@ DEFINE_ENUM(EChunkMergerMode,
     ((Auto)         (3))
 );
 
+DEFINE_ENUM(EChunkListContentType,
+    ((Main)                   (0))
+    ((Hunk)                   (1))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TRemoteReaderOptions)

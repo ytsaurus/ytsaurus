@@ -1,0 +1,601 @@
+{
+	"Version": "v1.17.9",
+	"GoVersion": "1.20",
+	"Sum": "h1:6KIumPrER1LHsvBVuDa0r5xaG0Es51mhhB9BQB2qeMA=",
+	"Packages": {
+		"github.com/klauspost/compress": {
+			"Imports": [
+				"math"
+			],
+			"TestImports": [
+				"crypto/rand",
+				"encoding/base32",
+				"testing"
+			]
+		},
+		"github.com/klauspost/compress/dict": {
+			"Imports": [
+				"bytes",
+				"encoding/binary",
+				"errors",
+				"fmt",
+				"github.com/klauspost/compress/s2",
+				"github.com/klauspost/compress/zstd",
+				"io",
+				"math/rand",
+				"sort",
+				"time"
+			],
+			"TestImports": null
+		},
+		"github.com/klauspost/compress/dict/cmd/builddict": {
+			"Imports": [
+				"flag",
+				"fmt",
+				"github.com/klauspost/compress/dict",
+				"github.com/klauspost/compress/zstd",
+				"io",
+				"log",
+				"os",
+				"path/filepath",
+				"runtime/debug"
+			],
+			"TestImports": null
+		},
+		"github.com/klauspost/compress/flate": {
+			"Imports": [
+				"bufio",
+				"bytes",
+				"compress/flate",
+				"encoding/binary",
+				"errors",
+				"fmt",
+				"io",
+				"math",
+				"math/bits",
+				"strings",
+				"sync"
+			],
+			"TestImports": [
+				"archive/zip",
+				"bytes",
+				"compress/flate",
+				"crypto/rand",
+				"encoding/hex",
+				"flag",
+				"fmt",
+				"github.com/klauspost/compress/internal/fuzz",
+				"io",
+				"math",
+				"math/rand",
+				"os",
+				"path/filepath",
+				"reflect",
+				"runtime",
+				"strconv",
+				"strings",
+				"sync",
+				"testing"
+			]
+		},
+		"github.com/klauspost/compress/fse": {
+			"Imports": [
+				"encoding/binary",
+				"errors",
+				"fmt",
+				"io",
+				"math/bits"
+			],
+			"TestImports": [
+				"bytes",
+				"fmt",
+				"github.com/klauspost/compress/internal/fuzz",
+				"os",
+				"reflect",
+				"strings",
+				"testing"
+			]
+		},
+		"github.com/klauspost/compress/gzhttp": {
+			"Imports": [
+				"bufio",
+				"crypto/rand",
+				"crypto/sha256",
+				"encoding/binary",
+				"errors",
+				"fmt",
+				"github.com/klauspost/compress/gzhttp/writer",
+				"github.com/klauspost/compress/gzhttp/writer/gzkp",
+				"github.com/klauspost/compress/gzip",
+				"github.com/klauspost/compress/zstd",
+				"hash/crc32",
+				"io",
+				"math",
+				"math/bits",
+				"mime",
+				"net",
+				"net/http",
+				"strconv",
+				"strings",
+				"sync"
+			],
+			"TestImports": [
+				"bytes",
+				"context",
+				"fmt",
+				"github.com/klauspost/compress/gzhttp",
+				"github.com/klauspost/compress/gzip",
+				"github.com/klauspost/compress/zstd",
+				"io",
+				"io/ioutil",
+				"log",
+				"math/rand",
+				"net",
+				"net/http",
+				"net/http/httptest",
+				"net/http/httptrace",
+				"net/textproto",
+				"net/url",
+				"os",
+				"reflect",
+				"runtime",
+				"strconv",
+				"strings",
+				"testing"
+			]
+		},
+		"github.com/klauspost/compress/gzhttp/writer": {
+			"Imports": [
+				"io",
+				"time"
+			],
+			"TestImports": null
+		},
+		"github.com/klauspost/compress/gzhttp/writer/gzkp": {
+			"Imports": [
+				"github.com/klauspost/compress/gzhttp/writer",
+				"github.com/klauspost/compress/gzip",
+				"io",
+				"sync"
+			],
+			"TestImports": [
+				"bytes",
+				"compress/gzip",
+				"testing"
+			]
+		},
+		"github.com/klauspost/compress/gzhttp/writer/gzstd": {
+			"Imports": [
+				"compress/gzip",
+				"github.com/klauspost/compress/gzhttp/writer",
+				"io",
+				"sync"
+			],
+			"TestImports": [
+				"bytes",
+				"compress/gzip",
+				"testing"
+			]
+		},
+		"github.com/klauspost/compress/gzip": {
+			"Imports": [
+				"bufio",
+				"compress/gzip",
+				"encoding/binary",
+				"errors",
+				"fmt",
+				"github.com/klauspost/compress/flate",
+				"hash/crc32",
+				"io",
+				"time"
+			],
+			"TestImports": [
+				"bufio",
+				"bytes",
+				"compress/gzip",
+				"crypto/rand",
+				"errors",
+				"fmt",
+				"io",
+				"log",
+				"math/rand",
+				"os",
+				"strconv",
+				"strings",
+				"testing",
+				"time"
+			]
+		},
+		"github.com/klauspost/compress/huff0": {
+			"Imports": [
+				"encoding/binary",
+				"errors",
+				"fmt",
+				"github.com/klauspost/compress/fse",
+				"io",
+				"math",
+				"math/bits",
+				"runtime",
+				"sync"
+			],
+			"TestImports": [
+				"bytes",
+				"fmt",
+				"github.com/klauspost/compress/flate",
+				"github.com/klauspost/compress/internal/fuzz",
+				"github.com/klauspost/compress/zip",
+				"io",
+				"math/rand",
+				"os",
+				"path/filepath",
+				"reflect",
+				"strings",
+				"testing"
+			]
+		},
+		"github.com/klauspost/compress/internal/cpuinfo": {
+			"Imports": null,
+			"TestImports": null
+		},
+		"github.com/klauspost/compress/internal/fuzz": {
+			"Imports": [
+				"archive/zip",
+				"bytes",
+				"encoding/binary",
+				"fmt",
+				"go/ast",
+				"go/parser",
+				"go/token",
+				"io",
+				"os",
+				"strconv",
+				"testing"
+			],
+			"TestImports": null
+		},
+		"github.com/klauspost/compress/internal/godebug": {
+			"Imports": [
+				"os"
+			],
+			"TestImports": null
+		},
+		"github.com/klauspost/compress/internal/lz4ref": {
+			"Imports": [
+				"encoding/binary",
+				"fmt",
+				"math/bits",
+				"sync"
+			],
+			"TestImports": null
+		},
+		"github.com/klauspost/compress/internal/race": {
+			"Imports": null,
+			"TestImports": null
+		},
+		"github.com/klauspost/compress/internal/snapref": {
+			"Imports": [
+				"encoding/binary",
+				"errors",
+				"hash/crc32",
+				"io"
+			],
+			"TestImports": null
+		},
+		"github.com/klauspost/compress/ossfuzz/cmd": {
+			"Imports": [
+				"bytes",
+				"flag",
+				"fmt",
+				"github.com/klauspost/compress/zip",
+				"io",
+				"os",
+				"strings",
+				"text/template"
+			],
+			"TestImports": null
+		},
+		"github.com/klauspost/compress/s2": {
+			"Imports": [
+				"bytes",
+				"crypto/rand",
+				"encoding/binary",
+				"encoding/json",
+				"errors",
+				"fmt",
+				"github.com/klauspost/compress/internal/race",
+				"hash/crc32",
+				"io",
+				"io/ioutil",
+				"math",
+				"math/bits",
+				"runtime",
+				"sort",
+				"strconv",
+				"sync"
+			],
+			"TestImports": [
+				"archive/tar",
+				"bytes",
+				"compress/gzip",
+				"encoding/base64",
+				"encoding/binary",
+				"encoding/hex",
+				"flag",
+				"fmt",
+				"github.com/klauspost/compress/internal/fuzz",
+				"github.com/klauspost/compress/internal/lz4ref",
+				"github.com/klauspost/compress/internal/snapref",
+				"github.com/klauspost/compress/s2",
+				"github.com/klauspost/compress/zip",
+				"github.com/klauspost/compress/zstd",
+				"io",
+				"math",
+				"math/rand",
+				"net/http",
+				"os",
+				"path/filepath",
+				"runtime",
+				"sort",
+				"strings",
+				"sync",
+				"testing"
+			]
+		},
+		"github.com/klauspost/compress/s2/cmd/internal/filepathx": {
+			"Imports": [
+				"os",
+				"path/filepath",
+				"strings"
+			],
+			"TestImports": [
+				"os",
+				"strings",
+				"testing"
+			]
+		},
+		"github.com/klauspost/compress/s2/cmd/internal/readahead": {
+			"Imports": [
+				"errors",
+				"fmt",
+				"io"
+			],
+			"TestImports": null
+		},
+		"github.com/klauspost/compress/s2/cmd/s2c": {
+			"Imports": [
+				"bufio",
+				"bytes",
+				"errors",
+				"flag",
+				"fmt",
+				"github.com/klauspost/compress/s2",
+				"github.com/klauspost/compress/s2/cmd/internal/filepathx",
+				"github.com/klauspost/compress/s2/cmd/internal/readahead",
+				"io",
+				"log",
+				"net/http",
+				"os",
+				"os/signal",
+				"runtime",
+				"runtime/debug",
+				"runtime/pprof",
+				"runtime/trace",
+				"strconv",
+				"strings",
+				"sync",
+				"time",
+				"unicode"
+			],
+			"TestImports": null
+		},
+		"github.com/klauspost/compress/s2/cmd/s2d": {
+			"Imports": [
+				"bufio",
+				"bytes",
+				"errors",
+				"flag",
+				"fmt",
+				"github.com/klauspost/compress/s2",
+				"github.com/klauspost/compress/s2/cmd/internal/filepathx",
+				"github.com/klauspost/compress/s2/cmd/internal/readahead",
+				"io",
+				"net/http",
+				"os",
+				"runtime",
+				"runtime/debug",
+				"strconv",
+				"strings",
+				"sync",
+				"time",
+				"unicode"
+			],
+			"TestImports": null
+		},
+		"github.com/klauspost/compress/snappy": {
+			"Imports": [
+				"github.com/klauspost/compress/s2",
+				"io"
+			],
+			"TestImports": [
+				"bytes",
+				"encoding/binary",
+				"flag",
+				"fmt",
+				"github.com/klauspost/compress/s2",
+				"io",
+				"math/rand",
+				"net/http",
+				"os",
+				"path/filepath",
+				"strings",
+				"testing"
+			]
+		},
+		"github.com/klauspost/compress/snappy/xerial": {
+			"Imports": [
+				"bytes",
+				"encoding/binary",
+				"errors",
+				"github.com/klauspost/compress/s2"
+			],
+			"TestImports": [
+				"bytes",
+				"github.com/klauspost/compress/internal/fuzz",
+				"github.com/klauspost/compress/s2",
+				"math/rand",
+				"testing"
+			]
+		},
+		"github.com/klauspost/compress/zip": {
+			"Imports": [
+				"bufio",
+				"encoding/binary",
+				"errors",
+				"github.com/klauspost/compress/flate",
+				"github.com/klauspost/compress/internal/godebug",
+				"hash",
+				"hash/crc32",
+				"io",
+				"io/fs",
+				"os",
+				"path",
+				"path/filepath",
+				"sort",
+				"strings",
+				"sync",
+				"time",
+				"unicode/utf8"
+			],
+			"TestImports": [
+				"bytes",
+				"compress/flate",
+				"encoding/binary",
+				"encoding/hex",
+				"errors",
+				"fmt",
+				"github.com/klauspost/compress/flate",
+				"github.com/klauspost/compress/internal/fuzz",
+				"github.com/klauspost/compress/zip",
+				"github.com/klauspost/compress/zip/internal/obscuretestdata",
+				"hash",
+				"hash/crc32",
+				"io",
+				"io/fs",
+				"log",
+				"math/rand",
+				"os",
+				"path/filepath",
+				"reflect",
+				"regexp",
+				"runtime",
+				"sort",
+				"strings",
+				"testing",
+				"testing/fstest",
+				"time"
+			]
+		},
+		"github.com/klauspost/compress/zip/internal/obscuretestdata": {
+			"Imports": [
+				"encoding/base64",
+				"io",
+				"os"
+			],
+			"TestImports": null
+		},
+		"github.com/klauspost/compress/zlib": {
+			"Imports": [
+				"bufio",
+				"compress/zlib",
+				"encoding/binary",
+				"fmt",
+				"github.com/klauspost/compress/flate",
+				"hash",
+				"hash/adler32",
+				"io"
+			],
+			"TestImports": [
+				"bytes",
+				"compress/zlib",
+				"fmt",
+				"io",
+				"os",
+				"testing"
+			]
+		},
+		"github.com/klauspost/compress/zstd": {
+			"Imports": [
+				"bytes",
+				"context",
+				"crypto/rand",
+				"encoding/binary",
+				"encoding/hex",
+				"errors",
+				"fmt",
+				"github.com/klauspost/compress",
+				"github.com/klauspost/compress/huff0",
+				"github.com/klauspost/compress/internal/snapref",
+				"github.com/klauspost/compress/zstd/internal/xxhash",
+				"hash/crc32",
+				"io",
+				"log",
+				"math",
+				"math/bits",
+				"os",
+				"path/filepath",
+				"runtime",
+				"runtime/debug",
+				"sort",
+				"strconv",
+				"strings",
+				"sync"
+			],
+			"TestImports": [
+				"archive/zip",
+				"bufio",
+				"bytes",
+				"encoding/binary",
+				"encoding/csv",
+				"encoding/hex",
+				"encoding/json",
+				"errors",
+				"flag",
+				"fmt",
+				"github.com/klauspost/compress/internal/cpuinfo",
+				"github.com/klauspost/compress/internal/fuzz",
+				"github.com/klauspost/compress/internal/snapref",
+				"github.com/klauspost/compress/zip",
+				"github.com/klauspost/compress/zstd",
+				"github.com/klauspost/compress/zstd/internal/xxhash",
+				"io",
+				"log",
+				"math/rand",
+				"os",
+				"path/filepath",
+				"reflect",
+				"runtime",
+				"runtime/debug",
+				"runtime/pprof",
+				"strconv",
+				"strings",
+				"sync",
+				"testing",
+				"time"
+			]
+		},
+		"github.com/klauspost/compress/zstd/internal/xxhash": {
+			"Imports": [
+				"encoding/binary",
+				"errors",
+				"math/bits"
+			],
+			"TestImports": [
+				"bytes",
+				"encoding/binary",
+				"fmt",
+				"strings",
+				"testing"
+			]
+		}
+	}
+}

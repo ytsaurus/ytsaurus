@@ -308,7 +308,7 @@ bool TCellProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonS
 
     switch (key) {
         case EInternedAttributeKey::Area: {
-            auto areaName = ConvertTo<TString>(value);
+            auto areaName = ConvertTo<std::string>(value);
             auto* area = cellManager->GetAreaByNameOrThrow(cell->CellBundle().Get(), areaName);
             cellManager->UpdateCellArea(cell, area);
             return true;

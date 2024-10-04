@@ -149,7 +149,7 @@ TFuture<void> TDynamicConfigManagerBase<TConfig>::GetConfigLoadedFuture() const
 }
 
 template <typename TConfig>
-std::vector<TString> TDynamicConfigManagerBase<TConfig>::GetInstanceTags() const
+std::vector<std::string> TDynamicConfigManagerBase<TConfig>::GetInstanceTags() const
 {
     YT_UNIMPLEMENTED();
 }
@@ -207,7 +207,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
 
             auto configs = configNode->GetChildren();
 
-            TString matchingConfigFilter;
+            std::string matchingConfigFilter;
             for (const auto& [configFilter, configNode] : configs) {
                 if (configNode->GetType() != NYTree::ENodeType::Map) {
                     THROW_ERROR_EXCEPTION(
@@ -221,8 +221,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
 
                 auto configMapNode = configNode->AsMap();
 
-                // TODO(babenko): migrate to std::string
-                if (MakeBooleanFormula(TString(configFilter)).IsSatisfiedBy(InstanceTags_)) {
+                if (MakeBooleanFormula(configFilter).IsSatisfiedBy(InstanceTags_)) {
                     if (matchedConfigNode) {
                         THROW_ERROR_EXCEPTION(
                             EErrorCode::DuplicateMatchingDynamicConfigs,
@@ -246,8 +245,6 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
         if (configOrError.FindMatching(NYTree::EErrorCode::ResolveError) && Config_->IgnoreConfigAbsence) {
             YT_LOG_INFO("Dynamic config node does not exist (ConfigPath: %v)",
                 Options_.ConfigPath);
-            // XXX
-            // return false;
         } else {
             THROW_ERROR_EXCEPTION(
                 NDynamicConfig::EErrorCode::FailedToFetchDynamicConfig,

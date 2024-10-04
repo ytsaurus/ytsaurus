@@ -1,0 +1,31 @@
+{
+	"Version": "v1.11.0",
+	"GoVersion": "1.19",
+	"Sum": "h1:blXXJkSxSSfBVBlC76pxqeO+LN3aDfLQo+309xJstO0=",
+	"Packages": {
+		"go.uber.org/multierr": {
+			"Imports": [
+				"bytes",
+				"errors",
+				"fmt",
+				"io",
+				"strings",
+				"sync",
+				"sync/atomic"
+			],
+			"TestImports": [
+				"errors",
+				"fmt",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"go.uber.org/multierr",
+				"io",
+				"log",
+				"os",
+				"path/filepath",
+				"sync",
+				"testing"
+			]
+		}
+	}
+}

@@ -25,6 +25,8 @@
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 #include <yt/yt/server/lib/rpc_proxy/security_manager.h>
 
+#include <yt/yt/server/lib/user_job/config.h>
+
 #include <yt/yt/server/exec/user_job_synchronizer.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -151,9 +153,15 @@ using namespace NContainers;
 using namespace NProfiling;
 using namespace NTracing;
 using namespace NTransactionClient;
+using namespace NStatisticPath;
+using namespace NUserJob;
 
 using NYT::FromProto;
 using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TString ExecutorConfigFileName = "executor_config.yson";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1066,32 +1074,32 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         statistics = std::move(extendedStatistics.Statstics);
 
         if (job->HasInputStatistics()) {
-            statistics.AddSample("/data/input", extendedStatistics.TotalInputStatistics.DataStatistics);
-            DumpCodecStatistics(extendedStatistics.TotalInputStatistics.CodecStatistics, "/codec/cpu/decode", &statistics);
+            statistics.AddSample("/data/input"_SP, extendedStatistics.TotalInputStatistics.DataStatistics);
+            DumpCodecStatistics(extendedStatistics.TotalInputStatistics.CodecStatistics, "/codec/cpu/decode"_SP, &statistics);
         }
 
         for (int index = 0; index < std::min<int>(statisticsOutputTableCountLimit, extendedStatistics.OutputStatistics.size()); ++index) {
-            auto ypathIndex = ToYPathLiteral(index);
-            statistics.AddSample("/data/output/" + ypathIndex, extendedStatistics.OutputStatistics[index].DataStatistics);
-            DumpCodecStatistics(extendedStatistics.OutputStatistics[index].CodecStatistics, "/codec/cpu/encode/" + ypathIndex, &statistics);
+            auto ypathIndex = TStatisticPathLiteral(ToString(index));
+            statistics.AddSample("/data/output"_SP / ypathIndex, extendedStatistics.OutputStatistics[index].DataStatistics);
+            DumpCodecStatistics(extendedStatistics.OutputStatistics[index].CodecStatistics, "/codec/cpu/encode"_SP / ypathIndex, &statistics);
         }
 
-        DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics", extendedStatistics.ChunkReaderStatistics);
-        DumpTimingStatistics(&statistics, "/chunk_reader_statistics", extendedStatistics.TimingStatistics);
+        DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics"_SP, extendedStatistics.ChunkReaderStatistics);
+        DumpTimingStatistics(&statistics, "/chunk_reader_statistics"_SP, extendedStatistics.TimingStatistics);
 
         if (const auto& pipeStatistics = extendedStatistics.PipeStatistics) {
-            auto dumpPipeStatistics = [&] (const TYPath& path, const IJob::TStatistics::TPipeStatistics& pipeStatistics) {
-                statistics.AddSample(path + "/idle_time", pipeStatistics.ConnectionStatistics.IdleDuration);
-                statistics.AddSample(path + "/busy_time", pipeStatistics.ConnectionStatistics.BusyDuration);
-                statistics.AddSample(path + "/bytes", pipeStatistics.Bytes);
+            auto dumpPipeStatistics = [&] (const TStatisticPath& path, const IJob::TStatistics::TPipeStatistics& pipeStatistics) {
+                statistics.AddSample(path / "idle_time"_L, pipeStatistics.ConnectionStatistics.IdleDuration);
+                statistics.AddSample(path / "busy_time"_L, pipeStatistics.ConnectionStatistics.BusyDuration);
+                statistics.AddSample(path / "bytes"_L, pipeStatistics.Bytes);
             };
 
             if (job->HasInputStatistics()) {
-                dumpPipeStatistics("/user_job/pipes/input", *pipeStatistics->InputPipeStatistics);
+                dumpPipeStatistics("/user_job/pipes/input"_SP, *pipeStatistics->InputPipeStatistics);
             }
-            dumpPipeStatistics("/user_job/pipes/output/total", pipeStatistics->TotalOutputPipeStatistics);
+            dumpPipeStatistics("/user_job/pipes/output/total"_SP, pipeStatistics->TotalOutputPipeStatistics);
             for (int index = 0; index < std::min<int>(statisticsOutputTableCountLimit, pipeStatistics->OutputPipeStatistics.size()); ++index) {
-                dumpPipeStatistics("/user_job/pipes/output/" + ToYPathLiteral(index), pipeStatistics->OutputPipeStatistics[index]);
+                dumpPipeStatistics("/user_job/pipes/output"_SP / TStatisticPathLiteral(ToString(index)), pipeStatistics->OutputPipeStatistics[index]);
             }
         }
     }
@@ -1100,7 +1108,7 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         try {
             auto cpuStatistics = environment->GetCpuStatistics()
                 .ValueOrThrow();
-            statistics.AddSample("/job_proxy/cpu", cpuStatistics);
+            statistics.AddSample("/job_proxy/cpu"_SP, cpuStatistics);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Unable to get CPU statistics from resource controller");
         }
@@ -1108,7 +1116,7 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         try {
             auto blockIOStatistics = environment->GetBlockIOStatistics()
                 .ValueOrThrow();
-            statistics.AddSample("/job_proxy/block_io", blockIOStatistics);
+            statistics.AddSample("/job_proxy/block_io"_SP, blockIOStatistics);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Unable to get block IO statistics from resource controller");
         }
@@ -1121,34 +1129,34 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         RunNoExcept([&] {
             auto jobCpuStatistics = environment->GetJobCpuStatistics();
             if (jobCpuStatistics) {
-                statistics.AddSample("/job/cpu", *jobCpuStatistics);
+                statistics.AddSample("/job/cpu"_SP, *jobCpuStatistics);
             }
 
             auto jobMemoryStatistics = environment->GetJobMemoryStatistics();
             if (jobMemoryStatistics) {
-                statistics.AddSample("/job/memory", *jobMemoryStatistics);
+                statistics.AddSample("/job/memory"_SP, *jobMemoryStatistics);
             }
 
             auto jobBlockIOStatistics = environment->GetJobBlockIOStatistics();
             if (jobBlockIOStatistics) {
-                statistics.AddSample("/job/block_io", *jobBlockIOStatistics);
+                statistics.AddSample("/job/block_io"_SP, *jobBlockIOStatistics);
             }
         });
     }
 
     if (JobProxyMaxMemoryUsage_ > 0) {
-        statistics.AddSample("/job_proxy/max_memory", JobProxyMaxMemoryUsage_);
+        statistics.AddSample("/job_proxy/max_memory"_SP, JobProxyMaxMemoryUsage_);
     }
 
     if (JobProxyMemoryReserve_ > 0) {
-        statistics.AddSample("/job_proxy/memory_reserve", JobProxyMemoryReserve_);
+        statistics.AddSample("/job_proxy/memory_reserve"_SP, JobProxyMemoryReserve_);
     }
 
     if (CumulativeMemoryUsageMBSec_ > 0) {
-        statistics.AddSample("/job_proxy/cumulative_memory_mb_sec", CumulativeMemoryUsageMBSec_);
+        statistics.AddSample("/job_proxy/cumulative_memory_mb_sec"_SP, CumulativeMemoryUsageMBSec_);
     }
 
-    FillTrafficStatistics(JobProxyTrafficStatisticsPrefix, statistics, TrafficMeter_);
+    FillTrafficStatistics("/job_proxy"_SP, statistics, TrafficMeter_);
 
     CpuMonitor_->FillStatistics(statistics);
 
@@ -1163,6 +1171,24 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
     YT_VERIFY(environment);
 
     auto createRootFS = [&] () -> std::optional<TRootFS> {
+        TString stderrPath;
+        if (Config_->ExecutorStderrPath) {
+            stderrPath = *Config_->ExecutorStderrPath;
+        } else {
+            stderrPath = NFS::CombinePaths(
+                GetPreparationPath(),
+                DefaultExecutorStderrPath);
+        }
+
+        if (!NFS::Exists(stderrPath)) {
+            NFS::MakeDirRecursive(NFS::GetDirectoryName(stderrPath));
+            TFile file(stderrPath, CreateNew | WrOnly);
+        }
+
+        NFS::SetPermissions(
+            stderrPath,
+            /*permissions*/ 0666);
+
         if (!Config_->RootPath) {
             YT_LOG_INFO("Job is not using custom rootfs");
             return std::nullopt;
@@ -1177,16 +1203,66 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
 
         TRootFS rootFS {
             .RootPath = *Config_->RootPath,
-            .IsRootReadOnly = !Config_->MakeRootFSWritable,
+            .IsRootReadOnly = false,
         };
 
-        // Please observe the hierarchy of binds for correct mounting!
-        // TODO(don-dron): Make topological sorting.
-        rootFS.Binds.push_back(TBind{
-            .SourcePath = GetPreparationPath(),
-            .TargetPath = GetSlotPath(),
-            .ReadOnly = false
-        });
+        if (Config_->EnableRootVolumeDiskQuota) {
+            auto preparationPath = GetPreparationPath();
+            auto slotPath = GetSlotPath();
+
+            auto addBind = [&] (ESandboxKind sandboxKind) {
+                auto sandboxRelPath = GetSandboxRelPath(sandboxKind);
+                rootFS.Binds.push_back(TBind{
+                    .SourcePath = NFS::CombinePaths(
+                        preparationPath,
+                        sandboxRelPath),
+                    .TargetPath = NFS::CombinePaths(
+                        slotPath,
+                        sandboxRelPath),
+                    .ReadOnly = false,
+                });
+            };
+
+            addBind(ESandboxKind::Home);
+            addBind(ESandboxKind::Cores);
+            addBind(ESandboxKind::Pipes);
+            addBind(ESandboxKind::Logs);
+
+            rootFS.Binds.push_back(TBind{
+                .SourcePath = NFS::CombinePaths(
+                    preparationPath,
+                    ExecutorConfigFileName),
+                .TargetPath = NFS::CombinePaths(
+                    slotPath,
+                    ExecutorConfigFileName),
+                .ReadOnly = true,
+            });
+        } else {
+            // Please observe the hierarchy of binds for correct mounting!
+            // TODO(don-dron): Make topological sorting.
+            rootFS.Binds.push_back(TBind{
+                .SourcePath = GetPreparationPath(),
+                .TargetPath = GetSlotPath(),
+                .ReadOnly = false,
+            });
+
+            // Temporary workaround for nirvana - make tmp directories writable.
+            auto tmpPath = NFS::CombinePaths(
+                NFs::CurrentWorkingDirectory(),
+                GetSandboxRelPath(ESandboxKind::Tmp));
+
+            rootFS.Binds.push_back(TBind{
+                .SourcePath = tmpPath,
+                .TargetPath = "/tmp",
+                .ReadOnly = false,
+            });
+
+            rootFS.Binds.push_back(TBind{
+                .SourcePath = tmpPath,
+                .TargetPath = "/var/tmp",
+                .ReadOnly = false,
+            });
+        }
 
         for (const auto& tmpfsPath : Config_->TmpfsManager->TmpfsPaths) {
             rootFS.Binds.push_back(TBind{
@@ -1196,26 +1272,37 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
             });
         }
 
-        // Temporary workaround for nirvana - make tmp directories writable.
-        auto tmpPath = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), GetSandboxRelPath(ESandboxKind::Tmp));
-
-        rootFS.Binds.push_back(TBind{
-            .SourcePath = tmpPath,
-            .TargetPath = "/tmp",
-            .ReadOnly = false,
-        });
-
-        rootFS.Binds.push_back(TBind{
-            .SourcePath = tmpPath,
-            .TargetPath = "/var/tmp",
-            .ReadOnly = false,
-        });
-
         for (const auto& bind : Config_->Binds) {
             rootFS.Binds.push_back(TBind{
                 .SourcePath = bind->ExternalPath,
                 .TargetPath = bind->InternalPath,
                 .ReadOnly = bind->ReadOnly,
+            });
+        }
+
+        if (Config_->ExecutorStderrPath) {
+            rootFS.Binds.push_back(TBind{
+                .SourcePath = stderrPath,
+                .TargetPath = stderrPath,
+                .ReadOnly = false,
+            });
+        } else {
+            rootFS.Binds.push_back(TBind{
+                .SourcePath = stderrPath,
+                .TargetPath = NFS::CombinePaths(
+                    GetSlotPath(),
+                    DefaultExecutorStderrPath),
+                .ReadOnly = false,
+            });
+        }
+
+        // TODO(gritukan): ytserver-exec can be resolved into something strange in tests,
+        // so let's live with exec in layer for a while.
+        if (!JobProxyEnvironment_.Acquire()->UseExecFromLayer()) {
+            rootFS.Binds.push_back(TBind{
+                .SourcePath = ResolveBinaryPath(ExecProgramName).ValueOrThrow(),
+                .TargetPath = RootFSBinaryDirectory + ExecProgramName,
+                .ReadOnly = true,
             });
         }
 
@@ -1234,6 +1321,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
         .EnablePortoMemoryTracking = options.EnablePortoMemoryTracking,
         .EnablePorto = options.EnablePorto,
         .ThreadLimit = options.ThreadLimit,
+        .EnableRootVolumeDiskQuota = Config_->EnableRootVolumeDiskQuota,
     };
 
     if (options.EnableCoreDumps) {

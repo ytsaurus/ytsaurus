@@ -54,8 +54,8 @@ public:
         IAttributeDictionary* attributes) override
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto name = attributes->GetAndRemove<TString>(EInternedAttributeKey::Name.Unintern());
-        auto namespace_ = attributes->GetAndRemove<TString>(EInternedAttributeKey::Namespace.Unintern());
+        auto name = attributes->GetAndRemove<std::string>(EInternedAttributeKey::Name.Unintern());
+        auto namespace_ = attributes->GetAndRemove<std::string>(EInternedAttributeKey::Namespace.Unintern());
         return cypressManager->CreateAccessControlObject(name, namespace_, hintId);
     }
 
@@ -64,8 +64,8 @@ public:
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
-        auto name = attributes->Get<TString>("name");
-        auto namespace_ = attributes->Get<TString>("namespace");
+        auto name = attributes->Get<std::string>("name");
+        auto namespace_ = attributes->Get<std::string>("namespace");
         auto* namespaceObject = cypressManager->FindAccessControlObjectNamespaceByName(namespace_);
         if (!namespaceObject) {
             return nullptr;

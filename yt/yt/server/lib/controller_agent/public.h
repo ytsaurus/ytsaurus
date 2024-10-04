@@ -48,12 +48,12 @@ constexpr TDuration PrepareYieldPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TString InputRowCountPath;
-extern const TString InputUncompressedDataSizePath;
-extern const TString InputCompressedDataSizePath;
-extern const TString InputDataWeightPath;
-extern const TString InputPipeIdleTimePath;
-extern const TString JobProxyCpuUsagePath;
+extern const NStatisticPath::TStatisticPath InputRowCountPath;
+extern const NStatisticPath::TStatisticPath InputUncompressedDataSizePath;
+extern const NStatisticPath::TStatisticPath InputCompressedDataSizePath;
+extern const NStatisticPath::TStatisticPath InputDataWeightPath;
+extern const NStatisticPath::TStatisticPath InputPipeIdleTimePath;
+extern const NStatisticPath::TStatisticPath JobProxyCpuUsagePath;
 
 ////////////////////////////////////////////////////////////////////////////////
 

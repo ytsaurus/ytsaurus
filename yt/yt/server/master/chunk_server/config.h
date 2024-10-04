@@ -173,6 +173,7 @@ public:
     TDuration CreateChunksPeriod;
     TDuration TransactionUpdatePeriod;
     TDuration SessionFinalizationPeriod;
+    TDuration ScheduleChunkReplacePeriod;
 
     int CreateChunksBatchSize;
     int SessionFinalizationBatchSize;
@@ -193,6 +194,8 @@ public:
     bool RespectAccountSpecificToggle;
 
     int MaxNodesBeingMerged;
+
+    int MaxChunkListsWithChunksBeingReplaced;
 
     int MaxAllowedBackoffReschedulingsPerSession;
 
@@ -294,6 +297,41 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicDataNodeTrackerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicDataCenterFaultThresholdsConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    int OnlineNodeCountToDisable;
+    int OnlineNodeCountToEnable;
+    double OnlineNodeFractionToDisable;
+    double OnlineNodeFractionToEnable;
+
+    REGISTER_YSON_STRUCT(TDynamicDataCenterFaultThresholdsConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicDataCenterFaultThresholdsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicDataCenterFailureDetectorConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TDynamicDataCenterFaultThresholdsConfigPtr DefaultThresholds;
+    THashMap<TString, TDynamicDataCenterFaultThresholdsConfigPtr> DataCenterThresholds;
+    bool Enable;
+
+    REGISTER_YSON_STRUCT(TDynamicDataCenterFailureDetectorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicDataCenterFailureDetectorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -666,6 +704,8 @@ public:
     //! Set of storage data centers on which replica placement is forbidden.
     THashSet<TString> BannedStorageDataCenters;
 
+    TDynamicDataCenterFailureDetectorConfigPtr DataCenterFailureDetector;
+
     TDuration ProfilingPeriod;
 
     //! When set of active chunk replicator shards is changed, no removal jobs
@@ -678,8 +718,6 @@ public:
     bool EnableFixRequisitionUpdateOnMerge;
 
     bool EnableChunkSchemas;
-
-    bool SchemalessEndUploadPreservesTableSchema;
 
     //! Forces rack awareness for erasure parts during write targets allocation.
     bool ForceRackAwarenessForErasureParts;

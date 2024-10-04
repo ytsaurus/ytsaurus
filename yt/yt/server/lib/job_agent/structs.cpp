@@ -3,6 +3,7 @@
 #include <yt/yt/ytlib/controller_agent/serialize.h>
 
 #include <yt/yt/core/misc/statistics.h>
+#include <yt/yt/core/misc/statistic_path.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NJobAgent {
@@ -16,23 +17,25 @@ using NYT::FromProto;
 
 void TTimeStatistics::AddSamplesTo(TStatistics* statistics) const
 {
+    using namespace NStatisticPath;
+
     if (WaitingForResourcesDuration) {
-        statistics->AddSample("/time/wait_for_resources", WaitingForResourcesDuration->MilliSeconds());
+        statistics->AddSample("/time/wait_for_resources"_SP, WaitingForResourcesDuration->MilliSeconds());
     }
     if (PrepareDuration) {
-        statistics->AddSample("/time/prepare", PrepareDuration->MilliSeconds());
+        statistics->AddSample("/time/prepare"_SP, PrepareDuration->MilliSeconds());
     }
     if (ArtifactsDownloadDuration) {
-        statistics->AddSample("/time/artifacts_download", ArtifactsDownloadDuration->MilliSeconds());
+        statistics->AddSample("/time/artifacts_download"_SP, ArtifactsDownloadDuration->MilliSeconds());
     }
     if (PrepareRootFSDuration) {
-        statistics->AddSample("/time/prepare_root_fs", PrepareRootFSDuration->MilliSeconds());
+        statistics->AddSample("/time/prepare_root_fs"_SP, PrepareRootFSDuration->MilliSeconds());
     }
     if (ExecDuration) {
-        statistics->AddSample("/time/exec", ExecDuration->MilliSeconds());
+        statistics->AddSample("/time/exec"_SP, ExecDuration->MilliSeconds());
     }
     if (GpuCheckDuration) {
-        statistics->AddSample("/time/gpu_check", GpuCheckDuration->MilliSeconds());
+        statistics->AddSample("/time/gpu_check"_SP, GpuCheckDuration->MilliSeconds());
     }
 }
 

@@ -1,0 +1,15 @@
+{
+	"Version": "v0.1.6",
+	"GoVersion": "1.20",
+	"Sum": "h1:nxdKQNcEB6vzgA2E2bvzKIYRuNj7XNJ4S/aRSwKzFtM=",
+	"Packages": {
+		"github.com/shoenig/go-m1cpu": {
+			"Imports": null,
+			"TestImports": [
+				"fmt",
+				"github.com/shoenig/test/must",
+				"testing"
+			]
+		}
+	}
+}

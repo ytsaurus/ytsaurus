@@ -1,0 +1,31 @@
+{
+	"Version": "v0.3.1",
+	"GoVersion": "1.12",
+	"Sum": "h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=",
+	"Packages": {
+		"github.com/kr/pretty": {
+			"Imports": [
+				"fmt",
+				"github.com/kr/text",
+				"github.com/rogpeppe/go-internal/fmtsort",
+				"io",
+				"log",
+				"reflect",
+				"strconv",
+				"text/tabwriter"
+			],
+			"TestImports": [
+				"bytes",
+				"fmt",
+				"github.com/kr/pretty",
+				"io",
+				"log",
+				"reflect",
+				"strings",
+				"testing",
+				"time",
+				"unsafe"
+			]
+		}
+	}
+}

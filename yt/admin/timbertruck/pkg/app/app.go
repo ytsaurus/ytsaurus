@@ -1,17 +1,53 @@
-// Фреймворк для построения тимбертрак приложений.
-// Подразумевается следующее использование.
-
-// Во первых, заводится структура конфига:
+// Framework is used for building timbertruck applications.
+// The following usage is suggested:
 //
-//   - первое поле должно быть заинлайненным `app.Config`
+// First, user of framework creates configuration struct for application and configuration struct for stream
+// (or multiple configuration structs for different streams).
 //
-//   - дальше обычно идёт список пайплайнов для обработки
+// Configuration of the application has following properties:
+//   - the first field must be inlined field of type app.Config
+//   - other fields describe configuration of the streams
+//   - config might have other custom fields
+//   - config is annotated with yaml tags
 //
-//     type MyConfig struct {
-//     app.Config `yaml:",inline"`
+// Configuration of the particular stream has following properties:
+//   - the first field must be inlined field of type timbertruck.StreamConfig
+//   - config might have other custom fields
+//   - config is annotated with yaml tags
 //
-//     YtToken string `yaml:"yt_token"`
-//     }
+// Example:
+//
+//		type MyStreamConfig struct {
+//		     timbertruck.StreamConfig `yaml:",inline"`
+//	         YtQueuePath string `yaml:"some_output_configuration"`
+//		}
+//		type MyConfig struct {
+//		    app.Config `yaml:",inline"`
+//		    MyStreams []MyStreamConfig `yaml:"my_streams"`
+//		    YtToken   string `yaml:"yt_token"`
+//		}
+//
+// Second, user of framework creates main function with following structure:
+//
+//	func main() {
+//		// Create application instance, parse cmd line and config
+//		app, config := app.MustNewApp[MyConfig]()
+//		defer app.Close()
+//
+//		// Maybe do some stuff initialization
+//		// ...
+//		// Somehow register all streams
+//		for i := range config.MyStreams {
+//			app.AddPipeline(config.MyStreams[i].StreamConfig, func (task timbertruck.TaskArgs) (*pipelines.Pipeline, error) {
+//				// custom pipeline handling
+//			})
+//		}
+//		// Launch application and start to handle streams
+//		err = app.Run()
+//		if err != nil {
+//			log.Fatalln(err)
+//		}
+//	}
 package app
 
 import (
@@ -35,6 +71,7 @@ import (
 	"golang.org/x/sys/unix"
 	"gopkg.in/yaml.v3"
 
+	"go.ytsaurus.tech/library/go/core/buildinfo"
 	"go.ytsaurus.tech/library/go/core/metrics"
 	"go.ytsaurus.tech/library/go/core/metrics/nop"
 	"go.ytsaurus.tech/library/go/core/metrics/solomon"
@@ -60,7 +97,7 @@ type Config struct {
 }
 
 type App interface {
-	AddPipeline(config timbertruck.StreamConfig, newFunc timbertruck.NewPipelineFunc)
+	AddStream(config timbertruck.StreamConfig, newFunc timbertruck.NewPipelineFunc)
 
 	Logger() *slog.Logger
 	Fatalf(format string, a ...any)
@@ -84,9 +121,16 @@ func MustNewApp[UserConfigType any]() (app App, userConfig *UserConfigType) {
 func NewApp[UserConfigType any]() (app App, userConfig *UserConfigType, err error) {
 	var configPath string
 	var oneShotConfigPath string
+	var version bool
+	flag.BoolVar(&version, "version", false, "print version and exit")
 	flag.StringVar(&configPath, "config", "", "path to configuration, timbertruck will be launched as daemon")
 	flag.StringVar(&oneShotConfigPath, "one-shot-config", "", "path to task configuration, timbertruck executes tasks and exits")
 	flag.Parse()
+
+	if version {
+		fmt.Println(buildinfo.Info.ProgramVersion)
+		os.Exit(0)
+	}
 
 	if configPath != "" && oneShotConfigPath != "" {
 		err = errors.New("-config and -task-config are mutually exclusive")
@@ -105,6 +149,7 @@ func NewApp[UserConfigType any]() (app App, userConfig *UserConfigType, err erro
 			err = fmt.Errorf("cannot parse configuration: %w", err)
 			return
 		}
+
 		return
 	}
 
@@ -118,6 +163,13 @@ func NewApp[UserConfigType any]() (app App, userConfig *UserConfigType, err erro
 		appConfig, err = resolveAppConfig(userConfig)
 		if err != nil {
 			return
+		}
+		if appConfig.Hostname == "" {
+			appConfig.Hostname, err = os.Hostname()
+			if err != nil {
+				err = fmt.Errorf("cannot resolve hostname: %w", err)
+				return
+			}
 		}
 		app, err = newDaemonApp(*appConfig)
 	} else if oneShotConfigPath != "" {
@@ -133,6 +185,10 @@ func NewApp[UserConfigType any]() (app App, userConfig *UserConfigType, err erro
 
 	return
 }
+
+//
+// DAEMON APP
+//
 
 type daemonApp struct {
 	config Config
@@ -181,6 +237,12 @@ func newDaemonApp(config Config) (app *daemonApp, err error) {
 		return
 	}
 
+	solomonRegistryOptions := solomon.NewRegistryOpts()
+	if config.AdminPanel != nil && config.AdminPanel.MonitoringTags != nil {
+		solomonRegistryOptions.SetTags(config.AdminPanel.MonitoringTags)
+	}
+	app.metrics = solomon.NewRegistry(solomonRegistryOptions)
+
 	var logFile io.Writer = os.Stderr
 	if config.LogFile != "" {
 		logFile, err = misc.NewLogrotatingFile(config.LogFile)
@@ -189,16 +251,23 @@ func newDaemonApp(config Config) (app *daemonApp, err error) {
 			return
 		}
 	}
-	app.logger = slog.New(slog.NewJSONHandler(logFile, nil))
-
-	app.metrics = solomon.NewRegistry(nil)
+	errorCounter := app.metrics.Counter("tt.application.error_log_count")
+	errorCounter.Add(0)
+	app.logger = slog.New(
+		newLogErrorTracker(
+			slog.NewJSONHandler(logFile, nil),
+			errorCounter,
+		),
+	)
+	misc.SetLogrotatingLogger(app.logger)
+	misc.LogLoggingStarted(app.logger)
 
 	var prevExitIsClean bool
 	prevExitIsClean, app.errorExitDetectorClose, err = errorExitDetector(app.logger, config.WorkDir)
 	if err != nil {
 		return
 	}
-	errorExitMetrics := app.metrics.IntGauge("error_exit")
+	errorExitMetrics := app.metrics.IntGauge("tt.application.error_exit")
 	if prevExitIsClean {
 		errorExitMetrics.Set(0)
 	} else {
@@ -211,7 +280,7 @@ func newDaemonApp(config Config) (app *daemonApp, err error) {
 	app.ctx, app.cancelFunc = context.WithCancel(context.Background())
 	cancelOnSignals(app.cancelFunc)
 
-	app.timberTruck, err = timbertruck.NewTimberTruck(config.Config, app.logger)
+	app.timberTruck, err = timbertruck.NewTimberTruck(config.Config, app.logger, app.metrics)
 	if err != nil {
 		return
 	}
@@ -243,8 +312,8 @@ func (app *daemonApp) Close() error {
 	return nil
 }
 
-func (app *daemonApp) AddPipeline(config timbertruck.StreamConfig, newFunc timbertruck.NewPipelineFunc) {
-	app.timberTruck.AddPipeline(config, newFunc)
+func (app *daemonApp) AddStream(config timbertruck.StreamConfig, newFunc timbertruck.NewPipelineFunc) {
+	app.timberTruck.AddStream(config, newFunc)
 }
 
 func (app *daemonApp) Run() error {
@@ -352,6 +421,10 @@ func resolveAppConfig(userConfig any) (appConfig *Config, err error) {
 	return
 }
 
+//
+// ONE SHOT APP
+//
+
 type oneShotAppTask struct {
 	config  timbertruck.StreamConfig
 	newFunc timbertruck.NewPipelineFunc
@@ -387,7 +460,7 @@ func newOneShotApp() (a App, err error) {
 	return
 }
 
-func (app *oneShotApp) AddPipeline(config timbertruck.StreamConfig, newFunc timbertruck.NewPipelineFunc) {
+func (app *oneShotApp) AddStream(config timbertruck.StreamConfig, newFunc timbertruck.NewPipelineFunc) {
 	app.tasks = append(app.tasks, oneShotAppTask{config, newFunc})
 }
 
@@ -494,5 +567,43 @@ func startProfiling(logger *slog.Logger) func() {
 		for _, f := range cleanupFuncList {
 			f()
 		}
+	}
+}
+
+//
+// LOG ERROR TRACKER
+//
+
+type logErrorTrackingHandler struct {
+	underlying slog.Handler
+	counter    metrics.Counter
+}
+
+func newLogErrorTracker(underlying slog.Handler, counter metrics.Counter) slog.Handler {
+	return logErrorTrackingHandler{underlying, counter}
+}
+
+func (t logErrorTrackingHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return t.underlying.Enabled(ctx, level)
+}
+
+func (t logErrorTrackingHandler) Handle(ctx context.Context, record slog.Record) error {
+	if record.Level >= slog.LevelError {
+		t.counter.Inc()
+	}
+	return t.underlying.Handle(ctx, record)
+}
+
+func (t logErrorTrackingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return logErrorTrackingHandler{
+		underlying: t.underlying.WithAttrs(attrs),
+		counter:    t.counter,
+	}
+}
+
+func (t logErrorTrackingHandler) WithGroup(name string) slog.Handler {
+	return logErrorTrackingHandler{
+		underlying: t.underlying.WithGroup(name),
+		counter:    t.counter,
 	}
 }

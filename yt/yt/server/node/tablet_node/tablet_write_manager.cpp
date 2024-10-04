@@ -1,7 +1,8 @@
 #include "tablet_write_manager.h"
 
-#include "private.h"
 #include "backup_manager.h"
+#include "hunks_serialization.h"
+#include "private.h"
 #include "serialize.h"
 #include "sorted_dynamic_store.h"
 #include "sorted_store_manager.h"
@@ -28,6 +29,59 @@ using namespace NTransactionClient;
 using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTransactionWriteRecord::TTransactionWriteRecord(
+    TTabletId tabletId,
+    TSharedRef data,
+    int rowCount,
+    i64 dataWeight,
+    const TSyncReplicaIdList& syncReplicaIds,
+    const std::optional<NTableClient::THunkChunksInfo>& hunkChunksInfo)
+    : TabletId(tabletId)
+    , Data(std::move(data))
+    , RowCount(rowCount)
+    , DataWeight(dataWeight)
+    , SyncReplicaIds(syncReplicaIds)
+    , HunkChunksInfo(hunkChunksInfo)
+{ }
+
+void TTransactionWriteRecord::Save(TSaveContext& context) const
+{
+    using NYT::Save;
+    Save(context, TabletId);
+    Save(context, Data);
+    Save(context, RowCount);
+    Save(context, DataWeight);
+    Save(context, SyncReplicaIds);
+    Save(context, HunkChunksInfo);
+}
+
+void TTransactionWriteRecord::Load(TLoadContext& context)
+{
+    using NYT::Load;
+    Load(context, TabletId);
+    Load(context, Data);
+    Load(context, RowCount);
+    Load(context, DataWeight);
+    Load(context, SyncReplicaIds);
+    Load(context, HunkChunksInfo);
+}
+
+i64 TTransactionWriteRecord::GetByteSize() const
+{
+    return Data.Size();
+}
+
+i64 GetWriteLogRowCount(const TTransactionWriteLog& writeLog)
+{
+    i64 result = 0;
+    for (const auto& entry : writeLog) {
+        result += entry.RowCount;
+    }
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1153,21 +1207,6 @@ private:
             return;
         }
 
-        std::optional<int> keyMismatchIndex;
-        auto shuffleLockedRows = Host_->GetConfig()->ShuffleLockedRows;
-
-        if (shuffleLockedRows) {
-            YT_LOG_DEBUG("Shuffling locked rows (TransactionId: %v, LockedRowCount: %v)",
-                transaction->GetId(),
-                lockedRows.size());
-
-            if (std::ssize(lockedRows) == 2) {
-                std::reverse(lockedRows.begin(), lockedRows.end());
-            } else {
-                std::reverse(lockedRows.begin() + std::ssize(lockedRows) / 2, lockedRows.end());
-            }
-        }
-
         auto writeLogIterator = writeLog.Begin();
         auto writeLogReader = CreateWireProtocolReader((*writeLogIterator).Data);
 
@@ -1188,89 +1227,9 @@ private:
                 continue;
             }
 
-            if (!rowRef.StoreManager->CommitRow(transaction, command, rowRef)) {
-                keyMismatchIndex = index;
-                break;
-            }
+            rowRef.StoreManager->CommitRow(transaction, command, rowRef);
 
             Host_->OnTabletRowUnlocked(tablet);
-        }
-
-        if (keyMismatchIndex) {
-            if (!shuffleLockedRows) {
-                YT_LOG_ALERT("Key mismatch between locked row list and immediate locked write log detected "
-                    "(MismatchIndex: %v)",
-                    *keyMismatchIndex);
-            }
-
-            using TCommandList =
-                std::vector<
-                    std::pair<
-                        TUnversionedValueRange,
-                        TWireProtocolWriteCommand
-                    >
-                >;
-            TCommandList commands;
-
-            auto rowBuffer = New<TRowBuffer>();
-            for (const auto& writeRecord : writeLog) {
-                auto keyColumnCount = Tablet_->GetPhysicalSchema()->GetKeyColumnCount();
-                auto getKey = [&] (TUnversionedRow row) {
-                    YT_VERIFY(static_cast<int>(row.GetCount()) >= keyColumnCount);
-                    return ToKeyRef(row, keyColumnCount);
-                };
-
-                auto reader = CreateWireProtocolReader(writeRecord.Data, rowBuffer);
-                while (!reader->IsFinished()) {
-                    auto command = reader->ReadWriteCommand(
-                        Tablet_->TableSchemaData(),
-                        /*captureValues*/ true);
-
-                    TUnversionedValueRange key;
-                    Visit(command,
-                        [&] (const TWriteRowCommand& command) { key = getKey(command.Row); },
-                        [&] (const TDeleteRowCommand& command) { key = getKey(command.Row); },
-                        [&] (const TWriteAndLockRowCommand& command) { key = getKey(command.Row); },
-                        [&] (auto) { YT_ABORT(); });
-                    commands.emplace_back(key, command);
-                }
-            }
-
-            const auto& comparer = Tablet_->GetRowKeyComparer();
-
-            std::sort(commands.begin(), commands.end(), [&] (const auto& lhs, const auto& rhs) {
-                return comparer(lhs.first, rhs.first) < 0;
-            });
-            for (int index = 0; index + 1 < std::ssize(commands); ++index) {
-                const auto& key = commands[index].first;
-                const auto& nextKey = commands[index + 1].first;
-                // All keys must be different.
-                YT_VERIFY(comparer(key, nextKey) < 0);
-            }
-
-            for (int index = *keyMismatchIndex; index < std::ssize(lockedRows); ++index) {
-                const auto& lockedRow = lockedRows[index];
-                if (!Host_->ValidateAndDiscardRowRef(lockedRow)) {
-                    continue;
-                }
-
-                const auto& row = lockedRow.Row;
-                auto commandIt = std::lower_bound(
-                    commands.begin(),
-                    commands.end(),
-                    row,
-                    [&] (const auto& command, const auto& row) {
-                        return comparer(command.first, row) < 0;
-                    });
-
-                const auto& [commandKey, command] = *commandIt;
-                YT_VERIFY(comparer(commandKey, row) == 0);
-
-                YT_VERIFY(lockedRow.StoreManager->CommitRow(transaction, command, lockedRow));
-
-                ++lockedRowCount;
-                Host_->OnTabletRowUnlocked(Tablet_);
-            }
         }
 
         DropTransactionWriteLog(transaction, &writeLog);

@@ -28,7 +28,7 @@ namespace {
         }
         size_t resultSize = 0;
 
-        if (EncodeHeaderTo(header, ptr, result.Size(), resultSize)) {
+        if (EncodeHeaderTo(header, ptr, result.size(), resultSize)) {
             if (data && size) {
                 memcpy(ptr + totalHeaderSize, data, size);
             }
@@ -65,7 +65,7 @@ namespace {
     }
 
     template<typename TResult>
-    TResult EncodePatchProto(const ui8* base, size_t baseSize, const ui8* state, size_t stateSize, const ui8* patch, size_t patchSize, const TChangeHeader& changeHeader  = {}) 
+    TResult EncodePatchProto(const ui8* base, size_t baseSize, const ui8* state, size_t stateSize, const ui8* patch, size_t patchSize, const TChangeHeader& changeHeader  = {})
     {
         TStateHeader header;
         header.set_type(TStateHeader::PATCH);

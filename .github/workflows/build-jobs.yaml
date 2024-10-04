@@ -31,7 +31,7 @@ on:
         required: false
         type: boolean
       update-remote-cache:
-        default: true
+        default: false
         required: false
         type: boolean
       skip-python-packages:
@@ -217,7 +217,7 @@ jobs:
 
           if [ "${{ inputs.update-remote-cache }}" == "true" ]
           then
-            BUILD_FLAGS="${BUILD_FLAGS} --yt-put"
+            BUILD_FLAGS="${BUILD_FLAGS} --yt-put --yt-max-store-size=1000000000000"
           fi
 
           STRIP_VALUE=no
@@ -277,58 +277,15 @@ jobs:
       - name: Build YQL agent (ya-make, ${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}
         run: |
-          shopt -s expand_aliases
-
-          cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
-
-          BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
-          ../ytsaurus/ytsaurus/ya make -T ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/yql/agent/bin
-
           cd ../build_yql_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
 
           # TODO(nadya73): Remove it after ya fix.
           cat ../ytsaurus/ydb/build/internal/ya.conf | grep -v bazel | grep -v "dist_cache" > ./patched.ya.conf
           cp ./patched.ya.conf ../ytsaurus/ydb/build/internal/ya.conf
 
-          alias ydb-ya-make="../ytsaurus/ydb/ya make -T ${BUILD_FLAGS} --no-bazel-remote-store --ignore-recurses --output=."
+          export YTSAURUS_SOURCE_PATH="$(realpath $(pwd)/../ytsaurus/ytsaurus)"
+          export YDB_SOURCE_PATH="$(realpath $(pwd)/../ytsaurus/ydb)"
+          export YQL_BUILD_PATH="."
+          export BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }} --no-bazel-remote-store"
 
-          for path in "ydb/library/yql/tools/mrjob" \
-                      "ydb/library/yql/yt/dynamic" \
-                      "ydb/library/yql/yt/dq_vanilla_job" \
-                      "ydb/library/yql/yt/dq_vanilla_job.lite" \
-                      "ydb/library/yql/udfs/logs/dsv"
-          do
-            ydb-ya-make ../ytsaurus/ydb/$path
-          done
-
-          udfs_prefix="../ytsaurus/ydb/ydb/library/yql/udfs/common"
-          for udf_name in compress_base \
-                          datetime2 \
-                          digest \
-                          file \
-                          histogram \
-                          hyperloglog \
-                          hyperscan \
-                          ip_base \
-                          json \
-                          json2 \
-                          math \
-                          pire \
-                          protobuf \
-                          re2 \
-                          set \
-                          stat \
-                          streaming \
-                          string \
-                          top \
-                          topfreq \
-                          unicode_base \
-                          url_base \
-                          yson2
-          do
-            ydb-ya-make  ${udfs_prefix}/${udf_name}
-          done
-
-          export YDB_SOURCE_ROOT=$(realpath $(pwd)/../ytsaurus/ydb)
-          export YA_BUILD_PATH=$(pwd)
-          ../ytsaurus/ytsaurus/yt/docker/ya-build/build_yql_python_udfs_with_docker.sh
+          ../ytsaurus/ytsaurus/yt/docker/ya-build/query-tracker/build_yql_agent.sh

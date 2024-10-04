@@ -4,6 +4,7 @@ from yt_commands import (
     authors, create, ls, get, remove, build_master_snapshots, raises_yt_error,
     exists, set, copy, move, gc_collect, write_table, read_table, create_user,
     start_transaction, abort_transaction, commit_transaction, link, wait,
+    execute_batch, make_batch_request, get_batch_output, print_debug,
 )
 
 from yt_sequoia_helpers import (
@@ -90,7 +91,7 @@ class TestSequoiaInternals(YTEnvSetup):
         return lookup_rows_in_ground(DESCRIPTORS.path_to_node_id.get_default_path(), [{"path": mangle_sequoia_path(path)}])
 
     @authors("kvk1920")
-    def test_map_not_set_doesnt_cause_detach(self):
+    def test_map_node_set_doesnt_cause_detach(self):
         set("//tmp/m1/m2/m3", {"abcde": 4}, recursive=True, force=True)
         assert get("//tmp/m1") == {"m2": {"m3": {"abcde": 4}}}
         m2_id = get("//tmp/m1/m2/@id")
@@ -506,6 +507,29 @@ class TestSequoiaInternals(YTEnvSetup):
     def test_sequoia_map_node_explicit_creation_is_forbidden(self):
         with raises_yt_error("is internal type and should not be used directly"):
             create("sequoia_map_node", "//tmp/m")
+
+    @authors("danilalexeev")
+    def test_mixed_read_write_batch(self):
+        create("map_node", "//sys/cypress_proxies", ignore_existing=True)
+        set("//sys/cypress_proxies/@config", {
+            "object_service": {
+                "alert_on_mixed_read_write_batch": True,
+            }
+        })
+        sleep(0.5)
+
+        results = execute_batch(
+            [
+                make_batch_request("set", path="//tmp/b", input="b"),
+                make_batch_request("get", return_only_value=True, path="//tmp/a"),
+            ]
+        )
+        # Do not crash.
+
+        assert len(results) == 2
+        assert not get_batch_output(results[0])
+        with raises_yt_error():
+            get_batch_output(results[1])
 
 
 class TestSequoiaResolve(TestSequoiaInternals):
@@ -1033,6 +1057,79 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
         assert exists("//tmp/p13/m")
 
 
+@authors("kvk1920")
+class TestSequoiaNodeVersioning(YTEnvSetup):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    NUM_CYPRESS_PROXIES = 1
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_TEST_PARTITIONS = 6
+
+    NUM_SECONDARY_MASTER_CELLS = 3
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["sequoia_node_host", "cypress_node_host", "chunk_host"]},
+        "12": {"roles": ["transaction_coordinator", "cypress_node_host"]},
+        "13": {"roles": ["chunk_host", "cypress_node_host"]}
+    }
+
+    # COMPAT(kvk1920): Remove when `use_cypress_transaction_service` become `true` by default.
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            },
+        },
+    }
+
+    @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
+    def test_set_attribute_under_tx(self, finish_tx):
+        create("table", "//tmp/t")
+        tx = start_transaction()
+
+        set("//tmp/t/@my_attribute", 123, tx=tx)
+        with raises_yt_error("Attribute \"my_attribute\" is not found"):
+            get("//tmp/t/@my_attribute")
+
+        assert get("//tmp/t/@my_attribute", tx=tx) == 123
+
+        with raises_yt_error(f"this attribute is locked by concurrent transaction {tx}"):
+            set("//tmp/t/@my_attribute", 321)
+
+        finish_tx(tx)
+
+        if finish_tx is commit_transaction:
+            assert get("//tmp/t/@my_attribute") == 123
+        else:
+            with raises_yt_error("Attribute \"my_attribute\" is not found"):
+                get("//tmp/t/@my_attribute")
+
+    @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
+    def test_set_value_under_tx(self, finish_tx):
+        create("int64_node", "//tmp/x")
+        tx = start_transaction()
+
+        set("//tmp/x", 1)
+        set("//tmp/x", 2, tx=tx)
+        assert get("//tmp/x") == 1
+        assert get("//tmp/x", tx=tx) == 2
+
+        # TODO(kvk1920): unwrap error becuse for now it looks like "Internal RPC call failed: failed
+        # to commit Sequoia tx: prepare failed: ... <actual error message>".
+        with raises_yt_error(f" since \"exclusive\" lock is taken by concurrent transaction {tx}"):
+            set("//tmp/x", 3)
+
+        finish_tx(tx)
+
+        if finish_tx is commit_transaction:
+            assert get("//tmp/x") == 2
+        else:
+            assert get("//tmp/x") == 1
+
+
 ##################################################################
 
 
@@ -1064,6 +1161,7 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
         clear_table_in_ground(DESCRIPTORS.node_forks)
         clear_table_in_ground(DESCRIPTORS.node_snapshots)
         clear_table_in_ground(DESCRIPTORS.path_forks)
+        clear_table_in_ground(DESCRIPTORS.child_forks)
 
         super(TestSequoiaNodeVersioningOnTxFinish, self).teardown_method(method)
 
@@ -1125,13 +1223,22 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
             "topmost_transaction_id": topmost_tx,
         }
 
-    def path_fork(self, tx, path, node, parent_node, topmost_tx):
+    def path_fork(self, tx, path, node, topmost_tx):
         assert tx is not None
         return {
             "transaction_id": tx,
             "path": mangle_sequoia_path(path),
             "node_id": node,
-            "parent_node_id": parent_node,
+            "topmost_transaction_id": topmost_tx,
+        }
+
+    def child_fork(self, tx, parent, key, child, topmost_tx):
+        assert tx is not None
+        return {
+            "transaction_id": tx,
+            "parent_id": parent,
+            "child_key": key,
+            "child_id": child,
             "topmost_transaction_id": topmost_tx,
         }
 
@@ -1184,6 +1291,10 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
 
         actual = normalize(actual)
         expected = normalize(expected)
+        if actual != expected:
+            # Pytest reports too little information here.
+            print_debug("actual:", actual)
+            print_debug("exepcted:", expected)
         assert actual == expected
 
     @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
@@ -1236,70 +1347,140 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
         # Originator (either trunk or tx0).
         tx_or = None if originator == "trunk" else tx0
 
-        # //s/a/b/c/d
-        # b is replaced under tx1
+        # trunk:
+        #   s-a-b-c-d-e
+        #      `f
+        # tx1: remove //a/b and //a/f, then create [//a/b, //a/b/c, //a/b/g]
+        #   s-a-b-c
+        #        `g
 
+        scion_id = self.make_id(self.SCION)
         a_id = self.make_id(self.MAP_NODE)
         b_id = self.make_id(self.MAP_NODE)
         c_id = self.make_id(self.MAP_NODE)
-        d_id = self.make_id(self.TABLE)
-        b_new_id = self.make_id(self.TABLE)
-        scion_id = self.make_id(self.SCION)
+        d_id = self.make_id(self.MAP_NODE)
+        e_id = self.make_id(self.TABLE)
+        b_new_id = self.make_id(self.MAP_NODE)
+        c_new_id = self.make_id(self.TABLE)
+        f_id = self.make_id(self.TABLE)
+        g_id = self.make_id(self.TABLE)
 
         old_node_id_to_path = [
             self.node_id_to_path(scion_id, "//s"),
+
             self.node_id_to_path(a_id, "//s/a", tx=tx_or),
+            self.node_id_to_path(f_id, "//s/a/f", tx=tx_or),
             self.node_id_to_path(b_id, "//s/a/b", tx=tx_or),
             self.node_id_to_path(c_id, "//s/a/b/c", tx=tx_or),
             self.node_id_to_path(d_id, "//s/a/b/c/d", tx=tx_or),
+            self.node_id_to_path(e_id, "//s/a/b/c/d/e", tx=tx_or),
+
+            self.node_id_to_path(f_id, "//s/a/f", tx=tx1, fork="tombstone"),
             self.node_id_to_path(b_id, "//s/a/b", tx=tx1, fork="tombstone"),
             self.node_id_to_path(c_id, "//s/a/b/c", tx=tx1, fork="tombstone"),
             self.node_id_to_path(d_id, "//s/a/b/c/d", tx=tx1, fork="tombstone"),
+            self.node_id_to_path(e_id, "//s/a/b/c/d/e", tx=tx1, fork="tombstone"),
+
             self.node_id_to_path(b_new_id, "//s/a/b", tx=tx1),
+            self.node_id_to_path(c_new_id, "//s/a/b/c", tx=tx1),
+            self.node_id_to_path(g_id, "//s/a/b/g", tx=tx1),
         ]
         old_path_to_node_id = [
             self.path_to_node_id("//s", scion_id),
+
             self.path_to_node_id("//s/a", a_id, tx=tx_or),
+            self.path_to_node_id("//s/a/f", f_id, tx=tx_or),
             self.path_to_node_id("//s/a/b", b_id, tx=tx_or),
             self.path_to_node_id("//s/a/b/c", c_id, tx=tx_or),
             self.path_to_node_id("//s/a/b/c/d", d_id, tx=tx_or),
+            self.path_to_node_id("//s/a/b/c/d/e", e_id, tx=tx_or),
+
             self.path_to_node_id("//s/a/b", b_new_id, tx=tx1),
-            self.path_to_node_id("//s/a/b/c", None, tx=tx1),
+            self.path_to_node_id("//s/a/b/c", c_new_id, tx=tx1),
+            self.path_to_node_id("//s/a/b/g", g_id, tx=tx1),
+
+            self.path_to_node_id("//s/a/f", None, tx=tx1),
             self.path_to_node_id("//s/a/b/c/d", None, tx=tx1),
+
+            # NB: tomstones for nested removed nodes can be useful for resolve
+            # optimization (i.e. don't lookup nodes near the scion).
+            self.path_to_node_id("//s/a/b/c/d/e", None, tx=tx1),
         ]
         old_child_node = [
             self.child_node(scion_id, "a", a_id, tx=tx_or),
+            self.child_node(a_id, "f", f_id, tx=tx_or),
             self.child_node(a_id, "b", b_id, tx=tx_or),
             self.child_node(b_id, "c", c_id, tx=tx_or),
             self.child_node(c_id, "d", d_id, tx=tx_or),
+            self.child_node(d_id, "e", e_id, tx=tx_or),
+
+            self.child_node(a_id, "f", None, tx=tx1),
             self.child_node(a_id, "b", b_new_id, tx=tx1),
+            self.child_node(b_new_id, "c", c_new_id, tx=tx1),
+            self.child_node(b_new_id, "g", g_id, tx=tx1),
+
+            # NB: tombstones for the children of removed node are useless. There
+            # is even no node with ID |b_id|. But we still keep them to simplify
+            # resolve table modification: it's simplier to not distinguish
+            # nested node and subtree root removal.
             self.child_node(b_id, "c", None, tx=tx1),
             self.child_node(c_id, "d", None, tx=tx1),
+            self.child_node(d_id, "e", None, tx=tx1),
         ]
         old_node_forks = [
+            self.node_fork(tx1, f_id, "//s/a/f", tx_or),
             self.node_fork(tx1, b_id, "//s/a/b", tx_or),
             self.node_fork(tx1, c_id, "//s/a/b/c", tx_or),
             self.node_fork(tx1, d_id, "//s/a/b/c/d", tx_or),
+            self.node_fork(tx1, e_id, "//s/a/b/c/d/e", tx_or),
             self.node_fork(tx1, b_new_id, "//s/a/b", tx1),
+            self.node_fork(tx1, c_new_id, "//s/a/b/c", tx1),
+            self.node_fork(tx1, g_id, "//s/a/b/g", tx1),
         ]
         if originator == "transaction":
             old_node_forks += [
                 self.node_fork(tx0, a_id, "//s/a", tx0),
+                self.node_fork(tx0, f_id, "//s/a/f", tx0),
                 self.node_fork(tx0, b_id, "//s/a/b", tx0),
                 self.node_fork(tx0, c_id, "//s/a/b/c", tx0),
                 self.node_fork(tx0, d_id, "//s/a/b/c/d", tx0),
+                self.node_fork(tx0, e_id, "//s/a/b/c/d/e", tx0),
             ]
         old_path_forks = [
-            self.path_fork(tx1, "//s/a/b", b_new_id, a_id, tx_or),
-            self.path_fork(tx1, "//s/a/b/c", None, b_id, tx_or),
-            self.path_fork(tx1, "//s/a/b/c/d", None, c_id, tx_or),
+            self.path_fork(tx1, "//s/a/f", None, tx_or),
+            self.path_fork(tx1, "//s/a/b", b_new_id, tx_or),
+            self.path_fork(tx1, "//s/a/b/c", c_new_id, tx_or),
+            self.path_fork(tx1, "//s/a/b/c/d", None, tx_or),
+            self.path_fork(tx1, "//s/a/b/c/d/e", None, tx_or),
+            self.path_fork(tx1, "//s/a/b/g", g_id, tx1),
         ]
         if originator == "transaction":
             old_path_forks += [
-                self.path_fork(tx0, "//s/a", a_id, scion_id, tx0),
-                self.path_fork(tx0, "//s/a/b", b_id, a_id, tx0),
-                self.path_fork(tx0, "//s/a/b/c", c_id, b_id, tx0),
-                self.path_fork(tx0, "//s/a/b/c/d", d_id, c_id, tx0),
+                self.path_fork(tx0, "//s/a", a_id, tx0),
+                self.path_fork(tx0, "//s/a/f", f_id, tx0),
+                self.path_fork(tx0, "//s/a/b", b_id, tx0),
+                self.path_fork(tx0, "//s/a/b/c", c_id, tx0),
+                self.path_fork(tx0, "//s/a/b/c/d", d_id, tx0),
+                self.path_fork(tx0, "//s/a/b/c/d/e", d_id, tx0),
+            ]
+        old_child_forks = [
+            self.child_fork(tx1, a_id, "b", b_new_id, tx_or),
+            self.child_fork(tx1, b_new_id, "c", c_new_id, tx1),
+            self.child_fork(tx1, b_new_id, "g", g_id, tx1),
+
+            self.child_fork(tx1, a_id, "f", None, tx_or),
+            self.child_fork(tx1, b_id, "c", None, tx_or),
+            self.child_fork(tx1, c_id, "d", None, tx_or),
+            self.child_fork(tx1, d_id, "e", None, tx_or),
+        ]
+        if originator == "transaction":
+            old_child_forks += [
+                self.child_fork(tx0, scion_id, "a", a_id, tx0),
+                self.child_fork(tx0, a_id, "f", f_id, tx0),
+                self.child_fork(tx0, a_id, "b", b_id, tx0),
+                self.child_fork(tx0, b_id, "c", c_id, tx0),
+                self.child_fork(tx0, c_id, "d", d_id, tx0),
+                self.child_fork(tx0, d_id, "e", e_id, tx0),
             ]
 
         insert_rows_to_ground(DESCRIPTORS.node_id_to_path, old_node_id_to_path)
@@ -1307,6 +1488,7 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
         insert_rows_to_ground(DESCRIPTORS.child_node, old_child_node)
         insert_rows_to_ground(DESCRIPTORS.node_forks, old_node_forks)
         insert_rows_to_ground(DESCRIPTORS.path_forks, old_path_forks)
+        insert_rows_to_ground(DESCRIPTORS.child_forks, old_child_forks)
 
         finish_tx(tx1)
 
@@ -1323,6 +1505,8 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
             f"* from [{DESCRIPTORS.node_forks.get_default_path()}]")
         new_path_forks = select_rows_from_ground(
             f"* from [{DESCRIPTORS.path_forks.get_default_path()}]")
+        new_child_forks = select_rows_from_ground(
+            f"* from [{DESCRIPTORS.child_forks.get_default_path()}]")
 
         if finish_tx == abort_transaction:
             # Drop all tx1 changes.
@@ -1334,8 +1518,9 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
             expected_child_node = build_expected(old_child_node)
             expected_path_forks = build_expected(old_path_forks)
             expected_node_forks = build_expected(old_node_forks)
+            expected_child_forks = build_expected(old_child_forks)
         elif originator == "trunk":
-            # Just forward delta to parent tx.
+            # Just propagate delta to parent tx.
             def build_expected(old):
                 def build_expected_record(old_record):
                     new_record = old_record.copy()
@@ -1351,29 +1536,46 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
             expected_child_node = build_expected(old_child_node)
             expected_node_forks = build_expected(old_node_forks)
             expected_path_forks = build_expected(old_path_forks)
+            expected_child_forks = build_expected(old_child_forks)
         else:
             # This case has non-trivial branch merging.
             expected_node_id_to_path = [
                 self.node_id_to_path(scion_id, "//s"),
                 self.node_id_to_path(a_id, "//s/a", tx=tx0),
                 self.node_id_to_path(b_new_id, "//s/a/b", tx=tx0),
+                self.node_id_to_path(c_new_id, "//s/a/b/c", tx=tx0),
+                self.node_id_to_path(g_id, "//s/a/b/g", tx=tx0),
             ]
             expected_path_to_node_id = [
                 self.path_to_node_id("//s", scion_id),
                 self.path_to_node_id("//s/a", a_id, tx=tx0),
                 self.path_to_node_id("//s/a/b", b_new_id, tx=tx0),
+                self.path_to_node_id("//s/a/b/c", c_new_id, tx=tx0),
+                self.path_to_node_id("//s/a/b/g", g_id, tx=tx0),
             ]
             expected_child_node = [
                 self.child_node(scion_id, "a", a_id, tx=tx0),
                 self.child_node(a_id, "b", b_new_id, tx=tx0),
+                self.child_node(b_new_id, "c", c_new_id, tx=tx0),
+                self.child_node(b_new_id, "g", g_id, tx=tx0),
             ]
             expected_node_forks = [
                 self.node_fork(tx0, a_id, "//s/a", tx0),
                 self.node_fork(tx0, b_new_id, "//s/a/b", tx0),
+                self.node_fork(tx0, c_new_id, "//s/a/b/c", tx0),
+                self.node_fork(tx0, g_id, "//s/a/b/g", tx0),
             ]
             expected_path_forks = [
-                self.path_fork(tx0, "//s/a", a_id, scion_id, tx0),
-                self.path_fork(tx0, "//s/a/b", b_new_id, a_id, tx0),
+                self.path_fork(tx0, "//s/a", a_id, tx0),
+                self.path_fork(tx0, "//s/a/b", b_new_id, tx0),
+                self.path_fork(tx0, "//s/a/b/c", c_new_id, tx0),
+                self.path_fork(tx0, "//s/a/b/g", g_id, tx0),
+            ]
+            expected_child_forks = [
+                self.child_fork(tx0, scion_id, "a", a_id, tx0),
+                self.child_fork(tx0, a_id, "b", b_new_id, tx0),
+                self.child_fork(tx0, b_new_id, "c", c_new_id, tx0),
+                self.child_fork(tx0, b_new_id, "g", g_id, tx0)
             ]
 
         self.assert_equal(tx_mapping, new_node_id_to_path, expected_node_id_to_path)
@@ -1381,6 +1583,7 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
         self.assert_equal(tx_mapping, new_child_node, expected_child_node)
         self.assert_equal(tx_mapping, new_node_forks, expected_node_forks)
         self.assert_equal(tx_mapping, new_path_forks, expected_path_forks)
+        self.assert_equal(tx_mapping, new_child_forks, expected_child_forks)
 
     def test_merge_committed_changes(self):
         tx0 = start_transaction(timeout=100000)
@@ -1391,19 +1594,22 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
 
         scion_id = self.make_id(self.SCION)
 
-        # trunk: //s/replace
-        # tx0: no-op
+        # trunk: //s/replace/nested
+        # tx0: remove //s/replace/nested
         # tx1: remove //s/replace
-        # tx2: create //s/replace
-        to_replace_id = self.make_id(self.TABLE)
-        replaced_id = self.make_id(self.TABLE)
+        # tx2: create [//s/replace, //s/replace/nested]
+        to_replace_id = self.make_id(self.MAP_NODE)
+        to_replace_nested_id = self.make_id(self.TABLE)
+        replaced_id = self.make_id(self.MAP_NODE)
+        replaced_nested_id = self.make_id(self.TABLE)
 
-        # trunk: //s/remove
+        # trunk: //s/remove/recursive
         # tx0: remove //s/remove
-        # tx1: create //s/remove
+        # tx1: create //s/remove + create //s/remove/nested
         # tx2: remove //s/remove
         to_remove_id = self.make_id(self.TABLE)
-        recreated_id = self.make_id(self.TABLE)
+        recreated_id = self.make_id(self.MAP_NODE)
+        recreated_nested_id = self.make_id(self.TABLE)
 
         # trunk: None
         # tx0: create //s/create
@@ -1425,13 +1631,21 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
             self.node_id_to_path(to_replace_id, "//s/replace"),
             self.node_id_to_path(to_replace_id, "//s/replace", tx1, "tombstone"),
 
+            self.node_id_to_path(to_replace_nested_id, "//s/replace/nested"),
+            self.node_id_to_path(to_replace_nested_id, "//s/replace/nested", tx0, "tombstone"),
+
             self.node_id_to_path(replaced_id, "//s/replace", tx2),
+
+            self.node_id_to_path(replaced_nested_id, "//s/replace/nested", tx2),
 
             self.node_id_to_path(to_remove_id, "//s/remove"),
             self.node_id_to_path(to_remove_id, "//s/remove", tx0, "tombstone"),
 
             self.node_id_to_path(recreated_id, "//s/remove", tx1),
-            self.node_id_to_path(recreated_id, "//s/remove", tx2, "tombstone"),
+            self.node_id_to_path(recreated_id, "//s/remove", tx2),
+
+            self.node_id_to_path(recreated_nested_id, "//s/remove/nested", tx1),
+            self.node_id_to_path(recreated_nested_id, "//s/remove/nested", tx2, "tombstone"),
 
             self.node_id_to_path(created_1_id, "//s/create", tx0),
             self.node_id_to_path(created_1_id, "//s/create", tx1, "tombstone"),
@@ -1452,11 +1666,16 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
             self.path_to_node_id("//s/replace", to_replace_id),
             self.path_to_node_id("//s/replace", None, tx1),
             self.path_to_node_id("//s/replace", replaced_id, tx2),
+            self.path_to_node_id("//s/replace/nested", to_replace_nested_id),
+            self.path_to_node_id("//s/replace/nested", None, tx0),
+            self.path_to_node_id("//s/replace/nested", replaced_nested_id, tx2),
 
             self.path_to_node_id("//s/remove", to_remove_id),
             self.path_to_node_id("//s/remove", None, tx0),
             self.path_to_node_id("//s/remove", recreated_id, tx1),
             self.path_to_node_id("//s/remove", None, tx2),
+            self.path_to_node_id("//s/remove/nested", recreated_nested_id, tx1),
+            self.path_to_node_id("//s/remove/nested", None, tx2),
 
             self.path_to_node_id("//s/create", created_1_id, tx0),
             self.path_to_node_id("//s/create", None, tx1),
@@ -1473,10 +1692,18 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
             self.child_node(scion_id, "replace", None, tx1),
             self.child_node(scion_id, "replace", replaced_id, tx2),
 
+            self.child_node(to_replace_id, "nested", to_replace_nested_id),
+            self.child_node(to_replace_id, "nested", None, tx0),
+
+            self.child_node(replaced_id, "nested", replaced_nested_id, tx2),
+
             self.child_node(scion_id, "remove", to_remove_id),
             self.child_node(scion_id, "remove", None, tx0),
             self.child_node(scion_id, "remove", recreated_id, tx1),
             self.child_node(scion_id, "remove", None, tx2),
+
+            self.child_node(recreated_id, "nested", recreated_nested_id, tx1),
+            self.child_node(recreated_id, "nested", None, tx2),
 
             self.child_node(scion_id, "create", created_1_id, tx0),
             self.child_node(scion_id, "create", None, tx1),
@@ -1491,12 +1718,19 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
         insert_rows_to_ground(DESCRIPTORS.node_forks, [
             self.node_fork(tx1, to_replace_id, "//s/replace", None),
 
+            self.node_fork(tx0, to_replace_nested_id, "//s/replace/nested", None),
+
             self.node_fork(tx2, replaced_id, "//s/replace", tx2),
+
+            self.node_fork(tx2, replaced_nested_id, "//s/replace/nested", tx2),
 
             self.node_fork(tx0, to_remove_id, "//s/remove", None),
 
             self.node_fork(tx1, recreated_id, "//s/remove", tx1),
             self.node_fork(tx2, recreated_id, "//s/remove", tx1),
+
+            self.node_fork(tx1, recreated_nested_id, "//s/remove/nested", tx1),
+            self.node_fork(tx2, recreated_nested_id, "//s/remove/nested", tx1),
 
             self.node_fork(tx0, created_1_id, "//s/create", tx0),
             self.node_fork(tx1, created_1_id, "//s/create", tx0),
@@ -1511,19 +1745,49 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
 
         # tx_id, path, node_id, parent_id, topmost_tx_id
         insert_rows_to_ground(DESCRIPTORS.path_forks, [
-            self.path_fork(tx1, "//s/replace", None, scion_id, None),
-            self.path_fork(tx2, "//s/replace", replaced_id, scion_id, None),
+            self.path_fork(tx1, "//s/replace", None, None),
+            self.path_fork(tx2, "//s/replace", replaced_id, None),
 
-            self.path_fork(tx0, "//s/remove", None, scion_id, None),
-            self.path_fork(tx1, "//s/remove", recreated_id, scion_id, None),
-            self.path_fork(tx2, "//s/remove", None, scion_id, None),
+            self.path_fork(tx0, "//s/replace/nested", None, None),
+            self.path_fork(tx2, "//s/replace/nested", replaced_nested_id, None),
 
-            self.path_fork(tx0, "//s/create", created_1_id, scion_id, tx0),
-            self.path_fork(tx1, "//s/create", None, scion_id, tx0),
-            self.path_fork(tx2, "//s/create", created_2_id, scion_id, tx0),
+            self.path_fork(tx0, "//s/remove", None, None),
+            self.path_fork(tx1, "//s/remove", recreated_id, None),
+            self.path_fork(tx2, "//s/remove", None, None),
 
-            self.path_fork(tx1, "//s/remove_recreate", remove_recreate_2_id, scion_id, None),
-            self.path_fork(tx2, "//s/remove_recreate", None, scion_id, None),
+            self.path_fork(tx1, "//s/remove/nested", recreated_nested_id, tx1),
+            self.path_fork(tx2, "//s/remove/nested", None, tx1),
+
+            self.path_fork(tx0, "//s/create", created_1_id, tx0),
+            self.path_fork(tx1, "//s/create", None, tx0),
+            self.path_fork(tx2, "//s/create", created_2_id, tx0),
+
+            self.path_fork(tx1, "//s/remove_recreate", remove_recreate_2_id, None),
+            self.path_fork(tx2, "//s/remove_recreate", None, None),
+        ])
+
+        # tx_id, parent, key, child, topmost_tx
+        insert_rows_to_ground(DESCRIPTORS.child_forks, [
+            self.child_fork(tx1, scion_id, "replace", None, None),
+            self.child_fork(tx2, scion_id, "replace", replaced_id, None),
+
+            self.child_fork(tx0, to_replace_id, "nested", None, None),
+
+            self.child_fork(tx2, replaced_id, "nested", replaced_nested_id, tx2),
+
+            self.child_fork(tx0, scion_id, "remove", None, None),
+            self.child_fork(tx1, scion_id, "remove", recreated_id, None),
+            self.child_fork(tx2, scion_id, "remove", None, None),
+
+            self.child_fork(tx1, recreated_id, "nested", recreated_nested_id, tx1),
+            self.child_fork(tx2, recreated_id, "nested", None, tx1),
+
+            self.child_fork(tx0, scion_id, "create", created_1_id, tx0),
+            self.child_fork(tx1, scion_id, "create", None, tx0),
+            self.child_fork(tx2, scion_id, "create", created_2_id, tx0),
+
+            self.child_fork(tx1, scion_id, "remove_recreate", remove_recreate_2_id, None),
+            self.child_fork(tx2, scion_id, "remove_recreate", None, None),
         ])
 
         commit_transaction(tx2)
@@ -1539,7 +1803,12 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
                 self.node_id_to_path(to_replace_id, "//s/replace"),
                 self.node_id_to_path(to_replace_id, "//s/replace", tx1, "tombstone"),
 
+                self.node_id_to_path(to_replace_nested_id, "//s/replace/nested"),
+                self.node_id_to_path(to_replace_nested_id, "//s/replace/nested", tx0, "tombstone"),
+
                 self.node_id_to_path(replaced_id, "//s/replace", tx1),
+
+                self.node_id_to_path(replaced_nested_id, "//s/replace/nested", tx1),
 
                 self.node_id_to_path(to_remove_id, "//s/remove"),
                 self.node_id_to_path(to_remove_id, "//s/remove", tx0, "tombstone"),
@@ -1563,6 +1832,9 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
 
                 self.path_to_node_id("//s/replace", to_replace_id),
                 self.path_to_node_id("//s/replace", replaced_id, tx1),
+                self.path_to_node_id("//s/replace/nested", to_replace_nested_id),
+                self.path_to_node_id("//s/replace/nested", None, tx0),
+                self.path_to_node_id("//s/replace/nested", replaced_nested_id, tx1),
 
                 self.path_to_node_id("//s/remove", to_remove_id),
                 self.path_to_node_id("//s/remove", None, tx0),
@@ -1582,6 +1854,11 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
                 self.child_node(scion_id, "replace", to_replace_id),
                 self.child_node(scion_id, "replace", replaced_id, tx1),
 
+                self.child_node(to_replace_id, "nested", to_replace_nested_id),
+                self.child_node(to_replace_id, "nested", None, tx0),
+
+                self.child_node(replaced_id, "nested", replaced_nested_id, tx1),
+
                 self.child_node(scion_id, "remove", to_remove_id),
                 self.child_node(scion_id, "remove", None, tx0),
                 self.child_node(scion_id, "remove", None, tx1),
@@ -1599,7 +1876,11 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
             [
                 self.node_fork(tx1, to_replace_id, "//s/replace", None),
 
+                self.node_fork(tx0, to_replace_nested_id, "//s/replace/nested", None),
+
                 self.node_fork(tx1, replaced_id, "//s/replace", tx1),
+
+                self.node_fork(tx1, replaced_nested_id, "//s/replace/nested", tx1),
 
                 self.node_fork(tx0, to_remove_id, "//s/remove", None),
 
@@ -1615,15 +1896,37 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
             tx_mapping,
             select_rows_from_ground(f"* from [{DESCRIPTORS.path_forks.get_default_path()}]"),
             [
-                self.path_fork(tx1, "//s/replace", replaced_id, scion_id, None),
+                self.path_fork(tx1, "//s/replace", replaced_id, None),
 
-                self.path_fork(tx0, "//s/remove", None, scion_id, None),
-                self.path_fork(tx1, "//s/remove", None, scion_id, None),
+                self.path_fork(tx0, "//s/replace/nested", None, None),
+                self.path_fork(tx1, "//s/replace/nested", replaced_nested_id, None),
 
-                self.path_fork(tx0, "//s/create", created_1_id, scion_id, tx0),
-                self.path_fork(tx1, "//s/create", created_2_id, scion_id, tx0),
+                self.path_fork(tx0, "//s/remove", None, None),
+                self.path_fork(tx1, "//s/remove", None, None),
 
-                self.path_fork(tx1, "//s/remove_recreate", None, scion_id, None),
+                self.path_fork(tx0, "//s/create", created_1_id, tx0),
+                self.path_fork(tx1, "//s/create", created_2_id, tx0),
+
+                self.path_fork(tx1, "//s/remove_recreate", None, None),
+            ])
+
+        self.assert_equal(
+            tx_mapping,
+            select_rows_from_ground(f"* from [{DESCRIPTORS.child_forks.get_default_path()}]"),
+            [
+                self.child_fork(tx1, scion_id, "replace", replaced_id, None),
+
+                self.child_fork(tx0, to_replace_id, "nested", None, None),
+
+                self.child_fork(tx1, replaced_id, "nested", replaced_nested_id, tx1),
+
+                self.child_fork(tx0, scion_id, "remove", None, None),
+                self.child_fork(tx1, scion_id, "remove", None, None),
+
+                self.child_fork(tx0, scion_id, "create", created_1_id, tx0),
+                self.child_fork(tx1, scion_id, "create", created_2_id, tx0),
+
+                self.child_fork(tx1, scion_id, "remove_recreate", None, None),
             ])
 
         commit_transaction(tx1)
@@ -1639,7 +1942,12 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
                 self.node_id_to_path(to_replace_id, "//s/replace"),
                 self.node_id_to_path(to_replace_id, "//s/replace", tx0, "tombstone"),
 
+                self.node_id_to_path(to_replace_nested_id, "//s/replace/nested"),
+                self.node_id_to_path(to_replace_nested_id, "//s/replace/nested", tx0, "tombstone"),
+
                 self.node_id_to_path(replaced_id, "//s/replace", tx0),
+
+                self.node_id_to_path(replaced_nested_id, "//s/replace/nested", tx0),
 
                 self.node_id_to_path(to_remove_id, "//s/remove"),
                 self.node_id_to_path(to_remove_id, "//s/remove", tx0, "tombstone"),
@@ -1660,6 +1968,8 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
 
                 self.path_to_node_id("//s/replace", to_replace_id),
                 self.path_to_node_id("//s/replace", replaced_id, tx0),
+                self.path_to_node_id("//s/replace/nested", to_replace_nested_id),
+                self.path_to_node_id("//s/replace/nested", replaced_nested_id, tx0),
 
                 self.path_to_node_id("//s/remove", to_remove_id),
                 self.path_to_node_id("//s/remove", None, tx0),
@@ -1677,6 +1987,11 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
                 self.child_node(scion_id, "replace", to_replace_id),
                 self.child_node(scion_id, "replace", replaced_id, tx0),
 
+                self.child_node(to_replace_id, "nested", to_replace_nested_id),
+                self.child_node(to_replace_id, "nested", None, tx0),
+
+                self.child_node(replaced_id, "nested", replaced_nested_id, tx0),
+
                 self.child_node(scion_id, "remove", to_remove_id),
                 self.child_node(scion_id, "remove", None, tx0),
 
@@ -1691,7 +2006,9 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
             select_rows_from_ground(f"* from [{DESCRIPTORS.node_forks.get_default_path()}]"),
             [
                 self.node_fork(tx0, to_replace_id, "//s/replace", None),
+                self.node_fork(tx0, to_replace_nested_id, "//s/replace/nested", None),
                 self.node_fork(tx0, replaced_id, "//s/replace", tx0),
+                self.node_fork(tx0, replaced_nested_id, "//s/replace/nested", tx0),
                 self.node_fork(tx0, to_remove_id, "//s/remove", None),
                 self.node_fork(tx0, created_2_id, "//s/create", tx0),
                 self.node_fork(tx0, remove_recreate_1_id, "//s/remove_recreate", None),
@@ -1701,10 +2018,23 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
             tx_mapping,
             select_rows_from_ground(f"* from [{DESCRIPTORS.path_forks.get_default_path()}]"),
             [
-                self.path_fork(tx0, "//s/replace", replaced_id, scion_id, None),
-                self.path_fork(tx0, "//s/remove", None, scion_id, None),
-                self.path_fork(tx0, "//s/create", created_2_id, scion_id, tx0),
-                self.path_fork(tx0, "//s/remove_recreate", None, scion_id, None),
+                self.path_fork(tx0, "//s/replace", replaced_id, None),
+                self.path_fork(tx0, "//s/replace/nested", replaced_nested_id, None),
+                self.path_fork(tx0, "//s/remove", None, None),
+                self.path_fork(tx0, "//s/create", created_2_id, tx0),
+                self.path_fork(tx0, "//s/remove_recreate", None, None),
+            ])
+
+        self.assert_equal(
+            tx_mapping,
+            select_rows_from_ground(f"* from [{DESCRIPTORS.child_forks.get_default_path()}]"),
+            [
+                self.child_fork(tx0, scion_id, "replace", replaced_id, None),
+                self.child_fork(tx0, to_replace_id, "nested", None, None),
+                self.child_fork(tx0, replaced_id, "nested", replaced_nested_id, tx0),
+                self.child_fork(tx0, scion_id, "remove", None, None),
+                self.child_fork(tx0, scion_id, "create", created_2_id, tx0),
+                self.child_fork(tx0, scion_id, "remove_recreate", None, None),
             ])
 
         commit_transaction(tx0)
@@ -1717,6 +2047,7 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
             [
                 self.node_id_to_path(scion_id, "//s"),
                 self.node_id_to_path(replaced_id, "//s/replace"),
+                self.node_id_to_path(replaced_nested_id, "//s/replace/nested"),
                 self.node_id_to_path(created_2_id, "//s/create"),
             ])
 
@@ -1728,6 +2059,7 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
             [
                 self.path_to_node_id("//s", scion_id),
                 self.path_to_node_id("//s/replace", replaced_id),
+                self.path_to_node_id("//s/replace/nested", replaced_nested_id),
                 self.path_to_node_id("//s/create", created_2_id),
             ])
 
@@ -1736,6 +2068,7 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
             select_rows_from_ground(f"* from [{DESCRIPTORS.child_node.get_default_path()}]"),
             [
                 self.child_node(scion_id, "replace", replaced_id),
+                self.child_node(replaced_id, "nested", replaced_nested_id),
                 self.child_node(scion_id, "create", created_2_id),
             ])
 
@@ -1747,6 +2080,11 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
         self.assert_equal(
             tx_mapping,
             select_rows_from_ground(f"* from [{DESCRIPTORS.path_forks.get_default_path()}]"),
+            [])
+
+        self.assert_equal(
+            tx_mapping,
+            select_rows_from_ground(f"* from [{DESCRIPTORS.child_forks.get_default_path()}]"),
             [])
 
 

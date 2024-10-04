@@ -75,7 +75,7 @@ func TestSmoke(t *testing.T) {
 	require.NoError(t, err)
 
 	config := newTestConfig(workingDir)
-	tt, err := timbertruck.NewTimberTruck(config, debugLogger())
+	tt, err := timbertruck.NewTimberTruck(config, debugLogger(), nil)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -103,7 +103,7 @@ func TestEmptyServing(t *testing.T) {
 	require.NoError(t, err)
 
 	config := newTestConfig(workingDir)
-	tt, err := timbertruck.NewTimberTruck(config, debugLogger())
+	tt, err := timbertruck.NewTimberTruck(config, debugLogger(), nil)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -111,7 +111,7 @@ func TestEmptyServing(t *testing.T) {
 
 	stream1Chan := make(chan string, 32)
 
-	tt.AddPipeline(
+	tt.AddStream(
 		timbertruck.StreamConfig{
 			Name:    "stream1",
 			LogFile: path.Join(stream1Dir, "log"),
@@ -141,7 +141,7 @@ func TestSimpleServe(t *testing.T) {
 	require.NoError(t, err)
 
 	config := newTestConfig(workingDir)
-	tt, err := timbertruck.NewTimberTruck(config, debugLogger())
+	tt, err := timbertruck.NewTimberTruck(config, debugLogger(), nil)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -150,7 +150,7 @@ func TestSimpleServe(t *testing.T) {
 	stream1Chan := make(chan string, 32)
 
 	logFile := path.Join(stream1Dir, "log")
-	tt.AddPipeline(
+	tt.AddStream(
 		timbertruck.StreamConfig{
 			Name:    "stream1",
 			LogFile: logFile,
@@ -199,10 +199,10 @@ func TestSimpleRestartServer(t *testing.T) {
 
 	newTimberTruck := func() *timbertruck.TimberTruck {
 		config := newTestConfig(workingDir)
-		tt, err := timbertruck.NewTimberTruck(config, debugLogger())
+		tt, err := timbertruck.NewTimberTruck(config, debugLogger(), nil)
 		require.NoError(t, err)
 
-		tt.AddPipeline(
+		tt.AddStream(
 			timbertruck.StreamConfig{
 				Name:    "stream1",
 				LogFile: logFile,
@@ -259,10 +259,10 @@ func TestMoveWhenStopped(t *testing.T) {
 
 	newTimberTruck := func() *timbertruck.TimberTruck {
 		config := newTestConfig(workingDir)
-		tt, err := timbertruck.NewTimberTruck(config, debugLogger())
+		tt, err := timbertruck.NewTimberTruck(config, debugLogger(), nil)
 		require.NoError(t, err)
 
-		tt.AddPipeline(
+		tt.AddStream(
 			timbertruck.StreamConfig{
 				Name:    "stream1",
 				LogFile: logFile,

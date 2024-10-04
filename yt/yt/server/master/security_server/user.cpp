@@ -363,7 +363,7 @@ void TUser::Load(TLoadContext& context)
         Load(context, Tags_);
     }
 
-    //COMPAT(cherepashka)
+    // COMPAT(cherepashka)
     if (context.GetVersion() >= EMasterReign::FixLastSeenPersistance_23_2 && context.GetVersion() < EMasterReign::SecondaryIndex ||
         context.GetVersion() >= EMasterReign::FixLastSeenPersistance)
     {
@@ -393,8 +393,7 @@ void TUser::InitializeCounters()
 {
     auto profiler = SecurityProfiler()
         .WithSparse()
-        // TODO(babenko): switch to std::string
-        .WithTag("user", TString(Name_));
+        .WithTag("user", Name_);
 
     ReadTimeCounter_ = profiler.TimeCounter("/user_read_time");
     WriteTimeCounter_ = profiler.TimeCounter("/user_write_time");

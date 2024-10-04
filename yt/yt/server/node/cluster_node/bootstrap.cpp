@@ -807,9 +807,8 @@ private:
 
         Connection_ = NApi::NNative::CreateConnection(
             Config_->ClusterConnection,
-            std::move(connectionOptions),
-            /*clusterDirectoryOverride*/ nullptr,
-            NodeMemoryUsageTracker_);
+            std::move(connectionOptions));
+
         Connection_->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(BIND_NO_PROPAGATE(&TBootstrap::OnMasterCellDirectoryChanged, this));
 
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);

@@ -56,11 +56,11 @@ private:
     const TProxyConfigPtr Config_;
     const IProxyCoordinatorPtr ProxyCoordinator_;
 
-    std::vector<TString> BaseTags_;
+    std::vector<std::string> BaseTags_;
 
-    TAtomicObject<TString> ProxyRole_;
+    TAtomicObject<std::string> ProxyRole_;
 
-    std::vector<TString> GetInstanceTags() const override
+    std::vector<std::string> GetInstanceTags() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -70,15 +70,11 @@ private:
         return tags;
     }
 
-    void OnProxyRoleChanged(const std::optional<TString>& newRole)
+    void OnProxyRoleChanged(const std::optional<std::string>& newRole)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (newRole) {
-            ProxyRole_.Store(*newRole);
-        } else {
-            ProxyRole_.Store("default");
-        }
+        ProxyRole_.Store(newRole.value_or(NApi::DefaultRpcProxyRole));
     }
 };
 

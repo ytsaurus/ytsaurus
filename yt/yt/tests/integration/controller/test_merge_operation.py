@@ -120,6 +120,89 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@chunk_count") == 7
 
     @authors("yuryalekseev")
+    def test_unordered_merge_dont_teleport_single_input_chunk(self):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2) or self.Env.get_component_version('ytserver-node').abi <= (23, 2):
+            pytest.skip()
+
+        t_in = "//tmp/t_in"
+        create("table", t_in)
+
+        # Make a single chunk input table.
+        write_table(t_in, [{"key" + str(i): "value" + str(i)} for i in range(2)])
+
+        t_out = "//tmp/t_out"
+        create("table", t_out)
+
+        # By setting job_count to 2 we want a single input chunk to be split into two chunk slices.
+        op = merge(
+            mode="unordered",
+            combine_chunks=True,
+            in_=t_in,
+            out=t_out,
+            spec={
+                "single_chunk_teleport_strategy": "enabled",
+                "force_transform": False,
+                "job_count": 2,
+            },
+        )
+
+        op.track()
+
+        assert get("//tmp/t_out/@row_count") == 2
+        # Here we make sure that two input chunk slices we processed by two merge jobs and turned into two output chunks.
+        assert get("//tmp/t_out/@chunk_count") == 2
+
+        data_flow = get_operation(op.id, attributes=["progress"])["progress"]["data_flow"]
+        directions = {
+            (direction["source_name"], direction["target_name"]) : direction
+            for direction in data_flow
+        }
+
+        assert len(directions) == 2
+        assert directions[("unordered_merge", "output")]["job_data_statistics"]["chunk_count"] == 2
+        assert directions[("unordered_merge", "output")]["teleport_data_statistics"]["chunk_count"] == 0
+
+    @authors("yuryalekseev")
+    def test_unordered_merge_dont_teleport_single_input_chunk_with_limits(self):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2) or self.Env.get_component_version('ytserver-node').abi <= (23, 2):
+            pytest.skip()
+
+        t_in = "//tmp/t_in"
+        create("table", t_in)
+
+        # Make a single chunk input table.
+        write_table(t_in, [{"key" + str(i): "value" + str(i)} for i in range(2)])
+
+        t_out = "//tmp/t_out"
+        create("table", t_out)
+
+        # Read only the first row from input table.
+        op = merge(
+            mode="unordered",
+            combine_chunks=True,
+            in_="//tmp/t_in[:#1]",
+            out=t_out,
+            spec={
+                "single_chunk_teleport_strategy": "enabled",
+                "force_transform": False,
+            },
+        )
+
+        op.track()
+
+        assert get("//tmp/t_out/@row_count") == 1
+
+        data_flow = get_operation(op.id, attributes=["progress"])["progress"]["data_flow"]
+        directions = {
+            (direction["source_name"], direction["target_name"]) : direction
+            for direction in data_flow
+        }
+
+        assert len(directions) == 2
+        assert directions[("unordered_merge", "output")]["job_data_statistics"]["row_count"] == 1
+        assert directions[("unordered_merge", "output")]["teleport_data_statistics"]["row_count"] == 0
+
+    @authors("yuryalekseev")
     @pytest.mark.parametrize("single_chunk_teleport_strategy", ["disabled", "enabled"])
     @pytest.mark.parametrize("force_transform", [False, True])
     def test_unordered_merge_teleport_single_input_chunk(self, single_chunk_teleport_strategy, force_transform):
@@ -129,9 +212,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         t_in = "//tmp/t_in"
         create("table", t_in)
 
-        key_values = [{"key" + str(i): "value" + str(i)} for i in range(1)]
-        for kv in key_values:
-            write_table("<append=%true>" + t_in, kv)
+        # Make a single chunk input table.
+        write_table(t_in, [{"key" + str(i): "value" + str(i)} for i in range(2)])
 
         in_statistics = get_table_columnar_statistics("[\"" + t_in + "{key0,value0}\"]", fetcher_mode="from_nodes")
         assert in_statistics[0]['column_estimated_unique_counts'] == {'key0': 1, 'value0': 0}

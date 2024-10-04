@@ -101,7 +101,7 @@ def _prepare_ranges_for_parallel_read(offset, length, data_size, data_size_per_t
     result = []
     while offset < data_size and length > 0:
         range_size = min(data_size_per_thread, length)
-        result.append((offset, range_size))
+        result.append({"range" : (offset, range_size)})
         offset += range_size
         length -= range_size
 
@@ -109,7 +109,7 @@ def _prepare_ranges_for_parallel_read(offset, length, data_size, data_size_per_t
 
 
 def _prepare_params_for_parallel_read(params, range):
-    params["offset"], params["length"] = range[0], range[1]
+    params["offset"], params["length"] = range["range"][0], range["range"][1]
     return params
 
 
@@ -166,6 +166,8 @@ def read_file(path, file_reader=None, offset=None, length=None, enable_read_para
             ranges,
             params,
             _prepare_params_for_parallel_read,
+            prepare_meta_func=None,
+            max_thread_count=get_config(client)["read_parallel"]["max_thread_count"],
             unordered=False,
             response_parameters=None,
             client=client)

@@ -94,7 +94,7 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::Name:
-                shard->SetName(ConvertTo<TString>(value));
+                shard->SetName(ConvertTo<std::string>(value));
                 return true;
         }
 

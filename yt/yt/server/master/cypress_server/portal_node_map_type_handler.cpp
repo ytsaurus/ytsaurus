@@ -38,13 +38,13 @@ private:
 
     const THashMap<TNodeId, TNode*>* const Nodes_;
 
-    TFuture<std::vector<TObjectId>> GetKeys(i64 sizeLimit) const override
+    TFuture<std::vector<TObjectId>> GetKeys(i64 limit) const override
     {
         std::vector<TObjectId> result;
-        result.reserve(std::min<i64>(sizeLimit, Nodes_->size()));
+        result.reserve(std::min(limit, std::ssize(*Nodes_)));
 
         for (auto [id, node] : *Nodes_) {
-            if (std::ssize(result) >= sizeLimit) {
+            if (std::ssize(result) >= limit) {
                 break;
             }
             if (!IsObjectAlive(node)) {

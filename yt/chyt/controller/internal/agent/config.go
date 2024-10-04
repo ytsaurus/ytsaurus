@@ -51,7 +51,7 @@ type Config struct {
 
 const (
 	DefaultPassPeriod                   = yson.Duration(5 * time.Second)
-	DefaultCollectOperationsPeriod      = yson.Duration(time.Minute)
+	DefaultCollectOperationsPeriod      = yson.Duration(10 * time.Second)
 	DefaultRevisionCollectPeriod        = yson.Duration(5 * time.Second)
 	DefaultHealthCheckerToleranceFactor = 2.0
 	DefaultPassWorkerNumber             = 1

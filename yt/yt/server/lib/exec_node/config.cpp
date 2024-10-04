@@ -486,9 +486,14 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
 void TSchedulerConnectorDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter(
-        "send_heartbeat_on_job_finished",
-        &TSchedulerConnectorDynamicConfig::SendHeartbeatOnJobFinished)
+        "send_heartbeat_on_resources_released",
+        &TSchedulerConnectorDynamicConfig::SendHeartbeatOnResourcesReleased)
         .Default(true);
+
+    registrar.Parameter(
+        "include_releasing_resources_in_scheduler_heartbeat",
+        &TThis::IncludeReleasingResourcesInSchedulerHeartbeat)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -653,6 +658,9 @@ void TJobCommonConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_throttler", &TThis::JobThrottler)
         .DefaultNew();
+
+    registrar.Parameter("virtual_sandbox_squash_fs_block_size", &TThis::VirtualSandboxSquashFSBlockSize)
+        .Default(128_KB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

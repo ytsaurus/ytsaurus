@@ -94,9 +94,12 @@ TSelectRowsCounters::TSelectRowsCounters(
     const NProfiling::TProfiler& mediumProfiler,
     const NTableClient::TTableSchemaPtr& schema)
     : RowCount(profiler.Counter("/select/row_count"))
+    , MissingRowCount(profiler.Counter("/select/missing_row_count"))
     , DataWeight(profiler.Counter("/select/data_weight"))
     , UnmergedRowCount(profiler.Counter("/select/unmerged_row_count"))
+    , UnmergedMissingRowCount(profiler.Counter("/select/unmerged_missing_row_count"))
     , UnmergedDataWeight(profiler.Counter("/select/unmerged_data_weight"))
+    , WastedUnmergedDataWeight(profiler.Counter("/select/wasted_unmerged_data_weight"))
     , CpuTime(profiler.TimeCounter("/select/cpu_time"))
     , DecompressionCpuTime(profiler.TimeCounter("/select/decompression_cpu_time"))
     , SelectDuration(profiler.TimeHistogram(
@@ -104,10 +107,15 @@ TSelectRowsCounters::TSelectRowsCounters(
         TDuration::MicroSeconds(1),
         TDuration::Seconds(10)))
     , RangeFilterCounters(profiler.WithPrefix("/select/range_filter"))
+    , KeyFilterCounters(profiler.WithPrefix("/select/key_filter"))
     , ChunkReaderStatisticsCounters(
         profiler.WithPrefix("/select/chunk_reader_statistics"),
         mediumProfiler.WithPrefix("/select/medium_statistics"))
     , HunkChunkReaderCounters(profiler.WithPrefix("/select/hunks"), schema)
+    , CacheHits(profiler.Counter("/select/cache_hits"))
+    , CacheOutdated(profiler.Counter("/select/cache_outdated"))
+    , CacheMisses(profiler.Counter("/select/cache_misses"))
+    , CacheInserts(profiler.Counter("/select/cache_inserts"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -678,8 +686,7 @@ TCounter* TTableProfiler::TUserTaggedCounter<TCounter>::Get(
 
     return Counters.FindOrInsert(userTag, [&] {
         if (userTag) {
-            // TODO(babenko): switch to std::string
-            return TCounter(tabletProfiler.WithTag("user", TString(*userTag)), mediumProfiler, schema);
+            return TCounter(tabletProfiler.WithTag("user", *userTag), mediumProfiler, schema);
         } else {
             return TCounter(tabletProfiler, mediumProfiler, schema);
         }
@@ -793,8 +800,7 @@ TReplicaCounters TTableProfiler::GetReplicaCounters(const std::string& cluster)
         return {};
     }
 
-    // TODO(babenko): switch to std::string
-    return TReplicaCounters{Profiler_.WithTag("replica_cluster", TString(cluster))};
+    return TReplicaCounters{Profiler_.WithTag("replica_cluster", cluster)};
 }
 
 template <class TCounter>

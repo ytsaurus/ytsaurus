@@ -72,7 +72,7 @@ private:
             .SetOpaque(true));
     }
 
-    static void ValidateClusterName(const TString& clusterName)
+    static void ValidateClusterName(const std::string& clusterName)
     {
         if (clusterName.size() > MaxClusterNameLength) {
             THROW_ERROR_EXCEPTION("Cluster name is too long")
@@ -91,14 +91,13 @@ private:
 
     void ValidateCustomAttributeUpdate(
         const TString& key,
-        const TYsonString& oldValue,
         const TYsonString& newValue) override
     {
         auto internedKey = TInternedAttributeKey::Lookup(key);
 
         switch (internedKey) {
             case EInternedAttributeKey::ClusterName:
-                ValidateClusterName(ConvertTo<TString>(newValue));
+                ValidateClusterName(ConvertTo<std::string>(newValue));
                 return;
 
             case EInternedAttributeKey::ClusterConnection: {
@@ -115,7 +114,7 @@ private:
                 break;
         }
 
-        return TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
+        return TBase::ValidateCustomAttributeUpdate(key, newValue);
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -173,6 +172,11 @@ private:
                 RequireLeader();
                 BuildYsonFluently(consumer)
                     .Value(chunkManager->IsChunkSealerEnabled());
+                return true;
+
+            case EInternedAttributeKey::FaultyStorageDataCenters:
+                BuildYsonFluently(consumer)
+                    .Value(chunkManager->GetFaultyStorageDataCenterNames());
                 return true;
 
             case EInternedAttributeKey::RegisteredMasterCellTags:

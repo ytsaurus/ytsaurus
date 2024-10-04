@@ -51,24 +51,21 @@ bool IsKafkaQueue(const TTableSchemaPtr& schema)
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<NKafka::TMessage> ConvertKafkaQueueRowsToMessages(
-    IUnversionedRowsetPtr rowset)
+    const IUnversionedRowsetPtr& rowset)
 {
     auto nameTable = rowset->GetNameTable();
     auto keyColumnId = nameTable->FindId("key");
     auto valueColumnId = nameTable->FindId("value");
     YT_VERIFY(keyColumnId && valueColumnId);
 
-    const auto& rows = rowset->GetRows();
+    auto rows = rowset->GetRows();
 
     std::vector<NKafka::TMessage> messages;
     messages.reserve(rows.size());
 
-    for (const auto& row : rows) {
+    for (auto row : rows) {
         if (!row) {
-            messages.push_back({
-                .Key = "",
-                .Value = "",
-            });
+            messages.emplace_back();
             continue;
         }
 
@@ -82,7 +79,7 @@ std::vector<NKafka::TMessage> ConvertKafkaQueueRowsToMessages(
 }
 
 std::vector<NKafka::TMessage> ConvertGenericQueueRowsToMessages(
-    IUnversionedRowsetPtr rowset)
+    const IUnversionedRowsetPtr& rowset)
 {
     auto nameTable = rowset->GetNameTable();
     auto schema = rowset->GetSchema();
@@ -92,14 +89,13 @@ std::vector<NKafka::TMessage> ConvertGenericQueueRowsToMessages(
         if (IsV3Composite(column.LogicalType())) {
             auto id = nameTable->GetIdOrThrow(column.Name());
             TComplexTypeFieldDescriptor descriptor(column.Name(), column.LogicalType());
-            auto converter = CreateYsonServerToClientConverter(descriptor, /*config*/ {});
-            if (converter) {
+            if (auto converter = CreateYsonServerToClientConverter(descriptor, /*config*/ {})) {
                 columnConverters.emplace(id, std::move(converter));
             }
         }
     }
 
-    const auto& rows = rowset->GetRows();
+    auto rows = rowset->GetRows();
 
     TBlobOutput blobOutput;
     auto writer = TYsonWriter(
@@ -169,7 +165,6 @@ std::vector<NKafka::TMessage> ConvertGenericQueueRowsToMessages(
         writer.Flush();
         auto buffer = blobOutput.Flush();
         messages.push_back({
-            .Key = "",
             .Value = TString(buffer.data(), buffer.size()),
         });
     }
@@ -184,7 +179,7 @@ std::vector<NKafka::TMessage> ConvertGenericQueueRowsToMessages(
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<NKafka::TMessage> ConvertQueueRowsToMessages(
-    IUnversionedRowsetPtr rowset)
+    const IUnversionedRowsetPtr& rowset)
 {
     if (IsKafkaQueue(rowset->GetSchema())) {
         return ConvertKafkaQueueRowsToMessages(rowset);

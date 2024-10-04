@@ -84,6 +84,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/master_hydra_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multi_phase_cell_sync_session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/persistent_state_transient_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/response_keeper_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/snapshot_exporter.cpp

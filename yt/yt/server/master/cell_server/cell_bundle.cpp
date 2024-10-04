@@ -81,13 +81,13 @@ void TCellBundle::Load(NCellMaster::TLoadContext& context)
     InitializeProfilingCounters();
 }
 
-void TCellBundle::SetName(TString name)
+void TCellBundle::SetName(const std::string& name)
 {
     Name_ = name;
     InitializeProfilingCounters();
 }
 
-TString TCellBundle::GetName() const
+const std::string& TCellBundle::GetName() const
 {
     return Name_;
 }
@@ -161,7 +161,7 @@ TCounter& TCellBundleProfilingCounters::GetPeerRevocation(TErrorCode errorCode)
     return it->second;
 }
 
-TArea* TCellBundle::GetAreaOrThrow(const TString& name)
+TArea* TCellBundle::GetAreaOrThrow(const std::string& name)
 {
     auto it = Areas_.find(name);
     if (!it) {

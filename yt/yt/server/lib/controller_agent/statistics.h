@@ -16,11 +16,8 @@ std::vector<NChunkClient::NProto::TDataStatistics> GetOutputDataStatistics(const
 
 THashMap<int, i64> GetOutputPipeIdleTimes(const TStatistics& jobStatistics);
 
-extern const TString ExecAgentTrafficStatisticsPrefix;
-extern const TString JobProxyTrafficStatisticsPrefix;
-
 void FillTrafficStatistics(
-    const TString& namePrefix,
+    const NStatisticPath::TStatisticPath& namePrefix,
     TStatistics& statistics,
     const NChunkClient::TTrafficMeterPtr& trafficMeter);
 

@@ -66,7 +66,7 @@ public:
         , UserJobIOFactory_(std::move(userJobIOFactory))
         , UdfDirectory_(std::move(udfDirectory))
         , Guesser_(
-            JobSpecHelper_->GetJobIOConfig()->UseAdaptiveRowCount
+            JobSpecHelper_->GetJobIOConfig()->UseAdaptiveRowCount.value_or(false)
                 ? threshold
                 : TDuration::Zero(),
             JobSpecHelper_->GetJobIOConfig()->BufferRowCount)

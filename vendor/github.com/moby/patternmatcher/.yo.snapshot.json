@@ -1,0 +1,40 @@
+{
+	"Version": "v0.6.0",
+	"GoVersion": "1.19",
+	"Sum": "h1:GmP9lR19aU5GqSSFko+5pRqHi+Ohk1O69aFiKkVGiPk=",
+	"Packages": {
+		"github.com/moby/patternmatcher": {
+			"Imports": [
+				"errors",
+				"os",
+				"path/filepath",
+				"regexp",
+				"strings",
+				"text/scanner",
+				"unicode/utf8"
+			],
+			"TestImports": [
+				"fmt",
+				"os",
+				"path",
+				"path/filepath",
+				"runtime",
+				"strings",
+				"testing"
+			]
+		},
+		"github.com/moby/patternmatcher/ignorefile": {
+			"Imports": [
+				"bufio",
+				"bytes",
+				"io",
+				"path/filepath",
+				"strings"
+			],
+			"TestImports": [
+				"strings",
+				"testing"
+			]
+		}
+	}
+}

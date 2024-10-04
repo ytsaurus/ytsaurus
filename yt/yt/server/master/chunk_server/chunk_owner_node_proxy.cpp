@@ -338,12 +338,14 @@ public:
         TChunkLists chunkLists,
         TCtxFetchPtr rpcContext,
         TFetchContext&& fetchContext,
-        TComparator comparator)
+        TComparator comparator,
+        EChunkListContentType contentType)
         : Bootstrap_(bootstrap)
         , ChunkLists_(std::move(chunkLists))
         , RpcContext_(std::move(rpcContext))
         , FetchContext_(std::move(fetchContext))
         , Comparator_(std::move(comparator))
+        , ContentType_(contentType)
         , NodeDirectoryBuilder_(
             RpcContext_->Response().mutable_node_directory(),
             FetchContext_.AddressType)
@@ -372,6 +374,7 @@ private:
     const TCtxFetchPtr RpcContext_;
     TFetchContext FetchContext_;
     const TComparator Comparator_;
+    EChunkListContentType ContentType_;
 
     std::vector<TEphemeralObjectPtr<TChunk>> Chunks_;
 
@@ -389,13 +392,23 @@ private:
         auto context = CreateAsyncChunkTraverserContext(
             Bootstrap_,
             NCellMaster::EAutomatonThreadQueue::ChunkFetchingTraverser);
-        TraverseChunkTree(
-            std::move(context),
-            this,
-            ChunkLists_,
-            FetchContext_.Ranges[CurrentRangeIndex_].LowerLimit(),
-            FetchContext_.Ranges[CurrentRangeIndex_].UpperLimit(),
-            Comparator_);
+        if (ContentType_ == EChunkListContentType::Hunk) {
+            TraverseHunkChunkTree(
+                std::move(context),
+                this,
+                ChunkLists_,
+                FetchContext_.Ranges[CurrentRangeIndex_].LowerLimit(),
+                FetchContext_.Ranges[CurrentRangeIndex_].UpperLimit(),
+                Comparator_);
+        } else {
+            TraverseChunkTree(
+                std::move(context),
+                this,
+                ChunkLists_,
+                FetchContext_.Ranges[CurrentRangeIndex_].LowerLimit(),
+                FetchContext_.Ranges[CurrentRangeIndex_].UpperLimit(),
+                Comparator_);
+        }
     }
 
     bool PopulateReplicas()
@@ -525,6 +538,8 @@ private:
         if (FetchContext_.OmitDynamicStores) {
             return true;
         }
+
+        YT_VERIFY(ContentType_ != EChunkListContentType::Hunk);
 
         if (dynamicStore->IsFlushed()) {
             if (auto* chunk = dynamicStore->GetFlushedChunk()) {
@@ -678,8 +693,10 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
         .SetWritable(true)
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkPrimaryMedium)
+        .SetPresent(node->GetHunkPrimaryMediumIndex().has_value())
         .SetWritable(true)
-        .SetReplicated(true));
+        .SetReplicated(true)
+        .SetRemovable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CompressionCodec)
         .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ErasureCodec)
@@ -825,8 +842,11 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
 
         case EInternedAttributeKey::HunkPrimaryMedium: {
             const auto& chunkManager = Bootstrap_->GetChunkManager();
-            auto primaryHunkMediumIndex = node->GetHunkPrimaryMediumIndex();
-            auto* medium = chunkManager->GetMediumByIndex(primaryHunkMediumIndex);
+            auto hunkPrimaryMediumIndex = node->GetHunkPrimaryMediumIndex();
+            if (!hunkPrimaryMediumIndex) {
+                break;
+            }
+            auto* medium = chunkManager->GetMediumByIndex(*hunkPrimaryMediumIndex);
 
             BuildYsonFluently(consumer)
                 .Value(medium->GetName());
@@ -1075,7 +1095,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
 
         case EInternedAttributeKey::PrimaryMedium: {
             ValidateStorageParametersUpdate();
-            auto mediumName = ConvertTo<TString>(value);
+            auto mediumName = ConvertTo<std::string>(value);
             auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
             SetPrimaryMedium(medium);
             return true;
@@ -1083,7 +1103,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
 
         case EInternedAttributeKey::HunkPrimaryMedium: {
             ValidateStorageParametersUpdate();
-            auto mediumName = ConvertTo<TString>(value);
+            auto mediumName = ConvertTo<std::string>(value);
             auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
             SetHunkPrimaryMedium(medium);
             return true;
@@ -1259,6 +1279,23 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     return TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value, force);
 }
 
+bool TChunkOwnerNodeProxy::RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key)
+{
+    auto* node = GetThisImpl<TChunkOwnerBase>();
+
+    switch (key) {
+        case EInternedAttributeKey::HunkPrimaryMedium: {
+            node->RemoveHunkPrimaryMediumIndex();
+            return true;
+        }
+
+        default:
+            break;
+    }
+
+    return TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(key);
+}
+
 void TChunkOwnerNodeProxy::OnStorageParametersUpdated()
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
@@ -1341,7 +1378,8 @@ void TChunkOwnerNodeProxy::SetReplication(const TChunkReplication& replication)
 void TChunkOwnerNodeProxy::SetHunkReplication(const TChunkReplication& replication)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
-    auto name = DoSetReplication(&node->HunkReplication(), replication, node->GetHunkPrimaryMediumIndex());
+    auto effectiveMediumIndex = node->GetEffectiveHunkPrimaryMediumIndex();
+    auto name = DoSetReplication(&node->HunkReplication(), replication, effectiveMediumIndex);
     YT_LOG_DEBUG(
         "Chunk owner hunk replication changed (NodeId: %v, Replication: %v, HunkReplication %v)",
         node->GetId(),
@@ -1623,12 +1661,14 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
         FromProto(&range, protoRange, comparator.GetLength());
     }
 
+    auto contentType = FromProto<EChunkListContentType>(request->chunk_list_content_type());
     auto visitor = New<TFetchChunkVisitor>(
         Bootstrap_,
         std::move(chunkLists),
         context,
         std::move(fetchContext),
-        std::move(comparator));
+        std::move(comparator),
+        contentType);
     visitor->Run();
 }
 
@@ -1918,8 +1958,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
     DeclareNonMutating();
 
     bool fetchLastKey = request->fetch_last_key();
+    bool fetchHunkChunkListIds = request->fetch_hunk_chunk_list_ids();
 
-    context->SetRequestInfo("FetchLastKey: %v", fetchLastKey);
+    context->SetRequestInfo("FetchLastKey: %v, FetchHunkChunkListIds: %v", fetchLastKey, fetchHunkChunkListIds);
 
     ValidateNotExternal();
     ValidateInUpdate();
@@ -1981,6 +2022,24 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
             THROW_ERROR_EXCEPTION("Chunk list %v has unexpected kind %Qlv",
                 chunkList->GetId(),
                 chunkList->GetKind());
+    }
+
+    if (fetchHunkChunkListIds) {
+        auto* hunkChunkList = node->GetHunkChunkList();
+        if (!hunkChunkList) {
+            THROW_ERROR_EXCEPTION("Requested hunk chunk list ids when there is no root hunk chunk list");
+        }
+
+        for (auto* tabletList : hunkChunkList->Children()) {
+            auto chunkListKind = tabletList->AsChunkList()->GetKind();
+            if (chunkListKind != EChunkListKind::Hunk) {
+                THROW_ERROR_EXCEPTION("Chunk list %v has unexpected kind %Qlv when %Qv expected",
+                    tabletList->GetId(),
+                    chunkListKind,
+                    EChunkListKind::Hunk);
+            }
+            ToProto(response->add_tablet_hunk_chunk_list_ids(), tabletList->GetId());
+        }
     }
 
     response->set_max_heavy_columns(Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->MaxHeavyColumns);
@@ -2068,11 +2127,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
             tableSchema,
             tableSchemaId);
 
-        const auto& configManager = Bootstrap_->GetConfigManager();
-        const auto& dynamicConfig = configManager->GetConfig()->ChunkManager;
-        if (tableSchema || tableSchemaId ||
-            !dynamicConfig->SchemalessEndUploadPreservesTableSchema)
-        {
+        if (tableSchema || tableSchemaId) {
             // Either a new client that sends schema info with BeginUpload,
             // or an old client that aims for an empty schema.
             // If the first case, we should leave the table schema intact.

@@ -19,6 +19,7 @@
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/persistent_state_transient_cache.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/master/cell_server/cellar_node_tracker.h>
@@ -31,6 +32,7 @@
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
+#include <yt/yt/server/master/maintenance_tracker_server/maintenance_tracker.h>
 #include <yt/yt/server/master/maintenance_tracker_server/proto/maintenance_tracker.pb.h>
 
 #include <yt/yt/server/master/node_tracker_server/proto/node_tracker.pb.h>
@@ -169,11 +171,6 @@ public:
             MasterCacheManager_ = New<TNodeDiscoveryManager>(Bootstrap_, ENodeRole::MasterCache);
             TimestampProviderManager_ = New<TNodeDiscoveryManager>(Bootstrap_, ENodeRole::TimestampProvider);
         }
-
-        ResetNodePendingRestartMaintenanceExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
-            BIND(&TNodeTracker::ResetNodesPendingRestartMaintenanceOnTimeout, MakeWeak(this)));
-        ResetNodePendingRestartMaintenanceExecutor_->Start();
     }
 
     void SubscribeToAggregatedNodeStateChanged(TNode* node)
@@ -324,10 +321,6 @@ public:
         // it is offline. Secondary masters, however, may receive a removal request from primaries
         // and must obey it regardless of the node's state.
         EnsureNodeDisposed(node);
-
-        // Reset pending restart maintenace flag before node removal to ensure
-        // that `NodePendingRestartChanged` signal is fired.
-        ResetNodePendingRestart(node);
 
         RemoveFromAddressMaps(node);
 
@@ -556,7 +549,7 @@ public:
         }
     }
 
-    void SetNodeUserTags(TNode* node, const std::vector<TString>& tags) override
+    void SetNodeUserTags(TNode* node, const std::vector<std::string>& tags) override
     {
         UpdateNodeCounters(node, -1);
         node->SetUserTags(tags);
@@ -861,6 +854,14 @@ public:
         return FlavoredNodeStatistics_[flavor];
     }
 
+    TAggregatedNodeStatistics GetDataCenterNodeStatistics(const TDataCenter* dataCenter) override
+    {
+        MaybeRebuildAggregatedNodeStatistics();
+
+        auto guard = ReaderGuard(NodeStatisticsLock_);
+        return GetOrCrash(DataCenterNodeStatistics_, dataCenter);
+    }
+
     int GetOnlineNodeCount() override
     {
         return AggregatedOnlineNodeCount_;
@@ -964,6 +965,7 @@ private:
     TCpuInstant NodeStatisticsUpdateDeadline_ = 0;
     TAggregatedNodeStatistics AggregatedNodeStatistics_;
     TEnumIndexedArray<ENodeFlavor, TAggregatedNodeStatistics> FlavoredNodeStatistics_;
+    THashMap<const TDataCenter*, TAggregatedNodeStatistics> DataCenterNodeStatistics_;
 
     // Cf. YT-7009.
     // Maintain a dedicated counter of alive racks since RackMap_ may contain zombies.
@@ -1015,7 +1017,7 @@ private:
         TAddressMap Addresses;
         std::string DefaultAddress;
         TTransactionId LeaseTransactionId;
-        std::vector<TString> Tags;
+        std::vector<std::string> Tags;
         THashSet<ENodeFlavor> Flavors;
         bool ExecNodeIsNotDataNode;
         std::string HostName;
@@ -1062,13 +1064,13 @@ private:
 
     void FillResponseNodeTags(
         ::google::protobuf::RepeatedPtrField<TProtoStringType>* rspTags,
-        const THashSet<TString>& tags)
+        const THashSet<std::string>& tags)
     {
         TCompactVector<TString, 16> sortedTags(tags.begin(), tags.end());
         std::sort(sortedTags.begin(), sortedTags.end());
         rspTags->Reserve(sortedTags.size());
-        for (auto& tag : sortedTags) {
-            rspTags->Add(std::move(tag));
+        for (const auto& tag : sortedTags) {
+            rspTags->Add(ToProto<TProtobufString>(tag));
         }
     }
 
@@ -1313,7 +1315,7 @@ private:
             .Addresses = addresses,
             .DefaultAddress = address,
             .LeaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id()),
-            .Tags = FromProto<std::vector<TString>>(request->tags()),
+            .Tags = FromProto<std::vector<std::string>>(request->tags()),
             .Flavors = std::move(flavors),
             .ExecNodeIsNotDataNode = request->exec_node_is_not_data_node(),
             // COMPAT(gritukan)
@@ -1398,7 +1400,7 @@ private:
             .Addresses = addresses,
             .DefaultAddress = address,
             .LeaseTransactionId = NullTransactionId,
-            .Tags = FromProto<std::vector<TString>>(request->tags()),
+            .Tags = FromProto<std::vector<std::string>>(request->tags()),
             .Flavors = FromProto<THashSet<ENodeFlavor>>(request->flavors()),
             .ExecNodeIsNotDataNode = request->exec_node_is_not_data_node(),
             .HostName = request->host_name(),
@@ -1685,24 +1687,27 @@ private:
 
     void HydraResetNodePendingRestartMaintenance(TReqResetNodePendingRestartMaintenance* request)
     {
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+
+        const auto& maintenanceTracker = Bootstrap_->GetMaintenanceTracker();
         for (auto protoNodeId : request->node_ids()) {
             auto nodeId = FromProto<TNodeId>(protoNodeId);
             auto* node = FindNode(nodeId);
             if (!IsObjectAlive(node)) {
                 continue;
             }
-            ResetNodePendingRestart(node);
-        }
-    }
 
-    void ResetNodePendingRestart(TNode* node)
-    {
-        if (node->ClearMaintenanceFlag(EMaintenanceType::PendingRestart)) {
-            OnNodePendingRestartUpdated(node);
-
-            YT_LOG_INFO("Removed pending restart flag (NodeId: %v, Address: %v)",
-                node->GetId(),
-                node->GetDefaultAddress());
+            try {
+                maintenanceTracker->RemoveMaintenance(
+                    EMaintenanceComponent::ClusterNode,
+                    node->GetDefaultAddress(),
+                    /*ids*/ std::nullopt,
+                    /*user*/ std::nullopt,
+                    /*type*/ EMaintenanceType::PendingRestart,
+                    /*componentRegistry*/ std::nullopt);
+            } catch (const std::exception& ex) {
+                YT_LOG_ALERT(ex, "Failed to remove node pending restart maintenance (NodeId: %v)", nodeId);
+            }
         }
     }
 
@@ -1827,6 +1832,10 @@ private:
         }
 
         NodesWithImaginaryLocations_.clear();
+
+        Bootstrap_
+            ->GetPersistentStateTransientCache()
+            ->ResetNodeDefaultAddresses();
     }
 
     void OnAfterSnapshotLoaded() override
@@ -1838,6 +1847,10 @@ private:
         AddressToNodeMap_.clear();
         HostNameToNodeMap_.clear();
         TransactionToNodeMap_.clear();
+
+        Bootstrap_
+            ->GetPersistentStateTransientCache()
+            ->ResetNodeDefaultAddresses();
 
         AggregatedOnlineNodeCount_ = 0;
 
@@ -1983,7 +1996,12 @@ private:
 
         // NB: Node states gossip is one way: secondary-to-primary.
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsSecondaryMaster()) {
+        if (multicellManager->IsPrimaryMaster()) {
+            ResetNodePendingRestartMaintenanceExecutor_ = New<TPeriodicExecutor>(
+                Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+                BIND(&TNodeTracker::ResetNodesPendingRestartMaintenanceOnTimeout, MakeWeak(this)));
+            ResetNodePendingRestartMaintenanceExecutor_->Start();
+        } else {
             NodeStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::NodeTrackerGossip),
                 BIND(&TNodeTracker::OnNodeStatisticsGossip, MakeWeak(this)));
@@ -2007,6 +2025,11 @@ private:
     void OnStopLeading() override
     {
         TMasterAutomatonPart::OnStopLeading();
+
+        if (ResetNodePendingRestartMaintenanceExecutor_) {
+            YT_UNUSED_FUTURE(ResetNodePendingRestartMaintenanceExecutor_->Stop());
+            ResetNodePendingRestartMaintenanceExecutor_.Reset();
+        }
 
         if (NodeStatisticsGossipExecutor_) {
             YT_UNUSED_FUTURE(NodeStatisticsGossipExecutor_->Stop());
@@ -2295,6 +2318,8 @@ private:
 
     void ResetNodesPendingRestartMaintenanceOnTimeout()
     {
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+
         if (!IsLeader()) {
             return;
         }
@@ -2459,15 +2484,19 @@ private:
 
     void InsertToAddressMaps(TNode* node)
     {
-        YT_VERIFY(AddressToNodeMap_.emplace(node->GetDefaultAddress(), node).second);
+        EmplaceOrCrash(AddressToNodeMap_, node->GetDefaultAddress(), node);
         for (const auto& [_, address] : node->GetAddressesOrThrow(EAddressType::InternalRpc)) {
             HostNameToNodeMap_.emplace(std::string(GetServiceHostName(address)), node);
         }
+
+        Bootstrap_
+            ->GetPersistentStateTransientCache()
+            ->UpdateNodeDefaultAddress(node->GetId(), node->GetDefaultAddress());
     }
 
     void RemoveFromAddressMaps(TNode* node)
     {
-        YT_VERIFY(AddressToNodeMap_.erase(node->GetDefaultAddress()) == 1);
+        EraseOrCrash(AddressToNodeMap_, node->GetDefaultAddress());
         for (const auto& [_, address] : node->GetAddressesOrThrow(EAddressType::InternalRpc)) {
             auto hostNameRange = HostNameToNodeMap_.equal_range(std::string(GetServiceHostName(address)));
             for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
@@ -2477,6 +2506,10 @@ private:
                 }
             }
         }
+
+        Bootstrap_
+            ->GetPersistentStateTransientCache()
+            ->UpdateNodeDefaultAddress(node->GetId(), std::nullopt);
     }
 
     void RemoveFromNodeLists(TNode* node)
@@ -2684,6 +2717,7 @@ private:
         for (auto flavor : TEnumTraits<ENodeFlavor>::GetDomainValues()) {
             FlavoredNodeStatistics_[flavor] = TAggregatedNodeStatistics();
         }
+        DataCenterNodeStatistics_.clear();
 
         auto increment = [] (
             NNodeTrackerClient::TIOStatistics* statistics,
@@ -2702,23 +2736,21 @@ private:
                 continue;
             }
 
-            // It's forbidden to capture structured binding in lambda, so we copy #node here.
-            auto* node_ = node;
             auto updateStatistics = [&] (TAggregatedNodeStatistics* statistics) {
-                statistics->BannedNodeCount += node_->IsBanned();
-                statistics->DecommissinedNodeCount += node_->IsDecommissioned();
-                statistics->WithAlertsNodeCount += !node_->Alerts().empty();
+                statistics->BannedNodeCount += node->IsBanned();
+                statistics->DecommissinedNodeCount += node->IsDecommissioned();
+                statistics->WithAlertsNodeCount += !node->Alerts().empty();
 
-                if (node_->GetAggregatedState() != ENodeState::Online) {
+                if (node->GetAggregatedState() != ENodeState::Online) {
                     ++statistics->OfflineNodeCount;
                     return;
                 }
                 statistics->OnlineNodeCount++;
 
-                const auto& nodeStatistics = node_->DataNodeStatistics();
+                const auto& nodeStatistics = node->DataNodeStatistics();
                 for (const auto& location : nodeStatistics.chunk_locations()) {
                     int mediumIndex = location.medium_index();
-                    if (!node_->IsDecommissioned()) {
+                    if (!node->IsDecommissioned()) {
                         statistics->SpacePerMedium[mediumIndex].Available += location.available_space();
                         statistics->TotalSpace.Available += location.available_space();
                     }
@@ -2735,6 +2767,7 @@ private:
             for (auto flavor : node->Flavors()) {
                 updateStatistics(&FlavoredNodeStatistics_[flavor]);
             }
+            updateStatistics(&DataCenterNodeStatistics_[node->GetDataCenter()]);
         }
 
         NodeStatisticsUpdateDeadline_ =
@@ -2757,7 +2790,10 @@ private:
 
         ProfilingExecutor_->SetPeriod(GetDynamicConfig()->ProfilingPeriod);
 
-        ResetNodePendingRestartMaintenanceExecutor_->SetPeriod(GetDynamicConfig()->ResetNodePendingRestartMaintenancePeriod);
+        if (ResetNodePendingRestartMaintenanceExecutor_) {
+            ResetNodePendingRestartMaintenanceExecutor_->SetPeriod(
+                GetDynamicConfig()->ResetNodePendingRestartMaintenancePeriod);
+        }
     }
 
     void OnNodeBanUpdated(TNode* node)
@@ -2876,19 +2912,17 @@ private:
             PendingRestartMaintenanceNodeIdToSetIt_.erase(it);
         }
 
-        if (node->IsPendingRestart()) {
-            YT_LOG_INFO("Node restart is pending (NodeId: %v, Address: %v)",
-                node->GetId(),
-                node->GetDefaultAddress());
-
+        if (Bootstrap_->IsPrimaryMaster() && node->IsPendingRestart()) {
             auto* mutationContext = GetCurrentMutationContext();
             auto it = PendingRestartMaintenanceNodeIds_.emplace(mutationContext->GetTimestamp(), nodeId).first;
             PendingRestartMaintenanceNodeIdToSetIt_.emplace(nodeId, it);
-        } else {
-            YT_LOG_INFO("Node restart is no longer pending (NodeId: %v, Address: %v)",
-                nodeId,
-                node->GetDefaultAddress());
         }
+
+        YT_LOG_INFO("Node restart is %v (NodeId: %v, Address: %v)",
+            node->IsPendingRestart() ? "pending" : "no longer pending",
+            nodeId,
+            node->GetDefaultAddress());
+
         NodePendingRestartChanged_.Fire(node);
     }
 };

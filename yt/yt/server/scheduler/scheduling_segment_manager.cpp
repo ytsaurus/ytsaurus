@@ -776,7 +776,7 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
 
 void TSchedulingSegmentManager::ValidateInfinibandClusterTags(TUpdateSchedulingSegmentsContext* context) const
 {
-    static const TString InfinibandClusterTagPrefix = InfinibandClusterNameKey + ":";
+    static const std::string InfinibandClusterTagPrefix = InfinibandClusterNameKey + ":";
 
     if (!Config_->EnableInfinibandClusterTagValidation) {
         return;
@@ -789,9 +789,9 @@ void TSchedulingSegmentManager::ValidateInfinibandClusterTags(TUpdateSchedulingS
                 << TErrorAttribute("configured_infiniband_clusters", Config_->InfinibandClusters);
         }
 
-        std::vector<TString> infinibandClusterTags;
+        std::vector<std::string> infinibandClusterTags;
         for (const auto& tag : node.Tags.GetSourceTags()) {
-            if (tag.StartsWith(InfinibandClusterTagPrefix)) {
+            if (tag.starts_with(InfinibandClusterTagPrefix)) {
                 infinibandClusterTags.push_back(tag);
             }
         }
@@ -1146,8 +1146,8 @@ void TSchedulingSegmentManager::GetMovableNodes(
 
             YT_LOG_DEBUG(
                 "Considering node for scheduling segment rebalancing "
-                "(NodeId: %v, Address: %v, Segment: %v, SpecifiedSegment: %v, Module: %v, "
-                "MovePenalty: %v, RunningAllocationStatistics: %v, LastRunningAllocationStatisticsUpdateTime: %v, "
+                "(NodeId: %v, Address: %v, Segment: %v, SpecifiedSegment: %v, Module: %v, MovePenalty: %v, "
+                "RunningAllocationIds: %v, RunningAllocationStatistics: %v, LastRunningAllocationStatisticsUpdateTime: %v, "
                 "MovableNodeIndex: %v, AggressivelyMovableNodeIndex: %v)",
                 nodeId,
                 node.Descriptor->Address,
@@ -1155,6 +1155,7 @@ void TSchedulingSegmentManager::GetMovableNodes(
                 node.SpecifiedSchedulingSegment,
                 GetNodeModule(node),
                 GetMovePenaltyForNode(node, Config_->Mode),
+                GetKeys(node.RunningAllocations),
                 node.RunningAllocationStatistics,
                 CpuInstantToInstant(node.LastRunningAllocationStatisticsUpdateTime.value_or(0)),
                 getNodeMovableIndex(nodeId),

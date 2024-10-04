@@ -369,6 +369,8 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 					Type:         strawberry.TypeInt64,
 					CurrentValue: speclet.QueryStickyGroupSize,
 					DefaultValue: DefaultQueryStickyGroupSize,
+					MinValue:     1,
+					MaxValue:     100,
 					Description:  "Identical queries are distributed uniformly among the group of |QueryStickyGroupSize|-instances, different queries correspond to different groups. This has effect only if sticky query distribution is enabled.",
 				},
 			},

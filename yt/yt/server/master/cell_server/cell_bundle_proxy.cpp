@@ -260,7 +260,7 @@ bool TCellBundleProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
 
     switch (key) {
         case EInternedAttributeKey::Name: {
-            auto newName = ConvertTo<TString>(value);
+            auto newName = ConvertTo<std::string>(value);
             cellManager->RenameCellBundle(cellBundle, newName);
             return true;
         }
@@ -284,7 +284,7 @@ bool TCellBundleProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
             }
             auto* area = cellBundle->Areas().begin()->second;
             auto formula = ConvertTo<TString>(value);
-            cellManager->SetAreaNodeTagFilter(area, ConvertTo<TString>(value));
+            cellManager->SetAreaNodeTagFilter(area, ConvertTo<std::string>(value));
             return true;
         }
 

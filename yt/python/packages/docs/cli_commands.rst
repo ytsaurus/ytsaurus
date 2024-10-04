@@ -1,7 +1,7 @@
 
 
 ===============
-YT cli commands
+YT CLI commands
 ===============
 
 

@@ -1538,7 +1538,7 @@ private:
             return std::ssize(fairShareTreeSnapshot->PoolMap());
         }
 
-        std::vector<TString> GetKeys(const i64 limit) const final
+        std::vector<std::string> GetKeys(const i64 limit) const final
         {
             VERIFY_INVOKER_AFFINITY(FairShareTree_->StrategyHost_->GetOrchidWorkerInvoker());
 
@@ -1548,20 +1548,20 @@ private:
 
             const auto fairShareTreeSnapshot = FairShareTree_->GetTreeSnapshotForOrchid();
 
-            std::vector<TString> result;
+            std::vector<std::string> result;
             result.reserve(std::min(limit, std::ssize(fairShareTreeSnapshot->PoolMap())));
 
             for (const auto& [name, _] : fairShareTreeSnapshot->PoolMap()) {
-                result.push_back(name);
-                if (std::ssize(result) == limit) {
+                if (std::ssize(result) >= limit) {
                     break;
                 }
+                result.push_back(name);
             }
 
             return result;
         }
 
-        IYPathServicePtr FindItemService(const TStringBuf poolName) const final
+        IYPathServicePtr FindItemService(const std::string& poolName) const final
         {
             VERIFY_INVOKER_AFFINITY(FairShareTree_->StrategyHost_->GetOrchidWorkerInvoker());
 
@@ -2519,6 +2519,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        if (auto traceContext = NTracing::TryGetCurrentTraceContext()) {
+            traceContext->AddTag("tree", TreeId_);
+        }
+
         auto treeSnapshot = GetAtomicTreeSnapshot();
 
         YT_VERIFY(treeSnapshot);
@@ -3024,6 +3028,7 @@ private:
         fluent
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "running_operation_count", element->RunningOperationCount())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "lightweight_running_operation_count", element->LightweightRunningOperationCount())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "schedulable_operation_count", element->SchedulableOperationCount())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "pool_operation_count", element->GetChildOperationCount())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "operation_count", element->OperationCount())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "max_running_operation_count", element->GetMaxRunningOperationCount())

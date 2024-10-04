@@ -387,14 +387,6 @@ TFuture<TChunkInfo> TBlobSession::DoFinish(
         return MakeFuture<TChunkInfo>(Error_);
     }
 
-    if (PendingBlockMemoryGuard_.GetSize() > 0 || PendingBlockLocationMemoryGuard_.GetSize() > 0) {
-        YT_LOG_ALERT(
-            "Found unexpected non-empty memory guard on the successful end of the session (ChunkId: %v, Memory: %v, LocationMemory: %v)",
-            GetChunkId(),
-            PendingBlockMemoryGuard_.GetSize(),
-            PendingBlockLocationMemoryGuard_.GetSize());
-    }
-
     return Pipeline_->Close(chunkMeta)
         .Apply(BIND(&TBlobSession::OnFinished, MakeStrong(this))
             .AsyncVia(SessionInvoker_));
@@ -407,7 +399,7 @@ i64 TBlobSession::GetMemoryUsage() const
 
 i64 TBlobSession::GetTotalSize() const
 {
-    return Size_.load();
+    return TotalByteSize_.load();
 }
 
 i64 TBlobSession::GetBlockCount() const
@@ -636,7 +628,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
     YT_VERIFY(blocks.size() == locationMemoryGuards.size());
 
     auto totalSize = GetByteSize(blocks);
-    Size_.fetch_add(totalSize);
+    TotalByteSize_.fetch_add(totalSize);
 
     YT_LOG_DEBUG_UNLESS(receivedBlockIndexes.empty(), "Blocks received (Blocks: %v, TotalSize: %v)",
         receivedBlockIndexes,
@@ -1003,7 +995,7 @@ void TBlobSession::ReleaseSpace()
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-    Location_->UpdateUsedSpace(-Size_.load());
+    Location_->UpdateUsedSpace(-TotalByteSize_.load());
 }
 
 void TBlobSession::SetFailed(const TError& error, bool fatal)

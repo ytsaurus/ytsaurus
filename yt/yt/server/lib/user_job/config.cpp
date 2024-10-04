@@ -26,16 +26,20 @@ void TUserJobExecutorConfig::Register(TRegistrar registrar)
     registrar.Parameter("environment", &TThis::Environment)
         .Default();
 
+    registrar.Parameter("pty", &TThis::Pty)
+        .Default();
+
     registrar.Parameter("uid", &TThis::Uid)
         .Default(-1);
 
     registrar.Parameter("stderr_path", &TThis::StderrPath)
-        .Default("../logs/executor_stderr");
+        .Default(Format("../%v", DefaultExecutorStderrPath));
 
     registrar.Parameter("enable_core_dump", &TThis::EnableCoreDump)
         .Default(false);
 
-    registrar.Parameter("user_job_synchronizer_connection_config", &TThis::UserJobSynchronizerConnectionConfig);
+    registrar.Parameter("user_job_synchronizer_connection_config", &TThis::UserJobSynchronizerConnectionConfig)
+        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         for (const auto& variable : config->Environment) {

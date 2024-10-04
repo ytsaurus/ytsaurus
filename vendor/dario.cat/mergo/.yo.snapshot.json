@@ -1,0 +1,27 @@
+{
+	"Version": "v1.0.0",
+	"GoVersion": "1.13",
+	"Sum": "h1:AGCNq9Evsj31mOgNPcLyXc+4PNABt905YmuqPYYpBWk=",
+	"Packages": {
+		"dario.cat/mergo": {
+			"Imports": [
+				"errors",
+				"fmt",
+				"reflect",
+				"unicode",
+				"unicode/utf8"
+			],
+			"TestImports": [
+				"dario.cat/mergo",
+				"encoding/json",
+				"fmt",
+				"gopkg.in/yaml.v3",
+				"io/ioutil",
+				"reflect",
+				"strings",
+				"testing",
+				"time"
+			]
+		}
+	}
+}

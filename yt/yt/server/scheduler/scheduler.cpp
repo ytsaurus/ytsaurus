@@ -4154,16 +4154,16 @@ private:
             return 3;
         }
 
-        std::vector<TString> GetKeys(i64 limit) const override
+        std::vector<std::string> GetKeys(i64 limit) const override
         {
-            std::vector<TString> keys{"operation_id", "progress", "brief_progress"};
+            std::vector<std::string> keys{"operation_id", "progress", "brief_progress"};
             if (limit < std::ssize(keys)) {
                 keys.resize(limit);
             }
             return keys;
         }
 
-        IYPathServicePtr FindItemService(TStringBuf key) const override
+        IYPathServicePtr FindItemService(const std::string& key) const override
         {
             if (key == "operation_id") {
                 return OperationIdService_;
@@ -4198,28 +4198,28 @@ private:
             return Scheduler_->IdToOperationService_.size() + Scheduler_->OperationAliases_.size();
         }
 
-        std::vector<TString> GetKeys(i64 limit) const override
+        std::vector<std::string> GetKeys(i64 limit) const override
         {
-            std::vector<TString> keys;
-            keys.reserve(limit);
+            std::vector<std::string> keys;
+            keys.reserve(std::min(limit, std::ssize(Scheduler_->IdToOperation_) + std::ssize(Scheduler_->OperationAliases_)));
             for (const auto& [operationId, operation] : Scheduler_->IdToOperation_) {
-                if (static_cast<i64>(keys.size()) >= limit) {
+                if (std::ssize(keys) >= limit) {
                     break;
                 }
-                keys.emplace_back(ToString(operationId));
+                keys.push_back(ToString(operationId));
             }
             for (const auto& [aliasString, alias] : Scheduler_->OperationAliases_) {
-                if (static_cast<i64>(keys.size()) >= limit) {
+                if (std::ssize(keys) >= limit) {
                     break;
                 }
-                keys.emplace_back(aliasString);
+                keys.push_back(aliasString);
             }
             return keys;
         }
 
-        IYPathServicePtr FindItemService(TStringBuf key) const override
+        IYPathServicePtr FindItemService(const std::string& key) const override
         {
-            if (key.StartsWith(OperationAliasPrefix)) {
+            if (key.starts_with(OperationAliasPrefix)) {
                 // If operation is still registered, we will return the operation service.
                 // If it has finished, but we still have an entry in alias -> operation id internal
                 // mapping, we return a fictive map { operation_id = <operation_id> }. It is useful
@@ -4282,12 +4282,12 @@ private:
             YT_ABORT();
         }
 
-        std::vector<TString> GetKeys(i64 /*limit*/) const override
+        std::vector<std::string> GetKeys(i64 /*limit*/) const override
         {
             YT_ABORT();
         }
 
-        IYPathServicePtr FindItemService(TStringBuf key) const override
+        IYPathServicePtr FindItemService(const std::string& key) const override
         {
             auto allocationId = TAllocationId(TGuid::FromString(key));
             auto buildAllocationYsonCallback = BIND(

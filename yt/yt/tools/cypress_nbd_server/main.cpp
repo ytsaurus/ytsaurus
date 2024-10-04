@@ -1,5 +1,7 @@
+#include <yt/yt/server/lib/nbd/block_device.h>
 #include <yt/yt/server/lib/nbd/config.h>
 #include <yt/yt/server/lib/nbd/file_system_block_device.h>
+#include <yt/yt/server/lib/nbd/image_reader.h>
 #include <yt/yt/server/lib/nbd/server.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -51,6 +53,32 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+class TCypressFileBlockDeviceConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TYPath Path;
+
+    // For testing purposes: how long to sleep before read request
+    TDuration TestSleepBeforeRead;
+
+    REGISTER_YSON_STRUCT(TCypressFileBlockDeviceConfig);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("path", &TThis::Path)
+            .Default();
+        registrar.Parameter("test_sleep_before_read", &TThis::TestSleepBeforeRead)
+            .Default(TDuration::Zero());
+    }
+};
+
+DECLARE_REFCOUNTED_CLASS(TCypressFileBlockDeviceConfig)
+DEFINE_REFCOUNTED_TYPE(TCypressFileBlockDeviceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TConfig)
 
 class TConfig
@@ -60,7 +88,7 @@ public:
     TString ClusterUser;
     NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;
     TNbdServerConfigPtr NbdServer;
-    THashMap<TString, TFileSystemBlockDeviceConfigPtr> FileSystemBlockDevices;
+    THashMap<TString, TCypressFileBlockDeviceConfigPtr> FileSystemBlockDevices;
     int ThreadCount;
 
     REGISTER_YSON_STRUCT(TConfig);
@@ -279,18 +307,26 @@ protected:
                 client,
                 logger);
 
-            auto reader = CreateCypressFileImageReader(
+            auto fileReader = CreateRandomAccessFileReader(
                 std::move(chunkSpecs),
                 exportConfig->Path,
                 client,
                 GetUnlimitedThrottler(),
                 GetUnlimitedThrottler(),
+                threadPool->GetInvoker(),
                 logger);
+
+            auto imageReader = CreateCypressFileImageReader(
+                std::move(fileReader),
+                logger);
+
+            auto config = New<TFileSystemBlockDeviceConfig>();
+            config->TestSleepBeforeRead = exportConfig->TestSleepBeforeRead;
 
             auto device = CreateFileSystemBlockDevice(
                 exportId,
-                exportConfig,
-                std::move(reader),
+                std::move(config),
+                std::move(imageReader),
                 threadPool->GetInvoker(),
                 logger);
 

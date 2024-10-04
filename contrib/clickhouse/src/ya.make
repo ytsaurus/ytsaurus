@@ -98,7 +98,6 @@ ADDINCL(
     contrib/libs/apache/avro/api
     contrib/libs/croaring/include/roaring
     contrib/libs/double-conversion
-    contrib/libs/farmhash
     contrib/libs/fastops
     contrib/libs/libc_compat/include
     contrib/libs/libdivide
@@ -601,6 +600,7 @@ SRCS(
     Databases/NormalizeAndEvaluateConstantsVisitor.cpp
     Databases/TablesDependencyGraph.cpp
     Databases/TablesLoader.cpp
+    Databases/registerDatabases.cpp
     Databases/removeWhereConditionPlaceholder.cpp
     Dictionaries/CacheDictionary.cpp
     Dictionaries/CacheDictionaryUpdateQueue.cpp

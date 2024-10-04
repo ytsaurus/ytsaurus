@@ -41,7 +41,11 @@ def find_operation(alias, yt_client, logger):
         cluster = yt_client.config.get('proxy', {}).get('url', '').split('.')[0]
         logger.info('Alias %s belongs to running operation %s', alias, op_id)
         if cluster:
-            logger.info('https://yt.yandex-team.ru/%s/operations/%s', cluster, op_id)
+            operation_url = yt_client.config["proxy"]["operation_link_pattern"].format(
+                proxy=cluster + yt_client.config["proxy"]["default_suffix"],
+                cluster_path="",
+                id=op_id)
+            logger.info("Operation found: %s", operation_url)
         return op_id
     return None
 

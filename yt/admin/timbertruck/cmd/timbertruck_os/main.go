@@ -55,7 +55,7 @@ func newOutput(config *Config, logConfig JSONLogConfig, task timbertruck.TaskArg
 				RPCProxyRole: ytQueueConfig.RPCProxyRole,
 				SessionID:    sessionID,
 				Token:        ytToken,
-				Logger:       task.Controller.Logger().With("component", "yt"),
+				Logger:       task.Controller.Logger(),
 			}
 
 			var ytOutput pipelines.Output[pipelines.Row]
@@ -79,7 +79,7 @@ func main() {
 	defer app.Close()
 
 	for _, jsonLogConfig := range config.JSONLogs {
-		app.AddPipeline(jsonLogConfig.StreamConfig, func(task timbertruck.TaskArgs) (p *pipelines.Pipeline, err error) {
+		app.AddStream(jsonLogConfig.StreamConfig, func(task timbertruck.TaskArgs) (p *pipelines.Pipeline, err error) {
 			output, err := newOutput(config, jsonLogConfig, task)
 			if err != nil {
 				return

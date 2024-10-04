@@ -421,7 +421,7 @@ public:
 
     TTableReplica* CreateTableReplica(
         TReplicatedTableNode* table,
-        const TString& clusterName,
+        const std::string& clusterName,
         const TYPath& replicaPath,
         ETableReplicaMode mode,
         bool preserveTimestamps,
@@ -2500,7 +2500,7 @@ public:
         return cellBundle;
     }
 
-    TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const TString& name, bool activeLifeStageOnly)
+    TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const std::string& name, bool activeLifeStageOnly)
     {
         auto* cellBundle = DoFindTabletCellBundleByName(name);
         if (!cellBundle) {
@@ -2906,7 +2906,7 @@ private:
         }
     }
 
-    TTabletCellBundle* DoFindTabletCellBundleByName(const TString& name)
+    TTabletCellBundle* DoFindTabletCellBundleByName(const std::string& name)
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         auto* bundle = cellManager->FindCellBundleByName(name, ECellarType::Tablet, false);
@@ -2917,7 +2917,7 @@ private:
         return bundle->As<TTabletCellBundle>();
     }
 
-    TTabletCellBundle* FindTabletCellBundleByName(const TString& name, bool activeLifeStageOnly)
+    TTabletCellBundle* FindTabletCellBundleByName(const std::string& name, bool activeLifeStageOnly)
     {
         auto* bundle = DoFindTabletCellBundleByName(name);
         if (!bundle) {
@@ -5033,7 +5033,7 @@ private:
         }
     }
 
-    bool EnsureBuiltinCellBundleInitialized(TTabletCellBundle*& cellBundle, TTabletCellBundleId id, const TString& name)
+    bool EnsureBuiltinCellBundleInitialized(TTabletCellBundle*& cellBundle, TTabletCellBundleId id, const std::string& name)
     {
         if (cellBundle) {
             return false;
@@ -7769,7 +7769,7 @@ TTabletCellBundle* TTabletManager::FindTabletCellBundle(TTabletCellBundleId id)
     return Impl_->FindTabletCellBundle(id);
 }
 
-TTabletCellBundle* TTabletManager::GetTabletCellBundleByNameOrThrow(const TString& name, bool activeLifeStageOnly)
+TTabletCellBundle* TTabletManager::GetTabletCellBundleByNameOrThrow(const std::string& name, bool activeLifeStageOnly)
 {
     return Impl_->GetTabletCellBundleByNameOrThrow(name, activeLifeStageOnly);
 }
@@ -7816,7 +7816,7 @@ void TTabletManager::MaterizlizeExtraMountConfigKeys(TCellTag cellTag) const
 
 TTableReplica* TTabletManager::CreateTableReplica(
     TReplicatedTableNode* table,
-    const TString& clusterName,
+    const std::string& clusterName,
     const TYPath& replicaPath,
     ETableReplicaMode mode,
     bool preserveTimestamps,

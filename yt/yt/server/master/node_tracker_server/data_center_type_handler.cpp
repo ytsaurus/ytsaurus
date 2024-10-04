@@ -49,7 +49,7 @@ public:
         TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
-        auto name = attributes->GetAndRemove<TString>("name");
+        auto name = attributes->GetAndRemove<std::string>("name");
         return Bootstrap_->GetNodeTracker()->CreateDataCenter(name, hintId);
     }
 

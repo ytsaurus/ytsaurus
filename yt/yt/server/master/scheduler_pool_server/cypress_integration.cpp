@@ -27,27 +27,25 @@ public:
     }
 
 private:
-    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
-        sizeLimit = std::min<i64>(GetSize(), sizeLimit);
-        std::vector<TString> names;
-        names.reserve(sizeLimit);
+        std::vector<std::string> names;
+        names.reserve(std::min(limit, GetSize()));
         for (const auto& [_, poolTree] : GetPoolTrees()) {
-            // TODO(babenko): switch to std::string
-            names.push_back(TString(poolTree->GetTreeName()));
-            if (std::ssize(names) == sizeLimit) {
+            if (std::ssize(names) >= limit) {
                 break;
             }
+            names.push_back(poolTree->GetTreeName());
         }
         return names;
     }
 
     i64 GetSize() const override
     {
-        return GetPoolTrees().size();
+        return std::ssize(GetPoolTrees());
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         auto* poolTree = Bootstrap_->GetSchedulerPoolManager()->FindPoolTreeObjectByName(TString(key));
         if (!IsObjectAlive(poolTree)) {

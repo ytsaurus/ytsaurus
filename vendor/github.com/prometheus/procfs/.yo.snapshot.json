@@ -1,0 +1,195 @@
+{
+	"Version": "v0.12.0",
+	"GoVersion": "1.19",
+	"Sum": "h1:jluTpSng7V9hY0O2R9DzzJHYb2xULk9VTR1V1R/k6Bo=",
+	"Packages": {
+		"github.com/prometheus/procfs": {
+			"Imports": [
+				"bufio",
+				"bytes",
+				"encoding/hex",
+				"errors",
+				"fmt",
+				"github.com/prometheus/procfs/internal/fs",
+				"github.com/prometheus/procfs/internal/util",
+				"golang.org/x/sys/unix",
+				"io",
+				"net",
+				"os",
+				"path/filepath",
+				"regexp",
+				"sort",
+				"strconv",
+				"strings",
+				"syscall",
+				"time"
+			],
+			"TestImports": [
+				"bytes",
+				"fmt",
+				"github.com/google/go-cmp/cmp",
+				"golang.org/x/sys/unix",
+				"math",
+				"net",
+				"os",
+				"reflect",
+				"sort",
+				"strconv",
+				"strings",
+				"testing",
+				"time"
+			]
+		},
+		"github.com/prometheus/procfs/bcache": {
+			"Imports": [
+				"bufio",
+				"fmt",
+				"github.com/prometheus/procfs/internal/fs",
+				"os",
+				"path",
+				"path/filepath",
+				"strconv",
+				"strings"
+			],
+			"TestImports": [
+				"math",
+				"testing"
+			]
+		},
+		"github.com/prometheus/procfs/blockdevice": {
+			"Imports": [
+				"bufio",
+				"errors",
+				"fmt",
+				"github.com/prometheus/procfs/internal/fs",
+				"github.com/prometheus/procfs/internal/util",
+				"io",
+				"os",
+				"strings"
+			],
+			"TestImports": [
+				"os",
+				"reflect",
+				"testing"
+			]
+		},
+		"github.com/prometheus/procfs/btrfs": {
+			"Imports": [
+				"github.com/prometheus/procfs/internal/fs",
+				"github.com/prometheus/procfs/internal/util",
+				"os",
+				"path",
+				"path/filepath",
+				"strconv",
+				"strings"
+			],
+			"TestImports": [
+				"testing"
+			]
+		},
+		"github.com/prometheus/procfs/internal/fs": {
+			"Imports": [
+				"fmt",
+				"os",
+				"path/filepath"
+			],
+			"TestImports": [
+				"testing"
+			]
+		},
+		"github.com/prometheus/procfs/internal/util": {
+			"Imports": [
+				"bytes",
+				"fmt",
+				"io",
+				"os",
+				"strconv",
+				"strings",
+				"syscall"
+			],
+			"TestImports": [
+				"github.com/google/go-cmp/cmp",
+				"github.com/prometheus/procfs/internal/util",
+				"testing"
+			]
+		},
+		"github.com/prometheus/procfs/iscsi": {
+			"Imports": [
+				"errors",
+				"fmt",
+				"github.com/prometheus/procfs/internal/fs",
+				"github.com/prometheus/procfs/internal/util",
+				"os",
+				"path/filepath",
+				"strconv",
+				"strings"
+			],
+			"TestImports": [
+				"github.com/prometheus/procfs/iscsi",
+				"reflect",
+				"testing"
+			]
+		},
+		"github.com/prometheus/procfs/nfs": {
+			"Imports": [
+				"bufio",
+				"fmt",
+				"github.com/prometheus/procfs/internal/fs",
+				"github.com/prometheus/procfs/internal/util",
+				"io",
+				"os",
+				"strings"
+			],
+			"TestImports": [
+				"github.com/prometheus/procfs/nfs",
+				"reflect",
+				"strings",
+				"testing"
+			]
+		},
+		"github.com/prometheus/procfs/sysfs": {
+			"Imports": [
+				"bufio",
+				"bytes",
+				"errors",
+				"fmt",
+				"github.com/prometheus/procfs/internal/fs",
+				"github.com/prometheus/procfs/internal/util",
+				"golang.org/x/sync/errgroup",
+				"os",
+				"path/filepath",
+				"regexp",
+				"strconv",
+				"strings",
+				"syscall"
+			],
+			"TestImports": [
+				"errors",
+				"fmt",
+				"github.com/google/go-cmp/cmp",
+				"github.com/prometheus/procfs/internal/util",
+				"path/filepath",
+				"reflect",
+				"testing"
+			]
+		},
+		"github.com/prometheus/procfs/xfs": {
+			"Imports": [
+				"bufio",
+				"fmt",
+				"github.com/prometheus/procfs/internal/fs",
+				"github.com/prometheus/procfs/internal/util",
+				"io",
+				"os",
+				"path/filepath",
+				"strings"
+			],
+			"TestImports": [
+				"github.com/prometheus/procfs/xfs",
+				"reflect",
+				"strings",
+				"testing"
+			]
+		}
+	}
+}

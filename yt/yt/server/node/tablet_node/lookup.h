@@ -7,6 +7,8 @@
 
 #include <yt/yt/core/actions/public.h>
 
+#include <library/cpp/yt/logging/logger.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,8 +43,23 @@ ILookupSessionPtr CreateLookupSession(
     NTableClient::TRetentionConfigPtr retentionConfig,
     bool enablePartialResult,
     const ITabletSnapshotStorePtr& snapshotStore,
-    std::optional<TString> profilingUser,
+    const std::optional<std::string>& profilingUser,
     IInvokerPtr invoker);
+
+////////////////////////////////////////////////////////////////////////////////
+
+NTableClient::ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
+    IMemoryChunkProviderPtr memoryChunkProvider,
+    TTabletSnapshotPtr tabletSnapshot,
+    TColumnFilter columnFilter,
+    TSharedRange<TUnversionedRow> lookupKeys,
+    const NTransactionClient::TReadTimestampRange& timestampRange,
+    std::optional<bool> useLookupCache,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    const NTableClient::TTimestampReadOptions& timestampReadOptions,
+    IInvokerPtr invoker,
+    const std::optional<std::string>& profilingUser,
+    NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

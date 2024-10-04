@@ -155,10 +155,20 @@ RUN chmod 755 /setup_cluster_for_chyt.sh
 
 ##########################################################################################
 
-FROM base-ytsaurus-python-packages AS query-tracker-bloated
+FROM base-ytsaurus-python-packages AS base-query-tracker
 
-# Libpython shared objects. TODO(aleksandr.gaev) use stubs instead.
-RUN apt-get install -y libpython3.8 libpython3.9 libpython3.10 libpython3.11 libpython3.12
+# Libpython shared objects that are needed for YQL system python UDFs to work.
+# TODO(aleksandr.gaev) use stubs instead. We don't need working libpythons here.
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+  libpython3.8 \
+  libpython3.9 \
+  libpython3.10 \
+  libpython3.11 \
+  libpython3.12
+
+##########################################################################################
+
+FROM base-query-tracker AS query-tracker-bloated
 
 # Query tracker binaries.
 COPY ./ytserver-all /usr/bin/ytserver-all

@@ -353,9 +353,9 @@ private:
                 ->Via(invoker);
         }
 
-        std::vector<TString> GetKeys(i64 limit) const override
+        std::vector<std::string> GetKeys(i64 limit) const override
         {
-            std::vector<TString> keys;
+            std::vector<std::string> keys;
             if (auto owner = Owner_.Lock()) {
                 for (const auto& [replicationCardId, _] : owner->ReplicationCards()) {
                     if (std::ssize(keys) >= limit) {
@@ -375,7 +375,7 @@ private:
             return 0;
         }
 
-        IYPathServicePtr FindItemService(TStringBuf key) const override
+        IYPathServicePtr FindItemService(const std::string& key) const override
         {
             if (auto owner = Owner_.Lock()) {
                 if (auto replicationCard = owner->FindReplicationCard(TReplicationCardId::FromString(key))) {
@@ -1151,6 +1151,9 @@ private:
         auto enableReplicatedTableTracker = request->has_enable_replicated_table_tracker()
             ? std::make_optional(request->enable_replicated_table_tracker())
             : std::nullopt;
+        auto replicaPath = request->has_replica_path()
+            ? std::make_optional(request->replica_path())
+            : std::nullopt;
 
         if (mode && !IsStableReplicaMode(*mode)) {
             THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", *mode);
@@ -1250,6 +1253,23 @@ private:
 
         if (enableReplicatedTableTracker && replicaInfo->EnableReplicatedTableTracker != *enableReplicatedTableTracker) {
             replicaInfo->EnableReplicatedTableTracker = *enableReplicatedTableTracker;
+            FireTableReplicaCreatedOrUpdated(replicationCardId, replicaId, *replicaInfo);
+        }
+
+        if (replicaPath && replicaInfo->ReplicaPath != *replicaPath) {
+            for (const auto& [existingReplicaId, existingReplicaInfo] : replicationCard->Replicas()) {
+                if (existingReplicaInfo.ClusterName == replicaInfo->ClusterName
+                    && existingReplicaInfo.ReplicaPath == *replicaPath)
+                {
+                    THROW_ERROR_EXCEPTION("Replica already exists")
+                        << TErrorAttribute("replica_id", existingReplicaId)
+                        << TErrorAttribute("cluster_name", existingReplicaInfo.ClusterName)
+                        << TErrorAttribute("replica_path", existingReplicaInfo.ReplicaPath);
+                }
+            }
+
+            replicaInfo->ReplicaPath = *replicaPath;
+            revoke = true;
             FireTableReplicaCreatedOrUpdated(replicationCardId, replicaId, *replicaInfo);
         }
 

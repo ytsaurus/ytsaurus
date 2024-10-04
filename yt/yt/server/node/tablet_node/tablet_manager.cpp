@@ -416,43 +416,6 @@ public:
         return results;
     }
 
-    // COMPAT(aleksandra-zh)
-    void ValidateHunkLocks() override
-    {
-        YT_LOG_INFO("Validating hunk locks");
-        for (auto [tabletId, tablet] : TabletMap_) {
-            for (auto [id, hunkChunk] : tablet->HunkChunkMap()) {
-                auto lockCount = hunkChunk->GetLockCount();
-                auto preparedLockCount = hunkChunk->GetPreparedStoreRefCount();
-                if (lockCount != preparedLockCount) {
-                    YT_LOG_INFO("Hunk lock count differs (TabletId: %v, HunkChunkId: %v, LockingStateLockCount: %v, PreparedStoreRefCount: %v)",
-                        tabletId,
-                        id,
-                        lockCount,
-                        preparedLockCount);
-                }
-            }
-        }
-    }
-
-    // COMPAT(aleksandra-zh)
-    void RestoreHunkLocks(
-        TTransaction* transaction,
-        TReqUpdateTabletStores* request) override
-    {
-        try {
-            DoRestoreHunkLocks(transaction, request);
-        } catch (const std::exception& ex) {
-            auto tabletId = FromProto<TTabletId>(request->tablet_id());
-            YT_LOG_ALERT(
-                ex,
-                "Error restoring hunk locks (TabletId: %v, TransactionId: %v)",
-                tabletId,
-                transaction->GetId());
-            throw;
-        }
-    }
-
     TFuture<void> Trim(
         const TTabletSnapshotPtr& tabletSnapshot,
         i64 trimmedRowCount) override
@@ -643,9 +606,9 @@ private:
                 ->Via(invoker);
         }
 
-        std::vector<TString> GetKeys(i64 limit) const override
+        std::vector<std::string> GetKeys(i64 limit) const override
         {
-            std::vector<TString> keys;
+            std::vector<std::string> keys;
             if (auto owner = Owner_.Lock()) {
                 for (const auto& tablet : owner->Tablets()) {
                     if (std::ssize(keys) >= limit) {
@@ -665,7 +628,7 @@ private:
             return 0;
         }
 
-        IYPathServicePtr FindItemService(TStringBuf key) const override
+        IYPathServicePtr FindItemService(const std::string& key) const override
         {
             if (auto owner = Owner_.Lock()) {
                 if (auto tablet = owner->FindTablet(TTabletId::FromString(key))) {
@@ -833,9 +796,6 @@ private:
     ETabletCellLifeStage CellLifeStage_ = ETabletCellLifeStage::Running;
     bool Suspending_ = false;
 
-    // COMPAT(gritukan)
-    ETabletReign Reign_ = CheckedEnumCast<ETabletReign>(GetCurrentReign());
-
     TRingQueue<TTablet*> PrelockedTablets_;
 
     THashSet<IDynamicStorePtr> OrphanedStores_;
@@ -913,10 +873,6 @@ private:
 
         Load(context, CellLifeStage_);
         Load(context, Suspending_);
-
-        Automaton_->RememberReign(static_cast<TReign>(context.GetVersion()));
-
-        Reign_ = context.GetVersion();
     }
 
     void LoadAsync(TLoadContext& context)
@@ -1779,18 +1735,7 @@ private:
         storeManager->BulkAddStores(TRange(storesToAdd), /*onMount*/ false);
 
         const auto& lockManager = tablet->GetLockManager();
-
-        // COMPAT(ifsmirnov)
-        bool shouldUnlock;
-        if (GetCurrentMutationContext()->Request().Reign >=
-            static_cast<int>(ETabletReign::FixBulkInsertAtomicityNone))
-        {
-            shouldUnlock = tablet->GetLockManager()->HasTransaction(transactionId);
-        } else {
-            shouldUnlock = tablet->GetAtomicity() == EAtomicity::Full;
-        }
-
-        if (shouldUnlock) {
+        if (tablet->GetLockManager()->HasTransaction(transactionId)) {
             auto nextEpoch = lockManager->GetEpoch() + 1;
             UpdateTabletSnapshot(tablet, nextEpoch);
 
@@ -1967,24 +1912,20 @@ private:
 
         const auto& storeManager = tablet->GetStoreManager();
 
-        // COMPAT(ifsmirnov)
-        if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
-            ETabletReign::SendDynamicStoreInBackup)
+
+        if (tablet->GetActiveStore() &&
+            expectedActiveStoreId &&
+            tablet->GetActiveStore()->GetId() != expectedActiveStoreId)
         {
-            if (tablet->GetActiveStore() &&
-                expectedActiveStoreId &&
-                tablet->GetActiveStore()->GetId() != expectedActiveStoreId)
-            {
-                YT_LOG_DEBUG(
-                    "Active store id mismatch in rotation attempt "
-                    "(ExpectedActiveStoreId: %v, ActualActiveStoreId: %v, Reason: %v, %v)",
-                    expectedActiveStoreId,
-                    tablet->GetActiveStore()->GetId(),
-                    reason,
-                    tablet->GetLoggingTag());
-                storeManager->UnscheduleRotation();
-                return;
-            }
+            YT_LOG_DEBUG(
+                "Active store id mismatch in rotation attempt "
+                "(ExpectedActiveStoreId: %v, ActualActiveStoreId: %v, Reason: %v, %v)",
+                expectedActiveStoreId,
+                tablet->GetActiveStore()->GetId(),
+                reason,
+                tablet->GetLoggingTag());
+            storeManager->UnscheduleRotation();
+            return;
         }
 
         if (tablet->GetSettings().MountConfig->EnableDynamicStoreRead && tablet->GetUnreservedDynamicStoreIdCount() == 0) {

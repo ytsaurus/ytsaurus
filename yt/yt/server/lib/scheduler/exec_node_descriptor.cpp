@@ -70,7 +70,7 @@ void ToProto(NScheduler::NProto::TExecNodeDescriptor* protoDescriptor, const NSc
     ToProto(protoDescriptor->mutable_resource_limits(), descriptor.ResourceLimits);
     ToProto(protoDescriptor->mutable_disk_resources(), descriptor.DiskResources);
     for (const auto& tag : descriptor.Tags.GetSourceTags()) {
-        protoDescriptor->add_tags(tag);
+        protoDescriptor->add_tags(ToProto<TProtobufString>(tag));
     }
 }
 
@@ -82,11 +82,8 @@ void FromProto(NScheduler::TExecNodeDescriptor* descriptor, const NScheduler::NP
     descriptor->Online = protoDescriptor.online();
     FromProto(&descriptor->ResourceLimits, protoDescriptor.resource_limits());
     FromProto(&descriptor->DiskResources, protoDescriptor.disk_resources());
-    THashSet<TString> tags;
-    for (const auto& tag : protoDescriptor.tags()) {
-        tags.insert(tag);
-    }
-    descriptor->Tags = TBooleanFormulaTags(std::move(tags));
+    auto tags = FromProto<std::vector<std::string>>(protoDescriptor.tags());
+    descriptor->Tags = TBooleanFormulaTags(THashSet<std::string>(tags.begin(), tags.end()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

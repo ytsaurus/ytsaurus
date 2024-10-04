@@ -177,7 +177,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, LeaseCellIds_);
     Save(context, SuccessorTransactionLeaseCount_);
     Save(context, AccountResourceUsageLeases_);
-    Save(context, IsSequoiaTransaction_);
+    Save(context, SequoiaTransaction_);
     Save(context, SequoiaWriteSet_);
     Save(context, AuthenticationIdentity_.User);
     Save(context, AuthenticationIdentity_.UserTag);
@@ -229,7 +229,7 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     }
 
     Load(context, AccountResourceUsageLeases_);
-    Load(context, IsSequoiaTransaction_);
+    Load(context, SequoiaTransaction_);
     Load(context, SequoiaWriteSet_);
 
     // COMPAT(kvk1920)
@@ -301,6 +301,8 @@ int TTransaction::GetRecursiveLockCount() const
 
 void TTransaction::AttachLock(NCypressServer::TLock* lock, const IObjectManagerPtr& objectManager)
 {
+    YT_VERIFY(!IsSequoiaTransaction());
+
     EmplaceOrCrash(Locks_, lock);
     lock->SetTransaction(this);
     objectManager->RefObject(lock);
@@ -324,6 +326,8 @@ void TTransaction::DetachLock(
     const IObjectManagerPtr& objectManager,
     bool resetLockTransaction)
 {
+    YT_VERIFY(!IsSequoiaTransaction());
+
     EraseOrCrash(Locks_, lock);
     if (resetLockTransaction) {
         lock->SetTransaction(nullptr);

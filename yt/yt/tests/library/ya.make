@@ -24,6 +24,8 @@ PEERDIR(
 PY_NAMESPACE(.)
 
 PY_SRCS(
+    native_snapshot_exporter.py
+    fake_snapshot_exporter.py
     yt_error_codes.py
     yt_commands.py
     yt_env_setup.py

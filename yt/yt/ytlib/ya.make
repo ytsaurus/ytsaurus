@@ -515,9 +515,7 @@ SRCS(
 
     yql_client/proto/yql_service.proto
 
-    shuffle_service/shuffle_service.cpp
-
-    shuffle_service/proto/shuffle_service.proto
+    shuffle_client/proto/shuffle_service.proto
 )
 
 GENERATE_YT_RECORD(
@@ -601,6 +599,12 @@ GENERATE_YT_RECORD(
 
 GENERATE_YT_RECORD(
     sequoia_client/records/path_forks.yaml
+    OUTPUT_INCLUDES
+        yt/yt/ytlib/sequoia_client/public.h
+)
+
+GENERATE_YT_RECORD(
+    sequoia_client/records/child_forks.yaml
     OUTPUT_INCLUDES
         yt/yt/ytlib/sequoia_client/public.h
 )

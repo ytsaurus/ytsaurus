@@ -1,5 +1,4 @@
 #include "partition_chunk_reader.h"
-#include "private.h"
 
 #include "chunk_meta_extensions.h"
 #include "columnar_chunk_meta.h"
@@ -19,6 +18,7 @@
 
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 

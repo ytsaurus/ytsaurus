@@ -725,7 +725,7 @@ private:
             subresponse->set_disk_throttling(diskThrottling.Enabled);
             subresponse->set_disk_queue_size(diskThrottling.QueueSize);
 
-            YT_LOG_DEBUG_IF(!diskThrottling.Error.IsOK(), diskThrottling.Error);
+            YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
 
             const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
             if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
@@ -790,7 +790,7 @@ private:
         response->set_disk_throttling(diskThrottling.Enabled);
         response->set_disk_queue_size(diskThrottling.QueueSize);
 
-        YT_LOG_DEBUG_IF(!diskThrottling.Error.IsOK(), diskThrottling.Error);
+        YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
 
         auto netThrottling = CheckNetOutThrottling(
             context,
@@ -936,6 +936,7 @@ private:
             .Apply(BIND([=] (bool isThrottled) {
                 if (isThrottled) {
                     response->set_net_throttling(true);
+                    response->clear_block_checksums();
                     response->Attachments().clear();
 
                     // Override response info.
@@ -972,6 +973,24 @@ private:
         });
     }
 
+    template <class TContext>
+    TChunkReadOptions BuildReadMetaOption(const TIntrusivePtr<TContext>& context)
+    {
+        TChunkReadOptions options;
+        options.WorkloadDescriptor = GetRequestWorkloadDescriptor(context);
+        options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
+        auto readMetaTimeoutFraction = GetDynamicConfig()->ReadMetaTimeoutFraction;
+
+        if (context->GetTimeout() && context->GetStartTime() && readMetaTimeoutFraction) {
+            options.Deadline =
+                *context->GetStartTime() +
+                *context->GetTimeout() * readMetaTimeoutFraction.value();
+        }
+
+        return options;
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockSet)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
@@ -1004,7 +1023,7 @@ private:
         response->set_disk_throttling(diskThrottling.Enabled);
         response->set_disk_queue_size(diskThrottling.QueueSize);
 
-        YT_LOG_DEBUG_IF(!diskThrottling.Error.IsOK(), diskThrottling.Error);
+        YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
 
         auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
         if (GetDynamicConfig()->TestingOptions->SimulateNetworkThrottlingForGetBlockSet) {
@@ -1138,7 +1157,7 @@ private:
         response->set_disk_throttling(diskThrottling.Enabled);
         response->set_disk_queue_size(diskThrottling.QueueSize);
 
-        YT_LOG_DEBUG_IF(!diskThrottling.Error.IsOK(), diskThrottling.Error);
+        YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
 
         auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
         response->set_net_throttling(netThrottling.Enabled);
@@ -1486,7 +1505,7 @@ private:
         response->set_disk_throttling(diskThrottling.Enabled);
         response->set_disk_queue_size(diskThrottling.QueueSize);
 
-        YT_LOG_DEBUG_IF(!diskThrottling.Error.IsOK(), diskThrottling.Error);
+        YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
 
         auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
         response->set_net_throttling(netThrottling.Enabled);
@@ -1581,18 +1600,40 @@ private:
         const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->GetChunkOrThrow(chunkId, AllMediaIndex);
 
-        TChunkReadOptions options;
-        options.WorkloadDescriptor = workloadDescriptor;
-        options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        auto options = BuildReadMetaOption(context);
 
-        auto chunkMetaFuture = chunk->ReadMeta(
-            options,
-            extensionTags);
+        struct TReadMetaResult
+        {
+            TRefCountedChunkMetaPtr Meta;
+            bool Throttled = false;
+        };
 
-        context->ReplyFrom(chunkMetaFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
+        auto result = chunk->ReadMeta(options, extensionTags)
+            .ApplyUnique(BIND([] (TRefCountedChunkMetaPtr&& meta) {
+                return TReadMetaResult{
+                    .Meta = std::move(meta),
+                    .Throttled = false,
+                };
+            }));
+        auto chunkMetaFuture = WrapWithTimeout(
+            result,
+            context,
+            BIND([] { return TReadMetaResult{.Throttled = true}; }));
+
+        context->ReplyFrom(chunkMetaFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] (const TReadMetaResult& readMetaResult) {
             if (context->IsCanceled()) {
                 throw TFiberCanceledException();
             }
+
+            if (readMetaResult.Throttled) {
+                response->set_net_throttling(true);
+                context->SetResponseInfo("NetThrottling: %v", true);
+                return;
+            }
+
+            const auto& meta = readMetaResult.Meta;
+
+            YT_VERIFY(meta);
 
             {
                 NChunkClient::EChunkFeatures chunkFeatures = FromProto<NChunkClient::EChunkFeatures>(meta->features());
@@ -1619,14 +1660,12 @@ private:
         }).AsyncVia(Bootstrap_->GetStorageHeavyInvoker())));
     }
 
-    template <class TRequests>
+    template <class TContext, class TRequests>
     TFuture<std::vector<TErrorOr<TRefCountedChunkMetaPtr>>> GetChunkMetasForRequests(
-        const TWorkloadDescriptor& workloadDescriptor,
+        const TIntrusivePtr<TContext>& context,
         const TRequests& requests)
     {
-        TChunkReadOptions options;
-        options.WorkloadDescriptor = workloadDescriptor;
-        options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        auto options = BuildReadMetaOption(context);
 
         std::vector<TFuture<TRefCountedChunkMetaPtr>> chunkMetaFutures;
         for (const auto& request : requests) {
@@ -1655,7 +1694,7 @@ private:
 
         ValidateOnline();
 
-        GetChunkMetasForRequests(workloadDescriptor, request->chunk_requests())
+        GetChunkMetasForRequests(context, request->chunk_requests())
             .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>>& resultsError) {
                 if (!resultsError.IsOK()) {
                     context->Reply(resultsError);
@@ -1752,7 +1791,7 @@ private:
 
         ValidateOnline();
 
-        GetChunkMetasForRequests(workloadDescriptor, request->slice_requests())
+        GetChunkMetasForRequests(context, request->slice_requests())
             .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>>& resultsError) {
                 if (!resultsError.IsOK()) {
                     context->Reply(resultsError);
@@ -1841,7 +1880,7 @@ private:
 
         ValidateOnline();
 
-        GetChunkMetasForRequests(workloadDescriptor, request->sample_requests())
+        GetChunkMetasForRequests(context, request->sample_requests())
             .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>>& resultsError) {
                 if (!resultsError.IsOK()) {
                     context->Reply(resultsError);
@@ -2133,9 +2172,7 @@ private:
                 columnStableNames.emplace_back(TString(nameTable->GetNameOrThrow(id)));
             }
 
-            TChunkReadOptions options;
-            options.WorkloadDescriptor = workloadDescriptor;
-            options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+            auto options = BuildReadMetaOption(context);
 
             auto chunkMetaFuture = chunk->ReadMeta(options)
                 .Apply(BIND(

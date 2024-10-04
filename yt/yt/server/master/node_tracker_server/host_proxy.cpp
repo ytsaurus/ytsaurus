@@ -94,7 +94,7 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::Rack: {
-                auto rackName = ConvertTo<TString>(value);
+                auto rackName = ConvertTo<std::string>(value);
                 auto* rack = nodeTracker->GetRackByNameOrThrow(rackName);
                 nodeTracker->SetHostRack(host, rack);
                 return true;

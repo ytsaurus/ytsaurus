@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
@@ -15,9 +17,9 @@ namespace NYT::NNbd {
 struct TReadersStatistics
 {
     i64 ReadBytes = 0;
-    i64 ReadBlockBytesFromCache = 0;
-    i64 ReadBlockBytesFromDisk = 0;
-    i64 ReadBlockMetaBytesFromDisk = 0;
+    i64 DataBytesReadFromCache = 0;
+    i64 DataBytesReadFromDisk = 0;
+    i64 MetaBytesReadFromDisk = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,19 +36,21 @@ struct IRandomAccessFileReader
     virtual i64 GetSize() const = 0;
 
     virtual TReadersStatistics GetStatistics() const = 0;
+
+    virtual NYPath::TYPath GetPath() const = 0;
 };
 
-DECLARE_REFCOUNTED_STRUCT(IRandomAccessFileReader);
 DEFINE_REFCOUNTED_TYPE(IRandomAccessFileReader);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IRandomAccessFileReaderPtr CreateRandomAccessFileReader(
     std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
-    TString path,
+    NYPath::TYPath path,
     NApi::NNative::IClientPtr client,
     NConcurrency::IThroughputThrottlerPtr inThrottler,
     NConcurrency::IThroughputThrottlerPtr outRpsThrottler,
+    IInvokerPtr invoker,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////

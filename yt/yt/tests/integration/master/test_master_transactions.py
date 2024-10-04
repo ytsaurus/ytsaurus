@@ -917,6 +917,7 @@ class TestMasterTransactionsRpcProxy(TestMasterTransactions):
 class TestSequoiaCypressTransactionReplication(YTEnvSetup):
     ENABLE_TMP_ROOTSTOCK = False
     ENABLE_TMP_PORTAL = False
+    NUM_MASTERS = 3
 
     NUM_SECONDARY_MASTER_CELLS = 2
     MASTER_CELL_DESCRIPTORS = {
@@ -962,6 +963,30 @@ class TestSequoiaCypressTransactionReplication(YTEnvSetup):
             assert 12 not in select_cypress_transaction_replicas(tx2)
 
         # Shouldn't crash.
+        gc_collect()
+
+    @authors("kvk1920")
+    def test_transaction_resource_usage(self):
+        create("portal_entrance", "//tmp/p11", attributes={"exit_cell_tag": 11})
+        create("portal_entrance", "//tmp/p12", attributes={"exit_cell_tag": 12})
+
+        tx = start_transaction()
+
+        create("map_node", "//tmp/p12/m", tx=tx)
+
+        # //tmp/p12 (branched) + //tmp/p12/m (created)
+        assert get(f"#{tx}/@resource_usage")["tmp"]["node_count"] == 2
+        assert get(f"#{tx}/@multicell_resource_usage")["12"]["tmp"]["node_count"] == 2
+
+        create("table", "//tmp/p11/t", attributes={"external_cell_tag": 12}, tx=tx)
+
+        # + created table on native cell 11 + created table on external cell 12
+        assert get(f"#{tx}/@resource_usage")["tmp"]["node_count"] == 4
+        assert get(f"#{tx}/@multicell_resource_usage")["11"]["tmp"]["node_count"] == 1
+        assert get(f"#{tx}/@multicell_resource_usage")["12"]["tmp"]["node_count"] == 3
+
+        commit_transaction(tx)
+
         gc_collect()
 
     @authors("kvk1920")

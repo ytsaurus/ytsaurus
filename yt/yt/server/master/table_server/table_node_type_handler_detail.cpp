@@ -115,7 +115,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     }
 
     auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
-    auto optionalTabletCellBundleName = combinedAttributes->FindAndRemove<TString>("tablet_cell_bundle");
+    auto optionalTabletCellBundleName = combinedAttributes->FindAndRemove<std::string>("tablet_cell_bundle");
     bool optimizeForIsExplicit = context.ExplicitAttributes->Contains("optimize_for");
     auto optimizeFor = combinedAttributes->GetAndRemove<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
     auto optionalChunkFormat = combinedAttributes->FindAndRemove<EChunkFormat>("chunk_format");

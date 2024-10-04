@@ -10,7 +10,6 @@
 #include "helpers.h"
 #include "hunks.h"
 #include "overlapping_reader.h"
-#include "private.h"
 #include "remote_dynamic_store_reader.h"
 #include "row_merger.h"
 #include "schemaless_block_reader.h"
@@ -56,6 +55,7 @@
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
@@ -1036,6 +1036,8 @@ std::tuple<TTableSchemaPtr, TColumnFilter> CreateVersionedReadParameters(
         columns.push_back(schema->Columns()[timestampColumnIndex]);
     }
 
+    std::sort(columnFilterIndexes.begin(), columnFilterIndexes.end());
+
     return std::tuple(
         New<TTableSchema>(std::move(columns)),
         TColumnFilter(std::move(columnFilterIndexes)));
@@ -1314,7 +1316,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             if (chunkState->OverrideTimestamp) {
                 return CreateTimestampResettingAdapter(
                     std::move(reader),
-                    chunkState->OverrideTimestamp);
+                    chunkState->OverrideTimestamp,
+                    chunkState->ChunkMeta->GetChunkFormat());
             } else {
                 return reader;
             }
@@ -1379,7 +1382,9 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         New<TRowBuffer>(TSchemalessMergingMultiChunkReaderBufferTag()),
         versionedReadSchema->GetColumnCount(),
         versionedReadSchema->GetKeyColumnCount(),
-        timestampedColumnFilter,
+        // NB(dave11ar): `timestampedColumnFilter` can be used with empty `timestampColumnMapping`,
+        // it is just additional protection from critical bugs on production.
+        timestampColumnMapping.empty() ? TColumnFilter::MakeUniversal() : timestampedColumnFilter,
         connection->GetColumnEvaluatorCache()->Find(versionedReadSchema),
         retentionTimestamp,
         timestampColumnMapping);

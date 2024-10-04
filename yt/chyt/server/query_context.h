@@ -158,14 +158,14 @@ public:
 
     // QueryLog
 
-    void AddStatisticsSample(const NYPath::TYPath& path, i64 sample);
+    void AddStatisticsSample(const NStatisticPath::TStatisticPath& path, i64 sample);
     void MergeStatistics(const TStatistics& statistics);
     template <class T>
     void SetRuntimeVariable(const TString& key, const T& value);
     void AddSecondaryQueryId(TQueryId id);
 
     class TStatisticsTimerGuard;
-    TStatisticsTimerGuard CreateStatisticsTimerGuard(NYPath::TYPath path);
+    TStatisticsTimerGuard CreateStatisticsTimerGuard(NStatisticPath::TStatisticPath path);
 
     TQueryFinishInfo GetQueryFinishInfo();
 
@@ -174,14 +174,14 @@ public:
     class TStatisticsTimerGuard
     {
     public:
-        explicit TStatisticsTimerGuard(NYPath::TYPath path, TWeakPtr<TQueryContext> queryContext);
+        explicit TStatisticsTimerGuard(NStatisticPath::TStatisticPath path, TWeakPtr<TQueryContext> queryContext);
 
         TStatisticsTimerGuard(const TStatisticsTimerGuard& other) = delete;
         TStatisticsTimerGuard& operator=(const TStatisticsTimerGuard& other) = delete;
 
         ~TStatisticsTimerGuard();
     private:
-        NYPath::TYPath Path_;
+        NStatisticPath::TStatisticPath Path_;
         TWeakPtr<TQueryContext> QueryContext_;
         NProfiling::TWallTimer Timer_;
     };

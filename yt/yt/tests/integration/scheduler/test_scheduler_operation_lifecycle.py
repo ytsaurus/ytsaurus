@@ -1396,6 +1396,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
 
     @authors("max42")
     @pytest.mark.skipif(is_asan_build(), reason="Core dumps + ASAN = no way")
+    @pytest.mark.timeout(150)
     def test_assertion_failure(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})

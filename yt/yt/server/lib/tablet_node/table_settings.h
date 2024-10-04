@@ -101,8 +101,8 @@ public:
     struct TTableDescriptor
     {
         const NTableClient::TTableId TableId;
-        const TString TablePath;
-        const TString TabletCellBundle;
+        const NYPath::TYPath TablePath;
+        const std::string TabletCellBundle;
         const NTabletClient::EInMemoryMode InMemoryMode;
         const bool Sorted;
         const bool Replicated;

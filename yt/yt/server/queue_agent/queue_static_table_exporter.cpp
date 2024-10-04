@@ -690,12 +690,7 @@ private:
         auto proxy = CreateObjectServiceWriteProxy(Client_, CellTagFromId(DestinationObject_.ObjectId));
 
         auto req = TChunkOwnerYPathProxy::EndUpload(DestinationObject_.GetObjectIdPath());
-        // COMPAT(achulkov2): Remove this once EndUpload stops overriding schemas.
-        if (CanUseSchemaId()) {
-            ToProto(req->mutable_table_schema_id(), QueueSchemaId_);
-        } else {
-            ToProto(req->mutable_table_schema(), QueueSchema_);
-        }
+        // COMPAT(h0pless): remove this when all masters are 24.2.
         req->set_schema_mode(ToProto<int>(ETableSchemaMode::Strong));
         *req->mutable_statistics() = DataStatistics_;
 

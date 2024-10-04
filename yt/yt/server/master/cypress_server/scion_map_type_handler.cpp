@@ -24,10 +24,10 @@ public:
     using TVirtualMulticellMapBase::TVirtualMulticellMapBase;
 
 private:
-    TFuture<std::vector<TObjectId>> GetKeys(i64 sizeLimit) const override
+    TFuture<std::vector<TObjectId>> GetKeys(i64 limit) const override
     {
         const auto& graftingManager = Bootstrap_->GetGraftingManager();
-        return MakeFuture(ToObjectIds(GetValues(graftingManager->ScionNodes(), sizeLimit)));
+        return MakeFuture(ToObjectIds(GetValues(graftingManager->ScionNodes(), limit)));
     }
 
     bool IsValid(TObject* object) const override

@@ -195,6 +195,7 @@ IJobDirectoryManagerPtr TSlotLocation::GetJobDirectoryManager()
 std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
     int slotIndex,
     TUserSandboxOptions options,
+    bool ignoreQuota,
     bool sandboxInsideTmpfs)
 {
     ValidateEnabled();
@@ -206,7 +207,7 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
     auto userId = SlotIndexToUserId_(slotIndex);
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
 
-    auto shouldApplyQuota = Config_->EnableDiskQuota && options.DiskSpaceLimit;
+    auto shouldApplyQuota = Config_->EnableDiskQuota && options.DiskSpaceLimit && !ignoreQuota;
 
     if (shouldApplyQuota && !sandboxInsideTmpfs) {
         try {
@@ -278,7 +279,11 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
         }
 
         try {
-            auto properties = TJobDirectoryProperties{tmpfsVolume.Size, std::nullopt, userId};
+            auto properties = TJobDirectoryProperties{
+                .DiskSpaceLimit = tmpfsVolume.Size,
+                .InodeLimit = std::nullopt,
+                .UserId = userId
+            };
             WaitFor(JobDirectoryManager_->CreateTmpfsDirectory(tmpfsPath, properties))
                 .ThrowOnError();
 
@@ -320,12 +325,12 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
 
 TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(
     int slotIndex,
-    TUserSandboxOptions options)
+    TUserSandboxOptions options,
+    bool ignoreQuota)
 {
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
 
-    bool sandboxInsideTmpfs = WaitFor(
-        BIND([=] {
+    return BIND([=, this_ = MakeStrong(this)] {
             for (const auto& tmpfsVolume : options.TmpfsVolumes) {
                 // TODO(gritukan): Implement a function that joins absolute path with a relative path and returns
                 // real path without filesystem access.
@@ -338,19 +343,20 @@ TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(
             return false;
         })
         .AsyncVia(LightInvoker_)
-        .Run())
-        .ValueOrThrow();
+        .Run()
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (bool sandboxInsideTmpfs) {
+            const auto& invoker = sandboxInsideTmpfs
+                ? LightInvoker_
+                : HeavyInvoker_;
 
-    const auto& invoker = sandboxInsideTmpfs
-        ? LightInvoker_
-        : HeavyInvoker_;
-
-    return BIND(&TSlotLocation::DoPrepareSandboxDirectories, MakeStrong(this),
-        slotIndex,
-        options,
-        sandboxInsideTmpfs)
-        .AsyncVia(invoker)
-        .Run();
+            return BIND(&TSlotLocation::DoPrepareSandboxDirectories, MakeStrong(this),
+                slotIndex,
+                options,
+                ignoreQuota,
+                sandboxInsideTmpfs)
+                .AsyncVia(invoker)
+                .Run();
+        }));
 }
 
 TFuture<void> TSlotLocation::DoMakeSandboxFile(
@@ -709,7 +715,7 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
         try {
             for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
                 const auto& sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
-                if (!Exists(sandboxPath)) {
+                if (sandboxKind == ESandboxKind::Logs || !Exists(sandboxPath)) {
                     continue;
                 }
 
@@ -1218,34 +1224,59 @@ TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(
     config->UserId = nodeUid;
     config->Permissions = 0755;
 
-    auto getDirectory = [] (TString path, std::optional<int> userId, int permissions) {
+    auto getDirectory = [] (TString path, std::optional<int> userId, int permissions, bool removeIfExists) {
         auto directory = New<TDirectoryConfig>();
 
         directory->Path = path;
         directory->UserId = userId;
         directory->Permissions = permissions;
+        directory->RemoveIfExists = removeIfExists;
 
         return directory;
     };
 
     // Since we make slot user to be owner, but job proxy creates some files during job shell
     // initialization we leave write access for everybody. Presumably this will not ruin job isolation.
-    config->Directories.push_back(getDirectory(GetSandboxPath(slotIndex, ESandboxKind::Home), uid, 0777));
+    config->Directories.push_back(getDirectory(
+        GetSandboxPath(slotIndex, ESandboxKind::Home),
+        uid,
+        /*permissions*/ 0777,
+        /*removeIfExists*/ true));
 
     // Tmp is accessible for everyone.
-    config->Directories.push_back(getDirectory(GetSandboxPath(slotIndex, ESandboxKind::Tmp), uid, 0777));
+    config->Directories.push_back(getDirectory(
+        GetSandboxPath(slotIndex, ESandboxKind::Tmp),
+        uid,
+        /*permissions*/ 0777,
+        /*removeIfExists*/ true));
 
     // CUDA library should have an access to cores directory to write GPU core dump into it.
-    config->Directories.push_back(getDirectory(GetSandboxPath(slotIndex, ESandboxKind::Cores), uid, 0777));
+    config->Directories.push_back(getDirectory(
+        GetSandboxPath(slotIndex, ESandboxKind::Cores),
+        uid,
+        /*permissions*/ 0777,
+        /*removeIfExists*/ true));
 
     // Pipes are accessible for everyone.
-    config->Directories.push_back(getDirectory(GetSandboxPath(slotIndex, ESandboxKind::Pipes), uid, 0777));
+    config->Directories.push_back(getDirectory(
+        GetSandboxPath(slotIndex, ESandboxKind::Pipes),
+        uid,
+        /*permissions*/ 0777,
+        /*removeIfExists*/ true));
 
     // Node should have access to user sandbox during job preparation.
-    config->Directories.push_back(getDirectory(GetSandboxPath(slotIndex, ESandboxKind::User), nodeUid, 0755));
+    config->Directories.push_back(getDirectory(
+        GetSandboxPath(slotIndex, ESandboxKind::User),
+        nodeUid,
+        /*permissions*/ 0755,
+        /*removeIfExists*/ true));
 
     // Process executor should have access to write logs before process start.
-    config->Directories.push_back(getDirectory(GetSandboxPath(slotIndex, ESandboxKind::Logs), uid, 0755));
+    config->Directories.push_back(getDirectory(
+        GetSandboxPath(slotIndex, ESandboxKind::Logs),
+        nodeUid,
+        /*permissions*/ 0755,
+        /*removeIfExists*/ false));
 
     return config;
 }

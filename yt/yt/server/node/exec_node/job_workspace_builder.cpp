@@ -89,6 +89,8 @@ constexpr const char* TJobWorkspaceBuilder::GetStepName()
 {
     if (Step == &TJobWorkspaceBuilder::DoPrepareRootVolume) {
         return "DoPrepareRootVolume";
+    } else if (Step == &TJobWorkspaceBuilder::DoPrepareSandboxDirectories) {
+        return "DoPrepareSandboxDirectories";
     } else if (Step == &TJobWorkspaceBuilder::DoRunSetupCommand) {
         return "DoRunSetupCommand";
     } else if (Step == &TJobWorkspaceBuilder::DoRunGpuCheckCommand) {
@@ -198,7 +200,7 @@ void TJobWorkspaceBuilder::PrepareArtifactBinds()
     ioOperationFutures.reserve(Context_.Artifacts.size());
 
     for (const auto& artifact : Context_.Artifacts) {
-        if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
+        if (artifact.AccessedViaBind) {
             YT_VERIFY(artifact.Chunk);
 
             auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind);
@@ -233,10 +235,9 @@ TFuture<TJobWorkspaceBuildingResult> TJobWorkspaceBuilder::Run()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto future = BIND(&TJobWorkspaceBuilder::DoPrepareSandboxDirectories, MakeStrong(this))
-        .AsyncVia(Invoker_)
+    auto future = MakeStep<&TJobWorkspaceBuilder::DoPrepareRootVolume>()
         .Run()
-        .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareRootVolume>())
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareSandboxDirectories>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunSetupCommand>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunGpuCheckCommand>())
         .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& result) -> TJobWorkspaceBuildingResult {
@@ -290,37 +291,35 @@ private:
         };
     }
 
-    TFuture<void> DoPrepareSandboxDirectories() override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        ValidateJobPhase(EJobPhase::DownloadingArtifacts);
-        SetJobPhase(EJobPhase::PreparingSandboxDirectories);
-
-        YT_LOG_INFO("Started preparing sandbox directories");
-
-        const auto& slot = Context_.Slot;
-
-        ResultHolder_.TmpfsPaths = WaitFor(slot->PrepareSandboxDirectories(Context_.UserSandboxOptions))
-            .ValueOrThrow();
-
-        MakeArtifactSymlinks();
-
-        YT_LOG_INFO("Finished preparing sandbox directories");
-
-        return VoidFuture;
-    }
-
     TFuture<void> DoPrepareRootVolume() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         YT_LOG_DEBUG("Root volume preparation is not supported in simple workspace");
 
-        ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
+        ValidateJobPhase(EJobPhase::DownloadingArtifacts);
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
         return VoidFuture;
+    }
+
+    TFuture<void> DoPrepareSandboxDirectories() override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::PreparingRootVolume);
+        SetJobPhase(EJobPhase::PreparingSandboxDirectories);
+
+        YT_LOG_INFO("Started preparing sandbox directories");
+
+        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions)
+            .Apply(BIND([this, this_ = MakeStrong(this)] (std::vector<TString> tmpfsPaths) {
+                ResultHolder_.TmpfsPaths = std::move(tmpfsPaths);
+
+                MakeArtifactSymlinks();
+
+                YT_LOG_INFO("Finished preparing sandbox directories");
+            }).AsyncVia(Invoker_));
     }
 
     TFuture<void> DoRunSetupCommand() override
@@ -329,7 +328,7 @@ private:
 
         YT_LOG_DEBUG("Setup command is not supported in simple workspace");
 
-        ValidateJobPhase(EJobPhase::PreparingRootVolume);
+        ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
         SetJobPhase(EJobPhase::RunningSetupCommands);
 
         return VoidFuture;
@@ -380,54 +379,11 @@ public:
     { }
 
 private:
-    TFuture<void> DoPrepareSandboxDirectories() override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        ValidateJobPhase(EJobPhase::DownloadingArtifacts);
-        SetJobPhase(EJobPhase::PreparingSandboxDirectories);
-
-        YT_LOG_INFO("Started preparing sandbox directories");
-
-        const auto& slot = Context_.Slot;
-        ResultHolder_.TmpfsPaths = WaitFor(slot->PrepareSandboxDirectories(Context_.UserSandboxOptions))
-            .ValueOrThrow();
-
-        if (!Context_.LayerArtifactKeys.empty()) {
-            PrepareArtifactBinds();
-        } else {
-            MakeArtifactSymlinks();
-        }
-
-        YT_LOG_INFO("Finished preparing sandbox directories");
-
-        return VoidFuture;
-    }
-
-    TRootFS MakeWritableRootFS()
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        YT_VERIFY(ResultHolder_.RootVolume);
-
-        auto binds = Context_.Binds;
-
-        for (const auto& bind : ResultHolder_.RootBinds) {
-            binds.push_back(bind);
-        }
-
-        return TRootFS{
-            .RootPath = ResultHolder_.RootVolume->GetPath(),
-            .IsRootReadOnly = false,
-            .Binds = binds
-        };
-    }
-
     TFuture<void> DoPrepareRootVolume() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
+        ValidateJobPhase(EJobPhase::DownloadingArtifacts);
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
         if (Context_.DockerImage) {
@@ -443,11 +399,15 @@ private:
             VolumePrepareStartTime_ = TInstant::Now();
             UpdateTimers_.Fire(MakeStrong(this));
 
-            YT_LOG_INFO("Preparing root volume (LayerCount: %v)", layerArtifactKeys.size());
+            YT_LOG_INFO("Preparing root volume (LayerCount: %v, HasVirtualSandbox: %v)",
+                layerArtifactKeys.size(),
+                Context_.UserSandboxOptions.VirtualSandboxData.has_value());
 
             for (const auto& layer : layerArtifactKeys) {
                 i64 layerSize = layer.GetCompressedDataSize();
-                UpdateArtifactStatistics(layerSize, slot->IsLayerCached(layer));
+                UpdateArtifactStatistics(
+                    layerSize,
+                    slot->IsLayerCached(layer));
             }
 
             return slot->PrepareRootVolume(
@@ -474,14 +434,58 @@ private:
         }
     }
 
-    TFuture<void> DoRunSetupCommand() override
+    TFuture<void> DoPrepareSandboxDirectories() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::PreparingRootVolume);
+        SetJobPhase(EJobPhase::PreparingSandboxDirectories);
+
+        YT_LOG_INFO("Started preparing sandbox directories");
+
+        bool ignoreQuota = Context_.UserSandboxOptions.EnableRootVolumeDiskQuota && ResultHolder_.RootVolume;
+
+        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions, ignoreQuota)
+            .Apply(BIND([this, this_ = MakeStrong(this)] (std::vector<TString> tmpfsPaths) {
+                ResultHolder_.TmpfsPaths = std::move(tmpfsPaths);
+
+                if (ResultHolder_.RootVolume) {
+                    PrepareArtifactBinds();
+                } else {
+                    MakeArtifactSymlinks();
+                }
+
+                YT_LOG_INFO("Finished preparing sandbox directories");
+            }).AsyncVia(Invoker_));
+    }
+
+    TRootFS MakeWritableRootFS()
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        YT_VERIFY(ResultHolder_.RootVolume);
+
+        auto binds = Context_.Binds;
+
+        for (const auto& bind : ResultHolder_.RootBinds) {
+            binds.push_back(bind);
+        }
+
+        return TRootFS{
+            .RootPath = ResultHolder_.RootVolume->GetPath(),
+            .IsRootReadOnly = false,
+            .Binds = std::move(binds)
+        };
+    }
+
+    TFuture<void> DoRunSetupCommand() override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
         SetJobPhase(EJobPhase::RunningSetupCommands);
 
-        if (Context_.LayerArtifactKeys.empty()) {
+        if (!ResultHolder_.RootVolume) {
             return VoidFuture;
         }
 
@@ -598,32 +602,11 @@ public:
     { }
 
 private:
-    TFuture<void> DoPrepareSandboxDirectories() override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        ValidateJobPhase(EJobPhase::DownloadingArtifacts);
-        SetJobPhase(EJobPhase::PreparingSandboxDirectories);
-
-        YT_LOG_INFO("Started preparing sandbox directories");
-
-        const auto& slot = Context_.Slot;
-
-        ResultHolder_.TmpfsPaths = WaitFor(slot->PrepareSandboxDirectories(Context_.UserSandboxOptions))
-            .ValueOrThrow();
-
-        PrepareArtifactBinds();
-
-        YT_LOG_INFO("Finished preparing sandbox directories");
-
-        return VoidFuture;
-    }
-
     TFuture<void> DoPrepareRootVolume() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
+        ValidateJobPhase(EJobPhase::DownloadingArtifacts);
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
         if (!Context_.LayerArtifactKeys.empty()) {
@@ -642,7 +625,9 @@ private:
 
             YT_LOG_INFO("Preparing root volume (Image: %v)", imageDescriptor);
 
-            return ImageCache_->PullImage(imageDescriptor, Context_.DockerAuth)
+            return ImageCache_->PullImage(
+                imageDescriptor,
+                Context_.DockerAuth)
                 .Apply(BIND([
                     =,
                     this,
@@ -671,13 +656,32 @@ private:
         }
     }
 
+    TFuture<void> DoPrepareSandboxDirectories() override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::PreparingRootVolume);
+        SetJobPhase(EJobPhase::PreparingSandboxDirectories);
+
+        YT_LOG_INFO("Started preparing sandbox directories");
+
+        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions)
+            .Apply(BIND([this, this_ = MakeStrong(this)] (std::vector<TString> tmpfsPaths) {
+                ResultHolder_.TmpfsPaths = std::move(tmpfsPaths);
+
+                PrepareArtifactBinds();
+
+                YT_LOG_INFO("Finished preparing sandbox directories");
+            }).AsyncVia(Invoker_));
+    }
+
     TFuture<void> DoRunSetupCommand() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         YT_LOG_DEBUG_UNLESS(Context_.SetupCommands.empty(), "Setup command is not supported in CRI workspace");
 
-        ValidateJobPhase(EJobPhase::PreparingRootVolume);
+        ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
         SetJobPhase(EJobPhase::RunningSetupCommands);
 
         return VoidFuture;

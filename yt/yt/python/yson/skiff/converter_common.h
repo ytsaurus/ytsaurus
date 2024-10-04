@@ -14,16 +14,14 @@ namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-enum ERowIndex : i64 {
-    ConsecutiveRow = -1,
-    NotAvailable = -2,
-};
+constexpr i64 ConsecutiveRowIndex = -1;
+constexpr i64 ControlAttributeNotAvailable = -2;
 
 struct TSkiffRowContext
 {
     int TableIndex = 0;
     bool KeySwitch = false;
-    i64 RowIndex = ERowIndex::ConsecutiveRow;
+    i64 RowIndex = ConsecutiveRowIndex;
     i64 RangeIndex = 0;
 };
 

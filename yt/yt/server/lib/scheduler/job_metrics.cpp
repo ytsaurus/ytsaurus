@@ -20,6 +20,8 @@ using namespace NJobAgent;
 using namespace NJobTrackerClient;
 using namespace NPhoenix;
 using namespace NYTree;
+using namespace NStatisticPath;
+
 using NYT::ToProto;
 using NYT::FromProto;
 
@@ -65,7 +67,7 @@ void Serialize(const TCustomJobMetricDescription& customJobMetricDescription, NY
 void Deserialize(TCustomJobMetricDescription& customJobMetricDescription, NYTree::INodePtr node)
 {
     auto mapNode = node->AsMap();
-    customJobMetricDescription.StatisticsPath = mapNode->GetChildValueOrThrow<TString>("statistics_path");
+    customJobMetricDescription.StatisticsPath = mapNode->GetChildValueOrThrow<TStatisticPath>("statistics_path");
     customJobMetricDescription.ProfilingName = mapNode->GetChildValueOrThrow<TString>("profiling_name");
 
     auto summaryValueTypeNode = mapNode->FindChild("summary_value_type");
@@ -102,27 +104,27 @@ TJobMetrics TJobMetrics::FromJobStatistics(
     auto& metricValues = metrics.Values();
     std::fill(metricValues.begin(), metricValues.end(), 0);
 
-    auto setMetricFromStatistics = [&] (EJobMetricName metric, const TStatistics& statistics, const TString& path) {
+    auto setMetricFromStatistics = [&] (EJobMetricName metric, const TStatistics& statistics, const TStatisticPath& path) {
         metricValues[metric] = FindNumericValue(statistics, path).value_or(0);
     };
 
-    static std::vector<std::pair<EJobMetricName, TString>> BuiltinJobMetricMapping = {
-        {EJobMetricName::UserJobIoReads, "/user_job/block_io/io_read"},
-        {EJobMetricName::UserJobIoWrites, "/user_job/block_io/io_write"},
-        {EJobMetricName::UserJobIoTotal, "/user_job/block_io/io_total"},
-        {EJobMetricName::UserJobBytesRead, "/user_job/block_io/bytes_read"},
-        {EJobMetricName::UserJobBytesWritten, "/user_job/block_io/bytes_written"},
-        {EJobMetricName::AggregatedSmoothedCpuUsageX100, "/job_proxy/aggregated_smoothed_cpu_usage_x100"},
-        {EJobMetricName::AggregatedMaxCpuUsageX100, "/job_proxy/aggregated_max_cpu_usage_x100"},
-        {EJobMetricName::AggregatedPreemptibleCpuX100, "/job_proxy/aggregated_preemptible_cpu_x100"},
-        {EJobMetricName::AggregatedPreemptedCpuX100, "/job_proxy/aggregated_preempted_cpu_x100"},
+    static std::vector<std::pair<EJobMetricName, TStatisticPath>> BuiltinJobMetricMapping = {
+        {EJobMetricName::UserJobIoReads, "/user_job/block_io/io_read"_SP},
+        {EJobMetricName::UserJobIoWrites, "/user_job/block_io/io_write"_SP},
+        {EJobMetricName::UserJobIoTotal, "/user_job/block_io/io_total"_SP},
+        {EJobMetricName::UserJobBytesRead, "/user_job/block_io/bytes_read"_SP},
+        {EJobMetricName::UserJobBytesWritten, "/user_job/block_io/bytes_written"_SP},
+        {EJobMetricName::AggregatedSmoothedCpuUsageX100, "/job_proxy/aggregated_smoothed_cpu_usage_x100"_SP},
+        {EJobMetricName::AggregatedMaxCpuUsageX100, "/job_proxy/aggregated_max_cpu_usage_x100"_SP},
+        {EJobMetricName::AggregatedPreemptibleCpuX100, "/job_proxy/aggregated_preemptible_cpu_x100"_SP},
+        {EJobMetricName::AggregatedPreemptedCpuX100, "/job_proxy/aggregated_preempted_cpu_x100"_SP},
     };
 
     for (const auto& [metric, path] : BuiltinJobMetricMapping) {
         setMetricFromStatistics(metric, jobStatistics, path);
     }
 
-    setMetricFromStatistics(EJobMetricName::TotalTime, controllerStatistics, "/time/total");
+    setMetricFromStatistics(EJobMetricName::TotalTime, controllerStatistics, "/time/total"_SP);
 
     static std::vector BuiltinControllerTimeMetricMapping{
         std::pair{EJobMetricName::ExecTime, &TTimeStatistics::ExecDuration},
@@ -136,9 +138,9 @@ TJobMetrics TJobMetrics::FromJobStatistics(
     }
 
     if (jobState == EJobState::Completed) {
-        setMetricFromStatistics(EJobMetricName::TotalTimeCompleted, controllerStatistics, "/time/total");
+        setMetricFromStatistics(EJobMetricName::TotalTimeCompleted, controllerStatistics, "/time/total"_SP);
     } else if (jobState == EJobState::Aborted) {
-        setMetricFromStatistics(EJobMetricName::TotalTimeAborted, controllerStatistics, "/time/total");
+        setMetricFromStatistics(EJobMetricName::TotalTimeAborted, controllerStatistics, "/time/total"_SP);
     }
 
     for (const auto& jobMetricDescription : customJobMetricDescriptions) {
@@ -283,10 +285,10 @@ void ToProto(NControllerAgent::NProto::TJobMetrics* protoJobMetrics, const NSche
     ToProto(protoJobMetrics->mutable_values(), jobMetrics.Values());
 
     // TODO(ignat): replace with proto map.
-    for (const auto& [jobMetriDescription, value] : jobMetrics.CustomValues()) {
+    for (const auto& [jobMetricDescription, value] : jobMetrics.CustomValues()) {
         auto* customValueProto = protoJobMetrics->add_custom_values();
-        customValueProto->set_statistics_path(jobMetriDescription.StatisticsPath);
-        customValueProto->set_profiling_name(jobMetriDescription.ProfilingName);
+        customValueProto->set_statistics_path(jobMetricDescription.StatisticsPath.Path());
+        customValueProto->set_profiling_name(jobMetricDescription.ProfilingName);
         customValueProto->set_value(value);
     }
 }
@@ -297,7 +299,7 @@ void FromProto(NScheduler::TJobMetrics* jobMetrics, const NControllerAgent::NPro
 
     // TODO(ignat): replace with proto map.
     for (const auto& customValueProto : protoJobMetrics.custom_values()) {
-        TCustomJobMetricDescription customJobMetric{customValueProto.statistics_path(), customValueProto.profiling_name()};
+        TCustomJobMetricDescription customJobMetric{ConvertTo<TStatisticPath>(customValueProto.statistics_path()), customValueProto.profiling_name()};
         (*jobMetrics).CustomValues().emplace(std::move(customJobMetric), customValueProto.value());
     }
 }

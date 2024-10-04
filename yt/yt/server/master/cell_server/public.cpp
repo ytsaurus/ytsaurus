@@ -4,8 +4,8 @@ namespace NYT::NCellServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString DefaultCellBundleName("default");
-const TString DefaultAreaName("default");
+const std::string DefaultCellBundleName("default");
+const std::string DefaultAreaName("default");
 
 ////////////////////////////////////////////////////////////////////////////////
 

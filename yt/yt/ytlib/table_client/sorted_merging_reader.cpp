@@ -1,6 +1,5 @@
 #include "sorted_merging_reader.h"
 
-#include "private.h"
 #include "schemaless_multi_chunk_reader.h"
 #include "timing_reader.h"
 
@@ -8,6 +7,7 @@
 
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/core/misc/heap.h>
 

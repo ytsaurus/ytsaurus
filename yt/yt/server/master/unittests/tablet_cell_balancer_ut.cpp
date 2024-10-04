@@ -237,7 +237,7 @@ private:
     std::string CellLists_;
     std::string InitialDistribution_;
 
-    TCellBundle* GetBundle(const TString& name, bool create = true)
+    TCellBundle* GetBundle(const std::string& name, bool create = true)
     {
         if (auto it = NameToBundle_.find(name)) {
             return it->second;

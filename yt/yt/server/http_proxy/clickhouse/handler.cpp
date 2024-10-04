@@ -419,71 +419,76 @@ private:
 
     bool TryForwardRequest()
     {
-        auto state = ERetryState::Retrying;
+        try {
+            auto state = ERetryState::Retrying;
 
-        auto setState = [&] (ERetryState newState) {
-            YT_LOG_DEBUG("Setting new state (State: %v -> %v)", state, newState);
-            state = newState;
-        };
+            auto setState = [&] (ERetryState newState) {
+                YT_LOG_DEBUG("Setting new state (State: %v -> %v)", state, newState);
+                state = newState;
+            };
 
-        YT_LOG_INFO("Starting retry routine (DeadInstanceRetryCount: %v)", Config_->DeadInstanceRetryCount);
+            YT_LOG_INFO("Starting retry routine (DeadInstanceRetryCount: %v)", Config_->DeadInstanceRetryCount);
 
-        for (int retryIndex = 0; retryIndex <= Config_->DeadInstanceRetryCount; ++retryIndex) {
-            YT_LOG_DEBUG("Starting new retry (RetryIndex: %v, State: %v)", retryIndex, state);
-            bool needForceUpdate = false;
+            for (int retryIndex = 0; retryIndex <= Config_->DeadInstanceRetryCount; ++retryIndex) {
+                YT_LOG_DEBUG("Starting new retry (RetryIndex: %v, State: %v)", retryIndex, state);
+                bool needForceUpdate = false;
 
-            if (state == ERetryState::Retrying && retryIndex > Config_->RetryWithoutUpdateLimit) {
-                YT_LOG_DEBUG("Forcing update due to long retrying");
-                needForceUpdate = true;
-            } else if (state == ERetryState::FailedToPickInstance) {
-                YT_LOG_DEBUG("Forcing update due to instance pick failure");
-                // If we did not find any instances on previous step, we need to do force update right now.
-                needForceUpdate = true;
-            }
+                if (state == ERetryState::Retrying && retryIndex > Config_->RetryWithoutUpdateLimit) {
+                    YT_LOG_DEBUG("Forcing update due to long retrying");
+                    needForceUpdate = true;
+                } else if (state == ERetryState::FailedToPickInstance) {
+                    YT_LOG_DEBUG("Forcing update due to instance pick failure");
+                    // If we did not find any instances on previous step, we need to do force update right now.
+                    needForceUpdate = true;
+                }
 
-            if (needForceUpdate) {
-                setState(ERetryState::ForceUpdated);
-            }
+                if (needForceUpdate) {
+                    setState(ERetryState::ForceUpdated);
+                }
 
-            YT_LOG_DEBUG("Picking instance (RetryIndex: %v)", retryIndex);
-            if (!TryPickInstance(needForceUpdate)) {
-                YT_LOG_DEBUG("Failed to pick instance (State: %v)", state);
-                // There is no chance to invoke the request if we can not pick an instance even after deleting from cache.
-                if (state == ERetryState::CacheInvalidated) {
-                    YT_LOG_DEBUG("Stopping retrying due to failure after cache invalidation");
+                YT_LOG_DEBUG("Picking instance (RetryIndex: %v)", retryIndex);
+                if (!TryPickInstance(needForceUpdate)) {
+                    YT_LOG_DEBUG("Failed to pick instance (State: %v)", state);
+                    // There is no chance to invoke the request if we can not pick an instance even after deleting from cache.
+                    if (state == ERetryState::CacheInvalidated) {
+                        YT_LOG_DEBUG("Stopping retrying due to failure after cache invalidation");
+                        break;
+                    }
+                    // Cache may be not relevant if we can not pick an instance after discovery force update.
+                    if (state == ERetryState::ForceUpdated) {
+                        // We may have banned all instances because of network problems or we have resolved CliqueId incorrectly
+                        // (possibly due to clique restart under same alias), and cached discovery is not relevant any more.
+                        YT_LOG_DEBUG("Failed to pick instance after force update, invalidating cache entry");
+                        RemoveCliqueFromCache();
+                        setState(ERetryState::CacheInvalidated);
+                    } else {
+                        YT_LOG_DEBUG("Failed to pick instance (RetryIndex: %v)", retryIndex);
+                        setState(ERetryState::FailedToPickInstance);
+                    }
+
+                    continue;
+                }
+
+                YT_LOG_DEBUG("Pick successful, issuing proxied request (RetryIndex: %v)", retryIndex);
+
+                if (TryIssueProxiedRequest(retryIndex)) {
+                    YT_LOG_DEBUG("Successfully proxied request (RetryIndex: %v)", retryIndex);
+                    setState(ERetryState::Success);
                     break;
-                }
-                // Cache may be not relevant if we can not pick an instance after discovery force update.
-                if (state == ERetryState::ForceUpdated) {
-                    // We may have banned all instances because of network problems or we have resolved CliqueId incorrectly
-                    // (possibly due to clique restart under same alias), and cached discovery is not relevant any more.
-                    YT_LOG_DEBUG("Failed to pick instance after force update, invalidating cache entry");
-                    RemoveCliqueFromCache();
-                    setState(ERetryState::CacheInvalidated);
                 } else {
-                    YT_LOG_DEBUG("Failed to pick instance (RetryIndex: %v)", retryIndex);
-                    setState(ERetryState::FailedToPickInstance);
+                    YT_LOG_DEBUG("Failed to proxy request (RetryIndex: %v, State: %v)", retryIndex, state);
                 }
-
-                continue;
             }
 
-            YT_LOG_DEBUG("Pick successful, issuing proxied request (RetryIndex: %v)", retryIndex);
+            YT_LOG_DEBUG("Finished retrying (State: %v)", state);
 
-            if (TryIssueProxiedRequest(retryIndex)) {
-                YT_LOG_DEBUG("Successfully proxied request (RetryIndex: %v)", retryIndex);
-                setState(ERetryState::Success);
-                break;
-            } else {
-                YT_LOG_DEBUG("Failed to proxy request (RetryIndex: %v, State: %v)", retryIndex, state);
+            if (state != ERetryState::Success) {
+                ReplyWithAllOccurredErrors(TError("Request failed"));
+                return false;
             }
-        }
-
-        YT_LOG_DEBUG("Finished retrying (State: %v)", state);
-
-        if (state != ERetryState::Success) {
-            ReplyWithAllOccurredErrors(TError("Request failed"));
-            return false;
+        } catch (const std::exception& ex) {
+            ReplyWithError(EStatusCode::InternalServerError, TError("Failed to forward request")
+                << ex);
         }
 
         return true;
@@ -955,7 +960,7 @@ private:
         auto error = WaitFor(future);
         if (!error.IsOK()) {
             if (error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
-                auto replyError = TError("User %Qv has no access to clique %v",
+                auto replyError = TError("User %Qv has no access to clique %Qv",
                     User_,
                     CliqueAlias_)
                     << error;
@@ -966,7 +971,7 @@ private:
             } else {
                 ReplyWithError(
                     EStatusCode::BadRequest,
-                    TError("Failed to authorize user %Qv to clique %v",
+                    TError("Failed to authorize user %Qv to clique %Qv",
                         User_,
                         CliqueAlias_)
                         << error);
@@ -1100,8 +1105,12 @@ private:
             result = tmp;
         } else {
             YT_VERIFY(!Instances_.empty());
-            // Get parameter from any instance, they all have the same value.
-            result = Instances_.cbegin()->second->template Find<std::optional<int>>("query_sticky_group_size");
+            try {
+                // Get parameter from any instance, they all have the same value.
+                result = Instances_.cbegin()->second->template Find<std::optional<int>>("query_sticky_group_size");
+            } catch (const std::exception& ex) {
+                return TError("Failed to parse query sticky group size") << ex;
+            }
         }
 
         if (result.has_value() && *result <= 0) {
@@ -1346,8 +1355,7 @@ void TClickHouseHandler::AdjustQueryCount(const std::string& user, int delta)
     auto entry = UserToRunningQueryCount_.FindOrInsert(user, [&] {
         auto gauge = ClickHouseProfiler
             .WithSparse()
-            // TODO(babenko): switch to std::string
-            .WithTag("user", TString(user))
+            .WithTag("user", user)
             .Gauge("/running_query_count");
         return std::pair(0, gauge);
     }).first;

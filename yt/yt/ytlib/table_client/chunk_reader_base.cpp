@@ -1,9 +1,10 @@
 #include "chunk_reader_base.h"
-#include "private.h"
 #include "config.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
+
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 

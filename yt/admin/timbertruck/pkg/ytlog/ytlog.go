@@ -8,6 +8,7 @@ import (
 	"log/slog"
 
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/pipelines"
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 //
@@ -139,6 +140,17 @@ func NewValidateJSONTransform(logger *slog.Logger) pipelines.Transform[[]byte, [
 	return pipelines.NewFuncTransform(func(ctx context.Context, meta pipelines.RowMeta, in []byte, emit pipelines.EmitFunc[[]byte]) {
 		if !json.Valid(in) {
 			logger.Warn("found invalid json", "offset", meta.Begin.LogicalOffset)
+			return
+		}
+		emit(ctx, meta, in)
+	})
+}
+
+// This transform filters out lines that are not valid yson.
+func NewValidateYSONTransform(logger *slog.Logger) pipelines.Transform[[]byte, []byte] {
+	return pipelines.NewFuncTransform(func(ctx context.Context, meta pipelines.RowMeta, in []byte, emit pipelines.EmitFunc[[]byte]) {
+		if err := yson.Valid(in); err != nil {
+			logger.Warn("found invalid yson", "offset", meta.Begin.LogicalOffset)
 			return
 		}
 		emit(ctx, meta, in)

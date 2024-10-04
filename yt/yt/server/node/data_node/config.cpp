@@ -1022,6 +1022,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("io_statistics_update_timeout", &TThis::IOStatisticsUpdateTimeout)
         .Default(TDuration::Seconds(10));
 
+    registrar.Parameter("read_meta_timeout_fraction", &TThis::ReadMetaTimeoutFraction)
+        .Default();
+
     registrar.Parameter("io_throughput_meter", &TThis::IOThroughputMeter)
         .DefaultNew();
 

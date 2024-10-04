@@ -209,11 +209,11 @@ private:
     NConcurrency::TPeriodicExecutorPtr FinishedRequisitionTraverseFlushExecutor_;
 
     static constexpr int ChunkListRequisitionUpdaterShardIndex = 0;
-    std::vector<TChunkId> ChunkIdsAwaitingRequisitionUpdateScheduling_;
+    std::deque<TChunkId> ChunkIdsAwaitingRequisitionUpdateScheduling_;
 
     // Contains the chunk list ids for which requisition update traversals
     // have finished. These confirmations are batched and then flushed.
-    std::vector<TChunkListId> ChunkListIdsWithFinishedRequisitionTraverse_;
+    std::deque<TChunkListId> ChunkListIdsWithFinishedRequisitionTraverse_;
 
     //! A queue of chunks to be repaired on each medium.
     //! Replica index is always GenericChunkReplicaIndex.
@@ -424,6 +424,8 @@ private:
 
     void StartRequisitionUpdates(int shardIndex);
     void StopRequisitionUpdates(int shardIndex);
+
+    bool ComputeReplicatorEnablement() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReplicator)

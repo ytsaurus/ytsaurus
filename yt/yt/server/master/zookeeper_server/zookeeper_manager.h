@@ -27,7 +27,7 @@ struct IZookeeperManager
         TZookeeperShardId HintId;
 
         //! Name of the shard.
-        TString Name;
+        std::string Name;
 
         //! Path of the shard root.
         TZookeeperPath RootPath;
@@ -40,7 +40,7 @@ struct IZookeeperManager
     virtual void ZombifyZookeeperShard(TZookeeperShard* shard) = 0;
 
     //! Returns zookeeper shard with given name or |nullptr| if such shard does not exist.
-    virtual TZookeeperShard* FindZookeeperShardByName(const TString& name) const = 0;
+    virtual TZookeeperShard* FindZookeeperShardByName(const std::string& name) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IZookeeperManager)

@@ -97,7 +97,7 @@ TTransactionId MakeExternalizedTransactionId(
     auto nativeCellTag = CellTagFromId(originalId);
 
     // Replace type and native cell tag, keep the original cell tag as part of
-    // hash and ensure that result ID will be non-Sequoia.
+    // hash.
     return MakeId(
         externalizedType,
         externalizingCellTag,

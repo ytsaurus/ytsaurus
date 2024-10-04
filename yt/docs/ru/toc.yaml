@@ -182,6 +182,8 @@ items:
               href: user-guide/data-processing/scheduler/preemption.md
             - name: Интегральные гарантии
               href: user-guide/data-processing/scheduler/integral-guarantees.md
+            - name: Лимиты на количество операций
+              href: user-guide/data-processing/scheduler/operations-limits.md
             - name: Динамический учёт потребления CPU
               href: user-guide/data-processing/scheduler/job-cpu-monitor.md
             - name: Подбор памяти для джобов
@@ -335,6 +337,19 @@ items:
           when: audience == "public"
           items:
             - include: { mode: link, path: yql/toc.yaml }
+        - name: Решение проблем
+          when: audience == "public"
+          items:
+            - name: Отладка MapReduce программ
+              href: user-guide/problems/mapreduce-debug.md
+            - name: Диагностика медленных джобов
+              href: user-guide/problems/jobshell-and-slowjobs.md
+            - name: Медленное чтение файлов и таблиц
+              href: user-guide/problems/slow-read.md
+            - name: Статистики джобов
+              href: user-guide/problems/jobstatistics.md
+            - name: Локальная отладка джобов
+              href: user-guide/problems/jobtool.md
       - name: Распределённые блокировки
         when: audience == "public"
         items:
@@ -353,15 +368,6 @@ items:
             href: user-guide/proxy/http-reference.md
           - name: gRPC-прокси
             href: user-guide/proxy/grpc.md
-      - name: Решение проблем
-        when: audience == "public"
-        items:
-          - name: Диагностика медленных джобов
-            href: user-guide/problems/jobshell-and-slowjobs.md
-          - name: Медленное чтение файлов и таблиц
-            href: user-guide/problems/slow-read.md
-          - name: Статистики джобов
-            href: user-guide/problems/jobstatistics.md
       - name: Импорт и экспорт данных
         when: audience == "public"
         items:
@@ -374,6 +380,8 @@ items:
         items:
           - name: Обзор
             href: user-guide/query-tracker/about.md
+          - name: Python User Defined Functions
+            href: user-guide/query-tracker/system-python-udf.md
       - name: Работа с Jupyter Notebooks
         when: audience == "public"
         href: user-guide/jupyt.md

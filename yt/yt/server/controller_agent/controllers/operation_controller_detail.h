@@ -86,6 +86,8 @@
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 #include <library/cpp/yt/memory/ref_tracked.h>
 
+#include <library/cpp/yt/misc/non_null_ptr.h>
+
 #include <optional>
 
 namespace NYT::NControllerAgent::NControllers {
@@ -494,7 +496,7 @@ public:
     const TOutputTablePtr& GetOutputTable(int tableIndex) const override;
     int GetOutputTableCount() const override;
 
-    NLogging::TLogger GetLogger() const override;
+    const NLogging::TLogger& GetLogger() const override;
 
     const std::vector<TTaskPtr>& GetTasks() const override;
 
@@ -526,6 +528,8 @@ public:
         std::optional<TString> poolPath,
         bool treeIsTentative) override;
 
+    void RestartAllRunningJobsPreservingAllocations(bool operationIsReviving);
+
 protected:
     const IOperationControllerHostPtr Host;
     TControllerAgentConfigPtr Config;
@@ -545,6 +549,9 @@ protected:
 
     // Intentionally transient.
     NScheduler::TControllerEpoch ControllerEpoch;
+
+    THashMap<TAllocationId, TAllocation> AllocationMap_;
+    int RunningJobCount_ = 0;
 
     // Usually these clients are all the same (and connected to the current cluster).
     // But `remote copy' operation connects InputClient to remote cluster.
@@ -579,6 +586,8 @@ protected:
     i64 TotalEstimatedInputValueCount = 0;
     i64 TotalEstimatedInputCompressedDataSize = 0;
     i64 TotalEstimatedInputUncompressedDataSize = 0;
+
+    i64 TeleportedOutputRowCount = 0;
 
     // Only used during materialization, not persisted.
     double InputCompressionRatio = 0.0;
@@ -675,6 +684,13 @@ protected:
     std::optional<TUserFile> BaseLayer_;
 
     TJobExperimentBasePtr JobExperiment_;
+
+    //! One output table can have row_count_limit attribute in operation.
+    std::optional<int> RowCountLimitTableIndex;
+    i64 RowCountLimit = std::numeric_limits<i64>::max() / 4;
+
+    // Current row count in table with attribute row_count_limit.
+    i64 CompletedRowCount_ = 0;
 
     virtual bool IsTransactionNeeded(ETransactionType type) const;
 
@@ -1014,10 +1030,9 @@ protected:
     //! Returns the list of lists of all input chunks collected from all foreign input tables.
     std::vector<std::deque<NChunkClient::TLegacyDataSlicePtr>> CollectForeignInputDataSlices(int foreignKeyColumnCount) const;
 
-
     virtual void InitUserJobSpec(
         NControllerAgent::NProto::TUserJobSpec* proto,
-        TJobletPtr joblet) const;
+        const TJobletPtr& joblet) const;
 
     void AddStderrOutputSpecs(
         NControllerAgent::NProto::TUserJobSpec* jobSpec,
@@ -1094,12 +1109,13 @@ protected:
 
     virtual void DoFailOperation(const TError& error, bool flush = true, bool abortAllJoblets = true);
 
-    //! One output table can have row_count_limit attribute in operation.
-    std::optional<int> RowCountLimitTableIndex;
-    i64 RowCountLimit = std::numeric_limits<i64>::max() / 4;
+    bool OnJobCompleted(TJobletPtr joblet, std::unique_ptr<TCompletedJobSummary> jobSummary);
+    virtual bool OnJobFailed(TJobletPtr joblet, std::unique_ptr<TFailedJobSummary> jobSummary);
+    virtual bool OnJobAborted(TJobletPtr joblet, std::unique_ptr<TAbortedJobSummary> jobSummary);
 
-    // Current row count in table with attribute row_count_limit.
-    i64 CompletedRowCount_ = 0;
+    virtual void OnOperationRevived();
+
+    virtual void BuildControllerInfoYson(NYTree::TFluentMap fluent) const;
 
 private:
     using TThis = TOperationControllerBase;
@@ -1158,9 +1174,6 @@ private:
     THashMap<NChunkClient::TChunkId, TCompletedJobPtr> ChunkOriginMap;
 
     TIntermediateChunkScraperPtr IntermediateChunkScraper;
-
-    THashMap<TAllocationId, TAllocation> AllocationMap_;
-    int RunningJobCount_ = 0;
 
     //! Scrapes chunks of dynamic tables during data slice fetching.
     std::vector<NChunkClient::IFetcherChunkScraperPtr> DataSliceFetcherChunkScrapers;
@@ -1492,10 +1505,7 @@ private:
 
     NYTree::IYPathServicePtr BuildZombieOrchid();
 
-    void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary);
-    void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary);
-    void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary);
-    void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary);
+    void OnJobRunning(const TJobletPtr& joblet, std::unique_ptr<TRunningJobSummary> jobSummary);
     bool WasJobGracefullyAborted(const std::unique_ptr<TAbortedJobSummary>& jobSummary);
     void OnJobStartTimeReceived(const TJobletPtr& joblet, const std::unique_ptr<TRunningJobSummary>& jobSummary);
 
@@ -1517,7 +1527,7 @@ private:
     void RemoveRemainingJobsOnOperationFinished();
 
     void DoAbortJob(
-        TJobId jobId,
+        TJobletPtr joblet,
         EAbortReason abortReason,
         bool requestJobTrackerJobAbortion);
 
@@ -1533,6 +1543,9 @@ private:
     TJobId GetLaterJobId(TJobId lhs, TJobId rhs) const noexcept;
     template <class TAllocationEvent>
     void ProcessAllocationEvent(TAllocationEvent&& eventSummary, TStringBuf eventType);
+
+    // Returns false if operation has been finished.
+    bool RestartJobInAllocation(TNonNullPtr<TAllocation> allocation, bool operationIsReviving);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

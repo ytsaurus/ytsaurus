@@ -1329,6 +1329,7 @@ def get_allocation_id_from_job_id(job_id):
 
 class Operation(object):
     def __init__(self, driver=None):
+        self.id = None
         self._tmpdir = ""
         self._poll_frequency = 0.1
         self._driver = driver
@@ -1601,6 +1602,11 @@ class Operation(object):
         return "//sys/controller_agents/instances/{}/orchid/controller_agent/operations/{}".format(
             controller_agent, self.id
         )
+
+    def get_controller_agent_address(self):
+        path = self.get_path() + "/@controller_agent_address"
+        wait(lambda: exists(path, driver=self._driver))
+        return get(path, driver=self._driver)
 
     def lookup_in_archive(self):
         id_hi, id_lo = uuid_to_parts(self.id)

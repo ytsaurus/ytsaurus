@@ -11,9 +11,6 @@
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
-// COMPAT(aleksandra-zh)
-#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
-
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
@@ -72,12 +69,6 @@ struct ITabletManager
         std::optional<TLockManagerEpoch> epoch = std::nullopt) = 0;
 
     virtual bool AllocateDynamicStoreIfNeeded(TTablet* tablet) = 0;
-
-    // COMPAT(aleksandra-zh)
-    virtual void RestoreHunkLocks(
-        TTransaction* transaction,
-        NTabletServer::NProto::TReqUpdateTabletStores* request) = 0;
-    virtual void ValidateHunkLocks() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletManager)

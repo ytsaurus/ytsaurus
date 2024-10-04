@@ -413,7 +413,7 @@ TNodeDescriptor TNode::GetDescriptor(EAddressType addressType) const
         host ? std::optional(host->GetName()) : std::nullopt,
         rack ? std::optional(rack->GetName()) : std::nullopt,
         dataCenter ? std::optional(dataCenter->GetName()) : std::nullopt,
-        std::vector<TString>(Tags_.begin(), Tags_.end()),
+        std::vector(Tags_.begin(), Tags_.end()),
         (GetAggregatedState() == ENodeState::Online) ? std::optional(TInstant::Now()) : std::nullopt);
 }
 
@@ -712,6 +712,10 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, ConsistentReplicaPlacementTokenCount_);
     Load(context, NextDisposedLocationIndex_);
     Load(context, LastGossipState_);
+
+    if (context.GetVersion() < EMasterReign::RemoveStuckAttributes && Attributes_) {
+        Attributes_->Remove(EInternedAttributeKey::MaintenanceRequests.Unintern());
+    }
 
     ComputeDefaultAddress();
     ComputeFillFactorsAndTotalSpace();
@@ -1163,14 +1167,14 @@ bool TNode::WasValidWriteTarget(EWriteTargetValidityChange reason) const
         !disableWriteSessions;
 }
 
-void TNode::SetNodeTags(const std::vector<TString>& tags)
+void TNode::SetNodeTags(const std::vector<std::string>& tags)
 {
     ValidateNodeTags(tags);
     NodeTags_ = tags;
     RebuildTags();
 }
 
-void TNode::SetUserTags(const std::vector<TString>& tags)
+void TNode::SetUserTags(const std::vector<std::string>& tags)
 {
     ValidateNodeTags(tags);
     UserTags_ = tags;

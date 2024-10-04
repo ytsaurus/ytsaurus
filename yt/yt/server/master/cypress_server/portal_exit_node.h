@@ -1,7 +1,6 @@
 #pragma once
 
 #include "node_detail.h"
-#include "node_proxy_detail.h"
 
 namespace NYT::NCypressServer {
 

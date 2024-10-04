@@ -1,0 +1,49 @@
+{
+	"Version": "v1.29.0",
+	"GoVersion": "1.21",
+	"Sum": "h1:vPf/HFWTNkPu1aYeIsc98l4ktOQaL6LeSoeV2g+8YLc=",
+	"Packages": {
+		"go.opentelemetry.io/otel/metric": {
+			"Imports": [
+				"context",
+				"go.opentelemetry.io/otel/attribute",
+				"go.opentelemetry.io/otel/metric/embedded"
+			],
+			"TestImports": [
+				"context",
+				"database/sql",
+				"fmt",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"go.opentelemetry.io/otel",
+				"go.opentelemetry.io/otel/attribute",
+				"go.opentelemetry.io/otel/metric",
+				"go.opentelemetry.io/otel/metric/embedded",
+				"go.opentelemetry.io/otel/semconv/v1.26.0",
+				"math/rand",
+				"net/http",
+				"runtime",
+				"sync",
+				"testing",
+				"time"
+			]
+		},
+		"go.opentelemetry.io/otel/metric/embedded": {
+			"Imports": null,
+			"TestImports": null
+		},
+		"go.opentelemetry.io/otel/metric/noop": {
+			"Imports": [
+				"context",
+				"go.opentelemetry.io/otel/metric",
+				"go.opentelemetry.io/otel/metric/embedded"
+			],
+			"TestImports": [
+				"github.com/stretchr/testify/assert",
+				"go.opentelemetry.io/otel/metric",
+				"reflect",
+				"testing"
+			]
+		}
+	}
+}

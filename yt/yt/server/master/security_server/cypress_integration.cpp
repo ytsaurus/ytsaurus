@@ -69,14 +69,14 @@ public:
 private:
     using TBase = TVirtualMapBase;
 
-    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        std::vector<TString> names;
-        names.reserve(std::min<size_t>(securityManager->Accounts().size(), sizeLimit));
+        std::vector<std::string> names;
+        names.reserve(std::min(limit, std::ssize(securityManager->Accounts())));
 
         for (auto [accountId, account] : securityManager->Accounts()) {
-            if (std::ssize(names) >= sizeLimit) {
+            if (std::ssize(names) >= limit) {
                 break;
             }
             if (!account->GetParent() && account != securityManager->GetRootAccount() && IsObjectAlive(account)) {
@@ -95,7 +95,7 @@ private:
         return securityManager->Accounts().GetSize();
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->FindAccountByName(TString(key), false /*activeLifeStageOnly*/);
@@ -176,17 +176,17 @@ public:
     using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
 
-        std::vector<TString> keys;
-        keys.reserve(sizeLimit);
+        std::vector<std::string> keys;
+        keys.reserve(std::min(limit, securityManager->AccountResourceUsageLeases().GetSize()));
         for (auto [accountResourceUsageLeaseId, _] : securityManager->AccountResourceUsageLeases()) {
-            if (static_cast<i64>(keys.size()) >= sizeLimit) {
+            if (std::ssize(keys) >= limit) {
                 break;
             }
-            keys.emplace_back(ToString(accountResourceUsageLeaseId));
+            keys.push_back(ToString(accountResourceUsageLeaseId));
         }
         return keys;
     }
@@ -197,7 +197,7 @@ private:
         return securityManager->AccountResourceUsageLeases().GetSize();
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto accountResourceUsageLeaseId = TAccountResourceUsageLeaseId::FromString(key);
@@ -233,10 +233,10 @@ public:
     using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        return ToNames(GetValues(securityManager->Users(), sizeLimit));
+        return ToNames(GetValues(securityManager->Users(), limit));
     }
 
     i64 GetSize() const override
@@ -245,7 +245,7 @@ private:
         return securityManager->Users().GetSize();
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->FindUserByNameOrAlias(TString(key), false /*activeLifeStageOnly*/);
@@ -280,10 +280,10 @@ public:
     using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        return ToNames(GetValues(securityManager->Groups(), sizeLimit));
+        return ToNames(GetValues(securityManager->Groups(), limit));
     }
 
     i64 GetSize() const override
@@ -292,7 +292,7 @@ private:
         return securityManager->Groups().GetSize();
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* group = securityManager->FindGroupByNameOrAlias(TString(key));
@@ -327,10 +327,10 @@ public:
     using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        return ToNames(GetValues(securityManager->NetworkProjects(), sizeLimit));
+        return ToNames(GetValues(securityManager->NetworkProjects(), limit));
     }
 
     i64 GetSize() const override
@@ -339,10 +339,10 @@ private:
         return securityManager->NetworkProjects().GetSize();
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* networkProject = securityManager->FindNetworkProjectByName(static_cast<TString>(key));
+        auto* networkProject = securityManager->FindNetworkProjectByName(key);
         if (!IsObjectAlive(networkProject)) {
             return nullptr;
         }
@@ -379,25 +379,25 @@ public:
 private:
     const EProxyKind ProxyKind_;
 
-    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<std::string> GetKeys(i64 limit) const override
     {
-        return ToNames(GetValues(GetProxyRoles(), sizeLimit));
+        return ToNames(GetValues(GetProxyRoles(), limit));
     }
 
     i64 GetSize() const override
     {
-        return GetProxyRoles().size();
+        return std::ssize(GetProxyRoles());
     }
 
-    IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& proxyRoles = GetProxyRoles();
-        auto proxyRolesIt = proxyRoles.find(static_cast<TString>(key));
-        if (proxyRolesIt == proxyRoles.end()) {
+        auto it = proxyRoles.find(key);
+        if (it == proxyRoles.end()) {
             return nullptr;
         }
 
-        auto* proxyRole = proxyRolesIt->second;
+        auto* proxyRole = it->second;
         if (!IsObjectAlive(proxyRole)) {
             return nullptr;
         }

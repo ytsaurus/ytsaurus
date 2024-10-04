@@ -1,0 +1,52 @@
+package NYT.NShuffleClient.NProto;
+
+import "yt_proto/yt/client/chunk_client/proto/chunk_spec.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartShuffle
+{
+    required string account = 1;
+    required int32 partition_count = 2;
+}
+
+message TRspStartShuffle
+{
+    required bytes shuffle_handle = 1; // YSON-serialized TShuffleHandle
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFinishShuffle
+{
+    required bytes shuffle_handle = 1; // YSON-serialized TShuffleHandle
+}
+
+message TRspFinishShuffle
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRegisterChunks
+{
+    required bytes shuffle_handle = 1; // YSON-serialized TShuffleHandle
+    repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 2;
+}
+
+message TRspRegisterChunks
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFetchChunks
+{
+    required bytes shuffle_handle = 1; // YSON-serialized TShuffleHandle
+    required int32 partition_index = 2;
+}
+
+message TRspFetchChunks
+{
+    repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 1;
+}

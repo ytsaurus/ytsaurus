@@ -41,7 +41,7 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("max_parameterized_move_action_count", &TThis::MaxParameterizedMoveActionCount)
-        .Default(5)
+        .Default(50)
         .GreaterThanOrEqual(0);
     registrar.Parameter("max_parameterized_move_action_hard_limit", &TThis::MaxParameterizedMoveActionHardLimit)
         .Default(2000)
@@ -67,6 +67,11 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
         .Default(DefaultTabletBalancerSchedule);
     registrar.Parameter("period", &TThis::Period)
         .Default();
+    registrar.Parameter("parameterized_timeout_on_start", &TThis::ParameterizedTimeoutOnStart)
+        .Default();
+    registrar.Parameter("parameterized_timeout", &TThis::ParameterizedTimeout)
+        .Default();
+
     registrar.Parameter("bundle_errors_ttl", &TThis::BundleErrorsTtl)
         .Default(TDuration::Days(1));
     registrar.Parameter("statistics_table_path", &TThis::StatisticsTablePath)
@@ -82,7 +87,7 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("pick_reshard_pivot_keys", &TThis::PickReshardPivotKeys)
         .Default(true);
     registrar.Parameter("cancel_action_if_pick_pivot_keys_fails", &TThis::CancelActionIfPickPivotKeysFails)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("enable_reshard_verbose_logging", &TThis::EnableReshardVerboseLogging)
         .Default(false);
     registrar.Parameter("reshard_slicing_accuracy", &TThis::ReshardSlicingAccuracy)

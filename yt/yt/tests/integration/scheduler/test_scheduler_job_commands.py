@@ -194,7 +194,7 @@ class TestJobProber(YTEnvSetup):
         job_id = wait_breakpoint()[0]
         wait(lambda: op.get_job_phase(job_id) == "running")
 
-        r = poll_job_shell(job_id, operation="spawn", term="screen-256color", height=50, width=132)
+        r = poll_job_shell(job_id, operation="spawn", term="dumb", height=50, width=132)
         shell_id = r["shell_id"]
         self._poll_until_prompt(job_id, shell_id)
 
@@ -202,7 +202,7 @@ class TestJobProber(YTEnvSetup):
         self._send_keys(job_id, shell_id, command, 0)
         output = self._poll_until_prompt(job_id, shell_id)
 
-        expected = "{0}\nscreen-256color\r\n50\r\n132\r\n1".format(command)
+        expected = "{0}\ndumb\r\n50\r\n132\r\n1".format(command)
         assert output.startswith(expected)
 
         poll_job_shell(job_id, operation="terminate", shell_id=shell_id)
@@ -276,6 +276,70 @@ class TestJobProber(YTEnvSetup):
 
         expected = "A\r\n" * 10 ** 5
         assert output == expected
+
+    @authors("proller")
+    def test_poll_job_shell_second(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"key": "foo"})
+
+        op = map(
+            track=False,
+            label="poll_job_shell",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("cat ; BREAKPOINT"),
+        )
+        job_id = wait_breakpoint()[0]
+        wait(lambda: op.get_job_phase(job_id) == "running")
+
+        r = poll_job_shell(
+            job_id,
+            operation="spawn",
+            command="for((i=0;i<10;i++)); do echo B; done",
+        )
+        shell_id = r["shell_id"]
+        output = self._poll_until_shell_exited(job_id, shell_id)
+
+        expected = "B\r\n" * 10
+        assert output == expected
+
+        r = poll_job_shell(
+            job_id,
+            operation="spawn",
+            command="for((i=0;i<10;i++)); do echo C; done",
+        )
+        shell_id = r["shell_id"]
+        output = self._poll_until_shell_exited(job_id, shell_id)
+
+        expected = "C\r\n" * 10
+        assert output == expected
+
+    @authors("proller")
+    def test_poll_job_shell_strace(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"key": "foo"})
+
+        op = map(
+            track=False,
+            label="poll_job_shell",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("cat ; BREAKPOINT"),
+        )
+        job_id = wait_breakpoint()[0]
+        wait(lambda: op.get_job_phase(job_id) == "running")
+
+        r = poll_job_shell(
+            job_id,
+            operation="spawn",
+            command="bash -xec ' capsh --print && strace ls && echo JOB_FINISHED_OK '",
+        )
+        shell_id = r["shell_id"]
+        output = self._poll_until_shell_exited(job_id, shell_id)
+        print("zzzz output=", output)
+        assert output.endswith("JOB_FINISHED_OK\r\n")
 
     @authors("ignat")
     def test_poll_job_shell_permissions(self):
@@ -408,6 +472,10 @@ class TestJobProber(YTEnvSetup):
                 )
                 value = end_profiling["abort_reason"][abort_reason] - start_profiling["abort_reason"][abort_reason]
                 assert value == (1 if abort_reason == "user_request" else 0)
+
+
+class TestJobProberCri(TestJobProber):
+    JOB_ENVIRONMENT_TYPE = "cri"
 
 
 ##################################################################
@@ -731,6 +799,11 @@ class TestJobShellInSubcontainer(TestJobProber):
                     },
                 },
                 authenticated_user="taxi_dev")
+
+
+class TestJobShellInSubcontainerCri(TestJobShellInSubcontainer):
+    JOB_ENVIRONMENT_TYPE = "cri"
+
 
 ##################################################################
 

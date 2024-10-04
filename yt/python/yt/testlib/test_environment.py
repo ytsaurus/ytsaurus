@@ -67,6 +67,15 @@ class YtTestEnvironment(object):
         if env_options is None:
             env_options = {}
 
+        if "native_client_supported" in env_options:
+            native_client_supported = env_options.pop("native_client_supported")
+        else:
+            try:
+                import yt_driver_bindings  # noqa
+                native_client_supported = True
+            except ImportError:
+                native_client_supported = False
+
         has_http_proxy = config["backend"] not in ("native",)
 
         if yatest_common is not None:
@@ -183,6 +192,7 @@ class YtTestEnvironment(object):
             enable_log_compression=True,
             log_compression_method="zstd",
             cluster_name=cluster_name,
+            native_client_supported=native_client_supported,
             **env_options
         )
 

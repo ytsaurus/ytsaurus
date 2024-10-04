@@ -33,6 +33,7 @@ using namespace NConcurrency;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
+using namespace NStatisticPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,7 +95,8 @@ void TYtDatabaseBase::dropTable(DB::ContextPtr context, const String& name, bool
 {
     auto* queryContext = GetQueryContext(context);
     auto timerGuard = queryContext->CreateStatisticsTimerGuard(
-        Format("/%v_database/drop_table", to_lower(TString(getDatabaseName()))));
+        SlashedStatisticPath(
+            Format("/%v_database/drop_table", to_lower(TString(getDatabaseName())))).ValueOrThrow());
 
     TYPath path = getTableDataPath(name);
 
@@ -118,7 +120,8 @@ void TYtDatabaseBase::renameTable(
 
     auto* queryContext = GetQueryContext(context);
     auto timerGuard = queryContext->CreateStatisticsTimerGuard(
-        Format("/%v_database/rename_table", to_lower(TString(getDatabaseName()))));
+        SlashedStatisticPath(
+            Format("/%v_database/rename_table", to_lower(TString(getDatabaseName())))).ValueOrThrow());
 
     auto client = queryContext->Client();
     TYPath srcPath = getTableDataPath(name);
@@ -211,7 +214,8 @@ DB::StoragePtr TYtDatabaseBase::DoGetTable(
 
     auto* queryContext = GetQueryContext(context);
     auto timerGuard = queryContext->CreateStatisticsTimerGuard(
-        Format("/%v_database/do_get_table", to_lower(TString(getDatabaseName()))));
+        SlashedStatisticPath(
+            Format("/%v_database/do_get_table", to_lower(TString(getDatabaseName())))).ValueOrThrow());
 
     try {
         auto tables = FetchTables(

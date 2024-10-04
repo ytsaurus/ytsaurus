@@ -1,5 +1,4 @@
 #include "partition_sort_reader.h"
-#include "private.h"
 #include "config.h"
 #include "partition_chunk_reader.h"
 #include "schemaless_block_reader.h"
@@ -8,6 +7,7 @@
 #include <yt/yt/client/api/client.h>
 
 #include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 

@@ -513,7 +513,7 @@ public:
     NApi::TFileWriterConfigPtr ErrorFileWriter;
 
     i64 BufferRowCount;
-    bool UseAdaptiveRowCount;
+    std::optional<bool> UseAdaptiveRowCount;
     std::optional<int> PipeCapacity;
     bool UseDeliveryFencedPipeWriter;
 
@@ -1127,6 +1127,10 @@ public:
     //! Allow access to all immutable files via NBD.
     bool EnableVirtualSandbox;
 
+    //! Enable root volume disk quota.
+    //! Apply the quota to the entire RootFs instead of the sandbox and tmp folders individually.
+    bool EnableRootVolumeDiskQuota;
+
     NChunkClient::EChunkAvailabilityPolicy ChunkAvailabilityPolicy;
 
     //! Delay for performing sanity checks for operations (useful in tests).
@@ -1160,7 +1164,7 @@ public:
 
     //! If |true| shell environment would not inherit variables
     //! starting with "YT_" such as "YT_JOB_ID"
-    bool IgnoreYtVariablesInShellEnvironment;
+    bool IgnoreYTVariablesInShellEnvironment;
 
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
@@ -1300,6 +1304,7 @@ public:
     bool FailJobOnCoreDump;
 
     //! If true, RootFS in user job is writable.
+    // COMPAT(artemagafonov): RootFS is always writable, so the flag should be removed after the update of all nodes.
     bool MakeRootFSWritable;
 
     //! Enable mount of fuse device to user job container.
@@ -1381,6 +1386,18 @@ DEFINE_REFCOUNTED_TYPE(TOptionalUserJobSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGangManagerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    REGISTER_YSON_STRUCT(TGangManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DECLARE_REFCOUNTED_CLASS(TGangManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TGangManagerConfig)
+
 class TVanillaTaskSpec
     : public TMandatoryUserJobSpec
 {
@@ -1393,6 +1410,8 @@ public:
     std::vector<NYPath::TRichYPath> OutputTablePaths;
 
     bool RestartCompletedJobs;
+
+    TGangManagerConfigPtr GangManager;
 
     REGISTER_YSON_STRUCT(TVanillaTaskSpec);
 

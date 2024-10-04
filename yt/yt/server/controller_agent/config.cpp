@@ -28,6 +28,8 @@
 
 namespace NYT::NControllerAgent {
 
+using namespace NStatisticPath;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TIntermediateChunkScraperConfig::Register(TRegistrar registrar)
@@ -137,10 +139,10 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("low_cpu_usage_alert_statistics", &TThis::LowCpuUsageAlertStatistics)
         .Default({
-            "/job_proxy/cpu/system",
-            "/job_proxy/cpu/user",
-            "/user_job/cpu/system",
-            "/user_job/cpu/user"
+            "/job_proxy/cpu/system"_SP,
+            "/job_proxy/cpu/user"_SP,
+            "/user_job/cpu/system"_SP,
+            "/user_job/cpu/user"_SP,
         });
 
     registrar.Parameter("low_cpu_usage_alert_job_states", &TThis::LowCpuUsageAlertJobStates)
@@ -157,7 +159,7 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("high_cpu_wait_alert_statistics", &TThis::HighCpuWaitAlertStatistics)
         .Default({
-            "/user_job/cpu/wait",
+            "/user_job/cpu/wait"_SP,
         });
 
     registrar.Parameter("high_cpu_wait_alert_job_states", &TThis::HighCpuWaitAlertJobStates)
@@ -193,7 +195,7 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("low_gpu_usage_alert_statistics", &TThis::LowGpuUsageAlertStatistics)
         .Default({
-            "/user_job/gpu/cumulative_utilization_gpu",
+            "/user_job/gpu/cumulative_utilization_gpu"_SP,
         });
 
     registrar.Parameter("low_gpu_usage_alert_job_states", &TThis::LowGpuUsageAlertJobStates)
@@ -495,12 +497,20 @@ void TRemoteCopyOperationOptions::Register(TRegistrar registrar)
         .Default();
 }
 
+void TGangManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(true);
+}
+
 void TVanillaOperationOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_task_count", &TThis::MaxTaskCount)
         .Default(100);
     registrar.Parameter("max_total_job_count", &TThis::MaxTotalJobCount)
         .Default(100 * 1000);
+    registrar.Parameter("gang_manager", &TThis::GangManager)
+        .DefaultNew();
 }
 
 void TZombieOperationOrchidsConfig::Register(TRegistrar registrar)
@@ -572,6 +582,12 @@ void TUserFileLimitsPatchConfig::Register(TRegistrar registrar)
         .Default();
 }
 
+void TJobTrackerTestingOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("delay_in_settle_job", &TThis::DelayInSettleJob)
+        .Default();
+}
+
 void TJobTrackerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("node_disconnection_timeout", &TThis::NodeDisconnectionTimeout)
@@ -592,6 +608,8 @@ void TJobTrackerConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("check_node_heartbeat_sequence_number", &TThis::CheckNodeHeartbeatSequenceNumber)
         .Default(false);
+    registrar.Parameter("testing_options", &TThis::TestingOptions)
+        .Default();
 }
 
 void TDockerRegistryConfig::Register(TRegistrar registrar)

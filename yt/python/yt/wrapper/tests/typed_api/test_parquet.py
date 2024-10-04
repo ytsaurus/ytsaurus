@@ -1,7 +1,7 @@
 from __future__ import with_statement, print_function
 
 from yt.testlib import authors
-from yt.wrapper.testlib.helpers import TEST_DIR
+from yt.wrapper.testlib.helpers import TEST_DIR, set_config_option
 
 import yt.wrapper as yt
 
@@ -10,14 +10,16 @@ from yt.wrapper.schema import TableSchema
 import yt.type_info as type_info
 
 import pytest
-import tempfile
+
+import os
+
+import pandas
+import pyarrow
+import pyarrow.parquet
 
 import random
 import string
-
-import pyarrow
-import pyarrow.parquet
-import pandas
+import tempfile
 
 LONG_STRING = "abcdefghijklmnopqrst"
 A_STRING = "aaaaaaaaaaaaaaaaaaaaaaa"
@@ -64,9 +66,9 @@ def check_table(table, chunks):
 
 @pytest.mark.usefixtures("yt_env")
 class TestParquet(object):
-
     @authors("nadya02")
-    def test_dump_parquet(self):
+    @pytest.mark.parametrize("enable_parallel", [True, False])
+    def test_dump_parquet(self, enable_parallel):
         with tempfile.NamedTemporaryFile() as temp_file:
             filename = temp_file.name
             table = TEST_DIR + "/table"
@@ -77,7 +79,8 @@ class TestParquet(object):
                 Row(key="three", value=3),
             ])
 
-            yt.dump_parquet(table, filename)
+            with set_config_option("read_parallel/enable", enable_parallel):
+                yt.dump_parquet(table, filename, enable_several_files=False)
 
             table = pyarrow.parquet.read_table(filename)
             column_names = table.column_names
@@ -88,7 +91,9 @@ class TestParquet(object):
             assert table[column_names[1]].to_pylist() == [1, 2, 3]
 
     @authors("nadya02")
-    def test_multi_chunks_dump_parquet(self):
+    @pytest.mark.parametrize("enable_parallel", [True, False])
+    @pytest.mark.parametrize("unordered", [True, False])
+    def test_multi_chunks_dump_parquet(self, enable_parallel, unordered):
         with tempfile.NamedTemporaryFile() as temp_file:
             filename = temp_file.name
             table = TEST_DIR + "/table"
@@ -98,16 +103,22 @@ class TestParquet(object):
             for i in range(5):
                 yt.write_table(yt.TablePath(table, append=True), [{"index": i}])
 
-            yt.dump_parquet(table, filename)
+            with set_config_option("read_parallel/enable", enable_parallel):
+                yt.dump_parquet(table, filename, enable_several_files=False, unordered=unordered)
 
             table = pyarrow.parquet.read_table(filename)
             column_names = table.column_names
 
             assert column_names[0] == "index"
-            assert table[column_names[0]].to_pylist() == [0, 1, 2, 3, 4]
+
+            if unordered:
+                assert sorted(table[column_names[0]].to_pylist()) == [0, 1, 2, 3, 4]
+            else:
+                assert table[column_names[0]].to_pylist() == [0, 1, 2, 3, 4]
 
     @authors("nadya02")
-    def test_dictionary_dump_parquet(self):
+    @pytest.mark.parametrize("enable_parallel", [True, False])
+    def test_dictionary_dump_parquet(self, enable_parallel):
         with tempfile.NamedTemporaryFile() as temp_file:
             filename = temp_file.name
             table = TEST_DIR + "/table"
@@ -137,7 +148,8 @@ class TestParquet(object):
                 {"string": dense_array[2], "index": 3},
             ])
 
-            yt.dump_parquet(table, filename)
+            with set_config_option("read_parallel/enable", enable_parallel):
+                yt.dump_parquet(table, filename, enable_several_files=False)
 
             table = pyarrow.parquet.read_table(filename)
 
@@ -156,13 +168,14 @@ class TestParquet(object):
             table = TEST_DIR + "/empty_table"
 
             yt.create("table", table, attributes={"schema": [{"name": "key", "type": "string"}]})
-            yt.dump_parquet(table, filename)
+            yt.dump_parquet(table, filename, enable_several_files=False)
 
             destination = yt.smart_upload_file(filename)
             assert yt.read_file(destination).read() == b""
 
     @authors("nadya02")
-    def test_complex_dump_parquet(self):
+    @pytest.mark.parametrize("enable_parallel", [True, False])
+    def test_complex_dump_parquet(self, enable_parallel):
         random.seed(10)
 
         with tempfile.NamedTemporaryFile() as temp_file:
@@ -209,12 +222,80 @@ class TestParquet(object):
                     yt.TablePath(table, append=True),
                     chunk)
 
-            yt.dump_parquet(table, filename)
+            with set_config_option("read_parallel/enable", enable_parallel):
+                yt.dump_parquet(table, filename, enable_several_files=False)
 
             table = pyarrow.parquet.read_table(filename)
 
             assert table.column_names == ["string", "int", "enum_string", "opt_string", "double", "second_enum_string", "bool", "constant_string"]
             check_table(table, chunks)
+
+    @authors("nadya02")
+    def test_several_files_parquet(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            table = TEST_DIR + "/table"
+            schema = TableSchema() \
+                .add_column("key", type_info.Optional[type_info.Int64]) \
+                .add_column("value", type_info.Optional[type_info.String]) \
+                .add_column("bool", type_info.Optional[type_info.Bool])
+
+            yt.create("table", table, attributes={"schema": schema})
+            rows = [
+                {"key": 1, "value": "one", "bool" : True},
+                {"key": 2, "value": "two", "bool" : True},
+                {"key": 3, "value": "three", "bool" : True}
+            ]
+            yt.write_table(table, rows)
+
+            with set_config_option("read_parallel/data_size_per_thread", 1):
+                with set_config_option("read_parallel/enable", True):
+                    yt.dump_parquet(table, dirname, enable_several_files=True)
+
+            output_table = TEST_DIR + "/output_table"
+
+            for root, _, files in os.walk(dirname):
+                for file in sorted(files):
+                    full_path = os.path.join(root, file)
+                    yt.upload_parquet(yt.TablePath(output_table, append=True), full_path)
+
+            schema_from_attr = TableSchema.from_yson_type(yt.get(output_table + "/@schema"))
+            assert schema == schema_from_attr
+
+            assert list(yt.read_table(output_table)) == list(yt.read_table(table))
+
+    @authors("nadya02")
+    def test_multi_chunks_several_files_parquet(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            input_table = TEST_DIR + "/table"
+
+            schema = TableSchema() \
+                .add_column("key", type_info.Optional[type_info.Int64]) \
+                .add_column("value", type_info.Optional[type_info.String])
+
+            yt.create("table", input_table, attributes={"schema": schema})
+            rows_in_chunk = 10
+
+            for i in range(5):
+                rows = []
+                for j in range(rows_in_chunk):
+                    rows.append({"key": i * rows_in_chunk + j, "value": generate_random_string(5)})
+                yt.write_table(yt.TablePath(input_table, append=True), rows)
+
+            with set_config_option("read_parallel/data_size_per_thread", 5):
+                with set_config_option("read_parallel/enable", True):
+                    yt.dump_parquet(input_table, dirname, enable_several_files=True)
+
+            output_table = TEST_DIR + "/output_table"
+
+            for root, _, files in os.walk(dirname):
+                for file in sorted(files):
+                    full_path = os.path.join(root, file)
+                    yt.upload_parquet(yt.TablePath(output_table, append=True), full_path)
+
+            schema_from_attr = TableSchema.from_yson_type(yt.get(output_table + "/@schema"))
+            assert schema == schema_from_attr
+
+            assert list(yt.read_table(output_table)) == list(yt.read_table(input_table))
 
     @authors("nadya02")
     def test_upload_parquet(self):
@@ -326,7 +407,8 @@ class TestParquet(object):
             schema = TableSchema() \
                 .add_column("x", type_info.Optional[type_info.Int64]) \
                 .add_column("y", type_info.Optional[type_info.List[
-                    type_info.List[type_info.Struct["foo": type_info.Int64]]]])
+                    type_info.Optional[type_info.List[type_info.Optional[type_info.Struct[
+                        "foo": type_info.Optional[type_info.Int64]]]]]]])
 
             schema_from_attr = TableSchema.from_yson_type(yt.get(output_table + "/@schema"))
             assert schema == schema_from_attr
@@ -358,8 +440,8 @@ class TestParquet(object):
 
             schema = TableSchema() \
                 .add_column("x", type_info.Optional[type_info.Int64]) \
-                .add_column("y", type_info.Optional[
-                    type_info.List[type_info.List[type_info.Int64]]])
+                .add_column("y", type_info.Optional[type_info.List[
+                    type_info.Optional[type_info.List[type_info.Optional[type_info.Int64]]]]])
 
             schema_from_attr = TableSchema.from_yson_type(yt.get(output_table + "/@schema"))
             assert schema == schema_from_attr
@@ -413,8 +495,10 @@ class TestParquet(object):
                 .add_column("x", type_info.Optional[type_info.Int64]) \
                 .add_column("y", type_info.Optional[type_info.Double]) \
                 .add_column("z", type_info.Optional[type_info.Struct[
-                    "foo": type_info.Struct["a": type_info.Uint8, "b": type_info.String],
-                    "bar": type_info.String]])
+                    "foo": type_info.Optional[type_info.Struct[
+                        "a": type_info.Optional[type_info.Uint8],
+                        "b": type_info.Optional[type_info.String]]],
+                    "bar": type_info.Optional[type_info.String]]])
 
             schema_from_attr = TableSchema.from_yson_type(yt.get(output_table + "/@schema"))
             assert schema == schema_from_attr

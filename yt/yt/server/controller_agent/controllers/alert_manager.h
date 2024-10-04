@@ -16,7 +16,7 @@ struct IAlertManagerHost
     virtual const TControllerAgentConfigPtr& GetConfig() const = 0;
     virtual EOperationType GetOperationType() const = 0;
     virtual TInstant GetStartTime() const = 0;
-    virtual NLogging::TLogger GetLogger() const = 0;
+    virtual const NLogging::TLogger& GetLogger() const = 0;
 
     virtual void SetOperationAlert(EOperationAlertType type, const TError& alert) = 0;
 

@@ -235,10 +235,17 @@ private:
         void FiberMain()
         {
             YT_LOG_INFO("Connection accepted (RemoteAddress: %v)",
-                Connection_->RemoteAddress());
+                Connection_->GetRemoteAddress());
 
             try {
-                DoHandshake();
+                try {
+                    DoHandshake();
+                    TNbdProfilerCounters::Get()->GetCounter(NProfiling::TTagSet({{"status", "success"}}), "/server/connection/handshaked").Increment(1);
+                } catch (const std::exception& ex) {
+                    TNbdProfilerCounters::Get()->GetCounter(NProfiling::TTagSet({{"status", "failure"}}), "/server/connection/handshaked").Increment(1);
+                    throw;
+                }
+
                 if (Abort_) {
                     return;
                 }
@@ -324,14 +331,17 @@ private:
         {
             switch (option) {
                 case EClientOption::NBD_OPT_ABORT:
+                    TNbdProfilerCounters::Get()->GetCounter({}, "/server/request/opt_abort").Increment(1);
                     HandleAbortOption(payload);
                     break;
 
                 case EClientOption::NBD_OPT_LIST:
+                    TNbdProfilerCounters::Get()->GetCounter({}, "/server/request/opt_list").Increment(1);
                     HandleListOption(payload);
                     break;
 
                 case EClientOption::NBD_OPT_EXPORT_NAME:
+                    TNbdProfilerCounters::Get()->GetCounter({}, "/server/request/opt_export_name").Increment(1);
                     HandleExportNameOption(payload);
                     break;
 
@@ -427,18 +437,22 @@ private:
             auto cookie = InetToHost(message.Cookie);
             switch (type) {
                 case ECommandType::NBD_CMD_READ:
+                    TNbdProfilerCounters::Get()->GetCounter({}, "/server/request/cmd_read").Increment(1);
                     HandleClientReadRequest(message);
                     break;
 
                 case ECommandType::NBD_CMD_WRITE:
+                    TNbdProfilerCounters::Get()->GetCounter({}, "/server/request/cmd_write").Increment(1);
                     HandleClientWriteRequest(message);
                     break;
 
                 case ECommandType::NBD_CMD_FLUSH:
+                    TNbdProfilerCounters::Get()->GetCounter({}, "/server/request/cmd_flush").Increment(1);
                     HandleClientFlushRequest(message);
                     break;
 
                 case ECommandType::NBD_CMD_DISC:
+                    TNbdProfilerCounters::Get()->GetCounter({}, "/server/request/cmd_disc").Increment(1);
                     HandleClientDisconnectRequest(message);
                     break;
 
@@ -668,9 +682,12 @@ private:
     void OnConnectionAccepted(const TErrorOr<IConnectionPtr>& connectionOrError)
     {
         if (!connectionOrError.IsOK()) {
+            TNbdProfilerCounters::Get()->GetCounter(NProfiling::TTagSet({{"status", "failure"}}), "/server/connection/accepted").Increment(1);
             YT_LOG_INFO(connectionOrError, "Error accepting connection");
             return;
         }
+
+        TNbdProfilerCounters::Get()->GetCounter(NProfiling::TTagSet({{"status", "success"}}), "/server/connection/accepted").Increment(1);
 
         AcceptConnection();
 

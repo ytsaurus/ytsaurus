@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 
+	"github.com/golang/protobuf/proto"
+
 	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/guid"
@@ -11,6 +13,7 @@ import (
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 // Encoder is adapter between typed and untyped layer of API.
@@ -18,6 +21,7 @@ type Encoder struct {
 	StartCall func() *Call
 
 	Invoke        CallInvoker
+	InvokeInTx    CallInvoker
 	InvokeReadRow ReadRowInvoker
 }
 
@@ -333,34 +337,39 @@ func (e *Encoder) CopyNode(
 	dst ypath.YPath,
 	opts *yt.CopyNodeOptions,
 ) (id yt.NodeID, err error) {
-	if opts == nil {
-		opts = &yt.CopyNodeOptions{}
+	options := yt.CopyNodeOptions{}
+	if opts != nil {
+		options = *opts
 	}
-
-	req := &rpc_proxy.TReqCopyNode{
-		SrcPath:                   ptr.String(src.YPath().String()),
-		DstPath:                   ptr.String(dst.YPath().String()),
-		Recursive:                 &opts.Recursive,
-		Force:                     &opts.Force,
-		PreserveAccount:           opts.PreserveAccount,
-		PreserveCreationTime:      opts.PreserveCreationTime,
-		PreserveModificationTime:  nil, // todo
-		PreserveExpirationTime:    opts.PreserveExpirationTime,
-		PreserveExpirationTimeout: opts.PreserveExpirationTimeout,
-		PreserveOwner:             nil, // todo
-		PreserveAcl:               nil, // todo
-		IgnoreExisting:            &opts.IgnoreExisting,
-		LockExisting:              nil, // todo
-		PessimisticQuotaCheck:     opts.PessimisticQuotaCheck,
-		TransactionalOptions:      convertTransactionOptions(opts.TransactionOptions),
-		PrerequisiteOptions:       convertPrerequisiteOptions(opts.PrerequisiteOptions),
-		MutatingOptions:           convertMutatingOptions(opts.MutatingOptions),
-	}
-
-	call := e.newCall(MethodCopyNode, NewCopyNodeRequest(req), nil)
 
 	var rsp rpc_proxy.TRspCopyNode
-	err = e.Invoke(ctx, call, &rsp)
+	err = e.copyMove(ctx,
+		&rsp,
+		MethodCopyNode,
+		func(enableCrossCellCopying bool) Request {
+			req := &rpc_proxy.TReqCopyNode{
+				SrcPath:                   ptr.String(src.YPath().String()),
+				DstPath:                   ptr.String(dst.YPath().String()),
+				Recursive:                 &options.Recursive,
+				Force:                     &options.Force,
+				PreserveAccount:           options.PreserveAccount,
+				PreserveCreationTime:      options.PreserveCreationTime,
+				PreserveModificationTime:  nil, // todo
+				PreserveExpirationTime:    options.PreserveExpirationTime,
+				PreserveExpirationTimeout: options.PreserveExpirationTimeout,
+				PreserveOwner:             nil, // todo
+				PreserveAcl:               nil, // todo
+				IgnoreExisting:            &options.IgnoreExisting,
+				LockExisting:              nil, // todo
+				PessimisticQuotaCheck:     options.PessimisticQuotaCheck,
+				EnableCrossCellCopying:    ptr.Bool(enableCrossCellCopying),
+				TransactionalOptions:      convertTransactionOptions(options.TransactionOptions),
+				PrerequisiteOptions:       convertPrerequisiteOptions(options.PrerequisiteOptions),
+				MutatingOptions:           convertMutatingOptions(options.MutatingOptions),
+			}
+			return NewCopyNodeRequest(req)
+		},
+	)
 	if err != nil {
 		return
 	}
@@ -375,36 +384,55 @@ func (e *Encoder) MoveNode(
 	dst ypath.YPath,
 	opts *yt.MoveNodeOptions,
 ) (id yt.NodeID, err error) {
-	if opts == nil {
-		opts = &yt.MoveNodeOptions{}
+	options := yt.MoveNodeOptions{}
+	if opts != nil {
+		options = *opts
 	}
-
-	req := &rpc_proxy.TReqMoveNode{
-		SrcPath:                   ptr.String(src.YPath().String()),
-		DstPath:                   ptr.String(dst.YPath().String()),
-		Recursive:                 &opts.Recursive,
-		Force:                     &opts.Force,
-		PreserveAccount:           opts.PreserveAccount,
-		PreserveCreationTime:      nil, // todo
-		PreserveModificationTime:  nil, // todo
-		PreserveExpirationTime:    opts.PreserveExpirationTime,
-		PreserveExpirationTimeout: opts.PreserveExpirationTimeout,
-		PreserveOwner:             nil, // todo
-		PessimisticQuotaCheck:     opts.PessimisticQuotaCheck,
-		TransactionalOptions:      convertTransactionOptions(opts.TransactionOptions),
-		PrerequisiteOptions:       convertPrerequisiteOptions(opts.PrerequisiteOptions),
-		MutatingOptions:           convertMutatingOptions(opts.MutatingOptions),
-	}
-
-	call := e.newCall(MethodMoveNode, NewMoveNodeRequest(req), nil)
-
 	var rsp rpc_proxy.TRspMoveNode
-	err = e.Invoke(ctx, call, &rsp)
+	err = e.copyMove(ctx,
+		&rsp,
+		MethodMoveNode,
+		func(enableCrossCellCopying bool) Request {
+			req := &rpc_proxy.TReqMoveNode{
+				SrcPath:                   ptr.String(src.YPath().String()),
+				DstPath:                   ptr.String(dst.YPath().String()),
+				Recursive:                 &options.Recursive,
+				Force:                     &options.Force,
+				PreserveAccount:           options.PreserveAccount,
+				PreserveCreationTime:      nil, // todo
+				PreserveModificationTime:  nil, // todo
+				PreserveExpirationTime:    options.PreserveExpirationTime,
+				PreserveExpirationTimeout: options.PreserveExpirationTimeout,
+				PreserveOwner:             nil, // todo
+				PessimisticQuotaCheck:     options.PessimisticQuotaCheck,
+				EnableCrossCellCopying:    ptr.Bool(enableCrossCellCopying),
+				TransactionalOptions:      convertTransactionOptions(options.TransactionOptions),
+				PrerequisiteOptions:       convertPrerequisiteOptions(options.PrerequisiteOptions),
+				MutatingOptions:           convertMutatingOptions(options.MutatingOptions),
+			}
+			return NewMoveNodeRequest(req)
+		},
+	)
 	if err != nil {
 		return
 	}
 
 	id = makeNodeID(rsp.GetNodeId())
+	return
+}
+
+func (e *Encoder) copyMove(
+	ctx context.Context,
+	rsp proto.Message,
+	method Method,
+	newRequest func(enableCrossCellCopying bool) Request,
+) (err error) {
+	// try copy/move without any extra protection.
+	err = e.Invoke(ctx, e.newCall(method, newRequest(false), nil), rsp)
+	if yterrors.ContainsErrorCode(err, yterrors.CodeCrossCellAdditionalPath) {
+		// it's copy/move from portal, make it retryable.
+		err = e.InvokeInTx(ctx, e.newCall(method, newRequest(true), nil), rsp)
+	}
 	return
 }
 

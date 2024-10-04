@@ -206,6 +206,9 @@ private:
             FinishedPromise_.TrySet(error);
         }
     }
+
+    void CleanUpParent() override
+    { }
 };
 
 DEFINE_REFCOUNTED_TYPE(TCriProcess)

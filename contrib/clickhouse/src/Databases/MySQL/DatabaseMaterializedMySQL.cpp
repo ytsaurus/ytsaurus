@@ -5,6 +5,7 @@
 #    include <Databases/MySQL/DatabaseMaterializedMySQL.h>
 
 #    include <Interpreters/Context.h>
+#    include <Databases/DatabaseFactory.h>
 #    include <Databases/MySQL/DatabaseMaterializedTablesIterator.h>
 #    include <Databases/MySQL/MaterializedMySQLSyncThread.h>
 #    include <Parsers/ASTCreateQuery.h>
@@ -162,6 +163,100 @@ void DatabaseMaterializedMySQL::stopReplication()
 {
     materialize_thread.stopSynchronization();
     started_up = false;
+}
+
+void registerDatabaseMaterializedMySQL(DatabaseFactory & factory)
+{
+    auto create_fn = [](const DatabaseFactory::Arguments & args)
+    {
+        auto * engine_define = args.create_query.storage;
+        const ASTFunction * engine = engine_define->engine;
+        const String & engine_name = engine_define->engine->name;
+
+        if (!engine->arguments)
+            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Engine `{}` must have arguments", engine_name);
+        MySQLReplication::BinlogClientPtr binlog_client;
+        StorageMySQL::Configuration configuration;
+        ASTs & arguments = engine->arguments->children;
+        auto mysql_settings = std::make_unique<MySQLSettings>();
+
+        if (auto named_collection = tryGetNamedCollectionWithOverrides(arguments, args.context))
+        {
+            configuration = StorageMySQL::processNamedCollectionResult(*named_collection, *mysql_settings, args.context, false);
+        }
+        else
+        {
+            if (arguments.size() != 4)
+                throw Exception(
+                    ErrorCodes::BAD_ARGUMENTS,
+                    "MySQL database require mysql_hostname, mysql_database_name, mysql_username, mysql_password arguments.");
+
+
+            arguments[1] = evaluateConstantExpressionOrIdentifierAsLiteral(arguments[1], args.context);
+            const auto & host_port = safeGetLiteralValue<String>(arguments[0], engine_name);
+
+            if (engine_name == "MySQL")
+            {
+                size_t max_addresses = args.context->getSettingsRef().glob_expansion_max_elements;
+                configuration.addresses = parseRemoteDescriptionForExternalDatabase(host_port, max_addresses, 3306);
+            }
+            else
+            {
+                const auto & [remote_host, remote_port] = parseAddress(host_port, 3306);
+                configuration.host = remote_host;
+                configuration.port = remote_port;
+            }
+
+            configuration.database = safeGetLiteralValue<String>(arguments[1], engine_name);
+            configuration.username = safeGetLiteralValue<String>(arguments[2], engine_name);
+            configuration.password = safeGetLiteralValue<String>(arguments[3], engine_name);
+        }
+        MySQLClient client(configuration.host, configuration.port, configuration.username, configuration.password);
+        auto mysql_pool
+            = mysqlxx::Pool(configuration.database, configuration.host, configuration.username, configuration.password, configuration.port);
+
+        auto materialize_mode_settings = std::make_unique<MaterializedMySQLSettings>();
+
+        if (engine_define->settings)
+            materialize_mode_settings->loadFromQuery(*engine_define);
+
+        if (materialize_mode_settings->use_binlog_client)
+            binlog_client = DB::MySQLReplication::BinlogClientFactory::instance().getClient(
+                configuration.host, configuration.port, configuration.username, configuration.password,
+                materialize_mode_settings->max_bytes_in_binlog_dispatcher_buffer,
+                materialize_mode_settings->max_flush_milliseconds_in_binlog_dispatcher);
+
+        if (args.uuid == UUIDHelpers::Nil)
+        {
+            auto print_create_ast = args.create_query.clone();
+            print_create_ast->as<ASTCreateQuery>()->attach = false;
+            throw Exception(
+                ErrorCodes::NOT_IMPLEMENTED,
+                "The MaterializedMySQL database engine no longer supports Ordinary databases. To re-create the database, delete "
+                "the old one by executing \"rm -rf {}{{,.sql}}\", then re-create the database with the following query: {}",
+                args.metadata_path,
+                queryToString(print_create_ast));
+        }
+
+        return make_shared<DatabaseMaterializedMySQL>(
+            args.context,
+            args.database_name,
+            args.metadata_path,
+            args.uuid,
+            configuration.database,
+            std::move(mysql_pool),
+            std::move(client),
+            binlog_client,
+            std::move(materialize_mode_settings));
+    };
+
+    DatabaseFactory::EngineFeatures features{
+        .supports_arguments = true,
+        .supports_settings = true,
+        .supports_table_overrides = true,
+    };
+    factory.registerDatabase("MaterializeMySQL", create_fn, features);
+    factory.registerDatabase("MaterializedMySQL", create_fn, features);
 }
 
 }

@@ -414,7 +414,7 @@ class TestBatchExecutionOperationCommands(object):
         yt.write_table(table, [{"x": 1}, {"x": 2}])
 
         with tempfile.NamedTemporaryFile("r") as f:
-            os.chmod(f.name, 0x777)
+            os.chmod(f.name, 0o777)
             op1 = yt.run_map("echo $YT_JOB_ID > {} && cat".format(f.name), table, table, job_count=1, format="json")
             job_id = f.read().strip()
         after_op1 = utcnow()

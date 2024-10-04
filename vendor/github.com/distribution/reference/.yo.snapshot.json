@@ -1,0 +1,30 @@
+{
+	"Version": "v0.5.0",
+	"GoVersion": "1.20",
+	"Sum": "h1:/FUIFXtfc/x2gpa5/VGfiGLuOIdYa1t65IKK2OFGvA0=",
+	"Packages": {
+		"github.com/distribution/reference": {
+			"Imports": [
+				"errors",
+				"fmt",
+				"github.com/opencontainers/go-digest",
+				"path",
+				"regexp",
+				"sort",
+				"strings"
+			],
+			"TestImports": [
+				"crypto/sha256",
+				"crypto/sha512",
+				"encoding/json",
+				"github.com/opencontainers/go-digest",
+				"io",
+				"math/rand",
+				"regexp",
+				"strconv",
+				"strings",
+				"testing"
+			]
+		}
+	}
+}

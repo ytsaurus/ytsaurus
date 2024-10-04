@@ -1,5 +1,6 @@
 RECURSE(
     chaos_cells
+    bundle_hotfix
     clock_quorum_health
     controller_agent_alerts
     controller_agent_count
@@ -40,6 +41,7 @@ RECURSE(
     stuck_missing_part_chunks
     suspicious_jobs
     system_quotas
+    system_quotas_yt_logs
     tablet_cell_gossip
     tablet_cell_snapshots
     tablet_cells

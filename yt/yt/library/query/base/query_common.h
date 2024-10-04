@@ -161,15 +161,17 @@ struct TQueryOptions
         .RetentionTimestamp = NTransactionClient::NullTimestamp,
     };
     bool VerboseLogging = false;
-    int MaxSubqueries = std::numeric_limits<int>::max();
-    ui64 RangeExpansionLimit = 0;
-    TWorkloadDescriptor WorkloadDescriptor;
     bool AllowFullScan = true;
-    TInstant Deadline = TInstant::Max();
     bool SuppressAccessTracking = false;
-    std::optional<TString> ExecutionPool;
     // COMPAT(lukyan)
     bool NewRangeInference = true;
+    int MaxSubqueries = std::numeric_limits<int>::max();
+    int MinRowCountPerSubquery = 100'000;
+    std::optional<bool> UseLookupCache;
+    ui64 RangeExpansionLimit = 0;
+    TWorkloadDescriptor WorkloadDescriptor;
+    TInstant Deadline = TInstant::Max();
+    std::optional<TString> ExecutionPool;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

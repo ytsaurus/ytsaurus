@@ -67,7 +67,6 @@ target_include_directories(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/avro/api
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/include/roaring
   ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
-  ${PROJECT_SOURCE_DIR}/contrib/libs/farmhash
   ${PROJECT_SOURCE_DIR}/contrib/libs/fastops
   ${PROJECT_SOURCE_DIR}/contrib/libs/libc_compat/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/libdivide
@@ -605,6 +604,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/NormalizeAndEvaluateConstantsVisitor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/TablesDependencyGraph.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/TablesLoader.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/registerDatabases.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/removeWhereConditionPlaceholder.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/CacheDictionary.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/CacheDictionaryUpdateQueue.cpp
@@ -1777,7 +1777,6 @@ target_include_directories(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/avro/api
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/include/roaring
   ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
-  ${PROJECT_SOURCE_DIR}/contrib/libs/farmhash
   ${PROJECT_SOURCE_DIR}/contrib/libs/fastops
   ${PROJECT_SOURCE_DIR}/contrib/libs/libc_compat/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/libdivide

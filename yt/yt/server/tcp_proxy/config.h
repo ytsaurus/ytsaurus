@@ -35,7 +35,7 @@ class TTcpProxyConfig
 public:
     bool AbortOnUnrecognizedOptions;
 
-    TString Role;
+    std::string Role;
 
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
 

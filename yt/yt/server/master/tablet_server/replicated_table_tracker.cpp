@@ -91,7 +91,7 @@ static constexpr auto& Logger = TabletServerLogger;
 struct TClusterStateCacheKey
 {
     NApi::IClientPtr Client;
-    TString ClusterName; // for diagnostics only
+    std::string ClusterName; // for diagnostics only
 
     bool operator==(const TClusterStateCacheKey& other) const
     {
@@ -116,8 +116,8 @@ void FormatValue(TStringBuilderBase* builder, const TClusterStateCacheKey& key, 
 struct TBundleHealthCacheKey
 {
     NApi::IClientPtr Client;
-    TString ClusterName; // for diagnostics only
-    TString BundleName;
+    std::string ClusterName; // for diagnostics only
+    std::string BundleName;
 
     bool operator==(const TBundleHealthCacheKey& other) const
     {
@@ -317,7 +317,7 @@ private:
         TReplica(
             TObjectId id,
             ETableReplicaMode mode,
-            const TString& clusterName,
+            const std::string& clusterName,
             const TYPath& path,
             TBundleHealthCachePtr bundleHealthCache,
             TClusterStateCachePtr clusterStateCache,
@@ -349,17 +349,17 @@ private:
             , MaxIterationsWithoutAcceptableBundleHealth_(maxIterationsWithoutAcceptableBundleHealth)
         { }
 
-        TObjectId GetId()
+        TObjectId GetId() const
         {
             return Id_;
         }
 
-        const TString& GetClusterName()
+        const std::string& GetClusterName() const
         {
             return ClusterName_;
         }
 
-        const TYPath& GetPath()
+        const TYPath& GetPath() const
         {
             return Path_;
         }
@@ -450,7 +450,7 @@ private:
     private:
         const TObjectId Id_;
         ETableReplicaMode Mode_;
-        const TString ClusterName_;
+        const std::string ClusterName_;
         const TYPath Path_;
 
         const TBundleHealthCachePtr BundleHealthCache_;
@@ -938,7 +938,7 @@ private:
         }
     }
 
-    IClientPtr GetOrCreateClusterClient(const TString& clusterName)
+    IClientPtr GetOrCreateClusterClient(const std::string& clusterName)
     {
         auto guard = Guard(ClusterToConnectionLock_);
 

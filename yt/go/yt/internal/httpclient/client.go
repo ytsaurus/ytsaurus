@@ -345,6 +345,29 @@ func (c *httpClient) do(ctx context.Context, call *internal.Call) (res *internal
 	return
 }
 
+func (c *httpClient) doInTx(ctx context.Context, call *internal.Call) (res *internal.CallResult, err error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	tx, err := c.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	commandCall := *call
+	commandCall.DisableRetries = true
+	res, err = tx.(*internal.TxInterceptor).Invoke(ctx, &commandCall)
+	if err != nil {
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	return
+}
+
 type pipeWrapper struct {
 	*io.PipeReader
 	readStarted chan struct{}
@@ -697,6 +720,7 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 
 	client.Encoder.StartCall = client.startCall
 	client.Encoder.Invoke = client.do
+	client.Encoder.InvokeInTx = client.doInTx
 	client.Encoder.InvokeRead = client.doRead
 	client.Encoder.InvokeReadRow = client.doReadRow
 	client.Encoder.InvokeWrite = client.doWrite
@@ -716,6 +740,9 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 		Wrap(client.mutationRetrier.Intercept).
 		Wrap(client.readRetrier.Intercept).
 		Wrap(errorWrapper.Intercept)
+
+	client.Encoder.InvokeInTx = client.Encoder.InvokeInTx.
+		Wrap(client.readRetrier.InterceptInTx)
 
 	client.Encoder.InvokeRead = client.Encoder.InvokeRead.
 		Wrap(proxyBouncer.Read).

@@ -221,6 +221,9 @@ type CopyNodeOptions struct {
 	PreserveCreationTime      *bool `http:"preserve_creation_time,omitnil"`
 	PessimisticQuotaCheck     *bool `http:"pessimistic_quota_check,omitnil"`
 
+	// EnableCrossCellCopying option is managed internally by the library.
+	EnableCrossCellCopying *bool `http:"enable_cross_cell_copying,omitnil"`
+
 	*TransactionOptions
 	// *AccessTrackingOptions
 	*MutatingOptions
@@ -235,6 +238,9 @@ type MoveNodeOptions struct {
 	PreserveExpirationTime    *bool `http:"preserve_expiration_time,omitnil"`
 	PreserveExpirationTimeout *bool `http:"preserve_expiration_timeout,omitnil"`
 	PessimisticQuotaCheck     *bool `http:"pessimistic_quota_check,omitnil"`
+
+	// EnableCrossCellCopying option is managed internally by the library.
+	EnableCrossCellCopying *bool `http:"enable_cross_cell_copying,omitnil"`
 
 	*TransactionOptions
 	// *AccessTrackingOptions

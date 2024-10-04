@@ -1,6 +1,5 @@
 #include "cached_versioned_chunk_meta.h"
 #include "chunk_lookup_hash_table.h"
-#include "private.h"
 #include "schemaless_block_reader.h"
 #include "versioned_block_reader.h"
 #include "versioned_chunk_reader.h"
@@ -12,6 +11,8 @@
 
 #include <yt/yt/ytlib/chunk_client/block_fetcher.h>
 #include <yt/yt/ytlib/chunk_client/preloaded_block_cache.h>
+
+#include <yt/yt/client/table_client/private.h>
 
 namespace NYT::NTableClient {
 

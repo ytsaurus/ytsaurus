@@ -1,13 +1,13 @@
-from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE
 
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
-    raises_yt_error,
-    create, ls, sorted_dicts,
+    raises_yt_error, update_controller_agent_config,
+    create, ls, exists, sorted_dicts, create_pool,
     get, write_file, read_table, write_table, vanilla, run_test_vanilla, abort_job, abandon_job,
-    interrupt_job, dump_job_context)
+    interrupt_job, dump_job_context, run_sleeping_vanilla, get_allocation_id_from_job_id)
 
-from yt_helpers import skip_if_no_descending, profiler_factory, read_structured_log, write_log_barrier
+from yt_helpers import skip_if_no_descending, profiler_factory, read_structured_log, write_log_barrier, JobCountProfiler
 
 from yt import yson
 from yt.yson import to_yson_type
@@ -797,3 +797,396 @@ wait $child_pid
 
 class TestSchedulerVanillaInterruptsPorto(TestSchedulerVanillaInterrupts):
     USE_PORTO = True
+
+
+##################################################################
+
+
+class TestGangManager(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "gang_manager": {
+                "enabled": True,
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+    }
+
+    def _get_operation_incarnation(self, op):
+        wait(lambda: exists(op.get_orchid_path() + "/controller/operation_incarnation"))
+        incarnation_id = get(op.get_orchid_path() + "/controller/operation_incarnation")
+        print_debug(f"Current incarnation of operation {op.id} is {incarnation_id}")
+
+        return incarnation_id
+
+    def _get_job_tracker_orchid_path(self, op):
+        controller_agent_address = op.get_controller_agent_address()
+        return f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker"
+
+    @authors("pogorelov")
+    def test_restart_on_abortion(self):
+        restarted_job_profiler = JobCountProfiler(
+            "aborted",
+            tags={"tree": "default", "job_type": "vanilla", "abort_reason": "operation_incarnation_changed"},
+        )
+        aborted_by_request_job_profiler = JobCountProfiler(
+            "aborted",
+            tags={"tree": "default", "job_type": "vanilla", "abort_reason": "user_request"},
+        )
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=3,
+            task_patch={"gang_manager": {}},
+        )
+
+        job_ids = wait_breakpoint(job_count=3)
+
+        assert len(job_ids) == 3
+
+        first_job_id = job_ids[0]
+
+        print_debug("aborting job ", first_job_id)
+
+        abort_job(first_job_id)
+
+        wait(lambda: aborted_by_request_job_profiler.get_job_count_delta() == 1)
+        wait(lambda: restarted_job_profiler.get_job_count_delta() == 2)
+
+        job_orchid_addresses = [op.get_job_node_orchid_path(job_id) + f"/exec_node/job_controller/active_jobs/{job_id}" for job_id in job_ids]
+
+        release_breakpoint(job_id=job_ids[0])
+        release_breakpoint(job_id=job_ids[1])
+        release_breakpoint(job_id=job_ids[2])
+
+        for job_orchid_address in job_orchid_addresses:
+            wait(lambda: not exists(job_orchid_address))
+
+        new_job_ids = wait_breakpoint(job_count=3)
+
+        assert len(set(job_ids) & set(new_job_ids)) == 0
+
+        allocation_ids = set([get_allocation_id_from_job_id(job_id) for job_id in job_ids])
+        allocation_ids.remove(get_allocation_id_from_job_id(first_job_id))
+        new_allocation_ids = set([get_allocation_id_from_job_id(job_id) for job_id in new_job_ids])
+
+        assert allocation_ids.issubset(new_allocation_ids)
+
+        release_breakpoint()
+
+        op.track()
+
+    @authors("pogorelov")
+    def test_restart_disabled_in_config(self):
+        update_controller_agent_config("vanilla_operation_options/gang_manager/enabled", False)
+
+        restarted_job_profiler = JobCountProfiler(
+            "aborted",
+            tags={"tree": "default", "job_type": "vanilla"},
+        )
+        aborted_by_request_job_profiler = JobCountProfiler(
+            "aborted",
+            tags={"tree": "default", "job_type": "vanilla", "abort_reason": "user_request"},
+        )
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=3,
+            task_patch={"gang_manager": {}},
+        )
+
+        job_ids = wait_breakpoint(job_count=3)
+
+        assert len(job_ids) == 3
+
+        first_job_id = job_ids[0]
+
+        print_debug("aborting job ", first_job_id)
+
+        abort_job(first_job_id)
+
+        wait(lambda: aborted_by_request_job_profiler.get_job_count_delta() == 1)
+
+        release_breakpoint()
+
+        op.track()
+
+        assert restarted_job_profiler.get_job_count_delta() == 1
+
+    @authors("pogorelov")
+    def test_restart_on_job_failure(self):
+        restarted_job_profiler = JobCountProfiler(
+            "aborted",
+            tags={"tree": "default", "job_type": "vanilla", "abort_reason": "operation_incarnation_changed"},
+        )
+        failed_job_profiler = JobCountProfiler(
+            "failed",
+            tags={"tree": "default", "job_type": "vanilla"},
+        )
+
+        command = """
+            BREAKPOINT;
+            if [ "$YT_JOB_INDEX" -eq 1 ]; then
+                exit 1
+            else
+                sleep 1000
+            fi;
+        """
+
+        op = run_test_vanilla(
+            with_breakpoint(command),
+            job_count=3,
+            spec={"max_failed_job_count": 2},
+            task_patch={"gang_manager": {}},
+        )
+
+        job_ids = wait_breakpoint(job_count=3)
+
+        assert len(job_ids) == 3
+
+        job_orchid_addresses = [op.get_job_node_orchid_path(job_id) + f"/exec_node/job_controller/active_jobs/{job_id}" for job_id in job_ids]
+
+        release_breakpoint(job_id=job_ids[0])
+        release_breakpoint(job_id=job_ids[1])
+        release_breakpoint(job_id=job_ids[2])
+
+        wait(lambda: failed_job_profiler.get_job_count_delta() == 1)
+        wait(lambda: restarted_job_profiler.get_job_count_delta() == 2)
+
+        for job_orchid_address in job_orchid_addresses:
+            wait(lambda: not exists(job_orchid_address))
+
+        new_job_ids = wait_breakpoint(job_count=3)
+
+        assert len(set(job_ids) & set(new_job_ids)) == 0
+
+        allocation_ids = set([get_allocation_id_from_job_id(job_id) for job_id in job_ids])
+        new_allocation_ids = set([get_allocation_id_from_job_id(job_id) for job_id in new_job_ids])
+
+        print(f"New allocations are {new_allocation_ids}, old are {allocation_ids}")
+
+        assert len(allocation_ids & new_allocation_ids) == 2
+
+        op.abort()
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("task_to_abort_job_of", ["task_a", "task_b"])
+    def test_task_spec(self, task_to_abort_job_of):
+        aborted_job_profiler = JobCountProfiler(
+            "aborted",
+            tags={"tree": "default", "job_type": "vanilla"},
+        )
+
+        restarted_job_profiler = JobCountProfiler(
+            "aborted",
+            tags={"tree": "default", "job_type": "vanilla", "abort_reason": "operation_incarnation_changed"},
+        )
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="task_a"),
+                    },
+                    "task_b": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="task_b"),
+                        "gang_manager": {},
+                    },
+                },
+                "fail_on_job_restart": False,
+                "testing": {
+                    "settle_job_delay": {
+                        "duration": 1000 if task_to_abort_job_of == "task_b" else 0,
+                        "type": "async",
+                    },
+                },
+            },
+        )
+
+        (job_a, ) = wait_breakpoint(breakpoint_name="task_a")
+        (job_b, ) = wait_breakpoint(breakpoint_name="task_b")
+
+        if task_to_abort_job_of == "task_a":
+            job_to_abort = job_a
+        else:
+            job_to_abort = job_b
+
+        abort_job(job_to_abort)
+        jobs_a = wait_breakpoint(job_count=2, breakpoint_name="task_a")
+
+        if task_to_abort_job_of == "task_b":
+            wait_breakpoint(job_count=2, breakpoint_name="task_b")
+
+            assert get_allocation_id_from_job_id(jobs_a[0]) == get_allocation_id_from_job_id(jobs_a[1])
+
+        release_breakpoint(breakpoint_name="task_a")
+        release_breakpoint(breakpoint_name="task_b")
+
+        op.track()
+
+        if task_to_abort_job_of == "task_b":
+            assert aborted_job_profiler.get_job_count_delta() == 2
+            assert restarted_job_profiler.get_job_count_delta() == 1
+        else:
+            assert aborted_job_profiler.get_job_count_delta() == 1
+            assert restarted_job_profiler.get_job_count_delta() == 0
+
+    @authors("pogorelov")
+    def test_multiple_incarnation_switches(self):
+        incarnation_switch_count = 3
+
+        restarted_job_profiler = JobCountProfiler(
+            "aborted",
+            tags={"tree": "default", "job_type": "vanilla", "abort_reason": "operation_incarnation_changed"},
+        )
+        aborted_by_request_job_profiler = JobCountProfiler(
+            "aborted",
+            tags={"tree": "default", "job_type": "vanilla", "abort_reason": "user_request"},
+        )
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=3,
+            task_patch={"gang_manager": {}},
+        )
+
+        previous_job_ids = []
+        all_started_jobs = set()
+        previous_operation_incarnations = set()
+
+        last_job_ids = wait_breakpoint(job_count=3)
+        all_started_jobs.update(last_job_ids)
+
+        for iteration in range(incarnation_switch_count):
+            previous_operation_incarnations.add(self._get_operation_incarnation(op))
+
+            assert len(last_job_ids) == 3
+
+            first_job_id = last_job_ids[0]
+
+            print_debug("aborting job ", first_job_id)
+
+            abort_job(first_job_id)
+
+            wait(lambda: aborted_by_request_job_profiler.get_job_count_delta() == iteration + 1)
+            wait(lambda: restarted_job_profiler.get_job_count_delta() == 2 * (iteration + 1))
+
+            job_orchid_addresses = [op.get_job_node_orchid_path(job_id) + f"/exec_node/job_controller/active_jobs/{job_id}" for job_id in last_job_ids]
+
+            release_breakpoint(job_id=last_job_ids[0])
+            release_breakpoint(job_id=last_job_ids[1])
+            release_breakpoint(job_id=last_job_ids[2])
+
+            for job_orchid_address in job_orchid_addresses:
+                wait(lambda: not exists(job_orchid_address))
+
+            previous_job_ids = last_job_ids
+
+            last_job_ids = wait_breakpoint(job_count=3)
+            assert len(set(last_job_ids) & all_started_jobs) == 0
+
+            all_started_jobs.update(last_job_ids)
+
+            allocation_ids = set([get_allocation_id_from_job_id(job_id) for job_id in previous_job_ids])
+            allocation_ids.remove(get_allocation_id_from_job_id(first_job_id))
+            new_allocation_ids = set([get_allocation_id_from_job_id(job_id) for job_id in last_job_ids])
+
+            assert allocation_ids.issubset(new_allocation_ids)
+
+            assert self._get_operation_incarnation(op) not in previous_operation_incarnations
+
+        release_breakpoint()
+
+        op.track()
+
+    @authors("pogorelov")
+    def test_simple_revive(self):
+        aborted_job_profiler = JobCountProfiler(
+            "aborted",
+            tags={"tree": "default", "job_type": "vanilla"},
+        )
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="task_a"),
+                    },
+                    "task_b": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="task_b"),
+                        "gang_manager": {},
+                    },
+                },
+                "fail_on_job_restart": False,
+            },
+        )
+
+        (job_a, ) = wait_breakpoint(breakpoint_name="task_a")
+        (job_b, ) = wait_breakpoint(breakpoint_name="task_b")
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        release_breakpoint(breakpoint_name="task_a")
+        release_breakpoint(breakpoint_name="task_b")
+
+        op.track()
+
+        assert aborted_job_profiler.get_job_count_delta() == 0
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("jobs_were_scheduled", [0, 1])
+    def test_revive_before_jobs_scheduled(self, jobs_were_scheduled):
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
+        create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+
+        sleeping_op = run_sleeping_vanilla(spec={"pool": "test_pool"}, job_count=(3 - jobs_were_scheduled))
+        wait(lambda: len(get(self._get_job_tracker_orchid_path(sleeping_op) + f"/operations/{sleeping_op.id}/allocations")) == 3 - jobs_were_scheduled)
+
+        # Will not start jobs while sleeping_op is running.
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=3,
+            task_patch={"gang_manager": {}},
+            spec={"pool": "fake_pool"},
+        )
+
+        first_incarnation_id = self._get_operation_incarnation(op)
+
+        if jobs_were_scheduled:
+            wait(lambda: len(get(self._get_job_tracker_orchid_path(op) + f"/operations/{op.id}/allocations")) == jobs_were_scheduled)
+        else:
+            assert len(get(self._get_job_tracker_orchid_path(op) + f"/operations/{op.id}/allocations")) == 0
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            sleeping_op.abort()
+
+        second_incarnation_id = self._get_operation_incarnation(op)
+
+        assert first_incarnation_id != second_incarnation_id
+
+        wait_breakpoint(job_count=3)
+        release_breakpoint()
+
+        op.track()
+
+
+##################################################################

@@ -22,6 +22,10 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const TString RootFSBinaryDirectory("/ext_bin/");
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TJobEnvironmentCpuStatistics
 {
     std::optional<TDuration> BurstUsageTime;
@@ -121,6 +125,8 @@ struct TUserJobEnvironmentOptions
     NContainers::EEnablePorto EnablePorto = NContainers::EEnablePorto::None;
 
     i64 ThreadLimit;
+
+    bool EnableRootVolumeDiskQuota = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -141,7 +147,8 @@ struct IUserJobEnvironment
     virtual TFuture<void> SpawnUserProcess(
         const TString& path,
         const std::vector<TString>& arguments,
-        const TString& workingDirectory) = 0;
+        const TString& workingDirectory,
+        std::optional<int> userId) = 0;
 
     virtual NContainers::IInstancePtr GetUserJobInstance() const = 0;
 
@@ -156,6 +163,8 @@ struct IUserJobEnvironment
     virtual i64 GetMajorPageFaultCount() const = 0;
 
     virtual std::optional<i64> GetJobOOMKillCount() const noexcept = 0;
+
+    virtual bool HasRootFS() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IUserJobEnvironment)
@@ -179,6 +188,8 @@ struct IJobProxyEnvironment
     virtual std::optional<TJobEnvironmentMemoryStatistics> GetJobMemoryStatistics() const noexcept = 0;
     virtual std::optional<TJobEnvironmentCpuStatistics> GetJobCpuStatistics() const noexcept = 0;
     virtual std::optional<i64> GetJobOOMKillCount() const noexcept = 0;
+
+    virtual bool UseExecFromLayer() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobProxyEnvironment)

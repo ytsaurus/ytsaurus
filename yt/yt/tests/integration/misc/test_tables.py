@@ -3186,6 +3186,48 @@ class TestTablesMulticell(TestTables):
 
         assert actual == gen_data([values[1], values[2]])
 
+    @authors("gepardo")
+    def test_type_conversion(self):
+        create(
+            "table",
+            "//tmp/input",
+            attributes={
+                "schema": make_schema(
+                    [
+                        {"name": "foo", "type": "double", "sort_order": "ascending"},
+                        {"name": "bar", "type": "string"},
+                    ]
+                )
+            },
+        )
+        write_table("//tmp/input", [
+            {"foo": 41.0, "bar": "val0"},
+            {"foo": 41.5, "bar": "val1"},
+            {"foo": 42.0, "bar": "val2"},
+            {"foo": 42.5, "bar": "val3"},
+            {"foo": 43.0, "bar": "val4"}
+        ])
+        assert read_table("//tmp/input[42]") == [{"foo": 42.0, "bar": "val2"}]
+
+        create(
+            "table",
+            "//tmp/input2",
+            attributes={
+                "schema": make_schema(
+                    [
+                        {"name": "foo", "type": "uint64", "sort_order": "ascending"},
+                        {"name": "bar", "type": "string"},
+                    ]
+                )
+            },
+        )
+        write_table("//tmp/input2", [
+            {"foo": 44, "bar": "val0"},
+            {"foo": 45, "bar": "val1"},
+            {"foo": 46, "bar": "val2"}
+        ])
+        assert read_table("//tmp/input2[45]") == [{"foo": 45, "bar": "val1"}]
+
 
 ##################################################################
 
@@ -3258,50 +3300,3 @@ class TestTablesRpcProxy(TestTables):
         except YtError as err:
             attrs = err.inner_errors[0]["attributes"]
             assert attrs.get("path", "") == "//tmp/t/@id"
-
-
-##################################################################
-
-
-class TestYPathTypeConversion(TestTables):
-    @authors("gepardo")
-    def test_type_conversion(self):
-        create(
-            "table",
-            "//tmp/input",
-            attributes={
-                "schema": make_schema(
-                    [
-                        {"name": "foo", "type": "double", "sort_order": "ascending"},
-                        {"name": "bar", "type": "string"},
-                    ]
-                )
-            },
-        )
-        write_table("//tmp/input", [
-            {"foo": 41.0, "bar": "val0"},
-            {"foo": 41.5, "bar": "val1"},
-            {"foo": 42.0, "bar": "val2"},
-            {"foo": 42.5, "bar": "val3"},
-            {"foo": 43.0, "bar": "val4"}
-        ])
-        assert read_table("//tmp/input[42]") == [{"foo": 42.0, "bar": "val2"}]
-
-        create(
-            "table",
-            "//tmp/input2",
-            attributes={
-                "schema": make_schema(
-                    [
-                        {"name": "foo", "type": "uint64", "sort_order": "ascending"},
-                        {"name": "bar", "type": "string"},
-                    ]
-                )
-            },
-        )
-        write_table("//tmp/input2", [
-            {"foo": 44, "bar": "val0"},
-            {"foo": 45, "bar": "val1"},
-            {"foo": 46, "bar": "val2"}
-        ])
-        assert read_table("//tmp/input2[45]") == [{"foo": 45, "bar": "val1"}]

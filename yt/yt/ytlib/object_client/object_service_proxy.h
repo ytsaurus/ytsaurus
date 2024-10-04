@@ -60,6 +60,11 @@ public:
     TFuture<TIntrusivePtr<typename TTypedRequest::TTypedResponse>>
     Execute(TIntrusivePtr<TTypedRequest> innerRequest);
 
+    template <std::derived_from<NYTree::TYPathRequest>... TTypedRequests>
+        requires (sizeof...(TTypedRequests) > 0)
+    TFuture<std::tuple<TIntrusivePtr<typename TTypedRequests::TTypedResponse>...>>
+    ExecuteAll(TIntrusivePtr<TTypedRequests>... innerRequests);
+
     class TReqExecuteBatchBase;
     class TReqExecuteBatch;
     class TReqExecuteBatchWithRetries;
@@ -81,10 +86,11 @@ private:
     public:
         struct TInnerRequestDescriptor
         {
-            std::optional<TString> Key;
+            std::optional<std::string> Key;
             std::any Tag;
             TSharedRefArray Message;
             std::optional<size_t> Hash;
+            bool Mutating;
 
             NApi::NNative::TStickyGroupSizeCache::TKey GetKey() const;
         };
@@ -155,13 +161,13 @@ public:
          */
         void AddRequest(
             const NYTree::TYPathRequestPtr& innerRequest,
-            std::optional<TString> key = std::nullopt,
+            std::optional<std::string> key = std::nullopt,
             std::optional<size_t> hash = std::nullopt);
 
         //! Similar to #AddRequest, but works for already serialized messages representing requests.
         void AddRequestMessage(
             TSharedRefArray innerRequestMessage,
-            std::optional<TString> key = std::nullopt,
+            std::optional<std::string> key = std::nullopt,
             std::any tag = {},
             std::optional<size_t> hash = std::nullopt);
 
@@ -220,6 +226,8 @@ public:
     private:
         TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> CurrentReqFuture_;
         bool IsFirstBatch_ = true;
+
+        std::vector<int> InFlightSubbatchIndexToGlobalIndex_;
 
         std::optional<int> StickyGroupSize_;
         bool EnableClientStickiness_ = false;
@@ -349,34 +357,34 @@ public:
 
         //! Returns the individual generic response with a given key or |nullptr| if no request with
         //! this key is known. At most one such response must exist, otherwise and exception is thrown.
-        std::optional<TErrorOr<NYTree::TYPathResponsePtr>> FindResponse(const TString& key) const;
+        std::optional<TErrorOr<NYTree::TYPathResponsePtr>> FindResponse(const std::string& key) const;
 
         //! Returns the individual generic response with a given key.
         //! Such a response must be unique.
-        TErrorOr<NYTree::TYPathResponsePtr> GetResponse(const TString& key) const;
+        TErrorOr<NYTree::TYPathResponsePtr> GetResponse(const std::string& key) const;
 
         //! Returns the individual response with a given key or NULL if no request with
         //! this key is known. At most one such response must exist.
         template <class TTypedResponse>
-        std::optional<TErrorOr<TIntrusivePtr<TTypedResponse>>> FindResponse(const TString& key) const;
+        std::optional<TErrorOr<TIntrusivePtr<TTypedResponse>>> FindResponse(const std::string& key) const;
 
         //! Returns the individual response with a given key.
         //! Such a response must be unique.
         template <class TTypedResponse>
-        TErrorOr<TIntrusivePtr<TTypedResponse>> GetResponse(const TString& key) const;
+        TErrorOr<TIntrusivePtr<TTypedResponse>> GetResponse(const std::string& key) const;
 
         //! Returns all responses with a given key (all if no key is specified).
         template <class TTypedResponse>
-        std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> GetResponses(const std::optional<TString>& key = std::nullopt) const;
+        std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> GetResponses(const std::optional<std::string>& key = std::nullopt) const;
 
         //! Returns all responses as pairs <tag, typed response> which is more
         //! convenient for tag extraction in case when response errors are expected.
         template <class TTypedResponse>
         std::vector<std::pair<std::any, TErrorOr<TIntrusivePtr<TTypedResponse>>>> GetTaggedResponses(
-            const std::optional<TString>& key = std::nullopt) const;
+            const std::optional<std::string>& key = std::nullopt) const;
 
         //! Returns all responses with a given key (all if no key is specified).
-        std::vector<TErrorOr<NYTree::TYPathResponsePtr>> GetResponses(const std::optional<TString>& key = {}) const;
+        std::vector<TErrorOr<NYTree::TYPathResponsePtr>> GetResponses(const std::optional<std::string>& key = {}) const;
 
         //! Similar to #GetResponse, but returns the response message without deserializing it.
         TSharedRefArray GetResponseMessage(int index) const;
@@ -485,12 +493,12 @@ public:
  */
 TError GetCumulativeError(
     const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError,
-    const std::optional<TString>& key = {});
+    const std::optional<std::string>& key = {});
 
 //! Similar to the above but the envelope request is known to be successful.
 TError GetCumulativeError(
     const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp,
-    const std::optional<TString>& key = {});
+    const std::optional<std::string>& key = {});
 
 //! Constructs and throws cumulative error if any individual response fails.
 void ThrowCumulativeErrorIfFailed(

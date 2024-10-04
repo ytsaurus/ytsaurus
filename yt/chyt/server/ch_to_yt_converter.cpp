@@ -387,7 +387,7 @@ class TMapConverter
     : public IConverter
 {
 public:
-    explicit TMapConverter(IConverterPtr keyConverter, IConverterPtr valueConverter, IConverterPtr nestedConverter)
+    TMapConverter(IConverterPtr keyConverter, IConverterPtr valueConverter, IConverterPtr nestedConverter)
         : KeyConverter_(std::move(keyConverter))
         , ValueConverter_(std::move(valueConverter))
         , NestedConverter_(std::move(nestedConverter))
@@ -973,10 +973,14 @@ private:
             {
                 int scale = DB::getDecimalScale(*dataType);
                 if (scale != 0 && scale != 6) {
-                    THROW_ERROR_EXCEPTION("ClickHouse type %Qv with scale %v is not representable as YT type: "
+                    if (Settings_->ConvertUnsupportedTypesToString) {
+                        return CreateUnsupportedTypesToStringConverter(dataType);
+                    } else {
+                        THROW_ERROR_EXCEPTION("ClickHouse type %Qv with scale %v is not representable as YT type: "
                             "possible scales are 0 for YT Datetime64 and 6 for YT Timestamp64",
                             DataType_->getName(),
                             scale);
+                    }
                 }
 
                 ESimpleLogicalValueType logicalType;
@@ -1034,10 +1038,14 @@ private:
         int scale = DB::getDecimalScale(*dataType);
 
         if (precision > 35) {
-            THROW_ERROR_EXCEPTION("ClickHouse type %Qv is not representable as YT type: "
-                "maximum decimal precision in YT is 35",
-                DataType_->getName())
-                << TErrorAttribute("docs", "https://ytsaurus.tech/docs/en/user-guide/storage/data-types#schema_decimal");
+            if (Settings_->ConvertUnsupportedTypesToString) {
+                return CreateUnsupportedTypesToStringConverter(dataType);
+            } else {
+                THROW_ERROR_EXCEPTION("ClickHouse type %Qv is not representable as YT type: "
+                    "maximum decimal precision in YT is 35",
+                    DataType_->getName())
+                    << TErrorAttribute("docs", "https://ytsaurus.tech/docs/en/user-guide/storage/data-types#schema_decimal");
+            }
         }
 
         switch (dataType->getTypeId()) {

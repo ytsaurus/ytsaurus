@@ -38,8 +38,8 @@ TSessionBase::TSessionBase(
     , Logger(DataNodeLogger().WithTag("LocationId: %v, ChunkId: %v",
         Location_->GetId(),
         SessionId_))
-    , LockedChunkGuard_(std::move(lockedChunkGuard))
     , StartTime_(TInstant::Now())
+    , LockedChunkGuard_(std::move(lockedChunkGuard))
 {
     YT_VERIFY(Bootstrap_);
     YT_VERIFY(Location_);

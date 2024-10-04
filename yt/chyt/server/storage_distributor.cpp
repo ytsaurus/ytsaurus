@@ -26,6 +26,7 @@
 
 #include <yt/yt/ytlib/table_client/table_columnar_statistics_cache.h>
 
+#include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/client/ypath/rich.h>
@@ -73,6 +74,7 @@ using namespace NLogging;
 using namespace NConcurrency;
 using namespace NTransactionClient;
 using namespace NApi;
+using namespace NStatisticPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -916,7 +918,7 @@ public:
         DB::SelectQueryInfo& queryInfo) const override
     {
         auto* queryContext = GetQueryContext(context);
-        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/storage_distributor/get_query_processing_stage");
+        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/storage_distributor/get_query_processing_stage"_SP);
 
         auto* storageContext = queryContext->GetOrRegisterStorageContext(this, context);
         const auto& executionSettings = storageContext->Settings->Execution;
@@ -1014,7 +1016,7 @@ public:
         size_t /*numStreams*/) override
     {
         TCurrentTraceContextGuard traceContextGuard(QueryContext_->TraceContext);
-        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/read");
+        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/read"_SP);
 
         auto metadataSnapshot = storageSnapshot->getMetadataForQuery();
 
@@ -1064,7 +1066,7 @@ public:
         bool /*asyncInsert*/) override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
-        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/write");
+        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/write"_SP);
 
         if (Tables_.size() != 1) {
             THROW_ERROR_EXCEPTION("Cannot write to many tables simultaneously")
@@ -1133,7 +1135,7 @@ public:
     std::optional<DB::QueryPipeline> distributedWrite(const DB::ASTInsertQuery& query, DB::ContextPtr context) override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
-        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/distributed_write");
+        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/distributed_write"_SP);
 
         // First, validate if SELECT part is suitable for distributed INSERT SELECT.
 
@@ -1253,7 +1255,7 @@ public:
         DB::TableExclusiveLockHolder&) override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
-        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/truncate");
+        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/truncate"_SP);
 
         THROW_ERROR_EXCEPTION_IF(Tables_.size() != 1,
             "Wrong number of tables for TRUNCATE: %v instead of 1",
@@ -1272,7 +1274,7 @@ public:
     std::unordered_map<std::string, DB::ColumnSize> getColumnSizes() const override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
-        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/get_column_sizes");
+        auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/get_column_sizes"_SP);
 
         auto context = WeakContext_.lock();
         if (!context) {
@@ -1282,6 +1284,36 @@ public:
         if (!context->getSettingsRef().optimize_move_to_prewhere) {
             YT_LOG_DEBUG("optimize_move_to_prewhere is disabled, returning empty columnar statistics");
             return {};
+        }
+
+        if (QueryContext_->Settings->Prewhere->UseHeuristicColumnSizes) {
+            // Approximate column sizes based on their types.
+            // Column sizes are used to sort them for more optimal prewhere execution,
+            // so the exact column size does not matter. Column sizes only matter in relation to each other.
+            // Assume column weights as:
+            // Simple types -> 1
+            // Strings      -> 5
+            // Any          -> 10
+            // Composite    -> 20
+            std::unordered_map<std::string, DB::ColumnSize> columnSizes;
+            for (const auto& column : Schema_->Columns()) {
+                i64 columnWeight;
+                auto type = column.LogicalType();
+                if (IsV1Type(type)) {
+                    auto [typeV1, required] = CastToV1Type(type);
+                    if (typeV1 == ESimpleLogicalValueType::Any) {
+                        columnWeight = 10;
+                    } else if (IsStringLikeType(typeV1)) {
+                        columnWeight = 5;
+                    } else {
+                        columnWeight = 1;
+                    }
+                } else {
+                    columnWeight = 20;
+                }
+                columnSizes.emplace(column.Name(), columnWeight);
+            }
+            return columnSizes;
         }
 
         for (const auto& table : Tables_) {

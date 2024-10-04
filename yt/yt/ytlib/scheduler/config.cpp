@@ -197,7 +197,7 @@ void TJobIOConfig::Register(TRegistrar registrar)
         .Default(10 * 1000)
         .GreaterThan(0);
     registrar.Parameter("use_adaptive_buffer_row_count", &TThis::UseAdaptiveRowCount)
-        .Default(false);
+        .Default();
 
     registrar.Parameter("pipe_capacity", &TThis::PipeCapacity)
         .Default()
@@ -821,6 +821,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("enable_virtual_sandbox", &TThis::EnableVirtualSandbox)
         .Default(false);
 
+    registrar.Parameter("enable_root_volume_disk_quota", &TThis::EnableRootVolumeDiskQuota)
+        .Default(false);
+
     registrar.Parameter("chunk_availability_policy", &TThis::ChunkAvailabilityPolicy)
         .Default(NChunkClient::EChunkAvailabilityPolicy::DataPartsAvailable);
 
@@ -852,7 +855,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("cuda_profiler_environment", &TThis::CudaProfilerEnvironment)
         .Default();
 
-    registrar.Parameter("ignore_yt_variables_in_shell_environment", &TThis::IgnoreYtVariablesInShellEnvironment)
+    registrar.Parameter("ignore_yt_variables_in_shell_environment", &TThis::IgnoreYTVariablesInShellEnvironment)
         .Default(false);
 
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
@@ -1079,6 +1082,7 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("fail_job_on_core_dump", &TThis::FailJobOnCoreDump)
         .Default(true);
+    // COMPAT(artemagafonov): RootFS is always writable, so the flag should be removed after the update of all nodes.
     registrar.Parameter("make_rootfs_writable", &TThis::MakeRootFSWritable)
         .Default(false);
     registrar.Parameter("enable_fuse", &TThis::EnableFuse)
@@ -1206,6 +1210,7 @@ void TUserJobSpec::Register(TRegistrar registrar)
             spec->InodeLimit = std::nullopt;
         }
 
+        // COMPAT(artemagafonov): RootFS is always writable, so the flag should be removed after the update of all nodes.
         if (spec->MakeRootFSWritable && spec->LayerPaths.empty()) {
             THROW_ERROR_EXCEPTION("Option \"make_rootfs_writable\" cannot be set without specifying \"layer_paths\"");
         }
@@ -1251,6 +1256,9 @@ void TMandatoryUserJobSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TGangManagerConfig::Register(TRegistrar /*registrar*/)
+{ }
+
 void TVanillaTaskSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("job_count", &TThis::JobCount)
@@ -1262,6 +1270,15 @@ void TVanillaTaskSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("restart_completed_jobs", &TThis::RestartCompletedJobs)
         .Default(false);
+    registrar.Parameter("gang_manager", &TThis::GangManager)
+        .Default();
+
+    registrar.Postprocessor([] (TVanillaTaskSpec* spec) {
+        if (spec->GangManager && spec->RestartCompletedJobs) {
+            THROW_ERROR_EXCEPTION(
+                "\"gang_manager\" and \"restart_completed_jobs\" can not be turned on both");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -81,7 +81,7 @@ std::vector<int64_t> ReadIntegersFromTable(const NYT::IClientPtr& client, const 
     std::vector<int64_t> data;
     for (; reader->IsValid(); reader->Next()) {
         const auto& row = reader->GetRow();
-        data.push_back(row["int64"].AsInt64());
+        data.push_back(row["int"].AsInt64());
     }
     return data;
 }
@@ -124,16 +124,29 @@ std::vector<std::string> ReadStringFromTable(const NYT::IClientPtr& client, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GenerateIntegerParquet(const std::vector<int64_t>& data)
+template <typename T>
+TString GenerateIntegerParquet(const std::vector<T>& data, const std::shared_ptr<arrow::DataType>& dataType)
 {
     auto* pool = arrow::default_memory_pool();
-    arrow::Int64Builder i64builder(pool);
-    NArrow::ThrowOnError(i64builder.AppendValues(data));
-    std::shared_ptr<arrow::Array> i64array;
-    NArrow::ThrowOnError(i64builder.Finish(&i64array));
+    std::shared_ptr<arrow::Array> intArray;
+    if constexpr (std::is_same<T, int16_t>::value) {
+        arrow::Int16Builder intBuilder(pool);
+        NArrow::ThrowOnError(intBuilder.AppendValues(data));
+        NArrow::ThrowOnError(intBuilder.Finish(&intArray));
+    } else if constexpr (std::is_same<T, int32_t>::value) {
+        arrow::Int32Builder intBuilder(pool);
+        NArrow::ThrowOnError(intBuilder.AppendValues(data));
+        NArrow::ThrowOnError(intBuilder.Finish(&intArray));
+    } else if constexpr (std::is_same<T, int64_t>::value) {
+        arrow::Int64Builder intBuilder(pool);
+        NArrow::ThrowOnError(intBuilder.AppendValues(data));
+        NArrow::ThrowOnError(intBuilder.Finish(&intArray));
+    } else {
+        YT_ABORT();
+    }
 
-    auto schema = arrow::schema({arrow::field("int64", arrow::int64())});
-    auto table = arrow::Table::Make(schema, {i64array});
+    auto schema = arrow::schema({arrow::field("int", dataType, false)});
+    auto table = arrow::Table::Make(schema, {intArray});
 
     auto outputStream = arrow::io::BufferOutputStream::Create().ValueOrDie();
     NArrow::ThrowOnError(parquet::arrow::WriteTable(*table, pool, outputStream, ChunkSize));
@@ -154,10 +167,10 @@ TString GenerateMultiTypesParquet(const MultiTypeData& data)
     auto* pool = arrow::default_memory_pool();
 
     // Build integer data.
-    arrow::Int64Builder i64builder(pool);
-    NArrow::ThrowOnError(i64builder.AppendValues(data.IntegerData));
-    std::shared_ptr<arrow::Array> i64Array;
-    NArrow::ThrowOnError(i64builder.Finish(&i64Array));
+    arrow::Int64Builder intBuilder(pool);
+    NArrow::ThrowOnError(intBuilder.AppendValues(data.IntegerData));
+    std::shared_ptr<arrow::Array> intArray;
+    NArrow::ThrowOnError(intBuilder.Finish(&intArray));
 
     // Build double data.
     arrow::DoubleBuilder doubleBuilder(pool);
@@ -178,13 +191,13 @@ TString GenerateMultiTypesParquet(const MultiTypeData& data)
     NArrow::ThrowOnError(binaryBuilder.Finish(&binaryArray));
 
     auto schema = arrow::schema({
-        arrow::field("int64", arrow::int64()),
+        arrow::field("int", arrow::int64()),
         arrow::field("double", arrow::float64()),
         arrow::field("bool", arrow::boolean()),
         arrow::field("string", arrow::binary())
     });
 
-    auto table = arrow::Table::Make(schema, {i64Array, doubleArray, booleanArray, binaryArray});
+    auto table = arrow::Table::Make(schema, {intArray, doubleArray, booleanArray, binaryArray});
     auto outputStream = arrow::io::BufferOutputStream::Create().ValueOrDie();
     NArrow::ThrowOnError(parquet::arrow::WriteTable(*table, pool, outputStream, ChunkSize));
     auto buffer = outputStream->Finish().ValueOrDie();
@@ -201,6 +214,67 @@ public:
     virtual std::vector<TString> GenerateFileNames() = 0;
 
     virtual std::vector<TString> GenerateParquetData() = 0;
+};
+
+class TDifferentSchemaParquetGenerator
+    : public IParquetGenerator
+{
+public:
+    ~TDifferentSchemaParquetGenerator() = default;
+
+    void VerifyAnswer(const NYT::IClientPtr& client, const TString& resultTable) override
+    {
+        auto tableData = ReadIntegersFromTable(client, resultTable);
+        EXPECT_EQ(tableData, ResultData_);
+    }
+
+    std::vector<TString> GenerateFileNames() override
+    {
+        std::vector<TString> fileNames;
+        for (int fileIndex = 0; fileIndex < FileCount_; fileIndex++) {
+            fileNames.emplace_back(ToString(fileIndex) + ".parquet");
+        }
+        return fileNames;
+    }
+
+    std::vector<TString> GenerateParquetData() override
+    {
+        std::vector<TString> parquetData;
+
+        std::vector<i16> firstFileData;
+        std::vector<i32> secondFileData;
+        std::vector<i64> thirdFileData;
+
+        for (int elemIndex = 0; elemIndex < ElementCount_; elemIndex++) {
+            firstFileData.push_back(rand());
+            secondFileData.push_back(rand());
+            thirdFileData.push_back(rand());
+        }
+
+        parquetData.push_back(GenerateIntegerParquet(firstFileData, arrow::int16()));
+        parquetData.push_back(GenerateIntegerParquet(secondFileData, arrow::int32()));
+        parquetData.push_back(GenerateIntegerParquet(thirdFileData, arrow::int64()));
+
+        AddData(firstFileData);
+        AddData(secondFileData);
+        AddData(thirdFileData);
+
+        return parquetData;
+    }
+
+private:
+    static constexpr int FileCount_ = 3;
+    static constexpr int ElementCount_ = 10;
+
+    std::vector<i64> ResultData_;
+
+    template <typename T>
+    void AddData(const std::vector<T>& dataFile)
+    {
+        for (const auto& value : dataFile) {
+            ResultData_.push_back(value);
+        }
+    }
 };
 
 class TSmallParquetGenerator
@@ -233,7 +307,7 @@ public:
                 fileData.push_back(rand());
             }
             AddData(fileData);
-            parquetData.push_back(GenerateIntegerParquet(fileData));
+            parquetData.push_back(GenerateIntegerParquet(fileData, arrow::int64()));
         }
         return parquetData;
     }
@@ -499,8 +573,49 @@ TEST_F(TSmallHuggingfaceServerTest, SimpleImportTableFromHuggingface)
         resultTable,
         TestUrl);
 
+    TTableSchema schema;
+    Deserialize(schema, client->Get(resultTable + "/@schema"));
+
+    EXPECT_EQ(schema, TTableSchema()
+        .AddColumn(TColumnSchema().Name("int").Type(NTi::Int64()))
+    );
+
     Generator->VerifyAnswer(client, resultTable);
 }
+
+class TDifferentSchemasHuggingfaceServerTest
+    : public THttpHuggingfaceServerTestBase
+{
+private:
+    void InitializeGenerator() override
+    {
+        Generator = std::make_shared<TDifferentSchemaParquetGenerator>();
+    }
+};
+
+TEST_F(TDifferentSchemasHuggingfaceServerTest, DifferentSchemas)
+{
+    NTesting::TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    TString resultTable = workingDir + "/result_table";
+    TConfig::Get()->RemoteTempTablesDirectory = workingDir + "/table_storage";
+
+    client->Set("//sys/controller_agents/config/enable_merge_schemas_during_schema_infer", true);
+
+    TString proxy = GetEnv("YT_PROXY");
+
+    NTools::NImporter::ImportParquetFilesFromHuggingface(
+        proxy,
+        Dataset,
+        /*subset*/ "default",
+        Split,
+        resultTable,
+        TestUrl);
+
+    Generator->VerifyAnswer(client, resultTable);
+}
+
 
 class TBigHuggingfaceServerTest
     : public THttpHuggingfaceServerTestBase

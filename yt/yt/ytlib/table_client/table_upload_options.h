@@ -5,6 +5,7 @@
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/versioned_io_options.h>
 
 #include <yt/yt/client/security_client/public.h>
 
@@ -40,9 +41,11 @@ public:
 
     void Persist(const NPhoenix::TPersistenceContext& context);
 
+    ui64 Reset();
+
 private:
     TTableSchemaPtr TableSchema_ = New<TTableSchema>();
-    ui64 Revision_ = 1;
+    ui64 Revision_ = 0;
 };
 
 struct TTableUploadOptions
@@ -52,6 +55,7 @@ struct TTableUploadOptions
     TEpochSchema TableSchema;
     TMasterTableSchemaId SchemaId;
     ETableSchemaModification SchemaModification;
+    TVersionedWriteOptions VersionedWriteOptions;
     ETableSchemaMode SchemaMode;
     EOptimizeFor OptimizeFor;
     std::optional<NChunkClient::EChunkFormat> ChunkFormat;

@@ -13,7 +13,7 @@
 #include "link_node.h"
 #include "link_node_type_handler.h"
 #include "lock_proxy.h"
-#include "node_detail.h"
+#include "node_proxy_detail.h"
 #include "portal_entrance_node.h"
 #include "portal_entrance_type_handler.h"
 #include "portal_exit_node.h"
@@ -898,7 +898,7 @@ private:
         return externalCellTag == NotReplicatedCellTagSentinel ? TCellTagList() : TCellTagList{externalCellTag};
     }
 
-    TString DoGetName(const TCypressNode* node) override;
+    std::string DoGetName(const TCypressNode* node) override;
     TString DoGetPath(const TCypressNode* node) override;
 
     IObjectProxyPtr DoGetProxy(
@@ -1734,6 +1734,11 @@ public:
             .IsOK();
     }
 
+    virtual TError CheckExclusiveLock(TCypressNode* trunkNode, TTransaction* transaction) override
+    {
+        return CheckLock(trunkNode, transaction, ELockMode::Exclusive, /*recursive*/ false);
+    }
+
     TCypressNode* LockNode(
         TCypressNode* trunkNode,
         TTransaction* transaction,
@@ -1747,12 +1752,8 @@ public:
         YT_VERIFY(!recursive || request.Key.Kind == ELockKeyKind::None);
         YT_VERIFY(!transaction || IsObjectAlive(transaction));
 
-        auto error = CheckLock(
-            trunkNode,
-            transaction,
-            request,
-            recursive);
-        error.ThrowOnError();
+        CheckLock(trunkNode, transaction, request, recursive)
+            .ThrowOnError();
 
         if (IsLockRedundant(trunkNode, transaction, request)) {
             return GetVersionedNode(trunkNode, transaction);
@@ -2151,7 +2152,8 @@ public:
         TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& request,
-        bool waitable) override
+        bool waitable,
+        TLockId lockIdHint) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
@@ -2176,7 +2178,7 @@ public:
 
         // Is it OK?
         if (error.IsOK()) {
-            auto* lock = DoCreateLock(trunkNode, transaction, request, false);
+            auto* lock = DoCreateLock(trunkNode, transaction, request, false, lockIdHint);
             auto* branchedNode = DoAcquireLock(lock);
             return {lock, branchedNode};
         }
@@ -2187,7 +2189,7 @@ public:
         }
 
         // Will wait.
-        return {DoCreateLock(trunkNode, transaction, request, false), nullptr};
+        return {DoCreateLock(trunkNode, transaction, request, false, lockIdHint), nullptr};
     }
 
     void SetModified(TCypressNode* node, EModificationType modificationType) override
@@ -2381,6 +2383,10 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
 
+        if (IsSequoiaId(trunkNode->GetId())) {
+            return false;
+        }
+
         auto* currentNode = trunkNode;
         while (true) {
             if (!IsObjectAlive(currentNode)) {
@@ -2443,7 +2449,7 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(AccessControlObjectNamespace, TAccessControlObjectNamespace);
 
     TAccessControlObjectNamespace* CreateAccessControlObjectNamespace(
-        const TString& name,
+        const std::string& name,
         TObjectId hintId = NullObjectId) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -2480,7 +2486,7 @@ public:
     }
 
     TAccessControlObjectNamespace* FindAccessControlObjectNamespaceByName(
-        const TString& name) const override
+        const std::string& name) const override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -2518,8 +2524,8 @@ public:
     }
 
     TAccessControlObject* CreateAccessControlObject(
-        const TString& name,
-        const TString& namespace_,
+        const std::string& name,
+        const std::string& namespace_,
         TObjectId hintId = NullObjectId) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -3495,7 +3501,7 @@ private:
         return true;
     }
 
-    static bool IsParentTransaction(
+    static bool IsAncestorTransaction(
         TTransaction* transaction,
         TTransaction* parent)
     {
@@ -3515,7 +3521,7 @@ private:
     {
         return
             !requestingTransaction ||
-            !IsParentTransaction(requestingTransaction, existingTransaction);
+            !IsAncestorTransaction(requestingTransaction, existingTransaction);
     }
 
     TCypressNode* DoAcquireLock(
@@ -3661,10 +3667,13 @@ private:
         TCypressNode* trunkNode,
         TTransaction* transaction,
         const TLockRequest& request,
-        bool implicit)
+        bool implicit,
+        TLockId lockIdHint = {})
     {
+        YT_VERIFY(transaction);
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::Lock);
+        auto id = objectManager->GenerateId(EObjectType::Lock, lockIdHint);
         auto lockHolder = TPoolAllocator::New<TLock>(id);
         auto* lock = LockMap_.Insert(id, std::move(lockHolder));
 
@@ -4394,6 +4403,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto mutationContext = GetCurrentMutationContext();
+
         for (const auto& protoId : request->node_ids()) {
             auto nodeId = FromProto<TNodeId>(protoId);
 
@@ -4409,8 +4421,29 @@ private:
                 continue;
             }
 
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            auto noLongerNeedsRemoval = [&] {
+                auto touchTime = trunkNode->GetTouchTime();
+                auto mutationTime = mutationContext->GetTimestamp();
+
+                auto expirationTime = trunkNode->TryGetExpirationTime();
+                auto timeExpired = expirationTime && *expirationTime <= mutationTime;
+
+                auto expirationTimeout = trunkNode->TryGetExpirationTimeout();
+                auto timeoutExpired = expirationTimeout && touchTime + *expirationTimeout <= mutationTime;
+
+                return !timeExpired && !timeoutExpired;
+            };
+
             auto path = cypressManager->GetNodePath(trunkNode, nullptr);
+
+            if (noLongerNeedsRemoval()) {
+                YT_LOG_DEBUG("Expired node lifetime was prolonged externally; "
+                    "removal is canceled (NodeId: %v, Path: %v)",
+                    nodeId,
+                    path);
+                continue;
+            }
+
             try {
                 YT_LOG_DEBUG("Removing expired node (NodeId: %v, Path: %v)",
                     nodeId,
@@ -4746,7 +4779,7 @@ void TNodeTypeHandler::DoRecreateObjectAsGhost(TCypressNode* node) noexcept
     Owner_->RecreateNodeAsGhost(node);
 }
 
-TString TNodeTypeHandler::DoGetName(const TCypressNode* node)
+std::string TNodeTypeHandler::DoGetName(const TCypressNode* node)
 {
     return Format("node %v", DoGetPath(node));
 }

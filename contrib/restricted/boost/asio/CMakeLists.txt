@@ -17,6 +17,10 @@ find_package(linux-headers-generic REQUIRED)
 add_library(restricted-boost-asio INTERFACE)
 
 
+target_compile_options(restricted-boost-asio INTERFACE
+  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
+)
+
 target_include_directories(restricted-boost-asio INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/asio/include
 )
@@ -24,8 +28,8 @@ target_include_directories(restricted-boost-asio INTERFACE
 target_link_libraries(restricted-boost-asio INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
-  yutil
   contrib-libs-openssl
+  restricted-boost-align
   restricted-boost-array
   restricted-boost-assert
   restricted-boost-bind

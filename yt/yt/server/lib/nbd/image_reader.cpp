@@ -18,7 +18,7 @@ using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NLogging;
 using namespace NObjectClient;
-using namespace NSquashFs;
+using namespace NSquashFS;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
@@ -30,325 +30,254 @@ class TCypressFileImageReader
 {
 public:
     TCypressFileImageReader(
-        std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
-        TString path,
-        IClientPtr client,
-        IThroughputThrottlerPtr inThrottler,
-        IThroughputThrottlerPtr outRpsThrottler,
-        TLogger logger);
+        IRandomAccessFileReaderPtr reader,
+        TLogger logger)
+        : Reader_(std::move(reader))
+        , Logger(std::move(logger.WithTag("Path: %v", Reader_->GetPath())))
+    { }
 
-    void Initialize() override;
+    void Initialize() override
+    {
+        YT_LOG_INFO("Initializing cypress file image reader");
+
+        Reader_->Initialize();
+
+        YT_LOG_INFO("Initialized cypress file image reader");
+    }
 
     TFuture<TSharedRef> Read(
         i64 offset,
-        i64 length) override;
+        i64 length) override
+    {
+        return Reader_->Read(
+            offset,
+            length);
+    }
 
-    i64 GetSize() const override;
+    i64 GetSize() const override
+    {
+        return Reader_->GetSize();
+    }
 
-    TReadersStatistics GetStatistics() const override;
+    TReadersStatistics GetStatistics() const override
+    {
+        return Reader_->GetStatistics();
+    }
+
+    TString GetPath() const override
+    {
+        return Reader_->GetPath();
+    }
 
 private:
-    const TString Path_;
-    const IClientPtr Client_;
-    const IThroughputThrottlerPtr InThrottler_;
-    const IThroughputThrottlerPtr OutRpsThrottler_;
-    const TLogger Logger;
     const IRandomAccessFileReaderPtr Reader_;
+    const TLogger Logger;
 };
 
-DECLARE_REFCOUNTED_CLASS(TCypressFileImageReader)
-DEFINE_REFCOUNTED_TYPE(TCypressFileImageReader)
+////////////////////////////////////////////////////////////////////////////////
+
+struct TVirtualSquashFSImageReaderTag {};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TVirtualSquashFsImageReaderTag {};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TVirtualSquashFsImageReader
+class TVirtualSquashFSImageReader
     : public IImageReader
 {
 public:
-    TVirtualSquashFsImageReader(
-        std::unordered_map<TString, std::vector<NChunkClient::NProto::TChunkSpec>> pathToChunkSpecs,
-        TSquashFsImagePtr image,
-        IClientPtr client,
-        IThroughputThrottlerPtr inThrottler,
-        IThroughputThrottlerPtr outRpsThrottler,
-        TLogger logger);
+    TVirtualSquashFSImageReader(
+        std::vector<TArtifactMountOptions> mountOptions,
+        TSquashFSLayoutBuilderOptions builderOptions,
+        IInvokerPtr invoker,
+        TLogger logger)
+        : MountOptions_(std::move(mountOptions))
+        , BuilderOptions_(std::move(builderOptions))
+        , Invoker_(std::move(invoker))
+        , Logger(std::move(logger))
+    { }
 
-    void Initialize() override;
+    void Initialize() override
+    {
+        YT_LOG_INFO("Initializing virtual squashfs image reader (FileCount: %v)", std::ssize(MountOptions_));
+
+        auto builder = CreateSquashFSLayoutBuilder(BuilderOptions_);
+
+        for (const auto& mount : MountOptions_) {
+            mount.Reader->Initialize();
+            YT_LOG_DEBUG("Add file to virtual layer (Path: %v, Size: %v)",
+                mount.Path,
+                mount.Reader->GetSize());
+            builder->AddFile(
+                mount.Path,
+                mount.Permissions,
+                mount.Reader);
+        }
+
+        Layout_ = builder->Build();
+        Size_ = Layout_->GetSize();
+
+        YT_LOG_INFO("Initialized virtual squashfs image reader (Size: %v, HeadSize: %v, TailSize: %v, FileCount: %v)",
+            Size_,
+            Layout_->GetHeadSize(),
+            Layout_->GetTailSize(),
+            std::ssize(MountOptions_));
+    }
 
     TFuture<TSharedRef> Read(
         i64 offset,
-        i64 length) override;
-
-    i64 GetSize() const override;
-
-    TReadersStatistics GetStatistics() const override;
-
-private:
-    const TSquashFsImagePtr Image_;
-    const IClientPtr Client_;
-    const IThroughputThrottlerPtr InThrottler_;
-    const IThroughputThrottlerPtr OutRpsThrottler_;
-    const TLogger Logger;
-    const i64 Size_;
-    std::vector<IRandomAccessFileReaderPtr> Readers_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TCypressFileImageReader::TCypressFileImageReader(
-    std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
-    TString path,
-    IClientPtr client,
-    IThroughputThrottlerPtr inThrottler,
-    IThroughputThrottlerPtr outRpsThrottler,
-    TLogger logger)
-    : Path_(std::move(path))
-    , Client_(std::move(client))
-    , InThrottler_(std::move(inThrottler))
-    , OutRpsThrottler_(std::move(outRpsThrottler))
-    , Logger(std::move(logger))
-    , Reader_(CreateRandomAccessFileReader(
-        std::move(chunkSpecs),
-        Path_,
-        Client_,
-        InThrottler_,
-        OutRpsThrottler_,
-        Logger))
-{ }
-
-void TCypressFileImageReader::Initialize()
-{
-    YT_LOG_INFO("Initializing Cypress file image reader (Path: %v)", Path_);
-
-    Reader_->Initialize();
-
-    YT_LOG_INFO("Initialized Cypress file image reader (Path: %v)", Path_);
-}
-
-TFuture<TSharedRef> TCypressFileImageReader::Read(
-    i64 offset,
-    i64 length)
-{
-    return Reader_->Read(
-        offset,
-        length);
-}
-
-i64 TCypressFileImageReader::GetSize() const
-{
-    return Reader_->GetSize();
-}
-
-TReadersStatistics TCypressFileImageReader::GetStatistics() const
-{
-    return Reader_->GetStatistics();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TVirtualSquashFsImageReader::TVirtualSquashFsImageReader(
-    std::unordered_map<TString, std::vector<NChunkClient::NProto::TChunkSpec>> pathToChunkSpecs,
-    TSquashFsImagePtr image,
-    IClientPtr client,
-    IThroughputThrottlerPtr inThrottler,
-    IThroughputThrottlerPtr outRpsThrottler,
-    TLogger logger)
-    : Image_(std::move(image))
-    , Client_(std::move(client))
-    , InThrottler_(std::move(inThrottler))
-    , OutRpsThrottler_(std::move(outRpsThrottler))
-    , Logger(std::move(logger))
-    , Size_(Image_->GetSize())
-{
-    const auto& files = Image_->Files();
-    Readers_.resize(std::ssize(files));
-
-    for (int i = 0; i < std::ssize(files); ++i) {
-        const auto& path = files[i].Path;
-        Readers_[i] = CreateRandomAccessFileReader(
-            std::move(pathToChunkSpecs[path]),
-            path,
-            Client_,
-            InThrottler_,
-            OutRpsThrottler_,
-            Logger);
-    }
-}
-
-void TVirtualSquashFsImageReader::Initialize()
-{
-    YT_LOG_INFO("Initializing Virtual squashFs image reader");
-
-    for (const auto& reader : Readers_) {
-        reader->Initialize();
-    }
-
-    YT_LOG_INFO("Initialized Virtual squashFs image reader");
-}
-
-TFuture<TSharedRef> TVirtualSquashFsImageReader::Read(
-    i64 offset,
-    i64 length)
-{
-    if (offset < 0 ||
-        length < 0 ||
-        offset + length > Size_) {
-        THROW_ERROR_EXCEPTION(
-            "Invalid read offset %v with length %v",
-            offset,
-            length);
-    }
-
-    YT_LOG_DEBUG(
-        "Start read (Offset: %v, Length: %v)",
-        offset,
-        length);
-
-    if (length == 0) {
-        YT_LOG_DEBUG(
-            "Finish read (Offset: %v, Length: %v)",
-            offset,
-            length);
-        return MakeFuture<TSharedRef>({});
-    }
-
-    std::vector<TFuture<TSharedRef>> readFutures;
-
-    // Read the head from the image.
-    i64 headSize = Image_->GetHeaderSize();
-    if (offset < headSize) {
-        i64 sizeWithinHead = std::min(headSize - offset, length);
-        readFutures.push_back(MakeFuture(
-            Image_->ReadHead(offset, sizeWithinHead)));
-
-        offset += sizeWithinHead;
-        length -= sizeWithinHead;
-    }
-
-    // Read the files from the readers.
-    const auto& files = Image_->Files();
-    for (int i = 0; i < std::ssize(files); ++i) {
-        auto& part = files[i];
-        auto partBegin = part.Offset;
-        auto partEnd = partBegin + part.Size;
-
-        if (offset >= partEnd || offset + length <= partBegin) {
-            continue;
+        i64 length) override
+    {
+        if (offset < 0 ||
+            length < 0 ||
+            offset + length > Size_)
+        {
+            return MakeFuture<TSharedRef>(TError("Invalid image read request")
+                << TErrorAttribute("offset", offset)
+                << TErrorAttribute("length", length));
         }
 
-        i64 beginWithinPart = std::max(offset - part.Offset, 0l);
-        i64 endWithinPart = std::min(beginWithinPart + length, part.Size);
-        i64 sizeWithinPart = endWithinPart - beginWithinPart;
-
-        YT_VERIFY(0 <= beginWithinPart);
-        YT_VERIFY(beginWithinPart < endWithinPart);
-        YT_VERIFY(endWithinPart <= part.Size);
-        YT_VERIFY(sizeWithinPart <= part.Size);
-        YT_VERIFY(sizeWithinPart <= length);
-
-        auto readFuture = Readers_[i]->Read(
-            beginWithinPart,
-            sizeWithinPart);
-        readFutures.push_back(std::move(readFuture));
-
-        length -= sizeWithinPart;
-        offset += sizeWithinPart;
-    }
-
-    // Read the tail from the image.
-    i64 tailOffset = Image_->GetTailOffset();
-    i64 tailSize = Image_->GetTailSize();
-    if (length > 0 &&
-        tailOffset <= offset &&
-        offset < tailOffset + tailSize)
-    {
-        i64 beginWithinTail = std::max(offset - tailOffset, 0l);
-        i64 endWithinTail = std::min(beginWithinTail + length, tailSize);
-        i64 sizeWithinTail = endWithinTail - beginWithinTail;
-
-        readFutures.push_back(MakeFuture(
-            Image_->ReadTail(beginWithinTail, sizeWithinTail)));
-
-        offset += sizeWithinTail;
-        length -= sizeWithinTail;
-    }
-
-    // Add the padding.
-    if (length > 0) {
-        readFutures.push_back(MakeFuture(
-            TSharedRef(TSharedMutableRef::Allocate(length))));
-    }
-
-    return AllSucceeded(readFutures).Apply(BIND([=, Logger = Logger] (const std::vector<TSharedRef>& partReadResults) {
-        // Merge refs into single ref.
-        auto mergedRefs = MergeRefsToRef<TVirtualSquashFsImageReaderTag>(partReadResults);
-        YT_LOG_DEBUG(
-            "Finish read (Offset: %v, ExpectedLength: %v, ResultLength: %v)",
+        YT_LOG_INFO("Start read virtual squashfs image (Offset: %v, Length: %v)",
             offset,
-            length,
-            mergedRefs.Size());
-        return mergedRefs;
-    }));
-}
+            length);
 
-i64 TVirtualSquashFsImageReader::GetSize() const
-{
-    return Size_;
-}
+        if (length == 0) {
+            YT_LOG_INFO("Finish read virtual squashfs image (Offset: %v, Length: %v)",
+                offset,
+                length);
+            return MakeFuture<TSharedRef>({});
+        }
 
-TReadersStatistics TVirtualSquashFsImageReader::GetStatistics() const
-{
-    TReadersStatistics cumulativeStatistics;
-    for (const auto& reader : Readers_) {
-        auto readerStatistics = reader->GetStatistics();
-        cumulativeStatistics.ReadBytes += readerStatistics.ReadBytes;
-        cumulativeStatistics.ReadBlockBytesFromCache += readerStatistics.ReadBlockBytesFromCache;
-        cumulativeStatistics.ReadBlockBytesFromDisk += readerStatistics.ReadBlockBytesFromDisk;
-        cumulativeStatistics.ReadBlockMetaBytesFromDisk += readerStatistics.ReadBlockMetaBytesFromDisk;
+        std::vector<TFuture<TSharedRef>> readFutures;
+
+        // Read the head from the image.
+        i64 headSize = Layout_->GetHeadSize();
+        if (offset < headSize) {
+            i64 sizeWithinHead = std::min(headSize - offset, length);
+            readFutures.push_back(MakeFuture(
+                Layout_->ReadHead(offset, sizeWithinHead)));
+
+            offset += sizeWithinHead;
+            length -= sizeWithinHead;
+        }
+
+        // Read the files from the readers.
+        for (const auto& part : Layout_->GetParts()) {
+            auto partBegin = part.Offset;
+            auto partEnd = partBegin + part.Size;
+
+            if (offset >= partEnd || offset + length <= partBegin) {
+                continue;
+            }
+
+            i64 beginWithinPart = std::max(offset - part.Offset, 0l);
+            i64 endWithinPart = std::min(beginWithinPart + length, part.Size);
+            i64 sizeWithinPart = endWithinPart - beginWithinPart;
+
+            YT_VERIFY(0 <= beginWithinPart);
+            YT_VERIFY(beginWithinPart < endWithinPart);
+            YT_VERIFY(endWithinPart <= part.Size);
+            YT_VERIFY(sizeWithinPart <= part.Size);
+            YT_VERIFY(sizeWithinPart <= length);
+
+            auto readFuture = part.Reader->Read(
+                beginWithinPart,
+                sizeWithinPart);
+            readFutures.push_back(std::move(readFuture));
+
+            length -= sizeWithinPart;
+            offset += sizeWithinPart;
+        }
+
+        // Read the tail from the image.
+        i64 tailOffset = Layout_->GetTailOffset();
+        i64 tailSize = Layout_->GetTailSize();
+        if (length > 0 &&
+            tailOffset <= offset &&
+            offset < tailOffset + tailSize)
+        {
+            i64 beginWithinTail = std::max(offset - tailOffset, 0l);
+            i64 endWithinTail = std::min(beginWithinTail + length, tailSize);
+            i64 sizeWithinTail = endWithinTail - beginWithinTail;
+
+            readFutures.push_back(MakeFuture(
+                Layout_->ReadTail(beginWithinTail, sizeWithinTail)));
+
+            offset += sizeWithinTail;
+            length -= sizeWithinTail;
+        }
+
+        // Add the padding.
+        if (length > 0) {
+            readFutures.push_back(MakeFuture(
+                TSharedRef(TSharedMutableRef::Allocate(length))));
+        }
+
+        return AllSucceeded(readFutures).Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TSharedRef>& partReadResults) {
+            // Merge refs into single ref.
+            auto mergedRefs = MergeRefsToRef<TVirtualSquashFSImageReaderTag>(partReadResults);
+            YT_LOG_INFO("Finish read virtual squashfs image (Offset: %v, ExpectedLength: %v, ResultLength: %v)",
+                offset,
+                length,
+                mergedRefs.Size());
+            return mergedRefs;
+        }).AsyncVia(Invoker_));
     }
 
-    return cumulativeStatistics;
-}
+    i64 GetSize() const override
+    {
+        return Size_;
+    }
+
+    TReadersStatistics GetStatistics() const override
+    {
+        TReadersStatistics cumulativeStatistics;
+        for (const auto& part : Layout_->GetParts()) {
+            auto readerStatistics = part.Reader->GetStatistics();
+            cumulativeStatistics.ReadBytes += readerStatistics.ReadBytes;
+            cumulativeStatistics.DataBytesReadFromCache += readerStatistics.DataBytesReadFromCache;
+            cumulativeStatistics.DataBytesReadFromDisk += readerStatistics.DataBytesReadFromDisk;
+            cumulativeStatistics.MetaBytesReadFromDisk += readerStatistics.MetaBytesReadFromDisk;
+        }
+
+        return cumulativeStatistics;
+    }
+
+    TString GetPath() const override
+    {
+        return "virtual";
+    }
+
+private:
+    const std::vector<TArtifactMountOptions> MountOptions_;
+    const TSquashFSLayoutBuilderOptions BuilderOptions_;
+    const IInvokerPtr Invoker_;
+    const TLogger Logger;
+    TSquashFSLayoutPtr Layout_;
+    i64 Size_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IImageReaderPtr CreateCypressFileImageReader(
-    std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
-    TString path,
-    IClientPtr client,
-    IThroughputThrottlerPtr inThrottler,
-    IThroughputThrottlerPtr outRpsThrottler,
+    IRandomAccessFileReaderPtr reader,
     TLogger logger)
 {
     return New<TCypressFileImageReader>(
-        std::move(chunkSpecs),
-        std::move(path),
-        std::move(client),
-        std::move(inThrottler),
-        std::move(outRpsThrottler),
+        std::move(reader),
         std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IImageReaderPtr CreateVirtualSquashFsImageReader(
-    std::unordered_map<TString, std::vector<NChunkClient::NProto::TChunkSpec>> pathToChunkSpecs,
-    TSquashFsImagePtr image,
-    IClientPtr client,
-    IThroughputThrottlerPtr inThrottler,
-    IThroughputThrottlerPtr outRpsThrottler,
+IImageReaderPtr CreateVirtualSquashFSImageReader(
+    std::vector<TArtifactMountOptions> mountOptions,
+    NSquashFS::TSquashFSLayoutBuilderOptions builderOptions,
+    IInvokerPtr invoker,
     TLogger logger)
 {
-    return New<TVirtualSquashFsImageReader>(
-        std::move(pathToChunkSpecs),
-        std::move(image),
-        std::move(client),
-        std::move(inThrottler),
-        std::move(outRpsThrottler),
+    return New<TVirtualSquashFSImageReader>(
+        std::move(mountOptions),
+        std::move(builderOptions),
+        std::move(invoker),
         std::move(logger));
 }
 

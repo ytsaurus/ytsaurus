@@ -188,7 +188,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
                 workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None, raw=None,
                 execution_pool=None, response_parameters=None, retention_timestamp=None, placeholder_values=None,
                 use_canonical_null_relations=None, merge_versioned_rows=None, syntax_version=None, versioned_read_options=None,
-                with_timestamps=None, udf_registry_path=None, client=None):
+                with_timestamps=None, udf_registry_path=None, use_lookup_cache=None, client=None):
     """Executes a SQL-like query on dynamic table.
 
     .. seealso:: `supported features <https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/dyn-query-language>`_
@@ -224,6 +224,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     set_param(params, "placeholder_values", placeholder_values)
     set_param(params, "use_canonical_null_relations", use_canonical_null_relations)
     set_param(params, "merge_versioned_rows", merge_versioned_rows)
+    set_param(params, "use_lookup_cache", use_lookup_cache)
     set_param(params, "syntax_version", syntax_version)
     set_param(params, "versioned_read_options", _get_versioned_read_options(versioned_read_options, with_timestamps))
     set_param(params, "udf_registry_path", udf_registry_path)

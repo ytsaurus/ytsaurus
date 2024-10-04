@@ -64,6 +64,15 @@ func DescribeOptions(a AgentInfo, speclet Speclet) []OptionGroupDescriptor {
 					DefaultValue: DefaultRestartOnSpecletChange,
 					Description:  "If true, automatically restart a corresponding YT operation on every speclet change.",
 				},
+				{
+					Title:        "Enable CPU reclaim",
+					Name:         "enable_cpu_reclaim",
+					Type:         TypeBool,
+					CurrentValue: speclet.EnableCPUReclaim,
+					DefaultValue: DefaultEnableCPUReclaim,
+					Description: "If true, the job's CPU limit may be adjusted dynamically based on its CPU usage. " +
+						"Generally, this option is not recommended for operations that have non-uniform CPU usage and require more CPU at peak times.",
+				},
 			},
 		},
 	}
@@ -335,6 +344,17 @@ func (oplet *Oplet) EnsureUpdatedFromCypress(ctx context.Context) error {
 	return nil
 }
 
+func (oplet *Oplet) UpdateOpStatus(ytOp *yt.OperationStatus) {
+	if ytOp == nil {
+		oplet.persistentState.YTOpState = yt.StateCompleted
+		return
+	}
+
+	oplet.persistentState.YTOpState = ytOp.State
+	oplet.infoState.YTOpStartTime = ytOp.StartTime
+	oplet.infoState.YTOpFinishTime = ytOp.FinishTime
+}
+
 func (oplet *Oplet) CheckOperationLiveness(ctx context.Context) error {
 	opID := oplet.persistentState.YTOpID
 
@@ -345,15 +365,15 @@ func (oplet *Oplet) CheckOperationLiveness(ctx context.Context) error {
 	oplet.l.Debug("getting operation info", log.String("operation_id", opID.String()))
 
 	ytOp, err := oplet.systemClient.GetOperation(ctx, opID, nil)
+	if yterrors.ContainsMessageRE(err, noSuchOperationRE) {
+		oplet.l.Info("operation with current operation id does not exist",
+			log.String("operation_id", opID.String()))
+		oplet.persistentState.YTOpState = yt.StateCompleted
+		return nil
+	}
 	if err != nil {
-		if yterrors.ContainsMessageRE(err, noSuchOperationRE) {
-			oplet.l.Info("operation with current operation id does not exist",
-				log.String("operation_id", opID.String()))
-			oplet.persistentState.YTOpState = yt.StateCompleted
-		} else {
-			oplet.l.Error("error getting operation info", log.Error(err))
-			oplet.setError(err)
-		}
+		oplet.l.Error("error getting operation info", log.Error(err))
+		oplet.setError(err)
 		return err
 	}
 
@@ -361,9 +381,7 @@ func (oplet *Oplet) CheckOperationLiveness(ctx context.Context) error {
 		log.String("operation_id", opID.String()),
 		log.String("operation_state", string(ytOp.State)))
 
-	oplet.persistentState.YTOpState = ytOp.State
-	oplet.infoState.YTOpStartTime = ytOp.StartTime
-	oplet.infoState.YTOpFinishTime = ytOp.FinishTime
+	oplet.UpdateOpStatus(ytOp)
 
 	return nil
 }
@@ -656,7 +674,7 @@ func (oplet *Oplet) updateFromYsonNode(nodeValue yson.RawValue) error {
 
 	oplet.l.Info("strawberry operation state updated from cypress",
 		log.UInt64("state_revision", uint64(oplet.flushedStateRevision)),
-		log.UInt64("speclet_revision", uint64(oplet.flushedStateRevision)))
+		log.UInt64("speclet_revision", uint64(oplet.persistentState.SpecletRevision)))
 
 	return nil
 }
@@ -708,10 +726,10 @@ func (oplet *Oplet) abortOp(ctx context.Context, reason string) error {
 		yt.OperationID(oplet.persistentState.YTOpID),
 		&yt.AbortOperationOptions{})
 
-	if err != nil {
-		oplet.setError(err)
-	} else {
+	if err == nil || yterrors.ContainsMessageRE(err, noSuchOperationRE) {
 		oplet.persistentState.YTOpState = yt.StateAborted
+	} else {
+		oplet.setError(err)
 	}
 	return err
 }
@@ -858,7 +876,9 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 	// TODO(dakovalkov): eliminate this.
 	oplet.pendingRestart = false
 
-	oplet.l.Info("operation started", log.String("operation_id", opID.String()),
+	oplet.l.Info("operation started",
+		log.String("alias", oplet.alias),
+		log.String("operation_id", opID.String()),
 		log.Int("incarnation_index", oplet.persistentState.IncarnationIndex))
 
 	return nil
@@ -950,7 +970,7 @@ func (oplet *Oplet) flushPersistentState(ctx context.Context) error {
 	return nil
 }
 
-func (oplet *Oplet) Pass(ctx context.Context) error {
+func (oplet *Oplet) Pass(ctx context.Context, checkOpLiveness bool) error {
 	err := oplet.EnsureUpdatedFromCypress(ctx)
 
 	// If something has changed, the error may go away,
@@ -964,7 +984,7 @@ func (oplet *Oplet) Pass(ctx context.Context) error {
 		return err
 	}
 
-	if err == nil {
+	if err == nil && checkOpLiveness {
 		err = oplet.CheckOperationLiveness(ctx)
 	}
 	if err == nil {

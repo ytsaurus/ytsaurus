@@ -5,7 +5,42 @@
 #include "dynamic_store_bits.h"
 #include "transaction.h"
 
+#include <yt/yt/core/misc/persistent_queue.h>
+
 namespace NYT::NTabletNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTransactionWriteRecord
+{
+    TTransactionWriteRecord() = default;
+    TTransactionWriteRecord(
+        TTabletId tabletId,
+        TSharedRef data,
+        int rowCount,
+        i64 byteSize,
+        const TSyncReplicaIdList& syncReplicaIds,
+        const std::optional<NTableClient::THunkChunksInfo>& hunkChunksInfo);
+
+    TTabletId TabletId;
+    TSharedRef Data;
+    int RowCount = 0;
+    i64 DataWeight = 0;
+    TSyncReplicaIdList SyncReplicaIds;
+
+    std::optional<NTableClient::THunkChunksInfo> HunkChunksInfo;
+
+    void Save(TSaveContext& context) const;
+    void Load(TLoadContext& context);
+
+    i64 GetByteSize() const;
+};
+
+constexpr size_t TransactionWriteLogChunkSize = 256;
+using TTransactionWriteLog = TPersistentQueue<TTransactionWriteRecord, TransactionWriteLogChunkSize>;
+using TTransactionWriteLogSnapshot = TPersistentQueueSnapshot<TTransactionWriteRecord, TransactionWriteLogChunkSize>;
+
+i64 GetWriteLogRowCount(const TTransactionWriteLog& writeLog);
 
 ////////////////////////////////////////////////////////////////////////////////
 

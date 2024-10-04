@@ -21,6 +21,7 @@ target_link_libraries(library-cpp-resource PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  cpp-containers-absl_flat_hash
   cpp-blockcodecs-core
   blockcodecs-codecs-zstd
 )

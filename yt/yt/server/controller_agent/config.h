@@ -162,14 +162,14 @@ public:
     TDuration LowCpuUsageAlertMinAverageJobTime;
     // Cpu usage threshold to send an alert
     double LowCpuUsageAlertCpuUsageThreshold;
-    std::vector<TString> LowCpuUsageAlertStatistics;
+    std::vector<NStatisticPath::TStatisticPath> LowCpuUsageAlertStatistics;
     std::vector<NJobTrackerClient::EJobState> LowCpuUsageAlertJobStates;
 
     // Minimum average job time to analyze operation
     TDuration HighCpuWaitAlertMinAverageJobTime;
     // Minimum cpu wait time ratio to send an alert
     double HighCpuWaitAlertThreshold;
-    std::vector<TString> HighCpuWaitAlertStatistics;
+    std::vector<NStatisticPath::TStatisticPath> HighCpuWaitAlertStatistics;
     std::vector<NJobTrackerClient::EJobState> HighCpuWaitAlertJobStates;
 
     // Minimum wall time of operation duration
@@ -186,7 +186,7 @@ public:
     double LowGpuUsageAlertGpuUtilizationPowerThreshold;
     // Ratio.
     double LowGpuUsageAlertGpuUtilizationSMThreshold;
-    std::vector<TString> LowGpuUsageAlertStatistics;
+    std::vector<NStatisticPath::TStatisticPath> LowGpuUsageAlertStatistics;
     std::vector<NJobTrackerClient::EJobState> LowGpuUsageAlertJobStates;
 
     TLowGpuPowerUsageOnWindowConfigPtr LowGpuPowerUsageOnWindow;
@@ -573,6 +573,20 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGangManagerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool Enabled;
+
+    REGISTER_YSON_STRUCT(TGangManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DECLARE_REFCOUNTED_CLASS(TGangManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TGangManagerConfig)
+
 class TVanillaOperationOptions
     : public TOperationOptions
 {
@@ -582,6 +596,8 @@ public:
 
     //! Maximum total number of jobs.
     int MaxTotalJobCount;
+
+    TGangManagerConfigPtr GangManager;
 
     REGISTER_YSON_STRUCT(TVanillaOperationOptions);
 
@@ -705,6 +721,20 @@ DEFINE_REFCOUNTED_TYPE(TUserFileLimitsPatchConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobTrackerTestingOptions
+    : public NYTree::TYsonStruct
+{
+public:
+    NScheduler::TDelayConfigPtr DelayInSettleJob;
+
+    REGISTER_YSON_STRUCT(TJobTrackerTestingOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DECLARE_REFCOUNTED_CLASS(TJobTrackerTestingOptions)
+DEFINE_REFCOUNTED_TYPE(TJobTrackerTestingOptions)
+
 class TJobTrackerConfig
     : public NYTree::TYsonStruct
 {
@@ -719,6 +749,8 @@ public:
 
     bool EnableGracefulAbort;
     bool CheckNodeHeartbeatSequenceNumber;
+
+    TJobTrackerTestingOptionsPtr TestingOptions;
 
     REGISTER_YSON_STRUCT(TJobTrackerConfig);
 
@@ -996,8 +1028,6 @@ public:
     bool UseColumnarStatisticsDefault;
 
     //! Mimics the old behavior when output dynamic tables with atomicity=none were not locked.
-    // COMPAT(ifsmirnov): do not change this option until ETabletReign::FixBulkInsertAtomicityNone
-    // is deployed to tablet nodes!
     bool LockNonAtomicOutputDynamicTables;
 
     double UserJobMemoryDigestPrecision;

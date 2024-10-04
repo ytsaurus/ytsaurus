@@ -1,6 +1,5 @@
 #include "blob_table_writer.h"
 #include "helpers.h"
-#include "private.h"
 #include "schemaless_chunk_writer.h"
 
 #include <yt/yt/ytlib/chunk_client/config.h>
@@ -11,6 +10,7 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/private.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/helpers.h>
 

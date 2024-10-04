@@ -120,6 +120,9 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(10));
     registrar.Parameter("session_finalization_period", &TThis::SessionFinalizationPeriod)
         .Default(TDuration::Seconds(10));
+    registrar.Parameter("schedule_chunk_replace_period", &TThis::ScheduleChunkReplacePeriod)
+        .Default(TDuration::Seconds(1))
+        .DontSerializeDefault();
 
     registrar.Parameter("create_chunks_batch_size", &TThis::CreateChunksBatchSize)
         .GreaterThan(0)
@@ -152,6 +155,10 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_nodes_being_merged", &TThis::MaxNodesBeingMerged)
         .Default(1'000'000)
+        .DontSerializeDefault();
+
+    registrar.Parameter("max_chunk_lists_with_chunks_being_replaced", &TThis::MaxChunkListsWithChunksBeingReplaced)
+        .Default(100)
         .DontSerializeDefault();
 
     registrar.Parameter("max_allowed_backoff_reschedulings_per_table", &TThis::MaxAllowedBackoffReschedulingsPerSession)
@@ -605,12 +612,12 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(30)
         .GreaterThanOrEqual(0);
 
-    //COMPAT(abogutskiy): alias should be removed after migration to forbidden_compression_codecs option
+    // COMPAT(abogutskiy): alias should be removed after migration to forbidden_compression_codecs option
     registrar.Parameter("forbidden_compression_codecs", &TThis::ForbiddenCompressionCodecs)
         .Alias("deprecated_codec_ids")
         .Default();
 
-    //COMPAT(abogutskiy): alias should be removed after migration to forbidden_compression_codec_name_to_alias option
+    // COMPAT(abogutskiy): alias should be removed after migration to forbidden_compression_codec_name_to_alias option
     registrar.Parameter("forbidden_compression_codec_name_to_alias", &TThis::ForbiddenCompressionCodecNameToAlias)
         .Alias("deprecated_codec_name_to_alias")
         .Default();
@@ -695,9 +702,6 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_chunk_schemas", &TThis::EnableChunkSchemas)
         .Default(true);
 
-    registrar.Parameter("schemaless_end_upload_preserves_table_schema", &TThis::SchemalessEndUploadPreservesTableSchema)
-        .Default(true);
-
     registrar.Parameter("enable_two_random_choices_write_target_allocation", &TThis::EnableTwoRandomChoicesWriteTargetAllocation)
         .Default(false)
         .DontSerializeDefault();
@@ -705,6 +709,9 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("nodes_to_check_before_giving_up_on_write_target_allocation", &TThis::NodesToCheckBeforeGivingUpOnWriteTargetAllocation)
         .Default(32)
         .DontSerializeDefault();
+
+    registrar.Parameter("data_center_failure_detector", &TThis::DataCenterFailureDetector)
+        .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;
@@ -761,6 +768,55 @@ void TS3ConnectionConfig::Register(TRegistrar registrar)
 
 void TS3ClientConfig::Register(TRegistrar /*registrar*/)
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDynamicDataCenterFaultThresholdsConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("online_node_count_to_disable", &TThis::OnlineNodeCountToDisable)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+    registrar.Parameter("online_node_count_to_enable", &TThis::OnlineNodeCountToEnable)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+    registrar.Parameter("online_node_fraction_to_disable", &TThis::OnlineNodeFractionToDisable)
+        .InRange(0.0, 1.0)
+        .Default(0.0);
+    registrar.Parameter("online_node_fraction_to_enable", &TThis::OnlineNodeFractionToEnable)
+        .InRange(0.0, 1.0)
+        .Default(0.0);
+
+    registrar.Postprocessor([] (TThis* config) {
+        auto throwIfEnableThresholdLessThanDisable = [] (std::string_view thresholdType) {
+            THROW_ERROR_EXCEPTION(
+                "\"online_node_%v_to_disable\" must be less or equal"
+                "than \"online_node_%v_to_enable\"",
+                thresholdType,
+                thresholdType);
+        };
+
+        if (config->OnlineNodeCountToDisable > config->OnlineNodeCountToEnable) {
+            throwIfEnableThresholdLessThanDisable("count");
+        }
+        if (config->OnlineNodeFractionToDisable > config->OnlineNodeFractionToEnable) {
+            throwIfEnableThresholdLessThanDisable("fraction");
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDynamicDataCenterFailureDetectorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
+    registrar.Parameter("default_thresholds", &TThis::DefaultThresholds)
+        .DefaultNew();
+
+    registrar.Parameter("data_center_thresholds", &TThis::DataCenterThresholds)
+        .Default();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

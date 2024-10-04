@@ -45,8 +45,8 @@ TImpl* TCellTypeHandlerBase<TImpl>::DoCreateObject(
     TObjectId id,
     IAttributeDictionary* attributes)
 {
-    auto cellBundleName = attributes->FindAndRemove<TString>("cell_bundle");
-    auto tabletCellBundleName = attributes->FindAndRemove<TString>("tablet_cell_bundle");
+    auto cellBundleName = attributes->FindAndRemove<std::string>("cell_bundle");
+    auto tabletCellBundleName = attributes->FindAndRemove<std::string>("tablet_cell_bundle");
     if (cellBundleName && tabletCellBundleName) {
         THROW_ERROR_EXCEPTION("Only one of \"cell_bundle\" or \"tablet_cell_bundle\" should be specified");
     }
@@ -57,7 +57,7 @@ TImpl* TCellTypeHandlerBase<TImpl>::DoCreateObject(
         GetCellarTypeFromCellId(id),
         /*activeLifeStageOnly*/ true);
 
-    auto areaName = attributes->GetAndRemove<TString>("area", DefaultAreaName);
+    auto areaName = attributes->GetAndRemove<std::string>("area", DefaultAreaName);
     auto* area = cellBundle->GetAreaOrThrow(areaName);
 
     auto cellHolder = TPoolAllocator::New<TImpl>(id);

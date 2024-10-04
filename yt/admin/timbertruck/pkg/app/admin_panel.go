@@ -16,7 +16,7 @@ import (
 
 type AdminPanelConfig struct {
 	Port           int               `yaml:"port"`
-	MonitoringTags map[string]string `yaml:"default_tags"`
+	MonitoringTags map[string]string `yaml:"monitoring_tags"`
 }
 
 type adminPanel struct {
@@ -32,7 +32,7 @@ func newAdminPanel(logger *slog.Logger, metrics *solomon.Registry, config AdminP
 	}()
 
 	panel = &adminPanel{}
-	panel.logger = logger.With("component", "admin_panel")
+	panel.logger = logger.With("component", "AdminPanel")
 
 	mux := http.NewServeMux()
 
@@ -53,6 +53,11 @@ func newAdminPanel(logger *slog.Logger, metrics *solomon.Registry, config AdminP
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write(buffer.Bytes())
 		}
+	})
+	// "For testing purposes"
+	mux.HandleFunc("/log-error", func(w http.ResponseWriter, r *http.Request) {
+		panel.logger.Error("Log error requested")
+		_, _ = io.WriteString(w, "Error is logged!")
 	})
 
 	loggingMux := loggingMiddleware{
@@ -88,7 +93,7 @@ type loggingMiddleware struct {
 func (h loggingMiddleware) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	requestID := uuid.New().String()
 	msg := fmt.Sprintf("> request %v %v", req.Method, req.URL.Path)
-	slog.Info(msg,
+	h.logger.Info(msg,
 		"RequestId", requestID,
 		"Method", req.Method,
 		"Path", req.URL.Path,
@@ -103,7 +108,7 @@ func (h loggingMiddleware) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	msg = fmt.Sprintf("< response %v %v", wrapped.statusCode, req.URL.Path)
 
-	slog.Info(msg,
+	h.logger.Info(msg,
 		"RequestId", requestID,
 		"StatusCode", wrapped.statusCode)
 }

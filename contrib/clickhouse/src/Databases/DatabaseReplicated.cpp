@@ -12,6 +12,7 @@
 #include <Common/ZooKeeper/KeeperException.h>
 #include <Common/ZooKeeper/Types.h>
 #include <Common/ZooKeeper/ZooKeeper.h>
+#include <Databases/DatabaseFactory.h>
 #include <Databases/DatabaseReplicated.h>
 #include <Databases/DatabaseReplicatedWorker.h>
 #include <Databases/DDLDependencyVisitor.h>
@@ -1544,4 +1545,50 @@ bool DatabaseReplicated::shouldReplicateQuery(const ContextPtr & query_context, 
     return true;
 }
 
+void registerDatabaseReplicated(DatabaseFactory & factory)
+{
+    auto create_fn = [](const DatabaseFactory::Arguments & args)
+    {
+        auto * engine_define = args.create_query.storage;
+        const ASTFunction * engine = engine_define->engine;
+
+        if (!engine->arguments || engine->arguments->children.size() != 3)
+            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Replicated database requires 3 arguments: zookeeper path, shard name and replica name");
+
+        auto & arguments = engine->arguments->children;
+        for (auto & engine_arg : arguments)
+            engine_arg = evaluateConstantExpressionOrIdentifierAsLiteral(engine_arg, args.context);
+
+        String zookeeper_path = safeGetLiteralValue<String>(arguments[0], "Replicated");
+        String shard_name = safeGetLiteralValue<String>(arguments[1], "Replicated");
+        String replica_name  = safeGetLiteralValue<String>(arguments[2], "Replicated");
+
+        /// Expand macros.
+        Macros::MacroExpansionInfo info;
+        info.table_id.database_name = args.database_name;
+        info.table_id.uuid = args.uuid;
+        zookeeper_path = args.context->getMacros()->expand(zookeeper_path, info);
+
+        info.level = 0;
+        info.table_id.uuid = UUIDHelpers::Nil;
+        shard_name = args.context->getMacros()->expand(shard_name, info);
+
+        info.level = 0;
+        replica_name = args.context->getMacros()->expand(replica_name, info);
+
+        DatabaseReplicatedSettings database_replicated_settings{};
+        if (engine_define->settings)
+            database_replicated_settings.loadFromQuery(*engine_define);
+
+        return std::make_shared<DatabaseReplicated>(
+            args.database_name,
+            args.metadata_path,
+            args.uuid,
+            zookeeper_path,
+            shard_name,
+            replica_name,
+            std::move(database_replicated_settings), args.context);
+    };
+    factory.registerDatabase("Replicated", create_fn, {.supports_arguments = true, .supports_settings = true});
+}
 }

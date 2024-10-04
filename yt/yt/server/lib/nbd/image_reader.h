@@ -1,9 +1,19 @@
 #pragma once
 
-#include <yt/yt/server/lib/nbd/random_access_file_reader.h>
-#include <yt/yt/server/lib/nbd/squash_fs_image_builder.h>
+#include "random_access_file_reader.h"
+
+#include <yt/yt/server/lib/squash_fs/squash_fs_layout_builder.h>
 
 namespace NYT::NNbd {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TArtifactMountOptions
+{
+    TString Path;
+    ui16 Permissions;
+    IRandomAccessFileReaderPtr Reader;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,29 +29,24 @@ struct IImageReader
     virtual i64 GetSize() const = 0;
 
     virtual TReadersStatistics GetStatistics() const = 0;
+
+    virtual TString GetPath() const = 0;
 };
 
-DECLARE_REFCOUNTED_STRUCT(IImageReader)
 DEFINE_REFCOUNTED_TYPE(IImageReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IImageReaderPtr CreateCypressFileImageReader(
-    std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
-    TString path,
-    NApi::NNative::IClientPtr client,
-    NConcurrency::IThroughputThrottlerPtr inThrottler,
-    NConcurrency::IThroughputThrottlerPtr outRpsThrottler,
+    IRandomAccessFileReaderPtr reader,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IImageReaderPtr CreateVirtualSquashFsImageReader(
-    std::unordered_map<TString, std::vector<NChunkClient::NProto::TChunkSpec>> pathToChunkSpecs,
-    NSquashFs::TSquashFsImagePtr image,
-    NApi::NNative::IClientPtr client,
-    NConcurrency::IThroughputThrottlerPtr inThrottler,
-    NConcurrency::IThroughputThrottlerPtr outRpsThrottler,
+IImageReaderPtr CreateVirtualSquashFSImageReader(
+    std::vector<TArtifactMountOptions> mountOptions,
+    NSquashFS::TSquashFSLayoutBuilderOptions builderOptions,
+    IInvokerPtr invoker,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////

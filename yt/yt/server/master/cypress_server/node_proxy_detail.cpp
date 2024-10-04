@@ -39,6 +39,8 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/server/lib/sequoia/helpers.h>
+
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -85,6 +87,7 @@ using namespace NSecurityServer;
 using namespace NTabletServer;
 using namespace NChaosServer;
 using namespace NCypressClient;
+using namespace NSequoiaServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -328,8 +331,7 @@ void TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::SetYson(const
 {
     YT_ASSERT(value);
 
-    auto oldValue = FindYson(key);
-    Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
+    Proxy_->GuardedValidateCustomAttributeUpdate(key, value);
 
     const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
     auto* node = cypressManager->LockNode(
@@ -356,12 +358,11 @@ void TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::SetYson(const
 
 bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const TString& key)
 {
-    auto oldValue = FindYson(key);
-    if (!oldValue) {
+    if (!FindYson(key)) {
         return false;
     }
 
-    Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, {});
+    Proxy_->GuardedValidateCustomAttributeRemoval(key);
 
     const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
     auto* node = cypressManager->LockNode(
@@ -543,7 +544,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
 
             const auto& securityManager = Bootstrap_->GetSecurityManager();
 
-            auto name = ConvertTo<TString>(value);
+            auto name = ConvertTo<std::string>(value);
             auto* account = securityManager->GetAccountByNameOrThrow(name, true /*activeLifeStageOnly*/);
 
             ValidateStorageParametersUpdate();
@@ -1567,69 +1568,66 @@ void TNontemplateCypressNodeProxyBase::SetChildNode(
     YT_ABORT();
 }
 
-DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
+void TNontemplateCypressNodeProxyBase::Lock(const TLockRequest& request, bool waitable, TLockId lockIdHint)
 {
-    DeclareMutating();
+    DoLock(request, waitable, lockIdHint);
+}
 
-    auto mode = CheckedEnumCast<ELockMode>(request->mode());
-    bool waitable = request->waitable();
-
-    if (mode != ELockMode::Snapshot &&
-        mode != ELockMode::Shared &&
-        mode != ELockMode::Exclusive)
-    {
-        THROW_ERROR_EXCEPTION("Invalid lock mode %Qlv",
-            mode);
-    }
-
-    TLockRequest lockRequest;
-    if (request->has_child_key()) {
-        if (mode != ELockMode::Shared) {
-            THROW_ERROR_EXCEPTION("Only %Qlv locks are allowed on child keys, got %Qlv",
-                ELockMode::Shared,
-                mode);
-        }
-        lockRequest = TLockRequest::MakeSharedChild(request->child_key());
-    } else if (request->has_attribute_key()) {
-        if (mode != ELockMode::Shared) {
-            THROW_ERROR_EXCEPTION("Only %Qlv locks are allowed on attribute keys, got %Qlv",
-                ELockMode::Shared,
-                mode);
-        }
-        lockRequest = TLockRequest::MakeSharedAttribute(request->attribute_key());
-    } else {
-        lockRequest = TLockRequest(mode);
-    }
-
-    lockRequest.Timestamp = request->timestamp();
-
-    context->SetRequestInfo("Mode: %v, Key: %v, Waitable: %v",
-        mode,
-        lockRequest.Key,
-        waitable);
-
+TNontemplateCypressNodeProxyBase::TLockResult TNontemplateCypressNodeProxyBase::DoLock(
+    const TLockRequest& request,
+    bool waitable,
+    TLockId lockIdHint)
+{
     ValidateTransaction();
     ValidatePermission(
         EPermissionCheckScope::This,
-        mode == ELockMode::Snapshot ? EPermission::Read : EPermission::Write);
+        request.Mode == ELockMode::Snapshot ? EPermission::Read : EPermission::Write);
     ValidateLockPossible();
 
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     auto lockResult = cypressManager->CreateLock(
         TrunkNode_,
         Transaction_,
-        lockRequest,
+        request,
+        waitable,
+        lockIdHint);
+
+    auto externalTransactionId = Transaction_->GetId();
+    if (TrunkNode_->IsExternal()) {
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        externalTransactionId = transactionManager->ExternalizeTransaction(
+            Transaction_,
+            {TrunkNode_->GetExternalCellTag()});
+    }
+
+    return {std::move(lockResult), externalTransactionId};
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
+{
+    DeclareMutating();
+
+    auto mode = CheckedEnumCast<ELockMode>(request->mode());
+    auto childKey = YT_PROTO_OPTIONAL(*request, child_key);
+    auto attributeKey = YT_PROTO_OPTIONAL(*request, attribute_key);
+    auto timestamp = request->timestamp();
+    bool waitable = request->waitable();
+
+    CheckLockRequest(mode, childKey, attributeKey)
+        .ThrowOnError();
+
+    auto lockRequest = CreateLockRequest(mode, childKey, attributeKey, timestamp);
+
+    context->SetRequestInfo("Mode: %v, Key: %v, Waitable: %v",
+        mode,
+        lockRequest.Key,
         waitable);
 
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    auto [lockResult, externalTransactionId] = DoLock(lockRequest, waitable, /*hintLockId*/ {});
+
     auto externalCellTag = TrunkNode_->IsExternal()
         ? TrunkNode_->GetExternalCellTag()
-        : multicellManager->GetCellTag();
-
-    const auto& transactionManager = Bootstrap_->GetTransactionManager();
-    auto externalTransactionId = TrunkNode_->IsExternal()
-        ? transactionManager->ExternalizeTransaction(Transaction_, {externalCellTag})
-        : Transaction_->GetId();
+        : Bootstrap_->GetCellTag();
 
     auto lockId = lockResult.Lock->GetId();
     auto revision = lockResult.BranchedNode ? lockResult.BranchedNode->GetRevision() : NHydra::NullRevision;
@@ -1649,17 +1647,22 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     context->Reply();
 }
 
+void TNontemplateCypressNodeProxyBase::Unlock()
+{
+    ValidateTransaction();
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
+
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    cypressManager->UnlockNode(TrunkNode_, Transaction_);
+}
+
 DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Unlock)
 {
     DeclareMutating();
 
     context->SetRequestInfo();
 
-    ValidateTransaction();
-    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
-
-    const auto& cypressManager = Bootstrap_->GetCypressManager();
-    cypressManager->UnlockNode(TrunkNode_, Transaction_);
+    Unlock();
 
     context->SetResponseInfo();
 
@@ -1794,7 +1797,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     if (explicitAttributes) {
         optionalTargetPath = explicitAttributes->Find<TYPath>("target_path");
 
-        auto optionalAccount = explicitAttributes->FindAndRemove<TString>("account");
+        auto optionalAccount = explicitAttributes->FindAndRemove<std::string>("account");
         if (optionalAccount) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             account = securityManager->GetAccountByNameOrThrow(*optionalAccount, true /*activeLifeStageOnly*/);
@@ -2420,13 +2423,13 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
 
     switch (key) {
         case EInternedAttributeKey::PrimaryMedium: {
-            auto primaryMediumName = ConvertTo<TString>(value);
+            auto primaryMediumName = ConvertTo<std::string>(value);
             SetPrimaryMedium(primaryMediumName);
             return true;
         }
 
         case EInternedAttributeKey::HunkPrimaryMedium: {
-            auto primaryMediumName = ConvertTo<TString>(value);
+            auto primaryMediumName = ConvertTo<std::string>(value);
             SetHunkPrimaryMedium(primaryMediumName);
             return true;
         }
@@ -2446,7 +2449,7 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
         case EInternedAttributeKey::TabletCellBundle: {
             ValidateNoTransaction();
 
-            auto name = ConvertTo<TString>(value);
+            auto name = ConvertTo<std::string>(value);
 
             const auto& tabletManager = Bootstrap_->GetTabletManager();
             auto* newBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name, true /*activeLifeStageOnly*/);
@@ -2458,7 +2461,7 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
         case EInternedAttributeKey::ChaosCellBundle: {
             ValidateNoTransaction();
 
-            auto name = ConvertTo<TString>(value);
+            auto name = ConvertTo<std::string>(value);
 
             const auto& chaosManager = Bootstrap_->GetChaosManager();
             auto* newBundle = chaosManager->GetChaosCellBundleByNameOrThrow(name, true /*activeLifeStageOnly*/);
@@ -2517,10 +2520,8 @@ void TNontemplateCompositeCypressNodeProxyBase::SetReplicationFactor(int replica
 
     ValidateReplicationFactor(replicationFactor);
 
-    const auto mediumIndex = node->TryGetPrimaryMediumIndex();
-    if (mediumIndex) {
-        const auto replication = node->TryGetMedia();
-        if (replication) {
+    if (auto mediumIndex = node->TryGetPrimaryMediumIndex()) {
+        if (auto replication = node->TryGetMedia()) {
             if (replication->Get(*mediumIndex).GetReplicationFactor() != replicationFactor) {
                 ThrowReplicationFactorMismatch(*mediumIndex);
             }
@@ -2536,7 +2537,7 @@ void TNontemplateCompositeCypressNodeProxyBase::SetReplicationFactor(int replica
 
 std::optional<int> TNontemplateCompositeCypressNodeProxyBase::DoSetPrimaryMedium(TCompositeNodeBase* node,
     const std::optional<NChunkServer::TChunkReplication>& replication,
-    const TString& primaryMediumName,
+    const std::string& primaryMediumName,
     std::optional<int> oldPrimaryMediumIndex,
     TChunkReplication& newReplication)
 {
@@ -2545,7 +2546,7 @@ std::optional<int> TNontemplateCompositeCypressNodeProxyBase::DoSetPrimaryMedium
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     auto* medium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);
-    const auto mediumIndex = medium->GetIndex();
+    auto mediumIndex = medium->GetIndex();
 
     if (!replication) {
         ValidatePermission(medium, EPermission::Use);
@@ -2558,7 +2559,7 @@ std::optional<int> TNontemplateCompositeCypressNodeProxyBase::DoSetPrimaryMedium
             oldPrimaryMediumIndex, // may be null
             &newReplication))
     {
-        const auto replicationFactor = node->TryGetReplicationFactor();
+        auto replicationFactor = node->TryGetReplicationFactor();
         if (replicationFactor &&
             *replicationFactor != newReplication.Get(mediumIndex).GetReplicationFactor())
         {
@@ -2570,7 +2571,7 @@ std::optional<int> TNontemplateCompositeCypressNodeProxyBase::DoSetPrimaryMedium
 }
 
 
-void TNontemplateCompositeCypressNodeProxyBase::SetPrimaryMedium(const TString& primaryMediumName)
+void TNontemplateCompositeCypressNodeProxyBase::SetPrimaryMedium(const std::string& primaryMediumName)
 {
     auto* node = GetThisImpl<TCompositeNodeBase>();
     TChunkReplication newReplication;
@@ -2584,7 +2585,7 @@ void TNontemplateCompositeCypressNodeProxyBase::SetPrimaryMedium(const TString& 
     }
 }
 
-void TNontemplateCompositeCypressNodeProxyBase::SetHunkPrimaryMedium(const TString& hunkPrimaryMediumName)
+void TNontemplateCompositeCypressNodeProxyBase::SetHunkPrimaryMedium(const std::string& hunkPrimaryMediumName)
 {
     auto* node = GetThisImpl<TCompositeNodeBase>();
     TChunkReplication newReplication;
@@ -2610,8 +2611,7 @@ std::optional<NChunkServer::TChunkReplication> TNontemplateCompositeCypressNodeP
     replication.SetVital(true);
     serializableReplication.ToChunkReplication(&replication, chunkManager);
 
-    const auto oldReplication = node->TryGetMedia();
-
+    auto oldReplication = node->TryGetMedia();
     if (replication == oldReplication) {
         return std::nullopt;
     }
@@ -2626,8 +2626,8 @@ void TNontemplateCompositeCypressNodeProxyBase::SetMedia(const TSerializableChun
     }
     auto replication = *optionalReplication;
     auto* node = GetThisImpl<TCompositeNodeBase>();
-    const auto primaryMediumIndex = node->TryGetPrimaryMediumIndex();
-    const auto replicationFactor = node->TryGetReplicationFactor();
+    auto primaryMediumIndex = node->TryGetPrimaryMediumIndex();
+    auto replicationFactor = node->TryGetReplicationFactor();
     if (primaryMediumIndex && replicationFactor) {
         if (replication.Get(*primaryMediumIndex).GetReplicationFactor() != *replicationFactor) {
             ThrowReplicationFactorMismatch(*primaryMediumIndex);
@@ -2865,7 +2865,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
 
     if (key == EInternedAttributeKey::PrimaryMedium.Unintern()) {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        const auto& mediumName = ConvertTo<TString>(value);
+        auto mediumName = ConvertTo<std::string>(value);
         auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
         InheritedAttributes_.PrimaryMediumIndex.Set(medium->GetIndex());
         return;
@@ -2873,7 +2873,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
 
     if (key == EInternedAttributeKey::HunkPrimaryMedium.Unintern()) {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        const auto& mediumName = ConvertTo<TString>(value);
+        auto mediumName = ConvertTo<std::string>(value);
         auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
         InheritedAttributes_.HunkPrimaryMediumIndex.Set(medium->GetIndex());
         return;
@@ -2900,7 +2900,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
     }
 
     if (key == EInternedAttributeKey::TabletCellBundle.Unintern()) {
-        auto bundleName = ConvertTo<TString>(value);
+        auto bundleName = ConvertTo<std::string>(value);
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto* bundle = tabletManager->GetTabletCellBundleByNameOrThrow(bundleName, true /*activeLifeStageOnly*/);
         InheritedAttributes_.TabletCellBundle.Set(bundle);
@@ -2908,7 +2908,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
     }
 
     if (key == EInternedAttributeKey::ChaosCellBundle.Unintern()) {
-        auto bundleName = ConvertTo<TString>(value);
+        auto bundleName = ConvertTo<std::string>(value);
         const auto& chaosManager = Bootstrap_->GetChaosManager();
         auto* bundle = chaosManager->GetChaosCellBundleByNameOrThrow(bundleName, true /*activeLifeStageOnly*/);
         InheritedAttributes_.ChaosCellBundle.Set(bundle);
@@ -3332,7 +3332,7 @@ bool TSequoiaMapNodeProxy::GetBuiltinAttribute(
     IYsonConsumer* consumer)
 {
     auto* mapNode = GetThisImpl();
-    const auto Logger = CypressServerLogger;
+    const auto& Logger = CypressServerLogger;
 
     switch (key) {
         case EInternedAttributeKey::Type:

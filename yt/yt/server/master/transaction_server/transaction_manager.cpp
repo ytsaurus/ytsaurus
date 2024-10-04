@@ -716,7 +716,7 @@ public:
             multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
         }
 
-        // Abort of nested transactions has to be done after replicating abort
+        // Abort of nested transactions has to be done after replicating commit
         // to participants and that's why:
         // abort of nested transactions cause posting "remove object"
         // mutations via Hive. It must be done only after tx abort on foreign
@@ -758,7 +758,7 @@ public:
         auto sequoiaContextGuard = MaybeCreateSequoiaContextGuard(transaction);
 
         RunCommitTransactionActions(transaction, options);
-        if (IsSequoiaTxBarrierEnabled() && transaction->GetIsSequoiaTransaction()) {
+        if (IsSequoiaTxBarrierEnabled() && transaction->IsSequoiaTransaction()) {
             Bootstrap_->GetTransactionSupervisor()->UnregisterPreparedSequoiaTx(transaction->GetId());
         }
 
@@ -900,7 +900,7 @@ public:
         TransactionAborted_.Fire(transaction);
 
         RunAbortTransactionActions(transaction, options);
-        if (IsSequoiaTxBarrierEnabled() && transaction->GetIsSequoiaTransaction()) {
+        if (IsSequoiaTxBarrierEnabled() && transaction->IsSequoiaTransaction()) {
             Bootstrap_->GetTransactionSupervisor()->UnregisterPreparedSequoiaTx(transaction->GetId());
         }
 
@@ -1075,6 +1075,8 @@ public:
             return transaction->GetId();
         }
 
+        // NB: the value of this property is the same among all relative
+        // transactions.
         auto externalizationEnabled = IsCypressTransactionType(transaction->GetType())
             ? !transaction->IsNative() || transaction->IsNativeTxExternalizationEnabled()
             : false;
@@ -1405,7 +1407,7 @@ public:
 
         auto sequoiaContextGuard = MaybeCreateSequoiaContextGuard(transaction);
 
-        if (IsSequoiaTxBarrierEnabled() && transaction->GetIsSequoiaTransaction()) {
+        if (IsSequoiaTxBarrierEnabled() && transaction->IsSequoiaTransaction()) {
             Bootstrap_->GetTransactionSupervisor()->RegisterPreparedSequoiaTx(transaction->GetId());
         }
         RunPrepareTransactionActions(transaction, options);
@@ -2941,7 +2943,7 @@ private:
             const auto& txSupervisor = Bootstrap_->GetTransactionSupervisor();
             txSupervisor->ClearSequoiaTxRegistry();
             for (auto [id, transaction] : TransactionMap_) {
-                if (transaction->GetIsSequoiaTransaction() &&
+                if (transaction->IsSequoiaTransaction() &&
                     transaction->GetPersistentState() == ETransactionState::PersistentCommitPrepared)
                 {
                     txSupervisor->RegisterPreparedSequoiaTx(id);
@@ -3292,7 +3294,7 @@ private:
 
     TSequoiaContextGuard MaybeCreateSequoiaContextGuard(TTransaction* transaction)
     {
-        if (transaction->GetIsSequoiaTransaction()) {
+        if (transaction->IsSequoiaTransaction()) {
             auto sequoiaContext = CreateSequoiaContext(Bootstrap_, transaction->GetId(), transaction->SequoiaWriteSet());
             return TSequoiaContextGuard(std::move(sequoiaContext), Bootstrap_->GetSecurityManager(), transaction->GetAuthenticationIdentity(), transaction->GetTraceContext());
         } else {

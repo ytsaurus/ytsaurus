@@ -5,6 +5,7 @@
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
 #include <yt/yt/core/misc/statistics.h>
+#include <yt/yt/core/misc/statistic_path.h>
 #include <yt/yt/core/misc/collection_helpers.h>
 
 #include <util/string/util.h>
@@ -13,19 +14,21 @@ namespace NYT::NControllerAgent {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NStatisticPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString InputPrefix = "/data/input";
-const TString OutputPrefix = "/data/output";
-const TString OutputPipePrefix = "/user_job/pipes/output";
-const TString IdleTimeSuffix = "/idle_time";
+const TStatisticPath InputPrefix = "/data/input"_SP;
+const TStatisticPath OutputPrefix = "/data/output"_SP;
+const TStatisticPath OutputPipePrefix = "/user_job/pipes/output"_SP;
+const TStatisticPath IdleTimeSuffix = "/idle_time"_SP;
 
 TDataStatistics GetTotalInputDataStatistics(const TStatistics& jobStatistics)
 {
     TDataStatistics result;
     for (const auto& [path, summary] : jobStatistics.GetRangeByPrefix(InputPrefix)) {
-        SetDataStatisticsField(result, TStringBuf(path.begin() + 1 + InputPrefix.size(), path.end()), summary.GetSum());
+        // TODO(pavook) check that we can get .Back() instead of dropping prefix.
+        SetDataStatisticsField(result, path.Back(), summary.GetSum());
     }
 
     return result;
@@ -35,15 +38,15 @@ std::vector<TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStati
 {
     std::vector<TDataStatistics> result;
     for (const auto& [path, summary] : jobStatistics.GetRangeByPrefix(OutputPrefix)) {
-        TStringBuf currentPath(path.begin() + OutputPrefix.size() + 1, path.end());
-        size_t slashPos = currentPath.find("/");
-        if (slashPos == TStringBuf::npos) {
+        auto [pathIt, outputPrefixIt] = std::ranges::mismatch(path, OutputPrefix);
+        YT_VERIFY(outputPrefixIt == OutputPrefix.end());
+        if (pathIt == path.end() || std::next(pathIt) == path.end()) {
             // Looks like a malformed path in /data/output, let's skip it.
             continue;
         }
-        int tableIndex = a2i(TString(currentPath.substr(0, slashPos)));
+        int tableIndex = a2i(TString(*pathIt));
         EnsureVectorIndex(result, tableIndex);
-        SetDataStatisticsField(result[tableIndex], currentPath.substr(slashPos + 1), summary.GetSum());
+        SetDataStatisticsField(result[tableIndex], *(++pathIt), summary.GetSum());
     }
 
     return result;
@@ -53,12 +56,17 @@ THashMap<int, i64> GetOutputPipeIdleTimes(const TStatistics& jobStatistics)
 {
     THashMap<int, i64> result;
     for (const auto& [path, summary] : jobStatistics.GetRangeByPrefix(OutputPipePrefix)) {
-        // Note that path should contain at least OutputPipePrefix + '/'.
-        YT_VERIFY(path.size() >= OutputPipePrefix.size() + 1);
-        if (path.substr(path.size() - IdleTimeSuffix.size()) != IdleTimeSuffix) {
+        auto [pathIt, prefixIt] = std::ranges::mismatch(path, OutputPipePrefix);
+        // Note that path should start with OutputPipePrefix.
+        YT_VERIFY(prefixIt == OutputPipePrefix.end());
+
+        // TODO(pavook) change to `| std::views::reverse` when libc++ updates.
+        auto [reversePathIt, reverseSuffixIt] = std::mismatch(path.rbegin(), path.rend(), IdleTimeSuffix.rbegin(), IdleTimeSuffix.rend());
+        if (reverseSuffixIt != IdleTimeSuffix.rend()) {
             continue;
         }
-        int tableIndex = a2i(TString(path.begin() + OutputPipePrefix.size() + 1, path.end() - IdleTimeSuffix.size()));
+
+        int tableIndex = a2i(TString(*reversePathIt));
         result[tableIndex] = summary.GetSum();
     }
 
@@ -67,16 +75,13 @@ THashMap<int, i64> GetOutputPipeIdleTimes(const TStatistics& jobStatistics)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString ExecAgentTrafficStatisticsPrefix = "exec_agent";
-const TString JobProxyTrafficStatisticsPrefix = "job_proxy";
-
 void FillTrafficStatistics(
-    const TString& namePrefix,
+    const TStatisticPath& namePrefix,
     TStatistics& statistics,
     const NChunkClient::TTrafficMeterPtr& trafficMeter)
 {
     statistics.AddSample(
-        Format("/%v/traffic/duration_ms", namePrefix),
+        namePrefix / "traffic"_L / "duration_ms"_L,
         trafficMeter->GetDuration().MilliSeconds());
 
     // Empty data center names aren't allowed, so reducing a null data
@@ -84,22 +89,20 @@ void FillTrafficStatistics(
 
     for (const auto& [optionalDataCenter, byteCount] : trafficMeter->GetInboundByteCountBySource()) {
         auto dataCenter = optionalDataCenter.value_or(TString());
-        statistics.AddSample(
-            Format("/%v/traffic/inbound/from_%v", namePrefix, dataCenter),
-            byteCount);
+        TStatisticPathLiteral fromSuffix("from_" + dataCenter);
+        statistics.AddSample(namePrefix / "traffic"_L / "inbound"_L / fromSuffix, byteCount);
     }
     for (const auto& [optionalDataCenter, byteCount] : trafficMeter->GetOutboundByteCountByDestination()) {
         auto dataCenter = optionalDataCenter.value_or(TString());
-        statistics.AddSample(
-            Format("/%v/traffic/outbound/to_%v", namePrefix, dataCenter),
-            byteCount);
+        TStatisticPathLiteral toSuffix("to_" + dataCenter);
+        statistics.AddSample(namePrefix / "traffic"_L / "outbound"_L / toSuffix, byteCount);
     }
     for (const auto& [direction, byteCount] : trafficMeter->GetByteCountByDirection()) {
         auto srcDataCenter = direction.first.value_or(TString());
         auto dstDataCenter = direction.second.value_or(TString());
-        statistics.AddSample(
-            Format("/%v/traffic/%v_to_%v", namePrefix, srcDataCenter, dstDataCenter),
-            byteCount);
+
+        TStatisticPathLiteral routeSuffix(srcDataCenter + "_to_" + dstDataCenter);
+        statistics.AddSample(namePrefix / "traffic"_L / routeSuffix, byteCount);
     }
 }
 

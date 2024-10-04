@@ -99,6 +99,8 @@ struct IJobController
 
     virtual void OnJobProxyProcessFinished(const TError& error, std::optional<TDuration> delay) = 0;
 
+    virtual void OnJobCleanupFinished(TDuration duration) = 0;
+
     virtual IJobProxyLogManagerPtr GetJobProxyLogManager() const = 0;
 
     virtual std::optional<int> GetOperationsArchiveVersion() const = 0;

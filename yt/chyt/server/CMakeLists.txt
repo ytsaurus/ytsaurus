@@ -95,6 +95,7 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/query_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/query_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/query_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/read_plan.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/revision_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/schema_inference.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/secondary_query_header.cpp
@@ -121,10 +122,11 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/user_defined_sql_objects_storage.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/version.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/virtual_column.cpp
-  ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_to_ch_converter.cpp
-  ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_database.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_database_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_database.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_directory_database.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_to_ch_block_converter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_to_ch_column_converter.cpp
 )
 
 

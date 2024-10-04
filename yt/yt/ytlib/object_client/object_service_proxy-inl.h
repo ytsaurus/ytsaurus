@@ -30,10 +30,10 @@ TErrorOr<TIntrusivePtr<TTypedResponse>> TObjectServiceProxy::TRspExecuteBatch::G
 }
 
 template <class TTypedResponse>
-std::optional<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRspExecuteBatch::FindResponse(const TString& key) const
+std::optional<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRspExecuteBatch::FindResponse(const std::string& key) const
 {
     std::optional<TErrorOr<TIntrusivePtr<TTypedResponse>>> result;
-    for (int index = 0; index < static_cast<int>(InnerRequestDescriptors_.size()); ++index) {
+    for (int index = 0; index < std::ssize(InnerRequestDescriptors_); ++index) {
         if (key == InnerRequestDescriptors_[index].Key) {
             if (result) {
                 THROW_ERROR_EXCEPTION("Found multiple responses with key %Qv", key);
@@ -45,7 +45,7 @@ std::optional<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRsp
 }
 
 template <class TTypedResponse>
-TErrorOr<TIntrusivePtr<TTypedResponse>> TObjectServiceProxy::TRspExecuteBatch::GetResponse(const TString& key) const
+TErrorOr<TIntrusivePtr<TTypedResponse>> TObjectServiceProxy::TRspExecuteBatch::GetResponse(const std::string& key) const
 {
     auto result = FindResponse<TTypedResponse>(key);
     YT_VERIFY(result);
@@ -53,11 +53,11 @@ TErrorOr<TIntrusivePtr<TTypedResponse>> TObjectServiceProxy::TRspExecuteBatch::G
 }
 
 template <class TTypedResponse>
-std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const std::optional<TString>& key) const
+std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const std::optional<std::string>& key) const
 {
     std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> responses;
     responses.reserve(InnerRequestDescriptors_.size());
-    for (int index = 0; index < static_cast<int>(InnerRequestDescriptors_.size()); ++index) {
+    for (int index = 0; index < std::ssize(InnerRequestDescriptors_); ++index) {
         if (!key || *key == InnerRequestDescriptors_[index].Key) {
             responses.push_back(GetResponse<TTypedResponse>(index));
         }
@@ -66,11 +66,11 @@ std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRspEx
 }
 
 template <class TTypedResponse>
-std::vector<std::pair<std::any, TErrorOr<TIntrusivePtr<TTypedResponse>>>> TObjectServiceProxy::TRspExecuteBatch::GetTaggedResponses(const std::optional<TString>& key) const
+std::vector<std::pair<std::any, TErrorOr<TIntrusivePtr<TTypedResponse>>>> TObjectServiceProxy::TRspExecuteBatch::GetTaggedResponses(const std::optional<std::string>& key) const
 {
     std::vector<std::pair<std::any, TErrorOr<TIntrusivePtr<TTypedResponse>>>> taggedResponses;
     taggedResponses.reserve(InnerRequestDescriptors_.size());
-    for (int index = 0; index < static_cast<int>(InnerRequestDescriptors_.size()); ++index) {
+    for (int index = 0; index < std::ssize(InnerRequestDescriptors_); ++index) {
         if (!key || *key == InnerRequestDescriptors_[index].Key) {
             taggedResponses.emplace_back(InnerRequestDescriptors_[index].Tag, GetResponse<TTypedResponse>(index));
         }
@@ -91,6 +91,22 @@ TObjectServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
     return outerRequest->Invoke().Apply(BIND([] (const TRspExecuteBatchPtr& outerResponse) {
         return outerResponse->GetResponse<TTypedResponse>(0)
             .ValueOrThrow();
+    }));
+}
+
+template <std::derived_from<NYTree::TYPathRequest>... TTypedRequests>
+    requires (sizeof...(TTypedRequests) > 0)
+TFuture<std::tuple<TIntrusivePtr<typename TTypedRequests::TTypedResponse>...>>
+TObjectServiceProxy::ExecuteAll(TIntrusivePtr<TTypedRequests>... innerRequests)
+{
+    auto outerRequest = ExecuteBatch();
+    (outerRequest->AddRequest(innerRequests), ...);
+    return outerRequest->Invoke().Apply(BIND([] (const TRspExecuteBatchPtr& outerResponse) {
+        int index = -1;
+        return std::tuple([&] {
+            ++index;
+            return outerResponse->GetResponse<typename TTypedRequests::TTypedResponse>(index).ValueOrThrow();
+        }()...);
     }));
 }
 

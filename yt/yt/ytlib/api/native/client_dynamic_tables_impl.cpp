@@ -545,7 +545,6 @@ private:
         auto mountCacheWaitTime = timer.GetElapsedTime();
 
         if (DetailedProfilingInfo_ && tableInfo->EnableDetailedProfiling) {
-            DetailedProfilingInfo_->EnableDetailedTableProfiling = true;
             DetailedProfilingInfo_->MountCacheWaitTime += mountCacheWaitTime;
         }
 
@@ -1540,7 +1539,10 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
 
     auto cache = New<TStickyTableMountInfoCache>(Connection_->GetTableMountCache());
-    GetQueryTableInfos(astQuery, cache);
+
+    NProfiling::TWallTimer timer;
+    auto mainTableMountInfo = GetQueryTableInfos(astQuery, cache)[0];
+    auto getMountInfoTime = timer.GetElapsedTime();
 
     TransformWithIndexStatement(&parsedQuery->AstHead, cache);
 
@@ -1708,7 +1710,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         });
     }
 
-    NProfiling::TWallTimer timer;
+    timer.Restart();
     const auto& permissionCache = Connection_->GetPermissionCache();
     auto permissionCheckErrors = WaitFor(permissionCache->GetMany(permissionKeys))
         .ValueOrThrow();
@@ -1721,15 +1723,10 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto permissionCacheWaitTime = timer.GetElapsedTime();
 
     if (options.DetailedProfilingInfo) {
-        const auto& path = astQuery->Table.Path;
-        timer.Restart();
-        auto tableInfo = WaitFor(cache->GetTableInfo(path))
-            .ValueOrThrow();
-        auto mountCacheWaitTime = timer.GetElapsedTime();
-        if (tableInfo->EnableDetailedProfiling) {
+        if (mainTableMountInfo->EnableDetailedProfiling) {
             options.DetailedProfilingInfo->EnableDetailedTableProfiling = true;
-            options.DetailedProfilingInfo->TablePath = path;
-            options.DetailedProfilingInfo->MountCacheWaitTime += mountCacheWaitTime;
+            options.DetailedProfilingInfo->TablePath = mainTableMountInfo->Path;
+            options.DetailedProfilingInfo->MountCacheWaitTime += getMountInfoTime;
             options.DetailedProfilingInfo->PermissionCacheWaitTime += permissionCacheWaitTime;
         }
     }
@@ -1747,6 +1744,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         : NCodegen::EExecutionBackend::Native;
     queryOptions.EnableCodeCache = options.EnableCodeCache;
     queryOptions.MaxSubqueries = options.MaxSubqueries;
+    queryOptions.MinRowCountPerSubquery = options.MinRowCountPerSubquery;
     queryOptions.WorkloadDescriptor = options.WorkloadDescriptor;
     queryOptions.InputRowLimit = inputRowLimit;
     queryOptions.OutputRowLimit = outputRowLimit;
@@ -1758,6 +1756,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     queryOptions.SuppressAccessTracking = options.SuppressAccessTracking;
     queryOptions.UseCanonicalNullRelations = options.UseCanonicalNullRelations;
     queryOptions.MergeVersionedRows = options.MergeVersionedRows;
+    queryOptions.UseLookupCache = options.UseLookupCache;
 
     auto requestFeatureFlags = MostFreshFeatureFlags();
 

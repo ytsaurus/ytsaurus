@@ -48,7 +48,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TCypressNode*, Root);
 
-    DEFINE_BYVAL_RW_PROPERTY(TString, Name);
+    DEFINE_BYVAL_RW_PROPERTY(std::string, Name);
 
 public:
     using TObject::TObject;

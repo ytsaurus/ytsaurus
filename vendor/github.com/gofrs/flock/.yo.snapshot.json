@@ -1,0 +1,29 @@
+{
+	"Version": "v0.8.1",
+	"GoVersion": "",
+	"Sum": "h1:+gYjHKf32LDeiEEFhQaotPbLuUXjY5ZqxKgXy7n59aw=",
+	"Packages": {
+		"github.com/gofrs/flock": {
+			"Imports": [
+				"context",
+				"os",
+				"runtime",
+				"sync",
+				"syscall",
+				"time",
+				"unsafe"
+			],
+			"TestImports": [
+				"context",
+				"fmt",
+				"github.com/gofrs/flock",
+				"gopkg.in/check.v1",
+				"io/ioutil",
+				"os",
+				"runtime",
+				"testing",
+				"time"
+			]
+		}
+	}
+}

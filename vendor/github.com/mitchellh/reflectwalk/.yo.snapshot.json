@@ -1,0 +1,19 @@
+{
+	"Version": "v1.0.2",
+	"GoVersion": "",
+	"Sum": "h1:G2LzWKi524PWgd3mLHV8Y5k7s6XUvT0Gef6zxSIeXaQ=",
+	"Packages": {
+		"github.com/mitchellh/reflectwalk": {
+			"Imports": [
+				"errors",
+				"fmt",
+				"reflect"
+			],
+			"TestImports": [
+				"fmt",
+				"reflect",
+				"testing"
+			]
+		}
+	}
+}

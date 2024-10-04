@@ -22,7 +22,7 @@ class TArea
     , public TRefTracked<TArea>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TString, Name);
+    DEFINE_BYVAL_RW_PROPERTY(std::string, Name);
     DEFINE_BYVAL_RW_PROPERTY(TCellBundle*, CellBundle);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TCellBase*>, Cells);
     DEFINE_BYREF_RW_PROPERTY(TBooleanFormula, NodeTagFilter);

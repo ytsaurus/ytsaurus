@@ -24,6 +24,7 @@
 namespace NYT::NClickHouseServer {
 
 using namespace NYPath;
+using namespace NStatisticPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,7 +122,7 @@ public:
         DB::ASTs& args = function.arguments->children;
 
         auto* queryContext = GetQueryContext(context);
-        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/yt_tables/parse_arguments");
+        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/yt_tables/parse_arguments"_SP);
 
         size_t maxPaths = queryContext->Settings->ConcatTables->MaxTables;
 
@@ -192,7 +193,7 @@ private:
     DB::StoragePtr Execute(DB::ContextPtr context) const
     {
         auto* queryContext = GetQueryContext(context);
-        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/yt_tables/execute");
+        auto timerGuard = queryContext->CreateStatisticsTimerGuard("/yt_tables/execute"_SP);
 
         auto tables = FetchTables(
             queryContext,

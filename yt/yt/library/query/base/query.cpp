@@ -1463,6 +1463,10 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     serialized->set_suppress_access_tracking(original.SuppressAccessTracking);
     serialized->set_range_expansion_limit(original.RangeExpansionLimit);
     serialized->set_merge_versioned_rows(original.MergeVersionedRows);
+    if (original.UseLookupCache) {
+        serialized->set_use_lookup_cache(*original.UseLookupCache);
+    }
+    serialized->set_min_row_count_per_subquery(original.MinRowCountPerSubquery);
 }
 
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
@@ -1510,6 +1514,12 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     }
     if (serialized.has_execution_backend()) {
         original->ExecutionBackend = static_cast<EExecutionBackend>(serialized.execution_backend());
+    }
+    if (serialized.has_use_lookup_cache()) {
+        original->UseLookupCache = serialized.use_lookup_cache();
+    }
+    if (serialized.has_min_row_count_per_subquery()) {
+        original->MinRowCountPerSubquery = serialized.min_row_count_per_subquery();
     }
 }
 

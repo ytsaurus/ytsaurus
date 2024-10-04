@@ -213,7 +213,7 @@ public:
     virtual void SetNodeHost(TNode* node, THost* host) = 0;
 
     //! Sets the user tags for the node.
-    virtual void SetNodeUserTags(TNode* node, const std::vector<TString>& tags) = 0;
+    virtual void SetNodeUserTags(TNode* node, const std::vector<std::string>& tags) = 0;
 
     //! Creates a mutation that updates node's resource usage and limits.
     virtual std::unique_ptr<NHydra::TMutation> CreateUpdateNodeResourcesMutation(
@@ -253,6 +253,10 @@ public:
 
     //! Returns cluster node statistics, aggregated over all nodes with a given flavor.
     virtual NNodeTrackerClient::TAggregatedNodeStatistics GetFlavoredNodeStatistics(ENodeFlavor flavor) = 0;
+
+    //! Returns cluster node statistics, aggregated over all nodes within a given data center.
+    virtual NNodeTrackerClient::TAggregatedNodeStatistics GetDataCenterNodeStatistics(
+        const TDataCenter* dataCenter) = 0;
 
     //! Returns the number of nodes with ENodeState::Online aggregated state.
     virtual int GetOnlineNodeCount() = 0;

@@ -15,11 +15,15 @@ import (
 
 	"github.com/google/uuid"
 
+	"go.ytsaurus.tech/library/go/core/metrics"
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/pipelines"
 )
 
 const (
 	stateFile = "log_pusher_state.sqlite"
+
+	createPipelineMaxBackoff         = 5 * time.Minute
+	createPipelineMaxBackoffTestMode = 1 * time.Second
 )
 
 type Config struct {
@@ -40,13 +44,16 @@ type TimberTruck struct {
 	fsWatcher *FsWatcher
 	datastore *Datastore
 
+	metrics metrics.Registry
+
 	handlers []streamHandler
 }
 
-func NewTimberTruck(config Config, logger *slog.Logger) (result *TimberTruck, err error) {
+func NewTimberTruck(config Config, logger *slog.Logger, metrics metrics.Registry) (result *TimberTruck, err error) {
 	logPusher := TimberTruck{
-		config: config,
-		logger: logger,
+		config:  config,
+		logger:  logger,
+		metrics: metrics,
 	}
 
 	if logPusher.config.LogCompletionDelay == nil {
@@ -100,7 +107,6 @@ type TaskArgs struct {
 
 type NewPipelineFunc func(task TaskArgs) (*pipelines.Pipeline, error)
 
-// TODO: should be named PipelineConfig
 type StreamConfig struct {
 	// Name of the stream. Can contain [-_A-Za-z0-9].
 	// This name identifies stream inside timbertruck storage
@@ -112,8 +118,7 @@ type StreamConfig struct {
 	LogFile string `yaml:"log_file"`
 }
 
-// TODO: Should be named AddPipeline
-func (tt *TimberTruck) AddPipeline(stream StreamConfig, newPipeline NewPipelineFunc) {
+func (tt *TimberTruck) AddStream(stream StreamConfig, newPipeline NewPipelineFunc) {
 	handler := streamHandler{
 		timberTruck: tt,
 		logger: tt.logger.With(
@@ -129,7 +134,6 @@ func (tt *TimberTruck) AddPipeline(stream StreamConfig, newPipeline NewPipelineF
 }
 
 func (tt *TimberTruck) Serve(ctx context.Context) error {
-
 	activeTasks, err := tt.datastore.ListActiveTasks()
 	if err != nil {
 		panic(fmt.Sprintf("unexpected error ListActiveTasks(): %v", err))
@@ -149,14 +153,14 @@ func (tt *TimberTruck) Serve(ctx context.Context) error {
 		curHandler := &tt.handlers[i]
 		err = curHandler.initStagingDir()
 		if err != nil {
-			tt.logger.Error("Stream initialized error", "error", err)
+			tt.logger.Error("Error initializing stream", "error", err)
 			continue
 		}
 		fileEventChan := make(chan FileEvent, 16)
 		err = tt.fsWatcher.AddLogPath(curHandler.config.LogFile, fileEventChan)
 		if err != nil {
 			close(fileEventChan)
-			tt.logger.Error("Error initializing stream", "error", err)
+			tt.logger.Error("Cannot watch stream path", "error", err)
 			continue
 		}
 		defer close(fileEventChan)
@@ -167,7 +171,7 @@ func (tt *TimberTruck) Serve(ctx context.Context) error {
 		_, err = os.Stat(curHandler.config.LogFile)
 		if err != nil {
 			if err != ErrNotFound {
-				tt.logger.Error("Cannot stat log path", "path", tt.handlers[i].config.LogFile, "error", err)
+				tt.logger.Warn("Cannot stat log path", "path", tt.handlers[i].config.LogFile, "error", err)
 			} else {
 				fileEventChan <- FileRemoveOrRenameEvent
 			}
@@ -177,9 +181,37 @@ func (tt *TimberTruck) Serve(ctx context.Context) error {
 		curHandler.logger.Info("Stream initialized ok")
 	}
 
+	tt.launchMetricsProc(ctx)
+
 	tt.logger.Info("Serving")
 
 	return tt.fsWatcher.Run(ctx)
+}
+
+func (tt *TimberTruck) launchMetricsProc(ctx context.Context) {
+	if tt.metrics == nil {
+		return
+	}
+
+	streamNames := []string{}
+	for i := range tt.handlers {
+		streamNames = append(streamNames, tt.handlers[i].config.Name)
+	}
+
+	activeTaskCounter := newActiveTaskCounter(tt.logger, streamNames, tt.metrics, tt.datastore)
+
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				activeTaskCounter.Do()
+			}
+		}
+	}()
+
 }
 
 type streamHandler struct {
@@ -481,23 +513,38 @@ func (h *streamHandler) ProcessTaskQueue(ctx context.Context) {
 		taskController := taskController{
 			path:      task.StagedPath,
 			datastore: h.timberTruck.datastore,
-			logger:    h.logger.With("component", "pipeline"),
+			logger:    h.logger.With("component", "Pipeline"),
 		}
-		p, err := h.newPipelineFunc(TaskArgs{
-			Context:    ctx,
-			Path:       task.StagedPath,
-			Position:   task.EndPosition,
-			Controller: &taskController,
-		})
-		if err != nil {
-			h.logger.Error("Error creating pipeline", "error", err)
-			// TODO: metrics
-			err = h.completeTask(task, err)
-			if err != nil {
-				panic(fmt.Sprintf("unexpected error completeTask(%v): %v", task, err))
+
+		var p *pipelines.Pipeline
+		var err error
+		backoff := time.Second
+		maxBackoff := getCreatePipelineMaxBackoff()
+		for retry := 1; ; retry += 1 {
+			p, err = h.newPipelineFunc(TaskArgs{
+				Context:    ctx,
+				Path:       task.StagedPath,
+				Position:   task.EndPosition,
+				Controller: &taskController,
+			})
+			if err == nil { // no error
+				break
+			} else {
+				level := slog.LevelWarn
+				if retry > 3 {
+					level = slog.LevelError
+				}
+				h.logger.Log(context.Background(), level, "Error creating pipeline", "error", err)
+
+				time.Sleep(backoff)
+				backoff *= 2
+
+				if backoff > maxBackoff {
+					backoff = maxBackoff
+				}
 			}
-			return
 		}
+
 		h.logger.Info("Pipeline created", "stagedpath", task.StagedPath)
 		go func() {
 			ticker := time.NewTicker(1 * time.Second)
@@ -570,4 +617,11 @@ func (c *taskController) NotifyProgress(pos pipelines.FilePosition) {
 
 func (c *taskController) Logger() *slog.Logger {
 	return c.logger
+}
+
+func getCreatePipelineMaxBackoff() time.Duration {
+	if os.Getenv("TIMBERTRUCK_TEST_MODE") != "" {
+		return createPipelineMaxBackoffTestMode
+	}
+	return createPipelineMaxBackoff
 }

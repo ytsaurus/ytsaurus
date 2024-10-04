@@ -191,6 +191,7 @@ private:
         auto populateMasterCacheNodeAddresses = request->populate_master_cache_node_addresses();
         auto populateTimestampProviderNodeAddresses = request->populate_timestamp_provider_node_addresses();
         auto populateFeatures = request->populate_features();
+        auto populateUserDirectory = request->populate_user_directory();
 
         context->SetRequestInfo(
             "PopulateNodeDirectory: %v, "
@@ -199,14 +200,16 @@ private:
             "PopulateCellDirectory: %v, "
             "PopulateMasterCacheNodeAddresses: %v, "
             "PopulateTimestampProviderNodeAddresses: %v, "
-            "PopulateFeatures: %v",
+            "PopulateFeatures: %v, "
+            "PopulateUserDirectory: %v",
             populateNodeDirectory,
             populateClusterDirectory,
             populateMediumDirectory,
             populateCellDirectory,
             populateMasterCacheNodeAddresses,
             populateTimestampProviderNodeAddresses,
-            populateFeatures);
+            populateFeatures,
+            populateUserDirectory);
 
         if (populateNodeDirectory) {
             TNodeDirectoryBuilder builder(response->mutable_node_directory());
@@ -274,6 +277,29 @@ private:
             const auto& configManager = Bootstrap_->GetConfigManager();
             const auto& chunkManagerConfig = configManager->GetConfig()->ChunkManager;
             response->set_features(CreateFeatureRegistryYson(chunkManagerConfig->ForbiddenCompressionCodecs).ToString());
+        }
+
+        if (populateUserDirectory) {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            auto* protoUserDirectory = response->mutable_user_directory();
+
+            auto addUser = [&] (TUser* user) {
+                auto* protoLimits = protoUserDirectory->add_limits();
+                protoLimits->set_user_name(TString(user->GetName()));
+
+                auto limits = user->GetObjectServiceRequestLimits();
+                if (auto limit = limits->ReadRequestRateLimits->Default) {
+                    protoLimits->set_read_request_rate_limit(*limit);
+                }
+                if (auto limit = limits->WriteRequestRateLimits->Default) {
+                    protoLimits->set_write_request_rate_limit(*limit);
+                }
+                protoLimits->set_request_queue_size_limit(limits->RequestQueueSizeLimits->Default);
+            };
+
+            for (auto [userId, user] : securityManager->Users()) {
+                addUser(user);
+            }
         }
 
         context->Reply();
@@ -436,7 +462,6 @@ private:
     {
         DeclareNonMutating();
 
-        auto transactionId = NCypressClient::GetTransactionId(context);
         auto objectIds = FromProto<std::vector<TObjectId>>(request->object_ids());
 
         // Recover template request.
@@ -453,6 +478,7 @@ private:
             THROW_ERROR_EXCEPTION("Error parsing request header");
         }
         auto templateMethod = templateRequestHeader.method();
+        auto transactionId = NCypressClient::GetTransactionId(templateRequestHeader);
 
         context->SetRequestInfo("TemplateMethod: %v, TransactionId: %v, ObjectIds: %v",
             templateMethod,

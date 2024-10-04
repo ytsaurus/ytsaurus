@@ -1,8 +1,8 @@
 #include "file_system_block_device.h"
 #include "block_device.h"
+#include "config.h"
+#include "image_reader.h"
 #include "profiler.h"
-
-#include <yt/yt/server/lib/nbd/private.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
@@ -51,7 +51,8 @@ public:
         , Reader_(std::move(reader))
         , Invoker_(std::move(invoker))
         , Logger(logger.WithTag("ExportId: %v", ExportId_))
-        , TagSet_(TNbdProfilerCounters::MakeTagSet(Config_->Path))
+        , TagSet_(TNbdProfilerCounters::MakeTagSet(Reader_->GetPath()))
+        , TraceContext_(GetOrCreateTraceContext("FileSystemBlockDevice"))
     {
         TNbdProfilerCounters::Get()->GetGauge(TagSet_, "/device/count")
             .Update(FileBlockDeviceCount().Increment(TagSet_));
@@ -68,18 +69,19 @@ public:
 
         auto statistics = Reader_->GetStatistics();
         TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_block_bytes_from_cache")
-            .Increment(statistics.ReadBlockBytesFromCache);
+            .Increment(statistics.DataBytesReadFromCache);
         TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_block_bytes_from_disk")
-            .Increment(statistics.ReadBlockBytesFromDisk);
+            .Increment(statistics.DataBytesReadFromDisk);
         TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_block_meta_bytes_from_disk")
-            .Increment(statistics.ReadBlockMetaBytesFromDisk);
+            .Increment(statistics.MetaBytesReadFromDisk);
 
-        YT_LOG_INFO("Destroying File system block device (Path: %v, ReadBytes: %v, ReadBlockBytesFromCache: %v, ReadBlockBytesFromDisk: %v, ReadBlockMetaBytesFromDisk: %v)",
-            Config_->Path,
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+        YT_LOG_INFO("Destroying file system block device (Path: %v, ReadBytes: %v, DataBytesReadFromCache: %v, DataBytesReadFromDisk: %v, MetaBytesReadFromDisk: %v)",
+            Reader_->GetPath(),
             statistics.ReadBytes,
-            statistics.ReadBlockBytesFromCache,
-            statistics.ReadBlockBytesFromDisk,
-            statistics.ReadBlockMetaBytesFromDisk);
+            statistics.DataBytesReadFromCache,
+            statistics.DataBytesReadFromDisk,
+            statistics.MetaBytesReadFromDisk);
     }
 
     virtual i64 GetTotalSize() const override
@@ -94,20 +96,19 @@ public:
 
     virtual TString DebugString() const override
     {
-        return Format("{CypressPath: %v}", Config_->Path);
+        return Format("{CypressPath: %v}", Reader_->GetPath());
     }
 
     virtual TString GetProfileSensorTag() const override
     {
-        return Config_->Path;
+        return Reader_->GetPath();
     }
 
     virtual TFuture<TSharedRef> Read(
         i64 offset,
         i64 length) override
     {
-        auto traceContext = GetOrCreateTraceContext("ReadFileSystemBlockDevice");
-        auto guard = TCurrentTraceContextGuard(std::move(traceContext));
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
 
         TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_count").Increment(1);
         TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_bytes").Increment(length);
@@ -153,29 +154,28 @@ public:
     }
 
 private:
-
-    void DoInitialize()
-    {
-        YT_LOG_INFO("Initializing File system block divice (Path: %v)", Config_->Path);
-
-        Reader_->Initialize();
-
-        YT_LOG_INFO("Initialized File system block device (Path: %v)", Config_->Path);
-    }
-
-private:
-    static NProfiling::TTaggedCounters<int>& FileBlockDeviceCount()
-    {
-        static NProfiling::TTaggedCounters<int> result;
-        return result;
-    }
-
     const TString ExportId_;
     const TFileSystemBlockDeviceConfigPtr Config_;
     const IImageReaderPtr Reader_;
     const IInvokerPtr Invoker_;
     const NLogging::TLogger Logger;
     const NProfiling::TTagSet TagSet_;
+    const TTraceContextPtr TraceContext_;
+
+    void DoInitialize()
+    {
+        YT_LOG_INFO("Initializing File system block divice (Path: %v)", Reader_->GetPath());
+
+        Reader_->Initialize();
+
+        YT_LOG_INFO("Initialized File system block device (Path: %v)", Reader_->GetPath());
+    }
+
+    static NProfiling::TTaggedCounters<int>& FileBlockDeviceCount()
+    {
+        static NProfiling::TTaggedCounters<int> result;
+        return result;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

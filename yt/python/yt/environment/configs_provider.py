@@ -900,6 +900,14 @@ def _build_node_configs(node_dirs,
             # Forward variables set in docker image into user job environment.
             set_at(config, "exec_node/job_proxy/forward_all_environment_variables", True)
 
+            # Job proxy needs CA certificate to validate incoming connections.
+            if yt_config.ca_cert is not None:
+                get_at(config, "exec_node/slot_manager/job_environment/job_proxy_bind_mounts").append({
+                    "internal_path": yt_config.ca_cert,
+                    "external_path": yt_config.ca_cert,
+                    "read_only": True,
+                })
+
         if yt_config.use_slot_user_id:
             start_uid = 10000 + config["rpc_port"]
             set_at(config, "exec_node/slot_manager/job_environment/start_uid", start_uid)
@@ -1132,14 +1140,6 @@ def _build_http_proxy_config(proxy_dir,
         master_cache_addresses,
         cypress_proxy_rpc_ports,
         queue_agent_rpc_ports)
-
-    # COMPAT(max42)
-    # (22, 4) would suffice in the condition if only REX tests did not use yt binaries from package.
-    # Therefore, this compat may be safely removed even when 23.1 branch is released.
-    # By that moment package in Arcadia is, hopefully, fresh enough, and compat-tests in trunk
-    # are done against 23.1.
-    if version.abi <= (23, 1):
-        update_inplace(driver_config, cluster_connection)
 
     proxy_configs = []
 
@@ -1483,8 +1483,6 @@ def _build_cluster_connection_config(yt_config,
             "expire_after_failed_update_time": 500,
         },
         "upload_transaction_timeout": 5000,
-        # TODO(gritukan): Turn on after 22.2 compat tests will be removed.
-        "use_followers_for_write_targets_allocation": False,
     }
 
     if len(cypress_proxy_rpc_ports) > 0:

@@ -324,7 +324,9 @@ class TSchedulerConnectorDynamicConfig
     : public THeartbeatReporterDynamicConfigBase
 {
 public:
-    bool SendHeartbeatOnJobFinished;
+    bool SendHeartbeatOnResourcesReleased;
+
+    bool IncludeReleasingResourcesInSchedulerHeartbeat;
 
     REGISTER_YSON_STRUCT(TSchedulerConnectorDynamicConfig);
 
@@ -493,6 +495,8 @@ public:
 
     //! Job throttler config, eg. its RPC timeout and backoff.
     NJobProxy::TJobThrottlerConfigPtr JobThrottler;
+
+    i64 VirtualSandboxSquashFSBlockSize;
 
     REGISTER_YSON_STRUCT(TJobCommonConfig);
 

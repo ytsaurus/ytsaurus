@@ -1,10 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "private.h"
 #include "block.h"
 
 #include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <library/cpp/yt/memory/chunked_output_stream.h>
 

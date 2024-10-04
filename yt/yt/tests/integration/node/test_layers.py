@@ -899,7 +899,6 @@ class TestTmpfsLayers(YTEnvSetup):
 
         set("//tmp/static_cat/@executable", True)
 
-    @pytest.mark.skip(reason="Skip this test while YTADMINREQ-44111 is being fixed")
     def test_trusted_overlay_opaque_extended_attributes(self):
         self.setup_files()
 
@@ -1810,3 +1809,256 @@ class TestFailOperationAfterSuccessiveJobAbortsOnPrepareVolume(YTEnvSetup):
         # YT-14186: Corrupted user layer should not disable jobs on node.
         for node in ls("//sys/cluster_nodes"):
             assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
+
+
+class TestEnableRootVolumeDiskQuota(YTEnvSetup):
+    USE_PORTO = True
+
+    NUM_SCHEDULERS = 1
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "volume_manager": {
+                "enable_disk_quota": True,
+            },
+        },
+        "exec_node": {
+            "slot_manager": {
+                "do_not_set_user_id": True,
+                "job_environment": {
+                    "type": "porto",
+                    "use_exec_from_layer": True,
+                },
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_file_replication_factor": 1,
+            "default_table_replication_factor": 1,
+        },
+    }
+
+    def setup_files(self):
+        create("file", "//tmp/exec.tar.gz")
+        write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
+        create("file", "//tmp/rootfs.tar.gz")
+        write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
+
+        create("file", "//tmp/sandbox.img", attributes={"filesystem": "squashfs", "access_method": "local"})
+        write_file("//tmp/sandbox.img", open("layers/sandbox.img", "rb").read())
+
+        create("file", "//tmp/mapper.sh", attributes={"executable": True})
+        write_file("//tmp/mapper.sh", b"""echo {Hello=World}""")
+
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        create("table", "//tmp/t_out")
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
+
+    @authors("artemagafonov")
+    def test_access_to_sandbox_in_layer(self):
+        self.setup_files()
+
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="./mapper.sh",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz", "//tmp/sandbox.img"],
+                    # "disk_space_limit": 1024 * 1024,
+                    "make_rootfs_writable": True,
+                },
+                "enable_root_volume_disk_quota": True,
+            },
+        )
+
+        assert read_table("//tmp/t_out") == [{"Hello": "World"}]
+
+    @authors("artemagafonov")
+    def test_copy_artifact_with_root_volume_disk_quota(self):
+        self.setup_files()
+
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out1",
+            command="./mapper.sh",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"],
+                    "file_paths": ["//tmp/mapper.sh"],
+                    "copy_files": True,
+                    # "disk_space_limit": 1024 * 1024,
+                    "make_rootfs_writable": True,
+                },
+                "enable_root_volume_disk_quota": True,
+            },
+        )
+
+        assert read_table("//tmp/t_out1") == [{"Hello": "World"}]
+
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out2",
+            command="./tmpfs/mapper.sh",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"],
+                    "file_paths": [yson.to_yson_type("//tmp/mapper.sh", attributes={"file_name" : "tmpfs/mapper.sh"})],
+                    "copy_files": True,
+                    "tmpfs_path": "tmpfs",
+                    "tmpfs_size": 1024 * 1024,
+                    # "disk_space_limit": 1024 * 1024,
+                    "make_rootfs_writable": True,
+                },
+                "enable_root_volume_disk_quota": True,
+            },
+        )
+
+        assert read_table("//tmp/t_out2") == [{"Hello": "World"}]
+
+
+@authors("artemagafonov")
+class TestVirtualSandbox(YTEnvSetup):
+    USE_PORTO = True
+
+    NUM_SCHEDULERS = 1
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1,
+            "default_file_replication_factor": 1,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "volume_manager": {
+                "enable_disk_quota": True,
+            },
+        },
+        "exec_node": {
+            "slot_manager": {
+                "do_not_set_user_id": True,
+                "job_environment": {
+                    "type": "porto",
+                    "use_exec_from_layer": True,
+                },
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "nbd": {
+                    "block_cache_compressed_data_capacity": 536870912,
+                    "client": {
+                        "io_timeout": 30000,
+                    },
+                    "enabled": True,
+                    "server": {
+                        "unix_domain_socket": {
+                            # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/tmp")[1]),
+                            # but it leads to a path with length greater than the maximum allowed 108 bytes.
+                            # So put it at home directory until PORTO-1242 is done, then put it in /tmp.
+                            "path": tempfile.mkstemp(dir="/tmp" if "USER" not in os.environ else "/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
+                        },
+                    },
+                },
+            },
+        }
+    }
+
+    def setup_files(self):
+        create("file", "//tmp/exec.tar.gz")
+        write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
+        create("file", "//tmp/rootfs.tar.gz")
+        write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
+
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        create("file", "//tmp/mapper.sh", attributes={"executable": True, "access_method": "nbd"})
+        write_file("//tmp/mapper.sh", b"""echo {Hello=World}""")
+
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
+        create("table", "//tmp/t_out3")
+
+    @authors("artemagafonov")
+    def test_use_virtual_sandbox(self):
+        self.setup_files()
+
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out1",
+            command="./mapper.sh",
+            file="//tmp/mapper.sh",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"],
+                    # "disk_space_limit": 1024 * 1024,
+                },
+                "enable_root_volume_disk_quota": True,
+                "enable_virtual_sandbox": True,
+            },
+        )
+
+        assert read_table("//tmp/t_out1") == [{"Hello": "World"}]
+
+    @authors("artemagafonov")
+    def test_skip_files_inside_tmpfs(self):
+        self.setup_files()
+
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out2",
+            command="./mapper.sh",
+            file="//tmp/mapper.sh",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"],
+                    "tmpfs_path": ".",
+                    "tmpfs_size": 1024 * 1024,
+                    # "disk_space_limit": 1024 * 1024,
+                },
+                "enable_root_volume_disk_quota": True,
+                "enable_virtual_sandbox": True,
+            },
+        )
+
+        assert read_table("//tmp/t_out2") == [{"Hello": "World"}]
+
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out3",
+            command="./tmpfs/mapper.sh",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"],
+                    "tmpfs_path": "tmpfs",
+                    "file_paths": [yson.to_yson_type("//tmp/mapper.sh", attributes={"file_name" : "tmpfs/mapper.sh"})],
+                    "tmpfs_size": 1024 * 1024,
+                    # "disk_space_limit": 1024 * 1024,
+                },
+                "enable_root_volume_disk_quota": True,
+                "enable_virtual_sandbox": True,
+            },
+        )
+
+        assert read_table("//tmp/t_out3") == [{"Hello": "World"}]

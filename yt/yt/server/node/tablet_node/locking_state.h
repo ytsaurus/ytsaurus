@@ -42,9 +42,6 @@ public:
 
 private:
     TObjectId ObjectId_;
-
-public:
-    // COMPAT(gritukan): Make these fields private after ETabletReign::LockingState.
     TTransactionId ExclusiveLockTransactionId_;
     THashSet<TTransactionId> SharedLockTransactionIds_;
 };

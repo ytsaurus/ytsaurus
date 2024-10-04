@@ -54,6 +54,7 @@ using namespace NTableClient;
 using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
+using namespace NStatisticPath;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -1730,7 +1731,7 @@ void TTask::ResetCachedMinNeededResources()
 void TTask::UpdateMemoryDigests(const TJobletPtr& joblet, bool resourceOverdraft)
 {
     const auto& statistics = *joblet->JobStatistics;
-    if (auto userJobMaxMemoryUsage = FindNumericValue(statistics, "/user_job/max_memory")) {
+    if (auto userJobMaxMemoryUsage = FindNumericValue(statistics, "/user_job/max_memory"_SP)) {
         auto* digest = GetUserJobMemoryDigest();
         YT_VERIFY(digest);
         double actualFactor = static_cast<double>(*userJobMaxMemoryUsage) / joblet->EstimatedResourceUsage.GetUserJobMemory();
@@ -1747,7 +1748,7 @@ void TTask::UpdateMemoryDigests(const TJobletPtr& joblet, bool resourceOverdraft
         digest->AddSample(actualFactor);
     }
 
-    if (auto jobProxyMaxMemoryUsage = FindNumericValue(statistics, "/job_proxy/max_memory")) {
+    if (auto jobProxyMaxMemoryUsage = FindNumericValue(statistics, "/job_proxy/max_memory"_SP)) {
         auto* digest = GetJobProxyMemoryDigest();
         YT_VERIFY(digest);
         double actualFactor = static_cast<double>(*jobProxyMaxMemoryUsage) /
@@ -1813,11 +1814,11 @@ void TTask::OnJobResourceOverdraft(TJobletPtr joblet, const TAbortedJobSummary& 
     double userJobMemoryReserveUpperBound = 1.0;
     double jobProxyMemoryReserveUpperBound = TaskHost_->GetSpec()->JobProxyMemoryDigest->UpperBound;
 
-    auto jobProxyMaxMemory = FindNumericValue(*jobSummary.Statistics, "/job_proxy/max_memory").value_or(0);
+    auto jobProxyMaxMemory = FindNumericValue(*jobSummary.Statistics, "/job_proxy/max_memory"_SP).value_or(0);
     auto jobProxyDedicatedMemory = joblet->EstimatedResourceUsage.GetJobProxyMemory() * joblet->JobProxyMemoryReserveFactor.value();
     bool hasJobProxyMemoryOverdraft = jobProxyMaxMemory > jobProxyDedicatedMemory;
 
-    i64 userJobMaxMemory = FindNumericValue(*jobSummary.Statistics, "/user_job/max_memory").value_or(0);
+    i64 userJobMaxMemory = FindNumericValue(*jobSummary.Statistics, "/user_job/max_memory"_SP).value_or(0);
     bool hasUserJobMemoryOverdraft = userJobSpec
         ? userJobMaxMemory > joblet->UserJobMemoryReserve
         : false;
@@ -1889,7 +1890,7 @@ void TTask::UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics)
     for (int index = 0; index < std::ssize(userJobSpec->TmpfsVolumes); ++index) {
         auto maxUsedTmpfsSize = FindNumericValue(
             statistics,
-            Format("/user_job/tmpfs_volumes/%v/max_size", index));
+            SlashedStatisticPath(Format("/user_job/tmpfs_volumes/%v/max_size", index)).ValueOrThrow());
         if (!maxUsedTmpfsSize) {
             continue;
         }
@@ -1992,7 +1993,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
 
     jobSpecExt->set_interruptible(joblet->JobInterruptible);
 
-    jobSpecExt->set_ignore_yt_variables_in_shell_environment(TaskHost_->GetSpec()->IgnoreYtVariablesInShellEnvironment);
+    jobSpecExt->set_ignore_yt_variables_in_shell_environment(TaskHost_->GetSpec()->IgnoreYTVariablesInShellEnvironment);
 
     return SerializeProtoToRefWithEnvelope(*jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
 }

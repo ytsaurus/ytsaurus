@@ -23,10 +23,10 @@ public:
     using TVirtualMulticellMapBase::TVirtualMulticellMapBase;
 
 private:
-    TFuture<std::vector<TObjectId>> GetKeys(i64 sizeLimit) const override
+    TFuture<std::vector<TObjectId>> GetKeys(i64 limit) const override
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        return MakeFuture(ToObjectIds(GetValues(cypressManager->Shards(), sizeLimit)));
+        return MakeFuture(ToObjectIds(GetValues(cypressManager->Shards(), limit)));
     }
 
     bool IsValid(TObject* object) const override

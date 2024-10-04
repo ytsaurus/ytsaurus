@@ -50,6 +50,8 @@ private:
     TCompactVector<int, TypicalColumnCount> ColumnIdToIndex_;
     TCompactVector<int, TypicalColumnCount> ColumnIdToTimestampColumnId_;
 
+    TCompactVector<bool, TypicalColumnCount> IsTimestampColumn_;
+
     std::vector<int> AggregateColumnIds_;
     std::vector<std::vector<TVersionedValue>> AggregateValues_;
 
@@ -94,6 +96,11 @@ private:
 
     TMutableUnversionedRow MergedRow_;
     TCompactVector<bool, TypicalColumnCount> ValidValues_;
+
+    TNestedTableMerger NestedMerger_;
+    std::vector<std::vector<TVersionedValue>> NestedKeyColumns_;
+    std::vector<std::vector<TVersionedValue>> NestedValueColumns_;
+    int PartialRowCount_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

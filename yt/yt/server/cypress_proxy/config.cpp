@@ -40,6 +40,8 @@ void TObjectServiceDynamicConfig::Register(TRegistrar registrar)
         .Default(1);
     registrar.Parameter("allow_bypass_master_resolve", &TThis::AllowBypassMasterResolve)
         .Default(false);
+    registrar.Parameter("alert_on_mixed_read_write_batch", &TThis::AlertOnMixedReadWriteBatch)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,7 +49,9 @@ void TObjectServiceDynamicConfig::Register(TRegistrar registrar)
 void TUserDirectorySynchronizerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("sync_period", &TThis::SyncPeriod)
-        .Default(TDuration::Seconds(10));
+        .Default(TDuration::Seconds(60));
+    registrar.Parameter("sync_splay", &TThis::SyncSplay)
+        .Default(TDuration::Seconds(30));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

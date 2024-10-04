@@ -20,7 +20,7 @@ from yt_commands import (
     get_in_sync_replicas, generate_timestamp, MaxTimestamp, raises_yt_error,
     create_table_replica, sync_enable_table_replica, get_tablet_infos, set_node_banned,
     suspend_chaos_cells, resume_chaos_cells, merge, add_maintenance, remove_maintenance,
-    sync_freeze_table, lock, get_tablet_errors, create_tablet_cell_bundle, create_area)
+    sync_freeze_table, lock, get_tablet_errors, create_tablet_cell_bundle, create_area, link)
 
 from yt_type_helpers import make_schema
 
@@ -265,6 +265,25 @@ class TestChaos(ChaosTestBase):
         insert_rows("//tmp/t", values)
 
         assert lookup_rows("//tmp/t", [{"key": 0}]) == values
+        wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values)
+
+    @authors("osidorkin")
+    def test_read_write_chaos_table_via_symlink_to_replica(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
+        ]
+        self._create_chaos_tables(cell_id, replicas)
+        link("//tmp/t", "//tmp/l")
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/l", values)
+
+        assert lookup_rows("//tmp/l", [{"key": 0}]) == values
         wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values)
 
     @authors("ponasenko-rs")
@@ -880,6 +899,42 @@ class TestChaos(ChaosTestBase):
         values = values0 + values1 + values2
         wait(lambda: _pull_rows(2) == values)
         wait(lambda: _pull_rows(1) == values)
+
+    @authors("osidorkin")
+    def test_replica_move(self):
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t0"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t1"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r1"},
+        ]
+
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows(replicas[0]["replica_path"], values)
+        assert lookup_rows(replicas[1]["replica_path"], [{"key": 0}]) == values
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, mode="async")
+
+        sync_unmount_table(replicas[1]["replica_path"])
+        new_replica_path = "//tmp/t2"
+        alter_table_replica(replica_ids[1], replica_path=new_replica_path)
+        move(replicas[1]["replica_path"], new_replica_path)
+        replicas[1]["replica_path"] = new_replica_path
+        sync_mount_table(replicas[1]["replica_path"])
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, mode="sync")
+
+        values1 = [{"key": 1, "value": "1"}]
+        insert_rows(replicas[0]["replica_path"], values1)
+        assert lookup_rows(replicas[0]["replica_path"], [{"key": 1}]) == values1
+        assert lookup_rows(replicas[1]["replica_path"], [{"key": 1}]) == values1
+        assert lookup_rows(replicas[1]["replica_path"], [{"key": 0}]) == values
+
+        with pytest.raises(YtResponseError):
+            alter_table_replica(replica_ids[1], replica_path=replicas[0]["replica_path"])
 
     @authors("savrus")
     @pytest.mark.parametrize("content", ["data", "queue", "both"])

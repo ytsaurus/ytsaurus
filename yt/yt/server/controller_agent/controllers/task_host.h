@@ -176,7 +176,7 @@ struct ITaskHost
 
     virtual void SetOperationAlert(EOperationAlertType type, const TError& alert) = 0;
 
-    virtual NLogging::TLogger GetLogger() const = 0;
+    virtual const NLogging::TLogger& GetLogger() const = 0;
 
     virtual const std::vector<TString>& GetOffloadingPoolTrees() = 0;
     virtual TJobExperimentBasePtr GetJobExperiment() = 0;

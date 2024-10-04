@@ -46,7 +46,7 @@ void TClusterNodeDynamicConfigManager::Start()
         }));
 }
 
-std::vector<TString> TClusterNodeDynamicConfigManager::GetInstanceTags() const
+std::vector<std::string> TClusterNodeDynamicConfigManager::GetInstanceTags() const
 {
     return Bootstrap_->GetLocalDescriptor().GetTags();
 }

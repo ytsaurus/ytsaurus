@@ -7,8 +7,8 @@
 #include "hydra_facade.h"
 #include "master_hydra_service.h"
 #include "multicell_manager.h"
+#include "persistent_state_transient_cache.h"
 #include "response_keeper_manager.h"
-#include "private.h"
 #include "world_initializer.h"
 
 #include <yt/yt/server/master/chaos_server/chaos_manager.h>
@@ -453,6 +453,11 @@ const IEpochHistoryManagerPtr& TBootstrap::GetEpochHistoryManager() const
     return EpochHistoryManager_;
 }
 
+const IPersistentStateTransientCachePtr& TBootstrap::GetPersistentStateTransientCache() const
+{
+    return PersistentStateTransientCache_;
+}
+
 const IWorldInitializerPtr& TBootstrap::GetWorldInitializer() const
 {
     return WorldInitializer_;
@@ -866,6 +871,8 @@ void TBootstrap::DoInitialize()
     EpochHistoryManager_ = CreateEpochHistoryManager(this);
 
     MulticellManager_ = CreateMulticellManager(this);
+
+    PersistentStateTransientCache_ = CreatePersistentStateTransientCache(this);
 
     WorldInitializer_ = CreateWorldInitializer(this);
 

@@ -2895,60 +2895,12 @@ void TChunkReplicator::OnCheckEnabled()
 
 void TChunkReplicator::OnCheckEnabledPrimary()
 {
-    if (!GetDynamicConfig()->EnableChunkReplicator) {
-        if (!Enabled_ || *Enabled_) {
-            YT_LOG_INFO("Chunk replicator disabled");
-        }
-        Enabled_ = false;
-        return;
-    }
+    auto enabled = ComputeReplicatorEnablement();
 
-    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-    int needOnline = GetDynamicConfig()->SafeOnlineNodeCount;
-    int gotOnline = nodeTracker->GetOnlineNodeCount();
-    if (gotOnline < needOnline) {
-        if (!Enabled_ || *Enabled_) {
-            YT_LOG_INFO("Chunk replicator disabled: too few online nodes, needed >= %v but got %v",
-                needOnline,
-                gotOnline);
-        }
-        Enabled_ = false;
-        return;
+    if (enabled) {
+        ChunkPlacement_->CheckFaultyDataCentersOnPrimaryMaster();
     }
-
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    const auto& statistics = multicellManager->GetClusterStatistics();
-    int gotChunkCount = statistics.chunk_count();
-    int gotLostChunkCount = statistics.lost_vital_chunk_count();
-    int needLostChunkCount = GetDynamicConfig()->SafeLostChunkCount;
-    if (gotChunkCount > 0) {
-        double needFraction = GetDynamicConfig()->SafeLostChunkFraction;
-        double gotFraction = (double) gotLostChunkCount / gotChunkCount;
-        if (gotFraction > needFraction) {
-            if (!Enabled_ || *Enabled_) {
-                YT_LOG_INFO("Chunk replicator disabled: too many lost chunks, fraction needed <= %v but got %v",
-                    needFraction,
-                    gotFraction);
-            }
-            Enabled_ = false;
-            return;
-        }
-    }
-
-    if (gotLostChunkCount > needLostChunkCount) {
-        if (!Enabled_ || *Enabled_) {
-            YT_LOG_INFO("Chunk replicator disabled: too many lost chunks, needed <= %v but got %v",
-                needLostChunkCount,
-                gotLostChunkCount);
-        }
-        Enabled_ = false;
-        return;
-    }
-
-    if (!Enabled_ || !*Enabled_) {
-        YT_LOG_INFO("Chunk replicator enabled");
-    }
-    Enabled_ = true;
+    Enabled_ = enabled;
 }
 
 void TChunkReplicator::OnCheckEnabledSecondary()
@@ -2957,19 +2909,23 @@ void TChunkReplicator::OnCheckEnabledSecondary()
         Bootstrap_->GetRootClient(),
         NApi::EMasterChannelKind::Leader);
 
-    auto req = TYPathProxy::Get("//sys/@chunk_replicator_enabled");
-    auto rsp = WaitFor(proxy.Execute(req))
-        .ValueOrThrow();
+    auto [enabledRsp, faultyStorageDCsRsp] = WaitFor(proxy.ExecuteAll(
+        TYPathProxy::Get("//sys/@chunk_replicator_enabled"),
+        TYPathProxy::Get("//sys/@faulty_storage_data_centers"))).ValueOrThrow();
 
-    auto value = ConvertTo<bool>(TYsonString(rsp->value()));
-    if (!Enabled_ || value != *Enabled_) {
-        if (value) {
+    auto enabled = ConvertTo<bool>(TYsonString(enabledRsp->value()));
+    auto faultyStorageDCs = ConvertTo<THashSet<TString>>(TYsonString(faultyStorageDCsRsp->value()));
+    if (!Enabled_ || enabled != *Enabled_) {
+        if (enabled) {
             YT_LOG_INFO("Chunk replicator enabled at primary master");
         } else {
             YT_LOG_INFO("Chunk replicator disabled at primary master");
         }
-        Enabled_ = value;
     }
+    if (enabled) {
+        ChunkPlacement_->SetFaultyDataCentersOnSecondaryMaster(faultyStorageDCs);
+    }
+    Enabled_ = enabled;
 }
 
 void TChunkReplicator::TryRescheduleChunkRemoval(const TJobPtr& unsucceededJob)
@@ -3459,11 +3415,7 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
         // Examine owners, if any.
         for (const auto* owningNode : chunkList->TrunkOwningNodes()) {
             if (auto* account = owningNode->Account().Get()) {
-                if (owningNode->GetHunkChunkList() == chunkList) {
-                    requisition.AggregateWith(owningNode->HunkReplication(), account, true);
-                } else {
-                    requisition.AggregateWith(owningNode->Replication(), account, true);
-                }
+                requisition.AggregateWith(owningNode->Replication(), account, true);
             }
 
             found = true;
@@ -3846,6 +3798,60 @@ void TChunkReplicator::StopRequisitionUpdates(int shardIndex)
 
     YT_LOG_INFO("Chunk requisition updates stopped (ShardIndex: %v)",
         shardIndex);
+}
+
+bool TChunkReplicator::ComputeReplicatorEnablement() const
+{
+    if (!GetDynamicConfig()->EnableChunkReplicator) {
+        if (!Enabled_ || *Enabled_) {
+            YT_LOG_INFO("Chunk replicator disabled");
+        }
+        return false;
+    }
+
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+    int needOnline = GetDynamicConfig()->SafeOnlineNodeCount;
+    int gotOnline = nodeTracker->GetOnlineNodeCount();
+    if (gotOnline < needOnline) {
+        if (!Enabled_ || *Enabled_) {
+            YT_LOG_INFO("Chunk replicator disabled: too few online nodes, needed >= %v but got %v",
+                needOnline,
+                gotOnline);
+        }
+        return false;
+    }
+
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& statistics = multicellManager->GetClusterStatistics();
+    int gotChunkCount = statistics.chunk_count();
+    int gotLostChunkCount = statistics.lost_vital_chunk_count();
+    int needLostChunkCount = GetDynamicConfig()->SafeLostChunkCount;
+    if (gotChunkCount > 0) {
+        double needFraction = GetDynamicConfig()->SafeLostChunkFraction;
+        double gotFraction = static_cast<double>(gotLostChunkCount) / gotChunkCount;
+        if (gotFraction > needFraction) {
+            if (!Enabled_ || *Enabled_) {
+                YT_LOG_INFO("Chunk replicator disabled: too many lost chunks, fraction needed <= %v but got %v",
+                    needFraction,
+                    gotFraction);
+            }
+            return false;
+        }
+    }
+
+    if (gotLostChunkCount > needLostChunkCount) {
+        if (!Enabled_ || *Enabled_) {
+            YT_LOG_INFO("Chunk replicator disabled: too many lost chunks, needed <= %v but got %v",
+                needLostChunkCount,
+                gotLostChunkCount);
+        }
+        return false;
+    }
+
+    if (!Enabled_ || !*Enabled_) {
+        YT_LOG_INFO("Chunk replicator enabled");
+    }
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

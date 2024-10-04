@@ -69,12 +69,12 @@ public:
     bool IsBalancingAllowed(const TGlobalGroupTag& groupTag) const
     {
         auto now = Now();
-        if (now - InstanceStartTime_ < TimeoutOnStart_) {
+        if (now - InstanceStartTime_ < TimeoutOnStart_.load()) {
             return false;
         }
 
         auto it = GroupToLastBalancingTime_.find(groupTag);
-        return it == GroupToLastBalancingTime_.end() || now - it->second >= Timeout_;
+        return it == GroupToLastBalancingTime_.end() || now - it->second >= Timeout_.load();
     }
 
     void Start()
@@ -88,9 +88,15 @@ public:
         GroupToLastBalancingTime_[groupTag] = Now();
     }
 
+    void Reconfigure(TDuration timeoutOnStart, TDuration timeout)
+    {
+        TimeoutOnStart_.store(timeoutOnStart);
+        Timeout_.store(timeout);
+    }
+
 private:
-    const TDuration TimeoutOnStart_;
-    const TDuration Timeout_;
+    std::atomic<TDuration> TimeoutOnStart_;
+    std::atomic<TDuration> Timeout_;
     TInstant InstanceStartTime_;
     THashMap<TGlobalGroupTag, TInstant> GroupToLastBalancingTime_;
 };
@@ -155,9 +161,12 @@ private:
     TInstant PreciseCurrentIterationStartTime_;
     // Logical iteration start time used for iteration scheduling.
     TInstant CurrentIterationStartTime_;
+    // To prevent all next iterations from being skipped due to inaccurate timing and formula matching.
+    TInstant FirstIterationStartTime_;
+
+    i64 IterationIndex_;
     THashMap<TGlobalGroupTag, TInstant> GroupPreviousIterationStartTime_;
     mutable THashMap<TGlobalGroupTag, THashMap<EBalancingMode, TEventTimer>> IterationProfilingTimers_;
-    i64 IterationIndex_;
 
     NProfiling::TCounter PickPivotFailures_;
     THashMap<TGlobalGroupTag, TTableParameterizedMetricTrackerPtr> GroupToParameterizedMetricTracker_;
@@ -270,6 +279,7 @@ void TTabletBalancer::Start()
         DynamicConfig_.Acquire()->Period.value_or(Config_->Period));
 
     GroupsToMoveOnNextIteration_.clear();
+    FirstIterationStartTime_ = TruncatedNow();
 
     ParameterizedBalancingScheduler_.Start();
 
@@ -577,6 +587,9 @@ void TTabletBalancer::OnDynamicConfigChanged(
     }
 
     ActionManager_->Reconfigure(newConfig->ActionManager);
+    ParameterizedBalancingScheduler_.Reconfigure(
+        newConfig->ParameterizedTimeoutOnStart.value_or(Config_->ParameterizedTimeoutOnStart),
+        newConfig->ParameterizedTimeout.value_or(Config_->ParameterizedTimeout));
 
     YT_LOG_DEBUG(
         "Updated tablet balancer dynamic config (OldConfig: %v, NewConfig: %v)",
@@ -668,7 +681,8 @@ bool TTabletBalancer::DidBundleBalancingTimeHappen(
             } else {
                 // First balance of this group in this instance
                 // so it's ok to balance if this time is satisfied by the formula.
-                timePoint = CurrentIterationStartTime_;
+                // But it is not ok to skip all iterations until the first one fits the formula perfectly.
+                timePoint = FirstIterationStartTime_;
             }
 
             if (timePoint > CurrentIterationStartTime_) {

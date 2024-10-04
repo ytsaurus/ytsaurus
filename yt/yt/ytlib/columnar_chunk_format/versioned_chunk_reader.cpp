@@ -10,8 +10,9 @@
 #include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
 #include <yt/yt/ytlib/table_client/hunks.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
-#include <yt/yt/ytlib/table_client/private.h>
 #include <yt/yt/ytlib/table_client/chunk_lookup_hash_table.h>
+
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/library/query/base/coordination_helpers.h>
 

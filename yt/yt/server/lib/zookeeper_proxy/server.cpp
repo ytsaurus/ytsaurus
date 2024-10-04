@@ -120,8 +120,8 @@ private:
         YT_LOG_DEBUG("Connection accepted "
             "(ConnectionId: %v, LocalAddress: %v, RemoteAddress: %v)",
             zookeeperConnection->GetConnectionId(),
-            connection->LocalAddress(),
-            connection->RemoteAddress());
+            connection->GetLocalAddress(),
+            connection->GetRemoteAddress());
 
         auto connectionState = New<TConnectionState>(zookeeperConnection);
         EmplaceOrCrash(

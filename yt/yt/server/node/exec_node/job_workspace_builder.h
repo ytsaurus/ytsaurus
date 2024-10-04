@@ -105,9 +105,9 @@ protected:
 
     const NLogging::TLogger& Logger;
 
-    virtual TFuture<void> DoPrepareSandboxDirectories() = 0;
-
     virtual TFuture<void> DoPrepareRootVolume() = 0;
+
+    virtual TFuture<void> DoPrepareSandboxDirectories() = 0;
 
     virtual TFuture<void> DoRunSetupCommand() = 0;
 

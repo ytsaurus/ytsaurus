@@ -2,6 +2,7 @@
 
 #include "controller_agent_connector.h"
 #include "job_controller.h"
+#include "slot.h"
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
@@ -63,6 +64,18 @@ TAllocationAttributes BuildAttributesFromJobSpec(const TJobSpecExt* jobSpecExt)
 }
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TAllocation::TEvent::Fire() noexcept
+{
+    Fired_ = true;
+}
+
+bool TAllocation::TEvent::Consume() noexcept
+{
+    return std::exchange(Fired_, false);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -282,6 +295,8 @@ void TAllocation::Complete()
     if (Job_) {
         TransferResourcesToJob();
         EvictJob();
+    } else {
+        YT_LOG_DEBUG("Empty allocation completed");
     }
 
     OnAllocationFinished();
@@ -425,6 +440,13 @@ void TAllocation::CreateAndSettleJob(
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    const auto& resourceHolder = GetResourceHolder();
+    if (auto state = resourceHolder->GetState(); state == EResourcesState::Acquired) {
+        StaticPointerCast<IUserSlot>(GetResourceHolder()->GetUserSlot())->Prepare();
+    } else {
+        YT_VERIFY(state == EResourcesState::Pending);
+    }
+
     auto job = CreateJob(
         jobId,
         OperationId_,
@@ -483,6 +505,8 @@ const NJobAgent::TResourceHolderPtr& TAllocation::GetResourceHolder() const noex
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    YT_VERIFY(ResourceHolder_);
+
     return ResourceHolder_;
 }
 
@@ -499,13 +523,55 @@ NYTree::IYPathServicePtr TAllocation::GetOrchidService()
     return service;
 }
 
+bool TAllocation::IsRunning() const noexcept
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return State_ == EAllocationState::Running;
+}
+
+bool TAllocation::IsFinished() const noexcept
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return State_ == EAllocationState::Finished;
+}
+
+void TAllocation::AbortJob(TError error, bool graceful, bool requestNewJob)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    Job_->Abort(std::move(error), graceful);
+    if (requestNewJob) {
+        YT_LOG_DEBUG("Requested to abort job and settle new one");
+        SettlementNewJobOnAbortRequested_.Fire();
+    }
+}
+
+void TAllocation::InterruptJob(NScheduler::EInterruptReason interruptionReason, TDuration interruptionTimeout)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    Job_->Interrupt(
+        interruptionTimeout,
+        interruptionReason,
+        /*preemptionReason*/ std::nullopt,
+        /*preemptedFor*/ std::nullopt);
+}
+
 void TAllocation::OnAllocationFinished()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    Job_.Reset();
+    YT_VERIFY(!Job_);
 
     AllocationFinished_.Fire(MakeStrong(this));
+
+    if (ResourceHolder_) {
+        ResourceHolder_->ResetOwner({});
+    }
+
+    ResourceHolder_.Reset();
 }
 
 void TAllocation::OnJobPrepared(TJobPtr job)
@@ -519,13 +585,45 @@ void TAllocation::OnJobFinished(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (GetConfig()->EnableMultipleJobs && job->GetState() == EJobState::Completed) {
-        AllSucceeded(std::vector{job->GetCleanupFinishedEvent(), job->GetStoredEvent()})
-            .Subscribe(BIND([
+    auto settlementNewJobOnJobAbortRequested = SettlementNewJobOnAbortRequested_.Consume();
+
+    auto settleNewJob = [&] {
+        if (Preempted_) {
+            YT_LOG_INFO(
+                "Job finished and allocation is preempted, completing allocation (JobId: %v)",
+                job->GetId());
+            return false;
+        }
+
+        if (GetConfig()->EnableMultipleJobs && job->GetState() == EJobState::Completed) {
+            YT_LOG_INFO(
+                "Job completed and multiple jobs in allocation enabled, waiting for storing and clenup job to settle new one (JobId: %v)",
+                job->GetId());
+            return true;
+        }
+
+        if (settlementNewJobOnJobAbortRequested && job->GetState() == EJobState::Aborted) {
+            YT_LOG_INFO(
+                "Job aborted and new job settlement requested, waiting for storing and clenup job to settle new one (JobId: %v)",
+                job->GetId());
+            return true;
+        }
+
+        YT_LOG_INFO(
+            "Job finished, new job settlement disabled; completing allocation (JobId: %v)",
+            job->GetId());
+
+        return false;
+    }();
+
+    if (settleNewJob) {
+        AllSet(std::vector{job->GetCleanupFinishedEvent(), job->GetStoredEvent()})
+            .SubscribeUnique(BIND([
                 jobId = job->GetId(),
                 this,
                 this_ = MakeStrong(this)
             ] (const TError& error) {
+                TForbidContextSwitchGuard guard;
                 YT_LOG_FATAL_UNLESS(
                     error.IsOK(),
                     error,
@@ -536,6 +634,26 @@ void TAllocation::OnJobFinished(TJobPtr job)
                     YT_LOG_INFO(
                         "Controller agent requested to settle job but allocation is already finished, settling job skipped (JobId: %v)",
                         jobId);
+                    return;
+                }
+
+                if (Preempted_) {
+                    YT_LOG_INFO(
+                        "Controller agent requested to settle job but allocation is preempted, settling job skipped (JobId: %v)",
+                        jobId);
+
+                    Complete();
+
+                    return;
+                }
+
+                if (!ControllerAgentDescriptor_) {
+                    YT_LOG_INFO(
+                        "Allocation is not assigned to controller agent, skip new job settlement (JobId: %v)",
+                        jobId);
+
+                    Complete();
+
                     return;
                 }
                 YT_LOG_INFO(

@@ -17,8 +17,8 @@ struct IProxyCoordinator
     virtual void SetBanMessage(const TString& message) = 0;
     virtual TString GetBanMessage() const = 0;
 
-    virtual void SetProxyRole(const std::optional<TString>& role) = 0;
-    virtual std::optional<TString> GetProxyRole() const = 0;
+    virtual void SetProxyRole(const std::optional<std::string>& role) = 0;
+    virtual std::optional<std::string> GetProxyRole() const = 0;
 
     virtual bool SetAvailableState(bool available) = 0;
     virtual bool GetAvailableState() const = 0;
@@ -26,7 +26,7 @@ struct IProxyCoordinator
     virtual bool GetOperableState() const = 0;
     virtual void ValidateOperable() const = 0;
 
-    DECLARE_INTERFACE_SIGNAL(void(const std::optional<TString>& newRole), OnProxyRoleChanged);
+    DECLARE_INTERFACE_SIGNAL(void(const std::optional<std::string>& newRole), OnProxyRoleChanged);
 };
 
 DEFINE_REFCOUNTED_TYPE(IProxyCoordinator)

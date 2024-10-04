@@ -238,10 +238,11 @@ def add_start_subparser(subparsers):
     parser.add_argument("--ytserver-all-path",
                         help="Use specified ytserver_all binary instead of per-service binaries in PATH")
 
-    parser.add_argument("--use-native-client", action="store_true", default=False,
-                        help="Use native client")
     parser.add_argument("--enable-auth", action="store_true", default=False,
                         help="Enable authentication")
+    
+    parser.add_argument("--native-client-supported", "--use-native-client", action="store_true", default=False,
+                        dest="native_client_supported", help="Use native client")
 
     # Compatibility options
     parser.add_argument("--masters-count", type=int, help=argparse.SUPPRESS)

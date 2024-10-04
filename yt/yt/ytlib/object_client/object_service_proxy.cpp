@@ -96,6 +96,7 @@ TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(
     , CellTag_(cellTag)
     , ChannelKind_(channelKind)
 {
+    YT_ASSERT(SubbatchSize_ > 0);
     SetResponseHeavy(true);
 }
 
@@ -115,7 +116,6 @@ TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(
     // Undo some work done by the base class's copy ctor and make some tweaks.
     // XXX(babenko): refactor this, maybe avoid TClientRequest copying.
     Attachments().clear();
-    ToProto(Header().mutable_request_id(), TRequestId::Create());
 }
 
 int TObjectServiceProxy::TReqExecuteSubbatch::GetSize() const
@@ -127,12 +127,20 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>
 TObjectServiceProxy::TReqExecuteSubbatch::DoInvoke()
 {
     // Prepare attachments.
+    bool mutating = false;
     for (const auto& descriptor : InnerRequestDescriptors_) {
-        const auto& message = descriptor.Message;
-        if (message) {
+        mutating = mutating || descriptor.Mutating;
+        if (const auto& message = descriptor.Message) {
             Attachments_.insert(Attachments_.end(), message.Begin(), message.End());
         }
     }
+
+    auto& header = Header();
+    ToProto(header.mutable_request_id(), TRequestId::Create());
+    header.set_logical_request_weight(GetSize());
+
+    auto* ypathExt = header.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+    ypathExt->set_mutating(mutating);
 
     auto batchRsp = New<TRspExecuteBatch>(CreateClientContext(), InnerRequestDescriptors_, StickyGroupSizeCache_);
     auto promise = batchRsp->GetPromise();
@@ -252,28 +260,37 @@ void TObjectServiceProxy::TReqExecuteBatchBase::SetSuppressTransactionCoordinato
 
 void TObjectServiceProxy::TReqExecuteBatchBase::AddRequest(
     const TYPathRequestPtr& innerRequest,
-    std::optional<TString> key,
+    std::optional<std::string> key,
     std::optional<size_t> hash)
 {
+    const auto& ypathExt = innerRequest->Header().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+
     InnerRequestDescriptors_.push_back({
         std::move(key),
         innerRequest->Tag(),
         innerRequest->Serialize(),
-        hash
+        hash,
+        ypathExt.mutating()
     });
 }
 
 void TObjectServiceProxy::TReqExecuteBatchBase::AddRequestMessage(
     TSharedRefArray innerRequestMessage,
-    std::optional<TString> key,
+    std::optional<std::string> key,
     std::any tag,
     std::optional<size_t> hash)
 {
+    NRpc::NProto::TRequestHeader header;
+    YT_VERIFY(TryParseRequestHeader(innerRequestMessage, &header));
+
+    const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+
     InnerRequestDescriptors_.push_back({
         std::move(key),
         std::move(tag),
         std::move(innerRequestMessage),
-        hash
+        hash,
+        ypathExt.mutating()
     });
 }
 
@@ -312,6 +329,7 @@ TSharedRefArray TObjectServiceProxy::TReqExecuteBatch::PatchForRetry(const TShar
 
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TObjectServiceProxy::TReqExecuteBatch::Invoke()
 {
+    InFlightSubbatchIndexToGlobalIndex_.reserve(SubbatchSize_);
     SetBalancingHeader();
     FullResponsePromise_ = NewPromise<TRspExecuteBatchPtr>();
     PushDownPrerequisites();
@@ -358,16 +376,30 @@ TObjectServiceProxy::TReqExecuteSubbatchPtr TObjectServiceProxy::TReqExecuteBatc
     std::vector<TInnerRequestDescriptor> innerRequestDescriptors;
     innerRequestDescriptors.reserve(SubbatchSize_);
 
+    YT_VERIFY(InFlightSubbatchIndexToGlobalIndex_.empty());
+
+    std::optional<bool> mutating;
+
     for (auto i = GetFirstUnreceivedSubresponseIndex(); i < GetTotalSubrequestCount(); ++i) {
         if (IsSubresponseReceived(i)) {
             continue;
         }
 
         auto& descriptor = InnerRequestDescriptors_[i];
+
+        if (!mutating) {
+            mutating = descriptor.Mutating;
+        }
+
+        if (mutating != descriptor.Mutating) {
+            continue;
+        }
+
         if (IsSubresponseUncertain(i)) {
             descriptor.Message = PatchForRetry(descriptor.Message);
         }
 
+        InFlightSubbatchIndexToGlobalIndex_.push_back(i);
         innerRequestDescriptors.push_back(descriptor);
 
         if (std::ssize(innerRequestDescriptors) == SubbatchSize_) {
@@ -380,17 +412,12 @@ TObjectServiceProxy::TReqExecuteSubbatchPtr TObjectServiceProxy::TReqExecuteBatc
 
 void TObjectServiceProxy::TReqExecuteBatch::InvokeNextBatch()
 {
-    // Optimization for the typical case of a small batch.
-    if (IsFirstBatch_ && GetTotalSubrequestCount() <= SubbatchSize_) {
-        CurrentReqFuture_ = DoInvoke();
-    } else {
-        auto subbatchReq = FormNextBatch();
-        CurrentReqFuture_ = subbatchReq->DoInvoke();
-        YT_LOG_DEBUG("Subbatch request invoked (BatchRequestId: %v, SubbatchRequestId: %v, SubbatchSize: %v)",
-            GetRequestId(),
-            subbatchReq->GetRequestId(),
-            subbatchReq->GetSize());
-    }
+    auto subbatchReq = FormNextBatch();
+    CurrentReqFuture_ = subbatchReq->DoInvoke();
+    YT_LOG_DEBUG("Subbatch request invoked (BatchRequestId: %v, SubbatchRequestId: %v, SubbatchSize: %v)",
+        GetRequestId(),
+        subbatchReq->GetRequestId(),
+        subbatchReq->GetSize());
 
     CurrentReqFuture_.Subscribe(BIND(&TObjectServiceProxy::TReqExecuteBatch::OnSubbatchResponse, MakeStrong(this)));
 }
@@ -435,8 +462,9 @@ void TObjectServiceProxy::TReqExecuteBatch::OnSubbatchResponse(const TErrorOr<TR
     YT_VERIFY(rsp->GetResponseCount() > 0 || GetTotalSubrequestCount() == 0);
 
     auto fullResponse = GetFullResponse();
-    auto globalIndex = fullResponse->GetFirstUnreceivedResponseIndex();
+    YT_VERIFY(rsp->GetSize() <= std::ssize(InFlightSubbatchIndexToGlobalIndex_));
     for (auto i = 0; i < rsp->GetSize(); ++i) {
+        auto globalIndex = InFlightSubbatchIndexToGlobalIndex_[i];
         YT_ASSERT(!fullResponse->IsResponseReceived(globalIndex));
 
         if (rsp->IsResponseReceived(i)) {
@@ -456,11 +484,8 @@ void TObjectServiceProxy::TReqExecuteBatch::OnSubbatchResponse(const TErrorOr<TR
             // report them explicitly.
             fullResponse->SetResponseUncertain(globalIndex);
         }
-
-        do {
-            ++globalIndex;
-        } while (globalIndex < GetTotalSubrequestCount() && fullResponse->IsResponseReceived(globalIndex));
     }
+    InFlightSubbatchIndexToGlobalIndex_.clear();
 
     if (GetFirstUnreceivedSubresponseIndex() == GetTotalSubrequestCount()) {
         GetFullResponse()->SetPromise({});
@@ -688,7 +713,7 @@ void TObjectServiceProxy::TRspExecuteBatch::SetEmpty()
     auto message = CreateResponseMessage(body);
     static_cast<IClientResponseHandler*>(this)->HandleResponse(
         std::move(message),
-        /*address*/ TString());
+        /*address*/ std::string());
 }
 
 void TObjectServiceProxy::TRspExecuteBatch::SetPromise(const TError& error)
@@ -847,17 +872,17 @@ TErrorOr<TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::GetResponse(i
     return GetResponse<TYPathResponse>(index);
 }
 
-std::optional<TErrorOr<TYPathResponsePtr>> TObjectServiceProxy::TRspExecuteBatch::FindResponse(const TString& key) const
+std::optional<TErrorOr<TYPathResponsePtr>> TObjectServiceProxy::TRspExecuteBatch::FindResponse(const std::string& key) const
 {
     return FindResponse<TYPathResponse>(key);
 }
 
-TErrorOr<TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::GetResponse(const TString& key) const
+TErrorOr<TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::GetResponse(const std::string& key) const
 {
     return GetResponse<TYPathResponse>(key);
 }
 
-std::vector<TErrorOr<TYPathResponsePtr>> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const std::optional<TString>& key) const
+std::vector<TErrorOr<TYPathResponsePtr>> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const std::optional<std::string>& key) const
 {
     return GetResponses<TYPathResponse>(key);
 }
@@ -1094,7 +1119,7 @@ const TServiceDescriptor& TObjectServiceProxy::GetDescriptor()
 
 TError GetCumulativeError(
     const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError,
-    const std::optional<TString>& key)
+    const std::optional<std::string>& key)
 {
     if (!batchRspOrError.IsOK()) {
         return batchRspOrError;
@@ -1105,7 +1130,7 @@ TError GetCumulativeError(
 
 TError GetCumulativeError(
     const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp,
-    const std::optional<TString>& key)
+    const std::optional<std::string>& key)
 {
     TError cumulativeError("Error communicating with master");
     for (const auto& rspOrError : batchRsp->GetResponses(key)) {

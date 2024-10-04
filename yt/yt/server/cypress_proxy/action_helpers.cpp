@@ -190,6 +190,7 @@ TNodeId CopySubtree(
 void RemoveSelectedSubtree(
     const std::vector<TCypressNodeDescriptor>& subtreeNodes,
     const ISequoiaTransactionPtr& transaction,
+    TTransactionId cypressTransactionId,
     bool removeRoot,
     TNodeId subtreeParentId)
 {
@@ -207,7 +208,7 @@ void RemoveSelectedSubtree(
     }
 
     for (auto nodeIt = subtreeNodes.begin() + (removeRoot ? 0 : 1); nodeIt < subtreeNodes.end(); ++nodeIt) {
-        RemoveNode(nodeIt->Id, MangleSequoiaPath(nodeIt->Path.Underlying()), transaction);
+        RemoveNode({nodeIt->Id, cypressTransactionId}, MangleSequoiaPath(nodeIt->Path.Underlying()), transaction);
     }
 
     for (auto it = subtreeNodes.rbegin(); it < subtreeNodes.rend(); ++it) {

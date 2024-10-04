@@ -173,10 +173,10 @@ Py::Object TSkiffStructuredIterator::GetKeySwitch() const
 
 Py::Object TSkiffStructuredIterator::GetRowIndex() const
 {
-    if (RowContext_.RowIndex == ERowIndex::NotAvailable) {
+    if (RowContext_.RowIndex == ControlAttributeNotAvailable) {
         throw CreateSkiffError(
-            "RowIndex requested, but it's not available. "
-            "Possibly you're using dynamic tables, that doesn't support it",
+            "RowIndex is not available. "
+            "Possibly you're using dynamic tables, that doesn't support it, or reading table in parallel mode",
             TError(),
             &RowContext_);
     }
@@ -185,6 +185,13 @@ Py::Object TSkiffStructuredIterator::GetRowIndex() const
 
 Py::Object TSkiffStructuredIterator::GetRangeIndex() const
 {
+    if (RowContext_.RangeIndex == ControlAttributeNotAvailable) {
+        throw CreateSkiffError(
+            "RangeIndex is not available. "
+            "Possibly you're using dynamic tables, that doesn't support it, or reading table in parallel mode",
+            TError(),
+            &RowContext_);
+    }
     return Py::Long(RowContext_.RangeIndex);
 }
 

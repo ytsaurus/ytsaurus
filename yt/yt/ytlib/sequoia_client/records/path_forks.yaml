@@ -29,11 +29,6 @@ types:
         column_name: node_id
         column_type: String
 
-      - cpp_name: ParentNodeId
-        cpp_type: NCypressClient::TNodeId
-        column_name: parent_node_id
-        column_type: String
-
       - cpp_name: TopmostTransactionId
         cpp_type: NCypressClient::TTransactionId
         column_name: topmost_transaction_id

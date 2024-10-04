@@ -1349,6 +1349,7 @@ class TestCypress(YTEnvSetup):
         set("//tmp/t1", 1)
         link("//tmp/t1", "//tmp/t2")
         assert get("//tmp/t2") == 1
+        # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
         wait(lambda: get("//tmp/t2/@type") == "int64_node")
         assert get("//tmp/t1/@id") == get("//tmp/t2/@id")
         assert get("//tmp/t2&/@type") == "link" if not self.ENABLE_TMP_ROOTSTOCK else "sequoia_link"
@@ -1396,6 +1397,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/a")
         assert exists("//tmp/b")
         assert exists("//tmp/b&")
+        # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
         wait(lambda: exists("//tmp/b/@id"))
         assert exists("//tmp/b/@row_count")
         assert exists("//tmp/b&/@target_path")
@@ -1444,6 +1446,7 @@ class TestCypress(YTEnvSetup):
         id1 = create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         link("//tmp/t1", "//tmp/l")
+        # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
         wait(lambda: get("//tmp/l/@id") == id1)
         with pytest.raises(YtError):
             link("//tmp/t2", "//tmp/l")
@@ -1463,6 +1466,7 @@ class TestCypress(YTEnvSetup):
         link("//tmp/t1", "//tmp/l")
         link("//tmp/t2", "//tmp/l", force=True)
         assert get("//tmp/t1/@id") == id1
+        # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
         wait(lambda: get("//tmp/l/@id") == id2)
 
     @authors("babenko", "danilalexeev")
@@ -1471,8 +1475,10 @@ class TestCypress(YTEnvSetup):
         id2 = create("table", "//tmp/t2")
         link("//tmp/t1", "//tmp/l")
         remove("//tmp/t1")
+        # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
         wait(lambda: get("//tmp/l&/@broken"))
         link("//tmp/t2", "//tmp/l", force=True)
+        # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
         wait(lambda: get("//tmp/l/@id") == id2, ignore_exceptions=True)
 
     @authors("babenko", "danilalexeev")
@@ -1486,6 +1492,7 @@ class TestCypress(YTEnvSetup):
         id = create("table", "//tmp/t")
         link("//tmp/t", "//tmp/l1")
         link("//tmp/l1", "//tmp/l2")
+        # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
         wait(lambda: get("//tmp/l2/@id") == id)
         assert not get("//tmp/l2&/@broken")
         remove("//tmp/l1")
@@ -1505,6 +1512,7 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/t2")
         link("//tmp/t1", "//tmp/l")
         copy("//tmp/t2", "//tmp/l", force=True)
+        # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
         wait(lambda: get("//tmp/l/@type") == "table")
         assert get("//tmp/t1/@id") == id1
 
@@ -1522,6 +1530,7 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/t2")
         link("//tmp/t1", "//tmp/l")
         move("//tmp/t2", "//tmp/l", force=True)
+        # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
         wait(lambda: get("//tmp/l/@type") == "table")
         assert not exists("//tmp/t2")
         assert get("//tmp/t1/@id") == id1
@@ -1575,6 +1584,7 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/a")
         link("//tmp/a", "//tmp/b")
         id = get("//tmp/b&/@id")
+        # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
         wait(lambda: get("//tmp/b/@type") == "map_node")
         expected_type = "link" if not self.ENABLE_TMP_ROOTSTOCK else "sequoia_link"
         assert get("//tmp/b&/@type") == expected_type
@@ -3957,6 +3967,8 @@ class TestCypress(YTEnvSetup):
         assert {"default_input_row_limit": 1024} == get("//sys/@cluster_connection")
         set("//sys/@cluster_connection", yson.YsonEntity())
         assert isinstance(get("//sys/@cluster_connection"), yson.YsonEntity)
+        remove("//sys/@cluster_connection")
+        assert not exists("//sys/@cluster_connection")
 
     @authors("kvk1920")
     @not_implemented_in_sequoia
@@ -3967,6 +3979,8 @@ class TestCypress(YTEnvSetup):
         assert "a" * 128 == get("//sys/@cluster_name")
         with raises_yt_error("ASCII"):
             set("//sys/@cluster_name", "кириллица")
+        remove("//sys/@cluster_name")
+        assert not exists("//sys/@cluster_name")
 
     @authors("h0pless")
     @not_implemented_in_sequoia

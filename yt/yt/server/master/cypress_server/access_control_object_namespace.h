@@ -16,15 +16,15 @@ class TAccessControlObjectNamespace
     : public NObjectServer::TObject
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TString, Name);
+    DEFINE_BYVAL_RW_PROPERTY(std::string, Name);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
-    using TMembers = THashMap<TString, TAccessControlObject*>;
+    using TMembers = THashMap<std::string, TAccessControlObject*>;
     DEFINE_BYREF_RW_PROPERTY(TMembers, Members);
 
 public:
     explicit TAccessControlObjectNamespace(TAccessControlObjectNamespaceId id);
 
-    TAccessControlObject* FindMember(const TString& memberName) const;
+    TAccessControlObject* FindMember(const std::string& memberName) const;
 
     void RegisterMember(TAccessControlObject* member);
     void UnregisterMember(TAccessControlObject* member);

@@ -3124,7 +3124,7 @@ TEST_P(TProxyRoleManagement, TestBundleProxyRolesAssigned)
 
     EXPECT_EQ(2 * GetDataCenterCount(), std::ssize(mutations.ChangedProxyRole));
 
-    THashMap<TString, THashSet<TString>> roleToProxies;
+    THashMap<std::string, THashSet<TString>> roleToProxies;
     for (const auto& [proxyName, role] : mutations.ChangedProxyRole) {
         roleToProxies[role].insert(proxyName);
         input.RpcProxies[proxyName]->Role = role;

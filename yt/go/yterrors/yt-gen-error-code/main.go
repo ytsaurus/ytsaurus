@@ -48,13 +48,15 @@ type errorCode struct {
 }
 
 var (
-	reStart = regexp.MustCompile(`YT_DEFINE_ERROR_ENUM`)
-	reValue = regexp.MustCompile(`\(\((\w+)\)\s*\((\d+)\)\)`)
-	reEnd   = regexp.MustCompile(`\);`)
+	reStartWithDefineError = regexp.MustCompile(`YT_DEFINE_ERROR_ENUM`)
+	reStartWithDefineEnum  = regexp.MustCompile(`DEFINE_ENUM\(E([a-zA-Z]*)ErrorCode,`)
+	reValue                = regexp.MustCompile(`\(\((\w+)\)\s*\((\d+)\)\)`)
+	reEnd                  = regexp.MustCompile(`\);`)
 )
 
 func scanErrorCodes(lines []string) (ec []errorCode) {
 	inside := false
+	codeNamePrefix := ""
 
 	for _, l := range lines {
 		if inside {
@@ -62,15 +64,19 @@ func scanErrorCodes(lines []string) (ec []errorCode) {
 				code, _ := strconv.Atoi(match[2])
 
 				ec = append(ec, errorCode{
-					name:  match[1],
+					name:  codeNamePrefix + match[1],
 					value: code,
 				})
 			} else if reEnd.MatchString(l) {
 				inside = false
+				codeNamePrefix = ""
 			}
 		} else {
-			if reStart.MatchString(l) {
+			if reStartWithDefineError.MatchString(l) {
 				inside = true
+			} else if match := reStartWithDefineEnum.FindStringSubmatch(l); match != nil {
+				inside = true
+				codeNamePrefix = match[1]
 			}
 		}
 	}
@@ -136,12 +142,18 @@ func main() {
 			return errorCode{"InvalidElectionState", e.value}
 		case 1129:
 			return errorCode{"ExecNodeLayerUnpackingFailed", e.value}
+		case 1135:
+			return errorCode{"ExecNodeNoSuchJob", e.value}
 		case 1915:
 			return errorCode{"APINoSuchOperation", e.value}
 		case 1916:
 			return errorCode{"APINoSuchJob", e.value}
+		case 3101:
+			return errorCode{"QueueClientInvalidEpoch", e.value}
 		case 3900:
 			return errorCode{"QueryTrackerClientIncarnationMismatch", e.value}
+		case 4419:
+			return errorCode{"ControllerAgentNoSuchJob", e.value}
 		case 19000:
 			return errorCode{"MiscIOError", e.value}
 		default:

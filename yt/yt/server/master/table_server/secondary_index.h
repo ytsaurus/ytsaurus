@@ -27,6 +27,13 @@ public:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
+
+    // COMPAT(sabdenovch)
+    void SetIdsFromCompat();
+
+private:
+    TTableNode* CompatTable_;
+    TTableNode* CompatIndexTable_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

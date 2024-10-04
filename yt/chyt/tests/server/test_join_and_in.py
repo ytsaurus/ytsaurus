@@ -236,7 +236,22 @@ class TestJoinAndIn(ClickHouseTestBase):
         write_table("<append=%true>//tmp/t2", [{"key": 5, "subkey": 42}])
         write_table("<append=%true>//tmp/t2", [{"key": 7, "subkey": -1}])
         write_table("<append=%true>//tmp/t2", [{"key": 10, "subkey": 42}])
-        with Clique(1, config_patch={"yt": {"settings": {"execution": {"enable_min_max_filtering": False}}}}) as clique:
+
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_min_max_filtering": False,
+                    },
+                }
+            },
+            "clickhouse": {
+                "settings": {
+                    "optimize_move_to_prewhere": False,
+                }
+            }
+        }
+        with Clique(1, config_patch=config_patch) as clique:
             assert clique.make_query_and_validate_row_count(
                 'select * from "//tmp/t1" t1 inner join "//tmp/t2" t2 using key where t2.subkey == 42',
                 exact=6) == [{"key": 5, "subkey": 42},
@@ -375,6 +390,11 @@ class TestJoinAndIn(ClickHouseTestBase):
                     "execution": {
                         "enable_min_max_filtering": False,
                     },
+                },
+            },
+            "clickhouse": {
+                "settings": {
+                    "optimize_move_to_prewhere": False,
                 },
             },
         }

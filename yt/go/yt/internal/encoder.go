@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 
+	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
@@ -19,6 +20,7 @@ type Encoder struct {
 	StartCall func() *Call
 
 	Invoke         CallInvoker
+	InvokeInTx     CallInvoker
 	InvokeRead     ReadInvoker
 	InvokeWrite    WriteInvoker
 	InvokeReadRow  ReadRowInvoker
@@ -43,6 +45,14 @@ func (e *Encoder) newAuthCall(p Params) *Call {
 
 func (e *Encoder) do(ctx context.Context, call *Call, decode func(res *CallResult) error) error {
 	res, err := e.Invoke(ctx, call)
+	if err != nil {
+		return err
+	}
+	return decode(res)
+}
+
+func (e *Encoder) doInTx(ctx context.Context, call *Call, decode func(res *CallResult) error) error {
+	res, err := e.InvokeInTx(ctx, call)
 	if err != nil {
 		return err
 	}
@@ -167,12 +177,16 @@ func (e *Encoder) CopyNode(
 	dst ypath.YPath,
 	options *yt.CopyNodeOptions,
 ) (id yt.NodeID, err error) {
-	call := e.newCall(NewCopyNodeParams(src, dst, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		err = res.decodeSingle("node_id", &id)
-		return err
-	})
-	return
+	opts := yt.CopyNodeOptions{}
+	if options != nil {
+		opts = *options
+	}
+	return e.copyMove(ctx,
+		func(enableCrossCellCopying bool) Params {
+			opts.EnableCrossCellCopying = ptr.Bool(enableCrossCellCopying)
+			return NewCopyNodeParams(src, dst, &opts)
+		},
+	)
 }
 
 func (e *Encoder) MoveNode(
@@ -181,11 +195,31 @@ func (e *Encoder) MoveNode(
 	dst ypath.YPath,
 	options *yt.MoveNodeOptions,
 ) (id yt.NodeID, err error) {
-	call := e.newCall(NewMoveNodeParams(src, dst, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		err = res.decodeSingle("node_id", &id)
-		return err
-	})
+	opts := yt.MoveNodeOptions{}
+	if options != nil {
+		opts = *options
+	}
+	return e.copyMove(ctx,
+		func(enableCrossCellCopying bool) Params {
+			opts.EnableCrossCellCopying = ptr.Bool(enableCrossCellCopying)
+			return NewMoveNodeParams(src, dst, &opts)
+		},
+	)
+}
+
+func (e *Encoder) copyMove(
+	ctx context.Context,
+	newParams func(enableCrossCellCopying bool) Params,
+) (id yt.NodeID, err error) {
+	resultDecoder := func(res *CallResult) error {
+		return res.decodeSingle("node_id", &id)
+	}
+	// try copy/move without any extra protection.
+	err = e.do(ctx, e.newCall(newParams(false)), resultDecoder)
+	if yterrors.ContainsErrorCode(err, yterrors.CodeCrossCellAdditionalPath) {
+		// it's copy/move from portal, make it retryable.
+		err = e.doInTx(ctx, e.newCall(newParams(true)), resultDecoder)
+	}
 	return
 }
 

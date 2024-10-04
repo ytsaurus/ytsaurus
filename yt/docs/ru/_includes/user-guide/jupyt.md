@@ -13,7 +13,7 @@ title: Работа с Jupyter Notebooks | {{product-name}}
 export JUPYT_CTL_ADDRESS=jupyt.test.yt.mycloud.net
 ```
 
-1. Выбрать docker-образ jupyter-ноутбука. В качестве образа или основы для образа можно выбрать [jupyter stacks](https://jupyter-docker-stacks.readthedocs.io/en/latest/), например, [minimal-notebook](quay.io/jupyter/minimal-notebook).
+1. Выбрать docker-образ jupyter-ноутбука. В качестве образа или основы для образа можно выбрать [jupyter stacks](https://jupyter-docker-stacks.readthedocs.io/en/latest/), например, [minimal-notebook](https://quay.io/jupyter/minimal-notebook).
 
 1. Создать ноутбук. Для создания ноутбука необходимо указать docker-образ с ноутбуком и пул, в котором будет запущена операция.
 ```bash

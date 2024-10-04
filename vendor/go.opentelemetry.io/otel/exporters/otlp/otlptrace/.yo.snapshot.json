@@ -1,0 +1,61 @@
+{
+	"Version": "v1.29.0",
+	"GoVersion": "1.21",
+	"Sum": "h1:dIIDULZJpgdiHz5tXrTgKIMLkus6jEFa7x5SOKcyR7E=",
+	"Packages": {
+		"go.opentelemetry.io/otel/exporters/otlp/otlptrace": {
+			"Imports": [
+				"context",
+				"errors",
+				"fmt",
+				"go.opentelemetry.io/otel/exporters/otlp/otlptrace/internal/tracetransform",
+				"go.opentelemetry.io/otel/sdk/trace",
+				"go.opentelemetry.io/proto/otlp/trace/v1",
+				"sync"
+			],
+			"TestImports": [
+				"context",
+				"errors",
+				"github.com/stretchr/testify/assert",
+				"go.opentelemetry.io/otel/exporters/otlp/otlptrace",
+				"go.opentelemetry.io/otel/sdk/trace/tracetest",
+				"go.opentelemetry.io/proto/otlp/trace/v1",
+				"regexp",
+				"strings",
+				"testing"
+			]
+		},
+		"go.opentelemetry.io/otel/exporters/otlp/otlptrace/internal/tracetransform": {
+			"Imports": [
+				"go.opentelemetry.io/otel/attribute",
+				"go.opentelemetry.io/otel/codes",
+				"go.opentelemetry.io/otel/sdk/instrumentation",
+				"go.opentelemetry.io/otel/sdk/resource",
+				"go.opentelemetry.io/otel/sdk/trace",
+				"go.opentelemetry.io/otel/trace",
+				"go.opentelemetry.io/proto/otlp/common/v1",
+				"go.opentelemetry.io/proto/otlp/resource/v1",
+				"go.opentelemetry.io/proto/otlp/trace/v1",
+				"math"
+			],
+			"TestImports": [
+				"github.com/google/go-cmp/cmp",
+				"github.com/stretchr/testify/assert",
+				"github.com/stretchr/testify/require",
+				"go.opentelemetry.io/otel/attribute",
+				"go.opentelemetry.io/otel/codes",
+				"go.opentelemetry.io/otel/sdk/instrumentation",
+				"go.opentelemetry.io/otel/sdk/resource",
+				"go.opentelemetry.io/otel/sdk/trace",
+				"go.opentelemetry.io/otel/sdk/trace/tracetest",
+				"go.opentelemetry.io/otel/semconv/v1.26.0",
+				"go.opentelemetry.io/otel/trace",
+				"go.opentelemetry.io/proto/otlp/common/v1",
+				"go.opentelemetry.io/proto/otlp/trace/v1",
+				"google.golang.org/protobuf/proto",
+				"testing",
+				"time"
+			]
+		}
+	}
+}

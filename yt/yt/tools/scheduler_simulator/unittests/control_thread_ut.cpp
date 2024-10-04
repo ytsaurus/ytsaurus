@@ -219,7 +219,7 @@ protected:
             TNodeDescriptor(std::string(Format("node%02d", NextNodeId_))),
             NScheduler::ENodeState::Online);
         NextNodeId_ = TNodeId(NextNodeId_.Underlying() + 1);
-        node->SetTags(TBooleanFormulaTags(THashSet<TString>{"internal"}));
+        node->SetTags(TBooleanFormulaTags(THashSet<std::string>{"internal"}));
         node->ResourceLimits() = resourceLimits;
 
         node->DiskResources() = TDiskResources{

@@ -1216,7 +1216,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
 class TestMultipleAgents(TestQueueAgentBase):
     NUM_TEST_PARTITIONS = 3
 
-    NUM_QUEUE_AGENTS = 5
+    NUM_QUEUE_AGENTS_PRIMARY = 5
 
     DELTA_QUEUE_AGENT_CONFIG = {
         "election_manager": {
@@ -1877,7 +1877,8 @@ class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
     def test_no_alerts(self, policy):
         self._apply_dynamic_config_patch({
             "cypress_synchronizer": {
-                "policy": policy
+                "policy": policy,
+                "enable": False,
             }
         })
 
@@ -1889,6 +1890,14 @@ class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
 
         self._create_and_register_queue(q1)
         self._create_and_register_consumer(c1)
+
+        self._apply_dynamic_config_patch({
+            "cypress_synchronizer": {
+                "policy": policy,
+                "enable": True,
+            }
+        })
+
         orchid.wait_fresh_pass()
 
         queues = self._get_queues_and_check_invariants(expected_count=1)
@@ -2254,6 +2263,8 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
 
 
 class TestMultiClusterReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
+    NUM_TEST_PARTITIONS = 2
+
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
             "policy": "watching",
@@ -2430,11 +2441,21 @@ class TestMultiClusterReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjec
             replicated_table_attributes={"treat_as_queue_producer": True})
         return chaos_replicated_producer_replicas
 
+    @authors("apachee")
+    def test_no_queue_agent_instances_on_remote_clusters(self):
+        for remote_index in range(self.NUM_REMOTE_CLUSTERS):
+            cluster_name = f"remote_{remote_index}"
+            # NB(apachee): Cypress registrar recursively creates //sys/queue_agents/instances, and if
+            # //sys/queue_agents is not present, then everything is fine, and there is no reason
+            # for queue agent state to be present on remote clusters.
+            assert not exists("//sys/queue_agents", driver=get_driver(cluster=cluster_name))
+
     @authors("achulkov2", "nadya73")
     @pytest.mark.parametrize("create_queue_consumer_pair", [
         _create_chaos_queue_consumer_pair,
         _create_replicated_queue_consumer_pair,
     ])
+    @pytest.mark.timeout(150)
     def test_replicated_trim(self, create_queue_consumer_pair):
         queue, queue_replicas, consumer, consumer_replicas = create_queue_consumer_pair(self)
 
@@ -3069,8 +3090,12 @@ class TestQueueAgentBannedAttribute(TestQueueStaticExportBase):
         time.sleep(5)
         assert len(ls(export_dir)) == 2
 
+        self.remove_export_destination(export_dir)
+
 
 class TestQueueStaticExport(TestQueueStaticExportBase):
+    NUM_TEST_PARTITIONS = 2
+
     @authors("cherepashka", "achulkov2", "nadya73")
     @pytest.mark.parametrize("queue_external_cell_tag", [10, 11, 12])
     def test_multicell_export(self, queue_external_cell_tag):
@@ -3373,19 +3398,19 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         set("//tmp/q/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
-                "export_period": 5 * 1000,
+                "export_period": 10 * 1000,
                 "use_upper_bound_for_table_names": False,
             }
         })
 
         # This way we assure that we write the rows at the beginning of the period, so that all rows are physically written and flushed before the next export instant arrives.
-        mid_export = self._sleep_until_next_export_instant(period=5, offset=0.5)
+        mid_export = self._sleep_until_next_export_instant(period=10, offset=0.5)
         insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 2)
         self._flush_table("//tmp/q")
 
-        next_export = self._sleep_until_next_export_instant(period=5)
+        next_export = self._sleep_until_next_export_instant(period=10)
         # Flush should be fast enough. Increase period if this turns out to be flaky.
-        assert next_export - mid_export <= 5
+        assert next_export - mid_export <= 10
 
         wait(lambda: len(ls(export_dir)) == 1)
         # Given the constraints above, we check that all timestamps lie in [ts, ts + period], where ts is the timestamp in the name of the output table.

@@ -3,6 +3,7 @@
 namespace NYT::NExecNode {
 
 using namespace NClusterNode;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +44,7 @@ TBriefJobInfo::TBriefJobInfo(
     , JobExecAttributes_(jobExecAttributes)
 { }
 
-void TBriefJobInfo::BuildOrchid(NYTree::TFluentMap fluent) const
+void TBriefJobInfo::BuildOrchid(TFluentMap fluent) const
 {
     fluent
         .Item("operation_id").Value(OperationId_)

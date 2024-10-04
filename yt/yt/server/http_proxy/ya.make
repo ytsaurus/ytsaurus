@@ -6,6 +6,7 @@ SRCS(
     access_checker.cpp
     api.cpp
     bootstrap.cpp
+    component_discovery.cpp
     config.cpp
     context.cpp
     coordinator.cpp
@@ -16,7 +17,9 @@ SRCS(
     http_authenticator.cpp
     private.cpp
     profilers.cpp
+    profiling.cpp
     public.cpp
+    solomon_proxy.cpp
     zookeeper_bootstrap_proxy.cpp
 
     clickhouse/config.cpp

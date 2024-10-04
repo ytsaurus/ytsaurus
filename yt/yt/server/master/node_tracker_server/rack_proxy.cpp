@@ -110,13 +110,13 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::Name: {
-                auto newName = ConvertTo<TString>(value);
+                auto newName = ConvertTo<std::string>(value);
                 nodeTracker->RenameRack(rack, newName);
                 return true;
             }
 
             case EInternedAttributeKey::DataCenter: {
-                auto dcName = ConvertTo<TString>(value);
+                auto dcName = ConvertTo<std::string>(value);
                 auto* dc = nodeTracker->GetDataCenterByNameOrThrow(dcName);
                 nodeTracker->SetRackDataCenter(rack, dc);
                 return true;

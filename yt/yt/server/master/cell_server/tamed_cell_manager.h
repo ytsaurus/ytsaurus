@@ -32,20 +32,20 @@ public:
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(CellBundle, TCellBundle);
     virtual const THashSet<TCellBundle*>& CellBundles(NCellarClient::ECellarType cellarType) = 0;
     virtual TCellBundle* FindCellBundleByName(
-        const TString& name,
+        const std::string& name,
         NCellarClient::ECellarType cellarType,
         bool activeLifeStageOnly) = 0;
     virtual TCellBundle* GetCellBundleByNameOrThrow(
-        const TString& name,
+        const std::string& name,
         NCellarClient::ECellarType cellarType,
         bool activeLifeStageOnly) = 0;
     virtual TCellBundle* GetCellBundleByIdOrThrow(
         TCellBundleId cellBundleId,
         bool activeLifeStageOnly) = 0;
-    virtual void RenameCellBundle(TCellBundle* cellBundle, const TString& newName) = 0;
+    virtual void RenameCellBundle(TCellBundle* cellBundle, const std::string& newName) = 0;
     virtual void SetCellBundleOptions(TCellBundle* cellBundle, TTabletCellOptionsPtr options) = 0;
     virtual TCellBundle* CreateCellBundle(
-        const TString& name,
+        const std::string& name,
         std::unique_ptr<TCellBundle> holder,
         TTabletCellOptionsPtr options) = 0;
     virtual void ZombifyCellBundle(TCellBundle* cellBundle) = 0;
@@ -66,13 +66,13 @@ public:
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Area, TArea);
     virtual TArea* CreateArea(
-        const TString& name,
+        const std::string& name,
         TCellBundle* cellBundle,
         NObjectClient::TObjectId hintId) = 0;
-    virtual void RenameArea(TArea* area, const TString& name) = 0;
+    virtual void RenameArea(TArea* area, const std::string& name) = 0;
     virtual void ZombifyArea(TArea* area) = 0;
-    virtual void SetAreaNodeTagFilter(TArea* area, const TString& formula) = 0;
-    virtual TArea* GetAreaByNameOrThrow(TCellBundle* cellBundle, const TString& name) = 0;
+    virtual void SetAreaNodeTagFilter(TArea* area, const std::string& formula) = 0;
+    virtual TArea* GetAreaByNameOrThrow(TCellBundle* cellBundle, const std::string& name) = 0;
 
     virtual void UpdateCellArea(TCellBase* cell, TArea* area) = 0;
 

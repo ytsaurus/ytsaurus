@@ -85,7 +85,7 @@ usage: yt create [-h] [--params PARAMS] [--type TYPE] [--path PATH] [-r] [-i] [-
 
 #### Positional Arguments
 
-> `type`    one of table, file, document, account, user, list_node, map_node, string_node, int64_node, uint64_node, double_node, …
+> `type`    one of table, file, document, account, user, map_node, string_node, int64_node, uint64_node, double_node, …
 
 > `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
@@ -93,7 +93,7 @@ usage: yt create [-h] [--params PARAMS] [--type TYPE] [--path PATH] [-r] [-i] [-
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--type`    one of table, file, document, account, user, list_node, map_node, string_node, int64_node, uint64_node, double_node, …
+> `--type`    one of table, file, document, account, user, map_node, string_node, int64_node, uint64_node, double_node, …
 
 > `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
@@ -258,7 +258,7 @@ usage: yt find [-h] [--params PARAMS] [--path PATH] [--name NAME] [--type TYPE] 
 
 > , ?, [seq], [!seq]
 
-> `--type`    one of table, file, document, account, user, list_node, map_node, string_node, int64_node, uint64_node, double_node, …
+> `--type`    one of table, file, document, account, user, map_node, string_node, int64_node, uint64_node, double_node, …
 
 > `--account`
 
@@ -722,7 +722,7 @@ usage: yt dirtable [-h] dirtable_command ...
 
 ##### upload
 
-Upload directory to YT
+Upload directory to {{product-name}}
 
 ```bash
 yt dirtable upload [-h] --directory DIRECTORY [--part-size PART_SIZE] [--recursive] [--no-recursive] --yt-table YT_TABLE [--process-count PROCESS_COUNT] [--force] [--prepare-for-sky-share]
@@ -748,7 +748,7 @@ yt dirtable upload [-h] --directory DIRECTORY [--part-size PART_SIZE] [--recursi
 
 ##### download
 
-Download directory from YT
+Download directory from {{product-name}}
 
 ```bash
 yt dirtable download [-h] --directory DIRECTORY --yt-table YT_TABLE [--process-count PROCESS_COUNT] [--exact-filenames EXACT_FILENAMES] [--filter-by-regexp FILTER_BY_REGEXP]
@@ -771,7 +771,7 @@ yt dirtable download [-h] --directory DIRECTORY --yt-table YT_TABLE [--process-c
 
 ##### list-files
 
-List files from YT
+List files from {{product-name}}
 
 ```bash
 yt dirtable list-files [-h] --yt-table YT_TABLE
@@ -1046,7 +1046,7 @@ explains a SQL-like query on dynamic table
 
 ```bash
 usage: yt explain-query [-h] [--params PARAMS] [--query QUERY] [--timestamp TIMESTAMP] [--input-row-limit INPUT_ROW_LIMIT] [--output-row-limit OUTPUT_ROW_LIMIT] [--allow-full-scan | --forbid-full-scan]
-                        [--allow-join-without-index | --forbid-join-without-index] [--execution-pool EXECUTION_POOL] [--format FORMAT] [--syntax-version SYNTAX_VERSION]
+                        [--allow-join-without-index | --forbid-join-without-index] [--execution-pool EXECUTION_POOL] [--format FORMAT] [--syntax-version SYNTAX_VERSION] [--udf-registry-path UDF_REGISTRY_PATH]
                         [query]
 ```
 
@@ -1079,6 +1079,8 @@ usage: yt explain-query [-h] [--params PARAMS] [--query QUERY] [--timestamp TIME
 > `--format`
 
 > `--syntax-version`
+
+> `--udf-registry-path`
 
 ### freeze-table
 
@@ -1365,7 +1367,7 @@ executes a SQL-like query on dynamic table
 ```bash
 usage: yt select-rows [-h] [--params PARAMS] [--query QUERY] [--timestamp TIMESTAMP] [--input-row-limit INPUT_ROW_LIMIT] [--output-row-limit OUTPUT_ROW_LIMIT] [--verbose-logging]
                       [--enable-code-cache | --disable-code-cache] [--allow-full-scan | --forbid-full-scan] [--allow-join-without-index | --forbid-join-without-index] [--execution-pool EXECUTION_POOL]
-                      [--format FORMAT] [--print-statistics] [--syntax-version SYNTAX_VERSION]
+                      [--format FORMAT] [--print-statistics] [--syntax-version SYNTAX_VERSION] [--udf-registry-path UDF_REGISTRY_PATH] [--merge-versioned-rows | --do-not-merge-versioned-rows]
                       [query]
 ```
 
@@ -1406,6 +1408,12 @@ usage: yt select-rows [-h] [--params PARAMS] [--query QUERY] [--timestamp TIMEST
 > `--print-statistics`
 
 > `--syntax-version`
+
+> `--udf-registry-path`
+
+> `--merge-versioned-rows`
+
+> `--do-not-merge-versioned-rows`
 
 ### trim-rows
 
@@ -2289,7 +2297,7 @@ usage: yt commit-tx [-h] [--params PARAMS] [--transaction TRANSACTION] [transact
 
 ### lock
 
-tries to lock the path
+tries to lock the path. Do not forget about global –tx option
 
 ```bash
 usage: yt lock [-h] [--params PARAMS] [--path PATH] [--mode {snapshot,shared,exclusive}] [--waitable] [--wait-for WAIT_FOR] [--child-key CHILD_KEY] [--attribute-key ATTRIBUTE_KEY] [path]
@@ -2628,12 +2636,12 @@ yt job-tool run-job [-h] [--job-path JOB_PATH] [--env ENV] [job_path]
 
 
 
-### dump-parquet
+### dump-orc
 
-dump parquet into a file from table with a strict schema
+dump table with a strict schema as ORC <https://orc.apache.org/> file
 
 ```bash
-usage: yt dump-parquet [-h] [--params PARAMS] [--table TABLE] --output-file OUTPUT_FILE [table]
+usage: yt dump-orc [-h] [--params PARAMS] [--table TABLE] --output-file OUTPUT_FILE [table]
 ```
 
 #### Positional Arguments
@@ -2648,9 +2656,55 @@ usage: yt dump-parquet [-h] [--params PARAMS] [--table TABLE] --output-file OUTP
 
 > `--output-file`    (Required)
 
+### dump-parquet
+
+dump table with a strict schema as Parquet <https://parquet.apache.org/docs> file
+
+```bash
+usage: yt dump-parquet [-h] [--params PARAMS] [--table TABLE] [--output-path OUTPUT_PATH] [--output-file OUTPUT_FILE] [--enable-several-files ENABLE_SEVERAL_FILES] [--unordered UNORDERED] [table]
+```
+
+#### Positional Arguments
+
+> `table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
+
+#### Named Arguments
+
+> `--params`    specify additional params. structured params in yson format
+
+> `--table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
+
+> `--output-path`
+
+> `--output-file`
+
+> `--enable-several-files`
+
+> `--unordered`
+
+### upload-orc
+
+upload ORC <https://orc.apache.org/> file as a table
+
+```bash
+usage: yt upload-orc [-h] [--params PARAMS] [--table TABLE] --input-file INPUT_FILE [table]
+```
+
+#### Positional Arguments
+
+> `table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
+
+#### Named Arguments
+
+> `--params`    specify additional params. structured params in yson format
+
+> `--table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
+
+> `--input-file`    (Required)
+
 ### upload-parquet
 
-upload parquet from a file into a table that must be created with a strict schema
+upload Parquet <https://parquet.apache.org/docs> file as a table
 
 ```bash
 usage: yt upload-parquet [-h] [--params PARAMS] [--table TABLE] --input-file INPUT_FILE [table]
@@ -2861,6 +2915,28 @@ usage: yt abort-query [-h] [--params PARAMS] [--message MESSAGE] [--stage STAGE]
 
 > `--stage`    query tracker stage, defaults to «production»
 
+### alter-query
+
+alter query
+
+```bash
+usage: yt alter-query [-h] [--params PARAMS] [--annotations ANNOTATIONS] [--access-control-objects ACCESS_CONTROL_OBJECTS] [--stage STAGE] query_id
+```
+
+#### Positional Arguments
+
+> `query_id`    query id
+
+#### Named Arguments
+
+> `--params`    specify additional params. structured params in yson format
+
+> `--annotations`    a YSON map of annotations. structured annotations in yson format
+
+> `--access-control-objects`    access control objects, a YSON list of ACO names. structured access-control-objects in yson format
+
+> `--stage`    query tracker stage, defaults to «production»
+
 ### get-query
 
 get query
@@ -2969,7 +3045,7 @@ usage: yt read-query-result [-h] [--params PARAMS] [--result-index RESULT_INDEX]
 start query
 
 ```bash
-usage: yt start-query [-h] [--params PARAMS] [--settings SETTINGS] [--files FILES] [--access-control-object ACCESS_CONTROL_OBJECT] [--stage STAGE] engine query
+usage: yt start-query [-h] [--params PARAMS] [--settings SETTINGS] [--files FILES] [--access-control-object ACCESS_CONTROL_OBJECT] [--access-control-objects ACCESS_CONTROL_OBJECTS] [--stage STAGE] engine query
 ```
 
 #### Positional Arguments
@@ -2986,13 +3062,35 @@ usage: yt start-query [-h] [--params PARAMS] [--settings SETTINGS] [--files FILE
 
 > `--files`    query files, a YSON list of files, each of which is represented by a map with keys «name», «content», «type».Field «type» is one of «raw_inline_data», «url». structured files in yson format
 
-> `--access-control-object`    optional access control object name
+> `--access-control-object`    optional access control object name (deprecated)
+
+> `--access-control-objects`    access control objects, a YSON list of ACO names. structured access-control-objects in yson format
 
 > `--stage`    query tracker stage, defaults to «production»
 
 ## Other commands
 
 
+
+### add-maintenance
+
+adds maintenance request for a given node
+
+```bash
+usage: yt add-maintenance [-h] [--params PARAMS] [-c COMPONENT] [-a ADDRESS] [-t TYPE] [--comment COMMENT]
+```
+
+#### Named Arguments
+
+> `--params`    specify additional params. structured params in yson format
+
+> `-c, --component`
+
+> `-a, --address`
+
+> `-t, --type`
+
+> `--comment`
 
 ### admin
 
@@ -3104,7 +3202,7 @@ yt chyt execute [-h] [--alias ALIAS] [--query QUERY] [--format FORMAT] [--settin
 CHYT controller
 
 ```bash
-yt chyt ctl [--address ADDRESS] command ...
+yt chyt ctl [--address ADDRESS] [--stage STAGE] [--cluster-name CLUSTER_NAME] command ...
 ```
 
 ###### Positional Arguments
@@ -3113,7 +3211,11 @@ yt chyt ctl [--address ADDRESS] command ...
 
 ###### Named Arguments
 
-> `--address`    controller service address
+> `--address`    controller service address; may contain {stage}, {family} and {host_suffix} parameters; the default value is fetched from the remote client config
+
+> `--stage`    controller stage, default: `«production»`
+
+> `--cluster-name`    cluster name under which the cluster is configured in the strawberry controller; the default value is fetched from the remote client config
 
 ### clickhouse
 
@@ -3197,7 +3299,7 @@ yt clickhouse execute [-h] [--alias ALIAS] [--query QUERY] [--format FORMAT] [--
 CHYT controller
 
 ```bash
-yt clickhouse ctl [--address ADDRESS] command ...
+yt clickhouse ctl [--address ADDRESS] [--stage STAGE] [--cluster-name CLUSTER_NAME] command ...
 ```
 
 ###### Positional Arguments
@@ -3206,7 +3308,11 @@ yt clickhouse ctl [--address ADDRESS] command ...
 
 ###### Named Arguments
 
-> `--address`    controller service address
+> `--address`    controller service address; may contain {stage}, {family} and {host_suffix} parameters; the default value is fetched from the remote client config
+
+> `--stage`    controller stage, default: `«production»`
+
+> `--cluster-name`    cluster name under which the cluster is configured in the strawberry controller; the default value is fetched from the remote client config
 
 ### detect-porto-layer
 
@@ -3270,7 +3376,7 @@ usage: yt explain-id [-h] [--params PARAMS] [--local] id
 
 ### flow
 
-YT Flow commands
+{{product-name}} Flow commands
 
 ```bash
 usage: yt flow [-h] flow_command ...
@@ -3278,7 +3384,7 @@ usage: yt flow [-h] flow_command ...
 
 #### Positional Arguments
 
-> `flow_command`    Possible choices: start-pipeline, stop-pipeline, pause-pipeline, get-pipeline-spec, set-pipeline-spec, remove-pipeline-spec, get-pipeline-dynamic-spec, set-pipeline-dynamic-spec, remove-pipeline-dynamic-spec
+> `flow_command`    Possible choices: start-pipeline, stop-pipeline, pause-pipeline, get-pipeline-spec, set-pipeline-spec, remove-pipeline-spec, get-pipeline-dynamic-spec, set-pipeline-dynamic-spec, remove-pipeline-dynamic-spec, get-pipeline-state, get-flow-view
 
 #### Sub-commands
 
@@ -3383,7 +3489,7 @@ yt flow set-pipeline-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORMAT]
 remove {{product-name}} Flow pipeline spec. Remove {{product-name}} Flow pipeline spec
 
 ```bash
-yt flow remove-pipeline-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORMAT] [--expected-version EXPECTED_VERSION] [--force] [--spec-path SPEC_PATH] [pipeline_path]
+yt flow remove-pipeline-spec [-h] [--pipeline-path PIPELINE_PATH] [--expected-version EXPECTED_VERSION] [--force] [--spec-path SPEC_PATH] [pipeline_path]
 ```
 
 ###### Positional Arguments
@@ -3393,8 +3499,6 @@ yt flow remove-pipeline-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORM
 ###### Named Arguments
 
 > `--pipeline-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
-
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
 
 > `--expected-version`    Pipeline spec expected version
 
@@ -3427,14 +3531,14 @@ yt flow get-pipeline-dynamic-spec [-h] [--pipeline-path PIPELINE_PATH] [--format
 set {{product-name}} Flow pipeline dynamic spec. Set {{product-name}} Flow pipeline dynamic spec
 
 ```bash
-yt flow set-pipeline-dynamic-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORMAT] [--expected-version EXPECTED_VERSION] [--spec-path SPEC_PATH] [--spec SPEC] [pipeline_path] [spec]
+yt flow set-pipeline-dynamic-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORMAT] [--expected-version EXPECTED_VERSION] [--spec-path SPEC_PATH] [--value VALUE] [pipeline_path] [value]
 ```
 
 ###### Positional Arguments
 
 > `pipeline_path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `spec`    new spec attribute value
+> `value`    new spec attribute value
 
 ###### Named Arguments
 
@@ -3446,14 +3550,50 @@ yt flow set-pipeline-dynamic-spec [-h] [--pipeline-path PIPELINE_PATH] [--format
 
 > `--spec-path`    Path to part of the spec
 
-> `--spec`    new spec attribute value
+> `--value`    new spec attribute value
 
 ##### remove-pipeline-dynamic-spec
 
 remove {{product-name}} Flow pipeline dynamic spec. Remove {{product-name}} Flow pipeline dynamic spec
 
 ```bash
-yt flow remove-pipeline-dynamic-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORMAT] [--expected-version EXPECTED_VERSION] [--spec-path SPEC_PATH] [pipeline_path]
+yt flow remove-pipeline-dynamic-spec [-h] [--pipeline-path PIPELINE_PATH] [--expected-version EXPECTED_VERSION] [--spec-path SPEC_PATH] [pipeline_path]
+```
+
+###### Positional Arguments
+
+> `pipeline_path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
+
+###### Named Arguments
+
+> `--pipeline-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
+
+> `--expected-version`    Pipeline spec expected version
+
+> `--spec-path`    Path to part of the spec
+
+##### get-pipeline-state
+
+get {{product-name}} Flow pipeline state. Get {{product-name}} Flow pipeline state
+
+```bash
+yt flow get-pipeline-state [-h] [--pipeline-path PIPELINE_PATH] [pipeline_path]
+```
+
+###### Positional Arguments
+
+> `pipeline_path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
+
+###### Named Arguments
+
+> `--pipeline-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
+
+##### get-flow-view
+
+get {{product-name}} Flow flow view. Get {{product-name}} Flow flow view
+
+```bash
+yt flow get-flow-view [-h] [--pipeline-path PIPELINE_PATH] [--format FORMAT] [--view-path VIEW_PATH] [pipeline_path]
 ```
 
 ###### Positional Arguments
@@ -3466,9 +3606,7 @@ yt flow remove-pipeline-dynamic-spec [-h] [--pipeline-path PIPELINE_PATH] [--for
 
 > `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
 
-> `--expected-version`    Pipeline spec expected version
-
-> `--spec-path`    Path to part of the spec
+> `--view-path`    Path to part of the view
 
 ### generate-timestamp
 
@@ -3496,155 +3634,6 @@ usage: yt get-features [-h] [--params PARAMS] [--format FORMAT]
 
 > `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md)
 
-
-{% if audience == "internal" %}
-### idm
-
-IDM-related commands
-
-```bash
-usage: yt idm [-h] (--path PATH | --account ACCOUNT | --bundle TABLET_CELL_BUNDLE | --group GROUP | --pool POOL) [--pool-tree POOL_TREE] [--address ADDRESS] idm_command ...
-```
-
-#### Positional Arguments
-
-> `idm_command`    Possible choices: show, request, revoke, copy
-
-#### Named Arguments
-
-> `--path`    Cypress node path
-
-> `--account`    Account name
-
-> `--bundle`    Tablet cell bundle name
-
-> `--group`    {{product-name}} group name
-
-> `--pool`    Pool name
-
-> `--pool-tree`    Pool tree name
-
-> `--address`    IDM integration service address
-
-#### Sub-commands
-
-##### show
-
-Show IDM information
-
-```bash
-yt idm show [-h] [--immediate]
-```
-
-###### Named Arguments
-
-> `--immediate, -i`    Show only immediate IDM information (not inherited)
-
-##### request
-
-Request IDM role
-
-```bash
-yt idm request [-h] [--responsibles [RESPONSIBLES ...]] [--read-approvers [READ_APPROVERS ...]] [--auditors [AUDITORS ...]] [--set-inherit-acl | --unset-inherit-acl]
-               [--set-inherit-responsibles | --unset-inherit-responsibles] [--set-boss-approval | --unset-boss-approval] [--members [MEMBERS ...]] [--subjects [SUBJECTS ...]] [--comment COMMENT] [--dry-run]
-               [--permissions PERMISSIONS]
-```
-
-###### Named Arguments
-
-> `--responsibles, -r`    User logins space separated, default: `[]`
-
-> `--read-approvers, -a`    User logins space separated, default: `[]`
-
-> `--auditors, -u`    User logins space separated, default: `[]`
-
-> `--set-inherit-acl`    Enable ACL inheritance
-
-> `--unset-inherit-acl`    Disable ACL inheritance
-
-> `--set-inherit-responsibles`    Enable inheritance of responsibles, read approvers, auditors, boss_approval
-
-> `--unset-inherit-responsibles`    Disable inheritance of responsibles, read approvers, auditors, boss_approval
-
-> `--set-boss-approval`    Enable boss approval requirement for personal roles
-
-> `--unset-boss-approval`    Disable boss approval requirement for personal roles
-
-> `--members, -m`    Members list to remove or add. Only for groups, default: `[]`
-
-> `--subjects, -s`    Space separated user logins or staff/ABC groups like idm-group:ID or tvm apps like tvm-app:ID, default: `[]`
-
-> `--comment`    Comment for the role
-
-> `--dry-run`    Do not make real changes
-
-> `--permissions, -p`    Permissions like: R - read; RW - read, write, remove; M - mount, U - use, default: `[]`
-
-##### revoke
-
-Revoke IDM role
-
-```bash
-yt idm revoke [-h] [--responsibles [RESPONSIBLES ...]] [--read-approvers [READ_APPROVERS ...]] [--auditors [AUDITORS ...]] [--set-inherit-acl | --unset-inherit-acl]
-              [--set-inherit-responsibles | --unset-inherit-responsibles] [--set-boss-approval | --unset-boss-approval] [--members [MEMBERS ...]] [--subjects [SUBJECTS ...]] [--comment COMMENT] [--dry-run]
-              [--permissions PERMISSIONS] [--revoke-all-roles]
-```
-
-###### Named Arguments
-
-> `--responsibles, -r`    User logins space separated, default: `[]`
-
-> `--read-approvers, -a`    User logins space separated, default: `[]`
-
-> `--auditors, -u`    User logins space separated, default: `[]`
-
-> `--set-inherit-acl`    Enable ACL inheritance
-
-> `--unset-inherit-acl`    Disable ACL inheritance
-
-> `--set-inherit-responsibles`    Enable inheritance of responsibles, read approvers, auditors, boss_approval
-
-> `--unset-inherit-responsibles`    Disable inheritance of responsibles, read approvers, auditors, boss_approval
-
-> `--set-boss-approval`    Enable boss approval requirement for personal roles
-
-> `--unset-boss-approval`    Disable boss approval requirement for personal roles
-
-> `--members, -m`    Members list to remove or add. Only for groups, default: `[]`
-
-> `--subjects, -s`    Space separated user logins or staff/ABC groups like idm-group:ID or tvm apps like tvm-app:ID, default: `[]`
-
-> `--comment`    Comment for the role
-
-> `--dry-run`    Do not make real changes
-
-> `--permissions, -p`    Permissions like: R - read; RW - read, write, remove; M - mount, U - use, default: `[]`
-
-> `--revoke-all-roles`    Revoke all IDM roles
-
-##### copy
-
-Copy IDM permissions
-
-```bash
-yt idm copy [-h] [--immediate] [--erase] [--dry-run] destination
-```
-
-###### Positional Arguments
-
-> `destination`    Destination object
-
-###### Named Arguments
-
-> `--immediate, -i`    Only copy immediate IDM permissions
-
-> `--erase, -e`    Erase all existing permissions from destination object
-
-> `--dry-run`    Do not make real changes
-
-{% endif %}
-
-
 ### jupyt
 
 Jupyter over {{product-name}} commands
@@ -3664,7 +3653,7 @@ usage: yt jupyt [-h] jupyter_command ...
 JUPYT controller
 
 ```bash
-yt jupyt ctl [--address ADDRESS] command ...
+yt jupyt ctl [--address ADDRESS] [--stage STAGE] [--cluster-name CLUSTER_NAME] command ...
 ```
 
 ###### Positional Arguments
@@ -3673,7 +3662,39 @@ yt jupyt ctl [--address ADDRESS] command ...
 
 ###### Named Arguments
 
-> `--address`    controller service address
+> `--address`    controller service address; may contain {stage}, {family} and {host_suffix} parameters; the default value is fetched from the remote client config
+
+> `--stage`    controller stage, default: `«production»`
+
+> `--cluster-name`    cluster name under which the cluster is configured in the strawberry controller; the default value is fetched from the remote client config
+
+### remove-maintenance
+
+removes maintenance requests from given node by id or filter
+
+```bash
+usage: yt remove-maintenance [-h] [--params PARAMS] [-c COMPONENT] [-a ADDRESS] [--id ID] [--ids IDS] [-t TYPE] [-u USER] [--mine MINE] [--all ALL]
+```
+
+#### Named Arguments
+
+> `--params`    specify additional params. structured params in yson format
+
+> `-c, --component`
+
+> `-a, --address`
+
+> `--id`
+
+> `--ids`    structured ids in yson format
+
+> `-t, --type`
+
+> `-u, --user`
+
+> `--mine`    Default: `False`
+
+> `--all`    Default: `False`
 
 ### run-command-with-lock
 
@@ -3771,35 +3792,9 @@ usage: yt show-spec [-h] [--params PARAMS] operation
 
 > `--params`    specify additional params. structured params in yson format
 
-
-{% if audience == "internal" %}
-### sky-share
-
-shares table on cluster via skynet
-
-```bash
-usage: yt sky-share [-h] [--params PARAMS] [--cluster CLUSTER] [--key-column KEY_COLUMNS] [--enable-fastbone] path
-```
-
-#### Positional Arguments
-
-> `path`    table path
-
-#### Named Arguments
-
-> `--params`    specify additional params. structured params in yson format
-
-> `--cluster`    cluster name, by default it is derived from proxy url
-
-> `--key-column`    create a separate torrent for each unique key and print rbtorrent list in JSON format Accepted multiple times.
-
-> `--enable-fastbone`    download over fastbone if all necessary firewall rules are present
-{% endif %}
-
-
 ### spark
 
-Spark over {{product-name}} commands
+SPYT commands
 
 ```bash
 usage: yt spark [-h] spark_command ...
@@ -3807,46 +3802,9 @@ usage: yt spark [-h] spark_command ...
 
 #### Positional Arguments
 
-> `spark_command`    Possible choices: start-cluster, find-cluster
+> `spark_command`    Possible choices: find-cluster, livy
 
 #### Sub-commands
-
-##### start-cluster
-
-start Spark Standalone cluster in {{product-name}} Vanilla Operation. See [About Spark](../../../user-guide/data-processing/spyt/overview.md) section. Start Spark Standalone cluster in {{product-name}} Vanilla Operation
-
-```bash
-yt spark start-cluster [-h] --spark-worker-core-count SPARK_WORKER_CORE_COUNT --spark-worker-memory-limit SPARK_WORKER_MEMORY_LIMIT --spark-worker-count SPARK_WORKER_COUNT
-                       [--spark-worker-timeout SPARK_WORKER_TIMEOUT] [--operation-alias OPERATION_ALIAS] [--discovery-path DISCOVERY_PATH] [--pool POOL] [--spark-worker-tmpfs-limit SPARK_WORKER_TMPFS_LIMIT]
-                       [--spark-master-memory-limit SPARK_MASTER_MEMORY_LIMIT] [--spark-history-server-memory-limit SPARK_HISTORY_SERVER_MEMORY_LIMIT] [--dynamic-config-path DYNAMIC_CONFIG_PATH]
-                       [--operation-spec OPERATION_SPEC]
-```
-
-###### Named Arguments
-
-> `--spark-worker-core-count`    (Required) Number of cores that will be available on Spark worker
-
-> `--spark-worker-memory-limit`    (Required) Amount of memory that will be available on Spark worker
-
-> `--spark-worker-count`    (Required) Number of Spark workers
-
-> `--spark-worker-timeout`    Worker timeout to wait master start, default: `«5m»`
-
-> `--operation-alias`    Alias for the underlying {{product-name}} operation
-
-> `--discovery-path`    Cypress path for discovery files and logs, the same path must be used in find-spark-cluster. SPARK_YT_DISCOVERY_PATH env variable is used by default
-
-> `--pool`    Pool for the underlying {{product-name}} operation
-
-> `--spark-worker-tmpfs-limit`    Limit of tmpfs usage per Spark worker, default: `«150G»`
-
-> `--spark-master-memory-limit`    Memory limit on Spark master, default: `«2G»`
-
-> `--spark-history-server-memory-limit`    Memory limit on Spark History Server, default: `«8G»`
-
-> `--dynamic-config-path`    {{product-name}} path of dynamic config, default: `«//sys/spark/bin/releases/spark-launch-conf»`
-
-> `--operation-spec`    {{product-name}} Vanilla Operation spec. structured operation-spec in yson format, default: `{"annotations": {"is_spark": True}, "max_failed_job_count": 5, "max_stderr_count": 150}`
 
 ##### find-cluster
 
@@ -3860,9 +3818,43 @@ yt spark find-cluster [-h] [--discovery-path DISCOVERY_PATH]
 
 > `--discovery-path`    Cypress path for discovery files and logs, the same path must be used in start-spark-cluster. SPARK_YT_DISCOVERY_PATH env variable is used by default
 
+##### livy
+
+SPYT Livy commands
+
+```bash
+yt spark livy [-h] livy_command ...
+```
+
+###### Positional Arguments
+
+> `livy_command`    Possible choices: ctl
+
+###### Sub-commands
+
+####### ctl
+
+LIVY controller
+
+```bash
+yt spark livy ctl [--address ADDRESS] [--stage STAGE] [--cluster-name CLUSTER_NAME] command ...
+```
+
+######## Positional Arguments
+
+> `command`
+
+######## Named Arguments
+
+> `--address`    controller service address; may contain {stage}, {family} and {host_suffix} parameters; the default value is fetched from the remote client config
+
+> `--stage`    controller stage, default: `«production»`
+
+> `--cluster-name`    cluster name under which the cluster is configured in the strawberry controller; the default value is fetched from the remote client config
+
 ### spyt
 
-Spark over {{product-name}} commands
+SPYT commands
 
 ```bash
 usage: yt spyt [-h] spark_command ...
@@ -3870,46 +3862,9 @@ usage: yt spyt [-h] spark_command ...
 
 #### Positional Arguments
 
-> `spark_command`    Possible choices: start-cluster, find-cluster
+> `spark_command`    Possible choices: find-cluster, livy
 
 #### Sub-commands
-
-##### start-cluster
-
-start Spark Standalone cluster in {{product-name}} Vanilla Operation. See [About Spark](../../../user-guide/data-processing/spyt/overview.md) section. Start Spark Standalone cluster in {{product-name}} Vanilla Operation
-
-```bash
-yt spyt start-cluster [-h] --spark-worker-core-count SPARK_WORKER_CORE_COUNT --spark-worker-memory-limit SPARK_WORKER_MEMORY_LIMIT --spark-worker-count SPARK_WORKER_COUNT
-                      [--spark-worker-timeout SPARK_WORKER_TIMEOUT] [--operation-alias OPERATION_ALIAS] [--discovery-path DISCOVERY_PATH] [--pool POOL] [--spark-worker-tmpfs-limit SPARK_WORKER_TMPFS_LIMIT]
-                      [--spark-master-memory-limit SPARK_MASTER_MEMORY_LIMIT] [--spark-history-server-memory-limit SPARK_HISTORY_SERVER_MEMORY_LIMIT] [--dynamic-config-path DYNAMIC_CONFIG_PATH]
-                      [--operation-spec OPERATION_SPEC]
-```
-
-###### Named Arguments
-
-> `--spark-worker-core-count`    (Required) Number of cores that will be available on Spark worker
-
-> `--spark-worker-memory-limit`    (Required) Amount of memory that will be available on Spark worker
-
-> `--spark-worker-count`    (Required) Number of Spark workers
-
-> `--spark-worker-timeout`    Worker timeout to wait master start, default: `«5m»`
-
-> `--operation-alias`    Alias for the underlying {{product-name}} operation
-
-> `--discovery-path`    Cypress path for discovery files and logs, the same path must be used in find-spark-cluster. SPARK_YT_DISCOVERY_PATH env variable is used by default
-
-> `--pool`    Pool for the underlying {{product-name}} operation
-
-> `--spark-worker-tmpfs-limit`    Limit of tmpfs usage per Spark worker, default: `«150G»`
-
-> `--spark-master-memory-limit`    Memory limit on Spark master, default: `«2G»`
-
-> `--spark-history-server-memory-limit`    Memory limit on Spark History Server, default: `«8G»`
-
-> `--dynamic-config-path`    {{product-name}} path of dynamic config, default: `«//sys/spark/bin/releases/spark-launch-conf»`
-
-> `--operation-spec`    {{product-name}} Vanilla Operation spec. structured operation-spec in yson format, default: `{"annotations": {"is_spark": True}, "max_failed_job_count": 5, "max_stderr_count": 150}`
 
 ##### find-cluster
 
@@ -3922,6 +3877,40 @@ yt spyt find-cluster [-h] [--discovery-path DISCOVERY_PATH]
 ###### Named Arguments
 
 > `--discovery-path`    Cypress path for discovery files and logs, the same path must be used in start-spark-cluster. SPARK_YT_DISCOVERY_PATH env variable is used by default
+
+##### livy
+
+SPYT Livy commands
+
+```bash
+yt spyt livy [-h] livy_command ...
+```
+
+###### Positional Arguments
+
+> `livy_command`    Possible choices: ctl
+
+###### Sub-commands
+
+####### ctl
+
+LIVY controller
+
+```bash
+yt spyt livy ctl [--address ADDRESS] [--stage STAGE] [--cluster-name CLUSTER_NAME] command ...
+```
+
+######## Positional Arguments
+
+> `command`
+
+######## Named Arguments
+
+> `--address`    controller service address; may contain {stage}, {family} and {host_suffix} parameters; the default value is fetched from the remote client config
+
+> `--stage`    controller stage, default: `«production»`
+
+> `--cluster-name`    cluster name under which the cluster is configured in the strawberry controller; the default value is fetched from the remote client config
 
 ### transfer-account-resources
 
@@ -4011,3 +4000,172 @@ usage: yt transform [-h] [--params PARAMS] [--src SOURCE_TABLE] [--dst DESTINATI
 > `--check-codecs`    check if table already has proper codecs before transforming
 
 > `--spec`    structured spec in yson format
+
+{% if audience == "internal" %}
+
+### idm
+
+IDM-related commands
+
+```bash
+usage: yt idm [-h] (--path PATH | --account ACCOUNT | --bundle TABLET_CELL_BUNDLE | --group GROUP | --pool POOL | --network-project NETWORK_PROJECT) [--pool-tree POOL_TREE] [--address ADDRESS] idm_command ...
+```
+
+#### Positional Arguments
+
+> `idm_command`    Possible choices: show, request, revoke, copy
+
+#### Named Arguments
+
+> `--path`    Cypress node path
+
+> `--account`    Account name
+
+> `--bundle`    Tablet cell bundle name
+
+> `--group`    {{product-name}} group name
+
+> `--pool`    Pool name
+
+> `--network-project`    Network project name
+
+> `--pool-tree`    Pool tree name
+
+> `--address`    IDM integration service address
+
+#### Sub-commands
+
+##### show
+
+Show IDM information
+
+```bash
+yt idm show [-h] [--immediate]
+```
+
+###### Named Arguments
+
+> `--immediate, -i`    Show only immediate IDM information (not inherited)
+
+##### request
+
+Request IDM role
+
+```bash
+yt idm request [-h] [--responsibles [RESPONSIBLES ...]] [--read-approvers [READ_APPROVERS ...]] [--auditors [AUDITORS ...]] [--set-inherit-acl | --unset-inherit-acl]
+               [--set-inherit-responsibles | --unset-inherit-responsibles] [--set-boss-approval | --unset-boss-approval] [--subjects [SUBJECTS ...]] [--comment COMMENT] [--dry-run] [--permissions PERMISSIONS]
+```
+
+###### Named Arguments
+
+> `--responsibles, -r`    User logins space separated, default: `[]`
+
+> `--read-approvers, -a`    User logins space separated, default: `[]`
+
+> `--auditors, -u`    User logins space separated, default: `[]`
+
+> `--set-inherit-acl`    Enable ACL inheritance
+
+> `--unset-inherit-acl`    Disable ACL inheritance
+
+> `--set-inherit-responsibles`    Enable inheritance of responsibles, read approvers, auditors, boss_approval
+
+> `--unset-inherit-responsibles`    Disable inheritance of responsibles, read approvers, auditors, boss_approval
+
+> `--set-boss-approval`    Enable boss approval requirement for personal roles
+
+> `--unset-boss-approval`    Disable boss approval requirement for personal roles
+
+> `--subjects, -s`    Space separated user logins or staff/ABC groups like idm-group:ID or tvm apps like tvm-app:ID, default: `[]`
+
+> `--comment`    Comment for the role
+
+> `--dry-run`    Do not make real changes
+
+> `--permissions, -p`    Permissions like: R - read; RW - read, write, remove; M - mount, U - use, default: `[]`
+
+##### revoke
+
+Revoke IDM role
+
+```bash
+yt idm revoke [-h] [--responsibles [RESPONSIBLES ...]] [--read-approvers [READ_APPROVERS ...]] [--auditors [AUDITORS ...]] [--set-inherit-acl | --unset-inherit-acl]
+              [--set-inherit-responsibles | --unset-inherit-responsibles] [--set-boss-approval | --unset-boss-approval] [--subjects [SUBJECTS ...]] [--comment COMMENT] [--dry-run] [--permissions PERMISSIONS]
+              [--revoke-all-roles]
+```
+
+###### Named Arguments
+
+> `--responsibles, -r`    User logins space separated, default: `[]`
+
+> `--read-approvers, -a`    User logins space separated, default: `[]`
+
+> `--auditors, -u`    User logins space separated, default: `[]`
+
+> `--set-inherit-acl`    Enable ACL inheritance
+
+> `--unset-inherit-acl`    Disable ACL inheritance
+
+> `--set-inherit-responsibles`    Enable inheritance of responsibles, read approvers, auditors, boss_approval
+
+> `--unset-inherit-responsibles`    Disable inheritance of responsibles, read approvers, auditors, boss_approval
+
+> `--set-boss-approval`    Enable boss approval requirement for personal roles
+
+> `--unset-boss-approval`    Disable boss approval requirement for personal roles
+
+> `--subjects, -s`    Space separated user logins or staff/ABC groups like idm-group:ID or tvm apps like tvm-app:ID, default: `[]`
+
+> `--comment`    Comment for the role
+
+> `--dry-run`    Do not make real changes
+
+> `--permissions, -p`    Permissions like: R - read; RW - read, write, remove; M - mount, U - use, default: `[]`
+
+> `--revoke-all-roles`    Revoke all IDM roles
+
+##### copy
+
+Copy IDM permissions
+
+```bash
+yt idm copy [-h] [--immediate] [--erase] [--dst-cluster DST_CLUSTER] [--dry-run] destination
+```
+
+###### Positional Arguments
+
+> `destination`    Destination object
+
+###### Named Arguments
+
+> `--immediate, -i`    Only copy immediate IDM permissions
+
+> `--erase, -e`    Erase all existing permissions from destination object
+
+> `--dst-cluster`    Destination cluster override; by default copying is done within a single cluster, default: `«»`
+
+> `--dry-run`    Do not make real changes
+
+### sky-share
+
+shares table on cluster via skynet
+
+```bash
+usage: yt sky-share [-h] [--params PARAMS] [--cluster CLUSTER] [--key-column KEY_COLUMNS] [--enable-fastbone] path
+```
+
+#### Positional Arguments
+
+> `path`    table path
+
+#### Named Arguments
+
+> `--params`    specify additional params. structured params in yson format
+
+> `--cluster`    cluster name, by default it is derived from proxy url
+
+> `--key-column`    create a separate torrent for each unique key and print rbtorrent list in JSON format Accepted multiple times.
+
+> `--enable-fastbone`    download over fastbone if all necessary firewall rules are present
+
+{% endif %}

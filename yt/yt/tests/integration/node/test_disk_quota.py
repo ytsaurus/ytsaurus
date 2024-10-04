@@ -7,7 +7,8 @@ from yt_commands import (
     start_transaction, abort_transaction,
     create_account_resource_usage_lease, update_controller_agent_config,
     abort_job, run_test_vanilla, extract_statistic_v2 as extract_statistic,
-    with_breakpoint, wait_breakpoint, wait_no_assert)
+    with_breakpoint, wait_breakpoint, wait_no_assert,
+    raises_yt_error, write_file)
 
 from yt.common import YtError, update
 
@@ -1343,3 +1344,91 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
         op.track()
 
         assert get("//sys/accounts/my_account/@resource_usage/disk_space_per_medium/ssd") == 0
+
+
+@pytest.mark.skip("Disk quota cannot be applied in CI due to running in tmpfs")
+class TestRootVolumeDiskQuota(YTEnvSetup):
+    USE_PORTO = True
+
+    NUM_SCHEDULERS = 1
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_file_replication_factor": 1,
+            "default_table_replication_factor": 1,
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "volume_manager": {
+                "enable_disk_quota": True,
+            },
+        },
+        "exec_node": {
+            "slot_manager": {
+                "do_not_set_user_id": True,
+                "job_environment": {
+                    "type": "porto",
+                    "use_exec_from_layer": True,
+                },
+            },
+        },
+    }
+
+    def setup_files(self):
+        create("file", "//tmp/exec.tar.gz")
+        write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
+
+        create("file", "//tmp/rootfs.tar.gz")
+        write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
+
+        create("file", "//tmp/mapper.sh", attributes={"executable": True})
+
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        create("table", "//tmp/t_out")
+
+    @authors("artemagafonov")
+    @pytest.mark.parametrize("enable_fault_in", [None, b"", b"/tmp/", b"tmpfs/"])
+    @pytest.mark.parametrize("enable_root_volume_disk_quota", [False, True])
+    def test_root_volume_disk_quota(self, enable_fault_in, enable_root_volume_disk_quota):
+        self.setup_files()
+
+        command = b""
+        if enable_fault_in is None:
+            command = b"echo {Hello=World}"
+        else:
+            command = b"fallocate -l 2M " + enable_fault_in + b"file"
+
+        write_file("//tmp/mapper.sh", command)
+
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="./mapper.sh",
+            file="//tmp/mapper.sh",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"],
+                    "disk_space_limit": 1024 * 1024,
+                    "tmpfs_path": "tmpfs",
+                    "tmpfs_size": 1024 * 1024,
+                    "make_rootfs_writable": True,
+                },
+                "enable_root_volume_disk_quota": enable_root_volume_disk_quota,
+            },
+            track=False,
+        )
+
+        if enable_fault_in is None:
+            op.track()
+            assert read_table("//tmp/t_out") == [{"Hello": "World"}]
+        else:
+            error = "No space left on device" if enable_fault_in == b"tmpfs/" else "Disk quota exceeded"
+            with raises_yt_error(error):
+                op.track()

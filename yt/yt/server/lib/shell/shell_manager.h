@@ -57,6 +57,8 @@ IShellManagerPtr CreatePortoShellManager(
     NContainers::IPortoExecutorPtr portoExecutor,
     NContainers::IInstancePtr rootInstance);
 
+IShellManagerPtr CreateShellManager(const TShellManagerConfig& config);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobProxy

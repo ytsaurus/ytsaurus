@@ -16,7 +16,17 @@ namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TKeyToCypressNode = THashMap<std::string, TCypressNode*, THash<std::string_view>, TEqualTo<std::string_view>>;
+namespace NDetail {
+
+template <class TChild>
+using TKeyToCypressNodeImpl =
+    THashMap<std::string, TChild, THash<std::string_view>, TEqualTo<std::string_view>>;
+
+} // namespace NDetail
+
+using TKeyToCypressNode = NDetail::TKeyToCypressNodeImpl<TCypressNode*>;
+using TKeyToCypressNodeId = NDetail::TKeyToCypressNodeImpl<TNodeId>;
+
 const TKeyToCypressNode& GetMapNodeChildMap(
     const ICypressManagerPtr& cypressManager,
     TCypressMapNode* trunkNode,
@@ -27,6 +37,12 @@ std::vector<TCypressNode*> GetMapNodeChildList(
     const ICypressManagerPtr& cypressManager,
     TCypressMapNode* trunkNode,
     NTransactionServer::TTransaction* transaction);
+
+const TKeyToCypressNodeId& GetMapNodeChildMap(
+    const ICypressManagerPtr& cypressManager,
+    TSequoiaMapNode* trunkNode,
+    NTransactionServer::TTransaction* transaction,
+    TKeyToCypressNodeId* storage);
 
 const std::vector<TCypressNode*>& GetListNodeChildList(
     const ICypressManagerPtr& cypressManager,
@@ -140,8 +156,16 @@ TCypressNode* FindClosestAncestorWithAnnotation(TCypressNode* node);
 //! Returns annotation or std::nullopt if there are no annotations available.
 std::optional<TString> GetEffectiveAnnotation(TCypressNode* node);
 
-void ValidateAccessControlObjectNamespaceName(const TString& name);
-void ValidateAccessControlObjectName(const TString& name);
+void ValidateAccessControlObjectNamespaceName(const std::string& name);
+void ValidateAccessControlObjectName(const std::string& name);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLockRequest CreateLockRequest(
+    ELockMode mode,
+    const std::optional<TString>& childKey,
+    const std::optional<TString>& attributeKey,
+    NTransactionServer::TTimestamp timestamp);
 
 ////////////////////////////////////////////////////////////////////////////////
 

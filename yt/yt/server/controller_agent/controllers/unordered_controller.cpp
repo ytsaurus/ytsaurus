@@ -306,7 +306,7 @@ protected:
                     InputManager->GetInputTables()[index]->Teleportable = CheckTableSchemaCompatibility(
                         *InputManager->GetInputTables()[index]->Schema,
                         *OutputTables_[0]->TableUploadOptions.TableSchema.Get(),
-                        {.IgnoreSortOrder = false}).first == ESchemaCompatibility::FullyCompatible;
+                        {}).first == ESchemaCompatibility::FullyCompatible;
                 }
             }
         }
@@ -854,9 +854,10 @@ private:
 
                     if (!Spec->InputQuery) {
                         ValidateOutputSchemaCompatibility({
-                            .IgnoreSortOrder = true,
                             .ForbidExtraComputedColumns = false,
                             .IgnoreStableNamesDifference = true,
+                            .AllowTimestampColumns = table->TableUploadOptions.VersionedWriteOptions.WriteMode ==
+                                EVersionedIOMode::LatestTimestamp,
                         });
                     }
                 }
@@ -884,12 +885,16 @@ private:
     {
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables() || InputHasDynamicStores();
-            if (!isNontrivialInput && IsRowCountPreserved() && Spec->ForceTransform) {
-                YT_LOG_ERROR_IF(TotalEstimatedInputRowCount != UnorderedTask_->GetTotalOutputRowCount(),
-                    "Input/output row count mismatch in unordered merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v)",
+            if (!isNontrivialInput && IsRowCountPreserved()) {
+                YT_LOG_ERROR_IF(TotalEstimatedInputRowCount != TeleportedOutputRowCount + UnorderedTask_->GetTotalOutputRowCount(),
+                    "Input/output row count mismatch in unordered merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v, TeleportedOutputRowCount: %v)",
                     TotalEstimatedInputRowCount,
-                    UnorderedTask_->GetTotalOutputRowCount());
-                YT_VERIFY(TotalEstimatedInputRowCount == UnorderedTask_->GetTotalOutputRowCount());
+                    UnorderedTask_->GetTotalOutputRowCount(),
+                    TeleportedOutputRowCount);
+                YT_VERIFY(TotalEstimatedInputRowCount == TeleportedOutputRowCount + UnorderedTask_->GetTotalOutputRowCount());
+                if (Spec->ForceTransform) {
+                    YT_VERIFY(TeleportedOutputRowCount == 0);
+                }
             }
         }
 

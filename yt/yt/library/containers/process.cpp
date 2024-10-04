@@ -147,6 +147,9 @@ IConnectionReaderPtr TPortoProcess::GetStdErrReader()
     return pipe->CreateAsyncReader();
 }
 
+void TPortoProcess::CleanUpParent()
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NContainers

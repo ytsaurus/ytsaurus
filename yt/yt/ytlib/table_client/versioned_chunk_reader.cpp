@@ -5,7 +5,6 @@
 #include "chunk_state.h"
 #include "columnar_chunk_reader_base.h"
 #include "config.h"
-#include "private.h"
 #include "schemaless_multi_chunk_reader.h"
 #include "versioned_block_reader.h"
 #include "versioned_chunk_reader.h"
@@ -31,6 +30,7 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/yt/ytlib/table_chunk_format/timestamp_reader.h>
@@ -1854,7 +1854,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     if (chunkState->OverrideTimestamp) {
         return CreateTimestampResettingAdapter(
             std::move(reader),
-            chunkState->OverrideTimestamp);
+            chunkState->OverrideTimestamp,
+            chunkMeta->GetChunkFormat());
     } else {
         return reader;
     }
@@ -1920,7 +1921,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         : TChunkColumnMapping(chunkState->TableSchema, chunkMeta->ChunkSchema())
             .BuildVersionedSimpleSchemaIdMapping(columnFilter);
 
-    switch (chunkMeta->GetChunkFormat()) {
+    auto chunkFormat = chunkMeta->GetChunkFormat();
+    switch (chunkFormat) {
         case EChunkFormat::TableVersionedSimple:
         case EChunkFormat::TableVersionedSlim:
         case EChunkFormat::TableVersionedIndexed: {
@@ -2038,13 +2040,14 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
         default:
             THROW_ERROR_EXCEPTION("Unsupported format %Qlv",
-                chunkMeta->GetChunkFormat());
+                chunkFormat);
     }
 
     if (chunkState->OverrideTimestamp) {
         return CreateTimestampResettingAdapter(
             std::move(reader),
-            chunkState->OverrideTimestamp);
+            chunkState->OverrideTimestamp,
+            chunkFormat);
     } else {
         return reader;
     }

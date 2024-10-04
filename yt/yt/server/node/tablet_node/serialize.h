@@ -23,15 +23,6 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ETabletReign,
-    // 23.1 starts here.
-    ((LockingState)                                (100700)) // gritukan
-    ((JournalHunks)                                (100701)) // aleksandra-zh
-    ((FixHunkStorage)                              (100702)) // gritukan
-    ((SendDynamicStoreInBackup)                    (100703)) // ifsmirnov
-    ((FixBulkInsertAtomicityNone)                  (100704)) // ifsmirnov
-    ((JournalHunksCommitted)                       (100705)) // aleksandra-zh
-    ((RestoreHunkLocks)                            (100706)) // aleksandra-zh
-    ((RegisterTxActionsShouldPersistTx_23_1)       (100707)) // ifsmirnov
     // 23.2 starts here.
     ((Avenues)                                     (100800)) // ifsmirnov
     ((TabletIdGenerator)                           (100801)) // ifsmirnov
@@ -60,6 +51,8 @@ DEFINE_ENUM(ETabletReign,
     ((Start_24_2)                                  (101000)) // ponasenko-rs
     ((AddTabletCustomRuntimeData)                  (101001)) // gryzlov-ad
     ((SmoothMovementDynamicStoreRead)              (101002)) // ifsmirnov
+    // 25.1 starts here.
+    ((Start_25_1)                                  (101100)) // ponasenko-rs
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");

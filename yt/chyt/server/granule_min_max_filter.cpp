@@ -18,6 +18,7 @@ namespace NYT::NClickHouseServer {
 
 using namespace NTableClient;
 using namespace NYPath;
+using namespace NStatisticPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +30,7 @@ public:
         DB::KeyCondition keyCondition,
         TTableSchemaPtr queryRealColumnsSchema,
         TCompositeSettingsPtr settings,
-        TCallback<void(const TYPath&, i64)> statisticsSampleCallback)
+        TCallback<void(const TStatisticPath&, i64)> statisticsSampleCallback)
         : KeyCondition_(std::move(keyCondition))
         , QueryRealColumnsSchema_(std::move(queryRealColumnsSchema))
         , ColumnDataTypes_(ToDataTypes(*QueryRealColumnsSchema_, settings))
@@ -41,7 +42,7 @@ public:
         const TNameTablePtr& granuleNameTable) const override
     {
         if (!statistics.HasValueStatistics()) {
-            StatisticsSampleCallback_("/granule_min_max_filter/can_skip", false);
+            StatisticsSampleCallback_("/granule_min_max_filter/can_skip"_SP, false);
             return false;
         }
 
@@ -80,10 +81,10 @@ public:
             }
         }
 
-        StatisticsSampleCallback_("/granule_min_max_filter/can_skip", false);
+        StatisticsSampleCallback_("/granule_min_max_filter/can_skip"_SP, false);
 
         bool canSkip = !KeyCondition_.checkInHyperrectangle(columnRanges, ColumnDataTypes_).can_be_true;
-        StatisticsSampleCallback_("/granule_min_max_filter/can_skip", canSkip);
+        StatisticsSampleCallback_("/granule_min_max_filter/can_skip"_SP, canSkip);
         return canSkip;
     }
 
@@ -91,7 +92,7 @@ private:
     const DB::KeyCondition KeyCondition_;
     const TTableSchemaPtr QueryRealColumnsSchema_;
     const DB::DataTypes ColumnDataTypes_;
-    const TCallback<void(const TYPath&, i64)> StatisticsSampleCallback_;
+    const TCallback<void(const TStatisticPath&, i64)> StatisticsSampleCallback_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,7 +111,7 @@ IGranuleFilterPtr CreateGranuleMinMaxFilter(
 
     DB::KeyCondition keyCondition(queryInfo, context, ToNames(realColumnNames), primaryKeyExpression);
 
-    auto statisticsSampleCallback = BIND([weakContext = MakeWeak(GetQueryContext(context))] (const TYPath& path, i64 sample) {
+    auto statisticsSampleCallback = BIND([weakContext = MakeWeak(GetQueryContext(context))] (const TStatisticPath& path, i64 sample) {
         if (auto queryContext = weakContext.Lock()) {
             queryContext->AddStatisticsSample(path, sample);
         }
