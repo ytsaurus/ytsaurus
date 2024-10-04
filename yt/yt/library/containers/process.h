@@ -37,6 +37,8 @@ private:
 
     void DoSpawn() override;
     THashMap<TString, TString> DecomposeEnv() const;
+
+    void CleanUpParent() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPortoProcess)
