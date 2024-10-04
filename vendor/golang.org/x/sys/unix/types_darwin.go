@@ -177,6 +177,12 @@ type XVSockPgen C.struct_xvsockpgen
 
 type _Socklen C.socklen_t
 
+type SaeAssocID C.sae_associd_t
+
+type SaeConnID C.sae_connid_t
+
+type SaEndpoints C.struct_sa_endpoints
+
 type Xucred C.struct_xucred
 
 type Linger C.struct_linger

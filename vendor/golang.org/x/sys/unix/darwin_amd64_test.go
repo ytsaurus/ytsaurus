@@ -22,6 +22,7 @@ var darwinTests = [...]darwinTest{
 	{"close", libc_close_trampoline_addr},
 	{"closedir", libc_closedir_trampoline_addr},
 	{"connect", libc_connect_trampoline_addr},
+	{"connectx", libc_connectx_trampoline_addr},
 	{"dup", libc_dup_trampoline_addr},
 	{"dup2", libc_dup2_trampoline_addr},
 	{"exchangedata", libc_exchangedata_trampoline_addr},

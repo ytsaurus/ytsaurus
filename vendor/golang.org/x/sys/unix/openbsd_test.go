@@ -43,7 +43,7 @@ func init() {
 // testCmd generates a proper command that, when executed, runs the test
 // corresponding to the given key.
 func testCmd(procName string) (*exec.Cmd, error) {
-	exe, err := filepath.Abs(os.Args[0])
+	exe, err := os.Executable()
 	if err != nil {
 		return nil, err
 	}

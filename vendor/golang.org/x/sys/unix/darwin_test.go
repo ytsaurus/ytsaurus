@@ -35,10 +35,14 @@ func TestDarwinLoader(t *testing.T) {
 	//
 	// In an ideal world each syscall would have its own test, so this test
 	// would be unnecessary. Unfortunately, we do not live in that world.
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, test := range darwinTests {
 		// Call the test binary recursively, giving it a magic argument
 		// (see init below) and the name of the test to run.
-		cmd := exec.Command(os.Args[0], "testDarwinLoader", test.name)
+		cmd := exec.Command(exe, "testDarwinLoader", test.name)
 
 		// Run subprocess, collect results. Note that we expect the subprocess
 		// to fail somehow, so the error is irrelevant.
