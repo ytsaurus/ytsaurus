@@ -18,23 +18,22 @@ constexpr auto TimeSyncMargin = TDuration::Hours(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(pavook) futurize?
-
 class TSignatureGenerator
 {
 public:
     explicit TSignatureGenerator(IKeyStoreWriter* keyStore);
 
-    [[nodiscard]] TSignature Sign(NYson::TYsonString&& payload) const;
+    // TODO(pavook) futurize?
+    [[nodiscard]] TSignaturePtr Sign(NYson::TYsonString&& payload) const;
 
     [[nodiscard]] const TKeyInfo& KeyInfo() const noexcept;
 
-    void Rotate();
+    TFuture<void> Rotate();
 
 private:
     IKeyStoreWriter* const Store_;
     TOwnerId Owner_;
-    // TODO(pavook) lock.
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, KeyPairLock_);
     std::optional<TKeyPair> KeyPair_;
     const NLogging::TLogger Logger;
 };

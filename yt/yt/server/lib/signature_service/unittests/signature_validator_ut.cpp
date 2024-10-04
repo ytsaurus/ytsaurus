@@ -8,6 +8,8 @@
 #include <yt/yt/server/lib/signature_service/signature_header.h>
 #include <yt/yt/server/lib/signature_service/signature_preprocess.h>
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -19,6 +21,7 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace std::chrono_literals;
+using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
 
@@ -60,6 +63,11 @@ struct TSignatureValidatorFixture
             .ExpiresAt = now + delta_expires
         };
     }
+
+    bool RunValidate(TSignaturePtr signature)
+    {
+        return WaitFor(Validator.Validate(signature)).ValueOrThrow();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,13 +98,13 @@ TEST_F(TSignatureValidatorFixture, ValidateGoodSignature)
         writer.Flush();
 
         TYsonString signatureString(ss.Str());
-        TSignature signature;
-        EXPECT_NO_THROW(signature = ConvertTo<TSignature>(signatureString));
+        TSignaturePtr signature;
+        EXPECT_NO_THROW(signature = ConvertTo<TSignaturePtr>(signatureString));
 
-        EXPECT_FALSE(Validator.Validate(signature));
+        EXPECT_FALSE(RunValidate(signature));
 
-        Store.RegisterKey(Key.KeyInfo());
-        validateResults.push_back(Validator.Validate(signature));
+        WaitFor(Store.RegisterKey(Key.KeyInfo())).ThrowOnError();
+        validateResults.push_back(RunValidate(signature));
     }
 
     EXPECT_EQ(validateResults, (std::vector{true, false, false}));
@@ -120,19 +128,18 @@ TEST_F(TSignatureValidatorFixture, ValidateBadSignature)
     writer.Flush();
 
     TYsonString signatureString(ss.Str());
-    TSignature signature;
-    EXPECT_NO_THROW(signature = ConvertTo<TSignature>(signatureString));
+    TSignaturePtr signature;
+    EXPECT_NO_THROW(signature = ConvertTo<TSignaturePtr>(signatureString));
 
-    EXPECT_FALSE(Validator.Validate(signature));
-    Store.RegisterKey(Key.KeyInfo());
-    EXPECT_FALSE(Validator.Validate(signature));
+    EXPECT_FALSE(RunValidate(signature));
+    WaitFor(Store.RegisterKey(Key.KeyInfo())).ThrowOnError();
+    EXPECT_FALSE(RunValidate(signature));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TSignatureValidatorFixture, ValidateInvalidSignature)
 {
-    TSignature signature;
     TStringStream ss;
     TYsonWriter writer(&ss, EYsonFormat::Text);
 
@@ -145,7 +152,7 @@ TEST_F(TSignatureValidatorFixture, ValidateInvalidSignature)
     writer.Flush();
 
     // Invalid header.
-    EXPECT_FALSE(Validator.Validate(ConvertTo<TSignature>(TYsonString(ss.Str()))));
+    EXPECT_FALSE(RunValidate(ConvertTo<TSignaturePtr>(TYsonString(ss.Str()))));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

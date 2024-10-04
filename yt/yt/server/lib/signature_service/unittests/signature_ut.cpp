@@ -25,9 +25,9 @@ TEST(TSignature, DeserializeSerialize)
         R"(";})"
     );
 
-    TSignature signature;
-    EXPECT_NO_THROW(signature = ConvertTo<TSignature>(ysonOK));
-    EXPECT_EQ(signature.Payload().ToString(), "payload");
+    TSignaturePtr signature;
+    EXPECT_NO_THROW(signature = ConvertTo<TSignaturePtr>(ysonOK));
+    EXPECT_EQ(signature->Payload().ToString(), "payload");
 
     EXPECT_EQ(ConvertToYsonString(signature, EYsonFormat::Text).ToString(), ysonOK.ToString());
 }
@@ -40,13 +40,13 @@ TEST(TSignature, DeserializeFail)
         TYsonString ysonFail(
             R"({"header"="header";"payload"="payload";"signature"="abacaba";})"_sb
         );
-        EXPECT_THROW_WITH_SUBSTRING(ConvertTo<TSignature>(ysonFail), "incorrect signature size");
+        EXPECT_THROW_WITH_SUBSTRING(ConvertTo<TSignaturePtr>(ysonFail), "incorrect signature size");
     }
     {
         TYsonString ysonFail(
             R"({"header"="header";"buddy"="payload";"signature"="abacaba";})"_sb
         );
-        EXPECT_THROW_WITH_SUBSTRING(ConvertTo<TSignature>(ysonFail), "no child with key \"payload\"");
+        EXPECT_THROW_WITH_SUBSTRING(ConvertTo<TSignaturePtr>(ysonFail), "no child with key \"payload\"");
     }
 }
 

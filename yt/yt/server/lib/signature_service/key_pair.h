@@ -84,8 +84,6 @@ public:
 
 private:
     TKeyInfoPtr KeyInfo_;
-
-    // TODO(pavook) is TSecretString thread-safe?
     NSecretString::TSecretString PrivateKey_;
 };
 

@@ -15,6 +15,7 @@ namespace NYT::NSignatureService {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSignature
+    : public TRefCounted
 {
 public:
     [[nodiscard]] const NYson::TYsonString& Payload() const noexcept;
@@ -31,6 +32,9 @@ private:
     friend void Deserialize(TSignature& signature, NYTree::INodePtr node);
     friend void Deserialize(TSignature& signature, NYson::TYsonPullParserCursor* cursor);
 };
+
+DEFINE_REFCOUNTED_TYPE(TSignature)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSignatureService
