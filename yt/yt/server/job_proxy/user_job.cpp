@@ -865,11 +865,13 @@ private:
         return FailContext_;
     }
 
-    TString GetStderr() override
+    TGetJobStderrResponse GetStderr(const TGetJobStderrOptions& options) override
     {
         ValidatePrepared();
 
-        auto result = WaitFor(BIND([this, this_ = MakeStrong(this)] { return ErrorOutput_->GetCurrentData(); })
+        auto result = WaitFor(BIND([this, this_ = MakeStrong(this), options = options] {
+                return ErrorOutput_->GetCurrentData(options);
+            })
             .AsyncVia(ReadStderrInvoker_)
             .Run());
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job stderr");

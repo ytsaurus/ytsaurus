@@ -1280,12 +1280,12 @@ std::vector<TChunkId> TJob::DumpInputContext()
     }
 }
 
-std::optional<TString> TJob::GetStderr()
+std::optional<TGetJobStderrResponse> TJob::GetStderr(const TGetJobStderrOptions& options)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (Stderr_) {
-        return *Stderr_;
+        return TGetJobStderrResponse::MakeJobStderr(TSharedRef::FromString(*Stderr_), options);
     }
 
     if (!UserJobSpec_) {
@@ -1294,7 +1294,7 @@ std::optional<TString> TJob::GetStderr()
 
     if (JobPhase_ == EJobPhase::Running) {
         try {
-            return GetJobProbeOrThrow()->GetStderr();
+            return GetJobProbeOrThrow()->GetStderr(options);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error requesting stderr from job proxy")
                 << ex;
@@ -1388,12 +1388,12 @@ void TJob::ReportStderr()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto maybeStderr = GetStderr();
+    auto maybeStderr = GetStderr({});
     if (!maybeStderr) {
         return;
     }
     HandleJobReport(TNodeJobReport()
-        .Stderr(std::move(*maybeStderr)));
+        .Stderr({maybeStderr->Data.data(), maybeStderr->Data.size()}));
 }
 
 void TJob::ReportFailContext()

@@ -104,7 +104,7 @@ std::vector<NChunkClient::TChunkId> TJob::DumpInputContext()
         "Dumping input context is not supported for built-in jobs");
 }
 
-TString TJob::GetStderr()
+NApi::TGetJobStderrResponse TJob::GetStderr(const NApi::TGetJobStderrOptions& /*options*/)
 {
     THROW_ERROR_EXCEPTION(
         EErrorCode::UnsupportedJobType,

@@ -73,16 +73,18 @@ private:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         auto jobId = FromProto<TJobId>(request->job_id());
-        context->SetRequestInfo("JobId: %v", jobId);
+        context->SetRequestInfo("JobId: %v, Limit: %v, Offset: %v", jobId, request->limit(), request->offset());
 
         auto job = Bootstrap_->GetJobController()->FindRecentlyRemovedJob(jobId);
         if (!job) {
             job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
         }
 
-        auto stderrData = job->GetStderr().value_or("");
-
-        response->set_stderr_data(stderrData);
+        auto rsp = job->GetStderr({.Limit = request->limit(), .Offset = request->offset()})
+                            .value_or(NApi::TGetJobStderrResponse{});
+        response->set_stderr_data(rsp.Data.data(), rsp.Data.size());
+        response->set_total_size(rsp.TotalSize);
+        response->set_end_offset(rsp.EndOffset);
         context->Reply();
     }
 

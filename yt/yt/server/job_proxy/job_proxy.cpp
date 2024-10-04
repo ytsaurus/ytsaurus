@@ -215,10 +215,10 @@ std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext()
     return job->DumpInputContext();
 }
 
-TString TJobProxy::GetStderr()
+TGetJobStderrResponse TJobProxy::GetStderr(const TGetJobStderrOptions& options)
 {
     auto job = GetJobOrThrow();
-    return job->GetStderr();
+    return job->GetStderr(options);
 }
 
 TPollJobShellResponse TJobProxy::PollJobShell(
@@ -988,12 +988,12 @@ void TJobProxy::ReportResult(
         }
 
         try {
-            auto stderr = GetStderr();
-            if (!std::empty(stderr)) {
+            auto stderr = GetStderr({});
+            if (!stderr.Data.empty()) {
                 const auto& jobResultExt = result.GetExtension(TJobResultExt::job_result_ext);
                 YT_VERIFY(jobResultExt.has_stderr());
             }
-            req->set_job_stderr(std::move(stderr));
+            req->set_job_stderr(stderr.Data.data(), stderr.Data.size());
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to get job stderr on teardown");
         }

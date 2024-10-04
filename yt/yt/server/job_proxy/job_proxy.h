@@ -52,7 +52,7 @@ public:
     IInvokerPtr GetControlInvoker() const override;
 
     std::vector<NChunkClient::TChunkId> DumpInputContext() override;
-    TString GetStderr() override;
+    NApi::TGetJobStderrResponse GetStderr(const NApi::TGetJobStderrOptions& options) override;
     NApi::TPollJobShellResponse PollJobShell(
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
         const NYson::TYsonString& parameters) override;
