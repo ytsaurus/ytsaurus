@@ -1,5 +1,7 @@
+#include <yt/yt/server/lib/nbd/block_device.h>
 #include <yt/yt/server/lib/nbd/config.h>
 #include <yt/yt/server/lib/nbd/file_system_block_device.h>
+#include <yt/yt/server/lib/nbd/image_reader.h>
 #include <yt/yt/server/lib/nbd/server.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -285,6 +287,7 @@ protected:
                 client,
                 GetUnlimitedThrottler(),
                 GetUnlimitedThrottler(),
+                threadPool->GetInvoker(),
                 logger);
 
             auto device = CreateFileSystemBlockDevice(

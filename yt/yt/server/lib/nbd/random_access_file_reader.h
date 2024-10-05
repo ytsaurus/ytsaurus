@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
@@ -36,17 +38,17 @@ struct IRandomAccessFileReader
     virtual TReadersStatistics GetStatistics() const = 0;
 };
 
-DECLARE_REFCOUNTED_STRUCT(IRandomAccessFileReader);
 DEFINE_REFCOUNTED_TYPE(IRandomAccessFileReader);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IRandomAccessFileReaderPtr CreateRandomAccessFileReader(
     std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
-    TString path,
+    NYPath::TYPath path,
     NApi::NNative::IClientPtr client,
     NConcurrency::IThroughputThrottlerPtr inThrottler,
     NConcurrency::IThroughputThrottlerPtr outRpsThrottler,
+    IInvokerPtr invoker,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////

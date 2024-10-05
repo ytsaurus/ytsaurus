@@ -16,7 +16,9 @@
 
 #include <yt/yt/server/node/exec_node/volume.pb.h>
 
+#include <yt/yt/server/lib/nbd/block_device.h>
 #include <yt/yt/server/lib/nbd/file_system_block_device.h>
+#include <yt/yt/server/lib/nbd/image_reader.h>
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
@@ -141,6 +143,7 @@ IBlockDevicePtr CreateFileSystemBlockDevice(
         std::move(client),
         std::move(inThrottler),
         std::move(outRpsThrottler),
+        invoker,
         Logger());
 
     auto device = CreateFileSystemBlockDevice(
