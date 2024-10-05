@@ -227,8 +227,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("executor_stderr_path", &TThis::ExecutorStderrPath)
         .Default();
 
+    // COMPAT(artemagafonov): RootFS is always writable, so the flag should be removed after the update of all nodes.
     registrar.Parameter("make_rootfs_writable", &TThis::MakeRootFSWritable)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("enable_fuse", &TThis::EnableFuse)
         .Default(false);

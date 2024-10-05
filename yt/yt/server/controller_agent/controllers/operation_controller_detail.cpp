@@ -9756,6 +9756,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_fail_job_on_core_dump(jobSpecConfig->FailJobOnCoreDump);
     jobSpec->set_enable_cuda_gpu_core_dump(GetEnableCudaGpuCoreDump());
 
+    // COMPAT(artemagafonov): RootFS is always writable, so the flag should be removed after the update of all nodes.
     bool makeRootFSWritable = jobSpecConfig->MakeRootFSWritable;
     if (!Config->TestingOptions->RootfsTestLayers.empty()) {
         makeRootFSWritable = true;

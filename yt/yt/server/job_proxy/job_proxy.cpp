@@ -1177,7 +1177,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
 
         TRootFS rootFS {
             .RootPath = *Config_->RootPath,
-            .IsRootReadOnly = !Config_->MakeRootFSWritable,
+            .IsRootReadOnly = false,
         };
 
         // Please observe the hierarchy of binds for correct mounting!

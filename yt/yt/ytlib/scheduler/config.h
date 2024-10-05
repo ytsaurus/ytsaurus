@@ -1304,6 +1304,7 @@ public:
     bool FailJobOnCoreDump;
 
     //! If true, RootFS in user job is writable.
+    // COMPAT(artemagafonov): RootFS is always writable, so the flag should be removed after the update of all nodes.
     bool MakeRootFSWritable;
 
     //! Enable mount of fuse device to user job container.

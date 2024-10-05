@@ -1082,6 +1082,7 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("fail_job_on_core_dump", &TThis::FailJobOnCoreDump)
         .Default(true);
+    // COMPAT(artemagafonov): RootFS is always writable, so the flag should be removed after the update of all nodes.
     registrar.Parameter("make_rootfs_writable", &TThis::MakeRootFSWritable)
         .Default(false);
     registrar.Parameter("enable_fuse", &TThis::EnableFuse)
@@ -1209,6 +1210,7 @@ void TUserJobSpec::Register(TRegistrar registrar)
             spec->InodeLimit = std::nullopt;
         }
 
+        // COMPAT(artemagafonov): RootFS is always writable, so the flag should be removed after the update of all nodes.
         if (spec->MakeRootFSWritable && spec->LayerPaths.empty()) {
             THROW_ERROR_EXCEPTION("Option \"make_rootfs_writable\" cannot be set without specifying \"layer_paths\"");
         }
