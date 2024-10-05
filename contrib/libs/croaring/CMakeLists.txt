@@ -25,10 +25,6 @@ target_include_directories(contrib-libs-croaring PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/include
 )
 
-target_include_directories(contrib-libs-croaring PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/include/roaring
-)
-
 target_link_libraries(contrib-libs-croaring PUBLIC
   linux-headers-generic::linux-headers-generic
 )
