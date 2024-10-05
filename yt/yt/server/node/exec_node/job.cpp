@@ -3020,13 +3020,13 @@ void TJob::InitializeArtifacts()
     if (UserJobSpec_) {
         for (const auto& descriptor : UserJobSpec_->files()) {
             Artifacts_.push_back(TArtifact{
-                ESandboxKind::User,
-                descriptor.file_name(),
-                descriptor.executable(),
-                descriptor.bypass_artifact_cache(),
-                descriptor.copy_file(),
-                TArtifactKey(descriptor),
-                nullptr
+                .SandboxKind = ESandboxKind::User,
+                .Name = descriptor.file_name(),
+                .Executable = descriptor.executable(),
+                .BypassArtifactCache = descriptor.bypass_artifact_cache(),
+                .CopyFile = descriptor.copy_file(),
+                .Key = TArtifactKey(descriptor),
+                .Chunk = nullptr
             });
             YT_VERIFY(UserArtifactNameToIndex_.emplace(descriptor.file_name(), Artifacts_.size() - 1).second);
         }
@@ -3074,13 +3074,13 @@ void TJob::InitializeArtifacts()
             }
 
             Artifacts_.push_back(TArtifact{
-                ESandboxKind::Udf,
-                function.name(),
-                false,
-                false,
-                false,
-                key,
-                nullptr
+                .SandboxKind = ESandboxKind::Udf,
+                .Name = function.name(),
+                .Executable = false,
+                .BypassArtifactCache = false,
+                .CopyFile = false,
+                .Key = key,
+                .Chunk = nullptr
             });
         }
     }

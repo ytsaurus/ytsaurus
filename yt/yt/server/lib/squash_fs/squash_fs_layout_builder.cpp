@@ -1,4 +1,4 @@
-#include "squash_fs_image_builder.h"
+#include "squash_fs_layout_builder.h"
 
 namespace NYT::NSquashFS {
 
@@ -236,17 +236,17 @@ DEFINE_REFCOUNTED_TYPE(TFile)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSquashFSBuilder
-    : public ISquashFSBuilder
+class TSquashFSLayoutBuilder
+    : public ISquashFSLayoutBuilder
 {
 public:
-    explicit TSquashFSBuilder(TSquashFSBuilderOptions options);
+    explicit TSquashFSLayoutBuilder(TSquashFSLayoutBuilderOptions options);
 
     void AddFile(
         const TYPath& path,
         i64 size,
         ui16 permissions) override;
-    TSquashFSImagePtr Build() override;
+    TSquashFSLayoutPtr Build() override;
 
 private:
 
@@ -463,7 +463,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSquashFSImage::TSquashFSImage(TSquashFSData data)
+TSquashFSLayout::TSquashFSLayout(TSquashFSData data)
     : Head_(TSharedRef::FromBlob(std::move(data.Head.Blob())))
     , Tail_(TSharedRef::FromBlob(std::move(data.Tail.Blob())))
 {
@@ -483,7 +483,7 @@ TSquashFSImage::TSquashFSImage(TSquashFSData data)
         DeviceBlockSize);
 }
 
-TSharedRef TSquashFSImage::ReadHead(
+TSharedRef TSquashFSLayout::ReadHead(
     i64 offset,
     i64 length) const
 {
@@ -492,7 +492,7 @@ TSharedRef TSquashFSImage::ReadHead(
         offset + length > std::ssize(Head_))
     {
         THROW_ERROR_EXCEPTION(
-            "Invalid read offset %v with length %v, when size of header is %v",
+            "Invalid read offset %v with length %v, when size of head is %v",
             offset,
             length,
             std::ssize(Head_));
@@ -503,12 +503,12 @@ TSharedRef TSquashFSImage::ReadHead(
         offset + length);
 }
 
-i64 TSquashFSImage::GetHeaderSize() const
+i64 TSquashFSLayout::GetHeadSize() const
 {
     return std::ssize(Head_);
 }
 
-TSharedRef TSquashFSImage::ReadTail(
+TSharedRef TSquashFSLayout::ReadTail(
     i64 offset,
     i64 length) const
 {
@@ -517,7 +517,7 @@ TSharedRef TSquashFSImage::ReadTail(
         offset + length > std::ssize(Tail_))
     {
         THROW_ERROR_EXCEPTION(
-            "Invalid read offset %v with length %v, when size of header is %v",
+            "Invalid read offset %v with length %v, when size of tail is %v",
             offset,
             length,
             std::ssize(Tail_));
@@ -528,17 +528,17 @@ TSharedRef TSquashFSImage::ReadTail(
         offset + length);
 }
 
-i64 TSquashFSImage::GetTailOffset() const
+i64 TSquashFSLayout::GetTailOffset() const
 {
     return TailOffset_;
 }
 
-i64 TSquashFSImage::GetTailSize() const
+i64 TSquashFSLayout::GetTailSize() const
 {
     return std::ssize(Tail_);
 }
 
-void TSquashFSImage::Dump(IOutputStream& output) const
+void TSquashFSLayout::Dump(IOutputStream& output) const
 {
     i64 offset = 0;
 
@@ -565,7 +565,7 @@ void TSquashFSImage::Dump(IOutputStream& output) const
     }
 }
 
-void TSquashFSImage::DumpHexText(IOutputStream& output) const
+void TSquashFSLayout::DumpHexText(IOutputStream& output) const
 {
     TBlobOutput blobOutput;
     Dump(blobOutput);
@@ -600,9 +600,9 @@ void TSquashFSImage::DumpHexText(IOutputStream& output) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISquashFSBuilderPtr CreateSquashFSBuilder(TSquashFSBuilderOptions options)
+ISquashFSLayoutBuilderPtr CreateSquashFSLayoutBuilder(TSquashFSLayoutBuilderOptions options)
 {
-   return New<TSquashFSBuilder>(options);
+   return New<TSquashFSLayoutBuilder>(options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -756,7 +756,7 @@ EInodeType TFile::GetType() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSquashFSBuilder::TSquashFSBuilder(TSquashFSBuilderOptions options)
+TSquashFSLayoutBuilder::TSquashFSLayoutBuilder(TSquashFSLayoutBuilderOptions options)
     : DataBlocks_(options.BlockSize)
     , BlockSize_(options.BlockSize)
     , MTime_(options.MTime)
@@ -780,7 +780,7 @@ TSquashFSBuilder::TSquashFSBuilder(TSquashFSBuilderOptions options)
     }
 }
 
-void TSquashFSBuilder::AddFile(
+void TSquashFSLayoutBuilder::AddFile(
     const TYPath& path,
     i64 size,
     ui16 permissions)
@@ -824,7 +824,7 @@ void TSquashFSBuilder::AddFile(
         permissions);
 }
 
-TSquashFSImagePtr TSquashFSBuilder::Build()
+TSquashFSLayoutPtr TSquashFSLayoutBuilder::Build()
 {
     // Code works in little-endian assumption.
     static_assert(std::endian::native == std::endian::little);
@@ -843,17 +843,17 @@ TSquashFSImagePtr TSquashFSBuilder::Build()
     InodeTable_.ShiftDataBlocksOffsetInFileInodes(DataBlocksOffset);
 
     // Dump result.
-    TSquashFSData imageData;
-    DumpSuperblock(superblock, imageData.Head);
-    DataBlocks_.Dump(imageData.Files);
-    InodeTable_.Dump(imageData.Tail);
-    DirectoryTable_.Dump(imageData.Tail);
-    IdTable_.Dump(imageData.Tail, superblock.InodeTable);
+    TSquashFSData data;
+    DumpSuperblock(superblock, data.Head);
+    DataBlocks_.Dump(data.Files);
+    InodeTable_.Dump(data.Tail);
+    DirectoryTable_.Dump(data.Tail);
+    IdTable_.Dump(data.Tail, superblock.InodeTable);
 
-    return New<TSquashFSImage>(std::move(imageData));
+    return New<TSquashFSLayout>(std::move(data));
 }
 
-void TSquashFSBuilder::Traverse()
+void TSquashFSLayoutBuilder::Traverse()
 {
     // Build inode for the root.
     BuildDirectoryInode(
@@ -870,7 +870,7 @@ void TSquashFSBuilder::Traverse()
     InodeTable_.Add(rootInode);
 }
 
-void TSquashFSBuilder::TraverseRecursive(const TDirectoryPtr& directory)
+void TSquashFSLayoutBuilder::TraverseRecursive(const TDirectoryPtr& directory)
 {
     // Preparation.
     auto directoryInode = directory->GetDirectoryInode();
@@ -910,7 +910,7 @@ void TSquashFSBuilder::TraverseRecursive(const TDirectoryPtr& directory)
     DirectoryTable_.Add(directory);
 }
 
-TSquashFSBuilder::TSuperblock TSquashFSBuilder::BuildSuperblock()
+TSquashFSLayoutBuilder::TSuperblock TSquashFSLayoutBuilder::BuildSuperblock()
 {
     TSuperblock superblock;
 
@@ -932,7 +932,7 @@ TSquashFSBuilder::TSuperblock TSquashFSBuilder::BuildSuperblock()
     return superblock;
 }
 
-void TSquashFSBuilder::BuildDirectoryInode(
+void TSquashFSLayoutBuilder::BuildDirectoryInode(
     const TDirectoryPtr& directory,
     ui32 inodeNumber,
     ui32 parentNumber)
@@ -949,7 +949,7 @@ void TSquashFSBuilder::BuildDirectoryInode(
     directory->SetInode(directoryInode);
 }
 
-void TSquashFSBuilder::BuildFileInode(
+void TSquashFSLayoutBuilder::BuildFileInode(
     const TFilePtr& file,
     ui32 inodeNumber)
 {
@@ -964,7 +964,7 @@ void TSquashFSBuilder::BuildFileInode(
     file->SetInode(fileInode);
 }
 
-i64 TSquashFSBuilder::GetInodeSize(const TInodePtr& inode)
+i64 TSquashFSLayoutBuilder::GetInodeSize(const TInodePtr& inode)
 {
     if (inode->Type == EInodeType::ExtendedDirectory) {
         return DirectoryInodeSize;
@@ -975,26 +975,26 @@ i64 TSquashFSBuilder::GetInodeSize(const TInodePtr& inode)
     return FileInodeSize + file->BlockSizes.size() * sizeof(ui32);
 }
 
-i64 TSquashFSBuilder::GetDirectoryTableEntrySize(const TDirectoryTableEntry& entry)
+i64 TSquashFSLayoutBuilder::GetDirectoryTableEntrySize(const TDirectoryTableEntry& entry)
 {
     return DirectoryTableEntrySize + entry.Name.size() * sizeof(ui8);
 }
 
-ui16 TSquashFSBuilder::SetUncompressedMetadataFlag(ui16 value)
+ui16 TSquashFSLayoutBuilder::SetUncompressedMetadataFlag(ui16 value)
 {
     // Setted MSB means that metadata block stored uncompressed.
     // https://dr-emann.github.io/squashfs/squashfs.html#_packing_metadata .
     return value | (1 << 15);
 }
 
-ui32 TSquashFSBuilder::SetUncompressedDataBlockFlag(ui32 value)
+ui32 TSquashFSLayoutBuilder::SetUncompressedDataBlockFlag(ui32 value)
 {
     // Setted 24th bit means that data block stored uncompressed.
     // https://dr-emann.github.io/squashfs/squashfs.html#_packing_file_data .
     return value | (1 << 24);
 }
 
-std::vector<ui64> TSquashFSBuilder::AppendMetadata(
+std::vector<ui64> TSquashFSLayoutBuilder::AppendMetadata(
     TBlobOutput& buffer,
     const TBlob& metadata)
 {
@@ -1026,7 +1026,7 @@ std::vector<ui64> TSquashFSBuilder::AppendMetadata(
     return lookupTable;
 }
 
-void TSquashFSBuilder::DumpSuperblock(
+void TSquashFSLayoutBuilder::DumpSuperblock(
     TSuperblock superblock,
     TBlobOutput& buffer) const
 {
@@ -1065,7 +1065,7 @@ void TSquashFSBuilder::DumpSuperblock(
     WritePod(buffer, superblock.ExportTable);
 }
 
-void TSquashFSBuilder::DumpInode(
+void TSquashFSLayoutBuilder::DumpInode(
     const TInodePtr& inode,
     TBlobOutput& buffer)
 {
@@ -1117,7 +1117,7 @@ void TSquashFSBuilder::DumpInode(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 TSquashFSBuilder::TMetadataBlockOffsets::GetSize() const
+i64 TSquashFSLayoutBuilder::TMetadataBlockOffsets::GetSize() const
 {
     i64 size = CurrentBlock_ + CurrentOffset_;
 
@@ -1129,7 +1129,7 @@ i64 TSquashFSBuilder::TMetadataBlockOffsets::GetSize() const
     return size;
 }
 
-void TSquashFSBuilder::TMetadataBlockOffsets::Shift(i64 delta)
+void TSquashFSLayoutBuilder::TMetadataBlockOffsets::Shift(i64 delta)
 {
     YT_VERIFY(delta >= 0);
     i64 newOffset = CurrentOffset_ + delta;
@@ -1138,7 +1138,7 @@ void TSquashFSBuilder::TMetadataBlockOffsets::Shift(i64 delta)
     CurrentOffset_ = newOffset - skipBlocks * MetadataBlockSize;
 }
 
-void TSquashFSBuilder::TMetadataBlockOffsets::ResetOffsets()
+void TSquashFSLayoutBuilder::TMetadataBlockOffsets::ResetOffsets()
 {
     CurrentBlock_ = 0;
     CurrentOffset_ = 0;
@@ -1146,7 +1146,7 @@ void TSquashFSBuilder::TMetadataBlockOffsets::ResetOffsets()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSquashFSBuilder::TInodeTable::Add(const TInodePtr& inodePtr)
+void TSquashFSLayoutBuilder::TInodeTable::Add(const TInodePtr& inodePtr)
 {
     InodeTableEntries_.push_back(inodePtr);
     inodePtr->InodeBlockStart = CurrentBlock_;
@@ -1154,7 +1154,7 @@ void TSquashFSBuilder::TInodeTable::Add(const TInodePtr& inodePtr)
     Shift(GetInodeSize(inodePtr));
 }
 
-void TSquashFSBuilder::TInodeTable::ShiftDataBlocksOffsetInFileInodes(i64 offset)
+void TSquashFSLayoutBuilder::TInodeTable::ShiftDataBlocksOffsetInFileInodes(i64 offset)
 {
     for (const auto& inode : InodeTableEntries_) {
         if (inode->Type == EInodeType::ExtendedFile) {
@@ -1165,7 +1165,7 @@ void TSquashFSBuilder::TInodeTable::ShiftDataBlocksOffsetInFileInodes(i64 offset
     }
 }
 
-void TSquashFSBuilder::TInodeTable::Dump(TBlobOutput& buffer) const
+void TSquashFSLayoutBuilder::TInodeTable::Dump(TBlobOutput& buffer) const
 {
     TBlobOutput inodeBuffer;
 
@@ -1180,7 +1180,7 @@ void TSquashFSBuilder::TInodeTable::Dump(TBlobOutput& buffer) const
         inodeBuffer.Blob());
 }
 
-void TSquashFSBuilder::TInodeTable::Reset()
+void TSquashFSLayoutBuilder::TInodeTable::Reset()
 {
     InodeTableEntries_.clear();
     ResetOffsets();
@@ -1188,7 +1188,7 @@ void TSquashFSBuilder::TInodeTable::Reset()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSquashFSBuilder::TDirectoryTable::Add(const TDirectoryPtr& directory)
+void TSquashFSLayoutBuilder::TDirectoryTable::Add(const TDirectoryPtr& directory)
 {
     const auto& entries = directory->Entries();
 
@@ -1258,7 +1258,7 @@ void TSquashFSBuilder::TDirectoryTable::Add(const TDirectoryPtr& directory)
     directoryInode->FileSize = fileSize;
 }
 
-void TSquashFSBuilder::TDirectoryTable::Dump(TBlobOutput& buffer) const
+void TSquashFSLayoutBuilder::TDirectoryTable::Dump(TBlobOutput& buffer) const
 {
     TBlobOutput directoryBuffer;
     for (const auto& page : Pages_) {
@@ -1282,7 +1282,7 @@ void TSquashFSBuilder::TDirectoryTable::Dump(TBlobOutput& buffer) const
         directoryBuffer.Blob());
 }
 
-void TSquashFSBuilder::TDirectoryTable::Reset()
+void TSquashFSLayoutBuilder::TDirectoryTable::Reset()
 {
     Pages_.clear();
     ResetOffsets();
@@ -1290,7 +1290,7 @@ void TSquashFSBuilder::TDirectoryTable::Reset()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ui16 TSquashFSBuilder::TIdTable::Get(ui32 id)
+ui16 TSquashFSLayoutBuilder::TIdTable::Get(ui32 id)
 {
     // Try to find given id.
     auto result = IdToIndex_.find(id);
@@ -1308,27 +1308,27 @@ ui16 TSquashFSBuilder::TIdTable::Get(ui32 id)
     return IdToIndex_[id];
 }
 
-ui8 TSquashFSBuilder::TIdTable::GetBlockCount() const
+ui8 TSquashFSLayoutBuilder::TIdTable::GetBlockCount() const
 {
     return (Buffer_.size() + EntriesInIdTableBlock - 1) / EntriesInIdTableBlock;
 }
 
-ui32 TSquashFSBuilder::TIdTable::GetOffsetToLookupTable() const
+ui32 TSquashFSLayoutBuilder::TIdTable::GetOffsetToLookupTable() const
 {
     return sizeof(ui16) * GetBlockCount() + sizeof(ui32) * Buffer_.size();
 }
 
-ui16 TSquashFSBuilder::TIdTable::GetEntryCount() const
+ui16 TSquashFSLayoutBuilder::TIdTable::GetEntryCount() const
 {
     return Buffer_.size();
 }
 
-ui32 TSquashFSBuilder::TIdTable::GetSize() const
+ui32 TSquashFSLayoutBuilder::TIdTable::GetSize() const
 {
     return GetOffsetToLookupTable() + sizeof(ui64) * GetBlockCount();
 }
 
-void TSquashFSBuilder::TIdTable::Dump(
+void TSquashFSLayoutBuilder::TIdTable::Dump(
     TBlobOutput& buffer,
     i64 tailOffset) const
 {
@@ -1349,7 +1349,7 @@ void TSquashFSBuilder::TIdTable::Dump(
         TRef(lookupTable.begin(), lookupTable.size() * sizeof(ui64)));
 }
 
-void TSquashFSBuilder::TIdTable::Reset()
+void TSquashFSLayoutBuilder::TIdTable::Reset()
 {
     IdToIndex_.clear();
     Buffer_.clear();
@@ -1357,12 +1357,12 @@ void TSquashFSBuilder::TIdTable::Reset()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSquashFSBuilder::TDataBlocks::TDataBlocks(ui32 blockSize)
+TSquashFSLayoutBuilder::TDataBlocks::TDataBlocks(ui32 blockSize)
     : BlockSize_(blockSize)
     , CurrentOffset_(0)
 { }
 
-void TSquashFSBuilder::TDataBlocks::AddFile(const TFilePtr& file)
+void TSquashFSLayoutBuilder::TDataBlocks::AddFile(const TFilePtr& file)
 {
     auto inode = file->GetFileInode();
     ui64 size = inode->FileSize;
@@ -1384,17 +1384,17 @@ void TSquashFSBuilder::TDataBlocks::AddFile(const TFilePtr& file)
     CurrentOffset_ += size;
 }
 
-i64 TSquashFSBuilder::TDataBlocks::GetSize() const
+i64 TSquashFSLayoutBuilder::TDataBlocks::GetSize() const
 {
     return CurrentOffset_;
 }
 
-void TSquashFSBuilder::TDataBlocks::Dump(std::vector<TArtifactDescription>& files)
+void TSquashFSLayoutBuilder::TDataBlocks::Dump(std::vector<TArtifactDescription>& files)
 {
     files = std::move(Files_);
 }
 
-void TSquashFSBuilder::TDataBlocks::Reset()
+void TSquashFSLayoutBuilder::TDataBlocks::Reset()
 {
     CurrentOffset_ = 0;
     Files_.clear();
