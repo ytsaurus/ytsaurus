@@ -4,6 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     crypto.cpp
+    key_info.cpp
     key_pair.cpp
     signature.cpp
     signature_generator.cpp

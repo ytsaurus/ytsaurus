@@ -34,6 +34,7 @@ target_link_libraries(server-lib-signature_service PUBLIC
 
 target_sources(server-lib-signature_service PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature_service/crypto.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature_service/key_info.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature_service/key_pair.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature_service/signature.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature_service/signature_generator.cpp
