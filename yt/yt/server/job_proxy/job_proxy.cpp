@@ -1259,6 +1259,16 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
             });
         }
 
+        // TODO(gritukan): ytserver-exec can be resolved into something strange in tests,
+        // so let's live with exec in layer for a while.
+        if (!JobProxyEnvironment_.Acquire()->UseExecFromLayer()) {
+            rootFS.Binds.push_back(TBind{
+                .SourcePath = ResolveBinaryPath(ExecProgramName).ValueOrThrow(),
+                .TargetPath = RootFSBinaryDirectory + ExecProgramName,
+                .ReadOnly = true,
+            });
+        }
+
         return rootFS;
     };
 

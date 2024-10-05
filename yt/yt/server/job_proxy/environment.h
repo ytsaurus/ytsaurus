@@ -22,6 +22,10 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const TString RootFSBinaryDirectory("/ext_bin/");
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TJobEnvironmentCpuStatistics
 {
     std::optional<TDuration> BurstUsageTime;
@@ -181,6 +185,8 @@ struct IJobProxyEnvironment
     virtual std::optional<TJobEnvironmentMemoryStatistics> GetJobMemoryStatistics() const noexcept = 0;
     virtual std::optional<TJobEnvironmentCpuStatistics> GetJobCpuStatistics() const noexcept = 0;
     virtual std::optional<i64> GetJobOOMKillCount() const noexcept = 0;
+
+    virtual bool UseExecFromLayer() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobProxyEnvironment)
