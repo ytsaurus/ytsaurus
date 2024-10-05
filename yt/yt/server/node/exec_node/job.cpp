@@ -571,7 +571,9 @@ void TJob::OnJobPrepared()
         });
 }
 
-void TJob::Terminate(EJobState finalState, TError error)
+void TJob::Terminate(
+    EJobState finalState,
+    TError error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -579,7 +581,9 @@ void TJob::Terminate(EJobState finalState, TError error)
         auto timeout = CommonConfig_->WaitingForJobCleanupTimeout;
 
         SetJobPhase(EJobPhase::WaitingForCleanup);
-        Finalize(finalState, std::move(error));
+        Finalize(
+            finalState,
+            std::move(error));
         YT_LOG_INFO("Waiting for job cleanup (Timeout: %v)", timeout);
         TDelayedExecutor::Submit(
             BIND(&TJob::OnWaitingForCleanupTimeout, MakeStrong(this))
@@ -612,8 +616,8 @@ void TJob::Terminate(EJobState finalState, TError error)
 
         case EJobPhase::PreparingNodeDirectory:
         case EJobPhase::DownloadingArtifacts:
-        case EJobPhase::PreparingSandboxDirectories:
         case EJobPhase::PreparingRootVolume:
+        case EJobPhase::PreparingSandboxDirectories:
         case EJobPhase::RunningSetupCommands:
         case EJobPhase::RunningGpuCheckCommand:
         case EJobPhase::SpawningJobProxy:
@@ -626,16 +630,14 @@ void TJob::Terminate(EJobState finalState, TError error)
             break;
 
         case EJobPhase::FinalizingJobProxy:
-            YT_LOG_INFO(
-                "Cannot terminate job (JobState: %v, JobPhase: %v, JobError: %v)",
+            YT_LOG_INFO("Cannot terminate job (JobState: %v, JobPhase: %v, JobError: %v)",
                 JobState_,
                 JobPhase_,
                 Error_);
             break;
 
         default:
-            YT_LOG_INFO(
-                "Cannot terminate job (JobState: %v, JobPhase: %v)",
+            YT_LOG_INFO("Cannot terminate job (JobState: %v, JobPhase: %v)",
                 JobState_,
                 JobPhase_);
 
