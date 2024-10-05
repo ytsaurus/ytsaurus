@@ -34,7 +34,10 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/public.h>
+
+#include <yt/yt/ytlib/chunk_client/proto/data_source.pb.h>
 
 #include <yt/yt/ytlib/exec_node/public.h>
 
@@ -2757,15 +2760,17 @@ public:
 
         auto tag = TGuid::Create();
 
-        YT_LOG_DEBUG("Prepare volume (Tag: %v, ArtifactCount: %v)",
+        YT_LOG_DEBUG("Prepare volume (Tag: %v, ArtifactCount: %v, HasVirtualSandbox: %v)",
             tag,
-            artifactKeys.size());
+            artifactKeys.size(),
+            options.VirtualSandboxData.has_value());
 
         if (DynamicConfigManager_->GetConfig()->ExecNode->VolumeManager->ThrowOnPrepareVolume) {
             auto error = TError(EErrorCode::RootVolumePreparationFailed, "Throw on prepare volume");
-            YT_LOG_DEBUG(error, "Prepare volume (Tag: %v, ArtifactCount: %v)",
+            YT_LOG_DEBUG(error, "Prepare volume (Tag: %v, ArtifactCount: %v, HasVirtualSandbox: %v)",
                 tag,
-                artifactKeys.size());
+                artifactKeys.size(),
+                options.VirtualSandboxData.has_value());
             THROW_ERROR(error);
         }
 
@@ -2791,6 +2796,23 @@ public:
                     artifactKey,
                     downloadOptions));
             }
+        }
+
+        if (options.VirtualSandboxData) {
+            TArtifactKey virtualArtifactKey;
+
+            virtualArtifactKey.set_access_method(ToProto<int>(NControllerAgent::ELayerAccessMethod::Nbd));
+            virtualArtifactKey.set_filesystem(ToProto<int>(NControllerAgent::ELayerFilesystem::SquashFS));
+            virtualArtifactKey.set_nbd_export_id(options.VirtualSandboxData->NbdExportId);
+
+            NChunkClient::NProto::TDataSource* dataSource = virtualArtifactKey.mutable_data_source();
+            dataSource->set_type(ToProto<int>(NChunkClient::EDataSourceType::File));
+            dataSource->set_path("virtual");
+
+            overlayDataFutures.push_back(PrepareNbdVolume(
+                tag,
+                virtualArtifactKey,
+                options.VirtualSandboxData->Reader));
         }
 
         // ToDo(psushin): choose proper invoker.

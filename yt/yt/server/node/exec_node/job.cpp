@@ -138,6 +138,9 @@ using namespace NContainers;
 using namespace NTracing;
 using namespace NTransactionClient;
 using namespace NObjectClient;
+using namespace NStatisticPath;
+using namespace NNbd;
+using namespace NSquashFS;
 
 using NNodeTrackerClient::TNodeDirectory;
 using NChunkClient::TDataSliceDescriptor;
@@ -2115,6 +2118,10 @@ void TJob::RunWithWorkspaceBuilder()
         });
     }
 
+    if (VirtualSandboxData_) {
+        BuildVirtualSandbox();
+    }
+
     TUserSandboxOptions options = BuildUserSandboxOptions();
 
     TJobWorkspaceBuildingContext context{
@@ -2585,8 +2592,8 @@ void TJob::CleanupNbdExports()
             }
 
             if (nbdServer->IsDeviceRegistered(artifactKey.nbd_export_id())) {
-                NNbd::TNbdProfilerCounters::Get()->GetCounter(
-                    NNbd::TNbdProfilerCounters::MakeTagSet(artifactKey.data_source().path()),
+                TNbdProfilerCounters::Get()->GetCounter(
+                    TNbdProfilerCounters::MakeTagSet(artifactKey.data_source().path()),
                     "/device/unregistered_unexpected").Increment(1);
 
                 YT_LOG_ERROR("NBD export is still registered, unregister it (ExportId: %v, Path: %v)",
@@ -2594,6 +2601,12 @@ void TJob::CleanupNbdExports()
                     artifactKey.data_source().path());
                 nbdServer->TryUnregisterDevice(artifactKey.nbd_export_id());
             }
+        }
+
+        if (VirtualSandboxData_ && nbdServer->IsDeviceRegistered(VirtualSandboxData_->NbdExportId)) {
+            YT_LOG_ERROR("NBD virtual layer is still registered, unregister it (ExportId: %v)",
+                VirtualSandboxData_->NbdExportId);
+            nbdServer->TryUnregisterDevice(VirtualSandboxData_->NbdExportId);
         }
     }
 }
@@ -2767,7 +2780,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
         for (const auto& artifact : Artifacts_) {
             // Artifact is passed into the job via bind.
-            if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
+            if (artifact.AccessedViaBind) {
                 YT_VERIFY(artifact.Chunk);
 
                 YT_LOG_INFO(
@@ -2961,6 +2974,62 @@ NCri::TCriAuthConfigPtr TJob::BuildDockerAuthConfig()
     return nullptr;
 }
 
+void TJob::BuildVirtualSandbox()
+{
+    auto nbdServer = Bootstrap_->GetNbdServer();
+    if (!nbdServer) {
+        THROW_ERROR_EXCEPTION("NBD server is not present")
+            << TErrorAttribute("export_id", VirtualSandboxData_->NbdExportId);
+    }
+
+    auto clientOptions =  NYT::NApi::TClientOptions::FromUser(NSecurityClient::RootUserName);
+    auto client = nbdServer->GetConnection()->CreateNativeClient(clientOptions);
+
+    auto inThrottler = Bootstrap_->GetDefaultInThrottler();
+    auto outRpsThrottler = Bootstrap_->GetReadRpsOutThrottler();
+    auto logger = nbdServer->GetLogger();
+    auto invoker = nbdServer->GetInvoker();
+
+    std::vector<TArtifactMountOptions> options;
+
+    for (const auto& artifact : Artifacts_) {
+        if (!artifact.AccessedViaVirtualSandbox) {
+            continue;
+        }
+
+        auto sandboxPath = NFS::CombinePaths("/slot", GetSandboxRelPath(artifact.SandboxKind));
+        auto filePath = NFS::CombinePaths(sandboxPath, artifact.Name);
+
+        std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs(
+            artifact.Key.chunk_specs().begin(),
+            artifact.Key.chunk_specs().end());
+        auto reader = CreateRandomAccessFileReader(
+            std::move(chunkSpecs),
+            filePath,
+            client,
+            inThrottler,
+            outRpsThrottler,
+            invoker,
+            logger);
+
+        options.push_back({
+            .Path = std::move(filePath),
+            .Permissions = static_cast<ui16>(0444 + (artifact.Executable ? 0111 : 0000)),
+            .Reader = std::move(reader)
+        });
+    }
+
+    auto squashFsOptions = TSquashFSLayoutBuilderOptions({
+        .BlockSize = static_cast<ui32>(CommonConfig_->VirtualSandboxSquashFSBlockSize)
+    });
+
+    VirtualSandboxData_->Reader = CreateVirtualSquashFSImageReader(
+        std::move(options),
+        std::move(squashFsOptions),
+        std::move(invoker),
+        std::move(logger));
+}
+
 TUserSandboxOptions TJob::BuildUserSandboxOptions()
 {
     TUserSandboxOptions options;
@@ -3009,7 +3078,39 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
         }
     }
 
+    options.VirtualSandboxData = VirtualSandboxData_;
+
     return options;
+}
+
+bool TJob::CanBeAccessedViaBind(const TArtifact& artifact) const
+{
+    return !artifact.AccessedViaVirtualSandbox &&
+        !artifact.BypassArtifactCache &&
+        !artifact.CopyFile;
+}
+
+bool TJob::CanBeAccessedViaVirtualSandbox(const TArtifact& artifact) const
+{
+    if (artifact.BypassArtifactCache ||
+        artifact.CopyFile ||
+        artifact.Key.data_source().type() != ToProto<int>(NChunkClient::EDataSourceType::File))
+    {
+        return false;
+    }
+
+    // Check if artifact may be inside tmpfs
+    if (!Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableTmpfs) {
+        return true;
+    }
+
+    for (const auto& tmpfsVolume : UserJobSpec_->tmpfs_volumes()) {
+        if (tmpfsVolume.path() == "." || artifact.Name.StartsWith(tmpfsVolume.path())) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 // Build artifacts.
@@ -3048,16 +3149,6 @@ void TJob::InitializeArtifacts()
             LayerArtifactKeys_.emplace_back(layerKey);
         }
 
-        // Mark NBD layers with NBD export ids.
-        auto nbdExportCount = 0;
-        for (auto& layer : LayerArtifactKeys_) {
-            if (FromProto<ELayerAccessMethod>(layer.access_method()) == ELayerAccessMethod::Nbd) {
-                auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
-                layer.set_nbd_export_id(ToString(nbdExportId));
-                ++nbdExportCount;
-            }
-        }
-
         if (UserJobSpec_->has_docker_image()) {
             DockerImage_ = UserJobSpec_->docker_image();
         }
@@ -3083,6 +3174,45 @@ void TJob::InitializeArtifacts()
                 .Chunk = nullptr
             });
         }
+    }
+
+    // Mark NBD layers with NBD export ids.
+    auto nbdExportCount = 0;
+    for (auto& layer : LayerArtifactKeys_) {
+        if (FromProto<ELayerAccessMethod>(layer.access_method()) == ELayerAccessMethod::Nbd) {
+            auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
+            layer.set_nbd_export_id(ToString(nbdExportId));
+            ++nbdExportCount;
+        }
+    }
+
+    if (!LayerArtifactKeys_.empty() &&
+        Bootstrap_->GetNbdServer() &&
+        JobSpecExt_->enable_root_volume_disk_quota() &&
+        JobSpecExt_->enable_virtual_sandbox())
+    {
+        // Mark artifacts that will be accessed via virtual layer.
+        int virtualSandboxArtifactCount = 0;
+        for (auto& artifact : Artifacts_) {
+            if (CanBeAccessedViaVirtualSandbox(artifact)) {
+                artifact.AccessedViaVirtualSandbox = true;
+                ++virtualSandboxArtifactCount;
+            }
+        }
+
+        if (virtualSandboxArtifactCount != 0) {
+            // The virtual layer can be used. Make nbd export id.
+            auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
+            VirtualSandboxData_ = TVirtualSandboxData({
+                .NbdExportId = ToString(nbdExportId)
+            });
+            ++nbdExportCount;
+        }
+    }
+
+    // Mark artifacts that will be accessed via bind.
+    for (auto& artifact : Artifacts_) {
+        artifact.AccessedViaBind = CanBeAccessedViaBind(artifact);
     }
 }
 
@@ -3115,6 +3245,11 @@ TFuture<std::vector<NDataNode::IChunkPtr>> TJob::DownloadArtifacts()
         i64 artifactSize = artifact.Key.GetCompressedDataSize();
         if (artifact.BypassArtifactCache) {
             ChunkCacheStatistics_.CacheBypassedArtifactsSize += artifactSize;
+            asyncChunks.push_back(MakeFuture<IChunkPtr>(nullptr));
+            continue;
+        }
+
+        if (artifact.AccessedViaVirtualSandbox) {
             asyncChunks.push_back(MakeFuture<IChunkPtr>(nullptr));
             continue;
         }

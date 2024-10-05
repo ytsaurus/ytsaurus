@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/server/lib/nbd/public.h>
+#include <yt/yt/server/lib/nbd/random_access_file_reader.h>
 
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 
@@ -18,19 +18,10 @@ namespace NYT::NSquashFS {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TArtifactDescription
-{
-    TString Path;
-    i64 Size;
-    i64 Offset;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TSquashFSData
 {
     TBlobOutput Head;
-    std::vector<TArtifactDescription> Files;
+    std::vector<NNbd::IRandomAccessFileReaderPtr> Readers;
     TBlobOutput Tail;
 };
 
@@ -41,9 +32,15 @@ class TSquashFSLayout
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY_NO_INIT(i64, Size);
-    DEFINE_BYREF_RO_PROPERTY_NO_INIT(std::vector<TArtifactDescription>, Files);
 
 public:
+    struct TPart
+    {
+        i64 Offset;
+        i64 Size;
+        NNbd::IRandomAccessFileReaderPtr Reader;
+    };
+
     explicit TSquashFSLayout(TSquashFSData data);
 
     TSharedRef ReadHead(
@@ -57,6 +54,8 @@ public:
     i64 GetTailOffset() const;
     i64 GetTailSize() const;
 
+    const std::vector<TPart>& GetParts() const;
+
     // For testing purposes.
     void Dump(IOutputStream& output) const;
     void DumpHexText(IOutputStream& output) const;
@@ -65,6 +64,7 @@ private:
     TSharedRef Head_;
     TSharedRef Tail_;
     i64 TailOffset_;
+    std::vector<TPart> Parts_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TSquashFSLayout)
@@ -88,9 +88,9 @@ struct ISquashFSLayoutBuilder
     // Adds directories and file to file system.
     // Takes absolute address to file, its permissions and size.
     virtual void AddFile(
-        const TString& path,
-        i64 size,
-        ui16 permissions) = 0;
+        TString path,
+        ui16 permissions,
+        NNbd::IRandomAccessFileReaderPtr reader) = 0;
 
     // Builds squashFs that contains all directories and files added previously.
     virtual TSquashFSLayoutPtr Build() = 0;

@@ -8,6 +8,15 @@ namespace NYT::NNbd {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TArtifactMountOptions
+{
+    TString Path;
+    ui16 Permissions;
+    IRandomAccessFileReaderPtr Reader;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IImageReader
     : public virtual TRefCounted
 {
@@ -35,11 +44,8 @@ IImageReaderPtr CreateCypressFileImageReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 IImageReaderPtr CreateVirtualSquashFSImageReader(
-    std::unordered_map<NYPath::TYPath, std::vector<NChunkClient::NProto::TChunkSpec>> pathToChunkSpecs,
-    NSquashFS::TSquashFSLayoutPtr layout,
-    NApi::NNative::IClientPtr client,
-    NConcurrency::IThroughputThrottlerPtr inThrottler,
-    NConcurrency::IThroughputThrottlerPtr outRpsThrottler,
+    std::vector<TArtifactMountOptions> mountOptions,
+    NSquashFS::TSquashFSLayoutBuilderOptions builderOptions,
     IInvokerPtr invoker,
     NLogging::TLogger logger);
 

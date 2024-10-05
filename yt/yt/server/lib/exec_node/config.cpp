@@ -658,6 +658,9 @@ void TJobCommonConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_throttler", &TThis::JobThrottler)
         .DefaultNew();
+
+    registrar.Parameter("virtual_sandbox_squash_fs_block_size", &TThis::VirtualSandboxSquashFSBlockSize)
+        .Default(128_KB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

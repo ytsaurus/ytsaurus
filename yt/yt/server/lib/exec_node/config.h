@@ -496,6 +496,8 @@ public:
     //! Job throttler config, eg. its RPC timeout and backoff.
     NJobProxy::TJobThrottlerConfigPtr JobThrottler;
 
+    i64 VirtualSandboxSquashFSBlockSize;
+
     REGISTER_YSON_STRUCT(TJobCommonConfig);
 
     static void Register(TRegistrar registrar);
