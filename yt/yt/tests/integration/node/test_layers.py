@@ -1806,3 +1806,119 @@ class TestFailOperationAfterSuccessiveJobAbortsOnPrepareVolume(YTEnvSetup):
         # YT-14186: Corrupted user layer should not disable jobs on node.
         for node in ls("//sys/cluster_nodes"):
             assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
+
+
+class TestEnableRootVolumeDiskQuota(YTEnvSetup):
+    USE_PORTO = True
+
+    NUM_SCHEDULERS = 1
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "volume_manager": {
+                "enable_disk_quota": True,
+            },
+        },
+        "exec_node": {
+            "slot_manager": {
+                "do_not_set_user_id": True,
+                "job_environment": {
+                    "type": "porto",
+                    "use_exec_from_layer": True,
+                },
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_file_replication_factor": 1,
+            "default_table_replication_factor": 1,
+        },
+    }
+
+    def setup_files(self):
+        create("file", "//tmp/exec.tar.gz")
+        write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
+        create("file", "//tmp/rootfs.tar.gz")
+        write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
+
+        create("file", "//tmp/sandbox.img", attributes={"filesystem": "squashfs", "access_method": "local"})
+        write_file("//tmp/sandbox.img", open("layers/sandbox.img", "rb").read())
+
+        create("file", "//tmp/mapper.sh", attributes={"executable": True})
+        write_file("//tmp/mapper.sh", b"""echo {Hello=World}""")
+
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        create("table", "//tmp/t_out")
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
+
+    @authors("artemagafonov")
+    def test_access_to_sandbox_in_layer(self):
+        self.setup_files()
+
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="./mapper.sh",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz", "//tmp/sandbox.img"],
+                    # "disk_space_limit": 1024 * 1024,
+                    "make_rootfs_writable": True,
+                },
+                "enable_root_volume_disk_quota": True,
+            },
+        )
+
+        assert read_table("//tmp/t_out") == [{"Hello": "World"}]
+
+    @authors("artemagafonov")
+    def test_copy_artifact_with_root_volume_disk_quota(self):
+        self.setup_files()
+
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out1",
+            command="./mapper.sh",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"],
+                    "file_paths": ["//tmp/mapper.sh"],
+                    "copy_files": True,
+                    # "disk_space_limit": 1024 * 1024,
+                    "make_rootfs_writable": True,
+                },
+                "enable_root_volume_disk_quota": True,
+            },
+        )
+
+        assert read_table("//tmp/t_out1") == [{"Hello": "World"}]
+
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out2",
+            command="./tmpfs/mapper.sh",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"],
+                    "file_paths": [yson.to_yson_type("//tmp/mapper.sh", attributes={"file_name" : "tmpfs/mapper.sh"})],
+                    "copy_files": True,
+                    "tmpfs_path": "tmpfs",
+                    "tmpfs_size": 1024 * 1024,
+                    # "disk_space_limit": 1024 * 1024,
+                    "make_rootfs_writable": True,
+                },
+                "enable_root_volume_disk_quota": True,
+            },
+        )
+
+        assert read_table("//tmp/t_out2") == [{"Hello": "World"}]

@@ -441,7 +441,9 @@ private:
 
         YT_LOG_INFO("Started preparing sandbox directories");
 
-        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions)
+        bool ignoreQuota = Context_.UserSandboxOptions.EnableRootVolumeDiskQuota && ResultHolder_.RootVolume;
+
+        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions, ignoreQuota)
             .Apply(BIND([this, this_ = MakeStrong(this)] (std::vector<TString> tmpfsPaths) {
                 ResultHolder_.TmpfsPaths = std::move(tmpfsPaths);
 
@@ -653,7 +655,7 @@ private:
 
         YT_LOG_INFO("Started preparing sandbox directories");
 
-        return Context_.Slot->PrepareSandboxDirectories( Context_.UserSandboxOptions)
+        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions)
             .Apply(BIND([this, this_ = MakeStrong(this)] (std::vector<TString> tmpfsPaths) {
                 ResultHolder_.TmpfsPaths = std::move(tmpfsPaths);
 

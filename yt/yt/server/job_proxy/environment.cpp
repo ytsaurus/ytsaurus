@@ -3,6 +3,9 @@
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/gpu_helpers.h>
 
+#include <yt/yt/server/tools/proc.h>
+#include <yt/yt/server/tools/tools.h>
+
 #include <yt/yt/ytlib/job_proxy/private.h>
 
 #include <yt/yt/library/coredumper/public.h>
@@ -43,6 +46,7 @@ using namespace NContainers;
 using namespace NExecNode;
 using namespace NJobAgent;
 using namespace NNet;
+using namespace NTools;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -298,7 +302,8 @@ public:
     TFuture<void> SpawnUserProcess(
         const TString& path,
         const std::vector<TString>& arguments,
-        const TString& workingDirectory) override
+        const TString& workingDirectory,
+        std::optional<int> userId) override
     {
         auto jobIdAsGuid = JobId_.Underlying();
         auto containerName = Config_->UseShortContainerNames
@@ -314,13 +319,24 @@ public:
         if (Options_.RootFS) {
             auto rootFS = *Options_.RootFS;
             auto newPath = NFS::CombinePaths(rootFS.RootPath, "slot");
-            YT_LOG_INFO("Mount slot directory into container (Path: %v)", newPath);
 
-            THashMap<TString, TString> properties;
-            properties["backend"] = "rbind";
-            properties["storage"] = NFs::CurrentWorkingDirectory();
-            auto volumeCreationResult = WaitFor(PortoExecutor_->CreateVolume(newPath, properties));
-            auto volumePath = HandleVolumeCreationError(volumeCreationResult);
+            if (Options_.EnableRootVolumeDiskQuota) {
+                YT_LOG_INFO("Prepare rootFS for binds (Path: %v)", newPath);
+
+                PrepareRootFS(
+                    rootFS.RootPath,
+                    userId);
+            } else {
+                YT_LOG_INFO("Mount slot directory into container (Path: %v)", newPath);
+
+                THashMap<TString, TString> properties;
+                properties["backend"] = "rbind";
+                properties["storage"] = NFs::CurrentWorkingDirectory();
+                auto volumeCreationResult = WaitFor(PortoExecutor_->CreateVolume(
+                    newPath,
+                    properties));
+                auto volumePath = HandleVolumeCreationError(volumeCreationResult);
+            }
 
             launcher->SetRoot(rootFS);
         }
@@ -478,6 +494,11 @@ public:
         return std::nullopt;
     }
 
+    bool HasRootFS() const override
+    {
+        return Options_.RootFS.has_value();
+    }
+
 private:
     const TJobId JobId_;
     const TPortoJobEnvironmentConfigPtr Config_;
@@ -489,6 +510,49 @@ private:
 
     TAtomicIntrusivePtr<IInstance> Instance_;
     TAtomicIntrusivePtr<TPortoResourceTracker> ResourceTracker_;
+
+    void PrepareRootFS(
+        const TString& rootPath,
+        std::optional<int> userId)
+    {
+        int nodeUid = getuid();
+
+        auto rootConfig = New<TRootDirectoryConfig>();
+        rootConfig->SlotPath = rootPath;
+        rootConfig->UserId = nodeUid;
+        rootConfig->Permissions = 0777;
+
+        // TODO(artemagafonov): Decide which directories need to be created here.
+        // NB: Paths are relative and ordered in the creation sequence. Must create directory before its subdirectory.
+        const std::vector<TString> directoryPaths{
+            "slot",
+            "slot/sandbox",
+            "slot/tmp",
+            "tmp",
+            "var",
+            "var/tmp"
+        };
+
+        for (const auto& directoryPath : directoryPaths) {
+            auto directory = New<TDirectoryConfig>();
+
+            directory->Path = NFS::CombinePaths(
+                rootPath,
+                directoryPath);
+            directory->UserId = userId;
+            directory->Permissions = 0777;
+            directory->RemoveIfExists = false;
+
+            rootConfig->Directories.push_back(std::move(directory));
+        }
+
+        auto directoryBuilderConfig = New<TDirectoryBuilderConfig>();
+        directoryBuilderConfig->NodeUid = nodeUid;
+        directoryBuilderConfig->NeedRoot = true;
+        directoryBuilderConfig->RootDirectoryConfigs.push_back(std::move(rootConfig));
+
+        RunTool<TRootDirectoryBuilderTool>(directoryBuilderConfig);
+    }
 };
 
 DECLARE_REFCOUNTED_CLASS(TPortoUserJobEnvironment)
@@ -656,7 +720,8 @@ public:
     TFuture<void> SpawnUserProcess(
         const TString& path,
         const std::vector<TString>& arguments,
-        const TString& workingDirectory) override
+        const TString& workingDirectory,
+        std::optional<int> /*userId*/) override
     {
         auto process = New<TSimpleProcess>(path, false);
         process->AddArguments(arguments);
@@ -709,6 +774,11 @@ public:
     std::optional<i64> GetJobOOMKillCount() const noexcept override
     {
         return std::nullopt;
+    }
+
+    bool HasRootFS() const override
+    {
+        return false;
     }
 
 private:
@@ -929,7 +999,8 @@ public:
     TFuture<void> SpawnUserProcess(
         const TString& path,
         const std::vector<TString>& arguments,
-        const TString& workingDirectory) override
+        const TString& workingDirectory,
+        std::optional<int> /*userId*/) override
     {
         auto process = New<TSimpleProcess>(path, /*copyEnv*/ false);
         process->AddArguments(arguments);
@@ -981,6 +1052,11 @@ public:
     std::optional<i64> GetJobOOMKillCount() const noexcept override
     {
         return JobProxyEnvironment_->GetJobOOMKillCount();
+    }
+
+    bool HasRootFS() const override
+    {
+        return false;
     }
 
 private:
