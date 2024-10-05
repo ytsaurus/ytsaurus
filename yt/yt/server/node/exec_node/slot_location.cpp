@@ -709,7 +709,7 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
         try {
             for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
                 const auto& sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
-                if (!Exists(sandboxPath)) {
+                if (sandboxKind == ESandboxKind::Logs || !Exists(sandboxPath)) {
                     continue;
                 }
 
@@ -1218,34 +1218,59 @@ TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(
     config->UserId = nodeUid;
     config->Permissions = 0755;
 
-    auto getDirectory = [] (TString path, std::optional<int> userId, int permissions) {
+    auto getDirectory = [] (TString path, std::optional<int> userId, int permissions, bool removeIfExists) {
         auto directory = New<TDirectoryConfig>();
 
         directory->Path = path;
         directory->UserId = userId;
         directory->Permissions = permissions;
+        directory->RemoveIfExists = removeIfExists;
 
         return directory;
     };
 
     // Since we make slot user to be owner, but job proxy creates some files during job shell
     // initialization we leave write access for everybody. Presumably this will not ruin job isolation.
-    config->Directories.push_back(getDirectory(GetSandboxPath(slotIndex, ESandboxKind::Home), uid, 0777));
+    config->Directories.push_back(getDirectory(
+        GetSandboxPath(slotIndex, ESandboxKind::Home),
+        uid,
+        /*permissions*/ 0777,
+        /*removeIfExists*/ true));
 
     // Tmp is accessible for everyone.
-    config->Directories.push_back(getDirectory(GetSandboxPath(slotIndex, ESandboxKind::Tmp), uid, 0777));
+    config->Directories.push_back(getDirectory(
+        GetSandboxPath(slotIndex, ESandboxKind::Tmp),
+        uid,
+        /*permissions*/ 0777,
+        /*removeIfExists*/ true));
 
     // CUDA library should have an access to cores directory to write GPU core dump into it.
-    config->Directories.push_back(getDirectory(GetSandboxPath(slotIndex, ESandboxKind::Cores), uid, 0777));
+    config->Directories.push_back(getDirectory(
+        GetSandboxPath(slotIndex, ESandboxKind::Cores),
+        uid,
+        /*permissions*/ 0777,
+        /*removeIfExists*/ true));
 
     // Pipes are accessible for everyone.
-    config->Directories.push_back(getDirectory(GetSandboxPath(slotIndex, ESandboxKind::Pipes), uid, 0777));
+    config->Directories.push_back(getDirectory(
+        GetSandboxPath(slotIndex, ESandboxKind::Pipes),
+        uid,
+        /*permissions*/ 0777,
+        /*removeIfExists*/ true));
 
     // Node should have access to user sandbox during job preparation.
-    config->Directories.push_back(getDirectory(GetSandboxPath(slotIndex, ESandboxKind::User), nodeUid, 0755));
+    config->Directories.push_back(getDirectory(
+        GetSandboxPath(slotIndex, ESandboxKind::User),
+        nodeUid,
+        /*permissions*/ 0755,
+        /*removeIfExists*/ true));
 
     // Process executor should have access to write logs before process start.
-    config->Directories.push_back(getDirectory(GetSandboxPath(slotIndex, ESandboxKind::Logs), uid, 0755));
+    config->Directories.push_back(getDirectory(
+        GetSandboxPath(slotIndex, ESandboxKind::Logs),
+        nodeUid,
+        /*permissions*/ 0755,
+        /*removeIfExists*/ false));
 
     return config;
 }
