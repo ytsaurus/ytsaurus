@@ -4664,7 +4664,9 @@ void TOperationControllerBase::UpdateConfig(const TControllerAgentConfigPtr& con
 void TOperationControllerBase::CustomizeJoblet(const TJobletPtr& /*joblet*/)
 { }
 
-void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) const
+void TOperationControllerBase::CustomizeJobSpec(
+    const TJobletPtr& joblet,
+    TJobSpec* jobSpec) const
 {
     VERIFY_INVOKER_AFFINITY(JobSpecBuildInvoker_);
 
@@ -4681,6 +4683,8 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
     jobSpecExt->set_enable_root_volume_disk_quota(Spec_->EnableRootVolumeDiskQuota);
 
     jobSpecExt->set_enable_virtual_sandbox(Spec_->EnableVirtualSandbox);
+
+    jobSpecExt->set_enable_root_volume_disk_quota(Spec_->EnableRootVolumeDiskQuota);
 
     if (OutputTransaction) {
         ToProto(jobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());

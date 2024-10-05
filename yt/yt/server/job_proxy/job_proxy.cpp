@@ -1284,6 +1284,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
         .EnablePortoMemoryTracking = options.EnablePortoMemoryTracking,
         .EnablePorto = options.EnablePorto,
         .ThreadLimit = options.ThreadLimit,
+        .EnableRootVolumeDiskQuota = Config_->EnableRootVolumeDiskQuota,
     };
 
     if (options.EnableCoreDumps) {

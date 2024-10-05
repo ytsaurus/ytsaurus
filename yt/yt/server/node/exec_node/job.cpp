@@ -2942,6 +2942,9 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
     proxyConfig->OperationsArchiveVersion = Bootstrap_->GetJobController()->GetOperationsArchiveVersion();
 
+    // TODO(artemagafonov): Set real value, when the feature is implemented.
+    proxyConfig->EnableRootVolumeDiskQuota = false;
+
     return proxyConfig;
 }
 
@@ -2966,6 +2969,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     options.DiskOverdraftCallback = BIND(&TJob::Fail, MakeWeak(this))
         .Via(Invoker_);
     // TODO(khlebnikov): Move into volume manager.
+    // TODO(artemagafonov): Set real value, when the feature is implemented.
     options.EnableRootVolumeDiskQuota = false;
     options.UserId = GetUserSlot()->GetUserId();
 
