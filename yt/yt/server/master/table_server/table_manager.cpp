@@ -1385,9 +1385,6 @@ private:
     TPeriodicExecutorPtr StatisticsGossipExecutor_;
     IReconfigurableThroughputThrottlerPtr StatisticsGossipThrottler_;
 
-    // COMPAT(cherepashka, achulkov2)
-    bool NeedToAddReplicatedQueues_ = false;
-
     // COMPAT(sabdenovch)
     bool NeedToFillTableIdsForSecondaryIndices_ = false;
 
@@ -1729,8 +1726,6 @@ private:
         Queues_.clear();
         QueueConsumers_.clear();
         QueueProducers_.clear();
-
-        NeedToAddReplicatedQueues_ = false;
     }
 
     void SetZeroState() override
@@ -1784,8 +1779,6 @@ private:
         {
             Load(context, QueueProducers_);
         }
-
-        NeedToAddReplicatedQueues_ = context.GetVersion() < EMasterReign::QueueReplicatedTablesList;
     }
 
     THashMap<TMasterTableSchema*, THashMap<TAccount*, int>> ComputeMasterTableSchemaReferencingAccounts()
@@ -1963,17 +1956,6 @@ private:
         //   - on old snapshots that don't contain schema map (or this automaton
         //     part altogether) this initialization is crucial.
         InitBuiltins();
-
-        if (NeedToAddReplicatedQueues_) {
-            for (auto [nodeId, node] : Bootstrap_->GetCypressManager()->Nodes()) {
-                if (node->GetType() == NObjectClient::EObjectType::ReplicatedTable) {
-                    auto* replicatedTableNode = node->As<TReplicatedTableNode>();
-                    if (replicatedTableNode->IsTrackedQueueObject()) {
-                        RegisterQueue(replicatedTableNode);
-                    }
-                }
-            }
-        }
 
         // COMPAT(sabdenovch)
         if (NeedToFillTableIdsForSecondaryIndices_) {

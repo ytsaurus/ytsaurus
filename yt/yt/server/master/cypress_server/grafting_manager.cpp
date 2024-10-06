@@ -181,10 +181,6 @@ private:
 
         Load(context, RootstockNodes_);
         Load(context, ScionNodes_);
-        // COMPAT(kvk1920)
-        if (context.GetVersion() < EMasterReign::SequoiaMapNode) {
-            Load<THashSet<TNodeId>>(context);
-        }
     }
 
     void Clear() override

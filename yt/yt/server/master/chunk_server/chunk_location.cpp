@@ -234,25 +234,11 @@ void TChunkLocation::Load(NCellMaster::TLoadContext& context)
     TObject::Load(context);
 
     using NYT::Load;
+
     Load(context, Node_);
-
-    // COMPAT(danilalexeev)
-    if (context.GetVersion() >= EMasterReign::MakeDestroyedReplicasSetSharded) {
-        using NYT::Load;
-        Load(context, DestroyedReplicas_);
-    } else {
-        TDestroyedReplicaSet preShardedDestroyedReplicaSet;
-        Load(context, preShardedDestroyedReplicaSet);
-        for (auto replica : preShardedDestroyedReplicaSet) {
-            auto shardId = GetChunkShardIndex(replica.Id);
-            EmplaceOrCrash(DestroyedReplicas_[shardId], replica);
-        }
-    }
-
+    Load(context, DestroyedReplicas_);
     LoadScratchData_ = std::make_unique<TLoadScratchData>(TSizeSerializer::Load(context));
-
     Load(context, UnapprovedReplicas_);
-
     Load(context, Uuid_);
     Load(context, State_);
     Load(context, MediumOverride_);

@@ -2411,9 +2411,6 @@ private:
     // COMPAT(h0pless)
     bool NeedRecomputeChunkWeightStatisticsHistogram_ = false;
 
-    // COMPAT(kvk1920)
-    bool NeedTransformOldExportData_ = false;
-
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TBufferedProducerPtr BufferedProducer_;
@@ -4683,38 +4680,12 @@ private:
         LoadHistogramValues(context, ChunkUncompressedDataSizeHistogram_);
         LoadHistogramValues(context, ChunkDataWeightHistogram_);
 
-        // COMPAT(aleksandra-zh)
-        if (context.GetVersion() >= EMasterReign::UseSequoiaReplicas) {
-            if (context.GetVersion() >= EMasterReign::SequoiaChunkPurgatory) {
-                Load(context, SequoiaChunkPurgatory_);
-            } else {
-                THashSet<TChunkId> destroyedChunkIds;
-                Load(context, destroyedChunkIds);
-            }
-        }
-
-        // COMPAT(kvk1920)
-        NeedTransformOldExportData_ = context.GetVersion() < EMasterReign::GetRidOfCellIndex;
+        Load(context, SequoiaChunkPurgatory_);
     }
 
     void OnBeforeSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
-    }
-
-    void MaybeTransformChunkExportData()
-    {
-        if (!NeedTransformOldExportData_) {
-            return;
-        }
-
-        const auto& registeredCellTags = Bootstrap_->GetMulticellManager()->GetRegisteredMasterCellTags();
-
-        YT_LOG_INFO("Started compat-transforming chunk export data");
-        for (auto [chunkId, chunk] : ChunkMap_) {
-            chunk->TransformOldExportData(registeredCellTags);
-        }
-        YT_LOG_INFO("Finished compat-transforming chunk export data");
     }
 
     template <class T>
@@ -4732,9 +4703,6 @@ private:
     void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
-
-        // COMPAT(kvk1920)
-        MaybeTransformChunkExportData();
 
         // Populate nodes' chunk replica sets.
         // Compute chunk replica count.

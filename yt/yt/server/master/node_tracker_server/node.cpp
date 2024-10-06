@@ -695,8 +695,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, LeaseTransaction_);
 
     if (context.GetVersion() >= EMasterReign::PersistLastSeenLeaseTransactionTimeout ||
-        (context.GetVersion() >= EMasterReign::PersistLastSeenLeaseTransactionTimeout_23_2 &&
-         context.GetVersion() < EMasterReign::SecondaryIndex))
+        context.GetVersion() < EMasterReign::SecondaryIndex)
     {
         Load(context, LastSeenLeaseTransactionTimeout_);
     }

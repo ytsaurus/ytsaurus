@@ -357,14 +357,10 @@ void TUser::Load(TLoadContext& context)
     Load(context, PasswordSalt_);
     Load(context, PasswordRevision_);
     Load(context, *ObjectServiceRequestLimits_);
-
-    // COMPAT(vovamelnikov)
-    if (context.GetVersion() >= EMasterReign::AttributeBasedAccessControl) {
-        Load(context, Tags_);
-    }
+    Load(context, Tags_);
 
     // COMPAT(cherepashka)
-    if (context.GetVersion() >= EMasterReign::FixLastSeenPersistance_23_2 && context.GetVersion() < EMasterReign::SecondaryIndex ||
+    if (context.GetVersion() < EMasterReign::SecondaryIndex ||
         context.GetVersion() >= EMasterReign::FixLastSeenPersistance)
     {
         Load(context, LastSeenTime_);

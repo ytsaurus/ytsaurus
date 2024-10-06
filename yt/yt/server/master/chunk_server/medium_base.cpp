@@ -47,11 +47,6 @@ void TMedium::Load(TLoadContext& context)
 {
     TObject::Load(context);
 
-    // COMPAT(gritukan);
-    if (context.GetVersion() < EMasterReign::MediumBase) {
-        return;
-    }
-
     using NYT::Load;
     Load(context, Name_);
     Load(context, Index_);

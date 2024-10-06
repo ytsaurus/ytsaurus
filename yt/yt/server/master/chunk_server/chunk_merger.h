@@ -197,11 +197,6 @@ private:
 
     THashMap<NCypressClient::TObjectId, TChunkMergerSession> RunningSessions_;
 
-    // COMPAT(vovamelnikov): ChunkMergerQueuesUsagePerAccount
-    // It is only used to store old version of NodesBeingMerged
-    // until accountId will be restored from loaded chunks in OnAfterSnapshotLoaded.
-    std::unique_ptr<THashSet<NCypressClient::TObjectId>> OldNodesBeingMerged_;
-
     // TODO(shakurov): ephemeral ptrs?
     using TNodeQueue = std::queue<NCypressClient::TObjectId>;
     // Per-account queue. All touched tables start here.

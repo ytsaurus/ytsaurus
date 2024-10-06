@@ -67,24 +67,13 @@ void TChaosReplicatedTableNode::Save(TSaveContext& context) const
 void TChaosReplicatedTableNode::Load(TLoadContext& context)
 {
     TCypressNode::Load(context);
-
-    // COMPAT(h0pless): AddSchemafulNodeTypeHandler
-    if (context.GetVersion() >= EMasterReign::AddSchemafulNodeTypeHandler) {
-        TSchemafulNode::Load(context);
-    }
+    TSchemafulNode::Load(context);
 
     using NYT::Load;
     Load(context, ChaosCellBundle_);
     Load(context, ReplicationCardId_);
     Load(context, OwnsReplicationCard_);
-    if (context.GetVersion() < EMasterReign::AddSchemafulNodeTypeHandler) {
-        Load(context, Schema_);
-    }
-
-    // COMPAT(cherepashka)
-    if (context.GetVersion() >= EMasterReign::ChaosReplicatedConsumersFix) {
-        Load(context, TreatAsQueueConsumer_);
-    }
+    Load(context, TreatAsQueueConsumer_);
 
     // COMPAT(apachee): Remove user attributes conflicting with new producer attributes.
     // DropLegacyClusterNodeMap is the start of 24.2 reigns.
@@ -103,23 +92,7 @@ void TChaosReplicatedTableNode::Load(TLoadContext& context)
         }
     }
 
-    // COMPAT(nadya73): Remove queue related attributes for old reigns.
-    if (context.GetVersion() >= EMasterReign::QueueAgentStageForChaos) {
-        Load(context, QueueAgentStage_);
-    } else if (Attributes_) {
-        static const std::vector<TInternedAttributeKey> queueRelatedAttributes = {
-            EInternedAttributeKey::QueueStatus,
-            EInternedAttributeKey::QueuePartitions,
-            EInternedAttributeKey::QueueConsumerStatus,
-            EInternedAttributeKey::QueueConsumerPartitions,
-            EInternedAttributeKey::QueueAgentStage,
-            EInternedAttributeKey::TreatAsQueueConsumer,
-        };
-
-        for (const auto& attribute : queueRelatedAttributes) {
-            Attributes_->Remove(attribute.Unintern());
-        }
-    }
+    Load(context, QueueAgentStage_);
 }
 
 void TChaosReplicatedTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const

@@ -125,14 +125,7 @@ void TClusterResourceLimits::Save(NCellMaster::TSaveContext& context) const
 void TClusterResourceLimits::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    // COMPAT(kvk1920)
-    TLimit64 defaultDiskSpace;
-    if (context.GetVersion() < EMasterReign::ReworkClusterResourceLimitsInfinityRelatedBehavior) {
-        defaultDiskSpace = TLimit64(0);
-    } else {
-        Load(context, defaultDiskSpace);
-    }
-    DiskSpace_ = TDiskSpaceLimits(defaultDiskSpace);
+    DiskSpace_ = TDiskSpaceLimits(Load<TLimit64>(context));
     Load(context, DiskSpace_.AsUnderlying());
     Load(context, NodeCount_);
     Load(context, ChunkCount_);

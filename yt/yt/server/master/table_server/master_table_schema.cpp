@@ -74,10 +74,7 @@ void TMasterTableSchema::Load(NCellMaster::TLoadContext& context)
     }
 
     Load(context, CellTagToExportCount_);
-
-    if (context.GetVersion() >= EMasterReign::AddChunkSchemas) {
-        Load(context, ReferencingAccounts_);
-    }
+    Load(context, ReferencingAccounts_);
 }
 
 const NTableClient::TTableSchemaPtr& TMasterTableSchema::AsTableSchema(bool crashOnZombie) const

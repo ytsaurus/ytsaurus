@@ -260,12 +260,6 @@ private:
     //! Contains native trunk nodes for which IsQueueProducer() is true.
     THashSet<TChaosReplicatedTableNode*> Producers_;
 
-    // COMPAT(cherepashka, achulkov2)
-    bool NeedToAddChaosReplicatedQueues_ = false;
-
-    // COMPAT(h0pless): AddSchemafulNodeTypeHandler
-    bool NeedSetStrongSchemaMode_ = false;
-
     const THashSet<TChaosReplicatedTableNode*>& GetQueues() const override
     {
         Bootstrap_->VerifyPersistentStateRead();
@@ -566,40 +560,22 @@ private:
         Save(context, Producers_);
     }
 
-    void LoadKeys(NCellMaster::TLoadContext& context)
+    void LoadKeys(NCellMaster::TLoadContext& /*context*/)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        // COMPAT(cherepashka)
-        if (context.GetVersion() < EMasterReign::ChaosManagerSnapshotSaveAndLoadMovement) {
-            Load(context, *AlienClusterRegistry_);
-            Load(context, EnabledMetadataClusters_);
-        }
-
-        // COMPAT(cherepashka, achulkov2)
-        NeedToAddChaosReplicatedQueues_ = context.GetVersion() < EMasterReign::ChaosReplicatedQueuesAndConsumersList;
-
-        // COMPAT(h0pless)
-        NeedSetStrongSchemaMode_ = context.GetVersion() < EMasterReign::AddSchemafulNodeTypeHandler;
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        // COMPAT(cherepashka)
-        if (context.GetVersion() >= EMasterReign::ChaosManagerSnapshotSaveAndLoadMovement) {
-            Load(context, *AlienClusterRegistry_);
+        Load(context, *AlienClusterRegistry_);
 
-            // COMPAT(ponasenko-rs)
-            Load(context, EnabledMetadataClusters_);
-        }
+        // COMPAT(ponasenko-rs)
+        Load(context, EnabledMetadataClusters_);
 
-        // COMPAT(cherepashka, achulkov2)
-        if (context.GetVersion() >= EMasterReign::ChaosReplicatedQueuesAndConsumersList) {
-            Load(context, Queues_);
-            Load(context, Consumers_);
-        }
+        Load(context, Queues_);
+        Load(context, Consumers_);
 
         // COMPAT(apachee)
         // DropLegacyClusterNodeMap is the start of 24.2 reigns.
@@ -613,28 +589,6 @@ private:
     void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
-
-        if (NeedToAddChaosReplicatedQueues_) {
-            for (auto [nodeId, node] : Bootstrap_->GetCypressManager()->Nodes()) {
-                if (node->GetType() == EObjectType::ChaosReplicatedTable) {
-                    auto* chaosReplicatedTableNode = node->As<TChaosReplicatedTableNode>();
-                    // There are no chaos consumers to be considered, since the builtin treat_as_queue_consumer attribute was added within the same reign.
-                    if (chaosReplicatedTableNode->IsTrackedQueueObject()) {
-                        RegisterQueue(chaosReplicatedTableNode);
-                    }
-                }
-            }
-        }
-
-        if (NeedSetStrongSchemaMode_) {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (auto [nodeId, node] : cypressManager->Nodes()) {
-                if (node->GetType() == EObjectType::ChaosReplicatedTable) {
-                    auto* chaosReplicatedTable = node->As<TChaosReplicatedTableNode>();
-                    chaosReplicatedTable->SetSchemaMode(ETableSchemaMode::Strong);
-                }
-            }
-        }
 
         const auto& config = GetDynamicConfig();
         AlienCellSynchronizer_->Reconfigure(config->AlienCellSynchronizer);
@@ -651,8 +605,6 @@ private:
         Queues_.clear();
         Consumers_.clear();
         Producers_.clear();
-        NeedToAddChaosReplicatedQueues_ = false;
-        NeedSetStrongSchemaMode_ = false;
     }
 
 

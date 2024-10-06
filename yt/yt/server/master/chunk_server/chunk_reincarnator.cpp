@@ -2346,11 +2346,7 @@ private:
         using NYT::Load;
 
         Load(context, TransactionRotator_);
-
-        // COMPAT(kvk1920)
-        if (context.GetVersion() >= EMasterReign::MulticellChunkReincarnator) {
-            Load(context, ConfigVersion_);
-        }
+        Load(context, ConfigVersion_);
     }
 };
 

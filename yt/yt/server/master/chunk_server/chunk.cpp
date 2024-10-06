@@ -213,10 +213,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
 
     SetDiskSpace(Load<i64>(context));
 
-    // COMPAT(h0pless)
-    if (context.GetVersion() >= EMasterReign::AddChunkSchemas) {
-        Load(context, Schema_);
-    }
+    Load(context, Schema_);
 
     SetErasureCodec(Load<NErasure::ECodec>(context));
     SetMovable(Load<bool>(context));
@@ -795,23 +792,10 @@ void TChunk::TPerCellExportData::Load(NCellMaster::TLoadContext& context)
             [] (auto pair) { return pair.second.RefCounter != 0; });
     };
 
-    if (context.GetVersion() < EMasterReign::GetRidOfCellIndex) {
-        std::unique_ptr<TLegacyCellIndexToChunkExportData> legacyExportData;
-        TUniquePtrSerializer<>::Load(context, legacyExportData);
-
-        if (legacyExportData) {
-            YT_VERIFY(hasNonZeroExportCounter(*legacyExportData));
-            Ptr_ = reinterpret_cast<uintptr_t>(legacyExportData.release()) | LegacyExportDataMask;
-        } else {
-            Ptr_ = 0;
-        }
-    } else {
-        // NB: It will be just a unique_ptr in the future.
-        std::unique_ptr<TCellTagToChunkExportData> exportData;
-        TUniquePtrSerializer<>::Load(context, exportData);
-        YT_VERIFY(!exportData || hasNonZeroExportCounter(*exportData));
-        Ptr_ = reinterpret_cast<uintptr_t>(exportData.release());
-    }
+    std::unique_ptr<TCellTagToChunkExportData> exportData;
+    TUniquePtrSerializer<>::Load(context, exportData);
+    YT_VERIFY(!exportData || hasNonZeroExportCounter(*exportData));
+    Ptr_ = reinterpret_cast<uintptr_t>(exportData.release());
 }
 
 void TChunk::TPerCellExportData::Save(NCellMaster::TSaveContext& context) const

@@ -295,7 +295,7 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
     MergeJobThrottler_->SetLimit(MergeJobRateLimit_);
 
     // COMPAT(kvk1920)
-    if (context.GetVersion() >= EMasterReign::ChunkReincarnatorTestingUtilities_23_2 && context.GetVersion() < EMasterReign::SecondaryIndex ||
+    if (context.GetVersion() < EMasterReign::SecondaryIndex ||
         context.GetVersion() >= EMasterReign::ChunkReincarnatorTestingUtilities)
     {
         Load(context, EnableChunkReincarnation_);

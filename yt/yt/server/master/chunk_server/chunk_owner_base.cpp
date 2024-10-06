@@ -146,14 +146,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, EnableStripedErasure_);
     Load(context, SnapshotSecurityTags_);
     Load(context, DeltaSecurityTags_);
-
-    // COMPAT(cherepashka)
-    if (context.GetVersion() >= EMasterReign::ChunkMergerModeUnderTransaction) {
-        Load(context, ChunkMergerMode_);
-    } else {
-        auto chunkMergerMode = Load<NChunkClient::EChunkMergerMode>(context);
-        SetChunkMergerMode(chunkMergerMode);
-    }
+    Load(context, ChunkMergerMode_);
     Load(context, EnableSkynetSharing_);
     Load(context, UpdatedSinceLastMerge_);
     Load(context, ChunkMergerTraversalInfo_);
