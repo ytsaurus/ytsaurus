@@ -138,6 +138,8 @@ public:
 
     bool ImmediatelyDisposeNondataNodes;
 
+    TDuration ThrottledNodeRegistrationExpirationTime;
+
     REGISTER_YSON_STRUCT(TDynamicNodeTrackerConfig);
 
     static void Register(TRegistrar registrar);
