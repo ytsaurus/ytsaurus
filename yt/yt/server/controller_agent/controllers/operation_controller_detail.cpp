@@ -4675,13 +4675,13 @@ void TOperationControllerBase::CustomizeJobSpec(
 
     jobSpecExt->set_enable_prefetching_job_throttler(Spec_->EnablePrefetchingJobThrottler);
 
-    if (Spec_->EnableCodegenComparator) {
-        jobSpecExt->set_enable_codegen_comparator(Spec_->EnableCodegenComparator);
-    }
+    jobSpecExt->set_enable_codegen_comparator(Spec_->EnableCodegenComparator);
 
     jobSpecExt->set_enable_virtual_sandbox(Spec_->EnableVirtualSandbox);
 
     jobSpecExt->set_enable_root_volume_disk_quota(Spec_->EnableRootVolumeDiskQuota);
+
+    jobSpecExt->set_disable_rename_columns_compatibility_code(Spec_->DisableRenameColumnsCompatibilityCode);
 
     if (OutputTransaction) {
         ToProto(jobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());

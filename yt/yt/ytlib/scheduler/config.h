@@ -1123,6 +1123,8 @@ public:
     //! Currently used by simple sort job and partition sort job.
     bool EnableCodegenComparator;
 
+    bool DisableRenameColumnsCompatibilityCode;
+
     //! Enable virtual sandbox.
     //! Allow access to all immutable files via NBD.
     bool EnableVirtualSandbox;
