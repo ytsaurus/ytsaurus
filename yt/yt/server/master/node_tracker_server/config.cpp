@@ -122,6 +122,9 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("immediatety_dispose_nondata_nodes", &TThis::ImmediatelyDisposeNondataNodes)
         .Default(false)
         .DontSerializeDefault();
+
+    registrar.Parameter("throttled_node_registration_expiration_time", &TThis::ThrottledNodeRegistrationExpirationTime)
+        .Default(TDuration::Minutes(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

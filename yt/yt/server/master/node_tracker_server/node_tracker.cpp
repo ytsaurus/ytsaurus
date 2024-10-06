@@ -88,6 +88,8 @@
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
 
+#include <library/cpp/yt/containers/expiring_set.h>
+
 namespace NYT::NNodeTrackerServer {
 
 using namespace NCellMaster;
@@ -231,15 +233,26 @@ public:
             return;
         }
 
+        auto flavors = FromProto<std::vector<ENodeFlavor>>(context->Request().flavors());
+        auto now = Now();
+
         auto groups = GetGroupsForNode(address);
         for (auto* group : groups) {
             if (group->PendingRegisterNodeMutationCount + group->RegisteredNodeCount >= group->Config->MaxConcurrentNodeRegistrations) {
+                for (auto flavor : flavors) {
+                    FlavorToThrottledRegisterNodeAddresses_[flavor].Insert(now, address);
+                }
+
                 context->Reply(TError(
                     NRpc::EErrorCode::Unavailable,
                     "Node registration throttling is active in group %Qv",
                     group->Id));
                 return;
             }
+        }
+
+        for (auto flavor : flavors) {
+            FlavorToThrottledRegisterNodeAddresses_[flavor].Remove(address);
         }
 
         InsertOrCrash(PendingRegisterNodeAddresses_, address);
@@ -1011,6 +1024,7 @@ private:
     std::vector<TNodeGroup> NodeGroups_;
     TNodeGroup* DefaultNodeGroup_ = nullptr;
     THashSet<std::string> PendingRegisterNodeAddresses_;
+    TEnumIndexedArray<ENodeFlavor, TExpiringSet<std::string>> FlavorToThrottledRegisterNodeAddresses_;
     TNodeDiscoveryManagerPtr MasterCacheManager_;
     TNodeDiscoveryManagerPtr TimestampProviderManager_;
 
@@ -2023,6 +2037,9 @@ private:
         }
 
         PendingRegisterNodeAddresses_.clear();
+        for (auto& addresses : FlavorToThrottledRegisterNodeAddresses_) {
+            addresses.Clear();
+        }
     }
 
     THashSet<ENodeHeartbeatType> GetExpectedHeartbeats(TNode* node, bool primaryMaster)
@@ -2583,8 +2600,16 @@ private:
             if (flavor == ENodeFlavor::Cluster) {
                 continue;
             }
+
             TWithTagGuard tagGuard(&buffer, "flavor", FormatEnum(flavor));
+
             profileStatistics(GetFlavoredNodeStatistics(flavor));
+
+            {
+                auto& addresses = FlavorToThrottledRegisterNodeAddresses_[flavor];
+                addresses.Expire(Now());
+                buffer.AddGauge("/throttled_register_node_count", addresses.GetSize());
+            }
         }
 
         NodeDisposalManager_->OnProfiling(&buffer);
@@ -2672,6 +2697,14 @@ private:
     void ReconfigureNodeSemaphores()
     {
         HeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentClusterNodeHeartbeats);
+    }
+
+    void ReconfigureThrottledNodeRegistrations()
+    {
+        auto ttl = GetDynamicConfig()->ThrottledNodeRegistrationExpirationTime;
+        for (auto& addresses : FlavorToThrottledRegisterNodeAddresses_) {
+            addresses.SetTTl(ttl);
+        }
     }
 
     void MaybeRebuildAggregatedNodeStatistics()
@@ -2762,6 +2795,7 @@ private:
         RecomputePendingRegisterNodeMutationCounters();
         ReconfigureGossipPeriods();
         ReconfigureNodeSemaphores();
+        ReconfigureThrottledNodeRegistrations();
         RebuildAggregatedNodeStatistics();
 
         ProfilingExecutor_->SetPeriod(GetDynamicConfig()->ProfilingPeriod);
