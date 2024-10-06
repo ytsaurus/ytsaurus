@@ -182,9 +182,7 @@ private:
         using NYT::Load;
 
         Load(context, DataNodesBeingDisposed_);
-        if (context.GetVersion() >= EMasterReign::DisposalNodesLimit) {
-            Load(context, DataNodesAwaitingForBeingDisposed_);
-        }
+        Load(context, DataNodesAwaitingForBeingDisposed_);
     }
 
     void Save(NCellMaster::TSaveContext& context) const

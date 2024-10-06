@@ -53,12 +53,7 @@ void TAccessControlEntry::Persist(const NCellMaster::TPersistenceContext& contex
     Persist(context, Permissions);
     Persist(context, Action);
     Persist(context, InheritanceMode);
-    // COMPAT(vovamelnikov)
-    if (context.IsLoad() && context.GetVersion() < EMasterReign::AttributeBasedAccessControl) {
-        SubjectTagFilter = std::nullopt;
-    } else {
-        Persist(context, SubjectTagFilter);
-    }
+    Persist(context, SubjectTagFilter);
     Persist(context, Columns);
     Persist(context, Vital);
 }

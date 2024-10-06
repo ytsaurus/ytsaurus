@@ -17,9 +17,6 @@ void TClusterProxyNode::Save(TSaveContext& context) const
 
 void TClusterProxyNode::Load(TLoadContext& context)
 {
-    // COMPAT(kvk1920):
-    YT_VERIFY(context.GetVersion() >= EMasterReign::ProxyMaintenanceRequests);
-
     TCypressMapNode::Load(context);
     TMaintenanceTarget::Load(context);
 

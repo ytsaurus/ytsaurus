@@ -104,27 +104,14 @@ void TTabletBase::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, Index_);
     Load(context, InMemoryMode_);
+    Load(context, Servant_);
+
     // COMPAT(ifsmirnov)
-    if (context.GetVersion() < EMasterReign::TabletServants) {
-        auto* cell = Load<TTabletCell*>(context);
-        Servant_.SetCell(cell);
-
-        Servant_.SetMountRevision(Load<NHydra::TRevision>(context));
-
-        Load(context, SettingsRevision_);
-
-        Servant_.SetMountTime(Load<TInstant>(context));
-    } else {
-        Load(context, Servant_);
-
-        // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= EMasterReign::SmoothTabletMovement) {
-            Load(context, AuxiliaryServant_);
-        }
-
-        Load(context, SettingsRevision_);
+    if (context.GetVersion() >= EMasterReign::SmoothTabletMovement) {
+        Load(context, AuxiliaryServant_);
     }
 
+    Load(context, SettingsRevision_);
     Load(context, WasForcefullyUnmounted_);
     Load(context, Action_);
     Load(context, StoresUpdatePreparedTransaction_);
@@ -138,16 +125,7 @@ void TTabletBase::Load(NCellMaster::TLoadContext& context)
     Load(context, State_);
     Load(context, ExpectedState_);
     Load(context, TabletErrorCount_);
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() < EMasterReign::TabletServants) {
-        Servant_.SetState(State_);
-    }
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::AvenuesInTabletManager) {
-        Load(context, NodeAvenueEndpointId_);
-    }
+    Load(context, NodeAvenueEndpointId_);
 }
 
 ETabletState TTabletBase::GetState() const

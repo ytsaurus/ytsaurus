@@ -42,28 +42,10 @@ void TDomesticMedium::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
 
-    // COMPAT(gritukan)
-    if (context.GetVersion() < EMasterReign::MediumBase) {
-        Load(context, Name_);
-        Load(context, Index_);
-        Load(context, Priority_);
-    }
-
     Load(context, Transient_);
-
     Load(context, *Config_);
-
-    // COMPAT(gritukan)
-    if (context.GetVersion() < EMasterReign::MediumBase) {
-        Load(context, Acd_);
-    }
-
     Load(context, DiskFamilyWhitelist_);
-
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= EMasterReign::SequoiaReplicas) {
-        Load(context, EnableSequoiaReplicas_);
-    }
+    Load(context, EnableSequoiaReplicas_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

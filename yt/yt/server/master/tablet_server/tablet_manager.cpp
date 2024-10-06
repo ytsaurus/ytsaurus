@@ -2856,9 +2856,6 @@ private:
     // COMPAT(ifsmirnov)
     int NonAvenueTabletCount_ = 0;
 
-    // COMPAT(alexelexa)
-    bool NeedResetErrorCountOfUnmountedTablets_ = false;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -4790,8 +4787,6 @@ private:
         TabletMap_.LoadKeys(context);
         TableReplicaMap_.LoadKeys(context);
         TabletActionMap_.LoadKeys(context);
-
-        NeedResetErrorCountOfUnmountedTablets_ = context.GetVersion() < EMasterReign::ResetErrorCountOfUnmountedTablets;
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -4902,18 +4897,6 @@ private:
         for (auto [id, tablet] : Tablets()) {
             if (tablet->GetState() != ETabletState::Unmounted && !tablet->IsMountedWithAvenue()) {
                 ++NonAvenueTabletCount_;
-            }
-        }
-
-        if (NeedResetErrorCountOfUnmountedTablets_) {
-            for (auto [id, tabletBase] : Tablets()) {
-                if (tabletBase->GetState() == ETabletState::Unmounted) {
-                    tabletBase->SetTabletErrorCount(0);
-                    if (tabletBase->GetType() == EObjectType::Tablet) {
-                        auto* tablet = tabletBase->As<TTablet>();
-                        tablet->SetReplicationErrorCount(0);
-                    }
-                }
             }
         }
     }

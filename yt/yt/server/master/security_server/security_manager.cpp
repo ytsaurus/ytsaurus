@@ -2915,9 +2915,6 @@ private:
 
     bool IsChunkHostCell_ = false;
 
-    // COMPAT(h0pless): Remove this after chunk schemas are introduced.
-    bool NeedRecomputeReferencingAccounts_ = false;
-
     bool MustRecomputeMembershipClosure_ = false;
 
     bool GroupNameMapInitialized_ = false;
@@ -3233,8 +3230,6 @@ private:
         NetworkProjectMap_.LoadKeys(context);
         ProxyRoleMap_.LoadKeys(context);
         AccountResourceUsageLeaseMap_.LoadKeys(context);
-
-        NeedRecomputeReferencingAccounts_ = context.GetVersion() < EMasterReign::AddChunkSchemas;
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -3558,7 +3553,7 @@ private:
                 auto* table = node->As<TTableNode>();
                 table->RecomputeTabletMasterMemoryUsage();
             }
-            UpdateMasterMemoryUsage(node, NeedRecomputeReferencingAccounts_);
+            UpdateMasterMemoryUsage(node, /*accountChanged*/ false);
         }
 
         auto chargeAccount = [&] (TAccount* account, int /*mediumIndex*/, i64 /*chunkCount*/, i64 /*diskSpace*/, i64 chunkMasterMemoryUsage, bool /*committed*/) {
@@ -3586,15 +3581,13 @@ private:
             ComputeChunkResourceDelta(chunk, requisition, +1, chargeAccount);
         }
 
-        if (!NeedRecomputeReferencingAccounts_) {
-            // Master table schema memory usage is recalculated separately.
-            const auto& tableManager = Bootstrap_->GetTableManager();
-            for (auto [schemaId, schema] : tableManager->MasterTableSchemas()) {
-                for (const auto& [account, refCounter] : schema->ReferencingAccounts()) {
-                    YT_VERIFY(schema->GetChargedMasterMemoryUsage(account.Get()) == 0);
+        // Master table schema memory usage is recalculated separately.
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        for (auto [schemaId, schema] : tableManager->MasterTableSchemas()) {
+            for (const auto& [account, refCounter] : schema->ReferencingAccounts()) {
+                YT_VERIFY(schema->GetChargedMasterMemoryUsage(account.Get()) == 0);
 
-                    IncreaseMasterMemoryUsage(schema, account.Get(), +1, /*recomputingMasterMemory*/ true);
-                }
+                IncreaseMasterMemoryUsage(schema, account.Get(), +1, /*recomputingMasterMemory*/ true);
             }
         }
 
@@ -3746,7 +3739,6 @@ private:
         SequoiaAccount_ = nullptr;
 
         MustRecomputeMembershipClosure_ = false;
-        NeedRecomputeReferencingAccounts_ = false;
         GroupNameMapInitialized_ = false;
 
         ResetAuthenticatedUser();

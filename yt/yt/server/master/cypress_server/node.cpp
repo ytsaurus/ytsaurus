@@ -330,7 +330,7 @@ void TCypressNode::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() >= EMasterReign::TablesInSequoia) {
         loadImmutableProperties();
         TUniquePtrSerializer<>::Load(context, MutableSequoiaProperties_);
-    } else if (context.GetVersion() >= EMasterReign::SequoiaMapNode) {
+    } else {
         loadImmutableProperties();
         if (ImmutableSequoiaProperties_ && context.GetVersion() >= EMasterReign::SequoiaPropertiesBeingCreated) {
             auto beingCreated = Load<bool>(context);

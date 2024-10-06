@@ -1807,10 +1807,7 @@ private:
         RackMap_.LoadValues(context);
         DataCenterMap_.LoadValues(context);
         HostMap_.LoadValues(context);
-
-        if (context.GetVersion() >= EMasterReign::AutoTurnOffPendingRestartMaintenanceFlag) {
-            Load(context, PendingRestartMaintenanceNodeIds_);
-        }
+        Load(context, PendingRestartMaintenanceNodeIds_);
     }
 
     void Clear() override

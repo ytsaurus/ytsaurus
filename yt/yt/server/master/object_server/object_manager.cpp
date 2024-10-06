@@ -310,9 +310,6 @@ private:
     //! Stores schemas (for serialization mostly).
     TEntityMap<TSchemaObject> SchemaMap_;
 
-    // COMPAT(h0pless): FixTransactionACLs
-    bool ResetTransactionAcls_ = false;
-
     // COMPAT(babenko)
     bool DropLegacyClusterNodeMap_ = false;
 
@@ -1077,49 +1074,11 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 
     GarbageCollector_->LoadValues(context);
 
-    ResetTransactionAcls_ = context.GetVersion() < EMasterReign::FixTransactionACLs;
     DropLegacyClusterNodeMap_ = context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap;
 }
 
 void TObjectManager::OnAfterSnapshotLoaded()
 {
-    if (ResetTransactionAcls_) {
-        for (auto type : {
-            EObjectType::Transaction,
-            EObjectType::ExternalizedTransaction,
-            EObjectType::SystemTransaction,
-            EObjectType::UploadTransaction,
-            EObjectType::NestedTransaction,
-            EObjectType::ExternalizedNestedTransaction,
-            EObjectType::SystemNestedTransaction,
-            EObjectType::UploadNestedTransaction})
-        {
-            auto* schema = GetSchema(type);
-            auto* acd = GetHandler(schema)->FindAcd(schema);
-
-            YT_VERIFY(acd);
-            acd->Clear();
-
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
-            acd->AddEntry(TAccessControlEntry(
-                ESecurityAction::Allow,
-                securityManager->GetEveryoneGroup(),
-                EPermission::Read));
-            acd->AddEntry(TAccessControlEntry(
-                ESecurityAction::Allow,
-                securityManager->GetUsersGroup(),
-                EPermission::Remove));
-            acd->AddEntry(TAccessControlEntry(
-                ESecurityAction::Allow,
-                securityManager->GetUsersGroup(),
-                EPermission::Write));
-            acd->AddEntry(TAccessControlEntry(
-                ESecurityAction::Allow,
-                securityManager->GetUsersGroup(),
-                EPermission::Create));
-        }
-    }
-
     if (DropLegacyClusterNodeMap_) {
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
         auto id = MakeSchemaObjectId(EObjectType(804), primaryCellTag);
@@ -1145,7 +1104,6 @@ void TObjectManager::Clear()
     CreatedObjects_ = 0;
     DestroyedObjects_ = 0;
 
-    ResetTransactionAcls_ = false;
     DropLegacyClusterNodeMap_ = false;
 
     GarbageCollector_->Clear();

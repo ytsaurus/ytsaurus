@@ -31,15 +31,7 @@ void TMasterMemoryLimits::Load(NCellMaster::TLoadContext& context)
 
     Load(context, Total);
     Load(context, ChunkHost);
-
-    TLimit64 defaultPerCellLimit;
-    // COMPAT(kvk1920)
-    if (context.GetVersion() < EMasterReign::ReworkClusterResourceLimitsInfinityRelatedBehavior) {
-        defaultPerCellLimit = TLimit64::Infinity();
-    } else {
-        Load(context, defaultPerCellLimit);
-    }
-    PerCell = TPerCellLimits(defaultPerCellLimit);
+    PerCell = TPerCellLimits(Load<TLimit64>(context));
     Load(context, PerCell.AsUnderlying());
 }
 

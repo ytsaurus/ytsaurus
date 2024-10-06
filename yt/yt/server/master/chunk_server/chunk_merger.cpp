@@ -1040,7 +1040,6 @@ void TChunkMerger::Clear()
     AccountIdToNodeMergeDurations_.clear();
     ConfigVersion_ = 0;
 
-    OldNodesBeingMerged_.reset();
     NeedRestorePersistentStatistics_ = false;
 }
 
@@ -2340,40 +2339,15 @@ void TChunkMerger::Load(NCellMaster::TLoadContext& context)
 
     Load(context, TransactionRotator_);
 
-    // COMPAT(vovamelnikov)
-    if (context.GetVersion() >= EMasterReign::ChunkMergerQueuesUsagePerAccount) {
-        Load(context, NodesBeingMerged_);
-    } else {
-        OldNodesBeingMerged_ = std::make_unique<THashSet<TObjectId>>();
-        Load(context, *OldNodesBeingMerged_);
-    }
-    if (context.GetVersion() >= EMasterReign::FixMergerStatistics) {
-        Load(context, NodesBeingMergedPerAccount_);
-    }
-    NeedRestorePersistentStatistics_ = context.GetVersion() >= EMasterReign::ChunkMergerQueuesUsagePerAccount &&
-        context.GetVersion() < EMasterReign::FixMergerStatisticsOnceAgain;
+    Load(context, NodesBeingMerged_);
+    Load(context, NodesBeingMergedPerAccount_);
+    NeedRestorePersistentStatistics_ = context.GetVersion() < EMasterReign::FixMergerStatisticsOnceAgain;
 
     Load(context, ConfigVersion_);
 }
 
 void TChunkMerger::OnAfterSnapshotLoaded()
 {
-    if (OldNodesBeingMerged_) {
-        NodesBeingMerged_.clear();
-        NodesBeingMergedPerAccount_.clear();
-        for (auto nodeId: *OldNodesBeingMerged_) {
-            auto* chunkOwner = FindChunkOwner(nodeId);
-            if (!chunkOwner) {
-                continue;
-            }
-
-            auto accountId = chunkOwner->Account()->GetId();
-            EmplaceOrCrash(NodesBeingMerged_, nodeId, accountId);
-            IncrementPersistentTracker(accountId);
-        }
-        OldNodesBeingMerged_.reset();
-    }
-
     if (NeedRestorePersistentStatistics_) {
         NodesBeingMergedPerAccount_.clear();
         for (const auto& [nodeId, accountId] : NodesBeingMerged_) {
