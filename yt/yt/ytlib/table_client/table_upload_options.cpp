@@ -102,7 +102,7 @@ void TTableUploadOptions::Persist(const NPhoenix::TPersistenceContext& context)
     Persist(context, SchemaId);
     Persist(context, SchemaModification);
     // COMPAT(dave11ar): NControllerAgent::ESnapshotVersion::VersionedMapReduceWrite
-    if (context.GetVersion() >= 301515) {
+    if (context.GetVersion() >= 301602) {
         Persist(context, VersionedWriteOptions);
     }
     Persist(context, SchemaMode);
