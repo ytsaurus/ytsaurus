@@ -484,7 +484,7 @@ default_config = {
         # This option allows to write table in unordered mode.
         "unordered": False,
         # The restriction on the number of chunks which will be passed to concatenate command.
-        "concatenate_size": 100,
+        "concatenate_size": 20,
         # This option allows to save intermediate data in remote_temp_files_directory / remote_temp_tables_directory.
         "use_tmp_dir_for_intermediate_data": True
     },
