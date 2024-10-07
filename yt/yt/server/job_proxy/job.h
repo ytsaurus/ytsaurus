@@ -147,6 +147,8 @@ struct IJob
 
     virtual TJobProxyOrchidInfo GetOrchidInfo() = 0;
 
+    virtual bool HasJobTrace() const = 0;
+
     //! Schematized subset which is more or less common among different kinds of jobs.
     //! Used to reduce boilerplate in job implementations and to explicitly specify
     //! variadic-size statistics kind (namely, #OutputStatistics).

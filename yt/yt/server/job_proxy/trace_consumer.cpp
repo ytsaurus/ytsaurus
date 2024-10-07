@@ -40,6 +40,8 @@ void TTraceConsumer::OnMyListItem()
 
             AttributeConsumer_.GetAttributes()->Clear();
 
+            HasTrace_ = true;
+
             JobTraceEventProcessor_->OnEvent(TTraceEvent{
                 .RawEvent = std::move(event),
                 .ThreadId = threadId,

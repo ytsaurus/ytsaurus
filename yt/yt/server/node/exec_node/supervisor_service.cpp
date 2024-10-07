@@ -274,12 +274,14 @@ private:
         double progress = request->progress();
         auto statistics = TYsonString(request->statistics());
         auto stderrSize = request->stderr_size();
+        auto hasJobTrace = request->has_job_trace();
 
-        context->SetRequestInfo("JobId: %v, Progress: %lf, Statistics: %v, StderrSize: %v",
+        context->SetRequestInfo("JobId: %v, Progress: %lf, Statistics: %v, StderrSize: %v, HasJobTrace: %v",
             jobId,
             progress,
             NYson::ConvertToYsonString(statistics, EYsonFormat::Text).AsStringBuf(),
-            stderrSize);
+            stderrSize,
+            hasJobTrace);
 
         const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
@@ -289,6 +291,7 @@ private:
         job->SetTotalInputDataStatistics(request->total_input_data_statistics());
         job->SetOutputDataStatistics(FromProto<std::vector<TDataStatistics>>(request->output_data_statistics()));
         job->SetStderrSize(stderrSize);
+        job->SetHasJobTrace(hasJobTrace);
 
         context->Reply();
     }
