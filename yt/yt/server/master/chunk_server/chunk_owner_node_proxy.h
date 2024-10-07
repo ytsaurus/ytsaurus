@@ -115,7 +115,7 @@ private:
     TString DoSetReplication(TChunkReplication* replicationStorage, const TChunkReplication& replication, int mediumIndex);
     void SetReplication(const TChunkReplication& replication);
     void SetHunkReplication(const TChunkReplication& replication);
-    void SetPrimaryMedium(TMedium* medium);
+    void SetPrimaryMedium(TMedium* medium, bool force = false);
     void SetHunkPrimaryMedium(TMedium* medium);
     void MaybeScheduleChunkMerge();
 

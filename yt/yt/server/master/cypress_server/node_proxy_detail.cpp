@@ -1470,7 +1470,9 @@ bool TNontemplateCypressNodeProxyBase::ValidatePrimaryMediumChange(
     TMedium* newPrimaryMedium,
     const TChunkReplication& oldReplication,
     std::optional<int> oldPrimaryMediumIndex,
-    TChunkReplication* newReplication)
+    TChunkReplication* newReplication,
+    const TChunkOwnerDataStatistics& statistics,
+    bool force)
 {
     auto newPrimaryMediumIndex = newPrimaryMedium->GetIndex();
     if (newPrimaryMediumIndex == oldPrimaryMediumIndex) {
@@ -1490,6 +1492,19 @@ bool TNontemplateCypressNodeProxyBase::ValidatePrimaryMediumChange(
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     ValidateChunkReplication(chunkManager, copiedReplication, newPrimaryMediumIndex);
+
+    const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
+    if (!force && config->ValidateResourceUsageIncreaseOnPrimaryMediumChange) {
+        auto* account = GetThisImpl()->Account().Get();
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidateResourceUsageIncrease(account, TClusterResources().SetMediumDiskSpace(
+            newPrimaryMediumIndex,
+            CalculateDiskSpaceUsage(
+                copiedReplication.Get(newPrimaryMediumIndex).GetReplicationFactor(),
+                statistics.RegularDiskSpace,
+                statistics.ErasureDiskSpace)));
+    }
 
     *newReplication = copiedReplication;
 

@@ -725,6 +725,8 @@ public:
     bool EnableTwoRandomChoicesWriteTargetAllocation;
     int NodesToCheckBeforeGivingUpOnWriteTargetAllocation;
 
+    bool ValidateResourceUsageIncreaseOnPrimaryMediumChange;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);
