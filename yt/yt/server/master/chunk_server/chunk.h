@@ -46,12 +46,6 @@ struct TChunkExportData
 
 static_assert(sizeof(TChunkExportData) == 8, "sizeof(TChunkExportData) != 8");
 
-using TLegacyCellIndexToChunkExportData = TCompactFlatMap<int, TChunkExportData, TypicalChunkExportFactor>;
-static_assert(sizeof(TLegacyCellIndexToChunkExportData::value_type) == 12,
-    "sizeof(TLegacyCellIndexToChunkExportData::value_type) != 12");
-static_assert(sizeof(TLegacyCellIndexToChunkExportData) == 56,
-    "sizeof(TLegacyCellIndexToChunkExportData) != 56");
-
 using TCellTagToChunkExportData = TCompactFlatMap<NObjectServer::TCellTag, TChunkExportData, TypicalChunkExportFactor>;
 static_assert(sizeof(TCellTagToChunkExportData::value_type) == 12, "sizeof(TCellTagToChunkExportData::value_type) != 12");
 static_assert(sizeof(TCellTagToChunkExportData) == 56, "sizeof(TCellTagToChunkExportData) != 56");
@@ -383,48 +377,12 @@ public:
     //! and false otherwise.
     bool IsRefreshActual() const;
 
-    // COMPAT(kvk1920)
-    void TransformOldExportData(const NObjectServer::TCellTagList& registeredCellTags);
-
 private:
     //! -1 stands for std::nullopt for non-overlayed chunks.
     i64 FirstOverlayedRowIndex_ = -1;
 
-    // COMPAT(kvk1920)
-    class TPerCellExportData
-        : NNonCopyable::TNonCopyable
-    {
-    public:
-        ~TPerCellExportData();
-
-        void Load(NCellMaster::TLoadContext& context);
-        void Save(NCellMaster::TSaveContext& context) const;
-
-        explicit operator bool() const noexcept;
-
-        TCellTagToChunkExportData& operator*() const noexcept;
-        TCellTagToChunkExportData* operator->() const noexcept;
-        TCellTagToChunkExportData* Get() const noexcept;
-
-        void MaybeInit();
-        void MaybeShrink();
-
-        void TransformCellIndicesToCellTags(const NObjectServer::TCellTagList& registeredCellTags);
-
-    private:
-        // The lowest bit is used to distinguish cell indices and cell tags.
-        static_assert(sizeof(uintptr_t) == 8, "sizeof(uintptr_t) != 8");
-        static_assert(alignof(TLegacyCellIndexToChunkExportData) >= 2);
-        static_assert(alignof(TCellTagToChunkExportData) >= 2);
-        static constexpr uintptr_t LegacyExportDataMask = 1;
-
-        uintptr_t Ptr_ = 0;
-
-        TLegacyCellIndexToChunkExportData* LegacyGet() const noexcept;
-    };
-
     //! Per-cell data.
-    TPerCellExportData PerCellExportData_;
+    std::unique_ptr<TCellTagToChunkExportData> PerCellExportData_;
 
     TChunkRequisitionIndex AggregatedRequisitionIndex_;
     TChunkRequisitionIndex LocalRequisitionIndex_;
