@@ -8,6 +8,7 @@ class Request(object):
         user=None,
         id=None,
         token=None,
+        trace_id=None,
         service_ticket=None,
         user_tag=None
     ):
@@ -19,4 +20,5 @@ class Request(object):
         self.user_tag = user_tag
         self.id = id
         self.token = token
+        self.trace_id = trace_id
         self.service_ticket = service_ticket

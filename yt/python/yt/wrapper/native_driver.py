@@ -311,6 +311,8 @@ def make_request(command_name, params,
     else:
         token = get_token(client=client)
 
+    trace_id = params.get("trace_id", None)
+
     try:
         request = driver_bindings.Request(
             command_name=command_name,
@@ -319,6 +321,7 @@ def make_request(command_name, params,
             output_stream=output_stream,
             user=driver_user_name,
             token=token,
+            trace_id=trace_id,
             service_ticket=service_ticket)
     except TypeError:
         request = driver_bindings.Request(
