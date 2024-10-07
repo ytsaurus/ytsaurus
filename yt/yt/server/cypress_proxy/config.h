@@ -81,11 +81,29 @@ DEFINE_REFCOUNTED_TYPE(TObjectServiceDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSequoiaResponseKeeperDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! If set to false, writing requests to Sequoia cannot be idempotent.
+    bool Enable;
+
+    REGISTER_YSON_STRUCT(TSequoiaResponseKeeperDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSequoiaResponseKeeperDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCypressProxyDynamicConfig
     : public TNativeSingletonsDynamicConfig
 {
 public:
     TObjectServiceDynamicConfigPtr ObjectService;
+
+    TSequoiaResponseKeeperDynamicConfigPtr ResponseKeeper;
 
     REGISTER_YSON_STRUCT(TCypressProxyDynamicConfig);
 

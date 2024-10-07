@@ -17,6 +17,7 @@ from yt.environment.helpers import (
 )
 from yt.environment.porto_helpers import porto_available
 from yt.environment.default_config import (
+    get_dynamic_cypress_proxy_config,
     get_dynamic_master_config,
 )
 from yt.environment.helpers import (  # noqa
@@ -415,6 +416,7 @@ class YTEnvSetup(object):
     DELTA_QUEUE_AGENT_CONFIG = {}
     DELTA_KAFKA_PROXY_CONFIG = {}
     DELTA_CYPRESS_PROXY_CONFIG = {}
+    DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {}
 
     USE_PORTO = False  # Enables use_slot_user_id, use_porto_for_servers, jobs_environment_type="porto"
     USE_SLOT_USER_ID = None  # If set explicitly, overrides USE_PORTO.
@@ -607,7 +609,7 @@ class YTEnvSetup(object):
     @classmethod
     def create_yt_cluster_instance(cls, index, path):
         modify_configs_func = functools.partial(cls.apply_config_patches, cluster_index=index, cluster_path=path)
-        modify_dynamic_configs_func = functools.partial(cls.apply_dynamic_config_patches, cluster_index=index)
+        modify_dynamic_configs_func = functools.partial(cls.apply_node_dynamic_config_patches, cluster_index=index)
         modify_driver_logging_config_func = cls.modify_driver_logging_config
 
         yt.logger.info("Creating cluster instance")
@@ -987,17 +989,23 @@ class YTEnvSetup(object):
                 driver=ground_driver)
             yt_commands.mount_table(table_path, driver=ground_driver)
 
-        path = DESCRIPTORS.unapproved_chunk_replicas.get_default_path()
-        yt_commands.set("{}/@mount_config/min_data_versions".format(path), 0, driver=ground_driver)
-        yt_commands.set("{}/@mount_config/max_data_versions".format(path), 1, driver=ground_driver)
-        yt_commands.set("{}/@mount_config/min_data_ttl".format(path), 0, driver=ground_driver)
-        yt_commands.set("{}/@mount_config/max_data_ttl".format(path), 5000, driver=ground_driver)
+        unapproved_chunk_replicas_path = DESCRIPTORS.unapproved_chunk_replicas.get_default_path()
+        yt_commands.set(f"{unapproved_chunk_replicas_path}/@mount_config/min_data_versions", 0, driver=ground_driver)
+        yt_commands.set(f"{unapproved_chunk_replicas_path}/@mount_config/max_data_versions", 1, driver=ground_driver)
+        yt_commands.set(f"{unapproved_chunk_replicas_path}/@mount_config/min_data_ttl", 0, driver=ground_driver)
+        yt_commands.set(f"{unapproved_chunk_replicas_path}/@mount_config/max_data_ttl", 5000, driver=ground_driver)
+
+        response_keeper_path = DESCRIPTORS.unapproved_chunk_replicas.get_default_path()
+        yt_commands.set(f"{response_keeper_path}/@mount_config/min_data_versions", 0, driver=ground_driver)
+        yt_commands.set(f"{response_keeper_path}/@mount_config/max_data_versions", 1, driver=ground_driver)
+        yt_commands.set(f"{response_keeper_path}/@mount_config/min_data_ttl", 0, driver=ground_driver)
+        yt_commands.set(f"{response_keeper_path}/@mount_config/max_data_ttl", 1000, driver=ground_driver)
 
         for descriptor in DESCRIPTORS.as_dict().values():
             yt_commands.wait_for_tablet_state(descriptor.get_default_path(), "mounted", driver=ground_driver)
 
     @classmethod
-    def apply_dynamic_config_patches(cls, config, ytserver_version, cluster_index):
+    def apply_node_dynamic_config_patches(cls, config, ytserver_version, cluster_index):
         delta_node_config = cls.get_param("DELTA_DYNAMIC_NODE_CONFIG", cluster_index)
 
         update_inplace(config, delta_node_config)
@@ -1251,8 +1259,6 @@ class YTEnvSetup(object):
         if driver is None:
             return
 
-        master_cell_descriptors = self.get_param("MASTER_CELL_DESCRIPTORS", cluster_index)
-
         node_count = self.get_param("NUM_NODES", cluster_index) + self.get_param("NUM_CHAOS_NODES", cluster_index)
         if node_count > 0:
             wait(lambda: yt_commands.get("//sys/cluster_nodes/@count", driver=driver) == node_count)
@@ -1264,9 +1270,9 @@ class YTEnvSetup(object):
             )
         else:
             scheduler_pool_trees_root = "//sys/pool_trees"
+        yt_commands.create("map_node", "//sys/cypress_proxies", ignore_existing=True, driver=driver)
         self._restore_globals(
             cluster_index=cluster_index,
-            master_cell_descriptors=master_cell_descriptors,
             scheduler_count=scheduler_count,
             scheduler_pool_trees_root=scheduler_pool_trees_root,
             driver=driver,
@@ -1721,46 +1727,11 @@ class YTEnvSetup(object):
 
     def _restore_globals(self,
                          cluster_index,
-                         master_cell_descriptors,
                          scheduler_count,
                          scheduler_pool_trees_root,
                          driver=None):
-        dynamic_master_config = get_dynamic_master_config()
-        dynamic_master_config = update_inplace(
-            dynamic_master_config, self.get_param("DELTA_DYNAMIC_MASTER_CONFIG", cluster_index)
-        )
-        dynamic_master_config["multicell_manager"]["cell_descriptors"] = master_cell_descriptors
-        if self.Env.get_component_version("ytserver-master").abi >= (20, 4):
-            dynamic_master_config["enable_descending_sort_order"] = True
-            dynamic_master_config["enable_descending_sort_order_dynamic"] = True
-        if self.Env.get_component_version("ytserver-master").abi >= (22, 1):
-            dynamic_master_config["enable_table_column_renaming"] = True
-        allow_dynamic_renames = \
-            self.Env.get_component_version("ytserver-master").abi >= (23, 1) and \
-            self.ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES
-
-        if allow_dynamic_renames:
-            dynamic_master_config["enable_dynamic_table_column_renaming"] = True
-
-        dynamic_master_config["enable_static_table_drop_column"] = self.ENABLE_STATIC_DROP_COLUMN
-        dynamic_master_config["enable_dynamic_table_drop_column"] = self.ENABLE_DYNAMIC_DROP_COLUMN
-        dynamic_master_config["allow_everyone_create_secondary_indices"] = self.ENABLE_ALLOW_SECONDARY_INDICES
-
-        # COMPAT(kvk1920)
-        if self.Env.get_component_version("ytserver-master").abi < (24, 2):
-            dynamic_master_config["node_tracker"]["full_node_states_gossip_period"] = 6 * 60 * 60 * 1000
-
-        if self.USE_SEQUOIA:
-            dynamic_master_config["sequoia_manager"]["enable"] = True
-            if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
-                dynamic_master_config["sequoia_manager"]["enable_cypress_transactions_in_sequoia"] = True
-
-        # COMPAT(kvk1920)
-        if self.Env.get_component_version("ytserver-master").abi >= (24, 2):
-            dynamic_master_config["transaction_manager"]["alert_transaction_is_not_compatible_with_method"] = True
-
-        if not self.TEST_MAINTENANCE_FLAGS and self.Env.get_component_version("ytserver-master").abi >= (23, 1):
-            dynamic_master_config["node_tracker"]["forbid_maintenance_attribute_writes"] = True
+        dynamic_master_config = self._apply_master_dynamic_config_patches(get_dynamic_master_config(), cluster_index)
+        cypres_proxy_dynamic_config = self._apply_cypres_proxy_dynamic_config_patches(get_dynamic_cypress_proxy_config(), cluster_index)
 
         default_pool_tree_config = {
             "nodes_filter": "",
@@ -1782,8 +1753,6 @@ class YTEnvSetup(object):
             "check_operation_for_liveness_in_preschedule": False,
         }
 
-        dynamic_master_config.setdefault("chunk_service", {})
-
         for response in yt_commands.execute_batch(
             [
                 yt_commands.make_batch_request(
@@ -1797,6 +1766,7 @@ class YTEnvSetup(object):
                     input={},
                 ),
                 yt_commands.make_batch_request("set", path="//sys/@config", input=dynamic_master_config),
+                yt_commands.make_batch_request("set", path="//sys/cypress_proxies/@config", input=cypres_proxy_dynamic_config),
             ],
             driver=driver,
         ):
@@ -1843,6 +1813,52 @@ class YTEnvSetup(object):
 
         if scheduler_count > 0:
             self._wait_for_scheduler_state_restored(driver=driver)
+
+    def _apply_cypres_proxy_dynamic_config_patches(self, config, cluster_index):
+        delta_cypress_proxy_config = self.get_param("DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG", cluster_index)
+        update_inplace(config, delta_cypress_proxy_config)
+        return config
+
+    def _apply_master_dynamic_config_patches(self, config, cluster_index):
+        master_cell_descriptors = self.get_param("MASTER_CELL_DESCRIPTORS", cluster_index)
+        update_inplace(
+            config, self.get_param("DELTA_DYNAMIC_MASTER_CONFIG", cluster_index)
+        )
+        config["multicell_manager"]["cell_descriptors"] = master_cell_descriptors
+        if self.Env.get_component_version("ytserver-master").abi >= (20, 4):
+            config["enable_descending_sort_order"] = True
+            config["enable_descending_sort_order_dynamic"] = True
+        if self.Env.get_component_version("ytserver-master").abi >= (22, 1):
+            config["enable_table_column_renaming"] = True
+        allow_dynamic_renames = \
+            self.Env.get_component_version("ytserver-master").abi >= (23, 1) and \
+            self.ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES
+
+        if allow_dynamic_renames:
+            config["enable_dynamic_table_column_renaming"] = True
+
+        config["enable_static_table_drop_column"] = self.ENABLE_STATIC_DROP_COLUMN
+        config["enable_dynamic_table_drop_column"] = self.ENABLE_DYNAMIC_DROP_COLUMN
+        config["allow_everyone_create_secondary_indices"] = self.ENABLE_ALLOW_SECONDARY_INDICES
+
+        # COMPAT(kvk1920)
+        if self.Env.get_component_version("ytserver-master").abi < (24, 2):
+            config["node_tracker"]["full_node_states_gossip_period"] = 6 * 60 * 60 * 1000
+
+        if self.USE_SEQUOIA:
+            config["sequoia_manager"]["enable"] = True
+            if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
+                config["sequoia_manager"]["enable_cypress_transactions_in_sequoia"] = True
+
+        # COMPAT(kvk1920)
+        if self.Env.get_component_version("ytserver-master").abi >= (24, 2):
+            config["transaction_manager"]["alert_transaction_is_not_compatible_with_method"] = True
+
+        if not self.TEST_MAINTENANCE_FLAGS and self.Env.get_component_version("ytserver-master").abi >= (23, 1):
+            config["node_tracker"]["forbid_maintenance_attribute_writes"] = True
+
+        config.setdefault("chunk_service", {})
+        return config
 
     def _wait_for_dynamic_config(self, root_path, config, instances, driver=None):
         if not self.WAIT_FOR_DYNAMIC_CONFIG:

@@ -36,12 +36,15 @@ DECLARE_REFCOUNTED_CLASS(TUserDirectory)
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TObjectServiceDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(TSequoiaResponseKeeperDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TCypressProxyDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TUserDirectorySynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TSequoiaSession)
+
+DECLARE_REFCOUNTED_STRUCT(ISequoiaResponseKeeper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
