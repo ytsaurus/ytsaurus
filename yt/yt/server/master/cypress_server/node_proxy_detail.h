@@ -7,6 +7,8 @@
 
 #include <yt/yt/server/master/cell_master/config.h>
 
+#include <yt/yt/server/master/chunk_server/chunk_owner_data_statistics.h>
+
 #include <yt/yt/server/master/object_server/public.h>
 #include <yt/yt/server/master/object_server/permission_validator.h>
 
@@ -290,7 +292,9 @@ protected:
         NChunkServer::TMedium* newPrimaryMedium,
         const NChunkServer::TChunkReplication& oldReplication,
         std::optional<int> oldPrimaryMediumIndex,
-        NChunkServer::TChunkReplication* newReplication);
+        NChunkServer::TChunkReplication* newReplication,
+        const NChunkServer::TChunkOwnerDataStatistics& statistics = {},
+        bool force = false);
 
     void SetModified(NObjectServer::EModificationType modificationType) override;
 

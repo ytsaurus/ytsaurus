@@ -202,6 +202,7 @@ DEFINE_ENUM(EMasterReign,
     ((NestedAggregateColumns_24_1)                                  (2596))  // lukyan
     ((DynamicTableSchemaContraint)                                  (2597))  // whatsername
     ((RemoveSchemalessEndUploadPreservesTableSchema_24_1)           (2598))  // h0pless
+    ((ValidateResourceUsageIncreaseOnPrimaryMediumChange_24_1)      (2599))  // danilalexeev
     // 24.2 starts here.
     ((Start_24_2)                                                   (2700))  //
     ((DropLegacyClusterNodeMap)                                     (2701))  // babenko
@@ -247,6 +248,7 @@ DEFINE_ENUM(EMasterReign,
     ((OptionalHunkPrimaryMedium)                                    (2741))  // kazachonok
     ((RemoveSchemalessEndUploadPreservesTableSchema)                (2742))  // h0pless
     ((TtlVerificationInRemoveExpiredNodes)                          (2743))  // koloshmet
+    ((ValidateResourceUsageIncreaseOnPrimaryMediumChange)           (2744))  // danilalexeev
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

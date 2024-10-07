@@ -975,6 +975,29 @@ class TestAccounts(AccountsTestSuiteBase):
         with pytest.raises(YtError):
             write_table("//tmp/a/t4", {"a": "b"})
 
+    @authors("danilalexeev")
+    def test_disk_space_limits6(self):
+        set("//sys/@config/chunk_manager/validate_resource_usage_increase_on_primary_medium_change", True)
+        create_domestic_medium("ssd")
+        limits = {
+            "node_count": 1,
+            "chunk_count": 1,
+            "disk_space_per_medium": {
+                "default": 10000,
+                "ssd": 0,
+            },
+        }
+        create_account("max", attributes={"resource_limits": limits})
+
+        with self.WaitForAccountUsage("//tmp/t", new_account="max"):
+            create("table", "//tmp/t", attributes={"account": "max"})
+            write_table("//tmp/t", {"a": "b"})
+
+        assert not self._is_account_disk_space_limit_violated("max")
+
+        with raises_yt_error("Account \"max\" is over disk space limit in medium \"ssd\""):
+            set("//tmp/t/@primary_medium", "ssd")
+
     @authors("babenko", "kiselyovp")
     def test_committed_usage(self):
         self._wait_for_tmp_account_usage()
@@ -1125,7 +1148,7 @@ class TestAccounts(AccountsTestSuiteBase):
         del media["default"]
         media["hdd2"]["replication_factor"] = 2
         media["hdd3"] = {"replication_factor": 5, "data_parts_only": False}
-        set("//tmp/a/t1/@primary_medium", "hdd3")
+        set("//tmp/a/t1/@primary_medium", "hdd3", force=True)
         set("//tmp/a/t1/@media", media)
         resource_usage["disk_space_per_medium"]["default"] = 0
         resource_usage["disk_space_per_medium"]["hdd2"] = 2 * chunk_size
@@ -3698,7 +3721,7 @@ class TestAccountTree(AccountsTestSuiteBase):
 
         create("file", "//tmp/yt-prod/file")
         write_file("//tmp/yt-prod/file", b"abacaba")
-        set("//tmp/yt-prod/file/@primary_medium", "hdd7")
+        set("//tmp/yt-prod/file/@primary_medium", "hdd7", force=True)
 
         # violate hdd7 disk space limit for yt-prod
         set_account_disk_space_limit("yt-prod", 0, "hdd7")

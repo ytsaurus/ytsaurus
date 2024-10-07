@@ -2788,7 +2788,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         if "test_medium" not in ls("//sys/media"):
             create_domestic_medium("test_medium")
-        set("//tmp/t/@primary_medium", "test_medium")
+        set("//tmp/t/@primary_medium", "test_medium", force=True)
         _validate(disk_space, "test_medium")
 
         set("//tmp/t/@replication_factor", 10)
