@@ -224,6 +224,7 @@ public:
             .DqManagerConfig = Config_->EnableDq ? ConvertToYsonString(Config_->DqManagerConfig) : TYsonString(),
             .FileStorageConfig = ConvertToYsonString(Config_->FileStorageConfig),
             .OperationAttributes = ConvertToYsonString(Config_->OperationAttributes),
+            .Libraries = ConvertToYsonString(Config_->Libraries),
             .YTTokenPath = Config_->YTTokenPath,
             .LogBackend = NYT::NLogging::CreateArcadiaLogBackend(TLogger("YqlPlugin")),
             .YqlPluginSharedLibrary = Config_->YqlPluginSharedLibrary,

@@ -263,6 +263,8 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("enable_dq", &TThis::EnableDq)
         .Default(false);
+    registrar.Parameter("libraries", &TThis::Libraries)
+        .Default();
 
     registrar.Postprocessor([=] (TThis* config) {
         auto gatewayConfig = config->GatewayConfig->AsMap();
