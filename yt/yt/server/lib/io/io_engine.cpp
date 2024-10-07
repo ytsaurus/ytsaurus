@@ -70,13 +70,13 @@ TFuture<IIOEngine::TReadResponse> IIOEngine::ReadAll(
                 category,
                 GetRefCountedTypeCookie<TReadAllBufferTag>(),
                 sessionId)
-                .Apply(BIND(
+                .ApplyUnique(BIND(
                     [=, this, this_ = MakeStrong(this), handle = handle]
-                    (const TReadResponse& response)
+                    (TReadResponse&& response)
                 {
                     YT_VERIFY(response.OutputBuffers.size() == 1);
                     return Close({.Handle = handle}, category)
-                        .Apply(BIND([response = response] () mutable {
+                        .Apply(BIND([response = std::move(response)] () mutable {
                             return std::move(response);
                         }));
                 }));

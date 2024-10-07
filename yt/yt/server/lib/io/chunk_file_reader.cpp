@@ -280,8 +280,7 @@ std::vector<TBlock> TChunkFileReader::OnBlocksRead(
         std::memory_order::relaxed);
     options.ChunkReaderStatistics->DataIORequests.fetch_add(
         readResponse.IORequests,
-        std::memory_order::relaxed
-    );
+        std::memory_order::relaxed);
 
     const auto& firstBlockInfo = blocksExt->Blocks[firstBlockIndex];
 
