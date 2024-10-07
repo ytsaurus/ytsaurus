@@ -31,6 +31,7 @@
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
+#include <yt/yt/server/master/maintenance_tracker_server/maintenance_tracker.h>
 #include <yt/yt/server/master/maintenance_tracker_server/proto/maintenance_tracker.pb.h>
 
 #include <yt/yt/server/master/node_tracker_server/proto/node_tracker.pb.h>
@@ -171,11 +172,6 @@ public:
             MasterCacheManager_ = New<TNodeDiscoveryManager>(Bootstrap_, ENodeRole::MasterCache);
             TimestampProviderManager_ = New<TNodeDiscoveryManager>(Bootstrap_, ENodeRole::TimestampProvider);
         }
-
-        ResetNodePendingRestartMaintenanceExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
-            BIND(&TNodeTracker::ResetNodesPendingRestartMaintenanceOnTimeout, MakeWeak(this)));
-        ResetNodePendingRestartMaintenanceExecutor_->Start();
     }
 
     void SubscribeToAggregatedNodeStateChanged(TNode* node)
@@ -337,10 +333,6 @@ public:
         // it is offline. Secondary masters, however, may receive a removal request from primaries
         // and must obey it regardless of the node's state.
         EnsureNodeDisposed(node);
-
-        // Reset pending restart maintenace flag before node removal to ensure
-        // that `NodePendingRestartChanged` signal is fired.
-        ResetNodePendingRestart(node);
 
         RemoveFromAddressMaps(node);
 
@@ -1708,24 +1700,27 @@ private:
 
     void HydraResetNodePendingRestartMaintenance(TReqResetNodePendingRestartMaintenance* request)
     {
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+
+        const auto& maintenanceTracker = Bootstrap_->GetMaintenanceTracker();
         for (auto protoNodeId : request->node_ids()) {
             auto nodeId = FromProto<TNodeId>(protoNodeId);
             auto* node = FindNode(nodeId);
             if (!IsObjectAlive(node)) {
                 continue;
             }
-            ResetNodePendingRestart(node);
-        }
-    }
 
-    void ResetNodePendingRestart(TNode* node)
-    {
-        if (node->ClearMaintenanceFlag(EMaintenanceType::PendingRestart)) {
-            OnNodePendingRestartUpdated(node);
-
-            YT_LOG_INFO("Removed pending restart flag (NodeId: %v, Address: %v)",
-                node->GetId(),
-                node->GetDefaultAddress());
+            try {
+                maintenanceTracker->RemoveMaintenance(
+                    EMaintenanceComponent::ClusterNode,
+                    node->GetDefaultAddress(),
+                    /*ids*/ std::nullopt,
+                    /*user*/ std::nullopt,
+                    /*type*/ EMaintenanceType::PendingRestart,
+                    /*componentRegistry*/ std::nullopt);
+            } catch (const std::exception& ex) {
+                YT_LOG_ALERT(ex, "Failed to remove node pending restart maintenance (NodeId: %v)", nodeId);
+            }
         }
     }
 
@@ -2006,7 +2001,12 @@ private:
 
         // NB: Node states gossip is one way: secondary-to-primary.
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsSecondaryMaster()) {
+        if (multicellManager->IsPrimaryMaster()) {
+            ResetNodePendingRestartMaintenanceExecutor_ = New<TPeriodicExecutor>(
+                Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+                BIND(&TNodeTracker::ResetNodesPendingRestartMaintenanceOnTimeout, MakeWeak(this)));
+            ResetNodePendingRestartMaintenanceExecutor_->Start();
+        } else {
             NodeStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::NodeTrackerGossip),
                 BIND(&TNodeTracker::OnNodeStatisticsGossip, MakeWeak(this)));
@@ -2030,6 +2030,11 @@ private:
     void OnStopLeading() override
     {
         TMasterAutomatonPart::OnStopLeading();
+
+        if (ResetNodePendingRestartMaintenanceExecutor_) {
+            YT_UNUSED_FUTURE(ResetNodePendingRestartMaintenanceExecutor_->Stop());
+            ResetNodePendingRestartMaintenanceExecutor_.Reset();
+        }
 
         if (NodeStatisticsGossipExecutor_) {
             YT_UNUSED_FUTURE(NodeStatisticsGossipExecutor_->Stop());
@@ -2321,6 +2326,8 @@ private:
 
     void ResetNodesPendingRestartMaintenanceOnTimeout()
     {
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+
         if (!IsLeader()) {
             return;
         }
@@ -2800,7 +2807,10 @@ private:
 
         ProfilingExecutor_->SetPeriod(GetDynamicConfig()->ProfilingPeriod);
 
-        ResetNodePendingRestartMaintenanceExecutor_->SetPeriod(GetDynamicConfig()->ResetNodePendingRestartMaintenancePeriod);
+        if (ResetNodePendingRestartMaintenanceExecutor_) {
+            ResetNodePendingRestartMaintenanceExecutor_->SetPeriod(
+                GetDynamicConfig()->ResetNodePendingRestartMaintenancePeriod);
+        }
     }
 
     void OnNodeBanUpdated(TNode* node)
@@ -2919,19 +2929,17 @@ private:
             PendingRestartMaintenanceNodeIdToSetIt_.erase(it);
         }
 
-        if (node->IsPendingRestart()) {
-            YT_LOG_INFO("Node restart is pending (NodeId: %v, Address: %v)",
-                node->GetId(),
-                node->GetDefaultAddress());
-
+        if (Bootstrap_->IsPrimaryMaster() && node->IsPendingRestart()) {
             auto* mutationContext = GetCurrentMutationContext();
             auto it = PendingRestartMaintenanceNodeIds_.emplace(mutationContext->GetTimestamp(), nodeId).first;
             PendingRestartMaintenanceNodeIdToSetIt_.emplace(nodeId, it);
-        } else {
-            YT_LOG_INFO("Node restart is no longer pending (NodeId: %v, Address: %v)",
-                nodeId,
-                node->GetDefaultAddress());
         }
+
+        YT_LOG_INFO("Node restart is %v (NodeId: %v, Address: %v)",
+            node->IsPendingRestart() ? "pending" : "no longer pending",
+            nodeId,
+            node->GetDefaultAddress());
+
         NodePendingRestartChanged_.Fire(node);
     }
 };
