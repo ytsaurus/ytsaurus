@@ -2724,7 +2724,7 @@ private:
     {
         auto ttl = GetDynamicConfig()->ThrottledNodeRegistrationExpirationTime;
         for (auto& addresses : FlavorToThrottledRegisterNodeAddresses_) {
-            addresses.SetTTl(ttl);
+            addresses.SetTtl(ttl);
         }
     }
 
