@@ -636,23 +636,25 @@ private:
             callbackContext->ErasedPartSet.set(partIndex);
 
             auto& copyFuture = (*copyFutures)[partIndex];
-            copyFuture.Subscribe(BIND([callbackContext, erasureCodec, partIndex, inputChunkId] (const TError& error) {
-                if (error.IsOK()) {
-                    callbackContext->ErasedPartSet.reset(partIndex);
-                    if (erasureCodec->CanRepair(callbackContext->ErasedPartSet)) {
-                        callbackContext->CanStartRepair.TrySet();
+            copyFuture.Subscribe(
+                BIND([callbackContext, erasureCodec, partIndex, inputChunkId] (TError error) {
+                    if (error.IsOK()) {
+                        callbackContext->ErasedPartSet.reset(partIndex);
+                        if (erasureCodec->CanRepair(callbackContext->ErasedPartSet)) {
+                            callbackContext->CanStartRepair.TrySet();
+                        }
+                    } else {
+                        callbackContext->FailedPartSet.set(partIndex);
+                        callbackContext->CopyErrors.push_back(error);
+                        // Chunk cannot be repaired, this situation is unrecoverable.
+                        if (!erasureCodec->CanRepair(callbackContext->FailedPartSet)) {
+                            callbackContext->CanStartRepair.TrySet(TError("Cannot repair erasure chunk")
+                                << callbackContext->CopyErrors
+                                << TErrorAttribute("chunk_id", inputChunkId));
+                        }
                     }
-                } else {
-                    callbackContext->FailedPartSet.set(partIndex);
-                    callbackContext->CopyErrors.push_back(error);
-                    // Chunk cannot be repaired, this situation is unrecoverable.
-                    if (!erasureCodec->CanRepair(callbackContext->FailedPartSet)) {
-                        callbackContext->CanStartRepair.TrySet(TError("Cannot repair erasure chunk")
-                            << callbackContext->CopyErrors
-                            << TErrorAttribute("chunk_id", inputChunkId));
-                    }
-                }
-            }));
+                })
+                .Via(GetRemoteCopyInvoker()));
         }
 
         return WaitFor(callbackContext->CanStartRepair.ToFuture());
