@@ -1859,6 +1859,7 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
         create("table", "//tmp/t_out2")
 
     @authors("artemagafonov")
+    @pytest.mark.timeout(150)
     def test_access_to_sandbox_in_layer(self):
         self.setup_files()
 
@@ -1880,6 +1881,7 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
         assert read_table("//tmp/t_out") == [{"Hello": "World"}]
 
     @authors("artemagafonov")
+    @pytest.mark.timeout(150)
     def test_copy_artifact_with_root_volume_disk_quota(self):
         self.setup_files()
 
@@ -1995,6 +1997,7 @@ class TestVirtualSandbox(YTEnvSetup):
         create("table", "//tmp/t_out3")
 
     @authors("artemagafonov")
+    @pytest.mark.timeout(150)
     def test_use_virtual_sandbox(self):
         self.setup_files()
 
@@ -2017,6 +2020,7 @@ class TestVirtualSandbox(YTEnvSetup):
         assert read_table("//tmp/t_out1") == [{"Hello": "World"}]
 
     @authors("artemagafonov")
+    @pytest.mark.timeout(150)
     def test_skip_files_inside_tmpfs(self):
         self.setup_files()
 
