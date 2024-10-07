@@ -1726,6 +1726,7 @@ private:
         Queues_.clear();
         QueueConsumers_.clear();
         QueueProducers_.clear();
+        NeedToFillTableIdsForSecondaryIndices_ = false;
     }
 
     void SetZeroState() override
@@ -1748,9 +1749,7 @@ private:
         }
 
         // COMPAT(sabdenovch)
-        if (context.GetVersion() < EMasterReign::SecondaryIndexExternalCellTag) {
-            NeedToFillTableIdsForSecondaryIndices_ = true;
-        }
+        NeedToFillTableIdsForSecondaryIndices_ = context.GetVersion() < EMasterReign::SecondaryIndexExternalCellTag;
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
