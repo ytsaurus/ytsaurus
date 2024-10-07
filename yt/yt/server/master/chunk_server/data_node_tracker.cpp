@@ -235,10 +235,6 @@ public:
         node->SetDataNodeStatistics(std::move(statistics), chunkManager);
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        // Remove maintenance flag once full data node heartbeat is reported.
-        if (node->ClearMaintenanceFlag(EMaintenanceType::PendingRestart)) {
-            nodeTracker->OnNodeMaintenanceUpdated(node, EMaintenanceType::PendingRestart);
-        }
 
         nodeTracker->OnNodeHeartbeat(node, ENodeHeartbeatType::Data);
 
