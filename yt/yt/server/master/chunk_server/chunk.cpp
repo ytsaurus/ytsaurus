@@ -189,7 +189,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
         Save(context, false);
     }
 
-    PerCellExportData_.Save(context);
+    TUniquePtrSerializer<>::Save(context, PerCellExportData_);
 
     Save(context, EndorsementRequired_);
     Save(context, ConsistentReplicaPlacementHash_);
@@ -231,7 +231,13 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         MutableReplicasData()->Load(context);
     }
 
-    PerCellExportData_.Load(context);
+    TUniquePtrSerializer<>::Load(context, PerCellExportData_);
+    YT_VERIFY(
+        !PerCellExportData_ ||
+        std::any_of(
+            PerCellExportData_->begin(),
+            PerCellExportData_->end(),
+            [] (auto pair) { return pair.second.RefCounter != 0; }));
 
     Load(context, EndorsementRequired_);
 
@@ -680,7 +686,9 @@ inline TChunkRequisition TChunk::ComputeAggregatedRequisition(const TChunkRequis
 
 void TChunk::Export(TCellTag cellTag, TChunkRequisitionRegistry* registry)
 {
-    PerCellExportData_.MaybeInit();
+    if (!PerCellExportData_) {
+        PerCellExportData_ = std::make_unique<TCellTagToChunkExportData>();
+    }
 
     auto [it, inserted] = PerCellExportData_->emplace(cellTag, TChunkExportData{});
     auto& data = it->second;
@@ -710,7 +718,9 @@ void TChunk::Unexport(
         registry->Unref(data.ChunkRequisitionIndex, objectManager);
 
         PerCellExportData_->erase(it);
-        PerCellExportData_.MaybeShrink();
+        if (PerCellExportData_ && PerCellExportData_->empty()) {
+            PerCellExportData_.reset();
+        }
 
         UpdateAggregatedRequisitionIndex(registry, objectManager);
     }
@@ -748,11 +758,6 @@ bool TChunk::HasConsistentReplicaPlacementHash() const
         !IsErasure(); // CRP with erasure is not supported.
 }
 
-void TChunk::TransformOldExportData(const TCellTagList& registeredCellTags)
-{
-    PerCellExportData_.TransformCellIndicesToCellTags(registeredCellTags);
-}
-
 void TChunk::OnMiscExtUpdated(const TMiscExt& miscExt)
 {
     RowCount_ = miscExt.row_count();
@@ -768,103 +773,6 @@ void TChunk::OnMiscExtUpdated(const TMiscExt& miscExt)
     SystemBlockCount_ = miscExt.system_block_count();
     SetSealed(miscExt.sealed());
     SetStripedErasure(miscExt.striped_erasure());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TChunk::TPerCellExportData::~TPerCellExportData()
-{
-    if ((Ptr_ & LegacyExportDataMask) != 0) {
-        delete LegacyGet();
-    } else if (Ptr_ != 0) {
-        delete Get();
-    }
-}
-
-void TChunk::TPerCellExportData::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-
-    auto hasNonZeroExportCounter = [] (const auto& exportData) {
-        return std::any_of(
-            exportData.begin(),
-            exportData.end(),
-            [] (auto pair) { return pair.second.RefCounter != 0; });
-    };
-
-    std::unique_ptr<TCellTagToChunkExportData> exportData;
-    TUniquePtrSerializer<>::Load(context, exportData);
-    YT_VERIFY(!exportData || hasNonZeroExportCounter(*exportData));
-    Ptr_ = reinterpret_cast<uintptr_t>(exportData.release());
-}
-
-void TChunk::TPerCellExportData::Save(NCellMaster::TSaveContext& context) const
-{
-    std::unique_ptr<TCellTagToChunkExportData> uniquePtr(Get());
-    TUniquePtrSerializer<>::Save(context, uniquePtr);
-    Y_UNUSED(uniquePtr.release());
-}
-
-TCellTagToChunkExportData* TChunk::TPerCellExportData::Get() const noexcept
-{
-    YT_ASSERT((Ptr_ & LegacyExportDataMask) == 0);
-    return reinterpret_cast<TCellTagToChunkExportData*>(Ptr_);
-}
-
-TLegacyCellIndexToChunkExportData* TChunk::TPerCellExportData::LegacyGet() const noexcept
-{
-    YT_ASSERT((Ptr_ & LegacyExportDataMask) != 0);
-    return reinterpret_cast<TLegacyCellIndexToChunkExportData*>(Ptr_ & ~LegacyExportDataMask);
-}
-
-TCellTagToChunkExportData& TChunk::TPerCellExportData::operator*() const noexcept
-{
-    return *Get();
-}
-
-TCellTagToChunkExportData* TChunk::TPerCellExportData::operator->() const noexcept
-{
-    return Get();
-}
-
-TChunk::TPerCellExportData::operator bool() const noexcept
-{
-    return Ptr_ != 0;
-}
-
-void TChunk::TPerCellExportData::MaybeInit()
-{
-    if (!Get()) {
-        Ptr_ = reinterpret_cast<uintptr_t>(new TCellTagToChunkExportData);
-    }
-}
-
-void TChunk::TPerCellExportData::MaybeShrink()
-{
-    auto* exportData = Get();
-    if (exportData && exportData->empty()) {
-        delete exportData;
-        Ptr_ = 0;
-    }
-}
-
-void TChunk::TPerCellExportData::TransformCellIndicesToCellTags(
-    const TCellTagList& registeredCellTags)
-{
-    if (Ptr_ == 0) {
-        return;
-    }
-
-    auto* oldExportData = LegacyGet();
-    auto newExportData = std::make_unique<TCellTagToChunkExportData>();
-    newExportData->reserve(oldExportData->size());
-    for (auto [cellIndex, exportData] : *oldExportData) {
-        YT_VERIFY(static_cast<size_t>(cellIndex) < registeredCellTags.size());
-        newExportData->emplace(registeredCellTags[cellIndex], exportData);
-    }
-
-    Ptr_ = reinterpret_cast<uintptr_t>(newExportData.release());
-    delete oldExportData;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
