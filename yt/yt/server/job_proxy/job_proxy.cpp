@@ -296,6 +296,7 @@ void TJobProxy::SendHeartbeat()
     req->set_progress(job->GetProgress());
     FillStatistics(req, job, GetEnrichedStatistics());
     req->set_stderr_size(job->GetStderrSize());
+    req->set_has_job_trace(job->HasJobTrace());
 
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 }

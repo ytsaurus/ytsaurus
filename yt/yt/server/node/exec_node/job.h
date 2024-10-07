@@ -205,6 +205,8 @@ public:
 
     NYson::TYsonString BuildArchiveFeatures() const;
 
+    void SetHasJobTrace(bool value);
+
     void DoInterrupt(
         TDuration timeout,
         NScheduler::EInterruptReason interruptionReason,
@@ -393,6 +395,8 @@ private:
     NTracing::TTraceContextFinishGuard FinishGuard_;
 
     const IJobInputCachePtr JobInputCache_;
+
+    bool HasJobTrace_ = false;
 
     void OnResourcesAcquired() noexcept;
 

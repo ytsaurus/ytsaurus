@@ -44,6 +44,8 @@ public:
     std::optional<TJobEnvironmentCpuStatistics> GetUserJobCpuStatistics() const override;
     bool HasInputStatistics() const override;
 
+    bool HasJobTrace() const override;
+
 protected:
     const IJobHostPtr Host_;
     const TInstant StartTime_;

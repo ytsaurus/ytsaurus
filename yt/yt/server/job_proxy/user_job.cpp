@@ -1462,6 +1462,19 @@ private:
     }
 
 
+    bool HasJobTrace() const override
+    {
+        if (!JobProfiler_ || !JobProfiler_->GetUserJobProfilerSpec()) {
+            return false;
+        }
+
+        if (Config_->EnableCudaProfileEventStreaming) {
+            return TraceConsumer_.GetHasTrace();
+        }
+
+        return JobProfiler_->GetUserJobProfilerSpec()->Type == NScheduler::EProfilerType::Cuda;
+    }
+
     void OnIOErrorOrFinished(const TError& error, const TString& message)
     {
         if (error.IsOK() || error.FindMatching(NNet::EErrorCode::Aborted)) {
