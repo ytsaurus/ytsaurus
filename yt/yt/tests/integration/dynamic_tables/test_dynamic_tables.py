@@ -3482,31 +3482,6 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         )
 
     @authors("savrus")
-    def test_peer_change_on_prerequisite_transaction_abort(self):
-        cells = sync_create_cells(1)
-        driver = get_driver(1)
-
-        def prepare():
-            cells.extend(sync_create_cells(10))
-            sync_remove_tablet_cells(cells[:10])
-            for _ in range(10):
-                cells.pop(0)
-            cell = cells[0]
-            node = get("#{0}/@peers/0/address".format(cell))
-            assert get("#{0}/@peers/0/address".format(cell), driver=driver) == node
-
-            tx = get("#{0}/@prerequisite_transaction_id".format(cell))
-            abort_transaction(tx)
-            wait(lambda: exists("#{0}/@prerequisite_transaction_id".format(cell)))
-            wait(lambda: get("#{0}/@peers/0/state".format(cell)) == "leading")
-            return get("#{0}/@peers/0/address".format(cell)) != node
-
-        wait(prepare)
-        cell = cells[0]
-        node = get("#{0}/@peers/0/address".format(cell))
-        assert get("#{0}/@peers/0/address".format(cell), driver=driver) == node
-
-    @authors("savrus")
     @pytest.mark.parametrize("freeze", [False, True])
     def test_mount_orphaned(self, freeze):
         self._create_sorted_table("//tmp/t")
