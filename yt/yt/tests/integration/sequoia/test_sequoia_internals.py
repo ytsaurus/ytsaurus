@@ -533,18 +533,11 @@ class TestSequoiaInternals(YTEnvSetup):
 
 
 class TestSequoiaResolve(TestSequoiaInternals):
-    @classmethod
-    def setup_class(cls):
-        super(TestSequoiaInternals, cls).setup_class()
-
-        create("map_node", "//sys/cypress_proxies", ignore_existing=True)
-
-        new_config = {
-            "object_service": {
-                "allow_bypass_master_resolve": True,
-            }
-        }
-        set("//sys/cypress_proxies/@config", new_config)
+    DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
+        "object_service": {
+            "allow_bypass_master_resolve": True,
+        },
+    }
 
 
 ##################################################################
