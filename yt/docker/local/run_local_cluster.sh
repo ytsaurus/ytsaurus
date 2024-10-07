@@ -220,7 +220,7 @@ if [ ${enable_debug_logging} == "true" ]; then
 fi
 
 if [ ${with_auth} == "true" ]; then
-  params="${params} --enable-auth --create-admin-user"
+    params="${params} --enable-auth --create-admin-user"
 fi
 
 set +e

@@ -698,7 +698,7 @@ class YTInstance(object):
         token_hash = hashlib.sha256(DEFAULT_ADMIN_TOKEN.encode()).hexdigest()
         token_map_node_path = f"//sys/cypress_tokens/{token_hash}"
         client.create("map_node", token_map_node_path)
-        client.set_attribute(token_map_node_path,"user",DEFAULT_ADMIN_USERNAME)
+        client.set_attribute(token_map_node_path,"user", DEFAULT_ADMIN_USERNAME)
 
         client.set_user_password(DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD)
 
