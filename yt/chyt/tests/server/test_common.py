@@ -1910,6 +1910,34 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with raises_yt_error(QueryFailedError):
                 clique.make_query('SELECT 1 FROM my_db."subdir/table2"')
 
+    @authors("dakovalkov")
+    def test_query_cache(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "a", "type": "int64"}]})
+
+        write_table("//tmp/t1", [{"a": 1}])
+        write_table("//tmp/t2", [{"a": 2}])
+
+        patch = {
+            "clickhouse": {
+                "settings": {
+                    "use_query_cache": 1,
+                    "query_cache_min_query_duration": 0,
+                    "query_cache_min_query_runs": 0,
+                }
+            }
+        }
+
+        with Clique(1, config_patch=patch) as clique:
+            query = 'select * from "//tmp/{}" as t'
+            assert clique.make_query(query.format("t1")) == [{"a": 1}]
+            # The query result is cached, so it should work even after the table is deleted.
+            clique.make_query('drop table "//tmp/t1"')
+            assert clique.make_query(query.format("t1")) == [{"a": 1}]
+            # Check that second queries are not cached.
+            # They are the same for both queries, but read different data.
+            assert clique.make_query(query.format("t2")) == [{"a": 2}]
+
 
 class TestClickHouseNoCache(ClickHouseTestBase):
     @authors("dakovalkov")
