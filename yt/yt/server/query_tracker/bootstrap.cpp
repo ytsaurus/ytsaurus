@@ -202,10 +202,6 @@ void TBootstrap::DoRun()
             "/core_dumper",
             CreateVirtualNode(CoreDumper_->CreateOrchidService()));
     }
-    SetNodeByYPath(
-        orchidRoot,
-        "/query_tracker",
-        CreateVirtualNode(QueryTracker_->GetOrchidService()));
     SetBuildAttributes(
         orchidRoot,
         "query_tracker");
@@ -247,6 +243,10 @@ void TBootstrap::DoRun()
         StateChecker_,
         Config_->Root,
         Config_->MinRequiredStateVersion);
+    SetNodeByYPath(
+        orchidRoot,
+        "/query_tracker",
+        CreateVirtualNode(QueryTracker_->GetOrchidService()));
 
     AlertManager_->Start();
 
