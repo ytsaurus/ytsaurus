@@ -15,7 +15,7 @@ void TChaosCacheConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(15));
 
     registrar.Parameter("enable_watching", &TThis::EnableWatching)
-        .Default(false);
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
