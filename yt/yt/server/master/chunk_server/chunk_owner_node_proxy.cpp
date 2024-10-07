@@ -1097,7 +1097,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             ValidateStorageParametersUpdate();
             auto mediumName = ConvertTo<std::string>(value);
             auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
-            SetPrimaryMedium(medium);
+            SetPrimaryMedium(medium, force);
             return true;
         }
 
@@ -1412,7 +1412,7 @@ void TChunkOwnerNodeProxy::SetHunkPrimaryMedium(TMedium* medium)
         medium->GetName());
 }
 
-void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
+void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium, bool force)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YT_VERIFY(node->IsTrunk());
@@ -1422,7 +1422,9 @@ void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
         medium,
         node->Replication(),
         node->GetPrimaryMediumIndex(),
-        &newReplication))
+        &newReplication,
+        node->ComputeTotalStatistics(),
+        force))
     {
         return;
     }
