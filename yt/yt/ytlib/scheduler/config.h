@@ -1123,6 +1123,8 @@ public:
     //! Currently used by simple sort job and partition sort job.
     bool EnableCodegenComparator;
 
+    bool DisableRenameColumnsCompatibilityCode;
+
     //! Enable root volume disk quota.
     //! Apply the quota to the entire RootFs instead of the sandbox and tmp folders individually.
     bool EnableRootVolumeDiskQuota;

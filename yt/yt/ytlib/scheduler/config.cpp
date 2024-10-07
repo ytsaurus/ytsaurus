@@ -818,6 +818,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("enable_codegen_comparator", &TThis::EnableCodegenComparator)
         .Default(false);
 
+    registrar.Parameter("disable_rename_columns_compatibility_code", &TThis::DisableRenameColumnsCompatibilityCode)
+        .Default(false);
+
     registrar.Parameter("enable_root_volume_disk_quota", &TThis::EnableRootVolumeDiskQuota)
         .Default(false);
 

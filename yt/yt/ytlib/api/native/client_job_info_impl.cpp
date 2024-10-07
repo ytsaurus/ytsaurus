@@ -683,6 +683,10 @@ static NJobProxy::IJobSpecHelperPtr MaybePatchDataSourceDirectory(
 {
     auto jobSpecExt = jobSpecProto.GetExtension(TJobSpecExt::job_spec_ext);
 
+    if (jobSpecExt.disable_rename_columns_compatibility_code()) {
+        return NJobProxy::CreateJobSpecHelper(jobSpecProto);
+    }
+
     if (!HasProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(jobSpecExt.extensions())) {
         return NJobProxy::CreateJobSpecHelper(jobSpecProto);
     }
