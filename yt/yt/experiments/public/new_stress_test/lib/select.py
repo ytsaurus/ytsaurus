@@ -5,6 +5,7 @@ from .verify import verify_output
 from .logger import logger
 
 import yt.wrapper as yt
+from yt.wrapper.common import generate_uuid
 from yt.wrapper.http_helpers import get_proxy_url
 import yt.yson as yson
 
@@ -29,14 +30,17 @@ class SelectReducer(JobBase):
             query = "* from [%s] where (%s) in (%s)" % (
                 self.table, ",".join(["[%s]" % column for column in self.key_columns]), ",".join(keys),
             )
+            trace_id = generate_uuid()
             params = {
                 "query": query,
                 "output_format": "yson",
                 "timeout": 120000,
+                "trace_id": trace_id,
             }
             data = self.make_request("select_rows", params, b"", client=client)
             result = yson.loads(data, yson_type="list_fragment")
             for row in result:
+                row["trace_id"] = trace_id
                 if "$tablet_index" in row:
                     row["tablet_index"] = row["$tablet_index"]
                     row["row_index"] = row["$row_index"]
