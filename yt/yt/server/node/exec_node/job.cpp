@@ -239,17 +239,9 @@ TYsonString TJob::BuildArchiveFeatures() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    bool hasTrace = false;
-    for (const auto& profiler : JobSpecExt_->job_profilers()) {
-        if (profiler.type() == static_cast<int>(EProfilerType::Cuda)) {
-            hasTrace = true;
-            break;
-        }
-    }
-
     return BuildYsonStringFluently()
         .BeginMap()
-            .Item("has_trace").Value(hasTrace)
+            .Item("has_trace").Value(HasJobTrace_)
         .EndMap();
 }
 
@@ -759,9 +751,6 @@ void TJob::OnJobFinalized()
 
     JobFinished_.Fire(MakeStrong(this));
 
-    HandleJobReport(MakeDefaultJobReport()
-        .ArchiveFeatures(BuildArchiveFeatures()));
-
     if (!currentError.IsOK()) {
         // NB: it is required to report error that occurred in some place different
         // from OnJobFinished method.
@@ -1132,6 +1121,20 @@ void TJob::SetFailContext(const TString& value)
     VERIFY_THREAD_AFFINITY(JobThread);
 
     FailContext_ = value;
+}
+
+void TJob::SetHasJobTrace(bool hasJobTrace)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    if (hasJobTrace == HasJobTrace_) {
+        return;
+    }
+
+    HasJobTrace_ = hasJobTrace;
+
+    HandleJobReport(MakeDefaultJobReport()
+        .ArchiveFeatures(BuildArchiveFeatures()));
 }
 
 void TJob::AddProfile(TJobProfile value)
