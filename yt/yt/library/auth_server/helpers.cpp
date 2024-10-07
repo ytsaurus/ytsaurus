@@ -16,6 +16,7 @@ namespace NYT::NAuth {
 using namespace NCrypto;
 using namespace NYson;
 using namespace NYTree;
+using namespace NNet;
 using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,26 +28,44 @@ TString GetCryptoHash(TStringBuf secret)
         .GetHexDigestLowerCase();
 }
 
-TString FormatUserIP(const NNet::TNetworkAddress& address)
+TString FormatUserIP(const TNetworkAddress& address)
 {
     if (!address.IsIP()) {
         // Sometimes userIP is missing (e.g. user is connecting
         // from job using unix socket), but it is required by
-        // blackbox. Put placeholder in place of a real IP.
+        // Blackbox. Put placeholder in place of a real IP.
         static const TString LocalUserIP = "127.0.0.1";
         return LocalUserIP;
     }
     return ToString(
         address,
-        NNet::TNetworkAddressFormatOptions{
+        TNetworkAddressFormatOptions{
             .IncludePort = false,
-            .IncludeTcpProtocol = false
+            .IncludeTcpProtocol = false,
         });
+}
+
+TString GetBlackboxCacheKeyFactorFromUserIP(
+    EBlackboxCacheKeyMode mode,
+    const TNetworkAddress& address)
+{
+    if (mode == EBlackboxCacheKeyMode::Credentials) {
+        return TString();
+    }
+
+    if (mode == EBlackboxCacheKeyMode::CredentialsAndUserAddressProjectId &&
+        address.IsIP6() &&
+        address.ToIP6Address().IsMtn())
+    {
+        return Format("project_id=%v", TMtnAddress(address.ToIP6Address()).GetProjectId());
+    }
+
+    return Format("ip=%v", ToString(address));
 }
 
 TString GetLoginForTvmId(TTvmId tvmId)
 {
-    return "tvm:" + ToString(tvmId);
+    return Format("tvm:%v", tvmId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -76,6 +76,8 @@ void TCachingTokenAuthenticatorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cache", &TThis::Cache)
         .DefaultNew();
+    registrar.Parameter("cache_key_mode", &TThis::CacheKeyMode)
+        .Default(EBlackboxCacheKeyMode::Credentials);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -189,6 +191,8 @@ void TCachingCookieAuthenticatorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cache", &TThis::Cache)
         .DefaultNew();
+    registrar.Parameter("cache_key_mode", &TThis::CacheKeyMode)
+        .Default(EBlackboxCacheKeyMode::Credentials);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

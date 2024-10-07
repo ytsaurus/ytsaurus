@@ -86,6 +86,12 @@ DEFINE_ENUM(ESecretVaultErrorCode,
     ((UnexpectedStatus)       (18005))
 );
 
+DEFINE_ENUM(EBlackboxCacheKeyMode,
+    (Credentials)
+    (CredentialsAndUserAddressProjectId)
+    (CredentialsAndUserAddress)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTokenCredentials;

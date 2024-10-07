@@ -1,19 +1,23 @@
 #include "token_authenticator.h"
 
+#include "auth_cache.h"
 #include "blackbox_service.h"
 #include "helpers.h"
 #include "config.h"
 #include "credentials.h"
 #include "private.h"
-#include "auth_cache.h"
+#include "helpers.h"
 
 #include <yt/yt/client/api/client.h>
 
 #include <yt/yt/core/rpc/authenticator.h>
 
+#include <util/digest/multi.h>
+
 namespace NYT::NAuth {
 
 using namespace NYTree;
+using namespace NNet;
 using namespace NYson;
 using namespace NYPath;
 using namespace NApi;
@@ -25,7 +29,6 @@ static constexpr auto& Logger = AuthLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): used passed profiler
 class TBlackboxTokenAuthenticator
     : public ITokenAuthenticator
 {
@@ -35,13 +38,11 @@ public:
         IBlackboxServicePtr blackboxService,
         NProfiling::TProfiler profiler)
         : Config_(std::move(config))
-        , Blackbox_(std::move(blackboxService))
-    {
-        profiler = profiler.WithPrefix("/blackbox_token_authenticator");
-        RejectedTokens_ = profiler.Counter("/rejected_tokens");
-        InvalidBlackboxResponses_ = profiler.Counter("/invalid_responses");
-        TokenScopeCheckErrors_ = profiler.Counter("/scope_check_errors");
-    }
+        , BlackboxSevice_(std::move(blackboxService))
+        , RejectedTokensCounter_(profiler.Counter("/rejected_tokens"))
+        , InvalidBlackboxResponsesCounter_(profiler.Counter("/invalid_responses"))
+        , TokenScopeCheckErrorsCounter_(profiler.Counter("/scope_check_errors"))
+    { }
 
     TFuture<TAuthenticationResult> Authenticate(
         const TTokenCredentials& credentials) override
@@ -63,7 +64,7 @@ public:
             params["get_user_ticket"] = "yes";
         }
 
-        return Blackbox_->Call("oauth", params)
+        return BlackboxSevice_->Call("oauth", params)
             .Apply(BIND(
                 &TBlackboxTokenAuthenticator::OnCallResult,
                 MakeStrong(this),
@@ -72,13 +73,13 @@ public:
 
 private:
     const TBlackboxTokenAuthenticatorConfigPtr Config_;
-    const IBlackboxServicePtr Blackbox_;
+    const IBlackboxServicePtr BlackboxSevice_;
 
-    TCounter RejectedTokens_;
-    TCounter InvalidBlackboxResponses_;
-    TCounter TokenScopeCheckErrors_;
+    const TCounter RejectedTokensCounter_;
+    const TCounter InvalidBlackboxResponsesCounter_;
+    const TCounter TokenScopeCheckErrorsCounter_;
 
-private:
+
     TAuthenticationResult OnCallResult(const TString& tokenHash, const INodePtr& data)
     {
         auto result = OnCallResultImpl(data);
@@ -101,19 +102,19 @@ private:
         // See https://doc.yandex-team.ru/blackbox/reference/method-oauth-response-json.xml for reference.
         auto statusId = GetByYPath<int>(data, "/status/id");
         if (!statusId.IsOK()) {
-            InvalidBlackboxResponses_.Increment();
+            InvalidBlackboxResponsesCounter_.Increment();
             return TError("Blackbox returned invalid response");
         }
 
         if (EBlackboxStatus(statusId.Value()) != EBlackboxStatus::Valid) {
             auto error = GetByYPath<TString>(data, "/error");
             auto reason = error.IsOK() ? error.Value() : "unknown";
-            RejectedTokens_.Increment();
+            RejectedTokensCounter_.Increment();
             return TError(NRpc::EErrorCode::InvalidCredentials, "Blackbox rejected token")
                 << TErrorAttribute("reason", reason);
         }
 
-        auto login = Blackbox_->GetLogin(data);
+        auto login = BlackboxSevice_->GetLogin(data);
         auto oauthClientId = GetByYPath<TString>(data, "/oauth/client_id");
         auto oauthClientName = GetByYPath<TString>(data, "/oauth/client_name");
         auto oauthScope = GetByYPath<TString>(data, "/oauth/scope");
@@ -126,7 +127,7 @@ private:
             if (!oauthClientName.IsOK()) error.MutableInnerErrors()->push_back(oauthClientName);
             if (!oauthScope.IsOK()) error.MutableInnerErrors()->push_back(oauthScope);
 
-            InvalidBlackboxResponses_.Increment();
+            InvalidBlackboxResponsesCounter_.Increment();
             return error;
         }
 
@@ -144,7 +145,7 @@ private:
                 }
             }
             if (!matchedScope) {
-                TokenScopeCheckErrors_.Increment();
+                TokenScopeCheckErrorsCounter_.Increment();
                 return TError(NRpc::EErrorCode::InvalidCredentials, "Token does not provide a valid scope")
                     << TErrorAttribute("provided_scopes", providedScopes)
                     << TErrorAttribute("allowed_scope", Config_->Scope);
@@ -275,9 +276,22 @@ ITokenAuthenticatorPtr CreateLegacyCypressTokenAuthenticator(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTokenAuthenticatorCacheKey
+{
+    TString Token;
+    TString UserIPFactor;
+
+    operator size_t() const
+    {
+        return MultiHash(Token, UserIPFactor);
+    }
+
+    bool operator == (const TTokenAuthenticatorCacheKey&) const = default;
+};
+
 class TCachingTokenAuthenticator
     : public ITokenAuthenticator
-    , private TAuthCache<TTokenCredentials, TAuthenticationResult>
+    , public TAuthCache<TTokenAuthenticatorCacheKey, TAuthenticationResult, TNetworkAddress>
 {
 public:
     TCachingTokenAuthenticator(
@@ -285,20 +299,26 @@ public:
         ITokenAuthenticatorPtr tokenAuthenticator,
         NProfiling::TProfiler profiler)
         : TAuthCache(config->Cache, std::move(profiler))
+        , Config_(std::move(config))
         , TokenAuthenticator_(std::move(tokenAuthenticator))
     { }
 
     TFuture<TAuthenticationResult> Authenticate(const TTokenCredentials& credentials) override
     {
-        return Get(credentials);
+        return Get(
+            TTokenAuthenticatorCacheKey{credentials.Token, GetBlackboxCacheKeyFactorFromUserIP(Config_->CacheKeyMode, credentials.UserIP)},
+            credentials.UserIP);
     }
 
 private:
+    const TCachingTokenAuthenticatorConfigPtr Config_;
     const ITokenAuthenticatorPtr TokenAuthenticator_;
 
-    TFuture<TAuthenticationResult> DoGet(const TTokenCredentials& credentials) noexcept override
+    TFuture<TAuthenticationResult> DoGet(
+        const TTokenAuthenticatorCacheKey& key,
+        const TNetworkAddress& userIP) noexcept override
     {
-        return TokenAuthenticator_->Authenticate(credentials);
+        return TokenAuthenticator_->Authenticate(TTokenCredentials{key.Token, userIP});
     }
 };
 

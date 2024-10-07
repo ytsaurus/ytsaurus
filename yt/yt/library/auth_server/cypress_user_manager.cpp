@@ -64,7 +64,7 @@ ICypressUserManagerPtr CreateCypressUserManager(
 
 class TCachingCypressUserManager
     : public ICypressUserManager
-    , private TAuthCache<TString, TObjectId>
+    , private TAuthCache<TString, TObjectId, std::monostate>
 {
 public:
     TCachingCypressUserManager(
@@ -77,13 +77,15 @@ public:
 
     TFuture<TObjectId> CreateUser(const TString& name) override
     {
-        return Get(name);
+        return Get(name, std::monostate{});
     }
 
 private:
     const ICypressUserManagerPtr CypressUserManager_;
 
-    TFuture<TObjectId> DoGet(const TString& name) noexcept override
+    TFuture<TObjectId> DoGet(
+        const TString& name,
+        const std::monostate& /*context*/) noexcept override
     {
         return CypressUserManager_->CreateUser(name);
     }

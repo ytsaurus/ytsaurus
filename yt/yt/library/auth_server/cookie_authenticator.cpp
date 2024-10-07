@@ -16,9 +16,32 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCookieAuthenticatorCacheKey
+{
+    THashMap<TString, TString> Cookies;;
+    TString UserIPFactor;
+
+    operator size_t() const
+    {
+        size_t result = 0;
+
+        std::vector<std::pair<TString, TString>> cookies(Cookies.begin(), Cookies.end());
+        std::sort(cookies.begin(), cookies.end());
+        for (const auto& cookie : cookies) {
+            HashCombine(result, cookie);
+        }
+
+        HashCombine(result, UserIPFactor);
+
+        return result;
+    }
+
+    bool operator == (const TCookieAuthenticatorCacheKey&) const = default;
+};
+
 class TCachingCookieAuthenticator
     : public ICookieAuthenticator
-    , private TAuthCache<TCookieCredentials, TAuthenticationResult>
+    , private TAuthCache<TCookieAuthenticatorCacheKey, TAuthenticationResult, NNet::TNetworkAddress>
 {
 public:
     TCachingCookieAuthenticator(
@@ -26,6 +49,7 @@ public:
         ICookieAuthenticatorPtr underlying,
         NProfiling::TProfiler profiler)
         : TAuthCache(config->Cache, std::move(profiler))
+        , Config_(std::move(config))
         , UnderlyingAuthenticator_(std::move(underlying))
     { }
 
@@ -41,15 +65,20 @@ public:
 
     TFuture<TAuthenticationResult> Authenticate(const TCookieCredentials& credentials) override
     {
-        return Get(credentials);
+        return Get(
+            TCookieAuthenticatorCacheKey{credentials.Cookies, GetBlackboxCacheKeyFactorFromUserIP(Config_->CacheKeyMode, credentials.UserIP)},
+            credentials.UserIP);
     }
 
 private:
+    const TCachingCookieAuthenticatorConfigPtr Config_;
     const ICookieAuthenticatorPtr UnderlyingAuthenticator_;
 
-    TFuture<TAuthenticationResult> DoGet(const TCookieCredentials& credentials) noexcept override
+    TFuture<TAuthenticationResult> DoGet(
+        const TCookieAuthenticatorCacheKey& key,
+        const NNet::TNetworkAddress& userIP) noexcept override
     {
-        return UnderlyingAuthenticator_->Authenticate(credentials);
+        return UnderlyingAuthenticator_->Authenticate(TCookieCredentials{key.Cookies, userIP});
     }
 };
 

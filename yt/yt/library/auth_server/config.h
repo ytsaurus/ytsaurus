@@ -99,6 +99,7 @@ class TCachingTokenAuthenticatorConfig
 {
 public:
     TAuthCacheConfigPtr Cache;
+    EBlackboxCacheKeyMode CacheKeyMode;
 
     REGISTER_YSON_STRUCT(TCachingTokenAuthenticatorConfig);
 
@@ -258,6 +259,7 @@ class TCachingCookieAuthenticatorConfig
 {
 public:
     TAuthCacheConfigPtr Cache;
+    EBlackboxCacheKeyMode CacheKeyMode;
 
     REGISTER_YSON_STRUCT(TCachingCookieAuthenticatorConfig);
 
