@@ -46,6 +46,14 @@ void TObjectServiceDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSequoiaResponseKeeperDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TUserDirectorySynchronizerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("sync_period", &TThis::SyncPeriod)
@@ -59,6 +67,8 @@ void TUserDirectorySynchronizerConfig::Register(TRegistrar registrar)
 void TCypressProxyDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("object_service", &TThis::ObjectService)
+        .DefaultNew();
+    registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
         .DefaultNew();
 }
 

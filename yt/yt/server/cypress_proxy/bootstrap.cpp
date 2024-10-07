@@ -7,10 +7,9 @@
 #include "sequoia_service.h"
 #include "user_directory.h"
 #include "user_directory_synchronizer.h"
+#include "response_keeper.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
-
-#include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
 
@@ -33,6 +32,8 @@
 #include <yt/yt/ytlib/sequoia_client/lazy_client.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
+#include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 
@@ -171,6 +172,11 @@ public:
         return SequoiaService_;
     }
 
+    const ISequoiaResponseKeeperPtr& GetResponseKeeper() const override
+    {
+        return ResponseKeeper_;
+    }
+
 private:
     const TCypressProxyConfigPtr Config_;
 
@@ -184,6 +190,8 @@ private:
     ILazySequoiaClientPtr SequoiaClient_;
 
     ISequoiaServicePtr SequoiaService_;
+
+    ISequoiaResponseKeeperPtr ResponseKeeper_;
 
     TActionQueuePtr ControlQueue_;
 
@@ -283,6 +291,7 @@ private:
             /*authenticator*/ nullptr));
 
         SequoiaService_ = CreateSequoiaService(this);
+        ResponseKeeper_ = CreateSequoiaResponseKeeper(GetDynamicConfigManager()->GetConfig()->ResponseKeeper, Logger());
         ObjectService_ = CreateObjectService(this);
         RpcServer_->RegisterService(ObjectService_->GetService());
     }
@@ -319,6 +328,7 @@ private:
         ReconfigureNativeSingletons(Config_, newConfig);
 
         ObjectService_->Reconfigure(newConfig->ObjectService);
+        ResponseKeeper_->Reconfigure(newConfig->ResponseKeeper);
     }
 };
 
