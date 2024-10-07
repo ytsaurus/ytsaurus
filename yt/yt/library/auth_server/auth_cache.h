@@ -10,16 +10,16 @@ namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TKey, class TValue>
+template <class TKey, class TValue, class TContext>
 class TAuthCache
     : public virtual TRefCounted
 {
 public:
-    TAuthCache(
+    explicit TAuthCache(
         TAuthCacheConfigPtr config,
         NProfiling::TProfiler profiler = {});
 
-    TFuture<TValue> Get(const TKey& key);
+    TFuture<TValue> Get(const TKey& key, const TContext& context);
 
 private:
     struct TEntry final
@@ -27,6 +27,7 @@ private:
         const TKey Key;
 
         YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
+        TContext Context;
         TFuture<TValue> Future;
         TPromise<TValue> Promise;
 
@@ -39,7 +40,7 @@ private:
         bool IsOutdated(TDuration ttl, TDuration errorTtl);
         bool IsExpired(TDuration ttl);
 
-        explicit TEntry(const TKey& key);
+        TEntry(const TKey& key, const TContext& context);
     };
     using TEntryPtr = TIntrusivePtr<TEntry>;
 
@@ -49,7 +50,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     THashMap<TKey, TEntryPtr> Cache_;
 
-    virtual TFuture<TValue> DoGet(const TKey& key) noexcept = 0;
+    virtual TFuture<TValue> DoGet(const TKey& key, const TContext& context) noexcept = 0;
     void TryErase(const TWeakPtr<TEntry>& weakEntry);
 };
 

@@ -16,21 +16,17 @@ namespace NYT::NAuth {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TErrorOr<T> GetByYPath(const NYTree::INodePtr& node, const NYPath::TYPath& path)
-{
-    try {
-        auto child = NYTree::FindNodeByYPath(node, path);
-        if (!child) {
-            return TError("Missing %v", path);
-        }
-        return NYTree::ConvertTo<T>(std::move(child));
-    } catch (const std::exception& ex) {
-        return TError("Unable to extract %v", path) << ex;
-    }
-}
+TErrorOr<T> GetByYPath(const NYTree::INodePtr& node, const NYPath::TYPath& path);
 
 TString GetCryptoHash(TStringBuf secret);
+
 TString FormatUserIP(const NNet::TNetworkAddress& address);
+
+TString GetBlackboxCacheKeyFactorFromUserIP(
+    EBlackboxCacheKeyMode mode,
+    const NNet::TNetworkAddress& address);
+
+TString GetLoginForTvmId(TTvmId tvmId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,8 +57,6 @@ THashedCredentials HashCredentials(const NRpc::NProto::TCredentialsExt& credenti
 
 void Serialize(const THashedCredentials& hashedCredentials, NYson::IYsonConsumer* consumer);
 
-TString GetLoginForTvmId(TTvmId tvmId);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TString SignCsrfToken(
@@ -78,3 +72,7 @@ TError CheckCsrfToken(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NAuth
+
+#define HELPERS_INL_H_
+#include "helpers-inl.h"
+#undef HELPERS_INL_H_
