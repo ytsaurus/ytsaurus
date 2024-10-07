@@ -20,6 +20,8 @@ class TTraceConsumer
 public:
     explicit TTraceConsumer(TJobTraceEventProcessorPtr jobTraceEventProcessor);
 
+    DEFINE_BYVAL_RO_PROPERTY(bool, HasTrace, false);
+
 private:
     const TJobTraceEventProcessorPtr JobTraceEventProcessor_;
 

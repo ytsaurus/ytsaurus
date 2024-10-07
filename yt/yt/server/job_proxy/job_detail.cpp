@@ -192,6 +192,11 @@ bool TJob::HasInputStatistics() const
     return true;
 }
 
+bool TJob::HasJobTrace() const
+{
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSimpleJobBase::TSimpleJobBase(IJobHostPtr host)
