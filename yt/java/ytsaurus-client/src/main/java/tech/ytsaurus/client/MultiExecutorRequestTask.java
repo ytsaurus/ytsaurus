@@ -45,7 +45,7 @@ public class MultiExecutorRequestTask<R> {
                 for (DelayedSubrequestTask subrequestTask : delayedSubrequestTasks) {
                     subrequestTask.cancel(error);
                 }
-                executorMonitoring.reportRequestFailure(Duration.between(requestStartTime, Instant.now()), error);
+                executorMonitoring.onRequestFailure(Duration.between(requestStartTime, Instant.now()), error);
             }
 
             if (status.get().equals(Status.COMPLETED)) {
@@ -84,7 +84,7 @@ public class MultiExecutorRequestTask<R> {
             this.completionConsumer = completionConsumer;
         }
 
-        public void reportComplete(Boolean success) {
+        public void onComplete(Boolean success) {
             this.completionConsumer.accept(success);
         }
     }
@@ -109,13 +109,13 @@ public class MultiExecutorRequestTask<R> {
                         );
 
                         this.subrequestDescriptor = localSubrequestDescriptor;
-                        executorMonitoring.reportSubrequestStart(clientEntry.clientOptions.getClusterName());
+                        executorMonitoring.onSubrequestStart(clientEntry.clientOptions.getClusterName());
 
                         return localSubrequestDescriptor.callbackFuture.handle((value, error) -> {
+                            Instant now = Instant.now();
+                            Duration requestCompletionTime = Duration.between(requestStartTime, now);
+                            Duration subrequestCompletionTime = Duration.between(localSubrequestDescriptor.startTime, now);
 
-                            Duration requestCompletionTime = Duration.between(requestStartTime, Instant.now());
-                            Duration subrequestCompletionTime =
-                                    Duration.between(localSubrequestDescriptor.startTime, Instant.now());
                             boolean isLastTask =
                                     finishedClientsCount.incrementAndGet() == delayedSubrequestTasks.size();
 
@@ -125,12 +125,12 @@ public class MultiExecutorRequestTask<R> {
 
                             if (localSubrequestDescriptor.reportedToMonitoring.compareAndSet(false, true)) {
                                 if (error == null) {
-                                    executorMonitoring.reportSubrequestSuccess(
+                                    executorMonitoring.onSubrequestSuccess(
                                             clientEntry.clientOptions.getClusterName(),
                                             subrequestCompletionTime
                                     );
                                 } else {
-                                    executorMonitoring.reportSubrequestFailure(
+                                    executorMonitoring.onSubrequestFailure(
                                             clientEntry.clientOptions.getClusterName(),
                                             subrequestCompletionTime,
                                             error
@@ -140,16 +140,16 @@ public class MultiExecutorRequestTask<R> {
 
                             if ((error == null || isLastTask) &&
                                     status.compareAndSet(Status.IN_PROGRESS, Status.COMPLETED)) {
-                                clientEntry.reportComplete(error == null);
+                                clientEntry.onComplete(error == null);
                                 if (error == null) {
                                     requestFuture.complete(value);
-                                    executorMonitoring.reportRequestSuccess(
+                                    executorMonitoring.onRequestSuccess(
                                             clientEntry.clientOptions.getClusterName(),
                                             requestCompletionTime
                                     );
                                 } else {
                                     requestFuture.completeExceptionally(error);
-                                    executorMonitoring.reportRequestFailure(
+                                    executorMonitoring.onRequestFailure(
                                             requestCompletionTime,
                                             error
                                     );
@@ -186,12 +186,12 @@ public class MultiExecutorRequestTask<R> {
                 if (localSubrequestDescriptor.reportedToMonitoring.compareAndSet(false, true)) {
                     Duration completionTime = Duration.between(localSubrequestDescriptor.startTime, Instant.now());
                     if (throwable == null) {
-                        executorMonitoring.reportSubrequestCancelled(
+                        executorMonitoring.onSubrequestCancelled(
                                 clientEntry.clientOptions.getClusterName(),
                                 completionTime
                         );
                     } else {
-                        executorMonitoring.reportSubrequestFailure(
+                        executorMonitoring.onSubrequestFailure(
                                 clientEntry.clientOptions.getClusterName(),
                                 completionTime,
                                 throwable

@@ -13,7 +13,7 @@ public interface MultiExecutorMonitoring {
      * @param clusterName cluster which was first to respond successfully
      * @param time        that was spent to execute the whole request
      */
-    void reportRequestSuccess(String clusterName, Duration time);
+    void onRequestSuccess(String clusterName, Duration time);
 
     /**
      * Report failed request execution.
@@ -21,14 +21,14 @@ public interface MultiExecutorMonitoring {
      * @param time        that was spent to find failed the whole request
      * @param throwable   last exception which led to request failure
      */
-    void reportRequestFailure(Duration time, Throwable throwable);
+    void onRequestFailure(Duration time, Throwable throwable);
 
     /**
      * Report that specific cluster has been polled.
      *
      * @param clusterName cluster to which request is sent
      */
-    void reportSubrequestStart(String clusterName);
+    void onSubrequestStart(String clusterName);
 
     /**
      * Report that specific cluster has successfully processed the request.
@@ -36,7 +36,7 @@ public interface MultiExecutorMonitoring {
      * @param clusterName cluster which has responded
      * @param time        time within which subrequest ran
      */
-    void reportSubrequestSuccess(String clusterName, Duration time);
+    void onSubrequestSuccess(String clusterName, Duration time);
 
     /**
      * Report that specific cluster has failed to process the request.
@@ -45,7 +45,7 @@ public interface MultiExecutorMonitoring {
      * @param time        time within which exactly this subrequest has failed
      * @param throwable   exception which led to request failure
      */
-    void reportSubrequestFailure(String clusterName, Duration time, Throwable throwable);
+    void onSubrequestFailure(String clusterName, Duration time, Throwable throwable);
 
     /**
      * Report that inner request has been cancelled because another request has completed.
@@ -53,32 +53,32 @@ public interface MultiExecutorMonitoring {
      * @param clusterName cluster request to which has been cancelled
      * @param time        time of subrequest within which exactly this subrequest has been cancelled
      */
-    void reportSubrequestCancelled(String clusterName, Duration time);
+    void onSubrequestCancelled(String clusterName, Duration time);
 }
 
 class NoopMultiExecutorMonitoring implements MultiExecutorMonitoring {
 
     @Override
-    public void reportRequestSuccess(String clusterName, Duration time) {
+    public void onRequestSuccess(String clusterName, Duration time) {
     }
 
     @Override
-    public void reportRequestFailure(Duration time, Throwable throwable) {
+    public void onRequestFailure(Duration time, Throwable throwable) {
     }
 
     @Override
-    public void reportSubrequestStart(String clusterName) {
+    public void onSubrequestStart(String clusterName) {
     }
 
     @Override
-    public void reportSubrequestSuccess(String clusterName, Duration time) {
+    public void onSubrequestSuccess(String clusterName, Duration time) {
     }
 
     @Override
-    public void reportSubrequestFailure(String clusterName, Duration time, Throwable throwable) {
+    public void onSubrequestFailure(String clusterName, Duration time, Throwable throwable) {
     }
 
     @Override
-    public void reportSubrequestCancelled(String clusterName, Duration time) {
+    public void onSubrequestCancelled(String clusterName, Duration time) {
     }
 }

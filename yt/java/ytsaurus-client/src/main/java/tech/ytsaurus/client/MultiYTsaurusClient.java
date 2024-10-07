@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -86,8 +87,12 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
             throw new IllegalArgumentException("Count of clients is less than 2");
         }
 
-        if (this.clients.stream().map(YTsaurusClientOptions::getClusterName).distinct().count() != this.clients.size()) {
-            throw new IllegalArgumentException("Duplicate clusters are not permitted");
+        List<String> clusterNames = this.clients.stream().map(YTsaurusClientOptions::getClusterName).toList();
+        if (clusterNames.stream().distinct().count() != clusterNames.size()) {
+            var duplicatesHint = clusterNames.stream()
+                    .filter(clusterName -> Collections.frequency(clusterNames, clusterName) > 1)
+                    .collect(Collectors.joining(", "));
+            throw new IllegalArgumentException("Duplicate clusters are not permitted: " + duplicatesHint);
         }
 
         executor = new MultiExecutor(
