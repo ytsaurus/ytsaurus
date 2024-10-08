@@ -2241,6 +2241,8 @@ if HAS_IDM_CLI_HELPERS:
     def add_idm_copy_parser(idm_subparsers):
         parser = populate_argument_help(idm_subparsers.add_parser("copy", help="Copy IDM permissions"))
         parser.add_argument("destination", help="Destination object")
+        parser.add_argument("--dst-pool-tree", default="",
+                            help="Destination pool tree override; by default copying is done within a single pool tree")
         parser.add_argument(
             "--immediate", "-i", help="Only copy immediate IDM permissions",
             action="store_true", default=False)
