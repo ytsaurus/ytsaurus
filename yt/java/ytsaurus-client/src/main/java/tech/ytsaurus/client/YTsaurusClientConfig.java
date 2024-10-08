@@ -9,6 +9,7 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.operations.JarsProcessor;
 import tech.ytsaurus.client.operations.SingleUploadFromClassPathJarsProcessor;
+import tech.ytsaurus.client.request.RequestMiddleware;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.core.JavaOptions;
 import tech.ytsaurus.core.cypress.YPath;
@@ -39,6 +40,8 @@ public class YTsaurusClientConfig {
     private final boolean useTLS;
     private final boolean tvmOnly;
     private final boolean ignoreBalancers;
+    @Nullable
+    private final RequestMiddleware requestMiddleware;
 
     YTsaurusClientConfig(Builder builder) {
         if (builder.rpcOptions == null) {
@@ -62,6 +65,7 @@ public class YTsaurusClientConfig {
         this.useTLS = builder.useTLS;
         this.tvmOnly = builder.tvmOnly;
         this.ignoreBalancers = builder.ignoreBalancers;
+        this.requestMiddleware = builder.requestMiddleware;
     }
 
     public static Builder builder() {
@@ -82,7 +86,8 @@ public class YTsaurusClientConfig {
                 .setOperationPingPeriod(operationPingPeriod)
                 .setUseTLS(useTLS)
                 .setTvmOnly(tvmOnly)
-                .setIgnoreBalancers(ignoreBalancers);
+                .setIgnoreBalancers(ignoreBalancers)
+                .setRequestMiddleware(requestMiddleware);
     }
 
     public RpcOptions getRpcOptions() {
@@ -135,6 +140,11 @@ public class YTsaurusClientConfig {
 
     public boolean getIgnoreBalancers() {
         return ignoreBalancers;
+    }
+
+    @Nullable
+    public RequestMiddleware getRequestMiddleware() {
+        return requestMiddleware;
     }
 
     private static int getJavaMajorVersion() {
@@ -191,6 +201,8 @@ public class YTsaurusClientConfig {
         private boolean useTLS = false;
         private boolean tvmOnly = false;
         private boolean ignoreBalancers = false;
+        @Nullable
+        private RequestMiddleware requestMiddleware;
 
         public Builder setRpcOptions(RpcOptions rpcOptions) {
             this.rpcOptions = rpcOptions;
@@ -279,6 +291,11 @@ public class YTsaurusClientConfig {
          */
         public Builder setIgnoreBalancers(boolean ignoreBalancers) {
             this.ignoreBalancers = ignoreBalancers;
+            return this;
+        }
+
+        public Builder setRequestMiddleware(@Nullable RequestMiddleware requestMiddleware) {
+            this.requestMiddleware = requestMiddleware;
             return this;
         }
 
