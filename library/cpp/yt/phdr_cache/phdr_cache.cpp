@@ -20,7 +20,7 @@ namespace NYT::NPhdrCache {
 // https://github.com/scylladb/seastar/blob/master/core/exception_hacks.hh
 // https://github.com/scylladb/seastar/blob/master/core/exception_hacks.cc
 
-using TDlIterateFunc = int (*) (int (*callback) (struct dl_phdr_info *info, size_t size, void *data), void *data);
+using TDlIterateFunc = int (*) (int (*callback) (struct dl_phdr_info* info, size_t size, void* data), void* data);
 
 TDlIterateFunc GetOriginalDlIteratePhdr()
 {
@@ -71,14 +71,18 @@ void EnablePhdrCache()
 {
 #if defined(__linux__) && !defined(_tsan_enabled_)
     using namespace NPhdrCache;
+    if (PhdrCache) {
+        return;
+    }
     // Fill out ELF header cache for access without locking.
     // This assumes no dynamic object loading/unloading after this point
     PhdrCache = new std::vector<dl_phdr_info>();
-    NSan::MarkAsIntentionallyLeaked(PhdrCache);
-    GetOriginalDlIteratePhdr()([] (struct dl_phdr_info *info, size_t /*size*/, void* /*data*/) {
-        PhdrCache->push_back(*info);
-        return 0;
-    }, nullptr);
+    GetOriginalDlIteratePhdr()(
+        [] (struct dl_phdr_info *info, size_t /*size*/, void* /*data*/) {
+            PhdrCache->push_back(*info);
+            return 0;
+        },
+        nullptr);
 #endif
 }
 

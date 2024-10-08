@@ -187,11 +187,8 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TCon
     // TODO(asaitgalin): Make singleton with all global variables and
     // free all objects there before interpreter exit.
     static auto* SignedInt64Min = PyLong_FromLongLong(std::numeric_limits<i64>::min());
-    NSan::MarkAsIntentionallyLeaked(SignedInt64Min);
     static auto* SignedInt64Max = PyLong_FromLongLong(std::numeric_limits<i64>::max());
-    NSan::MarkAsIntentionallyLeaked(SignedInt64Max);
     static auto* UnsignedInt64Max = PyLong_FromUnsignedLongLong(std::numeric_limits<ui64>::max());
-    NSan::MarkAsIntentionallyLeaked(UnsignedInt64Max);
 
     if (PyObject_RichCompareBool(UnsignedInt64Max, obj.ptr(), Py_LT) == 1 ||
         PyObject_RichCompareBool(obj.ptr(), SignedInt64Min, Py_LT) == 1)
