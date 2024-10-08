@@ -18,6 +18,7 @@ from yt.test_helpers import assert_items_equal
 
 import random
 import builtins
+import datetime
 
 import pytest
 
@@ -1506,6 +1507,61 @@ class TestInputFetching(ClickHouseTestBase):
             register_query_check('select message from "//tmp/table-0" order by ts, ts_2, message limit 1', read_in_order_mode="none")
 
             self._check_read_in_order_modes(log_table, expected_read_in_order_modes)
+
+    @authors("buyval01")
+    def test_timestamp_key_filtering(self):
+        create(
+            "table",
+            "//tmp/t-ts",
+            attributes={
+                "schema": [{
+                    "name": "ts",
+                    "type": "timestamp",
+                    "sort_order": "ascending",
+                }]
+            }
+        )
+
+        write_table(
+            "<append=%true>//tmp/t-ts",
+            [
+                {"ts": int(datetime.datetime(2023, 1, 1).timestamp() * 10**6)},
+                {"ts": int(datetime.datetime(2023, 5, 5).timestamp() * 10**6)},
+                {"ts": int(datetime.datetime(2023, 10, 10).timestamp() * 10**6)},
+            ]
+        )
+        write_table(
+            "<append=%true>//tmp/t-ts",
+            [
+                {"ts": int(datetime.datetime(2023, 12, 12).timestamp() * 10**6)},
+                {"ts": int(datetime.datetime(2024, 2, 2).timestamp() * 10**6)},
+            ]
+        )
+        write_table(
+            "<append=%true>//tmp/t-ts",
+            [
+                {"ts": int(datetime.datetime(2024, 5, 5).timestamp() * 10**6)},
+                {"ts": int(datetime.datetime(2024, 10, 10).timestamp() * 10**6)}
+            ]
+        )
+
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_min_max_filtering": False,
+                    }
+                }
+            },
+        }
+        with Clique(1, config_patch=config_patch) as clique:
+            query = "select * from '//tmp/t-ts' where ts > toDateTime('2024-01-01T00:00:00')"
+            # the first chunk must be filtered and not read
+            assert clique.make_query_and_validate_row_count(query, exact=4) == [
+                {"ts": "2024-02-02 00:00:00.000000"},
+                {"ts": "2024-05-05 00:00:00.000000"},
+                {"ts": "2024-10-10 00:00:00.000000"}
+            ]
 
 
 class TestInputFetchingYPath(ClickHouseTestBase):

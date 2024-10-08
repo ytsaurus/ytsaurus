@@ -130,7 +130,7 @@ DB::Field GetMinimumTypeValue(const DB::DataTypePtr& dataType)
         case DB::TypeIndex::DateTime:
             return DB::Field(std::numeric_limits<DB::UInt32>::min());
         case DB::TypeIndex::DateTime64:
-            return DB::Field(std::numeric_limits<DB::DateTime64>::min());
+            return DB::Field(std::numeric_limits<DB::Int64>::min());
 
         case DB::TypeIndex::String:
             return DB::Field("");
@@ -176,7 +176,7 @@ DB::Field GetMaximumTypeValue(const DB::DataTypePtr& dataType)
         case DB::TypeIndex::DateTime:
             return DB::Field(std::numeric_limits<DB::UInt32>::max());
         case DB::TypeIndex::DateTime64:
-            return DB::Field(std::numeric_limits<DB::DateTime64>::max());
+            return DB::Field(std::numeric_limits<DB::Int64>::max());
 
         case DB::TypeIndex::String:
             // The "maximum" string does not exist.
