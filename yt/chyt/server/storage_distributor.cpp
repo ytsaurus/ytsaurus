@@ -107,6 +107,12 @@ DB::Settings PrepareLeafJobSettings(const DB::Settings& settings)
     newSettings.max_query_size = 0;
     newSettings.max_query_size.changed = true;
 
+    // All secondary queries are the same and have the same query hash, but they
+    // process different data slices. Therefore, the query cache might only be used
+    // for initial queries.
+    newSettings.use_query_cache = false;
+    newSettings.use_query_cache.changed = true;
+
     return newSettings;
 }
 
