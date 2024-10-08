@@ -251,7 +251,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     public CompletableFuture<ApiServiceTransaction> startTransaction(StartTransaction startTransaction) {
         RpcClientRequestBuilder<TReqStartTransaction.Builder, TRspStartTransaction> builder =
                 ApiServiceMethodTable.START_TRANSACTION.createRequestBuilder(rpcOptions);
-        return RpcUtil.apply(sendRequest(startTransaction, builder), response -> {
+        return onStarted(startTransaction, RpcUtil.apply(sendRequest(startTransaction, builder), response -> {
             GUID id = RpcUtil.fromProto(response.body().getId());
             YtTimestamp startTimestamp = YtTimestamp.valueOf(response.body().getStartTimestamp());
             RpcClient sender = response.sender();
@@ -304,7 +304,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
             logger.debug("New transaction {} has started by {}", id, builder);
             return result;
-        });
+        }));
     }
 
     /**
@@ -314,9 +314,9 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
      */
     @Override
     public CompletableFuture<Void> pingTransaction(PingTransaction req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.PING_TRANSACTION.createRequestBuilder(rpcOptions)),
-                response -> null);
+                response -> null));
     }
 
     /**
@@ -326,9 +326,9 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
      */
     @Override
     public CompletableFuture<Void> commitTransaction(CommitTransaction req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.COMMIT_TRANSACTION.createRequestBuilder(rpcOptions)),
-                response -> null);
+                response -> null));
     }
 
     /**
@@ -338,9 +338,9 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
      */
     @Override
     public CompletableFuture<Void> abortTransaction(AbortTransaction req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.ABORT_TRANSACTION.createRequestBuilder(rpcOptions)),
-                response -> null);
+                response -> null));
     }
 
     /* nodes */
@@ -352,9 +352,9 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
      */
     @Override
     public CompletableFuture<YTreeNode> getNode(GetNode req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.GET_NODE.createRequestBuilder(rpcOptions)),
-                response -> RpcUtil.parseByteString(response.body().getValue()));
+                response -> RpcUtil.parseByteString(response.body().getValue())));
     }
 
     /**
@@ -364,9 +364,9 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
      */
     @Override
     public CompletableFuture<YTreeNode> listNode(ListNode req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.LIST_NODE.createRequestBuilder(rpcOptions)),
-                response -> RpcUtil.parseByteString(response.body().getValue()));
+                response -> RpcUtil.parseByteString(response.body().getValue())));
     }
 
     /**
@@ -376,9 +376,9 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
      */
     @Override
     public CompletableFuture<Void> setNode(SetNode req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.SET_NODE.createRequestBuilder(rpcOptions)),
-                response -> null);
+                response -> null));
     }
 
     /**
@@ -388,9 +388,9 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
      */
     @Override
     public CompletableFuture<Boolean> existsNode(ExistsNode req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.EXISTS_NODE.createRequestBuilder(rpcOptions)),
-                response -> response.body().getExists());
+                response -> response.body().getExists()));
     }
 
     /**
@@ -400,11 +400,11 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
      */
     @Override
     public CompletableFuture<List<YTreeNode>> getTablePivotKeys(GetTablePivotKeys req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.GET_TABLE_PIVOT_KEYS.createRequestBuilder(rpcOptions)),
                 response -> YTreeBinarySerializer.deserialize(
                         new ByteArrayInputStream(response.body().getValue().toByteArray())
-                ).asList());
+                ).asList()));
     }
 
     /**
@@ -413,9 +413,9 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
      * @see CreateObject
      */
     public CompletableFuture<GUID> createObject(CreateObject req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.CREATE_OBJECT.createRequestBuilder(rpcOptions)),
-                response -> RpcUtil.fromProto(response.body().getObjectId()));
+                response -> RpcUtil.fromProto(response.body().getObjectId())));
     }
 
     /**
@@ -424,9 +424,9 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
      * @see CheckClusterLiveness
      */
     public CompletableFuture<Void> checkClusterLiveness(CheckClusterLiveness req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.CHECK_CLUSTER_LIVENESS.createRequestBuilder(rpcOptions)),
-                response -> null);
+                response -> null));
     }
 
     /**
@@ -436,9 +436,9 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
      */
     @Override
     public CompletableFuture<GUID> createNode(CreateNode req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.CREATE_NODE.createRequestBuilder(rpcOptions)),
-                response -> RpcUtil.fromProto(response.body().getNodeId()));
+                response -> RpcUtil.fromProto(response.body().getNodeId())));
     }
 
     /**
@@ -448,9 +448,9 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
      */
     @Override
     public CompletableFuture<Void> removeNode(RemoveNode req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.REMOVE_NODE.createRequestBuilder(rpcOptions)),
-                response -> null);
+                response -> null));
     }
 
     /**
@@ -460,11 +460,11 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
      */
     @Override
     public CompletableFuture<LockNodeResult> lockNode(LockNode req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.LOCK_NODE.createRequestBuilder(rpcOptions)),
                 response -> new LockNodeResult(
                         RpcUtil.fromProto(response.body().getNodeId()),
-                        RpcUtil.fromProto(response.body().getLockId())));
+                        RpcUtil.fromProto(response.body().getLockId()))));
     }
 
     /**
@@ -474,9 +474,9 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
      */
     @Override
     public CompletableFuture<GUID> copyNode(CopyNode req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.COPY_NODE.createRequestBuilder(rpcOptions)),
-                response -> RpcUtil.fromProto(response.body().getNodeId()));
+                response -> RpcUtil.fromProto(response.body().getNodeId())));
     }
 
     /**
@@ -486,9 +486,9 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
      */
     @Override
     public CompletableFuture<GUID> moveNode(MoveNode req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.MOVE_NODE.createRequestBuilder(rpcOptions)),
-                response -> RpcUtil.fromProto(response.body().getNodeId()));
+                response -> RpcUtil.fromProto(response.body().getNodeId())));
     }
 
     /**
@@ -498,9 +498,9 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
      */
     @Override
     public CompletableFuture<GUID> linkNode(LinkNode req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.LINK_NODE.createRequestBuilder(rpcOptions)),
-                response -> RpcUtil.fromProto(response.body().getNodeId()));
+                response -> RpcUtil.fromProto(response.body().getNodeId())));
     }
 
     /**
@@ -510,14 +510,14 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
      */
     @Override
     public CompletableFuture<Void> concatenateNodes(ConcatenateNodes req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.CONCATENATE_NODES.createRequestBuilder(rpcOptions)),
-                response -> null);
+                response -> null));
     }
 
     @Override
     public CompletableFuture<List<MultiTablePartition>> partitionTables(PartitionTables req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.PARTITION_TABLES.createRequestBuilder(rpcOptions)),
                 response -> response.body().getPartitionsList().stream()
                         .map(p -> {
@@ -530,7 +530,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                                     p.getAggregateStatistics().getRowCount());
                             return new MultiTablePartition(tableRanges, statistics);
                         })
-                        .collect(Collectors.toList()));
+                        .collect(Collectors.toList())));
     }
 
     // TODO: TReqAttachTransaction
@@ -539,9 +539,9 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     @Override
     public CompletableFuture<UnversionedRowset> lookupRows(AbstractLookupRowsRequest<?, ?> request) {
-        return lookupRowsImpl(request, response ->
+        return onStarted(request, lookupRowsImpl(request, response ->
                 ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
-                        response.attachments()));
+                        response.attachments())));
     }
 
     @Override
@@ -549,12 +549,12 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             AbstractLookupRowsRequest<?, ?> request,
             YTreeRowSerializer<T> serializer
     ) {
-        return lookupRowsImpl(request, response -> {
+        return onStarted(request, lookupRowsImpl(request, response -> {
             final ConsumerSourceRet<T> result = ConsumerSource.list();
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
                     response.attachments(), serializer, result, serializationResolver);
             return result.get();
-        });
+        }));
     }
 
     @Override
@@ -563,11 +563,11 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             YTreeRowSerializer<T> serializer,
             ConsumerSource<T> consumer
     ) {
-        return lookupRowsImpl(request, response -> {
+        return onStarted(request, lookupRowsImpl(request, response -> {
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
                     response.attachments(), serializer, consumer, serializationResolver);
             return null;
-        });
+        }));
     }
 
     private <T> CompletableFuture<T> lookupRowsImpl(
@@ -575,7 +575,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             Function<RpcClientResponse<TRspLookupRows>, T> responseReader
     ) {
         request.convertValues(serializationResolver);
-        return handleHeavyResponse(
+        return onStarted(request, handleHeavyResponse(
                 sendRequest(
                         request.asLookupRowsWritable(),
                         ApiServiceMethodTable.LOOKUP_ROWS.createRequestBuilder(rpcOptions)
@@ -583,15 +583,15 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                 response -> {
                     logger.trace("LookupRows incoming rowset descriptor: {}", response.body().getRowsetDescriptor());
                     return responseReader.apply(response);
-                });
+                }));
     }
 
     @Override
     public CompletableFuture<List<UnversionedRowset>> multiLookupRows(MultiLookupRowsRequest request) {
-        return multiLookupImpl(request, response -> multiLookupResponseReader(
+        return onStarted(request, multiLookupImpl(request, response -> multiLookupResponseReader(
                 response,
                 ApiServiceUtil::deserializeUnversionedRowset
-        ));
+        )));
     }
 
     @Override
@@ -599,7 +599,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             MultiLookupRowsRequest request,
             YTreeRowSerializer<T> serializer
     ) {
-        return multiLookupImpl(request, response ->
+        return onStarted(request, multiLookupImpl(request, response ->
                 multiLookupResponseReader(
                         response,
                         (rowsetDescriptor, attachments) -> {
@@ -614,7 +614,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                             return result.get();
                         }
                 )
-        );
+        ));
     }
 
     private <T> CompletableFuture<T> multiLookupImpl(
@@ -658,8 +658,8 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     @Override
     public CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?, ?> request) {
-        return versionedLookupRowsImpl(request, response -> ApiServiceUtil
-                .deserializeVersionedRowset(response.body().getRowsetDescriptor(), response.attachments()));
+        return onStarted(request, versionedLookupRowsImpl(request, response -> ApiServiceUtil
+                .deserializeVersionedRowset(response.body().getRowsetDescriptor(), response.attachments())));
     }
 
     private <T> CompletableFuture<T> versionedLookupRowsImpl(
@@ -681,37 +681,38 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     @Override
     public CompletableFuture<SelectRowsResult> selectRowsV2(SelectRowsRequest request) {
-        return sendRequest(request, ApiServiceMethodTable.SELECT_ROWS.createRequestBuilder(rpcOptions))
-                .thenApply(
+        return onStarted(request,
+                sendRequest(request, ApiServiceMethodTable.SELECT_ROWS.createRequestBuilder(rpcOptions)).thenApply(
                         response -> new SelectRowsResult(response, heavyExecutor, serializationResolver)
-                );
+                )
+        );
     }
 
     @Override
     public CompletableFuture<UnversionedRowset> selectRows(SelectRowsRequest request) {
-        return selectRowsImpl(request, response ->
+        return onStarted(request, selectRowsImpl(request, response ->
                 ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
-                        response.attachments()));
+                        response.attachments())));
     }
 
     @Override
     public <T> CompletableFuture<List<T>> selectRows(SelectRowsRequest request, YTreeRowSerializer<T> serializer) {
-        return selectRowsImpl(request, response -> {
+        return onStarted(request, selectRowsImpl(request, response -> {
             final ConsumerSourceRet<T> result = ConsumerSource.list();
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
                     response.attachments(), serializer, result, serializationResolver);
             return result.get();
-        });
+        }));
     }
 
     @Override
     public <T> CompletableFuture<Void> selectRows(SelectRowsRequest request, YTreeRowSerializer<T> serializer,
                                                   ConsumerSource<T> consumer) {
-        return selectRowsImpl(request, response -> {
+        return onStarted(request, selectRowsImpl(request, response -> {
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
                     response.attachments(), serializer, consumer, serializationResolver);
             return null;
-        });
+        }));
     }
 
     private <T> CompletableFuture<T> selectRowsImpl(SelectRowsRequest request,
@@ -728,80 +729,80 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     @Override
     public CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest<?, ?> request) {
         request.convertValues(serializationResolver);
-        return RpcUtil.apply(
+        return onStarted(request, RpcUtil.apply(
                 sendRequest(
                         new ModifyRowsWrapper(transactionId, request),
                         ApiServiceMethodTable.MODIFY_ROWS.createRequestBuilder(rpcOptions)
                 ),
-                response -> null);
+                response -> null));
     }
 
     // TODO: TReqBatchModifyRows
 
     @Override
     public CompletableFuture<Long> buildSnapshot(BuildSnapshot req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.BUILD_SNAPSHOT.createRequestBuilder(rpcOptions)),
-                response -> response.body().getSnapshotId());
+                response -> response.body().getSnapshotId()));
     }
 
     @Override
     public CompletableFuture<Void> gcCollect(GcCollect req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.GC_COLLECT.createRequestBuilder(rpcOptions)),
-                response -> null);
+                response -> null));
     }
 
     @Override
     public CompletableFuture<Void> mountTable(MountTable req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.MOUNT_TABLE.createRequestBuilder(rpcOptions)),
-                response -> null);
+                response -> null));
     }
 
     @Override
     public CompletableFuture<Void> unmountTable(UnmountTable req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.UNMOUNT_TABLE.createRequestBuilder(rpcOptions)),
-                response -> null);
+                response -> null));
     }
 
     @Override
     public CompletableFuture<Void> remountTable(RemountTable req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.REMOUNT_TABLE.createRequestBuilder(rpcOptions)),
-                response -> null);
+                response -> null));
     }
 
     @Override
     public CompletableFuture<Void> freezeTable(FreezeTable req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.FREEZE_TABLE.createRequestBuilder(rpcOptions)),
-                response -> null);
+                response -> null));
     }
 
     @Override
     public CompletableFuture<Void> unfreezeTable(UnfreezeTable req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.UNFREEZE_TABLE.createRequestBuilder(rpcOptions)),
-                response -> null);
+                response -> null));
     }
 
     @Override
     public CompletableFuture<List<GUID>> getInSyncReplicas(GetInSyncReplicas request, YtTimestamp timestamp) {
         request.convertValues(serializationResolver);
-        return RpcUtil.apply(
+        return onStarted(request, RpcUtil.apply(
                 sendRequest(
                         new GetInSyncReplicasWrapper(timestamp, request),
                         ApiServiceMethodTable.GET_IN_SYNC_REPLICAS.createRequestBuilder(rpcOptions)
                 ),
                 response -> response.body().getReplicaIdsList()
-                        .stream().map(RpcUtil::fromProto).collect(Collectors.toList()));
+                        .stream().map(RpcUtil::fromProto).collect(Collectors.toList())));
     }
 
     @Override
     public CompletableFuture<List<TabletInfo>> getTabletInfos(GetTabletInfos req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.GET_TABLET_INFOS.createRequestBuilder(rpcOptions)),
                 response ->
                         response.body().getTabletsList()
@@ -817,38 +818,38 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                                     return new TabletInfo(x.getTotalRowCount(), x.getTrimmedRowCount(),
                                             x.getLastWriteTimestamp(), replicas);
                                 })
-                                .collect(Collectors.toList()));
+                                .collect(Collectors.toList())));
     }
 
     @Override
     public CompletableFuture<YtTimestamp> generateTimestamps(GenerateTimestamps req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.GENERATE_TIMESTAMPS.createRequestBuilder(rpcOptions)),
-                response -> YtTimestamp.valueOf(response.body().getTimestamp()));
+                response -> YtTimestamp.valueOf(response.body().getTimestamp())));
     }
 
     /* tables */
     @Override
     public CompletableFuture<Void> reshardTable(ReshardTable req) {
         req.convertValues(serializationResolver);
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.RESHARD_TABLE.createRequestBuilder(rpcOptions)),
                 response -> null
-        );
+        ));
     }
 
     @Override
     public CompletableFuture<Void> trimTable(TrimTable req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.TRIM_TABLE.createRequestBuilder(rpcOptions)),
-                response -> null);
+                response -> null));
     }
 
     @Override
     public CompletableFuture<Void> alterTable(AlterTable req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.ALTER_TABLE.createRequestBuilder(rpcOptions)),
-                response -> null);
+                response -> null));
     }
 
     @Override
@@ -895,16 +896,16 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     @Override
     public CompletableFuture<Void> alterTableReplica(AlterTableReplica req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.ALTER_TABLE_REPLICA.createRequestBuilder(rpcOptions)),
-                response -> null);
+                response -> null));
     }
 
     @Override
     public CompletableFuture<GUID> startOperation(StartOperation req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.START_OPERATION.createRequestBuilder(rpcOptions)),
-                response -> RpcUtil.fromProto(response.body().getOperationId()));
+                response -> RpcUtil.fromProto(response.body().getOperationId())));
     }
 
     YTreeMapNode patchSpec(YTreeMapNode spec) {
@@ -1022,10 +1023,10 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     @Override
     public CompletableFuture<YTreeNode> getOperation(GetOperation req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.GET_OPERATION.createRequestBuilder(rpcOptions)),
                 response -> RpcUtil.parseByteString(response.body().getMeta())
-        );
+        ));
     }
 
     @Override
@@ -1035,104 +1036,104 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     @Override
     public CompletableFuture<Void> abortOperation(AbortOperation req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.ABORT_OPERATION.createRequestBuilder(rpcOptions)),
                 response -> null
-        );
+        ));
     }
 
     @Override
     public CompletableFuture<Void> completeOperation(CompleteOperation req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.COMPLETE_OPERATION.createRequestBuilder(rpcOptions)),
                 response -> null
-        );
+        ));
     }
 
     @Override
     public CompletableFuture<Void> suspendOperation(SuspendOperation req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.SUSPEND_OPERATION.createRequestBuilder(rpcOptions)),
                 response -> null
-        );
+        ));
     }
 
     @Override
     public CompletableFuture<Void> resumeOperation(ResumeOperation req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.RESUME_OPERATION.createRequestBuilder(rpcOptions)),
                 response -> null
-        );
+        ));
     }
 
     @Override
     public CompletableFuture<YTreeNode> getJob(GetJob req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.GET_JOB.createRequestBuilder(rpcOptions)),
                 response -> RpcUtil.parseByteString(response.body().getInfo())
-        );
+        ));
     }
 
     @Override
     public CompletableFuture<ListJobsResult> listJobs(ListJobs req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.LIST_JOBS.createRequestBuilder(rpcOptions)),
                 response -> new ListJobsResult(response.body())
-        );
+        ));
     }
 
     @Override
     public CompletableFuture<GetJobStderrResult> getJobStderr(GetJobStderr req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.GET_JOB_STDERR.createRequestBuilder(rpcOptions)),
-                response -> new GetJobStderrResult(response.attachments()));
+                response -> new GetJobStderrResult(response.attachments())));
     }
 
     @Override
     public CompletableFuture<Void> abortJob(AbortJob req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.ABORT_JOB.createRequestBuilder(rpcOptions)),
                 response -> null
-        );
+        ));
     }
 
     @Override
     public CompletableFuture<Void> updateOperationParameters(UpdateOperationParameters req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.UPDATE_OPERATION_PARAMETERS.createRequestBuilder(rpcOptions)),
                 response -> null
-        );
+        ));
     }
 
     @Override
     public CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.CHECK_PERMISSION.createRequestBuilder(rpcOptions)),
-                response -> response.body().getResult());
+                response -> response.body().getResult()));
     }
 
     @Override
     public CompletableFuture<GetFileFromCacheResult> getFileFromCache(GetFileFromCache req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.GET_FILE_FROM_CACHE.createRequestBuilder(rpcOptions)),
                 response -> {
                     if (!response.body().getResult().getPath().isEmpty()) {
                         return new GetFileFromCacheResult(YPath.simple(response.body().getResult().getPath()));
                     }
                     return new GetFileFromCacheResult(null);
-                });
+                }));
     }
 
     @Override
     public CompletableFuture<PutFileToCacheResult> putFileToCache(PutFileToCache req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.PUT_FILE_TO_CACHE.createRequestBuilder(rpcOptions)),
-                response -> new PutFileToCacheResult(YPath.simple(response.body().getResult().getPath())));
+                response -> new PutFileToCacheResult(YPath.simple(response.body().getResult().getPath()))));
     }
 
     @Override
     public CompletableFuture<QueueRowset> pullConsumer(PullConsumer req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.PULL_CONSUMER.createRequestBuilder(rpcOptions)),
                 response -> new QueueRowset(
                         ApiServiceUtil.deserializeUnversionedRowset(
@@ -1141,81 +1142,81 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                         ),
                         response.body().getStartOffset()
                 )
-        );
+        ));
     }
 
     @Override
     public CompletableFuture<Void> advanceConsumer(AdvanceConsumer req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.ADVANCE_CONSUMER.createRequestBuilder(rpcOptions)),
                 response -> null
-        );
+        ));
     }
 
     @Override
     public CompletableFuture<Void> registerQueueConsumer(RegisterQueueConsumer req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.REGISTER_QUEUE_CONSUMER.createRequestBuilder(rpcOptions)),
                 response -> null
-        );
+        ));
     }
 
     @Override
     public CompletableFuture<GUID> startQuery(StartQuery req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.START_QUERY.createRequestBuilder(rpcOptions)),
                 response -> RpcUtil.fromProto(response.body().getQueryId())
-        );
+        ));
     }
 
     @Override
     public CompletableFuture<Void> abortQuery(AbortQuery req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.ABORT_QUERY.createRequestBuilder(rpcOptions)),
                 response -> null
-        );
+        ));
     }
 
     @Override
     public CompletableFuture<QueryResult> getQueryResult(GetQueryResult req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.GET_QUERY_RESULT.createRequestBuilder(rpcOptions)),
                 response -> new QueryResult(response.body())
-        );
+        ));
     }
 
     @Override
     public CompletableFuture<UnversionedRowset> readQueryResult(ReadQueryResult req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.READ_QUERY_RESULT.createRequestBuilder(rpcOptions)),
                 response -> ApiServiceUtil.deserializeUnversionedRowset(
                         response.body().getRowsetDescriptor(), response.attachments()
                 )
-        );
+        ));
     }
 
     @Override
     public CompletableFuture<Query> getQuery(GetQuery req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.GET_QUERY.createRequestBuilder(rpcOptions)),
                 response -> new Query(response.body().getQuery())
-        );
+        ));
     }
 
     @Override
     public CompletableFuture<ListQueriesResult> listQueries(ListQueries req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.LIST_QUERIES.createRequestBuilder(rpcOptions)),
                 response -> new ListQueriesResult(response.body())
-        );
+        ));
     }
 
     @Override
     public CompletableFuture<Void> alterQuery(AlterQuery req) {
-        return RpcUtil.apply(
+        return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.ALTER_QUERY.createRequestBuilder(rpcOptions)),
                 response -> null
-        );
+        ));
     }
 
     @Override
@@ -1378,6 +1379,15 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         CompletableFuture<FileWriter> result = streamControlFuture.thenCompose(control -> fileWriter.startUpload());
         RpcUtil.relayCancel(result, streamControlFuture);
         return result;
+    }
+
+    private <T> CompletableFuture<T> onStarted(RequestBase<?, ?> request, CompletableFuture<T> response) {
+        var requestMiddleware = config.getRequestMiddleware();
+        if (requestMiddleware == null) {
+            return response;
+        }
+        requestMiddleware.onStarted(request, response);
+        return response;
     }
 
     private <T> CompletableFuture<Map.Entry<ApiServiceTransaction, LockNodeResult>> setTableSchemaInSerializer(
