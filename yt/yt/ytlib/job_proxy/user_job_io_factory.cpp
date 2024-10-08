@@ -158,7 +158,8 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter,
     const TClientChunkReadOptions& chunkReadOptions,
-    IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
+    IMultiReaderMemoryManagerPtr multiReaderMemoryManager,
+    std::optional<int> partitionTag = std::nullopt)
 {
     const auto& jobSpecExt = jobSpecHelper->GetJobSpecExt();
     std::vector<TDataSliceDescriptor> dataSliceDescriptors;
@@ -186,7 +187,7 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
         chunkReadOptions,
         TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
         columnFilter,
-        /*partitionTag*/ std::nullopt,
+        partitionTag,
         multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
 }
 
@@ -356,17 +357,8 @@ public:
             }
         }
 
-        std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
         nameTable = TNameTable::FromSortColumns(sortColumns);
         const auto& jobSpecExt = JobSpecHelper_->GetJobSpecExt();
-        auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
-            jobSpecExt.table_reader_options()));
-
-        // We must always enable table index to merge rows with the same index in the proper order.
-        options->EnableTableIndex = true;
-
-        // We must always enable key widening to prevent out of range access of key prefixes in sorted merging/joining readers.
-        options->EnableKeyWidening = true;
 
         auto dataSourceDirectory = JobSpecHelper_->GetDataSourceDirectory();
 
@@ -376,6 +368,30 @@ public:
                 dataSource.Schema() = TTableSchema::FromSortColumns(sortColumns);
             }
         }
+
+        if (reduceJobSpecExt.disable_sorted_input() && jobSpecExt.foreign_input_table_specs_size() == 0) {
+            // Input tables are currently sorted, although this property is not utilized by this reader.
+            // Intermediate sorting is necessary to distribute chunks among sorted reduce jobs
+            // in the current implementation.
+
+            return CreateRegularReader(
+                JobSpecHelper_,
+                ChunkReaderHost_,
+                /*isParallel*/ true,
+                std::move(nameTable),
+                columnFilter,
+                ChunkReadOptions_,
+                MultiReaderMemoryManager_);
+        }
+
+        auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
+            jobSpecExt.table_reader_options()));
+
+        // We must always enable table index to merge rows with the same index in the proper order.
+        options->EnableTableIndex = true;
+
+        // We must always enable key widening to prevent out of range access of key prefixes in sorted merging/joining readers.
+        options->EnableKeyWidening = true;
 
         // Ff the primary table small, read it out completely into the memory to obtain
         // join keys.
@@ -448,6 +464,7 @@ public:
                 jobSpecExt.foreign_input_table_specsSize());
         }
 
+        std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
         for (const auto& inputSpec : jobSpecExt.input_table_specs()) {
             // ToDo(psushin): validate that input chunks are sorted.
             auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
@@ -695,6 +712,18 @@ public:
             partitionTag = reduceJobSpecExt.partition_tag();
         }
         YT_VERIFY(partitionTag);
+
+        if (reduceJobSpecExt.disable_sorted_input()) {
+            return CreateRegularReader(
+                JobSpecHelper_,
+                ChunkReaderHost_,
+                /*isParallel*/ true,
+                std::move(nameTable),
+                columnFilter,
+                ChunkReadOptions_,
+                MultiReaderMemoryManager_,
+                partitionTag);
+        }
 
         auto comparator = GetComparator(FromProto<TSortColumns>(reduceJobSpecExt.sort_columns()));
 

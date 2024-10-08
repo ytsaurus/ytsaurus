@@ -4623,6 +4623,7 @@ private:
             ToProto(reduceJobSpecExt->mutable_key_columns(), GetColumnNames(Spec->SortBy));
             reduceJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
             ToProto(reduceJobSpecExt->mutable_sort_columns(), Spec->SortBy);
+            reduceJobSpecExt->set_disable_sorted_input(Spec->DisableSortedInputInReducer);
 
             InitUserJobSpecTemplate(
                 jobSpecExt->mutable_user_job_spec(),
@@ -4654,6 +4655,7 @@ private:
             ToProto(reduceJobSpecExt->mutable_key_columns(), GetColumnNames(Spec->SortBy));
             reduceJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
             ToProto(reduceJobSpecExt->mutable_sort_columns(), Spec->SortBy);
+            reduceJobSpecExt->set_disable_sorted_input(Spec->DisableSortedInputInReducer);
 
             InitUserJobSpecTemplate(
                 jobSpecExt->mutable_user_job_spec(),

@@ -153,25 +153,7 @@ for l in sys.stdin:
     sys.stdout.write(json.dumps(row) + "\\n")
 """
 
-    def skip_if_legacy_sorted_pool(self):
-        if not isinstance(self, TestSchedulerMapReduceCommandsNewSortedPool):
-            pytest.skip("This test requires new sorted pool")
-
-    @pytest.mark.parametrize(
-        "method",
-        [
-            "map_sort_reduce",
-            "map_reduce",
-            "map_reduce_1p",
-            "reduce_combiner_dev_null",
-            "force_reduce_combiners",
-            "ordered_map_reduce",
-            "map_reduce_with_hierarchical_partitions",
-        ],
-    )
-    @authors("ignat")
-    def test_simple(self, method):
-        text = """
+    TEXT_EXAMPLE = """
 So, so you think you can tell Heaven from Hell,
 blue skies from pain.
 Can you tell a green field from a cold steel rail?
@@ -189,18 +171,44 @@ What have you found? The same old fears.
 Wish you were here.
 """
 
-        # remove punctuation from text
-        stop_symbols = ",.?"
-        for s in stop_symbols:
-            text = text.replace(s, " ")
-
-        mapper = b"""
+    TEXT_MAPPER = b"""
 import sys
 
 for line in sys.stdin:
     for word in line.lstrip("line=").split():
-        print "word=%s\\tcount=1" % word
+        print("word=%s\\tcount=1" % word)
 """
+
+    def skip_if_legacy_sorted_pool(self):
+        if not isinstance(self, TestSchedulerMapReduceCommandsNewSortedPool):
+            pytest.skip("This test requires new sorted pool")
+
+    def skip_if_compat(self):
+        is_compat = "24_1" in getattr(self, "ARTIFACT_COMPONENTS", {})
+        if is_compat:
+            pytest.skip()
+
+    @staticmethod
+    def remove_punctiation(text: str):
+        stop_symbols = ",.?"
+        for s in stop_symbols:
+            text = text.replace(s, " ")
+        return text
+
+    @pytest.mark.parametrize(
+        "method",
+        [
+            "map_sort_reduce",
+            "map_reduce",
+            "map_reduce_1p",
+            "reduce_combiner_dev_null",
+            "force_reduce_combiners",
+            "ordered_map_reduce",
+            "map_reduce_with_hierarchical_partitions",
+        ],
+    )
+    @authors("ignat")
+    def test_simple(self, method):
         reducer = b"""
 import sys
 
@@ -227,6 +235,7 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
         create("table", "//tmp/t_reduce_in", tx=tx)
         create("table", "//tmp/t_out", tx=tx)
 
+        text = self.remove_punctiation(self.TEXT_EXAMPLE)
         for line in text.split("\n"):
             write_table("<append=true>//tmp/t_in", {"line": line}, tx=tx)
 
@@ -234,7 +243,7 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
         create("file", "//tmp/mapper.py")
         create("file", "//tmp/reducer.py")
 
-        write_file("//tmp/mapper.py", mapper, tx=tx)
+        write_file("//tmp/mapper.py", self.TEXT_MAPPER, tx=tx)
         write_file("//tmp/reducer.py", reducer, tx=tx)
 
         if method == "map_sort_reduce":
@@ -1642,9 +1651,6 @@ for l in sys.stdin:
 
     @authors("ermolovd")
     def test_intermediate_schema_mapper_side_output(self):
-        is_compat = "23_2" in getattr(self, "ARTIFACT_COMPONENTS", {})
-        if is_compat:
-            pytest.skip()
         schema = [
             make_column("a", "int64", sort_order="ascending"),
             make_column("struct", struct_type([("a", "int64"), ("b", "string"), ("c", "bool")])),
@@ -1707,9 +1713,6 @@ for l in sys.stdin:
 
     @authors("ermolovd")
     def test_intermediate_schema_column_filter(self):
-        is_compat = "23_2" in getattr(self, "ARTIFACT_COMPONENTS", {})
-        if is_compat:
-            pytest.skip()
         schema = [
             make_column("key", "string"),
             make_column("value1", "string"),
@@ -3209,10 +3212,6 @@ done
 
     @authors("ermolovd")
     def test_broken_convert_any_to_composite_YTADMINREQ_41748(self):
-        is_compat = "23_2" in getattr(self, "ARTIFACT_COMPONENTS", {})
-        if is_compat:
-            pytest.skip()
-
         schema = [
             make_column("key", "string"),
             make_column("value1", list_type("string")),
@@ -3309,9 +3308,6 @@ while True:
 
     @authors("ermolovd")
     def test_column_filter_intermediate_schema_YT_19087(self):
-        is_compat = "23_2" in getattr(self, "ARTIFACT_COMPONENTS", {})
-        if is_compat:
-            pytest.skip()
         create("table", "//tmp/t_in", attributes={
             "schema": [
                 make_column("a", "string"),
@@ -3560,10 +3556,6 @@ while True:
 
     @authors("whatsername")
     def test_map_reduce_any(self):
-        is_compat = "23_2" in getattr(self, "ARTIFACT_COMPONENTS", {})
-        if is_compat:
-            pytest.skip()
-
         create(
             "table",
             "//tmp/t_in",
@@ -3605,6 +3597,127 @@ while True:
                 reduce_by="key",
                 sort_by="key",
                 reducer_command="cat",
+            )
+
+    @pytest.mark.parametrize(
+        "method", ["partition_reduce", "sorted_merge"],
+    )
+    @authors("apollo1321")
+    def test_disable_sorted_input_in_reducer(self, method):
+        self.skip_if_compat()
+
+        reducer = b"""
+import sys
+
+from collections import defaultdict
+
+counts = defaultdict(int)
+order_violation_count = 0
+prev_word = ""
+
+for line in sys.stdin:
+    row = {}
+    fields = line.strip().split("\\t")
+    for field in fields:
+        key, value = field.split("=", 1)
+        row[key] = value
+
+    counts[row["word"]] += int(row["count"])
+
+    if row["word"] < prev_word:
+        order_violation_count += 1
+    prev_word = row["word"]
+
+assert order_violation_count > 0
+
+for key, count in counts.items():
+    print("word=%s\\tcount=%s" % (key, count))
+"""
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        text = self.remove_punctiation(self.TEXT_EXAMPLE)
+        for line in text.split("\n"):
+            write_table("<append=true>//tmp/t_in", {"line": line})
+
+        create("file", "//tmp/mapper.py")
+        create("file", "//tmp/reducer.py")
+
+        write_file("//tmp/mapper.py", self.TEXT_MAPPER)
+        write_file("//tmp/reducer.py", reducer)
+
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            reduce_by="word",
+            mapper_command="python mapper.py",
+            mapper_file=["//tmp/mapper.py"],
+            reducer_command="python reducer.py",
+            reducer_file=["//tmp/reducer.py"],
+            spec={
+                "partition_count": 2,
+                "map_job_count": 2,
+                "sort_job_io": {
+                    "table_writer": {
+                        "desired_chunk_weight": 100,
+                        "block_size": 100,
+                    },
+                    "buffer_row_count": 15,
+                },
+                "mapper": {"format": "dsv"},
+                "reducer": {"format": "dsv"},
+                "data_size_per_sort_job": 10 if method == "sorted_merge" else 1000,
+                "data_size_per_reduce_job": 1000,
+                "disable_sorted_input_in_reducer": True,
+            },
+        )
+
+        # count the desired output
+        expected = defaultdict(int)
+        for word in text.split():
+            expected[word] += 1
+
+        output = []
+        for word, count in expected.items():
+            output.append({"word": word, "count": str(count)})
+        assert_items_equal(read_table("//tmp/t_out"), output)
+
+        tasks = get(op.get_path() + "/@progress/tasks")
+
+        if method == "partition_reduce":
+            expected_tasks = {
+                "partition_map": 2,
+                "partition_reduce": 2,
+            }
+        elif method == "sorted_merge":
+            expected_tasks = {
+                "partition_map": 2,
+                "intermediate_sort": 4,
+                "sorted_reduce": 2,
+            }
+        else:
+            assert False
+
+        assert expected_tasks == {
+            task["job_type"]: task["job_counter"]["total"]
+            for task in tasks
+        }
+
+    @authors("apollo1321")
+    def test_disable_sorted_input_in_reducer_invalid_spec(self):
+        self.skip_if_compat()
+
+        with raises_yt_error("Error parsing operation spec"):
+            map_reduce(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                reduce_by=["x"],
+                sort_by=["x", "y"],
+                reducer_command="cat",
+                spec={
+                    "disable_sorted_input_in_reducer": True,
+                },
             )
 
 
