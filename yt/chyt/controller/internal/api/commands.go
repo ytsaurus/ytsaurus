@@ -35,9 +35,16 @@ var AttributesParameter = CmdParameter{
 	ElementDescription: "strawberry operation attribute to add into response",
 }
 
+var FiltersParameter = CmdParameter{
+	Name:        "filters",
+	Type:        TypeAny,
+	Description: "map of attributes and their values that will be used to filter the response",
+	Transformer: transformFilterValues,
+}
+
 var ListCmdDescriptor = CmdDescriptor{
 	Name:        "list",
-	Parameters:  []CmdParameter{AttributesParameter},
+	Parameters:  []CmdParameter{AttributesParameter, FiltersParameter},
 	Description: "list all strawberry operations on the cluster",
 	Handler:     HTTPAPI.HandleList,
 }
@@ -47,7 +54,11 @@ func (a HTTPAPI) HandleList(w http.ResponseWriter, r *http.Request, params map[s
 	if value, ok := params["attributes"]; ok {
 		attributes = value.([]string)
 	}
-	aliases, err := a.API.List(r.Context(), attributes)
+	var filters map[string]any
+	if value, ok := params["filters"]; ok {
+		filters = value.(map[string]any)
+	}
+	aliases, err := a.API.List(r.Context(), attributes, filters)
 	if err != nil {
 		a.ReplyWithError(w, err)
 		return
