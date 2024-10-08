@@ -272,11 +272,17 @@ FN(<expr>, ...)
 `is_null(x) :: A -> boolean`
 Проверяет, является ли указанное значение `NULL`.
 
+`is_finite(x) :: double -> boolean`
+Проверяет, является ли указанное значение конечным числом с плавающей точкой, т.е. не является бесконечностью или `NaN`.
+
 `transform(a, (a1, a2, ...), (b1, b2, ...)) :: A -> List[A] -> List[B] -> B`
 `transform[a2), ((a11, a12), ...), (v1, ...](a1,) :: Tuple -> List[Tuple] -> List[B] -> B`
 Преобразовать значение(или tuple) согласно явно указанному отображению одних элементов на другие.
 Если соответствующего значения нет - возвращается `NULL`.
 Сложность - константная.
+
+`greatest(a1, a2, ...) :: A* -> A`
+Возвращает наибольшее значение из аргументов.
 
 #### Работа со строками
 `is_substr(s, t) :: string -> string -> boolean`
@@ -351,7 +357,7 @@ $ yt select-rows 't.b.c[0] from `//tmp/test` as t' --syntax-version 2 --format j
     Пример: для строки таблицы `{column=<attr=4>{key3=2;k={k2=<b=7>3;k3=10};lst=<a=[1;{a=3};{b=7u}]>[0;1;<a={b=4}>2]}}` `try_get_uint64(column, "/lst/@a/2/b")` вернёт значение `7u`.
 2. `list_contains(list, value) :: any -> (string | int64 | uint64 | boolean) -> boolean`
     Ищет `value` в YSON-списке `list`, имеющем тип `any`. Значение `value` скалярного типа. Список не обязан быть гомогенным (т. е. может содержать значения разных типов), сравнение выполняется с учётом типа.
-3.  `list_has_intersection(list, list) :: any -> any -> boolean`
+3. `list_has_intersection(list, list) :: any -> any -> boolean`
     Принимает на вход два YSON-списка и возвращает `true`, если они имеют хотя бы один общий элемент. Списки обязаны быть гомогенными.
 4. `any_to_yson_string(yson) :: any -> string`
     Преобразует значение типа `any` в строку, содержащую его binary-[YSON](../../../user-guide/storage/yson.md) представление.
@@ -415,20 +421,23 @@ $ yt select-rows 't.b.c[0] from `//tmp/test` as t' --syntax-version 2 --format j
 #### Работа с датами
 При округлении используется UTC-таймзона
 
-`timestamp_floor_year(t) :: int64 -> int64 `
-Получить timestamp года (на 0:00 первого января) для указанного timestamp
+`timestamp_floor_year(t) :: int64 -> int64`
+Получить timestamp года (на 0:00 первого января) для указанного timestamp.
 
-`timestamp_floor_month(t) :: int64 -> int64 `
-Получить timestamp месяца (на 0:00 первого дня месяца) для указанного timestamp
+`timestamp_floor_month(t) :: int64 -> int64`
+Получить timestamp месяца (на 0:00 первого дня месяца) для указанного timestamp.
 
-` timestamp_floor_week(t) :: int64 -> int64 `
-Получить timestamp недели (на 0:00 понедельника) для указанного timestamp
+`timestamp_floor_week(t) :: int64 -> int64`
+Получить timestamp недели (на 0:00 понедельника) для указанного timestamp.
 
-` timestamp_floor_day(t) :: int64 -> int64 `
-Получить timestamp дня (на 0:00 начала дня) для указанного timestamp
+`timestamp_floor_day(t) :: int64 -> int64`
+Получить timestamp дня (на 0:00 начала дня) для указанного timestamp.
 
-` timestamp_floor_hour(t) :: int64 -> int64 `
-Получить timestamp часа (0 мин. 0 секунд начала часа) для указанного timestamp
+`timestamp_floor_hour(t) :: int64 -> int64`
+Получить timestamp часа (0 мин. 0 секунд начала часа) для указанного timestamp.
+
+`format_timestamp(t, format) :: int64 -> string -> string`
+Форматирует время, указанное в timestamp, согласно строке format. Использует ту же конвенцию, что и `std::strftime`.
 
 #### Хеширование
 
@@ -457,11 +466,12 @@ $ yt select-rows 't.b.c[0] from `//tmp/test` as t' --syntax-version 2 --format j
 ### Агрегирующие функции { #aggregation_functions }
 В языке запросов поддерживаются следующие агрегирующие функции:
 
-- `sum` — подсчёт суммы;
-- `min` — подсчёт минимума;
-- `max` — подсчёт максимума;
-- `avg` — подсчёт среднего;
-- `cardinality` — подсчёт количества различных элементов с помощью алгоритма [HyperLogLog](https://en.wikipedia.org/wiki/HyperLogLog).
+- `sum(expr) :: A -> A` — подсчёт суммы;
+- `min/max(expr) :: A -> A` — подсчёт минимума или максимума;
+- `avg(expr) :: int64 -> double` — подсчёт среднего;
+- `cardinality(expr) :: int64 | uint64 | double | boolean | string -> uint64` — подсчёт количества различных элементов с помощью алгоритма [HyperLogLog](https://en.wikipedia.org/wiki/HyperLogLog);
+- `argmin/argmax(arg, expr) :: A -> int64 | uint64 | double | string | boolean -> A` — подсчёт значения аргумента, при котором выражение достигает соответствующего экстремума;
+- `first(expr) :: A -> A` — Первое значение среди сгруппированных. При последовательном сканировании (в случае сортировки по первичному ключу) вычисляет значение первой строки в группе. Если все агрегирующие функции в запросе — `first`, при последовательном сканировании движок остановит исполнение, как только наберет `LIMIT` уникальных ключей группировки. В случае запроса без последовательного сканирования `first` возвращает значение любой подходящей строки.
 
 ## Исполнение запроса { #query_execution }
 
