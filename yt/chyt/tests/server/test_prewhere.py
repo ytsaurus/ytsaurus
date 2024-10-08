@@ -295,7 +295,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
                 {"name": "b", "type": "int64", "required": True}
             ],
         })
-        write_table("//tmp/t", [{"a": 1, "b": 2}])
+        write_table("//tmp/t", [{"a": 1, "b": 1}, {"a": 1, "b": 2}])
 
         config_patch = self.get_config_patch(optimize_move_to_prewhere=False)
         with Clique(1, config_patch=config_patch) as clique:
@@ -309,6 +309,9 @@ class TestClickHousePrewhere(ClickHouseTestBase):
                 "allow_suspicious_low_cardinality_types": 1,
             }
             assert clique.make_query(query, settings=settings) == [{"a": 1, "b": 2}]
+
+            query = "select * from `//tmp/t` prewhere 1=1 and 1 and b = 2"
+            assert clique.make_query(query) == [{"a": 1, "b": 2}]
 
     @authors("dakovalkov")
     def test_illegal_column_type(self):

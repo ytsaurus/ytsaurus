@@ -53,20 +53,29 @@ TClientChunkReadOptions CreateChunkReadOptions(const TString& user)
 
 struct TBlockWithFilter
 {
+    explicit TBlockWithFilter(i64 rowCount)
+        : RowCount(rowCount)
+        , RowCountAfterFilter(rowCount)
+    { }
+
     DB::Block Block;
+    i64 RowCount;
     DB::IColumn::Filter Filter;
+    i64 RowCountAfterFilter;
 };
 
 void ExecuteFilterStep(TBlockWithFilter& blockWithFilter, const TFilterInfo& filterInfo)
 {
-    auto& [block, currentFilter] = blockWithFilter;
+    auto& [block, rowCount, currentFilter, rowCountAfterFilter] = blockWithFilter;
 
-    filterInfo.Actions->execute(block);
+    {
+        // execute requires size_t as an argument.
+        size_t numRows = rowCount;
+        filterInfo.Actions->execute(block, numRows);
+    }
 
     auto filterColumnPosition = block.getPositionByName(filterInfo.FilterColumnName);
     auto filterColumn = block.getByPosition(filterColumnPosition).column->convertToFullIfNeeded();
-
-    i64 rowCount = block.rows();
 
     // Output block should contain at least one column to preserve row count.
     if (filterInfo.RemoveFilterColumn && block.columns() != 1) {
@@ -111,6 +120,8 @@ void ExecuteFilterStep(TBlockWithFilter& blockWithFilter, const TFilterInfo& fil
             currentFilter[index] &= static_cast<bool>(values[index]);
         }
     }
+
+    rowCountAfterFilter = DB::countBytesInFilter(currentFilter);
 }
 
 }  // namespace
@@ -253,13 +264,12 @@ DB::Block TBlockInputStream::readImpl()
             continue;
         }
 
-        TBlockWithFilter blockWithFilter;
-        i64 rowCountAfterFilter = batch->GetRowCount();
+        TBlockWithFilter blockWithFilter(batch->GetRowCount());
 
         for (int stepIndex = 0; stepIndex < std::ssize(ReadPlan_->Steps); ++stepIndex) {
             const auto& step = ReadPlan_->Steps[stepIndex];
 
-            auto filterHint = (blockWithFilter.Filter.empty() || rowCountAfterFilter == batch->GetRowCount())
+            auto filterHint = (blockWithFilter.Filter.empty() || blockWithFilter.RowCountAfterFilter == batch->GetRowCount())
                 ? TRange<DB::UInt8>()
                 : TRange(blockWithFilter.Filter.data(), blockWithFilter.Filter.size());
 
@@ -271,21 +281,20 @@ DB::Block TBlockInputStream::readImpl()
 
             if (step.FilterInfo) {
                 ExecuteFilterStep(blockWithFilter, *step.FilterInfo);
-                rowCountAfterFilter = DB::countBytesInFilter(blockWithFilter.Filter);
-                if (rowCountAfterFilter == 0) {
+                if (blockWithFilter.RowCountAfterFilter == 0) {
                     break;
                 }
             }
         }
 
         // All rows have been filtered out. Abandon current block and retry.
-        if (rowCountAfterFilter == 0) {
+        if (blockWithFilter.RowCountAfterFilter == 0) {
             continue;
         }
 
-        if (ReadPlan_->NeedFilter && rowCountAfterFilter != static_cast<i64>(blockWithFilter.Block.rows())) {
+        if (ReadPlan_->NeedFilter && blockWithFilter.RowCount != blockWithFilter.RowCountAfterFilter) {
             for (auto& column : blockWithFilter.Block) {
-                column.column = column.column->filter(blockWithFilter.Filter, rowCountAfterFilter);
+                column.column = column.column->filter(blockWithFilter.Filter, blockWithFilter.RowCountAfterFilter);
             }
         }
 
@@ -315,7 +324,7 @@ void TBlockInputStream::Prepare()
 
     Converters_.reserve(ReadPlan_->Steps.size());
 
-    TBlockWithFilter blockWithFilter;
+    TBlockWithFilter blockWithFilter(/*rowCount*/ 0);
 
     for (const auto& step : ReadPlan_->Steps) {
         const auto& converter = Converters_.emplace_back(step.Columns, nameTable, Settings_->Composite);
