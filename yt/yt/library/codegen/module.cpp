@@ -30,6 +30,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/SmallVectorMemoryBuffer.h>
 #include <llvm/CodeGen/Passes.h>
+#include <llvm/TargetParser/X86TargetParser.h>
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/Instrumentation.h>
@@ -160,18 +161,50 @@ public:
 #endif
             );
 #ifdef _darwin_
-            // Modules generated with Clang contain macosx10.11.0 OS signature,
-            // whereas LLVM modules contains darwin15.0.0.
-            // So we rebuild triple to match with Clang object files.
-            auto llvmTriple = llvm::Triple(triple);
-            llvm::VersionTuple version;
-            llvmTriple.getMacOSXVersion(version);
-            auto formattedOsName = Format("macosx%v.%v.%v", version.getMajor(), *version.getMinor(), *version.getSubminor());
-            auto osNameAsTwine = llvm::Twine(std::string_view(formattedOsName));
-            auto fixedTriple = llvm::Triple(llvmTriple.getArchName(), llvmTriple.getVendorName(), osNameAsTwine);
-            triple = llvm::Triple::normalize(fixedTriple.getTriple());
+            {
+                // Modules generated with Clang contain macosx10.11.0 OS signature,
+                // whereas LLVM modules contains darwin15.0.0.
+                // So we rebuild triple to match with Clang object files.
+                auto llvmTriple = llvm::Triple(triple);
+                llvm::VersionTuple version;
+                llvmTriple.getMacOSXVersion(version);
+                auto formattedOsName = Format("macosx%v.%v.%v", version.getMajor(), *version.getMinor(), *version.getSubminor());
+                auto osNameAsTwine = llvm::Twine(std::string_view(formattedOsName));
+                auto fixedTriple = llvm::Triple(llvmTriple.getArchName(), llvmTriple.getVendorName(), osNameAsTwine);
+                triple = llvm::Triple::normalize(fixedTriple.getTriple());
+            }
 #endif
+
+            // When emulating code compiled for x86_64 on ARM (e.g. Rosetta on M1 macs), getHostCPUName used
+            // above and other tools (/proc/cpuinfo, uname) produce bogus results. Indeed, it is hard to
+            // define the correct cpu they should return. In practice, getHostCPUName returns some 32-bit
+            // x86 cpu when running in emulation, which causes asserts to fail within llvm X86Subtarget,
+            // since the triple we are passing is defined in compile-time and is typically x86_64.
+            // In an ideal world we would detect that we are emulating x86 code on ARM and use cpu = "generic",
+            // but so far I have not found a good way to check this condition. It might even be impossible.
+            // We can, however, address the failure that happens when the determined runtime cpu is not
+            // x86 and/or 64-bit, while the triple is. In such cases it is best to use cpu = "generic".
+            // It might still be possible for emulated code to produce a weird 64-bit x86 cpu that will
+            // cause some other kind of incompatibility, but that is a problem for the future us.
+            auto llvmTriple = llvm::Triple(triple);
+            if (llvmTriple.isX86()) {
+                bool isCpuX86 = llvm::X86::parseArchX86(cpu, /*Only64Bit*/ false) != llvm::X86::CPUKind::CK_None;
+                bool isCpuX86And64Bit = llvm::X86::parseArchX86(cpu, /*Only64Bit*/ true) != llvm::X86::CPUKind::CK_None;
+                // We fall back to cpu = "generic" if the CPU is not x86, or its bitness differs from the triple bitness.
+                // NB: There are no helpers for distinguishing between <= 32 bit CPUs, let's just pray that nobody
+                // is running YT on 16 bit CPUs :)
+                if (!isCpuX86 || (llvmTriple.isArch64Bit() != isCpuX86And64Bit)) {
+                    YT_LOG_INFO(
+                        "Automatically detected CPU is incompatible with specified target triple, "
+                        "using generic CPU for llvm module configuration (DetectedCPU: %v, TargetTriple: %v)",
+                        std::string{cpu},
+                        triple);
+                    cpu = "generic";
+                }
+            }
         }
+
+        YT_LOG_INFO("Initializing codegen module (CPU: %v, TargetTriple: %v)", std::string{cpu}, triple);
 
         // Create module.
         auto cgModule = std::make_unique<llvm::Module>(moduleName.c_str(), Context_);
