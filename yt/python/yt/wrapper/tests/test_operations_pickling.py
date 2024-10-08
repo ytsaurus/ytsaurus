@@ -39,7 +39,7 @@ class TestOperationsPickling(object):
         yt.config["is_local_mode"] = False
         self.env = {
             "YT_CONFIG_PATCHES": dumps_yt_config(),
-            "PYTHONPATH": os.environ["PYTHONPATH"]
+            "PYTHONPATH": os.environ.get("PYTHONPATH", ""),
         }
 
     @authors("asaitgalin")
@@ -88,8 +88,8 @@ class TestOperationsPickling(object):
 
         yt.write_table(table, [{"x": 1}, {"y": 2}])
 
-        filter = lambda module: hasattr(module, "__file__") and not "test_module" in module.__file__
-        filter_string = 'lambda module: hasattr(module, "__file__") and not "test_module" in module.__file__'
+        filter = lambda module: hasattr(module, "__file__") and module.__file__ and not "test_module" in module.__file__
+        filter_string = 'lambda module: hasattr(module, "__file__") and module.__file__ and not "test_module" in module.__file__'
 
         yt.run_map(mapper_test_module, table, table)
         check_rows_equality(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
@@ -107,6 +107,7 @@ class TestOperationsPickling(object):
     @add_failed_operation_stderrs_to_error_message
     def test_modules_compatibility_filter(self, test_dynamic_library):
         libs_dir, so_file = test_dynamic_library
+
         def check_platforms_are_different(rec):
             assert "_shared" in os.environ["LD_LIBRARY_PATH"]
             for root, dirs, files in os.walk("."):
@@ -175,7 +176,7 @@ if __name__ == "__main__":
 
         env = {
             "YT_CONFIG_PATCHES": dumps_yt_config(),
-            "PYTHONPATH": os.pathsep.join([module_egg, os.environ["PYTHONPATH"]])
+            "PYTHONPATH": os.pathsep.join([module_egg, os.environ.get("PYTHONPATH", "")])
         }
 
         operation_id = subprocess.check_output([get_python(), f.name], env=env).strip()
