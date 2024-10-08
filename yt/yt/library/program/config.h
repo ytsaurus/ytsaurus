@@ -113,12 +113,32 @@ class TStockpileConfig
     , public NYTree::TYsonStruct
 {
 public:
+    TStockpileConfigPtr ApplyDynamic(const TStockpileDynamicConfigPtr& dynamicConfig) const;
+
     REGISTER_YSON_STRUCT(TStockpileConfig);
 
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TStockpileConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStockpileDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    std::optional<i64> BufferSize;
+    std::optional<int> ThreadCount;
+    std::optional<EStockpileStrategy> Strategy;
+    std::optional<TDuration> Period;
+
+    REGISTER_YSON_STRUCT(TStockpileDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TStockpileDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -187,6 +207,7 @@ public:
     NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
     TRpcConfigPtr Rpc;
     TTCMallocConfigPtr TCMalloc;
+    TStockpileDynamicConfigPtr Stockpile;
     NYson::TProtobufInteropDynamicConfigPtr ProtobufInterop;
 
     REGISTER_YSON_STRUCT(TSingletonsDynamicConfig);

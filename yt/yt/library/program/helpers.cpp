@@ -1,6 +1,7 @@
 #include "helpers.h"
 #include "config.h"
 #include "private.h"
+#include "stockpile.h"
 
 #include <yt/yt/core/ytalloc/bindings.h>
 
@@ -240,7 +241,7 @@ void ConfigureSingletons(const TSingletonsConfigPtr& config)
 
     ConfigureTCMalloc(config->TCMalloc);
 
-    ConfigureStockpile(*config->Stockpile);
+    TStockpileManager::Get()->Reconfigure(*config->Stockpile);
 
     if (config->EnableRefCountedTrackerProfiling) {
         EnableRefCountedTrackerProfiling();
@@ -296,6 +297,10 @@ void ReconfigureSingletons(const TSingletonsConfigPtr& config, const TSingletons
         ConfigureTCMalloc(MergeTCMallocDynamicConfig(config->TCMalloc, dynamicConfig->TCMalloc));
     } else if (config->TCMalloc) {
         ConfigureTCMalloc(config->TCMalloc);
+    }
+
+    if (dynamicConfig->Stockpile) {
+        TStockpileManager::Get()->Reconfigure(*config->Stockpile->ApplyDynamic(dynamicConfig->Stockpile));
     }
 
     NYson::SetProtobufInteropConfig(config->ProtobufInterop->ApplyDynamic(dynamicConfig->ProtobufInterop));
