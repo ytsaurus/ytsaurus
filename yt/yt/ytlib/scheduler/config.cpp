@@ -1752,6 +1752,9 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
     registrar.Parameter("enable_table_index_if_has_trivial_mapper", &TThis::EnableTableIndexIfHasTrivialMapper)
         .Default(false);
 
+    registrar.Parameter("disable_sorted_input_in_reducer", &TThis::DisableSortedInputInReducer)
+        .Default(false);
+
     // The following settings are inherited from base but make no sense for map-reduce:
     //   SimpleSortLocalityTimeout
     //   SimpleMergeLocalityTimeout
@@ -1811,13 +1814,28 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
             spec->ReduceBy = GetColumnNames(spec->SortBy);
         }
 
-        if (spec->SortBy.empty()) {
+        auto generateSortColumnsFromReduceColumns = [&spec]() {
+            TSortColumns columns;
             for (const auto& reduceColumn : spec->ReduceBy) {
-                spec->SortBy.push_back(TColumnSortSchema{
+                columns.push_back(TColumnSortSchema{
                     .Name = reduceColumn,
                     .SortOrder = ESortOrder::Ascending
                 });
             }
+            return columns;
+        };
+
+        if (spec->SortBy.empty()) {
+            spec->SortBy = generateSortColumnsFromReduceColumns();
+        } else if (spec->DisableSortedInputInReducer) {
+            // Checking if sort_by is specified at the beginning of Postprocess works correctly
+            // the first time the config is parsed. However, when the specification is persisted
+            // in CA and loaded again, it will fail. This is because SortBy is always set in
+            // Postprocess, even if the user did not specify it explicitly.
+            THROW_ERROR_EXCEPTION_IF(
+                spec->SortBy != generateSortColumnsFromReduceColumns(),
+                "The \"sort_by\" field cannot be specified when \"disable_sorted_input_in_reducer\" is set"
+            );
         }
 
         if (spec->ReduceBy.empty() && spec->SortBy.empty()) {

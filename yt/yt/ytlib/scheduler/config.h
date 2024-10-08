@@ -1885,6 +1885,8 @@ public:
     // It is necessary only for emergency switching off.
     bool EnableTableIndexIfHasTrivialMapper;
 
+    bool DisableSortedInputInReducer;
+
 public:
     bool HasNontrivialMapper() const;
     bool HasNontrivialReduceCombiner() const;
