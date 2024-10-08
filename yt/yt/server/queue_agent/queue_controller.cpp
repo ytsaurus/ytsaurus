@@ -335,7 +335,13 @@ public:
                 .WithRequiredTag("queue_path", QueueRef_.Path)
                 .WithRequiredTag("queue_cluster", QueueRef_.Cluster),
             Logger))
-        , AlertManager_(CreateAlertManager(Logger, ProfileManager_->GetQueueProfiler(), Invoker_))
+        , AlertManager_(CreateAlertManager(
+            Logger,
+            QueueAgentProfilerGlobal
+                .WithTag("queue_path", QueueRef_.Path)
+                .WithTag("queue_cluster", QueueRef_.Cluster)
+                .WithPrefix("/queue"),
+            Invoker_))
         , TrimAlertCollector_(CreateAlertCollector(AlertManager_))
         , QueueExportsAlertCollector_(CreateAlertCollector(AlertManager_))
     {
