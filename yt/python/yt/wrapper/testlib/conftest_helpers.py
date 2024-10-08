@@ -440,7 +440,7 @@ def job_events(request):
 @pytest.hookimpl
 def pytest_enter_pdb(config, pdb):
 
-    if config and config.current_test_log_path and os.path.exists(config.current_test_log_path):
+    if config and hasattr(config, 'current_test_log_path') and os.path.exists(config.current_test_log_path):
         yt_host, yt_port = None, None
         cur_host = socket.gethostname()
 
