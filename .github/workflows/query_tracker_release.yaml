@@ -51,7 +51,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: ydb-platform/ydb
-          ref: ba80e77428a348c18798778a51c8d6aba973f9f2
+          ref: 64db63f9333fa966df2b65badbdef3bc5db10372
           path: ydb
 
   build:
