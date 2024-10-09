@@ -25,7 +25,7 @@ TEpochSchema::TEpochSchema(const TEpochSchema& other)
 TEpochSchema& TEpochSchema::operator=(const TEpochSchema& other)
 {
     TableSchema_ = other.TableSchema_;
-    Revision_ += other.Revision_;
+    Revision_ += other.Revision_ + 1;
     return *this;
 }
 
@@ -67,6 +67,12 @@ void TEpochSchema::Persist(const NPhoenix::TPersistenceContext& context)
 
     Persist(context, Revision_);
     Persist<TNonNullableIntrusivePtrSerializer<>>(context, TableSchema_);
+}
+
+ui64 TEpochSchema::Reset()
+{
+    TableSchema_ = New<TTableSchema>();
+    return ++Revision_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -215,6 +221,8 @@ TTableUploadOptions GetTableUploadOptions(
     }
 
     TTableUploadOptions result;
+    // NB: Saving schema to make sure that if changes are applied to it the schema revision also changes.
+    result.TableSchema = schema;
     auto pathSchema = path.GetSchema();
     if (path.GetAppend() && !path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Strong)) {
         ValidateSortColumnsEqual(path.GetSortedBy(), *schema);
@@ -222,7 +230,6 @@ TTableUploadOptions GetTableUploadOptions(
         result.LockMode = ELockMode::Exclusive;
         result.UpdateMode = EUpdateMode::Append;
         result.SchemaMode = ETableSchemaMode::Strong;
-        result.TableSchema = schema;
     } else if (path.GetAppend() && !path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Weak)) {
         // Old behaviour.
         ValidateAppendKeyColumns(path.GetSortedBy(), *schema, rowCount);
@@ -235,19 +242,18 @@ TTableUploadOptions GetTableUploadOptions(
         result.LockMode = (schema->IsSorted() && !dynamic) ? ELockMode::Exclusive : ELockMode::Shared;
         result.UpdateMode = EUpdateMode::Append;
         result.SchemaMode = ETableSchemaMode::Strong;
-        result.TableSchema = schema;
     } else if (path.GetAppend() && path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Weak)) {
-        // Old behaviour - reset key columns if there were any, keep schema empty.
+        // Old behaviour - reset key columns if there were any.
         result.LockMode = ELockMode::Shared;
         result.UpdateMode = EUpdateMode::Append;
         result.SchemaMode = ETableSchemaMode::Weak;
+        result.TableSchema.Reset();
     } else if (!path.GetAppend() && !path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Strong)) {
         ValidateSortColumnsEqual(path.GetSortedBy(), *schema);
 
         result.LockMode = ELockMode::Exclusive;
         result.UpdateMode = EUpdateMode::Overwrite;
         result.SchemaMode = ETableSchemaMode::Strong;
-        result.TableSchema = schema;
     } else if (!path.GetAppend() && !path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Weak)) {
         result.LockMode = ELockMode::Exclusive;
         result.UpdateMode = EUpdateMode::Overwrite;
@@ -268,11 +274,11 @@ TTableUploadOptions GetTableUploadOptions(
         result.LockMode = ELockMode::Exclusive;
         result.UpdateMode = EUpdateMode::Overwrite;
         result.SchemaMode = ETableSchemaMode::Strong;
-        result.TableSchema = schema;
     } else if (!path.GetAppend() && path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Weak)) {
         result.LockMode = ELockMode::Exclusive;
         result.UpdateMode = EUpdateMode::Overwrite;
         result.SchemaMode = ETableSchemaMode::Weak;
+        result.TableSchema.Reset();
     } else {
         // Do not use YT_ABORT here, since this code is executed inside scheduler.
         THROW_ERROR_EXCEPTION("Failed to define upload parameters")
