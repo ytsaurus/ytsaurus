@@ -29,7 +29,7 @@ void CapturePIValue(
         auto* dataCopy = context->AllocateUnaligned(valueAtHost->Length, destinationAddressSpace);
         valueAtHost = ConvertPointer(value, sourceAddressSpace, EAddressSpace::Host); // NB: Possible reallocation.
         auto* dataCopyAtHost = ConvertPointer(dataCopy, destinationAddressSpace, EAddressSpace::Host, valueAtHost->Length);
-        ::memcpy(dataCopyAtHost, valueAtHost->AsStringBuf().Data(), valueAtHost->Length);
+        ::memcpy(dataCopyAtHost, valueAtHost->AsStringBuf().data(), valueAtHost->Length);
         valueAtHost->SetStringPosition(dataCopyAtHost);
     }
 }

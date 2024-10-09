@@ -48,7 +48,7 @@ TString Trim(const TString& string)
         --end;
     }
 
-    const auto* data = string.Data();
+    const auto* data = string.data();
     return TString(data + start, data + end);
 }
 

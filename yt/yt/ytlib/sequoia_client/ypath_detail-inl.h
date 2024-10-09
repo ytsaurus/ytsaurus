@@ -281,7 +281,7 @@ TYPathBaseImpl<false, TUnderlying>::TSegmentView::TIterator::TIterator(const TYP
 template <class TUnderlying>
 void TYPathBaseImpl<false, TUnderlying>::TSegmentView::TIterator::Increment()
 {
-    Offset_ += Current_.Underlying().Size();
+    Offset_ += Current_.Underlying().size();
     if (Tokenizer_.Skip(NYPath::ETokenType::Slash)) {
         ++Offset_;
     }
@@ -296,7 +296,7 @@ void TYPathBaseImpl<false, TUnderlying>::TSegmentView::TIterator::UpdateCurrent(
         Tokenizer_.GetType() != NYPath::ETokenType::EndOfStream)
     {
         consumeRootDesignator = false;
-        currentSize += Tokenizer_.GetToken().Size();
+        currentSize += Tokenizer_.GetToken().size();
         Tokenizer_.Advance();
     }
     Current_ = TYPathBuf(Owner_->Path_, Offset_, currentSize);

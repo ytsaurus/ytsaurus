@@ -142,7 +142,7 @@ public:
             auto ysonString = TYsonStringBuf(TStringBuf(yson.data, yson.size));
 
             auto convertedYsonString = ConvertToYsonStringExtendedFormat(ysonString, ysonFormat);
-            columnTo->insertData(convertedYsonString.AsStringBuf().Data(), convertedYsonString.AsStringBuf().Size());
+            columnTo->insertData(convertedYsonString.AsStringBuf().data(), convertedYsonString.AsStringBuf().size());
         }
 
         return columnTo;

@@ -46,7 +46,7 @@ int GetFileNameWidth(int fileCount)
 TString GenerateFileName(int index, int fileNameWidth)
 {
     auto stringIndex = ToString(index);
-    TString zeroPrefix(fileNameWidth - stringIndex.Size(), '0');
+    TString zeroPrefix(fileNameWidth - stringIndex.size(), '0');
     return Format("%v%v.par", zeroPrefix, stringIndex);
 }
 

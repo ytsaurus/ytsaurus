@@ -45,7 +45,7 @@ void TUnwrappingConsumer::OnMyRaw(TStringBuf yson, NYson::EYsonType type)
 {
     yson = TrimSpaces(yson);
     if (type == NYson::EYsonType::Node &&
-        yson.Size() >= 2 &&
+        yson.size() >= 2 &&
         yson.front() == NYson::NDetail::BeginMapSymbol &&
         yson.back() == NYson::NDetail::EndMapSymbol)
     {

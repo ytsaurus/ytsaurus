@@ -92,7 +92,7 @@ TString ConvertLikePatternToRegex(
 
     char escape = '\\';
     if (escapeCharacterUsed) {
-        if (escapeCharacter.Size() > 1) {
+        if (escapeCharacter.size() > 1) {
             THROW_ERROR_EXCEPTION("Escape string must be empty or one character");
         }
 

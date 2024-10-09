@@ -369,7 +369,7 @@ private:
                 continue;
             }
 
-            if (state->PodIdTemplate.Empty()) {
+            if (state->PodIdTemplate.empty()) {
                 YT_LOG_WARNING("Empty PodIdTemplate found in allocation state "
                     "(AllocationId: %v, InstanceType: %v, BundleName: %v)",
                     allocationId,

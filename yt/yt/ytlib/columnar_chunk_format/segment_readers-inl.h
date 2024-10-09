@@ -128,8 +128,8 @@ void ReadUnversionedValueData(TUnversionedValue* value, bool data)
 
 void ReadUnversionedValueData(TUnversionedValue* value, TStringBuf data)
 {
-    value->Length = data.Size();
-    value->Data.String = data.Data();
+    value->Length = data.size();
+    value->Data.String = data.data();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -73,7 +73,7 @@ TParameterizedReassignSolverConfig TParameterizedReassignSolverConfig::MergeWith
         .CellDeviationThreshold = groupConfig->CellDeviationThreshold.value_or(CellDeviationThreshold),
         .MinRelativeMetricImprovement = groupConfig->MinRelativeMetricImprovement.value_or(
             MinRelativeMetricImprovement),
-        .Metric = groupConfig->Metric.Empty()
+        .Metric = groupConfig->Metric.empty()
             ? Metric
             : groupConfig->Metric,
         .Factors = Factors->MergeWith(groupConfig->Factors),
@@ -84,7 +84,7 @@ TParameterizedResharderConfig TParameterizedResharderConfig::MergeWith(
     const TParameterizedBalancingConfigPtr& groupConfig) const
 {
     return TParameterizedResharderConfig{
-        .Metric = groupConfig->Metric.Empty()
+        .Metric = groupConfig->Metric.empty()
             ? Metric
             : groupConfig->Metric
     };

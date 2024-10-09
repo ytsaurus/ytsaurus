@@ -1086,7 +1086,7 @@ size_t TExpressionProfiler::Profile(
             re2::RE2::Options options;
             options.set_log_errors(false);
 
-            precompiledRegex = std::make_unique<re2::RE2>(re2::StringPiece(re2Pattern.Data(), re2Pattern.Size()), options);
+            precompiledRegex = std::make_unique<re2::RE2>(re2::StringPiece(re2Pattern.data(), re2Pattern.size()), options);
         }
 
         opaqueIndex = Variables_->AddOpaque<TLikeExpressionContext>(std::move(precompiledRegex));

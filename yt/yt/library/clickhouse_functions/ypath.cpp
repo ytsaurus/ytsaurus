@@ -473,7 +473,7 @@ public:
 
             if (subNode) {
                 auto convertedYson = ConvertToYsonStringExtendedFormat(subNode, ysonFormat);
-                columnTo->insertData(convertedYson.AsStringBuf().Data(), convertedYson.AsStringBuf().Size());
+                columnTo->insertData(convertedYson.AsStringBuf().data(), convertedYson.AsStringBuf().size());
             } else {
                 columnTo->insertDefault();
             }

@@ -733,7 +733,7 @@ void TBundleState::FetchPerformanceCountersFromTable(
     THashMap<TTableId, std::vector<TTabletStatisticsResponse>>* tableIdToStatistics,
     const NYPath::TYPath& statisticsTablePath)
 {
-    YT_VERIFY(!statisticsTablePath.Empty());
+    YT_VERIFY(!statisticsTablePath.empty());
 
     THashSet<TTableId> tableIdsToFetch;
     for (const auto& [tableId, tablets] : *tableIdToStatistics) {

@@ -159,7 +159,7 @@ TEST(TParallelFileReaderTest, ReadNextBatch)
         EXPECT_EQ(file.Content.substr(offset, blob->Size()), blob->AsStringBuf());
         offset += blob->Size();
     }
-    EXPECT_TRUE(offset == file.Content.Size());
+    EXPECT_TRUE(offset == file.Content.size());
 }
 
 TEST(TParallelFileReaderTest, ReadToPlace)
@@ -177,7 +177,7 @@ TEST(TParallelFileReaderTest, ReadToPlace)
         offset += readSize;
     }
 
-    EXPECT_TRUE(offset == file.Content.Size());
+    EXPECT_TRUE(offset == file.Content.size());
 }
 
 TEST(TParallelFileReaderTest, SaveFile)

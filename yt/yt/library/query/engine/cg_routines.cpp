@@ -2135,7 +2135,7 @@ re2::RE2* RegexCreate(TValue* regexp)
     re2::RE2::Options options;
     options.set_log_errors(false);
     auto re2 = std::make_unique<re2::RE2>(
-        re2::StringPiece(regexString.data(), regexString.Size()),
+        re2::StringPiece(regexString.data(), regexString.size()),
         options);
     if (!re2->ok()) {
         THROW_ERROR_EXCEPTION(
@@ -3542,7 +3542,7 @@ void LikeOpHelper(
 
         re2::RE2::Options options;
         options.set_log_errors(false);
-        newRegex = std::make_unique<re2::RE2>(re2::StringPiece(asRe2Pattern.Data(), asRe2Pattern.Size()), options);
+        newRegex = std::make_unique<re2::RE2>(re2::StringPiece(asRe2Pattern.data(), asRe2Pattern.size()), options);
         if (!newRegex->ok()) {
             THROW_ERROR_EXCEPTION("Error parsing regular expression %Qv",
                 asRe2Pattern)
@@ -3552,7 +3552,7 @@ void LikeOpHelper(
         matcher = newRegex.get();
     }
 
-    bool matched = re2::RE2::FullMatch(re2::StringPiece(text->AsStringBuf().Data(), text->AsStringBuf().Size()), *matcher);
+    bool matched = re2::RE2::FullMatch(re2::StringPiece(text->AsStringBuf().data(), text->AsStringBuf().size()), *matcher);
 
     result->Type = EValueType::Boolean;
     result->Data.Boolean = matched;

@@ -794,7 +794,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Unlock)
         THROW_ERROR_EXCEPTION("Operation cannot be performed outside of a transaction");
     }
 
-    if (auto unresolvedSuffix = GetRequestTargetYPath(context->RequestHeader()); !unresolvedSuffix.Empty()) {
+    if (auto unresolvedSuffix = GetRequestTargetYPath(context->RequestHeader()); !unresolvedSuffix.empty()) {
         NYPath::TTokenizer tokenizer(unresolvedSuffix);
         tokenizer.Advance();
         tokenizer.Expect(NYPath::ETokenType::Slash);
@@ -821,7 +821,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
         THROW_ERROR_EXCEPTION("Operation cannot be performed outside of a transaction");
     }
 
-    if (auto unresolvedSuffix = GetRequestTargetYPath(context->RequestHeader()); !unresolvedSuffix.Empty()) {
+    if (auto unresolvedSuffix = GetRequestTargetYPath(context->RequestHeader()); !unresolvedSuffix.empty()) {
         NYPath::TTokenizer tokenizer(unresolvedSuffix);
         tokenizer.Advance();
         tokenizer.Expect(NYPath::ETokenType::Slash);

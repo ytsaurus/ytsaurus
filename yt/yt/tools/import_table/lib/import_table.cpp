@@ -503,7 +503,7 @@ private:
                 Buffer_ = row[DataColumnName].AsString();
                 Position_ = 0;
             }
-            auto size = std::min(len, Buffer_.Size() - Position_);
+            auto size = std::min(len, Buffer_.size() - Position_);
             memcpy(buf, Buffer_.begin() + Position_, size);
             Position_ += size;
             return size;

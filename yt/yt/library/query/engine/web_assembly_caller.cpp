@@ -237,7 +237,7 @@ void TCGWebAssemblyCaller<TCGAggregateMergeSignature, TCGPIAggregateMergeSignatu
     MakePositionIndependentFromUnversioned(ConvertPointerFromWasmToHost(stateOffset), *state);
     if (IsStringLikeType(state->Type)) {
         auto* offset = std::bit_cast<char*>(context.AllocateAligned(state->Length, EAddressSpace::WebAssembly));
-        ::memcpy(ConvertPointerFromWasmToHost(offset), state->AsStringBuf().Data(), state->Length);
+        ::memcpy(ConvertPointerFromWasmToHost(offset), state->AsStringBuf().data(), state->Length);
         ConvertPointerFromWasmToHost(stateOffset)->SetStringPosition(ConvertPointerFromWasmToHost(offset));
     }
 

@@ -152,8 +152,8 @@ public:
     {
         LogStructuredEventFluently(ClickHouseStructuredLogger, ELogLevel::Info)
             .Item("request_id").Value(Request_->GetRequestId())
-            .OptionalItem("authenticated_user", !User_.Empty() ? std::make_optional(User_) : std::nullopt)
-            .OptionalItem("token_hash", !Token_.Empty() ? std::make_optional(NAuth::GetCryptoHash(Token_)) : std::nullopt)
+            .OptionalItem("authenticated_user", !User_.empty() ? std::make_optional(User_) : std::nullopt)
+            .OptionalItem("token_hash", !Token_.empty() ? std::make_optional(NAuth::GetCryptoHash(Token_)) : std::nullopt)
             .Item("proxy_address").Value(Bootstrap_->GetCoordinator()->GetSelf()->GetHost())
             .Item("client_address").Value(ToString(Request_->GetRemoteAddress()))
             .OptionalItem("user_agent", FindUserAgent(Request_))
@@ -171,9 +171,9 @@ public:
                 std::nullopt)
             .OptionalItem("clique_alias", CliqueAlias_)
             .OptionalItem("clique_id", OperationId_ ? std::make_optional(OperationId_) : std::nullopt)
-            .OptionalItem("coordinator_id", !InstanceId_.Empty() ? std::make_optional(InstanceId_) : std::nullopt)
-            .OptionalItem("coordinator_address", !InstanceHost_.Empty() ? std::make_optional(InstanceHost_) : std::nullopt)
-            .OptionalItem("proxied_request_url", !ProxiedRequestUrl_.Empty() ?
+            .OptionalItem("coordinator_id", !InstanceId_.empty() ? std::make_optional(InstanceId_) : std::nullopt)
+            .OptionalItem("coordinator_address", !InstanceHost_.empty() ? std::make_optional(InstanceHost_) : std::nullopt)
+            .OptionalItem("proxied_request_url", !ProxiedRequestUrl_.empty() ?
                 std::make_optional(ProxiedRequestUrl_) :
                 std::nullopt)
             .OptionalItem("retry_count", RetryCount_ >= 0 ? std::make_optional(RetryCount_) : std::nullopt)
@@ -685,7 +685,7 @@ private:
 
         try {
             YT_PROFILE_TIMING("/clickhouse_proxy/query_time/authenticate") {
-                if (Token_.Empty()) {
+                if (Token_.empty()) {
                     User_ = Bootstrap_->GetHttpAuthenticator()->Authenticate(Request_)
                         .ValueOrThrow()
                         .Result.Login;

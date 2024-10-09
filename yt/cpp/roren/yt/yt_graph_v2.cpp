@@ -191,7 +191,7 @@ public:
                     inputTableList.push_back(inputTable);
                 }
 
-                Y_ABORT_UNLESS(!transformNode->GetName().Empty());
+                Y_ABORT_UNLESS(!transformNode->GetName().empty());
                 auto* mergeOperation = PlainGraph_->CreateMergeOperation(
                     inputTableList,
                     transformNode->GetName()
