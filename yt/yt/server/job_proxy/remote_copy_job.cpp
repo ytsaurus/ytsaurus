@@ -572,10 +572,11 @@ private:
                         writer
                             ->Cancel()
                             .Apply(
-                                BIND([&, partIndex] (const TError& error) {
+                                BIND([inputChunkId, partIndex] (const TError& error) {
                                     // NB(coteeq): Do not treat error as a failure. Cancellation is
                                     // a hint here, so error is not fatal. We just forget and move on.
-                                    YT_LOG_INFO(
+                                    YT_LOG_INFO_UNLESS(
+                                        error.IsOK(),
                                         error,
                                         "Failed to cancel writer (ChunkId: %v, PartIndex: %v)",
                                         inputChunkId,
