@@ -160,6 +160,7 @@ class TestCypress(YTEnvSetup):
     @authors("ignat")
     @not_implemented_in_sequoia
     def test_list(self):
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         set("//tmp/list", [1, 2, "some string"])
         assert get("//tmp/list") == [1, 2, "some string"]
 
@@ -209,6 +210,7 @@ class TestCypress(YTEnvSetup):
     @authors("kvk1920")
     @not_implemented_in_sequoia
     def test_list_node_deprecation(self):
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         set("//tmp/old_list", [1, 2, "string"])
         set("//tmp/another_old_list", [1, 2, "string"])
 
@@ -245,6 +247,7 @@ class TestCypress(YTEnvSetup):
     @authors("ignat")
     @not_implemented_in_sequoia
     def test_map(self):
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         set("//tmp/map", {"hello": "world", "list": [0, "a", {}], "n": 1})
         assert get("//tmp/map") == {"hello": "world", "list": [0, "a", {}], "n": 1}
 
@@ -290,6 +293,7 @@ class TestCypress(YTEnvSetup):
     @authors("ignat")
     @not_implemented_in_sequoia
     def test_attributes(self):
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         set("//tmp/t", b"<attr=100;mode=rw> {nodes=[1; 2]}", is_raw=True)
         assert get("//tmp/t/@attr") == 100
         assert get("//tmp/t/@mode") == "rw"
@@ -400,6 +404,7 @@ class TestCypress(YTEnvSetup):
     @authors("panin", "ignat")
     @not_implemented_in_sequoia
     def test_format_json(self):
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         # check input format for json
         set(
             "//tmp/json_in",
@@ -478,6 +483,7 @@ class TestCypress(YTEnvSetup):
     @authors("ignat")
     @not_implemented_in_sequoia
     def test_list_remove_all(self):
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         # remove items from list
         set("//tmp/list", [10, 20, 30])
         assert get("//tmp/list/@count") == 3
@@ -522,6 +528,7 @@ class TestCypress(YTEnvSetup):
     @authors("babenko", "ignat")
     @not_implemented_in_sequoia
     def test_copy_simple2(self):
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         set("//tmp/a", [1, 2, 3])
         copy("//tmp/a", "//tmp/b")
         assert get("//tmp/b") == [1, 2, 3]
@@ -1422,6 +1429,7 @@ class TestCypress(YTEnvSetup):
     @authors("ignat")
     @not_implemented_in_sequoia
     def test_link7(self):
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         tx = start_transaction()
         set("//tmp/t1", 1, tx=tx)
         link("//tmp/t1", "//tmp/l1", tx=tx)
@@ -1430,6 +1438,7 @@ class TestCypress(YTEnvSetup):
     @authors("s-v-m")
     @not_implemented_in_sequoia
     def test_link_dst_doesnt_exist(self):
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         tx = start_transaction()
         set("//tmp/t", 1, tx=tx)
         with pytest.raises(YtError):
@@ -2514,6 +2523,7 @@ class TestCypress(YTEnvSetup):
     @authors("babenko")
     @not_implemented_in_sequoia
     def test_ignore_ampersand2(self):
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         set("//tmp/list", [])
         set("//tmp/list&/end", "x")
         assert get("//tmp/list&/0") == "x"
@@ -2607,6 +2617,7 @@ class TestCypress(YTEnvSetup):
     @authors("babenko", "shakurov")
     @not_implemented_in_sequoia
     def test_recursive_resource_usage_list(self):
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         create("list_node", "//tmp/l")
         for i in range(10):
             set("//tmp/l/end", i)
@@ -2762,6 +2773,7 @@ class TestCypress(YTEnvSetup):
     @authors("babenko")
     @not_implemented_in_sequoia
     def test_node_path_list(self):
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         set("//tmp/a", [1, 2, 3])
         assert get("//tmp/a/1/@path") == "//tmp/a/1"
 
@@ -2776,6 +2788,7 @@ class TestCypress(YTEnvSetup):
     @not_implemented_in_sequoia
     def test_node_path_list_in_tx(self):
         tx = start_transaction()
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         set("//tmp/a", [1, 2, 3], tx=tx)
         assert get("//tmp/a/1/@path", tx=tx) == "//tmp/a/1"
 
@@ -3248,6 +3261,7 @@ class TestCypress(YTEnvSetup):
         assert revision == attribute_revision
         assert revision > content_revision
 
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         set("//tmp/test_node", {"hello": "world", "list": [0, "a", {}], "n": 1}, force=True)
         revision = get("//tmp/test_node/@revision")
         attribute_revision = get("//tmp/test_node/@attribute_revision")
@@ -4422,6 +4436,7 @@ class TestCypressForbidSet(YTEnvSetup):
 
     @authors("shakurov")
     def test_list(self):
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         create("list_node", "//tmp/list")
         set("//tmp/list/end", 0)
         set("//tmp/list/0", 1)
@@ -4430,6 +4445,7 @@ class TestCypressForbidSet(YTEnvSetup):
 
     @authors("shakurov")
     def test_list_recursive(self):
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         set("//tmp/l", [])
 
     @authors("shakurov")

@@ -373,7 +373,7 @@ class TestBatchExecution(object):
         user_attrs = {
             "int_attr": 42,
             "string_attr": "arbitrary string",
-            "complex_attr": [1, 2]
+            "complex_attr": {"key": "value"}
         }
         supported_formats = [
             yt.YsonFormat("text"),

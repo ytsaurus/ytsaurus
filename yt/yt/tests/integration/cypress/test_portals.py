@@ -487,7 +487,9 @@ class TestPortals(YTEnvSetup):
         create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 12})
 
         create("map_node", "//tmp/p1/m", attributes={"account": "a"})
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         create("list_node", "//tmp/p1/m/l")
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", True)
 
         with pytest.raises(YtError):
             copy("//tmp/p1/m", "//tmp/p2/m", preserve_account=True)
