@@ -2,7 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/library/codegen/type_builder.h>
 
 #include <type_traits>
