@@ -1108,7 +1108,7 @@ class JsonFormat(Format):
         In "none" (or deprecated "generator") mode rows are unmodified.
         :param str encoding: used to decode string from bytes to native python strings in load method.
                              It has no effect for dump, since simplejson decodes byte as unicode number.
-        :param str encode_utf8: enables encoding bytes as unicode numbers.
+        :param bool encode_utf8: enables encoding bytes as unicode numbers.
         In case of True we request encoding and decode it back on client side [by default].
         In case of False we do nothing.
         If JSON_ENCODING_LEGACY_MODE enabled and encoding is not specified
