@@ -342,20 +342,26 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
     const auto& indices = tableInfo->Indices;
 
     const TColumnSchema* unfoldedColumn{};
-    auto it = std::find_if(indices.begin(), indices.end(), [&] (const TIndexInfo& index) {
+    auto indexIt = std::find_if(indices.begin(), indices.end(), [&] (const TIndexInfo& index) {
         return index.TableId == indexTableInfo->TableId;
     });
 
-    if (it == indices.end()) {
+    if (indexIt == indices.end()) {
         ValidateFullSyncIndexSchema(tableSchema, indexTableSchema);
     } else {
-        switch (it->Kind) {
+        switch (indexIt->Kind) {
             case ESecondaryIndexKind::FullSync:
                 ValidateFullSyncIndexSchema(tableSchema, indexTableSchema);
                 break;
 
             case ESecondaryIndexKind::Unfolding:
-                unfoldedColumn = &FindUnfoldingColumnAndValidate(tableSchema, indexTableSchema);
+                // COMPAT(sabdenovch)
+                if (indexIt->UnfoldedColumn) {
+                    unfoldedColumn = &indexTableSchema.GetColumn(*indexIt->UnfoldedColumn);
+                    ValidateUnfoldingIndexSchema(tableSchema, indexTableSchema, *indexIt->UnfoldedColumn);
+                } else {
+                    unfoldedColumn = &FindUnfoldedColumnAndValidate(tableSchema, indexTableSchema);
+                }
                 break;
 
             case ESecondaryIndexKind::Unique:
@@ -363,7 +369,7 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
                 break;
 
             default:
-                THROW_ERROR_EXCEPTION("Unsupported secondary index kind %Qlv", it->Kind);
+                THROW_ERROR_EXCEPTION("Unsupported secondary index kind %Qlv", indexIt->Kind);
         }
     }
 

@@ -129,9 +129,9 @@ class TestSecondaryIndexBase(DynamicTablesBase):
         table_path="//tmp/table",
         index_table_path="//tmp/index_table",
         kind="full_sync",
-        predicate=None,
+        **kwargs
     ):
-        index_id = create_secondary_index(table_path, index_table_path, kind, predicate)
+        index_id = create_secondary_index(table_path, index_table_path, kind, **kwargs)
         return index_id, None
 
     def _create_basic_tables(
@@ -142,11 +142,11 @@ class TestSecondaryIndexBase(DynamicTablesBase):
         index_schema=INDEX_ON_VALUE_SCHEMA,
         kind="full_sync",
         mount=False,
-        predicate=None,
+        **kwargs
     ):
         table_id = self._create_table(table_path, table_schema)
         index_table_id = self._create_table(index_table_path, index_schema)
-        index_id, _ = self._create_secondary_index(table_path, index_table_path, kind, predicate)
+        index_id, _ = self._create_secondary_index(table_path, index_table_path, kind, **kwargs)
 
         if mount:
             self._mount(table_path, index_table_path)
@@ -213,10 +213,10 @@ class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
         table_path="//tmp/table",
         index_table_path="//tmp/index_table",
         kind="full_sync",
-        predicate=None
+        **kwargs
     ):
         collocation_id = create_table_collocation(table_paths=[table_path, index_table_path])
-        index_id = create_secondary_index(table_path, index_table_path, kind, predicate)
+        index_id = create_secondary_index(table_path, index_table_path, kind, **kwargs)
         return index_id, collocation_id
 
     def _create_basic_tables(
@@ -227,11 +227,11 @@ class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
         index_schema=INDEX_ON_VALUE_SCHEMA,
         kind="full_sync",
         mount=False,
-        predicate=None,
+        **kwargs
     ):
         table_id = self._create_table(table_path, table_schema)
         index_table_id = self._create_table(index_table_path, index_schema)
-        index_id, collocation_id = self._create_secondary_index(table_path, index_table_path, kind, predicate)
+        index_id, collocation_id = self._create_secondary_index(table_path, index_table_path, kind, **kwargs)
 
         if mount:
             self._mount(table_path, index_table_path)
@@ -317,7 +317,9 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         self._create_table("//tmp/index", INDEX_ON_VALUE_SCHEMA)
 
         with raises_yt_error():
-            create_secondary_index("//tmp/table", "//tmp/index", "full_sync", predicate="predicatedValue >= 0")
+            self._create_secondary_index("//tmp/table", "//tmp/index", "full_sync", attributes={
+                "predicate": "predicatedValue >= 0"}
+            )
 
     @authors("sabdenovch")
     def test_alter_extra_key_order(self):
@@ -357,8 +359,7 @@ class TestSecondaryIndexPortal(TestSecondaryIndexBase):
     def test_forbid_create_beyond_portal(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
         with raises_yt_error("Table and index table native cell tags differ"):
-            self._create_basic_tables(
-                index_table_path="//tmp/p/index_table")
+            self._create_basic_tables(index_table_path="//tmp/p/index_table")
 
     @authors("sabdenovch")
     def test_forbid_move_beyond_portal(self):
@@ -458,7 +459,9 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         ])
 
         self._unmount("//tmp/table", "//tmp/index_table")
-        self._create_secondary_index("//tmp/table", "//tmp/index_table", kind="unfolding")
+        self._create_secondary_index("//tmp/table", "//tmp/index_table", kind="unfolding", attributes={
+            "unfolded_column": "value"
+        })
         self._mount("//tmp/table", "//tmp/index_table", cell_count=0)
 
         expected_table_rows = [
@@ -648,7 +651,11 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             table_schema=PRIMARY_SCHEMA_WITH_LIST,
             index_schema=UNFOLDING_INDEX_SCHEMA,
             kind="unfolding",
-            mount=True)
+            mount=True,
+            attributes={
+                "unfolded_column": "value",
+            },
+        )
 
         self._insert_rows([
             {"key": 0, "value": [1, 1, 1]},
@@ -728,7 +735,10 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
                 {"name": "keyB", "type": "string", "sort_order": "ascending"},
                 {"name": EMPTY_COLUMN_NAME, "type": "int64"}
             ],
-            predicate="not valueB")
+            attributes={
+                "predicate": "not valueB",
+            },
+        )
 
         self._insert_rows([
             {"keyA": 0, "keyB": "bca", "valueA": 3, "valueB": False},
@@ -776,7 +786,8 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             table_schema=PRIMARY_SCHEMA_WITH_EXPRESSION,
             index_schema=UNIQUE_VALUE_INDEX_SCHEMA,
             kind="unique",
-            mount=True)
+            mount=True,
+        )
 
         # Conflict within write itself.
         with raises_yt_error(yt_error_codes.UniqueIndexConflict):
@@ -824,7 +835,8 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             table_schema=PRIMARY_SCHEMA_WITH_EXPRESSION,
             index_schema=UNIQUE_KEY_VALUE_PAIR_INDEX_SCHEMA,
             kind="unique",
-            mount=True)
+            mount=True,
+        )
 
         # Setup.
         self._insert_rows([
@@ -872,7 +884,8 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             table_schema=PRIMARY_SCHEMA,
             index_schema=UNIQUE_VALUE_INDEX_SCHEMA,
             kind="unique",
-            mount=True)
+            mount=True,
+        )
 
         tx1 = start_transaction(type="tablet")
         tx2 = start_transaction(type="tablet")
@@ -892,8 +905,11 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             table_schema=PRIMARY_SCHEMA,
             index_schema=UNIQUE_VALUE_INDEX_SCHEMA,
             kind="unique",
-            predicate="valueA > 100",
-            mount=True)
+            mount=True,
+            attributes={
+                "predicate": "valueA > 100",
+            },
+        )
 
         # Both rows satisfy predicate, but there is a conflict.
         with raises_yt_error(yt_error_codes.UniqueIndexConflict):

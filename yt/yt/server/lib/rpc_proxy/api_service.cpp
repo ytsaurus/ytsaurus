@@ -1606,6 +1606,9 @@ private:
                     if (const auto& predicate = indexInfo.Predicate) {
                         ToProto(protoIndexInfo->mutable_predicate(), *predicate);
                     }
+                    if (const auto& unfoldedColumn = indexInfo.UnfoldedColumn) {
+                        ToProto(protoIndexInfo->mutable_unfolded_column(), *unfoldedColumn);
+                    }
                 }
 
                 context->SetResponseInfo("Dynamic: %v, TabletCount: %v, ReplicaCount: %v",

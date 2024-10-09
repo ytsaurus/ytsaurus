@@ -1,4 +1,7 @@
 #include "secondary_index.h"
+#include "table_manager.h"
+
+#include <yt/yt/ytlib/table_client/schema.h>
 
 #include <yt/yt/server/master/table_server/table_node.h>
 
@@ -8,6 +11,7 @@ namespace NYT::NTableServer {
 
 using namespace NCellMaster;
 using namespace NTableServer;
+using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,6 +35,7 @@ void TSecondaryIndex::Save(TSaveContext& context) const
     Save(context, Kind_);
     Save(context, ExternalCellTag_);
     Save(context, Predicate_);
+    Save(context, UnfoldedColumn_);
 }
 
 void TSecondaryIndex::Load(TLoadContext& context)
@@ -57,6 +62,11 @@ void TSecondaryIndex::Load(TLoadContext& context)
         context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap))
     {
         Load(context, Predicate_);
+    }
+    // COMPAT(sabdenovch)
+    // For older snapshots, this field is filled in TTableManager::OnAfterSnapshotLoaded.
+    if (context.GetVersion() >= EMasterReign::SecondaryIndexUnfoldedColumnApi) {
+        Load(context, UnfoldedColumn_);
     }
 }
 

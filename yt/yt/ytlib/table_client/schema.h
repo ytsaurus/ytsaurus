@@ -18,7 +18,12 @@ void ValidateFullSyncIndexSchema(
     const TTableSchema& tableSchema,
     const TTableSchema& indexTableSchema);
 
-const TColumnSchema& FindUnfoldingColumnAndValidate(
+void ValidateUnfoldingIndexSchema(
+    const TTableSchema& tableSchema,
+    const TTableSchema& indexTableSchema,
+    const TString& unfoldedColumnName);
+
+const TColumnSchema& FindUnfoldedColumnAndValidate(
     const TTableSchema& tableSchema,
     const TTableSchema& indexTableSchema);
 
@@ -30,6 +35,10 @@ void ValidateColumnsAreInIndexLockGroup(
 void ValidateUniqueIndexSchema(
     const TTableSchema& tableSchema,
     const TTableSchema& indexTableSchema);
+
+bool IsValidUnfoldedColumnPair(
+    const TLogicalTypePtr& tableColumnType,
+    const TLogicalTypePtr& indexColumnType);
 
 ////////////////////////////////////////////////////////////////////////////////
 
