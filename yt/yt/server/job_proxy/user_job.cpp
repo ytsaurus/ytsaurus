@@ -1374,8 +1374,6 @@ private:
                 }
                 ++customStatisticsCount;
             }
-
-            // ToDo(psushin): validate custom statistics path does not contain $.
         }
 
         if (customStatisticsCount > UserJobSpec_.custom_statistics_count_limit()) {
