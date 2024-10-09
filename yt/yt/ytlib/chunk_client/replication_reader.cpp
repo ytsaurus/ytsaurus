@@ -586,6 +586,8 @@ protected:
             Logger.AddTag("CompressionFairShareTag: %v", WorkloadDescriptor_.CompressionFairShareTag);
         }
 
+        SessionOptions_.ChunkReaderStatistics->RecordSession();
+
         ResetPeerQueue();
     }
 
@@ -921,6 +923,8 @@ protected:
             RetryIndex_ + 1,
             ReaderConfig_->RetryCount);
 
+        SessionOptions_.ChunkReaderStatistics->RecordRetry();
+
         PassIndex_ = 0;
         BannedPeers_.clear();
 
@@ -1001,6 +1005,8 @@ protected:
         YT_LOG_DEBUG("Pass started (PassIndex: %v/%v)",
             PassIndex_ + 1,
             ReaderConfig_->PassCount);
+
+        SessionOptions_.ChunkReaderStatistics->RecordPass();
 
         ResetPeerQueue();
         Peers_.clear();
@@ -1705,7 +1711,15 @@ public:
         Promise_.OnCanceled(BIND(&TReadBlockSetSession::OnCanceled, MakeWeak(this)));
         StartTime_ = TInstant::Now();
         NextRetry();
-        return Promise_;
+
+        return Promise_.ToFuture()
+            .Apply(BIND([
+                startTime = StartTime_,
+                readerStatistics = SessionOptions_.ChunkReaderStatistics
+            ] (const TErrorOr<std::vector<TBlock>>& result) {
+                readerStatistics->RecordDataWaitTime(TInstant::Now() - startTime);
+                return result.ValueOrThrow();
+            }));
     }
 
 private:
@@ -2359,7 +2373,15 @@ public:
         Promise_.OnCanceled(BIND(&TReadBlockRangeSession::OnCanceled, MakeWeak(this)));
         StartTime_ = TInstant::Now();
         NextRetry();
-        return Promise_;
+
+        return Promise_.ToFuture()
+            .Apply(BIND([
+                startTime = StartTime_,
+                readerStatistics = SessionOptions_.ChunkReaderStatistics
+            ] (const TErrorOr<std::vector<TBlock>>& result) {
+                readerStatistics->RecordDataWaitTime(TInstant::Now() - startTime);
+                return result.ValueOrThrow();
+            }));
     }
 
 private:
@@ -2447,12 +2469,9 @@ private:
         req->set_first_block_index(FirstBlockIndex_);
         req->set_block_count(BlockCount_);
 
-        NProfiling::TWallTimer dataWaitTimer;
         auto rspFuture = req->Invoke();
         SetSessionFuture(rspFuture.As<void>());
         auto rspOrError = WaitFor(rspFuture);
-        SessionOptions_.ChunkReaderStatistics->RecordDataWaitTime(
-            dataWaitTimer.GetElapsedTime());
 
         if (!rspOrError.IsOK()) {
             ProcessError(
@@ -2515,11 +2534,13 @@ private:
 
         if (rsp->net_throttling() || rsp->disk_throttling()) {
             YT_LOG_DEBUG("Peer is throttling (Address: %v)", peerAddress);
-        } else if (blocksReceived == 0) {
-            YT_LOG_DEBUG("Peer has no relevant blocks (Address: %v)", peerAddress);
-            BanPeer(peerAddress, false);
         } else {
-            ReinstallPeer(peerAddress);
+            if (blocksReceived == 0) {
+                YT_LOG_DEBUG("Peer has no relevant blocks (Address: %v)", peerAddress);
+                BanPeer(peerAddress, false);
+            } else {
+                ReinstallPeer(peerAddress);
+            }
         }
 
         YT_LOG_DEBUG("Finished processing block response (Address: %v, BlocksReceived: %v-%v, BytesReceived: %v)",
@@ -2641,7 +2662,15 @@ public:
         StartTime_ = TInstant::Now();
         Promise_.OnCanceled(BIND(&TGetMetaSession::OnCanceled, MakeWeak(this)));
         NextRetry();
-        return Promise_;
+
+        return Promise_.ToFuture()
+            .Apply(BIND([
+                startTime = StartTime_,
+                readerStatistics = SessionOptions_.ChunkReaderStatistics
+            ] (const TErrorOr<TRefCountedChunkMetaPtr>& result) {
+                readerStatistics->RecordMetaWaitTime(TInstant::Now() - startTime);
+                return result.ValueOrThrow();
+            }));
     }
 
 private:
@@ -2726,12 +2755,9 @@ private:
         }
         req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
 
-        NProfiling::TWallTimer dataWaitTimer;
         auto rspFuture = req->Invoke();
         SetSessionFuture(rspFuture.As<void>());
         auto rspOrError = WaitFor(rspFuture);
-        SessionOptions_.ChunkReaderStatistics->RecordMetaWaitTime(
-            dataWaitTimer.GetElapsedTime());
 
         bool backup = IsBackup(rspOrError);
         const auto& respondedPeer = backup ? peers[1] : peers[0];
@@ -2753,7 +2779,7 @@ private:
             BanPeer(peers[0].Address, false);
         }
 
-        SessionOptions_.ChunkReaderStatistics->DataBytesTransmitted.fetch_add(
+        SessionOptions_.ChunkReaderStatistics->MetaBytesTransmitted.fetch_add(
             rsp->GetTotalSize(),
             std::memory_order::relaxed);
 
@@ -2888,7 +2914,15 @@ public:
         StartTime_ = NProfiling::GetInstant();
         Promise_.OnCanceled(BIND(&TLookupRowsSession::OnCanceled, MakeWeak(this)));
         NextRetry();
-        return Promise_;
+
+        return Promise_.ToFuture()
+            .Apply(BIND([
+                startTime = StartTime_,
+                readerStatistics = SessionOptions_.ChunkReaderStatistics
+            ] (const TErrorOr<TSharedRef>& result) {
+                readerStatistics->RecordDataWaitTime(TInstant::Now() - startTime);
+                return result.ValueOrThrow();
+            }));
     }
 
 private:
@@ -3094,7 +3128,6 @@ private:
 
         BytesToThrottle_ += GetByteSize(req->Attachments());
 
-        NProfiling::TWallTimer dataWaitTimer;
         auto future = req->Invoke();
         SetSessionFuture(future.As<void>());
         future.Subscribe(BIND(
@@ -3102,7 +3135,6 @@ private:
             MakeStrong(this),
             std::move(channel),
             std::move(peers),
-            std::move(dataWaitTimer),
             std::move(reader))
             .Via(SessionInvoker_));
     }
@@ -3110,7 +3142,6 @@ private:
     void OnLookupRowsResponse(
         const IChannelPtr& channel,
         const TPeerList& peers,
-        const NProfiling::TWallTimer& dataWaitTimer,
         const TReplicationReaderPtr& reader,
         const TDataNodeServiceProxy::TErrorOrRspLookupRowsPtr& rspOrError)
     {
@@ -3133,9 +3164,6 @@ private:
         SessionOptions_.ChunkReaderStatistics->DataBytesTransmitted.fetch_add(
             response->GetTotalSize(),
             std::memory_order::relaxed);
-
-        SessionOptions_.ChunkReaderStatistics->RecordDataWaitTime(
-            dataWaitTimer.GetElapsedTime());
 
         reader->AccountTraffic(response->GetTotalSize(), *respondedPeer.NodeDescriptor);
 
@@ -3491,34 +3519,28 @@ private:
         TIntrusivePtr<TSessionBase> session,
         TPeerList peers,
         std::vector<int> blockIndexes,
-        NProfiling::TWallTimer dataWaitTimer,
         TErrorOr<TGetBlocksResponsePtr>&& rspOrError)
     {
         auto chunkReaderStatistics = session->SessionOptions_.ChunkReaderStatistics;
-        chunkReaderStatistics->RecordDataWaitTime(
-            dataWaitTimer.GetElapsedTime());
 
-        if (!rspOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION(rspOrError);
-        } else {
-            auto&& rsp = rspOrError.Value();
-            bool backup = IsBackup(rspOrError);
-            const auto& respondedPeer = backup ? peers[1] : peers[0];
+        auto&& rsp = rspOrError.ValueOrThrow();
 
-            chunkReaderStatistics->DataBytesTransmitted.fetch_add(
-                rsp->GetTotalSize(),
-                std::memory_order::relaxed);
-            Reader_.Lock()->AccountTraffic(rsp->GetTotalSize(), *respondedPeer.NodeDescriptor);
+        bool backup = IsBackup(rspOrError);
+        const auto& respondedPeer = backup ? peers[1] : peers[0];
 
-            if (rsp->has_chunk_reader_statistics()) {
-                session->HandleChunkReaderStatistics(rsp->chunk_reader_statistics());
-            }
+        chunkReaderStatistics->DataBytesTransmitted.fetch_add(
+            rsp->GetTotalSize(),
+            std::memory_order::relaxed);
+        Reader_.Lock()->AccountTraffic(rsp->GetTotalSize(), *respondedPeer.NodeDescriptor);
 
-            return TGetBlocksResult{
-                .RequestedBlocks = std::move(blockIndexes),
-                .Response = std::move(rsp),
-            };
+        if (rsp->has_chunk_reader_statistics()) {
+            session->HandleChunkReaderStatistics(rsp->chunk_reader_statistics());
         }
+
+        return TGetBlocksResult{
+            .RequestedBlocks = std::move(blockIndexes),
+            .Response = std::move(rsp),
+        };
     }
 
     template<class TResponse>
@@ -3565,15 +3587,13 @@ private:
             waitBarrier->CopyFrom(barrier);
         }
 
-        NProfiling::TWallTimer dataWaitTimer;
         return req->Invoke()
             .ApplyUnique(BIND(
                 &TRequestBatcher::HandleGetBlockSetResponse,
                 MakeStrong(this),
                 queuedBatch.Session,
                 queuedBatch.Peers,
-                Passed(std::move(blockIndexes)),
-                Passed(std::move(dataWaitTimer))));
+                Passed(std::move(blockIndexes))));
     }
 
     template <class TResponse>
