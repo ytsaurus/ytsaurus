@@ -35,6 +35,21 @@ void TChunkReaderStatistics::RecordMetaWaitTime(TDuration duration)
     MetaWaitTimeHistogram->Add(duration.SecondsFloat(), 1);
 }
 
+void TChunkReaderStatistics::RecordSession()
+{
+    SessionCount.fetch_add(1, std::memory_order::relaxed);
+}
+
+void TChunkReaderStatistics::RecordRetry()
+{
+    RetryCount.fetch_add(1, std::memory_order::relaxed);
+}
+
+void TChunkReaderStatistics::RecordPass()
+{
+    PassCount.fetch_add(1, std::memory_order::relaxed);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TChunkReaderStatistics* protoChunkReaderStatistics, const TChunkReaderStatisticsPtr& chunkReaderStatistics)
@@ -43,6 +58,7 @@ void ToProto(NProto::TChunkReaderStatistics* protoChunkReaderStatistics, const T
     protoChunkReaderStatistics->set_data_io_requests(chunkReaderStatistics->DataIORequests.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_data_bytes_transmitted(chunkReaderStatistics->DataBytesTransmitted.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_data_bytes_read_from_cache(chunkReaderStatistics->DataBytesReadFromCache.load(std::memory_order::relaxed));
+    protoChunkReaderStatistics->set_meta_bytes_transmitted(chunkReaderStatistics->MetaBytesTransmitted.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_meta_bytes_read_from_disk(chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_meta_io_requests(chunkReaderStatistics->MetaIORequests.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_omitted_suspicious_node_count(chunkReaderStatistics->OmittedSuspiciousNodeCount.load(std::memory_order::relaxed));
@@ -52,6 +68,9 @@ void ToProto(NProto::TChunkReaderStatistics* protoChunkReaderStatistics, const T
     protoChunkReaderStatistics->set_meta_wait_time(chunkReaderStatistics->MetaWaitTime.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_meta_read_from_disk_time(chunkReaderStatistics->MetaReadFromDiskTime.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_pick_peer_wait_time(chunkReaderStatistics->PickPeerWaitTime.load(std::memory_order::relaxed));
+    protoChunkReaderStatistics->set_session_count(chunkReaderStatistics->SessionCount.load(std::memory_order::relaxed));
+    protoChunkReaderStatistics->set_retry_count(chunkReaderStatistics->RetryCount.load(std::memory_order::relaxed));
+    protoChunkReaderStatistics->set_pass_count(chunkReaderStatistics->PassCount.load(std::memory_order::relaxed));
 }
 
 void FromProto(TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, const NProto::TChunkReaderStatistics& protoChunkReaderStatistics)
@@ -62,6 +81,7 @@ void FromProto(TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, const NProto
     chunkReaderStatistics->DataIORequests.store(protoChunkReaderStatistics.data_io_requests(), std::memory_order::relaxed);
     chunkReaderStatistics->DataBytesTransmitted.store(protoChunkReaderStatistics.data_bytes_transmitted(), std::memory_order::relaxed);
     chunkReaderStatistics->DataBytesReadFromCache.store(protoChunkReaderStatistics.data_bytes_read_from_cache(), std::memory_order::relaxed);
+    chunkReaderStatistics->MetaBytesTransmitted.store(protoChunkReaderStatistics.meta_bytes_transmitted(), std::memory_order::relaxed);
     chunkReaderStatistics->MetaBytesReadFromDisk.store(protoChunkReaderStatistics.meta_bytes_read_from_disk(), std::memory_order::relaxed);
     chunkReaderStatistics->MetaIORequests.store(protoChunkReaderStatistics.meta_io_requests(), std::memory_order::relaxed);
     chunkReaderStatistics->OmittedSuspiciousNodeCount.store(protoChunkReaderStatistics.omitted_suspicious_node_count(), std::memory_order::relaxed);
@@ -71,6 +91,9 @@ void FromProto(TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, const NProto
     chunkReaderStatistics->MetaWaitTime.store(protoChunkReaderStatistics.meta_wait_time(), std::memory_order::relaxed);
     chunkReaderStatistics->MetaReadFromDiskTime.store(protoChunkReaderStatistics.meta_read_from_disk_time(), std::memory_order::relaxed);
     chunkReaderStatistics->PickPeerWaitTime.store(protoChunkReaderStatistics.pick_peer_wait_time(), std::memory_order::relaxed);
+    chunkReaderStatistics->SessionCount.store(protoChunkReaderStatistics.session_count(), std::memory_order::relaxed);
+    chunkReaderStatistics->RetryCount.store(protoChunkReaderStatistics.retry_count(), std::memory_order::relaxed);
+    chunkReaderStatistics->PassCount.store(protoChunkReaderStatistics.pass_count(), std::memory_order::relaxed);
 }
 
 void UpdateFromProto(const TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, const NProto::TChunkReaderStatistics& protoChunkReaderStatistics)
@@ -80,6 +103,7 @@ void UpdateFromProto(const TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, 
     chunkReaderStatistics->DataIORequests.fetch_add(protoChunkReaderStatistics.data_io_requests(), std::memory_order::relaxed);
     chunkReaderStatistics->DataBytesTransmitted.fetch_add(protoChunkReaderStatistics.data_bytes_transmitted(), std::memory_order::relaxed);
     chunkReaderStatistics->DataBytesReadFromCache.fetch_add(protoChunkReaderStatistics.data_bytes_read_from_cache(), std::memory_order::relaxed);
+    chunkReaderStatistics->MetaBytesTransmitted.fetch_add(protoChunkReaderStatistics.meta_bytes_transmitted(), std::memory_order::relaxed);
     chunkReaderStatistics->MetaBytesReadFromDisk.fetch_add(protoChunkReaderStatistics.meta_bytes_read_from_disk(), std::memory_order::relaxed);
     chunkReaderStatistics->MetaIORequests.fetch_add(protoChunkReaderStatistics.meta_io_requests(), std::memory_order::relaxed);
     chunkReaderStatistics->OmittedSuspiciousNodeCount.fetch_add(protoChunkReaderStatistics.omitted_suspicious_node_count(), std::memory_order::relaxed);
@@ -89,6 +113,9 @@ void UpdateFromProto(const TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, 
     chunkReaderStatistics->MetaWaitTime.fetch_add(protoChunkReaderStatistics.meta_wait_time(), std::memory_order::relaxed);
     chunkReaderStatistics->MetaReadFromDiskTime.fetch_add(protoChunkReaderStatistics.meta_read_from_disk_time(), std::memory_order::relaxed);
     chunkReaderStatistics->PickPeerWaitTime.fetch_add(protoChunkReaderStatistics.pick_peer_wait_time(), std::memory_order::relaxed);
+    chunkReaderStatistics->SessionCount.fetch_add(protoChunkReaderStatistics.session_count(), std::memory_order::relaxed);
+    chunkReaderStatistics->RetryCount.fetch_add(protoChunkReaderStatistics.retry_count(), std::memory_order::relaxed);
+    chunkReaderStatistics->PassCount.fetch_add(protoChunkReaderStatistics.pass_count(), std::memory_order::relaxed);
 }
 
 void DumpChunkReaderStatistics(
@@ -100,8 +127,12 @@ void DumpChunkReaderStatistics(
     jobStatistics->AddSample(path + "/data_io_requests", chunkReaderStatisticsPtr->DataIORequests.load(std::memory_order::relaxed));
     jobStatistics->AddSample(path + "/data_bytes_transmitted", chunkReaderStatisticsPtr->DataBytesTransmitted.load(std::memory_order::relaxed));
     jobStatistics->AddSample(path + "/data_bytes_read_from_cache", chunkReaderStatisticsPtr->DataBytesReadFromCache.load(std::memory_order::relaxed));
+    jobStatistics->AddSample(path + "/meta_bytes_transmitted", chunkReaderStatisticsPtr->MetaBytesTransmitted.load(std::memory_order::relaxed));
     jobStatistics->AddSample(path + "/meta_bytes_read_from_disk", chunkReaderStatisticsPtr->MetaBytesReadFromDisk.load(std::memory_order::relaxed));
     jobStatistics->AddSample(path + "/meta_io_requests", chunkReaderStatisticsPtr->MetaIORequests.load(std::memory_order::relaxed));
+    jobStatistics->AddSample(path + "/session_count", chunkReaderStatisticsPtr->SessionCount.load(std::memory_order::relaxed));
+    jobStatistics->AddSample(path + "/retry_count", chunkReaderStatisticsPtr->RetryCount.load(std::memory_order::relaxed));
+    jobStatistics->AddSample(path + "/pass_count", chunkReaderStatisticsPtr->PassCount.load(std::memory_order::relaxed));
 }
 
 void DumpTimingStatistics(
@@ -148,6 +179,7 @@ TChunkReaderStatisticsCounters::TChunkReaderStatisticsCounters(
     , WastedDataBytesTransmitted_(profiler.Counter("/wasted_data_bytes_transmitted"))
     , WastedDataBytesReadFromCache_(profiler.Counter("/wasted_data_bytes_read_from_cache"))
     , MetaBytesReadFromDisk_(profiler.Counter("/meta_bytes_read_from_disk"))
+    , MetaBytesTransmitted_(profiler.Counter("/meta_bytes_transmitted"))
     , MetaIORequests_(profiler.Counter("/meta_io_requests"))
     , WastedMetaBytesReadFromDisk_(profiler.Counter("/wasted_meta_bytes_read_from_disk"))
     , OmittedSuspiciousNodeCount_(profiler.Counter("/omitted_suspicious_node_count"))
@@ -172,6 +204,7 @@ void TChunkReaderStatisticsCounters::Increment(
     DataBytesTransmitted_.Increment(chunkReaderStatistics->DataBytesTransmitted.load(std::memory_order::relaxed));
     DataBytesReadFromCache_.Increment(chunkReaderStatistics->DataBytesReadFromCache.load(std::memory_order::relaxed));
 
+    MetaBytesTransmitted_.Increment(chunkReaderStatistics->MetaBytesTransmitted.load(std::memory_order::relaxed));
     MetaBytesReadFromDisk_.Increment(chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed));
     MetaIORequests_.Increment(chunkReaderStatistics->MetaIORequests.load(std::memory_order::relaxed));
     OmittedSuspiciousNodeCount_.Increment(chunkReaderStatistics->OmittedSuspiciousNodeCount.load(std::memory_order::relaxed));

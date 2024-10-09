@@ -18,6 +18,11 @@ message TChunkReaderStatistics
     optional int64 p2p_activation_count = 12;
     optional int64 remote_cpu_time = 13;
 
+    optional int64 meta_bytes_transmitted = 15;
+    optional int64 session_count = 16;
+    optional int64 retry_count = 17;
+    optional int64 pass_count = 18;
+
     reserved 8;
 }
 
