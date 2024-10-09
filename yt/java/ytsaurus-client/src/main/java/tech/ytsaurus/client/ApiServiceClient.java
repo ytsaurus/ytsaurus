@@ -36,6 +36,8 @@ import tech.ytsaurus.client.request.ListJobs;
 import tech.ytsaurus.client.request.ListJobsResult;
 import tech.ytsaurus.client.request.ListQueries;
 import tech.ytsaurus.client.request.ListQueriesResult;
+import tech.ytsaurus.client.request.ListQueueConsumerRegistrations;
+import tech.ytsaurus.client.request.ListQueueConsumerRegistrationsResult;
 import tech.ytsaurus.client.request.LookupRowsRequest;
 import tech.ytsaurus.client.request.MountTable;
 import tech.ytsaurus.client.request.PingTransaction;
@@ -321,6 +323,17 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<QueueRowset> pullConsumer(PullConsumer req);
 
     CompletableFuture<Void> registerQueueConsumer(RegisterQueueConsumer req);
+
+    /**
+     * Request to list queue consumer registrations.
+     *
+     * @return list of queue consumer registrations.
+     * @see ListQueueConsumerRegistrations
+     * @see ListQueueConsumerRegistrationsResult
+     */
+    CompletableFuture<ListQueueConsumerRegistrationsResult> listQueueConsumerRegistrations(
+            ListQueueConsumerRegistrations req
+    );
 
     /**
      * Request to start query.

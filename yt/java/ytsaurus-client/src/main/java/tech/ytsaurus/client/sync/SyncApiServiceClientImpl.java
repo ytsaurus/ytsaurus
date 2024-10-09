@@ -33,6 +33,8 @@ import tech.ytsaurus.client.request.ListJobs;
 import tech.ytsaurus.client.request.ListJobsResult;
 import tech.ytsaurus.client.request.ListQueries;
 import tech.ytsaurus.client.request.ListQueriesResult;
+import tech.ytsaurus.client.request.ListQueueConsumerRegistrations;
+import tech.ytsaurus.client.request.ListQueueConsumerRegistrationsResult;
 import tech.ytsaurus.client.request.MountTable;
 import tech.ytsaurus.client.request.PingTransaction;
 import tech.ytsaurus.client.request.PullConsumer;
@@ -250,6 +252,11 @@ class SyncApiServiceClientImpl
     @Override
     public void registerQueueConsumer(RegisterQueueConsumer req) {
         client.registerQueueConsumer(req).join();
+    }
+
+    @Override
+    public ListQueueConsumerRegistrationsResult listQueueConsumerRegistrations(ListQueueConsumerRegistrations req) {
+        return client.listQueueConsumerRegistrations(req).join();
     }
 
     @Override

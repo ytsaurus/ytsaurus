@@ -52,6 +52,8 @@ import tech.ytsaurus.client.request.ListJobsResult;
 import tech.ytsaurus.client.request.ListNode;
 import tech.ytsaurus.client.request.ListQueries;
 import tech.ytsaurus.client.request.ListQueriesResult;
+import tech.ytsaurus.client.request.ListQueueConsumerRegistrations;
+import tech.ytsaurus.client.request.ListQueueConsumerRegistrationsResult;
 import tech.ytsaurus.client.request.LockNode;
 import tech.ytsaurus.client.request.LockNodeResult;
 import tech.ytsaurus.client.request.MapOperation;
@@ -290,6 +292,14 @@ public class MockYTsaurusClient implements BaseYTsaurusClient {
     @Override
     public CompletableFuture<Void> registerQueueConsumer(RegisterQueueConsumer req) {
         return (CompletableFuture<Void>) callMethod("registerQueueConsumer");
+    }
+
+    @Override
+    public CompletableFuture<ListQueueConsumerRegistrationsResult> listQueueConsumerRegistrations(
+            ListQueueConsumerRegistrations req
+    ) {
+        return (CompletableFuture<ListQueueConsumerRegistrationsResult>)
+                callMethod("listQueueConsumerRegistrations");
     }
 
     @Override
