@@ -19,6 +19,7 @@
 namespace NYT::NTabletNode {
 
 using namespace NYTree;
+using namespace NYPath;
 using namespace NConcurrency;
 using namespace NClusterNode;
 using namespace NLogging;
@@ -71,12 +72,13 @@ using TDeduplicationCache = TSyncExpiringCache<TDeduplicationKey, std::monostate
 
 TErrorManagerContext::operator bool() const
 {
-    return TabletCellBundle && TableId && TabletId;
+    return TabletCellBundle && TablePath && TableId && TabletId;
 }
 
 void TErrorManagerContext::Reset()
 {
     TabletCellBundle.reset();
+    TablePath.reset();
     TableId = {};
     TabletId = {};
 }
@@ -91,6 +93,7 @@ void SetErrorManagerContextFromTabletSnapshot(const TTabletSnapshotPtr& tabletSn
 {
     SetErrorManagerContext({
         .TabletCellBundle = tabletSnapshot->TabletCellBundle,
+        .TablePath = tabletSnapshot->TablePath,
         .TableId = tabletSnapshot->TableId,
         .TabletId = tabletSnapshot->TabletId,
     });
@@ -105,6 +108,7 @@ TError EnrichErrorForErrorManager(TError&& error, const TTabletSnapshotPtr& tabl
 {
     return std::move(error)
         << TErrorAttribute("tablet_cell_bundle", tabletSnapshot->TabletCellBundle)
+        << TErrorAttribute("table_path", tabletSnapshot->TablePath)
         << TErrorAttribute("table_id", tabletSnapshot->TableId)
         << TErrorAttribute("tablet_id", tabletSnapshot->TabletId);
 }
@@ -163,6 +167,7 @@ public:
 
             LogStructuredEventFluently(TabletErrorsLogger(), ELogLevel::Info)
                 .Item("tablet_cell_bundle").Value(*context.TabletCellBundle)
+                .Item("table_path").Value(*context.TablePath)
                 .Item("table_id").Value(context.TableId)
                 .Item("tablet_id").Value(context.TabletId)
                 .Item("timestamp").Value(Now().MicroSeconds())
@@ -207,6 +212,9 @@ private:
 
         if (!context->TabletCellBundle) {
             context->TabletCellBundle = attributes.Find<TString>("tablet_cell_bundle");
+        }
+        if (!context->TablePath) {
+            context->TablePath = attributes.Find<TYPath>("table_path");
         }
         if (!context->TableId) {
             context->TableId = attributes.Find<TTableId>("table_id").value_or(TTableId());
