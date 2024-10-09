@@ -253,7 +253,7 @@ TExpressionPtr CreateFakeTableAttributeSelector(
         const auto& dataAttributePath = typedDataAttributePath.Path;
         auto queryAttributePathSuffix = queryAttributePath.substr(dataAttributePath.size());
 
-        if (queryAttributePathSuffix.Empty()) {
+        if (queryAttributePathSuffix.empty()) {
             return CreateFakeTableColumnReference(dataAttributePath, holder);
         }
         if (typedDataAttributePath.Type != EValueType::Any) {

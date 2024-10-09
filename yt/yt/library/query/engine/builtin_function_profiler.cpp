@@ -108,7 +108,7 @@ public:
 
 TStringBuf GetUpperBound(TStringBuf source, TChunkedMemoryPool* memoryPool)
 {
-    ui32 length = source.Size();
+    ui32 length = source.size();
     while (length > 0 && source[length - 1] == std::numeric_limits<char>::max()) {
         --length;
     }
@@ -146,7 +146,7 @@ TKeyTriePtr IsPrefixRangeExtractor(
             result->Bounds.emplace_back(value, true);
             auto upper = GetUpperBound(TStringBuf{value.Data.String, value.Length}, rowBuffer->GetPool());
             result->Bounds.emplace_back(
-                upper.Empty()
+                upper.empty()
                     ? MakeSentinelValue<TUnversionedValue>(EValueType::Max)
                     : MakeUnversionedStringValue(upper),
                 false);
@@ -179,7 +179,7 @@ TConstraintRef IsPrefixConstraintExtractor(
             return constraints->Interval(
                 TValueBound{value, false},
                 TValueBound{
-                    upper.Empty()
+                    upper.empty()
                         ? MakeSentinelValue<TUnversionedValue>(EValueType::Max)
                         : MakeUnversionedStringValue(upper),
                     false},

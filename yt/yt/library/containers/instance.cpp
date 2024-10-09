@@ -859,7 +859,7 @@ double GetSelfPortoInstanceVCpuFactor()
 {
     // DEPLOY_VCPU_LIMIT stores value in millicores.
     TString vcpuLimitStr = GetEnv("DEPLOY_VCPU_LIMIT");
-    if (vcpuLimitStr.Empty()) {
+    if (vcpuLimitStr.empty()) {
         THROW_ERROR_EXCEPTION("Failed to get vcpu limit from env variable");
     }
     double vcpuLimit = FromString<double>(vcpuLimitStr) / 1000.0;

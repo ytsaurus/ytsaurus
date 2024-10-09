@@ -146,7 +146,7 @@ void TVirtualStaticTable::ListSystemAttributes(std::vector<TAttributeDescriptor>
     descriptors->push_back(EInternedAttributeKey::RowCount);
     descriptors->push_back(EInternedAttributeKey::UncompressedDataSize);
     descriptors->push_back(EInternedAttributeKey::CompressedDataSize);
-    if (OperationId_ && !Name_.Empty()) {
+    if (OperationId_ && !Name_.empty()) {
         descriptors->push_back(EInternedAttributeKey::Annotation);
     }
     descriptors->push_back(EInternedAttributeKey::Dynamic);
@@ -173,14 +173,14 @@ bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonCo
     }
 
     TString annotation;
-    if (OperationId_ && !Name_.Empty()) {
+    if (OperationId_ && !Name_.empty()) {
         annotation = Format(
             "### Live preview for `%v` table of the operation `%v`.\n\n"
             "Use the following command to copy it:\n"
             "```\n"
             "yt concatenate --src %v/controller_orchid/live_previews/%v --dst //path/to/table\n"
             "```\n",
-            Path_.Empty() ? Name_ : Path_,
+            Path_.empty() ? Name_ : Path_,
             OperationId_,
             GetOperationPath(OperationId_),
             Name_);
@@ -239,7 +239,7 @@ bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonCo
                 .Value(compressedDataSize);
             return true;
         case EInternedAttributeKey::Annotation:
-            if (OperationId_ && !Name_.Empty()) {
+            if (OperationId_ && !Name_.empty()) {
                 BuildYsonFluently(consumer)
                     .Value(annotation);
                 return true;

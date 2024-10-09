@@ -160,8 +160,8 @@ IR::Module ParseWast(const TString& wast)
     auto wastErrors = std::vector<WAST::Error>();
 
     bool succeeded = WAST::parseModule(
-        wast.Data(),
-        wast.Size() + 1, // String must be zero-terminated.
+        wast.data(),
+        wast.size() + 1, // String must be zero-terminated.
         irModule,
         wastErrors);
 

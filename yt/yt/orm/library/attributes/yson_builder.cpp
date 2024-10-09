@@ -48,7 +48,7 @@ NYson::TYsonString TYsonStringBuilder::Flush()
 bool TYsonStringBuilder::IsEmpty()
 {
     Writer_->Flush();
-    return ValueString_.Empty();
+    return ValueString_.empty();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -8189,7 +8189,7 @@ bool TOperationControllerBase::IsBoundaryKeysFetchEnabled() const
 void TOperationControllerBase::RegisterLivePreviewTable(TString name, const TOutputTablePtr& table)
 {
     // COMPAT(galtsev)
-    if (name.Empty()) {
+    if (name.empty()) {
         return;
     }
 
@@ -8227,7 +8227,7 @@ void TOperationControllerBase::AttachToLivePreview(
     TInputChunkPtr chunk)
 {
     // COMPAT(galtsev)
-    if (tableName.Empty()) {
+    if (tableName.empty()) {
         return;
     }
 

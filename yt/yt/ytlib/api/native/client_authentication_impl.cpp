@@ -135,7 +135,7 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
 {
     auto tokenHash = GetSha256HexDigestLowerCase(token);
     auto tokenPrefix = token.substr(0, CypressTokenPrefixLength);
-    if (!NRe2::TRe2::FullMatch(tokenPrefix.Data(), CypressTokenPrefixRegex.Data())) {
+    if (!NRe2::TRe2::FullMatch(tokenPrefix.data(), CypressTokenPrefixRegex.data())) {
         tokenPrefix = "";
     }
 

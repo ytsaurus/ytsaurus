@@ -108,7 +108,7 @@ PyObject* TArrowOutputStream::Get()
 {
     YT_VERIFY(!IsEmpty());
     auto buffer = Data_.front();
-    auto object = Py::Bytes(buffer.Data(), buffer.Size());
+    auto object = Py::Bytes(buffer.data(), buffer.size());
     object.increment_reference_count();
     Data_.pop();
     return object.ptr();

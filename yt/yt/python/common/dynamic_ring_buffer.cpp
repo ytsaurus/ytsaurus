@@ -25,7 +25,7 @@ void TDynamicRingBuffer::Push(TStringBuf data)
     while (data.length() > 0) {
         size_t pos = NormalizeIndex(Begin_ + Size_);
         size_t bytesAvailable = BytesContinuouslyAvailable(pos, data.length());
-        MemCopy(Buf_.Data() + pos, data.Data(), bytesAvailable);
+        MemCopy(Buf_.Data() + pos, data.data(), bytesAvailable);
         NSan::Unpoison(Buf_.Data() + pos, bytesAvailable);
         Size_ += bytesAvailable;
         data.Skip(bytesAvailable);

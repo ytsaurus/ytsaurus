@@ -792,21 +792,21 @@ void TSquashFSLayoutBuilder::AddFile(
         THROW_ERROR_EXCEPTION("The path is empty");
     }
 
-    if (!splittedPath[0].Empty()) {
+    if (!splittedPath[0].empty()) {
         THROW_ERROR_EXCEPTION("The path is not absolute");
     }
 
-    if (splittedPath.back().Empty()) {
+    if (splittedPath.back().empty()) {
         THROW_ERROR_EXCEPTION("The path ends by directory, not by file");
     }
 
     auto validateName = [] (const TString& name) {
-        if (name.Empty() ||
-            name.Size() > MaxEntryNameLength)
+        if (name.empty() ||
+            name.size() > MaxEntryNameLength)
         {
             THROW_ERROR_EXCEPTION(
                 "The directory/file name has %v symbols, but it must be between 1 and %v characters",
-                name.Size(),
+                name.size(),
                 MaxEntryNameLength);
         }
     };

@@ -17,7 +17,7 @@ using namespace NYson;
 
 Py::Object LoadYsonFromStringBuf(TStringBuf string, const std::optional<TString>& encoding)
 {
-    auto input = TMemoryInput(string.Data(), string.Size());
+    auto input = TMemoryInput(string.data(), string.size());
     TYsonPullParser parser(&input, EYsonType::Node);
     TPullObjectBuilder builder(&parser, /* alwaysCreateAttributes */ false, encoding);
     return Py::Object(builder.ParseObject().release(), /* owned */ true);

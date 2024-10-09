@@ -302,7 +302,7 @@ TYsonString MergeAttributes(
     });
 
     bool allPathsEmpty = std::all_of(attributeValues.begin(), attributeValues.end(), [] (const TAttributeValue& value) {
-        return value.Path.Empty();
+        return value.Path.empty();
     });
 
     if (!hasEtcs && allPathsEmpty && !attributeValues.empty()) {

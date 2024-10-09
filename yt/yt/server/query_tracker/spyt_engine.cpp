@@ -132,15 +132,15 @@ public:
         , RefreshTokenExecutor_(New<TPeriodicExecutor>(GetCurrentInvoker(), BIND(&TSpytQueryHandler::RefreshToken, MakeWeak(this)), Config_->RefreshTokenPeriod))
         , SessionReuse_(Settings_->SessionReuse)
     {
-        if (Cluster_.Empty()) {
+        if (Cluster_.empty()) {
             THROW_ERROR_EXCEPTION("'cluster' setting is not specified");
         }
         auto discoveryPath = Settings_->DiscoveryPath.value_or(Config_->DefaultDiscoveryPath);
         auto discoveryGroup = Settings_->DiscoveryGroup.value_or(Config_->DefaultDiscoveryGroup);
-        if (!discoveryPath.Empty()) {
+        if (!discoveryPath.empty()) {
             YT_LOG_DEBUG("Discovery path will be used (Path: %v)", discoveryPath);
             Discovery_ = CreateDiscoveryV1(QueryClient_, discoveryPath);
-        } else if (!discoveryGroup.Empty()) {
+        } else if (!discoveryGroup.empty()) {
             YT_LOG_DEBUG("Discovery group will be used (Group: %v)", discoveryGroup);
             Discovery_ = CreateDiscoveryV2(NativeConnection_, discoveryGroup, channelFactory, Logger);
         } else {
@@ -364,7 +364,7 @@ private:
 
     void CancelStatement() const
     {
-        if (!StatementUrl_.Empty()) {
+        if (!StatementUrl_.empty()) {
             YT_LOG_DEBUG("Canceling statement");
             auto data = TSharedRef::FromString("{}");
             auto rsp = WaitFor(HttpClient_->Post(StatementUrl_ + "/cancel", data, Headers_))
@@ -375,7 +375,7 @@ private:
 
     void CloseSession() const
     {
-        if (!SessionUrl_.Empty()) {
+        if (!SessionUrl_.empty()) {
             YT_LOG_DEBUG("Closing session");
             auto rsp = WaitFor(HttpClient_->Delete(SessionUrl_, Headers_))
                 .ValueOrThrow();
@@ -387,7 +387,7 @@ private:
     {
         size_t summarySize = 0;
         for (const auto& chunk : chunks) {
-            summarySize += chunk.Size();
+            summarySize += chunk.size();
         }
         TString result;
         result.reserve(summarySize);

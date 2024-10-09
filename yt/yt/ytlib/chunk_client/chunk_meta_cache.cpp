@@ -177,7 +177,7 @@ public:
             // between setting the future and calling OnExtensionsReceived.
             // To avoid items expiration because of heavy errors, we do not count their weight into the total.
             if (extensionFuture.IsSet() && extensionFuture.Get().IsOK() && extensionFuture.Get().Value()) {
-                weight += extensionFuture.Get().Value()->Size();
+                weight += extensionFuture.Get().Value()->size();
             }
         }
 
