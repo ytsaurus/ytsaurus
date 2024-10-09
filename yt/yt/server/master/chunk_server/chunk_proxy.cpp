@@ -79,6 +79,29 @@ static constexpr auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr bool IsLeaderChunkScanKind(EChunkScanKind kind)
+{
+    return
+        kind == EChunkScanKind::Seal ||
+        kind == EChunkScanKind::Reincarnation ||
+        kind == EChunkScanKind::GlobalStatisticsCollector;
+}
+
+constexpr bool IsReplicatorChunkScanKind(EChunkScanKind kind)
+{
+    return kind == EChunkScanKind::Refresh || kind == EChunkScanKind::RequisitionUpdate;
+}
+
+static_assert(TEnumTraits<EChunkScanKind>::GetDomainSize() == 6);
+static_assert(static_cast<int>(EChunkScanKind::None) == 0);
+static_assert(IsReplicatorChunkScanKind(EChunkScanKind::Refresh));
+static_assert(IsReplicatorChunkScanKind(EChunkScanKind::RequisitionUpdate));
+static_assert(IsLeaderChunkScanKind(EChunkScanKind::Seal));
+static_assert(IsLeaderChunkScanKind(EChunkScanKind::Reincarnation));
+static_assert(IsLeaderChunkScanKind(EChunkScanKind::GlobalStatisticsCollector));
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkProxy
     : public TNonversionedObjectProxyBase<TChunk>
 {
@@ -802,26 +825,18 @@ private:
             }
 
             case EInternedAttributeKey::LocalScanFlags: {
-                const static THashSet<EChunkScanKind> LeaderChunkScanKinds = {
-                    EChunkScanKind::RequisitionUpdate,
-                    EChunkScanKind::Seal,
-                };
-                const static THashSet<EChunkScanKind> ReplicatorChunkScanKinds = {
-                    EChunkScanKind::Refresh,
-                };
-
                 BuildYsonFluently(consumer)
                     .DoMapFor(TEnumTraits<EChunkScanKind>::GetDomainValues(), [&] (TFluentMap fluent, EChunkScanKind kind) {
                         if (kind == EChunkScanKind::None) {
                             return;
                         }
 
-                        YT_ASSERT(LeaderChunkScanKinds.contains(kind) || ReplicatorChunkScanKinds.contains(kind));
-                        if (LeaderChunkScanKinds.contains(kind) && !IsLeader()) {
+                        YT_ASSERT(IsLeaderChunkScanKind(kind) || IsReplicatorChunkScanKind(kind));
+                        if (IsLeaderChunkScanKind(kind) && !IsLeader()) {
                             return;
                         }
 
-                        if (ReplicatorChunkScanKinds.contains(kind) && !chunkReplicator->ShouldProcessChunk(chunk)) {
+                        if (IsReplicatorChunkScanKind(kind) && !chunkReplicator->ShouldProcessChunk(chunk)) {
                             return;
                         }
 
