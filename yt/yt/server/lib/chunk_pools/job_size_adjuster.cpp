@@ -44,9 +44,11 @@ public:
 
             double idealDataWeight = idealExecTime / Statistics_.GetMeanExecTimePerByte();
 
+            YT_VERIFY(JobSizeBoostFactor >= 1.0);
+
             DataWeightPerJob_ = ClampVal(
                 idealDataWeight,
-                DataWeightPerJob_,
+                DataWeightPerJob_ / JobSizeBoostFactor,
                 DataWeightPerJob_ * JobSizeBoostFactor);
         }
     }
