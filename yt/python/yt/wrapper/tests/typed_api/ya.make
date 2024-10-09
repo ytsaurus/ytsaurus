@@ -41,6 +41,7 @@ PEERDIR(
     yt/yt/python/yt_driver_bindings
     yt/yt/python/yt_yson_bindings
 
+    contrib/python/allure-pytest
     contrib/python/flaky
     contrib/python/pyarrow
     contrib/python/pandas
