@@ -24,4 +24,7 @@ compile_commands.json
 .vscode
 .DS_Store
 
+# KDevelop IDE
+*.kdev4
+
 test-results
