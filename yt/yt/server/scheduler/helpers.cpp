@@ -371,9 +371,14 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"chunk_reader_statistics/data_bytes_read_from_cache", "Amount of chunk data read from cache", "bytes"},
         {"chunk_reader_statistics/data_bytes_transmitted", "Amount of chunk data transmitted over the network", "bytes"},
         {"chunk_reader_statistics/meta_bytes_read_from_disk", "Amount of chunk metadata read from disk", "bytes"},
+        {"chunk_reader_statistics/meta_bytes_transmitted", "Amount of chunk metadata transmitted over the network", "bytes"},
         {"chunk_reader_statistics/wait_time", "Passive chunk reading duration, e.g. awaiting raw data from other nodes", "ms"},
         {"chunk_reader_statistics/read_time", "Active chunk reading duration, e.g. parsing rows from the raw data", "ms"},
         {"chunk_reader_statistics/idle_time", "Read data processing duration, during which the chunk reader is idle", "ms"},
+
+        {"chunk_reader_statistics/session_count", "Total number of read sessions", "pieces"},
+        {"chunk_reader_statistics/retry_count", "Total number of chunk reader retries", "pieces"},
+        {"chunk_reader_statistics/pass_count", "Total number of chunk reader passes", "pieces"},
     };
 
     return statisticsHints;

@@ -20,6 +20,7 @@ struct TChunkReaderStatistics
     std::atomic<i64> DataBytesTransmitted = 0;
     std::atomic<i64> DataBytesReadFromCache = 0;
     std::atomic<i64> MetaBytesReadFromDisk = 0;
+    std::atomic<i64> MetaBytesTransmitted = 0;
     std::atomic<i64> MetaIORequests = 0;
     // COMPAT(babenko): drop
     std::atomic<i64> OmittedSuspiciousNodeCount = 0;
@@ -36,6 +37,10 @@ struct TChunkReaderStatistics
     std::atomic<NProfiling::TValue> MetaReadFromDiskTime = 0;
     std::atomic<NProfiling::TValue> PickPeerWaitTime = 0;
 
+    std::atomic<i64> SessionCount = 0;
+    std::atomic<i64> PassCount = 0;
+    std::atomic<i64> RetryCount = 0;
+
     static constexpr TDuration MinTrackedLatency = TDuration::MicroSeconds(1);
     static constexpr TDuration MaxTrackedLatency = TDuration::Seconds(125);
 
@@ -46,6 +51,10 @@ struct TChunkReaderStatistics
 
     void RecordDataWaitTime(TDuration duration);
     void RecordMetaWaitTime(TDuration duration);
+
+    void RecordSession();
+    void RecordPass();
+    void RecordRetry();
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderStatistics)
@@ -56,7 +65,6 @@ void ToProto(
 void FromProto(
     TChunkReaderStatisticsPtr chunkReaderStatistics,
     NProto::TChunkReaderStatistics* protoChunkReaderStatistics);
-
 void UpdateFromProto(
     const TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr,
     const NProto::TChunkReaderStatistics& protoChunkReaderStatistics);
@@ -96,6 +104,7 @@ private:
     NProfiling::TCounter WastedDataBytesReadFromCache_;
 
     NProfiling::TCounter MetaBytesReadFromDisk_;
+    NProfiling::TCounter MetaBytesTransmitted_;
     NProfiling::TCounter MetaIORequests_;
     NProfiling::TCounter WastedMetaBytesReadFromDisk_;
 
