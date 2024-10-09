@@ -1053,6 +1053,7 @@ class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
             )
 
     def _test_format_defaults_cypress(self, format, user, content, expected_content):
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         set("//tmp/list_node", content, force=True)
 
         rsp = self._execute_command(
