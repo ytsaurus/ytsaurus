@@ -1455,14 +1455,14 @@ private:
         const TJobletPtr& joblet,
         EJobState state,
         i64 stderrSize,
-        NYTree::TFluentMap fluent) const;
+        NYTree::TFluentMap fluent);
 
     void BuildFinishedJobAttributes(
         const TJobletPtr& joblet,
         TJobSummary* jobSummary,
         bool hasStderr,
         bool hasFailContext,
-        NYTree::TFluentMap fluent) const;
+        NYTree::TFluentMap fluent);
 
     void AnalyzeBriefStatistics(
         const TJobletPtr& joblet,

@@ -657,7 +657,7 @@ void TQueryContext::AddStatisticsSample(const TStatisticPath& path, i64 sample)
 void TQueryContext::MergeStatistics(const TStatistics& statistics)
 {
     auto guard = Guard(QueryLogLock_);
-    Statistics_.Merge(statistics);
+    Statistics_.Merge(statistics).ThrowOnError();
 }
 
 void TQueryContext::AddSecondaryQueryId(TQueryId id)

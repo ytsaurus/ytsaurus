@@ -245,7 +245,7 @@ NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(const NScheduler::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void UpdateAggregatedJobStatistics(
+TError UpdateAggregatedJobStatistics(
     TAggregatedJobStatistics& targetStatistics,
     const TJobStatisticsTags& tags,
     const TStatistics& jobStatistics,
@@ -253,20 +253,23 @@ void UpdateAggregatedJobStatistics(
     int customStatisticsLimit,
     bool* isLimitExceeded)
 {
-    targetStatistics.AppendStatistics(controllerStatistics, tags);
+    TError error;
+    error = targetStatistics.AppendStatistics(controllerStatistics, tags);
 
     if (targetStatistics.CalculateCustomStatisticsCount() > customStatisticsLimit) {
         // Limit is already exceeded, so truncate the statistics.
         auto jobStatisticsCopy = jobStatistics;
         jobStatisticsCopy.RemoveRangeByPrefix("custom"_L);
-        targetStatistics.AppendStatistics(jobStatisticsCopy, tags);
+        error = targetStatistics.AppendStatistics(jobStatisticsCopy, tags);
     } else {
-        targetStatistics.AppendStatistics(jobStatistics, tags);
+        error = targetStatistics.AppendStatistics(jobStatistics, tags);
     }
 
     // NB. We need the second check of custom statistics count to ensure that the limit was not
     // violated after the update.
     *isLimitExceeded = targetStatistics.CalculateCustomStatisticsCount() > customStatisticsLimit;
+
+    return error;
 }
 
 void SafeUpdateAggregatedJobStatistics(
@@ -278,8 +281,9 @@ void SafeUpdateAggregatedJobStatistics(
     int customStatisticsLimit,
     bool* isLimitExceeded)
 {
+    TError error;
     try {
-        UpdateAggregatedJobStatistics(
+        error = UpdateAggregatedJobStatistics(
             targetStatistics,
             tags,
             jobStatistics,
@@ -287,7 +291,11 @@ void SafeUpdateAggregatedJobStatistics(
             customStatisticsLimit,
             isLimitExceeded);
     } catch (const std::exception& ex) {
-        taskHost->SetOperationAlert(EOperationAlertType::IncompatibleStatistics, ex);
+        error = ex;
+    }
+
+    if (!error.IsOK()) {
+        taskHost->SetOperationAlert(EOperationAlertType::IncompatibleStatistics, error);
         // TODO(pavook): fail the operation after setting this alert.
     }
 }

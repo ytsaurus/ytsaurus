@@ -122,16 +122,17 @@ void TAggregatedJobStatistics::SerializeCustom(
         summariesSerializer);
 }
 
-TAggregatedJobStatistics MergeJobStatistics(const TAggregatedJobStatistics& lhs, const TAggregatedJobStatistics& rhs)
+std::pair<TAggregatedJobStatistics, TError> MergeJobStatistics(const TAggregatedJobStatistics& lhs, const TAggregatedJobStatistics& rhs)
 {
+    TError error;
     TAggregatedJobStatistics mergedJobStatistics;
     for (const auto& [path, taggedSummaries] : lhs.GetData()) {
-        mergedJobStatistics.AppendTaggedSummary(path, taggedSummaries);
+        error = mergedJobStatistics.AppendTaggedSummary(path, taggedSummaries);
     }
     for (const auto& [path, taggedSummaries] : rhs.GetData()) {
-        mergedJobStatistics.AppendTaggedSummary(path, taggedSummaries);
+        error = mergedJobStatistics.AppendTaggedSummary(path, taggedSummaries);
     }
-    return mergedJobStatistics;
+    return {mergedJobStatistics, error};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

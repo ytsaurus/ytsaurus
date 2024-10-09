@@ -3856,8 +3856,13 @@ void TOperationControllerBase::BuildJobAttributes(
     const TJobletPtr& joblet,
     EJobState state,
     i64 stderrSize,
-    TFluentMap fluent) const
+    TFluentMap fluent)
 {
+    auto [statistics, error] = joblet->BuildCombinedStatistics();
+    if (!error.IsOK()) {
+        SetOperationAlert(EOperationAlertType::IncompatibleStatistics, error);
+    }
+
     YT_LOG_DEBUG("Building job attributes");
     fluent
         .Item("job_type").Value(joblet->JobType)
@@ -3871,7 +3876,7 @@ void TOperationControllerBase::BuildJobAttributes(
         // compressed_data_size / uncompressed_data_size attributes.
         .Item("stderr_size").Value(stderrSize)
         .Item("brief_statistics").Value(joblet->BriefStatistics)
-        .Item("statistics").Value(joblet->BuildCombinedStatistics())
+        .Item("statistics").Value(statistics)
         .Item("suspicious").Value(joblet->Suspicious)
         .Item("job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Speculative])
         .Item("probing_job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Probing])
@@ -3896,7 +3901,7 @@ void TOperationControllerBase::BuildFinishedJobAttributes(
     TJobSummary* jobSummary,
     bool hasStderr,
     bool hasFailContext,
-    TFluentMap fluent) const
+    TFluentMap fluent)
 {
     auto stderrSize = hasStderr
         // Report nonzero stderr size as we are sure it is saved.
@@ -3927,7 +3932,11 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
     ELogEventType eventType,
     const TJobletPtr& joblet)
 {
-    auto statistics = joblet->BuildCombinedStatistics();
+    auto [statistics, error] = joblet->BuildCombinedStatistics();
+    if (!error.IsOK()) {
+        SetOperationAlert(EOperationAlertType::IncompatibleStatistics, error);
+    }
+
     // Table rows cannot have top-level attributes, so we drop statistics timestamp here.
     statistics.SetTimestamp(std::nullopt);
 
@@ -8935,13 +8944,12 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent)
 
     AccountExternalScheduleAllocationFailures();
 
-    TAggregatedJobStatistics fullJobStatistics;
-    try {
-        fullJobStatistics = MergeJobStatistics(
-            AggregatedFinishedJobStatistics_,
-            AggregatedRunningJobStatistics_);
-    } catch (const std::exception& ex) {
-        SetOperationAlert(EOperationAlertType::IncompatibleStatistics, ex);
+    auto [fullJobStatistics, error] = MergeJobStatistics(
+        AggregatedFinishedJobStatistics_,
+        AggregatedRunningJobStatistics_);
+
+    if (!error.IsOK()) {
+        SetOperationAlert(EOperationAlertType::IncompatibleStatistics, error);
         // TODO(pavook): fail the operation after setting this alert.
     }
 
