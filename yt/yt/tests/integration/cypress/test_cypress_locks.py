@@ -749,6 +749,7 @@ class TestCypressLocks(YTEnvSetup):
     @authors("babenko", "ignat")
     @not_implemented_in_sequoia
     def test_remove_list_subtree_lock(self):
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         set("//tmp/a", [1])
         tx = start_transaction()
         lock("//tmp/a/0", mode="exclusive", tx=tx)
@@ -1346,6 +1347,7 @@ class TestCypressLocks(YTEnvSetup):
         assert get("//tmp/a/d/@id") != get("//tmp/a/d/@id", tx=tx)
         assert get("//tmp/a/d/@id", tx=tx) == doc_id
 
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         create("list_node", "//tmp/a/l")
 
         assert exists("//tmp/a/l")

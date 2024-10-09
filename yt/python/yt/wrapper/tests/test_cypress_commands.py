@@ -175,6 +175,7 @@ class TestCypressCommands(object):
                                                         {"row_count": 0})])
 
         # Search in list nodes
+        yt.set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         list_node = TEST_DIR + "/list_node"
         yt.set(list_node, ["x"])
         yt.create("table", list_node + "/end")
