@@ -46,7 +46,12 @@ public class RegisterQueueConsumer extends RequestBase<RegisterQueueConsumer.Bui
                 .setConsumerPath(consumerPath)
                 .setQueuePath(queuePath)
                 .setVital(vital)
-                .setRegistrationPartitions(registrationPartitions);
+                .setRegistrationPartitions(registrationPartitions)
+                .setTimeout(timeout)
+                .setRequestId(requestId)
+                .setUserAgent(userAgent)
+                .setTraceId(traceId, traceSampled)
+                .setAdditionalData(additionalData);
     }
 
     @Override

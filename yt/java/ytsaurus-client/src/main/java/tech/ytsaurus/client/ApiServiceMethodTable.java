@@ -43,6 +43,7 @@ import tech.ytsaurus.rpcproxy.TReqLinkNode;
 import tech.ytsaurus.rpcproxy.TReqListJobs;
 import tech.ytsaurus.rpcproxy.TReqListNode;
 import tech.ytsaurus.rpcproxy.TReqListQueries;
+import tech.ytsaurus.rpcproxy.TReqListQueueConsumerRegistrations;
 import tech.ytsaurus.rpcproxy.TReqLockNode;
 import tech.ytsaurus.rpcproxy.TReqLookupRows;
 import tech.ytsaurus.rpcproxy.TReqModifyRows;
@@ -109,6 +110,7 @@ import tech.ytsaurus.rpcproxy.TRspLinkNode;
 import tech.ytsaurus.rpcproxy.TRspListJobs;
 import tech.ytsaurus.rpcproxy.TRspListNode;
 import tech.ytsaurus.rpcproxy.TRspListQueries;
+import tech.ytsaurus.rpcproxy.TRspListQueueConsumerRegistrations;
 import tech.ytsaurus.rpcproxy.TRspLockNode;
 import tech.ytsaurus.rpcproxy.TRspLookupRows;
 import tech.ytsaurus.rpcproxy.TRspModifyRows;
@@ -311,6 +313,13 @@ public class ApiServiceMethodTable {
             REGISTER_QUEUE_CONSUMER = apiServiceMethod(
             "RegisterQueueConsumer",
             TReqRegisterQueueConsumer::newBuilder, TRspRegisterQueueConsumer.parser()
+    );
+
+    public static final RpcMethodDescriptor<
+            TReqListQueueConsumerRegistrations.Builder, TRspListQueueConsumerRegistrations>
+            LIST_QUEUE_CONSUMER_REGISTRATIONS = apiServiceMethod(
+            "ListQueueConsumerRegistrations",
+            TReqListQueueConsumerRegistrations::newBuilder, TRspListQueueConsumerRegistrations.parser()
     );
 
     public static final RpcMethodDescriptor<TReqStartQuery.Builder, TRspStartQuery> START_QUERY =

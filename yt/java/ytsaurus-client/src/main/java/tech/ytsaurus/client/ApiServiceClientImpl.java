@@ -72,6 +72,8 @@ import tech.ytsaurus.client.request.ListJobsResult;
 import tech.ytsaurus.client.request.ListNode;
 import tech.ytsaurus.client.request.ListQueries;
 import tech.ytsaurus.client.request.ListQueriesResult;
+import tech.ytsaurus.client.request.ListQueueConsumerRegistrations;
+import tech.ytsaurus.client.request.ListQueueConsumerRegistrationsResult;
 import tech.ytsaurus.client.request.LockNode;
 import tech.ytsaurus.client.request.LockNodeResult;
 import tech.ytsaurus.client.request.MapOperation;
@@ -1166,6 +1168,17 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.START_QUERY.createRequestBuilder(rpcOptions)),
                 response -> RpcUtil.fromProto(response.body().getQueryId())
+        ));
+    }
+
+    @Override
+    public CompletableFuture<ListQueueConsumerRegistrationsResult> listQueueConsumerRegistrations(
+            ListQueueConsumerRegistrations req
+    ) {
+        return onStarted(req, RpcUtil.apply(
+                sendRequest(req,
+                        ApiServiceMethodTable.LIST_QUEUE_CONSUMER_REGISTRATIONS.createRequestBuilder(rpcOptions)),
+                response -> new ListQueueConsumerRegistrationsResult(response.body())
         ));
     }
 
