@@ -18,12 +18,15 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ESecondaryIndexKind, Kind);
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExternalCellTag, NObjectClient::NotReplicatedCellTagSentinel);
     DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, Predicate);
+    DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, UnfoldedColumn);
 
 public:
     using TObject::TObject;
 
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
+
+    void OnAfterSnapshotLoaded();
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

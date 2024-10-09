@@ -67,12 +67,18 @@ public:
         auto indexTableId = attributes->GetAndRemove<TTableId>(EInternedAttributeKey::IndexTableId.Unintern());
         auto predicate = attributes->FindAndRemove<TString>(EInternedAttributeKey::Predicate.Unintern());
 
+        std::optional<TString> unfoldedColumn;
+        if (kind == ESecondaryIndexKind::Unfolding) {
+            unfoldedColumn = attributes->GetAndRemove<TString>(EInternedAttributeKey::UnfoldedColumn.Unintern());
+        }
+
         return Bootstrap_->GetTableManager()->CreateSecondaryIndex(
             hintId,
             kind,
             tableId,
             indexTableId,
-            std::move(predicate));
+            std::move(predicate),
+            std::move(unfoldedColumn));
     }
 
     void ValidateUserAllowedToCreateSecondaryIndex()

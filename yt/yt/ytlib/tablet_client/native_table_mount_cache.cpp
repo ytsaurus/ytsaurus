@@ -410,6 +410,7 @@ private:
                     .TableId = FromProto<TObjectId>(protoIndexInfo.index_table_id()),
                     .Kind = FromProto<ESecondaryIndexKind>(protoIndexInfo.index_kind()),
                     .Predicate = YT_PROTO_OPTIONAL(protoIndexInfo, predicate),
+                    .UnfoldedColumn = YT_PROTO_OPTIONAL(protoIndexInfo, unfolded_column),
                 };
                 tableInfo->Indices.push_back(indexInfo);
             }
