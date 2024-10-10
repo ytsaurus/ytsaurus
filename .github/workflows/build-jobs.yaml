@@ -26,6 +26,10 @@ on:
         default: false
         required: false
         type: boolean
+      build-yql-python-udfs:
+        default: true
+        required: false
+        type: boolean
       build-python:
         default: false
         required: false
@@ -288,4 +292,9 @@ jobs:
           export YQL_BUILD_PATH="."
           export BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }} --no-bazel-remote-store"
 
-          ../ytsaurus/ytsaurus/yt/docker/ya-build/query-tracker/build_yql_agent.sh
+          SCRIPT_FLAGS=""
+          if [ "${{ inputs.build-yql-python-udfs }}" == "true" ]; then
+            SCRIPT_FLAGS="${SCRIPT_FLAGS} --build-python-udfs=yes"
+          fi
+
+          ../ytsaurus/ytsaurus/yt/docker/ya-build/query-tracker/build_yql_agent.sh ${SCRIPT_FLAGS}
