@@ -646,8 +646,8 @@ void TSlotManager::InitializeSlots()
                 }
 
                 if (error.IsOK()) {
-                    FreeSlots_.push(slotIndex);
                     InitializedSlotCount_.fetch_add(1);
+                    PushSlot(slotIndex);
                     YT_LOG_DEBUG("Slot initialized (SlotIndex: %v)", slotIndex);
                 } else {
                     auto wrappedError = TError("Failed to initialize slot %v", slotIndex) << error;
@@ -834,16 +834,6 @@ bool TSlotManager::Disable(TError error)
 
     const auto& jobController = Bootstrap_->GetJobController();
 
-    if (auto syncResult = WaitFor(jobController->AbortAllJobs(jobsAbortionError).WithTimeout(timeout));
-        !syncResult.IsOK())
-    {
-        YT_LOG_EVENT(
-            Logger(),
-            dynamicConfig->AbortOnFreeSlotSynchronizationFailed ? NLogging::ELogLevel::Fatal : NLogging::ELogLevel::Error,
-            syncResult,
-            "Free slot synchronization failed");
-    }
-
     if (auto volumeManager = RootVolumeManager_.Acquire()) {
         auto result = WaitFor(volumeManager->GetVolumeReleaseEvent()
             .Apply(BIND(&IVolumeManager::DisableLayerCache, volumeManager, Passed(std::move(error)))
@@ -858,7 +848,29 @@ bool TSlotManager::Disable(TError error)
         }
     }
 
+    if (auto syncResult = WaitFor(jobController->AbortAllJobs(jobsAbortionError).WithTimeout(timeout));
+        !syncResult.IsOK())
+    {
+        YT_LOG_FATAL(
+            syncResult,
+            "Free slot synchronization failed (ActualSlotCount: %v, TotalSlots: %v, InitializedSlots: %v, InitializationEpoch: %v, ActualSlots: %v)",
+            size(FreeSlots_),
+            SlotCount_,
+            InitializedSlotCount_.load(),
+            InitializationEpoch_,
+            TRingQueueIterableWrapper(FreeSlots_));
+    }
+
     YT_LOG_WARNING("Disable slot manager finished");
+
+    YT_LOG_FATAL_IF(
+        ssize(FreeSlots_) != InitializedSlotCount_.load(),
+        "Some slots are hung after slot disabled (ActualSlotCount: %v, TotalSlots: %v, InitializedSlots: %v, InitializationEpoch: %v, ActualSlots: %v)",
+        size(FreeSlots_),
+        SlotCount_,
+        InitializedSlotCount_.load(),
+        InitializationEpoch_,
+        TRingQueueIterableWrapper(FreeSlots_));
 
     VerifyCurrentState(ESlotManagerState::Disabling);
 
@@ -1230,8 +1242,7 @@ int TSlotManager::DoAcquireSlot(ESlotType slotType)
     VERIFY_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(!FreeSlots_.empty());
-    int slotIndex = FreeSlots_.front();
-    FreeSlots_.pop();
+    auto slotIndex = PopSlot();
 
     YT_LOG_DEBUG(
         "Exec slot acquired (SlotType: %v, SlotIndex: %v)",
@@ -1241,12 +1252,44 @@ int TSlotManager::DoAcquireSlot(ESlotType slotType)
     return slotIndex;
 }
 
+void TSlotManager::PushSlot(int slotIndex)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    for (auto slot : TRingQueueIterableWrapper(FreeSlots_)) {
+        YT_LOG_FATAL_IF(
+            slot == slotIndex,
+            "Slot is already free (SlotIndex: %v, InitializationEpoch: %v)",
+            InitializationEpoch_,
+            slotIndex);
+    }
+
+    FreeSlots_.push(slotIndex);
+
+    YT_LOG_FATAL_IF(
+        ssize(FreeSlots_) > InitializedSlotCount_.load(),
+        "Too many free slots (FreeSlotCount: %v, TotalCount: %v, InitializedSlotCount: %v, InitializationEpoch: %v, FreeSlots: %v)",
+        ssize(FreeSlots_),
+        SlotCount_,
+        InitializedSlotCount_.load(),
+        InitializationEpoch_,
+        TRingQueueIterableWrapper(FreeSlots_));
+}
+
+int TSlotManager::PopSlot()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    int slotIndex = FreeSlots_.front();
+    FreeSlots_.pop();
+    return slotIndex;
+}
+
 void TSlotManager::ReleaseSlot(ESlotType slotType, int slotIndex, double requestedCpu, const std::optional<i64>& numaNodeIdAffinity)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    FreeSlots_.push(slotIndex);
-    YT_VERIFY(std::ssize(FreeSlots_) <= SlotCount_);
+    PushSlot(slotIndex);
 
     if (slotType == ESlotType::Idle) {
         --UsedIdleSlotCount_;
