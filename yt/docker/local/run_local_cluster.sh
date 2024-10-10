@@ -23,6 +23,7 @@ rpc_proxy_count=0
 rpc_proxy_port=8002
 node_count=1
 queue_agent_count=1
+with_auth=false
 enable_debug_logging=false
 extra_yt_docker_opts=''
 yt_fqdn=''
@@ -52,6 +53,7 @@ Usage: $script_name [-h|--help]
                     [--rpc-proxy-port port]
                     [--node-count count]
                     [--queue-agent-count count]
+                    [--with-auth true|false]
                     [--enable-debug-logging true|false]
                     [--extra-yt-docker-opts opts]
                     [--stop]
@@ -71,6 +73,7 @@ Usage: $script_name [-h|--help]
   --rpc-proxy-port: Sets ports for rpc proxies; number of values should be equal to rpc-proxy-count
   --node-count: Sets the number of cluster nodes to start in yt local cluster (default: $node_count)
   --queue-agent-count: Sets the number of queue agents to start in yt local cluster (default: $queue_agent_count)
+  --with-auth: Enables authentication and creates admin user
   --enable-debug-logging: Enable debug logging in backend container (default: $enable_debug_logging)
   --extra-yt-docker-opts: Any extra configuration for backend docker container (default: $extra_yt_docker_opts)
   --stop: Run 'docker stop ${ui_container_name} ${yt_container_name}' and exit
@@ -140,6 +143,10 @@ while [[ $# -gt 0 ]]; do
         ;;
         --queue-agent-count)
         queue_agent_count="$2"
+        shift 2
+        ;;
+        --with-auth)
+        with_auth="$2"
         shift 2
         ;;
         --enable-debug-logging)
@@ -212,6 +219,10 @@ if [ ${enable_debug_logging} == "true" ]; then
     params="--enable-debug-logging"
 fi
 
+if [ ${with_auth} == "true" ]; then
+    params="${params} --enable-auth --create-admin-user"
+fi
+
 set +e
 cluster_container=$(
     docker run -itd \
@@ -229,6 +240,7 @@ cluster_container=$(
         --rpc-proxy-port ${rpc_proxy_port} \
         --node-count ${node_count} \
         --queue-agent-count ${queue_agent_count} \
+        --native-client-supported \
         ${params} \
 )
 
