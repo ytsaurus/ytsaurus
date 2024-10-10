@@ -21,7 +21,7 @@ namespace NYT::NExecNode {
 struct IJobEnvironment
     : public virtual TRefCounted
 {
-    virtual void Init(int slotCount, double cpuLimit, double idleCpuFraction) = 0;
+    virtual TError Init(int slotCount, double cpuLimit, double idleCpuFraction) = 0;
     virtual TFuture<void> InitSlot(int slotIndex) = 0;
 
     virtual TFuture<void> RunJobProxy(

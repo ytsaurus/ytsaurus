@@ -77,7 +77,7 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    void Init(int slotCount, double cpuLimit, double idleCpuFraction) override
+    TError Init(int slotCount, double cpuLimit, double idleCpuFraction) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -89,8 +89,11 @@ public:
         } catch (const std::exception& ex) {
             auto error = TError("Failed to clean up processes during initialization")
                 << ex;
-            Disable(std::move(error));
+            Disable(error);
+            return error;
         }
+
+        return TError();
     }
 
     TFuture<void> InitSlot(int slotIndex) override
