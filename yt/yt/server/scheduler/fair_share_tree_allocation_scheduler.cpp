@@ -1419,7 +1419,13 @@ const TSchedulerElement* TScheduleAllocationsContext::FindPreemptionBlockingAnce
         }
     }
 
-    const TSchedulerElement* current = element;
+    if (!treeConfig->AllowPreemptionFromStarvingOperations && element->GetStarvationStatus() != EStarvationStatus::NonStarving) {
+        UpdateOperationPreemptionStatusStatistics(element, EOperationPreemptionStatus::ForbiddenSinceStarving);
+        return element;
+    }
+
+    // TODO(eshcherbin): Remove this and conditional preemption logic if it proves to be pointless.
+    const TSchedulerElement* current = element->GetParent();
     while (current && !current->IsRoot()) {
         // NB(eshcherbin): A bit strange that we check for starvation here and then for satisfaction later.
         // Maybe just satisfaction is enough?

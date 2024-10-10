@@ -344,6 +344,9 @@ public:
     bool EnableResourceTreeStructureLockProfiling;
     bool EnableResourceTreeUsageLockProfiling;
 
+    bool AllowPreemptionFromStarvingOperations;
+
+    // TODO(eshcherbin): Remove these old options if checking pools' starvation proves to be pointless.
     bool PreemptionCheckStarvation;
     bool PreemptionCheckSatisfaction;
 
