@@ -192,9 +192,15 @@ void TSlotManager::Start()
         .AsyncVia(Bootstrap_->GetJobInvoker())
         .Run());
 
-    YT_LOG_FATAL_IF(!IsJobEnvironmentResurrectionEnabled() &&
-        !initializeResult.IsOK(), initializeResult, "First slot manager initialization failed");
-    YT_LOG_ERROR_IF(!initializeResult.IsOK(), initializeResult, "First slot manager initialization failed");
+    YT_LOG_FATAL_IF(
+        !IsJobEnvironmentResurrectionEnabled() && !initializeResult.IsOK(),
+        initializeResult,
+        "First slot manager initialization failed");
+
+    YT_LOG_ERROR_IF(
+        !initializeResult.IsOK(),
+        initializeResult,
+        "First slot manager initialization failed");
 }
 
 TFuture<void> TSlotManager::InitializeEnvironment()
@@ -205,12 +211,13 @@ TFuture<void> TSlotManager::InitializeEnvironment()
 
     if (!State_.compare_exchange_strong(expected, ESlotManagerState::Initializing)) {
         YT_LOG_DEBUG(
-            "Slot manager is already in (%v) state; skipping InitializeEnvironment",
+            "Slot manager is already in (%v) state; skipping environment initialization",
             expected);
         return VoidFuture;
     }
 
-    YT_LOG_INFO("Slot manager sync initialization started (SlotCount: %v)",
+    YT_LOG_INFO(
+        "Slot manager sync initialization started (SlotCount: %v)",
         SlotCount_);
 
     {
@@ -233,10 +240,22 @@ TFuture<void> TSlotManager::InitializeEnvironment()
     // Job environment must be initialized first, since it cleans up all the processes,
     // which may hold open descriptors to volumes, layers and files in sandboxes.
     // It should also be initialized synchronously, since it may prevent deletion of chunk cache artifacts.
-    JobEnvironment_->Init(
+    if (auto error = JobEnvironment_->Init(
         SlotCount_,
         Bootstrap_->GetConfig()->JobResourceManager->ResourceLimits->Cpu,
         GetIdleCpuFraction());
+        !error.IsOK())
+    {
+        YT_LOG_WARNING(
+            "Failed to initialize job environment, disabling slot manager (Error: %v)",
+            error);
+
+        SetDisabledState();
+
+        return MakeFuture(error);
+    } else {
+        YT_LOG_DEBUG("Job environment successfully initialized");
+    }
 
     InitializeSlots();
 
@@ -244,7 +263,7 @@ TFuture<void> TSlotManager::InitializeEnvironment()
         auto error = TError("Job environment is disabled");
         YT_LOG_WARNING(error);
 
-        SetDisableState();
+        SetDisabledState();
 
         return MakeFuture(error);
     }
@@ -255,6 +274,8 @@ TFuture<void> TSlotManager::InitializeEnvironment()
     }
 
     {
+        YT_LOG_DEBUG("Started to create locations (LocationCount: %v)", size(StaticConfig_->Locations));
+
         int locationIndex = 0;
         for (const auto& locationConfig : StaticConfig_->Locations) {
             auto newLocation = New<TSlotLocation>(
@@ -600,10 +621,15 @@ void TSlotManager::InitializeSlots()
 
     auto slotInitTimeout = DynamicConfig_.Acquire()->SlotInitTimeout;
 
+    YT_LOG_DEBUG(
+        "Started to initialize slots (SlotInitTimeout: %v)",
+        slotInitTimeout);
+
     FreeSlots_.clear();
     InitializedSlotCount_.store(0);
 
     for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
+        YT_LOG_DEBUG("Started to initialize slot (SlotIndex: %v)", slotIndex);
         auto slotInitFuture = JobEnvironment_->InitSlot(slotIndex)
             .WithTimeout(slotInitTimeout);
 
@@ -768,7 +794,7 @@ std::vector<TSlotLocationPtr> TSlotManager::GetLocations() const
     return Locations_;
 }
 
-void TSlotManager::SetDisableState()
+void TSlotManager::SetDisabledState()
 {
     State_.store(ESlotManagerState::Disabled);
     Disabled_.FireAndClear();
@@ -836,7 +862,7 @@ bool TSlotManager::Disable(TError error)
 
     VerifyCurrentState(ESlotManagerState::Disabling);
 
-    SetDisableState();
+    SetDisabledState();
 
     return true;
 }
@@ -1067,14 +1093,16 @@ void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDire
         auto oldDescriptor = location->GetMediumDescriptor();
         auto newDescriptor = mediumDirectory->FindByName(location->GetMediumName());
         if (!newDescriptor) {
-            THROW_ERROR_EXCEPTION("Location %Qv refers to unknown medium %Qv",
+            THROW_ERROR_EXCEPTION(
+                "Location %Qv refers to unknown medium %Qv",
                 location->GetId(),
                 location->GetMediumName());
         }
         if (oldDescriptor.Index != NChunkClient::GenericMediumIndex &&
             oldDescriptor.Index != newDescriptor->Index)
         {
-            THROW_ERROR_EXCEPTION("Medium %Qv has changed its index from %v to %v",
+            THROW_ERROR_EXCEPTION(
+                "Medium %Qv has changed its index from %v to %v",
                 location->GetMediumName(),
                 oldDescriptor.Index,
                 newDescriptor->Index);
@@ -1087,7 +1115,8 @@ void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDire
         auto defaultMediumName = StaticConfig_->DefaultMediumName;
         auto descriptor = mediumDirectory->FindByName(defaultMediumName);
         if (!descriptor) {
-            THROW_ERROR_EXCEPTION("Default medium is unknown (MediumName: %v)",
+            THROW_ERROR_EXCEPTION(
+                "Default medium is unknown (MediumName: %v)",
                 defaultMediumName);
         }
         DefaultMediumIndex_ = descriptor->Index;
@@ -1130,7 +1159,7 @@ void TSlotManager::FinishInitialization(const TError& error)
             Alerts_.SetAlertError(std::move(wrappedError));
         }
 
-        SetDisableState();
+        SetDisabledState();
     }
 }
 
@@ -1204,7 +1233,8 @@ int TSlotManager::DoAcquireSlot(ESlotType slotType)
     int slotIndex = FreeSlots_.front();
     FreeSlots_.pop();
 
-    YT_LOG_DEBUG("Exec slot acquired (SlotType: %v, SlotIndex: %v)",
+    YT_LOG_DEBUG(
+        "Exec slot acquired (SlotType: %v, SlotIndex: %v)",
         slotType,
         slotIndex);
 
@@ -1232,7 +1262,8 @@ void TSlotManager::ReleaseSlot(ESlotType slotType, int slotIndex, double request
         }
     }
 
-    YT_LOG_DEBUG("Exec slot released (SlotType: %v, SlotIndex: %v, RequestedCpu: %v)",
+    YT_LOG_DEBUG(
+        "Exec slot released (SlotType: %v, SlotIndex: %v, RequestedCpu: %v)",
         slotType,
         slotIndex,
         requestedCpu);
