@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+set -ex
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+YT_SOURCE_ROOT="${SCRIPT_DIR}/../../"
+export REPO_PATH=${YT_SOURCE_ROOT}
+
+docker buildx bake --file "${SCRIPT_DIR}/targets.hcl" "$@"
