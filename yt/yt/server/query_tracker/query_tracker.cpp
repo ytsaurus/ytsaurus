@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "engine.h"
+#include "profiler.h"
 #include "ql_engine.h"
 #include "yql_engine.h"
 #include "chyt_engine.h"
@@ -79,6 +80,7 @@ public:
         , StateClient_(std::move(stateClient))
         , StateRoot_(std::move(stateRoot))
         , MinRequiredStateVersion_(minRequiredStateVersion)
+        , StateTimeProfilingCountersMap_(New<TStateTimeProfilingCountersMap>())
         , AcquisitionExecutor_(New<TPeriodicExecutor>(
             ControlInvoker_,
             BIND(&TQueryTracker::AcquireQueries, MakeWeak(this))))
@@ -87,11 +89,11 @@ public:
             BIND(&TQueryTracker::OnHealthCheck, MakeWeak(this)),
             config->HealthCheckPeriod))
     {
-        Engines_[EQueryEngine::Mock] = CreateMockEngine(StateClient_, StateRoot_);
-        Engines_[EQueryEngine::Ql] = CreateQLEngine(StateClient_, StateRoot_);
-        Engines_[EQueryEngine::Yql] = CreateYqlEngine(StateClient_, StateRoot_);
-        Engines_[EQueryEngine::Chyt] = CreateChytEngine(StateClient_, StateRoot_);
-        Engines_[EQueryEngine::Spyt] = CreateSpytEngine(StateClient_, StateRoot_);
+        Engines_[EQueryEngine::Mock] = CreateMockEngine(StateClient_, StateRoot_, StateTimeProfilingCountersMap_);
+        Engines_[EQueryEngine::Ql] = CreateQLEngine(StateClient_, StateRoot_, StateTimeProfilingCountersMap_);
+        Engines_[EQueryEngine::Yql] = CreateYqlEngine(StateClient_, StateRoot_, StateTimeProfilingCountersMap_);
+        Engines_[EQueryEngine::Chyt] = CreateChytEngine(StateClient_, StateRoot_, StateTimeProfilingCountersMap_);
+        Engines_[EQueryEngine::Spyt] = CreateSpytEngine(StateClient_, StateRoot_, StateTimeProfilingCountersMap_);
         // This is a correct call, despite being virtual call in constructor.
         TQueryTracker::Reconfigure(config);
     }
@@ -122,6 +124,7 @@ private:
     const NApi::NNative::IClientPtr StateClient_;
     const TYPath StateRoot_;
     const int MinRequiredStateVersion_;
+    const TStateTimeProfilingCountersMapPtr StateTimeProfilingCountersMap_;
 
     const TPeriodicExecutorPtr AcquisitionExecutor_;
     const TPeriodicExecutorPtr HealthCheckExecutor_;
@@ -140,6 +143,8 @@ private:
     };
 
     THashMap<TQueryId, TAcquiredQuery> AcquiredQueries_;
+
+    THashMap<TProfilingTags, TActiveQueriesProfilingCounter> ActiveQueriesCountersMap_;
 
     void OnHealthCheck()
     {
@@ -193,7 +198,7 @@ private:
             // TODO(max42): select as little fields as possible; lookup full row in TryAcquireQuery instead.
             // Select queries with expired leases.
             auto selectQuery = Format(
-                "[query_id], [incarnation], [assigned_tracker], [lease_transaction_id], [engine], [user], [query], [settings], [files] from [%v]",
+                "[query_id], [incarnation], [assigned_tracker], [lease_transaction_id], [engine], [state], [user], [query], [settings], [files] from [%v]",
                 StateRoot_ + "/active_queries");
             auto selectResult = WaitFor(StateClient_->SelectRows(selectQuery))
                 .ValueOrThrow();
@@ -218,6 +223,25 @@ private:
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error while getting alive lease transactions for active queries");
             return;
+        }
+
+        // Save profile counters
+        THashMap<TProfilingTags, int> counts;
+        for (const auto& [tags, _] : ActiveQueriesCountersMap_) {
+            counts[tags] = 0;
+        }
+        for (const auto& record : queryRecords) {
+            auto tags = TProfilingTags{
+                .State = record.State,
+                .Engine = record.Engine,
+                .AssignedTracker = record.AssignedTracker.value_or(NoneQueryTracker),
+            };
+            counts[tags]++;
+        }
+        std::optional<TGuard<NThreading::TSpinLock>> nulloptGuard;
+        for (const auto&[tags, count] : counts) {
+            auto& activeQueriesCounter = GetOrCreateProfilingCounter(QueryTrackerProfilerGlobal, tags, ActiveQueriesCountersMap_, nulloptGuard).ActiveQueries;
+            activeQueriesCounter.Update(count);
         }
 
         std::vector<TActiveQuery> orphanedQueries;
@@ -646,6 +670,24 @@ private:
                 YT_LOG_ERROR(commitResultOrError, "Failed to finish query, backing off");
                 return true;
             }
+
+            // Save profile counter
+            auto tags = TProfilingTags{
+                .State = activeQueryRecord->State,
+                .Engine = activeQueryRecord->Engine,
+                .AssignedTracker = activeQueryRecord->AssignedTracker.value_or(NoneQueryTracker),
+            };
+            {
+                auto guard = std::make_optional(Guard(StateTimeProfilingCountersMap_->Lock));
+                auto& stateTimeGauge = GetOrCreateProfilingCounter(
+                    QueryTrackerProfiler,
+                    tags,
+                    StateTimeProfilingCountersMap_->Map,
+                    guard).StateTime;
+                auto now = TInstant::Now();
+                stateTimeGauge.Update(now - activeQueryRecord->FinishTime.value());
+            }
+
             YT_LOG_INFO("Query finished (CommitTimestamp: %v)", commitResultOrError.Value().PrimaryCommitTimestamp);
             return false;
         } catch (const std::exception& ex) {

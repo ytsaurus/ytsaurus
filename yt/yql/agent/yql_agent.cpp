@@ -181,6 +181,10 @@ public:
         , ThreadPool_(CreateThreadPool(Config_->YqlThreadCount, "Yql"))
         , ActiveQueriesGuardFactory_(TActiveQueriesGuardFactory(DynamicConfig_->MaxSimultaneousQueries))
     {
+        YqlAgentProfiler().AddFuncGauge("/active_queries", MakeStrong(this), [this] {
+            return ActiveQueriesGuardFactory_.Get();
+        });
+
         static const TYsonString EmptyMap = TYsonString(TString("{}"));
 
         auto clustersConfig = Config_->GatewayConfig->AsMap()->GetChildOrThrow("cluster_mapping")->AsList();
