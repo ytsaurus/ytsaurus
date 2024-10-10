@@ -344,7 +344,11 @@ TRANSFORMS[48] = [
                 ("controller_state", "string"),
             ],
             default_lock="operations_cleaner",
-            attributes={"atomicity": "none"})),
+            attributes={
+                "atomicity": "none",
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            })),
 ]
 
 TRANSFORMS[49] = [
@@ -448,7 +452,11 @@ TRANSFORMS[50] = [
                 ("controller_state", "string"),
             ],
             default_lock="operations_cleaner",
-            attributes={"atomicity": "none"})),
+            attributes={
+                "atomicity": "none",
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            })),
 ]
 
 TRANSFORMS[51] = [
@@ -496,7 +504,11 @@ TRANSFORMS[51] = [
                 ("archive_features", "any"),
             ],
             default_lock="operations_cleaner",
-            attributes={"atomicity": "none"})),
+            attributes={
+                "atomicity": "none",
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            })),
 ]
 
 TRANSFORMS[52] = [
@@ -615,7 +627,11 @@ TRANSFORMS[54] = [
                 ("$ttl", "uint64"),
             ],
             default_lock="operations_cleaner",
-            attributes={"atomicity": "none"})),
+            attributes={
+                "atomicity": "none",
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            })),
 ]
 
 # NB(renadeen): don't forget to update min_required_archive_version at yt/yt/server/lib/scheduler/config.cpp
