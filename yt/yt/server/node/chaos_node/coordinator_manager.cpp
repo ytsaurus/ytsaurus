@@ -11,7 +11,6 @@
 #include <yt/yt/server/node/chaos_node/chaos_manager.pb.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
-#include <yt/yt/server/lib/hive/mailbox.h>
 #include <yt/yt/server/lib/hive/helpers.h>
 
 #include <yt/yt/server/lib/chaos_node/config.h>

@@ -11,7 +11,7 @@
 
 #include <yt/yt/server/lib/hive/helpers.h>
 #include <yt/yt/server/lib/hive/hive_manager.h>
-#include <yt/yt/server/lib/hive/mailbox.h>
+#include <yt/yt/server/lib/hive/persistent_mailbox_state.h>
 
 namespace NYT::NTabletNode {
 

@@ -25,6 +25,15 @@ bool IsHiveMutation();
 //! by a current fiber or null id if that mutation is not a Hive one.
 TCellId GetHiveMutationSenderId();
 
+//! Installs the mutation sender id into FLS.
+class THiveMutationGuard
+    : private TNonCopyable
+{
+public:
+    explicit THiveMutationGuard(TCellId senderId);
+    ~THiveMutationGuard();
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSerializedMessage
