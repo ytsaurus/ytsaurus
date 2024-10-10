@@ -2635,7 +2635,7 @@ private:
                 NLeaseServer::NProto::TReqRegisterLease message;
                 ToProto(message.mutable_lease_id(), transaction->GetId());
 
-                auto* mailbox = hiveManager->GetOrCreateCellMailbox(cellId);
+                auto mailbox = hiveManager->GetOrCreateCellMailbox(cellId);
                 hiveManager->PostMessage(mailbox, message);
             }
         }
@@ -2684,7 +2684,7 @@ private:
                 ToProto(message.mutable_lease_id(), transaction->GetId());
                 message.set_force(force);
 
-                auto* mailbox = hiveManager->GetOrCreateCellMailbox(cellId);
+                auto mailbox = hiveManager->GetOrCreateCellMailbox(cellId);
                 hiveManager->PostMessage(mailbox, message);
 
                 if (force) {

@@ -321,7 +321,7 @@ public:
         return LeaseManager_;
     }
 
-    TMailbox* GetMasterMailbox() const override
+    TMailboxHandle GetMasterMailbox() const override
     {
         // Create master mailbox lazily.
         auto masterCellId = Bootstrap_->GetCellId();

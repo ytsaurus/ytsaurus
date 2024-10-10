@@ -43,8 +43,7 @@ public:
         const auto& movementData = tablet->SmoothMovementData();
         if (movementData.ShouldForwardMutation()) {
             auto endpointId = movementData.GetSiblingAvenueEndpointId();
-            auto* mailbox = HiveManager_->FindMailbox(endpointId);
-            YT_VERIFY(mailbox);
+            auto mailbox = HiveManager_->GetMailbox(endpointId);
             HiveManager_->PostMessage(mailbox, message);
         }
     }

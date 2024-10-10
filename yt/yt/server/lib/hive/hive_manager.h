@@ -54,7 +54,6 @@ void FormatValue(TStringBuilderBase* builder, const THiveEdge& edge, TStringBuf 
 struct IHiveManager
     : public virtual TRefCounted
 {
-public:
     /*!
      *  \note Thread affinity: any
      */
@@ -70,13 +69,14 @@ public:
      */
     virtual TCellId GetSelfCellId() const = 0;
 
-    virtual TCellMailbox* CreateCellMailbox(TCellId cellId, bool allowResurrection = false) = 0;
-    virtual TMailbox* FindMailbox(TEndpointId endpointId) const = 0;
-    virtual TMailbox* GetMailbox(TEndpointId endpointId) const = 0;
-    virtual TCellMailbox* GetOrCreateCellMailbox(TCellId cellId) = 0;
-    virtual TMailbox* GetMailboxOrThrow(TEndpointId endpointId) const = 0;
+    virtual TMailboxHandle FindMailbox(TEndpointId endpointId) const = 0;
+    virtual TMailboxHandle GetMailbox(TEndpointId endpointId) const = 0;
+    virtual TMailboxHandle GetMailboxOrThrow(TEndpointId endpointId) const = 0;
 
-    virtual void RemoveCellMailbox(TCellMailbox* mailbox) = 0;
+    virtual TMailboxHandle CreateCellMailbox(TCellId cellId, bool allowResurrection = false) = 0;
+    virtual TMailboxHandle GetOrCreateCellMailbox(TCellId cellId) = 0;
+
+    virtual bool TryRemoveCellMailbox(TCellId cellId) = 0;
 
     virtual void RegisterAvenueEndpoint(
         TAvenueEndpointId selfEndpointId,
@@ -86,19 +86,19 @@ public:
 
     //! Posts a message for delivery (either reliable or not).
     virtual void PostMessage(
-        TMailbox* mailbox,
+        TMailboxHandle mailbox,
         const TSerializedMessagePtr& message,
         bool reliable = true) = 0;
     virtual void PostMessage(
-        const TMailboxList& mailboxes,
+        TRange<TMailboxHandle> mailboxes,
         const TSerializedMessagePtr& message,
         bool reliable = true) = 0;
     virtual void PostMessage(
-        TMailbox* mailbox,
+        TMailboxHandle mailbox,
         const ::google::protobuf::MessageLite& message,
         bool reliable = true) = 0;
     virtual void PostMessage(
-        const TMailboxList& mailboxes,
+        TRange<TMailboxHandle> mailboxes,
         const ::google::protobuf::MessageLite& message,
         bool reliable = true) = 0;
 
@@ -113,9 +113,6 @@ public:
 
     //! This is intended to be used in tests to simulate bad connection.
     virtual void FreezeEdges(std::vector<THiveEdge> edgesToFreeze) = 0;
-
-    DECLARE_INTERFACE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(CellMailbox, CellMailboxes, TCellMailbox);
-    DECLARE_INTERFACE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(AvenueMailbox, AvenueMailboxes, TAvenueMailbox);
 };
 
 DEFINE_REFCOUNTED_TYPE(IHiveManager)

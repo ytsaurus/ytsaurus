@@ -429,7 +429,7 @@ public:
         return Occupant_->GetAvenueDirectory();
     }
 
-    TMailbox* GetMasterMailbox() override
+    TMailboxHandle GetMasterMailbox() override
     {
         return Occupant_->GetMasterMailbox();
     }
@@ -497,10 +497,7 @@ public:
         YT_VERIFY(HasMutationContext());
 
         const auto& hiveManager = GetHiveManager();
-        TMailbox* mailbox = hiveManager->GetOrCreateCellMailbox(Bootstrap_->GetCellId(CellTagFromId(tabletId)));
-        if (!mailbox) {
-            mailbox = GetMasterMailbox();
-        }
+        auto mailbox = hiveManager->GetOrCreateCellMailbox(Bootstrap_->GetCellId(CellTagFromId(tabletId)));
         hiveManager->PostMessage(mailbox, message);
     }
 

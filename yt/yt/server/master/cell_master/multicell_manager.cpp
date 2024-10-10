@@ -47,6 +47,8 @@
 
 #include <yt/yt/ytlib/election/config.h>
 
+#include <library/cpp/yt/small_containers/compact_vector.h>
+
 #include <util/generic/algorithm.h>
 
 namespace NYT::NCellMaster {
@@ -479,7 +481,7 @@ public:
         return channel;
     }
 
-    TMailbox* FindPrimaryMasterMailbox() override
+    TMailboxHandle FindPrimaryMasterMailbox() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -541,8 +543,8 @@ private:
     NProto::TCellStatistics LocalCellStatistics_;
     NProto::TCellStatistics ClusterCellStatisics_;
 
-    TMailbox* PrimaryMasterMailbox_ = nullptr;
-    THashMap<TCellTag, TMailbox*> CellTagToMasterMailbox_;
+    TMailboxHandle PrimaryMasterMailbox_;
+    THashMap<TCellTag, TMailboxHandle> CellTagToMasterMailbox_;
 
     TPeriodicExecutorPtr RegisterAtPrimaryMasterExecutor_;
     TPeriodicExecutorPtr CellStatisticsGossipExecutor_;
@@ -591,7 +593,7 @@ private:
             RegisteredMasterCellTags_[entry.Index] = cellTag;
 
             auto cellId = GetCellId(cellTag);
-            auto* mailbox = hiveManager->GetMailbox(cellId);
+            auto mailbox = hiveManager->GetMailbox(cellId);
             YT_VERIFY(CellTagToMasterMailbox_.emplace(cellTag, mailbox).second);
             if (cellTag == GetPrimaryCellTag()) {
                 PrimaryMasterMailbox_ = mailbox;
@@ -629,7 +631,7 @@ private:
         RegisterState_ = EPrimaryRegisterState::None;
         CellTagToMasterMailbox_.clear();
         DynamicallyPropagatedMastersCellTags_.clear();
-        PrimaryMasterMailbox_ = nullptr;
+        PrimaryMasterMailbox_ = {};
         LocalCellStatistics_ = {};
         ClusterCellStatisics_ = {};
         DynamicallyPropagated_.store(false);
@@ -1042,7 +1044,7 @@ private:
 
         auto cellId = GetCellId(cellTag);
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        TMailbox* mailbox = hiveManager->GetOrCreateCellMailbox(cellId);
+        auto mailbox = hiveManager->GetOrCreateCellMailbox(cellId);
 
         YT_VERIFY(CellTagToMasterMailbox_.emplace(cellTag, mailbox).second);
         if (cellTag == GetPrimaryCellTag()) {
@@ -1096,7 +1098,7 @@ private:
         return RegisteredMasterMap_.contains(cellTag);
     }
 
-    TMailbox* FindMasterMailbox(TCellTag cellTag)
+    TMailboxHandle FindMasterMailbox(TCellTag cellTag)
     {
         // Fast path.
         if (cellTag == PrimaryMasterCellTagSentinel) {
@@ -1104,8 +1106,7 @@ private:
         }
 
         // Slow path.
-        auto it = CellTagToMasterMailbox_.find(cellTag);
-        return it == CellTagToMasterMailbox_.end() ? nullptr : it->second;
+        return GetOrDefault(CellTagToMasterMailbox_, cellTag);
     }
 
     void OnStartSecondaryMasterRegistration()
@@ -1317,12 +1318,12 @@ private:
         TRange<TCellTag> cellTags,
         bool reliable)
     {
-        TMailboxList mailboxes;
+        TCompactVector<TMailboxHandle, 16> mailboxes;
         for (auto cellTag : cellTags) {
             if (cellTag == PrimaryMasterCellTagSentinel) {
                 cellTag = GetPrimaryCellTag();
             }
-            if (auto* mailbox = FindMasterMailbox(cellTag)) {
+            if (auto mailbox = FindMasterMailbox(cellTag)) {
                 mailboxes.push_back(mailbox);
             }
         }

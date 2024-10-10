@@ -15,8 +15,9 @@
 
 #include <yt/yt/server/lib/lease_server/public.h>
 
+#include <yt/yt/server/lib/hive/public.h>
+
 #include <yt/yt/ytlib/hive/cell_directory.h>
-#include <yt/yt/ytlib/hive/public.h>
 
 #include <yt/yt/ytlib/hydra/public.h>
 
@@ -75,7 +76,7 @@ struct IChaosSlot
     virtual IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const = 0;
 
     virtual const NHiveServer::IHiveManagerPtr& GetHiveManager() const = 0;
-    virtual NHiveServer::TMailbox* GetMasterMailbox() = 0;
+    virtual NHiveServer::TMailboxHandle GetMasterMailbox() = 0;
 
     virtual const IChaosManagerPtr& GetChaosManager() const = 0;
     virtual const NChaosClient::IReplicationCardsWatcherPtr& GetReplicationCardsWatcher() const = 0;
