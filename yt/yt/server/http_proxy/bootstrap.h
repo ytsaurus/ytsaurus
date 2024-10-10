@@ -65,7 +65,7 @@ public:
 
     const TProxyConfigPtr& GetConfig() const;
     TProxyDynamicConfigPtr GetDynamicConfig() const;
-    const NApi::IClientPtr& GetRootClient() const;
+    const NApi::NNative::IClientPtr& GetRootClient() const;
     const NApi::NNative::IConnectionPtr& GetNativeConnection() const;
     const NDriver::IDriverPtr& GetDriverV3() const;
     const NDriver::IDriverPtr& GetDriverV4() const;
@@ -100,8 +100,7 @@ private:
     NHttp::IServerPtr MonitoringServer_;
 
     NApi::NNative::IConnectionPtr Connection_;
-    NApi::IClientPtr RootClient_;
-    NApi::NNative::IClientPtr NativeClient_;
+    NApi::NNative::IClientPtr RootClient_;
     NDriver::IDriverPtr DriverV3_;
     NDriver::IDriverPtr DriverV4_;
 

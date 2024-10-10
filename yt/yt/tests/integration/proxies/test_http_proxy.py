@@ -230,9 +230,13 @@ class TestHttpProxy(HttpProxyTestBase):
                 assert component_summary["banned"] == 0
                 assert component_summary["offline"] == 0
 
+        assert counts["cluster_master"] == 3
         assert counts["primary_master"] == 1
-        assert counts["secondary_master"] == 2
         assert counts["cluster_node"] == 5
+        assert counts["data_node"] == 5
+        assert counts["tablet_node"] == 5
+        assert counts["exec_node"] == 5
+        assert counts["job_proxy"] == 5
         assert counts["scheduler"] == 1
         assert counts["controller_agent"] == 1
         assert counts["http_proxy"] == 1
@@ -352,7 +356,7 @@ class TestSolomonProxy(HttpProxyTestBase):
 
     DELTA_PROXY_CONFIG = {
         "solomon_proxy": {
-            "public_component_names": ["rpc_proxy", "primary_master", "http_proxy"],
+            "public_component_names": ["rpc_proxy", "cluster_master", "http_proxy"],
             # We will configure the endpoint providers later, since monitoring ports are not yet generated at this point.
         }
     }
@@ -362,15 +366,15 @@ class TestSolomonProxy(HttpProxyTestBase):
     def apply_config_patches(cls, configs, ytserver_version, cluster_index, cluster_path):
         super(TestSolomonProxy, cls).apply_config_patches(configs, ytserver_version, cluster_index, cluster_path)
 
-        primary_master_config = list(configs["master"].values())[0][0]
+        master_config = list(configs["master"].values())[0][0]
         rpc_proxy_config = configs["rpc_proxy"][0]
         http_proxy_config = configs["http_proxy"][0]
         scheduler_config = configs["scheduler"][0]
 
         configs["http_proxy"][0]["solomon_proxy"]["endpoint_providers"] = [
             {
-                "component_type": "primary_master",
-                "monitoring_port": primary_master_config["monitoring_port"],
+                "component_type": "cluster_master",
+                "monitoring_port": master_config["monitoring_port"],
                 # We use this to distinguish instances based on their name.
                 "include_port_in_instance_name": True,
             },
@@ -394,7 +398,7 @@ class TestSolomonProxy(HttpProxyTestBase):
 
         # This isn't very pretty either, but it will do for now.
         # TODO(achulkov2): Initialize host for all components similar to jaeger init?
-        primary_master_config["solomon_exporter"]["host"] = "master.yt.test"
+        master_config["solomon_exporter"]["host"] = "master.yt.test"
         rpc_proxy_config["solomon_exporter"]["host"] = "rpc-proxy.yt.test"
         http_proxy_config["solomon_exporter"]["host"] = "http-proxy.yt.test"
         scheduler_config["solomon_exporter"]["host"] = "scheduler.yt.test"
