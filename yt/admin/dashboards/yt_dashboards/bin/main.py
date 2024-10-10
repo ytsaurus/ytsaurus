@@ -1,4 +1,6 @@
 from yt_dashboards.common.runner import run
+from yt_dashboards.common.postprocessors import combine_postprocessors, AddTagPostprocessor, MapTagPostprocessor
+from yt_dashboards.common.sensors import GrafanaTag, GrafanaServiceTag
 
 from yt_dashboards.master import (
     build_master_global, build_master_local, build_master_merge_jobs)
@@ -22,7 +24,16 @@ from yt_dashboards import lsm
 
 from yt_dashboards import flow
 
-
+# This is an extensive list of all available dashboards.
+# You should create a similar configuration file with your configuration specifics
+# and maybe even custom dashboards.
+#
+# Not all dashboards have been optimized for Grafana usage.
+# Let's make a common effort to label supported backends for each dashboard with a comment.
+#
+# NB: Grafana installations can be supported by different backends. We aim to be as generic as
+# possible, but it is hard to test anything than your own installation, so some specifics may
+# creep in. We welcome issues and pull requests!
 dashboards = {
     "cache": {
         "func": build_cache_with_ghosts,
@@ -54,10 +65,21 @@ dashboards = {
             "args": [False],
         },
     },
+    # Supported backends: monitoring, grafana.
     "scheduler-pool": {
         "func": build_scheduler_pool,
         "monitoring": {},
-        "grafana": {},
+        "grafana": {
+            "id": "<your-dashboard-id>",
+            "postprocessor": combine_postprocessors(
+                # This postprocessor can be used to add tags to all sensors within a dashboard, which might be useful for your Grafana installation.
+                AddTagPostprocessor(extra_tags={"__workspace__": "yt", "__bucket__": "<your-cluster-name>"}, mode="prepend"),
+                # This postprocessor can be used to relabel tags. It is useful for changing the service label depending on your k8s installation.
+                # For now the most relevant tag set by the k8s operator is yt_component (looks like <cluster-name>-yt-schedulers[-instance-group-name]),
+                # or whatever the label of your scraping job is. We are working on improving this from the operator perspective.
+                # You can also configure solomon_exporter to export your favorite style of component tags manually.
+                MapTagPostprocessor(old_key=GrafanaServiceTag, new_key=GrafanaTag("<your-component-tag>"), value_mapping={"yt-scheduler": "<new-value-for-scheduler>"}))
+        },
     },
     "cluster-resources": {
         "func": build_cluster_resources,
