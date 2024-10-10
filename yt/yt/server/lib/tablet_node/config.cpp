@@ -16,6 +16,7 @@
 
 namespace NYT::NTabletNode {
 
+using namespace NConcurrency;
 using namespace NYTree;
 using namespace NTabletClient;
 
@@ -733,12 +734,39 @@ void TPartitionBalancerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(30));
 }
 
+TPartitionBalancerConfigPtr TPartitionBalancerConfig::ApplyDynamic(
+    const TPartitionBalancerDynamicConfigPtr& dynamicConfig,
+    const TAsyncSemaphorePtr& samplingSemaphore) const
+{
+    auto config = CloneYsonStruct(MakeStrong(this));
+    UpdateYsonStructField(config->MinPartitioningSampleCount, dynamicConfig->MinPartitioningSampleCount);
+    UpdateYsonStructField(config->MaxPartitioningSampleCount, dynamicConfig->MaxPartitioningSampleCount);
+    UpdateYsonStructField(config->SplitRetryDelay, dynamicConfig->SplitRetryDelay);
+
+    if (auto maxConcurrentSamplings = dynamicConfig->MaxConcurrentSamplings) {
+        samplingSemaphore->SetTotal(*maxConcurrentSamplings);
+    }
+
+    return config;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TPartitionBalancerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
         .Default(true);
+    registrar.Parameter("min_partitioning_sample_count", &TThis::MinPartitioningSampleCount)
+        .GreaterThanOrEqual(3)
+        .Optional();
+    registrar.Parameter("max_partitioning_sample_count", &TThis::MaxPartitioningSampleCount)
+        .GreaterThanOrEqual(10)
+        .Optional();
+    registrar.Parameter("max_concurrent_samplings", &TThis::MaxConcurrentSamplings)
+        .GreaterThan(0)
+        .Optional();
+    registrar.Parameter("split_retry_delay", &TThis::SplitRetryDelay)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
