@@ -3083,6 +3083,8 @@ class TestQueueAgentBannedAttribute(TestQueueStaticExportBase):
 
 
 class TestQueueStaticExport(TestQueueStaticExportBase):
+    NUM_TEST_PARTITIONS = 2
+
     @authors("cherepashka", "achulkov2", "nadya73")
     @pytest.mark.parametrize("queue_external_cell_tag", [10, 11, 12])
     def test_multicell_export(self, queue_external_cell_tag):
