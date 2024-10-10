@@ -413,6 +413,9 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_resource_tree_usage_lock_profiling", &TThis::EnableResourceTreeUsageLockProfiling)
         .Default(true);
 
+    registrar.Parameter("allow_preemption_from_starving_operations", &TThis::AllowPreemptionFromStarvingOperations)
+        .Default(false);
+
     registrar.Parameter("preemption_check_starvation", &TThis::PreemptionCheckStarvation)
         .Default(true);
 
