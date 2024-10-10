@@ -90,6 +90,8 @@ void TQueryTrackerProxyConfig::Register(TRegistrar registrar)
 
 void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("state_check_period", &TThis::StateCheckPeriod)
+        .Default(TDuration::Seconds(15));
     registrar.Parameter("active_query_acquisition_period", &TThis::ActiveQueryAcquisitionPeriod)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("active_query_ping_period", &TThis::ActiveQueryPingPeriod)

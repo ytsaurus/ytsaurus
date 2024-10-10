@@ -2,6 +2,8 @@
 #include "proxy_service.h"
 #include "query_tracker_proxy.h"
 
+#include <yt/yt/server/lib/state_checker/state_checker.h>
+
 #include <yt/yt/client/api/rpc_proxy/helpers.h>
 
 #include <yt/yt/ytlib/query_tracker_client/proto/query_tracker_service.pb.h>
@@ -17,6 +19,7 @@ using namespace NConcurrency;
 using namespace NQueryTrackerClient;
 using namespace NRpc;
 using namespace NRpcProxy;
+using namespace NStateChecker;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
@@ -29,12 +32,13 @@ class TProxyService
     : public TServiceBase
 {
 public:
-    TProxyService(IInvokerPtr proxyInvoker, TQueryTrackerProxyPtr queryTracker)
+    TProxyService(IInvokerPtr proxyInvoker, TQueryTrackerProxyPtr queryTracker, TStateCheckerPtr stateChecker)
         : TServiceBase(
             std::move(proxyInvoker),
             TQueryTrackerServiceProxy::GetDescriptor(),
             QueryTrackerLogger())
         , QueryTracker_(std::move(queryTracker))
+        , StateChecker_(std::move(stateChecker))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartQuery));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortQuery));
@@ -48,6 +52,7 @@ public:
 
 private:
     const TQueryTrackerProxyPtr QueryTracker_;
+    const TStateCheckerPtr StateChecker_;
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, StartQuery)
     {
@@ -352,13 +357,20 @@ private:
 
         context->Reply();
     }
+
+    bool IsUp(const TCtxDiscoverPtr& /*context*/) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return !StateChecker_->IsComponentBanned();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IServicePtr CreateProxyService(IInvokerPtr proxyInvoker, TQueryTrackerProxyPtr queryTracker)
+IServicePtr CreateProxyService(IInvokerPtr proxyInvoker, TQueryTrackerProxyPtr queryTracker, TStateCheckerPtr stateChecker)
 {
-    return New<TProxyService>(std::move(proxyInvoker), std::move(queryTracker));
+    return New<TProxyService>(std::move(proxyInvoker), std::move(queryTracker), std::move(stateChecker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

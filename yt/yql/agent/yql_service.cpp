@@ -2,6 +2,9 @@
 
 #include "yql_agent.h"
 
+#include <yt/yt/server/lib/state_checker/state_checker.h>
+
+#include <yt/yt/ytlib/yql_client/public.h>
 #include <yt/yt/ytlib/yql_client/yql_service_proxy.h>
 
 #include <yt/yt/ytlib/yql_client/proto/yql_service.pb.h>
@@ -12,6 +15,7 @@ namespace NYT::NYqlAgent {
 
 using namespace NConcurrency;
 using namespace NRpc;
+using namespace NStateChecker;
 using namespace NYqlClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,12 +24,13 @@ class TYqlService
     : public TServiceBase
 {
 public:
-    TYqlService(IInvokerPtr controlInvoker, IYqlAgentPtr yqlAgent)
+    TYqlService(IInvokerPtr controlInvoker, IYqlAgentPtr yqlAgent, TStateCheckerPtr stateChecker)
         : TServiceBase(
             std::move(controlInvoker),
             TYqlServiceProxy::GetDescriptor(),
             YqlAgentLogger())
         , YqlAgent_(std::move(yqlAgent))
+        , StateChecker_(std::move(stateChecker))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartQuery)
             .SetCancelable(true));
@@ -35,6 +40,7 @@ public:
 
 private:
     const IYqlAgentPtr YqlAgent_;
+    const TStateCheckerPtr StateChecker_;
 
     DECLARE_RPC_SERVICE_METHOD(NYqlClient::NProto, StartQuery)
     {
@@ -48,6 +54,11 @@ private:
 
         context->SetRequestInfo("QueryId: %v, Async: %v, BuildRowsets: %v, RowCountLimit: %v", queryId, request->async(), request->build_rowsets(), request->row_count_limit());
         context->SetResponseInfo("QueryId: %v", queryId);
+
+        if (StateChecker_->IsComponentBanned()) {
+            YT_LOG_INFO("Yql agent is banned, failing query (QueryId: %v, User: %v)", queryId, impersonationUser);
+            THROW_ERROR_EXCEPTION(NYqlClient::EErrorCode::YqlAgentBanned, "Yql agent is banned");
+        }
 
         auto responseFuture = YqlAgent_->StartQuery(queryId, impersonationUser, *request);
 
@@ -102,13 +113,20 @@ private:
         response->MergeFrom(YqlAgent_->GetQueryProgress(queryId));
         context->Reply();
     }
+
+    bool IsUp(const TCtxDiscoverPtr& /*context*/) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return !StateChecker_->IsComponentBanned();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IServicePtr CreateYqlService(IInvokerPtr controlInvoker, IYqlAgentPtr yqlAgent)
+IServicePtr CreateYqlService(IInvokerPtr controlInvoker, IYqlAgentPtr yqlAgent, TStateCheckerPtr stateChecker)
 {
-    return New<TYqlService>(std::move(controlInvoker), std::move(yqlAgent));
+    return New<TYqlService>(std::move(controlInvoker), std::move(yqlAgent), std::move(stateChecker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

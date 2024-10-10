@@ -2,24 +2,26 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     add_member, authors, create_access_control_object, remove,
-    make_ace, raises_yt_error, wait, create_user, print_debug, select_rows)
+    make_ace, raises_yt_error, wait, create_user, print_debug, select_rows,
+    set, get, insert_rows, generate_uuid)
 
 from yt_error_codes import AuthorizationErrorCode, ResolveErrorCode
 
-from yt_queries import start_query, list_queries, get_query_tracker_info
+from yt_queries import Query, start_query, list_queries, get_query_tracker_info
 
 from yt.common import date_string_to_timestamp_mcs
 
 from yt.test_helpers import assert_items_equal
 
 from collections import Counter
+from builtins import set as Set
 
 import pytest
 
 
 def expect_queries(queries, list_result, incomplete=False):
     try:
-        assert set(q.id for q in queries) == set(q["id"] for q in list_result["queries"])
+        assert Set(q.id for q in queries) == Set(q["id"] for q in list_result["queries"])
         assert list_result["incomplete"] == incomplete
     except AssertionError:
         timestamp = list_result["timestamp"]
@@ -200,6 +202,47 @@ class TestQueriesMock(YTEnvSetup):
         q.track()
         assert q.get_result(0)["is_truncated"]
         assert not q.get_result(1)["is_truncated"]
+
+
+class TestQueryTrackerBan(YTEnvSetup):
+    NUM_QUERY_TRACKER = 1
+    DELTA_DRIVER_CONFIG = {
+        "cluster_connection_dynamic_config_policy": "from_cluster_directory",
+    }
+    QUERY_TRACKER_DYNAMIC_CONFIG = {"state_check_period": 2000}
+
+    def _test_query_fails():
+        start_query("mock", "run_forever")
+        return False
+
+    @authors("mpereskokova")
+    def test_query_tracker_ban(self, query_tracker):
+        address = query_tracker.query_tracker.addresses[0]
+        set(f"//sys/query_tracker/instances/{address}/@banned", True)
+
+        with raises_yt_error() as err:
+            wait(TestQueryTrackerBan._test_query_fails)
+        assert err[0].contains_text("No alive peers found")
+        wait(lambda: get(f"//sys/query_tracker/instances/{address}/orchid/state_checker/banned"), ignore_exceptions=True)
+
+        guid = generate_uuid()
+        insert_rows("//sys/query_tracker/active_queries", [{
+            "query_id": guid,
+            "engine": "mock",
+            "query": "run_forever",
+            "incarnation": 0,
+            "state": "pending",
+            "settings": {}
+        }])
+
+        acquisition_iterations = get(f"//sys/query_tracker/instances/{address}/orchid/query_tracker/acquisition_iterations")
+        wait(lambda: get(f"//sys/query_tracker/instances/{address}/orchid/query_tracker/acquisition_iterations") - acquisition_iterations >= 3)
+
+        assert list(select_rows(f'* from [//sys/query_tracker/active_queries] WHERE query_id = "{guid}"'))[0]["state"] == "pending"
+
+        set(f"//sys/query_tracker/instances/{address}/@banned", False)
+        query = Query(guid)
+        wait(lambda: query.get_state() == "running", ignore_exceptions=True)
 
 
 class TestAccessControl(YTEnvSetup):
@@ -798,6 +841,13 @@ class TestAccessControlList(YTEnvSetup):
 
 @authors("apollo1321")
 class TestQueriesMockRpcProxy(TestQueriesMock):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+
+
+@authors("mpereskokova")
+class TestQueryTrackerBanRpcProxy(TestQueryTrackerBan):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
