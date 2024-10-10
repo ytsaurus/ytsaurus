@@ -45,16 +45,7 @@ func getEndpointPortByJob(ctx context.Context, job yt.JobStatus, ytc yt.Client) 
 	return
 }
 
-func GetEndpoint(a *api.API, ctx context.Context, alias string) (result GetEndpointResult, err error) {
-	briefInfo, err := a.GetBriefInfo(ctx, alias)
-	if err != nil {
-		return
-	}
-
-	opID := briefInfo.YTOperation.ID
-
-	ytc := a.Ytc
-
+func getEndpoint(ctx context.Context, ytc yt.Client, opID yt.OperationID) (result GetEndpointResult, err error) {
 	jobs, err := ytc.ListJobs(ctx, opID, &yt.ListJobsOptions{JobState: &yt.JobRunning})
 	if err != nil {
 		return
@@ -84,4 +75,16 @@ func GetEndpoint(a *api.API, ctx context.Context, alias string) (result GetEndpo
 	}
 
 	return
+}
+
+func GetEndpoint(a *api.API, ctx context.Context, alias string) (result GetEndpointResult, err error) {
+	briefInfo, err := a.GetBriefInfo(ctx, alias)
+	if err != nil {
+		return
+	}
+
+	opID := briefInfo.YTOperation.ID
+	ytc := a.Ytc
+
+	return getEndpoint(ctx, ytc, opID)
 }

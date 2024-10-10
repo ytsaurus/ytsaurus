@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strconv"
+	"time"
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/auth"
@@ -839,4 +841,16 @@ func (a *API) SetSecrets(ctx context.Context, alias string, secrets map[string]a
 		getCreateSecretNodeOptions(secrets, nil),
 	)
 	return err
+}
+
+func (a *API) Resume(ctx context.Context, alias string) error {
+	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
+		return err
+	}
+	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
+		return err
+	} // TODO: maybe yt.PermissionUse?
+
+	marker := fmt.Sprintf("%s_%s", strconv.FormatInt(time.Now().Unix(), 10), getRandomString(5))
+	return a.SetOption(ctx, alias, "resume_marker", marker)
 }

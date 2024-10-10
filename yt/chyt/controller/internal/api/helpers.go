@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"math/rand"
 	"reflect"
 	"regexp"
 
@@ -113,4 +114,13 @@ func getCreateSecretNodeOptions(secrets map[string]any, txOptions *yt.Transactio
 		Force:              true,
 		TransactionOptions: txOptions,
 	}
+}
+
+func getRandomString(length int) string {
+	letters := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
 }
