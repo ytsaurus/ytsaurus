@@ -13,6 +13,7 @@ PEERDIR(
     yt/yt/python/yt_yson_bindings
     yt/yt_proto/yt/core
     yt/yt_proto/yt/client
+    contrib/python/allure-pytest
     contrib/python/decorator
     contrib/python/flaky
     contrib/python/grpcio
