@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"regexp"
 
+	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"golang.org/x/exp/slices"
 
 	"go.ytsaurus.tech/yt/go/yt"
@@ -90,6 +91,55 @@ func transformToStringSlice(value any) (any, error) {
 	}
 
 	return transformedAttributes, nil
+}
+
+func transformFilterValues(value any) (any, error) {
+	if value == nil {
+		return map[string]any{}, nil
+	}
+
+	filterVals, ok := value.(map[string]any)
+	if !ok {
+		typeName := reflect.TypeOf(value).String()
+		return nil, unexpectedTypeError(typeName)
+	}
+
+	allowedTypes := []string{"string", "bool"}
+	newMap := make(map[string]any, len(filterVals))
+	for k, v := range filterVals {
+		if k == "state" {
+			switch v {
+			case "active":
+				newMap[k] = strawberry.OpletStateActive
+			case "inactive":
+				newMap[k] = strawberry.OpletStateInactive
+			case "untracked":
+				newMap[k] = strawberry.OpletStateUntracked
+			default:
+				return nil, fmt.Errorf("state %s unknown", v)
+			}
+			continue
+		}
+		if k == "health" {
+			switch v {
+			case "good":
+				newMap[k] = strawberry.OpletHealthGood
+			case "pending":
+				newMap[k] = strawberry.OpletHealthPending
+			case "failed":
+				newMap[k] = strawberry.OpletHealthFailed
+			}
+			continue
+		}
+
+		valTypeName := reflect.TypeOf(v).String()
+		if slices.Contains(allowedTypes, valTypeName) {
+			newMap[k] = v
+		} else {
+			return nil, unexpectedTypeError(valTypeName)
+		}
+	}
+	return newMap, nil
 }
 
 func getCreateSecretNodeOptions(secrets map[string]any, txOptions *yt.TransactionOptions) *yt.CreateNodeOptions {
