@@ -8318,31 +8318,31 @@ TEST_F(TQueryEvaluateTest, StringAgg)
 TEST_F(TQueryEvaluateTest, ArgMin)
 {
     auto split = MakeSplit({
-        {"string", EValueType::String},
+        {"any", EValueType::Any},
         {"double", EValueType::Double},
         {"integer", EValueType::Int64}
     });
 
     std::vector<TString> source = {
-        "string=\"aaa\";double=5.55;integer=1",
-        "string=\"bbb\";double=4.44;integer=1",
-        "string=\"ccc\";double=3.33;integer=2",
-        "string=\"ddd\";double=4.44;integer=2",
-        "string=\"eee\";double=1.11;integer=1",
-        "string=\"fff\";double=6.66;integer=2"
+        "any=[1;2;3];   double=5.55;    integer=1",
+        "any=%true;     double=4.44;    integer=1",
+        "any={x=1};     double=3.33;    integer=2",
+        "any=\"aleph\"; double=4.44;    integer=2",
+        "any=0;         double=1.11;    integer=1",
+        "any=#;         double=6.66;    integer=2"
     };
 
     auto resultSplit = MakeSplit({
         {"integer", EValueType::Int64},
-        {"c", EValueType::String}
+        {"c", EValueType::Any}
     });
 
     auto result = YsonToRows({
-        "integer=1;c=\"eee\"",
-        "integer=2;c=\"ccc\""
+        "integer=1;c=0",
+        "integer=2;c={x=1}"
     }, resultSplit);
 
-    Evaluate("integer, argmin(string, double) as c from [//t] group by integer", split, source, ResultMatcher(result));
+    Evaluate("integer, argmin(any, double) as c from [//t] group by integer", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, CardinalityAggregate)
