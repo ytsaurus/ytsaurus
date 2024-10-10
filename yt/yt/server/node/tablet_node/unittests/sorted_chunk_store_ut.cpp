@@ -33,8 +33,8 @@ TEST_P(TSortedChunkStoreTestKeysFiltering, Test)
     TString upperString = std::get<1>(args);
     const auto& keyStrings = std::get<2>(args);
 
-    TLegacyOwningKey lowerKey = lowerString.Empty() ? TLegacyOwningKey{} : YsonToKey(lowerString);
-    TLegacyOwningKey upperKey = upperString.Empty() ? TLegacyOwningKey{} : YsonToKey(upperString);
+    TLegacyOwningKey lowerKey = lowerString.empty() ? TLegacyOwningKey{} : YsonToKey(lowerString);
+    TLegacyOwningKey upperKey = upperString.empty() ? TLegacyOwningKey{} : YsonToKey(upperString);
     TRowRange readRange(lowerKey.Get(), upperKey.Get());
 
     TRowBufferPtr rowBuffer = New<TRowBuffer>();

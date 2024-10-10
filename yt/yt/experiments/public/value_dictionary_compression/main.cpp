@@ -436,14 +436,14 @@ void DoRunChunkDictionaryCompression(TCompressorOptions compressorOptions)
                     compressedSize = ZSTD_compress2(
                         ctx,
                         buffer.Begin(), buffer.Size(),
-                        sample.Data(), sample.Size());
+                        sample.data(), sample.size());
                     YT_VERIFY(!ZSTD_isError(compressedSize));
                     compressedSizes.push_back(compressedSize);
                 } else {
                     compressedSize = ZSTD_compress_usingCDict(
                         ZSTD_createCCtx(),
                         buffer.Begin(), buffer.Size(),
-                        sample.Data(), sample.Size(),
+                        sample.data(), sample.size(),
                         cdict);
                     YT_VERIFY(!ZSTD_isError(compressedSize));
                     compressedSizes.push_back(compressedSize);
@@ -458,10 +458,10 @@ void DoRunChunkDictionaryCompression(TCompressorOptions compressorOptions)
 
         auto dumpStatistics = [&] (TString header) {
             Cerr << header << Endl
-                << compressedSizes[0] << "/" << frameCompressedSizes[0] << "/" << sample1.Size() << "(" << frameHeaderSizes[0] << ")" << ", "
-                << compressedSizes[1] << "/" << frameCompressedSizes[1] << "/" << sample2.Size() << "(" << frameHeaderSizes[1] << ")" << ", "
-                << compressedSizes[2] << "/" << frameCompressedSizes[2] << "/" << sample3.Size() << "(" << frameHeaderSizes[2] << ")" << ", "
-                << compressedSizes[3] << "/" << frameCompressedSizes[3] << "/" << sample4.Size() << "(" << frameHeaderSizes[3] << ")" << Endl;
+                << compressedSizes[0] << "/" << frameCompressedSizes[0] << "/" << sample1.size() << "(" << frameHeaderSizes[0] << ")" << ", "
+                << compressedSizes[1] << "/" << frameCompressedSizes[1] << "/" << sample2.size() << "(" << frameHeaderSizes[1] << ")" << ", "
+                << compressedSizes[2] << "/" << frameCompressedSizes[2] << "/" << sample3.size() << "(" << frameHeaderSizes[2] << ")" << ", "
+                << compressedSizes[3] << "/" << frameCompressedSizes[3] << "/" << sample4.size() << "(" << frameHeaderSizes[3] << ")" << Endl;
         };
 
         performCompression(nullptr, ZSTD_f_zstd1);
@@ -510,7 +510,7 @@ void DoRunChunkDictionaryCompression(TCompressorOptions compressorOptions)
             dict.Size());
 
         TBlob input;
-        input.Resize(ZSTD_compressBound(sample.Size()));
+        input.Resize(ZSTD_compressBound(sample.size()));
 
         ZSTD_CCtx* cctx = ZSTD_createCCtx();
         ZSTD_frameParameters frameParameters{
@@ -524,7 +524,7 @@ void DoRunChunkDictionaryCompression(TCompressorOptions compressorOptions)
         auto compressedSize = ZSTD_compress2(
             cctx,
             input.Begin(), input.Size(),
-            sample.Data(), sample.Size());
+            sample.data(), sample.size());
         YT_VERIFY(!ZSTD_isError(compressedSize));
         input.Resize(compressedSize);
 
@@ -535,7 +535,7 @@ void DoRunChunkDictionaryCompression(TCompressorOptions compressorOptions)
         TBlob output;
         ZSTD_frameHeader frameHeader;
         ZSTD_getFrameHeader_advanced(&frameHeader, input.Begin(), input.Size(), ZSTD_f_zstd1_magicless);
-        YT_VERIFY(frameHeader.frameContentSize == sample.Size());
+        YT_VERIFY(frameHeader.frameContentSize == sample.size());
         output.Resize(frameHeader.frameContentSize);
         auto decompressedSize = ZSTD_decompressDCtx(
             dctx,
@@ -543,7 +543,7 @@ void DoRunChunkDictionaryCompression(TCompressorOptions compressorOptions)
             input.Begin(), input.Size());
         output.Resize(decompressedSize);
         YT_VERIFY(!ZSTD_isError(decompressedSize));
-        YT_VERIFY(decompressedSize == sample.Size());
+        YT_VERIFY(decompressedSize == sample.size());
         YT_VERIFY(TString(output.Begin(), output.Size()) == sample);
         Cerr << sample << " == " << TString(output.Begin(), output.Size()) << Endl;
     }

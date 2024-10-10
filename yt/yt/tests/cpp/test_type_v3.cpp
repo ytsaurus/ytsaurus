@@ -213,7 +213,7 @@ struct TTypeV3TestWithOptimizedFor
 static std::string PrintOptimizedFor(const ::testing::TestParamInfo<TString>& info)
 {
     auto data = info.param;
-    return {data.Data(), data.Size()};
+    return {data.data(), data.size()};
 }
 
 INSTANTIATE_TEST_SUITE_P(

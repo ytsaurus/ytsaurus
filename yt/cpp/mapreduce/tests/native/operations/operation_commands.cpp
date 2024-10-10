@@ -578,7 +578,7 @@ void TestSuspendResume(bool useOperationMethods)
 
     WaitForPredicate([&] {
         TIFStream is(tempFile.Name());
-        return is.ReadAll().Size() > 0;
+        return is.ReadAll().size() > 0;
     });
 
     auto suspendOptions = TSuspendOperationOptions()
