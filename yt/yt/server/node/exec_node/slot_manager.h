@@ -345,7 +345,7 @@ private:
     bool FixableByResurrect() const;
     bool CanResurrect() const;
 
-    void SetDisableState();
+    void SetDisabledState();
 
     double GetIdleCpuFraction() const;
 
