@@ -1015,6 +1015,8 @@ private:
 
             for (int index = 0; index < std::ssize(args); ++index) {
                 switch (argTypes[index]) {
+                    case EValueType::Any:
+                    case EValueType::Composite:
                     case EValueType::String:
                         stateSize = builder->CreateAdd(stateSize, args[index].GetLength());
                         stateSize = builder->CreateAdd(stateSize, builder->getInt32(4));
@@ -1042,7 +1044,9 @@ private:
 
         for (int index = 0; index < std::ssize(args); ++index) {
             switch (argTypes[index]) {
-                case EValueType::String: {
+                case EValueType::Any:
+                case EValueType::Composite:
+                case EValueType::String:
                     builder->CreateStore(args[index].GetLength(), iterator);
                     iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, builder->getInt64(4));
                     builder->CreateMemCpy(
@@ -1053,7 +1057,6 @@ private:
                         args[index].GetLength());
                     iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, args[index].GetLength());
                     break;
-                }
                 case EValueType::Double:
                     builder->CreateStore(
                         builder->CreateZExt(args[index].GetTypedData(builder), builder->getDoubleTy()),
@@ -1092,6 +1095,8 @@ private:
 
         for (int index = 0; index < std::ssize(argTypes); ++index) {
             switch (argTypes[index]) {
+                case EValueType::Any:
+                case EValueType::Composite:
                 case EValueType::String: {
                     Value* length = builder->CreateLoad(builder->getInt32Ty(), iterator);
                     iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, builder->getInt32(4));
@@ -1101,7 +1106,7 @@ private:
                             builder->getFalse(),
                             length,
                             iterator,
-                            EValueType::String));
+                            argTypes[index]));
                     iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, length);
                     break;
                 }
