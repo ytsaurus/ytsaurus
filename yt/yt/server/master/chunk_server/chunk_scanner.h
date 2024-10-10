@@ -103,27 +103,31 @@ public:
         bool journal);
 
 protected:
+    static int GetShardIndex(TChunk* chunk);
+
+    bool IsRelevant(TChunk* chunk) const;
+};
+
+class TChunkScanQueueBase
+{
+public:
+    explicit TChunkScanQueueBase(EChunkScanKind kind);
+
+protected:
     const EChunkScanKind Kind_;
 
     static bool IsObjectAlive(TChunk* chunk);
-    static int GetShardIndex(TChunk* chunk);
 
     bool GetScanFlag(TChunk* chunk) const;
     void ClearScanFlag(TChunk* chunk);
     void SetScanFlag(TChunk* chunk);
-    bool IsRelevant(TChunk* chunk) const;
 };
 
 } // namespace NDetail
 
-//! A helper for background chunk scan.
 /*!
- *  1. In addition to handling global chunk scan, maintains a queue of chunks
- *  with payload to be scanned later. Supports dequeuing chunks enqueued up to a certain
- *  deadline instant.
- *
- *  2. Provides the effective size of the queue, including manually queued chunks and
- *  those scheduled for the global scan.
+ *  Maintains a queue of chunks with payload to be scanned later.
+ *  Supports dequeuing chunks enqueued up to a certain deadline instant.
  *
  *  To avoid adding a chunk to the queue multiple times, scan flags are used
  *  (cf. #TChunk::GetScanFlag).
@@ -131,11 +135,11 @@ protected:
  *  The chunks present in the queue carry an additional ephemeral ref.
  */
 template <class TPayload>
-class TChunkScannerWithPayload
-    : public NDetail::TChunkScannerBase
+class TChunkScanQueueWithPayload
+    : public NDetail::TChunkScanQueueBase
 {
 private:
-    using TBase = NDetail::TChunkScannerBase;
+    using TBase = NDetail::TChunkScanQueueBase;
 
     static constexpr bool WithPayload = !std::is_void_v<TPayload>;
 
@@ -148,16 +152,12 @@ private:
 public:
     using TQueuedChunk = std::conditional_t<WithPayload, TChunkWithPayload, TChunk*>;
 
-    using TBase::TChunkScannerBase::TChunkScannerBase;
+    using TBase::TBase;
 
-    void Stop(int shardIndex);
+    void Clear();
 
-    //! Enqueues a given #chunk.
     /*!
-     *  If the chunk is already queued (as indicated by its scan flag) or scanner is stopped,
-     *  does nothing and returns |false|.
-     *
-     *  If the chunk belongs to a shard which is not scanned, does nothing and returns |false|.
+     *  If the chunk is already queued (as indicated by its scan flag) does nothing and returns |false|.
      *
      *  Otherwise, sets the scan flag, ephemeral-refs the chunk, and enqueues it.
      *
@@ -167,24 +167,13 @@ public:
      */
     bool EnqueueChunk(TQueuedChunk chunk, std::optional<TCpuDuration> delay = {});
 
-    //! Tries to dequeue the next chunk.
-    /*!
-     *  If the global scan is not finished yet, returns the next chunk in the global list.
-     *
-     *  Otherwise checks the queue and dequeues the next chunk. Ephemeral-unrefs it and clears the
-     *  scan flag.
-     *
-     *  See #TGlobalChunkScanner::DequeueChunk().
-     */
+    //! Checks the queue and dequeues the next chunk. Ephemeral-unrefs it and clears the scan flag.
     TQueuedChunk DequeueChunk();
 
-    //! Returns |true| if there are some unscanned chunks, either scheduled for the global scan
-    //! or added manually at #deadline or earlier.
+    //! Returns |true| if there are some unscanned chunks added at #deadline or earlier.
     bool HasUnscannedChunk(NProfiling::TCpuInstant deadline =
         std::numeric_limits<NProfiling::TCpuInstant>::max()) const;
 
-    //! Returns the effective queue size, including both chunks scheduled for
-    //! the global scan and added manually.
     int GetQueueSize() const;
 
 private:
@@ -215,10 +204,64 @@ private:
 
     void RequeueDelayedChunks(NProfiling::TCpuInstant deadline);
 
+protected:
     static constexpr TQueuedChunk None() noexcept;
     static constexpr TQueuedChunk WithoutPayload(TChunk* chunk) noexcept;
 
     static constexpr TChunk* GetChunk(const TQueuedChunk& chunk) noexcept;
+};
+
+//! A helper for background global chunk scan.
+/*!
+ *  In addition to handling global chunk scan, maintains a queue of chunks with payload.
+ *
+ *  See #TChunkScanQueueWithPayload.
+ */
+template <class TPayload>
+class TChunkScannerWithPayload
+    : public NDetail::TChunkScannerBase
+    , public TChunkScanQueueWithPayload<TPayload>
+{
+private:
+    using TBase = NDetail::TChunkScannerBase;
+
+    using TChunkQueue = TChunkScanQueueWithPayload<TPayload>;
+
+public:
+    using TQueuedChunk = TChunkQueue::TQueuedChunk;
+
+    TChunkScannerWithPayload(
+        EChunkScanKind kind,
+        bool journal);
+
+    void Stop(int shardIndex);
+
+    //! Enqueues a given #chunk.
+    /*!
+     *  If the scanner is stopped, does nothing and returns |false|.
+     *
+     *  If the chunk belongs to a shard which is not scanned, does nothing and returns |false|.
+     *
+     *  Otherwise calls #TChunkScanQueueWithPayload::EnqueueChunk.
+     */
+    bool EnqueueChunk(TQueuedChunk chunk, std::optional<TCpuDuration> delay = {});
+
+    //! Tries to dequeue the next chunk.
+    /*!
+     *  If the global scan is not finished yet, returns the next chunk in the global list.
+     *
+     *  Otherwise checks the queue and dequeues the next chunk.
+     */
+    TQueuedChunk DequeueChunk();
+
+    //! Returns |true| if there are some unscanned chunks, either scheduled for the global scan
+    //! or added manually at #deadline or earlier.
+    bool HasUnscannedChunk(NProfiling::TCpuInstant deadline =
+        std::numeric_limits<NProfiling::TCpuInstant>::max()) const;
+
+    //! Returns the effective queue size, including both chunks scheduled for
+    //! the global scan and added manually.
+    int GetQueueSize() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

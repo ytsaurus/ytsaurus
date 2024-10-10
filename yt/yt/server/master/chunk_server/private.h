@@ -37,6 +37,10 @@ DECLARE_REFCOUNTED_STRUCT(IChunkReplicaFetcher)
 DECLARE_REFCOUNTED_CLASS(TJobRegistry)
 
 template <class TPayload>
+class TChunkScanQueueWithPayload;
+using TChunkScanQueue = TChunkScanQueueWithPayload<void>;
+
+template <class TPayload>
 class TChunkScannerWithPayload;
 using TChunkScanner = TChunkScannerWithPayload<void>;
 
