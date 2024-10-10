@@ -2274,8 +2274,10 @@ void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
             // NB: Repair queues are not cleared when shard processing is stopped,
             // so we have to handle chunks replicator should not process.
             TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes(chunk, GenericChunkReplicaIndex, mediumIndex);
-            if (!chunk->IsRefreshActual() || !replicasOrError.IsOK()) {
+            if (!chunk->IsRefreshActual()) {
                 removeFromQueue();
+                ++misscheduledRepairJobs;
+            } else if (!replicasOrError.IsOK()) {
                 ++misscheduledRepairJobs;
             } else if (TryScheduleRepairJob(context, queue, chunkWithIndexes, replicasOrError.Value())) {
                 removeFromQueue();
