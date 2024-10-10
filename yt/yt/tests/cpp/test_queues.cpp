@@ -19,6 +19,8 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/core/concurrency/thread_pool.h>
+
 #include <library/cpp/yt/string/format.h>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -743,7 +745,6 @@ TEST_F(TProducerApiTest, TestProducerClient)
 
     NQueueClient::TQueueProducerSessionId sessionId{ "session_1" };
 
-
     auto producerClient = CreateProducerClient(
         Client_,
         producerPath);
@@ -799,6 +800,9 @@ TEST_F(TProducerApiTest, TestProducerClient)
             sessionId,
             TProducerSessionOptions{
                 .AutoSequenceNumber = true,
+                .BatchOptions = TProducerSessionBatchOptions{
+                    .RowCount = 100,
+                },
             }))
             .ValueOrThrow();
 
@@ -819,6 +823,9 @@ TEST_F(TProducerApiTest, TestProducerClient)
             sessionId,
             TProducerSessionOptions{
                 .AutoSequenceNumber = true,
+                .BatchOptions = TProducerSessionBatchOptions{
+                    .RowCount = 100,
+                },
             }))
             .ValueOrThrow();
 
@@ -840,7 +847,9 @@ TEST_F(TProducerApiTest, TestProducerClient)
             sessionId,
             TProducerSessionOptions{
                 .AutoSequenceNumber = true,
-                .MaxBufferSize = 15,
+                .BatchOptions = TProducerSessionBatchOptions{
+                    .ByteSize = 15,
+                },
             }))
             .ValueOrThrow();
 
@@ -868,7 +877,12 @@ TEST_F(TProducerApiTest, TestProducerClient)
         return WaitFor(producerClient->CreateSession(
             queuePath,
             nameTable,
-            sessionId))
+            sessionId,
+            TProducerSessionOptions{
+                .BatchOptions = TProducerSessionBatchOptions{
+                    .RowCount = 100,
+                },
+            }))
             .ValueOrThrow();
     };
 
@@ -911,6 +925,46 @@ TEST_F(TProducerApiTest, TestProducerClient)
 
         checkQueue(124);
         checkProducer(123, 5);
+    }
+
+    // Flush in background.
+    auto threadPool = CreateThreadPool(1, "ThreadPool");
+    {
+        auto backgroundFlushPeriod = TDuration::Seconds(5);
+        auto producerSession = WaitFor(producerClient->CreateSession(
+            queuePath,
+            nameTable,
+            sessionId,
+            TProducerSessionOptions{
+                .AutoSequenceNumber = true,
+                .BackgroundFlushPeriod = backgroundFlushPeriod,
+            },
+            threadPool->GetInvoker()
+        )).ValueOrThrow();
+
+        pushBatch(producerSession);
+
+        // Wait for the first flush.
+        checkQueue(134);
+        checkProducer(133, 6);
+
+        pushBatch(producerSession);
+        // Old values, flush was not called yet.
+        checkQueue(134);
+        checkProducer(133, 6);
+
+        Sleep(backgroundFlushPeriod);
+
+        checkQueue(144);
+        checkProducer(143, 6);
+
+        pushBatch(producerSession);
+
+        WaitFor(producerSession->Close())
+            .ThrowOnError();
+
+        checkQueue(154);
+        checkProducer(153, 6);
     }
 }
 

@@ -29,11 +29,9 @@ PEERDIR(
 
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/recipe/recipe.inc)
 
-TAG(ya:yt ya:fat ya:huge_logs)
 
-SIZE(LARGE)
+SIZE(MEDIUM)
 
-YT_SPEC(yt/yt/tests/integration/spec.yson)
 
 IF (SANITIZER_TYPE)
     REQUIREMENTS(ram:20)

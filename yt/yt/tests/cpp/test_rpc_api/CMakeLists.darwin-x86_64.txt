@@ -65,7 +65,7 @@ set_property(
   cpp-integration-test-rpc-api
   PROPERTY
   LABELS
-  LARGE
+  MEDIUM
 )
 
 set_property(
