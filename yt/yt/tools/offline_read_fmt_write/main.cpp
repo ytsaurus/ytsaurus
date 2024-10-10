@@ -248,7 +248,7 @@ void GuardedMain(int argc, char** argv)
     TOptsParseResult results(&opts, argc, argv);
 
     NFormats::TFormat format;
-    if (!formatFileStr.Empty()) {
+    if (!formatFileStr.empty()) {
         auto formatYsonStr = TFileInput(formatFileStr).ReadAll();
         format =  NYTree::ConvertTo<NFormats::TFormat>(TYsonString(formatYsonStr));
     } else {

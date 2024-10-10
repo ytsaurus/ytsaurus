@@ -48,7 +48,7 @@ std::optional<ui32> GetProtoExtensionSize(const NYT::NProto::TExtensionSet& exte
     for (const auto& extension : extensions.extensions()) {
         if (extension.tag() == tag) {
             const auto& data = extension.data();
-            result = data.Size();
+            result = data.size();
             break;
         }
     }
@@ -58,7 +58,7 @@ std::optional<ui32> GetProtoExtensionSize(const NYT::NProto::TExtensionSet& exte
 void ProcessChunkMeta(const TFsPath& pathToMeta)
 {
     constexpr size_t MetaExtensionLength = 5;
-    auto chunkId = pathToMeta.GetName().substr(0, pathToMeta.GetName().Size() - MetaExtensionLength);
+    auto chunkId = pathToMeta.GetName().substr(0, pathToMeta.GetName().size() - MetaExtensionLength);
 
     auto chunkReader = New<NYT::NIO::TChunkFileReader>(
         GetIOEngine(),

@@ -120,8 +120,8 @@ public:
             .OperationAttributesLength = options.OperationAttributes.AsStringBuf().size(),
             .YTTokenPath = options.YTTokenPath.data(),
             .LogBackend = &options.LogBackend,
-            .Libraries = options.Libraries.AsStringBuf().Data(),
-            .LibrariesLength = options.Libraries.AsStringBuf().Size(),
+            .Libraries = options.Libraries.AsStringBuf().data(),
+            .LibrariesLength = options.Libraries.AsStringBuf().size(),
         };
 
         BridgePlugin_ = BridgeCreateYqlPlugin(&bridgeOptions);

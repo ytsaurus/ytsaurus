@@ -578,7 +578,7 @@ TEST_P(TErasureMixtureTest, Writer)
         } else if (i < 12) {
             EXPECT_EQ("", TUnbufferedFileInput("part" + ToString(i + 1)).ReadAll());
         } else {
-            EXPECT_EQ(64u, TUnbufferedFileInput("part" + ToString(i + 1)).ReadAll().Size());
+            EXPECT_EQ(64u, TUnbufferedFileInput("part" + ToString(i + 1)).ReadAll().size());
         }
     }
 
@@ -623,7 +623,7 @@ TEST_P(TErasureMixtureTest, WriterStriped)
         } else if (i < 12) {
             EXPECT_EQ("", data);
         } else {
-            EXPECT_EQ(128u, data.Size());
+            EXPECT_EQ(128u, data.size());
         }
     }
 
