@@ -94,6 +94,7 @@ using namespace NChunkServer::NProto;
 using namespace NCellMaster;
 using namespace NTransactionClient;
 
+using NYT::FromProto;
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -361,6 +362,8 @@ TChunkReplicator::TChunkReplicator(
     , JournalRequisitionUpdateScanner_(std::make_unique<TChunkScanner>(
         EChunkScanKind::RequisitionUpdate,
         /*journal*/ true))
+    , ChunksAwaitingRequisitionUpdateScheduling_(std::make_unique<TChunkScanQueue>(
+        EChunkScanKind::RequisitionUpdate))
     , MissingPartChunkRepairQueueBalancer_(
         Config_->RepairQueueBalancerWeightDecayFactor,
         Config_->RepairQueueBalancerWeightDecayInterval)
@@ -459,8 +462,9 @@ void TChunkReplicator::OnEpochFinished()
 
     ClearChunkRequisitionCache();
     TmpRequisitionRegistry_.Clear();
+
+    ChunksAwaitingRequisitionUpdateScheduling_->Clear();
     ChunkListIdsWithFinishedRequisitionTraverse_.clear();
-    ChunkIdsAwaitingRequisitionUpdateScheduling_.clear();
 
     for (auto queueKind : TEnumTraits<EChunkRepairQueue>::GetDomainValues()) {
         for (auto& queue : ChunkRepairQueues(queueKind)) {
@@ -2972,7 +2976,7 @@ void TChunkReplicator::OnProfiling(TSensorBuffer* buffer, TSensorBuffer* crpBuff
     buffer->AddGauge("/blob_requisition_update_queue_size", BlobRequisitionUpdateScanner_->GetQueueSize());
     buffer->AddGauge("/journal_refresh_queue_size", JournalRefreshScanner_->GetQueueSize());
     buffer->AddGauge("/journal_requisition_update_queue_size", JournalRequisitionUpdateScanner_->GetQueueSize());
-    buffer->AddGauge("/chunk_ids_awaiting_requisition_update_scheduling", ChunkIdsAwaitingRequisitionUpdateScheduling_.size());
+    buffer->AddGauge("/awaiting_requisition_update_scheduling_chunk_count", ChunksAwaitingRequisitionUpdateScheduling_->GetQueueSize());
 
     buffer->AddGauge("/lost_chunk_count", LostChunks_.size());
     buffer->AddGauge("/lost_vital_chunk_count", LostVitalChunks_.size());
@@ -3170,7 +3174,7 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
             const NChunkClient::TReadLimit& /*endLimit*/,
             const TChunkViewModifier* /*modifier*/) override
         {
-            Owner_->ChunkIdsAwaitingRequisitionUpdateScheduling_.push_back(chunk->GetId());
+            Owner_->ChunksAwaitingRequisitionUpdateScheduling_->EnqueueChunk(chunk);
             return true;
         }
 
@@ -3225,32 +3229,43 @@ void TChunkReplicator::OnScheduleChunkRequisitionUpdatesFlush()
         return;
     }
 
-    auto limit = std::min<int>(
-        GetDynamicConfig()->MaxChunksPerRequisitionUpdateScheduling,
-        std::ssize(ChunkIdsAwaitingRequisitionUpdateScheduling_));
-
     TReqScheduleChunkRequisitionUpdates request;
-    request.mutable_chunk_ids()->Reserve(limit);
-    for (auto i = 0; i < limit; ++i) {
-        ToProto(request.add_chunk_ids(), ChunkIdsAwaitingRequisitionUpdateScheduling_[i]);
+
+    int totalCount = 0;
+    while (totalCount < GetDynamicConfig()->MaxChunksPerRequisitionUpdateScheduling &&
+        ChunksAwaitingRequisitionUpdateScheduling_->HasUnscannedChunk())
+    {
+        ++totalCount;
+        auto* chunk = ChunksAwaitingRequisitionUpdateScheduling_->DequeueChunk();
+        if (!IsObjectAlive(chunk)) {
+            continue;
+        }
+
+        ToProto(request.add_chunk_ids(), chunk->GetId());
     }
 
-    if (request.chunk_ids_size() > 0) {
-        YT_LOG_DEBUG("Flushing chunks scheduled for requisition update (Count: %v)",
-            request.chunk_ids_size());
+    if (request.chunk_ids_size() == 0) {
+        return;
+    }
 
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto mutation = chunkManager->CreateScheduleChunkRequisitionUpdatesMutation(request);
-        mutation->SetAllowLeaderForwarding(true);
-        auto rspOrError = WaitFor(mutation->CommitAndLog(Logger()));
-        if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError,
-                "Failed to schedule chunk requisition update flush");
-            return;
+    YT_LOG_DEBUG("Flushing chunks scheduled for requisition update (Count: %v)",
+        request.chunk_ids_size());
+
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    auto mutation = chunkManager->CreateScheduleChunkRequisitionUpdatesMutation(request);
+    mutation->SetAllowLeaderForwarding(true);
+    auto rspOrError = WaitFor(mutation->CommitAndLog(Logger()));
+    if (!rspOrError.IsOK()) {
+        YT_LOG_WARNING(rspOrError,
+            "Failed to schedule chunk requisition update flush");
+
+        for (auto protoChunkId : request.chunk_ids()) {
+            auto* chunk = chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId));
+            if (!IsObjectAlive(chunk)) {
+                continue;
+            }
+            ChunksAwaitingRequisitionUpdateScheduling_->EnqueueChunk(chunk);
         }
-        ChunkIdsAwaitingRequisitionUpdateScheduling_.erase(
-            ChunkIdsAwaitingRequisitionUpdateScheduling_.begin(),
-            ChunkIdsAwaitingRequisitionUpdateScheduling_.begin() + request.chunk_ids_size());
     }
 }
 
@@ -3517,6 +3532,7 @@ void TChunkReplicator::OnFinishedRequisitionTraverseFlush()
 
     TReqConfirmChunkListsRequisitionTraverseFinished request;
     ToProto(request.mutable_chunk_list_ids(), ChunkListIdsWithFinishedRequisitionTraverse_);
+    ChunkListIdsWithFinishedRequisitionTraverse_.clear();
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto mutation = chunkManager->CreateConfirmChunkListsRequisitionTraverseFinishedMutation(request);
@@ -3527,9 +3543,6 @@ void TChunkReplicator::OnFinishedRequisitionTraverseFlush()
             "Failed to flush finished requisition traverse");
         return;
     }
-    ChunkListIdsWithFinishedRequisitionTraverse_.erase(
-        ChunkListIdsWithFinishedRequisitionTraverse_.begin(),
-        ChunkListIdsWithFinishedRequisitionTraverse_.begin() + request.chunk_list_ids_size());
 }
 
 TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)

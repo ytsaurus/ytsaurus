@@ -13,30 +13,24 @@ namespace NYT::NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TPayload>
-void TChunkScannerWithPayload<TPayload>::Stop(int shardIndex)
+void TChunkScanQueueWithPayload<TPayload>::Clear()
 {
-    TBase::Stop(shardIndex);
-
-    // If there are no more active shards, we clear the queue to drop all the
-    // ephemeral references. Since queue may be huge, destruction is offloaded
-    // into separate thread. Otherwise, queue is not changed. Note that queue
-    // now may contain chunks from non-active shards. We have to properly handle
-    // them during chunk dequeueing.
-    if (ActiveShardIndices_.none()) {
-        std::queue<TQueueEntry> queue;
-        std::swap(Queue_, queue);
+    // Since queue may be huge, destruction is offloaded into separate thread.
+    // Otherwise, queue is not changed.
+    auto doClear = [] <class T> (std::queue<T>& queue_) {
+        std::queue<T> queue;
+        std::swap(queue_, queue);
         NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
             BIND([queue = std::move(queue)] { Y_UNUSED(queue); }));
-    }
+    };
+
+    doClear(Queue_);
+    doClear(DelayedQueue_);
 }
 
 template <class TPayload>
-bool TChunkScannerWithPayload<TPayload>::EnqueueChunk(TQueuedChunk chunk, std::optional<TCpuDuration> delay)
+bool TChunkScanQueueWithPayload<TPayload>::EnqueueChunk(TQueuedChunk chunk, std::optional<TCpuDuration> delay)
 {
-    if (!IsRelevant(GetChunk(chunk))) {
-        return false;
-    }
-
     if (GetScanFlag(GetChunk(chunk))) {
         return false;
     }
@@ -73,12 +67,8 @@ bool TChunkScannerWithPayload<TPayload>::EnqueueChunk(TQueuedChunk chunk, std::o
 }
 
 template <class TPayload>
-auto TChunkScannerWithPayload<TPayload>::DequeueChunk() -> TQueuedChunk
+auto TChunkScanQueueWithPayload<TPayload>::DequeueChunk() -> TQueuedChunk
 {
-    if (TBase::HasUnscannedChunk()) {
-        return WithoutPayload(TGlobalChunkScanner::DequeueChunk());
-    }
-
     RequeueDelayedChunks(GetCpuInstant());
 
     if (Queue_.empty()) {
@@ -99,25 +89,15 @@ auto TChunkScannerWithPayload<TPayload>::DequeueChunk() -> TQueuedChunk
     }
     Queue_.pop();
 
-    auto relevant = IsRelevant(chunk);
     if (IsObjectAlive(chunk)) {
-        if (relevant) {
-            YT_ASSERT(GetScanFlag(chunk));
-            ClearScanFlag(chunk);
-        } else {
-            YT_ASSERT(!GetScanFlag(chunk));
-        }
+        ClearScanFlag(chunk);
     }
 
-    if (relevant) {
-        return front;
-    }
-
-    return None();
+    return front;
 }
 
 template <class TPayload>
-void TChunkScannerWithPayload<TPayload>::RequeueDelayedChunks(NProfiling::TCpuInstant deadline)
+void TChunkScanQueueWithPayload<TPayload>::RequeueDelayedChunks(NProfiling::TCpuInstant deadline)
 {
     while (!DelayedQueue_.empty() && DelayedQueue_.front().Deadline < deadline) {
         auto queueEntry = std::move(DelayedQueue_.front().QueueEntry);
@@ -128,12 +108,8 @@ void TChunkScannerWithPayload<TPayload>::RequeueDelayedChunks(NProfiling::TCpuIn
 }
 
 template <class TPayload>
-bool TChunkScannerWithPayload<TPayload>::HasUnscannedChunk(NProfiling::TCpuInstant deadline) const
+bool TChunkScanQueueWithPayload<TPayload>::HasUnscannedChunk(NProfiling::TCpuInstant deadline) const
 {
-    if (TBase::HasUnscannedChunk(deadline)) {
-        return true;
-    }
-
     if (!Queue_.empty()) {
         return Queue_.front().Instant < deadline;
     }
@@ -146,19 +122,19 @@ bool TChunkScannerWithPayload<TPayload>::HasUnscannedChunk(NProfiling::TCpuInsta
 }
 
 template <class TPayload>
-int TChunkScannerWithPayload<TPayload>::GetQueueSize() const
+int TChunkScanQueueWithPayload<TPayload>::GetQueueSize() const
 {
-    return std::ssize(Queue_) + std::ssize(DelayedQueue_) + TBase::GetQueueSize();
+    return std::ssize(Queue_) + std::ssize(DelayedQueue_);
 }
 
 template <class TPayload>
-constexpr auto TChunkScannerWithPayload<TPayload>::None() noexcept -> TQueuedChunk
+constexpr auto TChunkScanQueueWithPayload<TPayload>::None() noexcept -> TQueuedChunk
 {
     return WithoutPayload(nullptr);
 }
 
 template <class TPayload>
-constexpr auto TChunkScannerWithPayload<TPayload>::WithoutPayload(TChunk* chunk) noexcept -> TQueuedChunk
+constexpr auto TChunkScanQueueWithPayload<TPayload>::WithoutPayload(TChunk* chunk) noexcept -> TQueuedChunk
 {
     if constexpr (WithPayload) {
         return {chunk, TPayload{}};
@@ -168,13 +144,79 @@ constexpr auto TChunkScannerWithPayload<TPayload>::WithoutPayload(TChunk* chunk)
 }
 
 template <class TPayload>
-constexpr TChunk* TChunkScannerWithPayload<TPayload>::GetChunk(const TQueuedChunk& chunk) noexcept
+constexpr TChunk* TChunkScanQueueWithPayload<TPayload>::GetChunk(const TQueuedChunk& chunk) noexcept
 {
     if constexpr (WithPayload) {
         return chunk.Chunk;
     } else {
         return chunk;
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TPayload>
+TChunkScannerWithPayload<TPayload>::TChunkScannerWithPayload(
+    EChunkScanKind kind,
+    bool journal)
+    : TBase(kind, journal)
+    , TChunkQueue(kind)
+{ }
+
+template <class TPayload>
+void TChunkScannerWithPayload<TPayload>::Stop(int shardIndex)
+{
+    TBase::Stop(shardIndex);
+
+    // If there are no more active shards, we clear the queue to drop all the
+    // ephemeral references. Note that queue now may contain chunks
+    // from non-active shards. We have to properly handle them during
+    // chunk dequeueing.
+    if (ActiveShardIndices_.none()) {
+        TChunkQueue::Clear();
+    }
+}
+
+template <class TPayload>
+bool TChunkScannerWithPayload<TPayload>::EnqueueChunk(TQueuedChunk chunk, std::optional<TCpuDuration> delay)
+{
+    if (!TBase::IsRelevant(TChunkQueue::GetChunk(chunk))) {
+        return false;
+    }
+
+    return TChunkQueue::EnqueueChunk(std::move(chunk), delay);
+}
+
+template <class TPayload>
+auto TChunkScannerWithPayload<TPayload>::DequeueChunk() -> TQueuedChunk
+{
+    if (TBase::HasUnscannedChunk()) {
+        return TChunkQueue::WithoutPayload(TGlobalChunkScanner::DequeueChunk());
+    }
+
+    auto front = TChunkQueue::DequeueChunk();
+
+    if (TBase::IsRelevant(TChunkQueue::GetChunk(front))) {
+        return front;
+    }
+
+    return TChunkQueue::None();
+}
+
+template <class TPayload>
+bool TChunkScannerWithPayload<TPayload>::HasUnscannedChunk(NProfiling::TCpuInstant deadline) const
+{
+    if (TBase::HasUnscannedChunk(deadline)) {
+        return true;
+    }
+
+    return TChunkQueue::HasUnscannedChunk(deadline);
+}
+
+template <class TPayload>
+int TChunkScannerWithPayload<TPayload>::GetQueueSize() const
+{
+    return TBase::GetQueueSize() + TChunkQueue::GetQueueSize();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
