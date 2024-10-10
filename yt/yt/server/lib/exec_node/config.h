@@ -163,9 +163,9 @@ public:
 
     TDuration SlotReleaseTimeout;
 
-    bool AbortOnFreeVolumeSynchronizationFailed;
+    TDuration VolumeReleaseTimeout;
 
-    bool AbortOnFreeSlotSynchronizationFailed;
+    bool AbortOnFreeVolumeSynchronizationFailed;
 
     bool AbortOnJobsDisabled;
 

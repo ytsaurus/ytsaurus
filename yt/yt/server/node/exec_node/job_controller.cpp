@@ -424,6 +424,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
+        TForbidContextSwitchGuard guard;
+
         std::vector<TFuture<void>> jobResourceReleaseFutures;
         jobResourceReleaseFutures.reserve(std::size(JobsWaitingForCleanup_) + std::size(IdToJob_));
 
@@ -435,7 +437,7 @@ public:
             jobResourceReleaseFutures.push_back(job->GetCleanupFinishedEvent());
         }
 
-        return AllSet(std::move(jobResourceReleaseFutures))
+        return AllSucceeded(std::move(jobResourceReleaseFutures))
             .AsVoid();
     }
 
@@ -1570,6 +1572,8 @@ private:
 
     void OnJobCleanupFinished(const TJobPtr& job)
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         YT_VERIFY(job->GetPhase() == EJobPhase::Finished);
         if (JobsWaitingForCleanup_.erase(job)) {
             YT_LOG_DEBUG(
