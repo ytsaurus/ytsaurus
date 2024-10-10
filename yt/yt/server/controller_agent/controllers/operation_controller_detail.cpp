@@ -1324,7 +1324,7 @@ void TOperationControllerBase::SleepInRevive()
     }
 }
 
-//COMPAT(pogorelov)
+// COMPAT(pogorelov)
 void TOperationControllerBase::ClearEmptyAllocationsInRevive()
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());

@@ -172,7 +172,7 @@ private:
         }
 
         if (value->has_replication_card_migrated()) {
-            //TODO(osidorkin): Hint residency cache about migration?
+            // TODO(osidorkin): Hint residency cache about migration?
             future = WatchUpstream(replicationCardId, timestamp);
             guard.Release();
             YT_LOG_DEBUG("Replication card migrated (Response: %v)", response);

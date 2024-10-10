@@ -363,7 +363,7 @@ void TUser::Load(TLoadContext& context)
         Load(context, Tags_);
     }
 
-    //COMPAT(cherepashka)
+    // COMPAT(cherepashka)
     if (context.GetVersion() >= EMasterReign::FixLastSeenPersistance_23_2 && context.GetVersion() < EMasterReign::SecondaryIndex ||
         context.GetVersion() >= EMasterReign::FixLastSeenPersistance)
     {

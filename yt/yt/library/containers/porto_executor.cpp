@@ -916,7 +916,7 @@ private:
                 } else if (state.value() == "dead" || state.value() == "stopped") {
                     HandleResult(container.name(), getProperty(container, "exit_status"));
                 }
-                //TODO(dcherednik): other states
+                // TODO(dcherednik): other states
             }
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Fatal exception occurred while polling Porto");

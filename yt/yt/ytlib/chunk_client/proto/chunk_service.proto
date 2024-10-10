@@ -336,7 +336,7 @@ message TRspAttachChunkTrees
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//COMPAT(aleksandra-zh)
+// COMPAT(aleksandra-zh)
 message TReqExecuteBatch
 {
     repeated TReqCreateChunk create_chunk_subrequests = 1;

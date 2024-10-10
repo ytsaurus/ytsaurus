@@ -612,12 +612,12 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(30)
         .GreaterThanOrEqual(0);
 
-    //COMPAT(abogutskiy): alias should be removed after migration to forbidden_compression_codecs option
+    // COMPAT(abogutskiy): alias should be removed after migration to forbidden_compression_codecs option
     registrar.Parameter("forbidden_compression_codecs", &TThis::ForbiddenCompressionCodecs)
         .Alias("deprecated_codec_ids")
         .Default();
 
-    //COMPAT(abogutskiy): alias should be removed after migration to forbidden_compression_codec_name_to_alias option
+    // COMPAT(abogutskiy): alias should be removed after migration to forbidden_compression_codec_name_to_alias option
     registrar.Parameter("forbidden_compression_codec_name_to_alias", &TThis::ForbiddenCompressionCodecNameToAlias)
         .Alias("deprecated_codec_name_to_alias")
         .Default();
