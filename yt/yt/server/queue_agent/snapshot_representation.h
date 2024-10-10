@@ -8,7 +8,11 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void BuildQueueStatusYson(const TQueueSnapshotPtr& snapshot, const NAlertManager::IAlertManagerPtr& alertManager, NYTree::TFluentAny fluent);
+void BuildQueueStatusYson(
+    const TQueueSnapshotPtr& snapshot,
+    const NAlertManager::IAlertManagerPtr& alertManager,
+    const TErrorOr<THashMap<TString, TQueueExportProgressPtr>>& queueExportsProgressOrError,
+    NYTree::TFluentAny fluent);
 void BuildQueuePartitionListYson(const TQueueSnapshotPtr& snapshot, NYTree::TFluentAny fluent);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -19,6 +19,7 @@ struct IObjectStore
 {
     //! Returns null if requested object not found.
     virtual TRefCountedPtr FindSnapshot(NQueueClient::TCrossClusterReference objectRef) const = 0;
+    virtual NYTree::IYPathServicePtr GetObjectService(EObjectKind objectKind) const = 0;
 
     //! Returns empty vector if requested object not found.
     virtual std::vector<NQueueClient::TConsumerRegistrationTableRow> GetRegistrations(

@@ -115,6 +115,13 @@ std::optional<T> MinOrValue(std::optional<T> lhs, std::optional<T> rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFuture<THashMap<TString, TQueueExportProgressPtr>> GetQueueExportProgressFromObjectService(
+    const NYTree::IYPathServicePtr& queueService,
+    const NYPath::TRichYPath& queuePath,
+    const IInvokerPtr& invoker = GetCurrentInvoker());
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueueAgent
 
 #define HELPERS_INL_H_

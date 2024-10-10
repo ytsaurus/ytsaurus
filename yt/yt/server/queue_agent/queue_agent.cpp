@@ -1,11 +1,12 @@
 #include "queue_agent.h"
 
 #include "config.h"
+#include "consumer_controller.h"
 #include "helpers.h"
 #include "snapshot.h"
 #include "object.h"
 #include "queue_controller.h"
-#include "consumer_controller.h"
+#include "queue_static_table_exporter.h"
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
@@ -260,6 +261,11 @@ TRefCountedPtr TQueueAgent::FindSnapshot(TCrossClusterReference objectRef) const
     }
 
     return nullptr;
+}
+
+NYTree::IYPathServicePtr TQueueAgent::GetObjectService(EObjectKind objectKind) const
+{
+    return ObjectServiceNodes_[objectKind];
 }
 
 std::vector<TConsumerRegistrationTableRow> TQueueAgent::GetRegistrations(

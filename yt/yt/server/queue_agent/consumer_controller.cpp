@@ -608,7 +608,7 @@ bool UpdateConsumerController(
     const TConsumerTableRow& row,
     const std::optional<TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
     const IObjectStore* store,
-    TQueueControllerDynamicConfigPtr dynamicConfig,
+    const TQueueControllerDynamicConfigPtr& dynamicConfig,
     TQueueAgentClientDirectoryPtr clientDirectory,
     IInvokerPtr invoker)
 {
@@ -621,7 +621,7 @@ bool UpdateConsumerController(
         row,
         replicatedTableMappingRow,
         store,
-        std::move(dynamicConfig),
+        dynamicConfig,
         std::move(clientDirectory),
         std::move(invoker));
     return true;

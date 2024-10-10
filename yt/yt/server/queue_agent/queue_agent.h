@@ -63,6 +63,7 @@ public:
     // IObjectStore implementation.
 
     TRefCountedPtr FindSnapshot(NQueueClient::TCrossClusterReference objectRef) const override;
+    NYTree::IYPathServicePtr GetObjectService(EObjectKind objectKind) const override;
 
     std::vector<NQueueClient::TConsumerRegistrationTableRow> GetRegistrations(
         NQueueClient::TCrossClusterReference objectRef,
