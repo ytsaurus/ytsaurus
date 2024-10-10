@@ -19,6 +19,8 @@ ELSE()
         yt/python/yt/environment/arcadia_interop
 
         yt/yt/python/yt_driver_rpc_bindings
+
+        contrib/python/allure-pytest
     )
 ENDIF()
 
