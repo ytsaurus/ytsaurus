@@ -252,6 +252,7 @@ private:
 
     TError ComputeDataCenterFaultiness(
         const NNodeTrackerServer::TDataCenter* dataCenter,
+        const NNodeTrackerClient::TAggregatedNodeStatistics& dataCenterStatistics,
         bool dataCenterIsEnabled) const;
 };
 

@@ -867,12 +867,17 @@ public:
         return FlavoredNodeStatistics_[flavor];
     }
 
-    TAggregatedNodeStatistics GetDataCenterNodeStatistics(const TDataCenter* dataCenter) override
+    std::optional<TAggregatedNodeStatistics> GetDataCenterNodeStatistics(const TDataCenter* dataCenter) override
     {
         MaybeRebuildAggregatedNodeStatistics();
 
         auto guard = ReaderGuard(NodeStatisticsLock_);
-        return GetOrCrash(DataCenterNodeStatistics_, dataCenter);
+        auto dataCenterStatistics = DataCenterNodeStatistics_.find(dataCenter);
+        if (dataCenterStatistics != DataCenterNodeStatistics_.end()) {
+            return dataCenterStatistics->second;
+        }
+
+        return {};
     }
 
     int GetOnlineNodeCount() override
