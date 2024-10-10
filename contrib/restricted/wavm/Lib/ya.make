@@ -2,8 +2,6 @@
 
 LIBRARY()
 
-VERSION(2022-05-14)
-
 LICENSE(
     Apache-2.0 AND
     BSD-3-Clause AND
@@ -12,6 +10,8 @@ LICENSE(
 )
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
+
+VERSION(2022-05-14)
 
 PEERDIR(
     contrib/libs/libunwind
@@ -148,7 +148,6 @@ SRCS(
     Platform/POSIX/FilePOSIX.cpp
     Platform/POSIX/MemoryPOSIX.cpp
     Platform/POSIX/MutexPOSIX.cpp
-    Platform/POSIX/POSIX-X86_64.S
     Platform/POSIX/RWMutexPOSIX.cpp
     Platform/POSIX/RandomPOSIX.cpp
     Platform/POSIX/SignalPOSIX.cpp
@@ -189,5 +188,15 @@ SRCS(
     WASTPrint/Print.cpp
     wavm-c/wavm-c.cpp
 )
+
+IF (ARCH_AARCH64)
+    SRCS(
+        Platform/POSIX/POSIX-AArch64.S
+    )
+ELSE()
+    SRCS(
+        Platform/POSIX/POSIX-X86_64.S
+    )
+ENDIF()
 
 END()

@@ -148,7 +148,6 @@ target_sources(restricted-wavm-Lib PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Lib/Platform/POSIX/FilePOSIX.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Lib/Platform/POSIX/MemoryPOSIX.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Lib/Platform/POSIX/MutexPOSIX.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Lib/Platform/POSIX/POSIX-X86_64.S
   ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Lib/Platform/POSIX/RWMutexPOSIX.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Lib/Platform/POSIX/RandomPOSIX.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Lib/Platform/POSIX/SignalPOSIX.cpp
@@ -188,5 +187,6 @@ target_sources(restricted-wavm-Lib PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Lib/WASTParse/ParseTests.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Lib/WASTPrint/Print.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Lib/wavm-c/wavm-c.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Lib/Platform/POSIX/POSIX-AArch64.S
 )
 
