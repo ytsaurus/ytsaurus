@@ -29,7 +29,6 @@
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
-#include <yt/yt/server/lib/hive/mailbox.h>
 #include <yt/yt/server/lib/hive/helpers.h>
 #include <yt/yt/server/lib/hive/proto/hive_manager.pb.h>
 

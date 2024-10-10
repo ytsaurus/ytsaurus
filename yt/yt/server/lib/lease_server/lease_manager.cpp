@@ -7,7 +7,6 @@
 #include <yt/yt/server/lib/lease_server/proto/lease_manager.pb.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
-#include <yt/yt/server/lib/hive/mailbox.h>
 
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 #include <yt/yt/server/lib/hydra/entity_map.h>

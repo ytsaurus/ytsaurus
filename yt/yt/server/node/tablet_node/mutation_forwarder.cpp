@@ -4,7 +4,6 @@
 #include "tablet.h"
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
-#include <yt/yt/server/lib/hive/mailbox.h>
 
 #include <google/protobuf/message.h>
 
