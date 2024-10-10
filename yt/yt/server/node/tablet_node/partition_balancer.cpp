@@ -80,22 +80,43 @@ class TPartitionBalancer
 public:
     explicit TPartitionBalancer(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-        , Config_(Bootstrap_->GetConfig()->TabletNode->PartitionBalancer)
-        , Semaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentSamplings))
+        , Semaphore_(New<TAsyncSemaphore>(Bootstrap_->GetConfig()->TabletNode->PartitionBalancer->MaxConcurrentSamplings))
         , ThrottlerManager_(New<TThrottlerManager>(
-            Config_->ChunkLocationThrottler,
+            Bootstrap_->GetConfig()->TabletNode->PartitionBalancer->ChunkLocationThrottler,
             Logger))
-    { }
+    {
+        Config_.Store(Bootstrap_->GetConfig()->TabletNode->PartitionBalancer);
+        Bootstrap_
+            ->GetDynamicConfigManager()
+            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TPartitionBalancer::OnDynamicConfigChanged, MakeWeak(this)));
+    }
 
 private:
     IBootstrap* const Bootstrap_;
-    const TPartitionBalancerConfigPtr Config_;
 
     const TAsyncSemaphorePtr Semaphore_;
     const TThrottlerManagerPtr ThrottlerManager_;
 
     const TProfiler Profiler_ = TabletNodeProfiler.WithPrefix("/partition_balancer");
+
+    TAtomicIntrusivePtr<TPartitionBalancerConfig> Config_;
     TEventTimer ScanTime_ = Profiler_.Timer("/scan_time");
+
+    TPartitionBalancerConfigPtr GetConfig() const
+    {
+        return Config_.Acquire();
+    }
+
+    void OnDynamicConfigChanged(
+        const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
+    {
+        Config_.Store(Bootstrap_
+            ->GetConfig()
+            ->TabletNode
+            ->PartitionBalancer
+            ->ApplyDynamic(newNodeConfig->TabletNode->PartitionBalancer, Semaphore_));
+    }
 
     void ProcessLsmActionBatch(
         const ITabletSlotPtr& slot,
@@ -308,15 +329,16 @@ private:
         YT_VERIFY(tablet == partition->GetTablet());
         const auto& hydraManager = slot->GetHydraManager();
         const auto& structuredLogger = tablet->GetStructuredLogger();
+        auto config = Config_.Acquire();
 
         YT_LOG_INFO("Partition is eligible for split (SplitFactor: %v)",
             splitFactor);
 
         try {
             auto rowBuffer = New<TRowBuffer>();
-            auto samples = GetPartitionSamples(rowBuffer, slot, partition, Config_->MaxPartitioningSampleCount);
+            auto samples = GetPartitionSamples(rowBuffer, slot, partition, config->MaxPartitioningSampleCount);
             int sampleCount = static_cast<int>(samples.size());
-            int minSampleCount = std::max(Config_->MinPartitioningSampleCount, splitFactor);
+            int minSampleCount = std::max(config->MinPartitioningSampleCount, splitFactor);
             if (sampleCount < minSampleCount) {
                 structuredLogger->LogEvent("abort_partition_split")
                     .Item("partition_id").Value(partition->GetId())
@@ -365,7 +387,7 @@ private:
             structuredLogger->LogEvent("backoff_partition_split")
                 .Item("partition_id").Value(partition->GetId());
             partition->CheckedSetState(EPartitionState::Splitting, EPartitionState::Normal);
-            partition->SetAllowedSplitTime(TInstant::Now() + Config_->SplitRetryDelay);
+            partition->SetAllowedSplitTime(TInstant::Now() + config->SplitRetryDelay);
         }
     }
 
@@ -561,8 +583,10 @@ private:
 
         auto nodeDirectory = Bootstrap_->GetConnection()->GetNodeDirectory();
 
+        const auto& config = Bootstrap_->GetConfig()->TabletNode->PartitionBalancer;
+
         auto chunkScraper = CreateFetcherChunkScraper(
-            Config_->ChunkScraper,
+            config->ChunkScraper,
             Bootstrap_->GetControlInvoker(),
             ThrottlerManager_,
             Bootstrap_->GetClient(),
@@ -570,7 +594,7 @@ private:
             Logger);
 
         auto samplesFetcher = New<TSamplesFetcher>(
-            Config_->SamplesFetcher,
+            config->SamplesFetcher,
             ESamplingPolicy::Partitioning,
             maxSampleCount,
             tablet->GetPhysicalSchema()->GetKeyColumns(),

@@ -679,6 +679,10 @@ public:
     //! Retry delay after unsuccessful partition balancing.
     TDuration SplitRetryDelay;
 
+    TPartitionBalancerConfigPtr ApplyDynamic(
+        const TPartitionBalancerDynamicConfigPtr& dynamicConfig,
+        const NConcurrency::TAsyncSemaphorePtr& semaphore) const;
+
     REGISTER_YSON_STRUCT(TPartitionBalancerConfig);
 
     static void Register(TRegistrar registrar);
@@ -693,6 +697,11 @@ class TPartitionBalancerDynamicConfig
 {
 public:
     bool Enable;
+
+    std::optional<int> MinPartitioningSampleCount;
+    std::optional<int> MaxPartitioningSampleCount;
+    std::optional<int> MaxConcurrentSamplings;
+    std::optional<TDuration> SplitRetryDelay;
 
     REGISTER_YSON_STRUCT(TPartitionBalancerDynamicConfig);
 
