@@ -46,95 +46,18 @@ target_yasm_source(isa-l_ec
 
 target_yasm_source(isa-l_ec
   PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_mul_sse.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_mul_avx.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_dot_prod_sse.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_dot_prod_avx.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_dot_prod_avx2.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_dot_prod_avx512.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_2vect_dot_prod_sse.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_2vect_dot_prod_avx.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_2vect_dot_prod_avx2.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_2vect_dot_prod_avx2_gfni.asm
   -I
   ${PROJECT_BINARY_DIR}
   -I
@@ -156,7 +79,7 @@ target_yasm_source(isa-l_ec
 
 target_yasm_source(isa-l_ec
   PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_3vect_dot_prod_sse.asm
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_2vect_dot_prod_avx512_gfni.asm
   -I
   ${PROJECT_BINARY_DIR}
   -I
@@ -167,7 +90,84 @@ target_yasm_source(isa-l_ec
 
 target_yasm_source(isa-l_ec
   PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_3vect_dot_prod_avx.asm
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_2vect_dot_prod_avx.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_2vect_dot_prod_sse.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_2vect_mad_avx2.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_2vect_mad_avx2_gfni.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_2vect_mad_avx512.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_2vect_mad_avx512_gfni.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_2vect_mad_avx.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_2vect_mad_sse.asm
   -I
   ${PROJECT_BINARY_DIR}
   -I
@@ -189,6 +189,17 @@ target_yasm_source(isa-l_ec
 
 target_yasm_source(isa-l_ec
   PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_3vect_dot_prod_avx2_gfni.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_3vect_dot_prod_avx512.asm
   -I
   ${PROJECT_BINARY_DIR}
@@ -200,7 +211,7 @@ target_yasm_source(isa-l_ec
 
 target_yasm_source(isa-l_ec
   PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_4vect_dot_prod_sse.asm
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_3vect_dot_prod_avx512_gfni.asm
   -I
   ${PROJECT_BINARY_DIR}
   -I
@@ -211,7 +222,84 @@ target_yasm_source(isa-l_ec
 
 target_yasm_source(isa-l_ec
   PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_4vect_dot_prod_avx.asm
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_3vect_dot_prod_avx.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_3vect_dot_prod_sse.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_3vect_mad_avx2.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_3vect_mad_avx2_gfni.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_3vect_mad_avx512.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_3vect_mad_avx512_gfni.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_3vect_mad_avx.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_3vect_mad_sse.asm
   -I
   ${PROJECT_BINARY_DIR}
   -I
@@ -244,7 +332,7 @@ target_yasm_source(isa-l_ec
 
 target_yasm_source(isa-l_ec
   PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_5vect_dot_prod_sse.asm
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_4vect_dot_prod_avx512_gfni.asm
   -I
   ${PROJECT_BINARY_DIR}
   -I
@@ -255,7 +343,7 @@ target_yasm_source(isa-l_ec
 
 target_yasm_source(isa-l_ec
   PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_5vect_dot_prod_avx.asm
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_4vect_dot_prod_avx.asm
   -I
   ${PROJECT_BINARY_DIR}
   -I
@@ -266,194 +354,7 @@ target_yasm_source(isa-l_ec
 
 target_yasm_source(isa-l_ec
   PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_5vect_dot_prod_avx2.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_6vect_dot_prod_sse.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_6vect_dot_prod_avx.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_6vect_dot_prod_avx2.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_mad_sse.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_mad_avx.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_mad_avx2.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_mad_avx512.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_2vect_mad_sse.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_2vect_mad_avx.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_2vect_mad_avx2.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_2vect_mad_avx512.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_3vect_mad_sse.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_3vect_mad_avx.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_3vect_mad_avx2.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_3vect_mad_avx512.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_4vect_mad_sse.asm
-  -I
-  ${PROJECT_BINARY_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}
-  -I
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
-)
-
-target_yasm_source(isa-l_ec
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_4vect_mad_avx.asm
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_4vect_dot_prod_sse.asm
   -I
   ${PROJECT_BINARY_DIR}
   -I
@@ -475,6 +376,17 @@ target_yasm_source(isa-l_ec
 
 target_yasm_source(isa-l_ec
   PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_4vect_mad_avx2_gfni.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_4vect_mad_avx512.asm
   -I
   ${PROJECT_BINARY_DIR}
@@ -486,7 +398,7 @@ target_yasm_source(isa-l_ec
 
 target_yasm_source(isa-l_ec
   PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_5vect_mad_sse.asm
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_4vect_mad_avx512_gfni.asm
   -I
   ${PROJECT_BINARY_DIR}
   -I
@@ -497,7 +409,73 @@ target_yasm_source(isa-l_ec
 
 target_yasm_source(isa-l_ec
   PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_5vect_mad_avx.asm
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_4vect_mad_avx.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_4vect_mad_sse.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_5vect_dot_prod_avx2.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_5vect_dot_prod_avx512.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_5vect_dot_prod_avx512_gfni.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_5vect_dot_prod_avx.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_5vect_dot_prod_sse.asm
   -I
   ${PROJECT_BINARY_DIR}
   -I
@@ -519,7 +497,139 @@ target_yasm_source(isa-l_ec
 
 target_yasm_source(isa-l_ec
   PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_6vect_mad_sse.asm
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_5vect_mad_avx2_gfni.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_5vect_mad_avx512.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_5vect_mad_avx512_gfni.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_5vect_mad_avx.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_5vect_mad_sse.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_6vect_dot_prod_avx2.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_6vect_dot_prod_avx512.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_6vect_dot_prod_avx512_gfni.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_6vect_dot_prod_avx.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_6vect_dot_prod_sse.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_6vect_mad_avx2.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_6vect_mad_avx512.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_6vect_mad_avx512_gfni.asm
   -I
   ${PROJECT_BINARY_DIR}
   -I
@@ -541,7 +651,161 @@ target_yasm_source(isa-l_ec
 
 target_yasm_source(isa-l_ec
   PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_6vect_mad_avx2.asm
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_6vect_mad_sse.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_dot_prod_avx2.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_dot_prod_avx2_gfni.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_dot_prod_avx512.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_dot_prod_avx512_gfni.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_dot_prod_avx.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_dot_prod_sse.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_mad_avx2.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_mad_avx2_gfni.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_mad_avx512.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_mad_avx512_gfni.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_mad_avx.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_mad_sse.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_mul_avx.asm
+  -I
+  ${PROJECT_BINARY_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}
+  -I
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
+)
+
+target_yasm_source(isa-l_ec
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/gf_vect_mul_sse.asm
   -I
   ${PROJECT_BINARY_DIR}
   -I

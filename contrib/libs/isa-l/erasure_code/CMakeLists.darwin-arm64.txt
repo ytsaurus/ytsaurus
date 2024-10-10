@@ -12,6 +12,8 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+add_subdirectory(aarch64)
+
 add_library(isa-l_ec)
 
 
@@ -25,10 +27,12 @@ target_include_directories(isa-l_ec PRIVATE
 
 target_link_libraries(isa-l_ec PUBLIC
   contrib-libs-cxxsupp
+  isa-l-erasure_code-aarch64
 )
 
 target_sources(isa-l_ec PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/ec_base.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/ec_highlevel_func.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/aarch64/ec_aarch64_dispatcher.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/aarch64/ec_aarch64_highlevel_func.c
 )
 

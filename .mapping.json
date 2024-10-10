@@ -250,6 +250,7 @@
   "contrib/libs/isa-l/erasure_code/CMakeLists.darwin-x86_64.txt":"",
   "contrib/libs/isa-l/erasure_code/CMakeLists.linux-x86_64.txt":"",
   "contrib/libs/isa-l/erasure_code/CMakeLists.txt":"",
+  "contrib/libs/isa-l/erasure_code/aarch64/CMakeLists.txt":"",
   "contrib/libs/jemalloc/CMakeLists.txt":"",
   "contrib/libs/libbz2/CMakeLists.darwin-arm64.txt":"",
   "contrib/libs/libbz2/CMakeLists.darwin-x86_64.txt":"",
