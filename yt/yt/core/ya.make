@@ -67,6 +67,7 @@ SRCS(
     concurrency/invoker_queue.cpp
     concurrency/lease_manager.cpp
     concurrency/new_fair_share_thread_pool.cpp
+    concurrency/new_new_fair_share_thread_pool.cpp
     concurrency/nonblocking_batcher.cpp
     concurrency/notify_manager.cpp
     concurrency/periodic_executor.cpp
