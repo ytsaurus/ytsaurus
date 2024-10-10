@@ -63,6 +63,8 @@ class LocalYtConfig(object):
     enable_tvm_only_proxies = attr.ib(False)
     enable_chyt_http_proxies = attr.ib(False)
     enable_chyt_https_proxies = attr.ib(False)
+    enable_auth = attr.ib(False)
+    create_admin_user = attr.ib(False)
 
     """TLS settings"""
     enable_tls = attr.ib(False)
@@ -137,6 +139,16 @@ class LocalYtConfig(object):
     delta_driver_config = attr.ib(None)
     delta_master_cache_config = attr.ib(None)
     delta_global_cluster_connection_config = attr.ib(None)
+
+    @enable_auth.validator
+    def check_native_yson_available_for_auth_configuration(self, attribute, value):
+        if value and not self.native_client_supported:
+            raise ValueError("Native client support must be enabled to use authentication")
+
+    @create_admin_user.validator
+    def check_auth_enabled(self, attribute, value):
+        if value and not self.enable_auth:
+            raise ValueError("Auth must be enabled to create admin user")
 
 
 __all__ = ["LocalYtConfig"]

@@ -44,6 +44,7 @@ import copy
 import datetime
 import errno
 import itertools
+import hashlib
 import time
 import signal
 import socket
@@ -64,6 +65,11 @@ BinaryVersion = namedtuple("BinaryVersion", ["abi", "literal"])
 BinaryInfo = namedtuple("BinaryInfo", ["name", "path"])
 
 _environment_driver_logging_config = None
+
+
+DEFAULT_ADMIN_USERNAME = "admin"
+DEFAULT_ADMIN_PASSWORD = "password"
+DEFAULT_ADMIN_TOKEN = "password"
 
 
 def set_environment_driver_logging_config(config):
@@ -299,7 +305,7 @@ class YTInstance(object):
             self.watcher_config["disable_logrotate"] = True
 
         self._default_client_config = {
-            "enable_token": False,
+            "enable_token": self.yt_config.enable_auth,
             "is_local_mode": True,
             "pickling": {
                 "enable_local_files_usage_in_job": True,
@@ -611,6 +617,9 @@ class YTInstance(object):
 
             self.synchronize()
 
+            if self.yt_config.create_admin_user:
+                self.create_admin_user()
+
             if not self.yt_config.defer_secondary_cell_start:
                 self.start_secondary_master_cells(sync=False)
                 self.synchronize()
@@ -679,6 +688,19 @@ class YTInstance(object):
             logger.exception("Failed to start environment")
             self.stop(force=True)
             raise YtError("Failed to start environment", inner_errors=[err])
+
+    def create_admin_user(self):
+        client = self.create_native_client()
+
+        client.create("user", attributes={"name": DEFAULT_ADMIN_USERNAME})
+        client.add_member(DEFAULT_ADMIN_USERNAME, "superusers")
+
+        token_hash = hashlib.sha256(DEFAULT_ADMIN_TOKEN.encode()).hexdigest()
+        token_map_node_path = f"//sys/cypress_tokens/{token_hash}"
+        client.create("map_node", token_map_node_path)
+        client.set_attribute(token_map_node_path, "user", DEFAULT_ADMIN_USERNAME)
+
+        client.set_user_password(DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD)
 
     def stop(self, force=False):
         if not self._started and not force:
@@ -1824,7 +1846,8 @@ class YTInstance(object):
 
     def create_client(self):
         if self.yt_config.cypress_proxy_count == 0 and self.yt_config.http_proxy_count > 0:
-            return YtClient(proxy=self.get_http_proxy_address(), config=self._default_client_config)
+            token = DEFAULT_ADMIN_TOKEN if self.yt_config.enable_auth else None
+            return YtClient(token=token, proxy=self.get_http_proxy_address(), config=self._default_client_config)
         return self.create_native_client()
 
     def create_native_client(self, driver_name="driver"):
