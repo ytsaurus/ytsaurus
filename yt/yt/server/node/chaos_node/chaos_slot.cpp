@@ -144,7 +144,7 @@ public:
         return Occupant_->GetHiveManager();
     }
 
-    TMailbox* GetMasterMailbox() override
+    TMailboxHandle GetMasterMailbox() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

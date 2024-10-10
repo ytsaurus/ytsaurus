@@ -391,7 +391,7 @@ public:
                 request.set_force(true);
 
                 const auto& hiveManager = Bootstrap_->GetHiveManager();
-                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                auto mailbox = hiveManager->GetMailbox(cell->GetId());
                 hiveManager->PostMessage(mailbox, request);
             }
         }
@@ -501,7 +501,7 @@ public:
 
             replicaInfo.SetState(ETableReplicaState::Disabled);
 
-            auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
+            auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
             TReqAddTableReplica req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             PopulateTableReplicaDescriptor(req.mutable_replica(), replica, replicaInfo);
@@ -537,7 +537,7 @@ public:
                     continue;
                 }
 
-                auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
+                auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
                 TReqRemoveTableReplica req;
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
                 ToProto(req.mutable_replica_id(), replica->GetId());
@@ -685,7 +685,7 @@ public:
             auto* tablet = tabletBase->As<TTablet>();
             auto* replicaInfo = tablet->GetReplicaInfo(replica);
 
-            auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
+            auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
             TReqAlterTableReplica req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_replica_id(), replica->GetId());
@@ -1521,7 +1521,7 @@ public:
                 continue;
             }
 
-            auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
+            auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
             TReqSetCustomRuntimeData req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             if (data) {
@@ -1727,7 +1727,7 @@ public:
                 CreateAndAttachDynamicStores(tablet, &req);
             }
 
-            auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
+            auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
             hiveManager->PostMessage(mailbox, req);
         }
 
@@ -2375,7 +2375,7 @@ public:
             ++pendingTabletCount;
             YT_VERIFY(tablet->As<TTablet>()->UnconfirmedDynamicTableLocks().emplace(transaction->GetId()).second);
 
-            auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
+            auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
             TReqLockTablet req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_lock()->mutable_transaction_id(), transaction->GetId());
@@ -3619,7 +3619,7 @@ private:
                 }
 
                 const auto& hiveManager = Bootstrap_->GetHiveManager();
-                auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
+                auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
                 hiveManager->PostMessage(mailbox, req);
 
                 ChangeTabletActionState(action, ETabletActionState::WaitingForSmoothMove);
@@ -3656,7 +3656,7 @@ private:
                         ToProto(req.mutable_tablet_id(), tablet->GetId());
 
                         const auto& hiveManager = Bootstrap_->GetHiveManager();
-                        auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
+                        auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
                         hiveManager->PostMessage(mailbox, req);
                     }
                 }
@@ -3931,7 +3931,7 @@ private:
         TTimestamp mountTimestamp)
     {
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+        auto mailbox = hiveManager->GetMailbox(cell->GetId());
 
         auto tabletIndex = tablet->GetIndex();
         const auto& allTablets = table->Tablets();
@@ -4119,7 +4119,7 @@ private:
         }
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+        auto mailbox = hiveManager->GetMailbox(cell->GetId());
         hiveManager->PostMessage(mailbox, request);
 
         YT_LOG_DEBUG(
@@ -4187,7 +4187,7 @@ private:
         ToProto(req.mutable_movement_source_avenue_endpoint_id(), avenueEndpointId);
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+        auto mailbox = hiveManager->GetMailbox(cell->GetId());
         hiveManager->PostMessage(mailbox, req);
     }
 
@@ -4221,7 +4221,7 @@ private:
             TReqFreezeTablet request;
             ToProto(request.mutable_tablet_id(), tablet->GetId());
 
-            auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
+            auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
             hiveManager->PostMessage(mailbox, request);
         }
     }
@@ -4256,7 +4256,7 @@ private:
 
             ToProto(request.mutable_tablet_id(), tablet->GetId());
 
-            auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
+            auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
             hiveManager->PostMessage(mailbox, request);
         }
     }
@@ -4314,7 +4314,7 @@ private:
 
                 tablet->As<TTablet>()->UnconfirmedDynamicTableLocks().erase(transaction->GetId());
 
-                auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
+                auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
                 TReqUnlockTablet req;
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
                 ToProto(req.mutable_transaction_id(), transaction->GetId());
@@ -4395,7 +4395,7 @@ private:
                 ToProto(request.mutable_tablet_id(), tablet->GetId());
                 FillTableSettings(&request, serializedTableSettings);
 
-                auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
+                auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
                 hiveManager->PostMessage(mailbox, request);
             }
         }
@@ -5766,7 +5766,7 @@ private:
         ToProto(req.mutable_tablet_id(), tablet->GetId());
         req.set_force(true);
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        auto* mailbox = hiveManager->GetMailbox(auxiliaryServant.GetCell()->GetId());
+        auto mailbox = hiveManager->GetMailbox(auxiliaryServant.GetCell()->GetId());
         hiveManager->PostMessage(mailbox, req);
 
         DoTabletServantUnmounted(tablet, &auxiliaryServant, /*force*/ true);
@@ -6651,7 +6651,7 @@ private:
             tablet->As<TTablet>()->GetTable()->GetId());
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
+        auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
         hiveManager->PostMessage(mailbox, rsp);
     }
 
@@ -7209,7 +7209,7 @@ private:
         request.set_force(force);
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        auto* mailbox = hiveManager->GetMailbox(force
+        auto mailbox = hiveManager->GetMailbox(force
             ? tablet->GetCell()->GetId()
             : tablet->GetNodeEndpointId());
         hiveManager->PostMessage(mailbox, request);
@@ -7260,7 +7260,7 @@ private:
             TReqUnmountHunkTablet request;
             ToProto(request.mutable_tablet_id(), tablet->GetId());
             request.set_force(force);
-            auto* mailbox = hiveManager->GetMailbox(cellId);
+            auto mailbox = hiveManager->GetMailbox(cellId);
             hiveManager->PostMessage(mailbox, request);
         }
 

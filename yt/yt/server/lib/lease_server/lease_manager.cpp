@@ -691,7 +691,7 @@ private:
             NProto::TReqConfirmLeaseRevocation message;
             ToProto(message.mutable_lease_id(), leaseId);
 
-            auto* mailbox = HiveManager_->GetOrCreateCellMailbox(ownerCellId);
+            auto mailbox = HiveManager_->GetOrCreateCellMailbox(ownerCellId);
             HiveManager_->PostMessage(mailbox, message);
         }
 

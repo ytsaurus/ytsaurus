@@ -46,7 +46,7 @@ struct ICellarOccupant
     // Hive stuff.
     virtual const NHiveServer::IHiveManagerPtr& GetHiveManager() const = 0;
     virtual const NHiveServer::TSimpleAvenueDirectoryPtr& GetAvenueDirectory() const = 0;
-    virtual NHiveServer::TMailbox* GetMasterMailbox() const = 0;
+    virtual NHiveServer::TMailboxHandle GetMasterMailbox() const = 0;
 
     // Clock stuff.
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const = 0;

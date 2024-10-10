@@ -173,7 +173,7 @@ private:
         }
 
         const auto& hiveManager = GetBootstrap()->GetHiveManager();
-        auto* mailbox = hiveManager->FindMailbox(chaosCell->GetId());
+        auto mailbox = hiveManager->FindMailbox(chaosCell->GetId());
         if (!mailbox) {
             YT_LOG_WARNING("No mailbox exists for chaos cell (ReplicationCardId: %v, ChaosCellId: %v)",
                 node->GetReplicationCardId(),

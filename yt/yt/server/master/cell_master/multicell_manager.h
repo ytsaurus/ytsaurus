@@ -184,7 +184,7 @@ struct IMulticellManager
 
     //! Returns the mailbox used for communicating with the primary master cell.
     //! May return null if the cell is not connected yet.
-    virtual NHiveServer::TMailbox* FindPrimaryMasterMailbox() = 0;
+    virtual NHiveServer::TMailboxHandle FindPrimaryMasterMailbox() = 0;
 
 
     //! Synchronizes with the upstream.

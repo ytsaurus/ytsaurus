@@ -8,6 +8,8 @@
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
 
+#include <library/cpp/yt/misc/strong_typedef.h>
+
 namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,16 +29,9 @@ DECLARE_REFCOUNTED_STRUCT(IAvenueDirectory)
 DECLARE_REFCOUNTED_CLASS(TSimpleAvenueDirectory)
 DECLARE_REFCOUNTED_CLASS(TLogicalTimeRegistry)
 
-class TMailbox;
-DECLARE_ENTITY_TYPE(TCellMailbox, TCellId, ::THash<TCellId>)
-DECLARE_ENTITY_TYPE(TAvenueMailbox, TAvenueEndpointId, ::THash<TAvenueEndpointId>)
-
-DECLARE_REFCOUNTED_STRUCT(TMailboxRuntimeData)
-
-constexpr int TypicalMailboxCount = 16;
-using TMailboxList = TCompactVector<TMailbox*, TypicalMailboxCount>;
-
 YT_DEFINE_STRONG_TYPEDEF(TLogicalTime, i64);
+
+YT_DEFINE_STRONG_TYPEDEF(TMailboxHandle, void*);
 
 struct TPersistentMailboxState;
 
