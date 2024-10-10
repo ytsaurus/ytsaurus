@@ -1,5 +1,7 @@
 #include "helpers.h"
 
+#include "queue_static_table_exporter.h"
+
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
@@ -22,6 +24,7 @@ using namespace NLogging;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NQueueClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -175,6 +178,48 @@ std::optional<i64> OptionalSub(const std::optional<i64> lhs, const std::optional
         return *lhs - *rhs;
     }
     return {};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+THashMap<TString, TQueueExportProgressPtr> DoGetQueueExportProgressFromObjectService(
+    const IYPathServicePtr& queueService,
+    const TRichYPath& queuePath)
+{
+    auto queueRef = Format("%v:%v", queuePath.GetCluster(), queuePath.GetPath());
+    auto exportsPath = Format("/%v/status/exports", ToYPathLiteral(queueRef));
+    auto queueExportsYson = WaitFor(AsyncYPathGet(queueService, exportsPath))
+        .ValueOrThrow("Get request failed (Queue: %v, ExportsPath: %v)",
+            queueRef, exportsPath);
+
+    auto queueExportsNode = ConvertTo<IMapNodePtr>(queueExportsYson);
+    if (auto error = queueExportsNode->FindChildValue<TError>("error")) {
+        THROW_ERROR_EXCEPTION(*error);
+    }
+
+    auto progress = queueExportsNode->FindChildValue<THashMap<TString, TQueueExportProgressPtr>>("progress");
+    if (!progress) {
+        THROW_ERROR_EXCEPTION("Field \"progress\" of queue status is not present");
+    }
+    return *progress;
+}
+
+TFuture<THashMap<TString, TQueueExportProgressPtr>> GetQueueExportProgressFromObjectService(
+    const IYPathServicePtr& queueService,
+    const TRichYPath& queuePath,
+    const IInvokerPtr& invoker)
+{
+    return BIND(&DoGetQueueExportProgressFromObjectService,
+        queueService,
+        queuePath)
+        .AsyncVia(invoker)
+        .Run()
+        .ApplyUnique(BIND([queuePath] (TErrorOr<THashMap<TString, TQueueExportProgressPtr>>&& result) -> TErrorOr<THashMap<TString, TQueueExportProgressPtr>> {
+            if (!result.IsOK()) {
+                return TError("Failed to get queue exports progress for %v", queuePath) << TError(result);
+            }
+            return result;
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
