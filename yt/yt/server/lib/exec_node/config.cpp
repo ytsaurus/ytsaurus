@@ -146,10 +146,10 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("slot_release_timeout", &TThis::SlotReleaseTimeout)
         .Default(TDuration::Minutes(20));
 
-    registrar.Parameter("abort_on_free_volume_synchronization_failed", &TThis::AbortOnFreeVolumeSynchronizationFailed)
-        .Default(false);
+    registrar.Parameter("volume_release_timeout", &TThis::VolumeReleaseTimeout)
+        .Default(TDuration::Minutes(20));
 
-    registrar.Parameter("abort_on_free_slot_synchronization_failed", &TThis::AbortOnFreeSlotSynchronizationFailed)
+    registrar.Parameter("abort_on_free_volume_synchronization_failed", &TThis::AbortOnFreeVolumeSynchronizationFailed)
         .Default(false);
 
     registrar.Parameter("abort_on_jobs_disabled", &TThis::AbortOnJobsDisabled)

@@ -359,6 +359,8 @@ private:
 
     void FinishInitialization(const TError& error);
 
+    void PushSlot(int slotIndex);
+    int PopSlot();
     int DoAcquireSlot(ESlotType slotType);
     void ReleaseSlot(
         ESlotType slotType,
