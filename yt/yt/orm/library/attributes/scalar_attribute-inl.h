@@ -35,7 +35,8 @@ concept CScalarAttributeTriviallyComparable =
         std::same_as<T, TInstant> ||
         std::same_as<T, double> ||
         std::integral<T> ||
-        TEnumTraits<T>::IsEnum);
+        TEnumTraits<T>::IsEnum ||
+        std::is_enum_v<T>);
 
 ////////////////////////////////////////////////////////////////////////////////
 
