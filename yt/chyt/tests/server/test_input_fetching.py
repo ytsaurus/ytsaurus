@@ -1557,11 +1557,13 @@ class TestInputFetching(ClickHouseTestBase):
         with Clique(1, config_patch=config_patch) as clique:
             query = "select * from '//tmp/t-ts' where ts > toDateTime('2024-01-01T00:00:00')"
             # the first chunk must be filtered and not read
-            assert clique.make_query_and_validate_row_count(query, exact=4) == [
-                {"ts": "2024-02-02 00:00:00.000000"},
-                {"ts": "2024-05-05 00:00:00.000000"},
-                {"ts": "2024-10-10 00:00:00.000000"}
-            ]
+            assert_items_equal(
+                clique.make_query_and_validate_row_count(query, exact=4),
+                [
+                    {"ts": "2024-02-02 00:00:00.000000"},
+                    {"ts": "2024-05-05 00:00:00.000000"},
+                    {"ts": "2024-10-10 00:00:00.000000"},
+                ])
 
 
 class TestInputFetchingYPath(ClickHouseTestBase):
