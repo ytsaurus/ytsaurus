@@ -1,6 +1,7 @@
 import logging
 
 class Extras:
+    run_id = None
     iteration = None
     generation = None
     kind = None
@@ -12,6 +13,8 @@ class Extras:
 
     def get_prefix(self):
         extra = []
+        if self.run_id is not None:
+            extra += ["id {}".format(self.run_id)]
         if self.generation is not None:
             extra += ["gen {}".format(self.generation)]
         if self.kind is not None:

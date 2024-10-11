@@ -99,6 +99,8 @@ def prepare_attributes(spec):
     return attributes
 
 def run_with_spec(base_path, spec, args):
+    logger.run_id = base_path.split('/')[-1]
+
     yt.write_file(base_path + "/spec", pprint.pformat(spec.to_dict()).encode())
     attributes = prepare_attributes(spec)
 
