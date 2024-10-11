@@ -132,11 +132,11 @@ TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary, bool isJobF
     return delta;
 }
 
-std::pair<TStatistics, TError> TJoblet::BuildCombinedStatistics() const
+TStatistics TJoblet::BuildCombinedStatistics() const
 {
     auto statistics = *JobStatistics;
-    auto error = statistics.MergeWithOverride(*ControllerStatistics);
-    return {statistics, error};
+    statistics.MergeWithOverride(*ControllerStatistics);
+    return statistics;
 }
 
 TJobStatisticsTags TJoblet::GetAggregationTags(EJobState state)

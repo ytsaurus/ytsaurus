@@ -64,7 +64,7 @@ NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(const NScheduler::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TError UpdateAggregatedJobStatistics(
+void UpdateAggregatedJobStatistics(
     TAggregatedJobStatistics& targetStatistics,
     const TJobStatisticsTags& tags,
     const TStatistics& jobStatistics,
