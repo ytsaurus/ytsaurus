@@ -47,6 +47,8 @@
 #include <yt/yt/ytlib/scheduler/records/operation_id.record.h>
 #include <yt/yt/ytlib/scheduler/records/job_stderr.record.h>
 #include <yt/yt/ytlib/scheduler/records/job_spec.record.h>
+#include <yt/ytlib/scheduler/records/job_trace_event.record.h>
+#include <yt/ytlib/scheduler/records/job_profile.record.h>
 
 #include <yt/yt/client/chunk_client/config.h>
 
@@ -725,6 +727,18 @@ static NJobProxy::IJobSpecHelperPtr MaybePatchDataSourceDirectory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static TSelectRowsOptions GetDefaultSelectRowsOptions(TInstant deadline)
+{
+    TSelectRowsOptions selectRowsOptions;
+    selectRowsOptions.Timestamp = AsyncLastCommittedTimestamp;
+    selectRowsOptions.Timeout = deadline - Now();
+    selectRowsOptions.InputRowLimit = std::numeric_limits<i64>::max();
+    selectRowsOptions.MemoryLimitPerNode = 100_MB;
+    return selectRowsOptions;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
     TJobId jobId,
     const TGetJobInputOptions& options)
@@ -1037,6 +1051,97 @@ TGetJobStderrResponse TClient::DoGetJobStderr(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<TJobTraceEvent> TClient::DoGetJobTraceFromTraceEventsTable(
+    TOperationId operationId,
+    const TGetJobTraceOptions& options,
+    TInstant deadline)
+{
+    NQueryClient::TQueryBuilder builder;
+    builder.SetSource(GetOperationsArchiveJobTraceEventsPath());
+
+    builder.AddSelectExpression("operation_id_hi");
+    builder.AddSelectExpression("operation_id_lo");
+    builder.AddSelectExpression("job_id_hi");
+    builder.AddSelectExpression("job_id_lo");
+    builder.AddSelectExpression("trace_id_hi");
+    builder.AddSelectExpression("trace_id_lo");
+    builder.AddSelectExpression("event_index");
+    builder.AddSelectExpression("event");
+    builder.AddSelectExpression("event_time");
+
+    builder.AddWhereConjunct(Format(
+        "(operation_id_hi, operation_id_lo) = (%vu, %vu)",
+        operationId.Underlying().Parts64[0],
+        operationId.Underlying().Parts64[1]));
+
+    if (options.JobId) {
+        builder.AddWhereConjunct(Format(
+            "(job_id_hi, job_id_lo) = (%vu, %vu)",
+            options.JobId->Underlying().Parts64[0],
+            options.JobId->Underlying().Parts64[1]));
+    }
+    if (options.TraceId) {
+        builder.AddWhereConjunct(Format(
+            "(trace_id_hi, trace_id_lo) = (%vu, %vu)",
+            options.TraceId->Underlying().Parts64[0],
+            options.TraceId->Underlying().Parts64[1]));
+    }
+    if (options.FromEventIndex) {
+        builder.AddWhereConjunct(Format("event_index >= %v", *options.FromEventIndex));
+    }
+    if (options.ToEventIndex) {
+        builder.AddWhereConjunct(Format("event_index <= %v", *options.ToEventIndex));
+    }
+    if (options.FromTime) {
+        builder.AddWhereConjunct(Format("event_time >= %v", *options.FromEventIndex));
+    }
+    if (options.ToTime) {
+        builder.AddWhereConjunct(Format("event_time <= %v", *options.ToTime));
+    }
+
+    auto rowset = WaitFor(SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)))
+        .ValueOrThrow()
+        .Rowset;
+
+    auto idMapping = NRecords::TJobTraceEvent::TRecordDescriptor::TIdMapping(rowset->GetNameTable());
+    auto records = ToRecords<NRecords::TJobTraceEvent>(rowset->GetRows(), idMapping);
+
+    std::vector<TJobTraceEvent> traceEvents;
+    traceEvents.reserve(records.size());
+    for (const auto& record : records) {
+        traceEvents.push_back(TJobTraceEvent{
+            .OperationId = TOperationId(TGuid(record.Key.OperationIdHi, record.Key.OperationIdLo)),
+            .JobId = TJobId(TGuid(record.Key.JobIdHi, record.Key.JobIdLo)),
+            .TraceId = TJobTraceId(TGuid(record.Key.TraceIdHi, record.Key.TraceIdLo)),
+            .EventIndex = record.Key.EventIndex,
+            .Event = record.Event,
+            .EventTime = TInstant::MicroSeconds(record.EventTime),
+        });
+    }
+    return traceEvents;
+}
+
+std::vector<TJobTraceEvent> TClient::DoGetJobTrace(
+    const TOperationIdOrAlias& operationIdOrAlias,
+    const TGetJobTraceOptions& options)
+{
+    auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultGetOperationTimeout);
+    auto deadline = timeout.ToDeadLine();
+
+    TOperationId operationId;
+    Visit(operationIdOrAlias.Payload,
+        [&] (const TOperationId& id) {
+            operationId = id;
+        },
+        [&] (const TString& alias) {
+            operationId = ResolveOperationAlias(alias, options, deadline);
+        });
+
+    return DoGetJobTraceFromTraceEventsTable(operationId, options, deadline);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSharedRef TClient::DoGetJobFailContextFromNode(
     TOperationId operationId,
     TJobId jobId)
@@ -1224,13 +1329,7 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
     builder.AddGroupByExpression("job_type");
     builder.AddGroupByExpression("node_state");
 
-    TSelectRowsOptions selectRowsOptions;
-    selectRowsOptions.Timestamp = AsyncLastCommittedTimestamp;
-    selectRowsOptions.Timeout = deadline - Now();
-    selectRowsOptions.InputRowLimit = std::numeric_limits<i64>::max();
-    selectRowsOptions.MemoryLimitPerNode = 100_MB;
-
-    return SelectRows(builder.Build(), selectRowsOptions).Apply(BIND([=] (const TSelectRowsResult& result) {
+    return SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)).Apply(BIND([=] (const TSelectRowsResult& result) {
         TListJobsStatistics statistics;
         for (auto row : result.Rowset->GetRows()) {
             // Skip jobs that was not fully written (usually it is written only by controller).
@@ -1536,13 +1635,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
         builder.AddOrderByExpression(JoinSeq(",", orderByFieldExpressions), orderByDirection);
     }
 
-    TSelectRowsOptions selectRowsOptions;
-    selectRowsOptions.Timestamp = AsyncLastCommittedTimestamp;
-    selectRowsOptions.Timeout = deadline - Now();
-    selectRowsOptions.InputRowLimit = std::numeric_limits<i64>::max();
-    selectRowsOptions.MemoryLimitPerNode = 100_MB;
-
-    return SelectRows(builder.Build(), selectRowsOptions).Apply(BIND([operationId, this_ = MakeStrong(this)] (const TSelectRowsResult& result) {
+    return SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)).Apply(BIND([operationId, this_ = MakeStrong(this)] (const TSelectRowsResult& result) {
         auto idMapping = NRecords::TJobPartial::TRecordDescriptor::TIdMapping(result.Rowset->GetNameTable());
         auto records = ToRecords<NRecords::TJobPartial>(result.Rowset->GetRows(), idMapping);
         return ParseJobsFromArchiveResponse(

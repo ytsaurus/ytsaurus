@@ -10,7 +10,7 @@ from yt_env_setup import (
 from yt_commands import (
     authors, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs, exists,
     create, ls, get, create_account, read_table, write_table, map, reduce, map_reduce, vanilla, run_test_vanilla,
-    select_rows, list_jobs, clean_operations, sync_create_cells,
+    select_rows, list_jobs, get_job_trace, clean_operations, sync_create_cells,
     set_account_disk_space_limit, raises_yt_error, update_nodes_dynamic_config,
     lookup_rows)
 
@@ -30,7 +30,6 @@ import subprocess
 import time
 import threading
 import builtins
-import json
 from queue import Queue
 
 if arcadia_interop.yatest_common is not None:
@@ -1652,22 +1651,28 @@ class TestJobTraceEvents(YTEnvSetup):
         assert len(events) == 0
 
     @authors("omgronny")
-    def test_stream_cuda_profiles(self):
+    def test_get_job_trace(self):
         profile = "{\"event\": \"profile\", \"ts\": 1.5, \"tid\": 1}"
-        _ = self._start_vanilla_operation(profile)
+        op = self._start_vanilla_operation(profile)
 
         @wait_no_assert
         def events_are_ready():
-            events = select_rows("* from [//sys/operations_archive/job_trace_events]")
-            assert len(events) == 2 * 2
+            events_from_table = select_rows("* from [//sys/operations_archive/job_trace_events]")
+            events = get_job_trace(op.id)
+            assert len(events) == len(events_from_table)
 
-            for i, event in enumerate(events):
-                event_map = json.loads(event["event"])
-                assert event_map["ts"] == 1.5
-                assert event_map["event"] == "profile"
-                assert event_map["tid"] == 1
-                assert event["event_time"] == 1
-                assert event["event_index"] == (i % 2)
+            job_ids = [job["id"] for job in list_jobs(op.id)["jobs"]]
+            for job_id in job_ids:
+                events = get_job_trace(op.id, job_id=job_id)
+                assert len(events) == 2
+                assert events[0]["job_id"] == job_id
+                assert events[1]["job_id"] == job_id
+                assert events[0]["event_index"] == 0
+                assert events[1]["event_index"] == 1
+
+                for trace_id in [event["trace_id"] for event in events]:
+                    events = get_job_trace(op.id, job_id=job_id, trace_id=trace_id)
+                    assert len(events) == 2
 
 
 ##################################################################
@@ -1763,6 +1768,3 @@ class TestJobReporterInProgressLimits(YTEnvSetup):
 
         assert get_stderr_size_from_archive(op.id, job_id) == len(stderr_dict[job_id].decode("ascii"))
         assert get_stderr_from_archive(op.id, job_id) is None
-
-
-##################################################################
