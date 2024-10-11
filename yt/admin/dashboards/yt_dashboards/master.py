@@ -332,6 +332,7 @@ def build_merge_jobs_rowsets():
     max_uncompressed_data_violated_criteria = Master("yt.chunk_server.chunk_merger_max_uncompressed_data_violated_criteria")
     max_compressed_data_violated_criteria = Master("yt.chunk_server.chunk_merger_max_compressed_data_violated_criteria")
     max_input_chunk_data_weight_violated_criteria = Master("yt.chunk_server.chunk_merger_max_input_chunk_data_weight_violated_criteria")
+    stuck_nodes_count = Master("yt.chunk_server.chunk_merger_stuck_nodes_count")
     average_merge_duration = Master("yt.chunk_server.chunk_merger_average_merge_duration")
 
     return [
@@ -364,44 +365,46 @@ def build_merge_jobs_rowsets():
                 .cell("Max compressed data violated criteria", max_compressed_data_violated_criteria)
             .row()
                 .cell("Max input chunk data weight violated criteria", max_input_chunk_data_weight_violated_criteria)
+                .cell("Stuck nodes count", stuck_nodes_count)
+            .row()
                 .cell("Average merge duration", average_merge_duration)
     ]
 
 def build_master_merge_jobs():
     rowsets = build_merge_jobs_rowsets()
 
-    d = Dashboard()
-    for r in rowsets:
-        d.add(r)
+    dashboard = Dashboard()
+    for rowset in rowsets:
+        dashboard.add(rowset)
 
-    d.set_title("Master Merge Jobs")
-    d.add_parameter(
+    dashboard.set_title("Master Merge Jobs")
+    dashboard.add_parameter(
         "cluster",
         "YT cluster",
         MonitoringLabelDashboardParameter("yt", "cluster", MASTER_MERGE_JOBS_DASHBOARD_DEFAULT_CLUSTER),
         backends=["monitoring"])
-    d.add_parameter(
+    dashboard.add_parameter(
         "cell_tag",
         "Cell Tag",
         MonitoringLabelDashboardParameter("yt", "cell_tag", "*"),
         backends=["monitoring"])
-    d.add_parameter(
+    dashboard.add_parameter(
         "cell_id",
         "Cell Id",
         MonitoringLabelDashboardParameter("yt", "cell_id", "-"),
         backends=["monitoring"])
-    d.add_parameter(
+    dashboard.add_parameter(
         "container",
         "Container",
         MonitoringLabelDashboardParameter("yt", "container", "-"),
         backends=["monitoring"])
-    d.add_parameter(
+    dashboard.add_parameter(
         "account",
         "Account",
         MonitoringLabelDashboardParameter("yt", "account", "-"),
         backends=["monitoring"])
 
-    d.value(MonitoringTag("container"), TemplateTag("container"))
-    d.value(MonitoringTag("cell_tag"), TemplateTag("cell_tag"))
+    dashboard.value(MonitoringTag("container"), TemplateTag("container"))
+    dashboard.value(MonitoringTag("cell_tag"), TemplateTag("cell_tag"))
 
-    return d
+    return dashboard
