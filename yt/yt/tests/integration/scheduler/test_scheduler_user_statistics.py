@@ -203,7 +203,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
             statistics = get(op.get_path() + "/@progress/job_statistics_v2")
             return extract_statistic_v2(statistics, "data.input.unmerged_data_weight", summary_type="count")
 
-        wait(lambda: get_counter() == 1)
+        wait(lambda: get_counter() == 1, ignore_exceptions=True)
 
         release_breakpoint()
         op.track()
