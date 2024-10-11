@@ -94,63 +94,124 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAttributesDetectingConsumer
-    : public NYson::IYsonConsumer
+class TAttributesProcessingConsumer
+    : public NYson::TYsonConsumerBase
 {
 public:
-    TAttributesDetectingConsumer(std::function<void()> reporter)
-        : Reporter_(std::move(reporter))
+    TAttributesProcessingConsumer(NYson::IYsonConsumer* underlying, std::function<void()> reporter)
+        : Underlying_(underlying)
+        , Reporter_(std::move(reporter))
+        , Forward_(underlying)
     { }
 
-    void OnStringScalar(TStringBuf /*string*/) override final
-    { };
+    void OnStringScalar(TStringBuf string) override final
+    {
+        if (Forward_) {
+            Forward_->OnStringScalar(string);
+        }
+    };
 
     void OnBeginList() override final
-    { };
+    {
+        if (Forward_) {
+            Forward_->OnBeginList();
+        }
+    };
 
     void OnListItem() override final
-    { };
+    {
+        if (Forward_) {
+            Forward_->OnListItem();
+        }
+    };
 
     void OnEndList() override final
-    { };
+    {
+        if (Forward_) {
+            Forward_->OnEndList();
+        }
+    };
 
     void OnBeginMap() override final
-    { };
-
-    void OnKeyedItem(TStringBuf /*key*/) override final
-    { };
+    {
+        if (Forward_) {
+            Forward_->OnBeginMap();
+        }
+    };
 
     void OnEndMap() override final
-    { };
+    {
+        if (Forward_) {
+            Forward_->OnEndMap();
+        }
+    };
 
-    void OnInt64Scalar(i64 /*value*/) override final
-    { };
+    void OnKeyedItem(TStringBuf key) override final
+    {
+        if (Forward_) {
+            Forward_->OnKeyedItem(key);
+        }
+    };
 
-    void OnUint64Scalar(ui64 /*value*/) override final
-    { };
+    void OnInt64Scalar(i64 value) override final
+    {
+        if (Forward_) {
+            Forward_->OnInt64Scalar(value);
+        }
+    };
 
-    void OnDoubleScalar(double /*value*/) override final
-    { };
+    void OnUint64Scalar(ui64 value) override final
+    {
+        if (Forward_) {
+            Forward_->OnUint64Scalar(value);
+        }
+    };
 
-    void OnBooleanScalar(bool /*value*/) override final
-    { };
+    void OnDoubleScalar(double value) override final
+    {
+        if (Forward_) {
+            Forward_->OnDoubleScalar(value);
+        }
+    };
+
+    void OnBooleanScalar(bool value) override final
+    {
+        if (Forward_) {
+            Forward_->OnBooleanScalar(value);
+        }
+    };
 
     void OnEntity() override final
-    { };
-
-    void OnRaw(TStringBuf /*yson*/, NYson::EYsonType /*type*/) override final
-    { };
+    {
+        if (Forward_) {
+            Forward_->OnEntity();
+        }
+    };
 
     void OnBeginAttributes() override final
     {
-        Reporter_();
+        if (Reporter_) {
+            Reporter_();
+        }
+
+        ++AttributesDepth_;
+        Forward_ = nullptr;
     };
 
     void OnEndAttributes() override final
-    { };
+    {
+        --AttributesDepth_;
+        if (AttributesDepth_ == 0) {
+            Forward_ = Underlying_;
+        }
+    };
 
 private:
+    NYson::IYsonConsumer* const Underlying_;
     const std::function<void()> Reporter_;
+
+    NYson::IYsonConsumer* Forward_;
+    int AttributesDepth_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -159,9 +220,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<NYson::IYsonConsumer> CreateAttributesDetectingConsumer(std::function<void()> callback)
+std::unique_ptr<NYson::IYsonConsumer> CreateAttributesDetectingConsumer(
+    std::function<void()> reporter)
 {
-    return std::make_unique<TAttributesDetectingConsumer>(std::move(callback));
+    return std::make_unique<TAttributesProcessingConsumer>(/*underlying*/ nullptr, std::move(reporter));
+}
+
+std::unique_ptr<NYson::IYsonConsumer> CreateAttributesRemovingConsumer(
+    NYson::IYsonConsumer* underlying,
+    std::function<void()> reporter)
+{
+    return std::make_unique<TAttributesProcessingConsumer>(underlying, std::move(reporter));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

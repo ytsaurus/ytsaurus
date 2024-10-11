@@ -4,6 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/orm/ya_cpp.make.inc)
 
 SRCS(
     attribute_path_ut.cpp
+    attribute_processing_ut.cpp
     merge_attributes_ut.cpp
     scalar_attribute_ut.cpp
     unwrapping_consumer_ut.cpp

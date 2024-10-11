@@ -27,6 +27,10 @@ NYTree::INodePtr ConvertProtobufToNode(
 
 std::unique_ptr<NYson::IYsonConsumer> CreateAttributesDetectingConsumer(std::function<void()> reporter);
 
+std::unique_ptr<NYson::IYsonConsumer> CreateAttributesRemovingConsumer(
+    NYson::IYsonConsumer* underlying,
+    std::function<void()> reporter = {});
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EListIndexType,
