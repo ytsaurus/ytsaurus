@@ -56,7 +56,12 @@ def write_data(schema, iter_table, table, aggregate, update, spec):
     op_spec = {
         "job_count": spec.size.job_count,
         "title": "Write data into dynamic table",
+        "mapper": {},
     }
+
+    if spec.network_project is not None:
+        op_spec["mapper"]["network_project"] = spec.network_project
+
     if spec.get_write_user_slot_count() is not None:
         op_spec["scheduling_options_per_pool_tree"] = {
             "physical": {"resource_limits": {"user_slots": spec.get_write_user_slot_count()}}}
@@ -307,9 +312,15 @@ class DeleterMapper(JobBase):
 def delete_data(iter_deletion_table, table, spec):
     logger.info("Deleting data from dynamic table")
 
-    op_spec={
+    op_spec = {
         "job_count": spec.size.job_count,
-        "title": "Delete data from dynamic table"}
+        "title": "Delete data from dynamic table",
+        "mapper": {},
+    }
+
+    if spec.network_project is not None:
+        op_spec["mapper"]["network_project"] = spec.network_project
+
     if spec.get_write_user_slot_count() is not None:
         op_spec["scheduling_options_per_pool_tree"] = {
             "physical": {"resource_limits": {"user_slots": spec.get_write_user_slot_count()}}}

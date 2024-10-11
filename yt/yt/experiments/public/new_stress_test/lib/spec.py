@@ -179,6 +179,7 @@ spec_template = {
     "erasure_codec": Variable(["none"], VariationPolicy.PickRandom),
     "compression_codec": None,
     "enable_tablet_balancer": False,
+    "network_project": None,
 
     "size": {
         "key_count": 1000,

@@ -175,6 +175,7 @@ def parse_args():
         builder.add_argument("compression_codec", type=parse_string_variable, metavar="VARIABLE", help="compression codecs (none/lz4/...)")
         builder.add_argument("in_memory_mode", type=parse_string_variable, metavar="VARIABLE", help="in memory modes (none/compressed/uncompressed)")
         builder.add_argument("skip_flush", action="store_true", help="do not flush the table on each iteration before map-reduce")
+        builder.add_argument("network_project", help="network project for yt operations")
         builder.add_yesno_argument("reshard", help="reshard the table after each iteration")
         builder.add_yesno_argument("alter", help="alter table schema after each iteration")
         builder.add_yesno_argument("mapreduce", help="run map-reduce operations over the dynamic table")
