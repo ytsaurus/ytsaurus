@@ -100,6 +100,7 @@ public:
     MOCK_METHOD(IFileReaderPtr, GetJobInput, (const TJobId&, const TGetJobInputOptions&), (override));
     MOCK_METHOD(IFileReaderPtr, GetJobFailContext, (const TOperationId&, const TJobId&, const TGetJobFailContextOptions&), (override));
     MOCK_METHOD(IFileReaderPtr, GetJobStderr, (const TOperationId&, const TJobId&, const TGetJobStderrOptions&), (override));
+    MOCK_METHOD(std::vector<TJobTraceEvent>, GetJobTrace, (const TOperationId&, const TGetJobTraceOptions&), (override));
 
     MOCK_METHOD(TNode::TListType, SkyShareTable, (const std::vector<TYPath>&, const TSkyShareTableOptions&), (override));
     MOCK_METHOD(TMaybe<TYPath>, GetFileFromCache, (const TString& md5Signature, const TYPath& cachePath, const TGetFileFromCacheOptions&), (override));

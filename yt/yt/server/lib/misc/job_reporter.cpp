@@ -389,12 +389,12 @@ public:
 
         return FromRecord(NRecords::TJobProfile{
             .Key = {
+                .OperationIdHi = operationIdAsGuid.Parts64[0],
+                .OperationIdLo = operationIdAsGuid.Parts64[1],
                 .JobIdHi = jobIdAsGuid.Parts64[0],
                 .JobIdLo = jobIdAsGuid.Parts64[1],
+                .PartIndex = 0,
             },
-            .OperationIdHi = operationIdAsGuid.Parts64[0],
-            .OperationIdLo = operationIdAsGuid.Parts64[1],
-            .PartIndex = 0,
             .ProfileType = profile->Type,
             .ProfileBlob = profile->Blob,
             .ProfilingProbability = profile->ProfilingProbability,
