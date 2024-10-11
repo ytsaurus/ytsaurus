@@ -195,11 +195,10 @@ struct TJoblet
         const TJobSummary& jobSummary,
         bool isJobFinished);
 
-    //! Puts controller statistics over job statistics (preferring controller summaries for
-    //! common paths) and returns the result (and one of the errors, if there are any).
-    //! In case of errors this method keeps as many "good" statistics as possible.
+    //! Put controller statistics over job statistics (preferring controller summaries for
+    //! common paths) and return result.
     //! This method traverses both statistics fields, so do not call it often.
-    std::pair<TStatistics, TError> BuildCombinedStatistics() const;
+    TStatistics BuildCombinedStatistics() const;
 
     TJobStatisticsTags GetAggregationTags(EJobState state);
 

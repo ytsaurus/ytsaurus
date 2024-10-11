@@ -53,12 +53,10 @@ public:
 private:
     TTaggedStatistics<TJobStatisticsTags> TaggedJobStatistics_;
 
-    friend std::pair<TAggregatedJobStatistics, TError> MergeJobStatistics(
-        const TAggregatedJobStatistics& lhs,
-        const TAggregatedJobStatistics& rhs);
+    friend TAggregatedJobStatistics MergeJobStatistics(const TAggregatedJobStatistics& lhs, const TAggregatedJobStatistics& rhs);
 };
 
-std::pair<TAggregatedJobStatistics, TError> MergeJobStatistics(const TAggregatedJobStatistics& lhs, const TAggregatedJobStatistics& rhs);
+TAggregatedJobStatistics MergeJobStatistics(const TAggregatedJobStatistics& lhs, const TAggregatedJobStatistics& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

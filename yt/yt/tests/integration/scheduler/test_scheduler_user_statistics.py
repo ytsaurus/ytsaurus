@@ -244,10 +244,8 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         command = """
             if [ "$YT_JOB_COOKIE" == 0 ]; then
                 echo '{"a"=1};' >&5;
-                echo '{"b"=1};' >&5;
             else
                 echo '{"a"={"b"=1}};' >&5;
-                echo '{"c"=1};' >&5;
             fi
         """
 
@@ -263,7 +261,3 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         else:
             op = run_test_vanilla(command, job_count=2, track=True)
             assert check_alert_set(op)
-
-        # Check that "good" statistics were not discarded.
-        assert_statistics(op, "b", lambda value: value == 1, summary_type="count")
-        assert_statistics(op, "c", lambda value: value == 1, summary_type="count")
