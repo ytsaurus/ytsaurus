@@ -808,7 +808,22 @@ TEST_F(TProducerApiTest, TestProducerClient)
 
         for (int batchId = 0; batchId < 5; ++batchId) {
             pushBatch(producerSession);
+            if (batchId % 2 == 1) {
+                WaitFor(producerSession->Flush())
+                    .ThrowOnError();
+
+                auto expectedCount = 10 * (batchId + 1);
+                checkQueue(expectedCount);
+                checkProducer(expectedCount - 1, 0);
+            }
         }
+
+        WaitFor(producerSession->Flush())
+            .ThrowOnError();
+
+        checkQueue(50);
+        checkProducer(49, 0);
+
         WaitFor(producerSession->Close())
             .ThrowOnError();
 
@@ -960,11 +975,14 @@ TEST_F(TProducerApiTest, TestProducerClient)
 
         pushBatch(producerSession);
 
-        WaitFor(producerSession->Close())
+        WaitFor(producerSession->Flush())
             .ThrowOnError();
 
         checkQueue(154);
         checkProducer(153, 6);
+
+        WaitFor(producerSession->Close())
+            .ThrowOnError();
     }
 }
 
