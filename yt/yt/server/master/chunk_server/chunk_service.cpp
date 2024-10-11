@@ -129,6 +129,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AttachChunkTrees)
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExecuteBatch)
+            .SetCancelable(true)
             .SetHeavy(true)
             .SetQueueSizeLimit(10'000)
             .SetConcurrencyLimit(10'000)
