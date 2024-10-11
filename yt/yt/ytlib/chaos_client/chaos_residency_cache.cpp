@@ -50,6 +50,9 @@ public:
     TFuture<TCellTag> GetChaosResidency(TObjectId objectId) override;
     void ForceRefresh(TObjectId objectId, TCellTag cellTag) override;
     void Clear() override;
+    void UpdateReplicationCardResidency(NObjectClient::TObjectId objectId, NObjectClient::TCellTag cellTag) override;
+    void RemoveReplicationCardResidency(NObjectClient::TObjectId objectId) override;
+    void PingReplicationCardResidency(NObjectClient::TObjectId objectId) override;
 
 protected:
     class TGetSession;
@@ -259,6 +262,21 @@ void TChaosResidencyCache::ForceRefresh(TObjectId objectId, TCellTag cellTag)
 void TChaosResidencyCache::Clear()
 {
     TAsyncExpiringCache::Clear();
+}
+
+void TChaosResidencyCache::UpdateReplicationCardResidency(NObjectClient::TObjectId objectId, NObjectClient::TCellTag cellTag)
+{
+    TAsyncExpiringCache::Set(objectId, cellTag);
+}
+
+void TChaosResidencyCache::RemoveReplicationCardResidency(NObjectClient::TObjectId objectId)
+{
+    TAsyncExpiringCache::InvalidateActive(objectId);
+}
+
+void TChaosResidencyCache::PingReplicationCardResidency(NObjectClient::TObjectId objectId)
+{
+    PingEntry(objectId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
