@@ -5,6 +5,8 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
+
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 #include <yt/yt/client/transaction_client/public.h>
 
@@ -149,6 +151,9 @@ private:
             return;
         }
 
+        auto connection = Connection_.Lock();
+        auto residencyCache = connection ? connection->GetChaosResidencyCache() : nullptr;
+
         if (value->has_replication_card_changed()) {
             const auto& newCardResponse = value->replication_card_changed();
             timestamp = FromProto<TTimestamp>(newCardResponse.replication_card_cache_timestamp());
@@ -159,6 +164,10 @@ private:
             future = WatchUpstream(replicationCardId, timestamp);
             guard.Release();
             YT_LOG_DEBUG("Replication card changed (Response: %v)", response);
+            if (residencyCache) {
+                residencyCache->PingReplicationCardResidency(replicationCardId);
+            }
+
             Callbacks_->OnReplicationCardUpdated(replicationCardId, std::move(replicationCard), timestamp);
             return;
         }
@@ -167,12 +176,22 @@ private:
             future = WatchUpstream(replicationCardId, timestamp);
             guard.Release();
             YT_LOG_DEBUG("Replication card not changed (Response: %v)", response);
+            if (residencyCache) {
+                residencyCache->PingReplicationCardResidency(replicationCardId);
+            }
+
             Callbacks_->OnNothingChanged(replicationCardId);
             return;
         }
 
         if (value->has_replication_card_migrated()) {
-            // TODO(osidorkin): Hint residency cache about migration?
+            const auto& migratedResponse = value->replication_card_migrated();
+            auto newCellId = FromProto<TCellId>(migratedResponse.migrate_to_cell_id());
+            auto newCellTag = NObjectClient::CellTagFromId(newCellId);
+            if (residencyCache) {
+                residencyCache->UpdateReplicationCardResidency(replicationCardId, newCellTag);
+            }
+
             future = WatchUpstream(replicationCardId, timestamp);
             guard.Release();
             YT_LOG_DEBUG("Replication card migrated (Response: %v)", response);
@@ -181,6 +200,10 @@ private:
         }
 
         if (value->has_instance_is_not_leader()) {
+            if (residencyCache) {
+                residencyCache->RemoveReplicationCardResidency(replicationCardId);
+            }
+
             future = WatchUpstream(replicationCardId, timestamp);
             guard.Release();
             YT_LOG_DEBUG("Instance is not leader (Response: %v)", response);
