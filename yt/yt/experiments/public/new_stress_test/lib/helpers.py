@@ -75,7 +75,7 @@ def wait_for_preload(table):
         try:
             wait(_check, sleep_backoff=1, timeout=timeout)
         except WaitFailed:
-            raise Exception(f"Chunk data did not preload in {timeout} seconds")
+            raise Exception(f"Chunk data did not preload in {timeout} seconds; nodes left: {node_set}")
 
     wait_via_node_orchid();
 
