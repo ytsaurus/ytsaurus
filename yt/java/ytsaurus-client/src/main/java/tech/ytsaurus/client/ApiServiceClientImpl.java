@@ -905,6 +905,9 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     @Override
     public CompletableFuture<GUID> startOperation(StartOperation req) {
+        var spec = req.getSpec();
+        StartOperationHelpers.guessBaseLayers(spec);
+        req = req.toBuilder().setSpec(spec).build();
         return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.START_OPERATION.createRequestBuilder(rpcOptions)),
                 response -> RpcUtil.fromProto(response.body().getOperationId())));
