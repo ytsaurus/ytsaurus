@@ -623,7 +623,7 @@ public:
         const ::google::protobuf::MessageLite& message) override
     {
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto* mailbox = hiveManager->GetMailbox(endpointId);
+        auto mailbox = hiveManager->GetMailbox(endpointId);
         hiveManager->PostMessage(mailbox, message);
     }
 
@@ -3663,7 +3663,7 @@ private:
         YT_VERIFY(HasHydraContext());
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto* mailbox = Slot_->GetMasterMailbox();
+        auto mailbox = Slot_->GetMasterMailbox();
         TRspOnTabletCellSuspensionToggled response;
         ToProto(response.mutable_cell_id(), Slot_->GetCellId());
         response.set_suspended(suspended);
@@ -3716,7 +3716,7 @@ private:
         CellLifeStage_ = ETabletCellLifeStage::Decommissioned;
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto* mailbox = Slot_->GetMasterMailbox();
+        auto mailbox = Slot_->GetMasterMailbox();
         TRspDecommissionTabletCellOnNode response;
         ToProto(response.mutable_cell_id(), Slot_->GetCellId());
         hiveManager->PostMessage(mailbox, response);
@@ -4069,7 +4069,7 @@ private:
         auto avenueEndpointId = tablet->GetMasterAvenueEndpointId();
         if (avenueEndpointId && !forceCellMailbox) {
             const auto& hiveManager = Slot_->GetHiveManager();
-            auto* mailbox = hiveManager->GetMailbox(avenueEndpointId);
+            auto mailbox = hiveManager->GetMailbox(avenueEndpointId);
             hiveManager->PostMessage(mailbox, message);
         } else {
             Slot_->PostMasterMessage(tablet->GetId(), message);

@@ -635,9 +635,7 @@ public:
         auto cellId = cell->GetId();
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        if (auto* mailbox = hiveManager->FindCellMailbox(cellId)) {
-            hiveManager->RemoveCellMailbox(mailbox);
-        }
+        Y_UNUSED(hiveManager->TryRemoveCellMailbox(cellId));
 
         for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
             const auto& peer = cell->Peers()[peerId];
@@ -909,7 +907,7 @@ public:
         cell->SetCellLifeStage(ECellLifeStage::DecommissioningOnNode);
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+        auto mailbox = hiveManager->GetMailbox(cell->GetId());
         hiveManager->PostMessage(mailbox, TReqDecommissionTabletCellOnNode());
     }
 

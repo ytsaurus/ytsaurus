@@ -886,7 +886,7 @@ private:
             NChaosNode::NProto::TReqRemoveReplicationCard req;
             ToProto(req.mutable_replication_card_id(), replicationCard->GetId());
 
-            auto* mailbox = hiveManager->GetCellMailbox(replicationCard->Migration().OriginCellId);
+            auto mailbox = hiveManager->GetMailbox(replicationCard->Migration().OriginCellId);
             hiveManager->PostMessage(mailbox, req);
 
             YT_LOG_DEBUG("Removing migrated replication card at origin cell (ReplicationCardId: %v, OriginCellId: %v)",
@@ -1407,7 +1407,8 @@ private:
             }
 
             coordinator->State = EShortcutState::Revoking;
-            auto* mailbox = hiveManager->GetCellMailbox(cellId);
+
+            auto mailbox = hiveManager->GetMailbox(cellId);
             hiveManager->PostMessage(mailbox, req);
 
             YT_LOG_DEBUG("Revoking shortcut (ReplicationCardId: %v, Era: %v CoordinatorCellId: %v)",
@@ -1459,7 +1460,7 @@ private:
             }
 
             replicationCard->Coordinators().insert(std::pair(cellId, TCoordinatorInfo{EShortcutState::Granting}));
-            auto* mailbox = hiveManager->GetOrCreateCellMailbox(cellId);
+            auto mailbox = hiveManager->GetOrCreateCellMailbox(cellId);
             hiveManager->PostMessage(mailbox, req);
 
             YT_LOG_DEBUG("Granting shortcut to coordinator (ReplicationCardId: %v, Era: %v, CoordinatorCellId: %v",
@@ -1673,7 +1674,7 @@ private:
         ToProto(rsp.mutable_migration_token(), migrationToken);
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto* mailbox = hiveManager->GetOrCreateCellMailbox(emigratedFromCellId);
+        auto mailbox = hiveManager->GetOrCreateCellMailbox(emigratedFromCellId);
         hiveManager->PostMessage(mailbox, rsp);
     }
 
@@ -1759,7 +1760,7 @@ private:
         ToProto(req.mutable_migration_token(), migrationToken);
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto* mailbox = hiveManager->GetOrCreateCellMailbox(immigratedToCellId);
+        auto mailbox = hiveManager->GetOrCreateCellMailbox(immigratedToCellId);
         hiveManager->PostMessage(mailbox, req);
 
         // COMPAT(ponasenko-rs)
@@ -2156,7 +2157,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto* mailbox = hiveManager->GetCellMailbox(coordinatorCellId);
+        auto mailbox = hiveManager->GetMailbox(coordinatorCellId);
         hiveManager->PostMessage(mailbox, req);
     }
 
@@ -2196,7 +2197,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto* mailbox = hiveManager->GetCellMailbox(coordinatorCellId);
+        auto mailbox = hiveManager->GetMailbox(coordinatorCellId);
         hiveManager->PostMessage(mailbox, req);
     }
 

@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/lib/security_server/public.h>
 
+#include <yt/yt/server/lib/hive/public.h>
+
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/ytlib/hydra/public.h>
@@ -81,7 +83,7 @@ struct ITabletSlot
 
     virtual const NHiveServer::IHiveManagerPtr& GetHiveManager() = 0;
     virtual const NHiveServer::TSimpleAvenueDirectoryPtr& GetAvenueDirectory() = 0;
-    virtual NHiveServer::TMailbox* GetMasterMailbox() = 0;
+    virtual NHiveServer::TMailboxHandle GetMasterMailbox() = 0;
 
     virtual void RegisterMasterAvenue(
         TTabletId tabletId,
