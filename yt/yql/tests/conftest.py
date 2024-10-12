@@ -29,7 +29,7 @@ class YqlAgent():
             "path": yatest.common.binary_path("yt/yql/agent/bin"),
             "artifacts_path": _get_artifacts_path(),
             "native_client_supported": True,
-            "libraries": libraries
+            "libraries": libraries,
         })
 
     def __enter__(self):
@@ -64,7 +64,6 @@ def yql_agent(request):
         libraries["test"] = test_lib_path
         with open(test_lib_path, "w") as fp:
             fp.write(getattr(cls, "YQL_TEST_LIBRARY"))
-            fp.close()
 
     with YqlAgent(cls.Env, count, libraries) as yql_agent:
         update_yql_agent_environment(cls, yql_agent)

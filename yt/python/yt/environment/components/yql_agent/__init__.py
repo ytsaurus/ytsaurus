@@ -27,7 +27,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         if "path" in config:
             self.PATH = config["path"]
 
-        self.libraries = config["libraries"] if "libraries" in config else {}
+        self.libraries = config.get("libraries", {})
 
         if "artifacts_path" in config:
             self.artifacts_path = config["artifacts_path"]
