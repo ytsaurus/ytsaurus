@@ -79,6 +79,8 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, GetBasicAttributes)
 
 DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, Fetch)
 {
+    context->SetRequestInfo();
+
     TNodeDirectoryBuilder nodeDirectoryBuilder(NodeDirectory_, response->mutable_node_directory());
 
     for (const auto& range : FromProto<std::vector<TLegacyReadRange>>(request->ranges())) {
@@ -121,7 +123,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, Fetch)
         }
     }
 
-    context->SetResponseInfo();
+    context->SetResponseInfo("ChunkCount: %v", response->chunks_size());
     context->Reply();
 }
 
