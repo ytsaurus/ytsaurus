@@ -194,6 +194,15 @@ TFuture<TOperationPtr> TOperation::GetStarted()
     }));
 }
 
+TAccessControlRule TOperation::GetAccessControlRule() const
+{
+    if (RuntimeParameters_->AcoName) {
+        return *RuntimeParameters_->AcoName;
+    } else {
+        return RuntimeParameters_->Acl;
+    }
+}
+
 void TOperation::SetStarted(const TError& error)
 {
     StartedPromise_.Set(error);
@@ -362,9 +371,11 @@ std::optional<TJobResources> TOperation::GetAggregatedInitialMinNeededResources(
 
 void TOperation::SetRuntimeParameters(TOperationRuntimeParametersPtr parameters)
 {
-    if (parameters->Acl != RuntimeParameters_->Acl) {
-        SetShouldFlushAcl(true);
-    }
+    bool hasAcl = !RuntimeParameters_->Acl.Entries.empty() || !parameters->Acl.Entries.empty();
+    bool hasAcoName = RuntimeParameters_->AcoName || parameters->AcoName;
+
+    YT_VERIFY(!hasAcl || !hasAcoName);
+
     SetShouldFlush(true);
     RuntimeParameters_ = std::move(parameters);
 }

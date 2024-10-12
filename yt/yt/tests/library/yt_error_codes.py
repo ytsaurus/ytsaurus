@@ -54,6 +54,7 @@ SpecVersionMismatch = 3300
 InvalidEpoch = 3101
 ZombieEpoch = 3102
 InvalidRowSequenceNumbers = 3103
+CannotUseBothAclAndAco = 221
 
 
 class Scheduler(object):

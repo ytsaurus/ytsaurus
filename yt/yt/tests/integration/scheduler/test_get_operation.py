@@ -3,11 +3,11 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create, ls, get,
     set, remove,
-    exists, make_ace, start_transaction, lock, insert_rows, lookup_rows, write_table, map, vanilla, abort_op,
+    exists, start_transaction, lock, insert_rows, lookup_rows, write_table, map, vanilla, abort_op,
     complete_op, suspend_op, resume_op, get_operation, list_operations, run_test_vanilla, run_sleeping_vanilla,
     clean_operations, get_operation_cypress_path, sync_create_cells, create_pool,
     sync_mount_table, sync_unmount_table, update_controller_agent_config,
-    update_op_parameters, raises_yt_error)
+    raises_yt_error)
 
 import yt_error_codes
 
@@ -713,8 +713,6 @@ class TestOperationAliases(YTEnvSetup):
         assert get(op.get_path() + "/@suspended")
         resume_op("*my_op")
         assert not get(op.get_path() + "/@suspended")
-        update_op_parameters("*my_op", parameters={"acl": [make_ace("allow", "u", ["manage", "read"])]})
-        assert len(get(op.get_path() + "/@alerts")) == 1
         wait(lambda: get(op.get_path() + "/@state") == "running")
         abort_op("*my_op")
         assert get(op.get_path() + "/@state") == "aborted"

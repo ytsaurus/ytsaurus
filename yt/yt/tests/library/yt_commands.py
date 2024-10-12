@@ -2402,6 +2402,10 @@ def create_access_control_object(name, namespace, **kwargs):
     execute_command("create", kwargs)
 
 
+def update_access_control_object_acl(aco_namespase, aco_name, acl):
+    set(f"//sys/access_control_object_namespaces/{aco_namespase}/{aco_name}/principal/@acl", acl)
+
+
 def create_zookeeper_shard(name, root_path, cell_tag=None, **kwargs):
     kwargs["type"] = "zookeeper_shard"
     if "attributes" not in kwargs:

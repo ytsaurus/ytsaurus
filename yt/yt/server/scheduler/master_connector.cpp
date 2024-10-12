@@ -38,6 +38,7 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/security_client/access_control.h>
 #include <yt/yt/client/security_client/acl.h>
 
 #include <yt/yt/client/api/transaction.h>
@@ -219,7 +220,7 @@ public:
                                     SerializeHeavyRuntimeParameters(fluent, *operation->GetRuntimeParameters());
                                 });
                         })
-                        .Item("acl").Value(MakeOperationArtifactAcl(operation->GetRuntimeParameters()->Acl))
+                        .Item("acl").Value(MakeOperationArtifactAcl(operation->BaseAcl()))
                         .Item("has_secure_vault").Value(static_cast<bool>(operation->GetSecureVault()))
                     .EndAttributes()
                     .BeginMap().EndMap();
@@ -248,7 +249,7 @@ public:
                 auto attributes = CreateEphemeralAttributesNestingLimited();
                 attributes->Set("inherit_acl", false);
                 attributes->Set("value", operation->GetSecureVault());
-                attributes->Set("acl", ConvertToYsonString(operation->GetRuntimeParameters()->Acl));
+                attributes->Set("acl", ConvertToYsonString(operation->BaseAcl()));
 
                 auto req = TCypressYPathProxy::Create(GetSecureVaultPath(operationId));
                 req->set_type(static_cast<int>(EObjectType::Document));
@@ -1272,7 +1273,7 @@ private:
             }
 
             auto baseAcl = operationBaseAcl;
-            if (spec->AddAuthenticatedUserToAcl) {
+            if (spec->AddAuthenticatedUserToAcl.value_or(true)) {
                 baseAcl.Entries.emplace_back(
                     ESecurityAction::Allow,
                     std::vector<TString>{user},
@@ -1305,9 +1306,6 @@ private:
                 attributes.Find<TJobResources>("initial_aggregated_min_needed_resources"),
                 attributes.Get<int>("registration_index", 0),
                 attributes.Get<THashMap<EOperationAlertType, TOperationAlert>>("alerts", {}));
-
-
-            operation->SetShouldFlushAcl(true);
 
             auto schedulingAttributesMap = attributes.Find<THashMap<TString, TOperationPoolTreeAttributes>>("scheduling_attributes_per_pool_tree");
             if (schedulingAttributesMap) {
@@ -1759,31 +1757,6 @@ private:
 
             auto operationPath = GetOperationPath(operation->GetId());
 
-            if (operation->GetShouldFlushAcl()) {
-                auto aclBatchReq = StartObjectBatchRequest();
-                auto req = TYPathProxy::Set(GetOperationPath(operation->GetId()) + "/@acl");
-                auto operationNodeAcl = MakeOperationArtifactAcl(operation->GetRuntimeParameters()->Acl);
-                req->set_value(ConvertToYsonStringNestingLimited(operationNodeAcl).ToString());
-                aclBatchReq->AddRequest(req, "set_acl");
-
-                auto aclBatchRspOrError = WaitFor(aclBatchReq->Invoke());
-                THROW_ERROR_EXCEPTION_IF_FAILED(aclBatchRspOrError);
-
-                auto rspOrErr = aclBatchRspOrError.Value()->GetResponse("set_acl");
-                auto scheduler = Bootstrap_->GetScheduler();
-                if (!rspOrErr.IsOK()) {
-                    auto error = TError("Failed to set operation ACL")
-                        << TErrorAttribute("operation_id", operation->GetId())
-                        << rspOrErr;
-                    WaitFor(scheduler->SetOperationAlert(operation->GetId(), EOperationAlertType::InvalidAcl, error))
-                        .ThrowOnError();
-                    YT_LOG_INFO(error);
-                } else {
-                    WaitFor(scheduler->SetOperationAlert(operation->GetId(), EOperationAlertType::InvalidAcl, TError()))
-                        .ThrowOnError();
-                }
-            }
-
             auto multisetReq = TYPathProxy::MultisetAttributes(operationPath + "/@");
 
             // Set suspended flag.
@@ -1866,8 +1839,6 @@ private:
 
             batchReq->AddRequest(multisetReq, "update_op_node");
 
-            operation->SetShouldFlushAcl(false);
-
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
 
@@ -1892,7 +1863,7 @@ private:
             return {};
         }
 
-        if (!update->Operation->GetShouldFlush() && !update->Operation->GetShouldFlushAcl()) {
+        if (!update->Operation->GetShouldFlush()) {
             return {};
         }
 

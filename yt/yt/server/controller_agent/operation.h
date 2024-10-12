@@ -6,8 +6,10 @@
 #include <yt/yt/server/lib/scheduler/scheduling_tag.h>
 #include <yt/yt/server/lib/scheduler/structs.h>
 
+
 #include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
+#include <yt/yt/ytlib/scheduler/public.h>
 #include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
@@ -34,6 +36,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TString, AuthenticatedUser);
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, SecureVault);
     DEFINE_BYVAL_RW_PROPERTY(NSecurityClient::TSerializableAccessControlList, Acl);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, AcoName);
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
     DEFINE_BYREF_RO_PROPERTY(NScheduler::TPoolTreeControllerSettingsMap, PoolTreeControllerSettingsMap);
     DEFINE_BYVAL_RO_PROPERTY(NScheduler::TControllerEpoch, ControllerEpoch);
@@ -51,6 +54,8 @@ public:
     void UpdateJobShellOptions(const NScheduler::TJobShellOptionsUpdateMap& update);
 
     std::optional<NScheduler::TJobShellInfo> GetJobShellInfo(const TString& jobShellName);
+
+    NScheduler::TAccessControlRule GetAccessControlRule() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperation)

@@ -31,6 +31,7 @@ TOperation::TOperation(const NProto::TOperationDescriptor& descriptor)
         ? ConvertToNode(TYsonString(descriptor.secure_vault(), EYsonType::Node))->AsMap()
         : NYTree::IMapNodePtr())
     , Acl_(ConvertTo<TSerializableAccessControlList>(TYsonString(descriptor.acl())))
+    , AcoName_(descriptor.has_aco_name() ? std::optional<TString>(descriptor.aco_name()) : std::nullopt)
     , UserTransactionId_(FromProto<NTransactionClient::TTransactionId>(descriptor.user_transaction_id()))
     , PoolTreeControllerSettingsMap_(FromProto<TPoolTreeControllerSettingsMap>(descriptor.pool_tree_controller_settings_map()))
     , ControllerEpoch_(descriptor.controller_epoch())
@@ -75,6 +76,15 @@ std::optional<NScheduler::TJobShellInfo> TOperation::GetJobShellInfo(const TStri
     return NScheduler::TJobShellInfo(
         std::move(jobShell),
         std::move(runtimeParameters));
+}
+
+TAccessControlRule TOperation::GetAccessControlRule() const
+{
+    if (AcoName_) {
+        return *AcoName_;
+    } else {
+        return Acl_;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

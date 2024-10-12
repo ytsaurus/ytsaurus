@@ -59,6 +59,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((VersionedMapReduceWrite)              (301602))
     ((IntroduceGangManager)                 (301603))
     ((DropOriginalTableSchemaRevision)      (301604))
+    ((AcoName)                              (301605))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

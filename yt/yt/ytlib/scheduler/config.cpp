@@ -677,8 +677,11 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("acl", &TThis::Acl)
         .Default();
 
+    registrar.Parameter("aco_name", &TThis::AcoName)
+        .Default();
+
     registrar.Parameter("add_authenticated_user_to_acl", &TThis::AddAuthenticatedUserToAcl)
-        .Default(true);
+        .Default();
 
     registrar.Parameter("secure_vault", &TThis::SecureVault)
         .Default();
@@ -885,10 +888,29 @@ void TOperationSpecBase::Register(TRegistrar registrar)
                 MaxAnnotationsYsonTextLength);
         }
 
-        ValidateOperationAcl(spec->Acl);
-        ProcessAclAndOwnersParameters(&spec->Acl, &spec->Owners);
-        ValidateSecurityTags(spec->AdditionalSecurityTags);
+        if (spec->AcoName) {
+            if (spec->AddAuthenticatedUserToAcl) {
+                THROW_ERROR_EXCEPTION("Cannot use \"add_authenticated_user_to_acl\" with aco");
+            }
+            if (spec->Acl) {
+                THROW_ERROR_EXCEPTION(EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
+            }
+            if (spec->Owners) {
+                THROW_ERROR_EXCEPTION(EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
+            }
+        }
 
+        if (spec->Acl) {
+            ValidateOperationAcl(*spec->Acl);
+        }
+        if (spec->Owners) {
+            if (!spec->Acl) {
+                spec->Acl = TSerializableAccessControlList();
+            }
+            ProcessAclAndOwnersParameters(&(*spec->Acl), &(*spec->Owners));
+        }
+
+        ValidateSecurityTags(spec->AdditionalSecurityTags);
         ValidateProfilers(spec->Profilers);
 
         {
@@ -2520,7 +2542,10 @@ void Serialize(const TOperationRuntimeParameters& parameters, IYsonConsumer* con
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("owners").Value(parameters.Owners)
-            .Item("acl").Value(parameters.Acl)
+            .DoIf(!parameters.Acl.Entries.empty(), [&] (auto fluent) {
+                fluent.Item("acl").Value(parameters.Acl);
+            })
+            .OptionalItem("aco_name", parameters.AcoName)
             .Item("scheduling_options_per_pool_tree").Value(parameters.SchedulingOptionsPerPoolTree)
             .Item("options_per_job_shell").Value(parameters.OptionsPerJobShell)
             .DoIf(serializeHeavy, [&] (auto fluent) {
@@ -2546,6 +2571,9 @@ void Deserialize(TOperationRuntimeParameters& parameters, INodePtr node)
     if (auto owners = mapNode->FindChild("owners")) {
         Deserialize(parameters.Owners, owners);
     }
+    if (auto acoName = mapNode->FindChild("aco_name")) {
+        Deserialize(parameters.AcoName, acoName);
+    }
     if (auto acl = mapNode->FindChild("acl")) {
         Deserialize(parameters.Acl, acl);
     }
@@ -2564,6 +2592,15 @@ void Deserialize(TOperationRuntimeParameters& parameters, INodePtr node)
         Deserialize(parameters.ControllerAgentTag, controllerAgentTag);
     } else {
         parameters.ControllerAgentTag = "default";
+    }
+
+    if (parameters.AcoName) {
+        if (!parameters.Acl.Entries.empty()) {
+            THROW_ERROR_EXCEPTION(EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
+        }
+        if (!parameters.Owners.empty()) {
+            THROW_ERROR_EXCEPTION(EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
+        }
     }
     ValidateOperationAcl(parameters.Acl);
     ProcessAclAndOwnersParameters(&parameters.Acl, &parameters.Owners);
@@ -2601,6 +2638,8 @@ void TOperationRuntimeParametersUpdate::Register(TRegistrar registrar)
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
     registrar.Parameter("acl", &TThis::Acl)
         .Optional();
+    registrar.Parameter("aco_name", &TThis::AcoName)
+        .Optional();
     registrar.Parameter("scheduling_options_per_pool_tree", &TThis::SchedulingOptionsPerPoolTree)
         .Default();
     registrar.Parameter("options_per_job_shell", &TThis::OptionsPerJobShell)
@@ -2611,7 +2650,10 @@ void TOperationRuntimeParametersUpdate::Register(TRegistrar registrar)
         .Optional();
 
     registrar.Postprocessor([] (TOperationRuntimeParametersUpdate* update) {
-        if (update->Acl.has_value()) {
+        if (update->Acl) {
+            if (update->AcoName) {
+                THROW_ERROR_EXCEPTION(EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
+            }
             ValidateOperationAcl(*update->Acl);
         }
     });

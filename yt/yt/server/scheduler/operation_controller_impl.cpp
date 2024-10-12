@@ -407,6 +407,9 @@ TFuture<void> TOperationControllerImpl::Register(const TOperationPtr& operation)
         descriptor->set_secure_vault(ConvertToYsonString(operation->GetSecureVault()).ToString());
     }
     descriptor->set_acl(ConvertToYsonString(operation->GetRuntimeParameters()->Acl).ToString());
+    if (auto acoName = operation->GetRuntimeParameters()->AcoName) {
+        descriptor->set_aco_name(*acoName);
+    }
     ToProto(descriptor->mutable_pool_tree_controller_settings_map(), operation->PoolTreeControllerSettingsMap());
     ToProto(descriptor->mutable_user_transaction_id(), operation->GetUserTransactionId());
     descriptor->set_controller_epoch(operation->ControllerEpoch().Underlying());
