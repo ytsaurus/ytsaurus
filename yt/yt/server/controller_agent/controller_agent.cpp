@@ -673,8 +673,19 @@ public:
     TFuture<void> UpdateOperationRuntimeParameters(TOperationId operationId, TOperationRuntimeParametersUpdatePtr update)
     {
         auto operation = GetOperationOrThrow(operationId);
-        if (update->Acl) {
-            operation->SetAcl(*update->Acl);
+
+        bool hasAcl = update->Acl || !operation->GetAcl().Entries.empty();
+        bool hasAcoName = update->AcoName || operation->GetAcoName();
+        if (hasAcl && hasAcoName) {
+            THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
+        }
+
+        if (update->Acl || update->AcoName) {
+            if (update->Acl) {
+                operation->SetAcl(*update->Acl);
+            } else {
+                operation->SetAcoName(*update->AcoName);
+            }
             const auto& controller = operation->GetController();
             if (controller) {
                 return BIND(&IOperationControllerSchedulerHost::UpdateRuntimeParameters, controller, std::move(update))
@@ -959,7 +970,7 @@ public:
             operationId,
             TAllocationId(),
             permission,
-            GetOperationOrThrow(operationId)->GetAcl(),
+            GetOperationOrThrow(operationId)->GetAccessControlRule(),
             Bootstrap_->GetClient(),
             Logger());
     }

@@ -127,6 +127,7 @@ message TReqGetAllocationBriefInfo
     {
         optional bool operation_id = 1 [default = false];
         optional bool operation_acl = 2 [default = false];
+        optional bool operation_aco_name = 5 [default = false];
         optional bool controller_agent_descriptor = 3 [default = false];
         optional bool node_descriptor = 4 [default = false];
     }
@@ -139,6 +140,7 @@ message TAllocationBriefInfo
     required NYT.NProto.TGuid allocation_id = 1;
     optional NYT.NProto.TGuid operation_id = 2;
     optional bytes operation_acl = 3;
+    optional string operation_aco_name = 6;
     optional NControllerAgent.NProto.TControllerAgentDescriptor controller_agent_descriptor = 4;
     optional NNodeTrackerClient.NProto.TNodeDescriptor node_descriptor = 5;
 }

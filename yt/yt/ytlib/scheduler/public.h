@@ -173,6 +173,8 @@ class TJobResourcesWithQuota;
 
 class TOperationServiceProxy;
 
+class TAccessControlRule;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(babenko): switch to std::string

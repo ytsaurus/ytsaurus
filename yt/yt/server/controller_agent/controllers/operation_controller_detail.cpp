@@ -103,6 +103,7 @@
 
 #include <yt/yt/library/ytprof/heap_profiler.h>
 
+#include <yt/yt/client/security_client/access_control.h>
 #include <yt/yt/client/security_client/acl.h>
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
@@ -236,6 +237,7 @@ TOperationControllerBase::TOperationControllerBase(
     }())
     , CoreNotes_({Format("OperationId: %v", OperationId)})
     , Acl(operation->GetAcl())
+    , AcoName(operation->GetAcoName())
     , ControllerEpoch(operation->GetControllerEpoch())
     , CancelableContext(New<TCancelableContext>())
     , ChunkScraperInvoker_(Host->GetChunkScraperThreadPoolInvoker())
@@ -4698,7 +4700,11 @@ void TOperationControllerBase::CustomizeJobSpec(
             joblet);
     }
 
-    jobSpecExt->set_acl(ConvertToYsonString(Acl).ToString());
+    if (AcoName) {
+        jobSpecExt->set_aco_name(*AcoName);
+    } else {
+        jobSpecExt->set_acl(ConvertToYsonString(Acl).ToString());
+    }
 }
 
 void TOperationControllerBase::RegisterTask(TTaskPtr task)
@@ -5936,6 +5942,17 @@ void TOperationControllerBase::CreateLivePreviewTables()
     const auto& client = Host->GetClient();
     auto connection = client->GetNativeConnection();
 
+    const bool isLegacyIntermediateLivePreviewSupported = IsLegacyIntermediateLivePreviewSupported();
+
+    TSerializableAccessControlList legacyIntermediateLivePreviewAcl;
+    if (isLegacyIntermediateLivePreviewSupported) {
+        if (AcoName) {
+            legacyIntermediateLivePreviewAcl = TAccessControlRule(*AcoName).GetOrLookupAcl(Client);
+        } else {
+            legacyIntermediateLivePreviewAcl = Acl;
+        }
+    }
+
     // NB: use root credentials.
     auto proxy = CreateObjectServiceWriteProxy(client);
     auto batchReq = proxy.ExecuteBatch();
@@ -6046,18 +6063,19 @@ void TOperationControllerBase::CreateLivePreviewTables()
         RegisterLivePreviewTable("core", CoreTable_);
     }
 
-    if (IsLegacyIntermediateLivePreviewSupported()) {
+    if (isLegacyIntermediateLivePreviewSupported) {
         YT_LOG_INFO("Creating live preview for intermediate table");
 
         auto path = GetOperationPath(OperationId) + "/intermediate";
 
-        auto intermediateDataAcl = MakeOperationArtifactAcl(Acl);
+        auto intermediateDataAcl = MakeOperationArtifactAcl(legacyIntermediateLivePreviewAcl);
         if (Config->AllowUsersGroupReadIntermediateData) {
             intermediateDataAcl.Entries.emplace_back(
                 ESecurityAction::Allow,
                 std::vector<TString>{UsersGroupName},
                 EPermissionSet(EPermission::Read));
         }
+
         YT_VERIFY(IntermediateOutputCellTagList.size() == 1);
         addRequest(
             path,
@@ -8563,6 +8581,8 @@ void TOperationControllerBase::UpdateRuntimeParameters(const TOperationRuntimePa
 {
     if (update->Acl) {
         Acl = *update->Acl;
+    } else if (update->AcoName) {
+        AcoName = *update->AcoName;
     }
 }
 
@@ -10414,6 +10434,10 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, BannedNodeIds_);
     Persist(context, PathToOutputTable_);
     Persist(context, Acl);
+    // COMPAT(omgronny)
+    if (context.GetVersion() >= ESnapshotVersion::AcoName) {
+        Persist(context, AcoName);
+    }
     Persist(context, BannedTreeIds_);
     if (context.GetVersion() < ESnapshotVersion::InputManagerIntroduction) {
         YT_VERIFY(context.IsLoad());

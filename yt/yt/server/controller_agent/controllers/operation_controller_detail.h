@@ -547,6 +547,8 @@ protected:
 
     NSecurityClient::TSerializableAccessControlList Acl;
 
+    std::optional<TString> AcoName;
+
     // Intentionally transient.
     NScheduler::TControllerEpoch ControllerEpoch;
 

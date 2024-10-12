@@ -245,6 +245,7 @@ TErrorOr<TNodeDescriptor> TClient::TryGetJobNodeDescriptor(
             TAllocationInfoToRequest{
                 .OperationId = true,
                 .OperationAcl = true,
+                .OperationAcoName = true,
                 .NodeDescriptor = true,
             }));
 
@@ -256,8 +257,8 @@ TErrorOr<TNodeDescriptor> TClient::TryGetJobNodeDescriptor(
 
         ValidateOperationAccess(
             allocationBriefInfo.OperationId,
-            *allocationBriefInfo.OperationAcl,
             jobId,
+            GetAcrFromAllocationBriefInfo(allocationBriefInfo),
             requiredPermissions);
 
         return allocationBriefInfo.NodeDescriptor;
@@ -446,38 +447,28 @@ void TClient::ValidateOperationAccess(
     getOperationOptions.Attributes = {TString("runtime_parameters")};
     auto operationOrError = WaitFor(GetOperation(operationId, getOperationOptions));
 
-    TSerializableAccessControlList acl;
     if (operationOrError.IsOK()) {
-        auto operation = std::move(operationOrError).Value();
-        auto aclYson = TryGetAny(operation.RuntimeParameters.AsStringBuf(), "/acl");
-        if (aclYson) {
-            acl = ConvertTo<TSerializableAccessControlList>(TYsonStringBuf(*aclYson));
-        } else {
-            // We check against an empty ACL to allow only "superusers" and "root" access.
-            YT_LOG_WARNING(
-                "Failed to get ACL from operation attributes; "
-                "validating against empty ACL (OperationId: %v, JobId: %v)",
-                operationId,
-                jobId);
-        }
-    } else {
-        // We check against an empty ACL to allow only "superusers" and "root" access.
-        YT_LOG_WARNING(
-            operationOrError,
-            "Failed to get operation to validate access; "
-            "validating against empty ACL (OperationId: %v, JobId: %v)",
+        ValidateOperationAccess(
             operationId,
-            jobId);
+            operationOrError.Value(),
+            jobId,
+            permissions);
+        return;
     }
 
-    NScheduler::ValidateOperationAccess(
-        Options_.GetAuthenticatedUser(),
+    // We check against an empty ACL to allow only "superusers" and "root" access.
+    YT_LOG_WARNING(
+        operationOrError,
+        "Failed to get operation to validate access; "
+        "validating against empty ACL (OperationId: %v, JobId: %v)",
         operationId,
-        AllocationIdFromJobId(jobId),
-        permissions,
-        acl,
-        StaticPointerCast<IClient>(MakeStrong(this)),
-        Logger);
+        jobId);
+
+    ValidateOperationAccess(
+        operationId,
+        jobId,
+        TAccessControlRule(),
+        permissions);
 }
 
 void TClient::ValidateOperationAccess(
@@ -486,15 +477,24 @@ void TClient::ValidateOperationAccess(
     EPermissionSet permissions)
 {
     const auto extensionId = NControllerAgent::NProto::TJobSpecExt::job_spec_ext;
-    TSerializableAccessControlList acl;
-    if (jobSpec.HasExtension(extensionId) && jobSpec.GetExtension(extensionId).has_acl()) {
-        TYsonString aclYson(jobSpec.GetExtension(extensionId).acl());
-        acl = ConvertTo<TSerializableAccessControlList>(aclYson);
+    TAccessControlRule accessControlRule;
+    if (jobSpec.HasExtension(extensionId)) {
+        const auto& jobSpecExtension = jobSpec.GetExtension(extensionId);
+        if (jobSpecExtension.has_aco_name()) {
+            accessControlRule.SetAcoName(jobSpecExtension.aco_name());
+        } else if (jobSpecExtension.has_acl()) {
+            TYsonString aclYson(jobSpecExtension.acl());
+            accessControlRule.SetAcl(ConvertTo<TSerializableAccessControlList>(aclYson));
+        } else {
+            // We check against an empty ACL and ACO name to allow only "superusers" and "root" access.
+            YT_LOG_WARNING(
+                "job_spec_ext has neither ACL nor ACO name; "
+                "validating against empty ACL (JobId: %v)",
+                jobId);
+        }
     } else {
-        // We check against an empty ACL to allow only "superusers" and "root" access.
         YT_LOG_WARNING(
-            "Job spec has no sheduler_job_spec_ext or the extension has no ACL; "
-            "validating against empty ACL (JobId: %v)",
+            "Job spec has no scheduler_job_spec_ext; validating against empty ACL (JobId: %v)",
             jobId);
     }
 
@@ -503,23 +503,53 @@ void TClient::ValidateOperationAccess(
         TOperationId(),
         AllocationIdFromJobId(jobId),
         permissions,
-        acl,
+        accessControlRule,
         StaticPointerCast<IClient>(MakeStrong(this)),
         Logger);
 }
 
 void TClient::ValidateOperationAccess(
-    NScheduler::TOperationId operationId,
-    const NSecurityClient::TSerializableAccessControlList& operationAcl,
-    TJobId jobId,
+    TOperationId operationId,
+    const TOperation& operation,
+    NScheduler::TJobId jobId,
     NYTree::EPermissionSet permissions)
+{
+    auto acoName = TryGetString(operation.RuntimeParameters.AsStringBuf(), "/aco_name");
+    auto aclYson = TryGetAny(operation.RuntimeParameters.AsStringBuf(), "/acl");
+
+    TAccessControlRule accessControlRule;
+    if (aclYson) {
+        auto acl = ConvertTo<TSerializableAccessControlList>(TYsonStringBuf(*aclYson));
+        accessControlRule.SetAcl(acl);
+    } else if (acoName) {
+        accessControlRule.SetAcoName(*acoName);
+    } else {
+        // We check against an empty ACL to allow only "superusers" and "root" access.
+        YT_LOG_WARNING(
+            "Failed to get ACL or ACO name from operation attributes; "
+            "validating against empty ACL (OperationId: %v)",
+            operation.Id);
+    }
+
+    ValidateOperationAccess(
+        operationId,
+        jobId,
+        accessControlRule,
+        permissions);
+}
+
+void TClient::ValidateOperationAccess(
+        TOperationId operationId,
+        TJobId jobId,
+        TAccessControlRule accessControlRule,
+        NYTree::EPermissionSet permissions)
 {
     NScheduler::ValidateOperationAccess(
         Options_.GetAuthenticatedUser(),
         operationId,
         AllocationIdFromJobId(jobId),
         permissions,
-        operationAcl,
+        accessControlRule,
         StaticPointerCast<IClient>(MakeStrong(this)),
         Logger);
 }
@@ -576,14 +606,15 @@ void TClient::DoDumpJobContext(
         TAllocationInfoToRequest{
             .OperationId = true,
             .OperationAcl = true,
+            .OperationAcoName = true,
             .NodeDescriptor = true,
         }))
         .ValueOrThrow();
 
     ValidateOperationAccess(
         allocationBriefInfo.OperationId,
-        *allocationBriefInfo.OperationAcl,
         jobId,
+        GetAcrFromAllocationBriefInfo(allocationBriefInfo),
         EPermissionSet(EPermission::Read));
 
     auto transaction = [&] {

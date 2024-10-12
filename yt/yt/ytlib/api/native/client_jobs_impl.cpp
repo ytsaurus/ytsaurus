@@ -93,14 +93,15 @@ void TClient::DoAbandonJob(
         NScheduler::TAllocationInfoToRequest{
             .OperationId = true,
             .OperationAcl = true,
+            .OperationAcoName = true,
             .ControllerAgentDescriptor = true,
         }))
         .ValueOrThrow();
 
     ValidateOperationAccess(
         allocationBriefInfo.OperationId,
-        *allocationBriefInfo.OperationAcl,
         jobId,
+        GetAcrFromAllocationBriefInfo(allocationBriefInfo),
         EPermissionSet(EPermission::Manage));
 
     NControllerAgent::TJobProberServiceProxy jobProberProxy(
@@ -186,6 +187,7 @@ void TClient::DoAbortJob(
         NScheduler::TAllocationInfoToRequest{
             .OperationId = true,
             .OperationAcl = true,
+            .OperationAcoName = true,
             .ControllerAgentDescriptor = true,
             .NodeDescriptor = true,
         }))
@@ -193,8 +195,8 @@ void TClient::DoAbortJob(
 
     ValidateOperationAccess(
         allocationBriefInfo.OperationId,
-        *allocationBriefInfo.OperationAcl,
         jobId,
+        GetAcrFromAllocationBriefInfo(allocationBriefInfo),
         EPermissionSet(EPermission::Manage));
 
     if (options.InterruptTimeout.value_or(TDuration::Zero()) != TDuration::Zero()) {

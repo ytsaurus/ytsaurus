@@ -7,8 +7,10 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
-#include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/proto/scheduler_service.pb.h>
+
+#include <yt/yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -218,9 +220,6 @@ public:
     // sensitive information.
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, SecureVault);
 
-    //! Marks that operation ACL should be flushed to Cypress.
-    DEFINE_BYVAL_RW_PROPERTY(bool, ShouldFlushAcl);
-
     DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(std::optional<TInstant>, FinishTime);
 
     //! List of events that happened to operation.
@@ -302,6 +301,9 @@ public:
 
     //! Gets set when the operation is started.
     TFuture<TOperationPtr> GetStarted();
+
+    //! Returns ACL or ACO name for operation.
+    TAccessControlRule GetAccessControlRule() const;
 
     //! Set operation start result.
     void SetStarted(const TError& error);
