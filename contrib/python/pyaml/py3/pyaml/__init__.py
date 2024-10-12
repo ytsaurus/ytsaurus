@@ -185,7 +185,7 @@ def dump_add_vspacing( yaml_str,
 					blocks.append((a, n, _add_vspacing(block)[a_seq:]))
 				ind_re_sub = None
 			if ind_re.match(line): item_lines.append(n)
-			if m := re.match(r'( *)(- )?\S.*:\s*$', line):
+			if m := re.match(r'( *)(- )?\S.*:(\s|$)', line):
 				a, a_seq, ind_re_sub = n+1, bool(m[2]), re.compile(m[1] + ' ')
 		if ( split_items := len(lines) > split_lines and
 				len(item_lines) > split_count and (oneline_split or has_sub) ):
@@ -266,5 +266,5 @@ def pprint(*data, **dump_kws):
 	if len(data) == 1: data, = data
 	dump(data, dst=dst, **dump_kws)
 
-p, _p = pprint, print
-print = pprint
+_p = lambda *a,_p=print,**kw: _p(*a, **kw, flush=True) # to use here for debug
+p = print = pprint

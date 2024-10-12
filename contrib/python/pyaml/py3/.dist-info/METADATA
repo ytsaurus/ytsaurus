@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: pyaml
-Version: 24.7.0
+Version: 24.9.0
 Summary: PyYAML-based module to produce a bit more pretty and readable YAML-serialized data
 Home-page: https://github.com/mk-fg/pretty-yaml
 Author: Mike Kazantsev
