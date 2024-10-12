@@ -8,7 +8,7 @@
 ///
 /// @mainpage C++ library for describing and running pipelines on YT / BigRT.
 ///
-/// Roren is a library for writing computation pipelines heavily inspired by Apache Beam.
+/// Roren is a library for writing computation pipelines heavily inspired by [Apache Beam](https://beam.apache.org/).
 ///
 /// Roren pipelines can be run in several modes:
 ///   - local debug mode, that is used in unittesting
