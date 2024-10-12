@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: jaraco.functools
-Version: 4.0.2
+Version: 4.1.0
 Summary: Functools like those found in stdlib
 Author-email: "Jason R. Coombs" <jaraco@jaraco.com>
 Project-URL: Source, https://github.com/jaraco/jaraco.functools
@@ -13,6 +13,11 @@ Requires-Python: >=3.8
 Description-Content-Type: text/x-rst
 License-File: LICENSE
 Requires-Dist: more-itertools
+Provides-Extra: check
+Requires-Dist: pytest-checkdocs >=2.4 ; extra == 'check'
+Requires-Dist: pytest-ruff >=0.2.1 ; (sys_platform != "cygwin") and extra == 'check'
+Provides-Extra: cover
+Requires-Dist: pytest-cov ; extra == 'cover'
 Provides-Extra: doc
 Requires-Dist: sphinx >=3.5 ; extra == 'doc'
 Requires-Dist: jaraco.packaging >=9.3 ; extra == 'doc'
@@ -20,14 +25,13 @@ Requires-Dist: rst.linker >=1.9 ; extra == 'doc'
 Requires-Dist: furo ; extra == 'doc'
 Requires-Dist: sphinx-lint ; extra == 'doc'
 Requires-Dist: jaraco.tidelift >=1.4 ; extra == 'doc'
+Provides-Extra: enabler
+Requires-Dist: pytest-enabler >=2.2 ; extra == 'enabler'
 Provides-Extra: test
 Requires-Dist: pytest !=8.1.*,>=6 ; extra == 'test'
-Requires-Dist: pytest-checkdocs >=2.4 ; extra == 'test'
-Requires-Dist: pytest-cov ; extra == 'test'
-Requires-Dist: pytest-mypy ; extra == 'test'
-Requires-Dist: pytest-enabler >=2.2 ; extra == 'test'
 Requires-Dist: jaraco.classes ; extra == 'test'
-Requires-Dist: pytest-ruff >=0.2.1 ; (sys_platform != "cygwin") and extra == 'test'
+Provides-Extra: type
+Requires-Dist: pytest-mypy ; extra == 'type'
 
 .. image:: https://img.shields.io/pypi/v/jaraco.functools.svg
    :target: https://pypi.org/project/jaraco.functools
