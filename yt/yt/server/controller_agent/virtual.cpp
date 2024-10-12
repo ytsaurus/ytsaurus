@@ -26,8 +26,14 @@ using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NScheduler;
+using namespace NSecurityClient;
 
 using NYT::FromProto;
+using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto& Logger = ControllerAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,12 +127,26 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, Fetch)
 
 DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, CheckPermission)
 {
-    if (request->has_permission()) {
-        auto permission = CheckedEnumCast<EPermission>(request->permission());
-        ValidatePermission(EPermissionCheckScope::This, permission);
+    auto permission = FromProto<EPermission>(request->permission());
+    const auto& user = request->user();
+
+    context->SetRequestInfo("User: %v, Permission: %v",
+        user,
+        permission);
+
+    auto action = ESecurityAction::Allow;
+    try {
+        ValidatePermission(EPermissionCheckScope::This, permission, user);
+    } catch (const std::exception& ex) {
+        // TODO(babenko): rewrite permission checks in CA
+        YT_LOG_DEBUG(ex, "Permission validation failed");
+        action = ESecurityAction::Deny;
     }
 
-    context->SetResponseInfo();
+    response->set_action(ToProto<int>(action));
+
+    context->SetResponseInfo("Action: %v",
+        action);
     context->Reply();
 }
 
