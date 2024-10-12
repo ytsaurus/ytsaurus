@@ -28,7 +28,6 @@
 #include <yt/yt/server/master/sequoia_server/config.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
-#include <yt/yt/server/lib/hive/mailbox.h>
 
 #include <yt/yt/server/lib/hydra/persistent_response_keeper.h>
 #include <yt/yt/server/lib/hydra/composite_automaton.h>

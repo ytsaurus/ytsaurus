@@ -30,7 +30,7 @@
 
 #include <yt/yt/server/lib/hive/helpers.h>
 #include <yt/yt/server/lib/hive/hive_manager.h>
-#include <yt/yt/server/lib/hive/mailbox.h>
+#include <yt/yt/server/lib/hive/persistent_mailbox_state.h>
 #include <yt/yt/server/lib/hive/avenue_directory.h>
 
 #include <yt/yt/server/lib/hydra/remote_changelog_store.h>

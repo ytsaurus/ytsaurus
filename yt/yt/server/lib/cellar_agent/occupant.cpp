@@ -29,7 +29,6 @@
 
 #include <yt/yt/server/lib/hive/avenue_directory.h>
 #include <yt/yt/server/lib/hive/hive_manager.h>
-#include <yt/yt/server/lib/hive/mailbox.h>
 
 #include <yt/yt/server/lib/lease_server/lease_manager.h>
 
