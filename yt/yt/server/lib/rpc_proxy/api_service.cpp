@@ -700,6 +700,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobInputPaths));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobSpec));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobStderr));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobTrace));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobFailContext));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJob));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbandonJob));
@@ -3229,6 +3230,47 @@ private:
                 response->set_total_size(result.TotalSize);
                 response->set_end_offset(result.EndOffset);
                 response->Attachments().push_back(result.Data);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJobTrace)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
+
+        TGetJobTraceOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_job_id()) {
+            options.JobId = FromProto<TJobId>(request->job_id());
+        }
+        if (request->has_trace_id()) {
+            options.TraceId = FromProto<NScheduler::TJobTraceId>(request->trace_id());
+        }
+        if (request->has_from_event_index()) {
+            options.FromEventIndex = request->from_event_index();
+        }
+        if (request->has_to_event_index()) {
+            options.ToEventIndex = request->to_event_index();
+        }
+        if (request->has_from_time()) {
+            options.FromTime = request->from_time();
+        }
+        if (request->has_to_event_index()) {
+            options.ToTime = request->to_time();
+        }
+
+        context->SetRequestInfo("OperationIdOrAlias: %v", operationIdOrAlias);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->GetJobTrace(operationIdOrAlias, options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_events(), result);
             });
     }
 
