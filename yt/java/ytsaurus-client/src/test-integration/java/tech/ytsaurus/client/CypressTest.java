@@ -11,13 +11,16 @@ import javax.persistence.Entity;
 
 import org.junit.Assert;
 import org.junit.Test;
+import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.ReadFile;
 import tech.ytsaurus.client.request.ReadTable;
+import tech.ytsaurus.client.request.SetNode;
 import tech.ytsaurus.client.request.WriteFile;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.client.rpc.TestingOptions;
 import tech.ytsaurus.core.cypress.CypressNodeType;
+import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTree;
 
 public class CypressTest extends YTsaurusClientTestBase {
@@ -232,6 +235,28 @@ public class CypressTest extends YTsaurusClientTestBase {
         }
 
         Assert.assertArrayEquals(expectedData, actualData);
+    }
+
+    @Test
+    public void testMutationId() {
+        var fixture = createYtFixture();
+        var yt = fixture.yt;
+
+        var testPath = fixture.testDirectory.child("some-document");
+
+        yt.createNode(CreateNode.builder()
+                .setPath(testPath)
+                .setType(CypressNodeType.DOCUMENT)
+                .addAttribute("value", YTree.listBuilder().endList().build())
+                .build()
+        ).join();
+
+        var setRequest = new SetNode(YPath.simple(testPath + "/end"), YTree.integerNode(1));
+        yt.setNode(setRequest).join();
+        Assert.assertEquals("One item", 1, yt.getNode(testPath).join().listNode().size());
+
+        yt.setNode(setRequest).join();
+        Assert.assertEquals("Two items", 2, yt.getNode(testPath).join().listNode().size());
     }
 
     @Test(timeout = 10000)
