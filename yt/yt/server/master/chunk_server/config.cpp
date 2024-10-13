@@ -170,7 +170,7 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
     registrar.Parameter("delay_between_iterations", &TThis::DelayBetweenIterations)
         .Default();
 
-    registrar.Parameter("max_meta_chunk_size", &TThis::MaxChunkMeta)
+    registrar.Parameter("max_chunk_meta_size", &TThis::MaxChunkMetaSize)
         .Default(15000);
 
     registrar.Parameter("allow_setting_chunk_merger_mode", &TThis::AllowSettingChunkMergerMode)
