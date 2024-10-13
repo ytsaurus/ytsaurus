@@ -64,7 +64,7 @@ TAccountMulticellStatistics SubtractAccountMulticellStatistics(const TAccountMul
     XX(i64, MaxUncompressedDataSize, max_uncompressed_data_size, 0) \
     XX(i64, MaxCompressedDataSize, max_compressed_data_size, 0) \
     XX(i64, MaxInputChunkDataWeight, max_input_chunk_data_weight, 0) \
-    XX(i64, MaxMetaChunkSize, max_meta_chunk_size, static_cast<int>(EMasterReign::ChunkMetaLimit))
+    XX(i64, MaxChunkMetaSize, max_chunk_meta_size, static_cast<int>(EMasterReign::ChunkMetaLimit))
 
 struct TChunkMergerCriteria
 {

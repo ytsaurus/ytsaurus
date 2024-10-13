@@ -1139,7 +1139,7 @@ class TestChunkMerger(YTEnvSetup):
         write_table("<append=true>//tmp/t", rows3)
         assert read_table("//tmp/t") == rows1 + rows2 + rows3
 
-        fallback_counters = get_chunk_owner_master_cell_counters("//tmp/t", "chunk_server/chunk_merger_auto_merge_fallback_count")
+        fallback_counters = get_chunk_owner_master_cell_counters("//tmp/t", "chunk_server/chunk_merger/auto_merge_fallback_count")
 
         self._wait_for_merge("//tmp/t", merge_mode)
 
@@ -1333,7 +1333,7 @@ class TestChunkMerger(YTEnvSetup):
         nodes_being_merged_list = list(
             reduce(
                 lambda a, b: a + b,
-                [profiler.gauge("chunk_server/chunk_merger_nodes_being_merged").get_all() for profiler in profilers],
+                [profiler.gauge("chunk_server/chunk_merger/nodes_being_merged").get_all() for profiler in profilers],
             )
         )
 
@@ -1392,12 +1392,12 @@ class TestChunkMerger(YTEnvSetup):
         assert get("//tmp/t/@chunk_ids") == chunk_ids
 
     @authors("kivedernikov")
-    def test_max_meta_chunk_size_limiter(self):
+    def test_max_chunk_meta_size_limiter(self):
         create("table", "//tmp/t")
         write_table("<append=true>//tmp/t", {"a": "b"})
         chunk = get("//tmp/t/@chunk_ids")[0]
         pivot = get(f"#{chunk}/@master_meta_size") // 2
-        set("//sys/@config/chunk_manager/chunk_merger/max_meta_chunk_size", pivot)
+        set("//sys/@config/chunk_manager/chunk_merger/max_chunk_meta_size", pivot)
 
         write_table("<append=true>//tmp/t", {"a": "c"})
         write_table("<append=true>//tmp/t", {"a": "d"})
@@ -1407,12 +1407,12 @@ class TestChunkMerger(YTEnvSetup):
         assert len(get("//tmp/t/@chunk_ids")) == 3
 
     @authors("kivedernikov")
-    def test_max_meta_chunk_size_limiter2(self):
+    def test_max_chunk_meta_size_limiter2(self):
         create("table", "//tmp/t")
         write_table("<append=true>//tmp/t", {"a": "b"})
         chunk = get("//tmp/t/@chunk_ids")[0]
         pivot = get(f"#{chunk}/@master_meta_size") + 1
-        set("//sys/@config/chunk_manager/chunk_merger/max_meta_chunk_size", pivot)
+        set("//sys/@config/chunk_manager/chunk_merger/max_chunk_meta_size", pivot)
 
         write_table("<append=true>//tmp/t", {"a": "c"})
         write_table("<append=true>//tmp/t", {"a": "d"})
@@ -1470,7 +1470,7 @@ class TestChunkMerger(YTEnvSetup):
         write_table("<append=true>//tmp/t", rows3)
         assert read_table("//tmp/t") == rows1 + rows2 + rows3
 
-        fallback_counters = get_chunk_owner_master_cell_counters("//tmp/t", "chunk_server/chunk_merger_auto_merge_fallback_count")
+        fallback_counters = get_chunk_owner_master_cell_counters("//tmp/t", "chunk_server/chunk_merger/auto_merge_fallback_count")
 
         assert sum(counter.get_delta() for counter in fallback_counters) == 0
 

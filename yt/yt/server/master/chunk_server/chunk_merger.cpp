@@ -494,7 +494,7 @@ private:
             config->MaxUncompressedDataSize,
             config->MaxCompressedDataSize,
             config->MaxInputChunkDataWeight,
-            config->MaxChunkMeta
+            config->MaxChunkMetaSize,
         };
         mergerCriteria.AssignNotNull(accountCriteria);
 
@@ -518,30 +518,20 @@ private:
         };
 
         incrementSatisfiedOrViolatedCriteriaCount(
-            chunk->ChunkMeta()->GetExtensionsByteSize() < mergerCriteria.MaxMetaChunkSize,
-            statistics.MaxChunkMetaViolatedCriteria,
-            "ChunkMeta",
-            Format("ChunkMetaSize: %v, MaxMetaChunkSize: %v",
+            std::ssize(ChunkIds_) < mergerCriteria.MaxChunkCount,
+            statistics.MaxChunkCountViolatedCriteria,
+            "ChunkCount",
+            Format("CurrentChunkCount: %v, MaxChunkCount: %v",
+                std::ssize(ChunkIds_),
+                mergerCriteria.MaxChunkCount));
+
+        incrementSatisfiedOrViolatedCriteriaCount(
+            chunk->ChunkMeta()->GetExtensionsByteSize() < mergerCriteria.MaxChunkMetaSize,
+            statistics.MaxChunkMetaSizeViolatedCriteria,
+            "ChunkMetaSize",
+            Format("ChunkMetaSize: %v, MaxChunkMetaSize: %v",
                 chunk->ChunkMeta()->GetExtensionsByteSize(),
-                config->MaxChunkMeta));
-
-        incrementSatisfiedOrViolatedCriteriaCount(
-            CurrentRowCount_ + chunk->GetRowCount() < mergerCriteria.MaxRowCount,
-            statistics.MaxRowCountViolatedCriteria,
-            "RowCount",
-            Format("CurrentRowCount: %v, ChunkRowCount: %v, MaxRowCount: %v",
-                CurrentRowCount_,
-                chunk->GetRowCount(),
-                mergerCriteria.MaxRowCount));
-
-        incrementSatisfiedOrViolatedCriteriaCount(
-            CurrentDataWeight_ + chunk->GetDataWeight() < mergerCriteria.MaxDataWeight,
-            statistics.MaxDataWeightViolatedCriteria,
-            "DataWeight",
-            Format("CurrentDataWeight: %v, ChunkDataWeight: %v, MaxDataWeight: %v",
-                CurrentDataWeight_,
-                chunk->GetDataWeight(),
-                mergerCriteria.MaxDataWeight));
+                config->MaxChunkMetaSize));
 
         incrementSatisfiedOrViolatedCriteriaCount(
             CurrentCompressedDataSize_ + chunk->GetCompressedDataSize() < mergerCriteria.MaxCompressedDataSize,
@@ -553,21 +543,13 @@ private:
                 mergerCriteria.MaxCompressedDataSize));
 
         incrementSatisfiedOrViolatedCriteriaCount(
-            CurrentUncompressedDataSize_ + chunk->GetUncompressedDataSize() < mergerCriteria.MaxUncompressedDataSize,
-            statistics.MaxUncompressedDataSizeViolatedCriteria,
-            "UncompressedDataSize",
-            Format("CurrentUncompressedDataSize: %v, ChunkUncompressedDataSize: %v, MaxUncompressedDataSize: %v",
-                CurrentUncompressedDataSize_,
-                chunk->GetUncompressedDataSize(),
-                mergerCriteria.MaxUncompressedDataSize));
-
-        incrementSatisfiedOrViolatedCriteriaCount(
-            std::ssize(ChunkIds_) < mergerCriteria.MaxChunkCount,
-            statistics.MaxChunkCountViolatedCriteria,
-            "ChunkCount",
-            Format("CurrentChunkCount: %v, MaxChunkCount: %v",
-                std::ssize(ChunkIds_),
-                mergerCriteria.MaxChunkCount));
+            CurrentDataWeight_ + chunk->GetDataWeight() < mergerCriteria.MaxDataWeight,
+            statistics.MaxDataWeightViolatedCriteria,
+            "DataWeight",
+            Format("CurrentDataWeight: %v, ChunkDataWeight: %v, MaxDataWeight: %v",
+                CurrentDataWeight_,
+                chunk->GetDataWeight(),
+                mergerCriteria.MaxDataWeight));
 
         incrementSatisfiedOrViolatedCriteriaCount(
             chunk->GetDataWeight() < mergerCriteria.MaxInputChunkDataWeight,
@@ -576,6 +558,26 @@ private:
             Format("ChunkDataWeight: %v, MaxInputChunkDataWeight: %v",
                 chunk->GetDataWeight(),
                 mergerCriteria.MaxInputChunkDataWeight));
+
+        incrementSatisfiedOrViolatedCriteriaCount(
+            CurrentRowCount_ + chunk->GetRowCount() < mergerCriteria.MaxRowCount,
+            statistics.MaxRowCountViolatedCriteria,
+            "RowCount",
+            Format("CurrentRowCount: %v, ChunkRowCount: %v, MaxRowCount: %v",
+                CurrentRowCount_,
+                chunk->GetRowCount(),
+                mergerCriteria.MaxRowCount));
+
+        incrementSatisfiedOrViolatedCriteriaCount(
+            CurrentUncompressedDataSize_ + chunk->GetUncompressedDataSize() < mergerCriteria.MaxUncompressedDataSize,
+            statistics.MaxUncompressedDataSizeViolatedCriteria,
+            "UncompressedDataSize",
+            Format("CurrentUncompressedDataSize: %v, ChunkUncompressedDataSize: %v, MaxUncompressedDataSize: %v",
+                CurrentUncompressedDataSize_,
+                chunk->GetUncompressedDataSize(),
+                mergerCriteria.MaxUncompressedDataSize));
+
+
 
         if (ParentChunkListId_ == NullObjectId || ParentChunkListId_ == parent->GetId()) {
             ++satisfiedCriteriaCount;
@@ -814,7 +816,7 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
             continue;
         }
         TWithTagGuard tagGuard(buffer, "account", account->GetName());
-        buffer->AddGauge("/chunk_merger_account_queue_size", queue.size());
+        buffer->AddGauge("/chunk_merger/account_queue_size", queue.size());
     }
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -826,14 +828,14 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
 
     for (const auto& [accountId, nodesBeingMerged] : NodesBeingMergedPerAccount_) {
         TWithTagGuard tagGuard(buffer, "account", getAccountTag(accountId));
-        buffer->AddGauge("/chunk_merger_nodes_being_merged", nodesBeingMerged);
+        buffer->AddGauge("/chunk_merger/nodes_being_merged", nodesBeingMerged);
     }
 
     for (const auto& [accountId, usages] : QueuesUsage_) {
         TWithTagGuard tagGuard(buffer, "account", getAccountTag(accountId));
-        buffer->AddGauge("/chunk_merger_jobs_awaiting_chunk_creation", usages.JobsAwaitingChunkCreation);
-        buffer->AddGauge("/chunk_merger_jobs_undergoing_chunk_creation", usages.JobsUndergoingChunkCreation);
-        buffer->AddGauge("/chunk_merger_jobs_awaiting_node_heartbeat", usages.JobsAwaitingNodeHeartbeat);
+        buffer->AddGauge("/chunk_merger/jobs_awaiting_chunk_creation", usages.JobsAwaitingChunkCreation);
+        buffer->AddGauge("/chunk_merger/jobs_undergoing_chunk_creation", usages.JobsUndergoingChunkCreation);
+        buffer->AddGauge("/chunk_merger/jobs_awaiting_node_heartbeat", usages.JobsAwaitingNodeHeartbeat);
     }
 
     for (const auto& [accountId, statistics] : AccountToChunkMergerStatistics_) {
@@ -842,45 +844,46 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
             continue;
         }
         TWithTagGuard tagGuard(buffer, "account", account->GetName());
-        buffer->AddGauge("/chunk_merger_chunk_replacements_succeeded", statistics.ChunkReplacementsSucceeded);
-        buffer->AddGauge("/chunk_merger_chunk_replacements_failed", statistics.ChunkReplacementsFailed);
-        buffer->AddGauge("/chunk_merger_chunk_count_saving", statistics.ChunkCountSaving);
+        buffer->AddGauge("/chunk_merger/chunk_replacements_succeeded", statistics.ChunkReplacementsSucceeded);
+        buffer->AddGauge("/chunk_merger/chunk_replacements_failed", statistics.ChunkReplacementsFailed);
+        buffer->AddGauge("/chunk_merger/chunk_count_saving", statistics.ChunkCountSaving);
 
         const auto& violatedCriteria = statistics.ViolatedCriteria;
-        buffer->AddGauge("/chunk_merger_max_chunk_count_violated_criteria", violatedCriteria.MaxChunkCountViolatedCriteria);
-        buffer->AddGauge("/chunk_merger_max_row_count_violated_criteria", violatedCriteria.MaxRowCountViolatedCriteria);
-        buffer->AddGauge("/chunk_merger_max_data_weight_violated_criteria", violatedCriteria.MaxDataWeightViolatedCriteria);
-        buffer->AddGauge("/chunk_merger_max_uncompressed_data_violated_criteria", violatedCriteria.MaxUncompressedDataSizeViolatedCriteria);
-        buffer->AddGauge("/chunk_merger_max_compressed_data_violated_criteria", violatedCriteria.MaxCompressedDataSizeViolatedCriteria);
-        buffer->AddGauge("/chunk_merger_max_input_chunk_data_weight_violated_criteria", violatedCriteria.MaxInputChunkDataWeightViolatedCriteria);
+        buffer->AddGauge("/chunk_merger/max_chunk_count_violated_criteria", violatedCriteria.MaxChunkCountViolatedCriteria);
+        buffer->AddGauge("/chunk_merger/max_chunk_meta_size_violated_criteria", violatedCriteria.MaxChunkMetaSizeViolatedCriteria);
+        buffer->AddGauge("/chunk_merger/max_compressed_data_violated_criteria", violatedCriteria.MaxCompressedDataSizeViolatedCriteria);
+        buffer->AddGauge("/chunk_merger/max_data_weight_violated_criteria", violatedCriteria.MaxDataWeightViolatedCriteria);
+        buffer->AddGauge("/chunk_merger/max_input_chunk_data_weight_violated_criteria", violatedCriteria.MaxInputChunkDataWeightViolatedCriteria);
+        buffer->AddGauge("/chunk_merger/max_row_count_violated_criteria", violatedCriteria.MaxRowCountViolatedCriteria);
+        buffer->AddGauge("/chunk_merger/max_uncompressed_data_violated_criteria", violatedCriteria.MaxUncompressedDataSizeViolatedCriteria);
     }
     AccountToChunkMergerStatistics_.clear();
 
-    buffer->AddCounter("/chunk_merger_sessions_awaiting_finalization", SessionsAwaitingFinalization_.size());
+    buffer->AddCounter("/chunk_merger/sessions_awaiting_finalization", SessionsAwaitingFinalization_.size());
 
-    buffer->AddCounter("/chunk_merger_chunk_lists_with_chunks_being_replaced", ChunkListsWithChunksBeingReplaced_);
-    buffer->AddCounter("/chunk_merger_chunk_lists_awaiting_chunk_replacement", ChunkListsAwaitingChunkReplacement_.size());
+    buffer->AddCounter("/chunk_merger/chunk_lists_with_chunks_being_replaced", ChunkListsWithChunksBeingReplaced_);
+    buffer->AddCounter("/chunk_merger/chunk_lists_awaiting_chunk_replacement", ChunkListsAwaitingChunkReplacement_.size());
 
     for (auto mergerMode : TEnumTraits<NChunkClient::EChunkMergerMode>::GetDomainValues()) {
         if (mergerMode == NChunkClient::EChunkMergerMode::None) {
             continue;
         }
         TWithTagGuard tagGuard(buffer, "merger_mode", FormatEnum(mergerMode));
-        buffer->AddCounter("/chunk_merger_completed_job_count", CompletedJobCountPerMode_[mergerMode]);
+        buffer->AddCounter("/chunk_merger/completed_job_count", CompletedJobCountPerMode_[mergerMode]);
     }
-    buffer->AddCounter("/chunk_merger_auto_merge_fallback_count", AutoMergeFallbackJobCount_);
+    buffer->AddCounter("/chunk_merger/auto_merge_fallback_count", AutoMergeFallbackJobCount_);
 
     for (const auto& [accountId, sessionDurations] : AccountIdToNodeMergeDurations_) {
         TWithTagGuard tagGuard(buffer, "account", getAccountTag(accountId));
         for (auto sessionDuration : sessionDurations) {
-            buffer->AddGauge("/chunk_merger_average_merge_duration", sessionDuration.GetValue());
+            buffer->AddGauge("/chunk_merger/average_merge_duration", sessionDuration.GetValue());
         }
     }
     AccountIdToNodeMergeDurations_.clear();
 
     for (const auto& [accountId, stuckNodes] : AccountIdToStuckNodes_) {
         TWithTagGuard tagGuard(buffer, "account", getAccountTag(accountId));
-        buffer->AddGauge("/chunk_merger_stuck_nodes_count", stuckNodes.size());
+        buffer->AddGauge("/chunk_merger/stuck_nodes_count", stuckNodes.size());
     }
 }
 
