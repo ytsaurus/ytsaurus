@@ -24,7 +24,7 @@ For a better understanding of job stats, you should be familiar with the notions
 | --- | --- |
 | `time/total` | Job running time from the moment it is created by the scheduler until the moment the scheduler is notified that the job is completed (successfully or otherwise). Milliseconds. |
 | `time/prepare` | Job set up time until a `job proxy` is started (files are uploaded into the chunk cache as required, a `sandbox` directory is created, files are created and copied to `tmpfs`, and requisite `cgroups` are set up). Milliseconds. |
-| `time/artifact_download` | Time to upload files to the chunk cache (as required). Included in `time/prepare`. Milliseconds. |
+| `time/artifacts_download` | Time to upload files to the chunk cache (as required). Included in `time/prepare`. Milliseconds. |
 | `time/prepare_root_fs` | Time to prepare the file system in the porto container (as required). Included in `time/prepare`. Milliseconds. |
 | `time/gpu_check` | Time to run for the utility pre-checking node GPU functionality (relevant for some GPU operations). Included in `time/prepare`. Milliseconds. |
 | `time/exec` | Job running time from start to `job proxy` process exit. Milliseconds. |
