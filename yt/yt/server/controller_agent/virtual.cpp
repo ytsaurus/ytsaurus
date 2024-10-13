@@ -65,15 +65,18 @@ bool TVirtualStaticTable::DoInvoke(const IYPathServiceContextPtr& context)
 
 DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, GetBasicAttributes)
 {
-    if (request->has_permission()) {
-        auto permission = CheckedEnumCast<EPermission>(request->permission());
-        ValidatePermission(EPermissionCheckScope::This, permission);
+    auto permission = YT_PROTO_OPTIONAL(*request, permission, EPermission);
+
+    context->SetRequestInfo("Permission: %v",
+        permission);
+
+    if (permission) {
+        ValidatePermission(EPermissionCheckScope::This, *permission);
     }
 
     ToProto(response->mutable_object_id(), TGuid());
     response->set_external_cell_tag(ToProto<int>(PrimaryMasterCellTagSentinel));
 
-    context->SetResponseInfo();
     context->Reply();
 }
 
