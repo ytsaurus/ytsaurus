@@ -41,6 +41,8 @@ TString ToString(
     const TDiskResources& diskResources,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
+void Serialize(const TDiskResources& diskResources, NYson::IYsonConsumer* consumer);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

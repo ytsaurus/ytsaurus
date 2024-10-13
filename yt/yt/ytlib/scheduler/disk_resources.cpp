@@ -4,6 +4,8 @@
 
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 namespace NYT::NScheduler {
 
 using NYT::FromProto;
@@ -98,6 +100,21 @@ TString ToString(
                     mediumName);
             }),
         diskResources.DefaultMediumIndex);
+}
+
+void Serialize(const TDiskResources& diskResources, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("locations").DoListFor(diskResources.DiskLocationResources, [&] (auto fluent, const TDiskResources::TDiskLocationResources& locationResources) {
+                fluent.Item().BeginMap()
+                    .Item("usage").Value(locationResources.Usage)
+                    .Item("limit").Value(locationResources.Limit)
+                    .Item("medium_index").Value(locationResources.MediumIndex)
+                .EndMap();
+            })
+            .Item("default_medium_index").Value(diskResources.DefaultMediumIndex)
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
