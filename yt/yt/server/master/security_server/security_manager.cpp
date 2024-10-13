@@ -4574,9 +4574,9 @@ private:
             const TPermissionCheckOptions& options)
             : SecurityManager_(impl)
             , User_(user)
-            , FullRead_(CheckPermissionMatch(permission, EPermission::FullRead))
+            , FullRead_(Any(permission & EPermission::FullRead))
             , Permission_(FullRead_
-                ? (permission ^ EPermission::FullRead) | EPermission::Read
+                ? permission & ~EPermission::FullRead | EPermission::Read
                 : permission)
             , Options_(options)
         {
@@ -4627,7 +4627,7 @@ private:
                 return;
             }
 
-            if (!CheckPermissionMatch(ace.Permissions, Permission_)) {
+            if (None(ace.Permissions & Permission_)) {
                 return;
             }
 
@@ -4783,11 +4783,6 @@ private:
         static bool CheckInheritanceMode(EAceInheritanceMode mode, int depth)
         {
             return GetInheritedInheritanceMode(mode, depth).has_value();
-        }
-
-        static bool CheckPermissionMatch(EPermissionSet permissions, EPermission requestedPermission)
-        {
-            return (permissions & requestedPermission) != NonePermissions;
         }
 
         static bool CheckVitalityMatch(bool vital, bool requestedVital)
