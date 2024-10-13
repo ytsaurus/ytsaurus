@@ -9,7 +9,6 @@ JDK_VERSION(11)
 IF(OS_LINUX AND NOT OPENSOURCE)
     SET(YT_CONFIG_PATCH {wait_tablet_cell_initialization=%true;node_count=2;node_config={bus_server={bind_retry_count=1}};rpc_proxy_count=1})
 
-    SET(YT_RECIPE_BUILD_FROM_SOURCE yes)
     INCLUDE(${ARCADIA_ROOT}/yt/recipe/basic/recipe.inc)
 
     REQUIREMENTS(
