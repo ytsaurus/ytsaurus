@@ -206,7 +206,7 @@ public:
     std::optional<int> MaxChunksPerIteration;
     std::optional<TDuration> DelayBetweenIterations;
 
-    int MaxChunkMeta;
+    int MaxChunkMetaSize;
 
     REGISTER_YSON_STRUCT(TDynamicChunkMergerConfig);
 
