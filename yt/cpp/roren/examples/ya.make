@@ -1,5 +1,5 @@
 RECURSE(
-    01_par_do
+    01_01_par_do_simple_tnode
     02_group_by_key
     03_combine_by_key
     04_par_do_multiple_outputs
