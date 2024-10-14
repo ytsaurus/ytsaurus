@@ -65,6 +65,8 @@ void TNbdServerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("test_abort_connection_on_read", &TThis::TestAbortConnectionOnRead)
         .Default();
+    registrar.Parameter("block_cache_compressed_data_capacity", &TThis::BlockCacheCompressedDataCapacity)
+        .Default(512_MB);
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->InternetDomainSocket && config->UnixDomainSocket) {

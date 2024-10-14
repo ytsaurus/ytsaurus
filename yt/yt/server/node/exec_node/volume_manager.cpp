@@ -82,6 +82,7 @@ namespace NYT::NExecNode {
 
 using namespace NApi;
 using namespace NNbd;
+using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NContainers;
 using namespace NClusterNode;
@@ -110,7 +111,7 @@ namespace {
 
 IImageReaderPtr CreateCypressFileImageReader(
     const TArtifactKey& artifactKey,
-    NApi::NNative::IClientPtr client,
+    TChunkReaderHostPtr readerHost,
     IThroughputThrottlerPtr inThrottler,
     IThroughputThrottlerPtr outRpsThrottler,
     IInvokerPtr invoker,
@@ -126,7 +127,7 @@ IImageReaderPtr CreateCypressFileImageReader(
     auto reader = CreateRandomAccessFileReader(
         std::move(chunkSpecs),
         artifactKey.data_source().path(),
-        std::move(client),
+        std::move(readerHost),
         std::move(inThrottler),
         std::move(outRpsThrottler),
         std::move(invoker),
@@ -2953,17 +2954,13 @@ private:
             THROW_ERROR(error);
         }
 
-        // TODO(yuryalekseev): user
-        auto clientOptions =  NYT::NApi::TClientOptions::FromUser(NSecurityClient::RootUserName);
-        auto client = nbdServer->GetConnection()->CreateNativeClient(clientOptions);
-
         YT_VERIFY(FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Nbd);
         YT_VERIFY(artifactKey.has_filesystem());
         YT_VERIFY(artifactKey.has_nbd_export_id());
 
         return CreateCypressFileImageReader(
             artifactKey,
-            client,
+            nbdServer->GetLayerReaderHost(),
             Bootstrap_->GetDefaultInThrottler(),
             Bootstrap_->GetReadRpsOutThrottler(),
             nbdServer->GetInvoker(),

@@ -5,6 +5,13 @@
 #include "profiler.h"
 #include "protocol.h"
 
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
+#include <yt/yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
+
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/connection.h>
 #include <yt/yt/core/net/listener.h>
@@ -17,6 +24,7 @@
 
 namespace NYT::NNbd {
 
+using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NNet;
 using namespace NThreading;
@@ -57,6 +65,8 @@ public:
     void Start()
     {
         YT_LOG_INFO("Starting NBD server");
+
+        InitializeReaderHosts();
 
         try {
             int maxBacklogSize = 0;
@@ -156,6 +166,16 @@ public:
         return Invoker_;
     }
 
+    virtual TChunkReaderHostPtr GetLayerReaderHost() const override
+    {
+        return LayerReaderHost_;
+    }
+
+    virtual TChunkReaderHostPtr GetFileReaderHost() const override
+    {
+        return FileReaderHost_;
+    }
+
     const TNbdServerConfigPtr& GetConfig() const
     {
         return Config_;
@@ -177,6 +197,8 @@ private:
     mutable YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, NameToDeviceLock_);
     THashMap<TString, IBlockDevicePtr> NameToDevice_;
 
+    TChunkReaderHostPtr LayerReaderHost_;
+    TChunkReaderHostPtr FileReaderHost_;
 
     std::vector<std::pair<TString, IBlockDevicePtr>> ListDevices()
     {
@@ -694,6 +716,47 @@ private:
         const auto& connection = connectionOrError.Value();
         auto handler = New<TConnectionHandler>(this, connection);
         handler->Run();
+    }
+
+    void InitializeReaderHosts()
+    {
+        // TODO(yuryalekseev): user
+        auto clientOptions =  NYT::NApi::TClientOptions::FromUser(NSecurityClient::RootUserName);
+        auto client = Connection_->CreateNativeClient(clientOptions);
+        const auto& connection = client->GetNativeConnection();
+
+        auto blockCacheConfig = New<TBlockCacheConfig>();
+        blockCacheConfig->CompressedData->Capacity = Config_->BlockCacheCompressedDataCapacity;
+
+        auto layerBlockCache = CreateClientBlockCache(
+            blockCacheConfig,
+            NChunkClient::EBlockType::CompressedData,
+            GetNullMemoryUsageTracker());
+        LayerReaderHost_ = New<TChunkReaderHost>(
+            client,
+            /*localDescriptor*/ NNodeTrackerClient::TNodeDescriptor{},
+            std::move(layerBlockCache),
+            connection->GetChunkMetaCache(),
+            /*nodeStatusDirectory*/ nullptr,
+            /*bandwidthThrottler*/ GetUnlimitedThrottler(),
+            /*rpsThrottler*/ GetUnlimitedThrottler(),
+            /*mediumThrottler*/ GetUnlimitedThrottler(),
+            /*trafficMeter*/ nullptr);
+
+        auto fileBlockCache = CreateClientBlockCache(
+            std::move(blockCacheConfig),
+            NChunkClient::EBlockType::CompressedData,
+            GetNullMemoryUsageTracker());
+        FileReaderHost_ = New<TChunkReaderHost>(
+            client,
+            /*localDescriptor*/ NNodeTrackerClient::TNodeDescriptor{},
+            std::move(fileBlockCache),
+            connection->GetChunkMetaCache(),
+            /*nodeStatusDirectory*/ nullptr,
+            /*bandwidthThrottler*/ GetUnlimitedThrottler(),
+            /*rpsThrottler*/ GetUnlimitedThrottler(),
+            /*mediumThrottler*/ GetUnlimitedThrottler(),
+            /*trafficMeter*/ nullptr);
     }
 };
 
