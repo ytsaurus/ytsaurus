@@ -14,6 +14,10 @@ void TDynamicSequoiaQueueConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("pause_flush", &TThis::PauseFlush)
         .Default(false);
+
+    registrar.Parameter("clear_queue_records", &TThis::ClearQueueRecords)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,7 +37,14 @@ void TDynamicSequoiaManagerConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_ground_update_queues", &TThis::EnableGroundUpdateQueues)
-        .Default(false);
+        .Default(false)
+        .DontSerializeDefault();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->SequoiaQueue->ClearQueueRecords && config->EnableGroundUpdateQueues) {
+            THROW_ERROR_EXCEPTION("Cannot clear queue records while update queues are enabled");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

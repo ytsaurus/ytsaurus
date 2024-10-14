@@ -325,10 +325,18 @@ private:
             }).AsyncVia(EpochAutomatonInvoker_))));
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig)
     {
         if (QueueFlushExecutor_) {
             QueueFlushExecutor_->SetPeriod(GetDynamicConfig()->FlushPeriod);
+        }
+
+        // COMPAT(danilalexeev)
+        const auto& oldQueueManagerConfig = oldConfig->SequoiaManager->SequoiaQueue;
+        if (GetDynamicConfig()->ClearQueueRecords &&
+            !oldQueueManagerConfig->ClearQueueRecords)
+        {
+            Clear();
         }
     }
 

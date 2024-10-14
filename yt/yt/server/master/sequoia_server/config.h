@@ -18,6 +18,9 @@ public:
 
     bool PauseFlush;
 
+    // COMPAT(danilalexeev)
+    bool ClearQueueRecords;
+
     REGISTER_YSON_STRUCT(TDynamicSequoiaQueueConfig);
 
     static void Register(TRegistrar registrar);
