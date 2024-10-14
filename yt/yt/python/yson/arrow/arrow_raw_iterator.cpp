@@ -73,6 +73,7 @@ private:
 Status TArrowOutputStream::Write(const void* data, int64_t nbytes)
 {
     Position_ += nbytes;
+    DataWeight_ += nbytes;
     auto ptr = reinterpret_cast<const char*>(data);
     Data_.push(TString(ptr, nbytes));
     return arrow::Status::OK();
@@ -107,10 +108,16 @@ bool TArrowOutputStream::IsEmpty() const
 PyObject* TArrowOutputStream::Get()
 {
     YT_VERIFY(!IsEmpty());
-    auto buffer = Data_.front();
-    auto object = Py::Bytes(buffer.data(), buffer.size());
+    auto resultBuffer = TSharedMutableRef::Allocate(DataWeight_);
+    auto current = resultBuffer.Begin();
+    while (!IsEmpty()) {
+        std::memcpy(current, Data_.front().data(), Data_.front().size());
+        current += Data_.front().size();
+        Data_.pop();
+    }
+    DataWeight_ = 0;
+    auto object = Py::Bytes(resultBuffer.data(), resultBuffer.size());
     object.increment_reference_count();
-    Data_.pop();
     return object.ptr();
 }
 

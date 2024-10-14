@@ -55,6 +55,7 @@ private:
     i64 Position_ = 0;
     std::queue<TString> Data_;
     bool IsClosed_ = false;
+    i64 DataWeight_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
