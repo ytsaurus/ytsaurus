@@ -54,17 +54,13 @@ public:
         , Logger(std::move(logger.WithTag("Path: %v", Path_)))
     { }
 
-    void Initialize() override
+    TFuture<void> Initialize() override
     {
-        YT_LOG_INFO("Initializing random access file reader");
-
         YT_LOG_INFO("Creating chunk reader host");
         ChunkReaderHost_ = TChunkReaderHost::FromClient(Client_);
         YT_LOG_INFO("Created chunk reader host");
 
-        InitializeChunkStructs();
-
-        YT_LOG_INFO("Initialized random access file reader");
+        return InitializeChunkStructs();
     }
 
     TFuture<TSharedRef> Read(
@@ -300,10 +296,12 @@ private:
         }));
     }
 
-    void InitializeChunkStructs()
+    TFuture<void> InitializeChunkStructs()
     {
         YT_LOG_INFO("Initializing chunk structs (ChunkSpecCount: %v)",
             ChunkSpecs_.size());
+
+        std::vector<TFuture<TRefCountedChunkMetaPtr>> metaFutures;
 
         i64 offset = 0;
         for (auto& chunkSpec : ChunkSpecs_) {
@@ -353,28 +351,38 @@ private:
                 chunk.Index);
 
             std::vector<int> extensionTags = {TProtoExtensionTag<NFileClient::NProto::TBlocksExt>::Value};
-            chunk.Meta = WaitFor(chunk.Reader->GetMeta(
+            metaFutures.push_back(chunk.Reader->GetMeta(
                 /*options*/ {},
                 /*partitionTag*/ std::nullopt,
-                extensionTags))
-                .ValueOrThrow();
-
-            auto blocksExt = GetProtoExtension<NFileClient::NProto::TBlocksExt>(chunk.Meta->extensions());
-
-            YT_LOG_INFO("Finish fetching chunk meta blocks extension (Chunk: %v, BlockInfoCount: %v)",
-                chunk.Index,
-                blocksExt.blocks_size());
-
-            for (const auto& blockInfo : blocksExt.blocks()) {
-                chunk.Blocks.push_back({blockInfo.size(), offset});
-                offset += blockInfo.size();
-            }
-
-            Size_ += miscExt.uncompressed_data_size();
+                extensionTags));
         }
 
-        YT_LOG_INFO("Initialized chunk structs (ChunkSpecCount: %v)",
-            ChunkSpecs_.size());
+        return AllSucceeded(metaFutures).Apply(BIND([this, this_ = MakeStrong(this)] (const std::vector<TRefCountedChunkMetaPtr>& chunkMetas) {
+            YT_VERIFY(chunkMetas.size() == Chunks_.size());
+
+            for (int i = 0; i < std::ssize(Chunks_); ++i) {
+                auto& chunk = Chunks_[i];
+                chunk.Meta = chunkMetas[i];
+
+                auto blocksExt = GetProtoExtension<NFileClient::NProto::TBlocksExt>(chunk.Meta->extensions());
+
+                YT_LOG_INFO("Finish fetching chunk meta blocks extension (Chunk: %v, BlockInfoCount: %v)",
+                    chunk.Index,
+                    blocksExt.blocks_size());
+
+                i64 offset = chunk.Offset;
+
+                for (const auto& blockInfo : blocksExt.blocks()) {
+                    chunk.Blocks.push_back({blockInfo.size(), offset});
+                    offset += blockInfo.size();
+                }
+
+                Size_ += chunk.Size;
+            }
+
+            YT_LOG_INFO("Initialized chunk structs (ChunkSpecCount: %v)",
+                ChunkSpecs_.size());
+        }).AsyncVia(Invoker_));
     }
 };
 
