@@ -186,7 +186,7 @@ private:
         // TODO(h0pless): Add cypress transaction id here.
         auto versionedNodeId = TVersionedObjectId(nodeId, NullObjectId);
 
-        if (auto node = Bootstrap_->GetCypressManager()->GetNode(versionedNodeId)) {
+        if (auto* node = Bootstrap_->GetCypressManager()->GetNode(versionedNodeId)) {
             Bootstrap_->GetObjectManager()->UnrefObject(node);
         }
     }
@@ -533,7 +533,7 @@ private:
         // XXX(kvk1920): Add cypress transaction id here.
         auto versionedNodeId = TVersionedObjectId(nodeId, NullObjectId);
 
-        if (auto node = Bootstrap_->GetCypressManager()->GetNode(versionedNodeId)) {
+        if (auto* node = Bootstrap_->GetCypressManager()->GetNode(versionedNodeId)) {
             Bootstrap_->GetObjectManager()->UnrefObject(node);
         }
     }
