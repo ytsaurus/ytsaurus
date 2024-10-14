@@ -176,7 +176,7 @@ public:
         ui32 mTime);
 
     TInodePtr GetInode() const override;
-    TDirectoryInodePtr GetDirectoryInode() const;
+    const TDirectoryInodePtr& GetDirectoryInode() const;
     void SetInode(TDirectoryInodePtr inode);
 
     EInodeType GetType() const override;
@@ -225,7 +225,7 @@ public:
         IRandomAccessFileReaderPtr reader);
 
     TInodePtr GetInode() const override;
-    TFileInodePtr GetFileInode() const;
+    const TFileInodePtr& GetFileInode() const;
     void SetInode(TFileInodePtr inode);
 
     EInodeType GetType() const override;
@@ -337,7 +337,7 @@ private:
         : public TMetadataBlockOffsets
     {
     public:
-        void Add(const TInodePtr& inodePtr);
+        void Add(TInodePtr inodePtr);
 
         void ShiftDataBlocksOffsetInFileInodes(i64 offset);
 
@@ -497,11 +497,10 @@ TSharedRef TSquashFSLayout::ReadHead(
         length < 0 ||
         offset + length > std::ssize(Head_))
     {
-        THROW_ERROR_EXCEPTION(
-            "Invalid read offset %v with length %v, when size of head is %v",
-            offset,
-            length,
-            std::ssize(Head_));
+        THROW_ERROR_EXCEPTION("Invalid read of squashfs header")
+            << TErrorAttribute("offset", offset)
+            << TErrorAttribute("length", length)
+            << TErrorAttribute("head_size", std::ssize(Head_));
     }
 
     return Head_.Slice(
@@ -522,11 +521,10 @@ TSharedRef TSquashFSLayout::ReadTail(
         length < 0 ||
         offset + length > std::ssize(Tail_))
     {
-        THROW_ERROR_EXCEPTION(
-            "Invalid read offset %v with length %v, when size of tail is %v",
-            offset,
-            length,
-            std::ssize(Tail_));
+        THROW_ERROR_EXCEPTION("Invalid read of squashfs tail")
+            << TErrorAttribute("offset", offset)
+            << TErrorAttribute("length", length)
+            << TErrorAttribute("tail_size", std::ssize(Tail_));
     }
 
     return Tail_.Slice(
@@ -625,14 +623,14 @@ TInodePtr TDirectory::GetInode() const
     return Inode_;
 }
 
-TDirectoryInodePtr TDirectory::GetDirectoryInode() const
+const TDirectoryInodePtr& TDirectory::GetDirectoryInode() const
 {
     return Inode_;
 }
 
 void TDirectory::SetInode(TDirectoryInodePtr inode)
 {
-    Inode_ = inode;
+    Inode_ = std::move(inode);
 }
 
 EInodeType TDirectory::GetType() const
@@ -645,9 +643,8 @@ TDirectoryPtr TDirectory::CreateDirectory(const TString& name)
     auto entry = GetEntry(name);
     if (entry) {
         if (entry->GetType() != EInodeType::BasicDirectory) {
-            THROW_ERROR_EXCEPTION(
-                "Cannot open directory %Qv; file with the same name already exists",
-                name);
+            THROW_ERROR_EXCEPTION("Cannot open directory; file with the same name already exists")
+                << TErrorAttribute("name", name);
         }
 
         return DynamicPointerCast<TDirectory>(entry);
@@ -672,13 +669,11 @@ void TDirectory::CreateFile(
     auto entry = GetEntry(name);
     if (entry) {
         if (entry->GetType() == EInodeType::BasicFile) {
-            THROW_ERROR_EXCEPTION(
-                "The file %Qv was already created",
-                name);
+            THROW_ERROR_EXCEPTION("The file was already created")
+                << TErrorAttribute("name", name);
         }
-        THROW_ERROR_EXCEPTION(
-            "Cannot create file %Qv; directory with the same name already exists",
-            name);
+        THROW_ERROR_EXCEPTION("Cannot create file; directory with the same name already exists")
+            << TErrorAttribute("name", name);
     }
 
     auto newFile = New<TFile>(
@@ -689,7 +684,7 @@ void TDirectory::CreateFile(
         Gid_,
         MTime_,
         std::move(reader));
-    Entries_.push_back(newFile);
+    Entries_.push_back(std::move(newFile));
 }
 
 void TDirectory::SortEntries()
@@ -740,14 +735,14 @@ TInodePtr TFile::GetInode() const
     return Inode_;
 }
 
-TFileInodePtr TFile::GetFileInode() const
+const TFileInodePtr& TFile::GetFileInode() const
 {
     return Inode_;
 }
 
 void TFile::SetInode(TFileInodePtr inode)
 {
-    Inode_ = inode;
+    Inode_ = std::move(inode);
 }
 
 EInodeType TFile::GetType() const
@@ -773,11 +768,10 @@ TSquashFSLayoutBuilder::TSquashFSLayoutBuilder(TSquashFSLayoutBuilderOptions opt
         // Checks it's not a power of 2
         std::popcount(BlockSize_) != 1)
     {
-        THROW_ERROR_EXCEPTION(
-            "Incorrect squashfs block size: %v; it must be a power of two between %v and %v bytes",
-            BlockSize_,
+        THROW_ERROR_EXCEPTION("Incorrect squashfs block size; it must be a power of two between %v and %v bytes",
             MinDataBlockSize,
-            MaxDataBlockSize);
+            MaxDataBlockSize)
+            << TErrorAttribute("block_size", BlockSize_);
     }
 }
 
@@ -804,10 +798,10 @@ void TSquashFSLayoutBuilder::AddFile(
         if (name.empty() ||
             name.size() > MaxEntryNameLength)
         {
-            THROW_ERROR_EXCEPTION(
-                "The directory/file name has %v symbols, but it must be between 1 and %v characters",
-                name.size(),
-                MaxEntryNameLength);
+            THROW_ERROR_EXCEPTION("The directory/file name has incorrect number of symbols; it must be between 1 and %v characters",
+                MaxEntryNameLength)
+                << TErrorAttribute("name", name)
+                << TErrorAttribute("name_size", std::ssize(name));
         }
     };
 
@@ -868,13 +862,13 @@ void TSquashFSLayoutBuilder::Traverse()
     // Insert the root inode into the table.
     auto rootInode = Root_->GetDirectoryInode();
     rootInode->ParentInode = InodeCount_ + 1;
-    InodeTable_.Add(rootInode);
+    InodeTable_.Add(std::move(rootInode));
 }
 
 void TSquashFSLayoutBuilder::TraverseRecursive(const TDirectoryPtr& directory)
 {
     // Preparation.
-    auto directoryInode = directory->GetDirectoryInode();
+    const auto& directoryInode = directory->GetDirectoryInode();
     ui32 inodeNumber = directoryInode->InodeNumber;
     directory->SortEntries();
     const auto& entries = directory->Entries();
@@ -947,7 +941,7 @@ void TSquashFSLayoutBuilder::BuildDirectoryInode(
     directoryInode->InodeNumber = inodeNumber;
     directoryInode->LinkCount = DirectoryLinkCountPadding;
     directoryInode->ParentInode = parentNumber;
-    directory->SetInode(directoryInode);
+    directory->SetInode(std::move(directoryInode));
 }
 
 void TSquashFSLayoutBuilder::BuildFileInode(
@@ -962,7 +956,7 @@ void TSquashFSLayoutBuilder::BuildFileInode(
     fileInode->MTime = file->GetMTime();
     fileInode->InodeNumber = inodeNumber;
     fileInode->FileSize = file->GetSize();
-    file->SetInode(fileInode);
+    file->SetInode(std::move(fileInode));
 }
 
 i64 TSquashFSLayoutBuilder::GetInodeSize(const TInodePtr& inode)
@@ -1007,8 +1001,10 @@ std::vector<ui64> TSquashFSLayoutBuilder::AppendMetadata(
     i64 metadataSize = std::ssize(metadata);
     i64 currentPosition = std::ssize(buffer);
 
-    for (i64 i = 0; i < metadataSize;) {
-        lookupTable.push_back(currentPosition);
+    lookupTable.resize((metadataSize + MetadataBlockSize - 1) / MetadataBlockSize);
+
+    for (i64 i = 0, j = 0; i < metadataSize; ++j) {
+        lookupTable[j] = currentPosition;
 
         ui16 blockSize = std::min<i64>(
             metadataSize - i,
@@ -1147,12 +1143,12 @@ void TSquashFSLayoutBuilder::TMetadataBlockOffsets::ResetOffsets()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSquashFSLayoutBuilder::TInodeTable::Add(const TInodePtr& inodePtr)
+void TSquashFSLayoutBuilder::TInodeTable::Add(TInodePtr inode)
 {
-    InodeTableEntries_.push_back(inodePtr);
-    inodePtr->InodeBlockStart = CurrentBlock_;
-    inodePtr->InodeBlockOffset = CurrentOffset_;
-    Shift(GetInodeSize(inodePtr));
+    inode->InodeBlockStart = CurrentBlock_;
+    inode->InodeBlockOffset = CurrentOffset_;
+    Shift(GetInodeSize(inode));
+    InodeTableEntries_.push_back(std::move(inode));
 }
 
 void TSquashFSLayoutBuilder::TInodeTable::ShiftDataBlocksOffsetInFileInodes(i64 offset)
@@ -1199,7 +1195,7 @@ void TSquashFSLayoutBuilder::TDirectoryTable::Add(const TDirectoryPtr& directory
     }
 
     // Preparation.
-    auto directoryInode = directory->GetDirectoryInode();
+    const auto& directoryInode = directory->GetDirectoryInode();
     directoryInode->BlockIndex = CurrentBlock_;
     directoryInode->BlockOffset = CurrentOffset_;
 
@@ -1231,15 +1227,16 @@ void TSquashFSLayoutBuilder::TDirectoryTable::Add(const TDirectoryPtr& directory
         // Add all entries of the page.
         for (int i = partStart; i < partFinish; ++i) {
             // Preparation.
-            auto inode = entries[i]->GetInode();
-            const auto& nameString = entries[i]->Name();
+            const auto& entry = entries[i];
+            auto inode = entry->GetInode();
+            const auto& nameString = entry->Name();
             std::vector<ui8> nameVector(nameString.begin(), nameString.end());
 
             // Create entry.
             auto newEntry = TDirectoryTableEntry(
                 inode->InodeBlockOffset,
                 inode->InodeNumber - inodeNumber,
-                entries[i]->GetType(),
+                entry->GetType(),
                 nameVector.size() - 1,
                 std::move(nameVector));
 
@@ -1365,7 +1362,7 @@ TSquashFSLayoutBuilder::TDataBlocks::TDataBlocks(ui32 blockSize)
 
 void TSquashFSLayoutBuilder::TDataBlocks::AddFile(const TFilePtr& file)
 {
-    auto inode = file->GetFileInode();
+    const auto& inode = file->GetFileInode();
     ui64 size = inode->FileSize;
     inode->BlocksStart = CurrentOffset_;
     inode->BlockSizes.clear();
