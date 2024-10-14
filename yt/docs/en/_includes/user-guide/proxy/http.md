@@ -15,14 +15,11 @@ To understand the material presented in this section, you need to know the [HTTP
 
 The Word Count example is a typical task for any [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md) system. The general schema is as follows:
 
-1. A [Map](../../../user-guide/data-processing/operations/map.md) operation is performed on the source text, producing a pair (word, 1) for each word.
+1. A [Map](../../../user-guide/data-processing/operations/map.md) operation is performed on the source text, producing a pair `(word, 1)` for each word.
 2. The result is sorted by the first coordinate.
-3. A [Reduce](../../../user-guide/data-processing/operations/reduce.md) operation that summarizes the second coordinate is performed on the first coordinate. The result is a set of pairs (word, number of word mentions).
+3. A [Reduce](../../../user-guide/data-processing/operations/reduce.md) operation that summarizes the second coordinate is performed on the first coordinate. The result is a set of pairs (`word, number of word mentions)`.
 
-Further, the [curl](https://en.wikipedia.org/wiki/CURL) utility is used to work over HTTP. The environment variables listed below were set for convenience.
-{{% if audience == internal %}}
-For more information about obtaining the token, see [Getting started](../../../user-guide/overview/try-yt.md).
-{{% endif %}}
+Further, the [curl](https://en.wikipedia.org/wiki/CURL) utility is used to work over HTTP. The environment variables listed below were set for convenience.{% if audience == "internal" %} For more information about obtaining the token, see [Getting started](../../../overview/try-yt.md).{% endif %}
 
 Setting the environment variables:
 
@@ -157,7 +154,7 @@ Uploading data in JSON format:
 
 ```bash
 $ cat test.json
-{ "color": "красный", "value": "#f00" }
+{ "color": "red", "value": "#f00" }
 { "color": "red", "value": "#f00" }
 
 $ curl -X POST "http://$YT_PROXY/api/v3/create?path=//tmp/test-json&type=table" \
@@ -294,7 +291,7 @@ Unlike the `set` and `write_file` operations, the returned GUID of the operation
 
 You can view the operation status in the web interface or by calling `get_operation`.
 
-Viewing the operation status
+Viewing the operation status:
 
 ```bash
 $ curl -v -X GET "http://$YT_PROXY/api/v3/get_operation?operation_id=381eb9-8eee9ec2-70a8370d-ea39f666" \
@@ -315,7 +312,7 @@ $ curl -v -X GET "http://$YT_PROXY/api/v3/get_operation?operation_id=381eb9-8eee
 
 To make sure that the operation was completed correctly, you can read its result.
 
-Reading data
+Reading data:
 
 ```bash
 $ curl -v -L -X GET "http://$YT_HEAVY_PROXY/api/v3/read_table?path=$YT_HOME/output_map" \
