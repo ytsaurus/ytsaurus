@@ -340,7 +340,7 @@ class Format(object):
 
     def is_raw_load_supported(self):
         """Returns true if format supports loading raw YSON rows."""
-        return self.name() in ("arrow", "dsv", "yamr", "yamred_dsv", "json", "yson", "schemaful_dsv")
+        return self.name() in ("dsv", "yamr", "yamred_dsv", "json", "yson", "schemaful_dsv")
 
     @staticmethod
     def _copy_docs():
