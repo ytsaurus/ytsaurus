@@ -338,6 +338,24 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
+    @authors("aleksandra-zh")
+    def test_remote_copy_forbidden_erasure_codecs(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        set("//tmp/t1/@erasure_codec", "reed_solomon_6_3", driver=self.remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+
+        set("//sys/@config/chunk_manager/forbidden_erasure_codecs", [1])  # forbid reed_solomon_6_3
+        multicell_sleep()
+
+        create("table", "//tmp/t2")
+
+        with pytest.raises(YtError):
+            remote_copy(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
+            )
+
     # COMPAT(kvk1920)
     def _enable_maintenance_flag_set(self):
         path = "//sys/@config/node_tracker/forbid_maintenance_attribute_writes"

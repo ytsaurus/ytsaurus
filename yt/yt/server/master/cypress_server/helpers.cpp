@@ -513,8 +513,14 @@ void ValidateErasureCodec(
     const THashSet<NErasure::ECodec>& forbiddenCodecs)
 {
     auto codecId = ConvertTo<NErasure::ECodec>(value);
+    ValidateErasureCodec(codecId, forbiddenCodecs);
+}
+void ValidateErasureCodec(
+    NErasure::ECodec codecId,
+    const THashSet<NErasure::ECodec>& forbiddenCodecs)
+{
     if (!NCellMaster::IsSubordinateMutation() && forbiddenCodecs.contains(codecId)) {
-        THROW_ERROR_EXCEPTION("Erasure codec %Qlv is forbidden", codecId);
+        THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::ForbiddenErasureCodec, "Erasure codec %Qlv is forbidden", codecId);
     }
 }
 
