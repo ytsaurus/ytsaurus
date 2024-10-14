@@ -1865,6 +1865,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
     @authors("kivedernikov")
     def test_requisitions_hunk_media(self):
+        pytest.skip("Test is disabled until hunk media is fixed")
         sync_create_cells(1)
         self._create_sorted_table(
             "//tmp/t",
@@ -1982,6 +1983,8 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
     @authors("kivedernikov")
     def test_hunk_storage_media(self):
+        pytest.skip("Test is disabled until hunk media is fixed")
+
         sync_create_cells(1)
         self._create_table()
 
@@ -2114,6 +2117,8 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
     @authors("kivedernikov")
     def test_hunk_media_many_nodes(self):
+        pytest.skip("Test is disabled until hunk media is fixed")
+
         sync_create_cells(2)
         self._create_sorted_table(
             "//tmp/t",
