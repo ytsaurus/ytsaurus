@@ -1063,6 +1063,8 @@ void TChunkMerger::ResetTransientState()
     NodeToRescheduleCountAfterMaxBackoffDelay_ = {};
     NodeToBackoffPeriod_ = {};
     AccountIdToStuckNodes_ = {};
+    ChunkListsAwaitingChunkReplacement_ = {};
+    ChunkListsWithChunksBeingReplaced_ = 0;
 }
 
 bool TChunkMerger::IsMergeTransactionAlive() const
