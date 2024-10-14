@@ -38,7 +38,7 @@
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/atomic_object.h>
+#include <library/cpp/yt/threading/atomic_object.h>
 
 #include <yt/yt/core/concurrency/async_barrier.h>
 

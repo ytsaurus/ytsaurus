@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
+#include <library/cpp/yt/threading/atomic_object.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
 #include <yt/yt/core/rpc/roaming_channel.h>

@@ -8,7 +8,7 @@
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
+#include <library/cpp/yt/threading/atomic_object.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <util/system/file.h>

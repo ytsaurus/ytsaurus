@@ -42,7 +42,7 @@
 
 #include <yt/yt/core/actions/invoker_detail.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
+#include <library/cpp/yt/threading/atomic_object.h>
 
 #include <util/generic/cast.h>
 
