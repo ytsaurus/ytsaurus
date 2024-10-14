@@ -220,7 +220,7 @@ if [ ${enable_debug_logging} == "true" ]; then
 fi
 
 if [ ${with_auth} == "true" ]; then
-    params="${params} --enable-auth --create-admin-user"
+    params="${params} --enable-auth --create-admin-user --native-client-supported"
 fi
 
 set +e
@@ -240,7 +240,6 @@ cluster_container=$(
         --rpc-proxy-port ${rpc_proxy_port} \
         --node-count ${node_count} \
         --queue-agent-count ${queue_agent_count} \
-        --native-client-supported \
         ${params} \
 )
 
