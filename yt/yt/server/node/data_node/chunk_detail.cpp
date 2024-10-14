@@ -2,7 +2,6 @@
 #include "bootstrap.h"
 #include "private.h"
 #include "location.h"
-#include "session_manager.h"
 #include "chunk_meta_manager.h"
 #include "chunk_reader_sweeper.h"
 

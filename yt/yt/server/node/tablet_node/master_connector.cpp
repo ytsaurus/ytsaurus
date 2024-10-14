@@ -9,11 +9,12 @@
 
 #include <yt/yt/server/master/cell_server/public.h>
 
+#include <yt/yt/server/master/node_tracker_server/public.h>
+
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
-#include <yt/yt/server/node/cluster_node/master_heartbeat_reporter.h>
-#include <yt/yt/server/node/cluster_node/master_heartbeat_reporter_callbacks.h>
+#include <yt/yt/server/node/cluster_node/master_heartbeat_reporter_base.h>
 
 #include <yt/yt/server/node/cellar_node/master_connector.h>
 
@@ -51,6 +52,7 @@ using namespace NConcurrency;
 using namespace NHiveClient;
 using namespace NHydra;
 using namespace NNodeTrackerClient;
+using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NTabletClient;
 using namespace NTabletNodeTrackerClient;
@@ -61,16 +63,17 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TMasterConnector
     : public IMasterConnector
+    , public TMasterHeartbeatReporterBase
 {
 public:
     TMasterConnector(IBootstrap* bootstrap)
-        : Bootstrap_(bootstrap)
+        : TMasterHeartbeatReporterBase(
+            bootstrap,
+            /*reportHeartbeatsToAllSecondaryMasters*/ true,
+            TabletNodeLogger().WithTag("HeartbeatType: %v", ENodeHeartbeatType::Tablet))
+        , Bootstrap_(bootstrap)
         , Config_(bootstrap->GetConfig()->TabletNode->MasterConnector)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -80,6 +83,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        TMasterHeartbeatReporterBase::Initialize();
+
         Bootstrap_->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
 
         const auto& cellarNodeMasterConnector = Bootstrap_->GetCellarNodeMasterConnector();
@@ -88,14 +93,7 @@ public:
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
 
-        const auto& heartbeatLogger = Logger().WithTag("HeartbeatType: Tablet");
-        HeartbeatReporter_ = CreateMasterHeartbeatReporter(
-            Bootstrap_,
-            /*reportHeartbeatsToAllSecondaryMasters*/ true,
-            CreateSingleFlavorHeartbeatCallbacks<TMasterConnector, TTabletNodeTrackerServiceProxy>(MakeWeak(this), heartbeatLogger),
-            Config_->HeartbeatExecutor,
-            heartbeatLogger);
-        HeartbeatReporter_->Initialize();
+        Reconfigure(GetDynamicConfig()->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
     }
 
     TTabletNodeTrackerServiceProxy::TReqHeartbeatPtr BuildHeartbeatRequest(TCellTag cellTag) const
@@ -116,16 +114,44 @@ public:
         return heartbeatRequest;
     }
 
-    void OnHeartbeatSucceeded(TCellTag /*cellTag*/, const TTabletNodeTrackerServiceProxy::TRspHeartbeatPtr& /*response*/)
+protected:
+    TFuture<void> DoReportHeartbeat(TCellTag cellTag) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto req = BuildHeartbeatRequest(cellTag);
+        auto rspFuture = req->Invoke();
+        EmplaceOrCrash(CellTagToHeartbeatRspFuture_, cellTag, rspFuture);
+        return rspFuture.AsVoid();
+    }
+
+    void OnHeartbeatSucceeded(TCellTag cellTag) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto rspOrError = GetHeartbeatResponseOrError(cellTag);
+        YT_VERIFY(rspOrError.IsOK());
+    }
+
+    void OnHeartbeatFailed(TCellTag cellTag) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto rspOrError = GetHeartbeatResponseOrError(cellTag);
+        YT_VERIFY(!rspOrError.IsOK());
+    }
+
+    void ResetState(TCellTag cellTag) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        CellTagToHeartbeatRspFuture_.erase(cellTag);
     }
 
 private:
     IBootstrap* const Bootstrap_;
     const TMasterConnectorConfigPtr Config_;
-
-    IMasterHeartbeatReporterPtr HeartbeatReporter_;
+    THashMap<TCellTag, TFuture<TTabletNodeTrackerServiceProxy::TRspHeartbeatPtr>> CellTagToHeartbeatRspFuture_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -133,7 +159,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        HeartbeatReporter_->StartHeartbeats();
+        StartNodeHeartbeats();
     }
 
     void OnDynamicConfigChanged(
@@ -142,7 +168,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        HeartbeatReporter_->Reconfigure(newNodeConfig->TabletNode->MasterConnector->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
+        Reconfigure(newNodeConfig->TabletNode->MasterConnector->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
 
         YT_LOG_INFO("Dynamic config changed");
     }
@@ -265,6 +291,18 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->MasterConnector;
+    }
+
+    TErrorOr<TTabletNodeTrackerServiceProxy::TRspHeartbeatPtr> GetHeartbeatResponseOrError(TCellTag cellTag)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto futureIt = GetIteratorOrCrash(CellTagToHeartbeatRspFuture_, cellTag);
+        auto future = std::move(futureIt->second);
+        CellTagToHeartbeatRspFuture_.erase(futureIt);
+        YT_VERIFY(future.IsSet());
+
+        return future.Get();
     }
 };
 

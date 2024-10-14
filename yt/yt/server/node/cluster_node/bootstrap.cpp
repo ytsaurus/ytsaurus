@@ -240,6 +240,7 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(), MasterDisconnected);
     DEFINE_SIGNAL_OVERRIDE(void(std::vector<TError>* alerts), PopulateAlerts);
     DEFINE_SIGNAL_OVERRIDE(void(const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs), SecondaryMasterCellListChanged);
+    DEFINE_SIGNAL_OVERRIDE(void(const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs), ReadyToUpdateHeartbeatStream);
 
 public:
     TBootstrap(TClusterNodeConfigPtr config, INodePtr configNode)
@@ -1579,9 +1580,10 @@ private:
             InsertOrCrash(changedSecondaryMasterCellTags, cellTag);
         }
 
-        // It is needed to update cell tags set in case if cellar/data/tablet heartbeat report fails and node re-registers at master.
-        MasterConnector_->AddMasterCellTags(newSecondaryMasterCellTags);
+        // For correct update of heartbeat reports to masters it is needed to update nodes state in the first place,
+        // for this purpose there are two signals: the first triggers different node-flavors state update and the second performs change of heartbeats to masters.
         SecondaryMasterCellListChanged_.Fire(newSecondaryMasterConfigs);
+        ReadyToUpdateHeartbeatStream_.Fire(newSecondaryMasterConfigs);
 
         {
             auto guard = WriterGuard(SecondaryMasterConnectionLock_);
@@ -1651,6 +1653,10 @@ TBootstrapBase::TBootstrapBase(IBootstrapBase* bootstrap)
     Bootstrap_->SubscribeSecondaryMasterCellListChanged(
         BIND_NO_PROPAGATE([this] (const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs) {
             SecondaryMasterCellListChanged_.Fire(newSecondaryMasterConfigs);
+        }));
+    Bootstrap_->SubscribeReadyToUpdateHeartbeatStream(
+        BIND_NO_PROPAGATE([this] (const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs) {
+            ReadyToUpdateHeartbeatStream_.Fire(newSecondaryMasterConfigs);
         }));
 }
 

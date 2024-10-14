@@ -20,7 +20,7 @@ namespace NYT::NClusterNode {
 *  Thread affinity: Control
 */
 struct IMasterConnector
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     //! Raised with each heartbeat.
     //! Subscribers may provide additional dynamic alerts to be reported to master.
@@ -100,13 +100,6 @@ struct IMasterConnector
     *  Thread affinity: any
     */
     virtual THashSet<NObjectClient::TCellTag> GetMasterCellTags() const = 0;
-
-    //! Modifies master cell tags list by adding those dynamically appearing as the result of cell directory synchronization.
-    /*!
-    *  \note
-    *  Thread affinity: any
-    */
-    virtual void AddMasterCellTags(const THashSet<NObjectClient::TCellTag>& newSecondaryMasterCellTags) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMasterConnector)

@@ -1,14 +1,10 @@
 #include "bootstrap.h"
 
 #include "ally_replica_manager.h"
-#include "blob_reader_cache.h"
-#include "chunk_meta_manager.h"
-#include "chunk_registry.h"
 #include "chunk_store.h"
 #include "data_node_service.h"
 #include "io_throughput_meter.h"
 #include "medium_directory_manager.h"
-#include "job.h"
 #include "job_controller.h"
 #include "journal_dispatcher.h"
 #include "master_connector.h"
@@ -19,9 +15,7 @@
 #include "session_manager.h"
 #include "skynet_http_handler.h"
 #include "table_schema_cache.h"
-#include "ytree_integration.h"
 #include "chunk_detail.h"
-#include "location.h"
 #include "location_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>

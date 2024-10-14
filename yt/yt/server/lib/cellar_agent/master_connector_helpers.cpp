@@ -67,7 +67,6 @@ void AddCellarInfoToHeartbeatRequest(
     }
 }
 
-
 void UpdateCellarFromHeartbeatResponse(
     ECellarType cellarType,
     const ICellarPtr& cellar,
