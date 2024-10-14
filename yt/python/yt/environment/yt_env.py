@@ -857,6 +857,15 @@ class YTInstance(object):
                     get_value_from_config(config, "monitoring_port", "timestamp_provider"))
                 for config in self.configs["timestamp_provider"]]
 
+    def get_clock_monitoring_addresses(self):
+        if self.yt_config.clock_count == 0:
+            raise YtError("Clocks are not started")
+        return ["{0}:{1}"
+                .format(
+                    self.yt_config.fqdn,
+                    get_value_from_config(config, "monitoring_port", "clock"))
+                for config in self.configs["clock"]]
+
     def get_master_cache_monitoring_addresses(self):
         if self.yt_config.master_cache_count == 0:
             raise YtError("Master caches are not started")
@@ -1376,17 +1385,17 @@ class YTInstance(object):
         def quorum_ready():
             self._validate_processes_are_running("clock")
 
-            logger = logging.getLogger("Yt")
-            old_level = logger.level
-            logger.setLevel(logging.ERROR)
+            clock_statuses_logger = logging.getLogger()
+            addresses = self.get_clock_monitoring_addresses()
+            clock_statuses_logger.debug(f"Clocks addresses: {addresses}")
             try:
-                client = self.create_native_client("clock_driver")
-                client.generate_timestamp()
-                return True
-            except (requests.RequestException, YtError) as err:
-                return False, err
-            finally:
-                logger.setLevel(old_level)
+                for address in addresses:
+                    resp = requests.get(f"http://{address}/orchid/clock_cell/hydra/active")
+                    resp.raise_for_status()
+                    clock_statuses_logger.debug(resp.text)
+                    return resp.text == "true"
+            except (requests.exceptions.RequestException, socket.error):
+                return False, traceback.format_exc()
 
         self._wait_or_skip(lambda: self._wait_for(quorum_ready, "clock", max_wait_time=30), sync)
 
