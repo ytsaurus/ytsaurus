@@ -1854,12 +1854,16 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
         create("file", "//tmp/mapper.sh", attributes={"executable": True})
         write_file("//tmp/mapper.sh", b"""echo {Hello=World}""")
 
-        create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_in1")
+        write_table("//tmp/t_in1", {"foo": "bar"})
 
-        create("table", "//tmp/t_out")
+        create("table", "//tmp/t_in4", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t_in4", [{"a": i} for i in range(2)])
+
         create("table", "//tmp/t_out1")
         create("table", "//tmp/t_out2")
+        create("table", "//tmp/t_out3")
+        create("table", "//tmp/t_out4")
 
     @authors("artemagafonov")
     @pytest.mark.timeout(150)
@@ -1867,8 +1871,8 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
         self.setup_files()
 
         map(
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
+            in_="//tmp/t_in1",
+            out="//tmp/t_out1",
             command="./mapper.sh",
             spec={
                 "max_failed_job_count": 1,
@@ -1881,7 +1885,7 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
             },
         )
 
-        assert read_table("//tmp/t_out") == [{"Hello": "World"}]
+        assert read_table("//tmp/t_out1") == [{"Hello": "World"}]
 
     @authors("artemagafonov")
     @pytest.mark.timeout(150)
@@ -1889,8 +1893,8 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
         self.setup_files()
 
         map(
-            in_="//tmp/t_in",
-            out="//tmp/t_out1",
+            in_="//tmp/t_in1",
+            out="//tmp/t_out2",
             command="./mapper.sh",
             spec={
                 "max_failed_job_count": 1,
@@ -1905,11 +1909,11 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
             },
         )
 
-        assert read_table("//tmp/t_out1") == [{"Hello": "World"}]
+        assert read_table("//tmp/t_out2") == [{"Hello": "World"}]
 
         map(
-            in_="//tmp/t_in",
-            out="//tmp/t_out2",
+            in_="//tmp/t_in1",
+            out="//tmp/t_out3",
             command="./tmpfs/mapper.sh",
             spec={
                 "max_failed_job_count": 1,
@@ -1926,7 +1930,31 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
             },
         )
 
-        assert read_table("//tmp/t_out2") == [{"Hello": "World"}]
+        assert read_table("//tmp/t_out3") == [{"Hello": "World"}]
+
+    @authors("artemagafonov")
+    @pytest.mark.timeout(150)
+    def test_udf_exists(self):
+        self.setup_files()
+
+        map(
+            in_="//tmp/t_in4",
+            out="//tmp/t_out4",
+            command="cat",
+            mode="ordered",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"],
+                    # "disk_space_limit": 1024 * 1024,
+                    "make_rootfs_writable": True,
+                },
+                "enable_root_volume_disk_quota": True,
+                "input_query": "a where a > 0"
+            },
+        )
+
+        assert read_table("//tmp/t_out4") == [{"a": 1}]
 
 
 @authors("artemagafonov")
