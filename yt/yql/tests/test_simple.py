@@ -45,6 +45,10 @@ class TestQueriesYqlBase(YTEnvSetup):
 
 class TestSimpleQueriesYql(TestQueriesYqlBase):
     NUM_TEST_PARTITIONS = 4
+    YQL_TEST_LIBRARY = """
+            $my_sqr = ($x)->($x * $x);
+            export $my_sqr;
+        """
 
     @authors("max42")
     def test_simple(self, query_tracker, yql_agent):
@@ -103,6 +107,12 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
             select 1 + 1;
             select 2 as b, 1 as a
         """, [[{"column0": 1}], [{"column0": 2}], [{"a": 1, "b": 2}]])
+
+    @authors("a-romanov")
+    def test_libs(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            select core::IndexOf([3,7,1], 7) as idx, test::my_sqr(3) as sqr;
+        """, [{"idx": 1, "sqr": 9}])
 
 
 class TestComplexQueriesYql(TestQueriesYqlBase):
