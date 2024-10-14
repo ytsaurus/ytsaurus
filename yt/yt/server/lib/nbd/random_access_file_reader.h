@@ -47,7 +47,7 @@ DEFINE_REFCOUNTED_TYPE(IRandomAccessFileReader);
 IRandomAccessFileReaderPtr CreateRandomAccessFileReader(
     std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
     NYPath::TYPath path,
-    NApi::NNative::IClientPtr client,
+    NChunkClient::TChunkReaderHostPtr readerHost,
     NConcurrency::IThroughputThrottlerPtr inThrottler,
     NConcurrency::IThroughputThrottlerPtr outRpsThrottler,
     IInvokerPtr invoker,

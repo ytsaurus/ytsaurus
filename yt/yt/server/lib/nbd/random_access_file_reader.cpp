@@ -40,7 +40,7 @@ public:
     TRandomAccessFileReader(
         std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
         TYPath path,
-        NNative::IClientPtr client,
+        TChunkReaderHostPtr readerHost,
         IThroughputThrottlerPtr inThrottler,
         IThroughputThrottlerPtr outRpsThrottler,
         IInvokerPtr invoker,
@@ -49,17 +49,13 @@ public:
         , Path_(std::move(path))
         , InThrottler_(std::move(inThrottler))
         , OutRpsThrottler_(std::move(outRpsThrottler))
-        , Client_(std::move(client))
+        , ChunkReaderHost_(std::move(readerHost))
         , Invoker_(std::move(invoker))
         , Logger(std::move(logger.WithTag("Path: %v", Path_)))
     { }
 
     TFuture<void> Initialize() override
     {
-        YT_LOG_INFO("Creating chunk reader host");
-        ChunkReaderHost_ = TChunkReaderHost::FromClient(Client_);
-        YT_LOG_INFO("Created chunk reader host");
-
         return InitializeChunkStructs();
     }
 
@@ -143,10 +139,9 @@ private:
     const TYPath Path_;
     const IThroughputThrottlerPtr InThrottler_;
     const IThroughputThrottlerPtr OutRpsThrottler_;
-    const NNative::IClientPtr Client_;
+    const TChunkReaderHostPtr ChunkReaderHost_;
     const IInvokerPtr Invoker_;
     const TLogger Logger;
-    TChunkReaderHostPtr ChunkReaderHost_;
     std::vector<TChunk> Chunks_;
     i64 Size_ = 0;
 
@@ -391,7 +386,7 @@ private:
 IRandomAccessFileReaderPtr CreateRandomAccessFileReader(
     std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
     TYPath path,
-    NNative::IClientPtr client,
+    TChunkReaderHostPtr readerHost,
     IThroughputThrottlerPtr inThrottler,
     IThroughputThrottlerPtr outRpsThrottler,
     IInvokerPtr invoker,
@@ -400,7 +395,7 @@ IRandomAccessFileReaderPtr CreateRandomAccessFileReader(
     return New<TRandomAccessFileReader>(
         std::move(chunkSpecs),
         std::move(path),
-        std::move(client),
+        std::move(readerHost),
         std::move(inThrottler),
         std::move(outRpsThrottler),
         std::move(invoker),
