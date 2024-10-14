@@ -86,7 +86,7 @@
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/helpers.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
+#include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NTabletNode {
 

@@ -10,7 +10,7 @@
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
+#include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NRpcProxy {
 

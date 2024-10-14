@@ -58,7 +58,7 @@
 
 #include <yt/yt/core/ypath/token.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
+#include <library/cpp/yt/threading/atomic_object.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 

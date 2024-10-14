@@ -12,7 +12,7 @@
 #include <yt/yt/client/chaos_client/helpers.h>
 
 #include <yt/yt/core/misc/public.h>
-#include <yt/yt/core/misc/atomic_object.h>
+#include <library/cpp/yt/threading/atomic_object.h>
 
 #include <yt/yt/core/rpc/helpers.h>
 #include <yt/yt/core/rpc/public.h>

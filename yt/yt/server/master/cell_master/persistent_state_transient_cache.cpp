@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
+#include <library/cpp/yt/threading/atomic_object.h>
 #include <yt/yt/core/misc/error.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -91,7 +91,7 @@ public:
 
     virtual TString GetNodeDefaultAddress(TNodeId nodeId) override
     {
-        return NodeDefaultAddresses_.Read<TString>([&] (const auto& nodeAddresses) {
+        return NodeDefaultAddresses_.Read([&] (const auto& nodeAddresses) {
             auto it = nodeAddresses.find(nodeId);
             if (it == nodeAddresses.end()) {
                 THROW_ERROR_EXCEPTION(
