@@ -138,40 +138,40 @@ private:
 
     TFuture<TTimestamp> GenerateTimestampsWithFallback(
         int count,
-        TIntrusivePtr<ITimestampProvider> uniderlying,
-        TIntrusivePtr<ITimestampProvider> remoteUnderlying,
+        ITimestampProviderPtr underlying,
+        ITimestampProviderPtr remoteUnderlying,
         TCellTag clockClusterTag)
     {
-            return uniderlying->GenerateTimestamps(count, clockClusterTag)
-                .ApplyUnique(
-                    BIND([
-                        count,
-                        Logger= Logger,
-                        clockClusterTag,
-                        remoteUnderlying] (TErrorOr<TTimestamp>&& providerResult) {
-                    if (providerResult.IsOK() ||
-                        !(providerResult.FindMatching(NTransactionClient::EErrorCode::UnknownClockClusterTag) ||
-                            providerResult.FindMatching(NTransactionClient::EErrorCode::ClockClusterTagMismatch) ||
-                            providerResult.FindMatching(NRpc::EErrorCode::UnsupportedServerFeature)))
-                    {
-                        return MakeFuture(std::move(providerResult));
-                    }
+        return underlying->GenerateTimestamps(count, clockClusterTag)
+            .ApplyUnique(
+                BIND([
+                    count,
+                    Logger = Logger,
+                    clockClusterTag,
+                    remoteUnderlying] (TErrorOr<TTimestamp>&& providerResult) {
+                if (providerResult.IsOK() ||
+                    !(providerResult.FindMatching(NTransactionClient::EErrorCode::UnknownClockClusterTag) ||
+                        providerResult.FindMatching(NTransactionClient::EErrorCode::ClockClusterTagMismatch) ||
+                        providerResult.FindMatching(NRpc::EErrorCode::UnsupportedServerFeature)))
+                {
+                    return MakeFuture(std::move(providerResult));
+                }
 
-                    if (remoteUnderlying) {
-                        YT_LOG_WARNING(
-                            providerResult,
-                            "Wrong clock cluster, trying to generate timestamps via direct call (ClockClusterTag: %v)",
-                            clockClusterTag);
-                            return remoteUnderlying->GenerateTimestamps(count);
-                    } else {
-                        YT_LOG_WARNING(
-                            "Cannot generate timestamps via direct call (CloclClusterTag: %v)",
-                            clockClusterTag);
-                        return MakeFuture<TTimestamp>(TError(
-                            "Timestamp provider for clock cluster tag %v is unavailable at the moment",
-                            clockClusterTag));
-                    }
-                }));
+                if (remoteUnderlying) {
+                    YT_LOG_WARNING(
+                        providerResult,
+                        "Wrong clock cluster, trying to generate timestamps via direct call (ClockClusterTag: %v)",
+                        clockClusterTag);
+                        return remoteUnderlying->GenerateTimestamps(count);
+                } else {
+                    YT_LOG_WARNING(
+                        "Cannot generate timestamps via direct call (CloclClusterTag: %v)",
+                        clockClusterTag);
+                    return MakeFuture<TTimestamp>(TError(
+                        "Timestamp provider for clock cluster tag %v is unavailable at the moment",
+                        clockClusterTag));
+                }
+            }));
     }
 };
 
