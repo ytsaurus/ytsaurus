@@ -23,7 +23,7 @@
 
 #include <yt/yt/client/api/config.h>
 #include <yt/yt/client/api/client.h>
-#include <yt/yt/client/api/distributed_table_sessions.h>
+#include <yt/yt/client/api/distributed_table_session.h>
 #include <yt/yt/client/api/file_reader.h>
 #include <yt/yt/client/api/file_writer.h>
 #include <yt/yt/client/api/helpers.h>
@@ -135,17 +135,6 @@ void SetTimeoutOptions(
     const IServiceContext* context)
 {
     options->Timeout = context->GetTimeout();
-}
-
-void FromProto(
-    TTransactionalOptions* options,
-    const NApi::NRpcProxy::NProto::TTransactionalOptions& proto)
-{
-    FromProto(&options->TransactionId, proto.transaction_id());
-    options->Ping = proto.ping();
-    options->PingAncestors = proto.ping_ancestors();
-    options->SuppressTransactionCoordinatorSync = proto.suppress_transaction_coordinator_sync();
-    options->SuppressUpstreamSync = proto.suppress_upstream_sync();
 }
 
 void FromProto(
@@ -814,7 +803,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartDistributedWriteSession)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishDistributedWriteSession));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ParticipantWriteTable)
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteTableFragment)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
 
@@ -5841,6 +5830,18 @@ private:
             false /*feedbackEnabled*/);
     }
 
+    void PatchTableWriterOptions(TNonNullPtr<NApi::TTableWriterOptions> options)
+    {
+        auto& ref = *options;
+
+        if (ApiServiceConfig_->EnableLargeColumnarStatistics) {
+            ref.Config->EnableLargeColumnarStatistics = true;
+        }
+
+        // NB: Input comes directly from user and thus requires additional validation.
+        ref.ValidateAnyIsValidYson = true;
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteTable)
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
@@ -5859,12 +5860,7 @@ private:
             options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(TStringBuf("{}")));
         }
 
-        if (ApiServiceConfig_->EnableLargeColumnarStatistics) {
-            options.Config->EnableLargeColumnarStatistics = true;
-        }
-
-        // NB: Input comes directly from user and thus requires additional validation.
-        options.ValidateAnyIsValidYson = true;
+        PatchTableWriterOptions(&options);
 
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
@@ -5996,10 +5992,9 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
-        auto path = FromProto<TRichYPath>(request->path());
-
+        TRichYPath path;
         TDistributedWriteSessionStartOptions options;
-        FromProto(&options, *request);
+        ParseRequest(&path, &options, *request);
 
         context->SetRequestInfo(
             "Path: %v",
@@ -6011,8 +6006,7 @@ private:
                 return client->StartDistributedWriteSession(path, options);
             },
             [] (const auto& context, const auto& result) {
-                auto* response = &context->Response();
-                ToProto(response, result);
+                context->Response().set_session(ConvertToYsonString(result).ToString());
             });
     }
 
@@ -6020,37 +6014,41 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
-        auto session = New<TDistributedWriteSession>();
-        FromProto(session.Get(), *request);
+        TDistributedWriteSessionPtr session;
 
         TDistributedWriteSessionFinishOptions options;
-        FromProto(&options, *request);
+        ParseRequest(&session, &options, *request);
+
+        context->SetRequestInfo(
+            "Table object id: %v",
+            session->GetPatchInfo().ObjectId);
 
         ExecuteCall(
             context,
             [=] {
                 return client->FinishDistributedWriteSession(session, options);
-            },
-            [] (const auto& /*context*/) {
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ParticipantWriteTable)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteTableFragment)
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
         PutMethodInfoInTraceContext("participant_write_table");
 
-        auto cookie = New<TDistributedWriteCookie>();
-        FromProto(cookie.Get(), *request);
+        TFragmentWriteCookiePtr cookie;
 
-        TParticipantTableWriterOptions options;
-        FromProto(&options, *request);
+        TFragmentTableWriterOptions options;
+        ParseRequest(&cookie, &options, *request);
 
-        // NB: Input comes directly from user and thus requires additional validation.
-        options.ValidateAnyIsValidYson = true;
+        PatchTableWriterOptions(&options);
 
-        auto tableWriter = WaitFor(client->CreateParticipantTableWriter(cookie, options))
+        context->SetRequestInfo(
+            "Table object id: %v, Main transaction id: %v",
+            cookie->GetPatchInfo().ObjectId,
+            cookie->GetMainTransactionId());
+
+        auto tableWriter = WaitFor(client->CreateFragmentTableWriter(cookie, options))
             .ValueOrThrow();
 
         WriteTableImpl(
@@ -6058,7 +6056,7 @@ private:
             request,
             std::move(tableWriter),
             [&] {
-                ToProto(response, cookie);
+                response->set_cookie(ConvertToYsonString(cookie).ToString());
             });
     }
 

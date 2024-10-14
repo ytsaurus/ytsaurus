@@ -604,7 +604,7 @@ public:
         const TDistributedWriteSessionStartOptions& options),
         (path, options))
 
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<void>, FinishDistributedWriteSession, (
+    DELEGATE_METHOD(TFuture<void>, FinishDistributedWriteSession, (
         TDistributedWriteSessionPtr session,
         const TDistributedWriteSessionFinishOptions& options),
         (std::move(session), options))

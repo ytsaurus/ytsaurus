@@ -11,4 +11,5 @@ SRCS(
     ${THIS_DIR}/test_api.cpp
     ${THIS_DIR}/test_queues.cpp
     ${THIS_DIR}/modify_rows_test.cpp
+    ${THIS_DIR}/distributed_table_api_test.cpp
 )

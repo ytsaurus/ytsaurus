@@ -1501,9 +1501,9 @@ private:
         TDistributedWriteSessionPtr session,
         const TDistributedWriteSessionFinishOptions& options) override;
 
-    TFuture<ITableWriterPtr> CreateParticipantTableWriter(
-        const TDistributedWriteCookiePtr& cookie,
-        const TParticipantTableWriterOptions& options) override;
+    TFuture<ITableWriterPtr> CreateFragmentTableWriter(
+        const TFragmentWriteCookiePtr& cookie,
+        const TFragmentTableWriterOptions& options) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)
