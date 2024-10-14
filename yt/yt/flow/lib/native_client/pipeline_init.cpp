@@ -58,7 +58,6 @@ IAttributeDictionaryPtr GetOutputMessagesTableAttributes()
 {
     return CreateDynamicTableAttributes(TTableSchema(
         std::vector{
-            TColumnSchema("computation_id", EValueType::String, ESortOrder::Ascending),
             TColumnSchema("partition_id", EValueType::String, ESortOrder::Ascending),
             TColumnSchema("message_id", EValueType::String, ESortOrder::Ascending),
             TColumnSchema("message", EValueType::String),
@@ -74,13 +73,15 @@ IAttributeDictionaryPtr GetPartitionDataTableAttributes()
     return CreateDynamicTableAttributes(TTableSchema(
         std::vector{
             TColumnSchema("partition_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("data", EValueType::String),
+            TColumnSchema("watermarks", EValueType::String),
+            TColumnSchema("offsets", EValueType::String),
+            TColumnSchema("meta_field_setter", EValueType::String),
         },
         /*strict*/ true,
         /*uniqueKeys*/ true));
 }
 
-IAttributeDictionaryPtr GetInternalMessagesTableAttributes()
+IAttributeDictionaryPtr GetTimerMessagesTableAttributes()
 {
     return CreateDynamicTableAttributes(TTableSchema(
         std::vector{
@@ -128,7 +129,7 @@ auto GetTables()
         {InputMessagesTableName, GetInputMessagesTableAttributes()},
         {OutputMessagesTableName, GetOutputMessagesTableAttributes()},
         {PartitionDataTableName, GetPartitionDataTableAttributes()},
-        {InternalMessagesTableName, GetInternalMessagesTableAttributes()},
+        {TimerMessagesTableName, GetTimerMessagesTableAttributes()},
         {ControllerLogsTableName, GetControllerLogsTableAttributes()},
     };
 }
