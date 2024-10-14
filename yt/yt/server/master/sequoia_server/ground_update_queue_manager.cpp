@@ -366,7 +366,7 @@ private:
             }).AsyncVia(EpochAutomatonInvoker_))));
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig)
     {
         const auto& config = GetDynamicConfig();
         for (auto queue : TEnumTraits<EGroundUpdateQueue>::GetDomainValues()) {
@@ -374,6 +374,14 @@ private:
             if (const auto& executor = FlushExecutors_[queue]) {
                 executor->SetPeriod(queueConfig->FlushPeriod);
             }
+        }
+
+        // COMPAT(danilalexeev)
+        const auto& oldQueueManagerConfig = oldConfig->SequoiaManager->SequoiaQueue;
+        if (GetDynamicConfig()->ClearQueueRecords &&
+            !oldQueueManagerConfig->ClearQueueRecords)
+        {
+            Clear();
         }
     }
 

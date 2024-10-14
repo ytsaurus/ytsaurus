@@ -18,6 +18,9 @@ public:
     int FlushBatchSize;
     bool PauseFlush;
 
+    // COMPAT(danilalexeev)
+    bool ClearQueueRecords;
+
     REGISTER_YSON_STRUCT(TDynamicTableUpdateQueueConfig);
 
     static void Register(TRegistrar registrar);

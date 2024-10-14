@@ -14,6 +14,10 @@ void TDynamicTableUpdateQueueConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("pause_flush", &TThis::PauseFlush)
         .Default(false);
+
+    registrar.Parameter("clear_queue_records", &TThis::ClearQueueRecords)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,7 +46,8 @@ void TDynamicSequoiaManagerConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_ground_update_queues", &TThis::EnableGroundUpdateQueues)
-        .Default(false);
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
