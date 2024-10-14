@@ -1,5 +1,4 @@
 #include "blob_reader_cache.h"
-#include "bootstrap.h"
 #include "private.h"
 #include "blob_chunk.h"
 #include "config.h"

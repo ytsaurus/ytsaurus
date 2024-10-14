@@ -5,8 +5,9 @@
 #include "config.h"
 #include "dynamic_config_manager.h"
 #include "node_resource_manager.h"
-#include "master_heartbeat_reporter.h"
-#include "master_heartbeat_reporter_callbacks.h"
+#include "master_heartbeat_reporter_base.h"
+
+#include <yt/yt/server/master/node_tracker_server/public.h>
 
 #include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/chunk_store.h>
@@ -62,6 +63,7 @@ using namespace NConcurrency;
 using namespace NDataNode;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
+using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NRpc;
@@ -73,12 +75,9 @@ using NNodeTrackerClient::TAddressMap;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ClusterNodeLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TMasterConnector
     : public IMasterConnector
+    , public TMasterHeartbeatReporterBase
 {
 public:
     DEFINE_SIGNAL_OVERRIDE(void(std::vector<TError>* alerts), PopulateAlerts);
@@ -94,7 +93,11 @@ public:
         const TAddressMap& skynetHttpAddresses,
         const TAddressMap& monitoringHttpAddresses,
         const std::vector<TString>& nodeTags)
-        : Bootstrap_(bootstrap)
+        : TMasterHeartbeatReporterBase(
+            bootstrap,
+            /*reportHeartbeatsToAllSecondaryMasters*/ false,
+            ClusterNodeLogger().WithTag("HeartbeatType: %v", ENodeHeartbeatType::Cluster))
+        , Bootstrap_(bootstrap)
         , Config_(Bootstrap_->GetConfig()->MasterConnector)
         , RpcAddresses_(rpcAddresses)
         , SkynetHttpAddresses_(skynetHttpAddresses)
@@ -109,6 +112,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        TMasterHeartbeatReporterBase::Initialize();
+
         const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
         const auto secondaryMasterCellTags = connection->GetSecondaryMasterCellTags();
         MasterCellTags_.insert(connection->GetPrimaryMasterCellTag());
@@ -116,17 +121,15 @@ public:
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
+        Bootstrap_->SubscribeSecondaryMasterCellListChanged(
+            BIND_NO_PROPAGATE(&TMasterConnector::OnSecondaryMasterCellListChanged, MakeWeak(this))
+                .Via(Bootstrap_->GetControlInvoker()));
 
         UpdateLocalHostName(/*useHostObjects*/ false);
 
         const auto& heartbeatLogger = Logger().WithTag("HeartbeatType: Cluster");
-        HeartbeatReporter_ = CreateMasterHeartbeatReporter(
-            Bootstrap_,
-            /*reportHeartbeatsToAllSecondaryMasters*/ false,
-            CreateSingleFlavorHeartbeatCallbacks<TMasterConnector, TNodeTrackerServiceProxy>(MakeWeak(this), heartbeatLogger),
-            Config_->HeartbeatExecutor,
-            heartbeatLogger);
-        HeartbeatReporter_->Initialize();
+
+        Reconfigure(dynamicConfigManager->GetConfig()->MasterConnector->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
     }
 
     void Start() override
@@ -140,7 +143,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_VERIFY(GetNodeId() != InvalidNodeId);
+        YT_VERIFY(Bootstrap_->IsConnected());
 
         auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
         TNodeTrackerServiceProxy proxy(std::move(masterChannel));
@@ -199,21 +202,15 @@ public:
         return heartbeat;
     }
 
-    void OnHeartbeatSucceeded(TCellTag /*cellTag*/, const TNodeTrackerServiceProxy::TRspHeartbeatPtr& response)
+    void OnHeartbeatSucceeded(const TNodeTrackerServiceProxy::TRspHeartbeatPtr& response)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto hostName = response->has_host_name() ? std::make_optional(response->host_name()) : std::nullopt;
-        UpdateHostName(hostName);
-
         auto rack = response->has_rack() ? std::make_optional(response->rack()) : std::nullopt;
-        UpdateRack(rack);
-
         auto dataCenter = response->has_data_center() ? std::make_optional(response->data_center()) : std::nullopt;
-        UpdateDataCenter(dataCenter);
-
         auto tags = FromProto<std::vector<TString>>(response->tags());
-        UpdateTags(std::move(tags));
+        UpdateLocalDescriptor(hostName, rack, dataCenter, std::move(tags));
 
         Bootstrap_->SetDecommissioned(response->decommissioned());
 
@@ -309,16 +306,53 @@ public:
         return MasterCellTags_;
     }
 
-    void AddMasterCellTags(const THashSet<TCellTag>& newSecondaryMasterCellTags) override
+protected:
+    TFuture<void> DoReportHeartbeat(TCellTag cellTag) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto guard = WriterGuard(MasterCellTagsLock_);
-        for (auto cellTag : newSecondaryMasterCellTags) {
-            InsertOrCrash(MasterCellTags_, cellTag);
-        }
+        auto req = BuildHeartbeatRequest(cellTag);
+        auto rspFuture = req->Invoke();
+        EmplaceOrCrash(CellTagToHeartbeatRspFuture_, cellTag, rspFuture);
+        return rspFuture.AsVoid();
     }
 
+    void OnHeartbeatSucceeded(TCellTag cellTag) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto rspOrError = GetHeartbeatResponseOrError(cellTag);
+        YT_VERIFY(rspOrError.IsOK());
+
+        OnHeartbeatSucceeded(rspOrError.Value());
+    }
+
+    void OnHeartbeatFailed(TCellTag cellTag) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto rspOrError = GetHeartbeatResponseOrError(cellTag);
+        YT_VERIFY(!rspOrError.IsOK());
+    }
+
+    void ResetState(TCellTag cellTag) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        CellTagToHeartbeatRspFuture_.erase(cellTag);
+    }
+
+    TErrorOr<TNodeTrackerServiceProxy::TRspHeartbeatPtr> GetHeartbeatResponseOrError(TCellTag cellTag)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto futureIt = GetIteratorOrCrash(CellTagToHeartbeatRspFuture_, cellTag);
+        auto future = std::move(futureIt->second);
+        CellTagToHeartbeatRspFuture_.erase(futureIt);
+        YT_VERIFY(future.IsSet());
+
+        return future.Get();
+    }
 private:
     NClusterNode::IBootstrap* const Bootstrap_;
 
@@ -346,7 +380,7 @@ private:
 
     NApi::ITransactionPtr LeaseTransaction_;
 
-    IMasterHeartbeatReporterPtr HeartbeatReporter_;
+    THashMap<TCellTag, TFuture<TNodeTrackerServiceProxy::TRspHeartbeatPtr>> CellTagToHeartbeatRspFuture_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterCellTagsLock_);
     THashSet<TCellTag> MasterCellTags_;
@@ -391,7 +425,11 @@ private:
         Bootstrap_->GetBufferedProducer()->Update(std::move(buffer));
     }
 
-    void UpdateHostName(const std::optional<TString>& hostName)
+    void UpdateLocalDescriptor(
+        const std::optional<std::string>& hostName,
+        const std::optional<std::string>& rack,
+        const std::optional<std::string>& dataCenter,
+        std::vector<TString> tags)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -399,35 +437,9 @@ private:
         LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(
             RpcAddresses_,
             hostName,
-            LocalDescriptor_.GetRack(),
-            LocalDescriptor_.GetDataCenter(),
-            LocalDescriptor_.GetTags());
-    }
-
-    void UpdateRack(const std::optional<TString>& rack)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto guard = Guard(LocalDescriptorLock_);
-        LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(
-            RpcAddresses_,
-            LocalDescriptor_.GetHost(),
             rack,
-            LocalDescriptor_.GetDataCenter(),
-            LocalDescriptor_.GetTags());
-    }
-
-    void UpdateDataCenter(const std::optional<TString>& dc)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto guard = Guard(LocalDescriptorLock_);
-        LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(
-            RpcAddresses_,
-            LocalDescriptor_.GetHost(),
-            LocalDescriptor_.GetRack(),
-            dc,
-            LocalDescriptor_.GetTags());
+            dataCenter,
+            std::move(tags));
     }
 
     void UpdateTags(std::vector<TString> tags)
@@ -495,7 +507,7 @@ private:
             GetNodeId(),
             GetMasterCellTags());
 
-        HeartbeatReporter_->StartHeartbeats();
+        StartNodeHeartbeats();
     }
 
     void InitMedia()
@@ -683,11 +695,21 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        HeartbeatReporter_->Reconfigure(newNodeConfig->MasterConnector->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
+        Reconfigure(newNodeConfig->MasterConnector->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
 
         UpdateLocalHostName(newNodeConfig->MasterConnector->UseHostObjects);
 
         YT_LOG_INFO("Dynamic config changed");
+    }
+
+    void OnSecondaryMasterCellListChanged(const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto guard = WriterGuard(MasterCellTagsLock_);
+        for (const auto& [cellTag, _] : newSecondaryMasterConfigs) {
+            InsertOrCrash(MasterCellTags_, cellTag);
+        }
     }
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

@@ -16,11 +16,12 @@
 
 #include <yt/yt/server/master/cell_server/public.h>
 
+#include <yt/yt/server/master/node_tracker_server/public.h>
+
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
-#include <yt/yt/server/node/cluster_node/master_heartbeat_reporter.h>
-#include <yt/yt/server/node/cluster_node/master_heartbeat_reporter_callbacks.h>
+#include <yt/yt/server/node/cluster_node/master_heartbeat_reporter_base.h>
 #include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 
 #include <yt/yt/server/node/exec_node/bootstrap.h>
@@ -64,15 +65,12 @@ using namespace NConcurrency;
 using namespace NDataNodeTrackerClient;
 using namespace NDataNodeTrackerClient::NProto;
 using namespace NNodeTrackerClient::NProto;
+using namespace NNodeTrackerServer;
 using namespace NJobTrackerClient;
 using namespace NObjectClient;
 using namespace NNodeTrackerClient;
 using namespace NProfiling;
 using namespace NRpc;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr auto& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,6 +94,7 @@ DEFINE_ENUM(EMasterConnectorState,
 
 class TMasterConnector
     : public IMasterConnector
+    , public TMasterHeartbeatReporterBase
 {
 private:
     using TDataNodeRspFullHeartbeat = TDataNodeTrackerServiceProxy::TRspFullHeartbeatPtr;
@@ -104,7 +103,11 @@ private:
 
 public:
     explicit TMasterConnector(IBootstrap* bootstrap)
-        : Bootstrap_(bootstrap)
+        : TMasterHeartbeatReporterBase(
+            bootstrap,
+            /*reportHeartbeatsToAllSecondaryMasters*/ true,
+            DataNodeLogger().WithTag("HeartbeatType: %v", ENodeHeartbeatType::Data))
+        , Bootstrap_(bootstrap)
         , Config_(bootstrap->GetConfig()->DataNode->MasterConnector)
         , JobHeartbeatPeriod_(*Config_->JobHeartbeatPeriod)
         , JobHeartbeatPeriodSplay_(Config_->JobHeartbeatPeriodSplay)
@@ -120,6 +123,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        TMasterHeartbeatReporterBase::Initialize();
+
         LocationUuidsRequired_ = true;
 
         const auto& controlInvoker = Bootstrap_->GetControlInvoker();
@@ -132,7 +137,6 @@ public:
 
         Bootstrap_->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
         Bootstrap_->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
-        // TODO(cherepashka): construct chain of SecondaryMasterCellListChanged signals for better clarity.
         Bootstrap_->SubscribeSecondaryMasterCellListChanged(
             BIND_NO_PROPAGATE(&TMasterConnector::OnSecondaryMasterCellListChanged, MakeWeak(this))
                 .Via(controlInvoker));
@@ -151,13 +155,7 @@ public:
             BIND_NO_PROPAGATE(&TMasterConnector::OnChunkMediumChanged, MakeWeak(this))
                 .Via(controlInvoker));
 
-        HeartbeatReporter_ = CreateMasterHeartbeatReporter(
-            Bootstrap_,
-            /*reportHeartbeatsToAllSecondaryMasters*/ true,
-            New<TMasterHeartbeatReporterCallbacks>(MakeWeak(this)),
-            Config_->HeartbeatExecutor,
-            DataNodeLogger().WithTag("HeartbeatType: Data"));
-        HeartbeatReporter_->Initialize();
+        Reconfigure(GetDynamicConfig()->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
 
         Initialized_ = true;
     }
@@ -321,31 +319,6 @@ public:
         return req;
     }
 
-    void OnHeartbeatSucceeded(
-        TCellTag cellTag,
-        const TDataNodeRspHeartbeat& response)
-    {
-        auto state = GetMasterConnectorState(cellTag);
-        switch (state) {
-            case EMasterConnectorState::Registered: {
-                auto fullHeartbeatResponse = std::get_if<TTypedClientResponse<TRspFullHeartbeat>::TResult>(&response);
-                YT_VERIFY(fullHeartbeatResponse);
-                OnFullHeartbeatSucceeded(cellTag, *fullHeartbeatResponse->Get());
-                break;
-            }
-
-            case EMasterConnectorState::Online: {
-                auto incrementalHeartbeatResponse = std::get_if<TTypedClientResponse<TRspIncrementalHeartbeat>::TResult>(&response);
-                YT_VERIFY(incrementalHeartbeatResponse);
-                OnIncrementalHeartbeatSucceeded(cellTag, *incrementalHeartbeatResponse->Get());
-                break;
-            }
-
-            default:
-                YT_ABORT();
-        }
-    }
-
     void OnFullHeartbeatSucceeded(
         TCellTag cellTag,
         const TRspFullHeartbeat& response)
@@ -407,24 +380,7 @@ public:
         }
     }
 
-    void OnHeartbeatFailed(TCellTag cellTag, TError error)
-    {
-        auto state = GetMasterConnectorState(cellTag);
-        switch (state) {
-            case EMasterConnectorState::Registered:
-                OnFullHeartbeatFailed(error, cellTag);
-                break;
-
-            case EMasterConnectorState::Online:
-                OnIncrementalHeartbeatFailed(error, cellTag);
-                break;
-
-            default:
-                YT_ABORT();
-        }
-    }
-
-    void OnFullHeartbeatFailed(TError error, TCellTag cellTag)
+    void OnFullHeartbeatFailed(TCellTag cellTag, TError error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -432,7 +388,7 @@ public:
             cellTag);
     }
 
-    void OnIncrementalHeartbeatFailed(TError error, TCellTag cellTag)
+    void OnIncrementalHeartbeatFailed(TCellTag cellTag, TError error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -560,7 +516,7 @@ public:
             }
 
             controlInvoker->Invoke(BIND([this, weakThis = MakeWeak(this), cellTag] {
-                HeartbeatReporter_->StartHeartbeatsToCell(cellTag);
+                StartNodeHeartbeatsToCell(cellTag);
             }));
         }
     }
@@ -598,7 +554,97 @@ public:
             value ? "enabled" : "disabled");
     }
 
+protected:
+    TFuture<void> DoReportHeartbeat(TCellTag cellTag) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        THeartbeatRspFuture variantResult;
+        auto state = GetMasterConnectorState(cellTag);
+        EmplaceOrCrash(CellTagToMasterConnectorState_, cellTag, state);
+        switch (state) {
+            case EMasterConnectorState::Registered: {
+                auto future = InvokeFullHeartbeatRequest(cellTag);
+                variantResult = future;
+                EmplaceOrCrash(CellTagToVariantHeartbeatRspFuture_, cellTag, std::move(variantResult));
+                return future.AsVoid();
+            }
+
+            case EMasterConnectorState::Online: {
+                auto future = InvokeIncrementalHeartbeatRequest(cellTag);
+                variantResult = future;
+                EmplaceOrCrash(CellTagToVariantHeartbeatRspFuture_, cellTag, std::move(variantResult));
+                return future.AsVoid();
+            }
+
+            default:
+                YT_ABORT();
+        }
+    }
+
+    void OnHeartbeatSucceeded(TCellTag cellTag) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto state = GetMemorizedMasterConnectorState(cellTag);
+        switch (state) {
+            case EMasterConnectorState::Registered: {
+                auto rspOrError = GetHeartbeatResponseOrError<TDataNodeRspFullHeartbeat>(cellTag);
+                YT_VERIFY(rspOrError.IsOK());
+                OnFullHeartbeatSucceeded(cellTag, *rspOrError.Value());
+                break;
+            }
+
+            case EMasterConnectorState::Online: {
+                auto rspOrError = GetHeartbeatResponseOrError<TDataNodeRspIncrementalHeartbeat>(cellTag);
+                YT_VERIFY(rspOrError.IsOK());
+                OnIncrementalHeartbeatSucceeded(cellTag, *rspOrError.Value());
+                break;
+            }
+
+            default:
+                YT_ABORT();
+        }
+    }
+
+    void OnHeartbeatFailed(TCellTag cellTag) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto state = GetMemorizedMasterConnectorState(cellTag);
+        switch (state) {
+            case EMasterConnectorState::Registered: {
+                auto rspOrError = GetHeartbeatResponseOrError<TDataNodeRspFullHeartbeat>(cellTag);
+                YT_VERIFY(!rspOrError.IsOK());
+                OnFullHeartbeatFailed(cellTag, rspOrError);
+                break;
+            }
+
+            case EMasterConnectorState::Online: {
+                auto rspOrError = GetHeartbeatResponseOrError<TDataNodeRspIncrementalHeartbeat>(cellTag);
+                YT_VERIFY(!rspOrError.IsOK());
+                OnIncrementalHeartbeatFailed(cellTag, rspOrError);
+                break;
+            }
+
+            default:
+                YT_ABORT();
+        }
+    }
+
+    void ResetState(TCellTag cellTag) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        CellTagToVariantHeartbeatRspFuture_.erase(cellTag);
+        CellTagToMasterConnectorState_.erase(cellTag);
+    }
+
 private:
+    using THeartbeatRspFuture = std::variant<TFuture<TDataNodeRspFullHeartbeat>, TFuture<TDataNodeRspIncrementalHeartbeat>>;
+    THashMap<TCellTag, THeartbeatRspFuture> CellTagToVariantHeartbeatRspFuture_;
+    THashMap<TCellTag, EMasterConnectorState> CellTagToMasterConnectorState_;
+
     struct TChunksDelta
     {
         //! Synchronization state.
@@ -663,8 +709,6 @@ private:
     using THeartbeatSequenceNumber = i64;
     THeartbeatSequenceNumber SequenceNumber_ = 0;
 
-    IMasterHeartbeatReporterPtr HeartbeatReporter_;
-
     TDuration JobHeartbeatPeriod_;
     TDuration JobHeartbeatPeriodSplay_;
     i64 MaxChunkEventsPerIncrementalHeartbeat_;
@@ -705,124 +749,6 @@ private:
 
     // COMPAT(kvk1920)
     bool LocationUuidsRequired_ = true;
-
-    class TMasterHeartbeatReporterCallbacks
-        : public IMasterHeartbeatReporterCallbacks
-    {
-    public:
-        explicit TMasterHeartbeatReporterCallbacks(TWeakPtr<TMasterConnector> owner)
-            : Owner_(std::move(owner))
-        { }
-
-        TFuture<void> ReportHeartbeat(TCellTag cellTag) override
-        {
-            VERIFY_THREAD_AFFINITY(ControlThread);
-
-            auto owner = Owner_.Lock();
-            if (!owner) {
-                return MakeFuture(TError("Master connector is destroyed"));
-            }
-
-            THeartbeatRspFuture variantResult;
-            auto state = owner->GetMasterConnectorState(cellTag);
-            CellTagToState_[cellTag] = state;
-            switch (state) {
-                case EMasterConnectorState::Registered: {
-                    auto future = owner->InvokeFullHeartbeatRequest(cellTag);
-                    variantResult = future;
-                    EmplaceOrCrash(CellTagToVariantFuture_, cellTag, std::move(variantResult));
-                    return future.AsVoid();
-                }
-
-                case EMasterConnectorState::Online: {
-                    auto future = owner->InvokeIncrementalHeartbeatRequest(cellTag);
-                    variantResult = future;
-                    EmplaceOrCrash(CellTagToVariantFuture_, cellTag, std::move(variantResult));
-                    return future.AsVoid();
-                }
-
-                default:
-                    YT_ABORT();
-            }
-        }
-
-        void OnHeartbeatSucceeded(TCellTag cellTag) override
-        {
-            VERIFY_THREAD_AFFINITY(ControlThread);
-
-            auto owner = Owner_.Lock();
-            if (!owner) {
-                return;
-            }
-
-            auto rspOrError = GetResponseOrError(cellTag);
-            YT_VERIFY(rspOrError.IsOK());
-            const auto& response = rspOrError.Value();
-
-            owner->OnHeartbeatSucceeded(cellTag, response);
-        }
-
-        void OnHeartbeatFailed(TCellTag cellTag) override
-        {
-            VERIFY_THREAD_AFFINITY(ControlThread);
-
-            auto owner = Owner_.Lock();
-            if (!owner) {
-                return;
-            }
-
-            auto rspOrError = GetResponseOrError(cellTag);
-            YT_VERIFY(!rspOrError.IsOK());
-
-            owner->OnHeartbeatFailed(cellTag, rspOrError);
-        }
-
-        void Reset(TCellTag cellTag) override
-        {
-            VERIFY_THREAD_AFFINITY(ControlThread);
-
-            CellTagToVariantFuture_.erase(cellTag);
-            CellTagToState_.erase(cellTag);
-        }
-
-    private:
-        const TWeakPtr<TMasterConnector> Owner_;
-
-        using THeartbeatRspFuture = std::variant<TFuture<TDataNodeRspFullHeartbeat>, TFuture<TDataNodeRspIncrementalHeartbeat>>;
-        THashMap<TCellTag, THeartbeatRspFuture> CellTagToVariantFuture_;
-        THashMap<TCellTag, EMasterConnectorState> CellTagToState_;
-
-        TErrorOr<TDataNodeRspHeartbeat> GetResponseOrError(TCellTag cellTag)
-        {
-            VERIFY_THREAD_AFFINITY(ControlThread);
-
-            auto iterator = GetIteratorOrCrash(CellTagToVariantFuture_, cellTag);
-            auto variantFuture = std::move(iterator->second);
-            CellTagToVariantFuture_.erase(iterator);
-
-            auto state = GetOrCrash(CellTagToState_, cellTag);
-            switch (state) {
-                case EMasterConnectorState::Registered: {
-                    auto future = std::get_if<TFuture<TDataNodeRspFullHeartbeat>>(&variantFuture);
-                    YT_VERIFY(future);
-                    YT_VERIFY(future->IsSet());
-                    return future->Get();
-                }
-
-                case EMasterConnectorState::Online: {
-                    auto future = std::get_if<TFuture<TDataNodeRspIncrementalHeartbeat>>(&variantFuture);
-                    YT_VERIFY(future);
-                    YT_VERIFY(future->IsSet());
-                    return future->Get();
-                }
-
-                default:
-                    YT_ABORT();
-            }
-        }
-
-        DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-    };
 
     template <typename TResponse>
     void HandleReplicaAnnouncements(
@@ -963,7 +889,7 @@ private:
 
         const auto& dynamicConfig = newNodeConfig->DataNode->MasterConnector;
 
-        HeartbeatReporter_->Reconfigure(dynamicConfig->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
+        Reconfigure(dynamicConfig->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
 
         JobHeartbeatPeriod_ = dynamicConfig->JobHeartbeatPeriod.value_or(*Config_->JobHeartbeatPeriod);
         JobHeartbeatPeriodSplay_ = dynamicConfig->JobHeartbeatPeriodSplay.value_or(Config_->JobHeartbeatPeriodSplay);
@@ -981,13 +907,16 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Starting data node and job heartbeats");
+        YT_LOG_INFO(
+            "Starting data node and job heartbeats (NodeId: %v)",
+            Bootstrap_->GetNodeId());
 
-        HeartbeatReporter_->StartHeartbeats();
+        StartNodeHeartbeats();
 
         DoScheduleJobHeartbeat(/*immediately*/ true);
     }
 
+    // TODO(cherepashka): refactor report of job heartbeats.
     void DoScheduleJobHeartbeat(bool immediately)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1113,10 +1042,6 @@ private:
                 .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
                 .Run())
             .ValueOrThrow();
-
-        if (auto delay = Config_->DelayBeforeFullHeartbeatReport) {
-            TDelayedExecutor::WaitForDuration(*delay);
-        }
 
         YT_LOG_INFO("Sending full data node heartbeat to master (CellTag: %v, %v)",
             cellTag,
@@ -1408,6 +1333,31 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return GetNodeDynamicConfig()->MasterConnector;
+    }
+
+    template <typename TRspHeartbeatType>
+    TErrorOr<TRspHeartbeatType> GetHeartbeatResponseOrError(TCellTag cellTag)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto futureIt = GetIteratorOrCrash(CellTagToVariantHeartbeatRspFuture_, cellTag);
+        auto variantFuture = std::move(futureIt->second);
+        CellTagToVariantHeartbeatRspFuture_.erase(futureIt);
+
+        auto future = std::get_if<TFuture<TRspHeartbeatType>>(&variantFuture);
+        YT_VERIFY(future);
+        YT_VERIFY(future->IsSet());
+        return future->Get();
+    }
+
+    EMasterConnectorState GetMemorizedMasterConnectorState(TCellTag cellTag)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto stateIt = GetIteratorOrCrash(CellTagToMasterConnectorState_, cellTag);
+        auto state = std::move(stateIt->second);
+        CellTagToMasterConnectorState_.erase(stateIt);
+        return state;
     }
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

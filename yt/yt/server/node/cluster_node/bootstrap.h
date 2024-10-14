@@ -119,6 +119,7 @@ struct IBootstrapBase
     DECLARE_INTERFACE_SIGNAL(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
     DECLARE_INTERFACE_SIGNAL(void(), MasterDisconnected);
     DECLARE_INTERFACE_SIGNAL(void(const NCellMasterClient::TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs), SecondaryMasterCellListChanged);
+    DECLARE_INTERFACE_SIGNAL(void(const NCellMasterClient::TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs), ReadyToUpdateHeartbeatStream);
 
     // Node directory.
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const = 0;
@@ -228,6 +229,7 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(), MasterDisconnected);
     DEFINE_SIGNAL_OVERRIDE(void(std::vector<TError>* alerts), PopulateAlerts);
     DEFINE_SIGNAL_OVERRIDE(void(const NCellMasterClient::TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs), SecondaryMasterCellListChanged);
+    DEFINE_SIGNAL_OVERRIDE(void(const NCellMasterClient::TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs), ReadyToUpdateHeartbeatStream);
 
 public:
     explicit TBootstrapBase(IBootstrapBase* bootstrap);

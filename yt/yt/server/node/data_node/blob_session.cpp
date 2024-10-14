@@ -1,11 +1,9 @@
 #include "blob_session.h"
 #include "bootstrap.h"
-#include "private.h"
 #include "blob_chunk.h"
 #include "chunk_store.h"
 #include "config.h"
 #include "location.h"
-#include "session_manager.h"
 
 #include <yt/yt/server/lib/io/chunk_file_reader.h>
 #include <yt/yt/server/lib/io/chunk_file_writer.h>
