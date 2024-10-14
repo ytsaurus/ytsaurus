@@ -104,7 +104,6 @@ private:
         }
     }
 
-
     const TDynamicNodeTrackerConfigPtr& GetDynamicConfig() const
     {
         return Bootstrap_->GetConfigManager()->GetConfig()->NodeTracker;

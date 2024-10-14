@@ -6,17 +6,16 @@
 #include "slot_location.h"
 #include "slot_manager.h"
 
+#include <yt/yt/server/master/node_tracker_server/public.h>
+
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
-#include <yt/yt/server/node/cluster_node/master_heartbeat_reporter.h>
-#include <yt/yt/server/node/cluster_node/master_heartbeat_reporter_callbacks.h>
+#include <yt/yt/server/node/cluster_node/master_heartbeat_reporter_base.h>
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
 #include <yt/yt/ytlib/exec_node_tracker_client/exec_node_tracker_service_proxy.h>
-
-#include <yt/yt/core/concurrency/retrying_periodic_executor.h>
 
 #include <yt/yt/core/rpc/helpers.h>
 
@@ -29,17 +28,15 @@ using namespace NConcurrency;
 using namespace NExecNodeTrackerClient;
 using namespace NExecNodeTrackerClient::NProto;
 using namespace NNodeTrackerClient;
+using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ExecNodeLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TMasterConnector
     : public IMasterConnector
+    , public TMasterHeartbeatReporterBase
 {
 public:
     DEFINE_SIGNAL_OVERRIDE(void(), MasterConnected);
@@ -47,7 +44,11 @@ public:
 
 public:
     TMasterConnector(IBootstrap* bootstrap)
-        : Bootstrap_(bootstrap)
+        : TMasterHeartbeatReporterBase(
+            bootstrap,
+            /*reportHeartbeatsToAllSecondaryMasters*/ false,
+            ExecNodeLogger().WithTag("HeartbeatType: %v", ENodeHeartbeatType::Exec))
+        , Bootstrap_(bootstrap)
         , DynamicConfig_(New<TMasterConnectorDynamicConfig>())
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -55,17 +56,12 @@ public:
 
     void Initialize() override
     {
+        TMasterHeartbeatReporterBase::Initialize();
+
         Bootstrap_->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
         Bootstrap_->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
 
-        const auto& heartbeatLogger = Logger().WithTag("HeartbeatType: Exec");
-        HeartbeatReporter_ = CreateMasterHeartbeatReporter(
-            Bootstrap_,
-            /*reportHeartbeatsToAllSecondaryMasters*/ false,
-            CreateSingleFlavorHeartbeatCallbacks<TMasterConnector, TExecNodeTrackerServiceProxy>(MakeWeak(this), heartbeatLogger),
-            DynamicConfig_->HeartbeatExecutor,
-            heartbeatLogger);
-        HeartbeatReporter_->Initialize();
+        Reconfigure(DynamicConfig_->HeartbeatExecutor);
     }
 
     void OnDynamicConfigChanged(
@@ -76,7 +72,7 @@ public:
 
         DynamicConfig_ = newConfig;
 
-        HeartbeatReporter_->Reconfigure(DynamicConfig_->HeartbeatExecutor);
+        Reconfigure(DynamicConfig_->HeartbeatExecutor);
 
         YT_LOG_INFO("Dynamic config changed");
     }
@@ -111,12 +107,40 @@ public:
         return heartbeat;
     }
 
-    void OnHeartbeatSucceeded(TCellTag /*cellTag*/, const TExecNodeTrackerServiceProxy::TRspHeartbeatPtr& response)
+protected:
+    TFuture<void> DoReportHeartbeat(TCellTag cellTag) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        bool disableSchedulerJobs = response->disable_scheduler_jobs() || Bootstrap_->IsDecommissioned();
-        Bootstrap_->GetJobController()->SetJobsDisabledByMaster(disableSchedulerJobs);
+        auto req = BuildHeartbeatRequest(cellTag);
+        auto rspFuture = req->Invoke();
+        EmplaceOrCrash(CellTagToHeartbeatRspFuture_, cellTag, rspFuture);
+        return rspFuture.AsVoid();
+    }
+
+    void OnHeartbeatSucceeded(TCellTag cellTag) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto rspOrError = GetHeartbeatResponseOrError(cellTag);
+        YT_VERIFY(rspOrError.IsOK());
+
+        OnHeartbeatSucceeded(rspOrError.Value());
+    }
+
+    void OnHeartbeatFailed(TCellTag cellTag) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto rspOrError = GetHeartbeatResponseOrError(cellTag);
+        YT_VERIFY(!rspOrError.IsOK());
+    }
+
+    void ResetState(TCellTag cellTag) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        CellTagToHeartbeatRspFuture_.erase(cellTag);
     }
 
 private:
@@ -124,13 +148,21 @@ private:
 
     TMasterConnectorDynamicConfigPtr DynamicConfig_;
 
-    IMasterHeartbeatReporterPtr HeartbeatReporter_;
+    THashMap<TCellTag, TFuture<TExecNodeTrackerServiceProxy::TRspHeartbeatPtr>> CellTagToHeartbeatRspFuture_;
+
+    void OnHeartbeatSucceeded(const TExecNodeTrackerServiceProxy::TRspHeartbeatPtr& response)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        bool disableSchedulerJobs = response->disable_scheduler_jobs() || Bootstrap_->IsDecommissioned();
+        Bootstrap_->GetJobController()->SetJobsDisabledByMaster(disableSchedulerJobs);
+    }
 
     void OnMasterConnected(TNodeId /*nodeId*/)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        HeartbeatReporter_->StartHeartbeats();
+        StartNodeHeartbeats();
 
         MasterConnected_.Fire();
     }
@@ -147,6 +179,18 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetDynamicConfigManager()->GetConfig()->ExecNode->MasterConnector;
+    }
+
+    TErrorOr<TExecNodeTrackerServiceProxy::TRspHeartbeatPtr> GetHeartbeatResponseOrError(TCellTag cellTag)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto futureIt = GetIteratorOrCrash(CellTagToHeartbeatRspFuture_, cellTag);
+        auto future = std::move(futureIt->second);
+        CellTagToHeartbeatRspFuture_.erase(futureIt);
+        YT_VERIFY(future.IsSet());
+
+        return future.Get();
     }
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

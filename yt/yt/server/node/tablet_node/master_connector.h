@@ -16,7 +16,7 @@ namespace NYT::NTabletNode {
  *  Thread affinity: Control
  */
 struct IMasterConnector
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     //! Initialize master connector.
     virtual void Initialize() = 0;

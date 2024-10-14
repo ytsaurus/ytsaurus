@@ -16,7 +16,7 @@ namespace NYT::NExecNode {
  *  Thread affinity: Control
  */
 struct IMasterConnector
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     DECLARE_INTERFACE_SIGNAL(void(), MasterConnected);
     DECLARE_INTERFACE_SIGNAL(void(), MasterDisconnected);

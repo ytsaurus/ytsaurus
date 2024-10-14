@@ -20,7 +20,7 @@ namespace NYT::NCellarNode {
  *  Thread affinity: Control
  */
 struct IMasterConnector
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     using OnHeartbeatRequestedSignature = void(
         NCellarClient::ECellarType,
