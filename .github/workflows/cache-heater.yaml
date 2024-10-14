@@ -78,6 +78,7 @@ jobs:
       skip-python-packages: true
       build-ytsaurus: true
       build-query-tracker: true
+      build-yql-python-udfs: false
       update-remote-cache: true
     secrets:
       YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
