@@ -169,8 +169,8 @@ void TAstVisitor<TDerived>::OnCase(const TCaseExpressionPtr caseExpr)
 {
     Visit(caseExpr->OptionalOperand);
     for (const auto& whenThenExpression : caseExpr->WhenThenExpressions) {
-        Visit(whenThenExpression.first);
-        Visit(whenThenExpression.second);
+        Visit(whenThenExpression.Condition);
+        Visit(whenThenExpression.Result);
     }
     Visit(caseExpr->DefaultExpression);
 }
@@ -321,11 +321,11 @@ TExpressionPtr TRewriter<TDerived>::OnCase(TCaseExpressionPtr caseExpr)
     auto newDefaultExpression = Visit(caseExpr->DefaultExpression);
 
     int expressionCount = caseExpr->WhenThenExpressions.size();
-    std::vector<std::pair<TExpressionList, TExpressionList>> newWhenThenExpressions(expressionCount);
+    TWhenThenExpressionList newWhenThenExpressions(expressionCount);
     for (int index = 0; index < expressionCount; ++index) {
         newWhenThenExpressions[index] = {
-            Visit(caseExpr->WhenThenExpressions[index].first),
-            Visit(caseExpr->WhenThenExpressions[index].second)
+            Visit(caseExpr->WhenThenExpressions[index].Condition),
+            Visit(caseExpr->WhenThenExpressions[index].Result)
         };
     }
 

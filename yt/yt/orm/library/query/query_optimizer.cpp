@@ -145,7 +145,7 @@ protected:
     {
         TOptimizeResultCollector collector;
         for (auto& expr : list) {
-            collector(Visit(expr.first));
+            collector(Visit(expr.Expressions));
         }
 
         return std::move(collector).OptimizedAnything();
@@ -155,8 +155,8 @@ protected:
     {
         TOptimizeResultCollector collector;
         for (auto& expr : list) {
-            collector(Visit(expr.first));
-            collector(Visit(expr.second));
+            collector(Visit(expr.Condition));
+            collector(Visit(expr.Result));
         }
 
         return std::move(collector).OptimizedAnything();
@@ -249,7 +249,7 @@ protected:
     bool Visit(const TOrderExpressionList& list)
     {
         for (const auto& expr : list) {
-            if (!Visit(expr.first)) {
+            if (!Visit(expr.Expressions)) {
                 return false;
             }
         }
@@ -259,7 +259,7 @@ protected:
     bool Visit(const TWhenThenExpressionList& list)
     {
         for (auto& expr : list) {
-            if (!Visit(expr.first) || !Visit(expr.second)) {
+            if (!Visit(expr.Condition) || !Visit(expr.Result)) {
                 return false;
             }
         }
