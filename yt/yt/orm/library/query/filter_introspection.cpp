@@ -152,11 +152,9 @@ class TQueryVisitorForDefinedReference
 {
 public:
     explicit TQueryVisitorForDefinedReference(
-        const TYPath& referenceName,
-        const std::optional<TString>& tableName,
+        const NQueryClient::NAst::TReference& reference,
         bool allowValueRange)
-        : ReferenceName_(referenceName)
-        , TableName_(tableName)
+        : Reference_(reference)
         , AllowValueRange_(allowValueRange)
     { }
 
@@ -239,8 +237,7 @@ public:
     }
 
 private:
-    const TYPath& ReferenceName_;
-    const std::optional<TString>& TableName_;
+    const NQueryClient::NAst::TReference& Reference_;
     const bool AllowValueRange_;
 
     using TBaseAstVisitor<bool, TQueryVisitorForDefinedReference>::Visit;
@@ -259,8 +256,7 @@ private:
             return false;
         }
         if (auto* refExpr = exprs[0]->As<TReferenceExpression>()) {
-            return refExpr->Reference.ColumnName == ReferenceName_ &&
-                refExpr->Reference.TableName == TableName_;
+            return refExpr->Reference == Reference_;
         }
         return false;
     }
@@ -330,11 +326,10 @@ TOptionalLiteralValueWrapper IntrospectFilterForDefinedAttributeValue(
 
 bool IntrospectFilterForDefinedReference(
     TExpressionPtr filterExpression,
-    const TYPath& referenceName,
-    const std::optional<TString>& tableName,
+    const NQueryClient::NAst::TReference& reference,
     bool allowValueRange)
 {
-    return TQueryVisitorForDefinedReference(referenceName, tableName, allowValueRange)
+    return TQueryVisitorForDefinedReference(reference, allowValueRange)
         .Run(filterExpression);
 }
 
@@ -370,6 +365,38 @@ bool IsAttributeReference(const TExpressionList& exprList, const TYPath& attribu
 std::optional<TString> TryCastToStringValue(const TExpressionList& exprList) noexcept
 {
     return TryCastToLiteralValue(exprList).TryMoveAs<TString>();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IntrospectQueryForFullScan(
+    const NQueryClient::NAst::TQuery* query,
+    const TString& firstKeyFieldName,
+    const TString& firstNonEvaluatedKeyFieldName)
+{
+    NQueryClient::TColumnSet keyColumnsSet;
+    TReferenceHarvester(&keyColumnsSet).Visit(query->WherePredicate);
+
+    bool filteredByPrimaryKey = keyColumnsSet.contains(firstNonEvaluatedKeyFieldName);
+    bool orderedByPrimaryKey = false;
+    if (!query->OrderExpressions.empty() &&
+        !query->OrderExpressions[0].Descending)
+    {
+        YT_VERIFY(!query->OrderExpressions[0].Expressions.empty());
+        auto* expression = query->OrderExpressions[0].Expressions[0];
+        if (auto* referenceExpression = expression->As<TReferenceExpression>()) {
+            orderedByPrimaryKey = referenceExpression->Reference.ColumnName == firstKeyFieldName;
+        } else if (auto* aliasExpression = expression->As<TAliasExpression>();
+            aliasExpression && aliasExpression->Expression->As<TReferenceExpression>())
+        {
+            orderedByPrimaryKey = aliasExpression->Expression->As<TReferenceExpression>()->Reference.ColumnName ==
+                firstKeyFieldName;
+        }
+    }
+
+    // TODO(dgolear): Enrich filter introspection with range extraction and fail if broad ranges are used.
+    Y_UNUSED(orderedByPrimaryKey);
+    return !filteredByPrimaryKey;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

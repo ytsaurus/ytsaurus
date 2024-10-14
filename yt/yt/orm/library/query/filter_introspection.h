@@ -76,8 +76,7 @@ TOptionalLiteralValueWrapper IntrospectFilterForDefinedAttributeValue(
  */
 bool IntrospectFilterForDefinedReference(
     NQueryClient::NAst::TExpressionPtr filterExpression,
-    const NYPath::TYPath& referenceName,
-    const std::optional<TString>& tableName,
+    const NQueryClient::NAst::TReference& reference,
     bool allowValueRange);
 
 //! Searches for attribute references in #filterQuery, e.g. expressions
@@ -99,6 +98,16 @@ bool IsAttributeReference(
 //! If #exprList is a string literal value, return it, otherwise return null.
 std::optional<TString> TryCastToStringValue(
     const NQueryClient::NAst::TExpressionList& exprList) noexcept;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Best-effort check whether query results in fullscan.
+//! Returns true in case query is inefficient.
+// TODO(dgolear): Take into account that hash column may depend on several key fields and all of them must be provided.
+bool IntrospectQueryForFullScan(
+    const NQueryClient::NAst::TQuery* query,
+    const TString& firstKeyFieldName,
+    const TString& firstNonEvaluatedKeyFieldName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

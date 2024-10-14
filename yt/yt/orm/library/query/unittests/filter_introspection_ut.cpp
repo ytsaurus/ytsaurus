@@ -74,7 +74,7 @@ bool RunIntrospectFilterForDefinedReference(
     auto parsedQuery = ParseSource(expressionString, NQueryClient::EParseMode::Expression);
     auto expression = std::get<NAst::TExpressionPtr>(parsedQuery->AstHead.Ast);
 
-    return IntrospectFilterForDefinedReference(expression, referenceName, tableName, allowValueRange);
+    return IntrospectFilterForDefinedReference(expression, NQueryClient::NAst::TReference(referenceName, tableName), allowValueRange);
 }
 
 TEST(TFilterIntrospectionTest, DefinedReference)
@@ -220,6 +220,30 @@ TEST(TFilterIntrospectionTest, ExtractAllReferences)
             });
         EXPECT_EQ(result, std::vector<TString>({"/labels/position", "/status/state/raw", "/labels/position"}));
     }
+}
+
+TEST(TFilterIntrospectionTest, FullScanIntrospection)
+{
+    NQueryClient::NAst::TQuery query;
+
+    TObjectsHolder holder;
+    query.WherePredicate = MakeExpression<NAst::TBinaryOpExpression>(
+        &holder,
+        NQueryClient::TSourceLocation(),
+        EBinaryOp::Equal,
+        MakeExpression<NAst::TReferenceExpression>(&holder, NQueryClient::TSourceLocation(), "foo"),
+        MakeExpression<NAst::TLiteralExpression>(&holder, NQueryClient::TSourceLocation(), 5));
+
+    EXPECT_FALSE(IntrospectQueryForFullScan(&query, "hash", "foo"));
+    EXPECT_TRUE(IntrospectQueryForFullScan(&query, "hash", "bar"));
+
+    query.WherePredicate.value()[0]->As<NAst::TBinaryOpExpression>()->Opcode = EBinaryOp::Less;
+    query.OrderExpressions.push_back(TOrderExpression{
+        .Expressions = MakeExpression<NAst::TReferenceExpression>(&holder, NQueryClient::TSourceLocation(), "foo"),
+    });
+    // EXPECT_TRUE(IntrospectQueryForFullScan(&query, "hash", "foo"));
+    query.OrderExpressions[0].Expressions[0]->As<NAst::TReferenceExpression>()->Reference.ColumnName = "hash";
+    // EXPECT_FALSE(IntrospectQueryForFullScan(&query, "hash", "foo"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
