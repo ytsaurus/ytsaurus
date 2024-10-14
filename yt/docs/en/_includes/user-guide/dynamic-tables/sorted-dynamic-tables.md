@@ -139,6 +139,33 @@ The `forced_compaction_revision` setting causes a heavy load on the cluster. We 
 
 Another popular scenario involves adding fresh writes to a table by keys that are (on average) ascending, while simultaneously deleting old data by keys that are also, on average, ascending. In this case, the table is appended with partitions containing logically deleted data that is marked by tombstones. These partitions will not be compressed as long as the number of chunks in them is small. The size of the table on the disk keeps increasing, even though the amount of undeleted data in the table remains constant. A possible solution is to specify the `auto_compaction_period` parameter, which sets the periodicity at which partitions are forced to compact.
 
+#### Row-level TTL
+
+The primary use case for row-level `TTL` is when you need to store rows from the same table for different amounts of time depending on the data they contain. The task of determining the storage duration of each row lies with the user.
+
+To enable row-level `TTL`, add an optional `uint64` column named `$ttl` to your table. This is a system column, which is why it has such designation. However, the task of updating this column with valid and current values still lies with the user. Writes to the table must include a valid value in milliseconds.
+
+Requirements for values written to the `$ttl` column:
+
+- `min_data_ttl <= ttl`
+
+How the `min_data_versions`, `max_data_versions`, `min_data_ttl`, and `max_data_ttl` attributes impact the `$ttl` column:
+
+- If `min_data_versions > 0`, rows aren't deleted based on their values from the `$ttl` column.
+- Rows with non-empty `$ttl` column values aren't deleted after exceeding `max_data_ttl`.
+
+When deleting data, the `$ttl` value for the corresponding key is derived from the most recent entry in this column, if possible. This doesn't apply if some data is outside the chunks being merged. The deletion rules are similar to those listed in the previous section, with the addition of one rule:
+
+- Values written earlier than `ttl` before the current point in time can't be deleted for time-related reasons.
+
+How to manage row-level `$ttl`:
+
+- To correctly delete a value from the `$ttl` column, delete the entire row for the corresponding key, then insert it again without specifying a value in the `$ttl` column.
+- Each insert must include a `$ttl` value for the corresponding key. Furthermore, the value must always be the same, with the exception of the scenarios described below. Otherwise, we can't guarantee the desired behavior.
+- To extend the Time to Live of data for a given key, write the entire row with the updated `$ttl` column value to the table.
+- To reduce the Time to Live of data for a given key, delete the data for that key, then insert it again, specifying your new value in the `$ttl` column.
+- You can only specify `$ttl` for previously written keys by deleting the row and inserting the new value in the `$ttl` column.
+
 ## Aggregation columns { #aggr_columns }
 
 If the data scenario involves the constant addition of deltas to values already written in the table, use aggregation columns. In the schema, specify the `aggregate=sum` attribute or another aggregate function for the column. You can then make a write to such a column with additive semantics to the value already written in the table.
