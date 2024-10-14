@@ -27,6 +27,8 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         if "path" in config:
             self.PATH = config["path"]
 
+        self.libraries = config.get("libraries", {})
+
         if "artifacts_path" in config:
             self.artifacts_path = config["artifacts_path"]
         else:
@@ -118,6 +120,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 "file_storage_config": {"max_size_mb": 1 << 13},
                 "yql_plugin_shared_library": self._get_artifact_path("libyqlplugin.so"),
                 "yt_token_path": self.token_path,
+                "libraries": self.libraries,
             },
         }
 
