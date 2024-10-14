@@ -175,15 +175,9 @@ TChunkScannerBase::TChunkScannerBase(
         journal,
         ChunkServerLogger.WithTag("Kind: %v, Journal: %v",
             kind,
-            journal)),
-    Kind_(kind)
+            journal))
 {
     YT_VERIFY(kind != EChunkScanKind::GlobalStatisticsCollector);
-}
-
-bool TChunkScannerBase::IsObjectAlive(TChunk* chunk)
-{
-    return NObjectServer::IsObjectAlive(chunk);
 }
 
 int TChunkScannerBase::GetShardIndex(TChunk* chunk)
@@ -191,24 +185,35 @@ int TChunkScannerBase::GetShardIndex(TChunk* chunk)
     return chunk->GetShardIndex();
 }
 
-bool TChunkScannerBase::GetScanFlag(TChunk* chunk) const
+bool TChunkScannerBase::IsRelevant(TChunk* chunk) const
+{
+    return ActiveShardIndices_.test(chunk->GetShardIndex());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkScanQueueBase::TChunkScanQueueBase(EChunkScanKind kind)
+    : Kind_(kind)
+{ }
+
+bool TChunkScanQueueBase::IsObjectAlive(TChunk* chunk)
+{
+    return NObjectServer::IsObjectAlive(chunk);
+}
+
+bool TChunkScanQueueBase::GetScanFlag(TChunk* chunk) const
 {
     return chunk->GetScanFlag(Kind_);
 }
 
-void TChunkScannerBase::ClearScanFlag(TChunk* chunk)
+void TChunkScanQueueBase::ClearScanFlag(TChunk* chunk)
 {
     chunk->ClearScanFlag(Kind_);
 }
 
-void TChunkScannerBase::SetScanFlag(TChunk* chunk)
+void TChunkScanQueueBase::SetScanFlag(TChunk* chunk)
 {
     chunk->SetScanFlag(Kind_);
-}
-
-bool TChunkScannerBase::IsRelevant(TChunk* chunk) const
-{
-    return ActiveShardIndices_.test(chunk->GetShardIndex());
 }
 
 } // namespace NDetail
