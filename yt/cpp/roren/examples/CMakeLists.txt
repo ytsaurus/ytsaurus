@@ -12,7 +12,7 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(01_par_do)
+add_subdirectory(01_01_par_do_simple_tnode)
 add_subdirectory(02_group_by_key)
 add_subdirectory(03_combine_by_key)
 add_subdirectory(04_par_do_multiple_outputs)

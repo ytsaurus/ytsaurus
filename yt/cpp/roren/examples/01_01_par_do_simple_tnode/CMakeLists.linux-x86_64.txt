@@ -12,10 +12,13 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_executable(01_par_do)
+find_package(linux-headers-generic REQUIRED)
+
+add_executable(01_01_par_do_simple_tnode)
 
 
-target_link_libraries(01_par_do PUBLIC
+target_link_libraries(01_01_par_do_simple_tnode PUBLIC
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
@@ -23,21 +26,26 @@ target_link_libraries(01_par_do PUBLIC
   cpp-roren-yt
 )
 
-target_allocator(01_par_do
-  system_allocator
+target_allocator(01_01_par_do_simple_tnode
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
-target_link_options(01_par_do PRIVATE
-  -Wl,-platform_version,macos,11.0,11.0
+target_link_options(01_01_par_do_simple_tnode PRIVATE
+  -ldl
+  -lrt
+  -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -framework
-  CoreFoundation
+  -lpthread
+  -lrt
+  -ldl
+  -lutil
 )
 
-target_sources(01_par_do PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/examples/01_par_do/main.cpp
+target_sources(01_01_par_do_simple_tnode PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/examples/01_01_par_do_simple_tnode/main.cpp
 )
 
 
-vcs_info(01_par_do)
+vcs_info(01_01_par_do_simple_tnode)

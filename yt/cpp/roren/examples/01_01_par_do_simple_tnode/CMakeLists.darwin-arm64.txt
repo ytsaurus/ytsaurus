@@ -12,21 +12,21 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_executable(01_par_do)
+add_executable(01_01_par_do_simple_tnode)
 
 
-target_link_libraries(01_par_do PUBLIC
+target_link_libraries(01_01_par_do_simple_tnode PUBLIC
   contrib-libs-cxxsupp
   yutil
   cpp-roren-interface
   cpp-roren-yt
 )
 
-target_allocator(01_par_do
+target_allocator(01_01_par_do_simple_tnode
   system_allocator
 )
 
-target_link_options(01_par_do PRIVATE
+target_link_options(01_01_par_do_simple_tnode PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
@@ -34,9 +34,9 @@ target_link_options(01_par_do PRIVATE
   CoreFoundation
 )
 
-target_sources(01_par_do PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/examples/01_par_do/main.cpp
+target_sources(01_01_par_do_simple_tnode PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/examples/01_01_par_do_simple_tnode/main.cpp
 )
 
 
-vcs_info(01_par_do)
+vcs_info(01_01_par_do_simple_tnode)
