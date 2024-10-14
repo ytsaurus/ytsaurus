@@ -422,7 +422,7 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
                 "enable_descending_sort_order to be set");
         }
 
-        if (config->GroundUpdateQueueManager->GetQueueConfig(NSequoiaClient::EGroundUpdateQueue::Sequoia)->ClearQueueRecords &&
+        if (config->GroundUpdateQueueManager->ClearQueueRecords &&
             config->SequoiaManager->EnableGroundUpdateQueues)
         {
             THROW_ERROR_EXCEPTION("Cannot clear queue records while update queues are enabled");

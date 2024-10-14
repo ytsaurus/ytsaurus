@@ -18,9 +18,6 @@ public:
     int FlushBatchSize;
     bool PauseFlush;
 
-    // COMPAT(danilalexeev)
-    bool ClearQueueRecords;
-
     REGISTER_YSON_STRUCT(TDynamicTableUpdateQueueConfig);
 
     static void Register(TRegistrar registrar);
@@ -34,6 +31,9 @@ class TDynamicGroundUpdateQueueManagerConfig
     : public NYTree::TYsonStruct
 {
 public:
+    // COMPAT(danilalexeev)
+    bool ClearQueueRecords;
+
     THashMap<NSequoiaClient::EGroundUpdateQueue, TDynamicTableUpdateQueueConfigPtr> Queues;
 
     const TDynamicTableUpdateQueueConfigPtr& GetQueueConfig(NSequoiaClient::EGroundUpdateQueue queue) const;

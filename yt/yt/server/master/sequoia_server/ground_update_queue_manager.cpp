@@ -377,7 +377,7 @@ private:
         }
 
         // COMPAT(danilalexeev)
-        const auto& oldQueueManagerConfig = oldConfig->SequoiaManager->SequoiaQueue;
+        const auto& oldQueueManagerConfig = oldConfig->GroundUpdateQueueManager;
         if (GetDynamicConfig()->ClearQueueRecords &&
             !oldQueueManagerConfig->ClearQueueRecords)
         {
