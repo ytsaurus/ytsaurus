@@ -12,6 +12,7 @@
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
+#include <yt/yt/client/table_client/key.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
@@ -80,7 +81,8 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     const TChunkTimestamps& chunkTimestamps = TChunkTimestamps(),
     NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
-    NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
+    NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache(),
+    TCallback<void(TKey, TKey)> boundaryKeysProcessor = {});
 
 ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TTableWriterConfigPtr config,
@@ -109,6 +111,19 @@ TFuture<IUnversionedWriterPtr> CreateSchemalessTableWriter(
     NApi::NNative::IClientPtr client,
     TString localHostName,
     NApi::ITransactionPtr transaction,
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
+    NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<IUnversionedWriterPtr> CreateSchemalessFragmentTableWriter(
+    TTableWriterConfigPtr config,
+    TTableWriterOptionsPtr options,
+    const NApi::TFragmentWriteCookiePtr& cookie,
+    TNameTablePtr nameTable,
+    NApi::NNative::IClientPtr client,
+    TString localHostName,
+    NCypressClient::TTransactionId txId,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 

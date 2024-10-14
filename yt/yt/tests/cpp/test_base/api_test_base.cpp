@@ -1,6 +1,7 @@
 #include "api_test_base.h"
 #include "private.h"
 
+#include <yt/yt/client/api/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 #include <yt/yt/ytlib/queue_client/registration_manager.h>
