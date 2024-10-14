@@ -35,8 +35,23 @@ using TIdentifierList = std::vector<TReferenceExpressionPtr>;
 using TExpressionList = std::vector<TExpressionPtr>;
 using TNullableExpressionList = std::optional<TExpressionList>;
 using TNullableIdentifierList = std::optional<TIdentifierList>;
-using TOrderExpressionList = std::vector<std::pair<TExpressionList, bool>>;
-using TWhenThenExpression = std::pair<TExpressionList, TExpressionList>;
+
+struct TOrderExpression
+{
+    TExpressionList Expressions;
+    bool Descending = false;
+
+    bool operator==(const TOrderExpression&) const = default;
+};
+using TOrderExpressionList = std::vector<TOrderExpression>;
+
+struct TWhenThenExpression
+{
+    TExpressionList Condition;
+    TExpressionList Result;
+
+    bool operator==(const TWhenThenExpression&) const = default;
+};
 using TWhenThenExpressionList = std::vector<TWhenThenExpression>;
 
 bool operator == (const TIdentifierList& lhs, const TIdentifierList& rhs);

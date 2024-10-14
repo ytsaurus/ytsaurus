@@ -137,7 +137,7 @@ std::vector<TString> ExtractFunctionNames(
     }
 
     for (const auto& orderExpression : query.OrderExpressions) {
-        for (const auto& expr : orderExpression.first) {
+        for (const auto& expr : orderExpression.Expressions) {
             ExtractFunctionNames(expr, &functions);
         }
     }
@@ -2813,12 +2813,12 @@ void PrepareQuery(
         auto orderClause = New<TOrderClause>();
 
         for (const auto& orderExpr : ast.OrderExpressions) {
-            for (const auto& expressionAst : orderExpr.first) {
+            for (const auto& expressionAst : orderExpr.Expressions) {
                 auto typedExpr = builder.BuildTypedExpression(
                     expressionAst,
                     ComparableTypes);
 
-                orderClause->OrderItems.push_back({typedExpr, orderExpr.second});
+                orderClause->OrderItems.push_back({typedExpr, orderExpr.Descending});
             }
         }
 

@@ -238,7 +238,7 @@ private:
     bool Visit(const TOrderExpressionList& list)
     {
         for (const auto& expr : list) {
-            if (Visit(expr.first)) {
+            if (Visit(expr.Expressions)) {
                 return true;
             }
         }
@@ -248,7 +248,7 @@ private:
     bool Visit(const TWhenThenExpressionList& list)
     {
         for (const auto& expr : list) {
-            if (Visit(expr.first) || Visit(expr.second)) {
+            if (Visit(expr.Condition) || Visit(expr.Result)) {
                 return true;
             }
         }

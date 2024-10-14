@@ -558,9 +558,9 @@ void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, int 
 
         for (const auto& item : typedExpr->WhenThenExpressions) {
             builder->AppendString(" WHEN ");
-            FormatExpression(builder, item.first, depth + 1, expandAliases);
+            FormatExpression(builder, item.Condition, depth + 1, expandAliases);
             builder->AppendString(" THEN ");
-            FormatExpression(builder, item.second, depth + 1, expandAliases);
+            FormatExpression(builder, item.Result, depth + 1, expandAliases);
         }
 
         if (typedExpr->DefaultExpression) {
@@ -722,9 +722,9 @@ void FormatQuery(TStringBuilderBase* builder, const TQuery& query)
             builder,
             query.OrderExpressions.begin(),
             query.OrderExpressions.end(),
-            [] (TStringBuilderBase* builder, const std::pair<TExpressionList, bool>& pair) {
-                FormatExpression(builder, pair.first);
-                if (pair.second) {
+            [] (TStringBuilderBase* builder, const TOrderExpression& orderExpression) {
+                FormatExpression(builder, orderExpression.Expressions);
+                if (orderExpression.Descending) {
                     builder->AppendString(" DESC");
                 }
             });
