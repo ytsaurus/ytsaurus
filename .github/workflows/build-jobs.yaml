@@ -219,15 +219,13 @@ jobs:
         run: |
           BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --yt-dir=//home/devtools/cache --yt-proxy=${{ vars.CI_YT_PROXY }} --yt-store --yt-store-threads 8"
 
-          if [ "${{ inputs.update-remote-cache }}" == "true" ]
-          then
+          if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
             BUILD_FLAGS="${BUILD_FLAGS} --yt-put --yt-max-store-size=1000000000000"
           fi
 
           STRIP_VALUE=no
           BUILD_TYPE=profile
-          if [ "${{ matrix.build-type }}" == "release" ]
-          then
+          if [ "${{ matrix.build-type }}" == "release" ]; then
             STRIP_VALUE=yes
             BUILD_TYPE=release
           fi
@@ -260,8 +258,7 @@ jobs:
           ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared
           ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/driver/rpc_shared
 
-          if [ "${{ inputs.skip-python-packages }}" == "false" ]
-          then
+          if [ "${{ inputs.skip-python-packages }}" == "false" ]; then
             cd ../ytsaurus
 
             source ../venv/bin/activate
@@ -294,7 +291,7 @@ jobs:
 
           SCRIPT_FLAGS=""
           if [ "${{ inputs.build-yql-python-udfs }}" == "true" ]; then
-            SCRIPT_FLAGS="${SCRIPT_FLAGS} --build-python-udfs=yes"
+            SCRIPT_FLAGS="${SCRIPT_FLAGS} --build-python-udfs yes"
           fi
 
           ../ytsaurus/ytsaurus/yt/docker/ya-build/query-tracker/build_yql_agent.sh ${SCRIPT_FLAGS}
