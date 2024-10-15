@@ -340,7 +340,6 @@ private:
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& chunkReplicator = chunkManager->GetChunkReplicator();
-        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         auto* chunk = GetThisImpl();
@@ -370,52 +369,6 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(chunk->GetMovable());
                 return true;
-
-            case EInternedAttributeKey::LocalReplicationStatus: {
-                if (isForeign) {
-                    break;
-                }
-
-                if (!chunkReplicator->ShouldProcessChunk(chunk)) {
-                    THROW_ERROR_EXCEPTION("Local chunk replicator does not process chunk %v",
-                        chunk->GetId());
-                }
-
-                auto chunkHolder = TEphemeralObjectPtr<TChunk>(chunk);
-                // This is context switch, chunk may die.
-                auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunkHolder)
-                    .ValueOrThrow();
-
-                auto statuses = chunkReplicator->ComputeChunkStatuses(chunkHolder.Get(), replicas);
-
-                BuildYsonFluently(consumer).DoMapFor(
-                    statuses.begin(),
-                    statuses.end(),
-                    [&] (auto fluent, auto it) {
-                        auto mediumIndex = it->first;
-                        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                        if (!IsObjectAlive(medium)) {
-                            return;
-                        }
-
-                        auto status = it->second;
-
-                        fluent
-                            .Item(medium->GetName())
-                            .BeginMap()
-                                .Item("underreplicated").Value(Any(status & EChunkStatus::Underreplicated))
-                                .Item("overreplicated").Value(Any(status & EChunkStatus::Overreplicated))
-                                .Item("unexpected_overreplicated").Value(Any(status & EChunkStatus::UnexpectedOverreplicated))
-                                .Item("lost").Value(Any(status & EChunkStatus::Lost))
-                                .Item("data_missing").Value(Any(status & EChunkStatus::DataMissing))
-                                .Item("parity_missing").Value(Any(status & EChunkStatus::ParityMissing))
-                                .Item("unsafely_placed").Value(Any(status & EChunkStatus::UnsafelyPlaced))
-                                .Item("temporarily_unavailable").Value(Any(status & EChunkStatus::TemporarilyUnavailable))
-                            .EndMap();
-                    });
-
-                return true;
-            }
 
             case EInternedAttributeKey::ChunkReplicatorAddress: {
                 if (isForeign) {
@@ -1003,6 +956,7 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& cellManager = Bootstrap_->GetCellManager();
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
+        const auto& chunkReplicator = chunkManager->GetChunkReplicator();
 
         auto* chunk = GetThisImpl();
 
@@ -1050,6 +1004,44 @@ private:
                                 .Item("compressed_data_size").Value(info.CompressedDataSize)
                             .EndMap());
                     }));
+            }
+
+            case EInternedAttributeKey::LocalReplicationStatus: {
+                if (isForeign) {
+                    break;
+                }
+
+                return chunkReplicaFetcher->GetChunkReplicasAsync({TEphemeralObjectPtr<TChunk>(chunk)})
+                    .Apply(BIND([=, this_ = MakeStrong(this)] (const TChunkLocationPtrWithReplicaInfoList& replicas) {
+                        auto statuses = chunkReplicator->ComputeChunkStatuses(chunk, replicas);
+
+                        return BuildYsonStringFluently().DoMapFor(
+                            statuses.begin(),
+                            statuses.end(),
+                            [&] (auto fluent, auto it) {
+                                auto mediumIndex = it->first;
+                                auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                                if (!IsObjectAlive(medium)) {
+                                    return;
+                                }
+
+                                auto status = it->second;
+
+                                fluent
+                                    .Item(medium->GetName())
+                                    .BeginMap()
+                                        .Item("underreplicated").Value(Any(status & EChunkStatus::Underreplicated))
+                                        .Item("overreplicated").Value(Any(status & EChunkStatus::Overreplicated))
+                                        .Item("unexpected_overreplicated").Value(Any(status & EChunkStatus::UnexpectedOverreplicated))
+                                        .Item("lost").Value(Any(status & EChunkStatus::Lost))
+                                        .Item("data_missing").Value(Any(status & EChunkStatus::DataMissing))
+                                        .Item("parity_missing").Value(Any(status & EChunkStatus::ParityMissing))
+                                        .Item("unsafely_placed").Value(Any(status & EChunkStatus::UnsafelyPlaced))
+                                        .Item("temporarily_unavailable").Value(Any(status & EChunkStatus::TemporarilyUnavailable))
+                                    .EndMap();
+                            });
+                    }));
+
             }
 
             case EInternedAttributeKey::OwningNodes:

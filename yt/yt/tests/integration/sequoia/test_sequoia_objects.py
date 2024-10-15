@@ -344,7 +344,7 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
     def setup_class(cls):
         super(TestOnlySequoiaReplicas, cls).setup_class()
 
-    @authors("kivedernikov")
+    @authors("aleksandra-zh")
     def test_empty_sequoia_handler(self):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
 
@@ -357,7 +357,7 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
         wait(lambda: len(get("#{}/@stored_master_replicas".format(chunk_id))) > 0)
         remove(table)
 
-    @authors("kivedernikov")
+    @authors("aleksandra-zh")
     def test_master_sequoia_replicas_handler(self):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
 
@@ -414,6 +414,20 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
             return True
 
         wait(lambda: check_stored_replicas(chunk_id))
+        remove(table)
+
+    @authors("aleksandra-zh")
+    def test_chunk_attributes(self):
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+
+        table = "//tmp/t"
+        create("table", table, attributes={"replication_factor": 1})
+        write_table("<append=%true>" + table, {"foo": "bar"}, table_writer={"upload_replication_factor": 1})
+
+        chunk_id = get_singular_chunk_id(table)
+        attribute_list = ls("#{}/@".format(chunk_id))
+        for attr in attribute_list:
+            get("#{}/@{}".format(chunk_id, attr))
         remove(table)
 
 
