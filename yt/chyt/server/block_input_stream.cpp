@@ -87,7 +87,7 @@ void ExecuteFilterStep(TBlockWithFilter& blockWithFilter, const TFilterInfo& fil
     }
 
     auto throwIllegalType = [&] {
-        THROW_ERROR_EXCEPTION("Illegal type for filter in PREWHERE: %Qv", filterColumn->getName());
+        THROW_ERROR_EXCEPTION("Illegal column type %Qv for filter in PREWHERE", filterColumn->getName());
     };
 
     // Combine current filter and filter column.
