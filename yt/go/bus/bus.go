@@ -46,8 +46,10 @@ type Options struct {
 	TLSConfig      *tls.Config
 }
 
-type packetType int16
-type packetFlags int16
+// NOTE: See yt/yt/core/bus/tcp/packet.cpp
+
+type packetType uint16
+type packetFlags uint16
 
 const (
 	packetMessage = packetType(0)
@@ -72,6 +74,11 @@ type fixedHeader struct {
 	packetID  guid.GUID
 	partCount uint32
 	checksum  uint64
+}
+
+func (p *fixedHeader) isVariablePacket() bool {
+	// NOTE: Message packets always have variable header, other only when have payload.
+	return p.typ == packetMessage || p.partCount > 0
 }
 
 func (p *fixedHeader) data(computeCRC bool) []byte {
@@ -190,18 +197,20 @@ func (p *busMsg) writeTo(w io.Writer) (int, error) {
 	}
 	n += l
 
-	l, err = w.Write(p.varHeader.data(true))
-	if err != nil {
-		return n + l, err
-	}
-	n += l
-
-	for _, p := range p.parts {
-		l, err := w.Write(p)
+	if p.fixHeader.isVariablePacket() {
+		l, err = w.Write(p.varHeader.data(true))
 		if err != nil {
 			return n + l, err
 		}
 		n += l
+
+		for _, p := range p.parts {
+			l, err := w.Write(p)
+			if err != nil {
+				return n + l, err
+			}
+			n += l
+		}
 	}
 
 	return n, nil
@@ -329,7 +338,7 @@ func (c *Bus) receive() (busMsg, error) {
 		return busMsg{}, fmt.Errorf("bus: too many parts: %d > %d", fixHeader.partCount, maxPartCount)
 	}
 
-	if fixHeader.partCount == 0 {
+	if !fixHeader.isVariablePacket() {
 		return busMsg{
 			parts:     nil,
 			fixHeader: fixHeader,
