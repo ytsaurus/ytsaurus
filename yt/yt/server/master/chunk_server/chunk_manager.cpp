@@ -48,6 +48,7 @@
 #include <yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/helpers.h>
 
 #include <yt/yt/server/master/incumbent_server/incumbent_manager.h>
 
@@ -4418,6 +4419,11 @@ private:
         auto erasureCodecId = isErasure ? CheckedEnumCast<NErasure::ECodec>(subrequest->erasure_codec()) : NErasure::ECodec::None;
         int readQuorum = isJournal ? subrequest->read_quorum() : 0;
         int writeQuorum = isJournal ? subrequest->write_quorum() : 0;
+
+        const auto& config = GetDynamicConfig();
+        if (isErasure) {
+            ValidateErasureCodec(erasureCodecId, config->ForbiddenErasureCodecs);
+        }
 
         i64 replicaLagLimit = 0;
         // COMPAT(gritukan)

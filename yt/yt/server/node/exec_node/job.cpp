@@ -3233,6 +3233,7 @@ bool TJob::IsFatalError(const TError& error)
         ) ||
         error.FindMatching(NSecurityClient::EErrorCode::NoSuchAccount) ||
         error.FindMatching(NChunkClient::EErrorCode::NoSuchMedium) ||
+        error.FindMatching(NChunkClient::EErrorCode::ForbiddenErasureCodec) ||
         error.FindMatching(NNodeTrackerClient::EErrorCode::NoSuchNetwork) ||
         error.FindMatching(NTableClient::EErrorCode::InvalidDoubleValue) ||
         error.FindMatching(NTableClient::EErrorCode::IncomparableTypes) ||
