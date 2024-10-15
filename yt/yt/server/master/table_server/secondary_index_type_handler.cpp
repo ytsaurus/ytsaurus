@@ -11,7 +11,10 @@
 #include <yt/yt/server/master/table_server/private.h>
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
+#include <yt/yt/server/lib/hive/hive_manager.h>
+
 #include <yt/yt/server/lib/misc/interned_attributes.h>
+
 
 namespace NYT::NTableServer {
 
@@ -80,6 +83,10 @@ public:
 
     void ValidateUserAllowedToCreateSecondaryIndex()
     {
+        if (NHiveServer::IsHiveMutation()) {
+            return;
+        }
+
         if (Bootstrap_->GetDynamicConfig()->AllowEveryoneCreateSecondaryIndices) {
             return;
         }
