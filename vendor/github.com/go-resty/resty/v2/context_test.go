@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2023 Jeevanandam M (jeeva@myjeeva.com)
+// Copyright (c) 2015-2024 Jeevanandam M (jeeva@myjeeva.com)
 // 2016 Andrew Grigorev (https://github.com/ei-grad)
 // All rights reserved.
 // resty source code and usage is governed by a MIT style
@@ -8,8 +8,8 @@ package resty
 
 import (
 	"context"
+	"errors"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -208,9 +208,5 @@ func TestRequestContext(t *testing.T) {
 }
 
 func errIsContextCanceled(err error) bool {
-	ue, ok := err.(*url.Error)
-	if !ok {
-		return false
-	}
-	return ue.Err == context.Canceled
+	return errors.Is(err, context.Canceled)
 }

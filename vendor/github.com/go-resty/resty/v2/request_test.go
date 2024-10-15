@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2023 Jeevanandam M (jeeva@myjeeva.com), All rights reserved.
+// Copyright (c) 2015-2024 Jeevanandam M (jeeva@myjeeva.com), All rights reserved.
 // resty source code and usage is governed by a MIT style
 // license that can be found in the LICENSE file.
 
@@ -1034,6 +1034,29 @@ func TestMultiPartMultipartFields(t *testing.T) {
 	assertEqual(t, true, strings.Contains(responseStr, "upload-file-2.json"))
 }
 
+func TestMultiPartCustomBoundary(t *testing.T) {
+	ts := createFormPostServer(t)
+	defer ts.Close()
+	defer cleanupFiles(".testdata/upload")
+
+	_, err := dclr().
+		SetMultipartFormData(map[string]string{"first_name": "Jeevanandam", "last_name": "M", "zip_code": "00001"}).
+		SetMultipartBoundary(`"my-custom-boundary"`).
+		SetBasicAuth("myuser", "mypass").
+		Post(ts.URL + "/profile")
+
+	assertEqual(t, "mime: invalid boundary character", err.Error())
+
+	resp, err := dclr().
+		SetMultipartFormData(map[string]string{"first_name": "Jeevanandam", "last_name": "M", "zip_code": "00001"}).
+		SetMultipartBoundary("my-custom-boundary").
+		Post(ts.URL + "/profile")
+
+	assertError(t, err)
+	assertEqual(t, http.StatusOK, resp.StatusCode())
+	assertEqual(t, "Success", resp.String())
+}
+
 func TestGetWithCookie(t *testing.T) {
 	ts := createGetServer(t)
 	defer ts.Close()
@@ -1685,6 +1708,43 @@ func TestRequestDoNotParseResponse(t *testing.T) {
 
 	resp.RawResponse = nil
 	assertNil(t, resp.RawBody())
+}
+
+func TestRequestDoNotParseResponseDebugLog(t *testing.T) {
+	ts := createGetServer(t)
+	defer ts.Close()
+
+	t.Run("do not parse response debug log client level", func(t *testing.T) {
+		c := dc().
+			SetDoNotParseResponse(true).
+			SetDebug(true)
+
+		var lgr bytes.Buffer
+		c.outputLogTo(&lgr)
+
+		_, err := c.R().
+			SetQueryParam("request_no", strconv.FormatInt(time.Now().Unix(), 10)).
+			Get(ts.URL + "/")
+
+		assertError(t, err)
+		assertEqual(t, true, strings.Contains(lgr.String(), "***** DO NOT PARSE RESPONSE - Enabled *****"))
+	})
+
+	t.Run("do not parse response debug log request level", func(t *testing.T) {
+		c := dc()
+
+		var lgr bytes.Buffer
+		c.outputLogTo(&lgr)
+
+		_, err := c.R().
+			SetDebug(true).
+			SetDoNotParseResponse(true).
+			SetQueryParam("request_no", strconv.FormatInt(time.Now().Unix(), 10)).
+			Get(ts.URL + "/")
+
+		assertError(t, err)
+		assertEqual(t, true, strings.Contains(lgr.String(), "***** DO NOT PARSE RESPONSE - Enabled *****"))
+	})
 }
 
 type noCtTest struct {
