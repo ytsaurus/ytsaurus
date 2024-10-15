@@ -1,9 +1,8 @@
 #include "shuffle_service.h"
 
-#include <yt/yt/client/api/rpc_proxy/helpers.h>
-
 #include <yt/yt/ytlib/shuffle_client/shuffle_service_proxy.h>
-#include <yt/yt/ytlib/shuffle_client/proto/shuffle_service.pb.h>
+
+#include <yt/yt/client/api/rpc_proxy/helpers.h>
 
 #include <yt/yt/core/rpc/public.h>
 #include <yt/yt/core/rpc/service_detail.h>

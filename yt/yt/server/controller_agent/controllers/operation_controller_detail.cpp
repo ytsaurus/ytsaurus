@@ -1,50 +1,46 @@
 #include "operation_controller_detail.h"
 
 #include "auto_merge_task.h"
-#include "input_transactions_manager.h"
-#include "job_info.h"
-#include "job_helpers.h"
 #include "helpers.h"
+#include "input_transactions_manager.h"
+#include "job_helpers.h"
+#include "job_info.h"
 #include "sink.h"
 #include "task.h"
 
-#include <yt/yt/server/controller_agent/intermediate_chunk_scraper.h>
+#include <yt/yt/server/controller_agent/chunk_list_pool.h>
+#include <yt/yt/server/controller_agent/config.h>
 #include <yt/yt/server/controller_agent/counter_manager.h>
+#include <yt/yt/server/controller_agent/intermediate_chunk_scraper.h>
 #include <yt/yt/server/controller_agent/job_profiler.h>
 #include <yt/yt/server/controller_agent/operation.h>
-#include <yt/yt/server/controller_agent/scheduling_context.h>
-#include <yt/yt/server/controller_agent/config.h>
 #include <yt/yt/server/controller_agent/private.h>
+#include <yt/yt/server/controller_agent/scheduling_context.h>
 
-#include <yt/yt/server/lib/controller_agent/job_report.h>
-
-#include <yt/yt/server/lib/exec_node/public.h>
-
-#include <yt/yt/server/lib/misc/job_report.h>
-#include <yt/yt/server/lib/misc/job_table_schema.h>
-#include <yt/yt/server/lib/misc/job_reporter.h>
-
-#include <yt/yt/server/lib/scheduler/helpers.h>
-#include <yt/yt/server/lib/scheduler/public.h>
+#include <yt/yt/server/controller_agent/controllers/job_memory.h>
+#include <yt/yt/server/controller_agent/controllers/live_preview.h>
 
 #include <yt/yt/server/lib/chunk_pools/helpers.h>
 #include <yt/yt/server/lib/chunk_pools/multi_chunk_pool.h>
 
-#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+#include <yt/yt/server/lib/controller_agent/job_report.h>
+
+#include <yt/yt/server/lib/misc/job_reporter.h>
+#include <yt/yt/server/lib/misc/job_table_schema.h>
+
+#include <yt/yt/server/lib/scheduler/helpers.h>
+#include <yt/yt/server/lib/scheduler/public.h>
 
 #include <yt/yt/server/lib/tablet_node/public.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec_fetcher.h>
 #include <yt/yt/ytlib/chunk_client/chunk_teleporter.h>
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
-#include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
-#include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
@@ -57,9 +53,9 @@
 
 #include <yt/yt/ytlib/event_log/event_log.h>
 
+#include <yt/yt/ytlib/object_client/helpers.h>
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
-
-#include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/security_client/helpers.h>
 
@@ -70,100 +66,92 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
-#include <yt/yt/ytlib/table_client/chunk_slice_size_fetcher.h>
 #include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/schema.h>
-#include <yt/yt/ytlib/table_client/timestamped_schema_helpers.h>
+#include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
-#include <yt/yt/ytlib/tablet_client/helpers.h>
+#include <yt/yt/ytlib/file_client/file_ypath_proxy.h>
+
 #include <yt/yt/ytlib/tablet_client/backup.h>
+#include <yt/yt/ytlib/tablet_client/helpers.h>
 
-#include <yt/yt/ytlib/transaction_client/helpers.h>
 #include <yt/yt/ytlib/transaction_client/action.h>
+#include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
-#include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/api/native/proto/transaction_actions.pb.h>
 
-#include <yt/yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/yt/ytlib/object_client/helpers.h>
-
 #include <yt/yt/library/heavy_schema_validation/schema_validation.h>
 
+#include <yt/yt/library/query/engine_api/range_inferrer.h>
+
+#include <yt/yt/library/query/base/coordination_helpers.h>
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>
-#include <yt/yt/library/query/base/coordination_helpers.h>
-
-#include <yt/yt/library/query/engine_api/column_evaluator.h>
-#include <yt/yt/library/query/engine_api/range_inferrer.h>
 
 #include <yt/yt/library/ytprof/heap_profiler.h>
 
-#include <yt/yt/client/security_client/access_control.h>
 #include <yt/yt/client/security_client/acl.h>
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
-#include <yt/yt/client/chunk_client/read_limit.h>
 #include <yt/yt/client/chunk_client/helpers.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
 
 #include <yt/yt/client/job_tracker_client/public.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/client/table_client/column_rename_descriptor.h>
-#include <yt/yt/client/table_client/merge_table_schemas.h>
-#include <yt/yt/client/table_client/schema.h>
-#include <yt/yt/client/table_client/row_buffer.h>
-#include <yt/yt/client/table_client/table_consumer.h>
 #include <yt/yt/client/table_client/check_schema_compatibility.h>
+#include <yt/yt/client/table_client/merge_table_schemas.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/tablet_client/public.h>
-#include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/client/transaction_client/public.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/client/api/transaction.h>
 
-#include <yt/yt/core/concurrency/action_queue.h>
-#include <yt/yt/core/concurrency/throughput_throttler.h>
-#include <yt/yt/core/concurrency/periodic_yielder.h>
+#include <yt/yt/library/re2/re2.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
+
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
-#include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
+#include <yt/yt/core/actions/cancelable_context.h>
+
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/fair_share_invoker_pool.h>
+#include <yt/yt/core/concurrency/periodic_yielder.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/crash_handler.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/fs.h>
-#include <yt/yt/core/misc/numeric_helpers.h>
-
-#include <yt/yt/library/re2/re2.h>
 
 #include <yt/yt/core/profiling/timing.h>
-
-#include <yt/yt/core/logging/log.h>
-#include <yt/yt/core/logging/fluent_log.h>
 
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_resolver.h>
 
+#include <yt/yt/core/logging/fluent_log.h>
+
 #include <library/cpp/yt/memory/chunked_input_stream.h>
+
+#include <library/cpp/iterator/zip.h>
 
 #include <util/generic/algorithm.h>
 #include <util/generic/cast.h>
 #include <util/generic/vector.h>
 
 #include <util/system/compiler.h>
-
-#include <library/cpp/iterator/functools.h>
 
 #include <functional>
 
@@ -191,9 +179,9 @@ using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NVectorHdrf;
 using namespace NYPath;
-using namespace NYson;
 using namespace NYTProf;
 using namespace NYTree;
+using namespace NYson;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -201,7 +189,6 @@ using NYT::ToProto;
 using NControllerAgent::NProto::TJobSpec;
 using NJobTrackerClient::EJobState;
 using NNodeTrackerClient::TNodeId;
-using NProfiling::CpuInstantToInstant;
 using NProfiling::TCpuInstant;
 using NControllerAgent::NProto::TJobResultExt;
 using NControllerAgent::NProto::TJobSpecExt;
@@ -3292,7 +3279,8 @@ bool TOperationControllerBase::OnJobCompleted(
     UpdateTask(joblet->Task);
     LogProgress();
 
-    if (bool operationFailed = CheckGracefullyAbortedJobsStatusReceived()) {
+    if (CheckGracefullyAbortedJobsStatusReceived()) {
+        // Operation failed.
         return false;
     }
 
@@ -3401,7 +3389,8 @@ bool TOperationControllerBase::OnJobFailed(
 
     ProcessJobFinishedResult(taskJobResult);
 
-    if (bool operationFailed = CheckGracefullyAbortedJobsStatusReceived()) {
+    if (CheckGracefullyAbortedJobsStatusReceived()) {
+        // Operation failed.
         return false;
     }
 
@@ -3551,7 +3540,8 @@ bool TOperationControllerBase::OnJobAborted(
         OnChunkFailed(chunkId, jobId);
     }
 
-    if (bool operationFailed = CheckGracefullyAbortedJobsStatusReceived()) {
+    if (CheckGracefullyAbortedJobsStatusReceived()) {
+        // Operation failed.
         return false;
     }
 
