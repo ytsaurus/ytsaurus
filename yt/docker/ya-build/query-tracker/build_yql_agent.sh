@@ -15,8 +15,8 @@ build_python_udfs="no"
 
 print_usage() {
     cat << EOF
-Usage: $script_name [-h|--help]
-                    [--build-python-udfs (default: $build_python_udfs)]
+Usage: $0 [-h|--help]
+          [--build-python-udfs (default: $build_python_udfs)]
 EOF
     exit 1
 }
