@@ -463,7 +463,6 @@ SRCS(
     table_client/sorting_reader.cpp
     table_client/table_columnar_statistics_cache.cpp
     table_client/table_read_spec.cpp
-    table_client/table_upload_options.cpp
     table_client/timestamped_schema_helpers.cpp
     table_client/timing_reader.cpp
     table_client/timing_statistics.cpp

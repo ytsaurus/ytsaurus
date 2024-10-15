@@ -168,6 +168,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/schemaless_buffered_dynamic_table_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/schemaless_dynamic_table_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/serialize.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/table_upload_options.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/logical_type.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/merge_table_schemas.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/name_table.cpp
