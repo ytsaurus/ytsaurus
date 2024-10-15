@@ -443,6 +443,8 @@ private:
 
         YT_LOG_INFO("Started preparing sandbox directories");
 
+        // NB: If EnableRootVolumeDiskQuota is set and we have RootVolume, then we have already
+        // applied a quota to root volume and should not set it again within sandbox preparation.
         bool ignoreQuota = Context_.UserSandboxOptions.EnableRootVolumeDiskQuota && ResultHolder_.RootVolume;
 
         return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions, ignoreQuota)
