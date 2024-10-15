@@ -3798,7 +3798,7 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
         return len(ls(export_dir, driver=get_driver(cluster=replica_cluster)))
 
     @classmethod
-    def _wait_for_replicated_queue_row_range(cls, replicas, row_index_range, partition_index=0, flush_on_false=False):
+    def _wait_for_replicated_queue_row_range(cls, replicas, row_index_range, partition_index=0):
         row_index_range_set = builtins.set(row_index_range)
 
         def ok():
@@ -3810,8 +3810,6 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
                     driver=get_driver(cluster=cluster)))
                 if actual_row_index_range != row_index_range_set:
                     print_debug(f"Expected {row_index_range_set} rows in replica {cluster}:{path}, but found {actual_row_index_range}")
-                    if flush_on_false:
-                        cls._flush_replicated_queue(replicas)
                     return False
             return True
 
@@ -3915,7 +3913,8 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
 
         insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 3)
 
-        self._wait_for_replicated_queue_row_range(replicas, range(3, 6), flush_on_false=True)
+        self._wait_for_replicated_queue_row_range(replicas, range(3, 6))
+        self._flush_replicated_queue(replicas)
 
         # Checking trim for export on remote_2 cluster.
 
@@ -3941,7 +3940,7 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
 
         insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 3)
 
-        self._wait_for_replicated_queue_row_range(replicas, range(6, 9), flush_on_false=True)
+        self._wait_for_replicated_queue_row_range(replicas, range(6, 9))
 
         for replica in replicas[1:]:
             cluster_name = replica["cluster_name"]
@@ -4039,7 +4038,8 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
 
         insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 3)
 
-        self._wait_for_replicated_queue_row_range(replicas, range(3, 6), flush_on_false=True)
+        self._wait_for_replicated_queue_row_range(replicas, range(3, 6))
+        self._flush_replicated_queue(replicas)
 
         # Secondly, we check that exports are properly handled, when vital consumers are present.
 
@@ -4061,7 +4061,7 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
 
         insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 3)
 
-        self._wait_for_replicated_queue_row_range(replicas, range(6, 9), flush_on_false=True)
+        self._wait_for_replicated_queue_row_range(replicas, range(6, 9))
 
         for replica in replicas[1:]:
             cluster_name = replica["cluster_name"]
