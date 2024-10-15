@@ -2416,7 +2416,7 @@ NProfiling::TTimeCounter* TObjectManager::GetMethodCumulativeExecuteTimeCounter(
             [&] {
                 auto entry = std::make_unique<TMethodEntry>();
                 entry->CumulativeExecuteTimeCounter = ObjectServerProfiler
-                    .WithTag("type", FormatEnum(type))
+                    .WithTag("type", FormatObjectType(type))
                     .WithTag("method", method)
                     .TimeCounter("/cumulative_execute_time");
                 return entry;
