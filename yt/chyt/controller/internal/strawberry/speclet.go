@@ -26,6 +26,8 @@ type Speclet struct {
 
 	Pool *string `yson:"pool"`
 
+	ResumeMarker string `yson:"resume_marker"`
+
 	// TODO(dakovalkov): Does someone need it?
 	// // OperationDescription is visible in clique operation UI.
 	// OperationDescription map[string]interface{} `yson:"operation_description"`

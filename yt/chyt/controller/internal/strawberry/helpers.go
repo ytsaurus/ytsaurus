@@ -78,6 +78,9 @@ func specletDiff(oldSpeclet, newSpeclet any) map[string]FieldDiff {
 		if field.Anonymous {
 			continue
 		}
+		if field.Tag.Get("requires_restart") == "false" {
+			continue
+		}
 		old := reflect.ValueOf(oldSpeclet).FieldByIndex(field.Index).Interface()
 		new := reflect.ValueOf(newSpeclet).FieldByIndex(field.Index).Interface()
 		if !reflect.DeepEqual(old, new) {

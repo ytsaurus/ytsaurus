@@ -46,6 +46,11 @@ type Controller interface {
 	// Given speclet should have suitable type for the specific controller.
 	// Otherwise, GetOpBriefAttributes may panic.
 	GetOpBriefAttributes(parsedSpeclet any) map[string]any
+
+	// GetScalerTarget checks whether YT operation should be scaled and returns required scaling parameters.
+	// Returns `nil` if scaling is not required.
+	// May be called concurrently since it is accessed from `runScaler`, not from `backgroud` goroutine.
+	GetScalerTarget(ctx context.Context, opletInfo OpletInfoForScaler) (*ScalerTarget, error)
 }
 
 type ControllerFactory struct {
@@ -54,4 +59,9 @@ type ControllerFactory struct {
 	// TODO(max): extra commands is actually of type []api.CmdDescriptor, but we can't import it here
 	// without creating a circular dependency. Come up with a better solution.
 	ExtraCommands any
+}
+
+type ScalerTarget struct {
+	InstanceCount int
+	Reason        string
 }

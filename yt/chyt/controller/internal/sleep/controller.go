@@ -95,6 +95,10 @@ func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {
 	}
 }
 
+func (c *Controller) GetScalerTarget(ctx context.Context, opletInfo strawberry.OpletInfoForScaler) (*strawberry.ScalerTarget, error) {
+	return nil, nil
+}
+
 func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) strawberry.Controller {
 	return &Controller{
 		ytc:                 ytc,
