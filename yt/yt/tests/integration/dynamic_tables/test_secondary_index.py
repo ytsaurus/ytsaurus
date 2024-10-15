@@ -3,7 +3,7 @@ from yt_dynamic_tables_base import DynamicTablesBase
 from yt.common import wait
 
 from yt_commands import (
-    create, create_secondary_index, create_table_replica, create_table_collocation,
+    create, create_secondary_index, create_table_replica, create_table_collocation, create_user,
     authors, set, get, exists, remove, copy, get_driver, alter_table,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_enable_table_replica,
     select_rows, insert_rows, delete_rows, commit_transaction, start_transaction,
@@ -246,10 +246,13 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
     @authors("sabdenovch")
     def test_forbid_create_secondary_index(self):
         set("//sys/@config/allow_everyone_create_secondary_indices", False)
+        create_user("index_user")
         with raises_yt_error("Could not verify permission"):
             self._create_basic_tables()
-        set("//sys/users/root/@allow_create_secondary_indices", True)
-        create_secondary_index("//tmp/table", "//tmp/index_table", "full_sync")
+        with raises_yt_error("Could not verify permission"):
+            create_secondary_index("//tmp/table", "//tmp/index_table", "full_sync", authenticated_user="index_user")
+        set("//sys/users/index_user/@allow_create_secondary_indices", True)
+        create_secondary_index("//tmp/table", "//tmp/index_table", "full_sync", authenticated_user="index_user")
 
     @authors("sabdenovch")
     def test_create_and_delete_index(self):
