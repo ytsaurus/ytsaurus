@@ -18,6 +18,8 @@ import yt_fibers_printer
 
 import tcont_printer
 
+import userver_printers
+
 def register_printers():
     libc_printers.register_printers()
 
@@ -36,6 +38,8 @@ def register_printers():
     yt_fibers_printer.register_fibers_printer()
 
     tcont_printer.register_commands()
+
+    userver_printers.register_printers()
 
     print('[arc] Arcadia GDB pretty-printers enabled')
 
