@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/chunk_client/public.h>
+
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
@@ -35,6 +37,9 @@ struct INbdServer
     virtual NApi::NNative::IConnectionPtr GetConnection() const = 0;
 
     virtual IInvokerPtr GetInvoker() const = 0;
+
+    virtual NChunkClient::TChunkReaderHostPtr GetLayerReaderHost() const = 0;
+    virtual NChunkClient::TChunkReaderHostPtr GetFileReaderHost() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INbdServer)

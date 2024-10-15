@@ -2985,9 +2985,7 @@ void TJob::BuildVirtualSandbox()
             << TErrorAttribute("export_id", VirtualSandboxData_->NbdExportId);
     }
 
-    auto clientOptions =  NYT::NApi::TClientOptions::FromUser(NSecurityClient::RootUserName);
-    auto client = nbdServer->GetConnection()->CreateNativeClient(clientOptions);
-
+    auto readerHost = nbdServer->GetFileReaderHost();
     auto inThrottler = Bootstrap_->GetDefaultInThrottler();
     auto outRpsThrottler = Bootstrap_->GetReadRpsOutThrottler();
     auto logger = nbdServer->GetLogger();
@@ -3009,7 +3007,7 @@ void TJob::BuildVirtualSandbox()
         auto reader = CreateRandomAccessFileReader(
             std::move(chunkSpecs),
             filePath,
-            client,
+            readerHost,
             inThrottler,
             outRpsThrottler,
             invoker,
