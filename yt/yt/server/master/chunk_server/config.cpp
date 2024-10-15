@@ -720,6 +720,11 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(32)
         .DontSerializeDefault();
 
+    // COMPAT(koloshmet)
+    registrar.Parameter("allow_erasure_chunks_to_be_historically_vital", &TThis::AllowErasureChunksToBeHistoricallyVital)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {

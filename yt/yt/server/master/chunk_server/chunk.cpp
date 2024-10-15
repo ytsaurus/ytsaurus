@@ -510,8 +510,6 @@ bool TChunk::GetHistoricallyNonVital() const
 
 void TChunk::SetHistoricallyNonVital(bool value)
 {
-    YT_ASSERT(!value || !IsErasure());
-
     Flags_.HistoricallyNonVital = value;
 }
 

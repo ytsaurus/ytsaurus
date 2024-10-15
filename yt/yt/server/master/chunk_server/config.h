@@ -696,6 +696,9 @@ public:
     bool EnableTwoRandomChoicesWriteTargetAllocation;
     int NodesToCheckBeforeGivingUpOnWriteTargetAllocation;
 
+    // COMPAT(koloshmet)
+    bool AllowErasureChunksToBeHistoricallyVital;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);

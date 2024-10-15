@@ -3854,7 +3854,12 @@ private:
 
         THashMap<TChunkRequisitionIndex, bool> durabilityRequiredCache;
         std::pair<TChunkRequisitionIndex, bool> lastDurabilityRequiredCacheEntry{EmptyChunkRequisitionIndex, false};
-        auto isDurabilityRequired = [&] (TChunkRequisitionIndex requisitionIndex) {
+        auto isDurabilityRequired = [&] (TChunkRequisitionIndex requisitionIndex, TChunk* chunk) {
+            // COMPAT(kolohsmet)
+            if (!GetDynamicConfig()->AllowErasureChunksToBeHistoricallyVital && chunk->IsErasure()) {
+                return true;
+            }
+
             // Very fast path.
             if (requisitionIndex == lastDurabilityRequiredCacheEntry.first) {
                 return lastDurabilityRequiredCacheEntry.second;
@@ -3867,7 +3872,10 @@ private:
                 durabilityRequired = it->second;
             } else {
                 auto replication = requisitionRegistry->GetReplication(requisitionIndex);
-                durabilityRequired = replication.IsDurabilityRequired(this);
+                // COMPAT(kolohsmet)
+                durabilityRequired = GetDynamicConfig()->AllowErasureChunksToBeHistoricallyVital
+                    ? replication.IsDurable(this, chunk->IsErasure())
+                    : replication.IsDurabilityRequired(this, false);
                 EmplaceOrCrash(durabilityRequiredCache, requisitionIndex, durabilityRequired);
             }
 
@@ -3887,7 +3895,7 @@ private:
             }
 
             auto aggregatedRequisitionIndex = chunk->GetAggregatedRequisitionIndex();
-            if (!chunk->IsErasure() && !isDurabilityRequired(aggregatedRequisitionIndex)) {
+            if (!isDurabilityRequired(aggregatedRequisitionIndex, chunk)) {
                 chunk->SetHistoricallyNonVital(true);
             }
         };
