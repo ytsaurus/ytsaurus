@@ -2,43 +2,42 @@
 
 #include "chunk_pool_adapters.h"
 #include "data_balancer.h"
+#include "helpers.h"
 #include "job_info.h"
 #include "job_memory.h"
-#include "helpers.h"
 #include "operation_controller_detail.h"
 #include "task.h"
 
-#include <yt/yt/server/controller_agent/chunk_list_pool.h>
+#include <yt/yt/server/controller_agent/config.h>
 #include <yt/yt/server/controller_agent/helpers.h>
 #include <yt/yt/server/controller_agent/job_size_constraints.h>
 #include <yt/yt/server/controller_agent/operation.h>
 #include <yt/yt/server/controller_agent/scheduling_context.h>
-#include <yt/yt/server/controller_agent/config.h>
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/legacy_sorted_chunk_pool.h>
-#include <yt/yt/server/lib/chunk_pools/new_sorted_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/multi_chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/new_sorted_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/ordered_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/shuffle_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/unordered_chunk_pool.h>
 
-#include <yt/yt/client/api/transaction.h>
-
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 
+#include <yt/yt/ytlib/chunk_client/proto/data_sink.pb.h>
+
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/table_client/config.h>
-#include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/yt/ytlib/table_client/key_set.h>
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
 #include <yt/yt/ytlib/table_client/schemaless_block_writer.h>
+
+#include <yt/yt/library/query/base/query_preparer.h>
 
 #include <yt/yt/client/complex_types/check_type_compatibility.h>
 
@@ -46,22 +45,23 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/yt/library/query/base/query_preparer.h>
+#include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/core/ytree/permission.h>
 
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
-#include <yt/yt/core/misc/numeric_helpers.h>
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/config.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/logging/serializable_logger.h>
 
 #include <yt/yt/core/phoenix/type_decl.h>
 
-#include <cmath>
 #include <algorithm>
+#include <cmath>
 
 namespace NYT::NControllerAgent::NControllers {
 
@@ -85,7 +85,6 @@ using namespace NScheduler;
 using namespace NCrypto;
 
 using NYT::ToProto;
-using NYT::FromProto;
 
 using NTableClient::TLegacyKey;
 using NNodeTrackerClient::TNodeId;
@@ -2652,8 +2651,6 @@ protected:
         }
     }
 
-    virtual bool EnableNewPartitionsHeuristic() const = 0;
-
     void ProcessInputs(const TTaskPtr& inputTask, const IJobSizeConstraintsPtr& jobSizeConstraints)
     {
         TPeriodicYielder yielder(PrepareYieldPeriod);
@@ -3337,14 +3334,9 @@ private:
                 TotalEstimatedInputRowCount,
                 InputCompressionRatio);
 
-            // Due to the sampling it is possible that TotalEstimatedInputDataWeight > 0
-            // but according to job size constraints there is nothing to do.
-            if (partitionJobSizeConstraints->GetJobCount() == 0) {
-                PartitionCount = 0;
-                return;
-            }
+            YT_VERIFY(partitionJobSizeConstraints->GetJobCount() > 0);
 
-            if (!EnableNewPartitionsHeuristic()) {
+            if (!Spec->UseNewPartitionsHeuristic) {
                 // Finally adjust partition count wrt block size constraints.
                 PartitionCount = AdjustPartitionCountToWriterBufferSize(
                     PartitionCount,
@@ -3375,7 +3367,7 @@ private:
         }
 
         const auto legacyPartitionCount = partitionKeys.size() + 1;
-        if (EnableNewPartitionsHeuristic()) {
+        if (Spec->UseNewPartitionsHeuristic) {
             SuggestPartitionCountAndMaxPartitionFactor(partitionKeys.size() + 1);
             SetAlertIfPartitionHeuristicsDifferSignificantly(legacyPartitionCount, PartitionCount);
         } else {
@@ -3559,7 +3551,7 @@ private:
         TCombiningSamplesFetcherPtr samplesFetcher;
         YT_PROFILE_TIMING("/operations/sort/input_processing_time") {
             // TODO(gritukan): Should we do it here?
-            if (EnableNewPartitionsHeuristic()) {
+            if (Spec->UseNewPartitionsHeuristic) {
                 SuggestPartitionCountAndMaxPartitionFactor(std::nullopt);
             } else {
                 PartitionCount = SuggestPartitionCount();
@@ -3870,15 +3862,6 @@ private:
         result.SetCpu(GetMergeCpuLimit());
         result.SetJobProxyMemory(GetFinalIOMemorySize(UnorderedMergeJobIOConfig, AggregateStatistics(stat)));
         return result;
-    }
-
-    bool EnableNewPartitionsHeuristic() const override
-    {
-        if (Spec->UseNewPartitionsHeuristic) {
-            return true;
-        }
-
-        return false;
     }
 
     // Progress reporting.
@@ -4300,7 +4283,7 @@ private:
         }
 
         auto legacyPartitionCount = SuggestPartitionCount();
-        if (EnableNewPartitionsHeuristic()) {
+        if (Spec->UseNewPartitionsHeuristic) {
             std::optional<int> forcedPartitionCount;
             if (usePivotKeys) {
                 forcedPartitionCount = partitionKeys.size() + 1;
@@ -4336,7 +4319,7 @@ private:
             legacyPartitionCount = partitionKeys.size() + 1;
         }
 
-        if (!EnableNewPartitionsHeuristic()) {
+        if (!Spec->UseNewPartitionsHeuristic) {
             if (Spec->MaxPartitionFactor) {
                 MaxPartitionFactor = *Spec->MaxPartitionFactor;
             } else {
@@ -4345,7 +4328,7 @@ private:
             }
         }
 
-        if (EnableNewPartitionsHeuristic()) {
+        if (Spec->UseNewPartitionsHeuristic) {
             SetAlertIfPartitionHeuristicsDifferSignificantly(legacyPartitionCount, PartitionCount);
         } else {
             PartitionCount = legacyPartitionCount;
@@ -4825,19 +4808,6 @@ private:
         const TChunkStripeStatisticsVector& /*statistics*/) const override
     {
         YT_ABORT();
-    }
-
-    bool EnableNewPartitionsHeuristic() const override
-    {
-        if (Spec->UseNewPartitionsHeuristic) {
-            return true;
-        }
-
-        if (Spec->HasNontrivialReduceCombiner()) {
-            return false;
-        }
-
-        return false;
     }
 
     // Progress reporting.
