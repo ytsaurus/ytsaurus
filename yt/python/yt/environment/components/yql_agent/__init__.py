@@ -122,6 +122,16 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 "yt_token_path": self.token_path,
                 "libraries": self.libraries,
             },
+            "solomon_exporter": {
+                "export_summary_as_avg": True,
+                "read_delay": 1000,
+                "shards": {
+                    "default": {
+                        "filter": ["yt/"],
+                    },
+                },
+                "thread_pool_size": 8,
+            },
         }
 
     def wait_for_readiness(self, address):

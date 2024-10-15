@@ -1,6 +1,7 @@
 #include "handler_base.h"
 
 #include "config.h"
+#include "profiler.h"
 
 #include <yt/yt/ytlib/query_tracker_client/records/query.record.h>
 
@@ -146,8 +147,7 @@ TQueryHandlerBase::TQueryHandlerBase(
     const NYPath::TYPath& stateRoot,
     const IInvokerPtr controlInvoker,
     const TEngineConfigBasePtr& config,
-    const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
-    const TStateTimeProfilingCountersMapPtr& stateTimeProfilingCountersMap)
+    const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery)
     : StateClient_(stateClient)
     , StateRoot_(stateRoot)
     , ControlInvoker_(std::move(controlInvoker))
@@ -158,9 +158,9 @@ TQueryHandlerBase::TQueryHandlerBase(
     , User_(activeQuery.User)
     , Engine_(activeQuery.Engine)
     , SettingsNode_(ConvertToNode(activeQuery.Settings))
+    , AcquisitionTime_(TInstant::Now())
     , Logger(NQueryTracker::Logger().WithTag("QueryId: %v, Engine: %v", activeQuery.Key.QueryId, activeQuery.Engine))
     , ProgressWriter_(New<TPeriodicExecutor>(ControlInvoker_, BIND(&TQueryHandlerBase::TryWriteProgress, MakeWeak(this)), Config_->QueryProgressWritePeriod))
-    , StateTimeProfilingCountersMap_(stateTimeProfilingCountersMap)
 {
     YT_LOG_INFO("Query handler instantiated");
 }
@@ -378,6 +378,7 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
         TActiveQuery record;
         std::tie(transaction, record) = StartIncarnationTransaction(previousState);
 
+        auto now = TInstant::Now();
         auto rowBuffer = New<TRowBuffer>();
         {
             TActiveQueryPartial newRecord{
@@ -387,8 +388,11 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
                 .Error = error,
             };
             if (state == EQueryState::Completing || state == EQueryState::Failing) {
-                newRecord.FinishTime = TInstant::Now();
+                newRecord.FinishTime = now;
                 newRecord.ResultCount = wireRowsetOrErrors.size();
+            }
+            if (state == EQueryState::Running) {
+                newRecord.StartRunningTime = now;
             }
 
             std::vector newRows = {
@@ -432,28 +436,21 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        auto now = TInstant::Now();
-        StateTimes[previousState] += now - LastStateChange_.value_or(record.StartTime);
+        StateTimes[previousState] += now - LastStateChange_.value_or(AcquisitionTime_);
         LastStateChange_ = now;
 
-        if (state == EQueryState::Completing || state == EQueryState::Failing) {
-            auto guard = std::make_optional(Guard(StateTimeProfilingCountersMap_->Lock));
+        for (auto& [state, time] : StateTimes) {
+            // Save profile counter.
+            auto tags = TProfilingTags{
+                .State = state,
+                .Engine = record.Engine,
+                .AssignedTracker = record.AssignedTracker.value_or(NoneQueryTracker),
+            };
 
-            for (auto& [state, time] : StateTimes) {
-                // Save profile counter
-                auto tags = TProfilingTags{
-                    .State = state,
-                    .Engine = record.Engine,
-                    .AssignedTracker = record.AssignedTracker.value_or(NoneQueryTracker),
-                };
-
-                auto& stateTimeGauge = GetOrCreateProfilingCounter(
-                    QueryTrackerProfiler,
-                    tags,
-                    StateTimeProfilingCountersMap_->Map,
-                    guard).StateTime;
-                stateTimeGauge.Update(time);
-            }
+            auto& stateTimeGauge = GetOrCreateProfilingCounter<TStateTimeProfilingCounter>(
+                QueryTrackerProfiler,
+                tags)->StateTime;
+            stateTimeGauge.Update(time);
         }
 
         YT_LOG_INFO("Query state written (State: %v)", state);

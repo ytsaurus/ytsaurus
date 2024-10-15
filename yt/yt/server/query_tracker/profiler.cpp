@@ -1,3 +1,4 @@
+#include "private.h"
 #include "profiler.h"
 
 #include <util/digest/multi.h>

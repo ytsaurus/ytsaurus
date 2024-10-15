@@ -124,9 +124,8 @@ public:
         const IChannelFactoryPtr& channelFactory,
         const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
         const NHiveClient::TClusterDirectoryPtr& clusterDirectory,
-        const IInvokerPtr& controlInvoker,
-        const TStateTimeProfilingCountersMapPtr& stateTimeProfilingCountersMap)
-        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery, stateTimeProfilingCountersMap)
+        const IInvokerPtr& controlInvoker)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
         , Settings_(ConvertTo<TSpytSettingsPtr>(SettingsNode_))
         , Config_(config)
         , Cluster_(Settings_->Cluster.value_or(Config_->DefaultCluster))
@@ -639,11 +638,10 @@ class TSpytEngine
     : public IQueryEngine
 {
 public:
-    TSpytEngine(IClientPtr stateClient, TYPath stateRoot, const TStateTimeProfilingCountersMapPtr& stateTimeProfilingCountersMap)
+    TSpytEngine(IClientPtr stateClient, TYPath stateRoot)
         : StateClient_(std::move(stateClient))
         , StateRoot_(std::move(stateRoot))
         , ControlQueue_(New<TActionQueue>("SpytEngineControl"))
-        , StateTimeProfilingCountersMap_(std::move(stateTimeProfilingCountersMap))
         , ClusterDirectory_(DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection())->GetClusterDirectory())
         , ChannelFactory_(CreateCachingChannelFactory(CreateTcpBusChannelFactory(New<NYT::NBus::TBusConfig>())))
     { }
@@ -657,8 +655,7 @@ public:
             ChannelFactory_,
             activeQuery,
             ClusterDirectory_,
-            ControlQueue_->GetInvoker(),
-            StateTimeProfilingCountersMap_);
+            ControlQueue_->GetInvoker());
     }
 
     void Reconfigure(const TEngineConfigBasePtr& config) override
@@ -670,18 +667,16 @@ private:
     const IClientPtr StateClient_;
     const TYPath StateRoot_;
     const TActionQueuePtr ControlQueue_;
-    const TStateTimeProfilingCountersMapPtr& StateTimeProfilingCountersMap_;
     TSpytEngineConfigPtr Config_;
     const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
     const IChannelFactoryPtr ChannelFactory_;
 };
 
-IQueryEnginePtr CreateSpytEngine(IClientPtr stateClient, TYPath stateRoot, const TStateTimeProfilingCountersMapPtr& stateTimeProfilingCountersMap)
+IQueryEnginePtr CreateSpytEngine(IClientPtr stateClient, TYPath stateRoot)
 {
     return New<TSpytEngine>(
         std::move(stateClient),
-        std::move(stateRoot),
-        std::move(stateTimeProfilingCountersMap));
+        std::move(stateRoot));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

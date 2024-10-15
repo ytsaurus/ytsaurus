@@ -1,7 +1,6 @@
 #pragma once
 
 #include "engine.h"
-#include "profiler.h"
 
 #include <yt/yt/ytlib/query_tracker_client/records/query.record.h>
 
@@ -42,8 +41,7 @@ public:
         const NYPath::TYPath& stateRoot,
         const IInvokerPtr controlInvoker,
         const TEngineConfigBasePtr& config,
-        const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
-        const TStateTimeProfilingCountersMapPtr& stateTimeProfilingCountersMap);
+        const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery);
 
     //! Starts a transaction and validates that by the moment of its start timestamp,
     //! incarnation of a query is still the same. Context switch happens inside.
@@ -60,6 +58,7 @@ protected:
     const TString User_;
     const EQueryEngine Engine_;
     const NYTree::INodePtr SettingsNode_;
+    const TInstant AcquisitionTime_;
 
     const NLogging::TLogger Logger;
 
@@ -72,8 +71,6 @@ protected:
 
     std::optional<TInstant> LastStateChange_;
     THashMap<EQueryState, TDuration> StateTimes;
-
-    TStateTimeProfilingCountersMapPtr StateTimeProfilingCountersMap_;
 
     void StartProgressWriter();
     void StopProgressWriter();

@@ -87,7 +87,6 @@ public:
         , ComponentStateChecker_(std::move(ComponentStateChecker))
         , StateRoot_(std::move(stateRoot))
         , MinRequiredStateVersion_(minRequiredStateVersion)
-        , StateTimeProfilingCountersMap_(New<TStateTimeProfilingCountersMap>())
         , AcquisitionExecutor_(New<TPeriodicExecutor>(
             ControlInvoker_,
             BIND(&TQueryTracker::AcquireQueries, MakeWeak(this))))
@@ -96,11 +95,11 @@ public:
             BIND(&TQueryTracker::OnHealthCheck, MakeWeak(this)),
             config->HealthCheckPeriod))
     {
-        Engines_[EQueryEngine::Mock] = CreateMockEngine(StateClient_, StateRoot_, StateTimeProfilingCountersMap_);
-        Engines_[EQueryEngine::Ql] = CreateQLEngine(StateClient_, StateRoot_, StateTimeProfilingCountersMap_);
-        Engines_[EQueryEngine::Yql] = CreateYqlEngine(StateClient_, StateRoot_, StateTimeProfilingCountersMap_);
-        Engines_[EQueryEngine::Chyt] = CreateChytEngine(StateClient_, StateRoot_, StateTimeProfilingCountersMap_);
-        Engines_[EQueryEngine::Spyt] = CreateSpytEngine(StateClient_, StateRoot_, StateTimeProfilingCountersMap_);
+        Engines_[EQueryEngine::Mock] = CreateMockEngine(StateClient_, StateRoot_);
+        Engines_[EQueryEngine::Ql] = CreateQLEngine(StateClient_, StateRoot_);
+        Engines_[EQueryEngine::Yql] = CreateYqlEngine(StateClient_, StateRoot_);
+        Engines_[EQueryEngine::Chyt] = CreateChytEngine(StateClient_, StateRoot_);
+        Engines_[EQueryEngine::Spyt] = CreateSpytEngine(StateClient_, StateRoot_);
         // This is a correct call, despite being virtual call in constructor.
         TQueryTracker::Reconfigure(config);
     }
@@ -138,7 +137,6 @@ private:
     const IComponentStateCheckerPtr ComponentStateChecker_;
     const TYPath StateRoot_;
     const int MinRequiredStateVersion_;
-    const TStateTimeProfilingCountersMapPtr StateTimeProfilingCountersMap_;
 
     const TPeriodicExecutorPtr AcquisitionExecutor_;
     const TPeriodicExecutorPtr HealthCheckExecutor_;
@@ -159,8 +157,6 @@ private:
     THashMap<TQueryId, TAcquiredQuery> AcquiredQueries_;
 
     std::atomic<int> AcquisitionIterations_ = 0;
-
-    THashMap<TProfilingTags, TActiveQueriesProfilingCounter> ActiveQueriesCountersMap_;
 
     void OnHealthCheck()
     {
@@ -248,11 +244,13 @@ private:
             return;
         }
 
-        // Save profile counters
+        // Save profile counters.
         THashMap<TProfilingTags, int> counts;
-        for (const auto& [tags, _] : ActiveQueriesCountersMap_) {
+
+        LeakySingleton<TActiveQueriesProfilingCountersMap>()->Flush();
+        LeakySingleton<TActiveQueriesProfilingCountersMap>()->IterateReadOnly([&](const TProfilingTags& tags, const TActiveQueriesProfilingCounter&) {
             counts[tags] = 0;
-        }
+        });
         for (const auto& record : queryRecords) {
             auto tags = TProfilingTags{
                 .State = record.State,
@@ -261,9 +259,10 @@ private:
             };
             counts[tags]++;
         }
-        std::optional<TGuard<NThreading::TSpinLock>> nulloptGuard;
         for (const auto&[tags, count] : counts) {
-            auto& activeQueriesCounter = GetOrCreateProfilingCounter(QueryTrackerProfilerGlobal, tags, ActiveQueriesCountersMap_, nulloptGuard).ActiveQueries;
+            auto& activeQueriesCounter = GetOrCreateProfilingCounter<TActiveQueriesProfilingCounter>(
+                QueryTrackerProfilerGlobal,
+                tags)->ActiveQueries;
             activeQueriesCounter.Update(count);
         }
 
@@ -619,7 +618,7 @@ private:
                 // We must copy all fields of active query except for incarnation, ping time, assigned query and abort request
                 // (which do not matter for finished query) and filter factors field (which goes to finished_queries_by_start_time,
                 // finished_queries_by_user_and_start_time, finished_queries_by_aco_and_start_time tables).
-                static_assert(TActiveQueryDescriptor::FieldCount == 19 && TFinishedQueryDescriptor::FieldCount == 14);
+                static_assert(TActiveQueryDescriptor::FieldCount == 20 && TFinishedQueryDescriptor::FieldCount == 14);
                 TFinishedQuery newRecord{
                     .Key = TFinishedQueryKey{.QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
@@ -646,7 +645,7 @@ private:
             }
 
             {
-                static_assert(TActiveQueryDescriptor::FieldCount == 19 && TFinishedQueryByStartTimeDescriptor::FieldCount == 7);
+                static_assert(TActiveQueryDescriptor::FieldCount == 20 && TFinishedQueryByStartTimeDescriptor::FieldCount == 7);
                 TFinishedQueryByStartTime newRecord{
                     .Key = TFinishedQueryByStartTimeKey{.MinusStartTime = -i64(activeQueryRecord->StartTime.MicroSeconds()), .QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
@@ -665,7 +664,7 @@ private:
             }
 
             {
-                static_assert(TActiveQueryDescriptor::FieldCount == 19 && TFinishedQueryByUserAndStartTimeDescriptor::FieldCount == 6);
+                static_assert(TActiveQueryDescriptor::FieldCount == 20 && TFinishedQueryByUserAndStartTimeDescriptor::FieldCount == 6);
                 TFinishedQueryByUserAndStartTime newRecord{
                     .Key = TFinishedQueryByUserAndStartTimeKey{.User = activeQueryRecord->User, .MinusStartTime = -i64(activeQueryRecord->StartTime.MicroSeconds()), .QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
@@ -682,7 +681,7 @@ private:
             }
 
             {
-                static_assert(TActiveQueryDescriptor::FieldCount == 19 && TFinishedQueryByAcoAndStartTimeDescriptor::FieldCount == 7);
+                static_assert(TActiveQueryDescriptor::FieldCount == 20 && TFinishedQueryByAcoAndStartTimeDescriptor::FieldCount == 7);
 
                 auto accessControlObjects = activeQueryRecord->AccessControlObjects ? ConvertTo<std::vector<TString>>(activeQueryRecord->AccessControlObjects) : std::vector<TString>{};
                 if (!accessControlObjects.empty()) {
@@ -711,19 +710,16 @@ private:
                 return true;
             }
 
-            // Save profile counter
+            // Save profile counter.
             auto tags = TProfilingTags{
                 .State = activeQueryRecord->State,
                 .Engine = activeQueryRecord->Engine,
                 .AssignedTracker = activeQueryRecord->AssignedTracker.value_or(NoneQueryTracker),
             };
             {
-                auto guard = std::make_optional(Guard(StateTimeProfilingCountersMap_->Lock));
-                auto& stateTimeGauge = GetOrCreateProfilingCounter(
+                auto& stateTimeGauge = GetOrCreateProfilingCounter<TStateTimeProfilingCounter>(
                     QueryTrackerProfiler,
-                    tags,
-                    StateTimeProfilingCountersMap_->Map,
-                    guard).StateTime;
+                    tags)->StateTime;
                 auto now = TInstant::Now();
                 stateTimeGauge.Update(now - activeQueryRecord->FinishTime.value());
             }

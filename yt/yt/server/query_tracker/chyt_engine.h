@@ -1,7 +1,6 @@
 #pragma once
 
 #include "private.h"
-#include "profiler.h"
 
 #include <yt/yt/client/api/public.h>
 
@@ -11,7 +10,7 @@ namespace NYT::NQueryTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IQueryEnginePtr CreateChytEngine(const NApi::IClientPtr& stateClient, const NYPath::TYPath& stateRoot, const TStateTimeProfilingCountersMapPtr& stateTimeProfilingCountersMap);
+IQueryEnginePtr CreateChytEngine(const NApi::IClientPtr& stateClient, const NYPath::TYPath& stateRoot);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -11,10 +11,7 @@ namespace NYT::NQueryTracker {
 
 const TString NoneQueryTracker = "None";
 
-inline const NProfiling::TProfiler QueryTrackerProfilerGlobal = NProfiling::TProfiler("/query_tracker").WithGlobal();
-inline const NProfiling::TProfiler QueryTrackerProfiler = NProfiling::TProfiler("/query_tracker");
-
-using namespace NQueryTrackerClient;
+////////////////////////////////////////////////////////////////////////////////
 
 struct TProfilingTags
 {
@@ -56,38 +53,18 @@ struct TStateTimeProfilingCounter
     explicit TStateTimeProfilingCounter(const NProfiling::TProfiler& profiler);
 };
 
-struct TStateTimeProfilingCountersMap
-    : public TRefCounted
-{
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
-    THashMap<TProfilingTags, TStateTimeProfilingCounter> Map;
-};
-
-DECLARE_REFCOUNTED_STRUCT(TStateTimeProfilingCountersMap);
-DEFINE_REFCOUNTED_TYPE(TStateTimeProfilingCountersMap);
+using TStateTimeProfilingCountersMap = NConcurrency::TSyncMap<TProfilingTags, TStateTimeProfilingCounter>;
+using TActiveQueriesProfilingCountersMap = NConcurrency::TSyncMap<TProfilingTags, TActiveQueriesProfilingCounter>;
 
 template<class TProfilingCounter>
-TProfilingCounter& GetOrCreateProfilingCounter(
+TProfilingCounter* GetOrCreateProfilingCounter(
     const NProfiling::TProfiler& profiler,
-    const TProfilingTags& profilingTags,
-    THashMap<TProfilingTags, TProfilingCounter>& profilingCounterMap,
-    std::optional<TGuard<NThreading::TSpinLock>>& /*guard*/)
-{
-    auto it = profilingCounterMap.find(profilingTags);
-    if (it != profilingCounterMap.end()) {
-        return it->second;
-    }
-
-    auto profilingCounter =
-        TProfilingCounter(profiler
-            .WithTag("state", ToString(profilingTags.State))
-            .WithTag("engine", ToString(profilingTags.Engine))
-            .WithTag("assigned_tracker", profilingTags.AssignedTracker));
-
-    it = profilingCounterMap.insert({profilingTags, profilingCounter}).first;
-    return it->second;
-}
+    const TProfilingTags& profilingTags);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryTracker
+
+#define PROFILER_INL_H_
+#include "profiler-inl.h"
+#undef PROFILER_INL_H_
