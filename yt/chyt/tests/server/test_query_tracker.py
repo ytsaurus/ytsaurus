@@ -16,7 +16,7 @@ from yt.wrapper import yson
 
 
 class TestQueriesChyt(ClickHouseTestBase):
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 4
 
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
@@ -295,7 +295,7 @@ class TestQueriesChyt(ClickHouseTestBase):
             assert len(query.read_result(0)) > 0
 
     @authors("dakovalkov")
-    def test_unsuported_types(self, query_tracker):
+    def test_unsupported_types(self, query_tracker):
         with Clique(1, alias="*ch_alias"):
             settings = {"clique": "ch_alias", "cluster": "primary"}
             query = """
