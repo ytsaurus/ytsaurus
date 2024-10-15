@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2023 Jeevanandam M (jeeva@myjeeva.com), All rights reserved.
+// Copyright (c) 2015-2024 Jeevanandam M (jeeva@myjeeva.com), All rights reserved.
 // resty source code and usage is governed by a MIT style
 // license that can be found in the LICENSE file.
 
@@ -307,6 +307,16 @@ func createPostServer(t *testing.T) *httptest.Server {
 			case "/redirected-with-body":
 				body, _ := io.ReadAll(r.Body)
 				assertEqual(t, r.URL.Query().Get("body"), string(body))
+				w.WriteHeader(http.StatusOK)
+			case "/curl-cmd-post":
+				cookie := http.Cookie{
+					Name:    "testserver",
+					Domain:  "localhost",
+					Path:    "/",
+					Expires: time.Now().AddDate(0, 0, 1),
+					Value:   "yes",
+				}
+				http.SetCookie(w, &cookie)
 				w.WriteHeader(http.StatusOK)
 			}
 		}
@@ -700,6 +710,9 @@ func createDigestServer(t *testing.T, conf *digestServerConfig) *httptest.Server
 		case "/missing_value":
 			setWWWAuthHeader(w, `Digest realm="hello", domain`)
 			return
+		case "/unclosed_quote":
+			setWWWAuthHeader(w, `Digest realm="hello, qop=auth`)
+			return
 		case "/no_challenge":
 			setWWWAuthHeader(w, "")
 			return
@@ -806,6 +819,7 @@ func dclr() *Request {
 }
 
 func assertNil(t *testing.T, v interface{}) {
+	t.Helper()
 	if !isNil(v) {
 		t.Errorf("[%v] was expected to be nil", v)
 	}
@@ -838,6 +852,7 @@ func assertErrorIs(t *testing.T, e, g error) (r bool) {
 }
 
 func assertEqual(t *testing.T, e, g interface{}) (r bool) {
+	t.Helper()
 	if !equal(e, g) {
 		t.Errorf("Expected [%v], got [%v]", e, g)
 	}

@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2023 Jeevanandam M (jeeva@myjeeva.com), All rights reserved.
+// Copyright (c) 2015-2024 Jeevanandam M (jeeva@myjeeva.com), All rights reserved.
 // resty source code and usage is governed by a MIT style
 // license that can be found in the LICENSE file.
 
@@ -6,6 +6,8 @@ package resty
 
 import (
 	"bytes"
+	"compress/gzip"
+	"crypto/rand"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -104,6 +106,7 @@ func TestClientDigestAuth(t *testing.T) {
 func TestClientDigestSession(t *testing.T) {
 	conf := defaultDigestServerConf()
 	conf.algo = "MD5-sess"
+	conf.qop = "auth, auth-int"
 	ts := createDigestServer(t, conf)
 	defer ts.Close()
 
@@ -134,6 +137,7 @@ func TestClientDigestErrors(t *testing.T) {
 		{mutateConf: func(c *digestServerConfig) { c.uri = "/bad" }, expect: ErrDigestBadChallenge},
 		{mutateConf: func(c *digestServerConfig) { c.uri = "/unknown_param" }, expect: ErrDigestBadChallenge},
 		{mutateConf: func(c *digestServerConfig) { c.uri = "/missing_value" }, expect: ErrDigestBadChallenge},
+		{mutateConf: func(c *digestServerConfig) { c.uri = "/unclosed_quote" }, expect: ErrDigestBadChallenge},
 		{mutateConf: func(c *digestServerConfig) { c.uri = "/no_challenge" }, expect: ErrDigestBadChallenge},
 		{mutateConf: func(c *digestServerConfig) { c.uri = "/status_500" }, expect: nil},
 	}
@@ -299,6 +303,56 @@ func TestClientSetRootCertificateFromStringErrorTls(t *testing.T) {
 	transport, err := client.Transport()
 
 	client.SetRootCertificateFromString(string(rootPemData))
+
+	assertNotNil(t, rt)
+	assertNotNil(t, err)
+	assertNil(t, transport)
+}
+
+func TestClientSetClientRootCertificate(t *testing.T) {
+	client := dc()
+	client.SetClientRootCertificate(filepath.Join(getTestDataPath(), "sample-root.pem"))
+
+	transport, err := client.Transport()
+
+	assertNil(t, err)
+	assertNotNil(t, transport.TLSClientConfig.ClientCAs)
+}
+
+func TestClientSetClientRootCertificateNotExists(t *testing.T) {
+	client := dc()
+	client.SetClientRootCertificate(filepath.Join(getTestDataPath(), "not-exists-sample-root.pem"))
+
+	transport, err := client.Transport()
+
+	assertNil(t, err)
+	assertNil(t, transport.TLSClientConfig)
+}
+
+func TestClientSetClientRootCertificateFromString(t *testing.T) {
+	client := dc()
+	rootPemData, err := os.ReadFile(filepath.Join(getTestDataPath(), "sample-root.pem"))
+	assertNil(t, err)
+
+	client.SetClientRootCertificateFromString(string(rootPemData))
+
+	transport, err := client.Transport()
+
+	assertNil(t, err)
+	assertNotNil(t, transport.TLSClientConfig.ClientCAs)
+}
+
+func TestClientSetClientRootCertificateFromStringErrorTls(t *testing.T) {
+	client := NewWithClient(&http.Client{})
+	client.outputLogTo(io.Discard)
+
+	rootPemData, err := os.ReadFile(filepath.Join(getTestDataPath(), "sample-root.pem"))
+	assertNil(t, err)
+	rt := &CustomRoundTripper{}
+	client.SetTransport(rt)
+	transport, err := client.Transport()
+
+	client.SetClientRootCertificateFromString(string(rootPemData))
 
 	assertNotNil(t, rt)
 	assertNotNil(t, err)
@@ -1094,4 +1148,57 @@ func TestClone(t *testing.T) {
 	// assert interface type
 	assertEqual(t, "clone", parent.UserInfo.Username)
 	assertEqual(t, "clone", clone.UserInfo.Username)
+}
+
+func TestResponseBodyLimit(t *testing.T) {
+	ts := createTestServer(func(w http.ResponseWriter, r *http.Request) {
+		io.CopyN(w, rand.Reader, 100*800)
+	})
+	defer ts.Close()
+
+	t.Run("Client body limit", func(t *testing.T) {
+		c := dc().SetResponseBodyLimit(1024)
+
+		_, err := c.R().Get(ts.URL + "/")
+		assertNotNil(t, err)
+		assertErrorIs(t, ErrResponseBodyTooLarge, err)
+	})
+
+	t.Run("request body limit", func(t *testing.T) {
+		c := dc()
+
+		_, err := c.R().SetResponseBodyLimit(1024).Get(ts.URL + "/")
+		assertNotNil(t, err)
+		assertErrorIs(t, ErrResponseBodyTooLarge, err)
+	})
+
+	t.Run("body less than limit", func(t *testing.T) {
+		c := dc()
+
+		res, err := c.R().SetResponseBodyLimit(800*100 + 10).Get(ts.URL + "/")
+		assertNil(t, err)
+		assertEqual(t, 800*100, len(res.body))
+	})
+
+	t.Run("no body limit", func(t *testing.T) {
+		c := dc()
+
+		res, err := c.R().Get(ts.URL + "/")
+		assertNil(t, err)
+		assertEqual(t, 800*100, len(res.body))
+	})
+
+	t.Run("read error", func(t *testing.T) {
+		tse := createTestServer(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set(hdrContentEncodingKey, "gzip")
+			var buf [1024]byte
+			w.Write(buf[:])
+		})
+		defer tse.Close()
+
+		c := dc()
+
+		_, err := c.R().SetResponseBodyLimit(10240).Get(tse.URL + "/")
+		assertErrorIs(t, gzip.ErrHeader, err)
+	})
 }

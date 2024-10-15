@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2023 Jeevanandam M (jeeva@myjeeva.com), All rights reserved.
+// Copyright (c) 2015-2024 Jeevanandam M (jeeva@myjeeva.com), All rights reserved.
 // resty source code and usage is governed by a MIT style
 // license that can be found in the LICENSE file.
 
@@ -6,6 +6,7 @@ package resty
 
 import (
 	"bytes"
+	"errors"
 	"mime/multipart"
 	"testing"
 )
@@ -88,4 +89,19 @@ func TestWriteMultipartFormFileReaderError(t *testing.T) {
 	err := writeMultipartFormFile(nil, "", "", &brokenReadCloser{})
 	assertNotNil(t, err)
 	assertEqual(t, "read error", err.Error())
+}
+
+func TestRestyErrorFuncs(t *testing.T) {
+	ne1 := errors.New("new error 1")
+	nie1 := errors.New("inner error 1")
+
+	e := wrapErrors(ne1, nie1)
+	assertEqual(t, "new error 1", e.Error())
+	assertEqual(t, "inner error 1", errors.Unwrap(e).Error())
+
+	e = wrapErrors(ne1, nil)
+	assertEqual(t, "new error 1", e.Error())
+
+	e = wrapErrors(nil, nie1)
+	assertEqual(t, "inner error 1", e.Error())
 }
