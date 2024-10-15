@@ -960,7 +960,8 @@ class TDecimalConverter
 public:
     static_assert(std::is_same_v<TUnderlyingIntegerType, DB::Int32>
         || std::is_same_v<TUnderlyingIntegerType, DB::Int64>
-        || std::is_same_v<TUnderlyingIntegerType, DB::Int128>);
+        || std::is_same_v<TUnderlyingIntegerType, DB::Int128>
+        || std::is_same_v<TUnderlyingIntegerType, DB::Int256>);
 
     using TClickHouseDecimal = DB::Decimal<TUnderlyingIntegerType>;
     using TDecimalColumn = DB::ColumnDecimal<TClickHouseDecimal>;
@@ -1060,6 +1061,9 @@ private:
             memcpy(&chValue, &parsedValue, DecimalSize);
         } else if constexpr (std::is_same_v<TUnderlyingIntegerType, DB::Int128>) {
             auto parsedValue = TDecimal::ParseBinary128(Precision_, ytValue);
+            memcpy(&chValue, &parsedValue, DecimalSize);
+        } else if constexpr (std::is_same_v<TUnderlyingIntegerType, DB::Int256>) {
+            auto parsedValue = TDecimal::ParseBinary256(Precision_, ytValue);
             memcpy(&chValue, &parsedValue, DecimalSize);
         } else {
             YT_ABORT();
@@ -1377,14 +1381,15 @@ private:
         const auto& decimalType = descriptor.GetType()->AsDecimalTypeRef();
         int precision = decimalType.GetPrecision();
         int scale = decimalType.GetScale();
-        auto valueSize = TDecimal::GetValueBinarySize(precision);
 
-        if (valueSize == sizeof(DB::Int32)) {
+        if (precision <= static_cast<int>(DB::DecimalUtils::max_precision<DB::Decimal32>)) {
             return std::make_unique<TDecimalConverter<DB::Int32>>(precision, scale);
-        } else if (valueSize == sizeof(DB::Int64)) {
+        } else if (precision <= static_cast<int>(DB::DecimalUtils::max_precision<DB::Decimal64>)) {
             return std::make_unique<TDecimalConverter<DB::Int64>>(precision, scale);
-        } else if (valueSize == sizeof(DB::Int128)) {
+        } else if (precision <= static_cast<int>(DB::DecimalUtils::max_precision<DB::Decimal128>)) {
             return std::make_unique<TDecimalConverter<DB::Int128>>(precision, scale);
+        } else if (precision <= static_cast<int>(DB::DecimalUtils::max_precision<DB::Decimal256>)) {
+            return std::make_unique<TDecimalConverter<DB::Int256>>(precision, scale);
         }
 
         YT_ABORT();
