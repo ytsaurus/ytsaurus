@@ -80,7 +80,7 @@ if [[ ${ytsaurus_package_name} == "" ]]; then
         bindings_library_option="--bindings-library driver_lib"
     elif [[ ${ytsaurus_package_name} == "ytsaurus-rpc-driver" ]]; then
         bindings_library_option="--bindings-library driver_rpc_lib"
-    elif [[ ${package} == "ytsaurus-yson" ]]; then
+    elif [[ ${ytsaurus_package_name} == "ytsaurus-yson" ]]; then
         bindings_library_option="--bindings-library yson_lib"
     else
         prepare_bindings_libraries=false
@@ -92,7 +92,7 @@ if [[ "$prepare_bindings_libraries" = true ]]; then
 else
     prepare_bindings_libraries_option=""
 fi
-    
+
 python3 -m yt_setup.prepare_python_modules \
     --source-root ${ytsaurus_source_path} \
     --build-root ${ytsaurus_build_path} \
