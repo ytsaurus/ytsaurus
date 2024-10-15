@@ -463,6 +463,25 @@ func (a HTTPAPI) HandleSetSecrets(w http.ResponseWriter, r *http.Request, params
 	a.ReplyOK(w, nil)
 }
 
+var ResumeCmdDescriptor = CmdDescriptor{
+	Name:        "resume",
+	Parameters:  []CmdParameter{AliasParameter.AsRequired().AsExplicit()},
+	Description: "resume strawberry operation",
+	Handler:     HTTPAPI.HandleResume,
+}
+
+func (a HTTPAPI) HandleResume(w http.ResponseWriter, r *http.Request, params map[string]any) {
+	alias := params["alias"].(string)
+
+	err := a.API.Resume(r.Context(), alias)
+	if err != nil {
+		a.ReplyWithError(w, err)
+		return
+	}
+
+	a.ReplyOK(w, nil)
+}
+
 var AllCommands = []CmdDescriptor{
 	ListCmdDescriptor,
 	CreateCmdDescriptor,
@@ -482,6 +501,7 @@ var AllCommands = []CmdDescriptor{
 	DescribeOptionsCmdDescriptor,
 	GetSecretsCmdDescriptor,
 	SetSecretsCmdDescriptor,
+	ResumeCmdDescriptor,
 }
 
 func ControllerRouter(cfg HTTPAPIConfig, family string, cf strawberry.ControllerFactory, l log.Logger) chi.Router {

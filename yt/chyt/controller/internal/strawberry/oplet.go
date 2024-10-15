@@ -153,6 +153,11 @@ type Oplet struct {
 
 	acl []yt.ACE
 
+	// pendingScaling indicates whether oplet should be scaled during next `pass`.
+	pendingScaling bool
+	// targetInstanceCount is the number of jobs the oplet should be scaled to.
+	targetInstanceCount int
+
 	cypressNode  ypath.Path
 	l            log.Logger
 	c            Controller
@@ -235,6 +240,10 @@ func (oplet *Oplet) HasYTOperation() bool {
 
 func (oplet *Oplet) UpToDateWithCypress() bool {
 	return !oplet.pendingUpdateFromCypressNode
+}
+
+func (oplet *Oplet) Suspended() bool {
+	return oplet.persistentState.YTOpSuspended
 }
 
 func (oplet *Oplet) OperationInfo() (yt.OperationID, yt.OperationState) {
@@ -330,6 +339,11 @@ func (oplet *Oplet) SetACL(acl []yt.ACE) {
 	}
 }
 
+func (oplet *Oplet) SetPendingScaling(instanceCount int) {
+	oplet.targetInstanceCount = instanceCount
+	oplet.pendingScaling = true
+}
+
 func (oplet *Oplet) EnsureUpdatedFromCypress(ctx context.Context) error {
 	if oplet.pendingUpdateFromCypressNode {
 		if err := oplet.updateFromCypressNode(ctx); err != nil {
@@ -402,6 +416,18 @@ func (oplet *Oplet) EnsureOperationInValidState(ctx context.Context) error {
 			return err
 		}
 	}
+
+	if ok, reason := oplet.needsSuspend(); ok {
+		if err := oplet.suspendOp(ctx, reason); err != nil {
+			return err
+		}
+	}
+	if ok, reason := oplet.needsResume(); ok {
+		if err := oplet.resumeOp(ctx, reason); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -444,14 +470,15 @@ func (oplet *Oplet) needsRestart() (needsRestart bool, reason string) {
 		return true, "oplet does not have running yt operation"
 	}
 	if oplet.strawberrySpeclet.RestartOnSpecletChangeOrDefault() {
-		if !reflect.DeepEqual(oplet.ytOpControllerSpeclet, oplet.controllerSpeclet) {
-			oplet.l.Debug("speclet diff", log.Any("diff", specletDiff(oplet.ytOpControllerSpeclet, oplet.controllerSpeclet)))
+		cDiff := specletDiff(oplet.ytOpControllerSpeclet, oplet.controllerSpeclet)
+		if len(cDiff) != 0 {
+			oplet.l.Debug("speclet diff", log.Any("diff", cDiff))
 			return true, "speclet changed"
 		}
-		if !reflect.DeepEqual(oplet.strawberrySpeclet.RestartRequiredOptions, oplet.ytOpStrawberrySpeclet.RestartRequiredOptions) {
-			oplet.l.Debug("strawberry speclet diff",
-				log.Any("diff",
-					specletDiff(oplet.strawberrySpeclet.RestartRequiredOptions, oplet.ytOpStrawberrySpeclet.RestartRequiredOptions)))
+
+		sDiff := specletDiff(oplet.strawberrySpeclet.RestartRequiredOptions, oplet.ytOpStrawberrySpeclet.RestartRequiredOptions)
+		if len(sDiff) != 0 {
+			oplet.l.Debug("strawberry speclet diff", log.Any("diff", sDiff))
 			return true, "strawberry speclet changed"
 		}
 	}
@@ -487,6 +514,9 @@ func (oplet *Oplet) needsUpdateOpParameters() (needsUpdate bool, reason string) 
 	if !reflect.DeepEqual(oplet.strawberrySpeclet.Pool, oplet.persistentState.YTOpPool) {
 		return true, "pool changed"
 	}
+	if oplet.pendingScaling && oplet.targetInstanceCount != 0 {
+		return true, "oplet must be scaled"
+	}
 	return false, "up to date"
 }
 
@@ -499,6 +529,32 @@ func (oplet *Oplet) needsAbort() (needsAbort bool, reason string) {
 	}
 	if oplet.strawberrySpeclet.StageOrDefault() != StageUntracked && oplet.strawberrySpeclet.Pool == nil {
 		return true, "pool is not set"
+	}
+	return false, "up to date"
+}
+
+func (oplet *Oplet) needsSuspend() (needsSuspend bool, reason string) {
+	if !oplet.HasYTOperation() {
+		return false, "oplet does not have running yt operation"
+	}
+	if !oplet.Active() {
+		return false, "oplet is in inactive state"
+	}
+	if oplet.pendingScaling && oplet.targetInstanceCount == 0 {
+		return true, "pending scaling is set to 0"
+	}
+	return false, "up to date"
+}
+
+func (oplet *Oplet) needsResume() (needsResume bool, reason string) {
+	if !oplet.HasYTOperation() {
+		return false, "oplet does not have running yt operation"
+	}
+	if !oplet.Active() {
+		return false, "oplet is in inactive state"
+	}
+	if oplet.strawberrySpeclet.ResumeMarker != oplet.persistentState.ResumeMarker {
+		return true, "resume marker changed"
 	}
 	return false, "up to date"
 }
@@ -734,6 +790,46 @@ func (oplet *Oplet) abortOp(ctx context.Context, reason string) error {
 	return err
 }
 
+func (oplet *Oplet) suspendOp(ctx context.Context, reason string) error {
+	oplet.l.Info("suspending operation", log.String("reason", reason))
+
+	err := oplet.systemClient.SuspendOperation(
+		ctx,
+		oplet.persistentState.YTOpID,
+		&yt.SuspendOperationOptions{AbortRunningJobs: true},
+	)
+	if err != nil {
+		oplet.setError(err)
+	} else {
+		oplet.persistentState.YTOpSuspended = true
+		oplet.pendingScaling = false
+	}
+	return err
+}
+
+func (oplet *Oplet) resumeOp(ctx context.Context, reason string) error {
+	oplet.l.Info("resuming operation", log.String("reason", reason))
+
+	err := oplet.systemClient.ResumeOperation(
+		ctx,
+		oplet.persistentState.YTOpID,
+		nil,
+	)
+	if err != nil {
+		if yterrors.ContainsErrorCode(err, yterrors.CodeInvalidOperationState) {
+			oplet.l.Warn("operation cannot be resumed from its current state")
+		} else {
+			oplet.setError(err)
+			return err
+		}
+	}
+
+	oplet.persistentState.YTOpSuspended = false
+	oplet.persistentState.ResumeMarker = oplet.strawberrySpeclet.ResumeMarker
+
+	return nil
+}
+
 func (oplet *Oplet) getOpACL() (acl []yt.ACE) {
 	if oplet.agentInfo.RobotUsername != "" {
 		acl = []yt.ACE{
@@ -857,6 +953,8 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 
 	oplet.persistentState.YTOpID = opID
 	oplet.persistentState.YTOpState = yt.StateInitializing
+	oplet.persistentState.YTOpSuspended = false
+	oplet.persistentState.ResumeMarker = oplet.strawberrySpeclet.ResumeMarker
 	oplet.infoState.YTOpStartTime = yson.Time{}
 	oplet.infoState.YTOpFinishTime = yson.Time{}
 
@@ -888,13 +986,24 @@ func (oplet *Oplet) updateOpParameters(ctx context.Context, reason string) error
 	oplet.l.Info("updating operation parameters", log.String("reason", reason))
 
 	opACL := oplet.getOpACL()
+	params := map[string]any{
+		"acl":  opACL,
+		"pool": oplet.strawberrySpeclet.Pool,
+	}
+	if oplet.pendingScaling && oplet.targetInstanceCount != 0 {
+		params["scheduling_options_per_pool_tree"] = map[string]any{
+			"default": map[string]any{
+				"resource_limits": map[string]any{
+					"user_slots": oplet.targetInstanceCount,
+				},
+			},
+		}
+	}
+
 	err := oplet.systemClient.UpdateOperationParameters(
 		ctx,
 		oplet.persistentState.YTOpID,
-		map[string]any{
-			"acl":  opACL,
-			"pool": oplet.strawberrySpeclet.Pool,
-		},
+		params,
 		nil)
 
 	if err != nil {
@@ -907,6 +1016,8 @@ func (oplet *Oplet) updateOpParameters(ctx context.Context, reason string) error
 
 	oplet.persistentState.YTOpACL = opACL
 	oplet.persistentState.YTOpPool = oplet.strawberrySpeclet.Pool
+
+	oplet.pendingScaling = false
 
 	return nil
 }
@@ -1016,6 +1127,7 @@ type YTOperationBriefInfo struct {
 	ID         yt.OperationID    `yson:"id,omitempty" json:"id,omitempty"`
 	URL        string            `yson:"url,omitempty" json:"url,omitempty"`
 	State      yt.OperationState `yson:"state,omitempty" json:"state,omitempty"`
+	Suspended  bool              `yson:"suspended" json:"suspended"`
 	StartTime  *yson.Time        `yson:"start_time,omitempty" json:"start_time,omitempty"`
 	FinishTime *yson.Time        `yson:"finish_time,omitempty" json:"finish_time,omitempty"`
 }
@@ -1054,6 +1166,7 @@ func (oplet *Oplet) GetBriefInfo() (briefInfo OpletBriefInfo) {
 	if oplet.persistentState.YTOpID != yt.NullOperationID {
 		briefInfo.YTOperation.URL = operationStringURL(oplet.agentInfo.ClusterURL, oplet.persistentState.YTOpID)
 		briefInfo.YTOperation.State = oplet.persistentState.YTOpState
+		briefInfo.YTOperation.Suspended = oplet.persistentState.YTOpSuspended
 		briefInfo.YTOperation.ID = oplet.persistentState.YTOpID
 		briefInfo.YTOperation.StartTime = getYSONTimePointerOrNil(oplet.infoState.YTOpStartTime)
 		briefInfo.YTOperation.FinishTime = getYSONTimePointerOrNil(oplet.infoState.YTOpFinishTime)
@@ -1091,4 +1204,10 @@ func (oplet *Oplet) GetBriefInfo() (briefInfo OpletBriefInfo) {
 	}
 
 	return
+}
+
+type OpletInfoForScaler struct {
+	Alias             string
+	OperationID       yt.OperationID
+	ControllerSpeclet any
 }

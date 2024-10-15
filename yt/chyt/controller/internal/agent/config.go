@@ -47,6 +47,11 @@ type Config struct {
 	// AssignAdministerToCreator determines whether the operation creator
 	// should be granted the `administer` right to the corresponding ACO.
 	AssignAdministerToCreator *bool `yson:"assign_administer_to_creator"`
+
+	// ScaleWorkerNumber is the number of workers used to scale oplets.
+	ScaleWorkerNumber *int `yson:"scale_worker_number"`
+	// ScalePeriod defines how often agent runs oplet scaling task.
+	ScalePeriod *yson.Duration `yson:"scale_period"`
 }
 
 const (
@@ -56,6 +61,8 @@ const (
 	DefaultHealthCheckerToleranceFactor = 2.0
 	DefaultPassWorkerNumber             = 1
 	DefaultAssignAdministerToCreator    = true
+	DefaultScaleWorkerNumber            = 1
+	DefaultScalePeriod                  = yson.Duration(60 * time.Second)
 )
 
 func (c *Config) PassPeriodOrDefault() yson.Duration {
@@ -98,4 +105,18 @@ func (c *Config) AssignAdministerToCreatorOrDefault() bool {
 		return *c.AssignAdministerToCreator
 	}
 	return DefaultAssignAdministerToCreator
+}
+
+func (c *Config) ScaleWorkerNumberOrDefault() int {
+	if c.ScaleWorkerNumber != nil {
+		return *c.ScaleWorkerNumber
+	}
+	return DefaultScaleWorkerNumber
+}
+
+func (c *Config) ScalePeriodOrDefault() yson.Duration {
+	if c.ScalePeriod != nil {
+		return *c.ScalePeriod
+	}
+	return DefaultScalePeriod
 }

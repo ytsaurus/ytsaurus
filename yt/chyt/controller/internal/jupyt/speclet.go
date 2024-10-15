@@ -1,16 +1,25 @@
 package jupyt
 
+import (
+	"time"
+
+	"go.ytsaurus.tech/yt/go/yson"
+)
+
 type Speclet struct {
 	CPU    *uint64 `yson:"cpu"`
 	Memory *uint64 `yson:"memory"`
 
-	JupyterDockerImage string `yson:"jupyter_docker_image"`
+	JupyterDockerImage   string         `yson:"jupyter_docker_image"`
+	IdleTimeout          *yson.Duration `yson:"idle_timeout" requires_restart:"false"`
+	EnableIdleSuspension bool           `yson:"enable_idle_suspension" requires_restart:"false"`
 }
 
 const (
-	gib           = 1024 * 1024 * 1024
-	DefaultCPU    = 2
-	DefaultMemory = 8 * gib
+	gib                = 1024 * 1024 * 1024
+	DefaultCPU         = 2
+	DefaultMemory      = 8 * gib
+	DefaultIdleTimeout = 24 * time.Hour
 )
 
 func (speclet *Speclet) CPUOrDefault() uint64 {
@@ -25,4 +34,11 @@ func (speclet *Speclet) MemoryOrDefault() uint64 {
 		return *speclet.Memory
 	}
 	return DefaultMemory
+}
+
+func (speclet *Speclet) IdleTimeoutOrDefault() time.Duration {
+	if speclet.IdleTimeout != nil {
+		return time.Duration(*speclet.IdleTimeout)
+	}
+	return DefaultIdleTimeout
 }
