@@ -1,8 +1,8 @@
-from base import ClickHouseTestBase, Clique, QueryFailedError
+from base import ClickHouseTestBase, Clique
 
 from helpers import get_schema_from_description
 
-from yt_commands import (write_table, authors, create, get, raises_yt_error, read_table, concatenate)
+from yt_commands import (write_table, authors, create, get, read_table, concatenate)
 
 from yt_type_helpers import (decimal_type, optional_type, list_type, tuple_type, make_schema, normalize_schema_v3)
 
@@ -126,12 +126,22 @@ class TestComposite(ClickHouseTestBase):
                 "name": "decimal128",
                 "type_v3": decimal_type(30, 10),
             },
+            {
+                "name": "decimal128_no_yql",
+                "type_v3": decimal_type(38, 10)
+            },
+            {
+                "name": "decimal256",
+                "type_v3": decimal_type(70, 10)
+            }
         ]})
 
         row = {
             "decimal32": encode_decimal("1.1", 9, 2),
             "decimal64": encode_decimal("1234.1234", 15, 5),
             "decimal128": encode_decimal("123456789.123456789", 30, 10),
+            "decimal128_no_yql": encode_decimal("123456789.123456789", 38, 10),
+            "decimal256": encode_decimal("123456789.123456789", 70, 10),
         }
         write_table("//tmp/t", [row])
 
@@ -140,19 +150,25 @@ class TestComposite(ClickHouseTestBase):
                 {"name": "decimal32", "type": "Decimal(9, 2)"},
                 {"name": "decimal64", "type": "Decimal(15, 5)"},
                 {"name": "decimal128", "type": "Decimal(30, 10)"},
+                {"name": "decimal128_no_yql", "type": "Decimal(38, 10)"},
+                {"name": "decimal256", "type": "Decimal(70, 10)"},
             ]
 
             assert clique.make_query('select * from "//tmp/t"') == [{
                 "decimal32": 1.1,
                 "decimal64": 1234.1234,
                 "decimal128": 123456789.123456789,
+                "decimal128_no_yql": 123456789.123456789,
+                "decimal256": 123456789.123456789,
             }]
 
             create_query = '''
                 create table "//tmp/tout" engine YtTable() as select
                     toDecimal32(10.5, 5) as decimal32,
                     toDecimal64(100.005, 10) as decimal64,
-                    CAST(0.000005, 'Decimal(35, 15)') as decimal128'''
+                    CAST(0.000005, 'Decimal(35, 15)') as decimal128,
+                    toDecimal128(15.43, 2) as decimal128_no_yql,
+                    toDecimal256(42.424242424242, 10) as decimal256'''
 
             clique.make_query(create_query)
 
@@ -170,6 +186,14 @@ class TestComposite(ClickHouseTestBase):
                         "name": "decimal128",
                         "type_v3": decimal_type(35, 15),
                     },
+                    {
+                        "name": "decimal128_no_yql",
+                        "type_v3": decimal_type(38, 2),
+                    },
+                    {
+                        "name": "decimal256",
+                        "type_v3": decimal_type(76, 10),
+                    },
                 ],
                 strict=True,
                 unique_keys=False,
@@ -179,16 +203,9 @@ class TestComposite(ClickHouseTestBase):
                 "decimal32": encode_decimal("10.5", 9, 5),
                 "decimal64": encode_decimal("100.005", 18, 10),
                 "decimal128": encode_decimal("0.000005", 35, 15),
+                "decimal128_no_yql": encode_decimal("15.43", 38, 2),
+                "decimal256": encode_decimal("42.4242424242", 76, 10),
             }]
-
-            # Max precision for Decimal128 in YT is 35 (because of YQL-compatibility).
-            # In CH it's 38, so not all values are acceptable.
-            with raises_yt_error(QueryFailedError):
-                clique.make_query('create table "//tmp/t_bad" engine YtTable() as select toDecimal128(1.0, 10) as d128')
-
-            # Decimal256 is not supported in YT.
-            with raises_yt_error(QueryFailedError):
-                clique.make_query('create table "//tmp/t_bad" engine YtTable() as select toDecimal256(1.0, 10) as d256')
 
     # CHYT-896
     @authors("dakovalkov")

@@ -699,6 +699,8 @@ while True:
     (15, 8, "yson32"),
     (35, 16, "int128"),
     (35, 16, "yson32"),
+    (76, 32, "int256"),
+    (76, 32, "yson32"),
 ])
 @authors("ermolovd")
 class TestGoodSkiffDecimal(YTEnvSetup):

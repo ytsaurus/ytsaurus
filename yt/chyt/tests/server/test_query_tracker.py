@@ -300,8 +300,6 @@ class TestQueriesChyt(ClickHouseTestBase):
             settings = {"clique": "ch_alias", "cluster": "primary"}
             query = """
                 select
-                    toDecimal128('0.5', 4) as d128,
-                    toDecimal256('1.5', 6) as d256,
                     toDateTime64('2019-01-01 00:00:00', 2) as dt,
                     CAST(1, 'Enum(\\'hello\\' = 1, \\'world\\' = 2)') as en
             """
@@ -309,8 +307,6 @@ class TestQueriesChyt(ClickHouseTestBase):
             query.track()
 
             assert query.read_result(0) == [{
-                "d128": "0.5",
-                "d256": "1.5",
                 "dt": "2019-01-01 00:00:00.00",
                 "en": "hello",
             }]

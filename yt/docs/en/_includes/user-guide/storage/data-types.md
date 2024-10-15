@@ -119,7 +119,8 @@ depends on `precision`.
 |---------------|-------------------------------|--------------------------------|
 | 1-9 | 32 | 4 |
 | 10-18 | 64 | 8 |
-| 19-35 | 128 | 16 |
+| 19-38 | 128 | 16 |
+| 39-76 | 256 | 32 |
 
 You need to perform the following steps to obtain a binary representation of a `decimal` number. These steps will be illustrated with the values `3.1415`, `-2.7182` of type `decimal(5, 4)`.
   1. Take an integer made up of the value's digits. The number of bits is taken from `precision` in the table above. In this example, 32-bit numbers `31415`, `-27182`.
@@ -133,6 +134,11 @@ The integer representations of the special values of `nan`, `+inf`, `-inf` for t
 | `+inf` | `INT_MAX - 1` |
 | `-inf` | `- INT_MAX + 1` |
 
+{% note info "Please note" %}
+
+Only decimals with precision up to 35 are currently supported when working with YQL.
+
+{% endnote %}
 
 ### Optional type { #schema_optional }
 
