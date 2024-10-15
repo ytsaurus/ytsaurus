@@ -374,7 +374,12 @@ def get_controller_agent_config():
                 locality_timeout = 100;
                 intermediate_data_replication_factor = 1;
                 enable_trace_logging = %true;
-            }
+                job_io = {
+                    table_writer = {
+                        enable_large_columnar_statistics = %true;
+                    };
+                };
+            };
         };
         sorted_merge_operation_options = {
             spec_template = {
@@ -394,11 +399,41 @@ def get_controller_agent_config():
         sort_operation_options = {
             spec_template = {
                 use_new_sorted_pool = %true;
+                merge_job_io = {
+                    table_writer = {
+                        enable_large_columnar_statistics = %true;
+                    };
+                };
+                partition_job_io = {
+                    table_writer = {
+                        enable_large_columnar_statistics = %true;
+                    };
+                };
+                sort_job_io = {
+                    table_writer = {
+                        enable_large_columnar_statistics = %true;
+                    };
+                };
             };
         };
         map_reduce_operation_options = {
             spec_template = {
                 use_new_sorted_pool = %true;
+                map_job_io = {
+                    table_writer = {
+                        enable_large_columnar_statistics = %true;
+                    };
+                };
+                sort_job_io = {
+                    table_writer = {
+                        enable_large_columnar_statistics = %true;
+                    };
+                };
+                reduce_job_io = {
+                    table_writer = {
+                        enable_large_columnar_statistics = %true;
+                    };
+                };
             };
         };
 
@@ -822,6 +857,10 @@ def get_driver_config():
         refresh_time = 1000;
         expire_after_successful_update_time = 1000;
         expire_after_failed_update_time = 1000;
+    };
+
+    table_writer = {
+        enable_large_columnar_statistics = %true;
     };
 
     enable_internal_commands = %true;
