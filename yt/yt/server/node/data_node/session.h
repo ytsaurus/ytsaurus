@@ -81,6 +81,8 @@ struct ISession
     virtual i64 GetMemoryUsage() const = 0;
     virtual i64 GetTotalSize() const = 0;
     virtual i64 GetBlockCount() const = 0;
+    virtual i64 GetWindowSize() const = 0;
+    virtual i64 GetIntermediateEmptyBlockCount() const = 0;
 
     //! Finishes the session.
     virtual TFuture<NChunkClient::NProto::TChunkInfo> Finish(

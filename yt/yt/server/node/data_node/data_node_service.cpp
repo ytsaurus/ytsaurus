@@ -437,8 +437,12 @@ private:
         auto session = sessionManager->GetSessionOrThrow(sessionId);
         const auto& location = session->GetStoreLocation();
         auto options = session->GetSessionOptions();
+        auto blocksWindowShifted = cumulativeBlockSize == 0 || cumulativeBlockSize != 0 && firstBlockIndex >= session->GetWindowSize();
 
-        context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, FlushBlocks: %v, Medium: %v, DisableSendBlocks: %v, CumulativeBlockSize: %v",
+        context->SetRequestInfo(
+            "BlockIds: %v:%v-%v, PopulateCache: %v,"
+            "FlushBlocks: %v, Medium: %v,"
+            "DisableSendBlocks: %v, CumulativeBlockSize: %v, BlocksWindowShifted: %v",
             sessionId,
             firstBlockIndex,
             lastBlockIndex,
@@ -446,9 +450,13 @@ private:
             flushBlocks,
             location->GetMediumName(),
             options.DisableSendBlocks,
-            cumulativeBlockSize);
+            cumulativeBlockSize,
+            blocksWindowShifted);
 
-        auto throttlingResult = location->CheckWriteThrottling(session->GetWorkloadDescriptor());
+        auto throttlingResult = location->CheckWriteThrottling(
+            session->GetId(),
+            session->GetWorkloadDescriptor(),
+            blocksWindowShifted);
         throttlingResult.Error.ThrowOnError();
 
         TWallTimer timer;

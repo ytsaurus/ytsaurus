@@ -424,7 +424,9 @@ public:
 
     //! Returns whether writes must be throttled.
     TDiskThrottlingResult CheckWriteThrottling(
+        TSessionId sessionId,
         const TWorkloadDescriptor& workloadDescriptor,
+        bool blocksWindowShifted,
         bool incrementCounter = true) const;
 
     //! Reports throttled write.
@@ -473,6 +475,10 @@ public:
     //! and calls #Disable when one happens.
     template <class T>
     TCallback<T()> DisableOnError(const TCallback<T()> callback);
+
+    //! If the tracked memory is close to the limit, new sessions will not be started.
+    //! This method returns memory limit fraction.
+    double GetMemoryLimitFractionForStartingNewSessions() const;
 
     const TChunkStorePtr& GetChunkStore() const;
 

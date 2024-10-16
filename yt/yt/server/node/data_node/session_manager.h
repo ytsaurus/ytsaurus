@@ -15,6 +15,17 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSessionCreatedAtIndex
+{
+    TSessionId SessionId;
+    TInstant StartedAt;
+
+    bool operator == (const TSessionCreatedAtIndex& other) const;
+    bool operator < (const TSessionCreatedAtIndex& other) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Manages chunk uploads.
 /*!
  *  Thread affinity: any
@@ -53,6 +64,8 @@ public:
     //! Cancel all location sessions.
     void CancelLocationSessions(const TChunkLocationPtr& location);
 
+    bool CanPassSessionOutOfTurn(TSessionId sessionId);
+
     NYTree::IYPathServicePtr GetOrchidService();
 
 private:
@@ -65,6 +78,8 @@ private:
     THashMap<TChunkId, ISessionPtr> ChunkMap_;
 
     std::atomic<bool> DisableWriteSessions_ = false;
+
+    std::set<TSessionCreatedAtIndex> SessionToCreatedAt_;
 
     ISessionPtr CreateSession(TSessionId sessionId, const TSessionOptions& options);
 

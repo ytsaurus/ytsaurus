@@ -41,6 +41,7 @@ class TestIoEngine(YTEnvSetup):
             }
         },
         "data_node": {
+            "max_session_out_of_turn": 0,
             "p2p": {
                 "enabled": False,
             },
@@ -263,8 +264,9 @@ class TestIoEngine(YTEnvSetup):
         update_nodes_dynamic_config(delta)
         counters = [seed_counter(node, "location/throttled_reads" if is_read else "location/throttled_writes") for node in nodes]
 
-        first_response = read_table("//tmp/test", return_response=True, table_reader={"probe_peer_count": 1}) if is_read else write_table("//tmp/test", [{"key": "x"}], return_response=True)
-        second_response = read_table("//tmp/test", return_response=True, table_reader={"probe_peer_count": 1}) if is_read else write_table("//tmp/test", [{"key": "x"}], return_response=True)
+        responses = []
+        for i in range(10):
+            responses.append(read_table("//tmp/test", return_response=True, table_reader={"probe_peer_count": 1}) if is_read else write_table("//tmp/test", [{"key": "x"}], return_response=True))
 
         if need_throttle:
             wait(lambda: any(counter.get_delta() > 0 for counter in counters))
@@ -275,6 +277,7 @@ class TestIoEngine(YTEnvSetup):
             "data_node": {
                 "store_location_config_per_medium": {
                     "default": {
+                        "memory_limit_fraction_for_starting_new_sessions": 1.0,
                         "read_memory_limit": 10000000,
                         "write_memory_limit": 10000000,
                         "pending_io_read_limit": 10000000,
@@ -284,8 +287,9 @@ class TestIoEngine(YTEnvSetup):
                 }
             }
         })
-        first_response.wait()
-        second_response.wait()
+
+        for response in responses:
+            response.wait()
 
     @authors("don-dron")
     def test_location_limits(self):
@@ -303,6 +307,7 @@ class TestIoEngine(YTEnvSetup):
             "data_node": {
                 "store_location_config_per_medium": {
                     "default": {
+                        "memory_limit_fraction_for_starting_new_sessions": 0,
                         'write_memory_limit': -1,
                     }
                 }

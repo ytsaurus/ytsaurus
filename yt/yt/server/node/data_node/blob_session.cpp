@@ -405,6 +405,16 @@ i64 TBlobSession::GetBlockCount() const
     return BlockCount_.load();
 }
 
+i64 TBlobSession::GetWindowSize() const
+{
+    return WindowSize_.load();
+}
+
+i64 TBlobSession::GetIntermediateEmptyBlockCount() const
+{
+    return IntermediateEmptyBlockCount_.load();
+}
+
 TChunkInfo TBlobSession::OnFinished(const TError& error)
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
@@ -492,6 +502,16 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
             precedingBlockReceivedFutures.push_back(slot.ReceivedPromise.ToFuture().ToUncancelable());
         }
     }
+
+    i64 intermediateEmptyBlockCount = 0;
+    for (int blockIndex = WindowStartBlockIndex_; blockIndex < std::ssize(Window_); blockIndex++) {
+        const auto& slot = GetSlot(blockIndex);
+        if (slot.State == EBlobSessionSlotState::Empty) {
+            intermediateEmptyBlockCount++;
+        }
+    }
+
+    IntermediateEmptyBlockCount_.store(intermediateEmptyBlockCount);
 
     if (precedingBlockReceivedFutures.empty()) {
         return DoPerformPutBlocks(
@@ -934,6 +954,8 @@ TBlobSession::TSlot& TBlobSession::GetSlot(int blockIndex)
 
     while (std::ssize(Window_) <= blockIndex) {
         Window_.emplace_back();
+        WindowSize_.fetch_add(1);
+
         auto& slot = Window_.back();
         slot.WrittenPromise.OnCanceled(
             BIND(
