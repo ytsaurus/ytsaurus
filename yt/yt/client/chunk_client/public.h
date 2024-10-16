@@ -89,6 +89,7 @@ YT_DEFINE_ERROR_ENUM(
     ((TooManyChunksToFetch)                  (760))
     ((TotalMemoryLimitExceeded)              (761))
     ((ForbiddenErasureCodec)                 (762))
+    ((ReadMetaTimeout)                       (763))
 );
 
 using TChunkId = NObjectClient::TObjectId;

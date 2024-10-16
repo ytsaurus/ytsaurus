@@ -292,7 +292,7 @@ void TBlobChunkBase::DoReadMeta(
     try {
         auto reader = GetReader();
         meta = WaitFor(reader->GetMeta(session->Options)
-            .WithDeadline(session->Options.Deadline))
+            .WithDeadline(session->Options.ReadMetaDeadLine))
             .ValueOrThrow();
     } catch (const std::exception& ex) {
         auto error = TError(ex);
@@ -314,6 +314,14 @@ void TBlobChunkBase::DoReadMeta(
             // Location is probably broken.
             Location_->ScheduleDisable(error);
         }
+
+        if (error.GetCode() == NYT::EErrorCode::Timeout) {
+            readTimer.Stop();
+            error = TError(NChunkClient::EErrorCode::ReadMetaTimeout, "Read meta from disk timed out")
+                << TErrorAttribute("chunk_id", Id_)
+                << TErrorAttribute("read_time", readTimer.GetElapsedTime());
+        }
+
         cookie.Cancel(error);
         return;
     }
@@ -469,10 +477,10 @@ void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
 {
     VERIFY_INVOKER_AFFINITY(session->Invoker);
 
-    if (session->CurrentEntryIndex > 0 && TInstant::Now() > session->Options.Deadline) {
+    if (session->CurrentEntryIndex > 0 && TInstant::Now() > session->Options.ReadBlocksDeadline) {
         YT_LOG_DEBUG(
             "Read session trimmed due to deadline (Deadline: %v, TrimmedBlockCount: %v)",
-            session->Options.Deadline,
+            session->Options.ReadBlocksDeadline,
             session->CurrentEntryIndex);
         session->DiskFetchPromise.TrySet();
         return;
