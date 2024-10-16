@@ -25,7 +25,8 @@ struct TChunkReadOptions
     bool FetchFromDisk = true;
     //! By this moment read routine is advised to return at least anything in best-effort manner.
     //! Failure to do so may result in RPC timeout or other kind of lower-level error.
-    TInstant Deadline = TInstant::Max();
+    TInstant ReadBlocksDeadline = TInstant::Max();
+    TInstant ReadMetaDeadLine = TInstant::Max();
 };
 
 //! Represents a chunk stored locally at Data Node.
