@@ -1665,10 +1665,20 @@ private:
             return;
         }
 
+        const auto& rsp = rspOrError.Value();
+
+        if (rsp->net_throttling()) {
+            auto error = TError(
+                NChunkClient::EErrorCode::ChunkBlockFetchFailed,
+                "Peer net is throttled")
+                << TErrorAttribute("address", peerInfo->Address);
+            MaybeMarkNodeSuspicious(error, peerInfo);
+            OnError(error);
+            return;
+        }
+
         YT_LOG_DEBUG("Chunk fragments received (Address: %v)",
             peerInfo->Address);
-
-        const auto& rsp = rspOrError.Value();
 
         if (rsp->has_chunk_reader_statistics()) {
             HandleChunkReaderStatistics(rsp->chunk_reader_statistics());
@@ -1697,13 +1707,20 @@ private:
 
                 auto chunkId = controller.GetChunkId();
 
+                if (subresponse.disk_throttling()) {
+                    OnError(TError("Peer disk is throttled")
+                        << TErrorAttribute("address", peerInfo->Address)
+                        << TErrorAttribute("chunk_id", chunkId));
+                    continue;
+                }
+
                 if (!subresponse.has_complete_chunk()) {
                     // NB: We do not ban peer or invalidate chunk replica cache
                     // because replica set may happen to be out of date due to eventually consistent nature of DRT.
                     Reader_->DropChunkReplicasFromPeer(chunkId, peerInfo);
-                    OnError(TError("Peer %v does not contain chunk %v",
-                        peerInfo->Address,
-                        chunkId));
+                    OnError(TError("Peer does not contain chunk")
+                        << TErrorAttribute("address", peerInfo->Address)
+                        << TErrorAttribute("chunk_id", chunkId));
                     continue;
                 }
 
