@@ -739,9 +739,6 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("test_resource_acquisition_delay", &TThis::TestResourceAcquisitionDelay)
         .Default();
 
-    registrar.Parameter("job_proxy_log_manager", &TThis::JobProxyLogManager)
-        .Default();
-
     registrar.Parameter("allocation", &TThis::Allocation)
         .DefaultNew();
 }
@@ -905,6 +902,9 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("volume_manager", &TThis::VolumeManager)
         .DefaultNew();
+
+    registrar.Parameter("job_proxy_log_manager", &TThis::JobProxyLogManager)
+        .Default();
 
     registrar.Parameter("job_controller", &TThis::JobController)
         .DefaultNew();

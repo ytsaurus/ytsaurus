@@ -4,9 +4,9 @@
 #include "controller_agent_connector.h"
 #include "exec_node_admin_service.h"
 #include "gpu_manager.h"
-#include "job.h"
 #include "job_controller.h"
 #include "job_prober_service.h"
+#include "job_proxy_log_manager.h"
 #include "master_connector.h"
 #include "orchid.h"
 #include "private.h"
@@ -108,6 +108,8 @@ public:
         // via signal.
         JobController_ = CreateJobController(this);
 
+        JobProxyLogManager_ = CreateJobProxyLogManager(this);
+
         ControllerAgentConnectorPool_ = New<TControllerAgentConnectorPool>(this);
 
         BuildJobProxyConfigTemplate();
@@ -180,6 +182,7 @@ public:
         // NB(psushin): initialize chunk cache first because slot manager (and root
         // volume manager inside it) can start using it to populate tmpfs layers cache.
         ChunkCache_->Initialize();
+        JobProxyLogManager_->Initialize();
         SlotManager_->Initialize();
         JobController_->Initialize();
         MasterConnector_->Initialize();
@@ -206,6 +209,8 @@ public:
             GetOrchidRoot(),
             "/disk_monitoring",
             CreateVirtualNode(DiskChangeChecker_->GetOrchidService()));
+
+        JobProxyLogManager_->Start();
 
         SlotManager_->Start();
         JobController_->Start();
@@ -294,6 +299,11 @@ public:
         return NbdServer_;
     }
 
+    const IJobProxyLogManagerPtr& GetJobProxyLogManager() const override
+    {
+        return JobProxyLogManager_;
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -330,6 +340,8 @@ private:
 
     TActionQueuePtr NbdQueue_;
     NYT::NNbd::INbdServerPtr NbdServer_;
+
+    IJobProxyLogManagerPtr JobProxyLogManager_;
 
     NContainers::IDiskManagerProxyPtr DiskManagerProxy_;
     NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
@@ -400,6 +412,10 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(GetControlInvoker());
 
+        if (*oldConfig == *newConfig) {
+            return;
+        }
+
         if (!GetConfig()->EnableFairThrottler) {
             for (auto kind : TEnumTraits<EExecNodeThrottlerKind>::GetDomainValues()) {
                 auto dataNodeThrottlerKind = GetDataNodeThrottlerKind(kind);
@@ -410,6 +426,10 @@ private:
                 RawThrottlers_[kind]->Reconfigure(std::move(config));
             }
         }
+
+        JobProxyLogManager_->OnDynamicConfigChanged(
+            oldConfig->ExecNode->JobProxyLogManager,
+            newConfig->ExecNode->JobProxyLogManager);
 
         JobInputCache_->Reconfigure(newConfig->ExecNode->JobInputCache);
         JobController_->OnDynamicConfigChanged(

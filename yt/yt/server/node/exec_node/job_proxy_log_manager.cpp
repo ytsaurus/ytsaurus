@@ -51,17 +51,28 @@ public:
         , DumpJobProxyLogBufferSize_(Config_->DumpJobProxyLogBufferSize)
     { }
 
+    void Initialize() override
+    {
+        Bootstrap_->GetJobController()->SubscribeJobCompletelyRemoved(BIND_NO_PROPAGATE(&TJobProxyLogManager::OnJobCompletelyRemoved, MakeStrong(this)));
+    }
+
     void Start() override
     {
+        CreateShardingDirectories();
+
         Bootstrap_->GetStorageHeavyInvoker()->Invoke(BIND(
             [this, this_ = MakeStrong(this)] {
-                CreateShardingDirectories();
                 TraverseJobDirectoriesAndScheduleRemovals();
             }));
     }
 
-    void OnJobUnregistered(TJobId jobId) override
+    void OnJobCompletelyRemoved(TJobId jobId)
     {
+        YT_LOG_DEBUG(
+            "Job proxy log removal scheduled (JobId: %v, Delay: %v)",
+            jobId,
+            LogsStoragePeriod_);
+
         TDelayedExecutor::Submit(
             BIND(&TJobProxyLogManager::RemoveJobDirectory, MakeStrong(this), JobIdToLogsPath(jobId)),
             LogsStoragePeriod_,
@@ -77,9 +88,22 @@ public:
     }
 
     void OnDynamicConfigChanged(
-        TJobProxyLogManagerDynamicConfigPtr /*oldConfig*/,
+        TJobProxyLogManagerDynamicConfigPtr oldConfig,
         TJobProxyLogManagerDynamicConfigPtr newConfig) override
     {
+        if (oldConfig && newConfig && *newConfig == *oldConfig) {
+            return;
+        }
+
+        if (!oldConfig && !newConfig) {
+            return;
+        }
+
+        if (!newConfig) {
+            ApplyStaticConfig();
+            return;
+        }
+
         LogsStoragePeriod_ = newConfig->LogsStoragePeriod;
         DirectoryTraversalConcurrency_ = newConfig->DirectoryTraversalConcurrency;
         AsyncSemaphore_->SetTotal(DirectoryTraversalConcurrency_.value_or(0));
@@ -142,7 +166,7 @@ private:
         }
     }
 
-    void TraverseShardingDirectoryAndScheduleRemovals(TInstant currentTime, TString shardingDirPath) noexcept
+    void TraverseShardingDirectoryAndScheduleRemovals(TInstant currentTime, const TString& shardingDirPath) noexcept
     {
         auto Logger = ExecNodeLogger()
             .WithTag("ShardingDirPath: %v", shardingDirPath);
@@ -160,10 +184,15 @@ private:
             auto jobLogsDirModificationTime = TInstant::Seconds(TFileStat(jobDirPath).MTime);
             auto removeJobDirectory = BIND(&TJobProxyLogManager::RemoveJobDirectory, MakeStrong(this), Passed(std::move(jobDirPath)));
             if (jobLogsDirModificationTime + LogsStoragePeriod_ <= currentTime) {
-                Bootstrap_->GetStorageHeavyInvoker()->Invoke(removeJobDirectory);
+                Bootstrap_->GetStorageHeavyInvoker()->Invoke(std::move(removeJobDirectory));
             } else {
+                YT_LOG_DEBUG(
+                    "Job proxy log removal scheduled (DirectoryName: %v, Time: %v)",
+                    jobDirName,
+                    jobLogsDirModificationTime + LogsStoragePeriod_);
+
                 TDelayedExecutor::Submit(
-                    removeJobDirectory,
+                    std::move(removeJobDirectory),
                     jobLogsDirModificationTime + LogsStoragePeriod_,
                     Bootstrap_->GetStorageHeavyInvoker());
             }
@@ -187,7 +216,6 @@ private:
         auto shardingKey = GetShardingKey(jobId);
         return NFS::CombinePaths({Directory_, shardingKey, ToString(jobId)});
     }
-
 
     void DoDumpJobProxyLog(
         TJobId jobId,
@@ -227,6 +255,15 @@ private:
         WaitFor(writer->Close())
             .ThrowOnError();
     }
+
+    void ApplyStaticConfig()
+    {
+        LogsStoragePeriod_ = Config_->LogsStoragePeriod;
+        if (DirectoryTraversalConcurrency_ != Config_->DirectoryTraversalConcurrency) {
+            DirectoryTraversalConcurrency_ = Config_->DirectoryTraversalConcurrency;
+            AsyncSemaphore_->SetTotal(DirectoryTraversalConcurrency_.value_or(0));
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -235,10 +272,10 @@ class TMockJobProxyLogManager
     : public IJobProxyLogManager
 {
 public:
-    void Start() override
+    void Initialize() override
     { }
 
-    void OnJobUnregistered(TJobId /*jobId*/) override
+    void Start() override
     { }
 
     TString GetShardingKey(TJobId /*jobId*/) override

@@ -555,11 +555,9 @@ class TestDumpJobProxyLog(YTEnvSetup):
     def test_dump_for_missing_job(self):
         update_nodes_dynamic_config({
             "exec_node": {
-                "job_controller": {
-                    "job_proxy_log_manager": {
-                        "logs_storage_period": "0s",
-                    },
-                }
+                "job_proxy_log_manager": {
+                    "logs_storage_period": "0s",
+                },
             }
         })
         path = "//tmp/job_proxy.log"

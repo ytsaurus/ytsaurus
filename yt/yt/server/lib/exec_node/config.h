@@ -565,8 +565,6 @@ public:
     //! Adds delay before starting a job.
     std::optional<TDuration> TestResourceAcquisitionDelay;
 
-    TJobProxyLogManagerDynamicConfigPtr JobProxyLogManager;
-
     TAllocationConfigPtr Allocation;
 
     REGISTER_YSON_STRUCT(TJobControllerDynamicConfig);
@@ -759,6 +757,8 @@ public:
     TVolumeManagerDynamicConfigPtr VolumeManager;
 
     TGpuManagerDynamicConfigPtr GpuManager;
+
+    TJobProxyLogManagerDynamicConfigPtr JobProxyLogManager;
 
     TJobControllerDynamicConfigPtr JobController;
 

@@ -224,7 +224,7 @@ private:
             path,
             transactionId);
 
-        auto jobProxyLogManager = Bootstrap_->GetJobController()->GetJobProxyLogManager();
+        const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
         WaitFor(jobProxyLogManager->DumpJobProxyLog(jobId, path, transactionId))
             .ThrowOnError();
 

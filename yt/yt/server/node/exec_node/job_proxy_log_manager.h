@@ -13,9 +13,8 @@ namespace NYT::NExecNode {
 struct IJobProxyLogManager
     : public TRefCounted
 {
+    virtual void Initialize() = 0;
     virtual void Start() = 0;
-
-    virtual void OnJobUnregistered(TJobId jobId) = 0;
 
     virtual TString GetShardingKey(TJobId jobId) = 0;
 
