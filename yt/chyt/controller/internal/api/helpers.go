@@ -5,9 +5,9 @@ import (
 	"reflect"
 	"regexp"
 
-	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"golang.org/x/exp/slices"
 
+	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
@@ -95,7 +95,7 @@ func transformToStringSlice(value any) (any, error) {
 
 func transformFilterValues(value any) (any, error) {
 	if value == nil {
-		return map[string]any{}, nil
+		return nil, nil
 	}
 
 	filterVals, ok := value.(map[string]any)
@@ -104,39 +104,14 @@ func transformFilterValues(value any) (any, error) {
 		return nil, unexpectedTypeError(typeName)
 	}
 
-	allowedTypes := []string{"string", "bool"}
 	newMap := make(map[string]any, len(filterVals))
 	for k, v := range filterVals {
 		if k == "state" {
-			switch v {
-			case "active":
-				newMap[k] = strawberry.OpletStateActive
-			case "inactive":
-				newMap[k] = strawberry.OpletStateInactive
-			case "untracked":
-				newMap[k] = strawberry.OpletStateUntracked
-			default:
-				return nil, fmt.Errorf("state %s unknown", v)
-			}
-			continue
-		}
-		if k == "health" {
-			switch v {
-			case "good":
-				newMap[k] = strawberry.OpletHealthGood
-			case "pending":
-				newMap[k] = strawberry.OpletHealthPending
-			case "failed":
-				newMap[k] = strawberry.OpletHealthFailed
-			}
-			continue
-		}
-
-		valTypeName := reflect.TypeOf(v).String()
-		if slices.Contains(allowedTypes, valTypeName) {
-			newMap[k] = v
+			newMap[k] = strawberry.OpletState(v.(string))
+		} else if k == "health" {
+			newMap[k] = strawberry.OpletHealth(v.(string))
 		} else {
-			return nil, unexpectedTypeError(valTypeName)
+			newMap[k] = v
 		}
 	}
 	return newMap, nil

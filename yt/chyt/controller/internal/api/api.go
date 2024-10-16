@@ -550,7 +550,7 @@ func (a *API) List(ctx context.Context, attributes []string, filters map[string]
 			}
 			opletAttrs := strawberry.GetOpBriefAttributes(briefInfo)
 
-			var filterMismatch bool
+			filterMismatch := false
 			for filterAttr, filterValue := range filters {
 				if oplVal, ok := opletAttrs[filterAttr]; !ok || oplVal != filterValue {
 					filterMismatch = true
