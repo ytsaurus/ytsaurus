@@ -1481,6 +1481,11 @@ bool TSchedulerPoolElement::AreImmediateOperationsForbidden() const
     return Config_->ForbidImmediateOperations;
 }
 
+bool TSchedulerPoolElement::AreGangOperationsAllowed() const
+{
+    return Mode_ == ESchedulingMode::Fifo || !TreeConfig_->AllowGangOperationsOnlyInFifoPools || Config_->AlwaysAllowGangOperations;
+}
+
 bool TSchedulerPoolElement::IsEphemeralHub() const
 {
     return Config_->CreateEphemeralSubpools;
@@ -2609,6 +2614,11 @@ std::vector<EFifoSortParameter> TSchedulerRootElement::GetFifoSortParameters() c
 bool TSchedulerRootElement::AreImmediateOperationsForbidden() const
 {
     return TreeConfig_->ForbidImmediateOperationsInRoot;
+}
+
+bool TSchedulerRootElement::AreGangOperationsAllowed() const
+{
+    return !TreeConfig_->AllowGangOperationsOnlyInFifoPools;
 }
 
 bool TSchedulerRootElement::IsEphemeralHub() const

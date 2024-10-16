@@ -626,7 +626,7 @@ class TestSchedulerAcls(YTEnvSetup):
     def test_aco_and_acl_in_operations(self):
         acl = self.spec["acl"]
 
-        with raises_yt_error(yt_error_codes.CannotUseBothAclAndAco):
+        with raises_yt_error(yt_error_codes.Scheduler.CannotUseBothAclAndAco):
             run_test_vanilla(
                 command="sleep 1",
                 spec={
@@ -644,7 +644,7 @@ class TestSchedulerAcls(YTEnvSetup):
 
         wait_breakpoint()
 
-        with raises_yt_error(yt_error_codes.CannotUseBothAclAndAco):
+        with raises_yt_error(yt_error_codes.Scheduler.CannotUseBothAclAndAco):
             update_op_parameters(op.id, parameters={"acl": acl})
 
         update_op_parameters(op.id, parameters={"aco_name": "new_aco"})

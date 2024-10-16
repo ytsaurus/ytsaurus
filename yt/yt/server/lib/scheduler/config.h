@@ -441,6 +441,8 @@ public:
     TJobResourcesConfigPtr MinJobResourceLimits;
     TJobResourcesConfigPtr MaxJobResourceLimits;
 
+    bool AllowGangOperationsOnlyInFifoPools;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
     static void Register(TRegistrar registrar);

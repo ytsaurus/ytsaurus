@@ -476,6 +476,7 @@ public:
     virtual bool IsExplicit() const;
     virtual bool IsDefaultConfigured() const = 0;
     virtual bool AreImmediateOperationsForbidden() const = 0;
+    virtual bool AreGangOperationsAllowed() const = 0;
     virtual bool IsEphemeralHub() const = 0;
 
     bool IsEmpty() const;
@@ -659,6 +660,7 @@ public:
     bool IsExplicit() const override;
     bool IsDefaultConfigured() const override;
     bool AreImmediateOperationsForbidden() const override;
+    bool AreGangOperationsAllowed() const override;
     bool IsEphemeralHub() const override;
 
     std::vector<EFifoSortParameter> GetFifoSortParameters() const override;
@@ -1017,6 +1019,7 @@ public:
 
     bool IsDefaultConfigured() const override;
     bool AreImmediateOperationsForbidden() const override;
+    bool AreGangOperationsAllowed() const override;
     bool IsEphemeralHub() const override;
 
     const TSchedulingTagFilter& GetSchedulingTagFilter() const override;

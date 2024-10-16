@@ -16,7 +16,7 @@ from yt_commands import (
     get_first_chunk_id, get_singular_chunk_id, update_op_parameters,
     update_pool_tree_config, update_user_to_default_pool_map,
     enable_op_detailed_logs, set_node_banned, set_all_nodes_banned,
-    create_test_tables, PrepareTables,
+    create_test_tables, PrepareTables, raises_yt_error,
     update_pool_tree_config_option, update_scheduler_config)
 
 from yt_scheduler_helpers import (
@@ -4527,6 +4527,26 @@ class TestFifoPools(YTEnvSetup):
 
             assert op_a2_index < op_a1_index
             assert op_a2_index < op_b1_index < op_b2_index
+
+    @authors("eshcherbin")
+    def test_allow_gang_operations_only_in_fifo_pools(self):
+        update_pool_tree_config("default", {"allow_gang_operations_only_in_fifo_pools": True})
+        create_pool("fair_share", attributes={"mode": "fair_share"})
+        create_pool("fifo", attributes={"mode": "fifo"})
+
+        wait(lambda: get(scheduler_orchid_pool_path("fifo") + "/gang_operations_allowed", default=None))
+        wait(lambda: not get(scheduler_orchid_pool_path("fair_share") + "/gang_operations_allowed"))
+
+        run_sleeping_vanilla(spec={"is_gang": True, "pool": "fifo"})
+
+        with raises_yt_error(yt_error_codes.Scheduler.GangOperationsAllowedOnlyInFifoPools):
+            run_sleeping_vanilla(spec={"is_gang": True, "pool": "fair_share"})
+
+        set("//sys/pools/fair_share/@always_allow_gang_operations", True)
+
+        wait(lambda: get(scheduler_orchid_pool_path("fair_share") + "/gang_operations_allowed"))
+
+        run_sleeping_vanilla(spec={"is_gang": True, "pool": "fair_share"})
 
 
 ##################################################################
