@@ -1,0 +1,33 @@
+{
+    "meta": {
+        "name": "local",
+        "maintainer": "YT team",
+        "description": "Local YTsaurus image built with yt client libraries from source files",
+        "version": "local-{revision}",
+    },
+    "include": [
+        "yt/docker/ya-build/base/package.json",
+    ],
+    "params": {
+        "format": "docker",
+        "docker_target": "local",
+        "docker_build_arg": {
+            "PYTHON_BUILD_BASE": "build-ytsaurus-python-binaries"
+        },
+    },
+    "data": [
+        {
+            "source": {
+                "type": "ARCADIA",
+                "path": "yt/docker/local",
+                "files": [
+                    "configure.sh",
+                    "start.sh",
+                ],
+            },
+            "destination": {
+                "path": "/",
+            },
+        },
+    ],
+}
