@@ -2312,6 +2312,9 @@ void TPoolConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_priority_strong_guarantee_adjustment_donorship", &TThis::EnablePriorityStrongGuaranteeAdjustmentDonorship)
         .Default(false);
 
+    registrar.Parameter("always_allow_gang_operations", &TThis::AlwaysAllowGangOperations)
+        .Default(false);
+
     registrar.Postprocessor([] (TThis* config) {
         // COMPAT(arkady-e1ppa)
         if (config->InferChildrenWeightsFromHistoricUsage) {

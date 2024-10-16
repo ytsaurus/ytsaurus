@@ -316,6 +316,8 @@ public:
     bool EnablePriorityStrongGuaranteeAdjustment;
     bool EnablePriorityStrongGuaranteeAdjustmentDonorship;
 
+    bool AlwaysAllowGangOperations;
+
     void Validate(const TString& poolName);
 
     REGISTER_YSON_STRUCT(TPoolConfig);

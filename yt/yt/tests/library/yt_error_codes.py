@@ -54,11 +54,12 @@ SpecVersionMismatch = 3300
 InvalidEpoch = 3101
 ZombieEpoch = 3102
 InvalidRowSequenceNumbers = 3103
-CannotUseBothAclAndAco = 221
 
 
 class Scheduler(object):
     NoSuchOperation = 200
     JobResourceLimitsRestrictionsViolated = 220
+    CannotUseBothAclAndAco = 221
+    GangOperationsAllowedOnlyInFifoPools = 222
     PoolTreeGuaranteesOvercommit = 29000
     PriorityStrongGuaranteeAdjustmentPoolsWithoutDonor = 29002
