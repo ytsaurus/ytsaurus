@@ -20,7 +20,6 @@ struct TSessionCreatedAtIndex
     TSessionId SessionId;
     TInstant StartedAt;
 
-    bool operator == (const TSessionCreatedAtIndex& other) const;
     bool operator < (const TSessionCreatedAtIndex& other) const;
 };
 
