@@ -2,7 +2,7 @@ from yt_env_setup import (YTEnvSetup, Restarter, NODES_SERVICE)
 
 from yt_commands import (
     run_test_vanilla, with_breakpoint, wait_breakpoint, authors, release_breakpoint,
-    update_nodes_dynamic_config, wait, update)
+    update_nodes_dynamic_config, wait, update, print_debug)
 
 import os.path
 
@@ -61,24 +61,25 @@ class TestJobProxyLogManager(TestJobProxyLogManagerBase):
         }
     )
 
-    @authors("tagirhamitov")
+    @authors("tagirhamitov", "pogorelov")
     def test_removing_logs(self):
         job_count = 3
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=job_count)
         job_ids = wait_breakpoint(job_count=job_count)
         assert len(job_ids) == job_count
+
+        for job_id in job_ids:
+            assert self.job_proxy_log_exists(job_id)
+
         release_breakpoint()
 
         op.track()
 
         for job_id in job_ids:
-            assert self.job_proxy_log_exists(job_id)
-
-        for job_id in job_ids:
             wait(lambda: not self.job_proxy_log_exists(job_id))
 
-    @authors("tagirhamitov")
+    @authors("tagirhamitov", "pogorelov")
     def test_removing_logs_on_start(self):
         job_count = 3
 
@@ -102,7 +103,7 @@ class TestJobProxyLogManager(TestJobProxyLogManagerBase):
 class TestJobProxyLogManagerDynamicConfig(TestJobProxyLogManagerBase):
     DELTA_NODE_CONFIG = BASE_NODE_CONFIG
 
-    @authors("tagirhamitov")
+    @authors("tagirhamitov", "pogorelov")
     def test_dynamic_config(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
         job_id_1 = wait_breakpoint()[0]
@@ -113,20 +114,19 @@ class TestJobProxyLogManagerDynamicConfig(TestJobProxyLogManagerBase):
 
         update_nodes_dynamic_config({
             "exec_node": {
-                "job_controller": {
-                    "job_proxy_log_manager": {
-                        "logs_storage_period": "1s",
-                    },
-                }
+                "job_proxy_log_manager": {
+                    "logs_storage_period": "1s",
+                },
             }
         })
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
         job_id_2 = wait_breakpoint()[0]
+        assert self.job_proxy_log_exists(job_id_2)
         release_breakpoint(job_id=job_id_2)
         op.track()
 
-        assert self.job_proxy_log_exists(job_id_2)
+        print_debug(f"Waiting for {job_id_2} job proxy log removal")
 
         wait(lambda: not self.job_proxy_log_exists(job_id_2))
         assert self.job_proxy_log_exists(job_id_1)
