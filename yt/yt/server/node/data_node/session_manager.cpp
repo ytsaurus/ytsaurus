@@ -44,24 +44,9 @@ static constexpr auto& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TSessionCreatedAtIndex::operator == (const TSessionCreatedAtIndex& other) const
+bool TSessionCreatedAtIndex::operator < (const TSessionCreatedAtIndex& other) const
 {
-    return SessionId == other.SessionId;
-}
-
-bool TSessionCreatedAtIndex::operator<(const TSessionCreatedAtIndex& other) const
-{
-    if (StartedAt < other.StartedAt) {
-        return true;
-    } else if (StartedAt > other.StartedAt) {
-        return false;
-    } else {
-        if (SessionId.ChunkId < other.SessionId.ChunkId) {
-            return true;
-        } else {
-            return false;
-        }
-    }
+    return std::tie(StartedAt, SessionId.ChunkId, SessionId.MediumIndex) < std::tie(other.StartedAt, other.SessionId.ChunkId, other.SessionId.MediumIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -421,26 +406,26 @@ bool TSessionManager::CanPassSessionOutOfTurn(TSessionId sessionId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    THashMap<TSessionId, ISessionPtr> sessionIdToSession;
-    std::set<TSessionCreatedAtIndex> sessionToCreatedAt;
-    {
-        auto guard = ReaderGuard(SessionMapLock_);
-        sessionIdToSession = SessionMap_;
-        sessionToCreatedAt = SessionToCreatedAt_;
+    auto count = Config_->MaxSessionOutOfTurn;
+    if (count == 0) {
+        return false;
     }
 
-    if (sessionIdToSession.contains(sessionId) && Config_->MaxSessionOutOfTurn) {
-        auto count = Config_->MaxSessionOutOfTurn;
-        const auto begin = sessionToCreatedAt.begin();
-        const auto end = std::ssize(sessionToCreatedAt) < count ? sessionToCreatedAt.end() : std::next(begin, count);
-        return std::find_if(
-            begin,
-            end,
-            [sessionId] (const auto& index) {
-                return sessionId == index.SessionId;
-            }) != sessionToCreatedAt.end();
-    } else {
-        return false;
+    {
+        auto guard = ReaderGuard(SessionMapLock_);
+
+        if (SessionMap_.contains(sessionId)) {
+            const auto begin = SessionToCreatedAt_.begin();
+            const auto end = std::ssize(SessionToCreatedAt_) < count ? SessionToCreatedAt_.end() : std::next(begin, count);
+            return std::find_if(
+                begin,
+                end,
+                [sessionId] (const auto& index) {
+                    return sessionId == index.SessionId;
+                }) != SessionToCreatedAt_.end();
+        } else {
+            return false;
+        }
     }
 }
 
