@@ -1239,6 +1239,16 @@ private:
 
         ValidateOnline();
 
+        auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
+        response->set_net_throttling(netThrottling.Enabled);
+
+        auto enableThrottling = GetDynamicConfig()->EnableThrottlingForGetChunkFragmentSet;
+        if (enableThrottling && netThrottling.Enabled) {
+            context->SetResponseInfo("NetThrottling: %v", netThrottling.Enabled);
+            context->Reply();
+            return;
+        }
+
         THashMap<TChunkLocation*, int> locationToLocationIndex;
         std::vector<std::pair<TChunkLocation*, int>> requestedLocations;
 
@@ -1274,7 +1284,17 @@ private:
 
                 bool chunkAvailable = false;
                 if (chunk) {
-                    if (auto guard = TChunkReadGuard::TryAcquire(std::move(chunk))) {
+                    auto diskThrottling = chunk
+                        ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor)
+                        : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
+                    auto diskThrottlingEnabled = enableThrottling && diskThrottling.Enabled;
+                    subresponse->set_disk_throttling(diskThrottlingEnabled);
+
+                    YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
+
+                    if (auto guard = TChunkReadGuard::TryAcquire(std::move(chunk));
+                        guard && !diskThrottlingEnabled)
+                    {
                         auto* location = guard.GetChunk()->GetLocation().Get();
                         auto [it, emplaced] = locationToLocationIndex.try_emplace(
                             location,
@@ -1289,6 +1309,7 @@ private:
                             .ReadSessionId = readSessionId,
                             .MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker()
                         };
+
                         if (auto future = guard.GetChunk()->PrepareToReadChunkFragments(options, useDirectIO)) {
                             YT_LOG_DEBUG("Will wait for chunk reader to become prepared (ChunkId: %v)",
                                 guard.GetChunk()->GetId());
@@ -1310,6 +1331,9 @@ private:
             }
         }
 
+        auto enableMemoryTracking = GetDynamicConfig()->EnableMemoryTrackingForGetChunkFragmentSet;
+        auto memoryTracker = Bootstrap_->GetReadBlockMemoryUsageTracker();
+
         auto afterReadersPrepared =
             [
                 =,
@@ -1325,6 +1349,8 @@ private:
 
                 std::vector<std::vector<int>> locationFragmentIndices(requestedLocations.size());
                 std::vector<std::vector<IIOEngine::TReadRequest>> locationRequests(requestedLocations.size());
+                std::vector<TMemoryUsageTrackerGuard> locationMemoryGuards(requestedLocations.size());
+
                 for (auto [_, locationRequestCount] : requestedLocations) {
                     locationFragmentIndices.reserve(locationRequestCount);
                     locationRequests.reserve(locationRequestCount);
@@ -1342,6 +1368,7 @@ private:
                         }
 
                         auto locationIndex = chunkRequestInfo.LocationIndex;
+                        i64 totalSize = 0L;
                         for (const auto& fragment : subrequest.fragments()) {
                             auto readRequest = chunk->MakeChunkFragmentReadRequest(
                                 TChunkFragmentDescriptor{
@@ -1350,10 +1377,21 @@ private:
                                     .BlockOffset = fragment.block_offset()
                                 },
                                 useDirectIO);
+                            totalSize += readRequest.Size;
                             locationRequests[locationIndex].push_back(std::move(readRequest));
                             locationFragmentIndices[locationIndex].push_back(fragmentIndex);
                             ++fragmentIndex;
                         }
+
+                        TMemoryUsageTrackerGuard memoryGuard = {};
+                        if (enableMemoryTracking) {
+                            memoryGuard = TMemoryUsageTrackerGuard::TryAcquire(
+                                memoryTracker,
+                                totalSize)
+                                .ValueOrThrow();
+                        }
+
+                        locationMemoryGuards[locationIndex] = std::move(memoryGuard);
                     }
                 } catch (const std::exception& ex) {
                     context->Reply(ex);
@@ -1379,7 +1417,26 @@ private:
                         std::move(locationRequests[index]),
                         workloadDescriptor.Category,
                         GetRefCountedTypeCookie<TChunkFragmentBuffer>(),
-                        readSessionId));
+                        readSessionId)
+                        .ApplyUnique(BIND([
+                            =,
+                            memoryGuard = std::move(locationMemoryGuards[index]),
+                            resultIndex = index] (IIOEngine::TReadResponse&& result) mutable {
+                            if (!enableMemoryTracking) {
+                                return result;
+                            }
+
+                            const auto& fragmentIndices = locationFragmentIndices[resultIndex];
+                            YT_VERIFY(result.OutputBuffers.size() == fragmentIndices.size());
+
+                            for (int index = 0; index < std::ssize(fragmentIndices); ++index) {
+                                result.OutputBuffers[index] = TrackMemory(memoryTracker, std::move(result.OutputBuffers[index]));
+                            }
+
+                            memoryGuard.Release();
+
+                            return result;
+                        })));
                 }
 
                 AllSucceeded(std::move(readFutures))
@@ -1440,6 +1497,7 @@ private:
 
                             auto totalFragmentSize = GetByteSize(response->Attachments());
                             const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
+
                             if (netThrottler->IsOverdraft()) {
                                 context->SetComplete();
                                 context->ReplyFrom(netThrottler->Throttle(totalFragmentSize));
