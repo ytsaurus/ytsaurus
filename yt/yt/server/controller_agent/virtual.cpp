@@ -7,6 +7,7 @@
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
+#include <yt/yt/client/table_client/public.h>
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
@@ -111,6 +112,16 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, Fetch)
             }
             if (chunkUpperLimit != chunk->GetRowCount()) {
                 chunkSpec->mutable_upper_limit()->set_row_index(chunkUpperLimit);
+            }
+
+            if (chunk->BoundaryKeys()) {
+                NTableClient::NProto::TBoundaryKeysExt boundaryKeysExt;
+                ToProto(boundaryKeysExt.mutable_min(), chunk->BoundaryKeys()->MinKey);
+                ToProto(boundaryKeysExt.mutable_max(), chunk->BoundaryKeys()->MaxKey);
+                auto chunkMeta = chunkSpec->mutable_chunk_meta();
+                SetProtoExtension(chunkMeta->mutable_extensions(), boundaryKeysExt);
+            } else {
+                YT_VERIFY(!Schema_->IsSorted());
             }
         }
     }

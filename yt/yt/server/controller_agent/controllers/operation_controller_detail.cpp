@@ -8280,6 +8280,9 @@ void TOperationControllerBase::RegisterStderr(const TJobletPtr& joblet, const TJ
         RegisterOutputChunkReplicas(jobSummary, chunkSpec);
 
         auto chunk = New<TInputChunk>(chunkSpec);
+        chunk->BoundaryKeys() = std::make_unique<TOwningBoundaryKeys>(TOwningBoundaryKeys{
+            .MinKey = FromProto<TLegacyOwningKey>(stderrResult.min()),
+            .MaxKey = FromProto<TLegacyOwningKey>(stderrResult.max())});
         AttachToLivePreview(StderrTable_->LivePreviewTableName, chunk);
         RegisterLivePreviewChunk(TDataFlowGraph::StderrDescriptor, /*index*/ 0, std::move(chunk));
     }
@@ -8339,6 +8342,9 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
         RegisterOutputChunkReplicas(jobSummary, chunkSpec);
 
         auto chunk = New<TInputChunk>(chunkSpec);
+        chunk->BoundaryKeys() = std::make_unique<TOwningBoundaryKeys>(TOwningBoundaryKeys{
+            .MinKey = FromProto<TLegacyOwningKey>(coreResult.min()),
+            .MaxKey = FromProto<TLegacyOwningKey>(coreResult.max())});
         AttachToLivePreview(CoreTable_->LivePreviewTableName, chunk);
         RegisterLivePreviewChunk(TDataFlowGraph::CoreDescriptor, /*index*/ 0, std::move(chunk));
     }
