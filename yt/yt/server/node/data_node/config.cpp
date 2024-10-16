@@ -114,6 +114,8 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
     UpdateYsonStructField(PendingWriteIOLimit, dynamicConfig.PendingWriteIOLimit);
 
     UpdateYsonStructField(SessionCountLimit, dynamicConfig.SessionCountLimit);
+
+    UpdateYsonStructField(MemoryLimitFractionForStartingNewSessions, dynamicConfig.MemoryLimitFractionForStartingNewSessions);
 }
 
 void TChunkLocationConfig::Register(TRegistrar registrar)
@@ -148,6 +150,11 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("session_count_limit", &TThis::SessionCountLimit)
         .Default(1000);
+
+    registrar.Parameter("memory_limit_fraction_for_starting_new_sessions", &TThis::MemoryLimitFractionForStartingNewSessions)
+        .GreaterThanOrEqual(0.0)
+        .LessThanOrEqual(1.0)
+        .Default(0.9);
 
     registrar.Parameter("throttle_duration", &TThis::ThrottleDuration)
         .Default(TDuration::Seconds(30));
@@ -199,6 +206,11 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("read_memory_limit", &TThis::ReadMemoryLimit)
         .Optional();
     registrar.Parameter("write_memory_limit", &TThis::WriteMemoryLimit)
+        .Optional();
+
+    registrar.Parameter("memory_limit_fraction_for_starting_new_sessions", &TThis::MemoryLimitFractionForStartingNewSessions)
+        .GreaterThanOrEqual(0.0)
+        .LessThanOrEqual(1.0)
         .Optional();
 
     registrar.Parameter("pending_io_read_limit", &TThis::PendingReadIOLimit)
@@ -896,6 +908,11 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_tablet_errors_in_heartbeat", &TThis::MaxTabletErrorsInHeartbeat)
         .GreaterThan(0)
         .Default(10);
+
+    registrar.Parameter("max_session_out_of_turn", &TThis::MaxSessionOutOfTurn)
+        .GreaterThanOrEqual(0)
+        .LessThan(64)
+        .Default(8);
 
     registrar.Parameter("background_artifact_validation_delay", &TThis::BackgroundArtifactValidationDelay)
         .Default(TDuration::Minutes(5));

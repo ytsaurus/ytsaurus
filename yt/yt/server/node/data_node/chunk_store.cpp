@@ -86,6 +86,17 @@ public:
         }
     }
 
+    bool CanPassSessionOutOfTurn(TSessionId sessionId) override
+    {
+        auto sessionManager = Bootstrap_->GetDataNodeBootstrap()->GetSessionManager();
+
+        if (sessionManager) {
+            return sessionManager->CanPassSessionOutOfTurn(sessionId);
+        } else {
+            return false;
+        }
+    }
+
 private:
     NClusterNode::IBootstrapBase* const Bootstrap_;
 };
@@ -796,6 +807,14 @@ bool TChunkStore::CanStartNewSession(
     }
 
     if (location->GetMediumDescriptor().Index != mediumIndex) {
+        return false;
+    }
+
+    auto memoryLimitFractionForStartingNewSessions = location->GetMemoryLimitFractionForStartingNewSessions();
+    if (memoryLimitFractionForStartingNewSessions &&
+        location->GetUsedMemory(EIODirection::Write) >
+        location->GetWriteMemoryLimit() * memoryLimitFractionForStartingNewSessions)
+    {
         return false;
     }
 

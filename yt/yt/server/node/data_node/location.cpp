@@ -492,6 +492,14 @@ i64 TChunkLocation::GetWriteMemoryLimit() const
     return config->WriteMemoryLimit;
 }
 
+double TChunkLocation::GetMemoryLimitFractionForStartingNewSessions() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto config = GetRuntimeConfig();
+    return config->MemoryLimitFractionForStartingNewSessions;
+}
+
 i64 TChunkLocation::GetSessionCountLimit() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -1310,22 +1318,26 @@ void TChunkLocation::ReportThrottledRead() const
 }
 
 TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
+    TSessionId sessionId,
     const TWorkloadDescriptor& workloadDescriptor,
+    bool blocksWindowShifted,
     bool incrementCounter) const
 {
     bool throttled = true;
+    bool memoryOvercommit = false;
     TError error;
 
-    if (WriteMemoryTracker_->IsExceeded()) {
+    if (WriteMemoryTracker_->IsExceeded() && blocksWindowShifted) {
         error = TError(
             NChunkClient::EErrorCode::WriteThrottlingActive,
             "Memory of category %Qlv exceeds memory limit",
             EMemoryCategory::PendingDiskWrite)
             << TErrorAttribute("bytes_used", WriteMemoryTracker_->GetUsed())
             << TErrorAttribute("bytes_limit", WriteMemoryTracker_->GetLimit());
+        memoryOvercommit = true;
     } else if (i64 usedMemory = GetUsedMemory(EIODirection::Write),
         writeMemoryLimit = GetWriteMemoryLimit();
-        usedMemory > writeMemoryLimit)
+        usedMemory > writeMemoryLimit && blocksWindowShifted)
     {
         error = TError(
             NChunkClient::EErrorCode::WriteThrottlingActive,
@@ -1333,9 +1345,10 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
             EMemoryCategory::PendingDiskWrite)
             << TErrorAttribute("bytes_used", usedMemory)
             << TErrorAttribute("bytes_limit", writeMemoryLimit);
+        memoryOvercommit = true;
     } else if (i64 pendingIOSize = GetPendingIOSize(EIODirection::Write, workloadDescriptor),
         writeThrottlingLimit = GetWriteThrottlingLimit();
-        pendingIOSize > writeThrottlingLimit)
+        pendingIOSize > writeThrottlingLimit && blocksWindowShifted)
     {
         error = TError(
             NChunkClient::EErrorCode::WriteThrottlingActive,
@@ -1343,15 +1356,17 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
             << TErrorAttribute("workload_category", workloadDescriptor.Category)
             << TErrorAttribute("pending_io_size", pendingIOSize)
             << TErrorAttribute("write_throttling_limit", writeThrottlingLimit);
+        memoryOvercommit = true;
     } else if (i64 pendingIOSize = GetPendingIOSize(EIODirection::Write),
         writeThrottlingLimit = GetPendingWriteIOLimit();
-        pendingIOSize > writeThrottlingLimit)
+        pendingIOSize > writeThrottlingLimit && blocksWindowShifted)
     {
         error = TError(
             NChunkClient::EErrorCode::WriteThrottlingActive,
             "Pending IO size exceeds write throttling limit")
             << TErrorAttribute("pending_io_size", pendingIOSize)
             << TErrorAttribute("write_throttling_limit", writeThrottlingLimit);
+        memoryOvercommit = true;
     } else if (IOEngine_->IsInFlightWriteRequestLimitExceeded()) {
         error = TError(
             NChunkClient::EErrorCode::WriteThrottlingActive,
@@ -1359,6 +1374,14 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
             << TErrorAttribute("in_flight_write_requests", IOEngine_->GetInFlightWriteRequestCount())
             << TErrorAttribute("write_request_limit", IOEngine_->GetWriteRequestLimit());
     } else {
+        throttled = false;
+    }
+
+    if (throttled &&
+        memoryOvercommit &&
+        ChunkStoreHost_->CanPassSessionOutOfTurn(sessionId))
+    {
+        YT_LOG_WARNING("Session passed out of turn with possible overcommit (SessionId: %v)", sessionId);
         throttled = false;
     }
 

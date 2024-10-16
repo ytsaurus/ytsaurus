@@ -76,6 +76,16 @@ i64 TJournalSession::GetBlockCount() const
     return 0;
 }
 
+i64 TJournalSession::GetWindowSize() const
+{
+    return 0;
+}
+
+i64 TJournalSession::GetIntermediateEmptyBlockCount() const
+{
+    return 0;
+}
+
 TFuture<TChunkInfo> TJournalSession::DoFinish(
     const TRefCountedChunkMetaPtr& /*chunkMeta*/,
     std::optional<int> blockCount)

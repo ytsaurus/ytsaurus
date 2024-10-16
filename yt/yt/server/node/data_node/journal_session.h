@@ -20,6 +20,8 @@ public:
     i64 GetMemoryUsage() const override;
     i64 GetTotalSize() const override;
     i64 GetBlockCount() const override;
+    i64 GetWindowSize() const override;
+    i64 GetIntermediateEmptyBlockCount() const override;
 
 private:
     TJournalChunkPtr Chunk_;

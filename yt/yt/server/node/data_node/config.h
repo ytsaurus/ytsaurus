@@ -131,6 +131,9 @@ public:
     //! Limit on the maximum count of location write sessions.
     i64 SessionCountLimit;
 
+    //! If the tracked memory is close to the limit, new sessions will not be started.
+    double MemoryLimitFractionForStartingNewSessions;
+
     void ApplyDynamicInplace(const TChunkLocationDynamicConfig& dynamicConfig);
 
     REGISTER_YSON_STRUCT(TChunkLocationConfig);
@@ -171,6 +174,9 @@ public:
 
     //! Limit on the maximum count of location write sessions.
     std::optional<i64> SessionCountLimit;
+
+    //! If the tracked memory is close to the limit, new sessions will not be started.
+    std::optional<double> MemoryLimitFractionForStartingNewSessions;
 
     REGISTER_YSON_STRUCT(TChunkLocationDynamicConfig);
 
@@ -1004,6 +1010,8 @@ public:
 
     //! Number of tablet errors sent in heartbeat.
     int MaxTabletErrorsInHeartbeat;
+
+    int MaxSessionOutOfTurn;
 
     //! Delay between node initialization and start of background artifact validation.
     TDuration BackgroundArtifactValidationDelay;
