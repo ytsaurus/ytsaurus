@@ -2,7 +2,7 @@
 
 This configuration allows building the `chyt` image from source.
 
-Example: `ytsaurus/ya package package.json --docker-registry my-registry.com`
+Example: `ytsaurus/ya package package.json --docker-target chyt --docker-registry my-registry.com`
 
 The `--docker-registry` parameter only impacts the resulting image name, which will be `my-registry.com/ytsaurus:local-<commit-SHA>` in this case.
 
