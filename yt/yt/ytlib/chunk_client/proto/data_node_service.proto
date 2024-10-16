@@ -312,6 +312,7 @@ message TRspGetChunkFragmentSet
     {
         required bool has_complete_chunk = 1;
         optional TAllyReplicasInfo ally_replicas = 4;
+        optional bool disk_throttling = 5 [default = false];
 
         reserved 2, 3;
     }
@@ -319,6 +320,8 @@ message TRspGetChunkFragmentSet
     repeated TSubresponse subresponses = 1;
 
     optional TChunkReaderStatistics chunk_reader_statistics = 2;
+
+    optional bool net_throttling = 3 [default = false];
 
     // Block fragments are returned via attachments and correspond to the flattened list
     // of all fragment subrequests. Some attachments can be null (if the requested chunk is missing

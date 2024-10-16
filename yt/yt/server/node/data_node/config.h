@@ -1070,6 +1070,9 @@ public:
 
     bool TrackSystemJobsMemory;
 
+    bool EnableThrottlingForGetChunkFragmentSet;
+    bool EnableMemoryTrackingForGetChunkFragmentSet;
+
     //! Publish disabled locations to master.
     std::optional<bool> PublishDisabledLocations;
 

@@ -1027,6 +1027,12 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("track_system_jobs_memory", &TThis::TrackSystemJobsMemory)
         .Default(true);
 
+    registrar.Parameter("enable_throttling_for_get_chunk_fragment_set", &TThis::EnableThrottlingForGetChunkFragmentSet)
+        .Default(false);
+
+    registrar.Parameter("enable_memory_tracking_for_get_chunk_fragment_set", &TThis::EnableMemoryTrackingForGetChunkFragmentSet)
+        .Default(false);
+
     registrar.Parameter("publish_disabled_locations", &TThis::PublishDisabledLocations)
         .Default();
 
