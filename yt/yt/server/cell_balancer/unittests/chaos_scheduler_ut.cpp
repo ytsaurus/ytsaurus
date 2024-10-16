@@ -92,6 +92,18 @@ TChaosBundleInfoPtr CreateChaosCellBundleInfo(bool initAreas = true)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void CheckRegistry(const TGlobalCellRegistryPtr& registry)
+{
+    for (const auto& [cellTag, info] : registry->CellTags) {
+        EXPECT_EQ(info->Area, cellTag.Underlying() % 2 == 0 ? "default" : "beta");
+    }
+    for (const auto& [cellTag, info] : registry->AdditionalCellTags) {
+        EXPECT_EQ(info->Area, cellTag.Underlying() % 2 == 0 ? "default" : "beta");
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TChaosCellBundleManagement, TestTabletCellCreation)
 {
     auto input = GenerateSimpleInputContext();
@@ -132,6 +144,8 @@ TEST(TChaosCellBundleManagement, TestTabletCellCreation)
 
     EXPECT_TRUE(mutations.ForeignTabletCellBundlesToCreate["seneca-ist"].contains("bigc"));
     EXPECT_TRUE(mutations.ForeignTabletCellBundlesToCreate["seneca-ayt"].contains("bigc"));
+
+    CheckRegistry(input.GlobalRegistry);
 }
 
 TEST(TChaosCellBundleManagement, TestSetClusterClockCellTag)
@@ -174,6 +188,8 @@ TEST(TChaosCellBundleManagement, TestSetClusterClockCellTag)
     EXPECT_EQ(0, std::ssize(mutations.ForeignSystemAccountsToCreate));
     EXPECT_EQ(0, std::ssize(mutations.ForeignTabletCellBundlesToCreate));
     EXPECT_EQ(0, std::ssize(mutations.ForeignBundleCellTagsToSet));
+
+    CheckRegistry(input.GlobalRegistry);
 }
 
 TEST(TChaosCellBundleManagement, TestChaosCellBundlesCreation)
@@ -215,6 +231,8 @@ TEST(TChaosCellBundleManagement, TestChaosCellBundlesCreation)
     // Checking account names
     EXPECT_TRUE(mutations.ForeignChaosCellBundlesToCreate["chaos-beta"].contains("bigc"));
     EXPECT_TRUE(mutations.ForeignChaosCellBundlesToCreate["chaos-alpha"].contains("bigc"));
+
+    CheckRegistry(input.GlobalRegistry);
 }
 
 TEST(TChaosCellBundleManagement, TestCellsRegistry)
@@ -290,6 +308,8 @@ TEST(TChaosCellBundleManagement, TestCellsRegistry)
     EXPECT_EQ(0, std::ssize(mutations.CellTagsToRegister));
     EXPECT_EQ(0, std::ssize(mutations.AdditionalCellTagsToRegister));
     EXPECT_EQ(mutations.ChangedChaosCellTagLast, std::nullopt);
+
+    CheckRegistry(input.GlobalRegistry);
 }
 
 TEST(TChaosCellBundleManagement, TestInconsistentCellsRegistry)
@@ -337,6 +357,8 @@ TEST(TChaosCellBundleManagement, TestCreateAreas)
     for (const std::string& cluster : {"chaos-alpha", "chaos-beta"}) {
         EXPECT_TRUE(mutations.ForeignChaosAreasToCreate[cluster].contains("bigc"));
     }
+
+    CheckRegistry(input.GlobalRegistry);
 }
 
 TEST(TChaosCellBundleManagement, TestCreateChaosCells)
@@ -418,6 +440,8 @@ TEST(TChaosCellBundleManagement, TestCreateChaosCells)
     ScheduleChaosBundles(input, &mutations);
     CheckEmptyAlerts(mutations);
     EXPECT_EQ(0, std::ssize(mutations.ForeignChaosCellsToCreate));
+
+    CheckRegistry(input.GlobalRegistry);
 }
 
 TEST(TChaosCellBundleManagement, TestSetMetadataCells)
@@ -470,6 +494,8 @@ TEST(TChaosCellBundleManagement, TestSetMetadataCells)
     ScheduleChaosBundles(input, &mutations);
     CheckEmptyAlerts(mutations);
     EXPECT_EQ(0, std::ssize(mutations.ForeignMetadataCellIdsToSet));
+
+    CheckRegistry(input.GlobalRegistry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
