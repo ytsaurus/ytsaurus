@@ -526,6 +526,58 @@ TEST_F(TUnversionedRowMergerTest, ResetAggregate1)
         merger->BuildMergedRow());
 }
 
+TEST_F(TUnversionedRowMergerTest, MergeNestedColumns1)
+{
+
+    TTableSchema schema({
+        TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("v", EValueType::Int64),
+        TColumnSchema("nk", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))
+            .SetAggregate("nested_key(n)"),
+        TColumnSchema("nv1", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))
+            .SetAggregate("nested_value(n, sum)"),
+        TColumnSchema("nv2", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))
+            .SetAggregate("nested_value(n)"),
+    });
+
+    auto schemaPtr = New<TTableSchema>(schema);
+    auto evaluator = ColumnEvaluatorCache_->Find(schemaPtr);
+
+    auto merger = std::make_unique<TUnversionedRowMerger>(
+        MergedRowBuffer_,
+        schema.Columns().size(),
+        schema.GetKeyColumnCount(),
+        evaluator,
+        GetNestedColumnsSchema(schemaPtr));
+
+    {
+
+        auto row = BuildUnversionedRow("<id=0>0; <id=1;>0; <id=2;aggregate=true>[]; <id=3;aggregate=true>[]");
+        merger->InitPartialRow(row);
+        merger->AddPartialRow(row);
+
+        EXPECT_EQ(
+            BuildUnversionedRow(
+                "<id=0>0; <id=1>0;<id=2;aggregate=true>[]; <id=3;aggregate=true>[]"),
+            merger->BuildMergedRow());
+    }
+
+    {
+
+        auto row = BuildUnversionedRow("<id=0> 0; <id=1>0; <id=2;aggregate=true>[]; <id=3;aggregate=true>[]");
+        merger->InitPartialRow(row);
+        merger->AddPartialRow(row);
+
+        merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1>1; <id=2;aggregate=true>[1; 2]; <id=3;aggregate=true>[10; 20]; <id=4;aggregate=true>[a; b]"));
+        merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1>2; <id=2;aggregate=true>[2; 3]; <id=3;aggregate=true>[20; 30]; <id=4;aggregate=true>[c; d]"));
+
+        EXPECT_EQ(
+            BuildUnversionedRow(
+                "<id=0>0; <id=1>2;<id=2;aggregate=true>[1; 2; 3]; <id=3;aggregate=true>[10; 40; 30]; <id=4;aggregate=true>[a; c; d]"),
+            merger->BuildMergedRow());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVersionedRowMergerTest
