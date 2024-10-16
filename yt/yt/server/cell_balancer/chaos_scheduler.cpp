@@ -334,8 +334,8 @@ void RegisterAdditionalChaos(
         return;
     }
 
-    for (const auto& areaName : {DefaultAreaName, BetaAreaName}) {
-        for (int index = 0; index < cellsToRegister; ++index) {
+    for (int index = 0; index < cellsToRegister; ++index) {
+        for (const auto& areaName : {DefaultAreaName, BetaAreaName}) {
             auto nextCellTag = TCellTag(++lastCellTag);
             auto cellTagInfo = New<TCellTagInfo>();
             cellTagInfo->Area = areaName;
