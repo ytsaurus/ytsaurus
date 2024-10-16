@@ -40,17 +40,12 @@
         {
             "source": {
                 "type": "ARCADIA",
-                "path": "yt/python/yt/environment/init_queue_agent_state.py",
+                "path": "yt/python/yt/environment",
             },
-            "destination": {
-                "path": "/",
-            },
-        },
-        {
-            "source": {
-                "type": "ARCADIA",
-                "path": "yt/python/yt/environment/init_operations_archive.py",
-            },
+            "files": [
+                "init_queue_agent_state.py",
+                "init_operations_archive.py",
+            ],
             "destination": {
                 "path": "/",
             },
@@ -67,4 +62,3 @@
         },
     ],
 }
-

@@ -3,7 +3,7 @@
 This configuration allows building the core ytsaurus image from source.
 The bundled python packages are also built from source.
 
-Example: `ytsaurus/ya package package.json --docker --docker-target ytsaurus --docker-registry my-registry.com`
+Example: `ya package package.json --docker-registry my-registry.com`
 
 The `--docker-registry` parameter only impacts the resulting image name, which will be `my-registry.com/ytsaurus:local-<commit-SHA>` in this case.
 
