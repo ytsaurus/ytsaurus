@@ -58,5 +58,7 @@ InvalidRowSequenceNumbers = 3103
 class Scheduler(object):
     NoSuchOperation = 200
     JobResourceLimitsRestrictionsViolated = 220
+    CannotUseBothAclAndAco = 221
+    GangOperationsAllowedOnlyInFifoPools = 222
     PoolTreeGuaranteesOvercommit = 29000
     PriorityStrongGuaranteeAdjustmentPoolsWithoutDonor = 29002

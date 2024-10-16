@@ -67,6 +67,9 @@ YT_DEFINE_ERROR_ENUM(
     ((MasterDisconnected)                     (218))
     ((NoSuchJobShell)                         (219))
     ((JobResourceLimitsRestrictionsViolated)  (220))
+    // TODO(eshcherbin, omgronny): Uncomment after ACO cherry-pick.
+    // ((CannotUseBothAclAndAco)                 (221))
+    ((GangOperationsAllowedOnlyInFifoPools)   (222))
 );
 
 DEFINE_ENUM(EUnavailableChunkAction,

@@ -33,6 +33,7 @@
     XX(AllowAggressivePreemption, allow_aggressive_preemption) \
     XX(AllowAggressiveStarvationPreemption, allow_aggressive_starvation_preemption) \
     XX(AllowNormalPreemption, allow_normal_preemption) \
+    XX(AlwaysAllowGangOperations, always_allow_gang_operations) \
     XX(Annotation, annotation) \
     XX(AnnotationPath, annotation_path) \
     XX(Annotations, annotations) \

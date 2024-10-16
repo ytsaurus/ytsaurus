@@ -2458,6 +2458,14 @@ private:
         if (operation->GetType() == EOperationType::RemoteCopy && Config_->FailRemoteCopyOnMissingResourceLimits) {
             ValidateSpecifiedResourceLimits(operation, pool, Config_->RequiredResourceLimitsForRemoteCopy);
         }
+
+        if (operation->GetStrategySpec()->IsGang && !pool->AreGangOperationsAllowed()) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::GangOperationsAllowedOnlyInFifoPools,
+                "Starting gang operations in pool %Qv is forbidden since it is not configured in FIFO mode",
+                pool->GetId());
+        }
+
         StrategyHost_->ValidatePoolPermission(
             TreeId_,
             pool->GetObjectId(),
@@ -3053,6 +3061,7 @@ private:
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "effective_lightweight_operations_enabled", element->GetEffectiveLightweightOperationsEnabled())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "priority_strong_guarantee_adjustment_enabled", element->IsPriorityStrongGuaranteeAdjustmentEnabled())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "priority_strong_guarantee_adjustment_donorship_enabled", element->IsPriorityStrongGuaranteeAdjustmentDonorshipEnabled())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "gang_operations_allowed", element->AreGangOperationsAllowed())
             .Do(std::bind(&TFairShareTree::DoBuildElementYson, std::cref(treeSnapshot), element, std::cref(filter), std::placeholders::_1));
     }
 
