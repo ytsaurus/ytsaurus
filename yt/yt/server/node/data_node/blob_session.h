@@ -42,6 +42,8 @@ public:
     i64 GetMemoryUsage() const override;
     i64 GetTotalSize() const override;
     i64 GetBlockCount() const override;
+    i64 GetWindowSize() const override;
+    i64 GetIntermediateEmptyBlockCount() const override;
 
 private:
     const TBlobWritePipelinePtr Pipeline_;
@@ -74,6 +76,9 @@ private:
     std::atomic<i64> TotalByteSize_ = 0;
     std::atomic<i64> BlockCount_ = 0;
     std::atomic<i64> MemoryUsage_ = 0;
+
+    std::atomic<i64> WindowSize_ = 0;
+    std::atomic<i64> IntermediateEmptyBlockCount_ = 0;
 
     i64 MaxCumulativeBlockSize_ = 0;
     TLocationMemoryGuard PendingBlockLocationMemoryGuard_;

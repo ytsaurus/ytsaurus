@@ -44,6 +44,28 @@ static constexpr auto& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TSessionCreatedAtIndex::operator == (const TSessionCreatedAtIndex& other) const
+{
+    return SessionId == other.SessionId;
+}
+
+bool TSessionCreatedAtIndex::operator<(const TSessionCreatedAtIndex& other) const
+{
+    if (StartedAt < other.StartedAt) {
+        return true;
+    } else if (StartedAt > other.StartedAt) {
+        return false;
+    } else {
+        if (SessionId.ChunkId < other.SessionId.ChunkId) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSessionManager::TSessionManager(
     TDataNodeConfigPtr config,
     IBootstrap* bootstrap)
@@ -95,6 +117,7 @@ void TSessionManager::BuildOrchid(IYsonConsumer* consumer)
                             .Item("size").Value(session->GetTotalSize())
                             .Item("location_id").Value(location->GetId())
                             .Item("location_uuid").Value(location->GetUuid())
+                            .Item("intermediate_empty_block_count").Value(session->GetIntermediateEmptyBlockCount())
                             .Item("medium").Value(location->GetMediumName())
                         .EndMap();
                 })
@@ -323,6 +346,12 @@ void TSessionManager::RegisterSession(const ISessionPtr& session)
 
     EmplaceOrCrash(SessionMap_, session->GetId(), session);
     EmplaceOrCrash(ChunkMap_, session->GetId().ChunkId, session);
+    EmplaceOrCrash(
+        SessionToCreatedAt_,
+        TSessionCreatedAtIndex{
+            .SessionId = session->GetId(),
+            .StartedAt = session->GetStartTime(),
+        });
 
     session->GetStoreLocation()->UpdateSessionCount(session->GetType(), +1);
 }
@@ -333,6 +362,12 @@ void TSessionManager::UnregisterSession(const ISessionPtr& session)
 
     EraseOrCrash(SessionMap_, session->GetId());
     EraseOrCrash(ChunkMap_, session->GetId().ChunkId);
+    EraseOrCrash(
+        SessionToCreatedAt_,
+        TSessionCreatedAtIndex{
+            .SessionId = session->GetId(),
+            .StartedAt = session->GetStartTime(),
+        });
 
     session->GetStoreLocation()->UpdateSessionCount(session->GetType(), -1);
     session->UnlockChunk();
@@ -379,6 +414,33 @@ void TSessionManager::CancelLocationSessions(const TChunkLocationPtr& location)
         if (location == session->GetStoreLocation()) {
             session->Cancel(TError("Location disabled (LocationUuid: %v)", location->GetUuid()));
         }
+    }
+}
+
+bool TSessionManager::CanPassSessionOutOfTurn(TSessionId sessionId)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    THashMap<TSessionId, ISessionPtr> sessionIdToSession;
+    std::set<TSessionCreatedAtIndex> sessionToCreatedAt;
+    {
+        auto guard = ReaderGuard(SessionMapLock_);
+        sessionIdToSession = SessionMap_;
+        sessionToCreatedAt = SessionToCreatedAt_;
+    }
+
+    if (sessionIdToSession.contains(sessionId) && Config_->MaxSessionOutOfTurn) {
+        auto count = Config_->MaxSessionOutOfTurn;
+        const auto begin = sessionToCreatedAt.begin();
+        const auto end = std::ssize(sessionToCreatedAt) < count ? sessionToCreatedAt.end() : std::next(begin, count);
+        return std::find_if(
+            begin,
+            end,
+            [sessionId] (const auto& index) {
+                return sessionId == index.SessionId;
+            }) != sessionToCreatedAt.end();
+    } else {
+        return false;
     }
 }
 

@@ -67,6 +67,11 @@ public:
     void CancelLocationSessions(const TChunkLocationPtr& /*location*/) override
     { }
 
+    bool CanPassSessionOutOfTurn(TSessionId /*sessionId*/) override
+    {
+        return false;
+    }
+
 private:
     const INodeMemoryTrackerPtr MemoryUsageTracker_ = CreateNodeMemoryTracker(1_GBs);
 };
