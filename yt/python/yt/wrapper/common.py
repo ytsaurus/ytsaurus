@@ -1,8 +1,9 @@
 from yt.common import (require, flatten, update, update_inplace, which, YtError, update_from_env, unlist, utcnow, # noqa
                        get_value, filter_dict, date_string_to_timestamp, datetime_to_string, date_string_to_datetime,
                        uuid_to_parts, declare_deprecated, deprecated_with_message, deprecated, underscore_case_to_camel_case)
-import yt.yson as yson
 import yt.json_wrapper as json
+import yt.logger as logger
+import yt.yson as yson
 
 from collections.abc import Iterable
 import typing  # noqa
@@ -408,8 +409,9 @@ def try_get_nirvana_job_context():
         if os.path.exists(nirvana_job_context_path):
             try:
                 with open(nirvana_job_context_path) as ctx_file:
-                    result = json.loads(ctx_file)
+                    result = json.load(ctx_file)
             except Exception:
+                logger.exception("Failed to load nirvana job context")
                 pass
     return result
 
