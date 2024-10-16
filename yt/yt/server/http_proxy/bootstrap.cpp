@@ -298,8 +298,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     ApiHttpServer_ = NHttp::CreateServer(
         Config_->HttpServer,
         Poller_,
-        Acceptor_,
-        WithCategory(MemoryUsageTracker_, EMemoryCategory::Other));
+        Acceptor_);
     RegisterRoutes(ApiHttpServer_);
 
     if (Config_->HttpsServer) {
@@ -308,8 +307,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
             Config_->HttpsServer,
             Poller_,
             Acceptor_,
-            GetControlInvoker(),
-            WithCategory(MemoryUsageTracker_, EMemoryCategory::Other));
+            GetControlInvoker());
         RegisterRoutes(ApiHttpsServer_);
     }
 
@@ -318,8 +316,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         TvmOnlyApiHttpServer_ = NHttp::CreateServer(
             Config_->TvmOnlyHttpServer,
             Poller_,
-            Acceptor_,
-            WithCategory(MemoryUsageTracker_, EMemoryCategory::Other));
+            Acceptor_);
         RegisterRoutes(TvmOnlyApiHttpServer_);
     }
 
@@ -329,8 +326,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
             Config_->TvmOnlyHttpsServer,
             Poller_,
             Acceptor_,
-            GetControlInvoker(),
-            WithCategory(MemoryUsageTracker_, EMemoryCategory::Other));
+            GetControlInvoker());
         RegisterRoutes(TvmOnlyApiHttpsServer_);
     }
 
@@ -513,6 +509,11 @@ const IDynamicConfigManagerPtr& TBootstrap::GetDynamicConfigManager() const
 const IPollerPtr& TBootstrap::GetPoller() const
 {
     return Poller_;
+}
+
+const INodeMemoryTrackerPtr& TBootstrap::GetMemoryUsageTracker() const
+{
+    return MemoryUsageTracker_;
 }
 
 const TApiPtr& TBootstrap::GetApi() const
