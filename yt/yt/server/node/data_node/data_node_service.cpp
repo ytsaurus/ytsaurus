@@ -440,8 +440,8 @@ private:
         auto blocksWindowShifted = cumulativeBlockSize == 0 || cumulativeBlockSize != 0 && firstBlockIndex >= session->GetWindowSize();
 
         context->SetRequestInfo(
-            "BlockIds: %v:%v-%v, PopulateCache: %v,"
-            "FlushBlocks: %v, Medium: %v,"
+            "BlockIds: %v:%v-%v, PopulateCache: %v, "
+            "FlushBlocks: %v, Medium: %v, "
             "DisableSendBlocks: %v, CumulativeBlockSize: %v, BlocksWindowShifted: %v",
             sessionId,
             firstBlockIndex,
