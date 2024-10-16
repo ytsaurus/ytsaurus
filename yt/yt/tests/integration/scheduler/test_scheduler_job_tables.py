@@ -9,7 +9,8 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs, exists,
-    create, ls, get, create_account, read_table, write_table, map, reduce, map_reduce, vanilla, run_test_vanilla,
+    concatenate, create, ls, get, create_account, read_table, write_table,
+    map, reduce, map_reduce, vanilla, run_test_vanilla,
     select_rows, list_jobs, clean_operations, sync_create_cells,
     set_account_disk_space_limit, raises_yt_error, update_nodes_dynamic_config)
 
@@ -540,8 +541,9 @@ class TestStderrTable(YTEnvSetup):
 
         operation_path = op.get_path()
         live_preview_paths = ["/data_flow_graph/vertices/stderr/live_previews/0"]
+        stderr_path = "/live_previews/stderr"
         if self.Env.get_component_version("ytserver-controller-agent").abi >= (23, 3):
-            live_preview_paths.append("/live_previews/stderr")
+            live_preview_paths.append(stderr_path)
 
         def check():
             try:
@@ -552,6 +554,50 @@ class TestStderrTable(YTEnvSetup):
                 return False
 
         wait(check)
+
+        if self.Env.get_component_version("ytserver-controller-agent").abi >= (23, 3):
+            concatenated_path = "//tmp/stderr-live-preview"
+            create("table", concatenated_path)
+            concatenate([f"{operation_path}/controller_orchid/{stderr_path}"], concatenated_path)
+
+        op.abort()
+
+    @authors("galtsev")
+    def test_new_live_preview_core(self):
+        if self.Env.get_component_version("ytserver-controller-agent").abi < (23, 3):
+            pytest.skip("There is no support for live preview of the core tables in the older CAs")
+
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        create("table", "//tmp/t_core")
+        write_table("//tmp/t_input", [{"key": i} for i in range(3)])
+
+        spec = {
+            "data_size_per_job": 1,
+            "core_table_path": "//tmp/t_core",
+        }
+
+        op = map(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            track=False,
+            command=with_breakpoint("""
+                if [ "$YT_JOB_INDEX" != "0" ]; then
+                    kill -ABRT $$;
+                fi;
+                BREAKPOINT
+            """),
+            spec=spec,
+        )
+
+        operation_path = op.get_path()
+        core_table_path = f"{operation_path}/controller_orchid/live_previews/core"
+
+        wait(lambda: exists(core_table_path))
+
+        concatenated_path = "//tmp/core-live-preview"
+        create("table", concatenated_path)
+        concatenate([core_table_path], concatenated_path)
 
         op.abort()
 
