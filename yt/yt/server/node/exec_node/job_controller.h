@@ -101,11 +101,10 @@ struct IJobController
 
     virtual void OnJobCleanupFinished(TDuration duration) = 0;
 
-    virtual IJobProxyLogManagerPtr GetJobProxyLogManager() const = 0;
-
     virtual std::optional<int> GetOperationsArchiveVersion() const = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(TJobPtr), JobFinished);
+    DECLARE_INTERFACE_SIGNAL(void(TJobId), JobCompletelyRemoved);
     DECLARE_INTERFACE_SIGNAL(void(const TError& error), JobProxyBuildInfoUpdated);
 };
 

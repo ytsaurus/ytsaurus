@@ -104,6 +104,7 @@ class TJobController
 {
 public:
     DEFINE_SIGNAL_OVERRIDE(void(TJobPtr job), JobFinished);
+    DEFINE_SIGNAL_OVERRIDE(void(TJobId jobId), JobCompletelyRemoved);
     DEFINE_SIGNAL_OVERRIDE(void(const TError& error), JobProxyBuildInfoUpdated);
 
 public:
@@ -160,7 +161,6 @@ public:
         JobProxyBuildInfoUpdater_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TJobController::UpdateJobProxyBuildInfo, MakeWeak(this)));
-        JobProxyLogManager_ = CreateJobProxyLogManager(Bootstrap_->GetExecNodeBootstrap());
 
         const auto& masterConnector = Bootstrap_->GetExecNodeBootstrap()->GetMasterConnector();
         masterConnector->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TJobController::OnMasterConnected, MakeWeak(this)));
@@ -175,7 +175,6 @@ public:
         ResourceAdjustmentExecutor_->Start();
         RecentlyRemovedJobCleaner_->Start();
         JobProxyBuildInfoUpdater_->Start();
-        JobProxyLogManager_->Start();
 
         // Get ready event before actual start.
         auto buildInfoReadyEvent = JobProxyBuildInfoUpdater_->GetExecutedEvent();
@@ -447,10 +446,8 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        if (newConfig->JobProxyLogManager) {
-            JobProxyLogManager_->OnDynamicConfigChanged(
-                oldConfig->JobProxyLogManager,
-                newConfig->JobProxyLogManager);
+        if (*newConfig == *oldConfig) {
+            return;
         }
 
         DynamicConfig_.Store(newConfig);
@@ -527,11 +524,6 @@ public:
         return it == OutstandingThrottlingRequests_.end() ? TFuture<void>() : it->second;
     }
 
-    IJobProxyLogManagerPtr GetJobProxyLogManager() const override
-    {
-        return JobProxyLogManager_;
-    }
-
     std::optional<int> GetOperationsArchiveVersion() const override
     {
         return OperationsArchiveVersion_;
@@ -600,8 +592,6 @@ private:
     TAtomicObject<TErrorOr<TBuildInfoPtr>> CachedJobProxyBuildInfo_;
 
     THashMap<TGuid, TFuture<void>> OutstandingThrottlingRequests_;
-
-    IJobProxyLogManagerPtr JobProxyLogManager_;
 
     std::atomic<std::optional<int>> OperationsArchiveVersion_;
 
@@ -1576,6 +1566,8 @@ private:
 
         YT_VERIFY(job->GetPhase() == EJobPhase::Finished);
         if (JobsWaitingForCleanup_.erase(job)) {
+            JobCompletelyRemoved_.Fire(job->GetId());
+
             YT_LOG_DEBUG(
                 "Job cleanup finished (JobId: %v)",
                 job->GetId());
@@ -1587,8 +1579,6 @@ private:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         auto operationId = job->GetOperationId();
-
-        JobProxyLogManager_->OnJobUnregistered(job->GetId());
 
         auto guard = WriterGuard(JobsLock_);
 
@@ -1736,6 +1726,8 @@ private:
                 job->GetPhase());
 
             EmplaceOrCrash(JobsWaitingForCleanup_, job);
+        } else {
+            JobCompletelyRemoved_.Fire(job->GetId());
         }
 
         UnregisterJob(job);
