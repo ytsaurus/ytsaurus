@@ -851,9 +851,17 @@ private:
         options.MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker();
 
         if (context->GetTimeout() && context->GetStartTime()) {
-            options.Deadline =
+            options.ReadBlocksDeadline =
                 *context->GetStartTime() +
                 *context->GetTimeout() * GetDynamicConfig()->TestingOptions->BlockReadTimeoutFraction;
+        }
+
+        auto readMetaTimeoutFraction = GetDynamicConfig()->ReadMetaTimeoutFraction;
+
+        if (context->GetTimeout() && context->GetStartTime() && readMetaTimeoutFraction) {
+            options.ReadMetaDeadLine =
+                *context->GetStartTime() +
+                *context->GetTimeout() * readMetaTimeoutFraction.value();
         }
 
         return options;
@@ -975,7 +983,16 @@ private:
         auto deadline = *context->GetStartTime() + *context->GetTimeout() * timeoutFraction.value();
 
         return AnySet<T>({
-            future,
+            future
+                .ApplyUnique(BIND([fallbackValue] (TErrorOr<T>&& resultOrError) {
+                    if (!resultOrError.IsOK() && resultOrError.FindMatching(NChunkClient::EErrorCode::ReadMetaTimeout)) {
+                        return fallbackValue();
+                    } else if (!resultOrError.IsOK()) {
+                        THROW_ERROR_EXCEPTION(resultOrError);
+                    } else {
+                        return resultOrError.Value();
+                    }
+                })),
             TDelayedExecutor::MakeDelayed(deadline - TInstant::Now())
                 .Apply(fallbackValue)
         });
@@ -991,7 +1008,7 @@ private:
         auto readMetaTimeoutFraction = GetDynamicConfig()->ReadMetaTimeoutFraction;
 
         if (context->GetTimeout() && context->GetStartTime() && readMetaTimeoutFraction) {
-            options.Deadline =
+            options.ReadMetaDeadLine =
                 *context->GetStartTime() +
                 *context->GetTimeout() * readMetaTimeoutFraction.value();
         }
