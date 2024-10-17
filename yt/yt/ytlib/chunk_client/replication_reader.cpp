@@ -3567,7 +3567,7 @@ private:
     TFuture<TGetBlocksResult> ExecuteBatchRequest(const TRequestBatch<TGetBlocksResult>& queuedBatch)
     {
         TDataNodeServiceProxy proxy(queuedBatch.Channel);
-        proxy.SetDefaultTimeout(ReaderConfig_->ProbeRpcTimeout);
+        proxy.SetDefaultTimeout(ReaderConfig_->BlockRpcTimeout);
 
         auto req = proxy.GetBlockSet();
         req->SetResponseHeavy(true);
