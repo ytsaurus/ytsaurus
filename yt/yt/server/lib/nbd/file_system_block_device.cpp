@@ -162,9 +162,13 @@ private:
     const NProfiling::TTagSet TagSet_;
     const TTraceContextPtr TraceContext_;
 
-    TFuture<void> DoInitialize()
+    void DoInitialize()
     {
-        return Reader_->Initialize();
+        YT_LOG_INFO("Initializing File system block divice (Path: %v)", Reader_->GetPath());
+
+        Reader_->Initialize();
+
+        YT_LOG_INFO("Initialized File system block device (Path: %v)", Reader_->GetPath());
     }
 
     static NProfiling::TTaggedCounters<int>& FileBlockDeviceCount()

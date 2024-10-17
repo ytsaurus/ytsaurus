@@ -36,13 +36,13 @@ public:
         , Logger(std::move(logger.WithTag("Path: %v", Reader_->GetPath())))
     { }
 
-    TFuture<void> Initialize() override
+    void Initialize() override
     {
         YT_LOG_INFO("Initializing cypress file image reader");
 
-        return Reader_->Initialize().Apply(BIND([this, this_ = MakeStrong(this)] () {
-            YT_LOG_INFO("Initialized cypress file image reader");
-        }));
+        Reader_->Initialize();
+
+        YT_LOG_INFO("Initialized cypress file image reader");
     }
 
     TFuture<TSharedRef> Read(
@@ -95,37 +95,31 @@ public:
         , Logger(std::move(logger))
     { }
 
-    TFuture<void> Initialize() override
+    void Initialize() override
     {
-        std::vector<TFuture<void>> readerInitializedFutures;
+        YT_LOG_INFO("Initializing virtual squashfs image reader (FileCount: %v)", std::ssize(MountOptions_));
+
+        auto builder = CreateSquashFSLayoutBuilder(BuilderOptions_);
 
         for (const auto& mount : MountOptions_) {
-            readerInitializedFutures.push_back(mount.Reader->Initialize());
+            mount.Reader->Initialize();
+            YT_LOG_DEBUG("Add file to virtual layer (Path: %v, Size: %v)",
+                mount.Path,
+                mount.Reader->GetSize());
+            builder->AddFile(
+                mount.Path,
+                mount.Permissions,
+                mount.Reader);
         }
 
-        return AllSucceeded(readerInitializedFutures).Apply(BIND([this, this_ = MakeStrong(this)] () {
-            YT_LOG_INFO("Initializing virtual squashfs image reader (FileCount: %v)", std::ssize(MountOptions_));
+        Layout_ = builder->Build();
+        Size_ = Layout_->GetSize();
 
-            auto builder = CreateSquashFSLayoutBuilder(BuilderOptions_);
-            for (const auto& mount : MountOptions_) {
-                YT_LOG_DEBUG("Add file to virtual layer (Path: %v, Size: %v)",
-                    mount.Path,
-                    mount.Reader->GetSize());
-                builder->AddFile(
-                    mount.Path,
-                    mount.Permissions,
-                    mount.Reader);
-            }
-
-            Layout_ = builder->Build();
-            Size_ = Layout_->GetSize();
-
-            YT_LOG_INFO("Initialized virtual squashfs image reader (Size: %v, HeadSize: %v, TailSize: %v, FileCount: %v)",
-                Size_,
-                Layout_->GetHeadSize(),
-                Layout_->GetTailSize(),
-                std::ssize(MountOptions_));
-        }).AsyncVia(Invoker_));
+        YT_LOG_INFO("Initialized virtual squashfs image reader (Size: %v, HeadSize: %v, TailSize: %v, FileCount: %v)",
+            Size_,
+            Layout_->GetHeadSize(),
+            Layout_->GetTailSize(),
+            std::ssize(MountOptions_));
     }
 
     TFuture<TSharedRef> Read(
