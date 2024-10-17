@@ -82,6 +82,7 @@ TBundleInfoPtr SetBundleInfo(
     bundleInfo->EnableTabletNodeDynamicConfig = false;
     bundleInfo->EnableRpcProxyManagement = false;
     bundleInfo->EnableSystemAccountManagement = false;
+    bundleInfo->Areas["default"] = New<TBundleArea>();
 
     auto config = New<TBundleConfig>();
     bundleInfo->TargetConfig = config;
@@ -3527,6 +3528,26 @@ TEST_P(TNodeTagsFilterManager, TestBundleWithNoTagFilter)
     EXPECT_EQ(1, std::ssize(mutations.ChangedNodeTagFilters));
     EXPECT_EQ(mutations.ChangedNodeTagFilters["bigd"], "default-zone/bigd");
 }
+
+TEST_P(TNodeTagsFilterManager, TestBundleWithNoTagFilterIgnoreEmptyAreas)
+{
+    auto input = GenerateInputContext(2 * GetDataCenterCount(), 5);
+    auto dataCenters = GetDataCenters(input);
+
+    input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
+    input.Bundles["bigd"]->NodeTagFilter = {};
+    input.Bundles["bigd"]->Areas.clear();
+
+    for (const TString& dataCenter : dataCenters) {
+        GenerateNodesForBundle(input, "bigd", 2, {.DC = dataCenter});
+    }
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeTagFilters));
+}
+
 
 TEST_P(TNodeTagsFilterManager, TestDrillsMode)
 {

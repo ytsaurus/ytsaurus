@@ -183,6 +183,8 @@ void TBundleInfo::Register(TRegistrar registrar)
         .Optional();
     RegisterAttribute(registrar, "rpc_proxy_role", &TThis::RpcProxyRole)
         .Optional();
+    RegisterAttribute(registrar, "areas", &TThis::Areas)
+        .Optional();
     RegisterAttribute(registrar, "enable_bundle_controller", &TThis::EnableBundleController)
         .Default(false);
     RegisterAttribute(registrar, "enable_instance_allocation", &TThis::EnableInstanceAllocation)
