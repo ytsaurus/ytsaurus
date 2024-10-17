@@ -15,6 +15,7 @@ class LocalYtConfig(object):
     kill_child_processes = attr.ib(False)
     run_watcher = attr.ib(False)
     optimize_config = attr.ib(False)
+    address_resolver_config = attr.ib(None)
 
     """Cluster initialization options"""
     initialize_world = attr.ib(False)

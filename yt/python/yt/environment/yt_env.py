@@ -1874,9 +1874,12 @@ class YTInstance(object):
             self._default_client_config,
             {
                 "backend": "native",
-                "driver_config": driver_config
+                "driver_config": driver_config,
             }
         )
+
+        if self.yt_config.address_resolver_config:
+            config["driver_address_resolver_config"] = self.yt_config.address_resolver_config
 
         return YtClient(config=config)
 
