@@ -1782,6 +1782,9 @@ private:
         for (auto& nodeSet : NodesWithFlavor_) {
             nodeSet.clear();
         }
+
+        PendingRestartMaintenanceNodeIds_.clear();
+        PendingRestartMaintenanceNodeIdToSetIt_.clear();
     }
 
     void OnAfterSnapshotLoaded() override
