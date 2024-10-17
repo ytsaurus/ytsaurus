@@ -28,6 +28,8 @@ get_built_tool_path(
   cpp_styleguide
 )
 
+add_subdirectory(unittests)
+
 add_library(server-node-chaos_node)
 
 
@@ -57,6 +59,7 @@ target_sources(server-node-chaos_node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/foreign_migrated_replication_card_remover.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/migrated_replication_card_remover.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/replication_card.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/replication_card_batcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/replication_card_collocation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/replication_card_observer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/serialize.cpp

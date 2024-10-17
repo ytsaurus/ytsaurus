@@ -15,6 +15,7 @@ SRCS(
     foreign_migrated_replication_card_remover.cpp
     migrated_replication_card_remover.cpp
     replication_card.cpp
+    replication_card_batcher.cpp
     replication_card_collocation.cpp
     replication_card_observer.cpp
     serialize.cpp

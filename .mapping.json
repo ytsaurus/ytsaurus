@@ -3437,6 +3437,7 @@
   "yt/yt/server/node/chaos_node/CMakeLists.darwin-x86_64.txt":"",
   "yt/yt/server/node/chaos_node/CMakeLists.linux-x86_64.txt":"",
   "yt/yt/server/node/chaos_node/CMakeLists.txt":"",
+  "yt/yt/server/node/chaos_node/unittests/CMakeLists.txt":"",
   "yt/yt/server/node/data_node/CMakeLists.txt":"",
   "yt/yt/server/node/data_node/unittests/CMakeLists.txt":"",
   "yt/yt/server/node/query_agent/CMakeLists.txt":"",

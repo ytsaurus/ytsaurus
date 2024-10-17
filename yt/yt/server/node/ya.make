@@ -229,6 +229,7 @@ PEERDIR(
 END()
 
 RECURSE_FOR_TESTS(
+    chaos_node/unittests
     data_node/unittests
     query_agent/unittests
     tablet_node/unittests
