@@ -2,16 +2,11 @@
 
 #include "private.h"
 
+#include <yt/yt/ytlib/chunk_client/data_sink.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/ytlib/controller_agent/public.h>
-#include <yt/yt/ytlib/controller_agent/serialize.h>
 
-#include <yt/yt/ytlib/scheduler/config.h>
-
-#include <yt/yt/ytlib/security_client/public.h>
-
-#include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
 
 #include <yt/yt/library/query/base/public.h>
@@ -130,6 +125,11 @@ struct TPartitionKey
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Constructs partition keys from the given samples.
+//! The sample schema is used to fetch row values based on column names or expressions specified in the upload schema.
+//! The sample schema must include all columns referenced in the key columns of the upload schema.
+//! The upload schema is used to compare the sample rows.
+//! It is guaranteed that the number of returned partition keys is less than partitionCount.
 std::vector<TPartitionKey> BuildPartitionKeysBySamples(
     const std::vector<NTableClient::TSample>& samples,
     const NTableClient::TTableSchemaPtr& sampleSchema,

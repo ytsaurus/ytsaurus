@@ -51,10 +51,11 @@ target_link_options(unittester-controller-agent PRIVATE
 
 target_sources(unittester-controller-agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/auto_merge_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/docker_image_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/job_monitoring_index_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/job_splitter_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/partition_keys_builder_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/partitions_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/docker_image_ut.cpp
 )
 
 

@@ -4,6 +4,8 @@
 #include "job_info.h"
 #include "task_host.h"
 
+#include <yt/yt/ytlib/scheduler/config.h>
+
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 namespace NYT::NControllerAgent::NControllers {

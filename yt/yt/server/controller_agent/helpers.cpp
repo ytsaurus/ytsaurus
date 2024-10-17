@@ -1,24 +1,16 @@
 #include "helpers.h"
-#include "config.h"
 
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
-#include <yt/yt/client/security_client/acl.h>
-
-#include <yt/yt/ytlib/api/native/connection.h>
-
 #include <yt/yt/ytlib/controller_agent/serialize.h>
 
-#include <yt/yt/ytlib/hive/cluster_directory.h>
-
+#include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
 #include <yt/yt/library/query/engine_api/expression_evaluator.h>
-
-#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
@@ -30,17 +22,16 @@
 
 namespace NYT::NControllerAgent {
 
-using namespace NObjectClient;
-using namespace NChunkClient;
-using namespace NChunkPools;
-using namespace NSecurityClient;
-using namespace NScheduler;
-using namespace NQueryClient;
-using namespace NTransactionClient;
-using namespace NYson;
-using namespace NYTree;
 using namespace NApi;
+using namespace NChunkClient;
 using namespace NLogging;
+using namespace NObjectClient;
+using namespace NQueryClient;
+using namespace NScheduler;
+using namespace NSecurityClient;
+using namespace NTransactionClient;
+using namespace NYTree;
+using namespace NYson;
 
 using NYT::ToProto;
 
@@ -270,6 +261,7 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
 
     YT_LOG_INFO("Building partition keys by samples (SampleCount: %v, PartitionCount: %v, Comparator: %v)", samples.size(), partitionCount, comparator);
 
+    YT_VERIFY(uploadSchema->IsSorted());
     YT_VERIFY(partitionCount > 0);
 
     struct TComparableSample
@@ -359,7 +351,6 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
         return TKeyBound::FromRow(std::move(capturedRow), keyBound.IsInclusive, keyBound.IsUpper);
     };
 
-
     int sampleIndex = 0;
     while (sampleIndex < std::ssize(selectedSamples)) {
         auto lastLowerBound = TKeyBound::MakeUniversal(/*isUpper*/ false);
@@ -367,12 +358,12 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
             lastLowerBound = partitionKeys.back().LowerBound;
         }
 
-        auto* sample = selectedSamples[sampleIndex];
+        const auto* sample = selectedSamples[sampleIndex];
         // Check for same keys.
         if (comparator.CompareKeyBounds(sample->KeyBound, lastLowerBound) != 0) {
             partitionKeys.emplace_back(cloneKeyBound(sample->KeyBound));
             ++sampleIndex;
-        } else if (sampleIndex < std::ssize(selectedSamples)) {
+        } else {
             // Skip same keys.
             int skippedCount = 0;
             while (sampleIndex < std::ssize(selectedSamples) &&
@@ -382,7 +373,7 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
                 ++skippedCount;
             }
 
-            auto* lastManiacSample = selectedSamples[sampleIndex - 1];
+            const auto* lastManiacSample = selectedSamples[sampleIndex - 1];
 
             if (lastManiacSample->Incomplete) {
                 // If sample keys are incomplete, we cannot use UnorderedMerge,

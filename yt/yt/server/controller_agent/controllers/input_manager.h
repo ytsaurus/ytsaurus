@@ -3,6 +3,8 @@
 #include "private.h"
 #include "task_host.h"
 
+#include <yt/yt/ytlib/scheduler/config.h>
+
 #include <yt/yt/ytlib/chunk_pools/chunk_pool.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
