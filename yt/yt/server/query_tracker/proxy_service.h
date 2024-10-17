@@ -2,13 +2,15 @@
 
 #include "private.h"
 
+#include <yt/yt/server/lib/state_checker/public.h>
+
 #include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NQueryTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateProxyService(IInvokerPtr proxyInvoker, TQueryTrackerProxyPtr proxy);
+NRpc::IServicePtr CreateProxyService(IInvokerPtr proxyInvoker, TQueryTrackerProxyPtr proxy, NStateChecker::TStateCheckerPtr stateChecker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

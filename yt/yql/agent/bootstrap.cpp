@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
+#include <yt/yt/server/lib/state_checker/state_checker.h>
+
 #include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -61,6 +63,7 @@ using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NOrchid;
 using namespace NProfiling;
+using namespace NStateChecker;
 using namespace NRpc;
 using namespace NTransactionClient;
 using namespace NSecurityClient;
@@ -191,6 +194,16 @@ void TBootstrap::DoRun()
         orchidRoot,
         "yql_agent");
 
+    StateChecker_ = New<TStateChecker>(
+        ControlInvoker_,
+        NativeClient_,
+        Format("%v/instances/%v", Config_->Root, ToYPathLiteral(AgentId_)),
+        DynamicConfigManager_->GetConfig()->YqlAgent->StateCheckPeriod);
+    SetNodeByYPath(
+        orchidRoot,
+        "/state_checker",
+        CreateVirtualNode(StateChecker_->GetOrchidService()));
+
     RpcServer_->RegisterService(CreateAdminService(
         ControlInvoker_,
         CoreDumper_,
@@ -201,7 +214,8 @@ void TBootstrap::DoRun()
         NativeAuthenticator_));
     RpcServer_->RegisterService(CreateYqlService(
         ControlInvoker_,
-        YqlAgent_));
+        YqlAgent_,
+        StateChecker_));
 
     YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
     HttpServer_->Start();
@@ -213,6 +227,7 @@ void TBootstrap::DoRun()
     RpcServer_->Start();
 
     UpdateCypressNode();
+    StateChecker_->Start();
 }
 
 void TBootstrap::UpdateCypressNode()
@@ -289,6 +304,8 @@ void TBootstrap::OnDynamicConfigChanged(
     };
     WaitFor(AllSucceeded(asyncUpdateComponents))
         .ThrowOnError();
+
+    StateChecker_->SetPeriod(newConfig->YqlAgent->StateCheckPeriod);
 
     YT_LOG_DEBUG(
         "Updated Yql agent server dynamic config (OldConfig: %v, NewConfig: %v)",

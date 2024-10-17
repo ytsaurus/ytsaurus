@@ -16,6 +16,7 @@ DEFINE_ENUM(EExecuteMode,
 
 YT_DEFINE_ERROR_ENUM(
     ((RequestThrottled)     (40100))
+    ((YqlAgentBanned)       (40101))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

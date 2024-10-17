@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/server/lib/state_checker/public.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/client/api/client.h>
@@ -22,6 +24,8 @@ struct IQueryTracker
     virtual void Start() = 0;
 
     virtual void Reconfigure(const TQueryTrackerDynamicConfigPtr& config) = 0;
+
+    virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IQueryTracker)
@@ -34,6 +38,7 @@ IQueryTrackerPtr CreateQueryTracker(
     IInvokerPtr controlInvoker,
     NAlertManager::IAlertCollectorPtr alertCollector,
     NApi::NNative::IClientPtr stateClient,
+    NStateChecker::TStateCheckerPtr stateChecker,
     NYPath::TYPath stateRoot,
     int minRequiredStateVersion);
 
