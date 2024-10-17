@@ -8,6 +8,7 @@ import (
 
 	"golang.org/x/exp/slices"
 
+	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
@@ -91,6 +92,40 @@ func transformToStringSlice(value any) (any, error) {
 	}
 
 	return transformedAttributes, nil
+}
+
+func transformFilterValues(value any) (any, error) {
+	if value == nil {
+		return map[string]any(nil), nil
+	}
+
+	filterVals, ok := value.(map[string]any)
+	if !ok {
+		typeName := reflect.TypeOf(value).String()
+		return nil, unexpectedTypeError(typeName)
+	}
+
+	newMap := make(map[string]any, len(filterVals))
+	for k, v := range filterVals {
+		if k == "state" {
+			if stringV, ok := v.(string); ok {
+				newMap[k] = strawberry.OpletState(stringV)
+			} else {
+				typeName := reflect.TypeOf(v).String()
+				return nil, unexpectedTypeError(typeName)
+			}
+		} else if k == "health" {
+			if stringV, ok := v.(string); ok {
+				newMap[k] = strawberry.OpletHealth(stringV)
+			} else {
+				typeName := reflect.TypeOf(v).String()
+				return nil, unexpectedTypeError(typeName)
+			}
+		} else {
+			newMap[k] = v
+		}
+	}
+	return newMap, nil
 }
 
 func getCreateSecretNodeOptions(secrets map[string]any, txOptions *yt.TransactionOptions) *yt.CreateNodeOptions {

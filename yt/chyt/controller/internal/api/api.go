@@ -503,9 +503,9 @@ type AliasWithAttrs struct {
 	Attrs map[string]any `yson:",attrs" json:"$attributes"`
 }
 
-func (a *API) List(ctx context.Context, attributes []string) ([]AliasWithAttrs, error) {
+func (a *API) List(ctx context.Context, attributes []string, filters map[string]any) ([]AliasWithAttrs, error) {
 	var attributesToList []string
-	if len(attributes) != 0 {
+	if len(attributes) != 0 || len(filters) != 0 {
 		attributesToList = strawberry.CypressStateAttributes
 	}
 
@@ -544,13 +544,24 @@ func (a *API) List(ctx context.Context, attributes []string) ([]AliasWithAttrs, 
 	for alias, node := range ops {
 		var resultAttrs map[string]any
 
-		if len(attributes) != 0 {
+		if len(attributes) != 0 || len(filters) != 0 {
 			briefInfo, err := a.getOpletBriefInfoFromYson(alias, node, acls[alias].ACL)
 			// NB: Should never happen.
 			if err != nil {
 				return nil, err
 			}
 			opletAttrs := strawberry.GetOpBriefAttributes(briefInfo)
+
+			filterMismatch := false
+			for filterAttr, filterValue := range filters {
+				if oplVal, ok := opletAttrs[filterAttr]; !ok || oplVal != filterValue {
+					filterMismatch = true
+					break
+				}
+			}
+			if filterMismatch {
+				continue
+			}
 
 			resultAttrs = make(map[string]any)
 			for _, attr := range attributes {
