@@ -1,6 +1,8 @@
 #include "tentative_tree_eligibility.h"
 
-#include "operation_controller.h"
+#include <yt/yt/server/lib/controller_agent/structs.h>
+
+#include <yt/yt/ytlib/scheduler/config.h>
 
 namespace NYT::NControllerAgent {
 
