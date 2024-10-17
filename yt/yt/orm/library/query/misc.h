@@ -52,6 +52,14 @@ TString FormatList(const std::vector<TValue>& values);
 
 TString JoinFilters(const std::vector<TString>& filters);
 
+bool IsTargetReference(
+    const NQueryClient::NAst::TExpressionList& exprs,
+    const NQueryClient::NAst::TReference& reference);
+
+bool IsAnyExprATargetReference(
+    const NQueryClient::NAst::TExpressionList& exprs,
+    const NQueryClient::NAst::TReference& reference);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NOrm::NQuery

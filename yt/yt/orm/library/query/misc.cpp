@@ -1,25 +1,37 @@
 #include "misc.h"
 
+#include <algorithm>
+#include <functional>
+#include <ranges>
+
 namespace NYT::NOrm::NQuery {
+
+using namespace NQueryClient::NAst;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TString JoinFilters(const std::vector<TString>& filters)
 {
-    if (filters.empty()) {
-        return {};
-    } else if (filters.size() == 1) {
-        return filters[0];
-    }
+    return JoinToString(std::views::filter(filters, std::not_fn(&TString::empty)), TStringBuf(" AND "));
+}
 
-    TStringBuilder builder;
-    TDelimitedStringBuilderWrapper wrapper(&builder, " AND ");
-    for (const auto& filter : filters) {
-        if (filter) {
-            wrapper->AppendFormat("(%v)", filter);
-        }
+bool IsTargetReference(const TExpressionList& exprs, const NQueryClient::NAst::TReference& reference)
+{
+    if (exprs.size() != 1) {
+        return false;
     }
-    return builder.Flush();
+    if (auto* refExpr = exprs[0]->As<TReferenceExpression>()) {
+        return refExpr->Reference == reference;
+    }
+    return false;
+}
+
+bool IsAnyExprATargetReference(const TExpressionList& exprs, const NQueryClient::NAst::TReference& reference)
+{
+    return std::ranges::any_of(exprs, [&] (const TExpressionPtr& expr) {
+        auto* refExpr = expr->template As<TReferenceExpression>();
+        return refExpr && refExpr->Reference == reference;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
