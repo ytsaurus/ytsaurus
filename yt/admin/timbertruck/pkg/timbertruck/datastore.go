@@ -14,6 +14,15 @@ import (
 
 const datastoreTimeLayout = time.RFC3339Nano
 
+var ErrTaskLimitExceeded = errors.New("task limit exceeded")
+
+func taskLimitExceededByCount(current, limit int) error {
+	if current < limit {
+		panic(fmt.Sprintf("internal error: current=%v < limit=%v", current, limit))
+	}
+	return fmt.Errorf("%w, too many tasks: %v (limit: %v)", ErrTaskLimitExceeded, current, limit)
+}
+
 type Task struct {
 	// Name of the stream this task belongs to.
 	StreamName string
@@ -118,7 +127,11 @@ func NewDatastore(fileName string) (db *Datastore, err error) {
 	return
 }
 
-func (ds *Datastore) AddTask(task *Task) (err error) {
+// Add task to the datastore.
+//
+// Return TaskLimitExceeded if task cannot be added due to limits.
+// May emit warnings if limits can be exceeded soon.
+func (ds *Datastore) AddTask(task *Task, maxActiveTasks int) (warns []error, err error) {
 	timestamp := task.CreationTime.Format(datastoreTimeLayout)
 	var boundTimestamp sql.NullString
 	if !task.BoundTime.IsZero() {
@@ -132,25 +145,54 @@ func (ds *Datastore) AddTask(task *Task) (err error) {
 
 	endOffsetJSON := mustMarshalFilePosition(task.EndPosition)
 
-	_, err = ds.sqlite.Exec(`
-			INSERT INTO Tasks (
-				StreamName,
-				StagedPath,
-				INode,
-				CreationTime,
-				EndPosition,
-				BoundTime,
-				CompletionTime
-			) VALUES (?, ?, ?, ?, ?, ?, NULL);
-		`,
-		task.StreamName,
-		task.StagedPath,
-		task.INode,
-		timestamp,
+	err = ds.withTransaction(func(tx *sql.Tx) (err error) {
+		row := tx.QueryRow(`
+			SELECT
+				COUNT(*)
+			FROM
+				Tasks
+			WHERE
+				CompletionTime IS NULL
+				AND StreamName = ?
+			;
+		`, task.StreamName)
+		var activeTaskCount int
+		err = row.Scan(&activeTaskCount)
+		if err != nil {
+			err = fmt.Errorf("internal error: cannot scan active task count: %v", err)
+			return
+		}
+		if activeTaskCount >= maxActiveTasks {
+			return taskLimitExceededByCount(activeTaskCount, maxActiveTasks)
+		} else if activeTaskCount >= maxActiveTasks*80/100 {
+			warns = append(warns, fmt.Errorf(
+				"limit of the active tasks will be reached soon, active tasks: %v (limit: %v)",
+				activeTaskCount,
+				maxActiveTasks,
+			))
+		}
 
-		endOffsetJSON,
-		boundTimestamp,
-	)
+		_, err = tx.Exec(`
+					INSERT INTO Tasks (
+						StreamName,
+						StagedPath,
+						INode,
+						CreationTime,
+						EndPosition,
+						BoundTime,
+						CompletionTime
+					) VALUES (?, ?, ?, ?, ?, ?, NULL);
+				`,
+			task.StreamName,
+			task.StagedPath,
+			task.INode,
+			timestamp,
+
+			endOffsetJSON,
+			boundTimestamp,
+		)
+		return
+	})
 	return
 }
 
