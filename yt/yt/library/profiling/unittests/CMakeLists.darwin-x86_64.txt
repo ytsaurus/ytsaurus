@@ -49,6 +49,7 @@ target_link_options(yt-yt-library-profiling-unittests PRIVATE
 
 target_sources(yt-yt-library-profiling-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/sensor_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/sensor_service_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/name_conflicts_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/profiler_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/solomon_ut.cpp
