@@ -20,7 +20,7 @@ struct TArtifactMountOptions
 struct IImageReader
     : public virtual TRefCounted
 {
-    virtual TFuture<void> Initialize() = 0;
+    virtual void Initialize() = 0;
 
     virtual TFuture<TSharedRef> Read(
         i64 offset,
