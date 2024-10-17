@@ -2595,6 +2595,21 @@ void InitializeNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* 
             continue;
         }
 
+        if (bundleInfo->Areas.empty()) {
+            YT_LOG_WARNING("Bundle does not have any tablet cell area (BundleName: %v)",
+                bundleName);
+
+            mutations->AlertsToFire.push_back(TAlert{
+                .Id = "no_areas_found",
+                .BundleName = bundleName,
+                .Description = Format("Bundle does not have any tablet cell area"),
+            });
+
+            bundleInfo->EnableBundleController = false;
+
+            continue;
+        }
+
         if (bundleInfo->NodeTagFilter.empty()) {
             auto nodeTagFilter = Format("%v/%v", bundleInfo->Zone, bundleName);
             bundleInfo->NodeTagFilter = nodeTagFilter;

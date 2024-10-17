@@ -296,6 +296,7 @@ struct TBundleInfo
     TString NodeTagFilter;
     std::optional<TString> ShortName;
     std::optional<TString> RpcProxyRole;
+    THashMap<TString, TBundleAreaPtr> Areas;
 
     bool EnableBundleController;
     bool EnableInstanceAllocation;
