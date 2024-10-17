@@ -7,6 +7,7 @@
 #include "foreign_migrated_replication_card_remover.h"
 #include "migrated_replication_card_remover.h"
 #include "replication_card.h"
+#include "replication_card_batcher.h"
 #include "replication_card_collocation.h"
 #include "replication_card_observer.h"
 #include "transaction.h"
@@ -1806,16 +1807,9 @@ private:
             return;
         }
 
-        std::vector<TReplicationCardId> cardIdsToMigrate;
-        for (const auto& [id, replicationCard] : ReplicationCardMap_) {
-            if (replicationCard->IsReadyToMigrate()) {
-                cardIdsToMigrate.push_back(id);
-            }
-
-            if (std::ssize(cardIdsToMigrate) >= MigrateLeftoversBatchSize) {
-                break;
-            }
-        }
+        auto cardIdsToMigrate = BuildReadyToMigrateReplicationCardBatch(
+            ReplicationCardMap_,
+            MigrateLeftoversBatchSize);
 
         if (cardIdsToMigrate.empty()) {
             return;
