@@ -27,10 +27,8 @@ public:
         : Size_(size)
     { }
 
-    TFuture<void> Initialize() override
-    {
-        return VoidFuture;
-    }
+    void Initialize() override
+    { }
 
     TFuture<TSharedRef> Read(
         i64 offset,
