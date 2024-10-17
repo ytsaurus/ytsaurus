@@ -219,6 +219,7 @@ class YTInstance(object):
         self.configs_path = os.path.abspath(os.path.join(self.path, "configs"))
         self.runtime_data_path = os.path.abspath(os.path.join(self.path, "runtime_data"))
         self.pids_filename = os.path.join(self.path, "pids.txt")
+        self.pids_file = None
 
         self._load_existing_environment = False
         if os.path.exists(self.path):
@@ -710,6 +711,10 @@ class YTInstance(object):
             self.stop_impl()
 
         self._started = False
+
+    def leave(self):
+        if self.pids_file is not None:
+            self.pids_file.close()
 
     def stop_impl(self):
         killed_services = set()
