@@ -2410,7 +2410,7 @@ class YtClient(ClientState):
             workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None,
             raw=None, execution_pool=None, response_parameters=None, retention_timestamp=None, placeholder_values=None,
             use_canonical_null_relations=None, merge_versioned_rows=None, syntax_version=None, versioned_read_options=None,
-            with_timestamps=None, use_lookup_cache=None):
+            with_timestamps=None):
         """
         Executes a SQL-like query on dynamic table.
 
@@ -2433,7 +2433,7 @@ class YtClient(ClientState):
             format=format, raw=raw, execution_pool=execution_pool, response_parameters=response_parameters,
             retention_timestamp=retention_timestamp, placeholder_values=placeholder_values, use_canonical_null_relations=use_canonical_null_relations,
             merge_versioned_rows=merge_versioned_rows, syntax_version=syntax_version, versioned_read_options=versioned_read_options,
-            with_timestamps=with_timestamps, use_lookup_cache=use_lookup_cache)
+            with_timestamps=with_timestamps)
 
     def set(
             self,

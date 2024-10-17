@@ -2349,44 +2349,6 @@ class TestQuery(DynamicTablesBase):
             limit 3""")
         assert expected == actual
 
-    @authors("sabdenovch")
-    def test_row_cache(self):
-        sync_create_cells(1)
-        create("table", "//tmp/t", attributes={
-            "dynamic": True,
-            "schema": [
-                make_sorted_column("key", "int64"),
-                make_column("value", "string", max_inline_hunk_size=10),
-            ],
-            "lookup_cache_rows_per_tablet": 100,
-        })
-
-        sync_mount_table("//tmp/t")
-
-        def make_hunk(i):
-            if i % 3 == 0:
-                return "abc" * 6
-            elif i % 3 == 1:
-                return "bac"
-            else:
-                return "a" * 20
-
-        rows = [{"key": i, "value": make_hunk(i)} for i in range(100)]
-        insert_rows("//tmp/t", rows)
-        lookup_rows = lookup_rows = [{"key": i, "value": make_hunk(i)} for i in [0, 10, 20]]
-
-        assert lookup_rows == select_rows("* from [//tmp/t] where key in (0, 10, 20) limit 100", use_lookup_cache=False)
-        assert lookup_rows == select_rows("* from [//tmp/t] where key in (0, 10, 20) limit 100", use_lookup_cache=True)
-        assert lookup_rows == select_rows("* from [//tmp/t] where key in (0, 10, 20) limit 100", use_lookup_cache=True)
-
-        sync_flush_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": i, "value": make_hunk(i)} for i in range(100, 200)])
-        lookup_rows = [{"key": i, "value": make_hunk(i)} for i in [0, 10, 20, 100, 110, 120]]
-
-        assert lookup_rows == select_rows("* from [//tmp/t] where key in (0, 10, 20, 100, 110, 120) limit 100", use_lookup_cache=False)
-        assert lookup_rows == select_rows("* from [//tmp/t] where key in (0, 10, 20, 100, 110, 120) limit 100", use_lookup_cache=True)
-        assert lookup_rows == select_rows("* from [//tmp/t] where key in (0, 10, 20, 100, 110, 120) limit 100", use_lookup_cache=True)
-
 
 class TestQueryRpcProxy(TestQuery):
     DRIVER_BACKEND = "rpc"

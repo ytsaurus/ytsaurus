@@ -1751,7 +1751,6 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     queryOptions.SuppressAccessTracking = options.SuppressAccessTracking;
     queryOptions.UseCanonicalNullRelations = options.UseCanonicalNullRelations;
     queryOptions.MergeVersionedRows = options.MergeVersionedRows;
-    queryOptions.UseLookupCache = options.UseLookupCache;
 
     auto requestFeatureFlags = MostFreshFeatureFlags();
 

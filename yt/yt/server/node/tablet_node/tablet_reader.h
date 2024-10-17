@@ -111,6 +111,22 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     std::optional<EWorkloadCategory> workloadCategory);
 
+//! Creates a lookup reader that merges data from the relevant stores and
+//! returns a single version of each value.
+/*!
+ *  Can only handle sorted tables.
+ *  Decodes hunks.
+ */
+NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
+    const TTabletSnapshotPtr& tabletSnapshot,
+    const TColumnFilter& columnFilter,
+    const TSharedRange<TLegacyKey>& keys,
+    NTransactionClient::TReadTimestampRange timestampRange,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
+    std::optional<EWorkloadCategory> workloadCategory,
+    NTableClient::TTimestampReadOptions timestampReadOptions);
+
 //! Creates a range reader that merges data from all given #stores and
 //! returns all versions of each value.
 /*!
@@ -130,15 +146,6 @@ NTableClient::IVersionedReaderPtr CreateCompactionTabletReader(
     NConcurrency::IThroughputThrottlerPtr perTabletThrottler,
     std::optional<EWorkloadCategory> workloadCategory,
     IMemoryUsageTrackerPtr rowMergerMemoryTracker);
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::unique_ptr<NTableClient::TSchemafulRowMerger> CreateLatestTimestampRowMerger(
-    NTableClient::TRowBufferPtr rowBuffer,
-    const TTabletSnapshotPtr& tabletSnapshot,
-    const TColumnFilter& columnFilter,
-    TTimestamp retentionTimestamp,
-    const NTableClient::TTimestampReadOptions& timestampReadOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 

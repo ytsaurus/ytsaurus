@@ -198,8 +198,6 @@ struct TSelectRowsOptions
     TExpectedTableSchemas ExpectedTableSchemas;
     //! Add |$timestamp:columnName| to result if read_mode is latest_timestamp.
     NTableClient::TVersionedReadOptions VersionedReadOptions;
-    //! Explicitly allow or forbid the usage of row cache.
-    std::optional<bool> UseLookupCache;
 };
 
 struct TFallbackReplicaOptions

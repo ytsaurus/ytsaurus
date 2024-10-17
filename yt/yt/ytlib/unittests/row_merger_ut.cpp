@@ -2635,6 +2635,43 @@ TEST_F(TSchemafulMergingReaderTest, Merge2)
     EXPECT_EQ(BuildUnversionedRow("<id=0> 3; <id=1> 3; <id=2> #; <id=3> #"), result[3]);
 }
 
+TEST_F(TSchemafulMergingReaderTest, Lookup)
+{
+    auto readers = std::vector<IVersionedReaderPtr>{
+        New<TMockVersionedReader>(std::vector<TVersionedRow>{
+            BuildVersionedRow("<id=0> 0", "<id=1;ts=200> 0"),
+            BuildVersionedRow("<id=0> 1", "<id=1;ts=400> 1")
+        }),
+        New<TMockVersionedReader>(std::vector<TVersionedRow>{
+            BuildVersionedRow("<id=0> 0", "<id=1;ts=300> 2"),
+            BuildVersionedRow("<id=0> 1", "<id=1;ts=300> 3")
+        }),
+        New<TMockVersionedReader>(std::vector<TVersionedRow>{
+            BuildVersionedRow("<id=0> 0", "<id=1;ts=100> 4"),
+            BuildVersionedRow("<id=0> 1", "<id=1;ts=600> 5")
+        })
+    };
+
+    auto merger = GetTypicalMerger();
+
+    auto reader = CreateSchemafulOverlappingLookupReader(
+        std::move(merger),
+        [readers, index = 0] () mutable -> IVersionedReaderPtr {
+            if (index < std::ssize(readers)) {
+                return readers[index++];
+            } else {
+                return nullptr;
+            }
+        });
+
+    std::vector<TUnversionedRow> result;
+    ReadAll(reader, &result);
+
+    EXPECT_EQ(2u, result.size());
+    EXPECT_EQ(BuildUnversionedRow("<id=0> 0; <id=1> 2; <id=2> #; <id=3> #"), result[0]);
+    EXPECT_EQ(BuildUnversionedRow("<id=0> 1; <id=1> 5; <id=2> #; <id=3> #"), result[1]);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVersionedMergingReaderTest
