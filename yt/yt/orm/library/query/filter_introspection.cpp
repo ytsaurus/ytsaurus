@@ -1,5 +1,7 @@
 #include "filter_introspection.h"
 
+#include "misc.h"
+
 #include <yt/yt/orm/library/attributes/attribute_path.h>
 
 #include <yt/yt/library/query/base/ast_visitors.h>
@@ -151,7 +153,7 @@ class TQueryVisitorForDefinedReference
     : public TBaseAstVisitor<bool, TQueryVisitorForDefinedReference>
 {
 public:
-    explicit TQueryVisitorForDefinedReference(
+    TQueryVisitorForDefinedReference(
         const NQueryClient::NAst::TReference& reference,
         bool allowValueRange)
         : Reference_(reference)
@@ -200,7 +202,7 @@ public:
                 }
                 [[fallthrough]];
             case EBinaryOp::Equal:
-                return IsTargetReference(binaryExpr->Lhs) || IsTargetReference(binaryExpr->Rhs);
+                return IsTargetReference(binaryExpr->Lhs, Reference_) || IsTargetReference(binaryExpr->Rhs, Reference_);
             default:
                 return false;
         }
@@ -213,12 +215,12 @@ public:
 
     bool OnIn(TInExpressionPtr inExpr)
     {
-        return IsTargetReference(inExpr->Expr);
+        return IsAnyExprATargetReference(inExpr->Expr, Reference_);
     }
 
-    bool OnBetween(TBetweenExpressionPtr /*betweenExpr*/)
+    bool OnBetween(TBetweenExpressionPtr betweenExpr)
     {
-        return false;
+        return IsAnyExprATargetReference(betweenExpr->Expr, Reference_) && AllowValueRange_;
     }
 
     bool OnTransform(TTransformExpressionPtr /*transformExpr*/)
@@ -237,7 +239,7 @@ public:
     }
 
 private:
-    const NQueryClient::NAst::TReference& Reference_;
+    const NQueryClient::NAst::TReference Reference_;
     const bool AllowValueRange_;
 
     using TBaseAstVisitor<bool, TQueryVisitorForDefinedReference>::Visit;
@@ -248,17 +250,6 @@ private:
             return false;
         }
         return Visit(exprs[0]);
-    }
-
-    bool IsTargetReference(const TExpressionList& exprs)
-    {
-        if (exprs.size() != 1) {
-            return false;
-        }
-        if (auto* refExpr = exprs[0]->As<TReferenceExpression>()) {
-            return refExpr->Reference == Reference_;
-        }
-        return false;
     }
 };
 

@@ -1,3 +1,4 @@
+#include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/orm/library/query/query_optimizer.h>
 
 #include <yt/yt/core/test_framework/framework.h>
@@ -142,40 +143,59 @@ TEST(TQueryOptimizerTest, OptimizeWhenUsingSelectExpressionInOrderBy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool RunGroupByOptimization(const TString& filter, const std::vector<TString>& refs, const TString& tableName)
+{
+    auto parsedQuery = ParseSource(filter, NQueryClient::EParseMode::Expression);
+    auto expression = std::get<NQueryClient::NAst::TExpressionPtr>(parsedQuery->AstHead.Ast);
+
+    return TryOptimizeGroupByWithUniquePrefix(expression, refs, tableName);
+}
+
 TEST(TQueryOptimizerTest, OptimizeGroupBy)
 {
     TObjectsHolder objectsHolder;
     std::vector<TString> references{"permalink_ids"};
     TString tableName{"i"};
 
-    TExpression* filterExpression = objectsHolder.New<TInExpression>(
-        NQueryClient::TSourceLocation(),
-        MakeExpression<TReferenceExpression>(&objectsHolder, NQueryClient::TSourceLocation(), references[0], tableName),
-        TLiteralValueTupleList{{"1"}, {"2"}});
+    EXPECT_TRUE(
+        RunGroupByOptimization(
+            "i.[permalink_ids] in (1)",
+            references,
+            tableName));
+    EXPECT_TRUE(
+        RunGroupByOptimization(
+            "i.[permalink_ids] in (1) and true",
+            references,
+            tableName));
+    EXPECT_TRUE(
+        RunGroupByOptimization(
+            "i.[permalink_ids] in (1) and [some_other_ref] < 15",
+            references,
+            tableName));
+    EXPECT_TRUE(
+        RunGroupByOptimization(
+            "i.[permalink_ids] in (1, 2) and i.[permalink_ids] = 15",
+            references,
+            tableName));
+    EXPECT_TRUE(
+        RunGroupByOptimization(
+            "i.[permalink_ids] in (1, 2) and i.[permalink_ids] = 15",
+            references,
+            tableName));
 
     EXPECT_FALSE(
-        TryOptimizeGroupByWithUniquePrefix(
-            filterExpression,
+        RunGroupByOptimization(
+            "i.[permalink_ids] = 2 or i.[permalink_ids] = 1",
             references,
             tableName));
-
-    filterExpression->As<TInExpression>()->Values = TLiteralValueTupleList{{"1"}};
-
-    EXPECT_TRUE(
-        TryOptimizeGroupByWithUniquePrefix(
-            filterExpression,
+    EXPECT_FALSE(
+        RunGroupByOptimization(
+            "i.[permalink_ids] in (1, 2)",
             references,
             tableName));
-
-    filterExpression = objectsHolder.New<TBinaryOpExpression>(
-        NQueryClient::TSourceLocation(),
-        NQueryClient::EBinaryOp::And,
-        TExpressionList{filterExpression},
-        TExpressionList{objectsHolder.New<TLiteralExpression>(NQueryClient::TSourceLocation(), true)});
-
-    EXPECT_TRUE(
-        TryOptimizeGroupByWithUniquePrefix(
-            filterExpression,
+    EXPECT_FALSE(
+        RunGroupByOptimization(
+            "i.[permalink_ids] < 42",
             references,
             tableName));
 }

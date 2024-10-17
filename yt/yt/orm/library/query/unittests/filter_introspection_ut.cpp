@@ -116,6 +116,27 @@ TEST(TFilterIntrospectionTest, DefinedReference)
         "[/spec/year]>1990 OR ([/spec/publisher]=\"O'Relly\" AND [/spec/year]<=2000)",
          "/spec/year"));
 
+    // Defined IN.
+    EXPECT_TRUE(RunIntrospectFilterForDefinedReference(
+        "[/spec/year] IN (2000)",
+         "/spec/year",
+         /*tableName*/ {},
+         /*allowValueRange*/ false));
+    EXPECT_TRUE(RunIntrospectFilterForDefinedReference(
+        "[/spec/year] IN (2000, 2001)",
+         "/spec/year"));
+    EXPECT_TRUE(RunIntrospectFilterForDefinedReference(
+        "([/spec/year], [/spec/author]) IN ((2000, \"Tom\"), (2001, \"Jim\"))",
+         "/spec/year"));
+
+    // Defined Between.
+    EXPECT_TRUE(RunIntrospectFilterForDefinedReference(
+        "[/spec/year] BETWEEN 2000 and 2001",
+         "/spec/year"));
+    EXPECT_TRUE(RunIntrospectFilterForDefinedReference(
+        "([/spec/year], [/spec/author]) BETWEEN ((2000, \"Tom\") and (2001, \"Jim\"))",
+         "/spec/year"));
+
     // Not defined simple.
     EXPECT_FALSE(RunIntrospectFilterForDefinedReference(
         "[/spec/year]=1",
@@ -158,6 +179,11 @@ TEST(TFilterIntrospectionTest, DefinedReference)
     EXPECT_FALSE(RunIntrospectFilterForDefinedReference(
         "[/spec/year]>1990 OR [/spec/name]=\"text\"",
          "/spec/genres"));
+
+    // Not defined BETWEEN.
+    EXPECT_FALSE(RunIntrospectFilterForDefinedReference(
+        "[/spec/year] BETWEEN 2000 and 2001",
+         "/spec/name"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,11 +1,15 @@
 #include "query_optimizer.h"
 
+#include "misc.h"
+
 #include <yt/yt/library/query/base/ast_visitors.h>
 #include <yt/yt/library/query/base/helpers.h>
 
 #include <library/cpp/yt/assert/assert.h>
 
 #include <util/generic/hash.h>
+
+#include <algorithm>
 
 namespace NYT::NOrm::NQuery {
 
@@ -369,10 +373,10 @@ private:
         }
         YT_VERIFY(join->Lhs.size() == join->Rhs.size());
 
-        for (size_t i = 0; i < join->Lhs.size(); ++i) {
+        for (int index = 0; index < std::ssize(join->Lhs); ++index) {
             // TODO(bulatman) The right table keys may be replaced by transformed left table keys as well.
-            auto* lhs = join->Lhs[i]->As<TReferenceExpression>();
-            auto* rhs = join->Rhs[i]->As<TReferenceExpression>();
+            auto* lhs = join->Lhs[index]->As<TReferenceExpression>();
+            auto* rhs = join->Rhs[index]->As<TReferenceExpression>();
             if (!lhs || !rhs) {
                 return false;
             }
@@ -410,49 +414,39 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TGroupByOptimizer
-    : public TBaseAstVisitor<std::optional<size_t>, TGroupByOptimizer>
+    : public TBaseAstVisitor<std::optional<int>, TGroupByOptimizer>
 {
 public:
-    TGroupByOptimizer(const std::vector<TString>& prefixReferences, const TString& tableName)
-        : PrefixReferences_(prefixReferences)
-        , TableName_(tableName)
+    TGroupByOptimizer(const TReference& reference)
+        : Reference_(reference)
     { }
 
     bool Run(TExpressionPtr expr)
     {
-        // Composite prefix references are currently not supported.
-        if (PrefixReferences_.size() != 1) {
-            return false;
-        }
         return Visit(expr) == 1;
     }
 
-    std::optional<size_t> OnLiteral(TLiteralExpressionPtr /*literalExpr*/)
+    std::optional<int> OnLiteral(TLiteralExpressionPtr /*literalExpr*/)
     {
         return std::nullopt;
     }
 
-    std::optional<size_t> OnReference(TReferenceExpressionPtr /*referenceExpr*/)
+    std::optional<int> OnReference(TReferenceExpressionPtr /*referenceExpr*/)
     {
         return std::nullopt;
     }
 
-    std::optional<size_t> OnAlias(TAliasExpressionPtr /*aliasExpr*/)
+    std::optional<int> OnAlias(TAliasExpressionPtr /*aliasExpr*/)
     {
         return std::nullopt;
     }
 
-    std::optional<size_t> OnUnary(TUnaryOpExpressionPtr unaryExpr)
+    std::optional<int> OnUnary(TUnaryOpExpressionPtr /*unaryExpr*/)
     {
-        if (unaryExpr->Opcode == NQueryClient::EUnaryOp::Not && IsTargetReference(unaryExpr->Operand)) {
-            YT_VERIFY(unaryExpr->Operand.size() == 1);
-            auto prefixRanges = Visit(unaryExpr->Operand[0]);
-            return std::min(prefixRanges, std::make_optional<size_t>(0));
-        }
         return std::nullopt;
     }
 
-    std::optional<size_t> OnBinary(TBinaryOpExpressionPtr binaryExpr)
+    std::optional<int> OnBinary(TBinaryOpExpressionPtr binaryExpr)
     {
         if (IsLogicalBinaryOp(binaryExpr->Opcode)) {
             YT_VERIFY(binaryExpr->Lhs.size() == 1);
@@ -460,79 +454,70 @@ public:
             auto prefixRangesLeft = Visit(binaryExpr->Lhs[0]);
             auto prefixRangesRight = Visit(binaryExpr->Rhs[0]);
             if (!prefixRangesLeft || !prefixRangesRight) {
-                return std::max(prefixRangesLeft, prefixRangesRight);
+                return binaryExpr->Opcode == NQueryClient::EBinaryOp::And
+                    ? std::max(prefixRangesLeft, prefixRangesRight)
+                    : std::nullopt;
             }
             if (binaryExpr->Opcode == NQueryClient::EBinaryOp::Or) {
-                return (*prefixRangesLeft == 0 || *prefixRangesRight == 0)
-                    ? 0
-                    : *prefixRangesLeft + *prefixRangesRight;
+                return std::clamp<i64>(static_cast<i64>(*prefixRangesLeft) + *prefixRangesRight, 0, UnboundSentinel);
             } else {
-                return (*prefixRangesLeft == 0 || *prefixRangesRight == 0)
-                    ? std::max(prefixRangesLeft, prefixRangesRight)
-                    : std::min(prefixRangesLeft, prefixRangesRight);
+                return std::min(prefixRangesLeft, prefixRangesRight);
             }
         } else if (NQueryClient::IsRelationalBinaryOp(binaryExpr->Opcode)) {
-            if (IsTargetReference(binaryExpr->Lhs) || IsTargetReference(binaryExpr->Rhs)) {
+            if (IsAnyExprATargetReference(binaryExpr->Lhs, Reference_) ||
+                IsAnyExprATargetReference(binaryExpr->Rhs, Reference_))
+            {
                 // 1 for equals operator, 0 for others.
-                return binaryExpr->Opcode == NQueryClient::EBinaryOp::Equal;
+                return binaryExpr->Opcode == NQueryClient::EBinaryOp::Equal
+                    ? 1
+                    : UnboundSentinel;
             }
         }
         return std::nullopt;
     }
 
-    std::optional<size_t> OnFunction(TFunctionExpressionPtr /*functionExpr*/)
+    std::optional<int> OnFunction(TFunctionExpressionPtr /*functionExpr*/)
     {
         return std::nullopt;
     }
 
-    std::optional<size_t> OnIn(TInExpressionPtr inExpr)
+    std::optional<int> OnIn(TInExpressionPtr inExpr)
     {
-        if (IsTargetReference(inExpr->Expr)) {
+        if (IsAnyExprATargetReference(inExpr->Expr, Reference_)) {
             return inExpr->Values.size();
         }
         return std::nullopt;
     }
 
-    std::optional<size_t> OnBetween(TBetweenExpressionPtr betweenExpr)
+    std::optional<int> OnBetween(TBetweenExpressionPtr betweenExpr)
     {
-        if (IsTargetReference(betweenExpr->Expr)) {
-            return 0;
+        if (IsAnyExprATargetReference(betweenExpr->Expr, Reference_)) {
+            return UnboundSentinel;
         }
         return std::nullopt;
     }
 
-    std::optional<size_t> OnTransform(TTransformExpressionPtr /*transformExpr*/)
+    std::optional<int> OnTransform(TTransformExpressionPtr /*transformExpr*/)
     {
         return std::nullopt;
     }
 
-    std::optional<size_t> OnCase(TCaseExpressionPtr /*caseExpr*/)
+    std::optional<int> OnCase(TCaseExpressionPtr /*caseExpr*/)
     {
         return std::nullopt;
     }
 
-    std::optional<size_t> OnLike(TLikeExpressionPtr /*likeExpr*/)
+    std::optional<int> OnLike(TLikeExpressionPtr /*likeExpr*/)
     {
         return std::nullopt;
     }
 
 private:
-    const std::vector<TString>& PrefixReferences_;
-    const TString& TableName_;
+    static constexpr i64 UnboundSentinel = std::numeric_limits<int>::max();
 
-    using TBaseAstVisitor<std::optional<size_t>, TGroupByOptimizer>::Visit;
+    const NQueryClient::NAst::TReference Reference_;
 
-    bool IsTargetReference(const TExpressionList& exprs)
-    {
-        if (exprs.size() != 1) {
-            return false;
-        }
-        if (auto* refExpr = exprs[0]->As<TReferenceExpression>()) {
-            return refExpr->Reference.ColumnName == PrefixReferences_[0] &&
-                refExpr->Reference.TableName == TableName_;
-        }
-        return false;
-    }
+    using TBaseAstVisitor<std::optional<int>, TGroupByOptimizer>::Visit;
 };
 
 } // namespace
@@ -551,8 +536,12 @@ bool TryOptimizeGroupByWithUniquePrefix(
     const std::vector<TString>& prefixReferences,
     const TString& tableName)
 {
-    TGroupByOptimizer optimizer(prefixReferences, tableName);
-    return optimizer.Run(filterExpression);
+    YT_VERIFY(!prefixReferences.empty());
+    if (prefixReferences.size() != 1) {
+        return false;
+    }
+    return TGroupByOptimizer(TReference(prefixReferences[0], tableName))
+        .Run(filterExpression);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
