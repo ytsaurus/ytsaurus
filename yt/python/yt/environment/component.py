@@ -53,6 +53,7 @@ class YTServerComponentBase:
         configs, addresses = self._build_configs(config["count"], env.yt_config, env._cluster_configuration["cluster_connection"],
                                                  env._open_port_iterator, env.logs_path)
         self.addresses = addresses
+        self.configs = configs
         self.config_paths = self.env.prepare_external_component(
             "ytserver-" + self.DASHED_NAME,
             self.LOWERCASE_NAME,

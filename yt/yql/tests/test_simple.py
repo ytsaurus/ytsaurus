@@ -9,6 +9,7 @@ from yt_commands import (authors, create, create_user, sync_mount_table,
 from yt_env_setup import YTEnvSetup
 
 import pytest
+import requests
 
 
 class TestQueriesYqlBase(YTEnvSetup):
@@ -41,6 +42,47 @@ class TestQueriesYqlBase(YTEnvSetup):
             return
 
         assert_items_equal(result, expected)
+
+    def _exists_pending_stage_in_progress(self, query):
+        queryInfo = query.get()
+        if "progress" in queryInfo and "yql_progress" in queryInfo["progress"]:
+            for stage in queryInfo["progress"]["yql_progress"].values():
+                if "pending" in stage and stage["pending"] > 0 :
+                    return True
+        return False
+
+
+class TestMetrics(TestQueriesYqlBase):
+    @authors("mpereskokova")
+    def test_metrics(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}]
+        write_table("//tmp/t", rows)
+
+        create_pool("small", attributes={"resource_limits": {"user_slots": 0}})
+        query = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
+
+        wait(lambda: self._exists_pending_stage_in_progress(query))
+
+        def filter_sensor(sensor):
+            return sensor["labels"]["sensor"] == "yt.yql_agent.active_queries"
+
+        def lastActiveQueriesMetric():
+            sensors = requests.get(f"http://localhost:{yql_agent.yql_agent.configs[0]["monitoring_port"]}/solomon/shard/default").json()["sensors"]
+            newlist = sorted(list(filter(filter_sensor, sensors)), key=lambda sensor: sensor['ts'])
+            return newlist[-1]["value"]
+
+        wait(lambda: lastActiveQueriesMetric() == 1, ignore_exceptions=True)
+
+        set("//sys/pools/small/@resource_limits/user_slots", 1)
+
+        query.track()
+        result = query.read_result(0)
+        assert_items_equal(result, [{"result": 43}])
+
+        wait(lambda: lastActiveQueriesMetric() == 0)
 
 
 class TestSimpleQueriesYql(TestQueriesYqlBase):
@@ -357,14 +399,7 @@ class TestYqlAgent(TestQueriesYqlBase):
         create_pool("small", attributes={"resource_limits": {"user_slots": 0}})
         query = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
 
-        def existsPendingStage():
-            queryInfo = query.get()
-            if "progress" in queryInfo and "yql_progress" in queryInfo["progress"]:
-                for stage in queryInfo["progress"]["yql_progress"].values():
-                    if "pending" in stage and stage["pending"] > 0 :
-                        return True
-            return False
-        wait(existsPendingStage)
+        wait(lambda: self._exists_pending_stage_in_progress(query))
 
         set("//sys/pools/small/@resource_limits/user_slots", 1)
 

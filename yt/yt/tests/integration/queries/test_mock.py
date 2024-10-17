@@ -15,6 +15,7 @@ from yt.test_helpers import assert_items_equal
 from collections import Counter
 
 import pytest
+import requests
 
 
 def expect_queries(queries, list_result, incomplete=False):
@@ -28,6 +29,69 @@ def expect_queries(queries, list_result, incomplete=False):
             print_debug(f"{table}:")
             select_rows(f"* from [//sys/query_tracker/{table}]", timestamp=timestamp)
         raise
+
+
+class TestMetrics(YTEnvSetup):
+    DELTA_DRIVER_CONFIG = {
+        "cluster_connection_dynamic_config_policy": "from_cluster_directory",
+    }
+
+    @authors("mpereskokova")
+    def test_active_queries_metrics(self, query_tracker):
+        monitoring_port = query_tracker.query_tracker.configs[0]["monitoring_port"]
+
+        def filter_sensor(sensor):
+            return sensor["labels"]["sensor"] == "yt.query_tracker.active_queries" \
+                and "state" in sensor["labels"] \
+                and sensor["labels"]["state"] == "Running"
+
+        def lastActiveQueriesMetric():
+            sensors = requests.get(f"http://localhost:{monitoring_port}/solomon/shard/default").json()["sensors"]
+            newlist = sorted(list(filter(filter_sensor, sensors)), key=lambda sensor: sensor['ts'])
+            return newlist[-1]["value"] if len(newlist) > 0 else 0
+
+        q = start_query("mock", "run_forever")
+        wait(lambda: lastActiveQueriesMetric() == 1, ignore_exceptions=True)
+
+        q.abort()
+        wait(lambda: lastActiveQueriesMetric() == 0)
+
+    @authors("mpereskokova")
+    def test_state_time_metrics(self, query_tracker):
+        monitoring_port = query_tracker.query_tracker.configs[0]["monitoring_port"]
+
+        def get_filter_sensor_lambda(state):
+            def filter_sensor(sensor):
+                return sensor["labels"]["sensor"] == "yt.query_tracker.state_time.max" \
+                    and "state" in sensor["labels"] \
+                    and sensor["labels"]["state"] == state \
+                    and sensor["value"] > 0
+            return filter_sensor
+
+        def hasStateTimeMetric(state):
+            sensors = requests.get(f"http://localhost:{monitoring_port}/solomon/shard/default").json()["sensors"]
+            newlist = list(filter(get_filter_sensor_lambda(state), sensors))
+            return len(newlist) > 0
+
+        q1 = start_query("mock", "run_forever")
+        wait(lambda: hasStateTimeMetric("Pending"), ignore_exceptions=True)
+        assert not hasStateTimeMetric("Running")
+        assert not hasStateTimeMetric("Aborting")
+
+        q1.abort()
+        wait(lambda: hasStateTimeMetric("Running"))
+        wait(lambda: hasStateTimeMetric("Aborting"))
+        assert not hasStateTimeMetric("Failing")
+
+        q2 = start_query("mock", "fail")
+        with raises_yt_error("failed"):
+            q2.track()
+        wait(lambda: hasStateTimeMetric("Failing"))
+        assert not hasStateTimeMetric("Completing")
+
+        q3 = start_query("mock", "complete_after", settings={"duration": 0})
+        q3.track()
+        wait(lambda: hasStateTimeMetric("Completing"))
 
 
 class TestQueriesMock(YTEnvSetup):
