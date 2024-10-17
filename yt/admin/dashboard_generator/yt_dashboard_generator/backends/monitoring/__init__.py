@@ -127,7 +127,7 @@ class MonitoringSerializerBase(SerializerBase):
 
         assert issubclass(type(sensor), Sensor)
 
-        tags = list(sensor.get_tags().items())
+        tags = sensor.get_tags()
         if self.tag_postprocessor is not None:
             tags, _ = self.tag_postprocessor.postprocess(tags, None)
 
@@ -135,7 +135,7 @@ class MonitoringSerializerBase(SerializerBase):
 
         string_tags = []
         other_tags = {}
-        for k, v in tags:
+        for k, v in tags.items():
             if isinstance(k, MonitoringTag):
                 k = str(k)
             # TODO: rewrite system tag expansion.
