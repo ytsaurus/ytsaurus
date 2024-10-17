@@ -4,7 +4,7 @@ from yt.local import start, stop, delete, get_proxy, list_instances
 from yt.local.helpers import YTCheckingThread
 from yt.local.commands import get_main_process_pid_file_path
 
-from yt.wrapper.cli_helpers import run_main, ParseStructuredArguments
+from yt.wrapper.cli_helpers import run_main, ParseStructuredArgument, ParseStructuredArguments
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 import yt.yson as yson
 
@@ -17,7 +17,7 @@ import errno
 
 DESCRIPTION = """Command-line utility to work with local YT instances."""
 
-SERVICE_LIST = ("master", "node", "scheduler", "controller-agent", "proxy", "rpc-proxy", "watcher", "queue-agent", "kafka-proxy")
+SERVICE_LIST = ("master", "node", "scheduler", "controller-agent", "proxy", "rpc-proxy", "watcher", "queue-agent", "kafka-proxy", "driver")
 
 logger = logging.getLogger("YtLocal")
 
@@ -243,9 +243,11 @@ def add_start_subparser(subparsers):
 
     parser.add_argument("--create-admin-user", action="store_true", default=False,
                         help="Create admin user")
-    
+
     parser.add_argument("--native-client-supported", "--use-native-client", action="store_true", default=False,
                         dest="native_client_supported", help="Use native client")
+
+    parser.add_argument("--address-resolver-config", action=ParseStructuredArgument, help="Config of address resolver which will be used in all configs")
 
     # Compatibility options
     parser.add_argument("--masters-count", type=int, help=argparse.SUPPRESS)

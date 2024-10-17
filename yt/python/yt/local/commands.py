@@ -176,7 +176,8 @@ def start(master_count=1,
           timestamp_provider_count=0,
           components=None,
           enable_auth=False,
-          create_admin_user=False):
+          create_admin_user=False,
+          address_resolver_config=None):
     require(master_count >= 1, lambda: YtError("Cannot start local YT instance without masters"))
 
     path = get_root_path(path)
@@ -280,6 +281,7 @@ def start(master_count=1,
         timestamp_provider_count=timestamp_provider_count,
         enable_auth=enable_auth,
         create_admin_user=create_admin_user,
+        address_resolver_config=address_resolver_config,
     )
 
     environment = YTInstance(
