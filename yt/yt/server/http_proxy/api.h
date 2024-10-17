@@ -3,6 +3,8 @@
 #include "public.h"
 #include "private.h"
 
+#include <yt/yt/ytlib/misc/public.h>
+
 #include <yt/yt/client/driver/driver.h>
 
 #include <yt/yt/core/http/http.h>
@@ -61,6 +63,7 @@ public:
     const TApiConfigPtr& GetConfig() const;
     TApiDynamicConfigPtr GetDynamicConfig() const;
     const NConcurrency::IPollerPtr& GetPoller() const;
+    const INodeMemoryTrackerPtr& GetMemoryUsageTracker() const;
 
     bool IsUserBannedInCache(const TString& user);
     void PutUserIntoBanCache(const TString& user);
@@ -115,6 +118,8 @@ private:
     const IInvokerPtr ControlInvoker_;
 
     const NConcurrency::IPollerPtr Poller_;
+
+    const INodeMemoryTrackerPtr MemoryUsageTracker_;
 
     const NProfiling::TProfiler SparseProfiler_ = HttpProxyProfiler.WithSparse();
 

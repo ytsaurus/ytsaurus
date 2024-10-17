@@ -75,6 +75,7 @@ public:
     const NAuth::ICookieAuthenticatorPtr& GetCookieAuthenticator() const;
     const IDynamicConfigManagerPtr& GetDynamicConfigManager() const;
     const NConcurrency::IPollerPtr& GetPoller() const;
+    const INodeMemoryTrackerPtr& GetMemoryUsageTracker() const;
     const TApiPtr& GetApi() const;
 
     bool IsChytApiServerAddress(const NNet::TNetworkAddress& address) const;

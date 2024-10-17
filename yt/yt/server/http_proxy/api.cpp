@@ -50,6 +50,7 @@ TApi::TApi(TBootstrap* bootstrap)
     , AccessChecker_(bootstrap->GetAccessChecker())
     , ControlInvoker_(bootstrap->GetControlInvoker())
     , Poller_(bootstrap->GetPoller())
+    , MemoryUsageTracker_(bootstrap->GetMemoryUsageTracker())
     , DefaultNetworkName_(bootstrap->GetConfig()->DefaultNetwork)
 {
     for (const auto& network : bootstrap->GetConfig()->Networks) {
@@ -115,6 +116,11 @@ TApiDynamicConfigPtr TApi::GetDynamicConfig() const
 const IPollerPtr& TApi::GetPoller() const
 {
     return Poller_;
+}
+
+const INodeMemoryTrackerPtr& TApi::GetMemoryUsageTracker() const
+{
+    return MemoryUsageTracker_;
 }
 
 bool TApi::IsUserBannedInCache(const TString& user)
