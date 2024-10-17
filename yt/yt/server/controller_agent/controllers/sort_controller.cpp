@@ -3309,21 +3309,6 @@ private:
 
             // Don't create more partitions than we have samples (plus one).
             PartitionCount = std::min(PartitionCount, static_cast<int>(samples.size()) + 1);
-            // COMPAT(coteeq): SimpleSort is buggy in case of evaluated columns, but the fix also involves exe-nodes.
-            // SimpleSort should be enabled back when exe-nodes are fresh enough.
-            if (PartitionCount == 1 && !Config->SortOperationOptions->EnableSimpleSortForEvaluatedOutput) {
-                for (const auto& outputColumn : OutputTables_[0]->TableUploadOptions.TableSchema->Columns()) {
-                    if (outputColumn.Expression()) {
-                        PartitionCount = 2;
-                        YT_LOG_INFO(
-                            "Force increased partition count due to "
-                            "evaluated columns in output (PartitionCount: %v)",
-                            PartitionCount);
-                    }
-                }
-            }
-
-            SimpleSort = (PartitionCount == 1);
 
             auto partitionJobSizeConstraints = CreatePartitionJobSizeConstraints(
                 Spec,
@@ -3343,22 +3328,19 @@ private:
                     partitionJobSizeConstraints->GetJobCount(),
                     PartitionJobIOConfig->TableWriter);
 
-                YT_LOG_INFO("Adjusted partition count (PartitionCount: %v)", PartitionCount);
             }
 
-            YT_LOG_INFO("Building partition keys (SimpleSort: %v)", SimpleSort);
+            YT_LOG_INFO("Building partition keys (PartitionCount: %v)", PartitionCount);
 
             YT_PROFILE_TIMING("/operations/sort/samples_processing_time") {
-                if (!SimpleSort) {
-                    partitionKeys = BuildPartitionKeysBySamples(
-                        samples,
-                        sampleSchema,
-                        OutputTables_[0]->TableUploadOptions.GetUploadSchema(),
-                        Host->GetClient()->GetNativeConnection()->GetExpressionEvaluatorCache(),
-                        PartitionCount,
-                        RowBuffer,
-                        Logger);
-                }
+                partitionKeys = BuildPartitionKeysBySamples(
+                    samples,
+                    sampleSchema,
+                    OutputTables_[0]->TableUploadOptions.GetUploadSchema(),
+                    Host->GetClient()->GetNativeConnection()->GetExpressionEvaluatorCache(),
+                    PartitionCount,
+                    RowBuffer,
+                    Logger);
             }
             // After partition keys are built, row buffer used by samples fetcher can be disposed.
             SamplesRowBuffer_.Reset();
@@ -3379,6 +3361,13 @@ private:
                 MaxPartitionFactor = PartitionCount;
             }
         }
+
+        SimpleSort = (PartitionCount == 1);
+
+        YT_LOG_DEBUG("Final partitioning parameters (PartitionCount: %v, MaxPartitionFactor: %v, SimpleSort: %v)",
+            PartitionCount,
+            MaxPartitionFactor,
+            SimpleSort);
 
         BuildPartitionTree(PartitionCount, MaxPartitionFactor);
 

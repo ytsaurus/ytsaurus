@@ -404,7 +404,10 @@ class TestBulkInsert(DynamicTablesBase):
                     out="<append=%true>//tmp/t_output",
                     sort_by=["key"],
                     track=False,
-                    spec={"partition_count": 2} if avoid_simple_sort else {},
+                    spec={
+                        "partition_count": 2,
+                        "use_new_partitions_heuristic": True
+                    } if avoid_simple_sort else {},
                 )
             operations.append(op)
 
@@ -859,7 +862,10 @@ class TestBulkInsert(DynamicTablesBase):
             in_="//tmp/t_input",
             out="<append=%true>//tmp/t_output",
             sort_by=["key"],
-            spec={"partition_count": 2} if avoid_simple_sort else {},
+            spec={
+                "partition_count": 2,
+                "use_new_partitions_heuristic": True
+            } if avoid_simple_sort else {},
         )
 
         assert read_table("//tmp/t_output") == sorted_dicts(rows)
@@ -1804,7 +1810,10 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
                     in_="//tmp/t_input",
                     out="<append=%true;schema_modification=unversioned_update>//tmp/t_output",
                     sort_by=["key"],
-                    spec={"partition_count": 2},
+                    spec={
+                        "partition_count": 2,
+                        "use_new_partitions_heuristic": True
+                    },
                 )
         else:
             sort(
@@ -1850,7 +1859,10 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             in_="//tmp/t_input",
             out="//tmp/t_intermediate",
             sort_by=["key"],
-            spec={"partition_count": 2} if avoid_simple_sort else {},
+            spec={
+                "partition_count": 2,
+                "use_new_partitions_heuristic": True
+            } if avoid_simple_sort else {},
         )
         merge(
             in_="//tmp/t_intermediate",
