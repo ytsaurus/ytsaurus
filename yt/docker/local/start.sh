@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-yt_local start --proxy-port 80 \
+exec yt_local start --proxy-port 80 \
 --master-config /etc/yt/server.yson \
 --node-config /etc/yt/server.yson \
 --scheduler-config /etc/yt/server.yson \
