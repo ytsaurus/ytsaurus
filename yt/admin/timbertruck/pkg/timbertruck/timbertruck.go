@@ -116,18 +116,25 @@ type StreamConfig struct {
 	// TODO: should be named SourceFile
 	// Path to main log file
 	LogFile string `yaml:"log_file"`
+
+	// How many active tasks can hold timbertruck for this stream
+	MaxActiveTaskCount *int `yaml:"max_active_task_count"`
 }
 
-func (tt *TimberTruck) AddStream(stream StreamConfig, newPipeline NewPipelineFunc) {
+func (tt *TimberTruck) AddStream(config StreamConfig, newPipeline NewPipelineFunc) {
 	handler := streamHandler{
 		timberTruck: tt,
 		logger: tt.logger.With(
-			"stream", stream.Name,
-			"file", path.Base(stream.LogFile),
+			"stream", config.Name,
+			"file", path.Base(config.LogFile),
 		),
-		config:          stream,
+		config:          config,
 		newPipelineFunc: newPipeline,
 		haveTasks:       make(chan struct{}),
+	}
+	if handler.config.MaxActiveTaskCount == nil {
+		defaultMaxActiveTaskCount := 100
+		handler.config.MaxActiveTaskCount = &defaultMaxActiveTaskCount
 	}
 	tt.handlers = append(tt.handlers, handler)
 	handler.logger.Info("Pipeline added")
@@ -424,9 +431,15 @@ func (h *streamHandler) handleStagedPath(stagedPath string) {
 		StagedPath:   stagedPath,
 		CreationTime: creationTime,
 	}
-	err = h.timberTruck.datastore.AddTask(&task)
-	if err != nil {
+	warns, err := h.timberTruck.datastore.AddTask(&task, *h.config.MaxActiveTaskCount)
+	if errors.Is(err, ErrTaskLimitExceeded) {
+		h.logger.Error("Task was not added", "error", err)
+	} else if err != nil {
 		panic(fmt.Sprintf("unexpected error AddTask(%v): %v", task, err))
+	}
+
+	for _, warn := range warns {
+		h.logger.Error("Warning generated while adding task", "error", warn)
 	}
 
 	go func() {

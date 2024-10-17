@@ -1,6 +1,7 @@
 package timbertruck
 
 import (
+	"fmt"
 	"path"
 	"testing"
 	"time"
@@ -30,7 +31,7 @@ func TestDatastore(t *testing.T) {
 		BoundTime:    time.Date(2020, time.September, 21, 12, 30, 0, 0, time.UTC),
 		EndPosition:  pipelines.UncompressedFilePosition(100500),
 	}
-	err = ds.AddTask(&task)
+	_, err = ds.AddTask(&task, 10)
 	require.NoError(t, err)
 
 	_, err = ds.TaskByPath("/foo/bar")
@@ -65,7 +66,7 @@ func TestDatastoreGetTask(t *testing.T) {
 		BoundTime:    time.Date(2020, time.September, 9, 17, 30, 0, 0, time.UTC),
 		EndPosition:  pipelines.UncompressedFilePosition(100500),
 	}
-	err = ds.AddTask(&task1)
+	_, err = ds.AddTask(&task1, 10)
 	require.NoError(t, err)
 
 	peekedTask, err := ds.PeekNextTask("foo")
@@ -81,7 +82,7 @@ func TestDatastoreGetTask(t *testing.T) {
 		BoundTime:    time.Date(2020, time.September, 9, 17, 30, 0, 0, time.UTC),
 		EndPosition:  pipelines.UncompressedFilePosition(100500),
 	}
-	err = ds.AddTask(&task2)
+	_, err = ds.AddTask(&task2, 10)
 	require.NoError(t, err)
 
 	peekedTask2, err := ds.PeekNextTask("foo")
@@ -97,7 +98,7 @@ func TestDatastoreGetTask(t *testing.T) {
 		BoundTime:    time.Date(2021, time.September, 9, 17, 30, 0, 0, time.UTC),
 		EndPosition:  pipelines.UncompressedFilePosition(100500),
 	}
-	err = ds.AddTask(&task3)
+	_, err = ds.AddTask(&task3, 10)
 	require.NoError(t, err)
 
 	peekedTask3, err := ds.PeekNextTask("foo")
@@ -130,7 +131,7 @@ func TestDatastoreCompleteTask(t *testing.T) {
 		CreationTime: time.Date(1992, time.September, 21, 8, 0, 0, 0, time.UTC),
 		BoundTime:    time.Date(2020, time.September, 9, 17, 30, 0, 0, time.UTC),
 	}
-	err = ds.AddTask(&task1)
+	_, err = ds.AddTask(&task1, 10)
 	require.NoError(t, err)
 
 	tasks, err := ds.ListActiveTasks()
@@ -179,7 +180,7 @@ func TestCleanUpCompletedTask(t *testing.T) {
 		BoundTime:    time.Date(1992, time.January, 1, 0, 0, 0, 0, time.UTC),
 		EndPosition:  pipelines.UncompressedFilePosition(100500),
 	}
-	err = ds.AddTask(&task1)
+	_, err = ds.AddTask(&task1, 10)
 	require.NoError(t, err)
 
 	err = ds.CompleteTask("/var/tmp/foo.1", time.Date(1993, time.January, 1, 0, 0, 0, 0, time.UTC), nil)
@@ -193,7 +194,7 @@ func TestCleanUpCompletedTask(t *testing.T) {
 		BoundTime:    time.Date(1992, time.January, 1, 0, 0, 0, 0, time.UTC),
 		EndPosition:  pipelines.UncompressedFilePosition(100500),
 	}
-	err = ds.AddTask(&task2)
+	_, err = ds.AddTask(&task2, 10)
 	require.NoError(t, err)
 
 	err = ds.CleanupOldCompletedTasks(time.Date(1994, time.January, 1, 0, 0, 0, 0, time.UTC))
@@ -228,7 +229,7 @@ func TestDatastoreCantAddSamePath(t *testing.T) {
 		BoundTime:    time.Date(2020, time.September, 9, 17, 30, 0, 0, time.UTC),
 		EndPosition:  pipelines.UncompressedFilePosition(100500),
 	}
-	err = ds.AddTask(&task1)
+	_, err = ds.AddTask(&task1, 10)
 	require.NoError(t, err)
 
 	task2 := Task{
@@ -239,7 +240,7 @@ func TestDatastoreCantAddSamePath(t *testing.T) {
 		BoundTime:    time.Date(2020, time.September, 9, 17, 30, 0, 0, time.UTC),
 		EndPosition:  pipelines.UncompressedFilePosition(100500),
 	}
-	err = ds.AddTask(&task2)
+	_, err = ds.AddTask(&task2, 10)
 	require.ErrorContains(t, err, "UNIQUE constraint")
 }
 
@@ -266,11 +267,68 @@ func TestDatastoreTaskByIno(t *testing.T) {
 		CreationTime: createTime,
 		EndPosition:  pipelines.UncompressedFilePosition(100500),
 	}
-	err = ds.AddTask(&task1)
+	_, err = ds.AddTask(&task1, 10)
 	require.NoError(t, err)
 
 	peekedTask, err := ds.ActiveTaskByIno(100500, "foo")
 	require.NoError(t, err)
 
 	require.Equal(t, task1, peekedTask)
+}
+
+func TestDatastoreTaskLimit(t *testing.T) {
+	dir := t.TempDir()
+
+	ds, err := NewDatastore(path.Join(dir, "db.sqlite"))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err = ds.Close()
+		if err != nil {
+			t.Fatalf("Error closing datatstore: %v", err)
+		}
+	})
+
+	createTask := func(taskIndex int) *Task {
+		return &Task{
+			StreamName:   "foo",
+			StagedPath:   fmt.Sprintf("/var/tmp/foo.%v", taskIndex),
+			INode:        100500 + int64(taskIndex),
+			CreationTime: time.Date(1992, time.September, 21, 8, 0, 0, 0, time.UTC).Add(time.Duration(taskIndex) * time.Hour),
+		}
+	}
+
+	warns, err := ds.AddTask(createTask(1), 6)
+	require.NoError(t, err)
+	require.Empty(t, warns)
+
+	warns, err = ds.AddTask(createTask(2), 6)
+	require.NoError(t, err)
+	require.Empty(t, warns)
+
+	warns, err = ds.AddTask(createTask(3), 6)
+	require.NoError(t, err)
+	require.Empty(t, warns)
+
+	warns, err = ds.AddTask(createTask(4), 6)
+	require.NoError(t, err)
+	require.Empty(t, warns)
+
+	warns, err = ds.AddTask(createTask(5), 6)
+	require.NoError(t, err)
+	require.Len(t, warns, 1)
+	require.ErrorContains(t, warns[0], "limit of the active tasks will be reached soon")
+
+	warns, err = ds.AddTask(createTask(6), 7)
+	require.NoError(t, err)
+	require.Len(t, warns, 1)
+	require.ErrorContains(t, warns[0], "limit of the active tasks will be reached soon")
+
+	warns, err = ds.AddTask(createTask(7), 7)
+	require.NoError(t, err)
+	require.Len(t, warns, 1)
+	require.ErrorContains(t, warns[0], "limit of the active tasks will be reached soon")
+
+	warns, err = ds.AddTask(createTask(8), 7)
+	require.ErrorIs(t, err, ErrTaskLimitExceeded)
+	require.Empty(t, warns)
 }
