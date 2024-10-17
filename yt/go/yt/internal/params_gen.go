@@ -1318,10 +1318,16 @@ func (p *CreateNodeParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *CreateNodeParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 		log.Any("typ", p.typ),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *CreateNodeParams) MarshalHTTP(w *yson.Writer) {
@@ -1376,9 +1382,15 @@ func (p *CreateObjectParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *CreateObjectParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("typ", p.typ),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *CreateObjectParams) MarshalHTTP(w *yson.Writer) {
@@ -1427,9 +1439,15 @@ func (p *NodeExistsParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *NodeExistsParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *NodeExistsParams) MarshalHTTP(w *yson.Writer) {
@@ -1482,9 +1500,15 @@ func (p *RemoveNodeParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *RemoveNodeParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *RemoveNodeParams) MarshalHTTP(w *yson.Writer) {
@@ -1537,9 +1561,15 @@ func (p *GetNodeParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *GetNodeParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *GetNodeParams) MarshalHTTP(w *yson.Writer) {
@@ -1596,9 +1626,15 @@ func (p *SetNodeParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *SetNodeParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *SetNodeParams) MarshalHTTP(w *yson.Writer) {
@@ -1651,9 +1687,15 @@ func (p *MultisetAttributesParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *MultisetAttributesParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *MultisetAttributesParams) MarshalHTTP(w *yson.Writer) {
@@ -1706,9 +1748,15 @@ func (p *ListNodeParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *ListNodeParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *ListNodeParams) MarshalHTTP(w *yson.Writer) {
@@ -1768,10 +1816,16 @@ func (p *CopyNodeParams) YPath() (ypath.YPath, bool) {
 	return p.src, true
 }
 func (p *CopyNodeParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("src", p.src),
 		log.Any("dst", p.dst),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *CopyNodeParams) MarshalHTTP(w *yson.Writer) {
@@ -1825,10 +1879,16 @@ func (p *MoveNodeParams) YPath() (ypath.YPath, bool) {
 	return p.src, true
 }
 func (p *MoveNodeParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("src", p.src),
 		log.Any("dst", p.dst),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *MoveNodeParams) MarshalHTTP(w *yson.Writer) {
@@ -1882,10 +1942,16 @@ func (p *LinkNodeParams) YPath() (ypath.YPath, bool) {
 	return p.target, true
 }
 func (p *LinkNodeParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("target", p.target),
 		log.Any("link", p.link),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *LinkNodeParams) MarshalHTTP(w *yson.Writer) {
@@ -1933,7 +1999,13 @@ func (p *StartTxParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *StartTxParams) Log() []log.Field {
-	return []log.Field{}
+	fields := []log.Field{}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *StartTxParams) MarshalHTTP(w *yson.Writer) {
@@ -1973,7 +2045,13 @@ func (p *StartTabletTxParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *StartTabletTxParams) Log() []log.Field {
-	return []log.Field{}
+	fields := []log.Field{}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *StartTabletTxParams) MarshalHTTP(w *yson.Writer) {
@@ -2008,9 +2086,15 @@ func (p *PingTxParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *PingTxParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("id", p.id),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *PingTxParams) MarshalHTTP(w *yson.Writer) {
@@ -2051,9 +2135,15 @@ func (p *AbortTxParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *AbortTxParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("id", p.id),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *AbortTxParams) MarshalHTTP(w *yson.Writer) {
@@ -2102,9 +2192,15 @@ func (p *CommitTxParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *CommitTxParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("id", p.id),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *CommitTxParams) MarshalHTTP(w *yson.Writer) {
@@ -2153,9 +2249,15 @@ func (p *WriteFileParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *WriteFileParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *WriteFileParams) MarshalHTTP(w *yson.Writer) {
@@ -2200,9 +2302,15 @@ func (p *ReadFileParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *ReadFileParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *ReadFileParams) MarshalHTTP(w *yson.Writer) {
@@ -2250,10 +2358,16 @@ func (p *PutFileToCacheParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *PutFileToCacheParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 		log.Any("md5", p.md5),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *PutFileToCacheParams) MarshalHTTP(w *yson.Writer) {
@@ -2304,9 +2418,15 @@ func (p *GetFileFromCacheParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *GetFileFromCacheParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("md5", p.md5),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *GetFileFromCacheParams) MarshalHTTP(w *yson.Writer) {
@@ -2351,9 +2471,15 @@ func (p *WriteTableParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *WriteTableParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *WriteTableParams) MarshalHTTP(w *yson.Writer) {
@@ -2398,9 +2524,15 @@ func (p *ReadTableParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *ReadTableParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *ReadTableParams) MarshalHTTP(w *yson.Writer) {
@@ -2448,9 +2580,15 @@ func (p *StartOperationParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *StartOperationParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("opType", p.opType),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *StartOperationParams) MarshalHTTP(w *yson.Writer) {
@@ -2497,9 +2635,15 @@ func (p *AbortOperationParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *AbortOperationParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("opID", p.opID),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *AbortOperationParams) MarshalHTTP(w *yson.Writer) {
@@ -2536,9 +2680,15 @@ func (p *SuspendOperationParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *SuspendOperationParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("opID", p.opID),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *SuspendOperationParams) MarshalHTTP(w *yson.Writer) {
@@ -2575,9 +2725,15 @@ func (p *ResumeOperationParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *ResumeOperationParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("opID", p.opID),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *ResumeOperationParams) MarshalHTTP(w *yson.Writer) {
@@ -2614,9 +2770,15 @@ func (p *CompleteOperationParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *CompleteOperationParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("opID", p.opID),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *CompleteOperationParams) MarshalHTTP(w *yson.Writer) {
@@ -2656,10 +2818,16 @@ func (p *UpdateOperationParametersParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *UpdateOperationParametersParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("opID", p.opID),
 		log.Any("params", p.params),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *UpdateOperationParametersParams) MarshalHTTP(w *yson.Writer) {
@@ -2698,9 +2866,15 @@ func (p *GetOperationParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *GetOperationParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("opID", p.opID),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *GetOperationParams) MarshalHTTP(w *yson.Writer) {
@@ -2745,9 +2919,15 @@ func (p *GetOperationByAliasParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *GetOperationByAliasParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("alias", p.alias),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *GetOperationByAliasParams) MarshalHTTP(w *yson.Writer) {
@@ -2781,7 +2961,13 @@ func (p *ListOperationsParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *ListOperationsParams) Log() []log.Field {
-	return []log.Field{}
+	fields := []log.Field{}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *ListOperationsParams) MarshalHTTP(w *yson.Writer) {
@@ -2824,9 +3010,15 @@ func (p *ListJobsParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *ListJobsParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("opID", p.opID),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *ListJobsParams) MarshalHTTP(w *yson.Writer) {
@@ -2866,10 +3058,16 @@ func (p *GetJobStderrParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *GetJobStderrParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("opID", p.opID),
 		log.Any("jobID", p.jobID),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *GetJobStderrParams) MarshalHTTP(w *yson.Writer) {
@@ -2911,10 +3109,16 @@ func (p *AddMemberParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *AddMemberParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("group", p.group),
 		log.Any("member", p.member),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *AddMemberParams) MarshalHTTP(w *yson.Writer) {
@@ -2958,7 +3162,13 @@ func (p *BuildMasterSnapshotsParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *BuildMasterSnapshotsParams) Log() []log.Field {
-	return []log.Field{}
+	fields := []log.Field{}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *BuildMasterSnapshotsParams) MarshalHTTP(w *yson.Writer) {
@@ -2990,7 +3200,13 @@ func (p *BuildSnapshotParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *BuildSnapshotParams) Log() []log.Field {
-	return []log.Field{}
+	fields := []log.Field{}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *BuildSnapshotParams) MarshalHTTP(w *yson.Writer) {
@@ -3028,10 +3244,16 @@ func (p *RemoveMemberParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *RemoveMemberParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("group", p.group),
 		log.Any("member", p.member),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *RemoveMemberParams) MarshalHTTP(w *yson.Writer) {
@@ -3087,12 +3309,18 @@ func (p *AddMaintenanceParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *AddMaintenanceParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("component", p.component),
 		log.Any("address", p.address),
 		log.Any("maintenanceType", p.maintenanceType),
 		log.Any("comment", p.comment),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *AddMaintenanceParams) MarshalHTTP(w *yson.Writer) {
@@ -3138,10 +3366,16 @@ func (p *RemoveMaintenanceParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *RemoveMaintenanceParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("component", p.component),
 		log.Any("address", p.address),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *RemoveMaintenanceParams) MarshalHTTP(w *yson.Writer) {
@@ -3186,11 +3420,17 @@ func (p *TransferAccountResourcesParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *TransferAccountResourcesParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("srcAccount", p.srcAccount),
 		log.Any("dstAccount", p.dstAccount),
 		log.Any("resourceDelta", p.resourceDelta),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *TransferAccountResourcesParams) MarshalHTTP(w *yson.Writer) {
@@ -3244,12 +3484,18 @@ func (p *TransferPoolResourcesParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *TransferPoolResourcesParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("srcPool", p.srcPool),
 		log.Any("dstPool", p.dstPool),
 		log.Any("poolTree", p.poolTree),
 		log.Any("resourceDelta", p.resourceDelta),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *TransferPoolResourcesParams) MarshalHTTP(w *yson.Writer) {
@@ -3302,11 +3548,17 @@ func (p *CheckPermissionParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *CheckPermissionParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("user", p.user),
 		log.Any("permission", p.permission),
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *CheckPermissionParams) MarshalHTTP(w *yson.Writer) {
@@ -3365,11 +3617,17 @@ func (p *CheckPermissionByACLParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *CheckPermissionByACLParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("user", p.user),
 		log.Any("permission", p.permission),
 		log.Any("ACL", p.ACL),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *CheckPermissionByACLParams) MarshalHTTP(w *yson.Writer) {
@@ -3421,10 +3679,16 @@ func (p *DisableChunkLocationsParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *DisableChunkLocationsParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("nodeAddress", p.nodeAddress),
 		log.Any("locationUUIDs", p.locationUUIDs),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *DisableChunkLocationsParams) MarshalHTTP(w *yson.Writer) {
@@ -3469,11 +3733,17 @@ func (p *DestroyChunkLocationsParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *DestroyChunkLocationsParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("nodeAddress", p.nodeAddress),
 		log.Any("recoverUnlinkedDisks", p.recoverUnlinkedDisks),
 		log.Any("locationUUIDs", p.locationUUIDs),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *DestroyChunkLocationsParams) MarshalHTTP(w *yson.Writer) {
@@ -3517,10 +3787,16 @@ func (p *ResurrectChunkLocationsParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *ResurrectChunkLocationsParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("nodeAddress", p.nodeAddress),
 		log.Any("locationUUIDs", p.locationUUIDs),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *ResurrectChunkLocationsParams) MarshalHTTP(w *yson.Writer) {
@@ -3559,9 +3835,15 @@ func (p *RequestRestartParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *RequestRestartParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("nodeAddress", p.nodeAddress),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *RequestRestartParams) MarshalHTTP(w *yson.Writer) {
@@ -3601,10 +3883,16 @@ func (p *LockNodeParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *LockNodeParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 		log.Any("mode", p.mode),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *LockNodeParams) MarshalHTTP(w *yson.Writer) {
@@ -3651,9 +3939,15 @@ func (p *UnlockNodeParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *UnlockNodeParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *UnlockNodeParams) MarshalHTTP(w *yson.Writer) {
@@ -3698,9 +3992,15 @@ func (p *SelectRowsParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *SelectRowsParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("query", p.query),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *SelectRowsParams) MarshalHTTP(w *yson.Writer) {
@@ -3745,9 +4045,15 @@ func (p *LookupRowsParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *LookupRowsParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *LookupRowsParams) MarshalHTTP(w *yson.Writer) {
@@ -3794,11 +4100,17 @@ func (p *LockRowsParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *LockRowsParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 		log.Any("locks", p.locks),
 		log.Any("lockType", p.lockType),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *LockRowsParams) MarshalHTTP(w *yson.Writer) {
@@ -3843,9 +4155,15 @@ func (p *InsertRowsParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *InsertRowsParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *InsertRowsParams) MarshalHTTP(w *yson.Writer) {
@@ -3886,9 +4204,15 @@ func (p *DeleteRowsParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *DeleteRowsParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *DeleteRowsParams) MarshalHTTP(w *yson.Writer) {
@@ -3938,12 +4262,18 @@ func (p *PushQueueProducerParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *PushQueueProducerParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("producerPath", p.producerPath),
 		log.Any("queuePath", p.queuePath),
 		log.Any("sessionID", p.sessionID),
 		log.Any("epoch", p.epoch),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *PushQueueProducerParams) MarshalHTTP(w *yson.Writer) {
@@ -3996,11 +4326,17 @@ func (p *CreateQueueProducerSessionParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *CreateQueueProducerSessionParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("producerPath", p.producerPath),
 		log.Any("queuePath", p.queuePath),
 		log.Any("sessionID", p.sessionID),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *CreateQueueProducerSessionParams) MarshalHTTP(w *yson.Writer) {
@@ -4051,11 +4387,17 @@ func (p *RemoveQueueProducerSessionParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *RemoveQueueProducerSessionParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("producerPath", p.producerPath),
 		log.Any("queuePath", p.queuePath),
 		log.Any("sessionID", p.sessionID),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *RemoveQueueProducerSessionParams) MarshalHTTP(w *yson.Writer) {
@@ -4100,9 +4442,15 @@ func (p *MountTableParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *MountTableParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *MountTableParams) MarshalHTTP(w *yson.Writer) {
@@ -4147,9 +4495,15 @@ func (p *UnmountTableParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *UnmountTableParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *UnmountTableParams) MarshalHTTP(w *yson.Writer) {
@@ -4194,9 +4548,15 @@ func (p *RemountTableParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *RemountTableParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *RemountTableParams) MarshalHTTP(w *yson.Writer) {
@@ -4241,9 +4601,15 @@ func (p *ReshardTableParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *ReshardTableParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *ReshardTableParams) MarshalHTTP(w *yson.Writer) {
@@ -4288,9 +4654,15 @@ func (p *AlterTableParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *AlterTableParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *AlterTableParams) MarshalHTTP(w *yson.Writer) {
@@ -4331,9 +4703,15 @@ func (p *FreezeTableParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *FreezeTableParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *FreezeTableParams) MarshalHTTP(w *yson.Writer) {
@@ -4378,9 +4756,15 @@ func (p *UnfreezeTableParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *UnfreezeTableParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *UnfreezeTableParams) MarshalHTTP(w *yson.Writer) {
@@ -4425,9 +4809,15 @@ func (p *AlterTableReplicaParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *AlterTableReplicaParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("id", p.id),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *AlterTableReplicaParams) MarshalHTTP(w *yson.Writer) {
@@ -4464,9 +4854,15 @@ func (p *CreateTableBackupParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *CreateTableBackupParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("manifest", p.manifest),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *CreateTableBackupParams) MarshalHTTP(w *yson.Writer) {
@@ -4507,9 +4903,15 @@ func (p *RestoreTableBackupParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *RestoreTableBackupParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("manifest", p.manifest),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *RestoreTableBackupParams) MarshalHTTP(w *yson.Writer) {
@@ -4553,10 +4955,16 @@ func (p *StartQueryParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *StartQueryParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("engine", p.engine),
 		log.Any("query", p.query),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *StartQueryParams) MarshalHTTP(w *yson.Writer) {
@@ -4599,9 +5007,15 @@ func (p *AbortQueryParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *AbortQueryParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("id", p.id),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *AbortQueryParams) MarshalHTTP(w *yson.Writer) {
@@ -4642,9 +5056,15 @@ func (p *GetQueryParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *GetQueryParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("id", p.id),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *GetQueryParams) MarshalHTTP(w *yson.Writer) {
@@ -4682,7 +5102,13 @@ func (p *ListQueriesParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *ListQueriesParams) Log() []log.Field {
-	return []log.Field{}
+	fields := []log.Field{}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *ListQueriesParams) MarshalHTTP(w *yson.Writer) {
@@ -4724,10 +5150,16 @@ func (p *GetQueryResultParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *GetQueryResultParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("id", p.id),
 		log.Any("resultIndex", p.resultIndex),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *GetQueryResultParams) MarshalHTTP(w *yson.Writer) {
@@ -4773,10 +5205,16 @@ func (p *ReadQueryResultParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *ReadQueryResultParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("id", p.id),
 		log.Any("resultIndex", p.resultIndex),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *ReadQueryResultParams) MarshalHTTP(w *yson.Writer) {
@@ -4819,9 +5257,15 @@ func (p *AlterQueryParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *AlterQueryParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("id", p.id),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *AlterQueryParams) MarshalHTTP(w *yson.Writer) {
@@ -4868,11 +5312,17 @@ func (p *SetUserPasswordParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *SetUserPasswordParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("user", p.user),
 		log.Any("newPassword", p.newPassword),
 		log.Any("currentPassword", p.currentPassword),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *SetUserPasswordParams) MarshalHTTP(w *yson.Writer) {
@@ -4916,10 +5366,16 @@ func (p *IssueTokenParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *IssueTokenParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("user", p.user),
 		log.Any("password", p.password),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *IssueTokenParams) MarshalHTTP(w *yson.Writer) {
@@ -4964,11 +5420,17 @@ func (p *RevokeTokenParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *RevokeTokenParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("user", p.user),
 		log.Any("password", p.password),
 		log.Any("token", p.token),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *RevokeTokenParams) MarshalHTTP(w *yson.Writer) {
@@ -5012,10 +5474,16 @@ func (p *ListUserTokensParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *ListUserTokensParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("user", p.user),
 		log.Any("password", p.password),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *ListUserTokensParams) MarshalHTTP(w *yson.Writer) {
@@ -5051,7 +5519,13 @@ func (p *WhoAmIParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *WhoAmIParams) Log() []log.Field {
-	return []log.Field{}
+	fields := []log.Field{}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *WhoAmIParams) MarshalHTTP(w *yson.Writer) {
@@ -5083,7 +5557,13 @@ func (p *GenerateTimestampParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *GenerateTimestampParams) Log() []log.Field {
-	return []log.Field{}
+	fields := []log.Field{}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *GenerateTimestampParams) MarshalHTTP(w *yson.Writer) {
@@ -5118,9 +5598,15 @@ func (p *LocateSkynetShareParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *LocateSkynetShareParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *LocateSkynetShareParams) MarshalHTTP(w *yson.Writer) {
@@ -5160,10 +5646,16 @@ func (p *GetInSyncReplicasParams) YPath() (ypath.YPath, bool) {
 	return p.path, true
 }
 func (p *GetInSyncReplicasParams) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("path", p.path),
 		log.Any("ts", p.ts),
 	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
 }
 
 func (p *GetInSyncReplicasParams) MarshalHTTP(w *yson.Writer) {
