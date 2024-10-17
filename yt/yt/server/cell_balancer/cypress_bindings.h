@@ -320,6 +320,7 @@ struct TBundleInfo
 
     TString FolderId;
     TAbcInfoPtr Abc;
+    bool BundleHotfix;
 
     REGISTER_YSON_STRUCT(TBundleInfo);
 

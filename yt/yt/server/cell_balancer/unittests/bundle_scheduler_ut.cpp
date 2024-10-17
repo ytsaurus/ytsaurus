@@ -3671,6 +3671,20 @@ TEST_P(TNodeTagsFilterManager, TestDrillsMode)
     EXPECT_FALSE(input.BundleStates["bigd"]->DrillsMode->TurningOn);
 }
 
+TEST_P(TNodeTagsFilterManager, TestBundlesWithHotfixEnabled)
+{
+    auto input = GenerateInputContext(2 * GetDataCenterCount(), 5);
+    auto dataCenters = GetDataCenters(input);
+
+    input.Bundles["bigd"]->BundleHotfix = true;
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(mutations.AlertsToFire.front().Id, "hotfix_mode_is_enabled");
+}
+
 TEST_P(TNodeTagsFilterManager, TestDrillsModeOffToOn)
 {
     const int SlotCount = 10;

@@ -221,6 +221,8 @@ void TBundleInfo::Register(TRegistrar registrar)
         .Default(false);
     RegisterAttribute(registrar, "mute_tablet_cell_snapshots_check", &TThis::MuteTabletCellSnapshotsCheck)
         .Default(false);
+    RegisterAttribute(registrar, "bc_hotfix", &TThis::BundleHotfix)
+        .Default(false);
 }
 
 void TBundleArea::Register(TRegistrar registrar)
