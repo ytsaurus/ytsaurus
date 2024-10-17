@@ -253,6 +253,13 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
     const TRowBufferPtr& rowBuffer,
     const TLogger& logger)
 {
+    YT_VERIFY(partitionCount > 0);
+    YT_VERIFY(uploadSchema->IsSorted());
+
+    if (partitionCount == 1) {
+        return {};
+    }
+
     const auto& Logger = logger;
 
     auto comparator = uploadSchema->ToComparator();
@@ -260,9 +267,6 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
     auto sampleRowBuffer = New<TRowBuffer>();
 
     YT_LOG_INFO("Building partition keys by samples (SampleCount: %v, PartitionCount: %v, Comparator: %v)", samples.size(), partitionCount, comparator);
-
-    YT_VERIFY(uploadSchema->IsSorted());
-    YT_VERIFY(partitionCount > 0);
 
     struct TComparableSample
     {

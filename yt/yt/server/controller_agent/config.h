@@ -523,11 +523,10 @@ class TSortOperationOptions
     : public TSortOperationOptionsBase
 {
 public:
-    bool EnableSimpleSortForEvaluatedOutput;
-
     REGISTER_YSON_STRUCT(TSortOperationOptions);
 
-    static void Register(TRegistrar registrar);
+    static void Register(TRegistrar)
+    { }
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortOperationOptions, 0xc11251c0);
