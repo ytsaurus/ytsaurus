@@ -1849,6 +1849,9 @@ private:
 
         NodesWithImaginaryLocations_.clear();
 
+        PendingRestartMaintenanceNodeIds_.clear();
+        PendingRestartMaintenanceNodeIdToSetIt_.clear();
+
         Bootstrap_
             ->GetPersistentStateTransientCache()
             ->ResetNodeDefaultAddresses();
@@ -1936,8 +1939,6 @@ private:
             if (!node->Flavors().contains(ENodeFlavor::Data)) {
                 continue;
             }
-
-
 
             auto localState = node->GetLocalState();
             switch (localState) {
