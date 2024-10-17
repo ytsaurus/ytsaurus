@@ -38,22 +38,36 @@ hostname: m001-hume.man-pre.yp-c.yandex.net
 pid_file: /yt/disk2/hume-data/master-logs/timbertruck.pid
 
 # OPTIONAL.
-#
+# Configuration of internal http server that provides metrics.
 admin_panel:
   # REQUIRED.
+  # Port to be listened.
   port: 8080
 
   # OPTIONAL.
+  # Default metric tags.
   monitoring_tags: {cluster: hume}
 
 # List of json log files to send (i.e. logs where each line of file is JSON).
 json_logs:
 -
+  # REQUIRED
   # name of the stream (must be unique for all logs tracked by timberuck)
   name: access
+  # REQUIRED
   # path to the log file to track
   log_file: /yt/disk2/freud-data/master-logs/master-sas5-9603.access.json.log
 
+  # OPTIONAL
+  # Maximum number of unsent files in log.
+  # If a new log file appears but number of active tasks already reached max_active_task_count
+  # new log file is skipped.
+  #
+  # If max_active_task_count is not specified, default value is 100.
+  max_active_task_count: 50
+
+  # REQUIRED
+  # Description of YTQueue to send logs to.
   yt_queue:
     - cluster: hahn
       queue_path: //path/to/queue_table
@@ -70,6 +84,7 @@ text_logs:
   # Described above
   log_file: /yt/disk2/freud-data/master-logs/master-sas5-9603.debug.log
   logbroker_topic: /yt/dev/test_topic
+  max_active_task_count: 100
   yt_queue:
     - cluster: hahn
       queue_path: //path/to/queue_table
