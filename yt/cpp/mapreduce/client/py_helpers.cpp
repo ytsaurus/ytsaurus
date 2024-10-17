@@ -48,7 +48,9 @@ TStructuredJobTableList NodeToStructuredTablePaths(const TNode& node, const TOpe
         if (inputNode.IsNull()) {
             ++intermediateTableCount;
         } else {
-            paths.emplace_back(inputNode.AsString());
+            NYT::TRichYPath path;
+            NYT::Deserialize(path, inputNode);
+            paths.emplace_back(std::move(path));
         }
     }
     paths = NRawClient::CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetContext(), paths);
