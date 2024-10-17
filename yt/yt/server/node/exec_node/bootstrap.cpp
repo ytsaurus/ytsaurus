@@ -196,8 +196,8 @@ public:
     {
         auto nbdConfig = DynamicConfig_.Acquire()->ExecNode->Nbd;
         if (nbdConfig && nbdConfig->Enabled) {
-            NbdQueue_ = New<TActionQueue>("Nbd");
-            NbdServer_ = CreateNbdServer(nbdConfig, NbdQueue_->GetInvoker());
+            NbdThreadPool_ = NConcurrency::CreateThreadPool(nbdConfig->Server->ThreadCount, "Nbd", { .ThreadPriority = NThreading::EThreadPriority::RealTime });
+            NbdServer_ = CreateNbdServer(nbdConfig, NbdThreadPool_->GetInvoker());
         }
 
         SetNodeByYPath(
@@ -338,7 +338,7 @@ private:
     //! then remove GetDynamicConfig method and make this non-atomic again.
     TAtomicIntrusivePtr<TClusterNodeDynamicConfig> DynamicConfig_;
 
-    TActionQueuePtr NbdQueue_;
+    IThreadPoolPtr NbdThreadPool_;
     NYT::NNbd::INbdServerPtr NbdServer_;
 
     IJobProxyLogManagerPtr JobProxyLogManager_;
@@ -457,6 +457,10 @@ private:
         DiskManagerProxy_->OnDynamicConfigChanged(newConfig->DiskManagerProxy);
 
         DynamicConfig_.Store(newConfig);
+
+        if (NbdThreadPool_ && newConfig->ExecNode->Nbd) {
+            NbdThreadPool_->Configure(newConfig->ExecNode->Nbd->Server->ThreadCount);
+        }
     }
 
     static EDataNodeThrottlerKind GetDataNodeThrottlerKind(EExecNodeThrottlerKind kind)
