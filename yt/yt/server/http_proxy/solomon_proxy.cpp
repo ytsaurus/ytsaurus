@@ -31,7 +31,7 @@ class TProfilingEndpointProvider
 {
 public:
     TProfilingEndpointProvider(
-        NApi::IClientPtr client,
+        NApi::NNative::IClientPtr client,
         TProfilingEndpointProviderConfigPtr config,
         TComponentDiscoveryOptions componentDiscoveryOptions)
         : TComponentDiscoverer(
@@ -85,7 +85,7 @@ private:
 TSolomonProxyPtr CreateSolomonProxy(
     const NHttpProxy::TSolomonProxyConfigPtr& config,
     const TComponentDiscoveryOptions& componentDiscoveryOptions,
-    const NApi::IClientPtr& client,
+    const NApi::NNative::IClientPtr& client,
     NConcurrency::IPollerPtr poller)
 {
     auto solomonProxy = New<TSolomonProxy>(config, std::move(poller));

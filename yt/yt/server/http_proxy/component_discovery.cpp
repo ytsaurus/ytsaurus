@@ -1,7 +1,13 @@
 #include "component_discovery.h"
 #include "coordinator.h"
 
+#include <yt/yt/ytlib/api/native/client.h>
+
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/yt/client/api/client.h>
+
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 #include <util/string/split.h>
 
@@ -9,12 +15,17 @@ namespace NYT::NHttpProxy {
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NObjectClient;
 using namespace NYTree;
 using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = HttpProxyLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr i64 DefaultCypressMaxSize = 1'000'000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,6 +36,15 @@ namespace {
 void FillMasterReadOptions(TMasterReadOptions& options, const TMasterReadOptions& value)
 {
     options = value;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateResultCompleteness(const INodePtr& nodeWithAttributes, const TString& path)
+{
+    if (nodeWithAttributes->Attributes().Get("incomplete", false)) {
+        THROW_ERROR_EXCEPTION("Received incomplete result while retrieving attributes from %Qv directory", path);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,7 +78,7 @@ void Serialize(const TClusterComponentInstance& instance, IYsonConsumer* consume
 ////////////////////////////////////////////////////////////////////////////////
 
 TComponentDiscoverer::TComponentDiscoverer(
-    IClientPtr client,
+    NNative::IClientPtr client,
     TMasterReadOptions masterReadOptions,
     TComponentDiscoveryOptions componentDiscoveryOptions)
     : Client_(std::move(client))
@@ -70,6 +90,8 @@ TComponentDiscoverer::TComponentDiscoverer(
 
 std::vector<TClusterComponentInstance> TComponentDiscoverer::ListClusterNodes(EClusterComponentType component) const
 {
+    YT_LOG_DEBUG("Listing cluster nodes (ComponentType: %lv)", component);
+
     switch (component) {
         case EClusterComponentType::ClusterNode:
         case EClusterComponentType::DataNode:
@@ -90,9 +112,13 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::ListClusterNodes(EC
         "job_proxy_build_version",
     };
 
-    auto rsp = WaitFor(Client_->ListNode(GetCypressDirectory(component), options))
+    options.MaxSize = DefaultCypressMaxSize;
+
+    auto cypressDirectory = GetCypressDirectory(component);
+    auto rsp = WaitFor(Client_->ListNode(cypressDirectory, options))
         .ValueOrThrow();
     auto rspList = ConvertToNode(rsp)->AsList();
+    ValidateResultCompleteness(rspList, cypressDirectory);
 
     std::vector<TClusterComponentInstance> instances;
     instances.reserve(rspList->GetChildren().size());
@@ -128,6 +154,8 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::ListClusterNodes(EC
 
 std::vector<TClusterComponentInstance> TComponentDiscoverer::ListProxies(EClusterComponentType component) const
 {
+    YT_LOG_DEBUG("Listing cluster proxies (ComponentType: %lv)", component);
+
     TGetNodeOptions options;
     FillMasterReadOptions(options, MasterReadOptions_);
 
@@ -151,22 +179,26 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::ListProxies(ECluste
             YT_ABORT();
     }
 
-    auto nodeYson = WaitFor(Client_->GetNode(GetCypressDirectory(component), options))
+    options.MaxSize = DefaultCypressMaxSize;
+
+    auto cypressDirectory = GetCypressDirectory(component);
+    auto nodeYson = WaitFor(Client_->GetNode(cypressDirectory, options))
         .ValueOrThrow();
-    auto addressToNode = ConvertTo<THashMap<TString, IMapNodePtr>>(nodeYson);
+    auto nodeMap = ConvertTo<IMapNodePtr>(nodeYson);
+    ValidateResultCompleteness(nodeMap, cypressDirectory);
 
     std::vector<TClusterComponentInstance> instances;
-    instances.reserve(addressToNode.size());
+    instances.reserve(nodeMap->GetChildren().size());
 
     auto timeNow = TInstant::Now();
-    for (const auto& [address, node] : addressToNode) {
+    for (const auto& [address, node] : nodeMap->GetChildren()) {
         auto version = node->Attributes().Find<TString>("version");
         auto banned = node->Attributes().Find<bool>("banned");
         auto startTime = node->Attributes().Find<TString>("start_time");
 
         TClusterComponentInstance instance{
             .Type = component,
-            .Address = address,
+            .Address = TString(address),
         };
 
         if (version && startTime) {
@@ -202,25 +234,14 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::ListProxies(ECluste
 std::vector<TString> TComponentDiscoverer::GetCypressSubpaths(NApi::IClientPtr client, const NApi::TMasterReadOptions& masterReadOptions, EClusterComponentType component)
 {
     std::vector<TString> paths;
-    if (component == EClusterComponentType::SecondaryMaster) {
-        TGetNodeOptions options;
-        FillMasterReadOptions(options, masterReadOptions);
-        auto directory = WaitFor(client->GetNode(GetCypressDirectory(component), options))
-            .ValueOrThrow();
-        for (const auto& subdirectory : ConvertToNode(directory)->AsMap()->GetChildren()) {
-            for (const auto& instance : subdirectory.second->AsMap()->GetChildren()) {
-                paths.push_back(subdirectory.first + "/" + instance.first);
-            }
-        }
-    } else {
-        TListNodeOptions options;
-        FillMasterReadOptions(options, masterReadOptions);
-        auto rsp = WaitFor(client->ListNode(GetCypressDirectory(component)))
-            .ValueOrThrow();
-        auto rspList = ConvertToNode(rsp)->AsList();
-        for (const auto& node : rspList->GetChildren()) {
-            paths.push_back(node->GetValue<TString>());
-        }
+    TListNodeOptions options;
+    FillMasterReadOptions(options, masterReadOptions);
+    auto rsp = WaitFor(client->ListNode(GetCypressDirectory(component)))
+        .ValueOrThrow();
+    auto rspList = ConvertToNode(rsp)->AsList();
+    paths.reserve(rspList->GetChildren().size());
+    for (const auto& node : rspList->GetChildren()) {
+        paths.push_back(node->GetValue<TString>());
     }
     return paths;
 }
@@ -243,33 +264,38 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::GetAttributes(
     EClusterComponentType instanceType,
     const TYPath& suffix) const
 {
-    const auto OrchidTimeout = TDuration::Seconds(1);
+    YT_LOG_DEBUG("Fetching orchid attributes for cluster component (ComponentType: %lv)", component);
 
-    TGetNodeOptions options;
-    FillMasterReadOptions(options, MasterReadOptions_);
-    options.Timeout = OrchidTimeout;
+    auto proxy = CreateObjectServiceReadProxy(Client_, MasterReadOptions_.ReadFrom);
+    auto batchReq = proxy.ExecuteBatch();
+    batchReq->SetTimeout(ComponentDiscoveryOptions_.BatchRequestTimeout);
 
-    std::vector<TFuture<TYsonString>> responses;
-    responses.reserve(subpaths.size());
     for (const auto& subpath : subpaths) {
-        responses.push_back(Client_->GetNode(GetCypressDirectory(component) + "/" + subpath + suffix));
+        batchReq->AddRequest(TYPathProxy::Get(GetCypressDirectory(component) + "/" + subpath + suffix));
     }
+
+    auto batchRspOrError = WaitFor(batchReq->Invoke());
+    if (!batchRspOrError.IsOK()) {
+        THROW_ERROR_EXCEPTION("Error getting attributes from %lv orchids", component)
+            << GetCumulativeError(batchRspOrError);
+    }
+    auto batchResponses = batchRspOrError.Value()->GetResponses<TYPathProxy::TRspGet>();
 
     std::vector<TClusterComponentInstance> results;
     results.reserve(subpaths.size());
     for (size_t index = 0; index < subpaths.size(); ++index) {
-        auto ysonOrError = WaitFor(responses[index]);
+        auto responseOrError = batchResponses[index];
 
         auto& result = results.emplace_back();
         result.Type = instanceType;
 
         result.Address = StringSplitter(subpaths[index]).Split('/').ToList<TString>().back();
-        if (!ysonOrError.IsOK()) {
-            result.Error = ysonOrError;
+        if (!responseOrError.IsOK()) {
+            result.Error = responseOrError;
             continue;
         }
 
-        auto rspMap = ConvertToNode(ysonOrError.Value())->AsMap();
+        auto rspMap = ConvertToNode(TYsonString(responseOrError.Value()->value()))->AsMap();
 
         if (auto errorNode = rspMap->FindChild("error")) {
             result.Error = ConvertTo<TError>(errorNode);
@@ -287,6 +313,8 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::GetAttributes(
 
 std::vector<TClusterComponentInstance> TComponentDiscoverer::ListJobProxies() const
 {
+    YT_LOG_DEBUG("Listing cluster job proxies");
+
     auto execNodeInstances = ListClusterNodes(EClusterComponentType::ExecNode);
 
     std::vector<TClusterComponentInstance> instances;
@@ -316,23 +344,6 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::ListJobProxies() co
             EClusterComponentType::ClusterNode,
             fallbackInstances,
             EClusterComponentType::JobProxy,
-            "/orchid/job_controller/job_proxy_build");
-
-        // COMPAT(arkady-e1ppa): Remove this when all nodes will be 23.2
-        fallbackInstances.clear();
-
-        for (auto& jobProxy : fallbackJobProxies) {
-            if (jobProxy.Error.IsOK()) {
-                instances.emplace_back(std::move(jobProxy));
-            } else {
-                fallbackInstances.emplace_back(std::move(jobProxy.Address));
-            }
-        }
-
-        fallbackJobProxies = GetAttributes(
-            EClusterComponentType::ClusterNode,
-            fallbackInstances,
-            EClusterComponentType::JobProxy,
             "/orchid/exec_node/job_controller/job_proxy_build");
 
         for (auto& jobProxy : fallbackJobProxies) {
@@ -346,8 +357,8 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::ListJobProxies() co
 TString TComponentDiscoverer::GetCypressDirectory(EClusterComponentType component)
 {
     switch (component) {
+        case EClusterComponentType::ClusterMaster:
         case EClusterComponentType::PrimaryMaster:
-        case EClusterComponentType::SecondaryMaster:
         case EClusterComponentType::ClusterNode:
         case EClusterComponentType::DataNode:
         case EClusterComponentType::TabletNode:
@@ -368,9 +379,11 @@ TString TComponentDiscoverer::GetCypressDirectory(EClusterComponentType componen
 
 std::vector<TClusterComponentInstance> TComponentDiscoverer::GetInstances(EClusterComponentType component) const
 {
+    YT_LOG_DEBUG("Listing cluster component instances (ComponentType: %lv)", component);
+
     switch (component) {
+        case EClusterComponentType::ClusterMaster:
         case EClusterComponentType::PrimaryMaster:
-        case EClusterComponentType::SecondaryMaster:
         case EClusterComponentType::Scheduler:
         case EClusterComponentType::ControllerAgent:
             return GetAttributes(
