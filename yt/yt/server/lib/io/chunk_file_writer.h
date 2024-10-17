@@ -50,11 +50,26 @@ public:
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<NChunkClient::TBlock>& blocks) override;
 
+    bool WriteBlockWithSession(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const NChunkClient::TBlock& block,
+        NYT::TGuid sessionId);
+
+    bool WriteBlocksWithSession(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const std::vector<NChunkClient::TBlock>& blocks,
+        NYT::TGuid sessionId);
+
     TFuture<void> GetReadyEvent() override;
 
     TFuture<void> Close(
         const TWorkloadDescriptor& workloadDescriptor,
         const NChunkClient::TDeferredChunkMetaPtr& chunkMeta) override;
+
+    TFuture<void> CloseWithSession(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const NChunkClient::TDeferredChunkMetaPtr& chunkMeta,
+        NYT::TGuid sessionId);
 
     const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
     const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override;

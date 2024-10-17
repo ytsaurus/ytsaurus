@@ -95,9 +95,9 @@ public:
 
     TFuture<TReadResponse> Read(
         std::vector<TReadRequest> /*requests*/,
-        EWorkloadCategory /*category*/,
+        const TWorkloadDescriptor& /*descriptor*/,
         TRefCountedTypeCookie /*tagCookie*/,
-        TSessionId /*sessionId*/,
+        const TSessionId& /*sessionId*/,
         bool /*useDedicatedAllocations*/) override
     {
         return RunRequest(Config_.ReadLatency, Config_.ReadFailingProbability)
@@ -108,37 +108,40 @@ public:
 
     TFuture<void> Write(
         TWriteRequest /*request*/,
-        EWorkloadCategory /*category*/,
-        TSessionId /*sessionId*/) override
+        const TWorkloadDescriptor& /*descriptor*/,
+        const TSessionId& /*sessionId*/) override
     {
         return RunRequest(Config_.WriteLatency, Config_.WriteFailingProbability);
     }
 
     TFuture<void> FlushFile(
         TFlushFileRequest /*request*/,
-        EWorkloadCategory /*category*/) override
+        const TWorkloadDescriptor& /*descriptor*/,
+        const TSessionId& /*sessionId*/) override
     {
         return RunRequest(TDuration{});
     }
 
     TFuture<void> FlushFileRange(
         TFlushFileRangeRequest /*request*/,
-        EWorkloadCategory /*category*/,
-        TSessionId /*sessionId*/) override
+        const TWorkloadDescriptor& /*descriptor*/,
+        const TSessionId& /*sessionId*/) override
     {
         return RunRequest(TDuration{});
     }
 
     TFuture<void> FlushDirectory(
         TFlushDirectoryRequest /*request*/,
-        EWorkloadCategory /*category*/) override
+        const TWorkloadDescriptor& /*descriptor*/,
+        const TSessionId& /*sessionId*/) override
     {
         return RunRequest(TDuration{});
     }
 
     TFuture<TIOEngineHandlePtr> Open(
         TOpenRequest /*request*/,
-        EWorkloadCategory /*category*/) override
+        const TWorkloadDescriptor& /*descriptor*/,
+        const TSessionId& /*sessionId*/) override
     {
         return RunRequest(Config_.OpenLatency, Config_.OpenFailingProbability)
             .Apply(BIND([] {
@@ -148,28 +151,32 @@ public:
 
     TFuture<void> Close(
         TCloseRequest /*request*/,
-        EWorkloadCategory /*category*/) override
+        const TWorkloadDescriptor& /*descriptor*/,
+        const TSessionId& /*sessionId*/) override
     {
         return RunRequest(TDuration{});
     }
 
     TFuture<void> Allocate(
         TAllocateRequest /*request*/,
-        EWorkloadCategory /*category*/) override
+        const TWorkloadDescriptor& /*descriptor*/,
+        const TSessionId& /*sessionId*/) override
     {
         return RunRequest(TDuration{});
     }
 
     TFuture<void> Lock(
         TLockRequest /*request*/,
-        EWorkloadCategory /*category*/) override
+        const TWorkloadDescriptor& /*descriptor*/,
+        const TSessionId& /*sessionId*/) override
     {
         return RunRequest(TDuration{});
     }
 
     TFuture<void> Resize(
         TResizeRequest /*request*/,
-        EWorkloadCategory /*category*/) override
+        const TWorkloadDescriptor& /*descriptor*/,
+        const TSessionId& /*sessionId*/) override
     {
         return RunRequest(TDuration{});
     }
@@ -180,7 +187,9 @@ public:
         return false;
     }
 
-    const IInvokerPtr& GetAuxPoolInvoker() override
+    IInvokerPtr GetAuxPoolInvoker(
+        const TWorkloadDescriptor& /*descriptor*/,
+        const TSessionId& /*sessionId*/) override
     {
         YT_UNIMPLEMENTED();
     }
