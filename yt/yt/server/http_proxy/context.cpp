@@ -9,6 +9,8 @@
 #include "http_authenticator.h"
 #include "private.h"
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
 #include <yt/yt/client/api/connection.h>
@@ -27,6 +29,8 @@
 #include <yt/yt/core/json/json_writer.h>
 
 #include <yt/yt/core/logging/fluent_log.h>
+
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <yt/yt/core/rpc/authenticator.h>
 
@@ -825,6 +829,15 @@ void TContext::Run()
     auto driverRequest = DriverRequest_;
     if (driverRequest.CommandName == "discover_proxies") {
         driverRequest.AuthenticatedUser = NSecurityClient::RootUserName;
+    }
+
+    if (Descriptor_->Heavy && Api_->GetMemoryUsageTracker() && Api_->GetMemoryUsageTracker()->IsTotalExceeded()) {
+        // We use Unavailable code here, as it is already retryable in all clients.
+        THROW_ERROR_EXCEPTION(
+            NRpc::EErrorCode::Unavailable,
+            "Request is dropped due to high memory pressure")
+            << TErrorAttribute("total_memory_limit", Api_->GetMemoryUsageTracker()->GetTotalLimit())
+            << TErrorAttribute("memory_usage", Api_->GetMemoryUsageTracker()->GetTotalUsed());
     }
 
     if (*ApiVersion_ == 4) {
