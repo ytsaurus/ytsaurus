@@ -24,10 +24,7 @@ import javax.annotation.Nullable;
 import com.google.protobuf.MessageLite;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import tech.ytsaurus.client.operations.Operation;
-import tech.ytsaurus.client.operations.OperationImpl;
-import tech.ytsaurus.client.operations.Spec;
-import tech.ytsaurus.client.operations.SpecPreparationContext;
+import tech.ytsaurus.client.operations.*;
 import tech.ytsaurus.client.request.AbortJob;
 import tech.ytsaurus.client.request.AbortOperation;
 import tech.ytsaurus.client.request.AbortQuery;
@@ -905,9 +902,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     @Override
     public CompletableFuture<GUID> startOperation(StartOperation req) {
-        var spec = req.getSpec();
-        StartOperationHelpers.guessBaseLayers(spec);
-        req = req.toBuilder().setSpec(spec).build();
+        req = MapperOrReducerSpec.guessBaseLayers(req);
         return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.START_OPERATION.createRequestBuilder(rpcOptions)),
                 response -> RpcUtil.fromProto(response.body().getOperationId())));

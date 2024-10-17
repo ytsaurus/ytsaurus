@@ -5,16 +5,9 @@ import java.io.File;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.net.URI;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -24,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import tech.ytsaurus.client.FileWriter;
 import tech.ytsaurus.client.TransactionalClient;
 import tech.ytsaurus.client.request.CreateNode;
+import tech.ytsaurus.client.request.StartOperation;
 import tech.ytsaurus.client.request.WriteFile;
 import tech.ytsaurus.core.DataSize;
 import tech.ytsaurus.core.GUID;
@@ -32,6 +26,7 @@ import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
+import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;
 
@@ -93,6 +88,42 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
         memoryReserveFactor = builder.memoryReserveFactor;
         networkProject = builder.networkProject;
         prepareTimeLimit = builder.prepareTimeLimit;
+    }
+
+    // Copied from `BaseLayerDetector.guess_base_layers`
+    public static StartOperation guessBaseLayers(StartOperation req) {
+        var userLayer = System.getenv("YT_BASE_LAYER");
+        if (userLayer == null) {
+            return req;
+        }
+        userLayer = userLayer.toLowerCase().strip();
+        var spec = req.getSpec();
+        if (spec.getAttribute("layer_paths").isPresent() || spec.getAttribute("docker_image").isPresent()) {
+            // do not change user spec
+            if (Arrays.asList("auto", "porto:auto", "docker:auto").contains(userLayer)) {
+                logger.debug("Operation has layer spec. Do not guess base layer");
+            }
+            return req;
+        }
+        if (Arrays.asList("auto", "docker:auto", "porto:auto").contains(userLayer)) {
+            // TODO: implement later
+            return req;
+        }
+        if (userLayer.startsWith("//")) {
+            var layerPaths = YTree.listBuilder();
+            for (var path : userLayer.split(",")) {
+                layerPaths.value(path.strip());
+            }
+            spec.putAttribute("layer_paths", layerPaths.buildList());
+        } else if (userLayer.startsWith("registry.")) {
+            var path = URI.create("//" + userLayer).getPath();
+            if (path != null) {
+                spec.putAttribute("docker_image", YTree.stringNode(path.substring(1)));
+            }
+        } else {
+            spec.putAttribute("docker_image", YTree.stringNode(userLayer));
+        }
+        return req.toBuilder().setSpec(spec).build();
     }
 
     /**
