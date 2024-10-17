@@ -2880,6 +2880,26 @@ void InitializeBundleTargetConfig(TSchedulerInputState& input, TSchedulerMutatio
     }
 }
 
+void MiscBundleChecks(TSchedulerInputState& input, TSchedulerMutations* mutations)
+{
+    for (auto& [bundleName, bundleInfo] : input.Bundles) {
+        if (!bundleInfo->EnableBundleController) {
+            continue;
+        }
+
+        if (bundleInfo->BundleHotfix) {
+            YT_LOG_WARNING("Hotfix mode is enabled for bundle (BundleName: %v)",
+                bundleName);
+
+            mutations->AlertsToFire.push_back(TAlert{
+                .Id = "hotfix_mode_is_enabled",
+                .BundleName = bundleName,
+                .Description = "Hotfix mode is enabled for the bundle",
+            });
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations)
@@ -2907,6 +2927,7 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
     ManageRpcProxyRoles(input, mutations);
     ManageBundleShortName(input, mutations);
     ManageDrillsMode(input, mutations);
+    MiscBundleChecks(input, mutations);
 
     mutations->ChangedStates = GetActuallyChangedStates(input, *mutations);
 }
