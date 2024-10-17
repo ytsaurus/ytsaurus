@@ -113,7 +113,7 @@ func emit(f file, out io.Writer) error {
 			write("}")
 
 			write("func (p *%sParams) Log() []log.Field {", m.name)
-			write("return []log.Field{")
+			write("fields := []log.Field{")
 			for i := 0; i < len(m.httpParams); i++ {
 				if m.params[i].name == "spec" {
 					continue
@@ -122,6 +122,12 @@ func emit(f file, out io.Writer) error {
 				write("log.Any(%q, p.%s),", m.params[i].name, m.params[i].name)
 			}
 			write("}")
+			write("if v, ok := any(p.options).(interface{")
+			write("Log() []log.Field")
+			write("	}); ok {")
+			write("fields = append(fields, v.Log()...)")
+			write("}")
+			write("return fields")
 			write("}")
 			write("")
 
