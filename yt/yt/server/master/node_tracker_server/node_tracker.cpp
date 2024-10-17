@@ -1845,6 +1845,9 @@ private:
         }
 
         NodesWithImaginaryLocations_.clear();
+
+        PendingRestartMaintenanceNodeIds_.clear();
+        PendingRestartMaintenanceNodeIdToSetIt_.clear();
     }
 
     void OnAfterSnapshotLoaded() override
@@ -1925,8 +1928,6 @@ private:
             if (!node->Flavors().contains(ENodeFlavor::Data)) {
                 continue;
             }
-
-
 
             auto localState = node->GetLocalState();
             switch (localState) {
