@@ -344,6 +344,7 @@ void TJobProxy::LogJobSpec(TJobSpec jobSpec)
         TRANSFORM_TO_PRETTY_YSON(jobSpecExt, io_config);
         TRANSFORM_TO_PRETTY_YSON(jobSpecExt, table_reader_options);
         TRANSFORM_TO_PRETTY_YSON(jobSpecExt, acl);
+        TRANSFORM_TO_PRETTY_YSON(jobSpecExt, aco_name);
         TRANSFORM_TO_PRETTY_YSON(jobSpecExt, job_cpu_monitor_config);
         TRANSFORM_TO_PRETTY_YSON(jobSpecExt, testing_options);
 

@@ -217,7 +217,11 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
         cypressAttributes->push_back("modification_time");
     }
 
-    auto proxy = CreateObjectServiceReadProxy(options);
+    auto proxy = NObjectClient::CreateObjectServiceReadProxy(
+        GetOperationsArchiveClient(),
+        options.ReadFrom,
+        PrimaryMasterCellTagSentinel,
+        Connection_->GetStickyGroupSizeCache());
     auto batchReq = proxy.ExecuteBatch();
     SetBalancingHeader(batchReq, options);
 

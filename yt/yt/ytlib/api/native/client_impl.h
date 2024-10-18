@@ -26,6 +26,8 @@
 
 #include <yt/yt/ytlib/bundle_controller/bundle_controller_service_proxy.h>
 
+#include <yt/yt/ytlib/scheduler/helpers.h>
+
 #include <yt/yt/ytlib/scheduler/scheduler_service_proxy.h>
 
 #include <yt/yt/ytlib/security_client/public.h>
@@ -1331,9 +1333,15 @@ private:
         NYTree::EPermissionSet permissions);
     void ValidateOperationAccess(
         NScheduler::TOperationId operationId,
-        const NSecurityClient::TSerializableAccessControlList& operationAcl,
+        const TOperation& operation,
         NScheduler::TJobId jobId,
         NYTree::EPermissionSet permissions);
+    void ValidateOperationAccess(
+        NScheduler::TOperationId operationId,
+        NScheduler::TJobId jobId,
+        NScheduler::TAccessControlRule accessControlRule,
+        NYTree::EPermissionSet permissions);
+
 
     NControllerAgent::NProto::TJobSpec FetchJobSpecFromArchive(
         NScheduler::TJobId jobId);

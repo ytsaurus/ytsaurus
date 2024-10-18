@@ -42,11 +42,8 @@ struct TArchiveOperationRequest
     // Archive version >= 46
     NYson::TYsonString ProvidedSpec;
 
-    void InitializeFromOperation(const TOperationPtr& operation);
-
     static const std::vector<TString>& GetAttributeKeys();
     static const std::vector<TString>& GetProgressAttributeKeys();
-    void InitializeFromAttributes(const NYTree::IAttributeDictionary& attributes);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,20 +100,15 @@ public:
     //! Raised when a new portion of operations has been archived.
     DECLARE_SIGNAL(void(const std::vector<TArchiveOperationRequest>&), OperationsRemovedFromCypress);
 
+    TArchiveOperationRequest InitializeRequestFromOperation(const TOperationPtr& operation);
+    TArchiveOperationRequest InitializeRequestFromAttributes(const NYTree::IAttributeDictionary& attributes);
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationsCleaner)
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
-    const std::vector<TOperationId>& operationIds,
-    TCallback<NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr()> createBatchRequest,
-    const int parseOperationAttributesBatchSize,
-    const IInvokerPtr& invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

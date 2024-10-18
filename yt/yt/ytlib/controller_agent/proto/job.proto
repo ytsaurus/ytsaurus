@@ -435,6 +435,8 @@ message TJobSpecExt
 
     optional bytes acl = 21 [(NYT.NYson.NProto.yson_string) = true];
 
+    optional string aco_name = 45;
+
     optional bytes job_cpu_monitor_config = 22 [(NYT.NYson.NProto.yson_string) = true];
 
     optional int64 waiting_job_timeout = 23;

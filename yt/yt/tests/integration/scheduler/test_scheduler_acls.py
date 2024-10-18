@@ -2,12 +2,13 @@ from yt_commands import (
     authors, wait, wait_no_assert,
     wait_breakpoint, release_breakpoint, with_breakpoint, create, get, set,
     exists, create_user,
-    create_group, make_ace, add_member, read_table, write_table, map, map_reduce, abort_job, abandon_job,
-    get_job_fail_context, get_job_input, get_job_stderr, get_job_spec, dump_job_context,
+    create_group, make_ace, add_member, read_table, write_table, map, map_reduce, run_test_vanilla, abort_job, abandon_job,
+    get_operation, get_job_fail_context, get_job_input, get_job_stderr, get_job_spec, dump_job_context,
     poll_job_shell, abort_op,
     complete_op, suspend_op,
-    resume_op, clean_operations, sync_create_cells,
-    update_controller_agent_config, update_op_parameters, raises_yt_error)
+    resume_op, clean_operations, sync_create_cells, create_test_tables,
+    update_controller_agent_config, update_op_parameters, update_access_control_object_acl, raises_yt_error,
+    create_access_control_object_namespace, create_access_control_object)
 
 from yt_env_setup import (
     YTEnvSetup,
@@ -36,6 +37,21 @@ from copy import deepcopy
 
 def _abort_op(**kwargs):
     abort_op(kwargs.pop("operation_id"), **kwargs)
+
+
+def _complete_op(**kwargs):
+    complete_op(kwargs.pop("operation_id"), **kwargs)
+
+
+def suspend_and_resume_op(**kwargs):
+    operation_id = kwargs.pop("operation_id")
+    suspend_op(operation_id, **kwargs)
+    resume_op(operation_id, **kwargs)
+
+
+def _update_op_parameters(**kwargs):
+    kwargs["parameters"] = {"scheduling_options_per_pool_tree": {"default": {"weight": 3.0}}}
+    update_op_parameters(kwargs.pop("operation_id"), **kwargs)
 
 
 class TestSchedulerAcls(YTEnvSetup):
@@ -81,6 +97,7 @@ class TestSchedulerAcls(YTEnvSetup):
     manage_and_read_group = "manage_and_read_group"
     manage_and_read_user = "manage_and_read_user"
     banned_from_managing_user = "banned_from_managing_user"
+    banned_user = "banned_user"
     group_membership = {manage_and_read_group: [manage_and_read_user, banned_from_managing_user]}
 
     spec = {
@@ -89,6 +106,7 @@ class TestSchedulerAcls(YTEnvSetup):
             make_ace("allow", manage_only_user, "manage"),
             make_ace("allow", manage_and_read_group, ["manage", "read"]),
             make_ace("deny", banned_from_managing_user, ["manage"]),
+            make_ace("deny", banned_user, ["manage", "read"]),
         ],
     }
 
@@ -109,6 +127,7 @@ class TestSchedulerAcls(YTEnvSetup):
             self.manage_only_user,
             self.manage_and_read_user,
             self.banned_from_managing_user,
+            self.banned_user,
         ]:
             create_user(user)
 
@@ -118,6 +137,11 @@ class TestSchedulerAcls(YTEnvSetup):
         for group, members in self.group_membership.items():
             for member in members:
                 add_member(member, group)
+
+        create_access_control_object_namespace("operations")
+        create_access_control_object("users", "operations")
+        create_access_control_object("new_aco", "operations")
+        update_access_control_object_acl("operations", "users", self.spec["acl"])
 
     @staticmethod
     def _random_string(length):
@@ -407,18 +431,6 @@ class TestSchedulerAcls(YTEnvSetup):
     @authors("omgronny")
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])
     def test_manage_operation_actions(self, should_update_operation_parameters):
-        def _complete_op(**kwargs):
-            complete_op(kwargs.pop("operation_id"), **kwargs)
-
-        def suspend_and_resume_op(**kwargs):
-            operation_id = kwargs.pop("operation_id")
-            suspend_op(operation_id, **kwargs)
-            resume_op(operation_id, **kwargs)
-
-        def _update_op_parameters(**kwargs):
-            kwargs["parameters"] = {"scheduling_options_per_pool_tree": {"default": {"weight": 3.0}}}
-            update_op_parameters(kwargs.pop("operation_id"), **kwargs)
-
         actions = [
             _abort_op,
             _complete_op,
@@ -493,34 +505,6 @@ class TestSchedulerAcls(YTEnvSetup):
                 pass
 
     @authors("omgronny")
-    def test_acl_update_errors(self):
-        with self._run_op_context_manager() as (op, job_id):
-            # Wrong permissions.
-            with pytest.raises(YtError):
-                update_op_parameters(
-                    op.id,
-                    parameters={"acl": [make_ace("allow", self.manage_and_read_user, ["read", "write"])]},
-                )
-
-            # Missing user.
-            update_op_parameters(
-                op.id,
-                parameters={"acl": [make_ace("allow", "missing_user", ["read", "manage"])]},
-            )
-            wait(lambda: op.get_alerts())
-            assert list(op.get_alerts().keys()) == ["invalid_acl"]
-
-            with Restarter(self.Env, SCHEDULERS_SERVICE):
-                pass
-            time.sleep(0.1)
-            op.wait_for_state("running")
-
-            assert list(op.get_alerts().keys()) == ["invalid_acl"]
-
-            update_op_parameters(op.id, parameters={"acl": []})
-            wait(lambda: not op.get_alerts())
-
-    @authors("omgronny")
     @pytest.mark.parametrize("allow_access", [False, True])
     def test_allow_users_group_access_to_intermediate_data(self, allow_access):
         update_controller_agent_config("allow_users_group_read_intermediate_data", allow_access)
@@ -592,3 +576,125 @@ class TestSchedulerAcls(YTEnvSetup):
             op.wait_for_state("running")
 
         set("//sys/operations/@acl", [])
+
+    @authors("omgronny")
+    @pytest.mark.parametrize("use_acl", [False, True])
+    @pytest.mark.parametrize("should_archive_operation", [False, True])
+    def test_aco_get_operation(self, use_acl, should_archive_operation):
+        spec = self.spec if use_acl else {"aco_name": "users"}
+        op = run_test_vanilla(
+            command=with_breakpoint("BREAKPOINT"),
+            spec=spec,
+        )
+        wait_breakpoint()
+
+        if should_archive_operation:
+            release_breakpoint()
+            clean_operations()
+
+        self._validate_access(self.no_rights_user, True, get_operation, op_id_or_alias=op.id)
+        self._validate_access(self.read_only_user, True, get_operation, op_id_or_alias=op.id)
+        self._validate_access(self.manage_only_user, True, get_operation, op_id_or_alias=op.id)
+        self._validate_access(self.manage_and_read_user, True, get_operation, op_id_or_alias=op.id)
+        self._validate_access(self.banned_from_managing_user, True, get_operation, op_id_or_alias=op.id)
+        self._validate_access(self.banned_user, True, get_operation, op_id_or_alias=op.id)
+
+    @authors("omgronny")
+    def test_aco_in_operations(self):
+        op = run_test_vanilla(
+            command=with_breakpoint("BREAKPOINT"),
+            spec={
+                "aco_name": "users",
+            }
+        )
+
+        (job_id,) = wait_breakpoint()
+
+        actions = [
+            get_job_fail_context,
+            get_job_stderr,
+        ]
+
+        for action in actions:
+            self._validate_access(self.no_rights_user, False, action, operation_id=op.id, job_id=job_id)
+            self._validate_access(self.read_only_user, True, action, operation_id=op.id, job_id=job_id)
+            self._validate_access(self.manage_only_user, False, action, operation_id=op.id, job_id=job_id)
+            self._validate_access(self.manage_and_read_user, True, action, operation_id=op.id, job_id=job_id)
+            self._validate_access(self.banned_from_managing_user, True, action, operation_id=op.id, job_id=job_id)
+
+    @authors("omgronny")
+    def test_aco_and_acl_in_operations(self):
+        acl = self.spec["acl"]
+
+        with raises_yt_error(yt_error_codes.CannotUseBothAclAndAco):
+            run_test_vanilla(
+                command="sleep 1",
+                spec={
+                    "aco_name": "users",
+                    "acl": acl,
+                }
+            )
+
+        op = run_test_vanilla(
+            command=with_breakpoint("BREAKPOINT"),
+            spec={
+                "aco_name": "users",
+            }
+        )
+
+        wait_breakpoint()
+
+        with raises_yt_error(yt_error_codes.CannotUseBothAclAndAco):
+            update_op_parameters(op.id, parameters={"acl": acl})
+
+        update_op_parameters(op.id, parameters={"aco_name": "new_aco"})
+        wait(lambda: get_operation(op.id)["runtime_parameters"]["aco_name"] == "new_aco")
+
+    @authors("omgronny")
+    def test_manage_operation_actions_using_aco(self):
+        spec = {
+            "aco_name": "users",
+        }
+
+        actions = [
+            _abort_op,
+            _complete_op,
+            suspend_and_resume_op,
+            _update_op_parameters,
+        ]
+
+        for action in actions:
+            with self._run_op_context_manager(spec=spec) as (
+                op,
+                _,
+            ):
+                self._validate_access(self.no_rights_user, False, action, operation_id=op.id)
+                self._validate_access(self.read_only_user, False, action, operation_id=op.id)
+                self._validate_access(self.banned_from_managing_user, False, action, operation_id=op.id)
+                self._validate_access(self.manage_only_user, True, action, operation_id=op.id)
+            with self._run_op_context_manager(spec=spec) as (
+                op,
+                _,
+            ):
+                self._validate_access(self.manage_and_read_user, True, action, operation_id=op.id)
+
+    @authors("omgronny")
+    def test_missing_user_in_acl(self):
+        create_test_tables(force=True)
+        op = map(
+            command=with_breakpoint("BREAKPOINT; cat"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            track=False,
+            spec={
+                "acl": [make_ace("allow", "missing_user", ["read", "manage"])],
+            }
+        )
+        wait(lambda: op.get_state() == "running")
+        assert not op.get_alerts()
+        update_op_parameters(
+            op.id,
+            parameters={"acl": [make_ace("allow", "another_missing_user", ["read", "manage"])]},
+        )
+        time.sleep(0.1)
+        assert not op.get_alerts()

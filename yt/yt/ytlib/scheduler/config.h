@@ -979,14 +979,17 @@ public:
     TDuration TimeLimitJobFailTimeout;
 
     //! Users that can change operation parameters, e.g abort or suspend it.
-    std::vector<TString> Owners;
+    std::optional<std::vector<TString>> Owners;
 
     //! ACL for operation.
     //! It can consist of "allow"-only ACE-s with "read", "manage" and "administer" permissions.
-    NSecurityClient::TSerializableAccessControlList Acl;
+    std::optional<NSecurityClient::TSerializableAccessControlList> Acl;
+
+    //! ACO name in the "operations" namespace.
+    std::optional<TString> AcoName;
 
     //! Add the "read" and "manage" rights for the authenticated_user to |Acl|.
-    bool AddAuthenticatedUserToAcl;
+    std::optional<bool> AddAuthenticatedUserToAcl;
 
     //! A storage keeping YSON map that is hidden under ACL in Cypress. It will be exported
     //! to all user jobs via environment variables.
@@ -2025,6 +2028,7 @@ public:
     // to be able to revive old operations.
     std::vector<TString> Owners;
     NSecurityClient::TSerializableAccessControlList Acl;
+    std::optional<TString> AcoName;
     TJobShellOptionsMap OptionsPerJobShell;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
     NYTree::IMapNodePtr Annotations;
@@ -2070,6 +2074,7 @@ public:
     std::optional<double> Weight;
     std::optional<TString> Pool;
     std::optional<NSecurityClient::TSerializableAccessControlList> Acl;
+    std::optional<TString> AcoName;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersUpdatePtr> SchedulingOptionsPerPoolTree;
     TJobShellOptionsUpdateMap OptionsPerJobShell;
     std::optional<NYTree::IMapNodePtr> Annotations;

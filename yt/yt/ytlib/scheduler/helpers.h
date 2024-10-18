@@ -13,17 +13,15 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/yt/ytlib/security_client/public.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/client/security_client/acl.h>
 
 #include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/permission.h>
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/logging/log.h>
-
-#include <yt/yt/client/node_tracker_client/node_directory.h>
-
-#include <yt/yt/client/security_client/acl.h>
 
 #include <contrib/libs/re2/re2/re2.h>
 
@@ -104,13 +102,72 @@ TError GetUserTransactionAbortedError(NObjectClient::TTransactionId transactionI
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateOperationAccess(
+TString GetOperationsAcoPrincipalPath(const TString& acoName);
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYson::TYsonString GetAclFromAcoName(const NApi::NNative::IClientPtr& client, const TString& acoName);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Either of ACL or ACO name.
+class TAccessControlRule
+{
+public:
+    TAccessControlRule() = default;
+    TAccessControlRule(const TAccessControlRule&) = default;
+    TAccessControlRule(TAccessControlRule&&) = default;
+
+    TAccessControlRule& operator=(const TAccessControlRule&) = default;
+    TAccessControlRule& operator=(TAccessControlRule&&) = default;
+
+    TAccessControlRule(NSecurityClient::TSerializableAccessControlList acl);
+    TAccessControlRule(TString acoName);
+
+    bool IsAcoName() const;
+    bool IsAcl() const;
+
+    TString GetAcoName() const;
+    void SetAcoName(TString aco);
+
+    NSecurityClient::TSerializableAccessControlList GetAcl() const;
+    void SetAcl(NSecurityClient::TSerializableAccessControlList acl);
+
+    NSecurityClient::TSerializableAccessControlList GetOrLookupAcl(const NApi::NNative::IClientPtr& client) const;
+
+    TString GetAclString() const;
+
+private:
+    std::variant<NSecurityClient::TSerializableAccessControlList, TString> AccessControlRule_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateOperationAccessByAco(
+    const std::optional<std::string>& user,
+    TOperationId operationId,
+    TAllocationId allocationId,
+    NYTree::EPermissionSet permissionSet,
+    const TString& acoName,
+    const NApi::NNative::IClientPtr& client,
+    const NLogging::TLogger& logger);
+
+void ValidateOperationAccessByAcl(
     const std::optional<std::string>& user,
     TOperationId operationId,
     TAllocationId allocationId,
     NYTree::EPermissionSet permissionSet,
     const NSecurityClient::TSerializableAccessControlList& acl,
     const NApi::IClientPtr& client,
+    const NLogging::TLogger& logger);
+
+void ValidateOperationAccess(
+    const std::optional<std::string>& user,
+    TOperationId operationId,
+    TAllocationId allocationId,
+    NYTree::EPermissionSet permissionSet,
+    const TAccessControlRule& accessControlRule,
+    const NApi::NNative::IClientPtr& client,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,14 +190,18 @@ struct TAllocationBriefInfo
     NScheduler::TAllocationId AllocationId;
     NJobTrackerClient::TOperationId OperationId;
     std::optional<NSecurityClient::TSerializableAccessControlList> OperationAcl;
+    std::optional<TString> OperationAcoName;
     NControllerAgent::TControllerAgentDescriptor ControllerAgentDescriptor;
     NNodeTrackerClient::TNodeDescriptor NodeDescriptor;
 };
+
+TAccessControlRule GetAcrFromAllocationBriefInfo(const TAllocationBriefInfo& allocationBriefInfo);
 
 struct TAllocationInfoToRequest
 {
     bool OperationId = false;
     bool OperationAcl = false;
+    bool OperationAcoName = false;
     bool ControllerAgentDescriptor = false;
     bool NodeDescriptor = false;
 };

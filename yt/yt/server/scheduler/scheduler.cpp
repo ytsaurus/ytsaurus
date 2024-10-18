@@ -559,13 +559,12 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto doValidateOperationAccess = BIND([=, this, this_ = MakeStrong(this)] {
-            auto operation = GetOperationOrThrow(operationId);
             NScheduler::ValidateOperationAccess(
                 user,
                 operationId,
                 TAllocationId(),
                 permissions,
-                operation->GetRuntimeParameters()->Acl,
+                GetOperationOrThrow(operationId)->GetAccessControlRule(),
                 GetClient(),
                 Logger());
         });
@@ -649,7 +648,7 @@ public:
         auto secureVault = std::move(spec->SecureVault);
 
         auto baseAcl = GetOperationBaseAcl();
-        if (spec->AddAuthenticatedUserToAcl) {
+        if (spec->AddAuthenticatedUserToAcl.value_or(true)) {
             baseAcl.Entries.emplace_back(
                 ESecurityAction::Allow,
                 // TODO(babenko): switch to std::string
@@ -687,7 +686,7 @@ public:
 
         IdToStartingOperation_.emplace(operationId, operation);
 
-        if (!spec->Owners.empty()) {
+        if (spec->Owners && !spec->Owners->empty()) {
             // COMPAT(egor-gutrov): this is compat alert, remove it
             operation->SetAlertWithoutArchivation(
                 EOperationAlertType::OwnersInSpecIgnored,
@@ -1023,6 +1022,12 @@ public:
                         << TErrorAttribute("job_shell", jobShellName);
                 }
             }
+        }
+
+        bool hasAcl = update->Acl || !operation->GetRuntimeParameters()->Acl.Entries.empty();
+        bool hasAcoName = update->AcoName || operation->GetRuntimeParameters()->AcoName;
+        if (hasAcl && hasAcoName) {
+            THROW_ERROR_EXCEPTION(EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
         }
 
         // NB(eshcherbin): We don't want to allow operation pool changes during materialization or revival
@@ -1707,6 +1712,9 @@ public:
         if (requestedAllocationInfo.OperationAcl) {
             result.OperationAcl = operation->GetRuntimeParameters()->Acl;
         }
+        if (requestedAllocationInfo.OperationAcoName) {
+            result.OperationAcoName = operation->GetRuntimeParameters()->AcoName;
+        }
 
         return result;
     }
@@ -1831,11 +1839,17 @@ private:
         EOperationType operationType,
         TOperationId operationId)
     {
-        runtimeParameters->Acl = baseAcl;
-        runtimeParameters->Acl.Entries.insert(
-            runtimeParameters->Acl.Entries.end(),
-            spec->Acl.Entries.begin(),
-            spec->Acl.Entries.end());
+        if (spec->AcoName) {
+            runtimeParameters->AcoName = spec->AcoName;
+        } else {
+            runtimeParameters->Acl = baseAcl;
+            if (spec->Acl) {
+                runtimeParameters->Acl.Entries.insert(
+                    runtimeParameters->Acl.Entries.end(),
+                    spec->Acl->Entries.begin(),
+                    spec->Acl->Entries.end());
+            }
+        }
 
         auto annotations = spec->Annotations;
         auto description = spec->Description;
@@ -1862,6 +1876,8 @@ private:
 
         if (update->Acl) {
             result->Acl = *update->Acl;
+        } else if (update->AcoName) {
+            result->AcoName = *update->AcoName;
         }
 
         ApplyJobShellOptionsUpdate(&result->OptionsPerJobShell, update->OptionsPerJobShell);
@@ -3381,8 +3397,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        TArchiveOperationRequest archivationReq;
-        archivationReq.InitializeFromOperation(operation);
+        auto archivationReq = OperationsCleaner_->InitializeRequestFromOperation(operation);
         archivationReq.Progress = operationProgress.Progress;
         archivationReq.BriefProgress = operationProgress.BriefProgress;
         archivationReq.Alerts = operationProgress.Alerts;

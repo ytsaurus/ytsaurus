@@ -83,39 +83,9 @@ struct TOperationAliasesTag
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TArchiveOperationRequest::InitializeFromOperation(const TOperationPtr& operation)
-{
-    Id = operation->GetId();
-    StartTime = operation->GetStartTime();
-    FinishTime = *operation->GetFinishTime();
-    State = operation->GetState();
-    AuthenticatedUser = operation->GetAuthenticatedUser();
-    OperationType = operation->GetType();
-    Spec = operation->GetSpecString();
-    Result = operation->BuildResultString();
-    Events = ConvertToYsonString(operation->Events());
-    Alerts = operation->BuildAlertsString();
-    BriefSpec = operation->BriefSpecString();
-    RuntimeParameters = ConvertToYsonString(operation->GetRuntimeParameters(), EYsonFormat::Binary);
-    Alias = operation->Alias();
-    SchedulingAttributesPerPoolTree = ConvertToYsonString(operation->GetSchedulingAttributesPerPoolTree(), EYsonFormat::Binary);
-    SlotIndexPerPoolTree = ConvertToYsonString(operation->GetSlotIndices(), EYsonFormat::Binary);
-    TaskNames = ConvertToYsonString(operation->GetTaskNames(), EYsonFormat::Binary);
-    ExperimentAssignments = ConvertToYsonString(operation->ExperimentAssignments(), EYsonFormat::Binary);
-    ExperimentAssignmentNames = ConvertToYsonString(operation->GetExperimentAssignmentNames(), EYsonFormat::Binary);
-    ProvidedSpec = operation->ProvidedSpecString();
-
-    const auto& attributes = operation->ControllerAttributes();
-    const auto& initializationAttributes = attributes.InitializeAttributes;
-    if (initializationAttributes) {
-        UnrecognizedSpec = initializationAttributes->UnrecognizedSpec;
-        FullSpec = initializationAttributes->FullSpec;
-    }
-}
-
 const std::vector<TString>& TArchiveOperationRequest::GetAttributeKeys()
 {
-    // Keep the stuff below synchronized with InitializeFromAttributes method.
+    // Keep the stuff below synchronized with InitializeRequestFromAttributes method.
     static const std::vector<TString> attributeKeys = {
         "key",
         "start_time",
@@ -154,57 +124,6 @@ const std::vector<TString>& TArchiveOperationRequest::GetProgressAttributeKeys()
     };
 
     return attributeKeys;
-}
-
-void TArchiveOperationRequest::InitializeFromAttributes(const IAttributeDictionary& attributes)
-{
-    Id = TOperationId(TGuid::FromString(attributes.Get<TString>("key")));
-    StartTime = attributes.Get<TInstant>("start_time");
-    FinishTime = attributes.Get<TInstant>("finish_time");
-    State = attributes.Get<EOperationState>("state");
-    AuthenticatedUser = attributes.Get<TString>("authenticated_user");
-    OperationType = attributes.Get<EOperationType>("operation_type");
-    Progress = attributes.FindYson("progress");
-    BriefProgress = attributes.FindYson("brief_progress");
-    Spec = attributes.GetYson("spec");
-    // In order to recover experiment assignment names, we must either
-    // dig into assignment YSON representation or reconstruct assignment objects.
-    // The latter seems more convenient. Also, do not forget that older operations
-    // may miss assignment attribute at all.
-    if (auto experimentAssignmentsYson = attributes.FindYson("experiment_assignments")) {
-        ExperimentAssignments = experimentAssignmentsYson;
-        auto experimentAssignments = ConvertTo<std::vector<TExperimentAssignmentPtr>>(experimentAssignmentsYson);
-        std::vector<TString> experimentAssignmentNames;
-        experimentAssignmentNames.reserve(experimentAssignments.size());
-        for (const auto& experimentAssignment : experimentAssignments) {
-            experimentAssignmentNames.emplace_back(experimentAssignment->GetName());
-        }
-        ExperimentAssignmentNames = ConvertToYsonString(experimentAssignmentNames, EYsonFormat::Binary);
-    }
-
-    ProvidedSpec = attributes.FindYson("provided_spec");
-    BriefSpec = attributes.FindYson("brief_spec");
-    Result = attributes.GetYson("result");
-    Events = attributes.GetYson("events");
-    Alerts = attributes.GetYson("alerts");
-    FullSpec = attributes.FindYson("full_spec");
-    UnrecognizedSpec = attributes.FindYson("unrecognized_spec");
-
-    if (auto heavyRuntimeParameters = attributes.Find<IMapNodePtr>("heavy_runtime_parameters")) {
-        auto runtimeParameters = attributes.Find<IMapNodePtr>("runtime_parameters");
-        if (!runtimeParameters) {
-            RuntimeParameters = ConvertToYsonString(heavyRuntimeParameters);
-        } else {
-            RuntimeParameters = ConvertToYsonString(PatchNode(runtimeParameters, heavyRuntimeParameters));
-        }
-    } else {
-        RuntimeParameters = attributes.FindYson("runtime_parameters");
-    }
-    Alias = ConvertTo<TOperationSpecBasePtr>(Spec)->Alias;
-    SchedulingAttributesPerPoolTree = attributes.FindYson("scheduling_attributes_per_pool_tree");
-    SlotIndexPerPoolTree = attributes.FindYson("slot_index_per_pool_tree");
-    TaskNames = attributes.FindYson("task_names");
-    ControllerFeatures = attributes.FindYson("controller_features");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -274,10 +193,12 @@ struct TAnnotationsAndSchedulingOptions
 struct TAclAndSchedulingOptions
 {
     INodePtr Acl;
+    INodePtr AcoName;
     INodePtr SchedulingOptionsPerPoolTree;
 
     static const inline std::vector<std::pair<TString, INodePtr TAclAndSchedulingOptions::*>> Fields = {
         {"acl", &TAclAndSchedulingOptions::Acl},
+        {"aco_name", &TAclAndSchedulingOptions::AcoName},
         {"scheduling_options_per_pool_tree", &TAclAndSchedulingOptions::SchedulingOptionsPerPoolTree},
     };
 };
@@ -822,6 +743,101 @@ public:
             }));
     }
 
+    TArchiveOperationRequest InitializeRequestFromOperation(const TOperationPtr& operation)
+    {
+        TArchiveOperationRequest result;
+
+        if (operation->GetRuntimeParameters() && operation->GetRuntimeParameters()->AcoName) {
+            auto acl = GetAclFromAcoName(Bootstrap_->GetClient(), *operation->GetRuntimeParameters()->AcoName);
+            operation->GetRuntimeParameters()->Acl = ConvertTo<NSecurityClient::TSerializableAccessControlList>(acl);
+        }
+
+        result.Id = operation->GetId();
+        result.StartTime = operation->GetStartTime();
+        result.FinishTime = *operation->GetFinishTime();
+        result.State = operation->GetState();
+        result.AuthenticatedUser = operation->GetAuthenticatedUser();
+        result.OperationType = operation->GetType();
+        result.Spec = operation->GetSpecString();
+        result.Result = operation->BuildResultString();
+        result.Events = ConvertToYsonString(operation->Events());
+        result.Alerts = operation->BuildAlertsString();
+        result.BriefSpec = operation->BriefSpecString();
+        result.RuntimeParameters = ConvertToYsonString(operation->GetRuntimeParameters(), EYsonFormat::Binary);
+        result.Alias = operation->Alias();
+        result.SchedulingAttributesPerPoolTree = ConvertToYsonString(operation->GetSchedulingAttributesPerPoolTree(), EYsonFormat::Binary);
+        result.SlotIndexPerPoolTree = ConvertToYsonString(operation->GetSlotIndices(), EYsonFormat::Binary);
+        result.TaskNames = ConvertToYsonString(operation->GetTaskNames(), EYsonFormat::Binary);
+        result.ExperimentAssignments = ConvertToYsonString(operation->ExperimentAssignments(), EYsonFormat::Binary);
+        result.ExperimentAssignmentNames = ConvertToYsonString(operation->GetExperimentAssignmentNames(), EYsonFormat::Binary);
+        result.ProvidedSpec = operation->ProvidedSpecString();
+
+        const auto& attributes = operation->ControllerAttributes();
+        const auto& initializationAttributes = attributes.InitializeAttributes;
+        if (initializationAttributes) {
+            result.UnrecognizedSpec = initializationAttributes->UnrecognizedSpec;
+            result.FullSpec = initializationAttributes->FullSpec;
+        }
+
+        return result;
+    }
+
+    TArchiveOperationRequest InitializeRequestFromAttributes(const IAttributeDictionary& attributes)
+    {
+        TArchiveOperationRequest result;
+
+        result.Id = TOperationId(TGuid::FromString(attributes.Get<TString>("key")));
+        result.StartTime = attributes.Get<TInstant>("start_time");
+        result.FinishTime = attributes.Get<TInstant>("finish_time");
+        result.State = attributes.Get<EOperationState>("state");
+        result.AuthenticatedUser = attributes.Get<TString>("authenticated_user");
+        result.OperationType = attributes.Get<EOperationType>("operation_type");
+        result.Progress = attributes.FindYson("progress");
+        result.BriefProgress = attributes.FindYson("brief_progress");
+        result.Spec = attributes.GetYson("spec");
+        // In order to recover experiment assignment names, we must either
+        // dig into assignment YSON representation or reconstruct assignment objects.
+        // The latter seems more convenient. Also, do not forget that older operations
+        // may miss assignment attribute at all.
+        if (auto experimentAssignmentsYson = attributes.FindYson("experiment_assignments")) {
+            result.ExperimentAssignments = experimentAssignmentsYson;
+            auto experimentAssignments = ConvertTo<std::vector<TExperimentAssignmentPtr>>(experimentAssignmentsYson);
+            std::vector<TString> experimentAssignmentNames;
+            experimentAssignmentNames.reserve(experimentAssignments.size());
+            for (const auto& experimentAssignment : experimentAssignments) {
+                experimentAssignmentNames.emplace_back(experimentAssignment->GetName());
+            }
+            result.ExperimentAssignmentNames = ConvertToYsonString(experimentAssignmentNames, EYsonFormat::Binary);
+        }
+
+        result.ProvidedSpec = attributes.FindYson("provided_spec");
+        result.BriefSpec = attributes.FindYson("brief_spec");
+        result.Result = attributes.GetYson("result");
+        result.Events = attributes.GetYson("events");
+        result.Alerts = attributes.GetYson("alerts");
+        result.FullSpec = attributes.FindYson("full_spec");
+        result.UnrecognizedSpec = attributes.FindYson("unrecognized_spec");
+
+        if (auto heavyRuntimeParameters = attributes.Find<IMapNodePtr>("heavy_runtime_parameters")) {
+            auto runtimeParameters = attributes.Find<IMapNodePtr>("runtime_parameters");
+            if (!runtimeParameters) {
+                result.RuntimeParameters = ConvertToYsonString(heavyRuntimeParameters);
+            } else {
+                result.RuntimeParameters = ConvertToYsonString(PatchNode(runtimeParameters, heavyRuntimeParameters));
+            }
+        } else {
+            result.RuntimeParameters = attributes.FindYson("runtime_parameters");
+        }
+        result.Alias = ConvertTo<TOperationSpecBasePtr>(result.Spec)->Alias;
+        result.SchedulingAttributesPerPoolTree = attributes.FindYson("scheduling_attributes_per_pool_tree");
+        result.SlotIndexPerPoolTree = attributes.FindYson("slot_index_per_pool_tree");
+        result.TaskNames = attributes.FindYson("task_names");
+        result.ControllerFeatures = attributes.FindYson("controller_features");
+
+        return result;
+    }
+
+
 private:
     TOperationsCleanerConfigPtr Config_;
     TBootstrap* const Bootstrap_;
@@ -982,7 +998,6 @@ private:
     void DoStop()
     {
         VERIFY_INVOKER_AFFINITY(GetUncancelableInvoker());
-
         if (!Enabled_) {
             return;
         }
@@ -1293,6 +1308,7 @@ private:
                         auto row = NDetail::BuildOrderedByStartTimeTableRow(request, version);
                         rows.push_back(row.Get());
                         owningRows.push_back(row);
+
                         orderedByStartTimeRowsDataWeight += GetDataWeight(row);
                     } catch (const std::exception& ex) {
                         THROW_ERROR_EXCEPTION("Failed to build row for operation %v", operationId)
@@ -1662,6 +1678,110 @@ private:
         return proxy.ExecuteBatch();
     }
 
+    std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
+        const std::vector<TOperationId>& operationIds)
+    {
+        using NYT::ToProto;
+
+        struct TOperationDataToParse
+        {
+            TYsonString AttrbutesYson;
+            TOperationId OperationId;
+        };
+
+        YT_LOG_INFO("Fetching operations attributes for cleaner (OperationCount: %v)", operationIds.size());
+
+        std::vector<TArchiveOperationRequest> result;
+
+        auto batchReq = CreateBatchRequest();
+
+        for (auto operationId : operationIds) {
+            auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
+            ToProto(req->mutable_attributes()->mutable_keys(), TArchiveOperationRequest::GetAttributeKeys());
+            batchReq->AddRequest(req, "get_op_attributes");
+        }
+
+        auto rspOrError = WaitFor(batchReq->Invoke());
+        auto error = GetCumulativeError(rspOrError);
+        if (!error.IsOK()) {
+            THROW_ERROR_EXCEPTION("Error requesting operations attributes for archivation")
+                << error;
+        } else {
+            YT_LOG_INFO("Fetched operations attributes for cleaner (OperationCount: %v)", operationIds.size());
+        }
+
+        auto rsps = rspOrError.Value()->GetResponses<TYPathProxy::TRspGet>("get_op_attributes");
+        YT_VERIFY(operationIds.size() == rsps.size());
+
+        auto parseOperationAttributesBatchSize = Config_->ParseOperationAttributesBatchSize;
+
+        {
+            const auto processBatch = BIND([this, this_ = MakeStrong(this), parseOperationAttributesBatchSize] (
+                const std::vector<TOperationDataToParse>& operationDataToParseBatch)
+            {
+                std::vector<TArchiveOperationRequest> result;
+                result.reserve(parseOperationAttributesBatchSize);
+
+                for (const auto& operationDataToParse : operationDataToParseBatch) {
+                    IAttributeDictionaryPtr attributes;
+                    TOperationId operationId;
+                    try {
+                        attributes = ConvertToAttributes(operationDataToParse.AttrbutesYson);
+                        operationId = TOperationId(TGuid::FromString(attributes->Get<TString>("key")));
+                        YT_VERIFY(operationId == operationDataToParse.OperationId);
+                    } catch (const std::exception& ex) {
+                        THROW_ERROR_EXCEPTION("Error parsing operation attributes")
+                            << TErrorAttribute("operation_id", operationDataToParse.OperationId)
+                            << ex;
+                    }
+
+                    try {
+                        result.push_back(InitializeRequestFromAttributes(*attributes));
+                    } catch (const std::exception& ex) {
+                        THROW_ERROR_EXCEPTION("Error initializing operation archivation request")
+                            << TErrorAttribute("operation_id", operationId)
+                            << TErrorAttribute("attributes", ConvertToYsonString(*attributes, EYsonFormat::Text))
+                            << ex;
+                    }
+                }
+
+                return result;
+            });
+
+            YT_LOG_INFO("Operations attributes for cleaner parsing started");
+
+            const int operationCount{static_cast<int>(operationIds.size())};
+            std::vector<TFuture<std::vector<TArchiveOperationRequest>>> futures;
+            futures.reserve(RoundUp(operationCount, parseOperationAttributesBatchSize));
+
+            for (int startIndex = 0; startIndex < operationCount; startIndex += parseOperationAttributesBatchSize) {
+                std::vector<TOperationDataToParse> operationDataToParseBatch;
+                operationDataToParseBatch.reserve(parseOperationAttributesBatchSize);
+
+                for (int index = startIndex; index < std::min(operationCount, startIndex + parseOperationAttributesBatchSize); ++index) {
+                    operationDataToParseBatch.push_back({TYsonString(rsps[index].Value()->value()), operationIds[index]});
+                }
+
+                futures.push_back(processBatch
+                    .AsyncVia(Host_->GetBackgroundInvoker())
+                    .Run(std::move(operationDataToParseBatch)));
+            }
+
+            auto operationRequestsArray = WaitFor(AllSucceeded(futures)).ValueOrThrow();
+
+            result.reserve(operationCount);
+            for (auto& operationRequests : operationRequestsArray) {
+                for (auto& operationRequest : operationRequests) {
+                    result.push_back(std::move(operationRequest));
+                }
+            }
+        }
+
+        YT_LOG_INFO("Operations attributes for cleaner fetched");
+
+        return result;
+    }
+
     void DoFetchFinishedOperations()
     {
         YT_LOG_INFO("Fetching all finished operations from Cypress");
@@ -1673,11 +1793,7 @@ private:
     void DoFetchFinishedOperationsById(std::vector<TOperationId> operationIds)
     {
         YT_LOG_INFO("Started fetching finished operations from Cypress (OperationCount: %v)", operationIds.size());
-        auto operations = FetchOperationsFromCypressForCleaner(
-            operationIds,
-            BIND(&TImpl::CreateBatchRequest, MakeStrong(this)),
-            Config_->ParseOperationAttributesBatchSize,
-            Host_->GetBackgroundInvoker());
+        auto operations = FetchOperationsFromCypressForCleaner(operationIds);
 
         // Controller agent reports brief_progress only to archive,
         // but it is necessary to fill ordered_by_start_time table,
@@ -1862,113 +1978,14 @@ void TOperationsCleaner::EnqueueOperationAlertEvent(
 
 DELEGATE_SIGNAL(TOperationsCleaner, void(const std::vector<TArchiveOperationRequest>& requests), OperationsRemovedFromCypress, *Impl_);
 
-////////////////////////////////////////////////////////////////////////////////
-
-struct TOperationDataToParse final
+TArchiveOperationRequest TOperationsCleaner::InitializeRequestFromOperation(const TOperationPtr& operation)
 {
-    TYsonString AttrbutesYson;
-    TOperationId OperationId;
-};
+    return Impl_->InitializeRequestFromOperation(operation);
+}
 
-std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
-    const std::vector<TOperationId>& operationIds,
-    TCallback<TObjectServiceProxy::TReqExecuteBatchPtr()> createBatchRequest,
-    const int parseOperationAttributesBatchSize,
-    const IInvokerPtr& invoker)
+TArchiveOperationRequest TOperationsCleaner::InitializeRequestFromAttributes(const IAttributeDictionary& attributes)
 {
-    using NYT::ToProto;
-
-    YT_LOG_INFO("Fetching operations attributes for cleaner (OperationCount: %v)", operationIds.size());
-
-    std::vector<TArchiveOperationRequest> result;
-
-    auto batchReq = createBatchRequest();
-
-    for (auto operationId : operationIds) {
-        auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
-        ToProto(req->mutable_attributes()->mutable_keys(), TArchiveOperationRequest::GetAttributeKeys());
-        batchReq->AddRequest(req, "get_op_attributes");
-    }
-
-    auto rspOrError = WaitFor(batchReq->Invoke());
-    auto error = GetCumulativeError(rspOrError);
-    if (!error.IsOK()) {
-        THROW_ERROR_EXCEPTION("Error requesting operations attributes for archivation")
-            << error;
-    } else {
-        YT_LOG_INFO("Fetched operations attributes for cleaner (OperationCount: %v)", operationIds.size());
-    }
-
-    auto rsps = rspOrError.Value()->GetResponses<TYPathProxy::TRspGet>("get_op_attributes");
-    YT_VERIFY(operationIds.size() == rsps.size());
-
-    {
-        const auto processBatch = BIND([parseOperationAttributesBatchSize] (
-            const std::vector<TOperationDataToParse>& operationDataToParseBatch)
-        {
-            std::vector<TArchiveOperationRequest> result;
-            result.reserve(parseOperationAttributesBatchSize);
-
-            for (const auto& operationDataToParse : operationDataToParseBatch) {
-                IAttributeDictionaryPtr attributes;
-                TOperationId operationId;
-                try {
-                    attributes = ConvertToAttributes(operationDataToParse.AttrbutesYson);
-                    operationId = TOperationId(TGuid::FromString(attributes->Get<TString>("key")));
-                    YT_VERIFY(operationId == operationDataToParse.OperationId);
-                } catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION("Error parsing operation attributes")
-                        << TErrorAttribute("operation_id", operationDataToParse.OperationId)
-                        << ex;
-                }
-
-                try {
-                    TArchiveOperationRequest req;
-                    req.InitializeFromAttributes(*attributes);
-                    result.push_back(std::move(req));
-                } catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION("Error initializing operation archivation request")
-                        << TErrorAttribute("operation_id", operationId)
-                        << TErrorAttribute("attributes", ConvertToYsonString(*attributes, EYsonFormat::Text))
-                        << ex;
-                }
-            }
-
-            return result;
-        });
-
-        YT_LOG_INFO("Operations attributes for cleaner parsing started");
-
-        const int operationCount{static_cast<int>(operationIds.size())};
-        std::vector<TFuture<std::vector<TArchiveOperationRequest>>> futures;
-        futures.reserve(RoundUp(operationCount, parseOperationAttributesBatchSize));
-
-        for (int startIndex = 0; startIndex < operationCount; startIndex += parseOperationAttributesBatchSize) {
-            std::vector<TOperationDataToParse> operationDataToParseBatch;
-            operationDataToParseBatch.reserve(parseOperationAttributesBatchSize);
-
-            for (int index = startIndex; index < std::min(operationCount, startIndex + parseOperationAttributesBatchSize); ++index) {
-                operationDataToParseBatch.push_back({TYsonString(rsps[index].Value()->value()), operationIds[index]});
-            }
-
-            futures.push_back(processBatch
-                .AsyncVia(invoker)
-                .Run(std::move(operationDataToParseBatch)));
-        }
-
-        auto operationRequestsArray = WaitFor(AllSucceeded(futures)).ValueOrThrow();
-
-        result.reserve(operationCount);
-        for (auto& operationRequests : operationRequestsArray) {
-            for (auto& operationRequest : operationRequests) {
-                result.push_back(std::move(operationRequest));
-            }
-        }
-    }
-
-    YT_LOG_INFO("Operations attributes for cleaner fetched");
-
-    return result;
+    return Impl_->InitializeRequestFromAttributes(attributes);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

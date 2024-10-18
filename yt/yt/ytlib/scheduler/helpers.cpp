@@ -22,6 +22,10 @@
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
+#include <yt/yt/client/chunk_client/data_statistics.h>
+
+#include <yt/yt/client/security_client/access_control.h>
+
 #include <yt/yt/library/re2/re2.h>
 
 namespace NYT::NScheduler {
@@ -40,6 +44,7 @@ using namespace NSecurityClient;
 using namespace NLogging;
 using namespace NRpc;
 using namespace NTracing;
+using namespace NSecurityClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -365,12 +370,180 @@ TError GetUserTransactionAbortedError(TTransactionId transactionId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateOperationAccess(
+TString GetOperationsAcoPrincipalPath(const TString& acoName)
+{
+    static constexpr TStringBuf OperationsAccessControlObjectPrincipalPath = "//sys/access_control_object_namespaces/operations/%v/principal";
+    return Format(OperationsAccessControlObjectPrincipalPath, acoName);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYsonString GetAclFromAcoName(const NApi::NNative::IClientPtr& client, const TString& acoName)
+{
+    TGetNodeOptions getNodeOptions;
+    getNodeOptions.ReadFrom = EMasterChannelKind::LocalCache;
+    return NConcurrency::WaitFor(
+        client->GetNode(
+            GetOperationsAcoPrincipalPath(acoName) + "/@acl"))
+        .ValueOrThrow();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAccessControlRule::TAccessControlRule(TSerializableAccessControlList acl)
+    : AccessControlRule_(std::move(acl))
+{ }
+
+TAccessControlRule::TAccessControlRule(TString acoName)
+    : AccessControlRule_(std::move(acoName))
+{ }
+
+bool TAccessControlRule::IsAcoName() const
+{
+    return std::holds_alternative<TString>(AccessControlRule_);
+}
+
+bool TAccessControlRule::IsAcl() const
+{
+    return !IsAcoName();
+}
+
+TString TAccessControlRule::GetAcoName() const
+{
+    return std::get<TString>(AccessControlRule_);
+}
+
+void TAccessControlRule::SetAcoName(TString aco)
+{
+    AccessControlRule_ = std::move(aco);
+}
+
+TSerializableAccessControlList TAccessControlRule::GetAcl() const
+{
+    return std::get<TSerializableAccessControlList>(AccessControlRule_);
+}
+
+void TAccessControlRule::SetAcl(TSerializableAccessControlList acl)
+{
+    AccessControlRule_ = std::move(acl);
+}
+
+TSerializableAccessControlList TAccessControlRule::GetOrLookupAcl(const NApi::NNative::IClientPtr& client) const
+{
+    if (IsAcl()) {
+        return GetAcl();
+    } else {
+        auto aclYson = GetAclFromAcoName(client, GetAcoName());
+        return ConvertTo<TSerializableAccessControlList>(aclYson);
+    }
+}
+
+TString TAccessControlRule::GetAclString() const
+{
+    if (IsAcoName()) {
+        return GetAcoName();
+    } else {
+        return BuildYsonStringFluently(EYsonFormat::Text)
+            .Value(GetAcl())
+            .ToString();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TCheckPermissionResults>
+void ValidateCheckPermissionsResults(
     const std::optional<std::string>& user,
     TOperationId operationId,
     TAllocationId allocationId,
     EPermissionSet permissionSet,
-    const NSecurityClient::TSerializableAccessControlList& acl,
+    const TCheckPermissionResults& results,
+    const TAccessControlRule& accessControlRule,
+    const TLogger& logger)
+{
+    const auto& Logger = logger;
+
+    for (const auto& result : results) {
+        if (result.Action == ESecurityAction::Allow) {
+            continue;
+        }
+        auto userStr = user.value_or(GetCurrentAuthenticationIdentity().User);
+        auto error = TError(
+            NSecurityClient::EErrorCode::AuthorizationError,
+            "Operation access denied")
+            << TErrorAttribute("user", userStr)
+            << TErrorAttribute("required_permissions", permissionSet);
+        if (accessControlRule.IsAcoName()) {
+            error = error << TErrorAttribute("path", accessControlRule.GetAclString());
+        } else {
+            error = error << TErrorAttribute("acl", accessControlRule.GetAclString());
+        }
+        if (operationId) {
+            error = error << TErrorAttribute("operation_id", operationId);
+        }
+        if (allocationId) {
+            error = error << TErrorAttribute("allocation_id", allocationId);
+        }
+        THROW_ERROR error;
+    }
+
+    YT_LOG_DEBUG("Operation access successfully validated (OperationId: %v, AllocationId: %v, User: %v, Permissions: %v, AccessControlRule: %v)",
+        operationId ? ToString(operationId) : "<unknown>",
+        allocationId ? ToString(allocationId) : "<unknown>",
+        user,
+        permissionSet,
+        accessControlRule.GetAclString());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateOperationAccessByAco(
+    const std::optional<std::string>& user,
+    TOperationId operationId,
+    TAllocationId allocationId,
+    EPermissionSet permissionSet,
+    const TString& acoName,
+    const NNative::IClientPtr& client,
+    const TLogger& logger)
+{
+    auto acoPath = GetOperationsAcoPrincipalPath(acoName);
+
+    auto authenticatedUser = user.value_or(GetCurrentAuthenticationIdentity().User);
+
+    std::vector<TFuture<TCheckPermissionResponse>> futures;
+    for (auto permission : TEnumTraits<EPermission>::GetDomainValues()) {
+        if (Any(permission & permissionSet)) {
+            futures.push_back(client->CheckPermission(authenticatedUser, acoPath, permission));
+        }
+    }
+
+    auto results = WaitFor(AllSucceeded(futures))
+        .ValueOrThrow();
+
+    ValidateCheckPermissionsResults(
+        authenticatedUser,
+        operationId,
+        allocationId,
+        permissionSet,
+        results,
+        acoPath,
+        logger);
+}
+
+void ValidateOperationAccessByAcl(
+    const std::optional<std::string>& user,
+    TOperationId operationId,
+    TAllocationId allocationId,
+    EPermissionSet permissionSet,
+    const TSerializableAccessControlList& acl,
     const IClientPtr& client,
     const TLogger& logger)
 {
@@ -398,34 +571,44 @@ void ValidateOperationAccess(
             results.front().MissingSubjects);
     }
 
-    for (const auto& result : results) {
-        if (result.Action != ESecurityAction::Allow) {
-            auto userStr = user.value_or(GetCurrentAuthenticationIdentity().User);
-            auto error = TError(
-                NSecurityClient::EErrorCode::AuthorizationError,
-                "Operation access denied, user %Qv does not have %Qlv permissions",
-                userStr,
-                FormatPermissions(permissionSet))
-                << TErrorAttribute("user", userStr)
-                << TErrorAttribute("required_permissions", permissionSet)
-                << TErrorAttribute("acl", acl);
-            if (operationId) {
-                error = error << TErrorAttribute("operation_id", operationId);
-            }
-            if (allocationId) {
-                error = error << TErrorAttribute("allocation_id", allocationId);
-            }
-            THROW_ERROR error;
-        }
-    }
-
-    YT_LOG_DEBUG(
-        "Operation access successfully validated (OperationId: %v, AllocationId: %v, User: %v, Permissions: %v, Acl: %v)",
-        operationId ? ToString(operationId) : "<unknown>",
-        allocationId ? ToString(allocationId) : "<unknown>",
+    ValidateCheckPermissionsResults(
         user,
+        operationId,
+        allocationId,
         permissionSet,
-        ConvertToYsonString(acl, EYsonFormat::Text));
+        results,
+        acl,
+        logger);
+}
+
+void ValidateOperationAccess(
+    const std::optional<std::string>& user,
+    TOperationId operationId,
+    TAllocationId allocationId,
+    NYTree::EPermissionSet permissionSet,
+    const TAccessControlRule& accessControlRule,
+    const NApi::NNative::IClientPtr& client,
+    const NLogging::TLogger& logger)
+{
+    if (accessControlRule.IsAcoName()) {
+        NScheduler::ValidateOperationAccessByAco(
+            user,
+            operationId,
+            allocationId,
+            permissionSet,
+            accessControlRule.GetAcoName(),
+            client,
+            logger);
+    } else {
+        NScheduler::ValidateOperationAccessByAcl(
+            user,
+            operationId,
+            allocationId,
+            permissionSet,
+            accessControlRule.GetAcl(),
+            client,
+            logger);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -498,6 +681,15 @@ void ValidatePoolName(const std::string& poolName, const re2::RE2& regex)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAccessControlRule GetAcrFromAllocationBriefInfo(const TAllocationBriefInfo& allocationBriefInfo)
+{
+    return allocationBriefInfo.OperationAcoName
+        ? TAccessControlRule(*allocationBriefInfo.OperationAcoName)
+        : TAccessControlRule(*allocationBriefInfo.OperationAcl);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void FromProto(
     TAllocationBriefInfo* allocationBriefInfo,
     const NProto::TAllocationBriefInfo& allocationBriefInfoProto)
@@ -511,6 +703,9 @@ void FromProto(
     if (allocationBriefInfoProto.has_operation_acl()) {
         TYsonString aclYson(allocationBriefInfoProto.operation_acl());
         allocationBriefInfo->OperationAcl = ConvertTo<TSerializableAccessControlList>(aclYson);
+    }
+    if (allocationBriefInfoProto.has_operation_aco_name()) {
+        allocationBriefInfo->OperationAcoName = allocationBriefInfoProto.operation_aco_name();
     }
 
     if (allocationBriefInfoProto.has_controller_agent_descriptor()) {
@@ -542,6 +737,9 @@ void ToProto(
         auto aclYson = ConvertToYsonString(*allocationBriefInfo.OperationAcl);
         allocationBriefInfoProto->set_operation_acl(aclYson.ToString());
     }
+    if (allocationBriefInfo.OperationAcoName) {
+        allocationBriefInfoProto->set_operation_aco_name(*allocationBriefInfo.OperationAcoName);
+    }
 
     if (allocationBriefInfo.ControllerAgentDescriptor) {
         ToProto(
@@ -562,6 +760,7 @@ void FromProto(
 {
     requestedAllocationInfo->OperationId = requestedAllocationInfoProto.operation_id();
     requestedAllocationInfo->OperationAcl = requestedAllocationInfoProto.operation_acl();
+    requestedAllocationInfo->OperationAcoName = requestedAllocationInfoProto.operation_aco_name();
     requestedAllocationInfo->ControllerAgentDescriptor = requestedAllocationInfoProto.controller_agent_descriptor();
     requestedAllocationInfo->NodeDescriptor = requestedAllocationInfoProto.node_descriptor();
 }
@@ -576,6 +775,10 @@ void ToProto(
 
     if (allocationInfoToRequest.OperationAcl) {
         allocationInfoToRequestProto->set_operation_acl(true);
+    }
+
+    if (allocationInfoToRequest.OperationAcoName) {
+        allocationInfoToRequestProto->set_operation_aco_name(true);
     }
 
     if (allocationInfoToRequest.ControllerAgentDescriptor) {
