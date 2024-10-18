@@ -129,6 +129,8 @@ class TQueryTrackerDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
+    TDuration StateCheckPeriod;
+
     TDuration ActiveQueryAcquisitionPeriod;
     TDuration ActiveQueryPingPeriod;
     TDuration QueryFinishBackoff;

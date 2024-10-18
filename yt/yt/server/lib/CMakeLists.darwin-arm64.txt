@@ -15,6 +15,7 @@
 add_subdirectory(admin)
 add_subdirectory(cypress_election)
 add_subdirectory(misc)
+add_subdirectory(state_checker)
 add_subdirectory(hive)
 add_subdirectory(election)
 add_subdirectory(chaos_node)

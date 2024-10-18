@@ -14,43 +14,22 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_subdirectory(unittests)
-add_subdirectory(bin)
-
-add_library(yt-yql-agent)
+add_library(server-lib-state_checker)
 
 
-target_compile_options(yt-yql-agent PRIVATE
+target_compile_options(server-lib-state_checker PRIVATE
   -Wdeprecated-this-capture
 )
 
-target_link_libraries(yt-yql-agent PUBLIC
+target_link_libraries(server-lib-state_checker PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  cpp-yt-phdr_cache
-  library-cpp-getopt
-  logging-backends-arcadia
-  yt-library-dynamic_config
-  yt-library-skiff_ext
-  yt-yt-ytlib
-  yt-client-formats
-  server-lib-admin
-  server-lib-cypress_election
-  server-lib-misc
-  server-lib-state_checker
-  yt-yql-plugin
-  library-query-engine
-  library-query-row_comparer
-  yql-plugin-bridge
+  yt-yt-core
+  yt-yt-client
 )
 
-target_sources(yt-yql-agent PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yql/agent/bootstrap.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yql/agent/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yql/agent/dynamic_config_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yql/agent/yql_agent.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yql/agent/yql_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yql/agent/interop.cpp
+target_sources(server-lib-state_checker PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/state_checker/state_checker.cpp
 )
 

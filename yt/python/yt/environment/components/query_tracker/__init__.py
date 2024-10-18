@@ -63,11 +63,16 @@ class QueryTracker(YTServerComponentBase, YTComponent):
             "stages": {
                 "production": {
                     "channel": {
+                        # NB(mpereskokova): Required for the bans mechanics;
+                        # In case of disabled balancing on single address discovery,
+                        # discovery requests are not sent and bans are not executed
+                        "disable_balancing_on_single_address": False,
                         "addresses": self.addresses,
                     }
                 },
                 "testing": {
                     "channel": {
+                        "disable_balancing_on_single_address": False,
                         "addresses": self.addresses,
                     }
                 },

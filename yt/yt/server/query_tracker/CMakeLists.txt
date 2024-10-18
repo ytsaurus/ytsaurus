@@ -38,6 +38,7 @@ target_link_libraries(yt-server-query_tracker PUBLIC
   server-lib-cypress_election
   server-lib-cypress_registrar
   server-lib-misc
+  server-lib-state_checker
   library-query-engine
   library-query-row_comparer
   yt-yt-ytlib
