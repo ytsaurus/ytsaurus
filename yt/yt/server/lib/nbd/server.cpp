@@ -234,7 +234,12 @@ private:
             , Connection_(std::move(connection))
             , Logger(Server_->GetLogger().WithTag("ConnectionId: %v", TGuid::Create()))
             , ResponseInvoker_(CreateBoundedConcurrencyInvoker(Server_->GetInvoker(), /*maxConcurrentInvocations*/ 1))
-        { }
+        {
+            Connection_->SubscribePeerDisconnect(BIND([this, this_ = MakeStrong(this)]() {
+                YT_LOG_DEBUG("Peer disconnected (RemoteAddress: %v)", Connection_->GetRemoteAddress());
+                Abort_ = true;
+            }));
+        }
 
         void Run()
         {
@@ -678,6 +683,20 @@ private:
             for (size_t offset = 0; offset < size; ) {
                 auto readSize = WaitFor(Connection_->Read(buffer.Slice(offset, size)))
                     .ValueOrThrow();
+
+                YT_VERIFY(readSize >= 0);
+                if (readSize == 0) {
+                    // The connection has been closed by the peer.
+                    TString strTagSet;
+                    NProfiling::TTagSet tagSet;
+                    if (Device_) {
+                        strTagSet = Device_->GetProfileSensorTag();
+                        tagSet = TNbdProfilerCounters::MakeTagSet(strTagSet);
+                    }
+                    TNbdProfilerCounters::Get()->GetCounter(tagSet, "/server/request/zero_read_buffer").Increment(1);
+                    THROW_ERROR_EXCEPTION("Read returned zero bytes")
+                        << TErrorAttribute("device_tag: %v)", strTagSet);
+                }
 
                 offset += readSize;
             }
