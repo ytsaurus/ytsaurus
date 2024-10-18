@@ -3,6 +3,7 @@ package yt
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -19,14 +20,13 @@ import (
 )
 
 type Config struct {
-	// Proxy configures address of YT HTTP proxy.
+	// Proxy configures address of YT HTTP proxy in form: name|[scheme://]fqdn[:port].
 	//
 	// If Proxy is not set, value of YT_PROXY environment variable is used instead.
 	//
 	// Might be equal to cluster name. E.g. hahn or markov.
-	//
-	// Might be equal to hostname with optional port. E.g. localhost:12345 or sas5-1547-proxy-hahn.sas.yp-c.yandex.net.
-	// In that case, provided host is used for all requests and proxy discovery is disabled.
+	// Might be equal to hostname with optional scheme and port.
+	// E.g. localhost:12345 or https://hahn.yt.yandex.net.
 	Proxy string
 
 	// RPCProxy pins address of YT RPC proxy.
@@ -178,6 +178,49 @@ func (c *Config) GetProxy() (string, error) {
 	return "", xerrors.New("YT proxy is not set (either Config.Proxy or YT_PROXY must be set)")
 }
 
+func (c *Config) GetCusterURL() (ClusterURL, error) {
+	var proxy string
+	var err error
+
+	if proxy, err = c.GetProxy(); err != nil {
+		return ClusterURL{}, err
+	}
+
+	if !strings.Contains(proxy, ":") {
+		if !strings.Contains(proxy, ".") && !strings.Contains(proxy, "localhost") {
+			const suffix = ".yt.yandex.net"
+			proxy += suffix
+		}
+	}
+
+	if !strings.Contains(proxy, "//") {
+		if c.UseTLS {
+			proxy = "https://" + proxy
+		} else {
+			proxy = "http://" + proxy
+		}
+	}
+
+	var parsedURL *url.URL
+	if parsedURL, err = url.Parse(proxy); err != nil {
+		return ClusterURL{}, err
+	}
+
+	if c.UseTVMOnlyEndpoint && !strings.Contains(parsedURL.Host, ":") {
+		port := TVMOnlyHTTPProxyPort
+		if c.UseTLS || parsedURL.Scheme == "https" {
+			port = TVMOnlyHTTPSProxyPort
+		}
+		parsedURL.Host = fmt.Sprintf("tvm.%v:%v", parsedURL.Host, port)
+	}
+
+	return ClusterURL{
+		Scheme:           parsedURL.Scheme,
+		Address:          parsedURL.Host,
+		DisableDiscovery: c.DisableProxyDiscovery,
+	}, nil
+}
+
 func (c *Config) getTokenFileFromEnv() (string, error) {
 	if tokenFile := os.Getenv("YT_TOKEN_FILE"); tokenFile != "" {
 		if strings.HasPrefix(tokenFile, "~/") {
@@ -307,33 +350,9 @@ const (
 )
 
 type ClusterURL struct {
+	Scheme           string
 	Address          string
 	DisableDiscovery bool
-}
-
-func NormalizeProxyURL(proxy string, disableDiscovery bool, tvmOnly bool, tvmOnlyPort int) ClusterURL {
-	const prefix = "http://"
-	const suffix = ".yt.yandex.net"
-
-	var url ClusterURL
-	if disableDiscovery {
-		url.DisableDiscovery = true
-		url.Address = proxy
-		return url
-	}
-
-	if !strings.Contains(proxy, ".") && !strings.Contains(proxy, ":") && !strings.Contains(proxy, "localhost") {
-		proxy += suffix
-	}
-
-	proxy = strings.TrimPrefix(proxy, prefix)
-
-	if tvmOnly && !strings.Contains(proxy, ":") {
-		proxy = fmt.Sprintf("tvm.%v:%v", proxy, tvmOnlyPort)
-	}
-
-	url.Address = proxy
-	return url
 }
 
 const (
