@@ -20,7 +20,6 @@ from yt.common import YtError, remove_file, makedirp, update, get_value, which, 
 from yt.wrapper.common import flatten
 from yt.wrapper.constants import FEEDBACK_URL
 from yt.wrapper.errors import YtResponseError
-from yt.wrapper.native_driver import get_driver_instance
 from yt.wrapper import YtClient
 
 from yt.test_helpers import wait
@@ -554,7 +553,7 @@ class YTInstance(object):
         if os.path.exists(self.runtime_data_path):
             shutil.rmtree(self.runtime_data_path, ignore_errors=True)
 
-    def start(self, on_sequoia_started_func=None, on_masters_started_func=None):
+    def start(self, on_masters_started_func=None):
         for name, processes in iteritems(self._service_processes):
             for index in xrange(len(processes)):
                 processes[index] = None
@@ -575,24 +574,14 @@ class YTInstance(object):
 
             self.start_master_cell(sync=False)
 
-            if self.yt_config.cypress_proxy_count > 0:
-                self.start_cypress_proxies(sync=False)
-
             if self.yt_config.clock_count > 0:
                 self.start_clock(sync=False)
 
-            if self.yt_config.timestamp_provider_count > 0:
-                self.start_timestamp_providers(sync=False)
-
-            if on_sequoia_started_func is not None:
-                # Further actions may require Sequoia instantiation, synchronize before proceeding.
-                self.synchronize()
-
-                client = self.create_native_client()
-                on_sequoia_started_func(get_driver_instance(client))
-
             if self.yt_config.discovery_server_count > 0:
                 self.start_discovery_server(sync=False)
+
+            if self.yt_config.timestamp_provider_count > 0:
+                self.start_timestamp_providers(sync=False)
 
             if self.yt_config.master_cache_count > 0:
                 self.start_master_caches(sync=False)
@@ -611,6 +600,9 @@ class YTInstance(object):
 
             if self.yt_config.tablet_balancer_count > 0:
                 self.start_tablet_balancers(sync=False)
+
+            if self.yt_config.cypress_proxy_count > 0:
+                self.start_cypress_proxies(sync=False)
 
             if self.yt_config.replicated_table_tracker_count > 0:
                 self.start_replicated_table_trackers(sync=False)
@@ -1866,9 +1858,6 @@ class YTInstance(object):
             driver_config = yson.load(f)
 
         driver_config["connection_type"] = "native"
-
-        if "cypress_proxy" in driver_config:
-            del driver_config["cypress_proxy"]
 
         config = update(
             self._default_client_config,
