@@ -53,15 +53,17 @@ SELECT syntax:
 ```sql
 * | <select-expr-1> [AS <select-alias-1>], <select-expr-2> [AS <select-alias-2>], ...
 ```
-Defines the query output columns. If an asterisk (`*`) is specified, all input columns of the main table will be used as output columns. Alternatively, you can specify random expressions for the calculation. For queries without grouping, all columns of the source tables can be in the expression. In case of queries with grouping, only the key columns used for grouping or aggregates can be in the expression.
+Defines the query output columns. If there's an asterisk (`*`), all input columns of the main table will be used as output columns. Alternatively, you can specify random expressions for the calculation. For queries without grouping, all columns of the source tables can be in the expression. In case of queries with grouping, only the key columns used for grouping or aggregates can be in the expression.
 
 ### FROM section ... JOIN { #from_join }
 FROM syntax ... JOIN:
 ```sql
-FROM [//path/to/table] [[AS] <table-alias>] [[LEFT] JOIN [//path/to/dict-1] [[AS] <table-alias>] (ON <expression> = <foreign-expression> | USING <column-1>, <column-2>, ...) [AND <predicate>]] ...
+FROM [//path/to/table] [[AS] <table-alias>] [WITH INDEX [//path/to/index/table]] [[LEFT] JOIN [//path/to/dict-1] [[AS] <table-alias>] (ON <expression> = <foreign-expression> | USING <column-1>, <column-2>, ...) [AND <predicate>]] ...
 ```
 
-Defines the query data sources. The table immediately following FROM is considered the master table and is used when coordinating query execution. It is also allowable to specify auxiliary reference tables in the JOIN section. The reference tables are connected to the main table if the specified key matches exactly. Without specifying the LEFT keyword, INNER JOIN will be executed. You can additionally specify an expression for reference table filtering which will be executed when reading data before join with the main table is executed.
+Defines the query data sources. The table immediately following FROM is considered the primary table and is used when coordinating query execution (provided the query does not contain the WITH INDEX keyword). It is also allowable to specify auxiliary reference tables in the JOIN section. The reference tables are connected to the main table if the specified key matches exactly. Without specifying the LEFT keyword, INNER JOIN will be executed. You can additionally specify an expression for reference table filtering which will be executed when reading data before join with the main table is executed.
+
+When the query contains the WITH INDEX keyword, the index table will be used for coordination, and the table following FROM will be connected to it by common columns. See also [secondary indexes](../../../user-guide/dynamic-tables/secondary-indices).
 
 To combine tables across multiple columns, a tuple must be written in the ON condition.
 
@@ -270,11 +272,17 @@ Conditional operator. If the `cond` expression is true, the function result is t
 `is_null(x) :: A -> boolean`
 Checks whether the specified value is `NULL`.
 
+`is_finite(x) :: double -> boolean`
+Checks whether the specified value is a finite floating point number (i.e. it isn't infinite or `NaN`).
+
 `transform(a, (a1, a2, ...), (b1, b2, ...)) :: A -> List[A] -> List[B] -> B`
 `transform[a2), ((a11, a12), ...), (v1, ...](a1,) :: Tuple -> List[Tuple] -> List[B] -> B`
 Convert a value (or tuple) according to an explicit display of some elements on other elements.
 If there is no corresponding value, `NULL` is returned.
 The complexity is constant.
+
+`greatest(a1, a2, ...) :: A* -> A`
+Returns the argument with the greatest value.
 
 #### Working with strings
 `is_substr(s, t) :: string -> string -> boolean`
@@ -340,21 +348,21 @@ A fixed key order in dictionaries is not guaranteed, so comparisons and grouping
 The query language provides a set of functions for extracting data:
 
 1. `try_get_int64`, `get_int64`, `try_get_uint64`, `get_uint64`, `try_get_double`, `get_double`, `try_get_boolean`, `get_boolean`, `try_get_string`, `get_string`, `try_get_any`, `get_any`
-   These functions take two arguments, `(yson, path)`, where:
-   - `yson` is a value of the `any` type that contains YSON.
-   - `path` is a string representing the path to the desired field in [YPATH](../../../user-guide/storage/ypath.md) format.
+    These functions take two arguments, `(yson, path)`, where:
+    - `yson` is a value of the `any` type that contains YSON.
+    - `path` is a string representing the path to the desired field in [YPATH](../../../user-guide/storage/ypath.md) format.
 
-   The version with the `try_` prefix returns `NULL` if there is no field of the desired type at the specified path. The version without `try_` returns an error if the field is missing.
+    The version with the `try_` prefix returns `NULL` if there is no field of the desired type at the specified path. The version without `try_` returns an error if the field is missing.
 
-   Example: For the table row `{column=<attr=4>{key3=2;k={k2=<b=7>3;k3=10};lst=<a=[1;{a=3};{b=7u}]>[0;1;<a={b=4}>2]}}` `try_get_uint64(column, "/lst/@a/2/b")` returns `7u`.
+    Example: For the table row `{column=<attr=4>{key3=2;k={k2=<b=7>3;k3=10};lst=<a=[1;{a=3};{b=7u}]>[0;1;<a={b=4}>2]}}` `try_get_uint64(column, "/lst/@a/2/b")` returns `7u`.
 2. `list_contains(list, value) :: any -> (string | int64 | uint64 | boolean) -> boolean`
-   Searches for `value` in the `list` YSON list of the `any` type. The searched `value` must have a scalar type. The list does not have to be homogeneous, meaning that it can contain values of different types. The comparison is type-sensitive.
+    Searches for `value` in the `list` YSON list of the `any` type. The searched `value` must have a scalar type. The list does not have to be homogeneous, meaning that it can contain values of different types. The comparison is type-sensitive.
 3. `list_has_intersection(list, list) :: any -> any -> boolean`
-   Takes two YSON lists as input and returns `true` if they contain at least one common element. The lists must be homogeneous.
+    Takes two YSON lists as input and returns `true` if they contain at least one common element. The lists must be homogeneous.
 4. `any_to_yson_string(yson) :: any -> string`
-   Converts a value of the `any` type into a string containing its binary [YSON](../../../user-guide/storage/yson.md) representation.
+    Converts a value of the `any` type into a string containing its binary [YSON](../../../user-guide/storage/yson.md) representation.
 5. `yson_length(yson) :: any -> int64`
-   Calculates the number of elements in a list or map.
+    Calculates the number of elements in a list or map.
 
 ##### Generating YSON
 
@@ -384,23 +392,52 @@ For example, the result of the `regex_extract("([a-z]*)@(.*)", "email foo@bar.co
 `regex_escape(p) :: string -> string`
 Shields special characters of the regular expression language in the `p` string.
 
+##### LIKE operator
+
+The operator can be used as follows:
+```sql
+<string> [not] like <pattern> [escape <escape-symbol>]
+```
+
+The operator checks that the `string` string matches the `pattern` template.
+The underscore (`_`) in the template matches any character.
+The percent sign (`%`) matches any sequence of characters (including an empty sequence).
+To literally use `_` or `%` in the template, you need to escape them using `escape-symbol` (`\` by default).
+
+If there is filtering by the primary key's string prefix in the query, `is_prefix` should be used to make the range output work.
+
+The `ilike` construction is used for case-insensitive search: `'Abc' ilike 'abc'`.
+
+In `rlike` and `regex` constructions, the `pattern` template is set in [re2 syntax](https://github.com/google/re2/wiki/Syntax).
+
+Example:
+```sql
+'abcdef' like 'a_c_%f'
+'q' not like 'x_' escape 'x'
+'Abc' ilike 'abc'
+'a b' rlike '\\w+ b'
+```
+
 #### Working with dates
 UTC timezone is used when rounding
 
-`timestamp_floor_year(t) :: int64 -> int64 `
-Get the timestamp of the year (as of 0:00 on the first of January) for the specified timestamp
+`timestamp_floor_year(t) :: int64 -> int64`
+Get the timestamp of the year (as of 0:00 on January 1) for the specified timestamp.
 
-`timestamp_floor_month(t) :: int64 -> int64 `
-Get the timestamp of the month (as of 0:00 of the first day of the month) for the specified timestamp
+`timestamp_floor_month(t) :: int64 -> int64`
+Get the timestamp of the month (as of 0:00 on the first day of the month) for the specified timestamp.
 
-` timestamp_floor_week(t) :: int64 -> int64 `
-Get the timestamp of the week (as of 0:00 on Monday) for the specified timestamp
+`timestamp_floor_week(t) :: int64 -> int64`
+Get the timestamp of the week (as of 0:00 on Monday) for the specified timestamp.
 
-` timestamp_floor_day(t) :: int64 -> int64 `
-Get the timestamp of the day (as of 0:00 of the start of the day) for the specified timestamp
+`timestamp_floor_day(t) :: int64 -> int64`
+Get the timestamp of the day (as of 0:00 at the start of the day) for the specified timestamp.
 
-` timestamp_floor_hour(t) :: int64 -> int64 `
-Get the timestamp of the hour (0 min 0 sec of the start of the hour) for the specified timestamp
+`timestamp_floor_hour(t) :: int64 -> int64`
+Get the timestamp of the hour (0 min 0 sec at the start of the hour) for the specified timestamp.
+
+`format_timestamp(t, format) :: int64 -> string -> string`
+Formats the time specified in the timestamp according to the provided format string. Uses the same convention as `std::strftime`.
 
 #### Hashing
 
@@ -429,11 +466,12 @@ In most operators, using `NULL` values in operands results in a `NULL` value. Co
 ### Aggregation functions { #aggregation_functions }
 The following aggregation functions are supported in the query language:
 
-- `sum`: Sum calculation.
-- `min`: Minimum calculation.
-- `max`: Maximum calculation.
-- `avg`: Average calculation.
-- `cardinality`: Calculation of the number of different elements using the [HyperLogLog](https://en.wikipedia.org/wiki/HyperLogLog) algorithm.
+- `sum(expr) :: A -> A`: Calculates the sum.
+- `min/max(expr) :: A -> A`: Calculates the minimum or maximum.
+- `avg(expr) :: int64 -> double`: Calculates the average.
+- `cardinality(expr) :: int64 | uint64 | double | boolean | string -> uint64`: Calculates the number of different elements using the [HyperLogLog](https://en.wikipedia.org/wiki/HyperLogLog) algorithm.
+- `argmin/argmax(arg, expr) :: A -> int64 | uint64 | double | string | boolean -> A`: Calculates the argument value at which the expression reaches the corresponding extreme value.
+- `first(expr) :: A -> A`: Returns the first value of the group. During a sequential scan (when sorting by primary key), the function calculates the value of the first row in the group. If all aggregate functions in the query are `first`, the engine stops the sequential scan as soon as it reaches the `LIMIT` on unique group keys. For queries without a sequential scan, `first` returns the value of any matching row.
 
 ## Executing a query { #query_execution }
 
@@ -471,26 +509,26 @@ If there are no computed columns in the table schema, the ranges are output as f
 Let the table have key columns: `a, b, c`.
 
 - For the `a = 1 and b in (3, 4)` predicate, the following ranges will be output:
-   ```
-   [[1, 3] .. [1, 3]], [[1, 4] .. [1, 4]]
-   ```
+    ```
+    [[1, 3] .. [1, 3]], [[1, 4] .. [1, 4]]
+    ```
 - For the `a = 1 and b between 20 and 30 and c between 40 and 60` predicate, the following range will be output:
-   ```
-   [[1, 20] .. [1, 30]]
-   ```
+    ```
+    [[1, 20] .. [1, 30]]
+    ```
 
 - For the `a = 1 and b = 2 and c between 40 and 60` predicate, the following range will be output:
-   ```
-   [[1, 2, 40] .. [1, 2, 60]]
-   ```
+    ```
+    [[1, 2, 40] .. [1, 2, 60]]
+    ```
 - For the `a in (1, 2, 3) and b in (5, 6) and c between 40 and 60` predicate, the following ranges will be output:
-   ```
-   [[1, 5, 40] .. [1, 5, 60]], [[1, 6, 40] .. [1, 6, 60]], [[2, 5, 40] .. [2, 5, 60]], [[2, 6, 40] .. [2, 6, 60]], [[3, 5, 40] .. [3, 5, 60]], [[3, 6, 40] .. [3, 6, 60]]
-   ```
+    ```
+    [[1, 5, 40] .. [1, 5, 60]], [[1, 6, 40] .. [1, 6, 60]], [[2, 5, 40] .. [2, 5, 60]], [[2, 6, 40] .. [2, 6, 60]], [[3, 5, 40] .. [3, 5, 60]], [[3, 6, 40] .. [3, 6, 60]]
+    ```
 - For the `a = 1 and b = 2 and c between 40 and 60 or a between 10 and 20` predicate, the following ranges will be output:
-   ```
-   [[1, 2, 40] .. [1, 2, 60]], [[10] .. [20]]
-   ```
+    ```
+    [[1, 2, 40] .. [1, 2, 60]], [[10] .. [20]]
+    ```
 
 
 An important feature of the output ranges is that the lower and upper limits have a _common prefix_ and differ only by the last component.
@@ -502,19 +540,19 @@ If there are computed columns in the table schema, the ranges are first output w
 Let the table have key columns: `h = hash(a, b), a, b, c`.
 
 - For the `a = 1 and b in (3, 4)` predicate, the following ranges will be output:
-   ```
-   [[hash(1, 3), 1, 3] .. [hash(1, 3), 1, 3]], [[hash(1, 4), 1, 4] .. [hash(1, 4), 1, 4]]
-   ```
+    ```
+    [[hash(1, 3), 1, 3] .. [hash(1, 3), 1, 3]], [[hash(1, 4), 1, 4] .. [hash(1, 4), 1, 4]]
+    ```
 - For the `a = in (1, 2)` predicate, the range cannot be output, because the computed column depends not only on the `a` column, but also on the `b` column.
 
 - Special consideration is given to the case when the computed column is an expression taken by the module: `h = hash(a, b) % 3, a, b, c`. In that case, there is no need to compute the column value, because the set of values is already limited by the module. When the ranges are output, all possible values of the computed column with the expression taken by the module are considered. For the `a = in (1, 2)` predicate, the following ranges will be output:
-   ```
-   [[0, 1] .. [0, 1]], [[0, 2] .. [0, 2]], [[1, 1] .. [1, 1]], [[1, 2] .. [1, 2]], [[2, 1] .. [2, 1]], [[2, 2] .. [2, 2]]
-   ```
+    ```
+    [[0, 1] .. [0, 1]], [[0, 2] .. [0, 2]], [[1, 1] .. [1, 1]], [[1, 2] .. [1, 2]], [[2, 1] .. [2, 1]], [[2, 2] .. [2, 2]]
+    ```
 - For the `a between 10 and 20` predicate:
-   ```
-   [[0, 10] .. [0, 20]], [[1, 10] .. [1, 20]], [[2, 10] .. [2, 20]]
-   ```
+    ```
+    [[0, 10] .. [0, 20]], [[1, 10] .. [1, 20]], [[2, 10] .. [2, 20]]
+    ```
 
 The number of output ranges is limited by the `range_expansion_limit` option.
 
@@ -530,7 +568,7 @@ In the query itself, this means that the condition for JOIN must contain such a 
 
 In general, JOIN is executed as follows. On each cluster node, the data is read from the main table shard, accumulated in memory, and multiple JOIN keys for the reference table are computed. This is followed by a query to the reference table with the read ranges and optional predicate obtained based on the JOIN keys. Then JOIN is executed in memory, and execution continues as usual.
 
-When using multiple JOINs in a query, it would take a lot of time to execute them consecutively. Individual JOINs are therefore grouped into sets that can be executed concurrently. So when a JOIN group is executed while reading data from the main table, a set of JOIN keys is built for each reference in the group. Next, parallel queries are initiated to read data from reference tables. Once the data is received, the JOIN operation is executed, producing the resulting rows. The complete resulting set of rows is not materialized in memory, but as JOIN is executed, the rows are passed to the next operator (for example, grouping).
+When using multiple JOINs in a query, it would take a lot of time to execute them consecutively. Individual JOINs are therefore grouped into sets that can be executed concurrently. So when a JOIN group is executed while reading data from the main table, a set of JOIN keys is built for each reference in the group. Next, queries to read data from references are sent concurrently, and, once the data is received, JOIN is executed, forming the resulting rows. The complete resulting set of rows is not materialized in memory, but as JOIN is executed, the rows are passed to the next operator (for example, grouping).
 
 JOIN is executed in a special way when the master table and the reference table share a common key prefix to within a JOIN condition. In that case, the ranges for reading the reference table are already known before reading the main table during the coordination phase of the query. Therefore, the query to read the reference table is sent immediately after coordination.
 
@@ -639,8 +677,8 @@ Example:
 - `is_ordered_scan`: Defines whether the order of the table rows will be retained when reading the data. This mode may be needed when implementing pagination. If you need to read the entire set of rows that meet the WHERE condition (no LIMIT), it is faster to read concurrently without preserving the order of rows in the table.
 - `joins`: Contains a list of join groups. Join within a group is executed concurrently for multiple tables.
 - `lookup_type`: The way of specifying read ranges when executing join. Possible options: source ranges, prefix ranges, and IN clause. The source ranges mode is the most optimal one. In prefix ranges mode, join keys are copied. This occurs if the join condition contains expressions or table fields that are not a secondary table key prefix. In IN clause mode, join is executed as a subquery with an IN expression. This mode is used if the read ranges of the secondary table cannot be derived from the join condition. If there is an additional AND condition in join, an attempt is made to output the read ranges using both the join condition and the additional AND condition.
-- `common_key_prefix`: The size of the common key prefix of the main and reference tables.
-- `foreign_key_prefix` The size of the reference table's key prefix that is derived from the join condition.
+- `common_key_prefix`: The size of the common key prefix of the primary table and the secondary table.
+- `foreign_key_prefix` The size of the secondary table's key prefix that is derived from the join condition.
 - `common_prefix_with_primary_key`: The size of the table's primary key prefix contained in the grouping condition. This enables you not to make a common hash table for all keys (grouping keys with different prefixes cannot match). When using group by and order by concurrently, a non-zero common prefix with the primary key enables order by + limit computation to be transferred to the nodes and reduces the amount of data transferred to the proxy (coordinator).
 - `ranges`: A list of table read ranges obtained from the "where" condition.
 - `key_trie`: An intermediate representation of the key column limits generated from the "where" condition. The read ranges (`ranges`) are then derived from the key trie.
