@@ -1,9 +1,10 @@
-# Arguments used in FROM statemensts need to be declared before the first FROM statement.
+# Arguments used in FROM statements need to be declared before the first FROM statement.
 
 # Args for ytsaurus-server-override.
 ARG BASE_REPOSITORY="ghcr.io/ytsaurus/ytsaurus-nightly"
 ARG BASE_IMAGE="latest"
 
+# copy-ytsaurus-python-binaries or build-ytsaurus-python-binaries
 ARG PYTHON_BUILD_BASE="copy-ytsaurus-python-binaries"
 
 ##########################################################################################
