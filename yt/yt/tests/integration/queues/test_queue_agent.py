@@ -1733,7 +1733,7 @@ class TestMasterIntegrationFixes(TestQueueAgentBase):
     DELTA_MASTER_CONFIG = {
         "cluster_connection": {
             "cluster_directory_synchronizer": {
-                "sync_period": 2**60,  # Never update cluster directory
+                "sync_period": 1000,
             },
         },
     }
@@ -1742,8 +1742,11 @@ class TestMasterIntegrationFixes(TestQueueAgentBase):
     def test_queue_agent_nullptr_dereference_fix_yt_22654(self):
         create("queue_consumer", "//tmp/c")
         self._wait_for_component_passes()
-        # NB(apachee): Since cluster directory synchronizer is not yet configured,
-        # it should not be able to resolve this stage. Previously that led to nullptr dereference.
+
+        set("//sys/clusters", {})
+        time.sleep(10)
+
+        # NB(apachee): Cluster directory is empty, so stage resolution should fail.
         with raises_yt_error("Queue agent stage \"production\" is not found"):
             get("//tmp/c/@queue_consumer_status")
 
