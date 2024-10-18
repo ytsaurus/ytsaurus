@@ -42,6 +42,8 @@ class OperationInfo:
     pools: typing.List[str]
     title: typing.Optional[str]
     annotations: typing.Optional[YsonBytes]
+    aborted_time_total: typing.Optional[float]
+    aborted_cumulative_used_cpu: typing.Optional[float]
     accumulated_resource_usage_cpu: typing.Optional[float]
     accumulated_resource_usage_memory: typing.Optional[float]
     accumulated_resource_usage_gpu: typing.Optional[float]
@@ -56,8 +58,13 @@ class OperationInfo:
     time_prepare: typing.Optional[float]
     data_input_chunk_count: typing.Optional[float]
     data_input_data_weight: typing.Optional[float]
+    data_input_compressed_data_size: typing.Optional[float]
     data_output_chunk_count: typing.Optional[float]
     data_output_data_weight: typing.Optional[float]
+    data_output_compressed_data_size: typing.Optional[float]
+    chunk_reader_data_bytes_from_disk: typing.Optional[float]
+    chunk_reader_data_bytes_from_cache: typing.Optional[float]
+    chunk_reader_data_io_requests: typing.Optional[float]
     jobs_count: typing.Optional[int]
     start_time: typing.Optional[int]
     finish_time: typing.Optional[int]
@@ -96,7 +103,10 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
                    "cumulative_max_memory", "cumulative_used_cpu", "tmpfs_max_usage", "tmpfs_limit", "time_total",
                    "time_prepare", "data_input_chunk_count", "data_input_data_weight",  "data_output_chunk_count",
                    "data_output_data_weight", "accumulated_resource_usage_gpu", "cumulative_gpu_utilization",
-                   "cumulative_sm_utilization", "jobs_count"]
+                   "cumulative_sm_utilization", "jobs_count", "aborted_time_total", "aborted_cumulative_used_cpu",
+                   "data_input_compressed_data_size", "data_output_compressed_data_size",
+                   "chunk_reader_data_bytes_from_disk", "chunk_reader_data_bytes_from_cache",
+                   "chunk_reader_data_io_requests"]
 
         for index, row in enumerate(rows):
             for key in columns:
@@ -126,9 +136,23 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
         assert stat["cumulative_used_cpu"] <= stat["accumulated_resource_usage_cpu"]
 
     def _create_pools(self):
+        def create_integral_guarantee_attributes(value, guarantee_type="burst"):
+            return {
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": value},
+                    "guarantee_type": guarantee_type
+                }
+            }
+
         parent_attributes = {"strong_guarantee_resources": {"cpu": 1.0}, "abc": {"id": 1, "slug": "abc_slug"}}
+        parent_attributes.update(**create_integral_guarantee_attributes(5.0, "none"))
         create_pool("parent_pool", pool_tree="default", attributes=parent_attributes)
-        create_pool("test_pool", pool_tree="default", parent_name="parent_pool")
+        create_pool("test_pool", pool_tree="default", parent_name="parent_pool",
+                    attributes=create_integral_guarantee_attributes(5.0, "none"))
+        create_pool("subpool_with_guarantee1", pool_tree="default", parent_name="test_pool",
+                    attributes=create_integral_guarantee_attributes(2.0))
+        create_pool("subpool_with_guarantee2", pool_tree="default", parent_name="test_pool",
+                    attributes=create_integral_guarantee_attributes(3.0))
 
     def _prepare_test_environment(self):
         scheduler_address = ls("//sys/scheduler/instances")[0]
@@ -214,23 +238,38 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
 
     @pytest.mark.skipif(is_asan_build(), reason="Memory consumption is unpredictable under ASAN")
     def test_simple(self):
+        def delete_memory(pools):
+            new_pools = []
+            for row in pools:
+                info = json.loads(row["pool_info"])
+                if "resource_flow" in info and "user_memory" in info["resource_flow"]:
+                    del info["resource_flow"]["user_memory"]
+                new_row = row.copy()
+                new_row['pool_info'] = info
+                new_pools.append(new_row)
+            return new_pools
+
         self._create_pools()
         structured_log_part1, structured_log_part2, op_id = self._prepare_test_environment()
 
         rows1, pools1, tags1 = self._run_script_local_mode(structured_log_part1)
         rows2, pools2, tags2 = self._run_script_local_mode(structured_log_part2)
 
-        assert pools1 == pools2
-        assert len(pools1) == 3
+        assert delete_memory(pools1) == delete_memory(pools2)
+        assert len(pools1) == 5
         assert "/" in (row["pool_path"] for row in pools1)
         self._check_base_pools_tags(pools1)
         for row in pools1:
             pool_info = json.loads(row["pool_info"])
             assert pool_info
+            if row["pool_path"].startswith("/parent_pool/test_pool/subpool_with_guarantee"):
+                assert pool_info["resource_flow"]["cpu"] > 0.0
             if row["pool_path"] == "/parent_pool":
                 assert pool_info["strong_guarantee_resources"]["cpu"] == 1.0
+                assert pool_info["resource_flow"]["cpu"] == 5.0
                 assert pool_info["abc"]["id"] == 1
             if row["pool_path"] == "/parent_pool/test_pool":
+                assert pool_info["resource_flow"]["cpu"] == 5.0
                 assert pool_info["parent"] == "parent_pool"
                 assert pool_info["abc"]["id"] == 1
 
@@ -349,16 +388,20 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
             self._check_base_pools_tags(read_table(link_target_path))
 
             if table_category == "pools_tables":
-                assert get(link_target_path + "/@row_count") == 3
+                assert get(link_target_path + "/@row_count") == 5
                 assert "/" in (row["pool_path"] for row in read_table(link_target_path))
                 for row in read_table(link_target_path):
                     pool_info = json.loads(row["pool_info"])
                     assert pool_info
+                    if row["pool_path"].startswith("/parent_pool/test_pool/subpool_with_guarantee"):
+                        assert pool_info["resource_flow"]["cpu"] > 0.0
                     if row["pool_path"] == "/parent_pool":
                         assert pool_info["strong_guarantee_resources"]["cpu"] == 1.0
+                        assert pool_info["resource_flow"]["cpu"] == 5.0
                         assert pool_info["abc"]["id"] == 1
                     if row["pool_path"] == "/parent_pool/test_pool":
                         assert pool_info["parent"] == "parent_pool"
+                        assert pool_info["resource_flow"]["cpu"] == 5.0
                         assert pool_info["abc"]["id"] == 1
             else:
                 assert get(link_target_path + "/@row_count") == 2

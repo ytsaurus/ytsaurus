@@ -55,7 +55,9 @@ def extract_job_statistics_for_tree(job_statistics, pool_tree):
     return filter_tree(job_statistics)
 
 
-def extract_statistic(job_statistics, path, aggr="sum", default=None):
+def extract_statistic(job_statistics, path, aggr="sum", tag_filter=None, default=None):
+    tag_filter = tag_filter or {}
+
     if job_statistics is None:
         return default
 
@@ -65,7 +67,8 @@ def extract_statistic(job_statistics, path, aggr="sum", default=None):
             return default
         statistics_by_path = statistics_by_path[part]
 
-    return sum([item["summary"][aggr] for item in statistics_by_path])
+    return sum([item["summary"][aggr] for item in statistics_by_path
+                if all([item["tags"][k] == v for k, v in tag_filter.items()])])
 
 
 def extract_cumulative_memory(job_statistics):
@@ -81,14 +84,15 @@ def extract_cumulative_max_memory(job_statistics):
     return job_proxy_max_memory + user_job_max_memory
 
 
-def extract_cumulative_used_cpu(job_statistics):
+def extract_cumulative_used_cpu(job_statistics, tag_filter=None):
     statistic_paths = [
         "job_proxy/cpu/user",
         "job_proxy/cpu/system",
         "user_job/cpu/user",
         "user_job/cpu/system",
     ]
-    return sum([extract_statistic(job_statistics, path, default=0) for path in statistic_paths]) / 1000.0
+    return sum([extract_statistic(job_statistics, path, tag_filter=tag_filter, default=0)
+                for path in statistic_paths]) / 1000.0
 
 
 def extract_data_output_stat(job_statistics, stat):
@@ -167,6 +171,8 @@ class OperationInfo:
     pools: typing.List[str]
     title: typing.Optional[str]
     annotations: typing.Optional[YsonBytes]
+    aborted_time_total: typing.Optional[float]
+    aborted_cumulative_used_cpu: typing.Optional[float]
     accumulated_resource_usage_cpu: typing.Optional[float]
     accumulated_resource_usage_memory: typing.Optional[float]
     accumulated_resource_usage_gpu: typing.Optional[float]
@@ -181,8 +187,13 @@ class OperationInfo:
     time_prepare: typing.Optional[float]
     data_input_chunk_count: typing.Optional[float]
     data_input_data_weight: typing.Optional[float]
+    data_input_compressed_data_size: typing.Optional[float]
     data_output_chunk_count: typing.Optional[float]
     data_output_data_weight: typing.Optional[float]
+    data_output_compressed_data_size: typing.Optional[float]
+    chunk_reader_data_bytes_from_disk: typing.Optional[float]
+    chunk_reader_data_bytes_from_cache: typing.Optional[float]
+    chunk_reader_data_io_requests: typing.Optional[float]
     jobs_count: typing.Optional[int]
     start_time: typing.Optional[int]
     finish_time: typing.Optional[int]
@@ -313,9 +324,16 @@ def merge_info(info_base, info_update):
     info_base.time_prepare += info_update.time_prepare
     info_base.data_input_chunk_count += info_update.data_input_chunk_count
     info_base.data_input_data_weight += info_update.data_input_data_weight
+    info_base.data_input_compressed_data_size += info_update.data_input_compressed_data_size
     info_base.data_output_chunk_count += info_update.data_output_chunk_count
     info_base.data_output_data_weight += info_update.data_output_data_weight
+    info_base.data_output_compressed_data_size += info_update.data_output_compressed_data_size
+    info_base.chunk_reader_data_bytes_from_disk += info_update.chunk_reader_data_bytes_from_disk
+    info_base.chunk_reader_data_bytes_from_cache += info_update.chunk_reader_data_bytes_from_cache
+    info_base.chunk_reader_data_io_requests += info_update.chunk_reader_data_io_requests
     info_base.jobs_count += info_update.jobs_count
+    info_base.aborted_time_total += info_update.aborted_time_total
+    info_base.aborted_cumulative_used_cpu += info_update.aborted_cumulative_used_cpu
 
     if not OperationState(info_base.operation_state).is_finished():
         info_base.operation_state = info_update.operation_state
@@ -328,6 +346,10 @@ def merge_info(info_base, info_update):
 
 
 def build_pool_mapping(pools_info):
+    def update_resources(res_dict, parent_res_dict):
+        for key in res_dict:
+            parent_res_dict[key] = parent_res_dict.get(key, 0) + res_dict[key]
+
     def build_pool_mapping_recursive(self, pool, mapping_output):
         if pool == ROOT_POOL_NAME:
             mapping_output[pool] = copy.deepcopy(pools_info[pool])
@@ -348,6 +370,23 @@ def build_pool_mapping(pools_info):
     for pool in pools_info:
         if pool not in mapping_output:
             build_pool_mapping_recursive(pools_info, pool, mapping_output)
+
+    pools_to_update = set(pools_info.keys())
+    while len(pools_to_update) > 1:
+        parent_pools = {pools_info[pool].get("parent", ROOT_POOL_NAME) for pool in pools_to_update}
+        for child_pool_to_update in pools_to_update - parent_pools:
+            parent = pools_info[child_pool_to_update]["parent"]
+            if parent == ROOT_POOL_NAME:
+                continue
+            update_resources(
+                mapping_output[child_pool_to_update].get("burst_guarantee_resources", {}),
+                mapping_output[parent]["burst_guarantee_resources"]
+            )
+            update_resources(
+                mapping_output[child_pool_to_update].get("resource_flow", {}),
+                mapping_output[parent]["resource_flow"]
+            )
+        pools_to_update = parent_pools
     assert len(mapping_output) == len(pools_info)
     return mapping_output
 
@@ -421,6 +460,8 @@ class FilterAndNormalizeEvents(TypedJob):
                 pools=pools,
                 title=None,
                 annotations=yson.dumps(info.get("trimmed_annotations")),
+                aborted_time_total=0.0,
+                aborted_cumulative_used_cpu=0.0,
                 accumulated_resource_usage_cpu=info["accumulated_resource_usage"]["cpu"],
                 accumulated_resource_usage_memory=info["accumulated_resource_usage"]["user_memory"],
                 accumulated_resource_usage_gpu=info["accumulated_resource_usage"]["gpu"],
@@ -435,8 +476,13 @@ class FilterAndNormalizeEvents(TypedJob):
                 time_prepare=0.0,
                 data_input_chunk_count=0.0,
                 data_input_data_weight=0.0,
+                data_input_compressed_data_size=0.0,
                 data_output_chunk_count=0.0,
                 data_output_data_weight=0.0,
+                data_output_compressed_data_size=0.0,
+                chunk_reader_data_bytes_from_disk=0.0,
+                chunk_reader_data_bytes_from_cache=0.0,
+                chunk_reader_data_io_requests=0.0,
                 jobs_count=0,
                 job_statistics=None,
                 start_time=None,
@@ -498,6 +544,16 @@ class FilterAndNormalizeEvents(TypedJob):
                 pools=pools,
                 title=get_item(input_row, "spec", {}).get("title"),
                 annotations=annotations_yson,
+                aborted_time_total=extract_statistic(
+                    job_statistics,
+                    "time/total",
+                    tag_filter={"job_state": "aborted"},
+                    default=0
+                ) * ms_multiplier,
+                aborted_cumulative_used_cpu=extract_cumulative_used_cpu(
+                    job_statistics,
+                    tag_filter={"job_state": "aborted"}
+                ),
                 accumulated_resource_usage_cpu=usage["cpu"],
                 accumulated_resource_usage_memory=usage["user_memory"],
                 accumulated_resource_usage_gpu=usage["gpu"],
@@ -521,8 +577,29 @@ class FilterAndNormalizeEvents(TypedJob):
                 time_prepare=extract_statistic(job_statistics, "time/prepare", default=0) * ms_multiplier,
                 data_input_chunk_count=extract_statistic(job_statistics, "data/input/chunk_count", default=0),
                 data_input_data_weight=extract_statistic(job_statistics, "data/input/data_weight", default=0),
+                data_input_compressed_data_size=extract_statistic(
+                    job_statistics,
+                    "data/input/compressed_data_size",
+                    default=0
+                ),
                 data_output_chunk_count=extract_data_output_stat(job_statistics, "chunk_count"),
                 data_output_data_weight=extract_data_output_stat(job_statistics, "data_weight"),
+                data_output_compressed_data_size=extract_data_output_stat(job_statistics, "compressed_data_size"),
+                chunk_reader_data_bytes_from_disk=extract_statistic(
+                    job_statistics,
+                    "chunk_reader_statistics/data_bytes_read_from_disk",
+                    default=0
+                ),
+                chunk_reader_data_bytes_from_cache=extract_statistic(
+                    job_statistics,
+                    "chunk_reader_statistics/data_bytes_read_from_cache",
+                    default=0
+                ),
+                chunk_reader_data_io_requests=extract_statistic(
+                    job_statistics,
+                    "chunk_reader_statistics/data_io_requests",
+                    default=0
+                ),
                 # time/total in count since it is presented in all jobs
                 jobs_count=extract_statistic(job_statistics, "time/total", aggr="count", default=0),
                 job_statistics=yson.dumps(job_statistics),
