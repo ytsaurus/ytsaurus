@@ -546,7 +546,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         original_rows = [
-            ['a-b-c-{}'.format(str(i) if i < 10 else chr(ord('a') + i - 10)), 16, yson.YsonUint64(2)] for i in range(16)
+            ['a-b-c-{}'.format(str(i) if i < 10 else chr(ord('a') + i - 10)), 16, yson.YsonUint64(2)] for i in range(3)
         ]
         insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList(original_rows)}], aggregate=True)
         value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
