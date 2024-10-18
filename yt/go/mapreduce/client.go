@@ -97,16 +97,17 @@ type client struct {
 }
 
 func (mr *client) uploadSelf(ctx context.Context) error {
+	var b backoff.BackOff = backoff.NewExponentialBackOff()
+	if mr.config.UploadSelfBackoff != nil {
+		b = mr.config.UploadSelfBackoff
+	}
 	return backoff.Retry(
-		func() error {
-			return mr.doUploadSelf(ctx)
-		},
-		backoff.WithContext(backoff.NewExponentialBackOff(), ctx))
+		func() error { return mr.doUploadSelf(ctx) },
+		backoff.WithContext(b, ctx),
+	)
 }
 
 func (mr *client) doUploadSelf(ctx context.Context) error {
-	// TODO(prime@): this is broken with respect to context cancellation
-
 	mr.m.Lock()
 	defer mr.m.Unlock()
 
@@ -138,11 +139,21 @@ func (mr *client) doUploadSelf(ctx context.Context) error {
 		return err
 	}
 
-	if _, err = io.Copy(w, exe); err != nil {
-		return err
+	writeErrCh := make(chan error, 1)
+	go func() {
+		_, err = io.Copy(w, exe)
+		writeErrCh <- err
+	}()
+
+	select {
+	case <-ctx.Done():
+	case err := <-writeErrCh:
+		if err != nil {
+			return err
+		}
 	}
 
-	if err = w.Close(); err != nil {
+	if err := w.Close(); err != nil {
 		return err
 	}
 

@@ -3,6 +3,8 @@ package mapreduce
 import (
 	"context"
 
+	"github.com/cenkalti/backoff/v4"
+
 	"go.ytsaurus.tech/yt/go/yt"
 )
 
@@ -42,6 +44,10 @@ func WithDefaultOperationACL(acl []yt.ACE) Option {
 
 type Config struct {
 	CreateOutputTables bool
+	// UploadSelfBackoff is used to retry uploading the operation binary to YT.
+	//
+	// backoff.NewExponentialBackOff will be used by default.
+	UploadSelfBackoff backoff.BackOff
 }
 
 func DefaultConfig() *Config {
