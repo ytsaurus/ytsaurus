@@ -37,8 +37,8 @@ func (c *client) listRPCProxies() ([]string, error) {
 	}
 
 	var resolveURL url.URL
-	resolveURL.Scheme = c.schema()
-	resolveURL.Host = c.httpClusterURL.Address
+	resolveURL.Scheme = c.clusterURL.Scheme
+	resolveURL.Host = c.clusterURL.Address
 	resolveURL.Path = "api/v4/discover_proxies"
 	resolveURL.RawQuery = v.Encode()
 
@@ -86,16 +86,10 @@ func (c *client) listRPCProxies() ([]string, error) {
 }
 
 func (c *client) pickRPCProxy(ctx context.Context) (string, error) {
-	if c.rpcClusterURL.DisableDiscovery {
-		return c.rpcClusterURL.Address, nil
+	if proxy := c.conf.RPCProxy; proxy != "" {
+		return proxy, nil
 	}
-
-	proxy, err := c.proxySet.PickRandom(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	return proxy, nil
+	return c.proxySet.PickRandom(ctx)
 }
 
 type ProxyBouncer struct {
