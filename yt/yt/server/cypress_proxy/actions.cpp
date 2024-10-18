@@ -32,6 +32,8 @@ using namespace NCypressServer::NProto;
 using NYT::FromProto;
 using NYT::ToProto;
 
+using TYPathBuf = NSequoiaClient::TYPathBuf;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -82,16 +84,18 @@ void DeleteSequoiaNodeRows(
 
 void SetNode(
     TVersionedNodeId nodeId,
+    TYPathBuf path,
     const TYsonString& value,
     const ISequoiaTransactionPtr& transaction)
 {
-    NCypressServer::NProto::TReqSetNode setNodeRequest;
-    ToProto(setNodeRequest.mutable_node_id(), nodeId.ObjectId);
-    setNodeRequest.set_value(value.ToString());
-    ToProto(setNodeRequest.mutable_transaction_id(), nodeId.TransactionId);
+    NCypressServer::NProto::TReqSetNode reqSetNode;
+    ToProto(reqSetNode.mutable_node_id(), nodeId.ObjectId);
+    reqSetNode.set_path(path.ToRawYPath().Underlying());
+    reqSetNode.set_value(value.ToString());
+    ToProto(reqSetNode.mutable_transaction_id(), nodeId.TransactionId);
     transaction->AddTransactionAction(
         CellTagFromId(nodeId.ObjectId),
-        MakeTransactionActionData(setNodeRequest));
+        MakeTransactionActionData(reqSetNode));
 }
 
 void CreateNode(
@@ -175,6 +179,22 @@ void RemoveNode(
     transaction->AddTransactionAction(
         CellTagFromId(nodeId.ObjectId),
         MakeTransactionActionData(reqRemoveNode));
+}
+
+void RemoveNodeAttribute(
+    NCypressClient::TVersionedNodeId nodeId,
+    NSequoiaClient::TYPathBuf attributePath,
+    bool force,
+    const NSequoiaClient::ISequoiaTransactionPtr& transaction)
+{
+    NCypressServer::NProto::TReqRemoveNodeAttribute reqRemoveNodeAttribute;
+    ToProto(reqRemoveNodeAttribute.mutable_node_id(), nodeId.ObjectId);
+    reqRemoveNodeAttribute.set_path(attributePath.ToRawYPath().Underlying());
+    reqRemoveNodeAttribute.set_force(force);
+    ToProto(reqRemoveNodeAttribute.mutable_transaction_id(), nodeId.TransactionId);
+    transaction->AddTransactionAction(
+        CellTagFromId(nodeId.ObjectId),
+        MakeTransactionActionData(reqRemoveNodeAttribute));
 }
 
 void AttachChild(

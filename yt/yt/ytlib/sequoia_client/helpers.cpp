@@ -56,6 +56,15 @@ bool IsRetriableSequoiaError(const TError& error)
     });
 }
 
+bool IsMethodShouldBeHandledByMaster(const std::string& method)
+{
+    return
+        method == "Fetch" ||
+        method == "BeginUpload" ||
+        method == "GetUploadParams" ||
+        method == "EndUpload";
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSequoiaClient

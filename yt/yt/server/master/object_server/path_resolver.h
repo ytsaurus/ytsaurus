@@ -24,6 +24,7 @@ struct TPathResolverOptions
     bool PopulateResolveCache = false;
     std::optional<int> SymlinkEncounterCountLimit;
     int InitialResolveDepth = 0;
+    bool AllowResolveFromSequoiaObject = false;
 };
 
 class TPathResolver
@@ -91,7 +92,7 @@ private:
     std::optional<NTransactionServer::TTransaction*> Transaction_;
 
     NTransactionServer::TTransaction* GetTransaction();
-    TResolvePayload ResolveRoot();
+    TResolvePayload ResolveRoot(const TPathResolverOptions& options);
 
     // COMPAT(kvk1920): remove after 24.2.
     bool IsBackupMethod() noexcept;

@@ -72,6 +72,7 @@ using NYT::FromProto;
 using NYT::ToProto;
 
 using TYPath = NSequoiaClient::TYPath;
+using TYPathBuf = NSequoiaClient::TYPathBuf;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -264,6 +265,7 @@ protected:
         // TODO(kvk1920): Think about inferring rootstock's id from scion's one.
         // TODO(kvk1920): make it a part of |TSequoiaSession::RemoveRootstock|.
         auto reqGet = TYPathProxy::Get(FromObjectId(Id_) + "/@rootstock_id");
+        SetAllowResolveFromSequoiaObject(reqGet, true);
         auto rspGet = WaitFor(CreateReadProxyForObject(Id_).Execute(reqGet))
             .ValueOrThrow();
         auto rootstockId = ConvertTo<TNodeId>(NYson::TYsonString(rspGet->value()));
@@ -284,6 +286,7 @@ protected:
         SetRequestTargetYPath(&newRequest->Header(), FromObjectId(Id_) + suffix);
         auto isMutating = IsRequestMutating(contextPtr->GetRequestHeader());
         SetTransactionId(newRequest, SequoiaSession_->GetCypressTransactionId());
+        SetAllowResolveFromSequoiaObject(newRequest, true);
         auto proxy = isMutating ? CreateWriteProxyForObject(Id_) : CreateReadProxyForObject(Id_);
 
         // TODO(kvk1920): it always prints "0-0-0-0 -> 0-0-0-0". Investigate it.
@@ -437,7 +440,10 @@ protected:
     void SetSelf(TReqSet* request, TRspSet* /*response*/, const TCtxSetPtr& context) override
     {
         auto force = request->force();
-        context->SetRequestInfo("Force: %v", force);
+
+        context->SetRequestInfo("Recursive: %v, Force: %v",
+            request->recursive(),
+            force);
 
         SequoiaSession_->SetNode(Id_, NYson::TYsonString(request->value()));
 
@@ -500,23 +506,33 @@ protected:
     }
 
     void SetAttribute(
-        const NYPath::TYPath& /*path*/,
-        TReqSet* /*request*/,
+        const NYPath::TYPath& path,
+        TReqSet* request,
         TRspSet* /*response*/,
         const TCtxSetPtr& context) override
     {
-        context->SetRequestInfo();
-        ForwardRequestAndAbortSequoiaSession(TYPathProxy::Set, context);
+        context->SetRequestInfo("Recursive: %v, Force: %v",
+            request->recursive(),
+            request->force());
+
+        SequoiaSession_->SetNodeAttribute(Id_, TYPathBuf("/@" + path), TYsonString(request->value()));
+        FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
     }
 
     void RemoveAttribute(
-        const NYPath::TYPath& /*path*/,
-        TReqRemove* /*request*/,
+        const NYPath::TYPath& path,
+        TReqRemove* request,
         TRspRemove* /*response*/,
         const TCtxRemovePtr& context) override
     {
-        context->SetRequestInfo();
-        ForwardRequestAndAbortSequoiaSession(TYPathProxy::Remove, context);
+        auto force = request->force();
+
+        context->SetRequestInfo("Recursive: %v, Force: %v",
+            request->recursive(),
+            force);
+
+        SequoiaSession_->RemoveNodeAttribute(Id_, TYPathBuf("/@" + path), force);
+        FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
     }
 };
 

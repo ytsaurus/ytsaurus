@@ -33,6 +33,8 @@ TString ToStringLiteral(TStringBuf key);
 
 bool IsRetriableSequoiaError(const TError& error);
 
+bool IsMethodShouldBeHandledByMaster(const std::string& method);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSequoiaClient

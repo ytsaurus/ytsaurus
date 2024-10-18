@@ -121,6 +121,7 @@ class TestSequoiaInternals(YTEnvSetup):
     def test_get(self):
         create("map_node", "//tmp/test_node")
         assert get("//tmp") == {"test_node": {}}
+        assert get("//tmp") == get(f"#{get("//tmp/@id")}")
         assert get("//tmp/test_node") == {}
         create("int64_node", "//tmp/test_node/test_int")
         set("//tmp/test_node/test_int", 1337)
@@ -190,6 +191,7 @@ class TestSequoiaInternals(YTEnvSetup):
         create("map_node", "//tmp/m1")
         create("map_node", "//tmp/m2")
         assert ls("//tmp") == ["m1", "m2"]
+        assert ls("//tmp") == ls(f"#{get("//tmp/@id")}")
 
         create("map_node", "//tmp/m2/m3")
         create("int64_node", "//tmp/m1/i")
@@ -403,6 +405,9 @@ class TestSequoiaInternals(YTEnvSetup):
         assert exists(f"#{node_id}")
         assert get("//tmp/m/@id") == node_id
 
+        set(f"#{node_id}/m", {"b": 0}, force=True)
+        assert get(f"#{node_id}/m") == {"b": 0}
+
     @authors("danilalexeev")
     def test_nodes_different_cell_tags(self):
         cell_tags = builtins.set()
@@ -473,8 +478,7 @@ class TestSequoiaInternals(YTEnvSetup):
     @authors("kvk1920", "gritukan")
     def test_create_map_node(self):
         m_id = create("map_node", "//tmp/m")
-        # TODO(kvk1920): Support attribute setting.
-        # set(f"#{m_id}/@foo", "bar")
+        set(f"#{m_id}/@foo", "bar")
 
         def check_everything():
             assert resolve_sequoia_path("//tmp") == get("//tmp&/@scion_id")
@@ -489,8 +493,7 @@ class TestSequoiaInternals(YTEnvSetup):
             assert get(f"#{m_id}/@type") == "map_node"
             assert get(f"#{m_id}/@sequoia")
 
-            # TODO(kvk1920): Support attribute setting.
-            # assert get(f"#{m_id}/@foo") == "bar"
+            assert get(f"#{m_id}/@foo") == "bar"
 
         check_everything()
 

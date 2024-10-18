@@ -2436,6 +2436,8 @@ INodePtr GetTableAttributes(
     auto req = TCypressYPathProxy::Get(objectIdPath);
     AddCellTagToSyncWith(req, userObject.ObjectId);
     NCypressClient::SetTransactionId(req, userObject.ExternalTransactionId);
+    // TODO(danilalexeev): Figure out why request ignores the Sequoia resolve.
+    NCypressClient::SetAllowResolveFromSequoiaObject(req, true);
     ToProto(req->mutable_attributes()->mutable_keys(), AttributeKeys);
 
     auto rspOrError = WaitFor(proxy.Execute(req));

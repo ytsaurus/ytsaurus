@@ -84,6 +84,23 @@ bool GetSuppressExpirationTimeoutRenewal(const NRpc::NProto::TRequestHeader& hea
         : false;
 }
 
+void SetAllowResolveFromSequoiaObject(NRpc::NProto::TRequestHeader* header, bool value)
+{
+    header->SetExtension(TSequoiaExt::allow_resolve_from_sequoia_object, value);
+}
+
+void SetAllowResolveFromSequoiaObject(const NRpc::IClientRequestPtr& request, bool value)
+{
+    SetAllowResolveFromSequoiaObject(&request->Header(), value);
+}
+
+bool GetAllowResolveFromSequoiaObject(const NRpc::NProto::TRequestHeader& header)
+{
+    return header.HasExtension(TSequoiaExt::allow_resolve_from_sequoia_object)
+        ? header.GetExtension(TSequoiaExt::allow_resolve_from_sequoia_object)
+        : false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressClient

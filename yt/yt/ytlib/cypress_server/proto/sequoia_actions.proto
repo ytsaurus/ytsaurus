@@ -73,8 +73,19 @@ message TReqDetachChild
 message TReqSetNode
 {
     required NYT.NProto.TGuid node_id = 1;
+    optional string path = 4;
     optional bytes value = 2;
     optional NYT.NProto.TGuid transaction_id = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemoveNodeAttribute
+{
+    required NYT.NProto.TGuid node_id = 1;
+    required string path = 2;
+    required bool force = 3;
+    optional NYT.NProto.TGuid transaction_id = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

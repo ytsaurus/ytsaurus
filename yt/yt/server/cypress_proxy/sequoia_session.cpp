@@ -36,11 +36,15 @@ using namespace NTransactionClient;
 using namespace NYson;
 using namespace NYTree;
 
+using TYPathBuf = NSequoiaClient::TYPathBuf;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
 constexpr auto& Logger = CypressProxyLogger;
+
+const auto EmptyYPath = NSequoiaClient::TYPath("");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -245,8 +249,19 @@ bool TSequoiaSession::JustCreated(TObjectId id)
 
 void TSequoiaSession::SetNode(TNodeId nodeId, TYsonString value)
 {
+    DoSetNode(nodeId, EmptyYPath, value);
+}
+
+void TSequoiaSession::SetNodeAttribute(TNodeId nodeId, TYPathBuf path, TYsonString value)
+{
+    YT_VERIFY(path.Underlying().StartsWith("/@"));
+    DoSetNode(nodeId, path, value);
+}
+
+void TSequoiaSession::RemoveNodeAttribute(TNodeId nodeId, TYPathBuf path, bool force)
+{
     MaybeLockNodeInSequoiaTable(nodeId, ELockType::SharedStrong);
-    NYT::NCypressProxy::SetNode({nodeId, CypressTransactionId_}, value, SequoiaTransaction_);
+    NYT::NCypressProxy::RemoveNodeAttribute({nodeId, CypressTransactionId_}, path, force, SequoiaTransaction_);
 }
 
 bool TSequoiaSession::IsMapNodeEmpty(TNodeId nodeId)
@@ -492,6 +507,12 @@ TFuture<std::vector<TCypressChildDescriptor>> TSequoiaSession::FetchChildren(TNo
         .OrderBy = {"child_key"},
     })
         .ApplyUnique(parseRecords);
+}
+
+void TSequoiaSession::DoSetNode(TNodeId nodeId, TYPathBuf path, TYsonString value)
+{
+    MaybeLockNodeInSequoiaTable(nodeId, ELockType::SharedStrong);
+    NYT::NCypressProxy::SetNode({nodeId, CypressTransactionId_}, path, value, SequoiaTransaction_);
 }
 
 TSequoiaSession::TSequoiaSession(

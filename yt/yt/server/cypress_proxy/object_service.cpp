@@ -28,6 +28,7 @@ using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NCypressClient::NProto;
 using namespace NObjectClient;
+using namespace NSequoiaClient;
 using namespace NRpc;
 using namespace NYTree;
 
@@ -247,15 +248,12 @@ private:
             const auto& method = subrequest.RequestHeader->method();
             // Such requests already contain information about target cell
             // inside the TReqExecute message.
-            if (method == "Fetch" ||
-                method == "BeginUpload" ||
-                method == "GetUploadParams" ||
-                method == "EndUpload")
-            {
+            if (IsMethodShouldBeHandledByMaster(method)) {
                 subrequest.Target = ERequestTarget::Master;
             }
         }
     }
+
     void InvokeMasterRequests(bool firstRun)
     {
         const auto& request = RpcContext_->Request();
@@ -349,19 +347,17 @@ private:
             });
 
 
-        auto* ypathExt = subrequest
-            ->RequestHeader
-            ->MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-        if (newPath == ypathExt->target_path()) {
-            // Nothing changed.
-            return;
-        }
+        auto& header = *subrequest->RequestHeader;
+        SetAllowResolveFromSequoiaObject(&header, true);
 
-        if (!ypathExt->has_original_target_path()) {
-            ypathExt->set_original_target_path(ypathExt->target_path());
-        }
+        auto* ypathExt = header.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+        if (newPath != ypathExt->target_path()) {
+            if (!ypathExt->has_original_target_path()) {
+                ypathExt->set_original_target_path(ypathExt->target_path());
+            }
 
-        ypathExt->set_target_path(TString(newPath));
+            ypathExt->set_target_path(TString(newPath));
+        }
 
         subrequest->RequestMessage = SetRequestHeader(
             subrequest->RequestMessage,

@@ -26,6 +26,7 @@ namespace NYT::NCypressProxy {
 
 void SetNode(
     NCypressClient::TVersionedNodeId nodeId,
+    NSequoiaClient::TYPathBuf path,
     const NYson::TYsonString& value,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
@@ -45,6 +46,12 @@ NCypressClient::TNodeId CopyNode(
 void RemoveNode(
     NCypressClient::TVersionedNodeId nodeId,
     const NSequoiaClient::TMangledSequoiaPath& path,
+    const NSequoiaClient::ISequoiaTransactionPtr& transaction);
+
+void RemoveNodeAttribute(
+    NCypressClient::TVersionedNodeId nodeId,
+    NSequoiaClient::TYPathBuf path,
+    bool force,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 //! Changes visible to user must be applied at coordinator with late prepare mode.
