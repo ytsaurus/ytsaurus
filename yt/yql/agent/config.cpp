@@ -341,6 +341,8 @@ void TYqlAgentDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_simultaneous_queries", &TThis::MaxSimultaneousQueries)
         .Default(128);
+    registrar.Parameter("state_check_period", &TThis::StateCheckPeriod)
+        .Default(TDuration::Seconds(15));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

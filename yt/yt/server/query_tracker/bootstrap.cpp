@@ -9,6 +9,8 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
+#include <yt/yt/server/lib/state_checker/state_checker.h>
+
 #include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/server/lib/cypress_registrar/config.h>
@@ -71,6 +73,7 @@ using namespace NMonitoring;
 using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NOrchid;
+using namespace NStateChecker;
 using namespace NProfiling;
 using namespace NRpc;
 using namespace NTransactionClient;
@@ -208,6 +211,16 @@ void TBootstrap::DoRun()
         Config_->Root,
         DynamicConfigManager_->GetConfig()->QueryTracker->ProxyConfig);
 
+    StateChecker_ = New<TStateChecker>(
+        ControlInvoker_,
+        NativeClient_,
+        Format("%v/instances/%v", Config_->Root, ToYPathLiteral(SelfAddress_)),
+        DynamicConfigManager_->GetConfig()->QueryTracker->StateCheckPeriod);
+    SetNodeByYPath(
+        orchidRoot,
+        "/state_checker",
+        CreateVirtualNode(StateChecker_->GetOrchidService()));
+
     RpcServer_->RegisterService(CreateAdminService(
         ControlInvoker_,
         CoreDumper_,
@@ -218,7 +231,8 @@ void TBootstrap::DoRun()
         NativeAuthenticator_));
     RpcServer_->RegisterService(CreateProxyService(
         ProxyInvoker_,
-        QueryTrackerProxy_));
+        QueryTrackerProxy_,
+        StateChecker_));
 
     QueryTracker_ = CreateQueryTracker(
         DynamicConfigManager_->GetConfig()->QueryTracker,
@@ -226,8 +240,13 @@ void TBootstrap::DoRun()
         ControlInvoker_,
         CreateAlertCollector(AlertManager_),
         NativeClient_,
+        StateChecker_,
         Config_->Root,
         Config_->MinRequiredStateVersion);
+    SetNodeByYPath(
+        orchidRoot,
+        "/query_tracker",
+        CreateVirtualNode(QueryTracker_->GetOrchidService()));
 
     AlertManager_->Start();
 
@@ -241,6 +260,7 @@ void TBootstrap::DoRun()
     RpcServer_->Start();
 
     UpdateCypressNode();
+    StateChecker_->Start();
 }
 
 void TBootstrap::UpdateCypressNode()
@@ -284,6 +304,8 @@ void TBootstrap::OnDynamicConfigChanged(
     if (QueryTracker_) {
         QueryTracker_->Reconfigure(newConfig->QueryTracker);
     }
+    StateChecker_->SetPeriod(newConfig->QueryTracker->StateCheckPeriod);
+
     if (QueryTrackerProxy_) {
         QueryTrackerProxy_->Reconfigure(newConfig->QueryTracker->ProxyConfig);
     }

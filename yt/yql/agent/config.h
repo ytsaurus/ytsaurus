@@ -172,6 +172,7 @@ class TYqlAgentDynamicConfig
 {
 public:
     int MaxSimultaneousQueries;
+    TDuration StateCheckPeriod;
 
     REGISTER_YSON_STRUCT(TYqlAgentDynamicConfig);
 
