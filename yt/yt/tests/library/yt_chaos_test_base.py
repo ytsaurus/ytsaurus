@@ -29,11 +29,6 @@ class ChaosTestBase(DynamicTablesBase):
             },
         },
     }
-    DELTA_MASTER_CACHE_CONFIG = {
-        "chaos_cache": {
-            "enable_watching": True
-        }
-    }
 
     def _get_drivers(self):
         return [get_driver(cluster=cluster_name) for cluster_name in self.get_cluster_names()]
