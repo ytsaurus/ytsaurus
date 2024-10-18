@@ -3086,7 +3086,7 @@ void LastSeenReplicaSetMerge(
     TUnversionedValue* state1,
     TUnversionedValue* state2)
 {
-    constexpr int MaxLastSeenReplicas = 16;
+    constexpr int MaxLastSeenReplicas = 3;
 
     if (state1->Type == EValueType::Null) {
         *result = *state2;
