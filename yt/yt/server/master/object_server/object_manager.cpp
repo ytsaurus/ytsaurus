@@ -128,11 +128,14 @@ TPathResolver::TResolveResult ResolvePath(
         context->GetMethod(),
         path,
         GetTransactionId(context));
-    auto result = resolver.Resolve();
+
+    auto options = TPathResolverOptions{
+        .AllowResolveFromSequoiaObject = GetAllowResolveFromSequoiaObject(context->RequestHeader())
+    };
+    auto result = resolver.Resolve(options);
     if (result.CanCacheResolve) {
-        auto populateResult = resolver.Resolve(TPathResolverOptions{
-            .PopulateResolveCache = true
-        });
+        options.PopulateResolveCache = true;
+        auto populateResult = resolver.Resolve(options);
         YT_ASSERT(std::holds_alternative<TPathResolver::TRemoteObjectPayload>(populateResult.Payload));
         auto& payload = std::get<TPathResolver::TRemoteObjectPayload>(populateResult.Payload);
         YT_LOG_DEBUG("Resolve cache populated (Path: %v, RemoteObjectId: %v, UnresolvedPathSuffix: %v)",

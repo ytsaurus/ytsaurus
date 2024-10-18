@@ -69,6 +69,8 @@ TTableReadSpec FetchRegularTableReadSpec(
         SetTransactionId(req, userObject->ExternalTransactionId);
         SetSuppressAccessTracking(req, suppressAccessTracking);
         SetSuppressExpirationTimeoutRenewal(req, suppressExpirationTimeoutRenewal);
+        // TODO(danilalexeev): Figure out why request ignores the Sequoia resolve.
+        SetAllowResolveFromSequoiaObject(req, true);
         NYT::ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "chunk_count",
             "dynamic",

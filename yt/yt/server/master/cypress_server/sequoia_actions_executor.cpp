@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/sequoia/helpers.h>
 
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
 #include <yt/yt/core/ypath/helpers.h>
@@ -19,6 +21,7 @@ namespace NYT::NCypressServer {
 using namespace NYTree;
 using namespace NYson;
 using namespace NCellMaster;
+using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NSequoiaServer;
 using namespace NTransactionServer;
@@ -60,8 +63,7 @@ public:
             .Commit = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitDetachChild, Unretained(this)),
         });
         transactionManager->RegisterTransactionActionHandlers<TReqSetNode>({
-            .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareSetNode, Unretained(this)),
-            .Commit = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitSetNode, Unretained(this)),
+            .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAndCommitSetNode, Unretained(this)),
         });
         transactionManager->RegisterTransactionActionHandlers<TReqCloneNode>({
             .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareCloneNode, Unretained(this)),
@@ -73,6 +75,9 @@ public:
         });
         transactionManager->RegisterTransactionActionHandlers<TReqUnlockNode>({
             .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAndCommitUnlockNode, Unretained(this)),
+        });
+        transactionManager->RegisterTransactionActionHandlers<TReqRemoveNodeAttribute>({
+            .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPerpareAndCommitRemoveNodeAttribute, Unretained(this)),
         });
     }
 
@@ -373,7 +378,7 @@ private:
         }
     }
 
-    void HydraPrepareSetNode(
+    void HydraPrepareAndCommitSetNode(
         TTransaction* /*transaction*/,
         NProto::TReqSetNode* request,
         const TTransactionPrepareOptions& options)
@@ -382,41 +387,16 @@ private:
         YT_VERIFY(options.Persistent);
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
-        YT_VERIFY(IsScalarType(TypeFromId(nodeId)));
-
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* node = cypressManager->GetNodeOrThrow(TVersionedNodeId(nodeId));
-        VerifySequoiaNode(node);
+        auto* trunkNode = cypressManager->GetNodeOrThrow(TVersionedObjectId(nodeId));
+        VerifySequoiaNode(trunkNode);
 
-        YT_VERIFY(node->MutableSequoiaProperties()->BeingCreated || options.LatePrepare);
-
-        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
-        TTransaction* cypressTransaction = nullptr;
-        if (cypressTransactionId) {
-            const auto& transactionManager = Bootstrap_->GetTransactionManager();
-            cypressTransaction = transactionManager->GetTransactionOrThrow(cypressTransactionId);
+        if (!IsObjectAlive(trunkNode)) {
+            YT_LOG_ALERT(
+                "Attempted to set a zombie Sequoia node (NodeId: %v)",
+                nodeId);
+            THROW_ERROR_EXCEPTION("Cypress node %v is not alive", nodeId);
         }
-
-        if (!options.LatePrepare) {
-            // If node is just created nobody can lock it concurrently so we can
-            // just lock it in commit stage of Sequoia tx.
-            YT_VERIFY(node->MutableSequoiaProperties()->BeingCreated);
-        } else {
-            // We have to check lock conflicts.
-            cypressManager->LockNode(node, cypressTransaction, ELockMode::Exclusive);
-        }
-    }
-
-    void HydraCommitSetNode(
-        TTransaction* /*transaction*/,
-        NProto::TReqSetNode* request,
-        const TTransactionCommitOptions& /*options*/)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto nodeId = FromProto<TNodeId>(request->node_id());
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* node = cypressManager->GetNode(TVersionedObjectId(nodeId));
 
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -424,21 +404,45 @@ private:
             ? transactionManager->GetTransaction(cypressTransactionId)
             : nullptr;
 
-        if (!IsObjectAlive(node)) {
+        auto innerRequest = TCypressYPathProxy::Set(request->path());
+        innerRequest->set_value(request->value());
+        SyncExecuteVerb(
+            cypressManager->GetNodeProxy(trunkNode, cypressTransaction),
+            innerRequest);
+    }
+
+    void HydraPerpareAndCommitRemoveNodeAttribute(
+        TTransaction* /*transaction*/,
+        NProto::TReqRemoveNodeAttribute* request,
+        const TTransactionPrepareOptions& options)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(options.Persistent);
+        YT_VERIFY(options.LatePrepare);
+
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* trunkNode = cypressManager->GetNodeOrThrow(TVersionedObjectId(nodeId));
+        VerifySequoiaNode(trunkNode);
+
+        if (!IsObjectAlive(trunkNode)) {
             YT_LOG_ALERT(
-                "Attempted to set unexisting Sequoia node; ignored "
-                "(NodeId: %v)",
+                "Attempted to remove a zombie Sequoia node attribute (NodeId: %v)",
                 nodeId);
-            return;
+            THROW_ERROR_EXCEPTION("Cypress node %v is not alive", nodeId);
         }
 
-        YT_VERIFY(IsScalarType(node->GetType()));
-        VerifySequoiaNode(node);
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* cypressTransaction = cypressTransactionId
+            ? transactionManager->GetTransaction(cypressTransactionId)
+            : nullptr;
 
-        SetNodeFromProducer(
-            cypressManager->GetNodeProxy(node, cypressTransaction),
-            ConvertToProducer(TYsonString(request->value())),
-            /*builder*/ nullptr);
+        auto innerRequest = TCypressYPathProxy::Remove(request->path());
+        innerRequest->set_force(request->force());
+        SyncExecuteVerb(
+            cypressManager->GetNodeProxy(trunkNode, cypressTransaction),
+            innerRequest);
     }
 
     // NB: See PrepareCreateNode.

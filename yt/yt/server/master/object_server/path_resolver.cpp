@@ -115,7 +115,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
         ValidateYPathResolutionDepth(Path_, resolveDepth);
 
         if (!currentObject) {
-            auto rootPayload = ResolveRoot();
+            auto rootPayload = ResolveRoot(options);
             if (!std::holds_alternative<TLocalObjectPayload>(rootPayload)) {
                 return {
                     TYPath(Tokenizer_.GetInput()),
@@ -318,7 +318,7 @@ bool TPathResolver::IsBackupMethod() noexcept
     return BackupMethods.contains(Method_);
 }
 
-TPathResolver::TResolvePayload TPathResolver::ResolveRoot()
+TPathResolver::TResolvePayload TPathResolver::ResolveRoot(const TPathResolverOptions& options)
 {
     Tokenizer_.Advance();
     auto ampersandSkipped = Tokenizer_.Skip(NYPath::ETokenType::Ampersand);
@@ -357,14 +357,16 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot()
                 return TMissingObjectPayload{};
             }
 
-            // TODO(kvk1920): This check should be performed on Cypress Proxy.
+            // Resolve from Sequoia object id is prohibited by default to prevent node request
+            // processing in a non-Sequoia way. The exeptions are:
+            // - if request has already been processed by a Cypress Proxy and was forwarded
+            //   to Master, hence the |AllowResolveFromSequoiaObject| flag is set;
+            // - if the request method should be handled by Master.
             if (IsSequoiaId(objectId) &&
-                Tokenizer_.GetType() == ETokenType::EndOfStream &&
-                Method_ == "Remove")
+                IsVersionedType(TypeFromId(objectId)) &&
+                !options.AllowResolveFromSequoiaObject &&
+                !NSequoiaClient::IsMethodShouldBeHandledByMaster(Method_))
             {
-                // NB: These field should not be optional because in the future
-                // such requests will be handled on Cypress Proxy without
-                // redirecting to Master.
                 return TSequoiaRedirectPayload{
                     .RootstockNodeId = TNodeId{},
                     .RootstockPath = "",

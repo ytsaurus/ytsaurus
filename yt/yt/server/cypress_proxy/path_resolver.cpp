@@ -263,7 +263,7 @@ TResolveIterationResult ResolveByObjectId(
         return ResolveByPath(session, std::move(rewrittenPath), method);
     }
 
-    // NB: of course, we could response just after resolve in Sequoia tables.
+    // NB: of course, we could respond just after resolve in Sequoia tables.
     // But while we don't have any way to bypass Sequoia resolve we use "exists"
     // verb in tests to check object existence in master.
     // TODO(kvk1920): design some way to bypass Sequoia resolve.

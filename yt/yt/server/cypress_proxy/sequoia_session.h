@@ -95,6 +95,20 @@ public:
      */
     void SetNode(NCypressClient::TNodeId nodeId, NYson::TYsonString value);
 
+    //! Behaves the same as |TSequoiaSession::SetNode|, but used specifically
+    //! for setting node attributes.
+    void SetNodeAttribute(
+        NCypressClient::TNodeId nodeId,
+        NSequoiaClient::TYPathBuf path,
+        NYson::TYsonString value);
+
+    //! Removes node attribute at a given path. Acquires a shared lock on row in
+    //! "node_id_to_path" Sequoia table.
+    void RemoveNodeAttribute(
+        NCypressClient::TNodeId nodeId,
+        NSequoiaClient::TYPathBuf path,
+        bool force);
+
     //! Removes single node. If it's map-node it has to be empty.
     //! If node is not a scion it will be detached from its parent and parent
     //! will be locked in "node_id_to_path" table.
@@ -211,6 +225,11 @@ private:
     bool JustCreated(NObjectClient::TObjectId nodeId);
 
     void LockAndReplicateCypressTransaction();
+
+    void DoSetNode(
+        NCypressClient::TNodeId nodeId,
+        NSequoiaClient::TYPathBuf path,
+        NYson::TYsonString value);
 
     DECLARE_NEW_FRIEND()
 };

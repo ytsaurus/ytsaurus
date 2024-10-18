@@ -48,6 +48,15 @@ void SetSuppressExpirationTimeoutRenewal(NRpc::NProto::TRequestHeader* header, b
 //! Sets expiration timeout renewal suppression flag.
 bool GetSuppressExpirationTimeoutRenewal(const NRpc::NProto::TRequestHeader& header);
 
+//! Sets allow resolve from Sequoia object flag.
+void SetAllowResolveFromSequoiaObject(NRpc::NProto::TRequestHeader* header, bool value);
+
+//! Sets allow resolve from Sequoia object flag.
+void SetAllowResolveFromSequoiaObject(const NRpc::IClientRequestPtr& request, bool value);
+
+//! Gets allow resolve from Sequoia object flag.
+bool GetAllowResolveFromSequoiaObject(const NRpc::NProto::TRequestHeader& header);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressClient
