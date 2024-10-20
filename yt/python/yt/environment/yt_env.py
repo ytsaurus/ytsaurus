@@ -218,6 +218,7 @@ class YTInstance(object):
         self.configs_path = os.path.abspath(os.path.join(self.path, "configs"))
         self.runtime_data_path = os.path.abspath(os.path.join(self.path, "runtime_data"))
         self.pids_filename = os.path.join(self.path, "pids.txt")
+        self.pids_file = None
 
         self._load_existing_environment = False
         if os.path.exists(self.path):
@@ -702,6 +703,10 @@ class YTInstance(object):
             self.stop_impl()
 
         self._started = False
+
+    def exit(self):
+        if self.pids_file is not None:
+            self.pids_file.close()
 
     def stop_impl(self):
         killed_services = set()
@@ -1193,7 +1198,7 @@ class YTInstance(object):
 
             with open(os.devnull, "w") as stdout, open(stderr_path, "w") as stderr:
                 p = self._subprocess_module.Popen(args, shell=False, close_fds=True, cwd=self.runtime_data_path,
-                                                  env=env, stdout=stdout, stderr=stderr)
+                                                  env=env, stdout=stdout, stderr=stderr, start_new_session=True)
 
             self._validate_process_is_running(p, name, number)
 

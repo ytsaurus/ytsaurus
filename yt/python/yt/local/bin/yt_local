@@ -139,6 +139,7 @@ def start_func(**kwargs):
                 time.sleep(sync_mode_sleep_timeout)
     else:
         print(environment.id)
+        environment.exit()
 
 
 def add_start_subparser(subparsers):

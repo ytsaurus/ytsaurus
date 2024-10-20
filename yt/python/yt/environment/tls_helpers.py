@@ -1,4 +1,3 @@
-import os
 import subprocess
 import tempfile
 
@@ -23,7 +22,7 @@ def create_ca(ca_cert, ca_cert_key, subj="/CN=Fake CA", key_type="rsa:2048"):
             "-sha512", "-nodes", "-newkey", key_type,
             "-days", "30", "-subj", subj,
             "-keyout", ca_cert_key, "-out", ca_cert,
-        ], stderr=open(os.devnull, "w"))
+        ], stderr=subprocess.DEVNULL)
 
 
 def create_certificate(cert, cert_key, ca_cert, ca_cert_key, names, key_type="rsa:2048"):
@@ -51,14 +50,14 @@ def create_certificate(cert, cert_key, ca_cert, ca_cert_key, names, key_type="rs
             openssl_binary(), "req", "-new", "-batch", "-config", cfg.name,
             "-nodes", "-newkey", key_type, "-subj", subj, "-addext", addext,
             "-keyout", cert_key, "-out", cert_req.name,
-        ], stderr=open(os.devnull, "w"))
+        ], stderr=subprocess.DEVNULL)
 
         subprocess.check_call([
             openssl_binary(), "x509", "-req", "-sha512", "-days", "30",
             "-CAcreateserial", "-CA", ca_cert, "-CAkey", ca_cert_key,
             "-in", cert_req.name, "-extfile", ext.name, "-extensions", "ext",
             "-out", cert,
-        ], stderr=open(os.devnull, "w"))
+        ], stderr=subprocess.DEVNULL)
 
 
 def verify_certificate(cert, ca_cert, name):

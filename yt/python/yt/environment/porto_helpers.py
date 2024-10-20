@@ -52,7 +52,11 @@ def remove_all_volumes(path):
 
 class PortoSubprocess(object):
     @classmethod
-    def Popen(cls, args, shell=None, close_fds=None, preexec_fn=None, cwd=None, stdout=None, stderr=None, env=None):
+    def Popen(cls, args, shell=None, close_fds=None, preexec_fn=None, cwd=None, stdout=None, stderr=None, env=None, start_new_session=False):
+        """
+        Option `start_new_session` is ignored in porto environment.
+        """
+
         command = " ".join(["'" + quote(a) + "'" for a in args])
         conn = Connection()
 
