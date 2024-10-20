@@ -1,6 +1,5 @@
-/* Concatenate two arbitrary file names.
-
-   Copyright (C) 1996-2007, 2009-2016 Free Software Foundation, Inc.
+/* Program name management.
+   Copyright (C) 2016 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,27 +14,27 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-/* Written by Jim Meyering.  */
-
-#include <config.h>
-
-/* Specification.  */
-#include "filenamecat.h"
+#ifndef _GL_GETPROGNAME_H
+#define _GL_GETPROGNAME_H
 
 #include <stdlib.h>
-#include <string.h>
 
-#include "xalloc.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-/* Just like mfile_name_concat (filenamecat-lgpl.c), except, rather than
-   returning NULL upon malloc failure, here, we report the
-   "memory exhausted" condition and exit.  */
+/* Return the base name of the executing program.
+   On native Windows this will usually end in ".exe" or ".EXE". */
+#ifndef HAVE_GETPROGNAME
+extern char const *getprogname (void)
+# ifdef HAVE_DECL_PROGRAM_INVOCATION_NAME
+  _GL_ATTRIBUTE_PURE
+# endif
+  ;
+#endif
 
-char *
-file_name_concat (char const *dir, char const *abase, char **base_in_result)
-{
-  char *p = mfile_name_concat (dir, abase, base_in_result);
-  if (p == NULL)
-    xalloc_die ();
-  return p;
+#ifdef __cplusplus
 }
+#endif
+
+#endif
