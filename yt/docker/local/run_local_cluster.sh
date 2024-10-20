@@ -230,6 +230,7 @@ cluster_container=$(
         --name $yt_container_name \
         -p ${proxy_port}:80 \
         -p ${rpc_proxy_port}:${rpc_proxy_port} \
+        --rm \
         $local_cypress_dir \
         $extra_yt_docker_opts \
         $yt_image \
