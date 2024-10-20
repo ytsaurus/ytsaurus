@@ -1458,7 +1458,7 @@ void TMergeOperationSpec::Register(TRegistrar registrar)
 void TUnorderedMergeOperationSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("single_chunk_teleport_strategy", &TThis::SingleChunkTeleportStrategy)
-        .Default(ESingleChunkTeleportStrategy::Disabled);
+        .Default(ESingleChunkTeleportStrategy::Enabled);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
