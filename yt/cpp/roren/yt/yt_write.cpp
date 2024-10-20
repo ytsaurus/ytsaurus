@@ -11,7 +11,7 @@ TYtWriteTransform YtWrite(const NYT::TRichYPath& path, const NYT::TTableSchema& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYtWriteTransform YtSortedWrite(
+TYtSortedWriteTransform YtSortedWrite(
     const NYT::TRichYPath& path,
     const NYT::TTableSchema& schema,
     const NYT::TSortColumns& columnsToSort)
@@ -24,11 +24,11 @@ TYtWriteTransform YtSortedWrite(
     bool uniqueKeys = schema.UniqueKeys();
     unsortedSchema.UniqueKeys(false);
 
-    auto transform = TYtWriteTransform{path, unsortedSchema, columnsToSort, uniqueKeys};
+    auto transform = TYtSortedWriteTransform{path, unsortedSchema, columnsToSort, uniqueKeys};
     return transform;
 }
 
-TYtWriteTransform YtSortedWrite(
+TYtSortedWriteTransform YtSortedWrite(
     const NYT::TRichYPath& path,
     const NYT::TTableSchema& sortedSchema)
 {

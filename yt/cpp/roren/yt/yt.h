@@ -11,10 +11,9 @@
 
 #include <yt/cpp/mapreduce/interface/common.h>
 
+#include "transforms.h"
 #include "yt_io_private.h"
 #include "yt_proto_io.h"
-
-#include "yt_write.h"
 
 namespace NRoren {
 
@@ -75,12 +74,12 @@ TYtWriteTransform YtWrite(const NYT::TRichYPath& path, const NYT::TTableSchema& 
 /// @breif Write sorte YT table
 ///
 /// PCollection will be saved to specified table and sort operation invoked if required
-TYtWriteTransform YtSortedWrite(
+TYtSortedWriteTransform YtSortedWrite(
     const NYT::TRichYPath& path,
     const NYT::TTableSchema& schema,
     const NYT::TSortColumns& columnsToSort);
 
-TYtWriteTransform YtSortedWrite(
+TYtSortedWriteTransform YtSortedWrite(
     const NYT::TRichYPath& path,
     const NYT::TTableSchema& sortedSchema);
 
