@@ -26,7 +26,10 @@ IF (NOT OPENSOURCE)
     )
 ENDIF()
 
-GO_TEST_SRCS(example_test.go)
+GO_TEST_SRCS(
+    config_test.go
+    example_test.go
+)
 
 END()
 
