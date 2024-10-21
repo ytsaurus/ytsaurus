@@ -121,7 +121,7 @@ class TestSequoiaInternals(YTEnvSetup):
     def test_get(self):
         create("map_node", "//tmp/test_node")
         assert get("//tmp") == {"test_node": {}}
-        assert get("//tmp") == get(f"#{get("//tmp/@id")}")
+        assert get("//tmp") == get("#{}".format(get("//tmp/@id")))
         assert get("//tmp/test_node") == {}
         create("int64_node", "//tmp/test_node/test_int")
         set("//tmp/test_node/test_int", 1337)
@@ -191,7 +191,7 @@ class TestSequoiaInternals(YTEnvSetup):
         create("map_node", "//tmp/m1")
         create("map_node", "//tmp/m2")
         assert ls("//tmp") == ["m1", "m2"]
-        assert ls("//tmp") == ls(f"#{get("//tmp/@id")}")
+        assert ls("//tmp") == ls("#{}".format(get("//tmp/@id")))
 
         create("map_node", "//tmp/m2/m3")
         create("int64_node", "//tmp/m1/i")
