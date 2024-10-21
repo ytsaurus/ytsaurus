@@ -3531,7 +3531,11 @@ private:
         chunkReaderStatistics->DataBytesTransmitted.fetch_add(
             rsp->GetTotalSize(),
             std::memory_order::relaxed);
-        Reader_.Lock()->AccountTraffic(rsp->GetTotalSize(), *respondedPeer.NodeDescriptor);
+
+        auto reader = Reader_.Lock();
+        if (reader) {
+            reader->AccountTraffic(rsp->GetTotalSize(), *respondedPeer.NodeDescriptor);
+        }
 
         if (rsp->has_chunk_reader_statistics()) {
             session->HandleChunkReaderStatistics(rsp->chunk_reader_statistics());
