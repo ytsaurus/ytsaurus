@@ -59,7 +59,7 @@ add_subdirectory(shell)
 add_subdirectory(chaos_cache)
 add_subdirectory(alert_manager)
 add_subdirectory(shuffle_server)
-add_subdirectory(signature_service)
+add_subdirectory(signature)
 
 add_library(ytserver INTERFACE)
 
