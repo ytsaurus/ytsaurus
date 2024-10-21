@@ -51,6 +51,8 @@ struct THiveEdge
 {
     TCellId SourceCellId;
     TCellId DestinationCellId;
+
+    bool operator==(const THiveEdge&) const = default;
 };
 
 void FormatValue(TStringBuilderBase* builder, const THiveEdge& edge, TStringBuf spec);
@@ -89,9 +91,9 @@ struct IHiveManager
 
     virtual void RegisterAvenueEndpoint(
         TAvenueEndpointId selfEndpointId,
-        TPersistentMailboxState&& cookie) = 0;
+        TPersistentMailboxStateCookie&& cookie) = 0;
 
-    virtual TPersistentMailboxState UnregisterAvenueEndpoint(TAvenueEndpointId selfEndpointId) = 0;
+    virtual TPersistentMailboxStateCookie UnregisterAvenueEndpoint(TAvenueEndpointId selfEndpointId) = 0;
 
     //! Posts a message for delivery (either reliable or not).
     virtual void PostMessage(

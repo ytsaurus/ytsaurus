@@ -22,12 +22,20 @@ TMailbox::TMailbox(TCellId cellId)
 
 void TMailbox::Save(TSaveContext& context) const
 {
-    TPersistentMailboxState::Save(context);
+    using NYT::Save;
+
+    Save(context, FirstOutcomingMessageId_);
+    Save(context, OutcomingMessages_);
+    Save(context, NextPersistentIncomingMessageId_);
 }
 
 void TMailbox::Load(TLoadContext& context)
 {
-    TPersistentMailboxState::Load(context);
+    using NYT::Load;
+
+    Load(context, FirstOutcomingMessageId_);
+    Load(context, OutcomingMessages_);
+    Load(context, NextPersistentIncomingMessageId_);
 
     UpdateLastOutcomingMessageId();
 }

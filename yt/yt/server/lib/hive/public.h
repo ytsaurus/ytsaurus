@@ -33,7 +33,7 @@ YT_DEFINE_STRONG_TYPEDEF(TLogicalTime, i64);
 
 YT_DEFINE_STRONG_TYPEDEF(TMailboxHandle, void*);
 
-struct TPersistentMailboxState;
+struct TPersistentMailboxStateCookie;
 
 DECLARE_REFCOUNTED_STRUCT(TSerializedMessage)
 

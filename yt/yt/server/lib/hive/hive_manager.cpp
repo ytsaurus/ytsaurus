@@ -1,6 +1,8 @@
 #include "hive_manager.h"
 
+#include "config.h"
 #include "hive_manager_v1.h"
+#include "hive_manager_v2.h"
 
 namespace NYT::NHiveServer {
 
@@ -50,7 +52,8 @@ IHiveManagerPtr CreateHiveManager(
     NHydra::IUpstreamSynchronizerPtr upstreamSynchronizer,
     NRpc::IAuthenticatorPtr authenticator)
 {
-    return NV1::CreateHiveManager(
+    auto factory = config->UseNew ? NV2::CreateHiveManager : NV1::CreateHiveManager;
+    return factory(
         std::move(config),
         std::move(cellDirectory),
         std::move(avenueDirectory),

@@ -13,7 +13,6 @@ class TLogicalTimeRegistryConfig
 {
 public:
     TDuration EvictionPeriod;
-
     TDuration ExpirationTimeout;
 
     REGISTER_YSON_STRUCT(TLogicalTimeRegistryConfig);
@@ -29,6 +28,9 @@ class THiveManagerConfig
     : public NYTree::TYsonStruct
 {
 public:
+    // COMPAT(babenko)
+    bool UseNew;
+
     //! Interval between consequent |Ping| requests to remote Hive Manager.
     TDuration PingPeriod;
 
@@ -62,6 +64,9 @@ public:
 
     //! Maximum time to wait before syncing with another instance.
     TDuration SyncTimeout;
+
+    //! Interval between readonly checks.
+    TDuration ReadOnlyCheckPeriod;
 
     TLogicalTimeRegistryConfigPtr LogicalTimeRegistry;
 

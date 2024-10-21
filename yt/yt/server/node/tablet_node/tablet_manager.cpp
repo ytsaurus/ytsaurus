@@ -42,7 +42,7 @@
 #include <yt/yt/server/lib/hive/avenue_directory.h>
 #include <yt/yt/server/lib/hive/helpers.h>
 #include <yt/yt/server/lib/hive/hive_manager.h>
-#include <yt/yt/server/lib/hive/persistent_mailbox_state.h>
+#include <yt/yt/server/lib/hive/persistent_mailbox_state_cookie.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra/mutation.h>
@@ -570,12 +570,12 @@ public:
     void RegisterMasterAvenue(
         TTabletId tabletId,
         NHiveServer::TAvenueEndpointId masterEndpointId,
-        NHiveServer::TPersistentMailboxState&& cookie) override
+        NHiveServer::TPersistentMailboxStateCookie&& cookie) override
     {
         Slot_->RegisterMasterAvenue(tabletId, masterEndpointId, std::move(cookie));
     }
 
-    NHiveServer::TPersistentMailboxState UnregisterMasterAvenue(
+    NHiveServer::TPersistentMailboxStateCookie UnregisterMasterAvenue(
         NHiveServer::TAvenueEndpointId masterEndpointId) override
     {
         return Slot_->UnregisterMasterAvenue(masterEndpointId);
