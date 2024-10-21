@@ -18,6 +18,8 @@
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
+#include <yt/yt/core/misc/crash_handler.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NChaosClient;
@@ -248,6 +250,8 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext() == persistent);
 
+        TCodicilGuard codicilGuard(Tablet_->GetLoggingTag());
+
         // Fast path.
         if (!HasWriteState(transaction->GetId())) {
             return;
@@ -298,6 +302,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
+
+        TCodicilGuard codicilGuard(Tablet_->GetLoggingTag());
 
         // Fast path.
         if (!HasWriteState(transaction->GetId())) {
@@ -379,6 +385,8 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
+        TCodicilGuard codicilGuard(Tablet_->GetLoggingTag());
+
         AbortLocklessRows(transaction);
         AbortLockedRows(transaction);
         AbortPrelockedRows(transaction);
@@ -390,6 +398,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
+
+        TCodicilGuard codicilGuard(Tablet_->GetLoggingTag());
 
         auto transientWriteState = GetOrCreateTransactionTransientWriteState(transaction->GetId());
         YT_VERIFY(transientWriteState->PrelockedRows.empty());
