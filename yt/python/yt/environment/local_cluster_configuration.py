@@ -19,6 +19,7 @@ MASTER_CONFIG_PATCHES = [
         "object_manager": None,
         # These option is required to decrease timeout for table mounting on local mode startup.
         "hive_manager": {
+            "use_new": True,
             "ping_period": 1000,
             "idle_post_period": 1000,
         },

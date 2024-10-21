@@ -41,6 +41,7 @@ def get_master_config():
     };
 
     hive_manager = {
+        use_new = %true;
         ping_period = 1000;
         idle_post_period = 1000;
     };
@@ -585,6 +586,7 @@ def get_node_config():
         };
 
         hive_manager = {
+            use_new = %true;
             ping_period = 1000;
             idle_post_period = 1000;
         };
@@ -708,6 +710,7 @@ def get_chaos_node_config():
                             lock_transaction_timeout = 5000;
                         };
                         hive_manager = {
+                            use_new = %true;
                             ping_period = 1000;
                             idle_post_period = 1000;
                         };

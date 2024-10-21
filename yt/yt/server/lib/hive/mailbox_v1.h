@@ -1,7 +1,7 @@
 #pragma once
 
 #include "private_v1.h"
-#include "persistent_mailbox_state.h"
+#include "persistent_mailbox_state_cookie.h"
 
 #include <yt/yt/server/lib/hive/proto/hive_manager.pb.h>
 
@@ -22,9 +22,17 @@ namespace NYT::NHiveServer::NV1 {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMailbox
-    : public TPersistentMailboxState
 {
 public:
+    //! The id of the first message in |OutcomingMessages|.
+    DEFINE_BYVAL_RW_PROPERTY(TMessageId, FirstOutcomingMessageId);
+
+    //! Messages enqueued for the destination cell, ordered by id.
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TOutcomingMessage>, OutcomingMessages);
+
+    //! The id of the next incoming message to be handled by Hydra.
+    DEFINE_BYVAL_RW_PROPERTY(TMessageId, NextPersistentIncomingMessageId);
+
     DEFINE_BYVAL_RO_PROPERTY(TEndpointId, EndpointId);
 
     // Transient state.

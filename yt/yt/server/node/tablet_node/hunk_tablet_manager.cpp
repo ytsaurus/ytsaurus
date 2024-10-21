@@ -11,7 +11,7 @@
 
 #include <yt/yt/server/lib/hive/avenue_directory.h>
 #include <yt/yt/server/lib/hive/helpers.h>
-#include <yt/yt/server/lib/hive/persistent_mailbox_state.h>
+#include <yt/yt/server/lib/hive/persistent_mailbox_state_cookie.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
 

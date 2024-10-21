@@ -51,7 +51,7 @@
 #include <yt/yt/server/lib/hive/avenue_directory.h>
 #include <yt/yt/server/lib/hive/helpers.h>
 #include <yt/yt/server/lib/hive/hive_manager.h>
-#include <yt/yt/server/lib/hive/persistent_mailbox_state.h>
+#include <yt/yt/server/lib/hive/persistent_mailbox_state_cookie.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 #include <yt/yt/server/lib/misc/profiling_helpers.h>

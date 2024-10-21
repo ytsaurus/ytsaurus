@@ -30,7 +30,7 @@
 
 #include <yt/yt/server/lib/hive/helpers.h>
 #include <yt/yt/server/lib/hive/hive_manager.h>
-#include <yt/yt/server/lib/hive/persistent_mailbox_state.h>
+#include <yt/yt/server/lib/hive/persistent_mailbox_state_cookie.h>
 #include <yt/yt/server/lib/hive/avenue_directory.h>
 
 #include <yt/yt/server/lib/hydra/remote_changelog_store.h>
@@ -437,7 +437,7 @@ public:
     void RegisterMasterAvenue(
         TTabletId tabletId,
         TAvenueEndpointId masterEndpointId,
-        TPersistentMailboxState&& cookie) override
+        TPersistentMailboxStateCookie&& cookie) override
     {
         auto nodeEndpointId = GetSiblingAvenueEndpointId(masterEndpointId);
         auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tabletId));
@@ -451,7 +451,7 @@ public:
         hiveManager->RegisterAvenueEndpoint(nodeEndpointId, std::move(cookie));
     }
 
-    TPersistentMailboxState UnregisterMasterAvenue(
+    TPersistentMailboxStateCookie UnregisterMasterAvenue(
         TAvenueEndpointId masterEndpointId) override
     {
         auto nodeEndpointId = GetSiblingAvenueEndpointId(masterEndpointId);

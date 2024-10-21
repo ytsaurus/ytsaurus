@@ -124,7 +124,7 @@ private:
             }
 
             for (auto [cellId, version] : idToVersion) {
-                if (IsCellType(TypeFromId(cellId)) && TypeFromId(cellId) != EObjectType::ChaosCell) {
+                if (TypeFromId(cellId) == EObjectType::TabletCell) {
                     CellDirectory_->UnregisterCell(cellId);
                 }
             }

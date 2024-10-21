@@ -322,7 +322,7 @@ public:
 
     void RegisterAvenueEndpoint(
         TAvenueEndpointId selfEndpointId,
-        TPersistentMailboxState&& cookie) override
+        TPersistentMailboxStateCookie&& cookie) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
@@ -340,7 +340,9 @@ public:
         auto holder = std::make_unique<TAvenueMailbox>(otherEndpointId);
         auto* mailbox = AvenueMailboxMap_.Insert(otherEndpointId, std::move(holder));
 
-        *static_cast<TPersistentMailboxState*>(mailbox) = std::move(cookie);
+        mailbox->SetNextPersistentIncomingMessageId(cookie.NextPersistentIncomingMessageId);
+        mailbox->SetFirstInFlightOutcomingMessageId(cookie.FirstOutcomingMessageId);
+        mailbox->OutcomingMessages() = std::move(cookie.OutcomingMessages);
 
         {
             auto guard = WriterGuard(MailboxRuntimeDataMapLock_);
@@ -366,7 +368,7 @@ public:
             mailbox->GetNextPersistentIncomingMessageId());
     }
 
-    TPersistentMailboxState UnregisterAvenueEndpoint(TAvenueEndpointId selfEndpointId) override
+    TPersistentMailboxStateCookie UnregisterAvenueEndpoint(TAvenueEndpointId selfEndpointId) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
@@ -389,7 +391,11 @@ public:
 
         UpdateAvenueCellConnection(mailbox, /*cellMailbox*/ nullptr);
 
-        auto cookie = std::move(*static_cast<TPersistentMailboxState*>(mailbox));
+        TPersistentMailboxStateCookie cookie{
+            .NextPersistentIncomingMessageId = mailbox->GetNextPersistentIncomingMessageId(),
+            .FirstOutcomingMessageId = mailbox->GetFirstOutcomingMessageId(),
+            .OutcomingMessages = mailbox->OutcomingMessages(),
+        };
 
         AvenueMailboxMap_.Remove(otherEndpointId);
 
@@ -400,9 +406,9 @@ public:
             SelfCellId_,
             selfEndpointId,
             otherEndpointId,
-            cookie.GetFirstOutcomingMessageId(),
-            cookie.OutcomingMessages().size(),
-            cookie.GetNextPersistentIncomingMessageId());
+            cookie.FirstOutcomingMessageId,
+            cookie.OutcomingMessages.size(),
+            cookie.NextPersistentIncomingMessageId);
 
         return cookie;
     }
@@ -917,7 +923,7 @@ private:
                 mutationContext->CombineStateHash(messageId, mailbox->GetEndpointId());
             }
 
-            mailbox->OutcomingMessages().push_back(TPersistentMailboxState::TOutcomingMessage{
+            mailbox->OutcomingMessages().push_back(TOutcomingMessage{
                 .SerializedMessage = message,
                 .TraceContext = traceContext,
                 .Time = logicalTime
@@ -1544,7 +1550,7 @@ private:
         {
             TEndpointId SrcEndpointId;
             i64 FirstMessageId;
-            std::vector<TCellMailbox::TOutcomingMessage> MessagesToPost;
+            std::vector<TOutcomingMessage> MessagesToPost;
         };
 
         TEnvelope cellEnvelope;
