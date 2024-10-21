@@ -1,13 +1,13 @@
 #include "key_info.h"
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TKeyPairMetadata::IsValid() const noexcept
+bool TKeyPairMetadata::IsValid() const
 {
     // TODO(pavook): separate timestamp provider into interface.
-    TInstant currentTime = Now();
+    auto currentTime = Now();
 
     return ValidAfter < currentTime && currentTime < ExpiresAt;
 }
@@ -16,7 +16,7 @@ bool TKeyPairMetadata::IsValid() const noexcept
 
 bool TKeyInfo::Verify(
     std::span<const std::byte> data,
-    std::span<const std::byte, SignatureSize> signature) const noexcept
+    std::span<const std::byte, SignatureSize> signature) const
 {
     return Meta().IsValid() && crypto_sign_verify_detached(
         reinterpret_cast<const unsigned char*>(signature.data()),
@@ -34,25 +34,25 @@ TKeyInfo::TKeyInfo(const TPublicKey& key, const TKeyPairMetadata& meta) noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TPublicKey& TKeyInfo::Key() const noexcept
+const TPublicKey& TKeyInfo::Key() const
 {
     return Key_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TKeyPairMetadata& TKeyInfo::Meta() const noexcept
+const TKeyPairMetadata& TKeyInfo::Meta() const
 {
     return Meta_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-[[nodiscard]] bool TKeyInfo::operator==(const TKeyInfo& other) const noexcept
+[[nodiscard]] bool TKeyInfo::operator==(const TKeyInfo& other) const
 {
     return Key() == other.Key() && Meta() == other.Meta();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature

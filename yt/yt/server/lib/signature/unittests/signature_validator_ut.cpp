@@ -2,11 +2,11 @@
 
 #include "mock/key_store.h"
 
-#include <yt/yt/server/lib/signature_service/signature_validator.h>
+#include <yt/yt/server/lib/signature/signature_validator.h>
 
-#include <yt/yt/server/lib/signature_service/signature.h>
-#include <yt/yt/server/lib/signature_service/signature_header.h>
-#include <yt/yt/server/lib/signature_service/signature_preprocess.h>
+#include <yt/yt/server/lib/signature/signature.h>
+#include <yt/yt/server/lib/signature/signature_header.h>
+#include <yt/yt/server/lib/signature/signature_preprocess.h>
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
@@ -15,7 +15,7 @@
 
 #include <library/cpp/iterator/enumerate.h>
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,7 +27,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSignatureValidatorFixture
+struct TSignatureValidatorTest
     : public ::testing::Test
 {
     TKeyPair Key;
@@ -35,7 +35,7 @@ struct TSignatureValidatorFixture
     TSignatureValidator Validator;
     TYsonString Payload;
 
-    TSignatureValidatorFixture()
+    TSignatureValidatorTest()
         : Key(TKeyPairMetadata{
             .Owner = TOwnerId{"TMockKeyStore"},
             .Id = TKeyId{TGuid::Create()},
@@ -72,7 +72,7 @@ struct TSignatureValidatorFixture
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TSignatureValidatorFixture, ValidateGoodSignature)
+TEST_F(TSignatureValidatorTest, ValidateGoodSignature)
 {
     // Valid, not yet valid, expired.
     std::vector<TSignatureHeader> headers = {SimpleHeader(-10h, -10h, 10h), SimpleHeader(-10h, 5h, 10h), SimpleHeader(-10h, -10h, -5h)};
@@ -112,7 +112,7 @@ TEST_F(TSignatureValidatorFixture, ValidateGoodSignature)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TSignatureValidatorFixture, ValidateBadSignature)
+TEST_F(TSignatureValidatorTest, ValidateBadSignature)
 {
     TYsonString headerString = ConvertToYsonString(SimpleHeader(-10h, -10h, 10h));
 
@@ -138,7 +138,7 @@ TEST_F(TSignatureValidatorFixture, ValidateBadSignature)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TSignatureValidatorFixture, ValidateInvalidSignature)
+TEST_F(TSignatureValidatorTest, ValidateInvalidSignature)
 {
     TStringStream ss;
     TYsonWriter writer(&ss, EYsonFormat::Text);
@@ -158,4 +158,4 @@ TEST_F(TSignatureValidatorFixture, ValidateInvalidSignature)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature

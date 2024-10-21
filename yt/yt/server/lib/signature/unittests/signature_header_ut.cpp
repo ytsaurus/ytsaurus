@@ -1,10 +1,10 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/lib/signature_service/signature_header.h>
+#include <yt/yt/server/lib/signature/signature_header.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,7 +21,7 @@ constexpr TStringBuf HeaderString =
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSignatureHeader, SerializeDeserialize)
+TEST(TSignatureHeaderTest, SerializeDeserialize)
 {
     TInstant instant;
     EXPECT_TRUE(TInstant::TryParseIso8601("2024-08-09T14:44:55Z", instant));
@@ -44,7 +44,7 @@ TEST(TSignatureHeader, SerializeDeserialize)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSignatureHeader, DeserializeErrors)
+TEST(TSignatureHeaderTest, DeserializeErrors)
 {
     EXPECT_THROW_WITH_SUBSTRING(
         ConvertTo<TSignatureHeader>(TYsonString("[]"_sb)),
@@ -71,4 +71,4 @@ TEST(TSignatureHeader, DeserializeErrors)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature

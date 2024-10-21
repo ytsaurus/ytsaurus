@@ -1,12 +1,13 @@
 #include "signature_validator.h"
 
+#include "private.h"
 #include "signature.h"
 #include "signature_preprocess.h"
 #include "signature_header.h"
 
 #include <yt/yt/core/ytree/convert.h>
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,7 +18,6 @@ using namespace NYTree;
 
 TSignatureValidator::TSignatureValidator(IKeyStoreReader* store)
     : Store_(store)
-    , Logger("SignatureValidator")
 {
     InitializeCryptography();
     YT_LOG_INFO("Signature validator initialized");
@@ -27,10 +27,10 @@ TSignatureValidator::TSignatureValidator(IKeyStoreReader* store)
 
 namespace {
 
-struct MetadataCheckVisitor
+struct TMetadataCheckVisitor
 {
     bool operator()(
-        const TSignatureHeaderImpl<TSignatureVersion{0, 1}>& header) const noexcept
+        const TSignatureHeaderImpl<TSignatureVersion{0, 1}>& header) const
     {
         auto now = Now();
 
@@ -61,7 +61,7 @@ TFuture<bool> TSignatureValidator::Validate(TSignaturePtr signature)
         header);
 
     return Store_->GetKey(keyIssuer, keyId).Apply(
-        BIND([this, keyIssuer, keyId, signatureId, header = std::move(header), signature] (TKeyInfoPtr key) {
+        BIND([keyIssuer, keyId, signatureId, header = std::move(header), signature] (TKeyInfoPtr key) {
             if (!key) {
                 YT_LOG_DEBUG(
                     "Key not found (SignatureId: %v, Issuer: %v, KeyPair: %v)",
@@ -78,7 +78,7 @@ TFuture<bool> TSignatureValidator::Validate(TSignaturePtr signature)
                 return false;
             }
 
-            if (!std::visit(MetadataCheckVisitor{}, header)) {
+            if (!std::visit(TMetadataCheckVisitor{}, header)) {
                 YT_LOG_DEBUG("Metadata check failed (SignatureId: %v)", signatureId);
                 return false;
             }
@@ -90,4 +90,4 @@ TFuture<bool> TSignatureValidator::Validate(TSignaturePtr signature)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature

@@ -4,9 +4,9 @@
 
 #include <yt/yt/core/yson/string.h>
 
-#include "yt/yt/core/ytree/convert.h"
+#include <yt/yt/core/ytree/convert.h>
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,7 +17,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct PreprocessVisitor
+struct TPreprocessVisitor
 {
     TStringBuf Header;
     TStringBuf Payload;
@@ -26,9 +26,12 @@ struct PreprocessVisitor
         const TSignatureHeaderImpl<TSignatureVersion{0, 1}>& /*header*/) const
     {
         std::vector<std::byte> result;
-        auto it = std::ranges::copy(std::as_bytes(std::span(Header)), std::back_inserter(result));
-        *it.out = std::byte{'\0'};
-        std::ranges::copy(std::as_bytes(std::span(Payload)), ++it.out);
+        auto headerBytes = std::as_bytes(std::span(Header));
+        auto payloadBytes = std::as_bytes(std::span(Payload));
+        result.reserve(headerBytes.size() + 1 + payloadBytes.size());
+        auto it = std::copy(headerBytes.begin(), headerBytes.end(), std::back_inserter(result));
+        *it = std::byte{'\0'};
+        std::copy(payloadBytes.begin(), payloadBytes.end(), ++it);
         return result;
     }
 };
@@ -42,10 +45,10 @@ std::vector<std::byte> PreprocessSignature(
     const TYsonString& payload)
 {
     return std::visit(
-        PreprocessVisitor{header.AsStringBuf(), payload.AsStringBuf()},
+        TPreprocessVisitor{header.AsStringBuf(), payload.AsStringBuf()},
         ConvertTo<TSignatureHeader>(header));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature

@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +26,7 @@ void BuildHeader(const TSignatureHeaderImpl<TSignatureVersion{0, 1}>& header, TF
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct SerializeVisitor
+struct TSerializeVisitor
 {
     IYsonConsumer* const Consumer;
 
@@ -49,7 +49,7 @@ TString GetVersion(NYTree::INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct DeserializeVisitor
+struct TDeserializeVisitor
 {
     IMapNodePtr MapNode;
 
@@ -72,7 +72,7 @@ struct DeserializeVisitor
 
 void Serialize(const TSignatureHeader& header, IYsonConsumer* consumer)
 {
-    std::visit(SerializeVisitor{consumer}, header);
+    std::visit(TSerializeVisitor{consumer}, header);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,7 +87,7 @@ void Deserialize(TSignatureHeader& header, INodePtr node)
             << TErrorAttribute("version", version);
     }
 
-    std::visit(DeserializeVisitor{node->AsMap()}, header);
+    std::visit(TDeserializeVisitor{node->AsMap()}, header);
 }
 
 void Deserialize(TSignatureHeader& header, TYsonPullParserCursor* cursor)
@@ -97,4 +97,4 @@ void Deserialize(TSignatureHeader& header, TYsonPullParserCursor* cursor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature

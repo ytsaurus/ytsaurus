@@ -11,7 +11,7 @@
 
 #include <util/datetime/base.h>
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,7 +20,7 @@ struct TSignatureVersion
     int Major;
     int Minor;
 
-    [[nodiscard]] constexpr bool operator==(const TSignatureVersion& other) const noexcept = default;
+    [[nodiscard]] constexpr bool operator==(const TSignatureVersion& other) const = default;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,7 +35,7 @@ struct TSignatureHeaderImpl;
 template <>
 struct TSignatureHeaderImpl<TSignatureVersion{0, 1}>
 {
-    TString Issuer;
+    std::string Issuer;
     TGuid KeypairId;
     TGuid SignatureId;
     TInstant IssuedAt;
@@ -44,7 +44,7 @@ struct TSignatureHeaderImpl<TSignatureVersion{0, 1}>
 
     constexpr static bool IsDeprecated = false;
 
-    [[nodiscard]] bool operator==(const TSignatureHeaderImpl& other) const noexcept = default;
+    [[nodiscard]] bool operator==(const TSignatureHeaderImpl& other) const = default;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,12 +65,14 @@ void Deserialize(TSignatureHeader& header, NYson::TYsonPullParserCursor* cursor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature
 
 namespace NYT::NYson {
 
+////////////////////////////////////////////////////////////////////////////////
+
 template <>
-struct TYsonFormatTraits<NSignatureService::TSignatureHeader>
+struct TYsonFormatTraits<NSignature::TSignatureHeader>
     : public TYsonTextFormatTraits
 { };
 

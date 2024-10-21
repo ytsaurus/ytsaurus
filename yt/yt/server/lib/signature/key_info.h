@@ -4,7 +4,9 @@
 
 #include "crypto.h"
 
-namespace NYT::NSignatureService {
+#include <span>
+
+namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,9 +18,9 @@ struct TKeyPairMetadata
     TInstant ValidAfter;
     TInstant ExpiresAt;
 
-    [[nodiscard]] bool IsValid() const noexcept;
+    [[nodiscard]] bool IsValid() const;
 
-    [[nodiscard]] bool operator==(const TKeyPairMetadata& other) const noexcept = default;
+    [[nodiscard]] bool operator==(const TKeyPairMetadata& other) const = default;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,8 +29,7 @@ using TPublicKey = std::array<std::byte, PublicKeySize>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TKeyInfo
-    : public TRefCounted
+class TKeyInfo final
 {
 public:
     TKeyInfo() noexcept = default;
@@ -37,21 +38,21 @@ public:
 
     [[nodiscard]] bool Verify(
         std::span<const std::byte> data,
-        std::span<const std::byte, SignatureSize> signature) const noexcept;
+        std::span<const std::byte, SignatureSize> signature) const;
 
-    [[nodiscard]] bool operator==(const TKeyInfo& other) const noexcept;
+    [[nodiscard]] bool operator==(const TKeyInfo& other) const;
 
-    [[nodiscard]] const TPublicKey& Key() const noexcept;
+    [[nodiscard]] const TPublicKey& Key() const;
 
-    [[nodiscard]] const TKeyPairMetadata& Meta() const noexcept;
+    [[nodiscard]] const TKeyPairMetadata& Meta() const;
 
 private:
-    TPublicKey Key_;
-    TKeyPairMetadata Meta_;
+    TPublicKey const Key_;
+    TKeyPairMetadata const Meta_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TKeyInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature

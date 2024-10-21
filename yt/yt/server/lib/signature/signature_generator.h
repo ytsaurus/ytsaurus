@@ -7,7 +7,7 @@
 
 #include <yt/yt/core/yson/public.h>
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,18 +26,18 @@ public:
     // TODO(pavook) futurize?
     [[nodiscard]] TSignaturePtr Sign(NYson::TYsonString&& payload) const;
 
-    [[nodiscard]] const TKeyInfo& KeyInfo() const noexcept;
+    [[nodiscard]] const TKeyInfo& KeyInfo() const;
 
     TFuture<void> Rotate();
 
 private:
     IKeyStoreWriter* const Store_;
-    TOwnerId Owner_;
+    const TOwnerId Owner_;
+
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, KeyPairLock_);
     std::optional<TKeyPair> KeyPair_;
-    const NLogging::TLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature

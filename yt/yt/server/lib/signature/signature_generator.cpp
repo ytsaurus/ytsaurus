@@ -1,12 +1,13 @@
 #include "signature_generator.h"
 
+#include "private.h"
 #include "signature.h"
 #include "signature_header.h"
 #include "signature_preprocess.h"
 
 #include <yt/yt/core/misc/error.h>
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,10 +21,9 @@ using namespace std::chrono_literals;
 TSignatureGenerator::TSignatureGenerator(IKeyStoreWriter* keyStore)
     : Store_(keyStore)
     , Owner_(Store_->GetOwner())
-    , Logger(TLogger("SignatureGenerator").WithTag("Owner: %v", Owner_))
 {
     InitializeCryptography();
-    YT_LOG_INFO("Signature generator initialized");
+    YT_LOG_INFO("Signature generator initialized (Owner: %v)", Owner_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,7 +40,8 @@ TFuture<void> TSignatureGenerator::Rotate()
         .Id = TKeyId{TGuid::Create()},
         .CreatedAt = now,
         .ValidAfter = now - TimeSyncMargin,
-        .ExpiresAt = now + KeyExpirationTime});
+        .ExpiresAt = now + KeyExpirationTime,
+    });
 
     return Store_->RegisterKey(newKeyPair.KeyInfo()).Apply(
         BIND([this, keyPair = std::move(newKeyPair)] () mutable {
@@ -54,7 +55,7 @@ TFuture<void> TSignatureGenerator::Rotate()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-[[nodiscard]] const TKeyInfo& TSignatureGenerator::KeyInfo() const noexcept
+[[nodiscard]] const TKeyInfo& TSignatureGenerator::KeyInfo() const
 {
     YT_VERIFY(KeyPair_);
     return KeyPair_->KeyInfo();
@@ -115,4 +116,4 @@ TFuture<void> TSignatureGenerator::Rotate()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature

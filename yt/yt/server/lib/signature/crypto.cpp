@@ -4,7 +4,7 @@
 
 #include <contrib/libs/libsodium/include/sodium.h>
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,4 +33,4 @@ void InitializeCryptography()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature

@@ -1,12 +1,12 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/lib/signature_service/key_pair.h>
+#include <yt/yt/server/lib/signature/key_pair.h>
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <random>
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,24 +34,23 @@ TKeyPairMetadata SimpleMetadata(auto createdDelta, auto validAfterDelta, auto ex
 
 struct TRandomByteGenerator
 {
-    std::mt19937 rnd;
+    std::mt19937 Rnd;
 
     TRandomByteGenerator() = default;
 
-    TRandomByteGenerator(auto seedValue)
-        : rnd(seedValue)
-    {
-    }
+    explicit TRandomByteGenerator(auto seedValue)
+        : Rnd(seedValue)
+    { }
 
     std::byte operator()()
     {
-        return static_cast<std::byte>(rnd());
+        return static_cast<std::byte>(Rnd());
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TKeyPairMetadata, IsValid)
+TEST(TKeyPairMetadataTest, IsValid)
 {
     {
         auto metaOk = SimpleMetadata(-10h, -10h, 10h);
@@ -71,7 +70,7 @@ TEST(TKeyPairMetadata, IsValid)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TKeyInfo, Verify)
+TEST(TKeyInfoTest, Verify)
 {
     InitializeCryptography();
 
@@ -79,16 +78,16 @@ TEST(TKeyInfo, Verify)
     EXPECT_TRUE(metaOk.IsValid());
 
     std::array<std::byte, 10> randomData;
-    std::ranges::generate(randomData, TRandomByteGenerator());
+    std::generate(randomData.begin(), randomData.end(), TRandomByteGenerator());
 
     TPublicKey publicKey;
     std::array<std::byte, SignatureSize> signature;
 
     // Random key, random signature, valid meta.
     {
-        std::ranges::generate(publicKey, TRandomByteGenerator());
+        std::generate(publicKey.begin(), publicKey.end(), TRandomByteGenerator());
 
-        std::ranges::generate(signature, TRandomByteGenerator());
+        std::generate(signature.begin(), signature.end(), TRandomByteGenerator());
 
         auto keyInfo = New<TKeyInfo>(publicKey, metaOk);
         EXPECT_FALSE(keyInfo->Verify(randomData, signature));
@@ -130,7 +129,7 @@ TEST(TKeyInfo, Verify)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TKeyPair, Construct)
+TEST(TKeyPairTest, Construct)
 {
     EXPECT_FALSE(std::copy_constructible<TKeyPair>);
     EXPECT_TRUE(std::move_constructible<TKeyPair>);
@@ -141,12 +140,12 @@ TEST(TKeyPair, Construct)
     TKeyPair keyPair(metaOk);
 
     EXPECT_EQ(keyPair.KeyInfo().Meta().Id, metaOk.Id);
-    EXPECT_TRUE(keyPair.SanityCheck());
+    EXPECT_TRUE(keyPair.CheckSanity());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TKeyPair, Sign)
+TEST(TKeyPairTest, Sign)
 {
     InitializeCryptography();
 
@@ -154,7 +153,7 @@ TEST(TKeyPair, Sign)
     TKeyPair keyPair(metaOk);
 
     std::array<std::byte, 1234> randomData;
-    std::ranges::generate(randomData, TRandomByteGenerator());
+    std::generate(randomData.begin(), randomData.end(), TRandomByteGenerator());
 
     std::array<std::byte, SignatureSize> signature;
     keyPair.Sign(randomData, signature);
@@ -165,4 +164,4 @@ TEST(TKeyPair, Sign)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature

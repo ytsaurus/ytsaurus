@@ -17,8 +17,8 @@ INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/yt/core/test_framework
-    yt/yt/server/lib/signature_service
-    yt/yt/server/lib/signature_service/unittests/mock
+    yt/yt/server/lib/signature
+    yt/yt/server/lib/signature/unittests/mock
 )
 
 SIZE(SMALL)

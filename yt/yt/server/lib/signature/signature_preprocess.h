@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/yson/public.h>
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,4 +12,4 @@ namespace NYT::NSignatureService {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature

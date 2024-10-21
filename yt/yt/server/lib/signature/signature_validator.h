@@ -4,7 +4,7 @@
 
 #include "key_store.h"
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,9 +17,8 @@ public:
 
 private:
     IKeyStoreReader* const Store_;
-    const NLogging::TLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature

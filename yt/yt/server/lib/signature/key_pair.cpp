@@ -4,7 +4,7 @@
 
 #include <contrib/libs/libsodium/include/sodium.h>
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,7 +51,7 @@ void TKeyPair::Sign(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TKeyPair::SanityCheck() const
+bool TKeyPair::CheckSanity() const
 {
     TPublicKey extractedPublicKey;
     int res = crypto_sign_ed25519_sk_to_pk(
@@ -62,4 +62,4 @@ bool TKeyPair::SanityCheck() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature

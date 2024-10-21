@@ -10,7 +10,7 @@
 
 #include <array>
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,7 +18,7 @@ class TSignature
     : public TRefCounted
 {
 public:
-    [[nodiscard]] const NYson::TYsonString& Payload() const noexcept;
+    [[nodiscard]] const NYson::TYsonString& Payload() const;
 
 private:
     NYson::TYsonString Header_;
@@ -37,4 +37,4 @@ DEFINE_REFCOUNTED_TYPE(TSignature)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature

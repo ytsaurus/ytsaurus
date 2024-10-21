@@ -1,6 +1,6 @@
 #include "key_store.h"
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,15 +25,15 @@ TFuture<TKeyInfoPtr> TMockKeyStore::GetKey(const TOwnerId& owner, const TKeyId& 
     if (ownerIt == Data.end()) {
         return MakeFuture(TKeyInfoPtr());
     }
-    auto it = std::ranges::find(
-        ownerIt->second,
-        keyId,
-        [ ](TKeyInfoPtr keyInfo) {
-            return keyInfo->Meta().Id;
+    auto it = std::find_if(
+        ownerIt->second.begin(),
+        ownerIt->second.end(),
+        [&keyId](TKeyInfoPtr keyInfo) {
+            return keyInfo->Meta().Id == keyId;
         });
     return MakeFuture(it != ownerIt->second.end() ? *it : TKeyInfoPtr());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature

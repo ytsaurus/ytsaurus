@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/yt/server/lib/signature_service/key_store.h>
+#include <yt/yt/server/lib/signature/key_store.h>
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,10 +17,8 @@ struct TMockKeyStore
     TFuture<TKeyInfoPtr> GetKey(const TOwnerId& owner, const TKeyId& keyId) override;
 
     TFuture<void> RegisterKey(const TKeyInfo& keyInfo) override;
-
-    ~TMockKeyStore() override = default;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature

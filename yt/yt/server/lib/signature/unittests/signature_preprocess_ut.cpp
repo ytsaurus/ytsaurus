@@ -1,12 +1,12 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/lib/signature_service/signature_preprocess.h>
+#include <yt/yt/server/lib/signature/signature_preprocess.h>
 
-#include <yt/yt/server/lib/signature_service/signature_header.h>
+#include <yt/yt/server/lib/signature/signature_header.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,7 +15,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(SignatureService, PreprocessSignature)
+TEST(SignaturePreprocessTest, Basic)
 {
     EXPECT_THROW_WITH_SUBSTRING(
         std::ignore = PreprocessSignature(TYsonString("header"_sb), TYsonString("payload"_sb)),
@@ -44,4 +44,4 @@ TEST(SignatureService, PreprocessSignature)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature

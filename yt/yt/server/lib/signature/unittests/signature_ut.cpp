@@ -1,12 +1,12 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/lib/signature_service/signature.h>
+#include <yt/yt/server/lib/signature/signature.h>
 
 #include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,7 +16,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSignature, DeserializeSerialize)
+TEST(TSignatureTest, DeserializeSerialize)
 {
     // SignatureSize bytes.
     TYsonString ysonOK(
@@ -34,7 +34,7 @@ TEST(TSignature, DeserializeSerialize)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSignature, DeserializeFail)
+TEST(TSignatureTest, DeserializeFail)
 {
     {
         TYsonString ysonFail(
@@ -53,4 +53,4 @@ TEST(TSignature, DeserializeFail)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature

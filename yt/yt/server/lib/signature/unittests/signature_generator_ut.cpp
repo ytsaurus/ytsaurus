@@ -2,17 +2,17 @@
 
 #include "mock/key_store.h"
 
-#include <yt/yt/server/lib/signature_service/signature_generator.h>
+#include <yt/yt/server/lib/signature/signature_generator.h>
 
-#include <yt/yt/server/lib/signature_service/signature.h>
-#include <yt/yt/server/lib/signature_service/signature_header.h>
-#include <yt/yt/server/lib/signature_service/signature_preprocess.h>
+#include <yt/yt/server/lib/signature/signature.h>
+#include <yt/yt/server/lib/signature/signature_header.h>
+#include <yt/yt/server/lib/signature/signature_preprocess.h>
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,7 +24,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSignatureGenerator, Rotate)
+TEST(TSignatureGeneratorTest, Rotate)
 {
     TMockKeyStore store;
     TSignatureGenerator gen(&store);
@@ -42,7 +42,7 @@ TEST(TSignatureGenerator, Rotate)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSignatureGenerator, SimpleSign)
+TEST(TSignatureGeneratorTest, SimpleSign)
 {
     TMockKeyStore store;
 
@@ -84,7 +84,7 @@ TEST(TSignatureGenerator, SimpleSign)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSignatureGenerator, UninitializedSign)
+TEST(TSignatureGeneratorTest, UninitializedSign)
 {
     TMockKeyStore store;
 
@@ -98,4 +98,4 @@ TEST(TSignatureGenerator, UninitializedSign)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature

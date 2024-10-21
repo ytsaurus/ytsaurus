@@ -4,11 +4,13 @@
 
 #include "key_info.h"
 
+#include <library/cpp/yt/memory/intrusive_ptr.h>
+
 #include <library/cpp/string_utils/secret_string/secret_string.h>
 
 #include <span>
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +32,7 @@ public:
         std::span<std::byte, SignatureSize> signature) const;
 
     //! Checks that private key matches the public key.
-    [[nodiscard]] bool SanityCheck() const;
+    [[nodiscard]] bool CheckSanity() const;
 
 private:
     TKeyInfoPtr KeyInfo_;
@@ -39,9 +41,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB(pavook) this prefix should be pruned from all logs and core dumps.
-constexpr TStringBuf PrivateKeyPrefix = "!YT-PRIVATE!";
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature

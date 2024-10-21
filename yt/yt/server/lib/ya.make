@@ -60,7 +60,7 @@ RECURSE(
     security_server
     shell
     shuffle_server
-    signature_service
+    signature
     squash_fs
     state_checker
     table_server

@@ -5,7 +5,7 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/convert.h>
 
-namespace NYT::NSignatureService {
+namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,7 +14,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TYsonString& TSignature::Payload() const noexcept
+const TYsonString& TSignature::Payload() const
 {
     return Payload_;
 }
@@ -26,7 +26,7 @@ void Serialize(const TSignature& signature, IYsonConsumer* consumer)
     consumer->OnBeginMap();
     BuildYsonMapFragmentFluently(consumer)
         .Item("header").Value(signature.Header_.ToString())
-        .Item("payload").Value(signature.Payload().ToString())
+        .Item("payload").Value(signature.Payload_.ToString())
         .Item("signature").Value(TString(
             reinterpret_cast<const char*>(signature.Signature_.data()),
             signature.Signature_.size()));
@@ -49,9 +49,7 @@ void Deserialize(TSignature& signature, INodePtr node)
             << TErrorAttribute("expected", SignatureSize);
     }
 
-    std::ranges::copy(
-        signatureBytes.template first<SignatureSize>(),
-        signature.Signature_.begin());
+    std::copy(signatureBytes.begin(), signatureBytes.end(), signature.Signature_.begin());
 }
 
 void Deserialize(TSignature& signature, TYsonPullParserCursor* cursor)
@@ -61,4 +59,4 @@ void Deserialize(TSignature& signature, TYsonPullParserCursor* cursor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSignatureService
+} // namespace NYT::NSignature
