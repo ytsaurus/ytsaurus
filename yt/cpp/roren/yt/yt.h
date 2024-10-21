@@ -71,7 +71,7 @@ TYtWriteTransform YtWrite(const NYT::TRichYPath& path, const NYT::TTableSchema& 
 ////////////////////////////////////////////////////////////////////////////////
 
 ///
-/// @breif Write sorte YT table
+/// @brief Write sorte YT table
 ///
 /// PCollection will be saved to specified table and sort operation invoked if required
 TYtSortedWriteTransform YtSortedWrite(

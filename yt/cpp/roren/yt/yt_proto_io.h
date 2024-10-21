@@ -1,7 +1,8 @@
 #pragma once
 
+#include "yt_io_private.h"
+
 #include <yt/cpp/roren/yt/proto/kv.pb.h>
-#include <yt/cpp/roren/yt/yt_io_private.h>
 
 #include <yt/cpp/mapreduce/io/job_writer.h>
 #include <yt/cpp/mapreduce/io/proto_table_reader.h>
@@ -264,8 +265,9 @@ class TRawYtProtoSortedWrite
     : public IRawYtSortedWrite
 {
 public:
-    TRawYtProtoSortedWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema, NYT::TSortColumns columnsToSort, bool uniqueKeys)
-        : IRawYtSortedWrite(std::move(path), std::move(tableSchema)), ColumnsToSort_(std::move(columnsToSort)), UniqueKeys_(uniqueKeys)
+    TRawYtProtoSortedWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema)
+        : IRawYtSortedWrite(std::move(path), ToUnsortedSchema(tableSchema))
+        , SortedSchema_(std::move(tableSchema))
     {
         NPrivate::SetAttribute(
             *this,
@@ -289,14 +291,14 @@ public:
         );
     }
 
-    const NYT::TSortColumns& GetColumnsToSort() const override
+    NYT::TSortColumns GetColumnsToSort() const override
     {
-        return ColumnsToSort_;
+        return GetSortColumns(SortedSchema_);
     }
 
-    void FillSchema(NYT::TTableSchema& schema) const override
+    NYT::TTableSchema GetSortedSchema() const override
     {
-        FillSchemaFromSortColumns(schema, ColumnsToSort_, UniqueKeys_);
+        return SortedSchema_;
     }
 
     IYtJobOutputPtr CreateJobOutput(int) const override
@@ -320,9 +322,7 @@ public:
         return [] () -> IRawWritePtr {
             return ::MakeIntrusive<TRawYtProtoSortedWrite<TMessage>>(
                 NYT::TRichYPath{},
-                NYT::TTableSchema{},
-                NYT::TSortColumns{},
-                false
+                NYT::TTableSchema{}
             );
         };
     }
@@ -338,8 +338,7 @@ public:
     }
 
 private:
-    NYT::TSortColumns ColumnsToSort_;
-    bool UniqueKeys_;
+    NYT::TTableSchema SortedSchema_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -413,9 +412,9 @@ IRawYtWritePtr MakeYtProtoWrite(NYT::TRichYPath path, NYT::TTableSchema tableSch
 }
 
 template <class TMessage>
-IRawYtWritePtr MakeYtProtoSortedWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema, NYT::TSortColumns columnsToSort, bool uniqueKeys)
+IRawYtWritePtr MakeYtProtoSortedWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema)
 {
-    return ::MakeIntrusive<TRawYtProtoSortedWrite<TMessage>>(std::move(path), std::move(tableSchema), std::move(columnsToSort), uniqueKeys);
+    return ::MakeIntrusive<TRawYtProtoSortedWrite<TMessage>>(std::move(path), std::move(tableSchema));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

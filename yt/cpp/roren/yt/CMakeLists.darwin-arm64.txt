@@ -46,6 +46,5 @@ target_sources(cpp-roren-yt PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/yt_io_private.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/yt_graph_v2.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/yt_proto_io.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/yt_write.cpp
 )
 

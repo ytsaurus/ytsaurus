@@ -61,15 +61,9 @@ class TYtSortedWriteTransform
     : public NPrivate::TAttributes
 {
 public:
-    TYtSortedWriteTransform(
-        const NYT::TRichYPath& path,
-        const NYT::TTableSchema& schema,
-        const NYT::TSortColumns& columnsToSort,
-        bool uniqueKeys)
+    TYtSortedWriteTransform(const NYT::TRichYPath& path, const NYT::TTableSchema& schema)
         : Path_(path)
         , Schema_(schema)
-        , ColumnsToSort_(columnsToSort)
-        , UniqueKeys_(uniqueKeys)
     { }
 
     TString GetName() const
@@ -93,9 +87,9 @@ private:
     NPrivate::IRawYtWritePtr  CreateSortedWrite() const
     {
         if constexpr (std::is_same_v<TInputRow, NYT::TNode>) {
-            return NPrivate::MakeYtNodeSortedWrite(Path_, Schema_, ColumnsToSort_, UniqueKeys_);
+            return NPrivate::MakeYtNodeSortedWrite(Path_, Schema_);
         } else if constexpr (std::is_base_of_v<::google::protobuf::Message, TInputRow>) {
-            return NPrivate::MakeYtProtoSortedWrite<TInputRow>(Path_, Schema_, ColumnsToSort_, UniqueKeys_);
+            return NPrivate::MakeYtProtoSortedWrite<TInputRow>(Path_, Schema_);
         } else {
             static_assert(TDependentFalse<TInputRow>, "unknown YT writer");
         }
@@ -104,8 +98,6 @@ private:
 private:
     const NYT::TRichYPath Path_;
     const NYT::TTableSchema Schema_;
-    const NYT::TSortColumns ColumnsToSort_;
-    const bool UniqueKeys_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
