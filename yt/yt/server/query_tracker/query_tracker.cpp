@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "engine.h"
+#include "profiler.h"
 #include "ql_engine.h"
 #include "yql_engine.h"
 #include "chyt_engine.h"
@@ -214,7 +215,7 @@ private:
             // TODO(max42): select as little fields as possible; lookup full row in TryAcquireQuery instead.
             // Select queries with expired leases.
             auto selectQuery = Format(
-                "[query_id], [incarnation], [assigned_tracker], [lease_transaction_id], [engine], [user], [query], [settings], [files] from [%v]",
+                "[query_id], [incarnation], [assigned_tracker], [lease_transaction_id], [engine], [state], [user], [query], [settings], [files] from [%v]",
                 StateRoot_ + "/active_queries");
             auto selectResult = WaitFor(StateClient_->SelectRows(selectQuery))
                 .ValueOrThrow();
@@ -239,6 +240,28 @@ private:
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error while getting alive lease transactions for active queries");
             return;
+        }
+
+        // Save profile counters.
+        THashMap<TProfilingTags, int> counts;
+
+        LeakySingleton<TActiveQueriesProfilingCountersMap>()->Flush();
+        LeakySingleton<TActiveQueriesProfilingCountersMap>()->IterateReadOnly([&](const TProfilingTags& tags, const TActiveQueriesProfilingCounter&) {
+            counts[tags] = 0;
+        });
+        for (const auto& record : queryRecords) {
+            auto tags = TProfilingTags{
+                .State = record.State,
+                .Engine = record.Engine,
+                .AssignedTracker = record.AssignedTracker.value_or(NoneQueryTracker),
+            };
+            counts[tags]++;
+        }
+        for (const auto&[tags, count] : counts) {
+            auto& activeQueriesCounter = GetOrCreateProfilingCounter<TActiveQueriesProfilingCounter>(
+                QueryTrackerProfilerGlobal,
+                tags)->ActiveQueries;
+            activeQueriesCounter.Update(count);
         }
 
         std::vector<TActiveQuery> orphanedQueries;
@@ -576,7 +599,7 @@ private:
                 // We must copy all fields of active query except for incarnation, ping time, assigned query and abort request
                 // (which do not matter for finished query) and filter factors field (which goes to finished_queries_by_start_time,
                 // finished_queries_by_user_and_start_time, finished_queries_by_aco_and_start_time tables).
-                static_assert(TActiveQueryDescriptor::FieldCount == 19 && TFinishedQueryDescriptor::FieldCount == 14);
+                static_assert(TActiveQueryDescriptor::FieldCount == 20 && TFinishedQueryDescriptor::FieldCount == 14);
                 TFinishedQuery newRecord{
                     .Key = TFinishedQueryKey{.QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
@@ -603,7 +626,7 @@ private:
             }
 
             {
-                static_assert(TActiveQueryDescriptor::FieldCount == 19 && TFinishedQueryByStartTimeDescriptor::FieldCount == 7);
+                static_assert(TActiveQueryDescriptor::FieldCount == 20 && TFinishedQueryByStartTimeDescriptor::FieldCount == 7);
                 TFinishedQueryByStartTime newRecord{
                     .Key = TFinishedQueryByStartTimeKey{.MinusStartTime = -i64(activeQueryRecord->StartTime.MicroSeconds()), .QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
@@ -622,7 +645,7 @@ private:
             }
 
             {
-                static_assert(TActiveQueryDescriptor::FieldCount == 19 && TFinishedQueryByUserAndStartTimeDescriptor::FieldCount == 6);
+                static_assert(TActiveQueryDescriptor::FieldCount == 20 && TFinishedQueryByUserAndStartTimeDescriptor::FieldCount == 6);
                 TFinishedQueryByUserAndStartTime newRecord{
                     .Key = TFinishedQueryByUserAndStartTimeKey{.User = activeQueryRecord->User, .MinusStartTime = -i64(activeQueryRecord->StartTime.MicroSeconds()), .QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
@@ -639,7 +662,7 @@ private:
             }
 
             {
-                static_assert(TActiveQueryDescriptor::FieldCount == 19 && TFinishedQueryByAcoAndStartTimeDescriptor::FieldCount == 7);
+                static_assert(TActiveQueryDescriptor::FieldCount == 20 && TFinishedQueryByAcoAndStartTimeDescriptor::FieldCount == 7);
 
                 auto accessControlObjects = activeQueryRecord->AccessControlObjects ? ConvertTo<std::vector<TString>>(activeQueryRecord->AccessControlObjects) : std::vector<TString>{};
                 if (!accessControlObjects.empty()) {
@@ -667,6 +690,21 @@ private:
                 YT_LOG_ERROR(commitResultOrError, "Failed to finish query, backing off");
                 return true;
             }
+
+            // Save profile counter.
+            auto tags = TProfilingTags{
+                .State = activeQueryRecord->State,
+                .Engine = activeQueryRecord->Engine,
+                .AssignedTracker = activeQueryRecord->AssignedTracker.value_or(NoneQueryTracker),
+            };
+            {
+                auto& stateTimeGauge = GetOrCreateProfilingCounter<TStateTimeProfilingCounter>(
+                    QueryTrackerProfiler,
+                    tags)->StateTime;
+                auto now = TInstant::Now();
+                stateTimeGauge.Update(now - activeQueryRecord->FinishTime.value());
+            }
+
             YT_LOG_INFO("Query finished (CommitTimestamp: %v)", commitResultOrError.Value().PrimaryCommitTimestamp);
             return false;
         } catch (const std::exception& ex) {
