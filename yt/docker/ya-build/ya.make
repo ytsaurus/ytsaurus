@@ -1,6 +1,7 @@
 RECURSE(
     base
     chyt
+    local
     query-tracker
     strawberry
     ytsaurus
