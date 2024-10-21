@@ -4,7 +4,7 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TPersistentMailboxState
+message TPersistentMailboxStateCookie
 {
     message TSerializedMessage
     {

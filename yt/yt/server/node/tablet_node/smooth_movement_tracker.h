@@ -45,9 +45,9 @@ struct ISmoothMovementTrackerHost
     virtual void RegisterMasterAvenue(
         TTabletId tabletId,
         NHiveServer::TAvenueEndpointId masterEndpointId,
-        NHiveServer::TPersistentMailboxState&& cookie) = 0;
+        NHiveServer::TPersistentMailboxStateCookie&& cookie) = 0;
 
-    virtual NHiveServer::TPersistentMailboxState UnregisterMasterAvenue(
+    virtual NHiveServer::TPersistentMailboxStateCookie UnregisterMasterAvenue(
         NHiveServer::TAvenueEndpointId masterEndpointId) = 0;
 
     virtual TTablet* GetTabletOrThrow(TTabletId id) = 0;

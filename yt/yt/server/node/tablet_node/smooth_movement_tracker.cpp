@@ -11,7 +11,7 @@
 
 #include <yt/yt/server/lib/hive/helpers.h>
 #include <yt/yt/server/lib/hive/hive_manager.h>
-#include <yt/yt/server/lib/hive/persistent_mailbox_state.h>
+#include <yt/yt/server/lib/hive/persistent_mailbox_state_cookie.h>
 
 namespace NYT::NTabletNode {
 
@@ -376,13 +376,13 @@ private:
         }
 
         auto masterEndpointId = FromProto<TAvenueEndpointId>(request->master_avenue_endpoint_id());
-        auto mailboxCookie = FromProto<TPersistentMailboxState>(request->master_mailbox_cookie());
+        auto mailboxCookie = FromProto<TPersistentMailboxStateCookie>(request->master_mailbox_cookie());
 
         YT_LOG_DEBUG("Got servant switch request (%v, MasterAvenueEndpointId: %v, "
             "FirstOutcomingMessageId: %v)",
             tablet->GetLoggingTag(),
             masterEndpointId,
-            mailboxCookie.GetFirstOutcomingMessageId());
+            mailboxCookie.FirstOutcomingMessageId);
 
         tablet->SetMasterAvenueEndpointId(masterEndpointId);
         Host_->RegisterMasterAvenue(tabletId, masterEndpointId, std::move(mailboxCookie));

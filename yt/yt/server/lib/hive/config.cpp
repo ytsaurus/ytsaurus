@@ -16,6 +16,8 @@ void TLogicalTimeRegistryConfig::Register(TRegistrar registrar)
 
 void THiveManagerConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("use_new", &TThis::UseNew)
+        .Default(false);
     registrar.Parameter("ping_period", &TThis::PingPeriod)
         .Default(TDuration::Seconds(15));
     registrar.Parameter("idle_post_period", &TThis::IdlePostPeriod)
@@ -38,6 +40,8 @@ void THiveManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::MilliSeconds(10));
     registrar.Parameter("sync_timeout", &TThis::SyncTimeout)
         .Default(TDuration::Seconds(30));
+    registrar.Parameter("read_only_check_period", &TThis::ReadOnlyCheckPeriod)
+        .Default(TDuration::Seconds(3));
     registrar.Parameter("logical_time_registry", &TThis::LogicalTimeRegistry)
         .DefaultNew();
 }

@@ -509,7 +509,7 @@ message TReqSwitchServant
     required NYT.NProto.TGuid tablet_id = 1;
     required uint64 mount_revision = 2;
     required NYT.NProto.TGuid master_avenue_endpoint_id = 3;
-    required NYT.NHiveServer.NProto.TPersistentMailboxState master_mailbox_cookie = 4;
+    required NYT.NHiveServer.NProto.TPersistentMailboxStateCookie master_mailbox_cookie = 4;
 }
 
 message TReqAbortSmoothMovement
