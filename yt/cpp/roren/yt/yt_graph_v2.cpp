@@ -760,7 +760,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
             Y_ABORT_UNLESS(std::ssize(operation->OutputTables) == 1);
             for (const auto &[_, table] : operation->OutputTables) {
                 auto path = table->GetPath();
-                rawYtSortedWrite->FillSchema(*path.Schema_);
+                path.Schema_ = rawYtSortedWrite->GetSortedSchema();
 
                 spec.Output(std::move(path));
                 materializeIfIntermediateTable(table);

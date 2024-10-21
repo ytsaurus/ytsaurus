@@ -272,18 +272,19 @@ class TRawYtNodeSortedWrite
     : public IRawYtSortedWrite
 {
 public:
-    TRawYtNodeSortedWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema, NYT::TSortColumns columnsToSort, bool uniqueKeys)
-        : IRawYtSortedWrite(std::move(path), std::move(tableSchema)), ColumnsToSort_(std::move(columnsToSort)), UniqueKeys_(uniqueKeys)
+    TRawYtNodeSortedWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema)
+        : IRawYtSortedWrite(std::move(path), ToUnsortedSchema(tableSchema))
+        , SortedSchema_(std::move(tableSchema))
     { }
 
-    const NYT::TSortColumns& GetColumnsToSort() const override
+    NYT::TSortColumns GetColumnsToSort() const override
     {
-        return ColumnsToSort_;
+        return GetSortColumns(SortedSchema_);
     }
 
-    void FillSchema(NYT::TTableSchema& schema) const override
+    NYT::TTableSchema GetSortedSchema() const override
     {
-        FillSchemaFromSortColumns(schema, ColumnsToSort_, UniqueKeys_);
+        return SortedSchema_;
     }
 
     IYtJobOutputPtr CreateJobOutput(int sinkIndex) const override
@@ -306,9 +307,7 @@ public:
         return [] () -> IRawWritePtr {
             return ::MakeIntrusive<TRawYtNodeSortedWrite>(
                 NYT::TRichYPath{},
-                NYT::TTableSchema{},
-                NYT::TSortColumns{},
-                false
+                NYT::TTableSchema{}
             );
         };
     }
@@ -324,14 +323,12 @@ public:
     }
 
 private:
-    NYT::TSortColumns ColumnsToSort_;
-    bool UniqueKeys_;
+    NYT::TTableSchema SortedSchema_;
 };
 
-IRawYtSortedWritePtr MakeYtNodeSortedWrite(
-    NYT::TRichYPath path, NYT::TTableSchema tableSchema, NYT::TSortColumns columnsToSort,  bool uniqueKeys)
+IRawYtSortedWritePtr MakeYtNodeSortedWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema)
 {
-    return ::MakeIntrusive<TRawYtNodeSortedWrite>(std::move(path), std::move(tableSchema), std::move(columnsToSort), uniqueKeys);
+    return ::MakeIntrusive<TRawYtNodeSortedWrite>(std::move(path), std::move(tableSchema));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1402,6 +1399,29 @@ private:
 IRawParDoPtr CreateWriteNodeParDo(ssize_t tableIndex)
 {
     return ::MakeIntrusive<TWriteNodeParDo>(tableIndex);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYT::TTableSchema ToUnsortedSchema(const NYT::TTableSchema& schema)
+{
+    auto result = schema;
+    for (auto& column : result.MutableColumns()) {
+        column.ResetSortOrder();
+    }
+    result.UniqueKeys(false);
+    return result;
+}
+
+NYT::TSortColumns GetSortColumns(const NYT::TTableSchema& schema)
+{
+    NYT::TSortColumns sortColumns;
+    for (const auto& column : schema.Columns()) {
+        if (column.SortOrder()) {
+            sortColumns.Add(column.Name());
+        }
+    }
+    return sortColumns;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

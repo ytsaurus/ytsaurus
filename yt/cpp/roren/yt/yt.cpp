@@ -87,4 +87,31 @@ TPipeline MakeYtPipeline(TYtPipelineConfig config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TYtWriteTransform YtWrite(const NYT::TRichYPath& path, const NYT::TTableSchema& schema)
+{
+    return TYtWriteTransform{path, schema};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYtSortedWriteTransform YtSortedWrite(
+    const NYT::TRichYPath& path,
+    const NYT::TTableSchema& schema,
+    const NYT::TSortColumns& columnsToSort)
+{
+    auto resortedSchema = schema;
+    resortedSchema.SortBy(columnsToSort);
+
+    return TYtSortedWriteTransform(path, resortedSchema);
+}
+
+TYtSortedWriteTransform YtSortedWrite(
+    const NYT::TRichYPath& path,
+    const NYT::TTableSchema& sortedSchema)
+{
+    return TYtSortedWriteTransform(path, sortedSchema);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRoren

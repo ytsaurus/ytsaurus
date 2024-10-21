@@ -188,18 +188,15 @@ class IRawYtSortedWrite
 public:
     using IRawYtWrite::IRawYtWrite;
 
-    virtual const NYT::TSortColumns& GetColumnsToSort() const = 0;
-    virtual void FillSchema(NYT::TTableSchema& schema) const = 0;
+    virtual NYT::TSortColumns GetColumnsToSort() const = 0;
+    virtual NYT::TTableSchema GetSortedSchema() const = 0;
 };
-
-void FillSchemaFromSortColumns(NYT::TTableSchema& schema, const NYT::TSortColumns& columnsToSort, bool uniqueKeys);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IRawYtReadPtr MakeYtNodeInput(NYT::TRichYPath path);
 IRawYtWritePtr MakeYtNodeWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema);
-IRawYtSortedWritePtr MakeYtNodeSortedWrite(
-    NYT::TRichYPath path, NYT::TTableSchema tableSchema, NYT::TSortColumns columnsToSort, bool uniqueKeys);
+IRawYtSortedWritePtr MakeYtNodeSortedWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -250,6 +247,11 @@ inline int GetOutputFD(size_t output)
 {
     return output * 3 + NYT::GetJobFirstOutputTableFD();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYT::TSortColumns GetSortColumns(const NYT::TTableSchema& schema);
+NYT::TTableSchema ToUnsortedSchema(const NYT::TTableSchema& schema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
