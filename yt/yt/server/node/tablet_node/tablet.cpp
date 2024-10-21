@@ -2164,7 +2164,7 @@ void TTablet::ReconfigureRowCache(const ITabletSlotPtr& slot)
             unmergedRowCount += ActiveStore_->GetRowCount();
         }
 
-        lookupCacheCapacity = lookupCacheRowsRatio * unmergedRowCount;
+        lookupCacheCapacity = std::max<i64>(lookupCacheRowsRatio * unmergedRowCount, 1);
     }
 
     if (lookupCacheCapacity == 0) {
@@ -2179,9 +2179,9 @@ void TTablet::ReconfigureRowCache(const ITabletSlotPtr& slot)
             Context_
                 ->GetNodeMemoryUsageTracker()
                 ->WithCategory(EMemoryCategory::LookupRowsCache));
+    } else {
+        RowCache_->GetCache()->SetCapacity(lookupCacheCapacity);
     }
-
-    RowCache_->GetCache()->SetCapacity(lookupCacheCapacity);
 }
 
 void TTablet::InvalidateChunkReaders()
