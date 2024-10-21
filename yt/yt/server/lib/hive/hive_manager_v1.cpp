@@ -341,7 +341,7 @@ public:
         auto* mailbox = AvenueMailboxMap_.Insert(otherEndpointId, std::move(holder));
 
         mailbox->SetNextPersistentIncomingMessageId(cookie.NextPersistentIncomingMessageId);
-        mailbox->SetFirstInFlightOutcomingMessageId(cookie.FirstOutcomingMessageId);
+        mailbox->SetFirstOutcomingMessageId(cookie.FirstOutcomingMessageId);
         mailbox->OutcomingMessages() = std::move(cookie.OutcomingMessages);
 
         {
