@@ -401,7 +401,7 @@ private:
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* cypressTransaction = cypressTransactionId
-            ? transactionManager->GetTransaction(cypressTransactionId)
+            ? transactionManager->GetTransactionOrThrow(cypressTransactionId)
             : nullptr;
 
         auto innerRequest = TCypressYPathProxy::Set(request->path());
