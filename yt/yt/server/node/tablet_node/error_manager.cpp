@@ -13,7 +13,7 @@
 
 #include <yt/yt/core/logging/fluent_log.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
+#include <library/cpp/yt/threading/atomic_object.h>
 #include <yt/yt/core/misc/sync_expiring_cache.h>
 
 namespace NYT::NTabletNode {

@@ -24,7 +24,7 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
+#include <library/cpp/yt/threading/atomic_object.h>
 #include <yt/yt/core/misc/public.h>
 
 #include <yt/yt/core/rpc/grpc/public.h>
