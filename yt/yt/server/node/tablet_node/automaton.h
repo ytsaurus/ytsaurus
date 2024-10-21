@@ -23,7 +23,11 @@ class TTabletAutomaton
 public:
     explicit TTabletAutomaton(ITabletAutomatonHostPtr host);
 
+    void ApplyMutation(NHydra::TMutationContext* context) override;
+
 private:
+    const TString CodicilData_;
+
     const TWeakPtr<ITabletAutomatonHost> Host_;
 
     std::unique_ptr<NHydra::TSaveContext> CreateSaveContext(
@@ -55,6 +59,11 @@ protected:
     bool ValidateSnapshotVersion(int version) override;
     int GetCurrentSnapshotVersion() override;
 
+    template <class TRequest>
+    void RegisterMethod(
+        TCallback<void(TRequest*)> callback,
+        const std::vector<TString>& aliases = {});
+
     //! Like |RegisterMethod|, but the mutation will be forwarded to a target servant
     //! if the subject tablet is a source servant in a smooth movement process.
     /*!
@@ -67,6 +76,9 @@ protected:
     const IMutationForwarderPtr MutationForwarder_;
 
 private:
+    template <class TRequest>
+    void MethodHandlerWithCodicilsImpl(TCallback<void(TRequest*)> callback, TRequest* request);
+
     template <class TRequest>
     void ForwardedMethodImpl(TCallback<void(TRequest*)> callback, TRequest* request);
 };

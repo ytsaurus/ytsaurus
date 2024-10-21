@@ -25,6 +25,8 @@
 
 #include <yt/yt/core/compression/codec.h>
 
+#include <yt/yt/core/misc/crash_handler.h>
+
 #include <library/cpp/yt/small_containers/compact_flat_map.h>
 
 #include <util/generic/cast.h>
@@ -799,6 +801,8 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext() == persistent);
 
+        TCodicilGuard guard(Format("TransactionId: %v", transaction->GetId()));
+
         auto tablets = persistent
             ? GetPersistentAffectedTablets(transaction)
             : GetTransientAffectedTablets(transaction);
@@ -814,6 +818,8 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
+        TCodicilGuard guard(Format("TransactionId: %v", transaction->GetId()));
+
         for (auto* tablet : GetPersistentAffectedTablets(transaction)) {
             const auto& tabletWriteManager = tablet->GetTabletWriteManager();
             tabletWriteManager->OnTransactionCommitted(transaction);
@@ -828,6 +834,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
+
+        TCodicilGuard guard(Format("TransactionId: %v", transaction->GetId()));
 
         auto serializingTabletIds = transaction->SerializingTabletIds();
         for (auto tabletId : serializingTabletIds) {
@@ -860,6 +868,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
+
+        TCodicilGuard guard(Format("TransactionId: %v", transaction->GetId()));
 
         for (auto* tablet : GetAffectedTablets(transaction)) {
             const auto& tabletWriteManager = tablet->GetTabletWriteManager();
