@@ -42,6 +42,10 @@ public class StartOperation extends RequestBase<StartOperation.Builder, StartOpe
         return new Builder();
     }
 
+    public YTreeNode getSpec() {
+        return YTree.deepCopy(spec);
+    }
+
     /**
      * Internal method: prepare request to send over network.
      */
