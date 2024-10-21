@@ -1851,7 +1851,7 @@ class YTInstance(object):
         self._wait_or_skip(lambda: self._wait_for(controller_agents_ready, "controller_agent"), sync)
 
     def create_client(self):
-        if self.yt_config.cypress_proxy_count == 0 and self.yt_config.http_proxy_count > 0:
+        if self.yt_config.http_proxy_count > 0:
             token = DEFAULT_ADMIN_TOKEN if self.yt_config.enable_auth else None
             return YtClient(token=token, proxy=self.get_http_proxy_address(), config=self._default_client_config)
         return self.create_native_client()
