@@ -10,6 +10,7 @@
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
@@ -634,10 +635,10 @@ void Serialize(const TVersionCounter& counter, IYsonConsumer* consumer)
         .EndMap();
 }
 
-TDiscoverVersionsHandler::TDiscoverVersionsHandler(NApi::IClientPtr client, TComponentDiscoveryOptions componentDiscoveryOptions)
+TDiscoverVersionsHandler::TDiscoverVersionsHandler(NApi::NNative::IClientPtr client, TComponentDiscoveryOptions componentDiscoveryOptions)
     : TComponentDiscoverer(
         std::move(client),
-        TMasterReadOptions{.ReadFrom = EMasterChannelKind::Follower},
+        TMasterReadOptions{.ReadFrom = EMasterChannelKind::MasterCache},
         std::move(componentDiscoveryOptions))
 { }
 
