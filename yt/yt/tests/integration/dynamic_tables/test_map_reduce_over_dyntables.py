@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, parametrize_external
 from yt_commands import (
     authors, print_debug, wait, create, get, set, copy, insert_rows, trim_rows,
     alter_table, write_file, read_table, write_table, map, sort, reduce, map_reduce, generate_timestamp,
-    sync_create_cells, sync_mount_table, sync_unmount_table, merge,
+    sync_create_cells, sync_mount_table, sync_unmount_table, merge, join_reduce,
     sync_freeze_table, sync_unfreeze_table, sync_reshard_table, sync_flush_table, sync_compact_table,
     create_dynamic_table, extract_statistic_v2, MinTimestamp, sorted_dicts, get_singular_chunk_id,
     lookup_rows, raises_yt_error, select_rows, generate_uuid)
@@ -776,6 +776,59 @@ class TestMapOnDynamicTables(YTEnvSetup):
             input_schema_columns=["k", "v1", "v2", "$timestamp:v1", "$timestamp:v2"],
             name_mapping={"k": "kk", "v1": "vv1", "v2": "vv2"},
         )
+
+    @authors("dave11ar")
+    def test_versioned_map_reduce_read_with_column_filter(self):
+        foreign_schema = make_schema(
+            [
+                {"name": "k0", "type": "uint64", "sort_order": "ascending"},
+                {"name": "k1", "type": "uint64", "sort_order": "ascending"},
+                {"name": "k2", "type": "uint64", "sort_order": "ascending"},
+                {"name": "v0", "type": "uint64"},
+                {"name": "v1", "type": "uint64"},
+                {"name": "v2", "type": "uint64"},
+                {"name": "v3", "type": "uint64"},
+                {"name": "v4", "type": "uint64"},
+            ],
+            unique_keys=True,
+            strict=True,
+        )
+        primary_schema = make_schema(
+            [
+                {"name": "k0", "type": "uint64", "sort_order": "ascending"},
+                {"name": "v4", "type": "uint64"},
+            ],
+            unique_keys=True,
+            strict=True,
+        )
+
+        foreign = "//tmp/foreign"
+        primary = "//tmp/primary"
+
+        foreign_rich = f"<foreign=true;columns=[k0;v4]>{foreign}"
+        primary_rich = f"<primary=true;columns=[k0;v4]>{primary}"
+
+        create("table", foreign, attributes={"schema": foreign_schema})
+        create("table", primary, attributes={"schema": primary_schema})
+
+        write_table(foreign, [{"k0": 1, "k1": 0, "k2": 0, "v0": 0, "v1": 0, "v2": 0, "v3": 0, "v4": 2}])
+        write_table(primary, [{"k0": 1, "v4": 42}])
+
+        alter_table(foreign, dynamic=True)
+
+        output = "//tmp/out"
+        create("table", output)
+
+        join_reduce(
+            in_=[primary_rich, foreign_rich],
+            out=output,
+            command="cat",
+            join_by=["k0"],
+            enable_key_guarantee=False,
+            spec={"reducer": {"format": yson.loads(b"dsv")}},
+        )
+
+        assert_items_equal(read_table(output), [{"k0": "1", "v4": "42"}, {"k0": "1", "v4": "2"}])
 
 
 ##################################################################
