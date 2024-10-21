@@ -1104,6 +1104,7 @@ public:
         TPipeline::TAdapter&& adapter,
         TTabletSnapshotPtr tabletSnapshot,
         TSharedRange<TUnversionedRow> lookupKeys,
+        bool produceAllVersions,
         TColumnFilter columnFilter,
         const TReadTimestampRange& readTimestampRange,
         const TClientChunkReadOptions& chunkReadOptions,
@@ -1736,6 +1737,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
     TPipeline::TAdapter&& adapter,
     TTabletSnapshotPtr tabletSnapshot,
     TSharedRange<TUnversionedRow> lookupKeys,
+    bool produceAllVersions,
     TColumnFilter columnFilter,
     const TReadTimestampRange& readTimestampRange,
     const TClientChunkReadOptions& chunkReadOptions,
@@ -1753,7 +1755,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
     , Invoker_(std::move(invoker))
     , TabletSnapshot_(std::move(tabletSnapshot))
     , Timestamp_(readTimestampRange.Timestamp)
-    , ProduceAllVersions_(false)
+    , ProduceAllVersions_(produceAllVersions)
     , ChunkReadOptions_(chunkReadOptions)
     , ColumnFilter_(std::move(columnFilter))
     , LookupKeys_(std::move(lookupKeys))
@@ -2301,6 +2303,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
                 std::move(adapter),
                 std::move(tabletSnapshot),
                 std::move(lookupKeys),
+                /*produceAllVersions*/ true,
                 std::move(columnFilter),
                 timestampRange,
                 chunkReadOptions,
@@ -2314,6 +2317,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
                 std::move(adapter),
                 std::move(tabletSnapshot),
                 std::move(lookupKeys),
+                /*produceAllVersions*/ true,
                 std::move(columnFilter),
                 timestampRange,
                 chunkReadOptions,
@@ -2329,6 +2333,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
                 std::move(adapter),
                 std::move(tabletSnapshot),
                 std::move(lookupKeys),
+                /*produceAllVersions*/ false,
                 std::move(columnFilter),
                 timestampRange,
                 chunkReadOptions,
@@ -2342,6 +2347,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
                 std::move(adapter),
                 std::move(tabletSnapshot),
                 std::move(lookupKeys),
+                /*produceAllVersions*/ false,
                 std::move(columnFilter),
                 timestampRange,
                 chunkReadOptions,
