@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 script_name="$0"
 make_default=false
 
