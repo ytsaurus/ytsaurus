@@ -443,12 +443,27 @@ void TChunkPlacement::CheckFaultyDataCentersOnPrimaryMaster()
         auto* dataCenter = nodeTracker->FindDataCenterByName(dataCenterName);
         if (!IsObjectAlive(dataCenter)) {
             auto error = TError("Storage data center %Qv not found",
-                dataCenter);
+                dataCenterName);
             DataCenterFaultErrors_.push_back(std::move(error));
             continue;
         }
+
         auto dataCenterIsEnabled = !oldFaultyStorageDataCenters.contains(dataCenter);
-        if (auto error = ComputeDataCenterFaultiness(dataCenter, dataCenterIsEnabled); !error.IsOK()) {
+
+        auto dataCenterStatistics = nodeTracker->GetDataCenterNodeStatistics(dataCenter);
+        if (!dataCenterStatistics) {
+            auto error = TError("Storage data center %Qv doesn't have statistics",
+                dataCenterName);
+            DataCenterFaultErrors_.push_back(std::move(error));
+
+            if (!dataCenterIsEnabled) {
+                InsertOrCrash(FaultyStorageDataCenters_, dataCenter);
+            }
+            continue;
+        }
+
+        auto error = ComputeDataCenterFaultiness(dataCenter, *dataCenterStatistics, dataCenterIsEnabled);
+        if (!error.IsOK()) {
             if (!BannedStorageDataCenters_.contains(dataCenter)) {
                 DataCenterFaultErrors_.push_back(std::move(error));
             }
@@ -1388,16 +1403,16 @@ void TChunkPlacement::RecomputeDataCenterSets()
     }
 }
 
-TError TChunkPlacement::ComputeDataCenterFaultiness(const TDataCenter* dataCenter, bool dataCenterIsEnabled) const
+TError TChunkPlacement::ComputeDataCenterFaultiness(
+    const TDataCenter* dataCenter,
+    const NNodeTrackerClient::TAggregatedNodeStatistics& dataCenterStatistics,
+    bool dataCenterIsEnabled) const
 {
     const auto& config = GetDynamicConfig()->DataCenterFailureDetector;
 
     const auto& dataCenterThresholdsMap = config->DataCenterThresholds;
     auto dataCenterThresholds = GetOrDefault(
         dataCenterThresholdsMap, dataCenter->GetName(), config->DefaultThresholds);
-
-    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-    auto dataCenterStatistics = nodeTracker->GetDataCenterNodeStatistics(dataCenter);
 
     auto onlineNodeCount = dataCenterStatistics.OnlineNodeCount;
     auto targetOnlineNodeCount = dataCenterIsEnabled
