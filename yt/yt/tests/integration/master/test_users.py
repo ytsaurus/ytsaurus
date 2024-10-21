@@ -7,7 +7,8 @@ from yt_commands import (
     add_member, remove_member, remove_group, remove_user,
     remove_network_project, start_transaction, raises_yt_error,
     set_user_password, issue_token, revoke_token, list_user_tokens,
-    build_snapshot,
+    build_snapshot, print_debug,
+    make_batch_request, execute_batch, raise_batch_error,
 )
 
 import yt_error_codes
@@ -22,6 +23,7 @@ from yt.yson import YsonBoolean, YsonEntity
 import pytest
 import builtins
 import datetime
+import time
 
 
 ##################################################################
@@ -813,6 +815,153 @@ class TestUsers(YTEnvSetup):
 
         remove("//sys/users/u/@password_is_temporary")
         assert not exists("//sys/users/u/@password_is_temporary")
+
+
+##################################################################
+
+
+class TestRequestThrottling(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 0
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "security_manager": {
+            "request_rate_smoothing_period": 100,
+        },
+        "object_service": {
+            "local_write_request_throttler": {
+                "period": 100,
+            },
+        },
+    }
+
+    @staticmethod
+    def _prepare_write_request_throttling_parameters(user):
+        return {
+            "set_limit_function": lambda: set(f"//sys/users/{user}/@write_request_rate_limit", 1),
+            "make_batch_request_function": lambda i: make_batch_request("create", type="map_node", path=f"//tmp/alice-{i:02d}"),
+            "request_count": 10,
+            # Very conservative, this ratio was closer to 100 in local runs.
+            "throttled_to_non_throttled_ratio_threshold": 5,
+            # The throttled execution time should be close to 10 seconds, but let's be generous.
+            "throttled_batch_execution_time_lower_bound": 5.0,
+        }
+
+    @staticmethod
+    def _prepare_read_request_throttling_parameters(user):
+        create("map_node", "//tmp/read_me")
+
+        return {
+            "set_limit_function": lambda: set(f"//sys/users/{user}/@read_request_rate_limit", 1),
+            "make_batch_request_function": lambda _: make_batch_request("get", path="//tmp/read_me/@owner"),
+            "request_count": 10,
+            # Very conservative, this ratio was closer to 100 (or more) in local runs.
+            "throttled_to_non_throttled_ratio_threshold": 5,
+            # The throttled execution time should be close to 10 seconds, but let's be generous.
+            "throttled_batch_execution_time_lower_bound": 5.0,
+        }
+
+    @staticmethod
+    def _prepare_automaton_request_throttling_parameters(_):
+        return {
+            "set_limit_function": lambda: set("//sys/@config/object_service/local_write_request_throttler/limit", 1),
+            "make_batch_request_function": lambda i: make_batch_request("create", type="map_node", path=f"//tmp/alice-{i:02d}"),
+            "request_count": 10,
+            # Very conservative, this ratio was closer to 100 in local runs.
+            "throttled_to_non_throttled_ratio_threshold": 5,
+            # The throttled execution time should be close to 10 seconds, but let's be generous.
+            "throttled_batch_execution_time_lower_bound": 5.0,
+        }
+
+    @staticmethod
+    def _prepare_automaton_and_write_request_throttling_parameters(user):
+        def set_limit():
+            set("//sys/@config/object_service/local_write_request_throttler/limit", 1)
+            set(f"//sys/users/{user}/@write_request_rate_limit", 1)
+
+        return {
+            "set_limit_function": set_limit,
+            "make_batch_request_function": lambda i: make_batch_request("create", type="map_node", path=f"//tmp/alice-{i:02d}"),
+            "request_count": 10,
+            # Very conservative, this ratio was closer to 100 in local runs.
+            "throttled_to_non_throttled_ratio_threshold": 5,
+            # The throttled execution time should be close to 10 seconds, but let's be generous.
+            "throttled_batch_execution_time_lower_bound": 5.0,
+        }
+
+    @authors("achulkov2")
+    @pytest.mark.parametrize("prepare_test_parameters", [
+        _prepare_write_request_throttling_parameters,
+        _prepare_read_request_throttling_parameters,
+        _prepare_automaton_request_throttling_parameters,
+        _prepare_automaton_and_write_request_throttling_parameters,
+    ])
+    def test_request_throttling(self, prepare_test_parameters):
+        user = "alice"
+        create_user(user)
+
+        print_debug("Performing run without master user throttling")
+
+        params = prepare_test_parameters(user)
+
+        start_time = time.time()
+
+        request_results = execute_batch([params["make_batch_request_function"](i) for i in range(params["request_count"])], authenticated_user=user)
+        for request_result in request_results:
+            raise_batch_error(request_result)
+
+        no_throttling_batch_execution_time = time.time() - start_time
+
+        throttled_batch_execution_time = 0
+
+        print_debug("Performing run with master user throttling")
+
+        params["set_limit_function"]()
+
+        start_time = time.time()
+
+        request_results = execute_batch([params["make_batch_request_function"](i + params["request_count"]) for i in range(params["request_count"])], authenticated_user=user)
+        for request_result in request_results:
+            raise_batch_error(request_result)
+
+        throttled_batch_execution_time = time.time() - start_time
+
+        # This assertion depends on how fast requests are executed without throttling.
+        # You can tweak this constant if the test turns out to be flaky, but in this case I would
+        # also advise to investigate why requests are running so slowly, because the constants
+        # are set quite conservatively.
+        assert throttled_batch_execution_time > params["throttled_to_non_throttled_ratio_threshold"] * no_throttling_batch_execution_time
+        # This constant is also configured quite generously, do not change without some investigation.
+        assert throttled_batch_execution_time > params["throttled_batch_execution_time_lower_bound"]
+
+        print_debug(f"Non-throttled batch request execution took {no_throttling_batch_execution_time:.2f} seconds")
+        print_debug(f"Throttled batch request execution took {throttled_batch_execution_time:.2f} seconds")
+
+    @authors("achulkov2")
+    def test_automaton_request_throttling_does_not_impact_read_requests(self):
+        create_user("alice")
+
+        create("map_node", "//tmp/read_me")
+
+        request_count = 10
+        local_write_request_throttler_limit_path = "//sys/@config/object_service/local_write_request_throttler/limit"
+
+        # This throttler should only impact write requests.
+        set(local_write_request_throttler_limit_path, 1)
+
+        start_time = time.time()
+
+        create_results = execute_batch([make_batch_request("get", path="//tmp/read_me/@owner") for i in range(request_count)], authenticated_user="alice")
+        for create_result in create_results:
+            raise_batch_error(create_result)
+
+        no_throttling_batch_execution_time = time.time() - start_time
+
+        # This is also a very generous threshold compared to my local runs.
+        # Do not change without some investigation.
+        assert no_throttling_batch_execution_time < 3
+
+        print_debug(f"Non-throttled batch request execution took {no_throttling_batch_execution_time:.2f} seconds")
 
 
 ##################################################################
