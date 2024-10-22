@@ -40,6 +40,10 @@ TString GetPodIdForInstance(const TString& name)
     // For now we get PodId in a bit hacky way:
     // we expect PodId to be prefix of fqdn before the first dot.
     auto endPos = name.find(".");
+    if (endPos == TString::npos && name.StartsWith("localhost")) {
+        // For testing purposes.
+        return name;
+    }
     YT_VERIFY(endPos != TString::npos);
 
     auto podId = name.substr(0, endPos);
