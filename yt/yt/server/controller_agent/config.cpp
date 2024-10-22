@@ -606,6 +606,9 @@ void TJobTrackerConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("check_node_heartbeat_sequence_number", &TThis::CheckNodeHeartbeatSequenceNumber)
         .Default(false);
+    registrar.Parameter("heavy_invoker_thread_count", &TThis::HeavyInvokerThreadCount)
+        .Default(4)
+        .GreaterThan(0);
     registrar.Parameter("testing_options", &TThis::TestingOptions)
         .Default();
 }

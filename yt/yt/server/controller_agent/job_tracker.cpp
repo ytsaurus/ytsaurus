@@ -18,6 +18,8 @@
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
+#include <yt/yt/core/concurrency/thread_pool.h>
+
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
 
@@ -800,6 +802,7 @@ TJobTracker::TJobTracker(TBootstrap* bootstrap, TJobReporterPtr jobReporter)
     : Bootstrap_(bootstrap)
     , JobReporter_(std::move(jobReporter))
     , Config_(bootstrap->GetConfig()->ControllerAgent->JobTracker)
+    , ThreadPool_(CreateThreadPool(Config_->HeavyInvokerThreadCount, "JobTrackerHeavy"))
     , JobEventsControllerQueue_(bootstrap->GetConfig()->ControllerAgent->JobEventsControllerQueue)
     , HeartbeatStatisticsBytes_(NodeHeartbeatProfiler.WithHot().Counter("/statistics_bytes"))
     , HeartbeatDataStatisticsBytes_(NodeHeartbeatProfiler.WithHot().Counter("/data_statistics_bytes"))
@@ -1161,6 +1164,13 @@ NYTree::IYPathServicePtr TJobTracker::GetOrchidService() const
     return OrchidService_;
 }
 
+IInvokerPtr TJobTracker::GetHeavyInvoker() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return ThreadPool_->GetInvoker();
+}
+
 void TJobTracker::ProfileHeartbeatRequest(const NProto::TReqHeartbeat* request)
 {
     i64 totalJobStatisticsSize = 0;
@@ -1284,6 +1294,8 @@ void TJobTracker::DoUpdateConfig(const TControllerAgentConfigPtr& config)
 
     Config_ = config->JobTracker;
     JobEventsControllerQueue_ = config->JobEventsControllerQueue;
+
+    ThreadPool_->Configure(Config_->HeavyInvokerThreadCount);
 }
 
 void TJobTracker::DoUpdateExecNodes(TRefCountedExecNodeDescriptorMapPtr newExecNodes)

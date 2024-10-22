@@ -15,11 +15,9 @@ namespace NYT::NControllerAgent {
 using namespace NConcurrency;
 
 using NYT::FromProto;
-using NYT::ToProto;
 
 using namespace NRpc;
 using namespace NNodeTrackerClient;
-using NJobTrackerClient::EJobState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +27,7 @@ class TJobTrackerService
 public:
     explicit TJobTrackerService(TBootstrap* bootstrap)
         : TServiceBase(
-            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+            bootstrap->GetControllerAgent()->GetJobTracker()->GetHeavyInvoker(),
             TJobTrackerServiceProxy::GetDescriptor(),
             ControllerAgentLogger(),
             TServiceOptions{
