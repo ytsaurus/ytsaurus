@@ -70,7 +70,12 @@ ISchemafulUnversionedReaderPtr CreateSchemafulChunkReader(
                     readRange);
             };
 
-            return CreateSchemafulReaderAdapter(createSchemalessReader, resultSchema);
+            return CreateSchemafulReaderAdapter(
+                createSchemalessReader,
+                resultSchema,
+                /*columnFilter*/ {},
+                /*ignoreRequired*/ false,
+                chunkReadOptions.MemoryUsageTracker);
         }
 
         default:

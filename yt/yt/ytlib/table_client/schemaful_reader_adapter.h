@@ -16,7 +16,8 @@ ISchemafulUnversionedReaderPtr CreateSchemafulReaderAdapter(
     TSchemalessReaderFactory createReader,
     TTableSchemaPtr schema,
     const TColumnFilter& columnFilter = {},
-    bool ignoreRequired = false);
+    bool ignoreRequired = false,
+    IMemoryUsageTrackerPtr memoryUsageTracker = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
