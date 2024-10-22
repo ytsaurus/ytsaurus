@@ -1937,7 +1937,7 @@ private:
                 auto outputRow = outputChunkRows.front();
                 outputChunkRows.pop();
 
-                if (inputRow != outputRow) {
+                if (!TBitwiseUnversionedRowEqual()(inputRow, outputRow)) {
                     return TError("Row differs in input and output chunks")
                         << TErrorAttribute("row_index", rowIndex)
                         << TErrorAttribute("input_row", inputRow)
