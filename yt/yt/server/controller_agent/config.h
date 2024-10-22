@@ -749,6 +749,8 @@ public:
     bool EnableGracefulAbort;
     bool CheckNodeHeartbeatSequenceNumber;
 
+    int HeavyInvokerThreadCount;
+
     TJobTrackerTestingOptionsPtr TestingOptions;
 
     REGISTER_YSON_STRUCT(TJobTrackerConfig);

@@ -64,12 +64,17 @@ public:
 
     NYTree::IYPathServicePtr GetOrchidService() const;
 
+    IInvokerPtr GetHeavyInvoker() const;
+
 private:
     TBootstrap* const Bootstrap_;
 
     TJobReporterPtr JobReporter_;
 
     TJobTrackerConfigPtr Config_;
+
+    // Used to parse messages from nodes.
+    NConcurrency::IThreadPoolPtr ThreadPool_;
 
     EOperationControllerQueue JobEventsControllerQueue_;
 
