@@ -59,16 +59,15 @@ static void AnnotateError(
     std::optional<int> intervalIndex = std::nullopt,
     std::optional<int> numIntervals = std::nullopt)
 {
-    auto* attrs = error.MutableAttributes();
-    attrs->Set("name", name);
-    attrs->Set("hostport", hostport);
-    attrs->Set("path", path);
-    attrs->Set("attempt", attempt);
+    error <<= TErrorAttribute("name", name);
+    error <<= TErrorAttribute("hostport", hostport);
+    error <<= TErrorAttribute("path", path);
+    error <<= TErrorAttribute("attempt", attempt);
     if (intervalIndex) {
-        attrs->Set("interval_index", *intervalIndex);
+        error <<= TErrorAttribute("interval_index", *intervalIndex);
     }
     if (numIntervals) {
-        attrs->Set("num_intervals", *numIntervals);
+        error <<= TErrorAttribute("num_intervals", *numIntervals);
     }
 }
 
