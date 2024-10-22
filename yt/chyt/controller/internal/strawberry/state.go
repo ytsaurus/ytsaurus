@@ -28,6 +28,8 @@ type PersistentState struct {
 	YTOpSpecletRevision yt.Revision `yson:"yt_op_speclet_revision,omitempty"`
 	// YTOpACL is the last set ACL of the current yt operation.
 	YTOpACL []yt.ACE `yson:"yt_op_acl,omitempty"`
+	// YTOpPoolTrees TODO
+	YTOpPoolTrees []string `yson:"yt_op_pool_trees,omitempty"`
 	// YTOpPool is the last set pool of the current yt operation.
 	YTOpPool *string `yson:"yt_op_pool,omitempty"`
 	// SecretsRevision is a content_revision of the secrets with which current yt operation is started.
@@ -74,6 +76,7 @@ func GetOpBriefAttributes(briefInfo OpletBriefInfo) map[string]any {
 		"health_reason":                      briefInfo.HealthReason,
 		"creator":                            briefInfo.Creator,
 		"creation_time":                      briefInfo.CreationTime,
+		"pool_trees":                         briefInfo.PoolTrees,
 		"pool":                               briefInfo.Pool,
 		"yt_operation_id":                    briefInfo.YTOperation.ID,
 		"yt_operation_start_time":            briefInfo.YTOperation.StartTime,

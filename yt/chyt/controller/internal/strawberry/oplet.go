@@ -34,6 +34,13 @@ func DescribeOptions(a AgentInfo, speclet Speclet) []OptionGroupDescriptor {
 			Title: "General",
 			Options: []OptionDescriptor{
 				{
+					Title:        "Pool trees",
+					Name:         "pool_trees",
+					Type:         TypePoolTrees,
+					CurrentValue: speclet.PoolTrees,
+					Description:  "Name of the pool trees to start a corresponding YT operation in.",
+				},
+				{
 					Title:        "Pool",
 					Name:         "pool",
 					Type:         TypePool,
@@ -514,6 +521,9 @@ func (oplet *Oplet) needsUpdateOpParameters() (needsUpdate bool, reason string) 
 	if !reflect.DeepEqual(oplet.strawberrySpeclet.Pool, oplet.persistentState.YTOpPool) {
 		return true, "pool changed"
 	}
+	if !reflect.DeepEqual(oplet.strawberrySpeclet.PoolTrees, oplet.persistentState.YTOpPoolTrees) {
+		return true, "pool_trees changed"
+	}
 	if oplet.pendingScaling && oplet.targetInstanceCount != 0 {
 		return true, "oplet must be scaled"
 	}
@@ -879,6 +889,9 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		oplet.setError(err)
 		return err
 	}
+	if oplet.strawberrySpeclet.PoolTrees != nil {
+		spec["pool_trees"] = oplet.strawberrySpeclet.PoolTrees
+	}
 	if oplet.strawberrySpeclet.PreemptionMode != nil {
 		spec["preemption_mode"] = *oplet.strawberrySpeclet.PreemptionMode
 	}
@@ -968,6 +981,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 
 	oplet.persistentState.YTOpACL = opACL
 	oplet.persistentState.YTOpPool = oplet.strawberrySpeclet.Pool
+	oplet.persistentState.YTOpPoolTrees = oplet.strawberrySpeclet.PoolTrees
 
 	oplet.persistentState.IncarnationIndex++
 
@@ -990,14 +1004,36 @@ func (oplet *Oplet) updateOpParameters(ctx context.Context, reason string) error
 		"acl":  opACL,
 		"pool": oplet.strawberrySpeclet.Pool,
 	}
+	if oplet.strawberrySpeclet.PoolTrees != nil {
+		params["pool_trees"] = oplet.strawberrySpeclet.PoolTrees
+	}
+
 	if oplet.pendingScaling && oplet.targetInstanceCount != 0 {
-		params["scheduling_options_per_pool_tree"] = map[string]any{
-			"default": map[string]any{
+		var effectivePoolTrees []string
+		if oplet.strawberrySpeclet.PoolTrees != nil {
+			for _, pTree := range oplet.strawberrySpeclet.PoolTrees {
+				effectivePoolTrees = append(effectivePoolTrees, pTree)
+			}
+		} else {
+			var defaultPoolTree string
+			err := oplet.systemClient.GetNode(ctx, ypath.Path("//sys/pool_trees/@default_tree"), &defaultPoolTree, nil)
+			if err != nil {
+				oplet.l.Error("error retrieving default pool_tree", log.Error(err))
+				oplet.setError(err)
+				return err
+			}
+			effectivePoolTrees = []string{defaultPoolTree}
+		}
+
+		schedOptionsPerTree := make(map[string]any)
+		for _, pTree := range effectivePoolTrees {
+			schedOptionsPerTree[pTree] = map[string]any{
 				"resource_limits": map[string]any{
 					"user_slots": oplet.targetInstanceCount,
 				},
-			},
+			}
 		}
+		params["scheduling_options_per_pool_tree"] = schedOptionsPerTree
 	}
 
 	err := oplet.systemClient.UpdateOperationParameters(
@@ -1016,6 +1052,7 @@ func (oplet *Oplet) updateOpParameters(ctx context.Context, reason string) error
 
 	oplet.persistentState.YTOpACL = opACL
 	oplet.persistentState.YTOpPool = oplet.strawberrySpeclet.Pool
+	oplet.persistentState.YTOpPoolTrees = oplet.strawberrySpeclet.PoolTrees
 
 	oplet.pendingScaling = false
 
@@ -1139,6 +1176,7 @@ type OpletBriefInfo struct {
 	SpecletDiff                     map[string]FieldDiff `yson:"speclet_diff,omitempty" json:"speclet_diff,omitempty"`
 	YTOperation                     YTOperationBriefInfo `yson:"yt_operation,omitempty" json:"yt_operation,omitempty"`
 	Creator                         string               `yson:"creator,omitempty" json:"creator,omitempty"`
+	PoolTrees                       []string             `yson:"pool_trees,omitempty" json:"pool_trees,omitempty"`
 	Pool                            string               `yson:"pool,omitempty" json:"pool,omitempty"`
 	Stage                           string               `yson:"stage" json:"stage"`
 	CreationTime                    *yson.Time           `yson:"creation_time,omitempty" json:"creation_time,omitempty"`
@@ -1161,6 +1199,9 @@ func (oplet *Oplet) GetBriefInfo() (briefInfo OpletBriefInfo) {
 	briefInfo.IncarnationIndex = oplet.persistentState.IncarnationIndex
 	if oplet.strawberrySpeclet.Pool != nil {
 		briefInfo.Pool = *oplet.strawberrySpeclet.Pool
+	}
+	if oplet.strawberrySpeclet.PoolTrees != nil {
+		briefInfo.PoolTrees = oplet.strawberrySpeclet.PoolTrees
 	}
 
 	if oplet.persistentState.YTOpID != yt.NullOperationID {
