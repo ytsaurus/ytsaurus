@@ -652,15 +652,20 @@ private:
         {
             ResponseInvoker_->Invoke(
                 BIND([=, this, this_ = MakeStrong(this), payload = std::move(payload)] {
-                    TServerResponseMessage message{
-                        .Magic = HostToInet(TServerResponseMessage::ExpectedHostMagic),
-                        .Error = HostToInet(error),
-                        .Cookie = HostToInet(cookie),
-                    };
-                    WritePod(message);
+                    try {
+                        TServerResponseMessage message{
+                            .Magic = HostToInet(TServerResponseMessage::ExpectedHostMagic),
+                            .Error = HostToInet(error),
+                            .Cookie = HostToInet(cookie),
+                        };
+                        WritePod(message);
 
-                    if (payload) {
-                        WriteBuffer(payload);
+                        if (payload) {
+                            WriteBuffer(payload);
+                        }
+                    } catch (const std::exception& ex) {
+                        THROW_ERROR_EXCEPTION("Failed to write server response")
+                            << TErrorAttribute("cookie", cookie) << ex;
                     }
                 }));
         }
