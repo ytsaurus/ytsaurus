@@ -277,6 +277,15 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
             "kind": "full_sync",
         }
 
+        self._create_table("//tmp/index_index_table", INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION)
+        with raises_yt_error("Cannot create secondary index for a secondary index"):
+            create_secondary_index("//tmp/index_table", "//tmp/index_index_table", kind="full_sync")
+        with raises_yt_error("Index cannot have multiple primary tables"):
+            create_secondary_index("//tmp/index_index_table", "//tmp/index_table", kind="full_sync")
+        self._create_table("//tmp/super_table", PRIMARY_SCHEMA_WITH_EXPRESSION)
+        with raises_yt_error("Cannot use a table with indices as an index"):
+            create_secondary_index("//tmp/super_table", "//tmp/table", kind="full_sync")
+
         remove(f"#{index_id}")
 
         assert not exists("//tmp/table/@secondary_indices")
