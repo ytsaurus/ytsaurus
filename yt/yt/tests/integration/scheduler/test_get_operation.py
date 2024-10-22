@@ -1,4 +1,7 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import (
+    YTEnvSetup,
+    is_asan_build,
+)
 
 from yt_commands import (
     authors, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create, ls, get,
@@ -594,6 +597,18 @@ class TestGetOperation(YTEnvSetup):
 
         wait(lambda: get_operation_scheduling_attributes(op1.id)["running_in_ephemeral_pool"])
 
+    @authors("omgronny")
+    @pytest.mark.skipif(
+        not is_asan_build(),
+        reason="This test checks only memory correctness"
+    )
+    def test_use_after_free_when_archiving_operation_progress(self):
+        update_controller_agent_config("operation_progress_archivation_timeout", 0)
+
+        for _ in range(5):
+            run_test_vanilla("sleep 1")
+
+        clean_operations()
 
 ##################################################################
 
