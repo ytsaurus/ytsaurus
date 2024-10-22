@@ -150,9 +150,18 @@ type Spec struct {
 	CombineChunks  bool     `yson:"combine_chunks,omitempty"`
 	ForceTransform bool     `yson:"force_transform,omitempty"`
 
-	JobCount              int   `yson:"job_count,omitempty"`
-	DataSizePerJob        int64 `yson:"data_size_per_job,omitempty"`
-	UseColumnarStatistics *bool `yson:"use_columnar_statistics,omitempty"`
+	JobCount                    int   `yson:"job_count,omitempty"`
+	DataSizePerJob              int64 `yson:"data_size_per_job,omitempty"`
+	MapJobCount                 int   `yson:"map_job_count,omitempty"`
+	PartitionCount              int   `yson:"partition_count,omitempty"`
+	PartitionDataSize           int   `yson:"partition_data_size,omitempty"`
+	DataWeightPerJob            int   `yson:"data_weight_per_job,omitempty"`
+	DataWeightPerMapJob         int   `yson:"data_weight_per_map_job,omitempty"`
+	DataWeightPerSortJob        int   `yson:"data_weight_per_sort_job,omitempty"`
+	DataWeightPerPartitionJob   int   `yson:"data_weight_per_partition_job,omitempty"`
+	DataWeightPerSortedMergeJob int   `yson:"data_weight_per_sorted_merge_job,omitempty"`
+	DataWeightPerReduceJob      int   `yson:"data_weight_per_reduce_job,omitempty"`
+	UseColumnarStatistics       *bool `yson:"use_columnar_statistics,omitempty"`
 
 	TimeLimit                     yson.Duration `yson:"time_limit,omitempty"`
 	MaxFailedJobCount             int           `yson:"max_failed_job_count,omitempty"`
@@ -187,6 +196,7 @@ type Spec struct {
 	CopyAttributes *bool  `yson:"copy_attributes,omitempty"`
 
 	IntermediateDataReplicationFactor int     `yson:"intermediate_data_replication_factor,omitempty"`
+	IntermediateDataMedium            string  `yson:"intermediate_data_medium,omitempty"`
 	MapSelectivityFactor              float64 `yson:"map_selectivity_factor,omitempty"`
 
 	ProbingRatio    int    `yson:"probing_ratio,omitempty"`
