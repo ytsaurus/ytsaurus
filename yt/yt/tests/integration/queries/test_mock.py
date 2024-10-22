@@ -229,6 +229,7 @@ class TestQueryTrackerBan(YTEnvSetup):
         insert_rows("//sys/query_tracker/active_queries", [{
             "query_id": guid,
             "engine": "mock",
+            "user": "root",
             "query": "run_forever",
             "incarnation": 0,
             "state": "pending",
