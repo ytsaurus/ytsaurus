@@ -23,6 +23,8 @@
 
 #include <yt/yt/client/queue_client/config.h>
 
+#include <yt/yt/core/concurrency/scheduled_executor.h>
+
 namespace NYT::NQueueAgent {
 
 using namespace NApi;
@@ -37,6 +39,7 @@ using namespace NQueueClient;
 using namespace NRpc;
 using namespace NSecurityClient;
 using namespace NTableClient;
+using namespace NTracing;
 using namespace NTransactionClient;
 using namespace NLogging;
 using namespace NYPath;
@@ -109,14 +112,12 @@ class TQueueExportTask
 public:
     TQueueExportTask(
         NNative::IClientPtr client,
-        IInvokerPtr invoker,
         TQueueExportProfilingCountersPtr profilingCounters,
         TYPath queue,
         TQueueStaticExportConfig exportConfig,
         const TLogger& logger)
         : Client_(std::move(client))
         , Connection_(Client_->GetNativeConnection())
-        , Invoker_(std::move(invoker))
         , ProfilingCounters_(std::move(profilingCounters))
         , Queue_(std::move(queue))
         , ExportConfig_(std::move(exportConfig))
@@ -125,51 +126,6 @@ public:
             ExportConfig_.ExportDirectory,
             ExportConfig_.ExportPeriod))
     { }
-
-    TFuture<TQueueExportProgressPtr> Run()
-    {
-        return BIND(&TQueueExportTask::DoRun, MakeStrong(this))
-            .AsyncVia(Invoker_)
-            .Run();
-    }
-
-private:
-    const NNative::IClientPtr Client_;
-    const NNative::IConnectionPtr Connection_;
-    const IInvokerPtr Invoker_;
-    const TQueueExportProfilingCountersPtr ProfilingCounters_;
-
-    const TYPath Queue_;
-    const TQueueStaticExportConfig ExportConfig_;
-
-    const TLogger Logger;
-
-    //! Options used for Cypress requests.
-    NApi::TTransactionalOptions Options_;
-
-    //! Instant of current export iteration.
-    TInstant ExportInstant_;
-    //! The output table unix ts corresponding to the current export iteration.
-    //! NB: We use the instant above to compute this value, i.e. it corresponds to the host's physical time.
-    //! This is fine, see the comment for DoRun below.
-    ui64 ExportFragmentUnixTs_;
-    //! Corresponds to the queue being exported.
-    TUserObject QueueObject_;
-    TTableSchemaPtr QueueSchema_;
-    TMasterTableSchemaId QueueSchemaId_;
-    //! Original chunk specs fetched from master.
-    std::vector<TChunkSpec> ChunkSpecs_;
-    //! Pointers to chunk specs for chunks that are going to be exported within this iteration.
-    std::vector<const TChunkSpec*> ChunkSpecsToExport_;
-    //! Corresponds to the actual output table created.
-    TUserObject DestinationObject_;
-    TTransactionPtr UploadTransaction_;
-    //! Data statistics collected from attaching chunks.
-    TDataStatistics DataStatistics_;
-
-    static constexpr TStringBuf ExportProgressAttributeName_ = "queue_static_export_progress";
-    static constexpr TStringBuf ExportDestinationAttributeName_ = "queue_static_export_destination";
-    static constexpr TStringBuf ExporterAttributeName_ = "queue_static_exporter";
 
     //! Performs the following steps:
     //!   1) Starts transaction, obtains locks on input queue (snapshot) and <export_directory>/@queue_static_exporter attribute (shared).
@@ -185,7 +141,7 @@ private:
     //! In any case, we will only produce an output table if its unix ts is strictly greater than the one of the last exported table.
     //! If the physical time diverges from the cluster time, the only effect is that some chunks might end up being
     //! exported into later tables, which is perfectly fine.
-    TQueueExportProgressPtr DoRun()
+    TQueueExportProgressPtr Run()
     {
         TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(10));
 
@@ -251,6 +207,44 @@ private:
 
         return newExportProgress;
     }
+
+private:
+    const NNative::IClientPtr Client_;
+    const NNative::IConnectionPtr Connection_;
+    // const IInvokerPtr Invoker_;
+    const TQueueExportProfilingCountersPtr ProfilingCounters_;
+
+    const TYPath Queue_;
+    const TQueueStaticExportConfig ExportConfig_;
+
+    const TLogger Logger;
+
+    //! Options used for Cypress requests.
+    NApi::TTransactionalOptions Options_;
+
+    //! Instant of current export iteration.
+    TInstant ExportInstant_;
+    //! The output table unix ts corresponding to the current export iteration.
+    //! NB: We use the instant above to compute this value, i.e. it corresponds to the host's physical time.
+    //! This is fine, see the comment for DoRun below.
+    ui64 ExportFragmentUnixTs_;
+    //! Corresponds to the queue being exported.
+    TUserObject QueueObject_;
+    TTableSchemaPtr QueueSchema_;
+    TMasterTableSchemaId QueueSchemaId_;
+    //! Original chunk specs fetched from master.
+    std::vector<TChunkSpec> ChunkSpecs_;
+    //! Pointers to chunk specs for chunks that are going to be exported within this iteration.
+    std::vector<const TChunkSpec*> ChunkSpecsToExport_;
+    //! Corresponds to the actual output table created.
+    TUserObject DestinationObject_;
+    TTransactionPtr UploadTransaction_;
+    //! Data statistics collected from attaching chunks.
+    TDataStatistics DataStatistics_;
+
+    static constexpr TStringBuf ExportProgressAttributeName_ = "queue_static_export_progress";
+    static constexpr TStringBuf ExportDestinationAttributeName_ = "queue_static_export_destination";
+    static constexpr TStringBuf ExporterAttributeName_ = "queue_static_exporter";
 
     ui64 GetMinFragmentUnixTs(TTimestamp timestamp)
     {
@@ -753,7 +747,8 @@ TQueueExportProfilingCounters::TQueueExportProfilingCounters(const TProfiler& pr
 TQueueExporter::TQueueExporter(
     TString exportName,
     TCrossClusterReference queue,
-    const NQueueClient::TQueueStaticExportConfig& config,
+    const TQueueStaticExportConfig& exportConfig,
+    const TQueueExporterDynamicConfig& dynamicConfig,
     TClientDirectoryPtr clientDirectory,
     IInvokerPtr invoker,
     IAlertCollectorPtr alertCollector,
@@ -761,63 +756,44 @@ TQueueExporter::TQueueExporter(
     const TLogger& logger)
     : ExportName_(std::move(exportName))
     , Queue_(std::move(queue))
-    , Config_(config)
+    , ExportConfig_(exportConfig)
+    , DynamicConfig_(dynamicConfig)
     , ExportProgress_(New<TQueueExportProgress>())
     , ClientDirectory_(std::move(clientDirectory))
     , Invoker_(std::move(invoker))
     , AlertCollector_(std::move(alertCollector))
     , ProfilingCounters_(New<TQueueExportProfilingCounters>(queueProfiler.WithPrefix("/static_export").WithTag("export_name", ExportName_)))
-    , Logger(logger.WithTag("ExportName: %v", ExportName_))
-{ }
-
-TFuture<void> TQueueExporter::RunExportIteration()
+    , Executor_(New<TScheduledExecutor>(
+            Invoker_,
+            BIND_NO_PROPAGATE(&TQueueExporter::Export, MakeWeak(this)),
+            /*interval*/ std::nullopt
+        ))
+    , Logger(QueueStaticTableExporterLogger().WithTag("%v, ExportName: %v",
+        logger.GetTag(),
+        ExportName_))
 {
-    auto config = GetConfig();
-
-    auto exportTask = New<TQueueExportTask>(
-        ClientDirectory_->GetClientOrThrow(Queue_.Cluster),
-        Invoker_,
-        ProfilingCounters_,
-        Queue_.Path,
-        config,
-        Logger);
-
-    auto exportTaskFuture = exportTask->Run();
-
-    exportTaskFuture.SubscribeUnique(BIND([
-        this,
-        this_ = MakeStrong(this),
-        config = std::move(config)
-    ] (TErrorOr<TQueueExportProgressPtr>&& exportProgress) {
-        if (!exportProgress.IsOK()) {
-            AlertCollector_->StageAlert(CreateAlert(
-                NAlerts::EErrorCode::QueueAgentQueueControllerStaticExportFailed,
-                "Failed to perform static export for queue",
-                /*tags*/ {{"export_name", ExportName_}},
-                /*error*/ exportProgress));
-        } else {
-            auto nextExportProgress = exportProgress.Value();
-
-            auto guard = Guard(Lock_);
-
-            if (config.ExportDirectory == Config_.ExportDirectory) {
-                ExportProgress_ = std::move(nextExportProgress);
-            }
-        }
-        AlertCollector_->PublishAlerts();
-    }));
-
-    return exportTaskFuture.AsVoid();
+    Executor_->Start();
+    Executor_->SetInterval(DynamicConfig_.Enable
+        ? std::optional(ExportConfig_.ExportPeriod)
+        : std::nullopt);
 }
 
-void TQueueExporter::Reconfigure(const NQueueClient::TQueueStaticExportConfig& config) {
+void TQueueExporter::Reconfigure(const TQueueStaticExportConfig& newExportConfig, const TQueueExporterDynamicConfig& newDynamicConfig)
+{
     auto guard = Guard(Lock_);
 
-    if (config.ExportDirectory != Config_.ExportDirectory) {
+    if (ExportConfig_.ExportDirectory != newExportConfig.ExportDirectory) {
         ExportProgress_ = New<TQueueExportProgress>();
     }
 
-    Config_ = config;
+    if (DynamicConfig_.Enable != newDynamicConfig.Enable || ExportConfig_.ExportPeriod != newExportConfig.ExportPeriod) {
+        Executor_->SetInterval(newDynamicConfig.Enable
+            ? std::optional(newExportConfig.ExportPeriod)
+            : std::nullopt);
+    }
+
+    ExportConfig_ = newExportConfig;
+    DynamicConfig_ = newDynamicConfig;
 }
 
 TQueueExportProgressPtr TQueueExporter::GetExportProgress() const
@@ -829,7 +805,47 @@ TQueueExportProgressPtr TQueueExporter::GetExportProgress() const
 NQueueClient::TQueueStaticExportConfig TQueueExporter::GetConfig()
 {
     auto guard = Guard(Lock_);
-    return Config_;
+    return ExportConfig_;
+}
+
+void TQueueExporter::Export()
+{
+    VERIFY_INVOKER_AFFINITY(Invoker_);
+
+    // XXX(apachee): Rename this and TQueueExporter to QueueStaticTableExporter and TQueueStaticTableExporter respectively?
+    auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueExporterIteration"));
+
+    try {
+        GuardedExport();
+    } catch (const std::exception& ex) {
+        AlertCollector_->StageAlert(CreateAlert(
+            NAlerts::EErrorCode::QueueAgentQueueControllerStaticExportFailed,
+            "Failed to perform static export for queue",
+            /*tags*/ {{"export_name", ExportName_}},
+            ex));
+    }
+
+    AlertCollector_->PublishAlerts();
+}
+
+void TQueueExporter::GuardedExport()
+{
+    auto config = GetConfig();
+
+    auto exportTask = New<TQueueExportTask>(
+        ClientDirectory_->GetClientOrThrow(Queue_.Cluster),
+        ProfilingCounters_,
+        Queue_.Path,
+        config,
+        Logger);
+
+    auto nextExportProgress = exportTask->Run();
+
+    auto guard = Guard(Lock_);
+
+    if (config.ExportDirectory == ExportConfig_.ExportDirectory) {
+        ExportProgress_ = std::move(nextExportProgress);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

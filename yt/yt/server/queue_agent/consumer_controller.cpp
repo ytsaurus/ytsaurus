@@ -448,7 +448,7 @@ public:
         , DynamicConfig_(dynamicConfig)
         , ClientDirectory_(std::move(clientDirectory))
         , Invoker_(std::move(invoker))
-        , Logger(QueueAgentLogger().WithTag("Consumer: %v, Leading: %v", ConsumerRef_, Leading_))
+        , Logger(ConsumerControllerLogger().WithTag("Consumer: %v, Leading: %v", ConsumerRef_, Leading_))
         , PassExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TConsumerController::Pass, MakeWeak(this)),

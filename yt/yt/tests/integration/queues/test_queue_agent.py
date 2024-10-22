@@ -2928,11 +2928,6 @@ class QueueStaticExportHelpers:
 class TestQueueStaticExportBase(TestQueueAgentBase, QueueStaticExportHelpers):
     NUM_SECONDARY_MASTER_CELLS = 2
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
-        "queue_agent": {
-            "controller": {
-                "enable_queue_static_export": True,
-            },
-        },
         "cypress_synchronizer": {
             "policy": "watching",
             "enable": True,
@@ -2948,7 +2943,6 @@ class TestQueueAgentBannedAttribute(TestQueueStaticExportBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
             "controller": {
-                "enable_queue_static_export": True,
                 "enable_automatic_trimming": True,
             },
         },
@@ -3484,7 +3478,6 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
             "controller": {
-                "enable_queue_static_export": True,
                 "enable_automatic_trimming": True,
             },
         },
@@ -3654,7 +3647,6 @@ class TestObjectAlertCollection(TestQueueStaticExportBase):
         "queue_agent": {
             "controller": {
                 "enable_automatic_trimming": True,
-                "enable_queue_static_export": True,
             },
         },
         "cypress_synchronizer": {
@@ -3747,7 +3739,6 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
         "queue_agent": {
             "handle_replicated_objects": True,
             "controller": {
-                "enable_queue_static_export": True,
                 "enable_automatic_trimming": True,
             }
         }
