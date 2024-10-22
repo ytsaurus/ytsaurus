@@ -3357,6 +3357,7 @@ private:
         auto newReplicationRowIndex = request->new_replication_row_index();
         auto newReplicationTimestamp = request->new_replication_timestamp();
 
+        // COMPAT(ponasenko-rs)
         if (request->has_prev_replication_row_index()) {
             auto prevReplicationRowIndex = request->prev_replication_row_index();
             if (replicaInfo->GetCurrentReplicationRowIndex() != prevReplicationRowIndex) {
@@ -3433,7 +3434,7 @@ private:
 
         BackupManager_->ValidateReplicationTransactionCommit(tablet, transaction);
 
-        // COMPAT(babenko)
+        // COMPAT(babenko, ponasenko-rs)
         if (request->has_prev_replication_row_index()) {
             YT_VERIFY(replicaInfo->GetCurrentReplicationRowIndex() == request->prev_replication_row_index());
         }
