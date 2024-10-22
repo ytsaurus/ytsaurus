@@ -1,8 +1,9 @@
 #include "consistent_hashing.h"
 
-#include <library/cpp/pop_count/popcount.h>
-
 #include <util/generic/bitops.h>
+#include <util/system/hi_lo.h>
+
+#include <bit>
 
 /*
  * (all numbers are written in big-endian manner: the least significant digit on the right)
@@ -43,7 +44,7 @@ namespace {
 
     template <class TValue>
     TValue SelectAOrBBlock(TValue a, TValue b, TValue cBlock) {
-        size_t z = PopCount<unsigned long long>(cBlock);
+        size_t z = std::popcount(cBlock);
         bool useABlock = z % 2 == 0;
         return useABlock ? a : b;
     }

@@ -21,7 +21,6 @@ target_link_libraries(consistent-hashing PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  library-cpp-pop_count
 )
 
 target_sources(consistent-hashing PRIVATE
