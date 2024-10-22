@@ -55,6 +55,14 @@ void TQueueAgentConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TQueueExporterDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TQueueControllerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("pass_period", &TThis::PassPeriod)
@@ -64,8 +72,8 @@ void TQueueControllerDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("trimming_period", &TThis::TrimmingPeriod)
         .Default();
-    registrar.Parameter("enable_queue_static_export", &TThis::EnableQueueStaticExport)
-        .Default(false);
+    registrar.Parameter("queue_exporter", &TThis::QueueExporter)
+        .Default();
     registrar.Parameter("alert_manager", &TThis::AlertManager)
         .DefaultNew();
 

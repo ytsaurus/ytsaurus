@@ -96,6 +96,21 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB(apachee): Separate config for exports for future refactoring. See YT-23208.
+
+class TQueueExporterDynamicConfig
+    : public NYTree::TYsonStructLite
+{
+public:
+    bool Enable;
+
+    REGISTER_YSON_STRUCT_LITE(TQueueExporterDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueueControllerDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -112,7 +127,7 @@ public:
     //! once in `ceil(TrimmingPeriod / PassPeriod)` queue controller passes.
     std::optional<TDuration> TrimmingPeriod;
 
-    bool EnableQueueStaticExport;
+    TQueueExporterDynamicConfig QueueExporter;
 
     NAlertManager::TAlertManagerDynamicConfigPtr AlertManager;
 
