@@ -1440,6 +1440,42 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(lookup_rows("//tmp/t", keys + keys1), rows + rows1)
         assert_items_equal(lookup_rows("//tmp/t", keys + keys1), rows + rows1)
 
+    @authors("akozhikhov")
+    def test_fragment_request_cancelation(self):
+        sync_create_cells(1)
+
+        self._create_table(max_inline_hunk_size=1)
+        set("//tmp/t/@chunk_reader", {
+            "enable_local_throttling": True,
+            "use_block_cache": False,
+            "use_uncompressed_block_cache": False,
+            "prefer_local_replicas": False,
+        })
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "heavy" + "y" * 10000}, {"key": 1, "value": "light" + "t" * 10}]
+
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "enable_chunk_fragment_reader_throttling": True,
+            },
+            # As for now we don't have better way to tune total limit in dynamic config.
+            "throttler_free_bandwidth_ratio": 0.9999995,
+        })
+
+        # Apply throttler to CFR.
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        with raises_yt_error("Operation timed out"):
+            assert lookup_rows("//tmp/t", [{"key": 0}], timeout=1000) == rows[:1]
+
+        # Bytes throttled within first lookup call have been released by now.
+        assert lookup_rows("//tmp/t", [{"key": 1}], timeout=1000) == rows[1:]
+
 
 ################################################################################
 
