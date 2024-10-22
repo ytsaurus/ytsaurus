@@ -794,14 +794,13 @@ private:
             .ControllerFeatures = featureYson,
         };
 
-        auto rowBuffer = New<TRowBuffer>();
         auto row = FromRecord(record);
         i64 orderedByIdRowsDataWeight = GetDataWeight(row);
 
         transaction->WriteRows(
             GetOperationsArchiveOrderedByIdPath(),
             NRecords::TOrderedByIdDescriptor::Get()->GetNameTable(),
-            MakeSharedRange(TCompactVector<TUnversionedRow, 1>{1, row}, std::move(rowBuffer)));
+            MakeSharedRange(std::vector<TUnversionedRow>{row.Get()}, std::vector<TUnversionedOwningRow>{row}));
 
         auto error = WaitFor(transaction->Commit()
             .ToUncancelable());
@@ -930,14 +929,13 @@ private:
             .BriefProgress = briefProgress,
         };
 
-        auto rowBuffer = New<TRowBuffer>();
         auto row = FromRecord(record);
         i64 orderedByIdRowsDataWeight = GetDataWeight(row);
 
         transaction->WriteRows(
             GetOperationsArchiveOrderedByIdPath(),
             NRecords::TOrderedByIdDescriptor::Get()->GetNameTable(),
-            MakeSharedRange(TCompactVector<TUnversionedRow, 1>{1, row}, std::move(rowBuffer)));
+            MakeSharedRange(std::vector<TUnversionedRow>{row.Get()}, std::vector<TUnversionedOwningRow>{row}));
 
         auto error = WaitFor(transaction->Commit()
             .ToUncancelable()
