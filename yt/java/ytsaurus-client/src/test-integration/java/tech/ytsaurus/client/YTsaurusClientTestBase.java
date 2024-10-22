@@ -70,7 +70,6 @@ public class YTsaurusClientTestBase {
                             "--queue-agent-count", "1",
                             "--discovery-server-count", "1",
                             "--discovery-server-port", "10125",
-                            "--queue-agent-config", "/etc/yt/server.yson",
                             "--enable-debug-logging"
                     )
                     .withCopyFileToContainer(
