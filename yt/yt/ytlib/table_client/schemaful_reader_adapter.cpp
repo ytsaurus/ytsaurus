@@ -36,9 +36,14 @@ public:
         ISchemalessUnversionedReaderPtr underlyingReader,
         TTableSchemaPtr schema,
         TKeyColumns keyColumns,
-        bool ignoreRequired)
+        bool ignoreRequired,
+        IMemoryUsageTrackerPtr memoryUsageTracker)
         : UnderlyingReader_(std::move(underlyingReader))
         , ReaderSchema_(std::move(schema))
+        , RowBuffer_(New<TRowBuffer>(
+            TSchemafulReaderAdapterPoolTag(),
+            TChunkedMemoryPool::DefaultStartChunkSize,
+            std::move(memoryUsageTracker)))
         , RowReorderer_(TNameTable::FromSchema(*ReaderSchema_), RowBuffer_, /*deepCapture*/ false, std::move(keyColumns))
         , IgnoreRequired_(ignoreRequired)
     { }
@@ -118,7 +123,7 @@ private:
     const ISchemalessUnversionedReaderPtr UnderlyingReader_;
     const TTableSchemaPtr ReaderSchema_;
 
-    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSchemafulReaderAdapterPoolTag());
+    const TRowBufferPtr RowBuffer_;
     TSchemalessRowReorderer RowReorderer_;
 
     const bool IgnoreRequired_;
@@ -135,7 +140,8 @@ ISchemafulUnversionedReaderPtr CreateSchemafulReaderAdapter(
     TSchemalessReaderFactory createReader,
     TTableSchemaPtr schema,
     const TColumnFilter& columnFilter,
-    bool ignoreRequired)
+    bool ignoreRequired,
+    IMemoryUsageTrackerPtr memoryUsageTracker)
 {
     TKeyColumns keyColumns;
     for (const auto& columnSchema : schema->Columns()) {
@@ -151,7 +157,8 @@ ISchemafulUnversionedReaderPtr CreateSchemafulReaderAdapter(
         std::move(underlyingReader),
         std::move(schema),
         std::move(keyColumns),
-        ignoreRequired);
+        ignoreRequired,
+        std::move(memoryUsageTracker));
 
     return result;
 }
