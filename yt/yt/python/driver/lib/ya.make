@@ -10,6 +10,7 @@ SRCS(
     descriptor.cpp
     driver.cpp
     error.cpp
+    helpers.cpp
     response.cpp
 )
 
