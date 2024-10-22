@@ -26,10 +26,9 @@ var _ yt.Client = (*client)(nil)
 type client struct {
 	Encoder
 
-	conf           *yt.Config
-	httpClusterURL yt.ClusterURL
-	rpcClusterURL  yt.ClusterURL
-	credentials    yt.Credentials
+	conf        *yt.Config
+	clusterURL  yt.ClusterURL
+	credentials yt.Credentials
 
 	log    log.Structured
 	tracer opentracing.Tracer
@@ -43,18 +42,22 @@ type client struct {
 }
 
 func NewClient(conf *yt.Config) (*client, error) {
-	c := &client{
-		conf:           conf,
-		httpClusterURL: yt.NormalizeProxyURL(conf.Proxy, conf.DisableProxyDiscovery, conf.UseTVMOnlyEndpoint, yt.TVMOnlyHTTPProxyPort),
-		rpcClusterURL:  yt.NormalizeProxyURL(conf.RPCProxy, conf.DisableProxyDiscovery, conf.UseTVMOnlyEndpoint, yt.TVMOnlyRPCProxyPort),
-		log:            conf.GetLogger(),
-		tracer:         conf.GetTracer(),
-		stop:           internal.NewStopGroup(),
+	clusterURL, err := conf.GetCusterURL()
+	if err != nil {
+		return nil, err
 	}
 
 	certPool, err := internal.NewCertPool()
 	if err != nil {
 		return nil, err
+	}
+
+	c := &client{
+		conf:       conf,
+		clusterURL: clusterURL,
+		log:        conf.GetLogger(),
+		tracer:     conf.GetTracer(),
+		stop:       internal.NewStopGroup(),
 	}
 
 	c.httpClient = &http.Client{
@@ -111,14 +114,6 @@ func NewClient(conf *yt.Config) (*client, error) {
 		Wrap(readRetrier.InterceptInTx)
 
 	return c, nil
-}
-
-func (c *client) schema() string {
-	schema := "http"
-	if c.conf.UseTLS {
-		schema = "https"
-	}
-	return schema
 }
 
 func (c *client) doReadRow(

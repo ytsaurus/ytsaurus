@@ -62,14 +62,6 @@ type httpClient struct {
 	proxySet *internal.ProxySet
 }
 
-func (c *httpClient) schema() string {
-	schema := "http"
-	if c.config.UseTLS {
-		schema = "https"
-	}
-	return schema
-}
-
 func getTVMOnlyPort(config *yt.Config) int {
 	if config.UseTLS {
 		return yt.TVMOnlyHTTPSProxyPort
@@ -89,7 +81,7 @@ func (c *httpClient) listHeavyProxies() ([]string, error) {
 	}
 
 	var resolveURL url.URL
-	resolveURL.Scheme = c.schema()
+	resolveURL.Scheme = c.clusterURL.Scheme
 	resolveURL.Host = c.clusterURL.Address
 	resolveURL.Path = c.config.HostsPath
 	if resolveURL.Path == "" {
@@ -210,7 +202,7 @@ func (c *httpClient) newHTTPRequest(ctx context.Context, call *internal.Call, bo
 	}
 
 	verb := call.Params.HTTPVerb()
-	req, err = http.NewRequest(verb.HTTPMethod(), c.schema()+"://"+address+call.APIPath+verb.String(), body)
+	req, err = http.NewRequest(verb.HTTPMethod(), c.clusterURL.Scheme+"://"+address+call.APIPath+verb.String(), body)
 	if err != nil {
 		return
 	}
@@ -674,10 +666,7 @@ func (c *httpClient) dialContext(ctx context.Context, network, addr string) (net
 func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	var client httpClient
 
-	client.log = c.GetLogger()
-	client.tracer = c.GetTracer()
-
-	proxy, err := c.GetProxy()
+	clusterURL, err := c.GetCusterURL()
 	if err != nil {
 		return nil, err
 	}
@@ -693,8 +682,12 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 		}
 	}
 
+	client.log = c.GetLogger()
+	client.tracer = c.GetTracer()
+
 	client.config = c
-	client.clusterURL = yt.NormalizeProxyURL(proxy, c.DisableProxyDiscovery, c.UseTVMOnlyEndpoint, getTVMOnlyPort(c))
+	client.clusterURL = clusterURL
+
 	client.netDialer = &net.Dialer{
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,
