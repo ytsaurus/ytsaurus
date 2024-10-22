@@ -145,7 +145,7 @@ TError BuildErrorFromPythonException(bool clear)
         << TErrorAttribute("exception_type", Str(errorType));
 
     if (!errorBacktrace.isNone()) {
-        error.MutableAttributes()->Set("backtrace", Str(errorBacktrace));
+        error <<= TErrorAttribute("backtrace", Str(errorBacktrace));
     }
 
     return error;

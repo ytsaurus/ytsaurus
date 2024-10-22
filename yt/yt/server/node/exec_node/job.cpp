@@ -694,7 +694,7 @@ bool TJob::Finalize(
     } else {
         if (*finalJobState == EJobState::Aborted) {
             if (auto deducedAbortReason = DeduceAbortReason()) {
-                currentError.MutableAttributes()->Set("abort_reason", deducedAbortReason);
+                currentError <<= TErrorAttribute("abort_reason", deducedAbortReason);
 
                 YT_LOG_DEBUG(
                     "Deduced abort reason set to error (AbortReason: %v, Error: %v)",
@@ -768,12 +768,12 @@ void TJob::DeduceAndSetFinishedJobState()
     if (currentError.IsOK()) {
         SetJobState(EJobState::Completed);
     } else if (IsFatalError(currentError)) {
-        currentError.MutableAttributes()->Set("fatal", true);
+        currentError <<= TErrorAttribute("fatal", true);
         SetJobState(EJobState::Failed);
     } else {
         auto deducedAbortReason = DeduceAbortReason();
         if (deducedAbortReason) {
-            currentError.MutableAttributes()->Set("abort_reason", deducedAbortReason);
+            currentError <<= TErrorAttribute("abort_reason", deducedAbortReason);
             SetJobState(EJobState::Aborted);
         } else {
             SetJobState(EJobState::Failed);
@@ -3303,7 +3303,7 @@ TError TJob::BuildJobProxyError(const TError& spawnError)
         auto reason = EJobProxyExitCode(spawnError.Attributes().Get<int>("exit_code"));
         const auto& validReasons = TEnumTraits<EJobProxyExitCode>::GetDomainValues();
         if (std::find(validReasons.begin(), validReasons.end(), reason) != validReasons.end()) {
-            jobProxyError.MutableAttributes()->Set("reason", reason);
+            jobProxyError <<= TErrorAttribute("reason", reason);
         }
     }
 

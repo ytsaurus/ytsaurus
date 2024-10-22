@@ -965,7 +965,7 @@ private:
                     CliqueAlias_)
                     << error;
                 if (OperationAcl_) {
-                    replyError.MutableAttributes()->Set("operation_acl", OperationAcl_);
+                    replyError <<= TErrorAttribute("operation_acl", OperationAcl_);
                 }
                 ReplyWithError(EStatusCode::Forbidden, replyError);
             } else {

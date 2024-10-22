@@ -87,7 +87,7 @@ private:
                 result.Value().Realm);
         } else {
             YT_LOG_DEBUG(result, "Authentication via OAuth failed (AccessTokenMD5: %v)", accessTokenMD5);
-            result.MutableAttributes()->Set("access_token_md5", accessTokenMD5);
+            result <<= TErrorAttribute("access_token_md5", accessTokenMD5);
         }
 
         return MakeFuture(std::move(result));
