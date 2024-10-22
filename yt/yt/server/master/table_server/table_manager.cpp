@@ -788,6 +788,9 @@ public:
             if (indexTable->GetIndexTo()) {
                 THROW_ERROR_EXCEPTION("Index cannot have multiple primary tables");
             }
+            if (table->GetIndexTo()) {
+                THROW_ERROR_EXCEPTION("Cannot create secondary index for a secondary index");
+            }
             if (table->GetUpstreamReplicaId() || indexTable->GetUpstreamReplicaId()) {
                 THROW_ERROR_EXCEPTION("Cannot create secondary index on replica tables");
             }
