@@ -720,87 +720,87 @@ def get_default_config():
 
 
 FORCED_SHORTCUTS = {
-    "BASE_LAYER" : "operation_base_layer",
+    "YT_BASE_LAYER" : "operation_base_layer",
 }
 
 
 SHORTCUTS = {
-    "PROXY": "proxy/url",
-    "PROXY_SUFFIX": "proxy/default_suffix",
-    "PROXY_URL_ALIASING_CONFIG": "proxy/aliases",
-    "TOKEN": "token",
-    "TOKEN_PATH": "token_path",
-    "USE_TOKEN": "enable_token",
-    "CHECK_TOKEN": "check_token",
-    "ACCEPT_ENCODING": "proxy/accept_encoding",
-    "CONTENT_ENCODING": "proxy/content_encoding",
-    "FORCE_IPV4": "proxy/force_ipv4",
-    "FORCE_IPV6": "proxy/force_ipv6",
+    "YT_PROXY": "proxy/url",
+    "YT_PROXY_SUFFIX": "proxy/default_suffix",
+    "YT_PROXY_URL_ALIASING_CONFIG": "proxy/aliases",
+    "YT_TOKEN": "token",
+    "YT_TOKEN_PATH": "token_path",
+    "YT_USE_TOKEN": "enable_token",
+    "YT_CHECK_TOKEN": "check_token",
+    "YT_ACCEPT_ENCODING": "proxy/accept_encoding",
+    "YT_CONTENT_ENCODING": "proxy/content_encoding",
+    "YT_FORCE_IPV4": "proxy/force_ipv4",
+    "YT_FORCE_IPV6": "proxy/force_ipv6",
 
-    "VERSION": "api_version",
+    "YT_VERSION": "api_version",
 
-    "DRIVER_CONFIG": "driver_config",
-    "DRIVER_CONFIG_PATH": "driver_config_path",
+    "YT_DRIVER_CONFIG": "driver_config",
+    "YT_DRIVER_CONFIG_PATH": "driver_config_path",
 
-    "USE_HOSTS": "proxy/enable_proxy_discovery",
-    "HOSTS": "proxy/proxy_discovery_url",
+    "YT_USE_HOSTS": "proxy/enable_proxy_discovery",
+    "YT_HOSTS": "proxy/proxy_discovery_url",
 
-    "MAX_REPLICATION_FACTOR": "max_replication_factor",
+    "YT_MAX_REPLICATION_FACTOR": "max_replication_factor",
 
-    "ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE": "yamr_mode/always_set_executable_flag_on_files",
-    "USE_MAPREDUCE_STYLE_DESTINATION_FDS": "yamr_mode/use_yamr_style_destination_fds",
-    "TREAT_UNEXISTING_AS_EMPTY": "yamr_mode/treat_unexisting_as_empty",
-    "DELETE_EMPTY_TABLES": "yamr_mode/delete_empty_tables",
-    "USE_YAMR_SORT_REDUCE_COLUMNS": "yamr_mode/use_yamr_sort_reduce_columns",
-    "REPLACE_TABLES_WHILE_COPY_OR_MOVE": "yamr_mode/replace_tables_on_copy_and_move",
-    "CREATE_RECURSIVE": "yamr_mode/create_recursive",
-    "THROW_ON_EMPTY_DST_LIST": "yamr_mode/throw_on_missing_destination",
-    "RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED": "yamr_mode/run_map_reduce_if_source_is_not_sorted",
-    "USE_NON_STRICT_UPPER_KEY": "yamr_mode/use_non_strict_upper_key",
-    "CHECK_INPUT_FULLY_CONSUMED": "yamr_mode/check_input_fully_consumed",
-    "FORCE_DROP_DST": "yamr_mode/abort_transactions_with_remove",
-    "USE_YAMR_STYLE_PREFIX": "yamr_mode/use_yamr_style_prefix",
+    "YT_ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE": "yamr_mode/always_set_executable_flag_on_files",
+    "YT_USE_MAPREDUCE_STYLE_DESTINATION_FDS": "yamr_mode/use_yamr_style_destination_fds",
+    "YT_TREAT_UNEXISTING_AS_EMPTY": "yamr_mode/treat_unexisting_as_empty",
+    "YT_DELETE_EMPTY_TABLES": "yamr_mode/delete_empty_tables",
+    "YT_USE_YAMR_SORT_REDUCE_COLUMNS": "yamr_mode/use_yamr_sort_reduce_columns",
+    "YT_REPLACE_TABLES_WHILE_COPY_OR_MOVE": "yamr_mode/replace_tables_on_copy_and_move",
+    "YT_CREATE_RECURSIVE": "yamr_mode/create_recursive",
+    "YT_THROW_ON_EMPTY_DST_LIST": "yamr_mode/throw_on_missing_destination",
+    "YT_RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED": "yamr_mode/run_map_reduce_if_source_is_not_sorted",
+    "YT_USE_NON_STRICT_UPPER_KEY": "yamr_mode/use_non_strict_upper_key",
+    "YT_CHECK_INPUT_FULLY_CONSUMED": "yamr_mode/check_input_fully_consumed",
+    "YT_FORCE_DROP_DST": "yamr_mode/abort_transactions_with_remove",
+    "YT_USE_YAMR_STYLE_PREFIX": "yamr_mode/use_yamr_style_prefix",
 
-    "OPERATION_STATE_UPDATE_PERIOD": "operation_tracker/poll_period",
-    "STDERR_LOGGING_LEVEL": "operation_tracker/stderr_logging_level",
-    "IGNORE_STDERR_IF_DOWNLOAD_FAILED": "operation_tracker/ignore_stderr_if_download_failed",
-    "KEYBOARD_ABORT": "operation_tracker/abort_on_sigint",
+    "YT_OPERATION_STATE_UPDATE_PERIOD": "operation_tracker/poll_period",
+    "YT_STDERR_LOGGING_LEVEL": "operation_tracker/stderr_logging_level",
+    "YT_IGNORE_STDERR_IF_DOWNLOAD_FAILED": "operation_tracker/ignore_stderr_if_download_failed",
+    "YT_KEYBOARD_ABORT": "operation_tracker/abort_on_sigint",
 
-    "FILE_STORAGE": "remote_temp_files_directory",
-    "LOCAL_TMP_DIR": "local_temp_directory",
+    "YT_FILE_STORAGE": "remote_temp_files_directory",
+    "YT_LOCAL_TMP_DIR": "local_temp_directory",
 
     # Deprecated
-    "TEMP_TABLES_STORAGE": "remote_temp_tables_directory",
+    "YT_TEMP_TABLES_STORAGE": "remote_temp_tables_directory",
     # Non-deprecated version of TEMP_TABLES_STORAGE
-    "TEMP_DIR": "remote_temp_tables_directory",
+    "YT_TEMP_DIR": "remote_temp_tables_directory",
 
-    "PREFIX": "prefix",
+    "YT_PREFIX": "prefix",
 
-    "POOL": "pool",
-    "MEMORY_LIMIT": "memory_limit",
-    "SPEC": "spec_defaults",
-    "BASE_LAYER": "operation_base_layer",
-    "TABLE_WRITER": "table_writer",
+    "YT_POOL": "pool",
+    "YT_MEMORY_LIMIT": "memory_limit",
+    "YT_SPEC": "spec_defaults",
+    "YT_BASE_LAYER": "operation_base_layer",
+    "YT_TABLE_WRITER": "table_writer",
 
-    "RETRY_READ": "read_retries/enable",
-    "USE_RETRIES_DURING_WRITE": "write_retries/enable",
-    "USE_RETRIES_DURING_UPLOAD": "write_retries/enable",
+    "YT_RETRY_READ": "read_retries/enable",
+    "YT_USE_RETRIES_DURING_WRITE": "write_retries/enable",
+    "YT_USE_RETRIES_DURING_UPLOAD": "write_retries/enable",
 
-    "CHUNK_SIZE": "write_retries/chunk_size",
+    "YT_CHUNK_SIZE": "write_retries/chunk_size",
 
-    "DETACHED": "detached",
+    "YT_DETACHED": "detached",
 
-    "TABULAR_DATA_FORMAT": "tabular_data_format",
+    "YT_TABULAR_DATA_FORMAT": "tabular_data_format",
 
-    "CONFIG_PATH": "config_path",
-    "CONFIG_FORMAT": "config_format",
+    "YT_CONFIG_PATH": "config_path",
+    "YT_CONFIG_FORMAT": "config_format",
 
-    "ARGCOMPLETE_VERBOSE": "argcomplete_verbose",
+    "YT_ARGCOMPLETE_VERBOSE": "argcomplete_verbose",
 
-    "USE_YAMR_DEFAULTS": "yamr_mode/use_yamr_defaults",
-    "IGNORE_EMPTY_TABLES_IN_MAPREDUCE_LIST": "yamr_mode/ignore_empty_tables_in_mapreduce_list",
+    "YT_USE_YAMR_DEFAULTS": "yamr_mode/use_yamr_defaults",
+    "YT_IGNORE_EMPTY_TABLES_IN_MAPREDUCE_LIST": "yamr_mode/ignore_empty_tables_in_mapreduce_list",
 
-    "CONFIG_PROFILE": "config_profile",
+    "YT_CONFIG_PROFILE": "config_profile",
 }
 
 
@@ -861,11 +861,9 @@ def _update_from_env_vars(config, shortcuts=None):
         shortcuts = SHORTCUTS
 
     for key, value in os.environ.items():
-        prefix = "YT_"
-        if not key.startswith(prefix):
+        if not key.startswith("YT_"):
             continue
 
-        key = key[len(prefix):]
         if key in shortcuts:
             name = shortcuts[key]
             if name == "driver_config":
@@ -985,7 +983,7 @@ def _update_from_file(
     # These options should be processed before reading config file.
     for opt_name in ["YT_CONFIG_PATH", "YT_CONFIG_FORMAT", "YT_CONFIG_PROFILE"]:
         if opt_name in os.environ:
-            config[SHORTCUTS[opt_name[3:]]] = os.environ[opt_name]
+            config[SHORTCUTS[opt_name]] = os.environ[opt_name]
 
     if config_profile is None:
         config_profile = config["config_profile"]
