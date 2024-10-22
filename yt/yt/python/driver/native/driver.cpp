@@ -1,6 +1,7 @@
 #include <yt/yt/python/driver/lib/descriptor.h>
 #include <yt/yt/python/driver/lib/response.h>
 #include <yt/yt/python/driver/lib/error.h>
+#include <yt/yt/python/driver/lib/helpers.h>
 #include <yt/yt/python/driver/lib/driver.h>
 
 #include <yt/yt/python/common/helpers.h>
@@ -19,6 +20,9 @@
 #include <yt/yt/ytlib/queue_client/registration_manager.h>
 
 #include <yt/yt/library/tvm/service/tvm_service.h>
+
+#include <yt/yt/client/api/rpc_proxy/connection.h>
+#include <yt/yt/client/api/rpc_proxy/config.h>
 
 #include <yt/yt/client/api/transaction.h>
 
@@ -50,41 +54,60 @@ public:
         : Py::PythonClass<TDriver>::PythonClass(self, args, kwargs)
     {
         auto configDict = ExtractArgument(args, kwargs, "config");
+
+        EConnectionType connectionType = EConnectionType::Native;
+        if (HasArgument(args, kwargs, "connection_type")) {
+            connectionType = ParseConnectionType(ExtractArgument(args, kwargs, "connection_type"));
+        }
+
         ValidateArgumentsEmpty(args, kwargs);
 
         INodePtr configNode;
         IDriverPtr driver;
 
-        try {
-            configNode = ConvertToNode(configDict);
 
+        try {
+
+            configNode = ConvertToNode(configDict);
             auto driverConfig = ConvertTo<TNativeDriverConfigPtr>(configNode);
 
-            NAuth::IDynamicTvmServicePtr tvmService;
-            if (driverConfig->TvmService) {
-                tvmService = NAuth::CreateDynamicTvmService(driverConfig->TvmService);
-            }
-            auto connection = CreateConnection(
-                configNode,
-                /*options*/ {},
-                std::move(tvmService));
-            Connection_ = connection;
+            IConnectionPtr connection;
 
-            if (auto nativeConnection = DynamicPointerCast<NNative::IConnection>(connection)) {
-                auto configNodeMap = configNode->AsMap();
-                auto configPolicy = EClusterConnectionDynamicConfigPolicy::FromStaticConfig;
-                if (auto configPolicyNode = configNodeMap->FindChild("cluster_connection_dynamic_config_policy")) {
-                    configPolicy = ConvertTo<EClusterConnectionDynamicConfigPolicy>(configPolicyNode);
+            switch (connectionType) {
+                case EConnectionType::Rpc: {
+                    auto connectionConfig = ConvertTo<NRpcProxy::TConnectionConfigPtr>(configNode);
+                    connection = NRpcProxy::CreateConnection(connectionConfig);
+                    break;
                 }
+                case EConnectionType::Native: {
+                    NAuth::IDynamicTvmServicePtr tvmService;
+                    if (driverConfig->TvmService) {
+                        tvmService = NAuth::CreateDynamicTvmService(driverConfig->TvmService);
+                    }
+                    connection = CreateConnection(
+                        configNode,
+                        /*options*/ {},
+                        std::move(tvmService));
+                    Connection_ = connection;
 
-                NApi::NNative::SetupClusterConnectionDynamicConfigUpdate(
-                    nativeConnection,
-                    configPolicy,
-                    configNode,
-                    Logger);
+                    if (auto nativeConnection = DynamicPointerCast<NNative::IConnection>(connection)) {
+                        auto configNodeMap = configNode->AsMap();
+                        auto configPolicy = EClusterConnectionDynamicConfigPolicy::FromStaticConfig;
+                        if (auto configPolicyNode = configNodeMap->FindChild("cluster_connection_dynamic_config_policy")) {
+                            configPolicy = ConvertTo<EClusterConnectionDynamicConfigPolicy>(configPolicyNode);
+                        }
 
-                nativeConnection->GetClusterDirectorySynchronizer()->Start();
-                nativeConnection->GetQueueConsumerRegistrationManager()->StartSync();
+                        NApi::NNative::SetupClusterConnectionDynamicConfigUpdate(
+                            nativeConnection,
+                            configPolicy,
+                            configNode,
+                            Logger);
+
+                        nativeConnection->GetClusterDirectorySynchronizer()->Start();
+                        nativeConnection->GetQueueConsumerRegistrationManager()->StartSync();
+                    }
+                    break;
+                }
             }
 
             driver = CreateDriver(std::move(connection), std::move(driverConfig));

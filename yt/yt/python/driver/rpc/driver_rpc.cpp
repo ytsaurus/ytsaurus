@@ -1,6 +1,7 @@
 #include <yt/yt/python/driver/lib/descriptor.h>
 #include <yt/yt/python/driver/lib/response.h>
 #include <yt/yt/python/driver/lib/error.h>
+#include <yt/yt/python/driver/lib/helpers.h>
 #include <yt/yt/python/driver/lib/driver.h>
 
 #include <yt/yt/python/common/helpers.h>
@@ -39,12 +40,22 @@ public:
         : Py::PythonClass<TDriverRpc>::PythonClass(self, args, kwargs)
     {
         auto configDict = ExtractArgument(args, kwargs, "config");
+
+        EConnectionType connectionType = EConnectionType::Rpc;
+        if (HasArgument(args, kwargs, "connection_type")) {
+            connectionType = ParseConnectionType(ExtractArgument(args, kwargs, "connection_type"));
+        }
+
         ValidateArgumentsEmpty(args, kwargs);
 
         INodePtr configNode;
         IDriverPtr driver;
 
         try {
+            if (connectionType == EConnectionType::Native) {
+                THROW_ERROR_EXCEPTION("Module \"driver_rpc_lib\" cannot create driver instance with native connection type");
+            }
+
             configNode = ConvertToNode(configDict);
 
             auto connectionConfig = ConvertTo<NRpcProxy::TConnectionConfigPtr>(configNode);
