@@ -38,7 +38,7 @@ func DescribeOptions(a AgentInfo, speclet Speclet) []OptionGroupDescriptor {
 					Name:         "pool_trees",
 					Type:         TypePoolTrees,
 					CurrentValue: speclet.PoolTrees,
-					Description:  "Name of the pool trees to start a corresponding YT operation in.",
+					Description:  "Names of the pool trees to start a corresponding YT operation in.",
 				},
 				{
 					Title:        "Pool",
@@ -889,7 +889,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		oplet.setError(err)
 		return err
 	}
-	if oplet.strawberrySpeclet.PoolTrees != nil {
+	if len(oplet.strawberrySpeclet.PoolTrees) > 0 {
 		spec["pool_trees"] = oplet.strawberrySpeclet.PoolTrees
 	}
 	if oplet.strawberrySpeclet.PreemptionMode != nil {
@@ -1004,16 +1004,14 @@ func (oplet *Oplet) updateOpParameters(ctx context.Context, reason string) error
 		"acl":  opACL,
 		"pool": oplet.strawberrySpeclet.Pool,
 	}
-	if oplet.strawberrySpeclet.PoolTrees != nil {
+	if len(oplet.strawberrySpeclet.PoolTrees) > 0 {
 		params["pool_trees"] = oplet.strawberrySpeclet.PoolTrees
 	}
 
 	if oplet.pendingScaling && oplet.targetInstanceCount != 0 {
 		var effectivePoolTrees []string
-		if oplet.strawberrySpeclet.PoolTrees != nil {
-			for _, pTree := range oplet.strawberrySpeclet.PoolTrees {
-				effectivePoolTrees = append(effectivePoolTrees, pTree)
-			}
+		if len(oplet.strawberrySpeclet.PoolTrees) > 0 {
+			effectivePoolTrees = oplet.strawberrySpeclet.PoolTrees
 		} else {
 			var defaultPoolTree string
 			err := oplet.systemClient.GetNode(ctx, ypath.Path("//sys/pool_trees/@default_tree"), &defaultPoolTree, nil)
@@ -1200,9 +1198,7 @@ func (oplet *Oplet) GetBriefInfo() (briefInfo OpletBriefInfo) {
 	if oplet.strawberrySpeclet.Pool != nil {
 		briefInfo.Pool = *oplet.strawberrySpeclet.Pool
 	}
-	if oplet.strawberrySpeclet.PoolTrees != nil {
-		briefInfo.PoolTrees = oplet.strawberrySpeclet.PoolTrees
-	}
+	briefInfo.PoolTrees = oplet.strawberrySpeclet.PoolTrees
 
 	if oplet.persistentState.YTOpID != yt.NullOperationID {
 		briefInfo.YTOperation.URL = operationStringURL(oplet.agentInfo.ClusterURL, oplet.persistentState.YTOpID)
