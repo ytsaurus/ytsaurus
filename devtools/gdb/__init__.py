@@ -4,6 +4,7 @@ import sys
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+
 import libstdcpp_printers
 import arcadia_printers
 import libc_printers
@@ -17,8 +18,6 @@ import libcxx_xmethods
 import yt_fibers_printer
 
 import tcont_printer
-
-import userver_printers
 
 def register_printers():
     libc_printers.register_printers()
@@ -38,8 +37,6 @@ def register_printers():
     yt_fibers_printer.register_fibers_printer()
 
     tcont_printer.register_commands()
-
-    userver_printers.register_printers()
 
     print('[arc] Arcadia GDB pretty-printers enabled')
 
