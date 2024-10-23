@@ -47,19 +47,19 @@ private:
 
 struct TTableUploadOptions
 {
-    NChunkClient::EUpdateMode UpdateMode;
-    NCypressClient::ELockMode LockMode;
+    NChunkClient::EUpdateMode UpdateMode = NChunkClient::EUpdateMode::Overwrite;
+    NCypressClient::ELockMode LockMode = NCypressClient::ELockMode::Exclusive;
     TEpochSchema TableSchema;
     TMasterTableSchemaId SchemaId;
     ETableSchemaModification SchemaModification;
-    ETableSchemaMode SchemaMode;
-    EOptimizeFor OptimizeFor;
+    ETableSchemaMode SchemaMode = ETableSchemaMode::Strong;
+    EOptimizeFor OptimizeFor = EOptimizeFor::Lookup;
     std::optional<NChunkClient::EChunkFormat> ChunkFormat;
-    NCompression::ECodec CompressionCodec;
-    NErasure::ECodec ErasureCodec;
-    bool EnableStripedErasure;
+    NCompression::ECodec CompressionCodec = NCompression::ECodec::None;
+    NErasure::ECodec ErasureCodec = NErasure::ECodec::None;
+    bool EnableStripedErasure = false;
     std::optional<std::vector<NSecurityClient::TSecurityTag>> SecurityTags;
-    bool PartiallySorted;
+    bool PartiallySorted = false;
 
     TTableSchemaPtr GetUploadSchema() const;
 
