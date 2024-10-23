@@ -26,9 +26,9 @@ TTopCollectorBase::TTopCollectorBase(
     , MaxComparer_(comparer)
     , RowSize_(rowSize)
     , MemoryChunkProvider_(std::move(memoryChunkProvider))
+    , Limit_(limit)
     , RowsContext_(MakeExpressionContext(TTopCollectorBufferTag(), MemoryChunkProvider_))
     , Heap_(GetRefCountedTypeCookie<TTopCollectorBufferTag>(), MemoryChunkProvider_)
-    , Limit_(limit)
 { }
 
 const TPIValue* TTopCollectorBase::AddRow(const TPIValue* row)
