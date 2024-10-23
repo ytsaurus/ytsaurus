@@ -19,7 +19,7 @@ $ yt set-user-password alex --current-password cone --new-password cube
 
 Note that unlike the administrator, the user is required to enter their current password in order to change it. The administrator doesn't need to enter any passwords, neither when setting the user password for the first time nor when changing it later.
 
-# Token management
+## Token management
 
 Users need tokens to interact with {{product-name}} via the CLI or the API. To facilitate token management, the CLI supports the `issue-token`, `revoke-token`, and `list-user-tokens` commands.
 
