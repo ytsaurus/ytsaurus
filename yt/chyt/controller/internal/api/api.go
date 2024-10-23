@@ -528,10 +528,8 @@ func (a *API) GetOption(ctx context.Context, alias, key string) (value any, err 
 
 func (a *API) SetOption(ctx context.Context, alias, key string, value any) error {
 	if key == "pool" || key == "pool_trees" {
-		fmt.Printf("11111111111111111111111111111111\n")
 		return a.EditOptions(ctx, alias, map[string]any{key: value}, nil)
 	}
-	fmt.Printf("2222222222222222222222222222222222222222 %s\n", key)
 
 	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
 		return err
