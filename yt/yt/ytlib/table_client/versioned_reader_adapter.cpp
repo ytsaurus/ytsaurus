@@ -199,7 +199,7 @@ private:
     int GetWriteTimestampCountAfterResetting(const TVersionedRow& row) const
     {
         if (!IsChunkVersioned_) {
-            return row.GetWriteTimestampCount();
+            return row.GetWriteTimestampCount() > 0 ? 1 : 0;
         }
 
         bool minTimestampExists = false;
