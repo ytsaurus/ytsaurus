@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"io"
+	"math"
 	"sort"
 	"sync"
 	"time"
@@ -39,7 +40,8 @@ type histogram struct {
 }
 
 func (h *histogram) writeHistogram(w io.Writer) error {
-	err := writeULEB128(w, uint32(len(h.Buckets)))
+	// add 1 to buckets length for inf bucket
+	err := writeULEB128(w, uint32(len(h.Buckets)+1))
 	if err != nil {
 		return xerrors.Errorf("writeULEB128 size histogram buckets failed: %w", err)
 	}
@@ -50,6 +52,11 @@ func (h *histogram) writeHistogram(w io.Writer) error {
 			return xerrors.Errorf("binary.Write upper bound failed: %w", err)
 		}
 	}
+	// write inf bound
+	err = binary.Write(w, binary.LittleEndian, math.MaxFloat64)
+	if err != nil {
+		return xerrors.Errorf("binary.Write inf bound failed: %w", err)
+	}
 
 	for _, bucketValue := range h.Buckets {
 		err = binary.Write(w, binary.LittleEndian, uint64(bucketValue))
@@ -57,6 +64,12 @@ func (h *histogram) writeHistogram(w io.Writer) error {
 			return xerrors.Errorf("binary.Write histogram buckets failed: %w", err)
 		}
 	}
+	// write inf bucket value
+	err = binary.Write(w, binary.LittleEndian, uint64(h.Inf))
+	if err != nil {
+		return xerrors.Errorf("binary.Write inf bucket failed: %w", err)
+	}
+
 	return nil
 }
 
@@ -100,6 +113,7 @@ func (h *Histogram) getValue() interface{} {
 	return histogram{
 		Bounds:  h.bucketBounds,
 		Buckets: h.bucketValues,
+		Inf:     h.infValue.Load(),
 	}
 }
 
