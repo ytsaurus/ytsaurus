@@ -2958,7 +2958,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
     proxyConfig->OperationsArchiveVersion = Bootstrap_->GetJobController()->GetOperationsArchiveVersion();
 
-    proxyConfig->EnableRootVolumeDiskQuota = JobSpecExt_->enable_root_volume_disk_quota();
+    proxyConfig->EnableRootVolumeDiskQuota = ExtractEnableRootVolumeDiskQuotaFlag();
 
     return proxyConfig;
 }
@@ -3031,6 +3031,16 @@ void TJob::BuildVirtualSandbox()
         std::move(logger));
 }
 
+bool TJob::ExtractEnableRootVolumeDiskQuotaFlag()
+{
+    if (UserJobSpec_) {
+        auto enablePorto = CheckedEnumCast<NScheduler::EEnablePorto>(UserJobSpec_->enable_porto());
+        return enablePorto != NScheduler::EEnablePorto::Isolate && JobSpecExt_->enable_root_volume_disk_quota();
+    } else {
+        return JobSpecExt_->enable_root_volume_disk_quota();
+    }
+}
+
 TUserSandboxOptions TJob::BuildUserSandboxOptions()
 {
     TUserSandboxOptions options;
@@ -3038,7 +3048,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     options.DiskOverdraftCallback = BIND(&TJob::Fail, MakeWeak(this))
         .Via(Invoker_);
     // TODO(khlebnikov): Move into volume manager.
-    options.EnableRootVolumeDiskQuota = JobSpecExt_->enable_root_volume_disk_quota();
+    options.EnableRootVolumeDiskQuota = ExtractEnableRootVolumeDiskQuotaFlag();
     options.UserId = GetUserSlot()->GetUserId();
 
     if (UserJobSpec_) {
@@ -3189,7 +3199,7 @@ void TJob::InitializeArtifacts()
 
     if (!LayerArtifactKeys_.empty() &&
         Bootstrap_->GetNbdServer() &&
-        JobSpecExt_->enable_root_volume_disk_quota() &&
+        ExtractEnableRootVolumeDiskQuotaFlag() &&
         JobSpecExt_->enable_virtual_sandbox())
     {
         // Mark artifacts that will be accessed via virtual layer.
