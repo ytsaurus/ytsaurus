@@ -115,6 +115,12 @@ TSchedulerInputState GenerateSimpleInputContext(int nodeCount, int writeThreadCo
         zoneInfo->DefaultTabletNodeNannyService = "nanny-tablet-nodes-default";
         zoneInfo->DefaultRpcProxyNannyService = "nanny-rpc-proxies-default";
         zoneInfo->RequiresMinusOneRackGuarantee = false;
+
+        auto defaultTabNode = New<NBundleControllerClient::TInstanceSize>();
+        defaultTabNode->ResourceGuarantee->Vcpu = 9999;
+        defaultTabNode->ResourceGuarantee->Memory = 88_GB;
+        defaultTabNode->ResourceGuarantee->Net = 1_GB;
+        zoneInfo->TabletNodeSizes["default"] = defaultTabNode;
     }
 
     SetBundleInfo(input, "bigd", nodeCount, writeThreadCount, proxyCount);
@@ -136,6 +142,12 @@ TSchedulerInputState GenerateMultiDCInputContext(int nodeCount, int writeThreadC
         zoneInfo->RedundantDataCenterCount = 1;
         zoneInfo->MaxTabletNodeCount = 100;
         zoneInfo->MaxRpcProxyCount = 100;
+
+        auto defaultTabNode = New<NBundleControllerClient::TInstanceSize>();
+        defaultTabNode->ResourceGuarantee->Vcpu = 9999;
+        defaultTabNode->ResourceGuarantee->Memory = 88_GB;
+        defaultTabNode->ResourceGuarantee->Net = 1_GB;
+        zoneInfo->TabletNodeSizes["default"] = defaultTabNode;
 
         for (int i = 1; i <= 3; ++i) {
             auto dc = New<TDataCenterInfo>();
@@ -650,6 +662,24 @@ TEST_P(TBundleSchedulerTest, AllocationCreated)
         EXPECT_TRUE(dcTemplates.count(GetInstancePodIdTemplate(input.Config->Cluster, "bigd", "tab", 3)));
         EXPECT_TRUE(dcTemplates.count(GetInstancePodIdTemplate(input.Config->Cluster, "bigd", "tab", 4)));
         EXPECT_TRUE(dcTemplates.count(GetInstancePodIdTemplate(input.Config->Cluster, "bigd", "tab", 5)));
+    }
+}
+
+TEST_P(TBundleSchedulerTest, HostTagFilter)
+{
+    auto input = GenerateInputContext(5 * GetDataCenterCount());
+    auto dataCenters = GetDataCenters(input);
+    auto zoneInfo = input.Zones["default-zone"];
+    zoneInfo->TabletNodeSizes["default"]->HostTagFilter = "test-host-tag";
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    VerifyMultiDCNodeAllocationRequests(mutations, ForEachDataCenter(input, 5));
+    for (const auto& [_, request] : mutations.NewAllocations) {
+        EXPECT_EQ("test-host-tag", request->Spec->HostTagFilter);
     }
 }
 
@@ -2084,6 +2114,7 @@ TEST(TBundleSchedulerSimpleTest, CheckSystemAccountLimit)
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
     EXPECT_EQ(1, std::ssize(mutations.LiftedSystemAccountLimit));
+
     EXPECT_EQ(0, std::ssize(mutations.LoweredSystemAccountLimit));
 
     CheckLimits(
