@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait, create, ls, get, set, copy, remove,
+    authors, raises_yt_error, wait, create, ls, get, set, copy, remove,
     exists, concatenate, move, lookup_rows,
     create_account, create_user, make_ace, insert_rows,
     alter_table, read_table, write_table, map, merge,
@@ -18,8 +18,9 @@ from yt_helpers import (
 
 from yt_type_helpers import make_schema
 
-from yt.common import YtError
 import yt.yson as yson
+
+from yt.yson.yson_types import YsonMap
 
 import pytest
 
@@ -117,15 +118,30 @@ class TestChunkMerger(YTEnvSetup):
         if merge_mode is not None:
             set("{}/@chunk_merger_mode".format(table_path), merge_mode)
 
-        wait(lambda: get("{}/@chunk_ids".format(table_path)) != chunk_ids)
         wait(lambda: get("{}/@chunk_merger_status".format(table_path)) == "not_in_merge_pipeline")
-        wait(lambda: get("{}/@chunk_count".format(table_path)) <= max_merged_chunks)
+        wait(lambda: get("{}/@chunk_ids".format(table_path)) != chunk_ids)
+        wait(lambda:  get("{}/@chunk_count".format(table_path)) <= max_merged_chunks)
 
         merged_rows = read_table(table_path)
         if schema is not None:
             merged_rows = _schematize_rows(merged_rows, schema)
 
         assert merged_rows == rows
+
+    @authors("cherepashka")
+    def test_complex_row_values_for_shallow_merge_validation(self):
+        schema = make_schema(
+            [
+                {"name": "a", "type": "any", "required": False},
+                {"name": "b", "type": "any", "required": False},
+            ],
+            strict=False
+        )
+        create("table", "//tmp/t", attributes={"schema": schema})
+        self._remove_merge_quotas("//tmp/t")
+        for _ in range(4):
+            write_table("<append=true>//tmp/t", YsonMap({"a": YsonMap({"a": "aba", "b": "caba"}), "b": "caba"}))
+        self._wait_for_merge("//tmp/t", "auto")
 
     @authors("aleksandra-zh", "danilalexeev")
     def test_merge_attributes(self):
@@ -139,18 +155,18 @@ class TestChunkMerger(YTEnvSetup):
         set("//tmp/t/@chunk_merger_mode", "auto")
         assert get("//tmp/t/@chunk_merger_mode") == "auto"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing EChunkMergerMode"):
             set("//tmp/t/@chunk_merger_mode", "sdjkfhdskj")
 
         create_account("a")
 
         set("//sys/accounts/a/@merge_job_rate_limit", 7)
-        with pytest.raises(YtError):
+        with raises_yt_error("cannot be negative"):
             set("//sys/accounts/a/@merge_job_rate_limit", -1)
         assert get("//sys/accounts/a/@merge_job_rate_limit") == 7
 
         set("//sys/accounts/a/@chunk_merger_node_traversal_concurrency", 12)
-        with pytest.raises(YtError):
+        with raises_yt_error("cannot be negative"):
             set("//sys/accounts/a/@chunk_merger_node_traversal_concurrency", -1)
         assert get("//sys/accounts/a/@chunk_merger_node_traversal_concurrency") == 12
 
@@ -160,7 +176,7 @@ class TestChunkMerger(YTEnvSetup):
         set("//sys/accounts/d/@chunk_merger_criteria", data)
         assert get("//sys/accounts/d/@chunk_merger_criteria") == data
 
-        with pytest.raises(YtError):
+        with raises_yt_error("must be positive"):
             set("//sys/accounts/d/@chunk_merger_criteria/max_row_count", -1)
         set("//sys/accounts/d/@chunk_merger_criteria/max_row_count", 2)
         assert get("//sys/accounts/d/@chunk_merger_criteria/max_row_count") == 2
@@ -828,22 +844,24 @@ class TestChunkMerger(YTEnvSetup):
 
         create_account("b", "a", authenticated_user="u")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set("//sys/accounts/a/@merge_job_rate_limit", 10, authenticated_user="u")
+        with raises_yt_error("Access denied"):
             set("//sys/accounts/a/@chunk_merger_node_traversal_concurrency", 10, authenticated_user="u")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set("//sys/accounts/b/@merge_job_rate_limit", 10, authenticated_user="u")
+        with raises_yt_error("Access denied"):
             set("//sys/accounts/b/@chunk_merger_node_traversal_concurrency", 10, authenticated_user="u")
 
         create("table", "//tmp/t")
         create("map_node", "//tmp/m")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set("//tmp/t/@chunk_merger_mode", "shallow", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set("//tmp/t/@chunk_merger_mode", "deep", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set("//tmp/m/@chunk_merger_mode", "shallow", authenticated_user="u")
 
         set("//sys/@config/chunk_manager/chunk_merger/allow_setting_chunk_merger_mode", True)
