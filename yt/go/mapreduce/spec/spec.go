@@ -196,6 +196,7 @@ type Spec struct {
 	CopyAttributes *bool  `yson:"copy_attributes,omitempty"`
 
 	IntermediateDataReplicationFactor int     `yson:"intermediate_data_replication_factor,omitempty"`
+	IntermediateDataAccount           string  `yson:"intermediate_data_account,omitempty"`
 	IntermediateDataMedium            string  `yson:"intermediate_data_medium,omitempty"`
 	MapSelectivityFactor              float64 `yson:"map_selectivity_factor,omitempty"`
 
