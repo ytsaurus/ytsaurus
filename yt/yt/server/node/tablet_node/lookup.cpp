@@ -328,7 +328,9 @@ protected:
 
                 auto outdated = latestItem->Outdated.load(std::memory_order::acquire);
 
-                YT_LOG_DEBUG_IF(lookupKeys.size() == 1, "FoundLookupRow (Key: %v, Outdated: %v, UpdatedInFlush: %v, Reallocated: %v, InsertTime: %v, UpdateTime: %v)",
+                YT_LOG_DEBUG_IF(lookupKeys.size() == 1,
+                    "FoundLookupRow "
+                    "(Key: %v, Outdated: %v, UpdatedInFlush: %v, Reallocated: %v, InsertTime: %v, UpdateTime: %v)",
                     key,
                     outdated,
                     latestItem->UpdatedInFlush,
@@ -484,7 +486,9 @@ protected:
                 newItem->InsertTime = GetInstant();
 
                 if (newItem->GetVersionedRow().GetWriteTimestampCount() > 0) {
-                    MaxInsertedTimestamp_ = std::max(MaxInsertedTimestamp_, newItem->GetVersionedRow().BeginWriteTimestamps()[0]);
+                    MaxInsertedTimestamp_ = std::max(
+                        MaxInsertedTimestamp_,
+                        newItem->GetVersionedRow().BeginWriteTimestamps()[0]);
                 }
 
                 YT_LOG_TRACE("Populating cache (Row: %v, Revision: %v)",
@@ -1044,7 +1048,6 @@ private:
     const TSharedRange<TUnversionedRow> LookupKeys_;
     const TSharedRange<TUnversionedRow> ChunkLookupKeys_;
 
-    // TODO(akozhikhov): Support cancellation in underlying chunk readers.
     const TPromise<TSharedRef> RowsetPromise_ = NewPromise<TSharedRef>();
 
     const NLogging::TLogger Logger;
@@ -1069,6 +1072,10 @@ private:
     TDuration InitializationDuration_;
     TDuration PartitionsLookupDuration_;
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CancelationSpinLock_);
+    std::optional<TError> CancelationError_;
+    TFuture<void> SessionFuture_ = VoidFuture;
+
 
     TPartitionSession CreatePartitionSession(
         decltype(LookupKeys_)::iterator* currentIt,
@@ -1092,6 +1099,9 @@ private:
     void FinishSession(const TErrorOr<std::vector<TSharedRef>>& rowsetOrError);
 
     void UpdateUnmergedStatistics(const TStoreSessionList& sessions);
+
+    void OnCanceled(const TError& error);
+    void SetSessionFuture(TFuture<void> sessionFuture);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1654,12 +1664,15 @@ TFuture<TSharedRef> TTabletLookupSession<TPipeline>::Run()
     if (openFutures.empty()) {
         LookupInPartitions(TError{});
     } else {
-        AllSucceeded(std::move(openFutures)).Subscribe(BIND(
+        auto sessionFuture = AllSucceeded(std::move(openFutures));
+        sessionFuture.Subscribe(BIND(
             &TTabletLookupSession::LookupInPartitions,
             MakeStrong(this))
             .Via(GetInvoker()));
+        SetSessionFuture(std::move(sessionFuture));
     }
 
+    RowsetPromise_.OnCanceled(BIND(&TTabletLookupSession::OnCanceled, MakeWeak(this)));
     return RowsetPromise_;
 }
 
@@ -1799,6 +1812,7 @@ void TTabletLookupSession<TPipeline>::LookupInPartitions(const TError& error)
         &TTabletLookupSession::FinishSession,
         MakeStrong(this))
         .Via(GetInvoker()));
+    SetSessionFuture(rowsetFuture.AsVoid());
 }
 
 template <class TPipeline>
@@ -1814,10 +1828,12 @@ bool TTabletLookupSession<TPipeline>::LookupInCurrentPartition()
             partitionSession.ChunkLookupKeys);
         auto openFutures = OpenStoreSessions(partitionSession.StoreSessions);
         if (!openFutures.empty()) {
-            AllSucceeded(std::move(openFutures)).Subscribe(BIND(
+            auto sessionFuture = AllSucceeded(std::move(openFutures));
+            sessionFuture.Subscribe(BIND(
                 &TTabletLookupSession::LookupInPartitions,
                 MakeStrong(this))
                 .Via(GetInvoker()));
+            SetSessionFuture(std::move(sessionFuture));
             return true;
         }
     }
@@ -1867,10 +1883,12 @@ bool TTabletLookupSession<TPipeline>::DoLookupInCurrentPartition()
                 // NB: When sessions become prepared we check the StoreSessionsPrepared flag and
                 // read row in OnStoreSessionsPrepared. Then move to the next key with the while loop.
                 partitionSession.StoreSessionsPrepared = true;
-                AllSucceeded(std::move(futures)).Subscribe(BIND(
+                auto sessionFuture = AllSucceeded(std::move(futures));
+                sessionFuture.Subscribe(BIND(
                     &TTabletLookupSession::LookupInPartitions,
                     MakeStrong(this))
                     .Via(GetInvoker()));
+                SetSessionFuture(std::move(sessionFuture));
 
                 return true;
             }
@@ -1957,7 +1975,7 @@ void TTabletLookupSession<TPipeline>::FinishSession(const TErrorOr<std::vector<T
         hunksDecodingDuration,
         Timer_.GetElapsedTime());
 
-    RowsetPromise_.TrySet(compressedResult);
+    RowsetPromise_.TrySet(std::move(compressedResult));
 }
 
 template <class TPipeline>
@@ -1981,6 +1999,42 @@ TTabletLookupSession<TPipeline>::~TTabletLookupSession()
     LookupSession_->UnmergedMissingRowCount_.fetch_add(RequestedUnmergedRowCount_ - UnmergedRowCount_, std::memory_order::relaxed);
     LookupSession_->UnmergedDataWeight_.fetch_add(UnmergedDataWeight_, std::memory_order::relaxed);
     LookupSession_->DecompressionCpuTime_.fetch_add(DecompressionCpuTime_.MicroSeconds(), std::memory_order::relaxed);
+}
+
+template <class TPipeline>
+void TTabletLookupSession<TPipeline>::OnCanceled(const TError& error)
+{
+    TFuture<void> sessionFuture;
+    {
+        auto guard = Guard(CancelationSpinLock_);
+
+        if (CancelationError_) {
+            return;
+        }
+
+        CancelationError_ = error;
+
+        sessionFuture = SessionFuture_;
+    }
+
+    sessionFuture.Cancel(error);
+
+    RowsetPromise_.TrySet(error);
+}
+
+template <class TPipeline>
+void TTabletLookupSession<TPipeline>::SetSessionFuture(TFuture<void> sessionFuture)
+{
+    auto guard = Guard(CancelationSpinLock_);
+
+    if (CancelationError_) {
+        guard.Release();
+
+        sessionFuture.Cancel(*CancelationError_);
+        return;
+    }
+
+    SessionFuture_ = std::move(sessionFuture);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

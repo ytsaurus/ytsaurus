@@ -1359,14 +1359,20 @@ protected:
 
     virtual void OnCanceled(const TError& error)
     {
-        auto guard = Guard(CancelationSpinLock_);
+        TFuture<void> sessionFuture;
+        {
+            auto guard = Guard(CancelationSpinLock_);
 
-        if (CancelationError_) {
-            return;
+            if (CancelationError_) {
+                return;
+            }
+
+            CancelationError_ = error;
+
+            sessionFuture = SessionFuture_;
         }
 
-        CancelationError_ = error;
-        SessionFuture_.Cancel(error);
+        sessionFuture.Cancel(error);
     }
 
     void SetSessionFuture(TFuture<void> sessionFuture)
@@ -1374,6 +1380,8 @@ protected:
         auto guard = Guard(CancelationSpinLock_);
 
         if (CancelationError_) {
+            guard.Release();
+
             sessionFuture.Cancel(*CancelationError_);
             return;
         }
