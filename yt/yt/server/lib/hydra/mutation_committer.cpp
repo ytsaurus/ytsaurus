@@ -537,8 +537,7 @@ void TLeaderCommitter::FlushMutations()
 
                 YT_UNUSED_FUTURE(req->Invoke());
 
-                followerState.NextExpectedSequenceNumber = -1;
-                followerState.LastLoggedSequenceNumber = -1;
+                followerState = {};
                 continue;
             }
         }
