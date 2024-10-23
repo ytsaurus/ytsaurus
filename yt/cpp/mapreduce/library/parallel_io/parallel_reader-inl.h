@@ -643,7 +643,9 @@ private:
         while (FilledBuffersOrdered_.empty() || FilledBuffersOrdered_.top()->SeqNum != CurrentSeqNum_) {
             auto waitStart = TInstant::Now();
             auto buffer = FilledBuffers_.Pop().GetOrElse(nullptr);
-            WaitTime_ += TInstant::Now() - waitStart;
+            with_lock(WaitTimeMutex_) {
+                WaitTime_ += TInstant::Now() - waitStart;
+            }
             if (!buffer) {
                 return nullptr;
             }
@@ -694,8 +696,10 @@ private:
 
     void DoStop() override
     {
-        YT_LOG_DEBUG("Finishing ordered parallel read manager; total wait time is %v seconds",
-            WaitTime_.SecondsFloat());
+        with_lock(WaitTimeMutex_) {
+            YT_LOG_DEBUG("Finishing ordered parallel read manager; total wait time is %v seconds",
+                WaitTime_.SecondsFloat());
+        }
         FilledBuffers_.Stop();
         for (auto& queue : EmptyBuffers_) {
             queue->Stop();
@@ -705,6 +709,7 @@ private:
 private:
     const TOrderedReadManagerConfig Config_;
 
+    TMutex WaitTimeMutex_;
     TDuration WaitTime_;
 
     using TQueue = ::NThreading::TBlockingQueue<TReaderBufferPtr<TRow>>;

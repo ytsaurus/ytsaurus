@@ -306,14 +306,13 @@ public:
             .UnrecognizedSpec = unrecognizedSpec,
         };
 
-        auto rowBuffer = New<TRowBuffer>();
         auto row = FromRecord(record);
         i64 orderedByIdRowsDataWeight = GetDataWeight(row);
 
         transaction->WriteRows(
             GetOperationsArchiveOrderedByIdPath(),
             NRecords::TOrderedByIdDescriptor::Get()->GetNameTable(),
-            MakeSharedRange(TCompactVector<TUnversionedRow, 1>{1, row}, std::move(rowBuffer)));
+            MakeSharedRange(std::vector<TUnversionedRow>{row.Get()}, std::vector<TUnversionedOwningRow>{row}));
 
         auto error = WaitFor(transaction->Commit()
             .ToUncancelable()
@@ -536,7 +535,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto savedAlert = alert;
-        savedAlert.MutableAttributes()->Set("alert_type", alertType);
+        savedAlert <<= TErrorAttribute("alert_type", alertType);
         Alerts_[alertType] = std::move(savedAlert);
     }
 

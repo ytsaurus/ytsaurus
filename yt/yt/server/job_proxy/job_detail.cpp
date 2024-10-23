@@ -298,12 +298,12 @@ bool TSimpleJobBase::ShouldSendBoundaryKeys() const
 double TSimpleJobBase::GetProgress() const
 {
     if (TotalRowCount_ == 0) {
-        YT_LOG_WARNING("Job progress: empty total");
+        YT_LOG_WARNING("Calculated job progress, total row count is zero");
         return 0;
     } else {
         i64 rowCount = Reader_ ? Reader_->GetDataStatistics().row_count() : 0;
-        double progress = (double) rowCount / TotalRowCount_;
-        YT_LOG_DEBUG("Job progress: %lf, read row count: %" PRId64, progress, rowCount);
+        double progress = static_cast<double>(rowCount) / TotalRowCount_;
+        YT_LOG_DEBUG("Calculated job progress (Progress: %v, ReadRowCount: %v)", progress, rowCount);
         return progress;
     }
 }

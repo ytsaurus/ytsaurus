@@ -5,7 +5,7 @@ ENV(YT_TEST_FILTER=MEDIUM)
 # Set YT variables before INCLUDE
 IF (SANITIZER_TYPE)
     SET(YT_SPLIT_FACTOR 70)
-    SET(YT_TIMEOUT 2200)
+    SET(YT_TIMEOUT 2400)
 ELSE()
     SET(YT_SPLIT_FACTOR 70)
     SET(YT_TIMEOUT 2000)
@@ -17,7 +17,7 @@ INCLUDE(../YaMakeDependsBoilerplate.txt)
 IF (SANITIZER_TYPE)
     REQUIREMENTS(
         cpu:46
-        ram:54
+        ram:56
     )
 ELSE()
     REQUIREMENTS(

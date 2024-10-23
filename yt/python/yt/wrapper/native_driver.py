@@ -16,6 +16,7 @@ except ImportError:  # Python 3
     from io import BytesIO
 
 
+driver_bindings_type = None
 driver_bindings = None
 logging_configured = False
 address_resolver_configured = False
@@ -30,28 +31,27 @@ class NullStream(object):
         pass
 
 
-def lazy_import_driver_bindings(backend_type, allow_fallback_to_native_driver):
+def lazy_import_driver_bindings():
     global driver_bindings
+    global driver_bindings_type
     if driver_bindings is not None:
         return
 
-    if backend_type == "rpc":
-        try:
-            import yt_driver_rpc_bindings
-            driver_bindings = yt_driver_rpc_bindings
-        except ImportError:
-            if allow_fallback_to_native_driver:
-                try:
-                    import yt_driver_bindings
-                    driver_bindings = yt_driver_bindings
-                except ImportError:
-                    pass
-    else:
-        try:
-            import yt_driver_bindings
-            driver_bindings = yt_driver_bindings
-        except ImportError:
-            pass
+    try:
+        import yt_driver_bindings
+        driver_bindings = yt_driver_bindings
+        driver_bindings_type = "native"
+        return
+    except ImportError:
+        pass
+
+    try:
+        import yt_driver_rpc_bindings
+        driver_bindings = yt_driver_rpc_bindings
+        driver_bindings_type = "rpc"
+        return
+    except ImportError:
+        pass
 
 
 def read_config(path):
@@ -172,7 +172,7 @@ def get_driver_instance(client):
                     "(driver_connection_type: {0}, client_backend: {1})"
                     .format(driver_config["connection_type"], config["backend"]))
 
-        lazy_import_driver_bindings(config["backend"], config["allow_fallback_to_native_driver"])
+        lazy_import_driver_bindings()
         if driver_bindings is None:
             if config["backend"] == "rpc":
                 raise YtError("Driver class not found, install RPC driver bindings. "
@@ -198,7 +198,12 @@ def get_driver_instance(client):
             if specified_api_version is not None:
                 driver_config["api_version"] = int(specified_api_version[1:])
 
-        set_option("_driver", driver_bindings.Driver(driver_config), client=client)
+        if config["backend"] == "http":
+            connection_type = driver_bindings_type
+        else:
+            connection_type = config["backend"]
+
+        set_option("_driver", driver_bindings.Driver(driver_config, connection_type=connection_type), client=client)
         driver = get_option("_driver", client=client)
 
     return driver
@@ -228,7 +233,7 @@ def create_driver_for_cell(driver, cell_id):
 
     del config["secondary_masters"]
 
-    return driver_bindings.Driver(config)
+    return driver_bindings.Driver(config, connection_type="native")
 
 
 def convert_to_stream(data):

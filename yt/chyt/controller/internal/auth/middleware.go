@@ -16,7 +16,7 @@ func authWithWhoAmI(
 	r *http.Request,
 	next http.Handler,
 ) {
-	user, err := WhoAmI(proxy, credentials)
+	user, err := WhoAmI(r.Context(), proxy, credentials)
 	if err != nil {
 		ctxlog.Error(r.Context(), l.Logger(), "user authentication failed", log.Error(err))
 

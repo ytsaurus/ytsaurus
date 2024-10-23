@@ -55,7 +55,7 @@
 
     ```
     sudo apt-get install -y python3-pip ninja-build libidn11-dev m4 clang-16 lld-16 cmake unzip
-    sudo python3 -m pip install PyYAML==6.0 conan==1.57.0 dacite
+    sudo python3 -m pip install PyYAML==6.0 conan==2.4.1 dacite
     ```
  1. Install protoc.
 
@@ -82,7 +82,7 @@
 
     ```
     cd build
-    cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/clang.toolchain ../ytsaurus
+    cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/clang.toolchain -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=../ytsaurus/cmake/conan_provider.cmake ../ytsaurus
     ```
 
     To build just run:

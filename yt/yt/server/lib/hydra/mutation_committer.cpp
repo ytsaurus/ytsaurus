@@ -537,8 +537,7 @@ void TLeaderCommitter::FlushMutations()
 
                 YT_UNUSED_FUTURE(req->Invoke());
 
-                followerState.NextExpectedSequenceNumber = -1;
-                followerState.LastLoggedSequenceNumber = -1;
+                followerState = {};
                 continue;
             }
         }
@@ -1365,7 +1364,7 @@ bool TFollowerCommitter::AcceptMutations(
         startSequenceNumber,
         recordsData.size());
 
-    if (expectedSequenceNumber < startSequenceNumber) {
+    if (startSequenceNumber == -1 || expectedSequenceNumber < startSequenceNumber) {
         return false;
     }
 

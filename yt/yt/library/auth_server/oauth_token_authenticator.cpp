@@ -74,7 +74,7 @@ private:
                 result.Value().Realm);
         } else {
             YT_LOG_DEBUG(result, "Authentication via OAuth failed (TokenHash: %v)", tokenHash);
-            result.MutableAttributes()->Set("token_hash", tokenHash);
+            result <<= TErrorAttribute("token_hash", tokenHash);
         }
 
         return MakeFuture(std::move(result));

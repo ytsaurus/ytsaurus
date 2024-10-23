@@ -30,7 +30,6 @@
 #include <yt/yt/client/chaos_client/replication_card.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
-#include <yt/yt/core/concurrency/scheduled_executor.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -371,7 +370,7 @@ public:
         , DynamicConfig_(dynamicConfig)
         , ClientDirectory_(std::move(clientDirectory))
         , Invoker_(std::move(invoker))
-        , Logger(QueueAgentLogger().WithTag("Queue: %v, Leading: %v", QueueRef_, Leading_))
+        , Logger(QueueControllerLogger().WithTag("Queue: %v, Leading: %v", QueueRef_, Leading_))
         , PassExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TOrderedDynamicTableController::Pass, MakeWeak(this)),
@@ -500,44 +499,9 @@ private:
     const IAlertCollectorPtr TrimAlertCollector_;
     const IAlertCollectorPtr QueueExportsAlertCollector_;
 
-    struct TQueueExport
-    {
-        TScheduledExecutorPtr Executor;
-        TQueueExporterPtr Exporter;
-    };
-
-    using QueueExportsMappingOrError = TErrorOr<THashMap<TString, TQueueExport>>;
+    using QueueExportsMappingOrError = TErrorOr<THashMap<TString, TQueueExporterPtr>>;
     QueueExportsMappingOrError QueueExports_;
     TReaderWriterSpinLock QueueExportsLock_;
-
-    void Export(const TString& exportName)
-    {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
-
-        if (!DynamicConfig_.Acquire()->EnableQueueStaticExport) {
-            YT_LOG_DEBUG("Skipping queue static export iteration, since it is disabled controller-wide");
-            return;
-        }
-
-        TQueueExporterPtr exporter;
-        {
-            auto guard = ReaderGuard(QueueExportsLock_);
-            if (!QueueExports_.IsOK()) {
-                YT_LOG_DEBUG(QueueExports_, "Skipping queue static export iteration, because config is incorrect (ExportName: %v)", exportName);
-                return;
-            }
-            const auto& queueExports = QueueExports_.Value();
-            auto queueExport = queueExports.find(exportName);
-            if (queueExport == queueExports.end()) {
-                YT_LOG_DEBUG("Skipping queue static export iteration, since there is no exporter for it (ExportName: %v)", exportName);
-                return;
-            }
-            exporter = queueExport->second.Exporter;
-        }
-
-        auto exportError = WaitFor(exporter->RunExportIteration());
-        YT_LOG_ERROR_UNLESS(exportError.IsOK(), exportError, "Failed to perform static export for queue");
-    }
 
     void Pass()
     {
@@ -596,6 +560,8 @@ private:
 
             if (ShouldTrim(nextQueueSnapshot->PassIndex)) {
                 Trim();
+            } else {
+                YT_LOG_INFO("Skipping trim in this queue controller pass on a basis of trimming period");
             }
         }
 
@@ -610,7 +576,7 @@ private:
             QueueExportsAlertCollector_->PublishAlerts();
         });
 
-        auto enableQueueStaticExport = DynamicConfig_.Acquire()->EnableQueueStaticExport;
+        auto queueExporterConfig = DynamicConfig_.Acquire()->QueueExporter;
         const auto& staticExportConfig = nextQueueSnapshot->Row.StaticExportConfig;
 
         auto guard = WriterGuard(QueueExportsLock_);
@@ -633,32 +599,21 @@ private:
             QueueExports_ = QueueExportsMappingOrError();
         }
         auto& queueExports = QueueExports_.Value();
-        for (const auto& [name, config] : *staticExportConfig) {
+        for (const auto& [name, exportConfig] : *staticExportConfig) {
             if (queueExports.find(name) == queueExports.end()) {
-                queueExports[name] = {
-                    .Executor = New<TScheduledExecutor>(
-                        Invoker_,
-                        BIND(&TOrderedDynamicTableController::Export, MakeWeak(this), name),
-                        /*interval*/ std::nullopt),
-                    .Exporter = New<TQueueExporter>(
-                        name,
-                        QueueRef_,
-                        config,
-                        ClientDirectory_->GetUnderlyingClientDirectory(),
-                        Invoker_,
-                        CreateAlertCollector(AlertManager_),
-                        ProfileManager_->GetQueueProfiler(),
-                        Logger),
-                };
-
-                queueExports[name].Executor->Start();
+                queueExports[name] = New<TQueueExporter>(
+                    name,
+                    QueueRef_,
+                    exportConfig,
+                    queueExporterConfig,
+                    ClientDirectory_->GetUnderlyingClientDirectory(),
+                    Invoker_,
+                    CreateAlertCollector(AlertManager_),
+                    ProfileManager_->GetQueueProfiler(),
+                    Logger);
             } else {
-                queueExports[name].Exporter->Reconfigure(config);
+                queueExports[name]->Reconfigure(exportConfig, queueExporterConfig);
             }
-
-            queueExports[name].Executor->SetInterval(enableQueueStaticExport
-                ? std::optional(config.ExportPeriod)
-                : std::nullopt);
         }
 
         // Remove unused exports.
@@ -944,6 +899,8 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
+        YT_LOG_INFO("Starting trimming");
+
         // Guard against context switches, just to be on the safe side.
         auto queueSnapshot = QueueSnapshot_.Acquire();
 
@@ -1014,6 +971,8 @@ private:
             THROW_ERROR_EXCEPTION("Error trimming %v queue replicas", trimSessionErrors.size())
                 << trimSessionErrors;
         }
+
+        YT_LOG_DEBUG("Trimming finished successfully");
     }
 
     TAggregatedQueueExportsProgress GetAggregatedGenericQueueExportsProgress(const TQueueSnapshotPtr& queueSnapshot) const
@@ -1101,7 +1060,7 @@ private:
         const auto& queueExports = QueueExports_.Value();
         queueExportsProgress.reserve(queueExports.size());
         for (const auto& [queueExportName, queueExport] : queueExports) {
-            queueExportsProgress[queueExportName] = queueExport.Exporter->GetExportProgress();
+            queueExportsProgress[queueExportName] = queueExport->GetExportProgress();
         }
         return TErrorOr(std::move(queueExportsProgress));
     }
@@ -1165,7 +1124,7 @@ private:
                     Context.ReplicaSnapshot->PartitionCount);
             }
 
-            YT_LOG_DEBUG("Performing trimming iteration");
+            YT_LOG_DEBUG("Performing trimming session");
 
             CollectVitalConsumerSubSnapshots();
 
@@ -1181,6 +1140,8 @@ private:
 
             RequestTrimming();
             ReportErrors();
+
+            YT_LOG_DEBUG("Trimming session finished successfully");
         }
 
         //! Collects vital consumer snapshots from queue consumer registrations and validates error-correctness.

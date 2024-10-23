@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 import yt.yson as yson
 import yt.packages.requests as requests
-from yt_commands import authors, ls, exists, set, get, create
+from yt_commands import authors, ls, exists, set, get, create, create_tablet_cell_bundle
 
 
 ##################################################################
@@ -200,6 +200,23 @@ class TestBundleController(YTEnvSetup):
         set("//sys/tablet_cell_bundles/default/@resource_quota", {
             "cpu": 100,
             "memory": 750323855360})
+
+    def _create_bundle(self, bundle, enable_bundle_controller=True, zone="zone_default", enable_instance_allocation=False, bundle_controller_target_config={}, **kwargs):
+        user_attributes = {
+            "skip_spare_nodes_monitoring": True,
+            "resource_quota": {
+                "cpu": 860,
+                "memory": 6175089229824,
+            },
+        }
+        create_tablet_cell_bundle(bundle, attributes={
+            "enable_bundle_controller": enable_bundle_controller,
+            "zone": zone,
+            "bundle_controller_target_config": bundle_controller_target_config,
+            "enable_instance_allocation": enable_instance_allocation,
+            **user_attributes,
+            **kwargs,
+        })
 
     def _get_cypress_config(self, bundle_name):
         config = {}

@@ -3941,6 +3941,62 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsNoLimitNoPrimaryKeyInGrou
     }
 }
 
+TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsTotalRowCount)
+{
+    auto split = MakeSplit({
+        {"k", EValueType::Int64},
+        {"v", EValueType::Int64},
+    });
+
+    auto sources = std::vector<std::vector<TString>>();
+
+    std::set<i64> cardinality;
+
+    for (i64 i = 0; i < 100; ++i) {
+        i64 k = std::rand() % 100;
+        i64 v = std::rand() % 100;
+        cardinality.insert(v);
+
+        bool shouldMakeNewPartition = (std::rand() % 8) == 0;
+
+        if (shouldMakeNewPartition || sources.empty()) {
+            sources.emplace_back();
+        }
+
+        sources.back().emplace_back(Format("k=%v;v=%v", k, v));
+    }
+
+    {
+        auto statistics = EvaluateCoordinatedGroupBy(
+            "sum(1) from [//t] group by v with totals limit 10",
+            split,
+            sources,
+            AnyMatcher);
+
+        EXPECT_EQ(std::ssize(cardinality), statistics.TotalGroupedRowCount);
+    }
+
+    {
+        auto statistics = EvaluateCoordinatedGroupBy(
+            "sum(1) from [//t] group by v with totals order by v limit 10",
+            split,
+            sources,
+            AnyMatcher);
+
+        EXPECT_EQ(std::ssize(cardinality), statistics.TotalGroupedRowCount);
+    }
+
+    {
+        auto statistics = EvaluateCoordinatedGroupBy(
+            "ks from [//t] group by v with totals order by sum(k) as ks limit 10",
+            split,
+            sources,
+            AnyMatcher);
+
+        EXPECT_EQ(std::ssize(cardinality), statistics.TotalGroupedRowCount);
+    }
+}
+
 TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsNoLimitPrimaryKeyPrefixInGroupKey)
 {
     auto split = MakeSplit({

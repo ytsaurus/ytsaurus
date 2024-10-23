@@ -2429,13 +2429,13 @@ public:
             }
         }
 
-        error.MutableAttributes()->Set("permission", permission);
-        error.MutableAttributes()->Set("user", user->GetName());
-        error.MutableAttributes()->Set("object_id", target.Object->GetId());
+        error <<= TErrorAttribute("permission", permission);
+        error <<= TErrorAttribute("user", user->GetName());
+        error <<= TErrorAttribute("object_id", target.Object->GetId());
         if (target.Column) {
-            error.MutableAttributes()->Set("object_column", target.Column);
+            error <<= TErrorAttribute("object_column", target.Column);
         }
-        error.MutableAttributes()->Set("object_type", target.Object->GetType());
+        error <<= TErrorAttribute("object_type", target.Object->GetType());
         THROW_ERROR(error);
     }
 

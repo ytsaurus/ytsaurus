@@ -604,8 +604,8 @@ public:
                         instanceOutput.Stderr,
                         instanceOutput.Stdout);
 
-                    error.MutableAttributes()->Set("stdout", TruncateString(instanceOutput.Stdout, MaxCommandOutputSizeInError));
-                    error.MutableAttributes()->Set("stderr", TruncateString(instanceOutput.Stderr, MaxCommandOutputSizeInError));
+                    error <<= TErrorAttribute("stdout", TruncateString(instanceOutput.Stdout, MaxCommandOutputSizeInError));
+                    error <<= TErrorAttribute("stderr", TruncateString(instanceOutput.Stderr, MaxCommandOutputSizeInError));
 
                     THROW_ERROR error;
                 }

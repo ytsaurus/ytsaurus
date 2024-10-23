@@ -528,6 +528,7 @@ private:
 
     void BuildVirtualSandbox();
 
+    bool ExtractEnableRootVolumeDiskQuotaFlag();
     TUserSandboxOptions BuildUserSandboxOptions();
 
     std::optional<NScheduler::EAbortReason> DeduceAbortReason();

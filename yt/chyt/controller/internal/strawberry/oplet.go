@@ -92,6 +92,7 @@ type OpletOptions struct {
 	Logger       log.Logger
 	UserClient   yt.Client
 	SystemClient yt.Client
+	PassTimeout  time.Duration
 }
 
 const (
@@ -165,6 +166,8 @@ type Oplet struct {
 	// targetInstanceCount is the number of jobs the oplet should be scaled to.
 	targetInstanceCount int
 
+	passTimeout time.Duration
+
 	cypressNode  ypath.Path
 	l            log.Logger
 	c            Controller
@@ -184,6 +187,7 @@ func NewOplet(options OpletOptions) *Oplet {
 		userClient:                   options.UserClient,
 		systemClient:                 options.SystemClient,
 		agentInfo:                    options.AgentInfo,
+		passTimeout:                  options.PassTimeout,
 	}
 	return oplet
 }
@@ -575,7 +579,7 @@ func (oplet *Oplet) needsBackoff() bool {
 
 func (oplet *Oplet) increaseBackoff() {
 	backoffDuration := oplet.persistentState.BackoffDuration
-	if backoffDuration == time.Duration(0) {
+	if backoffDuration == 0 {
 		backoffDuration = initialBackoffDuration
 	}
 
@@ -861,6 +865,22 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 	oplet.l.Info("restarting operation",
 		log.Int("next_incarnation_index", oplet.NextIncarnationIndex()),
 		log.String("reason", reason))
+
+	if oplet.strawberrySpeclet.Pool == nil && oplet.strawberrySpeclet.StageOrDefault() != StageUntracked {
+		err := yterrors.Err("can't run operation because pool is not set")
+		oplet.setError(err)
+		return err
+	}
+
+	if oplet.passTimeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeoutCause(
+			ctx, oplet.passTimeout,
+			yterrors.Err("operation restarting took significant time and was timeouted",
+				yterrors.Attr("timeout", oplet.passTimeout)))
+		defer cancel()
+	}
+
 	spec, description, annotations, err := oplet.c.Prepare(ctx, oplet)
 
 	if err != nil {
@@ -884,14 +904,12 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 	spec["alias"] = "*" + oplet.alias
 	if oplet.strawberrySpeclet.Pool != nil {
 		spec["pool"] = *oplet.strawberrySpeclet.Pool
-	} else if oplet.strawberrySpeclet.StageOrDefault() != StageUntracked {
-		err := yterrors.Err("can't run operation because pool is not set")
-		oplet.setError(err)
-		return err
 	}
+
 	if len(oplet.strawberrySpeclet.PoolTrees) > 0 {
 		spec["pool_trees"] = oplet.strawberrySpeclet.PoolTrees
 	}
+
 	if oplet.strawberrySpeclet.PreemptionMode != nil {
 		spec["preemption_mode"] = *oplet.strawberrySpeclet.PreemptionMode
 	}

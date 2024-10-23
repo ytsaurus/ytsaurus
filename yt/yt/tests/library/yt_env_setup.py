@@ -955,6 +955,21 @@ class YTEnvSetup(object):
                             force=True,
                             driver=driver)
 
+        if cls.ENABLE_BUNDLE_CONTROLLER:
+            GB = 1024 ** 3
+            yt_commands.create_account("bundle_system_quotas", attributes={
+                "resource_limits": {
+                    "master_memory": {
+                        "total": 100 * GB,
+                        "chunk_host": 100 * GB,
+                    },
+                },
+            })
+            yt_commands.create("map_node", "//sys/bundle_controller/coordinator", recursive=True, force=True)
+            yt_commands.create("map_node", "//sys/bundle_controller/controller", recursive=True, force=True)
+            yt_commands.create("map_node", "//sys/bundle_controller/controller/zones", recursive=True, force=True)
+            yt_commands.create("map_node", "//sys/bundle_controller/controller/bundles_state", recursive=True, force=True)
+
         if cls.USE_CUSTOM_ROOTFS:
             yt_commands.create("map_node", "//layers")
 

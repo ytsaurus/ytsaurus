@@ -236,7 +236,13 @@ private:
             , ResponseInvoker_(CreateBoundedConcurrencyInvoker(Server_->GetInvoker(), /*maxConcurrentInvocations*/ 1))
         {
             Connection_->SubscribePeerDisconnect(BIND([this, this_ = MakeStrong(this)]() {
-                YT_LOG_DEBUG("Peer disconnected (RemoteAddress: %v)", Connection_->GetRemoteAddress());
+                if (!Abort_) {
+                    // Normally peer should disconnect after NBD_CMD_DISC which sets Abort_. This check could be racy.
+                    TNbdProfilerCounters::Get()->GetCounter({}, "/server/connection/unexpected_disconnect").Increment(1);
+                    YT_LOG_DEBUG("Unexpected disonnect from peer (RemoteAddress: %v)", Connection_->GetRemoteAddress());
+                } else {
+                    YT_LOG_DEBUG("Peer disconnected (RemoteAddress: %v)", Connection_->GetRemoteAddress());
+                }
                 Abort_ = true;
             }));
         }
@@ -646,15 +652,20 @@ private:
         {
             ResponseInvoker_->Invoke(
                 BIND([=, this, this_ = MakeStrong(this), payload = std::move(payload)] {
-                    TServerResponseMessage message{
-                        .Magic = HostToInet(TServerResponseMessage::ExpectedHostMagic),
-                        .Error = HostToInet(error),
-                        .Cookie = HostToInet(cookie),
-                    };
-                    WritePod(message);
+                    try {
+                        TServerResponseMessage message{
+                            .Magic = HostToInet(TServerResponseMessage::ExpectedHostMagic),
+                            .Error = HostToInet(error),
+                            .Cookie = HostToInet(cookie),
+                        };
+                        WritePod(message);
 
-                    if (payload) {
-                        WriteBuffer(payload);
+                        if (payload) {
+                            WriteBuffer(payload);
+                        }
+                    } catch (const std::exception& ex) {
+                        THROW_ERROR_EXCEPTION("Failed to write server response")
+                            << TErrorAttribute("cookie", cookie) << ex;
                     }
                 }));
         }
@@ -695,7 +706,7 @@ private:
                     }
                     TNbdProfilerCounters::Get()->GetCounter(tagSet, "/server/request/zero_read_buffer").Increment(1);
                     THROW_ERROR_EXCEPTION("Read returned zero bytes")
-                        << TErrorAttribute("device_tag: %v)", strTagSet);
+                        << TErrorAttribute("device_tag", strTagSet);
                 }
 
                 offset += readSize;

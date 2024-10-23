@@ -1,12 +1,10 @@
 package auth
 
 import (
-	"encoding/json"
-	"io"
-	"net/http"
-	"strings"
+	"context"
 
 	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yt/ythttp"
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
@@ -15,58 +13,18 @@ func ContainsUnauthorized(err error) bool {
 		yterrors.ContainsErrorCode(err, yterrors.CodeAuthenticationError)
 }
 
-func WhoAmI(proxy string, credentials yt.Credentials) (username string, err error) {
-	address := yt.NormalizeProxyURL(proxy, false /*disableDiscovery*/, false /*tvmOnly*/, 0 /*tvmOnlyPort*/).Address
-	url := address + "/auth/whoami"
-	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-		url = "http://" + url
-	}
-
-	req, err := http.NewRequest("GET", url, nil)
+func WhoAmI(ctx context.Context, proxy string, credentials yt.Credentials) (username string, err error) {
+	yc, err := ythttp.NewClient(&yt.Config{
+		Proxy:       proxy,
+		Credentials: credentials,
+	})
 	if err != nil {
 		return "", err
 	}
 
-	credentials.Set(req)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	res, err := yc.WhoAmI(ctx, nil)
 	if err != nil {
 		return "", err
 	}
-
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		var result struct {
-			Login string `json:"login"`
-		}
-		err = json.Unmarshal(body, &result)
-		if err != nil {
-			return "", err
-		}
-		return result.Login, nil
-
-	case http.StatusUnauthorized:
-		var authError yterrors.Error
-		err = json.Unmarshal(body, &authError)
-		if err != nil {
-			return "", err
-		}
-		if !ContainsUnauthorized(&authError) {
-			// NOTE: actually should never happen.
-			return "", yterrors.Err(yterrors.CodeAuthenticationError, "authentication failed", authError)
-		}
-		return "", &authError
-
-	default:
-		return "", yterrors.Err("unexpected http status code",
-			yterrors.Attr("status_code", resp.StatusCode))
-	}
+	return res.Login, nil
 }

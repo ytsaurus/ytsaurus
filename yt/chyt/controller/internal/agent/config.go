@@ -23,6 +23,9 @@ type Config struct {
 	// considers the state as `expired`. E.g. if the pass period is 5s and the factor is 2.0,
 	// the health checker will consider the state valid for 10s.
 	HealthCheckerToleranceFactor *float64 `yson:"health_checker_tolerance_factor"`
+	// OpletPassTimeoutFactor is a PassPeriod factor to limit the Oplet.Pass() execution time.
+	// Especially the phases of restart operation.
+	OpletPassTimeoutFactor *float64 `yson:"oplet_pass_timeout_factor"`
 
 	// Stage of the controller, e.g. production, prestable, etc.
 	Stage string `yson:"stage"`
@@ -63,6 +66,8 @@ const (
 	DefaultAssignAdministerToCreator    = true
 	DefaultScaleWorkerNumber            = 1
 	DefaultScalePeriod                  = yson.Duration(60 * time.Second)
+
+	minOpletPassTimeout = 10 * time.Second
 )
 
 func (c *Config) PassPeriodOrDefault() yson.Duration {
@@ -91,6 +96,13 @@ func (c *Config) HealthCheckerToleranceFactorOrDefault() float64 {
 		return *c.HealthCheckerToleranceFactor
 	}
 	return DefaultHealthCheckerToleranceFactor
+}
+
+func (c *Config) OpletPassTimeoutFactorOrDefault() float64 {
+	if c.OpletPassTimeoutFactor != nil {
+		return *c.OpletPassTimeoutFactor
+	}
+	return float64(minOpletPassTimeout) / float64(c.PassPeriodOrDefault())
 }
 
 func (c *Config) PassWorkerNumberOrDefault() int {

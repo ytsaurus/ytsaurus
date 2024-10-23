@@ -10,6 +10,7 @@ RECURSE(
     discovery
     dynamic_table_commands
     dynamic_table_replication
+    local_binary
     lost_vital_chunks
     map_result
     master

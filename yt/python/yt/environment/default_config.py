@@ -943,7 +943,6 @@ def get_dynamic_queue_agent_config(yt_config):
 {
     "queue_agent" = {
         "controller" = {
-            "enable_queue_static_export" = %true;
             "enable_automatic_trimming" = %true;
         };
         "handle_replicated_objects" = %true;

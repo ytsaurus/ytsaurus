@@ -59,16 +59,14 @@ class Config(types.ModuleType, client_state.ClientState):
 
         # Update params from env.
         for key, value in os.environ.items():
-            prefix = "YT_"
-            if not key.startswith(prefix):
+            if not key.startswith("YT_"):
                 continue
 
-            key = key[len(prefix):]
-            if key == "TRACE":
+            if key == "YT_TRACE":
                 self.COMMAND_PARAMS["trace"] = bool(value)
-            elif key == "TRANSACTION":
+            elif key == "YT_TRANSACTION":
                 self.COMMAND_PARAMS["transaction_id"] = value
-            elif key == "PING_ANCESTOR_TRANSACTIONS":
+            elif key == "YT_PING_ANCESTOR_TRANSACTIONS":
                 self.COMMAND_PARAMS["ping_ancestor_transactions"] = bool(value)
 
     def _init_from_cluster(self):

@@ -178,6 +178,8 @@ items:
                href: user-guide/data-processing/scheduler/preemption.md
              - name: Integral guarantees
                href: user-guide/data-processing/scheduler/integral-guarantees.md
+             - name: Limits on the number of operations
+               href: user-guide/data-processing/scheduler/operations-limits.md
              - name: Dynamic monitoring of CPU consumption
                href: user-guide/data-processing/scheduler/job-cpu-monitor.md
              - name: Memory digest

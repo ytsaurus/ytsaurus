@@ -1,3 +1,1 @@
-# Cell addition
-
-{% include [note](../_includes/no-translation.md) %}
+{% include [Extending master servers](../_includes/admin-guide/cell-addition.md) %}

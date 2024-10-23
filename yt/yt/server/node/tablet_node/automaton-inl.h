@@ -6,14 +6,45 @@
 
 #include "mutation_forwarder.h"
 
+#include <yt/yt/core/misc/crash_handler.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TRequest>
+void TTabletAutomatonPart::RegisterMethod(
+    TCallback<void(TRequest*)> callback,
+    const std::vector<TString>& aliases)
+{
+    NHydra::TCompositeAutomatonPart::RegisterMethod(
+        BIND_NO_PROPAGATE(
+            &TTabletAutomatonPart::MethodHandlerWithCodicilsImpl<TRequest>,
+            Unretained(this),
+            callback),
+        aliases);
+}
+
+template <class TRequest>
 void TTabletAutomatonPart::RegisterForwardedMethod(TCallback<void(TRequest*)> callback)
 {
-    RegisterMethod(BIND_NO_PROPAGATE(&TTabletAutomatonPart::ForwardedMethodImpl<TRequest>, Unretained(this), callback));
+    RegisterMethod(
+        BIND_NO_PROPAGATE(
+            &TTabletAutomatonPart::ForwardedMethodImpl<TRequest>,
+            Unretained(this),
+            callback));
+}
+
+template <class TRequest>
+void TTabletAutomatonPart::MethodHandlerWithCodicilsImpl(TCallback<void(TRequest*)> callback, TRequest* request)
+{
+    std::optional<TCodicilGuard> codicilGuard;
+
+    if constexpr (requires { request->tablet_id(); }) {
+        codicilGuard.emplace(Format("TabletId: %v", FromProto<TTabletId>(request->tablet_id())));
+    }
+
+    callback(request);
 }
 
 template <class TRequest>

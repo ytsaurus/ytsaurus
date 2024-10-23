@@ -49,6 +49,7 @@ target_sources(python-driver-lib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/python/driver/lib/descriptor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/python/driver/lib/driver.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/python/driver/lib/error.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/driver/lib/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/python/driver/lib/response.cpp
 )
 
