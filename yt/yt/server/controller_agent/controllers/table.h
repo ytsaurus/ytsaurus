@@ -85,7 +85,7 @@ struct TInputTable
     bool UseReadViaExecNode() const;
 
     //! Returns true unless teleportation is forbidden by some table options,
-    //! e.g. dynamism or renamed columns.
+    //! e.g. dynamism, renamed columns or hunk columns.
     //! NB: this method depends only on internal table properties. Use
     //! |Teleportable| to get effective value.
     bool SupportsTeleportation() const;

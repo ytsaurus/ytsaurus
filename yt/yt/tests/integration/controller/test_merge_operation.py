@@ -2616,6 +2616,34 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert read_table("//tmp/t") == rows
 
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
+    def test_hunk_schema_inference(self, merge_mode):
+        is_compat = "24_1" in getattr(self, "ARTIFACT_COMPONENTS", {})
+        if is_compat:
+            return
+
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string", "max_inline_hunk_size": 10},
+            ],
+        })
+
+        rows = [{"key": 0, "value": "0"}, {"key": 1, "value": "a" * 100}]
+        write_table("//tmp/t", rows)
+
+        create("table", "//tmp/t2")
+        merge(
+            in_="//tmp/t",
+            out="//tmp/t2",
+            spec={
+                "mode": merge_mode,
+            }
+        )
+
+        assert read_table("//tmp/t2") == rows
+
     @authors("achulkov2")
     @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
     def test_chunk_slice_statistics(self, merge_mode):
