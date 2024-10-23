@@ -1364,7 +1364,7 @@ bool TFollowerCommitter::AcceptMutations(
         startSequenceNumber,
         recordsData.size());
 
-    if (expectedSequenceNumber < startSequenceNumber) {
+    if (startSequenceNumber == -1 || expectedSequenceNumber < startSequenceNumber) {
         return false;
     }
 
