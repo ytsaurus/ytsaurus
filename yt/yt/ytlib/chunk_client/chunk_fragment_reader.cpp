@@ -1042,6 +1042,7 @@ public:
     TFuture<TSimpleReadFragmentsSessionResult> Run()
     {
         DoRun();
+        Promise_.OnCanceled(BIND(&TSimpleReadFragmentsSession::OnCanceled, MakeWeak(this)));
         return Promise_;
     }
 
@@ -1099,6 +1100,10 @@ private:
     };
 
     using TPerPeerPlanPtr = TIntrusivePtr<TPerPeerPlan>;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CancelationSpinLock_);
+    std::optional<TError> CancelationError_;
+    std::vector<TFuture<void>> PendingFutures_;
 
 
     static bool IsFatalError(const TError& error)
@@ -1243,6 +1248,7 @@ private:
         YT_LOG_DEBUG("Some chunk infos are missing; will populate the cache (ChunkIds: %v)",
             chunkIds);
 
+        // NB: We omit applying cancellation here.
         auto subsession = New<TPopulatingProbingSession>(Reader_, Options_, Logger);
         subsession->Run(std::move(chunkIds), std::move(chunkInfos)).Subscribe(
             BIND(&TSimpleReadFragmentsSession::OnChunkInfosPopulated, MakeStrong(this), subsession)
@@ -1498,6 +1504,7 @@ private:
             return;
         }
 
+        // NB: We omit applying cancellation here.
         request->Invoke().Subscribe(BIND(
             &TSimpleReadFragmentsSession::OnGotChunkFragments,
             MakeStrong(this),
@@ -1561,6 +1568,7 @@ private:
                     plan,
                     dataByteSize)
                     .Via(SessionInvoker_));
+                SavePendingFuture(std::move(throttleFuture));
             }
         }
     }
@@ -1775,6 +1783,45 @@ private:
             MediumThrottler_,
         });
     }
+
+    void OnCanceled(const TError& error)
+    {
+        std::vector<TFuture<void>> pendingFutures;
+        {
+            auto guard = Guard(CancelationSpinLock_);
+
+            if (CancelationError_) {
+                return;
+            }
+
+            CancelationError_ = error;
+
+            pendingFutures.reserve(PendingFutures_.size());
+            for (auto& pendingFuture : PendingFutures_) {
+                pendingFutures.push_back(pendingFuture);
+            }
+        }
+
+        for (auto& pendingFuture : pendingFutures) {
+            pendingFuture.Cancel(error);
+        }
+
+        Promise_.TrySet(error);
+    }
+
+    void SavePendingFuture(TFuture<void> pendingFuture)
+    {
+        auto guard = Guard(CancelationSpinLock_);
+
+        if (CancelationError_) {
+            guard.Release();
+
+            pendingFuture.Cancel(*CancelationError_);
+            return;
+        }
+
+        PendingFutures_.push_back(pendingFuture);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1814,6 +1861,8 @@ public:
         } catch (const std::exception& ex) {
             OnFatalError(ex);
         }
+
+        Promise_.OnCanceled(BIND(&TRetryingReadFragmentsSession::OnCanceled, MakeWeak(this)));
         return Promise_;
     }
 
@@ -1829,6 +1878,10 @@ private:
     NProfiling::TWallTimer Timer_;
 
     std::vector<TError> Errors_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CancelationSpinLock_);
+    std::optional<TError> CancelationError_;
+    TFuture<void> SessionFuture_ = VoidFuture;
 
 
     void OnFatalError(TError error)
@@ -1944,13 +1997,26 @@ private:
             return;
         }
 
-        auto subsession = New<TSimpleReadFragmentsSession>(
+        auto sessionFuture = New<TSimpleReadFragmentsSession>(
             Reader_,
             Options_,
             State_,
-            Logger);
+            Logger)->Run();
 
-        subsession->Run().Subscribe(
+        {
+            auto guard = Guard(CancelationSpinLock_);
+
+            if (CancelationError_) {
+                guard.Release();
+
+                sessionFuture.Cancel(*CancelationError_);
+                return;
+            }
+
+            SessionFuture_ = sessionFuture.AsVoid();
+        }
+
+        sessionFuture.Subscribe(
             // NB: Intentionally no Via.
             BIND(&TRetryingReadFragmentsSession::OnSubsessionFinished, MakeStrong(this)));
     }
@@ -2018,6 +2084,26 @@ private:
             BIND(&TRetryingReadFragmentsSession::DoRun, MakeStrong(this))
                 .Via(SessionInvoker_),
             Reader_->Config_->RetryBackoffTime);
+    }
+
+    void OnCanceled(const TError& error)
+    {
+        TFuture<void> sessionFuture;
+        {
+            auto guard = Guard(CancelationSpinLock_);
+
+            if (CancelationError_) {
+                return;
+            }
+
+            CancelationError_ = error;
+
+            sessionFuture = SessionFuture_;
+        }
+
+        sessionFuture.Cancel(error);
+
+        Promise_.TrySet(error);
     }
 };
 

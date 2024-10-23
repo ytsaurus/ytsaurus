@@ -97,6 +97,23 @@ class TStoreSession;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EInitialQueryKind,
+    ((LookupRows)    (0))
+    ((SelectRows)    (1))
+);
+
+ETabletDistributedThrottlerKind GetThrottlerKindFromQueryKind(EInitialQueryKind queryKind)
+{
+    switch (queryKind) {
+        case EInitialQueryKind::LookupRows:
+            return ETabletDistributedThrottlerKind::Lookup;
+        case EInitialQueryKind::SelectRows:
+            return ETabletDistributedThrottlerKind::Select;
+        default:
+            YT_ABORT();
+    }
+}
+
 class TAdapterBase
 {
 protected:
@@ -113,20 +130,14 @@ protected:
 class TCompressingAdapterBase
     : public TAdapterBase
 {
-public:
-    TSharedRef GetCompressedResult() const
-    {
-        return CompressedResult_;
-    }
-
 protected:
-    static constexpr auto ThrottlerKind = ETabletDistributedThrottlerKind::Lookup;
+    static constexpr auto QueryKind = EInitialQueryKind::LookupRows;
 
     ICodec* const Codec_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
     const std::unique_ptr<IWireProtocolWriter> Writer_ = CreateWireProtocolWriter();
 
-    TSharedRef CompressedResult_;
+    const TPromise<TSharedRef> ResultPromise_ = NewPromise<TSharedRef>();
 
     TCompressingAdapterBase(ICodec* const codec, IMemoryUsageTrackerPtr memoryUsageTracker)
         : Codec_(codec)
@@ -143,10 +154,11 @@ protected:
     void Finish(TWallTimer* timer)
     {
         HunksDecodingTime_ = timer->GetElapsedTime();
+
         timer->Restart();
-        CompressedResult_ = TrackMemory(
+        ResultPromise_.TrySet(TrackMemory(
             MemoryUsageTracker_,
-            Codec_->Compress(Writer_->Finish()));
+            Codec_->Compress(Writer_->Finish())));
         ResponseCompressionTime_ = timer->GetElapsedTime();
         timer->Restart();
     }
@@ -357,8 +369,8 @@ protected:
             StoreFlushIndex_,
             flushIndex);
 
-        switch (TRowAdapter::ThrottlerKind) {
-            case ETabletDistributedThrottlerKind::Lookup: {
+        switch (TRowAdapter::QueryKind) {
+            case EInitialQueryKind::LookupRows: {
                 auto* counters = TableProfiler_->GetLookupCounters(ProfilingUser_);
 
                 counters->CacheHits.Increment(CacheHits_);
@@ -367,7 +379,8 @@ protected:
                 counters->CacheInserts.Increment(CacheInserts_);
                 break;
             }
-            case ETabletDistributedThrottlerKind::Select: {
+
+            case EInitialQueryKind::SelectRows: {
                 auto* counters = TableProfiler_->GetSelectRowsCounters(ProfilingUser_);
 
                 counters->CacheHits.Increment(CacheHits_);
@@ -376,6 +389,7 @@ protected:
                 counters->CacheInserts.Increment(CacheInserts_);
                 break;
             }
+
             default:
                 YT_ABORT();
         }
@@ -401,7 +415,9 @@ protected:
 
                 auto outdated = latestItem->Outdated.load(std::memory_order::acquire);
 
-                YT_LOG_DEBUG_IF(lookupKeys.size() == 1, "FoundLookupRow (Key: %v, Outdated: %v, UpdatedInFlush: %v, Reallocated: %v, InsertTime: %v, UpdateTime: %v)",
+                YT_LOG_DEBUG_IF(lookupKeys.size() == 1,
+                    "FoundLookupRow "
+                    "(Key: %v, Outdated: %v, UpdatedInFlush: %v, Reallocated: %v, InsertTime: %v, UpdateTime: %v)",
                     key,
                     outdated,
                     latestItem->UpdatedInFlush,
@@ -557,7 +573,9 @@ protected:
                 newItem->InsertTime = GetInstant();
 
                 if (newItem->GetVersionedRow().GetWriteTimestampCount() > 0) {
-                    MaxInsertedTimestamp_ = std::max(MaxInsertedTimestamp_, newItem->GetVersionedRow().BeginWriteTimestamps()[0]);
+                    MaxInsertedTimestamp_ = std::max(
+                        MaxInsertedTimestamp_,
+                        newItem->GetVersionedRow().BeginWriteTimestamps()[0]);
                 }
 
                 YT_LOG_TRACE("Populating cache (Row: %v, Revision: %v)",
@@ -810,7 +828,7 @@ protected:
 
         // Being rigorous we should wrap the callback into AsyncVia but that does not matter in practice.
         return DecodeHunks(std::move(sharedRows))
-            // NB: owner captures this by strong ref.
+            // NB: Owner captures this by strong ref.
             .Apply(BIND([this, timer, owner = std::move(owner)] (const TSharedRange<TMutableRow>& rows) {
                 for (auto row : rows) {
                     TBasePipeline::WriteRow(row);
@@ -1113,7 +1131,7 @@ public:
 
     ~TTabletLookupSession();
 
-    TFuture<void> Run();
+    auto Run() -> TFuture<typename decltype(TPipeline::TAdapter::ResultPromise_)::TValueType>;
 
 private:
     const IInvokerPtr Invoker_;
@@ -1125,9 +1143,6 @@ private:
     const TSharedRange<TUnversionedRow> LookupKeys_;
     const TSharedRange<TUnversionedRow> ChunkLookupKeys_;
     const std::function<void()> OnDestruction_;
-
-    // TODO(akozhikhov): Support cancellation in underlying chunk readers.
-    const TPromise<void> RowsetPromise_ = NewPromise<void>();
 
     const NLogging::TLogger Logger;
 
@@ -1145,12 +1160,17 @@ private:
     using TPipeline::DecompressionStatistics_;
     using TPipeline::HunksDecodingTime_;
     using TPipeline::ResponseCompressionTime_;
+    using TPipeline::TAdapter::ResultPromise_;
 
     int RequestedUnmergedRowCount_ = 0;
 
     TWallTimer Timer_;
     TDuration InitializationDuration_;
     TDuration PartitionsLookupDuration_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CancelationSpinLock_);
+    std::optional<TError> CancelationError_;
+    TFuture<void> SessionFuture_ = VoidFuture;
 
 
     TPartitionSession CreatePartitionSession(
@@ -1175,6 +1195,9 @@ private:
     void FinishSession(const TError& error);
 
     void UpdateUnmergedStatistics(const TStoreSessionList& sessions);
+
+    void OnCanceled(const TError& error);
+    void SetSessionFuture(TFuture<void> sessionFuture);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1499,62 +1522,46 @@ TFuture<TSharedRef> DoRunTabletLookupSession(
     if (useLookupCache) {
         if (tabletSnapshot->PhysicalSchema->HasHunkColumns()) {
             using TWholePipeline = TTabletLookupSession<THunkDecodingPipeline<TRowCachePipeline<TRowAdapter>>>;
-            auto tabletLookupSession = New<TWholePipeline>(
+            return New<TWholePipeline>(
                 std::move(adapter),
                 std::move(tabletSnapshot),
                 /*produceAllVersions*/ true,
                 std::move(columnFilter),
                 std::move(lookupKeys),
-                std::move(lookupSession));
-
-            return tabletLookupSession->Run()
-                .Apply(BIND(
-                    &TWholePipeline::GetCompressedResult,
-                    tabletLookupSession));
+                std::move(lookupSession))
+                ->Run();
         } else {
             using TWholePipeline = TTabletLookupSession<TRowCachePipeline<TRowAdapter>>;
-            auto tabletLookupSession = New<TWholePipeline>(
+            return New<TWholePipeline>(
                 std::move(adapter),
                 std::move(tabletSnapshot),
                 /*produceAllVersions*/ true,
                 std::move(columnFilter),
                 std::move(lookupKeys),
-                std::move(lookupSession));
-
-            return tabletLookupSession->Run()
-                .Apply(BIND(
-                    &TWholePipeline::GetCompressedResult,
-                    tabletLookupSession));
+                std::move(lookupSession))
+                ->Run();
         }
     } else {
         if (tabletSnapshot->PhysicalSchema->HasHunkColumns()) {
             using TWholePipeline = TTabletLookupSession<THunkDecodingPipeline<TSimplePipeline<TRowAdapter>>>;
-            auto tabletLookupSession = New<TWholePipeline>(
+            return New<TWholePipeline>(
                 std::move(adapter),
                 std::move(tabletSnapshot),
                 produceAllVersions,
                 std::move(columnFilter),
                 std::move(lookupKeys),
-                std::move(lookupSession));
-
-            return tabletLookupSession->Run()
-                .Apply(BIND(
-                    &TWholePipeline::GetCompressedResult,
-                    tabletLookupSession));
+                std::move(lookupSession))
+                ->Run();
         } else {
             using TWholePipeline = TTabletLookupSession<TSimplePipeline<TRowAdapter>>;
-            auto tabletLookupSession = New<TWholePipeline>(
+            return New<TWholePipeline>(
                 std::move(adapter),
                 std::move(tabletSnapshot),
                 produceAllVersions,
                 std::move(columnFilter),
                 std::move(lookupKeys),
-                std::move(lookupSession));
-
-            return tabletLookupSession->Run()
-                .Apply(BIND(
-                    &TWholePipeline::GetCompressedResult,
-                    tabletLookupSession));
+                std::move(lookupSession))
+                ->Run();
         }
     }
 }
@@ -1773,7 +1780,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
         counters->UnmergedMissingRowCount.Increment(RequestedUnmergedRowCount_ - DataStatistics_.row_count());
         counters->UnmergedDataWeight.Increment(DataStatistics_.data_weight());
         counters->DecompressionCpuTime.Add(DecompressionStatistics_.GetTotalDuration());
-        if (auto errorOrOK = RowsetPromise_.TryGet(); !errorOrOK || !errorOrOK->IsOK()) {
+        if (auto errorOrOK = ResultPromise_.TryGet(); !errorOrOK || !errorOrOK->IsOK()) {
             counters->WastedUnmergedDataWeight.Increment(DataStatistics_.data_weight());
         }
     })
@@ -1781,7 +1788,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
 { }
 
 template <class TPipeline>
-TFuture<void> TTabletLookupSession<TPipeline>::Run()
+auto TTabletLookupSession<TPipeline>::Run() -> TFuture<typename decltype(TPipeline::TAdapter::ResultPromise_)::TValueType>
 {
     VERIFY_INVOKER_AFFINITY(Invoker_);
 
@@ -1850,13 +1857,16 @@ TFuture<void> TTabletLookupSession<TPipeline>::Run()
     if (openFutures.empty()) {
         LookupInPartitions(TError{});
     } else {
-        AllSucceeded(std::move(openFutures)).Subscribe(BIND(
+        auto sessionFuture = AllSucceeded(std::move(openFutures));
+        sessionFuture.Subscribe(BIND(
             &TTabletLookupSession::LookupInPartitions,
             MakeStrong(this))
             .Via(Invoker_));
+        SetSessionFuture(std::move(sessionFuture));
     }
 
-    return RowsetPromise_;
+    ResultPromise_.OnCanceled(BIND(&TTabletLookupSession::OnCanceled, MakeWeak(this)));
+    return ResultPromise_;
 }
 
 template <class TPipeline>
@@ -1959,12 +1969,12 @@ void TTabletLookupSession<TPipeline>::LookupInPartitions(const TError& error)
 {
     VERIFY_INVOKER_AFFINITY(Invoker_);
 
-    if (RowsetPromise_.IsSet()) {
+    if (ResultPromise_.IsSet()) {
         return;
     }
 
     if (!error.IsOK()) {
-        RowsetPromise_.TrySet(error);
+        ResultPromise_.TrySet(error);
         return;
     }
 
@@ -1975,7 +1985,7 @@ void TTabletLookupSession<TPipeline>::LookupInPartitions(const TError& error)
             }
         }
     } catch (const std::exception& ex) {
-        RowsetPromise_.TrySet(TError(ex));
+        ResultPromise_.TrySet(TError(ex));
         return;
     }
 
@@ -1995,6 +2005,7 @@ void TTabletLookupSession<TPipeline>::LookupInPartitions(const TError& error)
         &TTabletLookupSession::FinishSession,
         MakeStrong(this))
         .Via(Invoker_));
+    SetSessionFuture(rowsetFuture.AsVoid());
 }
 
 template <class TPipeline>
@@ -2010,10 +2021,12 @@ bool TTabletLookupSession<TPipeline>::LookupInCurrentPartition()
             partitionSession.ChunkLookupKeys);
         auto openFutures = OpenStoreSessions(partitionSession.StoreSessions);
         if (!openFutures.empty()) {
-            AllSucceeded(std::move(openFutures)).Subscribe(BIND(
+            auto sessionFuture = AllSucceeded(std::move(openFutures));
+            sessionFuture.Subscribe(BIND(
                 &TTabletLookupSession::LookupInPartitions,
                 MakeStrong(this))
                 .Via(Invoker_));
+            SetSessionFuture(std::move(sessionFuture));
             return true;
         }
     }
@@ -2063,10 +2076,12 @@ bool TTabletLookupSession<TPipeline>::DoLookupInCurrentPartition()
                 // NB: When sessions become prepared we check the StoreSessionsPrepared flag and
                 // read row in OnStoreSessionsPrepared. Then move to the next key with the while loop.
                 partitionSession.StoreSessionsPrepared = true;
-                AllSucceeded(std::move(futures)).Subscribe(BIND(
+                auto sessionFuture = AllSucceeded(std::move(futures));
+                sessionFuture.Subscribe(BIND(
                     &TTabletLookupSession::LookupInPartitions,
                     MakeStrong(this))
                     .Via(Invoker_));
+                SetSessionFuture(std::move(sessionFuture));
 
                 return true;
             }
@@ -2122,11 +2137,12 @@ void TTabletLookupSession<TPipeline>::FinishSession(const TError& error)
     VERIFY_INVOKER_AFFINITY(Invoker_);
 
     if (!error.IsOK()) {
-        RowsetPromise_.TrySet(error);
+        ResultPromise_.TrySet(error);
         return;
     }
 
-    if (const auto& throttler = TabletSnapshot_->DistributedThrottlers[TPipeline::ThrottlerKind]) {
+    auto throttlerKind = GetThrottlerKindFromQueryKind(TPipeline::QueryKind);
+    if (const auto& throttler = TabletSnapshot_->DistributedThrottlers[throttlerKind]) {
         throttler->Acquire(FoundDataWeight_);
     }
 
@@ -2146,7 +2162,7 @@ void TTabletLookupSession<TPipeline>::FinishSession(const TError& error)
         HunksDecodingTime_,
         ResponseCompressionTime_);
 
-    RowsetPromise_.TrySet();
+    YT_VERIFY(ResultPromise_.IsSet());
 }
 
 template <class TPipeline>
@@ -2164,6 +2180,42 @@ TTabletLookupSession<TPipeline>::~TTabletLookupSession()
     if (OnDestruction_) {
         OnDestruction_();
     }
+}
+
+template <class TPipeline>
+void TTabletLookupSession<TPipeline>::OnCanceled(const TError& error)
+{
+    TFuture<void> sessionFuture;
+    {
+        auto guard = Guard(CancelationSpinLock_);
+
+        if (CancelationError_) {
+            return;
+        }
+
+        CancelationError_ = error;
+
+        sessionFuture = SessionFuture_;
+    }
+
+    sessionFuture.Cancel(error);
+
+    ResultPromise_.TrySet(error);
+}
+
+template <class TPipeline>
+void TTabletLookupSession<TPipeline>::SetSessionFuture(TFuture<void> sessionFuture)
+{
+    auto guard = Guard(CancelationSpinLock_);
+
+    if (CancelationError_) {
+        guard.Release();
+
+        sessionFuture.Cancel(*CancelationError_);
+        return;
+    }
+
+    SessionFuture_ = std::move(sessionFuture);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2228,11 +2280,13 @@ public:
 protected:
     using TMutableRow = TMutableUnversionedRow;
 
-    static constexpr auto ThrottlerKind = ETabletDistributedThrottlerKind::Select;
+    static constexpr auto QueryKind = EInitialQueryKind::SelectRows;
 
     const IUnversionedRowsetWriterPtr Writer_;
     const TSchemafulPipePtr Pipe_;
     std::unique_ptr<TSchemafulRowMerger> Merger_;
+
+    const TPromise<void> ResultPromise_ = NewPromise<void>();
 
     void WriteRow(TUnversionedRow row)
     {
@@ -2252,6 +2306,7 @@ protected:
         if (error.IsOK()) {
             Pipe_->SetDataStatistics(std::move(DataStatistics_));
         }
+        ResultPromise_.TrySet();
     }
 };
 
