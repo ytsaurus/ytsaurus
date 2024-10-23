@@ -133,7 +133,10 @@ void TPartitionChunkReader::InitFirstBlock()
         CurrentBlock_.Get().ValueOrThrow().Data,
         BlockMetaExt_.data_blocks(CurrentBlockIndex_),
         GetCompositeColumnFlags(schema),
-        GetHunkColumnFlags(FromProto<EChunkFormat>(ChunkMeta_->format()), FromProto<EChunkFeatures>(ChunkMeta_->features()), schema),
+        GetHunkColumnFlags(
+            FromProto<EChunkFormat>(ChunkMeta_->format()),
+            FromProto<EChunkFeatures>(ChunkMeta_->features()),
+            schema),
         /*hunkChunkMetasExt*/ {},
         /*hunkChunkRefsExt*/ {},
         ChunkToReaderIdMapping_,

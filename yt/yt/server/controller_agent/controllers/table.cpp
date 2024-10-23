@@ -70,6 +70,10 @@ bool TInputTable::SupportsTeleportation() const
         return false;
     }
 
+    if (Schema->HasHunkColumns()) {
+        return false;
+    }
+
     auto pathColumnNames = Path.GetColumns();
     if (!pathColumnNames) {
         return true;

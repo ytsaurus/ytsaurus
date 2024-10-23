@@ -10196,7 +10196,7 @@ void TOperationControllerBase::InferSchemaFromInputOrdered()
     auto& outputUploadOptions = OutputTables_[0]->TableUploadOptions;
 
     if (InputManager->GetInputTables().size() == 1 && outputUploadOptions.UpdateMode == EUpdateMode::Overwrite) {
-        // If only only one input table given, we inherit the whole schema including column attributes.
+        // If only one input table given, we inherit the whole schema including column attributes.
         outputUploadOptions.SchemaMode = InputManager->GetInputTables()[0]->SchemaMode;
         outputUploadOptions.TableSchema = InputManager->GetInputTables()[0]->Schema;
         FilterOutputSchemaByInputColumnSelectors(/*sortColumns*/{});
