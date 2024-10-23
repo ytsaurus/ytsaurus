@@ -305,6 +305,8 @@ void TAllocationRequestSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("instance_role", &TThis::InstanceRole)
         .Default();
+    registrar.Parameter("host_tag_filter", &TThis::HostTagFilter)
+        .Optional();
 }
 
 void TAllocationRequestStatus::Register(TRegistrar registrar)

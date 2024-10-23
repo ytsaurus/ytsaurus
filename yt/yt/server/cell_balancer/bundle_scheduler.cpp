@@ -296,6 +296,8 @@ private:
 
             spec->NannyService = adapter->GetNannyService(dataCenterInfo);
             *spec->ResourceRequest = *adapter->GetResourceGuarantee(bundleInfo);
+            spec->InstanceRole = adapter->GetInstanceRole();
+            spec->HostTagFilter = adapter->GetHostTagFilter(bundleInfo, input);
             spec->PodIdTemplate = GetPodIdTemplate(
                 bundleName,
                 dataCenterName,
@@ -303,8 +305,6 @@ private:
                 adapter,
                 input,
                 mutations);
-
-            spec->InstanceRole = adapter->GetInstanceRole();
 
             auto request = New<TAllocationRequest>();
             request->Spec = spec;
@@ -1887,6 +1887,20 @@ public:
         return bundleInfo->TargetConfig->TabletNodeResourceGuarantee;
     }
 
+    const std::optional<TString> GetHostTagFilter(const TBundleInfoPtr& bundleInfo, const TSchedulerInputState& input) const
+    {
+        auto resources = bundleInfo->TargetConfig->TabletNodeResourceGuarantee;
+        const auto& zoneInfo = GetOrCrash(input.Zones, bundleInfo->Zone);
+
+        for (const auto& [name, instanceSize] : zoneInfo->TabletNodeSizes) {
+            if (*instanceSize->ResourceGuarantee == *resources) {
+                return instanceSize->HostTagFilter;
+            }
+        }
+
+        return {};
+    }
+
     const TString& GetInstanceType()
     {
         static const TString TabletNode = "tab";
@@ -2200,6 +2214,11 @@ public:
     const NBundleControllerClient::TInstanceResourcesPtr& GetResourceGuarantee(const TBundleInfoPtr& bundleInfo) const
     {
         return bundleInfo->TargetConfig->RpcProxyResourceGuarantee;
+    }
+
+    const std::optional<TString> GetHostTagFilter(const TBundleInfoPtr& /*bundleInfo*/, const TSchedulerInputState& /*input*/) const
+    {
+        return {};
     }
 
     const TString& GetInstanceType()

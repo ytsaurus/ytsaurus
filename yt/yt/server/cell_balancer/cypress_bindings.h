@@ -425,6 +425,7 @@ struct TAllocationRequestSpec
     THulkInstanceResourcesPtr ResourceRequest;
     TString PodIdTemplate;
     int InstanceRole;
+    std::optional<TString> HostTagFilter;
 
     REGISTER_YSON_STRUCT(TAllocationRequestSpec);
 
