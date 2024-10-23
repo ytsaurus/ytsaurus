@@ -2582,7 +2582,7 @@ def add_flow_show_logs_parser(add_parser):
                         help="The number of last logs")
     parser.add_argument("--attach", action="store_true", default=False,
                         help="Attach to the logs stream")
-    parser.add_argument("--rate", type=int, default=2,
+    parser.add_argument("--rate", type=float, default=1.0,
                         help="Logs reading period in seconds")
     parser.add_argument("--print-host", action="store_true", default=False,
                         help="Print controller's hostname")
