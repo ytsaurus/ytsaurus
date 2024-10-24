@@ -690,6 +690,8 @@ def _build_cell_balancer_configs(yt_config,
         config["enable_bundle_controller"] = yt_config.enable_bundle_controller
 
         if yt_config.enable_bundle_controller:
+            # Consistent with prod
+            config["enable_cell_balancer"] = False
             config["bundle_controller"] = {
                 "cluster" : "local",
                 "root_path" : "//sys/bundle_controller/controller",

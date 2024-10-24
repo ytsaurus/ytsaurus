@@ -347,7 +347,8 @@ class YTInstance(object):
                 "discovery": self._make_service_dirs("discovery", self.yt_config.discovery_server_count),
                 "timestamp_provider": self._make_service_dirs("timestamp_provider",
                                                               self.yt_config.timestamp_provider_count),
-                "cell-balancer": self._make_service_dirs("cell-balancer", self.yt_config.cell_balancer_count),
+                # bundle controller uses same directory,
+                "cell_balancer": self._make_service_dirs("cell_balancer", self.yt_config.cell_balancer_count),
                 "scheduler": self._make_service_dirs("scheduler", self.yt_config.scheduler_count),
                 "controller_agent": self._make_service_dirs("controller_agent", self.yt_config.controller_agent_count),
                 "node": self._make_service_dirs("node", self.yt_config.node_count),
@@ -1533,7 +1534,8 @@ class YTInstance(object):
             try:
                 active_cell_balancer_orchid_path = None
                 for instance in instances:
-                    orchid_path = "//sys/cell_balancers/instances/{0}/orchid".format(instance)
+                    # bundle_controller uses this path
+                    orchid_path = f"//sys/cell_balancers/instances/{instance}/orchid"
                     try:
                         res = client.get(orchid_path + "/cell_balancer/service/connected")
                         if res:
