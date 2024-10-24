@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 
 	"go.ytsaurus.tech/yt/go/yson"
@@ -15,7 +16,7 @@ const (
 	attributesKey = "$attributes"
 )
 
-// RawMessage is type that wraps raw JSON message and marshals it directly to YSON using streaming API
+// RawMessage is type that wraps raw JSON message and marshals it directly to YSON using streaming API.
 type RawMessage struct {
 	JSON json.RawMessage
 
@@ -151,18 +152,29 @@ func (m RawMessage) MarshalYSON(w *yson.Writer) error {
 	return w.Err()
 }
 
+type kv struct {
+	k string
+	v json.RawMessage
+}
+
 type valueWithAttributes struct {
 	value      json.RawMessage
 	attributes map[string]json.RawMessage
 }
 
 func (v *valueWithAttributes) marshalYSON(w *yson.Writer, useInt64, useUint64 bool) error {
-	w.BeginAttrs()
+	sv := make([]kv, 0, len(v.attributes))
 	for k, v := range v.attributes {
-		w.MapKeyString(k)
-		rawMessage := RawMessage{JSON: v, UseInt64: useInt64, UseUint64: useUint64}
+		sv = append(sv, kv{k: k, v: v})
+	}
+	sort.Slice(sv, func(i, j int) bool { return sv[i].k < sv[j].k })
+
+	w.BeginAttrs()
+	for _, item := range sv {
+		w.MapKeyString(item.k)
+		rawMessage := RawMessage{JSON: item.v, UseInt64: useInt64, UseUint64: useUint64}
 		if err := rawMessage.MarshalYSON(w); err != nil {
-			return fmt.Errorf("failed to marshal attribute %q: %w", k, err)
+			return fmt.Errorf("failed to marshal attribute %q: %w", item.k, err)
 		}
 	}
 	w.EndAttrs()
