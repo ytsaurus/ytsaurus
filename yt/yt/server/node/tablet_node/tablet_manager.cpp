@@ -4961,8 +4961,18 @@ private:
             // Typically we have a sentinel dynamic store at the end but during unmount this one may be missing.
             YT_VERIFY(!storeRowIndexMap.empty());
             const auto& lastStore = storeRowIndexMap.rbegin()->second;
-            YT_VERIFY(minReplicationRowIndex == lastStore->GetStartingRowIndex() + lastStore->GetRowCount());
-            trimmedRowCount = minReplicationRowIndex;
+            trimmedRowCount = lastStore->GetStartingRowIndex() + lastStore->GetRowCount();
+            if (trimmedRowCount != minReplicationRowIndex) {
+                YT_LOG_ALERT(
+                    "Invalid min replication row index; skipping full trim "
+                    "(%v, MinReplicationRowIndex: %v, LastStoreId: %v, LastStoreStartingRowIndex: %v, LastStoreRowCount: %v)",
+                    tablet->GetLoggingTag(),
+                    minReplicationRowIndex,
+                    lastStore->GetId(),
+                    lastStore->GetStartingRowIndex(),
+                    lastStore->GetRowCount());
+                return;
+            }
         } else {
             trimmedRowCount = it->second->GetStartingRowIndex();
         }
