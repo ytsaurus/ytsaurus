@@ -281,3 +281,74 @@ Events:
 ```
 
 {% endcut %}
+
+## Установка веб-интерфейса {{product-name}}
+
+### Работа с [ytop-chart](https://github.com/ytsaurus/ytsaurus-k8s-operator/pkgs/container/ytop-chart)
+
+Выполните все необходимые действия для [запуска кластера {{product-name}}](#starting-cluster). Затем установите чарт:
+
+```
+helm upgrade --install ytsaurus-ui github/ytsaurus-ui/packages/ui-helm-chart/
+```
+
+### Работа с пользовательским кластером
+
+#### Предварительные требования
+
+Ниже приведена инструкция по запуску веб-интерфейса {{product-name}} с помощью helm-чарта. На данном этапе у вас должны быть:
+
+* настроенный CLI-инструмент для `kubectl` (например, можно использовать [minikube](https://minikube.sigs.k8s.io/docs/start/));
+* запущенный кластер {{product-name}} и имя хоста `http_proxy`;
+* специальный пользователь-робот для веб-интерфейса {{product-name}} с выписанным для него токеном (см. раздел [Управление токенами](../../user-guide/storage/auth.md#token-management)).
+
+#### Быстрый старт
+
+По умолчанию чарт ожидает наличия секрета `yt-ui-secret` с ключом `yt-interface-secret.json`. Создать секрет можно с помощью следующих команд:
+
+```
+read -sp "TOKEN: " TOKEN ; echo '{"oauthToken":"'$TOKEN'"}' > tmp.json
+kubectl create secret generic yt-ui-secret --from-literal="yt-interface-secret.json=$(cat tmp.json)" && rm tmp.json
+```
+
+Также вам понадобится предоставить чарту описание кластера:
+
+```
+read -p "Cluster id: " id_; read -p "http_proxy hostname: " proxy_; read -p "Use https [true/false]: " secure_; read -p "NODE_TLS_REJECT_UNAUTHORIZED [1/0]: " tlsrej_; (
+tee values.yaml << _EOF
+ui:
+  env:
+    - name: NODE_TLS_REJECT_UNAUTHORIZED
+      value: "$tlsrej_"
+    - name: ALLOW_PASSWORD_AUTH
+      value: "1"
+  clusterConfig:
+    clusters:
+      - authentication: basic
+        id: $id_
+        proxy: $proxy_
+        description: My first YTsaurus. Handle with care.
+        environment: testing
+        group: My YTsaurus clusters
+        name: my cluster
+        primaryMaster:
+          cellTag: 1
+        secure: $secure_
+        theme: lavander
+_EOF
+)
+```
+
+После этого можно приступить к установке или обновлению чарта:
+
+```
+helm upgrade --install yt-ui github/ytsaurus-ui/packages/ui-helm-chart/ -f values.yaml
+# or run specific version of UI (all versions: https://github.com/ytsaurus/ytsaurus-ui/pkgs/container/ui)
+helm upgrade --install yt-ui github/ytsaurus-ui/packages/ui-helm-chart/ -f values.yaml --set ui.image.tag=1.60.1
+```
+
+Чтобы веб-интерфейс {{product-name}} стал доступным в браузере, может потребоваться переадресация портов:
+
+```
+kubectl port-forward deployment/yt-ui-ytsaurus-ui-chart 8080:80
+```
