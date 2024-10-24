@@ -720,7 +720,7 @@ void TJob::OnJobFinalized()
         currentError,
         "Job finalized (JobState: %v, ResourceUsage: %v)",
         GetState(),
-        FormatResources(GetResourceUsage()));
+        GetResourceUsage());
 
     YT_VERIFY(IsFinished());
 
