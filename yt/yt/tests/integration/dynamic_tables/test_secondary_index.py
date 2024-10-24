@@ -26,10 +26,12 @@ PRIMARY_SCHEMA = [
     {"name": "valueB", "type": "boolean"},
 ]
 
+EXTRA_KEY_COLUMN = {"name": "keyC", "type": "int64", "sort_order": "ascending"}
+
 PRIMARY_SCHEMA_WITH_EXTRA_KEY = [
     {"name": "keyA", "type": "int64", "sort_order": "ascending"},
     {"name": "keyB", "type": "string", "sort_order": "ascending"},
-    {"name": "keyC", "type": "int64", "sort_order": "ascending"},
+    EXTRA_KEY_COLUMN,
     {"name": "valueA", "type": "int64"},
     {"name": "valueB", "type": "boolean"},
 ]
@@ -334,20 +336,41 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
             )
 
     @authors("sabdenovch")
-    def test_alter_extra_key_order(self):
-        self._create_basic_tables()
+    @pytest.mark.parametrize("kind_and_schemas", (
+        (
+            "full_sync",
+            PRIMARY_SCHEMA,
+            PRIMARY_SCHEMA_WITH_EXTRA_KEY,
+            INDEX_ON_VALUE_SCHEMA,
+            INDEX_ON_VALUE_SCHEMA[:3] + [EXTRA_KEY_COLUMN, INDEX_ON_VALUE_SCHEMA[-1]],
+        ),
+        (
+            "unfolding",
+            PRIMARY_SCHEMA_WITH_LIST,
+            [PRIMARY_SCHEMA_WITH_LIST[0], EXTRA_KEY_COLUMN, PRIMARY_SCHEMA_WITH_LIST[-1]],
+            UNFOLDING_INDEX_SCHEMA,
+            UNFOLDING_INDEX_SCHEMA[:2] + [EXTRA_KEY_COLUMN, UNFOLDING_INDEX_SCHEMA[-1]],
+        ),
+        (
+            "unique",
+            PRIMARY_SCHEMA,
+            PRIMARY_SCHEMA_WITH_EXTRA_KEY,
+            UNIQUE_VALUE_INDEX_SCHEMA,
+            UNIQUE_VALUE_INDEX_SCHEMA + [{"name": "keyC", "type": "int64"}],
+        ),
+    ))
+    def test_alter_extra_key_order(self, kind_and_schemas):
+        self._create_basic_tables(
+            table_schema=kind_and_schemas[1],
+            index_schema=kind_and_schemas[3],
+            kind=kind_and_schemas[0],
+            attributes={"unfolded_column": "value"} if kind_and_schemas[0] == "unfolding" else {})
 
         with raises_yt_error():
-            alter_table("//tmp/table", schema=PRIMARY_SCHEMA_WITH_EXTRA_KEY)
+            alter_table("//tmp/table", schema=kind_and_schemas[2])
 
-        alter_table("//tmp/index_table", schema=[
-            {"name": "valueA", "type": "int64", "sort_order": "ascending"},
-            {"name": "keyA", "type": "int64", "sort_order": "ascending"},
-            {"name": "keyB", "type": "string", "sort_order": "ascending"},
-            {"name": "keyC", "type": "int64", "sort_order": "ascending"},
-            {"name": "valueB", "type": "boolean"},
-        ])
-        alter_table("//tmp/table", schema=PRIMARY_SCHEMA_WITH_EXTRA_KEY)
+        alter_table("//tmp/index_table", schema=kind_and_schemas[4])
+        alter_table("//tmp/table", schema=kind_and_schemas[2])
 
     @authors("sabdenovch")
     def test_alter_extra_value_order(self):
