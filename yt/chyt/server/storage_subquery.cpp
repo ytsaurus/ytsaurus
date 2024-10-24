@@ -1,10 +1,10 @@
 #include "storage_subquery.h"
 
-#include "block_input_stream.h"
 #include "config.h"
+#include "secondary_query_source.h"
 #include "read_plan.h"
 #include "granule_min_max_filter.h"
-#include "prewhere_block_input_stream.h"
+#include "prewhere_secondary_query_source.h"
 #include "query_context.h"
 #include "storage_base.h"
 #include "subquery_spec.h"
@@ -225,23 +225,23 @@ public:
             const auto& threadDataSliceDescriptors = perThreadDataSliceDescriptors[threadIndex];
 
             if (StorageContext_->Settings->Prewhere->PrefilterDataSlices && readPlan->SuitableForTwoStagePrewhere()) {
-                pipes.emplace_back(std::make_shared<DB::SourceFromInputStream>(CreatePrewhereBlockInputStream(
+                pipes.emplace_back(CreatePrewhereSecondaryQuerySource(
                     StorageContext_,
                     SubquerySpec_,
                     readPlan,
                     traceContext,
                     threadDataSliceDescriptors,
                     granuleMinMaxFilter,
-                    statisticsCallback)));
+                    statisticsCallback));
             } else {
-                pipes.emplace_back(std::make_shared<DB::SourceFromInputStream>(CreateBlockInputStream(
+                pipes.emplace_back(CreateSecondaryQuerySource(
                     StorageContext_,
                     SubquerySpec_,
                     readPlan,
                     traceContext,
                     threadDataSliceDescriptors,
                     granuleMinMaxFilter,
-                    statisticsCallback)));
+                    statisticsCallback));
             }
 
             i64 rowCount = 0;

@@ -115,8 +115,8 @@ class TestQueryLog(ClickHouseTestBase):
 
             assert 'storage_distributor' in initial_query_entry["chyt_query_statistics"]
             assert 'storage_subquery' not in initial_query_entry["chyt_query_statistics"]
-            assert 'block_input_stream' not in initial_query_entry["chyt_query_statistics"]
+            assert 'secondary_query_source' not in initial_query_entry["chyt_query_statistics"]
 
             assert 'storage_distributor' not in secondary_query_entry["chyt_query_statistics"]
             assert 'storage_subquery' in secondary_query_entry["chyt_query_statistics"]
-            assert 'block_input_stream' in secondary_query_entry["chyt_query_statistics"]
+            assert 'secondary_query_source' in secondary_query_entry["chyt_query_statistics"]

@@ -1,8 +1,7 @@
 #include "dictionary_source.h"
 
-#include "block_input_stream.h"
 #include "conversion.h"
-#include "helpers.h"
+#include "secondary_query_source.h"
 #include "host.h"
 #include "query_context.h"
 #include "read_plan.h"
@@ -25,7 +24,6 @@
 #include <Common/Exception.h>
 #include <Dictionaries/DictionarySourceFactory.h>
 #include <Dictionaries/DictionaryStructure.h>
-#include <Processors/Sources/SourceFromInputStream.h>
 #include <QueryPipeline/QueryPipeline.h>
 
 #include <Poco/Util/AbstractConfiguration.h>
@@ -90,7 +88,7 @@ public:
             NTableClient::TNameTable::FromSchema(*table->Schema),
             NTableClient::TColumnFilter(table->Schema->GetColumnCount()));
 
-        auto blockInputStream = CreateBlockInputStream(
+        auto source = CreateSecondaryQuerySource(
             reader,
             BuildSimpleReadPlan(table->Schema->Columns()),
             /*traceContext*/ nullptr,
@@ -99,8 +97,6 @@ public:
             Logger,
             /*chunkReaderStatistics*/ nullptr,
             /*statisticsCallback*/ {});
-
-        auto source = std::make_shared<DB::SourceFromInputStream>(std::move(blockInputStream));
 
         return DB::QueryPipeline(DB::Pipe(source));
     }

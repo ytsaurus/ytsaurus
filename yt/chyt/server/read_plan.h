@@ -4,9 +4,26 @@
 
 #include <yt/yt/client/table_client/schema.h>
 
+#include <Columns/IColumn.h>
+#include <Common/PODArray.h>
+#include <Core/Block.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TBlockWithFilter
+{
+    explicit TBlockWithFilter(i64 rowCount)
+        : RowCount(rowCount)
+        , RowCountAfterFilter(rowCount)
+    { }
+
+    DB::Block Block;
+    i64 RowCount;
+    DB::IColumn::Filter Filter;
+    i64 RowCountAfterFilter;
+};
 
 struct TFilterInfo
 {
@@ -17,6 +34,10 @@ struct TFilterInfo
     std::string FilterColumnName;
     //! If |true|, the filter column is not needed for the following steps and can be removed.
     bool RemoveFilterColumn = false;
+
+    //! Execute filter actions and merge the resulting filter columns with the passed one.
+    //! NB: Modifies the passed TBlockWithFilter.
+    void Execute(TBlockWithFilter& blockWithFilter) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,6 +79,10 @@ TReadPlanWithFilterPtr BuildReadPlanWithPrewhere(
     const DB::Settings& settings);
 
 TReadPlanWithFilterPtr ExtractPrewhereOnlyReadPlan(const TReadPlanWithFilterPtr& readPlan);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DB::Block DeriveHeaderBlockFromReadPlan(const TReadPlanWithFilterPtr& readPlan,  const TCompositeSettingsPtr& settings);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -6,15 +6,14 @@
 
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 
-#include <DataStreams/IBlockInputStream.h>
-
+#include <Processors/ISource.h>
 #include <Storages/SelectQueryInfo.h>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::BlockInputStreamPtr CreatePrewhereBlockInputStream(
+DB::SourcePtr CreatePrewhereSecondaryQuerySource(
     TStorageContext* storageContext,
     const TSubquerySpec& subquerySpec,
     TReadPlanWithFilterPtr readPlan,
