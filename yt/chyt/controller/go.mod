@@ -1,6 +1,8 @@
 module go.ytsaurus.tech/yt/chyt/controller
 
-go 1.22
+go 1.22.0
+
+toolchain go1.23.0
 
 require (
 	github.com/go-chi/chi/v5 v5.1.0

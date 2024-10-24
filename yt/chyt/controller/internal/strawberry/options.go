@@ -11,6 +11,7 @@ const (
 	TypePoolTrees OptionType = "pool_trees"
 	TypePool      OptionType = "pool"
 	TypeByteCount OptionType = "byte_count"
+	TypeDuration  OptionType = "duration"
 )
 
 type OptionDescriptor struct {

@@ -160,11 +160,6 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 					CurrentValue: speclet.JupyterDockerImage,
 					Description:  "A docker image containing jupyt and required stuff.",
 				},
-			},
-		},
-		{
-			Title: "Enable idle timeout suspension",
-			Options: []strawberry.OptionDescriptor{
 				{
 					Title:        "Enable idle timeout suspension",
 					Name:         "enable_idle_timeout_suspension",
@@ -173,15 +168,10 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 					DefaultValue: false,
 					Description:  "Jupyt operation will be suspended in case of no activity if enabled.",
 				},
-			},
-		},
-		{
-			Title: "Idle timeout",
-			Options: []strawberry.OptionDescriptor{
 				{
 					Title:        "Idle timeout",
 					Name:         "idle_timeout",
-					Type:         strawberry.TypeYson,
+					Type:         strawberry.TypeDuration,
 					CurrentValue: speclet.IdleTimeout,
 					DefaultValue: DefaultIdleTimeout,
 					MinValue:     0,
