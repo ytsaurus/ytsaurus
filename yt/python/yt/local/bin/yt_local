@@ -157,13 +157,15 @@ def add_start_subparser(subparsers):
     parser.add_argument("--queue-agent-count", type=int, default=0, help="number of queue agents (default: %(default)s)")
     parser.add_argument("--kafka-proxy-count", type=int, default=0, help="number of kafka proxies (default: %(default)s)")
     parser.add_argument("--discovery-server-count", type=int, default=0, help="number of discovery servers (default: %(default)s)")
+    parser.add_argument("--enable-bundle-controller", action="store_true", default=False, help="use bundle controller instead of cell balancer")
+    parser.add_argument("--cell-balancer-count", type=int, default=0, help="number of cell balancers (bundle controllers if enabled) (default: %(default)s)")
 
     parser.add_argument("-c", "--component", action=ParseStructuredArguments, help="additional components", required=False, dest="components", nargs="*")
 
     for service in SERVICE_LIST:
         config_parser = parser.add_mutually_exclusive_group(required=False)
-        config_parser.add_argument("--{0}-config".format(service), help="{0} config".format(service))
-        config_parser.add_argument("--{0}-config-path".format(service), help="{0} config path".format(service))
+        config_parser.add_argument(f"--{service}-config", help=f"{service} config")
+        config_parser.add_argument(f"--{service}-config-path", help=f"{service} config path")
 
     parser.add_argument("--sync", action="store_true", default=False,
                         help="start in synchronized mode (hangs up console and prints info there)")

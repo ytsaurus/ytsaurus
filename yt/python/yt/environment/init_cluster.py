@@ -355,6 +355,39 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
         "sys",
         {"options": {"changelog_account": "sys", "snapshot_account": "sys"}})
 
+    # bundle controller setup
+    batch_processor.create(
+        "map_node",
+        "//sys/bundle_controller/coordinator",
+        recursive=True,
+        ignore_existing=True,
+    )
+    batch_processor.create(
+        "map_node",
+        "//sys/bundle_controller/controller",
+        recursive=True,
+        ignore_existing=True,
+    )
+    batch_processor.create(
+        "map_node",
+        "//sys/bundle_controller/controller/zones",
+        recursive=True,
+        ignore_existing=True,
+    )
+    batch_processor.create(
+        "map_node",
+        "//sys/bundle_controller/controller/zones/zone_default",
+        recursive=True,
+        ignore_existing=True
+    )
+    batch_processor.create(
+        "map_node",
+        "//sys/bundle_controller/controller/bundles_state",
+        recursive=True,
+        ignore_existing=True,
+    )
+    batch_processor.create_account("bundle_system_quotas", attributes={}, ignore_existing=True)
+
     if proxy_address is not None:
         batch_processor.set("//sys/@cluster_proxy_address", proxy_address)
     if ui_address is not None:
