@@ -38,10 +38,11 @@ DECLARE_REFCOUNTED_STRUCT(TBucket)
 struct TBucket
     : public IInvoker
 {
-    TBucket(size_t poolId, TFairShareThreadPoolTag tag, TWeakPtr<TTwoLevelFairShareQueue> parent)
+    TBucket(size_t poolId, TFairShareThreadPoolTag tag, TWeakPtr<TTwoLevelFairShareQueue> parent, double bucketWeight = 1.0)
         : PoolId(poolId)
         , Tag(std::move(tag))
         , Parent(std::move(parent))
+        , Weight(bucketWeight)
     { }
 
     void RunCallback(const TClosure& callback)
@@ -87,6 +88,7 @@ struct TBucket
     NProfiling::TCpuDuration WaitTime = 0;
 
     TCpuDuration ExcessTime = 0;
+    double Weight = 1.0;
     int CurrentExecutions = 0;
 };
 
@@ -172,7 +174,7 @@ public:
         ThreadCount_.store(threadCount);
     }
 
-    IInvokerPtr GetInvoker(const TString& poolName, const TFairShareThreadPoolTag& tag)
+    IInvokerPtr GetInvoker(const TString& poolName, const TFairShareThreadPoolTag& tag, double bucketWeight)
     {
         while (true) {
             auto guard = Guard(SpinLock_);
@@ -199,7 +201,7 @@ public:
             TBucketPtr bucket;
             auto bucketIt = pool->TagToBucket.find(tag);
             if (bucketIt == pool->TagToBucket.end()) {
-                bucket = New<TBucket>(poolId, tag, MakeWeak(this));
+                bucket = New<TBucket>(poolId, tag, MakeWeak(this), bucketWeight);
                 YT_VERIFY(pool->TagToBucket.emplace(tag, bucket.Get()).second);
                 pool->BucketCounter.Update(pool->TagToBucket.size());
             } else {
@@ -499,7 +501,7 @@ private:
         const auto& pool = IdToPool_[bucket->PoolId];
 
         pool->ExcessTime += duration / pool->Weight;
-        bucket->ExcessTime += duration;
+        bucket->ExcessTime += duration / bucket->Weight;
 
         auto positionInHeap = bucket->HeapIterator;
         if (!positionInHeap) {
@@ -670,10 +672,11 @@ public:
 
     IInvokerPtr GetInvoker(
         const TString& poolName,
-        const TFairShareThreadPoolTag& tag) override
+        const TFairShareThreadPoolTag& tag,
+        double bucketWeight) override
     {
         EnsureStarted();
-        return Queue_->GetInvoker(poolName, tag);
+        return Queue_->GetInvoker(poolName, tag, bucketWeight);
     }
 
     void Shutdown() override

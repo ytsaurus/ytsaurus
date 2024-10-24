@@ -88,7 +88,7 @@ public:
 
         try {
             NFS::WrapIOErrors([&] {
-                DataFileHandle_ = WaitFor(IOEngine_->Open({.Path = FileName_, .Mode = RdWr | Seq | CloseOnExec}))
+                DataFileHandle_ = WaitFor(IOEngine_->Open({.Path = FileName_, .Mode = RdWr | Seq | CloseOnExec}, EWorkloadCategory::UserBatch, {})) // TODO what to pass here
                     .ValueOrThrow();
                 LockDataFile();
 
@@ -98,7 +98,8 @@ public:
                         {{.Handle = DataFileHandle_, .Offset = 0, .Size = headerBufferSize}},
                         // TODO(babenko): better workload category?
                         EWorkloadCategory::UserBatch,
-                        GetRefCountedTypeCookie<TUnbufferedFileChangelogHeaderTag>()))
+                        GetRefCountedTypeCookie<TUnbufferedFileChangelogHeaderTag>(),
+                        {})) // TODO what to pass here
                     .ValueOrThrow()
                     .OutputBuffers[0];
 
@@ -138,7 +139,8 @@ public:
                         {{.Handle = DataFileHandle_, .Offset = FileHeaderSize_, .Size = header->MetaSize}},
                         // TODO(babenko): better workload category?
                         EWorkloadCategory::UserBatch,
-                        GetRefCountedTypeCookie<TUnbufferedFileChangelogHeaderTag>()))
+                        GetRefCountedTypeCookie<TUnbufferedFileChangelogHeaderTag>(),
+                        {})) // TODO what to pass here
                     .ValueOrThrow()
                     .OutputBuffers[0];
                 DeserializeProto(&Meta_, SerializedMeta_);
@@ -189,10 +191,10 @@ public:
                 }
 
                 if (currentDataOffset < dataFileLength) {
-                    WaitFor(IOEngine_->Resize({.Handle = DataFileHandle_, .Size = currentDataOffset}))
+                    WaitFor(IOEngine_->Resize({.Handle = DataFileHandle_, .Size = currentDataOffset}, EWorkloadCategory::UserBatch, {})) // TODO what to pass here
                         .ThrowOnError();
 
-                    WaitFor(IOEngine_->FlushFile({.Handle = DataFileHandle_, .Mode = EFlushFileMode::All}))
+                    WaitFor(IOEngine_->FlushFile({.Handle = DataFileHandle_, .Mode = EFlushFileMode::All}, EWorkloadCategory::UserBatch, {})) // TODO what to pass here
                         .ThrowOnError();
 
                     YT_LOG_DEBUG("Changelog data file truncated (RecordCount: %v, DataFileLength: %v)",
@@ -240,7 +242,7 @@ public:
 
         try {
             NFS::WrapIOErrors([&] {
-                WaitFor(IOEngine_->Close({.Handle = std::exchange(DataFileHandle_, nullptr), .Flush = true}))
+                WaitFor(IOEngine_->Close({.Handle = std::exchange(DataFileHandle_, nullptr), .Flush = true}, EWorkloadCategory::UserBatch, {})) // TODO what to pass here
                     .ThrowOnError();
 
                 Index_->SetFlushedDataRecordCount(recordCount);
@@ -355,7 +357,7 @@ public:
             withIndex);
 
         try {
-            WaitFor(IOEngine_->FlushFile({.Handle = DataFileHandle_, .Mode = EFlushFileMode::Data}))
+            WaitFor(IOEngine_->FlushFile({.Handle = DataFileHandle_, .Mode = EFlushFileMode::Data}, EWorkloadCategory::UserBatch, {})) // TODO what to pass here
                 .ThrowOnError();
 
             Index_->SetFlushedDataRecordCount(GetRecordCount());
@@ -588,7 +590,7 @@ private:
         while (true) {
             YT_LOG_DEBUG("Locking data file");
 
-            auto error = WaitFor(IOEngine_->Lock({.Handle = DataFileHandle_, .Mode = ELockFileMode::Exclusive, .Nonblocking = true}));
+            auto error = WaitFor(IOEngine_->Lock({.Handle = DataFileHandle_, .Mode = ELockFileMode::Exclusive, .Nonblocking = true}, EWorkloadCategory::UserBatch, {})); // TODO what to pass here
             if (error.IsOK()) {
                 break;
             }
@@ -642,7 +644,7 @@ private:
         NFS::WrapIOErrors([&] {
             auto tempFileName = FileName_ + NFS::TempFileSuffix;
 
-            auto dataFile = WaitFor(IOEngine_->Open({.Path = tempFileName, .Mode = WrOnly | CloseOnExec | CreateAlways}))
+            auto dataFile = WaitFor(IOEngine_->Open({.Path = tempFileName, .Mode = WrOnly | CloseOnExec | CreateAlways}, EWorkloadCategory::UserBatch, {})) // TODO what to pass here
                 .ValueOrThrow();
 
             WaitFor(IOEngine_->Write({
@@ -650,16 +652,17 @@ private:
                     .Offset = 0,
                     .Buffers = {std::move(buffer)}
                 },
-                EWorkloadCategory::UserBatch))
+                EWorkloadCategory::UserBatch,
+                {})) // TODO what to pass here
                 .ThrowOnError();
 
-            WaitFor(IOEngine_->Close({.Handle = dataFile, .Flush = true}))
+            WaitFor(IOEngine_->Close({.Handle = dataFile, .Flush = true}, EWorkloadCategory::UserBatch, {})) // TODO what to pass here
                 .ThrowOnError();
 
             // TODO(babenko): use IO engine
             NFS::Replace(tempFileName, FileName_);
 
-            DataFileHandle_ = WaitFor(IOEngine_->Open({.Path = FileName_, .Mode = RdWr | Seq | CloseOnExec}))
+            DataFileHandle_ = WaitFor(IOEngine_->Open({.Path = FileName_, .Mode = RdWr | Seq | CloseOnExec}, EWorkloadCategory::UserBatch, {})) // TODO what to pass here
                 .ValueOrThrow();
         });
     }
@@ -747,7 +750,7 @@ private:
             // Preallocate file if needed.
             if (Config_->PreallocateSize && currentFileOffset > CurrentFileSize_) {
                 auto newFileSize = std::max(CurrentFileSize_ + *Config_->PreallocateSize, currentFileOffset);
-                WaitFor(IOEngine_->Allocate({.Handle = DataFileHandle_, .Size = newFileSize}))
+                WaitFor(IOEngine_->Allocate({.Handle = DataFileHandle_, .Size = newFileSize}, EWorkloadCategory::UserBatch, {})) // TODO what to pass here
                     .ThrowOnError();
                 CurrentFileSize_ = newFileSize;
             }
@@ -758,7 +761,8 @@ private:
                     .Offset = CurrentFileOffset_.load(),
                     .Buffers = std::move(buffers)
                 },
-                EWorkloadCategory::UserBatch))
+                EWorkloadCategory::UserBatch,
+                {})) // TODO what to pass here
                 .ThrowOnError();
 
             RecordCount_ += std::ssize(records);
@@ -902,7 +906,8 @@ private:
                 {{.Handle = DataFileHandle_, .Offset = offset, .Size = sizeof(TRecordHeader)}},
                 // TODO(babenko): better workload category?
                 EWorkloadCategory::UserBatch,
-                GetRefCountedTypeCookie<TUnbufferedFileChangelogHeaderTag>()))
+                GetRefCountedTypeCookie<TUnbufferedFileChangelogHeaderTag>(),
+                {})) // TODO what to pass here
             .ValueOrThrow()
             .OutputBuffers[0];
 
@@ -951,7 +956,8 @@ private:
                 {{.Handle = DataFileHandle_, .Offset = range.first, .Size = range.second - range.first}},
                 // TODO(babenko): better workload category?
                 EWorkloadCategory::UserBatch,
-                GetRefCountedTypeCookie<TUnbufferedFileChangelogHeaderTag>()))
+                GetRefCountedTypeCookie<TUnbufferedFileChangelogHeaderTag>(),
+                {})) // TODO what to pass here
             .ValueOrThrow()
             .OutputBuffers[0];
 
@@ -1098,7 +1104,8 @@ private:
                     .Offset = currentOffset,
                     .Buffers = {std::move(currentBuffer)}
                 },
-                EWorkloadCategory::UserBatch))
+                EWorkloadCategory::UserBatch,
+                {})) // TODO what to pass here
                 .ThrowOnError();
             currentOffset += currentSize;
         }
