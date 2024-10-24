@@ -466,7 +466,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
          *
          * @see YTsaurusClientAuth#loadUserAndTokenFromEnvironment()
          */
-        public TBuilder setAuth(YTsaurusClientAuth auth) {
+        public TBuilder setAuth(@Nullable YTsaurusClientAuth auth) {
             this.auth = auth;
             return self();
         }
