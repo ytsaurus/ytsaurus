@@ -86,6 +86,7 @@ TTableSchemaPtr InferInputSchema(const std::vector<TTableSchemaPtr>& schemas, bo
 
 using TColumnMismatchCallback = void(const TColumnSchema& indexColumn, const TColumnSchema& tableColumn);
 using TBadColumnCallback = void(const TColumnSchema& column);
+using TExtraIndexColumnCallback = TBadColumnCallback;
 
 void ThrowExpectedKeyColumn(const TColumnSchema& tableColumn)
 {
@@ -101,11 +102,26 @@ void ThrowExpectedTypeMatch(const TColumnSchema& indexColumn, const TColumnSchem
         *indexColumn.LogicalType());
 };
 
+void ThrowIfNonKey(const TColumnSchema& indexColumn)
+{
+    THROW_ERROR_EXCEPTION_IF(!indexColumn.SortOrder(),
+        "Non-key non-utility column %Qv of the index is missing in the table schema",
+        indexColumn.Name());
+}
+
+void ThrowIfKey(const TColumnSchema& indexColumn)
+{
+    THROW_ERROR_EXCEPTION_IF(indexColumn.SortOrder(),
+        "Key non-utility column %Qv of the index is missing in the table schema",
+        indexColumn.Name());
+}
+
 void ValidateIndexSchema(
     const TTableSchema& tableSchema,
     const TTableSchema& indexTableSchema,
     std::function<TColumnMismatchCallback> typeMismatchCallback = ThrowExpectedTypeMatch,
-    std::function<TBadColumnCallback> tableKeyIsNotIndexKeyCallback = ThrowExpectedKeyColumn)
+    std::function<TBadColumnCallback> tableKeyIsNotIndexKeyCallback = ThrowExpectedKeyColumn,
+    std::function<TExtraIndexColumnCallback> extraIndexColumnCallback = ThrowIfNonKey)
 {
     THROW_ERROR_EXCEPTION_IF(!tableSchema.IsSorted(),
         "Table must be sorted");
@@ -179,14 +195,17 @@ void ValidateIndexSchema(
                 }
             }
         } else {
-            if (!indexColumn.SortOrder()) {
-                THROW_ERROR_EXCEPTION_IF(indexColumn.Name() != EmptyValueColumnName,
-                    "Non-key non-utility column %Qv of the index is missing in the table schema",
-                    indexColumn.Name());
+            if (indexColumn.Name() == EmptyValueColumnName) {
                 THROW_ERROR_EXCEPTION_IF(indexColumn.Required(),
                     "Utility column %Qv must have a nullable type, found %v",
                     EmptyValueColumnName,
                     *indexColumn.LogicalType());
+
+                THROW_ERROR_EXCEPTION_IF(indexColumn.SortOrder(),
+                    "Utility column %Qv must not be a key",
+                    indexColumn.Name());
+            } else {
+                extraIndexColumnCallback(indexColumn);
             }
         }
     }
@@ -244,21 +263,18 @@ void ValidateUnfoldingIndexSchema(
     const TString& unfoldedColumnName)
 {
     auto typeMismatchCallback = [&] (const TColumnSchema& indexColumn, const TColumnSchema& tableColumn) {
-        if (indexColumn.Name() != unfoldedColumnName) {
+        if (indexColumn.Name() == unfoldedColumnName) {
+            THROW_ERROR_EXCEPTION_IF(!IsValidUnfoldedColumnPair(tableColumn.LogicalType(), indexColumn.LogicalType()),
+                "Type mismatch for the unfolded column %Qv: %v is not a list of %v",
+                unfoldedColumnName,
+                *tableColumn.LogicalType(),
+                *indexColumn.LogicalType());
+        } else {
             ThrowExpectedTypeMatch(indexColumn, tableColumn);
         }
     };
 
     ValidateIndexSchema(tableSchema, indexTableSchema, typeMismatchCallback);
-
-    const auto& tableUnfoldedColumn = tableSchema.GetColumnOrThrow(unfoldedColumnName);
-    const auto& indexUnfoldedColumn = indexTableSchema.GetColumnOrThrow(unfoldedColumnName);
-
-    THROW_ERROR_EXCEPTION_IF(!IsValidUnfoldedColumnPair(tableUnfoldedColumn.LogicalType(), indexUnfoldedColumn.LogicalType()),
-        "Type mismatch for the unfolded column %Qv: %v is not a list of %v",
-        indexUnfoldedColumn.Name(),
-        *tableUnfoldedColumn.LogicalType(),
-        *indexUnfoldedColumn.LogicalType());
 }
 
 void ValidateColumnsAreInIndexLockGroup(
@@ -296,7 +312,12 @@ void ValidateColumnsAreInIndexLockGroup(
 void ValidateUniqueIndexSchema(const TTableSchema& tableSchema, const TTableSchema& indexTableSchema)
 {
     auto allowSortednessMismatch = [] (const TColumnSchema&) { };
-    ValidateIndexSchema(tableSchema, indexTableSchema, ThrowExpectedTypeMatch, allowSortednessMismatch);
+    ValidateIndexSchema(
+        tableSchema,
+        indexTableSchema,
+        ThrowExpectedTypeMatch,
+        allowSortednessMismatch,
+        ThrowIfKey);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

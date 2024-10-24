@@ -887,6 +887,7 @@ public:
             ? table->GetExternalCellTag()
             : NotReplicatedCellTagSentinel);
         secondaryIndex->Predicate() = std::move(predicate);
+        secondaryIndex->UnfoldedColumn() = std::move(unfoldedColumnName);
 
         if (table->IsNative()) {
             indexTable->SetIndexTo(secondaryIndex);
