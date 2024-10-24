@@ -1,6 +1,6 @@
 #include "attribute_path.h"
 
-#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/stripped_error.h>
 
 #include <yt/yt/core/ypath/tokenizer.h>
 
@@ -32,9 +32,15 @@ void SkipCommonTokens(TTokenizer& lhs, TTokenizer& rhs)
 
 void SkipCommonTokensWithPattern(TTokenizer& patternTokenizer, TTokenizer& pathTokenizer)
 {
-    while (patternTokenizer.Advance() != ETokenType::EndOfStream &&
-        pathTokenizer.Advance() != ETokenType::EndOfStream)
-    {
+    while (true) {
+        patternTokenizer.Advance();
+        pathTokenizer.Advance();
+        if (patternTokenizer.GetType() == ETokenType::EndOfStream ||
+            pathTokenizer.GetType() == ETokenType::EndOfStream)
+        {
+            break;
+        }
+
         patternTokenizer.Expect(ETokenType::Slash);
         pathTokenizer.Expect(ETokenType::Slash);
 
@@ -52,7 +58,7 @@ void SkipCommonTokensWithPattern(TTokenizer& patternTokenizer, TTokenizer& pathT
         if (patternToken == ETokenType::Literal &&
             patternTokenizer.GetLiteralValue() != pathTokenizer.GetLiteralValue())
         {
-            return;
+            break;
         }
     }
 }
