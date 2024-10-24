@@ -86,6 +86,11 @@ public:
         return TActiveQueriesGuard(MaxSimultaneousQueries_, &ActiveQueries_);
     }
 
+    int GetGuardedValue() const
+    {
+        return ActiveQueries_.load();
+    }
+
 private:
     int MaxSimultaneousQueries_;
     std::atomic<int> ActiveQueries_;
@@ -181,6 +186,10 @@ public:
         , ThreadPool_(CreateThreadPool(Config_->YqlThreadCount, "Yql"))
         , ActiveQueriesGuardFactory_(TActiveQueriesGuardFactory(DynamicConfig_->MaxSimultaneousQueries))
     {
+        YqlAgentProfiler().AddFuncGauge("/active_queries", MakeStrong(this), [this] {
+            return ActiveQueriesGuardFactory_.GetGuardedValue();
+        });
+
         static const TYsonString EmptyMap = TYsonString(TString("{}"));
 
         auto clustersConfig = Config_->GatewayConfig->AsMap()->GetChildOrThrow("cluster_mapping")->AsList();
