@@ -41,15 +41,16 @@ target_sources(yt-client-driver PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/driver.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/etc_commands.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/file_commands.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/flow_commands.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/internal_commands.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/journal_commands.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/proxy_discovery_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/query_commands.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/queue_commands.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/scheduler_commands.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/shuffle_commands.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/table_commands.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/transaction_commands.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/internal_commands.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/flow_commands.cpp
 )
 

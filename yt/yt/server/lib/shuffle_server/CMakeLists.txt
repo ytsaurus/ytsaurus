@@ -29,6 +29,8 @@ target_link_libraries(server-lib-shuffle_server PUBLIC
 )
 
 target_sources(server-lib-shuffle_server PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/shuffle_server/shuffle_controller.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/shuffle_server/shuffle_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/shuffle_server/shuffle_service.cpp
 )
 

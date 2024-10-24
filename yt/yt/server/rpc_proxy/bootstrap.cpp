@@ -12,6 +12,8 @@
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 #include <yt/yt/server/lib/rpc_proxy/security_manager.h>
 
+#include <yt/yt/server/lib/shuffle_server/shuffle_service.h>
+
 #include <yt/yt/server/lib/admin/admin_service.h>
 #include <yt/yt/server/lib/admin/restart_service.h>
 
@@ -67,6 +69,7 @@
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 
 #include <yt/yt/core/net/address.h>
+#include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
 
@@ -102,6 +105,8 @@ using namespace NApi;
 using namespace NYT::NRpcProxy;
 using namespace NAuth;
 using namespace NLogging;
+using namespace NShuffleServer;
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -313,6 +318,17 @@ void TBootstrap::DoRun()
     RpcServer_->RegisterService(ApiService_);
     if (TvmOnlyRpcServer_ && TvmOnlyApiService_) {
         TvmOnlyRpcServer_->RegisterService(TvmOnlyApiService_);
+    }
+
+    if (Config_->EnableShuffleService) {
+        auto localServerAddress = BuildServiceAddress(GetLocalHostName(), Config_->RpcPort);
+        ShuffleService_ = CreateShuffleService(
+            GetWorkerInvoker(),
+            RootClient_,
+            RpcProxyLogger(),
+            localServerAddress);
+        RpcServer_->RegisterService(ShuffleService_);
+        Connection_->RegisterShuffleService(localServerAddress);
     }
 
     DiskChangeChecker_->Start();

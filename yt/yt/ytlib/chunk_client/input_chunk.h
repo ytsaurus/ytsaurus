@@ -177,6 +177,7 @@ DEFINE_REFCOUNTED_TYPE(TInputChunk)
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk);
+void FromProto(TInputChunkPtr* inputChunk, const NProto::TChunkSpec& chunkSpec);
 void FormatValue(TStringBuilderBase* builder, const TInputChunkPtr& inputChunk, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -152,6 +152,8 @@ public:
 
     TProxyMemoryLimitsPtr MemoryLimits;
 
+    bool EnableShuffleService;
+
     REGISTER_YSON_STRUCT(TProxyConfig);
 
     static void Register(TRegistrar registrar);

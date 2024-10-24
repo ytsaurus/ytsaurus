@@ -31,6 +31,7 @@ target_link_libraries(yt-server-rpc_proxy PUBLIC
   server-lib-chunk_pools
   server-lib-rpc_proxy
   server-lib-cypress_registrar
+  server-lib-shuffle_server
   yt-yt-ytlib
   yt-client-arrow
   core-rpc-grpc

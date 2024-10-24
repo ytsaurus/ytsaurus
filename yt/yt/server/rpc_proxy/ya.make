@@ -16,6 +16,7 @@ PEERDIR(
     yt/yt/server/lib/chunk_pools
     yt/yt/server/lib/rpc_proxy
     yt/yt/server/lib/cypress_registrar
+    yt/yt/server/lib/shuffle_server
 
     yt/yt/ytlib
 

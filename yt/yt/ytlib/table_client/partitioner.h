@@ -31,7 +31,6 @@ IPartitionerPtr CreateHashPartitioner(int partitionCount, int keyColumnCount, TF
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Create a partitioner that extracts the partition ID from the specified column in the row.
-//! NB(apollo1321): This partitioner will be used in the shuffle service.
 IPartitionerPtr CreateColumnBasedPartitioner(int partitionCount, int partitionColumnId);
 
 ////////////////////////////////////////////////////////////////////////////////
