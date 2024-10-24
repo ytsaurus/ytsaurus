@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, create, get, set, exists, wait, remove, sync_mount_table, sync_create_cells,
-    sync_unmount_table, write_hunks, read_hunks, raises_yt_error,
+    sync_unmount_table, write_hunks, read_hunks, raises_yt_error, get_driver,
     sync_freeze_table, sync_unfreeze_table, copy, move, alter_table,
     lock_hunk_store, unlock_hunk_store, start_transaction, commit_transaction, abort_transaction, lock
 )
@@ -14,6 +14,8 @@ from yt_type_helpers import make_schema
 from yt.common import YtError
 
 import yt.yson as yson
+
+from yt_error_codes import ResolveErrorCode
 
 import pytest
 
@@ -39,9 +41,9 @@ class TestHunkStorage(YTEnvSetup):
         if "store_removal_grace_period" not in attributes:
             attributes.update({"store_removal_grace_period": 4000})
 
-        create("hunk_storage", name, attributes=attributes)
+        return create("hunk_storage", name, attributes=attributes)
 
-    def _create_ordered_table(self, name, attributes={}):
+    def _create_ordered_table(self, name, **attributes):
         ordered_schema = make_schema(
             [
                 {"name": "key", "type": "string"},
@@ -50,9 +52,11 @@ class TestHunkStorage(YTEnvSetup):
             strict=True,
         )
 
-        attributes["dynamic"] = True
-        attributes["schema"] = ordered_schema
-        create("table", name, attributes=attributes)
+        assert "dynamic" not in attributes
+        attributes.update({"dynamic": True})
+        if "schema" not in attributes:
+            attributes.update({"schema": ordered_schema})
+        return create("table", name, attributes=attributes)
 
     def _remove_hunk_storage(self, path):
         wait(lambda: get(f"{path}/@associated_nodes") == [])
@@ -327,10 +331,10 @@ class TestHunkStorage(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_link_hunk_storage_node(self):
-        self._create_hunk_storage("//tmp/h")
+        hunk_storage_id = self._create_hunk_storage("//tmp/h")
 
         self._create_ordered_table("//tmp/t")
-        set("//tmp/t/@hunk_storage_node", "//tmp/h")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
 
         assert get("//tmp/h/@associated_nodes") == ["//tmp/t"]
 
@@ -342,15 +346,12 @@ class TestHunkStorage(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_create_table_with_hunk_storage_node(self):
-        # TODO(aleksandra-zh): Rework attribute.
-        return
-
-        self._create_hunk_storage("//tmp/h")
+        hunk_storage_id = self._create_hunk_storage("//tmp/h")
 
         with pytest.raises(YtError):
-            create("table", "//tmp/t", attributes={"hunk_storage_node": "//tmp/h"})
+            create("table", "//tmp/t", attributes={"hunk_storage_id": hunk_storage_id})
 
-        self._create_ordered_table("//tmp/t", {"hunk_storage_node": "//tmp/h"})
+        self._create_ordered_table("//tmp/t", hunk_storage_id=hunk_storage_id)
 
         assert get("//tmp/h/@associated_nodes") == ["//tmp/t"]
 
@@ -359,39 +360,39 @@ class TestHunkStorage(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_remove_table_hunk_storage_node(self):
-        self._create_hunk_storage("//tmp/h")
+        hunk_storage_id = self._create_hunk_storage("//tmp/h")
 
         self._create_ordered_table("//tmp/t")
-        set("//tmp/t/@hunk_storage_node", "//tmp/h")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
         assert get("//tmp/h/@associated_nodes") == ["//tmp/t"]
 
-        remove("//tmp/t/@hunk_storage_node")
+        remove("//tmp/t/@hunk_storage_id")
         self._remove_hunk_storage("//tmp/h")
 
     @authors("aleksandra-zh")
     def test_hunk_storage_node_node_type(self):
         self._create_ordered_table("//tmp/t1")
-        self._create_ordered_table("//tmp/t2")
+        table_id = self._create_ordered_table("//tmp/t2")
 
         with raises_yt_error("Unexpected node type"):
-            set("//tmp/t1/@hunk_storage_node", "//tmp/t2")
+            set("//tmp/t1/@hunk_storage_id", table_id)
 
     @authors("aleksandra-zh")
     def test_alter_table_with_hunk_storage_node(self):
-        self._create_hunk_storage("//tmp/h")
+        hunk_storage_id = self._create_hunk_storage("//tmp/h")
 
         self._create_ordered_table("//tmp/t")
-        set("//tmp/t/@hunk_storage_node", "//tmp/h")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
 
         with raises_yt_error("Cannot alter table with a hunk storage node to static"):
             alter_table("//tmp/t", dynamic=False)
 
     @authors("aleksandra-zh")
     def test_copy_linked_hunk_storage_node(self):
-        self._create_hunk_storage("//tmp/h")
+        hunk_storage_id = self._create_hunk_storage("//tmp/h")
 
         self._create_ordered_table("//tmp/t1")
-        set("//tmp/t1/@hunk_storage_node", "//tmp/h")
+        set("//tmp/t1/@hunk_storage_id", hunk_storage_id)
         copy("//tmp/t1", "//tmp/t2")
 
         assert_items_equal(get("//tmp/h/@associated_nodes"), ["//tmp/t1", "//tmp/t2"])
@@ -405,11 +406,11 @@ class TestHunkStorage(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_linked_hunk_storage_node_tx1(self):
-        self._create_hunk_storage("//tmp/h")
+        hunk_storage_id = self._create_hunk_storage("//tmp/h")
 
         tx = start_transaction()
         self._create_ordered_table("//tmp/t1")
-        set("//tmp/t1/@hunk_storage_node", "//tmp/h", tx=tx)
+        set("//tmp/t1/@hunk_storage_id", hunk_storage_id, tx=tx)
 
         assert get("//tmp/h/@associated_nodes") == [yson.to_yson_type("//tmp/t1", attributes={"transaction_id": tx})]
         commit_transaction(tx)
@@ -420,11 +421,11 @@ class TestHunkStorage(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_linked_hunk_storage_node_tx2(self):
-        self._create_hunk_storage("//tmp/h")
+        hunk_storage_id = self._create_hunk_storage("//tmp/h")
 
         tx = start_transaction()
         self._create_ordered_table("//tmp/t1")
-        set("//tmp/t1/@hunk_storage_node", "//tmp/h", tx=tx)
+        set("//tmp/t1/@hunk_storage_id", hunk_storage_id, tx=tx)
 
         assert get("//tmp/h/@associated_nodes") == [yson.to_yson_type("//tmp/t1", attributes={"transaction_id": tx})]
         abort_transaction(tx)
@@ -433,10 +434,10 @@ class TestHunkStorage(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_linked_hunk_storage_node_tx3(self):
-        self._create_hunk_storage("//tmp/h")
+        hunk_storage_id = self._create_hunk_storage("//tmp/h")
 
         self._create_ordered_table("//tmp/t1")
-        set("//tmp/t1/@hunk_storage_node", "//tmp/h")
+        set("//tmp/t1/@hunk_storage_id", hunk_storage_id)
 
         tx = start_transaction()
         lock("//tmp/t1", tx=tx, mode="snapshot")
@@ -453,10 +454,10 @@ class TestHunkStorage(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_copy_linked_hunk_storage_node_tx(self):
-        self._create_hunk_storage("//tmp/h")
+        hunk_storage_id = self._create_hunk_storage("//tmp/h")
 
         self._create_ordered_table("//tmp/t1")
-        set("//tmp/t1/@hunk_storage_node", "//tmp/h")
+        set("//tmp/t1/@hunk_storage_id", hunk_storage_id)
 
         tx = start_transaction()
         copy("//tmp/t1", "//tmp/t2", tx=tx)
@@ -479,9 +480,71 @@ class TestHunkStorage(YTEnvSetup):
         remove("//tmp/t2")
         self._remove_hunk_storage("//tmp/h")
 
+    @authors("akozhikhov")
+    def test_attach_hunk_storage_via_id(self):
+        hunk_storage_id = self._create_hunk_storage("//tmp/h")
+
+        table_id = self._create_ordered_table("//tmp/t", hunk_storage_id=hunk_storage_id)
+        assert get("//tmp/t/@hunk_storage_id") == hunk_storage_id
+        assert get("//tmp/h/@associated_nodes") == ["//tmp/t"]
+
+        remove("//tmp/t/@hunk_storage_id")
+        assert get("//tmp/h/@associated_nodes") == []
+
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        assert get("//tmp/h/@associated_nodes") == ["//tmp/t"]
+
+        remove(f"#{table_id}/@hunk_storage_id")
+        assert get("//tmp/h/@associated_nodes") == []
+        assert not exists(f"#{table_id}/@hunk_storage_id")
+
+    @authors("akozhikhov")
+    def test_incorrect_attach_hunk_storage(self):
+        self._create_hunk_storage("//tmp/h")
+        self._create_ordered_table("//tmp/t")
+
+        with raises_yt_error(ResolveErrorCode):
+            set("//tmp/t/@hunk_storage_id", "1-2-3-4")
+
+        file_id = create("file", "//tmp/f")
+        with raises_yt_error("Unexpected node type"):
+            set("//tmp/t/@hunk_storage_id", file_id)
+
+        table_id = create("table", "//tmp/s")
+        with raises_yt_error("dynamic table"):
+            set("//tmp/s/@hunk_storage_id", table_id)
+
 
 class TestHunkStorageMulticell(TestHunkStorage):
     NUM_SECONDARY_MASTER_CELLS = 1
+
+    @authors("akozhikhov")
+    def test_different_external_cells(self):
+        self._create_ordered_table("//tmp/t1", external=False)
+        hunk_storage_id1 = self._create_hunk_storage("//tmp/h1")
+
+        self._create_ordered_table("//tmp/t2")
+        hunk_storage_id2 = self._create_hunk_storage("//tmp/h2", external=False)
+
+        with raises_yt_error("same external cell"):
+            set("//tmp/t1/@hunk_storage_id", hunk_storage_id1)
+
+        with raises_yt_error("same external cell"):
+            set("//tmp/t2/@hunk_storage_id", hunk_storage_id2)
+
+        set("//tmp/t1/@hunk_storage_id", hunk_storage_id2)
+        set("//tmp/t2/@hunk_storage_id", hunk_storage_id1)
+
+    @authors("akozhikhov")
+    def test_get_hunk_storage_id_from_secondary(self):
+        table_id = self._create_ordered_table("//tmp/t")
+        hunk_storage_id = self._create_hunk_storage("//tmp/h")
+
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        assert get("//tmp/t/@hunk_storage_id") == hunk_storage_id
+        assert get(f"#{table_id}/@hunk_storage_id") == hunk_storage_id
+        assert get(f"#{table_id}/@hunk_storage_id", driver=get_driver(1)) == hunk_storage_id
 
 
 class TestHunkStoragePortal(YTEnvSetup):
@@ -491,13 +554,15 @@ class TestHunkStoragePortal(YTEnvSetup):
     ENABLE_TMP_PORTAL = True
     NUM_SECONDARY_MASTER_CELLS = 4
 
-    def _create_hunk_storage(self, name):
-        create("hunk_storage", name, attributes={
-            "store_rotation_period": 2000,
-            "store_removal_grace_period": 4000,
-        })
+    def _create_hunk_storage(self, name, **attributes):
+        if "store_rotation_period" not in attributes:
+            attributes.update({"store_rotation_period": 2000})
+        if "store_removal_grace_period" not in attributes:
+            attributes.update({"store_removal_grace_period": 4000})
 
-    def _create_ordered_table(self, name, attributes={}):
+        return create("hunk_storage", name, attributes=attributes)
+
+    def _create_ordered_table(self, name, **attributes):
         ordered_schema = make_schema(
             [
                 {"name": "key", "type": "string"},
@@ -506,23 +571,53 @@ class TestHunkStoragePortal(YTEnvSetup):
             strict=True,
         )
 
-        attributes["dynamic"] = True
-        attributes["schema"] = ordered_schema
-        create("table", name, attributes=attributes)
+        assert "dynamic" not in attributes
+        attributes.update({"dynamic": True})
+        if "schema" not in attributes:
+            attributes.update({"schema": ordered_schema})
+        return create("table", name, attributes=attributes)
 
     @authors("aleksandra-zh")
     def test_cross_shard_hunk_storage_node_link(self):
         self._create_ordered_table("//tmp/t1")
-        self._create_hunk_storage("//portals/h1")
-        assert "//portals/h1/@native_cell_tag" != "//tmp/t1/@native_cell_tag"
+        hunk_storage_id1 = self._create_hunk_storage("//portals/h1")
+        assert get("//portals/h1/@native_cell_tag") != get("//tmp/t1/@native_cell_tag")
 
         with pytest.raises(YtError):
-            set("//tmp/t1/@hunk_storage_node", "//portals/h1")
+            set("//tmp/t1/@hunk_storage_id", hunk_storage_id1)
 
         self._create_ordered_table("//portals/t2")
 
-        self._create_hunk_storage("//tmp/h2")
-        assert "//tmp/h2/@native_cell_tag" != "//portals/t2/@native_cell_tag"
+        hunk_storage_id2 = self._create_hunk_storage("//tmp/h2")
+        assert get("//tmp/h2/@native_cell_tag") != get("//portals/t2/@native_cell_tag")
 
         with pytest.raises(YtError):
-            set("//portals/t2/@hunk_storage_node", "//tmp/h2")
+            set("//portals/t2/@hunk_storage_id", hunk_storage_id2)
+
+    @authors("akozhikhov")
+    def test_forbid_portal_move_table_with_hunk_storage(self):
+        create("portal_entrance", "//p", attributes={"exit_cell_tag": 12})
+
+        hunk_storage_id = self._create_hunk_storage("//tmp/h", external_cell_tag=12)
+        self._create_ordered_table("//tmp/t", external_cell_tag=12)
+        assert get("//tmp/t/@native_cell_tag") == get("//tmp/h/@native_cell_tag")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        with raises_yt_error("Cannot cross-cell copy"):
+            move("//tmp/t", "//p/t")
+
+        remove("//p")
+
+    @authors("akozhikhov")
+    def test_forbid_portal_copy_table_with_hunk_storage(self):
+        create("portal_entrance", "//p", attributes={"exit_cell_tag": 12})
+
+        hunk_storage_id = self._create_hunk_storage("//tmp/h", external_cell_tag=12)
+        self._create_ordered_table("//tmp/t", external_cell_tag=12)
+        assert get("//tmp/t/@native_cell_tag") == get("//tmp/h/@native_cell_tag")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        with raises_yt_error("Cannot cross-cell copy"):
+            copy("//tmp/t", "//p/t")
+
+        remove("//p")

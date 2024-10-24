@@ -1569,8 +1569,8 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_create_cells(1)
         self._create_table(optimize_for=optimize_for)
 
-        create("hunk_storage", "//tmp/h")
-        set("//tmp/t/@hunk_storage_node", "//tmp/h")
+        hunk_storage_id = create("hunk_storage", "//tmp/h")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
         sync_mount_table("//tmp/h")
 
         sync_mount_table("//tmp/t")
@@ -1620,11 +1620,11 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         self._create_table(optimize_for=optimize_for)
         set("//tmp/t/@enable_dynamic_store_read", enable_dynamic_store_read)
 
-        create("hunk_storage", "//tmp/h", attributes={
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
             "store_rotation_period": 20000,
             "store_removal_grace_period": 4000,
         })
-        set("//tmp/t/@hunk_storage_node", "//tmp/h")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
         sync_mount_table("//tmp/h")
 
         sync_mount_table("//tmp/t")
@@ -1676,10 +1676,10 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_create_cells(1)
         self._create_table(optimize_for=optimize_for)
 
-        create("hunk_storage", "//tmp/h", attributes={
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
             "store_removal_grace_period": 100,
         })
-        set("//tmp/t/@hunk_storage_node", "//tmp/h")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
         sync_mount_table("//tmp/h")
 
         sync_mount_table("//tmp/t")
@@ -1738,7 +1738,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_create_cells(1)
         self._create_table()
-        create("hunk_storage", "//tmp/h", attributes={
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
             "store_rotation_period": 2000,
             "store_removal_grace_period": 100,
             "read_quorum": 4,
@@ -1746,7 +1746,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
             "erasure_codec": "reed_solomon_3_3",
             "replication_factor": 1,
         })
-        set("//tmp/t/@hunk_storage_node", "//tmp/h")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
         sync_mount_table("//tmp/h")
         sync_mount_table("//tmp/t")
 
@@ -1780,7 +1780,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_create_cells(1)
         self._create_table()
-        create("hunk_storage", "//tmp/h", attributes={
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
             "store_rotation_period": 2000,
             "store_removal_grace_period": 100,
             "read_quorum": 4,
@@ -1788,7 +1788,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
             "erasure_codec": "reed_solomon_3_3",
             "replication_factor": 1,
         })
-        set("//tmp/t/@hunk_storage_node", "//tmp/h")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
         sync_mount_table("//tmp/h")
         sync_mount_table("//tmp/t")
 
@@ -1847,8 +1847,8 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_create_cells(1)
         self._create_table()
 
-        create("hunk_storage", "//tmp/h")
-        set("//tmp/t/@hunk_storage_node", "//tmp/h")
+        hunk_storage_id = create("hunk_storage", "//tmp/h")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
         sync_mount_table("//tmp/h")
         sync_mount_table("//tmp/t")
 
@@ -2028,7 +2028,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_create_cells(1)
         self._create_table()
 
-        create(
+        hunk_storage_id = create(
             "hunk_storage",
             "//tmp/h",
             attributes={
@@ -2036,7 +2036,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
                 "store_removal_grace_period": 4000,
             },
         )
-        set("//tmp/t/@hunk_storage_node", "//tmp/h")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
         sync_mount_table("//tmp/h")
 
         sync_mount_table("//tmp/t")
@@ -3097,7 +3097,7 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
 class TestOrderedMulticellHunks(TestSortedDynamicTablesBase):
     NUM_SECONDARY_MASTER_CELLS = 2
 
-    @authors("kivedernikov")
+    @authors("akozhikhov")
     def test_forbid_export_chunk_with_hunk_links(self):
         schema = [
             {"name": "key", "type": "int64"},
@@ -3122,5 +3122,5 @@ class TestOrderedMulticellHunks(TestSortedDynamicTablesBase):
 
         self._create_simple_static_table("//tmp/t2", external_cell_tag=12, schema=schema)
 
-        # COMPAT(kivedernikov): should throw an error, because chunk has hunk links
-        concatenate(["//tmp/t"], "//tmp/t2")
+        with raises_yt_error("can not be exported because it has hunk links"):
+            concatenate(["//tmp/t"], "//tmp/t2")

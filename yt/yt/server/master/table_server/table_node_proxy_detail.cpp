@@ -413,11 +413,11 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EffectiveMountConfig)
         .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkStorageNode)
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkStorageId)
         .SetWritable(true)
         .SetReplicated(true)
         .SetRemovable(true)
-        .SetPresent(table->GetHunkStorageNode()));
+        .SetPresent(table->GetHunkStorage()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AssignedMountConfigExperiments)
         .SetPresent(isDynamic)
         .SetOpaque(true));
@@ -1016,14 +1016,14 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
         }
 
-        case EInternedAttributeKey::HunkStorageNode: {
-            const auto& hunkStorageNode = table->GetHunkStorageNode();
-            if (!hunkStorageNode) {
+        case EInternedAttributeKey::HunkStorageId: {
+            const auto* hunkStorage = table->GetHunkStorage();
+            if (!hunkStorage) {
                 break;
             }
 
             BuildYsonFluently(consumer)
-                .Value(hunkStorageNode->GetId());
+                .Value(hunkStorage->GetId());
             return true;
         }
 
@@ -1340,9 +1340,9 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
             return true;
         }
 
-        case EInternedAttributeKey::HunkStorageNode: {
+        case EInternedAttributeKey::HunkStorageId: {
             auto* lockedTable = LockThisImpl();
-            lockedTable->ResetHunkStorageNode();
+            lockedTable->ResetHunkStorage();
             return true;
         }
 
@@ -1740,25 +1740,14 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             return true;
         }
 
-        case EInternedAttributeKey::HunkStorageNode: {
-            if (!table->IsDynamic()) {
-                break;
-            }
-
+        case EInternedAttributeKey::HunkStorageId: {
             auto* lockedTable = LockThisImpl();
 
-            auto path = ConvertTo<TYPath>(value);
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            auto* node = objectManager->ResolvePathToObject(path, /*transaction*/ nullptr, /*options*/ {});
-            if (node->GetType() != EObjectType::HunkStorage) {
-                THROW_ERROR_EXCEPTION("Unexpected node type: expected %Qlv, got %Qlv",
-                    EObjectType::HunkStorage,
-                    node->GetType())
-                    << TErrorAttribute("path", path);
-            }
+            auto objectId = ConvertTo<TObjectId>(value);
+            auto* object = objectManager->GetObjectOrThrow(objectId);
 
-            auto* hunkStorageNode = node->As<THunkStorageNode>();
-            lockedTable->SetHunkStorageNode(hunkStorageNode);
+            lockedTable->ValidateAndSetHunkStorage(object);
 
             return true;
         }
@@ -2001,8 +1990,8 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         ToProto(response->mutable_replication_card_id(), trunkTable->GetReplicationCardId());
     }
 
-    if (const auto& hunkStorageNode = trunkTable->GetHunkStorageNode()) {
-        ToProto(response->mutable_hunk_storage_node_id(), hunkStorageNode->GetId());
+    if (auto* hunkStorage = trunkTable->GetHunkStorage()) {
+        ToProto(response->mutable_hunk_storage_id(), hunkStorage->GetId());
     }
 
     context->Reply();
@@ -2112,7 +2101,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             ValidateNoTransaction();
         }
 
-        if (table->IsDynamic() && !dynamic && table->GetHunkStorageNode()) {
+        if (table->IsDynamic() && !dynamic && table->GetHunkStorage()) {
             THROW_ERROR_EXCEPTION("Cannot alter table with a hunk storage node to static");
         }
 
