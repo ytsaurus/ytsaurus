@@ -401,6 +401,11 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
     chunkSpec->mutable_chunk_meta()->mutable_extensions();
 }
 
+void FromProto(TInputChunkPtr* inputChunk, const NProto::TChunkSpec& chunkSpec)
+{
+    *inputChunk = New<TInputChunk>(chunkSpec);
+}
+
 void FormatValue(TStringBuilderBase* builder, const TInputChunkPtr& inputChunk, TStringBuf /*spec*/)
 {
     TString boundaryKeys;

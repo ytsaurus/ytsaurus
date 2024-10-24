@@ -49,7 +49,7 @@ const NNodeTrackerClient::TNetworkPreferenceList& TTestConnection::GetNetworks()
     return NetworkPreferenceList_;
 }
 
-NRpc::IChannelPtr TTestConnection::CreateChannelByAddress(const std::string& address)
+NRpc::IChannelPtr TTestConnection::CreateChannelByAddress(const TString& address)
 {
     return ChannelFactory_->CreateChannel(address);
 }

@@ -61,6 +61,7 @@ private:
     IApiServicePtr ApiService_;
     IApiServicePtr TvmOnlyApiService_;
     NRpc::IServicePtr DiscoveryService_;
+    NRpc::IServicePtr ShuffleService_;
     NRpc::IServerPtr RpcServer_;
     NRpc::IServerPtr TvmOnlyRpcServer_;
     NRpc::IServerPtr GrpcServer_;

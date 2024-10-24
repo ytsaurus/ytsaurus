@@ -1,19 +1,28 @@
+#include "shuffle_manager.h"
 #include "shuffle_service.h"
 
 #include <yt/yt/ytlib/shuffle_client/shuffle_service_proxy.h>
 
-#include <yt/yt/client/api/rpc_proxy/helpers.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 
-#include <yt/yt/core/rpc/public.h>
+#include <yt/yt/client/api/shuffle_client.h>
+
 #include <yt/yt/core/rpc/service_detail.h>
 
 namespace NYT::NShuffleServer {
 
 using namespace NApi;
+using namespace NChunkClient;
+using namespace NConcurrency;
 using namespace NLogging;
 using namespace NRpc;
-using namespace NRpcProxy;
 using namespace NShuffleClient;
+using namespace NTableClient;
+using namespace NYTree;
+using namespace NYson;
+
+using NApi::NNative::IClientPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,6 +32,7 @@ class TShuffleService
 public:
     TShuffleService(
         IInvokerPtr invoker,
+        IClientPtr client,
         TLogger logger,
         TString localServerAddress)
         : TServiceBase(
@@ -30,6 +40,7 @@ public:
             TShuffleServiceProxy::GetDescriptor(),
             std::move(logger))
         , LocalServerAddress_(std::move(localServerAddress))
+        , ShuffleManager_(CreateShuffleManager(std::move(client), std::move(invoker)))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartShuffle));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishShuffle));
@@ -39,37 +50,105 @@ public:
 
     DECLARE_RPC_SERVICE_METHOD(NShuffleClient::NProto, StartShuffle)
     {
-        ThrowUnimplemented("StartShuffle");
+        context->SetRequestInfo(
+            "PartitionCount: %v, Account: %v",
+            request->partition_count(),
+            request->account());
+
+        auto transactionId = WaitFor(ShuffleManager_->StartShuffle(request->partition_count()))
+            .ValueOrThrow();
+
+        auto shuffleHandle = New<TShuffleHandle>();
+        shuffleHandle->TransactionId = transactionId;
+        shuffleHandle->CoordinatorAddress = LocalServerAddress_;
+        shuffleHandle->Account = request->account();
+        shuffleHandle->PartitionCount = request->partition_count();
+
+        response->set_shuffle_handle(ConvertToYsonString(shuffleHandle).ToString());
+
+        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NShuffleClient::NProto, FinishShuffle)
     {
-        ThrowUnimplemented("FinishShuffle");
+        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
+
+        context->SetRequestInfo(
+            "TransactionId: %v, CoordinatorAddress: %v, Account: %v, PartitionCount: %v",
+            shuffleHandle->TransactionId,
+            shuffleHandle->CoordinatorAddress,
+            shuffleHandle->Account,
+            shuffleHandle->PartitionCount);
+
+        WaitFor(ShuffleManager_->FinishShuffle(shuffleHandle->TransactionId))
+            .ThrowOnError();
+
+        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NShuffleClient::NProto, RegisterChunks)
     {
-        ThrowUnimplemented("RegisterChunks");
+        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
+
+        context->SetRequestInfo(
+            "TransactionId: %v, CoordinatorAddress: %v, Account: %v, PartitionCount: %v, ChunkCount: %v",
+            shuffleHandle->TransactionId,
+            shuffleHandle->CoordinatorAddress,
+            shuffleHandle->Account,
+            shuffleHandle->PartitionCount,
+            request->chunk_specs_size());
+
+        auto chunks = FromProto<std::vector<TInputChunkPtr>>(request->chunk_specs());
+
+        WaitFor(ShuffleManager_->RegisterChunks(
+            shuffleHandle->TransactionId,
+            chunks))
+            .ThrowOnError();
+
+        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NShuffleClient::NProto, FetchChunks)
     {
-        ThrowUnimplemented("FetchChunks");
+        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
+
+        context->SetRequestInfo(
+            "TransactionId: %v, CoordinatorAddress: %v, Account: %v, PartitionCount: %v, PartitionIndex: %v",
+            shuffleHandle->TransactionId,
+            shuffleHandle->CoordinatorAddress,
+            shuffleHandle->Account,
+            shuffleHandle->PartitionCount,
+            request->partition_index());
+
+        auto chunks = WaitFor(ShuffleManager_->FetchChunks(
+            shuffleHandle->TransactionId,
+            request->partition_index()))
+            .ValueOrThrow();
+
+        for (const auto& chunk : chunks) {
+            auto* protoChunk = response->add_chunk_specs();
+            ToProto(protoChunk, chunk, TComparator(), EDataSourceType::UnversionedTable);
+        }
+
+        context->Reply();
     }
 
 private:
     const TString LocalServerAddress_;
+    const IShuffleManagerPtr ShuffleManager_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateShuffleService(
+IServicePtr CreateShuffleService(
     IInvokerPtr invoker,
+    IClientPtr client,
     TLogger logger,
     TString localServerAddress)
 {
     return New<TShuffleService>(
         std::move(invoker),
+        std::move(client),
         std::move(logger),
         std::move(localServerAddress));
 }

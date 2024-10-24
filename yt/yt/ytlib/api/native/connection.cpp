@@ -947,6 +947,8 @@ private:
 
     std::atomic<bool> Terminated_ = false;
 
+    TString ShuffleServiceAddress_;
+
     void ConfigureMasterCells()
     {
         CellDirectory_->ReconfigureCell(StaticConfig_->PrimaryMaster);
@@ -1208,14 +1210,23 @@ private:
             }));
     }
 
-    void StartShuffleService(const TString& /*address*/) override
+    void RegisterShuffleService(const TString& address) override
     {
-        YT_UNIMPLEMENTED();
+        ShuffleServiceAddress_ = address;
     }
 
     NRpc::IChannelPtr GetShuffleServiceChannelOrThrow() override
     {
-        YT_UNIMPLEMENTED();
+        THROW_ERROR_EXCEPTION_IF(
+            ShuffleServiceAddress_.empty(),
+            "Shuffle service is not registered");
+
+        return CreateChannelByAddress(ShuffleServiceAddress_);
+    }
+
+    IChannelPtr CreateChannelByAddress(const TString& address) override
+    {
+        return ChannelFactory_->CreateChannel(address);
     }
 };
 

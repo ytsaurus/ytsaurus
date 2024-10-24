@@ -6586,22 +6586,140 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartShuffle)
     {
-        ThrowUnimplemented("StartShuffle");
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        context->SetRequestInfo(
+            "PartitionCount: %v, Account: %v",
+            request->partition_count(),
+            request->account());
+
+        ExecuteCall(
+            context,
+            [client = std::move(client), request] () {
+                TStartShuffleOptions options;
+                return client->StartShuffle(
+                    request->account(),
+                    request->partition_count(),
+                    std::move(options));
+            },
+            [] (const auto& context, const auto& shuffleHandle) {
+                auto* response = &context->Response();
+                response->set_shuffle_handle(ConvertToYsonString(shuffleHandle).ToString());
+                context->SetResponseInfo("TransactionId: %v", shuffleHandle->TransactionId);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, FinishShuffle)
     {
-        ThrowUnimplemented("FinishShuffle");
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
+
+        context->SetRequestInfo(
+            "TransactionId: %v, CoordinatorAddress: %v, Account: %v, PartitionCount: %v",
+            shuffleHandle->TransactionId,
+            shuffleHandle->CoordinatorAddress,
+            shuffleHandle->Account,
+            shuffleHandle->PartitionCount);
+
+        ExecuteCall(
+            context,
+            [client = std::move(client), shuffleHandle = std::move(shuffleHandle)] () {
+                TFinishShuffleOptions options;
+                return client->FinishShuffle(std::move(shuffleHandle), std::move(options));
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadShuffleData)
     {
-        ThrowUnimplemented("ReadShuffleData");
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
+
+        context->SetRequestInfo(
+            "TransactionId: %v, CoordinatorAddress: %v, Account: %v, PartitionCount: %v, PartitionIndex: %v",
+            shuffleHandle->TransactionId,
+            shuffleHandle->CoordinatorAddress,
+            shuffleHandle->Account,
+            shuffleHandle->PartitionCount,
+            request->partition_index());
+
+        auto readerConfig = ConvertTo<NTableClient::TTableReaderConfigPtr>(TYsonString(request->reader_config()));
+
+        auto reader = WaitFor(client->CreateShuffleReader(
+            shuffleHandle,
+            request->partition_index(),
+            readerConfig))
+            .ValueOrThrow();
+
+        auto encoder = CreateWireRowStreamEncoder(reader->GetNameTable());
+
+        auto config = Config_.Acquire();
+
+        bool finished = false;
+
+        HandleInputStreamingRequest(
+            context,
+            [&] {
+                if (finished) {
+                    return TSharedRef();
+                }
+
+                TRowBatchReadOptions options{
+                    .MaxRowsPerRead = config->ReadBufferRowCount,
+                    .MaxDataWeightPerRead = config->ReadBufferDataWeight,
+                };
+                auto batch = ReadRowBatch(reader, options);
+                if (!batch) {
+                    finished = true;
+                }
+
+                return encoder->Encode(
+                    batch ? batch : CreateEmptyUnversionedRowBatch(),
+                    nullptr);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteShuffleData)
     {
-        ThrowUnimplemented("WriteShuffleData");
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto writerConfig = ConvertTo<NTableClient::TTableWriterConfigPtr>(TYsonString(request->writer_config()));
+
+        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
+
+        context->SetRequestInfo(
+            "TransactionId: %v, CoordinatorAddress: %v, Account: %v, PartitionCount: %v, PartitionColumn: %v",
+            shuffleHandle->TransactionId,
+            shuffleHandle->CoordinatorAddress,
+            shuffleHandle->Account,
+            shuffleHandle->PartitionCount,
+            request->partition_column());
+
+        auto writer = WaitFor(
+            client->CreateShuffleWriter(shuffleHandle, request->partition_column(), writerConfig))
+            .ValueOrThrow();
+
+        auto decoder = CreateWireRowStreamDecoder(writer->GetNameTable());
+
+        HandleOutputStreamingRequest(
+            context,
+            [&] (TSharedRef block) {
+                NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
+                auto payloadRef = DeserializeRowStreamBlockEnvelope(block, &descriptor, nullptr);
+
+                auto batch = decoder->Decode(payloadRef, descriptor);
+
+                auto rows = batch->MaterializeRows();
+
+                if (!writer->Write(rows)) {
+                    WaitFor(writer->GetReadyEvent())
+                        .ThrowOnError();
+                }
+            },
+            [&] {
+                WaitFor(writer->Close())
+                    .ThrowOnError();
+            });
     }
 
     ////////////////////////////////////////////////////////////////////////////////

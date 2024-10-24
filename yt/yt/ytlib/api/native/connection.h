@@ -165,9 +165,11 @@ struct IConnection
 
     virtual void Reconfigure(const TConnectionDynamicConfigPtr& dynamicConfig) = 0;
 
-    virtual void StartShuffleService(const TString& address) = 0;
+    virtual void RegisterShuffleService(const TString& address) = 0;
 
     virtual NRpc::IChannelPtr GetShuffleServiceChannelOrThrow() = 0;
+
+    virtual NRpc::IChannelPtr CreateChannelByAddress(const TString& address) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IConnection)
