@@ -36,11 +36,11 @@ class TestClickHousePrewhere(ClickHouseTestBase):
         result = 0
         for row in query_log_rows:
             statistics = row["chyt_query_statistics"]
-            if "block_input_stream" not in statistics:
+            if "secondary_query_source" not in statistics:
                 continue
-            if str(step_index) not in statistics["block_input_stream"]["steps"]:
+            if str(step_index) not in statistics["secondary_query_source"]["steps"]:
                 continue
-            result += statistics["block_input_stream"]["steps"][str(step_index)][metric_name]["sum"]
+            result += statistics["secondary_query_source"]["steps"][str(step_index)][metric_name]["sum"]
         return result
 
     @authors("evgenstf")

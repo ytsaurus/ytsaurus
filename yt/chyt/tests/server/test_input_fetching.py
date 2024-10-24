@@ -1117,12 +1117,12 @@ class TestInputFetching(ClickHouseTestBase):
 
         if secondary_queries:
             block_rows = sum([
-                secondary_query["chyt_query_statistics"]["block_input_stream"]["steps"]["0"]["block_rows"]["sum"]
+                secondary_query["chyt_query_statistics"]["secondary_query_source"]["steps"]["0"]["block_rows"]["sum"]
                 for secondary_query in secondary_queries
             ])
         else:
             initial_query = TestInputFetching.get_log_messages(log_table, query_id=query_id, is_initial_query=1)
-            block_rows = initial_query["chyt_query_statistics"]["block_input_stream"]["steps"]["0"]["block_rows"]["sum"]
+            block_rows = initial_query["chyt_query_statistics"]["secondary_query_source"]["steps"]["0"]["block_rows"]["sum"]
 
         print_debug(f"Block rows read by query {query_id}: {block_rows}")
         return block_rows

@@ -21,11 +21,20 @@ DB::DataTypePtr ToDataType(
     bool isReadConversions = true);
 
 DB::DataTypes ToDataTypes(
+    const std::vector<NTableClient::TColumnSchema>& schemas,
+    const TCompositeSettingsPtr& settings,
+    bool isReadConversions = true);
+
+DB::DataTypes ToDataTypes(
     const NTableClient::TTableSchema& schema,
     const TCompositeSettingsPtr& settings,
     bool isReadConversions = true);
 
+DB::NamesAndTypesList ToNamesAndTypesList(const std::vector<NTableClient::TColumnSchema>& schemas, const TCompositeSettingsPtr& settings);
+
 DB::NamesAndTypesList ToNamesAndTypesList(const NTableClient::TTableSchema& schema, const TCompositeSettingsPtr& settings);
+
+DB::Block ToHeaderBlock(const std::vector<NTableClient::TColumnSchema>& schemas, const TCompositeSettingsPtr &settings);
 
 DB::Block ToHeaderBlock(const NTableClient::TTableSchema& schema, const TCompositeSettingsPtr& settings);
 
