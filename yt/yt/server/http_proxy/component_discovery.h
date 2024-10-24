@@ -11,12 +11,14 @@ namespace NYT::NHttpProxy {
 
 //! Singular (!) names of cluster components.
 DEFINE_ENUM(EClusterComponentType,
-    ((PrimaryMaster)      (0))
-    ((SecondaryMaster)    (1))
+    //! All masters (primary and secondary).
+    ((ClusterMaster)      (0))
+    ((PrimaryMaster)      (1))
 
     ((Scheduler)          (2))
     ((ControllerAgent)    (3))
 
+    //! All nodes (data, tablet and exec).
     ((ClusterNode)        (4))
     ((DataNode)           (5))
     ((TabletNode)         (6))
@@ -61,6 +63,8 @@ struct TComponentDiscoveryOptions
     //! This callback *must* be provided and should return a duration after
     //! which a HTTP proxy is considered offline by the discovery mechanism.
     TCallback<TDuration()> ProxyDeathAgeCallback;
+    //! Timeout used for batch requests to master.
+    TDuration BatchRequestTimeout = TDuration::Seconds(5);
 };
 
 //! This class encapsulates everything related to the discovery of YT component instances from Cypress virtual maps and orchids.
@@ -69,7 +73,7 @@ class TComponentDiscoverer
 public:
     //! The provided master read options will be used for all Get/List requests performed for discovery.
     TComponentDiscoverer(
-        NApi::IClientPtr client,
+        NApi::NNative::IClientPtr client,
         NApi::TMasterReadOptions masterReadOptions,
         TComponentDiscoveryOptions componentDiscoveryOptions);
 
@@ -81,7 +85,7 @@ public:
     static std::vector<TString> GetCypressPaths(NApi::IClientPtr client, const NApi::TMasterReadOptions& masterReadOptions, EClusterComponentType component);
 
 private:
-    const NApi::IClientPtr Client_;
+    const NApi::NNative::IClientPtr Client_;
     const NApi::TMasterReadOptions MasterReadOptions_;
     const TComponentDiscoveryOptions ComponentDiscoveryOptions_;
 
