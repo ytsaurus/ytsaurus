@@ -110,6 +110,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 				"docker_image":                       speclet.JupyterDockerImage,
 				"memory_limit":                       speclet.MemoryOrDefault(),
 				"cpu_limit":                          speclet.CPUOrDefault(),
+				"gpu_limit":                          speclet.GPUOrDefault(),
 				"file_paths":                         filePaths,
 				"port_count":                         1,
 				"max_stderr_size":                    1024 * 1024 * 1024,
@@ -202,6 +203,16 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 					MaxValue:     300 * gib,
 					Description:  "Amount of RAM in bytes.",
 				},
+				{
+					Title:        "GPU",
+					Name:         "gpu",
+					Type:         strawberry.TypeInt64,
+					CurrentValue: speclet.GPU,
+					DefaultValue: DefaultGPU,
+					MinValue:     0,
+					MaxValue:     100,
+					Description:  "Number of GPU cards.",
+				},
 			},
 		},
 	}
@@ -213,6 +224,7 @@ func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {
 	return map[string]any{
 		"cpu":          speclet.CPUOrDefault(),
 		"memory":       speclet.MemoryOrDefault(),
+		"gpu":          speclet.GPUOrDefault(),
 		"docker_image": speclet.JupyterDockerImage,
 	}
 }

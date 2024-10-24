@@ -9,6 +9,7 @@ import (
 type Speclet struct {
 	CPU    *uint64 `yson:"cpu"`
 	Memory *uint64 `yson:"memory"`
+	GPU    *uint64 `yson:"gpu"`
 
 	JupyterDockerImage   string         `yson:"jupyter_docker_image"`
 	IdleTimeout          *yson.Duration `yson:"idle_timeout" requires_restart:"false"`
@@ -19,6 +20,7 @@ const (
 	gib                = 1024 * 1024 * 1024
 	DefaultCPU         = 2
 	DefaultMemory      = 8 * gib
+	DefaultGPU         = 0
 	DefaultIdleTimeout = 24 * time.Hour
 )
 
@@ -34,6 +36,13 @@ func (speclet *Speclet) MemoryOrDefault() uint64 {
 		return *speclet.Memory
 	}
 	return DefaultMemory
+}
+
+func (speclet *Speclet) GPUOrDefault() uint64 {
+	if speclet.GPU != nil {
+		return *speclet.GPU
+	}
+	return DefaultGPU
 }
 
 func (speclet *Speclet) IdleTimeoutOrDefault() time.Duration {
