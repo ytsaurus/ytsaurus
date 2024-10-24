@@ -19,13 +19,16 @@ type Config struct {
 	// RevisionCollectPeriod defines how often agent collects Cypress node revisions via batch ListNode.
 	RevisionCollectPeriod *yson.Duration `yson:"revision_collect_period"`
 
+	// MinOpletPassTimeout is a minimum timeout value to limit the execution time of Oplet.Pass().
+	MinOpletPassTimeout *yson.Duration `yson:"min_oplet_pass_timeout"`
+	// OpletPassTimeoutFactor is a PassPeriod factor to limit the Oplet.Pass() execution time.
+	// Especially the phases of restart operation.
+	OpletPassTimeoutFactor *float64 `yson:"oplet_pass_timeout_factor"`
+
 	// HealthCheckerToleranceFactor is a maximum period factor before a health checker
 	// considers the state as `expired`. E.g. if the pass period is 5s and the factor is 2.0,
 	// the health checker will consider the state valid for 10s.
 	HealthCheckerToleranceFactor *float64 `yson:"health_checker_tolerance_factor"`
-	// OpletPassTimeoutFactor is a PassPeriod factor to limit the Oplet.Pass() execution time.
-	// Especially the phases of restart operation.
-	OpletPassTimeoutFactor *float64 `yson:"oplet_pass_timeout_factor"`
 
 	// Stage of the controller, e.g. production, prestable, etc.
 	Stage string `yson:"stage"`
@@ -61,13 +64,13 @@ const (
 	DefaultPassPeriod                   = yson.Duration(5 * time.Second)
 	DefaultCollectOperationsPeriod      = yson.Duration(10 * time.Second)
 	DefaultRevisionCollectPeriod        = yson.Duration(5 * time.Second)
+	DefaultMinOpletPassTimeout          = yson.Duration(10 * time.Second)
+	DefaultOpletPassTimeoutFactor       = 1.0
 	DefaultHealthCheckerToleranceFactor = 2.0
 	DefaultPassWorkerNumber             = 1
 	DefaultAssignAdministerToCreator    = true
 	DefaultScaleWorkerNumber            = 1
 	DefaultScalePeriod                  = yson.Duration(60 * time.Second)
-
-	minOpletPassTimeout = 10 * time.Second
 )
 
 func (c *Config) PassPeriodOrDefault() yson.Duration {
@@ -91,18 +94,25 @@ func (c *Config) RevisionCollectPeriodOrDefault() yson.Duration {
 	return DefaultRevisionCollectPeriod
 }
 
-func (c *Config) HealthCheckerToleranceFactorOrDefault() float64 {
-	if c.HealthCheckerToleranceFactor != nil {
-		return *c.HealthCheckerToleranceFactor
+func (c *Config) MinOpletPassTimeoutOrDefault() yson.Duration {
+	if c.MinOpletPassTimeout != nil {
+		return *c.MinOpletPassTimeout
 	}
-	return DefaultHealthCheckerToleranceFactor
+	return DefaultMinOpletPassTimeout
 }
 
 func (c *Config) OpletPassTimeoutFactorOrDefault() float64 {
 	if c.OpletPassTimeoutFactor != nil {
 		return *c.OpletPassTimeoutFactor
 	}
-	return float64(minOpletPassTimeout) / float64(c.PassPeriodOrDefault())
+	return DefaultOpletPassTimeoutFactor
+}
+
+func (c *Config) HealthCheckerToleranceFactorOrDefault() float64 {
+	if c.HealthCheckerToleranceFactor != nil {
+		return *c.HealthCheckerToleranceFactor
+	}
+	return DefaultHealthCheckerToleranceFactor
 }
 
 func (c *Config) PassWorkerNumberOrDefault() int {

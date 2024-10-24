@@ -486,7 +486,10 @@ func (a *Agent) getOpletOptions(alias string) strawberry.OpletOptions {
 		Logger:       a.l,
 		UserClient:   a.ytc,
 		SystemClient: a.ytc,
-		PassTimeout:  time.Duration(float64(a.config.PassPeriodOrDefault()) * a.config.OpletPassTimeoutFactorOrDefault()),
+		PassTimeout: max(
+			time.Duration(a.config.MinOpletPassTimeoutOrDefault()),
+			time.Duration(float64(a.config.PassPeriodOrDefault())*a.config.OpletPassTimeoutFactorOrDefault()),
+		),
 	}
 }
 
