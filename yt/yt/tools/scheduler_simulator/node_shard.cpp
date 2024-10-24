@@ -251,15 +251,17 @@ void TSimulatorNodeShard::OnAllocationFinished(const TNodeEvent& event)
         operation->SetState(EOperationState::Completed);
     }
 
-    std::vector<TAllocationUpdate> allocationUpdates({TAllocationUpdate{
-        EAllocationUpdateStatus::Finished,
-        allocation->GetOperationId(),
-        allocation->GetId(),
-        allocation->GetTreeId(),
-        TJobResources(),
-        /*allocationDataCenter*/ std::nullopt,
-        /*allocationInfinibandCluster*/ std::nullopt,
-    }});
+    TAllocationUpdate allocationUpdatesElement{
+        .OperationId = allocation->GetOperationId(),
+        .AllocationId = allocation->GetId(),
+        .TreeId = allocation->GetTreeId(),
+        .AllocationResources = TJobResources(),
+        .AllocationDataCenter = std::nullopt,
+        .AllocationInfinibandCluster = std::nullopt,
+        .Finished = true,
+    };
+
+    std::vector<TAllocationUpdate> allocationUpdates{std::move(allocationUpdatesElement)};
 
     {
         THashSet<TAllocationId> allocationsToPostpone;

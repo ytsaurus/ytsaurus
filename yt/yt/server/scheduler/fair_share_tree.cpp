@@ -2605,35 +2605,38 @@ private:
             return false;
         }
 
-        switch (allocationUpdate.Status) {
-            case EAllocationUpdateStatus::Running: {
-                // NB: Should be filtered out on large clusters.
-                YT_LOG_DEBUG("Processing updated allocation (OperationId: %v, AllocationId: %v, Resources: %v)",
-                    allocationUpdate.OperationId,
-                    allocationUpdate.AllocationId,
-                    allocationUpdate.AllocationResources);
+        if (allocationUpdate.Finished) {
+            // NB: Should be filtered out on large clusters.
+            YT_LOG_DEBUG(
+                "Processing allocation finish (OperationId: %v, AllocationId: %v)",
+                allocationUpdate.OperationId,
+                allocationUpdate.AllocationId);
 
-                return TreeScheduler_->ProcessUpdatedAllocation(
-                    treeSnapshot,
-                    operationElement,
-                    allocationUpdate.AllocationId,
-                    allocationUpdate.AllocationResources,
-                    allocationUpdate.AllocationDataCenter,
-                    allocationUpdate.AllocationInfinibandCluster,
-                    maybeAbortReason);
-            }
-            case EAllocationUpdateStatus::Finished: {
-                // NB: Should be filtered out on large clusters.
-                YT_LOG_DEBUG("Processing finished allocation (OperationId: %v, AllocationId: %v)",
-                    allocationUpdate.OperationId,
-                    allocationUpdate.AllocationId);
-
-                return TreeScheduler_->ProcessFinishedAllocation(
-                    treeSnapshot,
-                    operationElement,
-                    allocationUpdate.AllocationId);
-            }
+            return TreeScheduler_->ProcessFinishedAllocation(
+                treeSnapshot,
+                operationElement,
+                allocationUpdate.AllocationId);
         }
+
+        YT_VERIFY(allocationUpdate.ResourceUsageUpdated || allocationUpdate.ResetPreemptibleProgress);
+
+        // NB: Should be filtered out on large clusters.
+        YT_LOG_DEBUG(
+            "Processing allocation update (OperationId: %v, AllocationId: %v, ResetPreemptibleProgress: %v, Resources: %v)",
+            allocationUpdate.OperationId,
+            allocationUpdate.AllocationId,
+            allocationUpdate.ResetPreemptibleProgress,
+            allocationUpdate.AllocationResources);
+
+        return TreeScheduler_->ProcessAllocationUpdate(
+            treeSnapshot,
+            operationElement,
+            allocationUpdate.AllocationId,
+            allocationUpdate.AllocationResources,
+            allocationUpdate.ResetPreemptibleProgress,
+            allocationUpdate.AllocationDataCenter,
+            allocationUpdate.AllocationInfinibandCluster,
+            maybeAbortReason);
     }
 
     bool IsSnapshottedOperationRunningInTree(TOperationId operationId) const override
@@ -2699,7 +2702,7 @@ private:
             EAllocationPreemptionReason preemptionReason = preemptedAllocation.PreemptionReason;
             preemptedAllocationResources[preemptionReason][operationId] += preemptedResourcesDelta;
             preemptedAllocationResourceTimes[preemptionReason][operationId] += preemptedResourcesDelta * static_cast<i64>(
-                allocation->PreemptibleProgressTime().Seconds());
+                allocation->GetPreemptibleProgressDuration().Seconds());
 
             if (allocation->GetPreemptedFor() && !allocation->GetPreemptedForProperlyStarvingOperation()) {
                 improperlyPreemptedAllocationResources[preemptionReason][operationId] += preemptedResourcesDelta;

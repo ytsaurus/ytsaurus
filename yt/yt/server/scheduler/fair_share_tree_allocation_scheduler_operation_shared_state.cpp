@@ -99,17 +99,37 @@ bool TFairShareTreeAllocationSchedulerOperationSharedState::CheckPacking(
         packingConfig);
 }
 
-std::optional<TJobResources> TFairShareTreeAllocationSchedulerOperationSharedState::SetAllocationResourceUsage(
+bool TFairShareTreeAllocationSchedulerOperationSharedState::ProcessAllocationUpdate(
+    TSchedulerOperationElement* operationElement,
     TAllocationId allocationId,
-    const TJobResources& resources)
+    const TJobResources& resources,
+    bool resetPreemptibleProgress)
 {
-    auto guard = WriterGuard(AllocationPropertiesMapLock_);
-
-    if (!Enabled_) {
-        return {};
+    if (!IsEnabled()) {
+        return false;
     }
 
-    return SetAllocationResourceUsage(GetAllocationProperties(allocationId), resources);
+    auto delta = [&] {
+        auto guard = WriterGuard(AllocationPropertiesMapLock_);
+
+        return SetAllocationResourceUsage(
+            GetAllocationProperties(allocationId),
+            resources);
+    }();
+
+    if (delta != TJobResources()) {
+        operationElement->IncreaseHierarchicalResourceUsage(delta);
+    }
+
+    if (resetPreemptibleProgress) {
+        ResetAllocationPreemptibleProgress(operationElement, allocationId);
+    }
+
+    if (delta != TJobResources() || resetPreemptibleProgress) {
+        UpdatePreemptibleAllocationsList(operationElement);
+    }
+
+    return true;
 }
 
 TDiskQuota TFairShareTreeAllocationSchedulerOperationSharedState::GetTotalDiskQuota() const
@@ -160,7 +180,30 @@ bool TFairShareTreeAllocationSchedulerOperationSharedState::OnAllocationFinished
     return false;
 }
 
-void TFairShareTreeAllocationSchedulerOperationSharedState::UpdatePreemptibleAllocationsList(const TSchedulerOperationElement* element)
+void TFairShareTreeAllocationSchedulerOperationSharedState::ResetAllocationPreemptibleProgress(
+    TSchedulerOperationElement* operationElement,
+    TAllocationId allocationId)
+{
+    YT_ELEMENT_LOG_DETAILED(operationElement, "Resetting preemptible allocation progress (AllocationId: %v)", allocationId);
+
+    auto guard = WriterGuard(AllocationPropertiesMapLock_);
+
+    auto* properties = GetAllocationProperties(allocationId);
+    auto& listToInsert = AllocationsPerPreemptionStatus_[EAllocationPreemptionStatus::Preemptible];
+    listToInsert.splice(
+        end(listToInsert),
+        AllocationsPerPreemptionStatus_[properties->PreemptionStatus],
+        properties->AllocationIdListIterator);
+
+    properties->AllocationIdListIterator = --end(listToInsert);
+
+    ResourceUsagePerPreemptionStatus_[properties->PreemptionStatus] -= properties->ResourceUsage;
+    ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::Preemptible] += properties->ResourceUsage;
+    properties->PreemptionStatus = EAllocationPreemptionStatus::Preemptible;
+}
+
+void TFairShareTreeAllocationSchedulerOperationSharedState::UpdatePreemptibleAllocationsList(
+    const TSchedulerOperationElement* element)
 {
     TWallTimer timer;
 
@@ -285,7 +328,8 @@ void TFairShareTreeAllocationSchedulerOperationSharedState::DoUpdatePreemptibleA
     // NB: We need 2 iterations since thresholds may change significantly such that we need
     // to move allocation from preemptible list to non-preemptible list through aggressively preemptible list.
     for (int iteration = 0; iteration < 2; ++iteration) {
-        YT_LOG_DEBUG_IF(enableLogging,
+        YT_LOG_DEBUG_IF(
+            enableLogging,
             "Preemptible lists usage bounds before update "
             "(NonPreemptibleResourceUsage: %v, AggressivelyPreemptibleResourceUsage: %v, PreemptibleResourceUsage: %v, Iteration: %v)",
             FormatResources(ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::NonPreemptible]),
@@ -609,6 +653,8 @@ TJobResources TFairShareTreeAllocationSchedulerOperationSharedState::SetAllocati
     TAllocationProperties* properties,
     const TJobResources& resources)
 {
+    VERIFY_WRITER_SPINLOCK_AFFINITY(AllocationPropertiesMapLock_);
+
     auto delta = resources - properties->ResourceUsage;
     properties->ResourceUsage = resources;
     ResourceUsagePerPreemptionStatus_[properties->PreemptionStatus] += delta;

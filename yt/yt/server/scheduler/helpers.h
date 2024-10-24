@@ -84,7 +84,7 @@ struct TAllocationDescription
         bool Preempted;
         TString PreemptionReason;
         TDuration PreemptionTimeout;
-        TDuration PreemptibleProgressTime;
+        TInstant PreemptibleProgressStartTime;
     };
 
     std::optional<TAllocationProperties> Properties;

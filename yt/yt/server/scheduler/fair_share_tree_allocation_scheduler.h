@@ -621,11 +621,12 @@ public:
     void RegisterAllocationsFromRevivedOperation(
         TSchedulerOperationElement* element,
         std::vector<TAllocationPtr> allocations) const;
-    bool ProcessUpdatedAllocation(
+    bool ProcessAllocationUpdate(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
         TSchedulerOperationElement* element,
         TAllocationId allocationId,
         const TJobResources& allocationResources,
+        bool resetPreemptibleProgress,
         const std::optional<std::string>& allocationDataCenter,
         const std::optional<std::string>& allocationInfinibandCluster,
         std::optional<EAbortReason>* maybeAbortReason) const;
@@ -699,7 +700,7 @@ public:
         TSchedulerOperationElement* element,
         TAllocationId allocationId,
         const TJobResourcesWithQuota& resourceUsage);
-    void ProcessUpdatedAllocationInTest(
+    void ProcessAllocationUpdateInTest(
         TSchedulerOperationElement* element,
         TAllocationId allocationId,
         const TJobResources& allocationResources);

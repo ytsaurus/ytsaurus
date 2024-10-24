@@ -125,8 +125,8 @@ public:
 
     void SetNode(const TExecNodePtr& node);
 
-    //! Time that will be wasted if allocation is preempted.
-    TDuration PreemptibleProgressTime() const;
+    //! Duration of progress that will be wasted if allocation is preempted.
+    TDuration GetPreemptibleProgressDuration() const;
 
 private:
     NLogging::TLogger CreateLogger();

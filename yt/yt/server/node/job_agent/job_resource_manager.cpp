@@ -34,6 +34,8 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
+#include <google/protobuf/util/message_differencer.h>
+
 namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -158,21 +160,32 @@ public:
     }
 
     void OnDynamicConfigChanged(
-        const TJobResourceManagerDynamicConfigPtr& /*oldConfig*/,
-        const TJobResourceManagerDynamicConfigPtr& newConfig) override
+        const TClusterNodeDynamicConfigPtr& oldConfig,
+        const TClusterNodeDynamicConfigPtr& newConfig) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         ProfilingExecutor_->SetPeriod(
-            newConfig->ProfilingPeriod);
+            newConfig->JobResourceManager->ProfilingPeriod);
 
-        MemoryPressureDetector_->SetPeriod(newConfig->MemoryPressureDetector->CheckPeriod);
+        MemoryPressureDetector_->SetPeriod(newConfig->JobResourceManager->MemoryPressureDetector->CheckPeriod);
 
-        if (newConfig->MappedMemoryController) {
-            ReservedMappedMemoryChecker_->SetPeriod(newConfig->MappedMemoryController->CheckPeriod);
+        if (newConfig->JobResourceManager->MappedMemoryController) {
+            ReservedMappedMemoryChecker_->SetPeriod(newConfig->JobResourceManager->MappedMemoryController->CheckPeriod);
         }
 
-        DynamicConfig_.Store(newConfig);
+        DynamicConfig_.Store(newConfig->JobResourceManager);
+
+        if (*oldConfig->ResourceLimits->Overrides !=
+            *newConfig->ResourceLimits->Overrides)
+        {
+            YT_LOG_DEBUG(
+                "Resource limits overrides config has been changed (Old: %v, New: %v)",
+                ConvertToYsonString(oldConfig->ResourceLimits->Overrides, EYsonFormat::Text),
+                ConvertToYsonString(newConfig->ResourceLimits->Overrides, EYsonFormat::Text));
+
+            Bootstrap_->GetJobInvoker()->Invoke(BIND(&TJobResourceManager::TImpl::NotifyResourcesReleased, MakeStrong(this)));
+        }
     }
 
     void OnProfiling()
@@ -405,6 +418,12 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         ResourceLimitsOverrides_.Store(resourceLimits);
+
+        auto currentRescourceLimitsOverride = ResourceLimitsOverrides_.Load();
+        if (!google::protobuf::util::MessageDifferencer::Equivalent(currentRescourceLimitsOverride, resourceLimits)) {
+            YT_LOG_DEBUG("Resource limits overrides has been changed");
+            Bootstrap_->GetJobInvoker()->Invoke(BIND(&TJobResourceManager::TImpl::NotifyResourcesReleased, MakeStrong(this)));
+        }
     }
 
     TNodeResourceLimitsOverrides ComputeEffectiveResourceLimitsOverrides() const
@@ -421,6 +440,13 @@ public:
             }
         ITERATE_NODE_RESOURCE_LIMITS_DYNAMIC_CONFIG_OVERRIDES(XX)
         #undef XX
+
+        YT_LOG_DEBUG(
+            "Computing resource limits overrides (Result: %v, MasterOverrides: %v, ConfigOverrides: %v)",
+            resourceLimits,
+            resourceLimitsOverrides,
+            ConvertToYsonString(dynamicConfigOverrides, EYsonFormat::Text));
+
         return resourceLimits;
     }
 
