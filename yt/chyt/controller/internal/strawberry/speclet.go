@@ -24,7 +24,8 @@ type Speclet struct {
 	// it will be restarted despite the RestartOnSpecletChange option.
 	MinSpecletRevision yt.Revision `yson:"min_speclet_revision"`
 
-	Pool *string `yson:"pool"`
+	PoolTrees []string `yson:"pool_trees"`
+	Pool      *string  `yson:"pool"`
 
 	ResumeMarker string `yson:"resume_marker"`
 
