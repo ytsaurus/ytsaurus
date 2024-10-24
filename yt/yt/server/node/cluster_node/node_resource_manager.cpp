@@ -353,10 +353,10 @@ bool Dominates(const TJobResources& lhs, const TJobResources& rhs)
         true;
 }
 
-TError VerifyDominates(const TJobResources& lhs, const TJobResources& rhs, TStringBuf failMessage)
+TError VerifyDominates(const TJobResources& lhs, const TJobResources& rhs, TString failMessage)
 {
     #define XX(name, Name) if (lhs.Name < rhs.Name) { \
-            return TError(failMessage) \
+            return TError(std::move(failMessage)) \
                 << TErrorAttribute("resource_name", PP_STRINGIZE(name)) \
                 << TErrorAttribute("value", lhs.Name) \
                 << TErrorAttribute("expected_ge_to", rhs.Name); \

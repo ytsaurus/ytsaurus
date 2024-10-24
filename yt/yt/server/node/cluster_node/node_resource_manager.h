@@ -121,7 +121,7 @@ bool operator == (const TJobResources& lhs, const TJobResources& rhs);
 TJobResources MakeNonnegative(const TJobResources& resources);
 bool Dominates(const TJobResources& lhs, const TJobResources& rhs);
 
-TError VerifyDominates(const TJobResources& lhs, const TJobResources& rhs, TStringBuf failMessage);
+TError VerifyDominates(const TJobResources& lhs, const TJobResources& rhs, TString failMessage);
 
 TJobResources Max(const TJobResources& a, const TJobResources& b);
 TJobResources Min(const TJobResources& a, const TJobResources& b);
