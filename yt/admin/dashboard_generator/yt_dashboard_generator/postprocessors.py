@@ -1,14 +1,20 @@
 import abc
-from typing import Dict, Any, Optional, Iterable
+from typing import Dict, Any, Optional, Iterable, Tuple
 import copy
 
 from .specific_tags.tags import TemplateTag, BackendTag
 
 
 class TagPostprocessorBase(abc.ABC):
+    # Please make sure that the returned tags as a dict, as is required
+    # by the type specifications of the abstract method.
+    # Duplicate tags are thus forbidden.
+    # Dictionaries are ordered by default since python 3.7, and the
+    # order should be preserved even when creating from a list, so
+    # sorting postprocessors will work fine.
     @abc.abstractmethod
     def postprocess(self, tags: Dict[str, Any], sensor_name: Optional[str]) \
-            -> (Dict[str, Any], Optional[str]):
+            -> Tuple[Dict[str, Any], Optional[str]]:
         raise NotImplementedError
 
 
@@ -19,7 +25,7 @@ class SimpleTagPostprocessor(TagPostprocessorBase):
 
     def postprocess(self, tags, sensor_name):
         result = []
-        for k, v in tags:
+        for k, v in tags.items():
             new_tags = self.process_tag(k, v)
             if new_tags is None:
                 continue
@@ -31,7 +37,7 @@ class SimpleTagPostprocessor(TagPostprocessorBase):
                 result.extend(new_tags)
             else:
                 result.append(new_tags)
-        return result, sensor_name
+        return dict(result), sensor_name
 
 
 class MultiTagPostprocessor(TagPostprocessorBase):
