@@ -86,12 +86,14 @@ struct TJobResources
     i64 ReplicationDataSize = 0;
     i64 RepairDataSize = 0;
     i64 MergeDataSize = 0;
+
+    static TJobResources Epsilon();
 };
 
 TString FormatResourceUsage(
     const TJobResources& usage,
     const TJobResources& limits);
-TString FormatResources(const TJobResources& resources);
+void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TStringBuf /*format*/);
 
 NNodeTrackerClient::NProto::TNodeResources ToNodeResources(const TJobResources& jobResources);
 TJobResources FromNodeResources(const NNodeTrackerClient::NProto::TNodeResources& jobResources);
@@ -118,6 +120,8 @@ bool operator == (const TJobResources& lhs, const TJobResources& rhs);
 
 TJobResources MakeNonnegative(const TJobResources& resources);
 bool Dominates(const TJobResources& lhs, const TJobResources& rhs);
+
+TError VerifyDominates(const TJobResources& lhs, const TJobResources& rhs, TStringBuf failMessage);
 
 TJobResources Max(const TJobResources& a, const TJobResources& b);
 TJobResources Min(const TJobResources& a, const TJobResources& b);
