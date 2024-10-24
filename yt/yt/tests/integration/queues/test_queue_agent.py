@@ -3473,6 +3473,53 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         self.remove_export_destination(export_dir)
 
+    @authors("apachee")
+    def test_export_iteration_with_no_data(self):
+        """
+        queue_static_export_progress.last_successful_export_iteration_instant should be updated every time queue_agent tries to
+        export new data.
+        Logfeller relies on these watermarks to assess data completeness.
+        """
+
+        _, queue_id = self._create_queue("//tmp/q")
+
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
+
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 2 * 1000,
+            },
+        })
+
+        # Writing something so that all attributes are properly set by at least one iteration.
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}])
+        self._flush_table("//tmp/q")
+
+        wait(lambda: len(ls(export_dir)) == 1)
+        export_progress = get("//tmp/export/@queue_static_export_progress")
+        last_exported_fragment_iteration_instant = datetime.datetime.fromisoformat(export_progress["last_exported_fragment_iteration_instant"])
+        last_successful_export_iteration_instant = datetime.datetime.fromisoformat(export_progress["last_successful_export_iteration_instant"])
+        assert last_exported_fragment_iteration_instant == last_successful_export_iteration_instant
+
+        previous_exported_fragment_iteration_instant = last_exported_fragment_iteration_instant
+
+        time.sleep(10)
+
+        export_progress = get("//tmp/export/@queue_static_export_progress")
+        last_exported_fragment_iteration_instant = datetime.datetime.fromisoformat(export_progress["last_exported_fragment_iteration_instant"])
+        last_successful_export_iteration_instant = datetime.datetime.fromisoformat(export_progress["last_successful_export_iteration_instant"])
+
+        assert last_exported_fragment_iteration_instant == previous_exported_fragment_iteration_instant
+        assert last_exported_fragment_iteration_instant < last_successful_export_iteration_instant
+
+        # 2-second exports, comparing to 3 to account for edge-cases.
+        # time.sleep(10) above should be enough to check the required behavior.
+        assert (datetime.datetime.now(pytz.UTC) - last_successful_export_iteration_instant).seconds <= 3
+
+        self.remove_export_destination(export_dir)
+
 
 class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {

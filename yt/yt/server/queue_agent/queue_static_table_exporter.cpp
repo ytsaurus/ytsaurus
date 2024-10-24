@@ -78,7 +78,9 @@ void TQueueExportProgress::Update(i64 tabletIndex, TChunkId chunkId, TTimestamp 
 
 void TQueueExportProgress::Register(TRegistrar registrar)
 {
-    registrar.Parameter("last_export_iteration_instant", &TThis::LastExportIterationInstant)
+    registrar.Parameter("last_successful_export_iteration_instant", &TThis::LastSuccessfulExportIterationInstant)
+        .Default(TInstant::Zero());
+    registrar.Parameter("last_exported_fragment_iteration_instant", &TThis::LastExportedFramgentIterationInstant)
         .Default(TInstant::Zero());
     registrar.Parameter("last_exported_fragment_unix_ts", &TThis::LastExportedFragmentUnixTs)
         .Default(0);
@@ -146,6 +148,9 @@ public:
         TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(10));
 
         YT_LOG_INFO("Started queue static export iteration");
+        auto logFinally = Finally([&] {
+            YT_LOG_INFO("Finished queue static export iteration");
+        });
 
         auto transaction = WaitFor(Client_->StartTransaction(ETransactionType::Master))
             .ValueOrThrow();
@@ -166,7 +171,8 @@ public:
 
         Options_.TransactionId = transactionId;
 
-        YT_LOG_INFO("Started export transaction and locked nodes (TransactionId: %v)", transactionId);
+        YT_LOG_INFO("Started export transaction and locked nodes (TransactionId: %v)",
+            transactionId);
 
         ExportInstant_ = TInstant::Now();
         ComputeExportFragmentUnixTs();
@@ -180,16 +186,18 @@ public:
         auto newExportProgress = SelectChunkSpecsToExport(currentExportProgress);
 
         if (ChunkSpecsToExport_.empty()) {
-            YT_LOG_DEBUG("No chunks to export, aborting export transaction (TransactionId: %v)", transactionId);
-            YT_UNUSED_FUTURE(transaction->Abort());
-            return newExportProgress;
+            // NB(apachee): New export progress is taking into account if there are chunks
+            // to export, meaning in this case only last successful export iteration instant would
+            // be changed.
+            YT_LOG_DEBUG("No chunks to export, committing export transaction prematurely (TransactionId: %v)",
+                transactionId);
+        } else {
+            CreateOutputTable();
+            BeginUpload();
+            TeleportChunkMeta();
+            AttachChunks();
+            EndUpload();
         }
-
-        CreateOutputTable();
-        BeginUpload();
-        TeleportChunkMeta();
-        AttachChunks();
-        EndUpload();
 
         auto diff = UpdateCypressExportProgress(currentExportProgress, newExportProgress);
 
@@ -202,8 +210,6 @@ public:
         ProfilingCounters_->ExportedRows.Increment(diff.RowCount);
         ProfilingCounters_->ExportedChunks.Increment(diff.ChunkCount);
         ProfilingCounters_->ExportedTables.Increment();
-
-        YT_LOG_INFO("Finished queue static export iteration");
 
         return newExportProgress;
     }
@@ -226,7 +232,7 @@ private:
     TInstant ExportInstant_;
     //! The output table unix ts corresponding to the current export iteration.
     //! NB: We use the instant above to compute this value, i.e. it corresponds to the host's physical time.
-    //! This is fine, see the comment for DoRun below.
+    //! This is fine, see the comment for Run above.
     ui64 ExportFragmentUnixTs_;
     //! Corresponds to the queue being exported.
     TUserObject QueueObject_;
@@ -425,8 +431,12 @@ private:
             }
         }
 
-        newExportProgress->LastExportedFragmentUnixTs = ExportFragmentUnixTs_;
-        newExportProgress->LastExportIterationInstant = ExportInstant_;
+        newExportProgress->LastSuccessfulExportIterationInstant = ExportInstant_;
+        if (!ChunkSpecsToExport_.empty()) {
+            newExportProgress->LastExportedFramgentIterationInstant = ExportInstant_;
+            newExportProgress->LastExportedFragmentUnixTs = ExportFragmentUnixTs_;
+        }
+
         return newExportProgress;
     }
 
