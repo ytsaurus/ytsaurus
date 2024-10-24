@@ -46,7 +46,8 @@ class TQueueExportProgress
     : public NYTree::TYsonStruct
 {
 public:
-    TInstant LastExportIterationInstant;
+    TInstant LastSuccessfulExportIterationInstant;
+    TInstant LastExportedFramgentIterationInstant;
     ui64 LastExportedFragmentUnixTs;
     THashMap<i64, TQueueTabletExportProgressPtr> Tablets;
 
