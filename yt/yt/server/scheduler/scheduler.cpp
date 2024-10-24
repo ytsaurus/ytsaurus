@@ -1264,7 +1264,6 @@ public:
             for (const auto& [treeId, treeRuntimeParameters] : operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree) {
                 YT_VERIFY(!treeRuntimeParameters->Tentative);
                 YT_VERIFY(!treeRuntimeParameters->Probing);
-                YT_VERIFY(!treeRuntimeParameters->Offloading);
                 if (treeId != chosenTree) {
                     treeIdsToUnregister.emplace_back(treeId);
                 }
