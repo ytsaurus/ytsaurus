@@ -105,14 +105,8 @@ struct ISchedulerStrategyHost
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EAllocationUpdateStatus,
-    (Running)
-    (Finished)
-);
-
 struct TAllocationUpdate
 {
-    EAllocationUpdateStatus Status;
     TOperationId OperationId;
     TAllocationId AllocationId;
     TString TreeId;
@@ -121,6 +115,10 @@ struct TAllocationUpdate
     // It is used to determine whether the allocation should be aborted if the operation is running in a module-aware scheduling segment.
     std::optional<std::string> AllocationDataCenter;
     std::optional<std::string> AllocationInfinibandCluster;
+
+    bool ResourceUsageUpdated = false;
+    bool ResetPreemptibleProgress = false;
+    bool Finished = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1087,7 +1087,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, DoNotPreemptAllocationsIfFairShare
     newResources.SetCpu(20);
     newResources.SetMemory(20);
     // FairShare is now less than usage and we would start preempting allocations of this operation.
-    treeScheduler->ProcessUpdatedAllocationInTest(operationElement.Get(), allocationIds[0], newResources);
+    treeScheduler->ProcessAllocationUpdateInTest(operationElement.Get(), allocationIds[0], newResources);
 
     for (int i = 0; i < 1; ++i) {
         EXPECT_EQ(EAllocationPreemptionStatus::NonPreemptible, treeScheduler->GetAllocationPreemptionStatusInTest(operationElement.Get(), allocationIds[i]));

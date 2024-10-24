@@ -1079,7 +1079,7 @@ TAllocationDescription TNodeShard::GetAllocationDescription(TAllocationId alloca
             .Preempted = allocation->GetPreempted(),
             .PreemptionReason = allocation->GetPreemptionReason(),
             .PreemptionTimeout = CpuDurationToDuration(allocation->GetPreemptionTimeout()),
-            .PreemptibleProgressTime = allocation->PreemptibleProgressTime(),
+            .PreemptibleProgressStartTime = allocation->GetPreemptibleProgressStartTime(),
         };
     } else {
         result.Running = false;
@@ -1432,20 +1432,58 @@ TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor
     return node;
 }
 
-void TNodeShard::UpdateAllocationTimeStatisticsIfNeeded(const TAllocationPtr& allocation, TRunningAllocationTimeStatistics timeStatistics)
+void TNodeShard::UpdateAllocationPreemptibleProgressStartTime(const TAllocationPtr& allocation, TInstant newPreemptibleProgressStartTime)
 {
-    if (allocation->GetPreemptibleProgressStartTime() < timeStatistics.PreemptibleProgressStartTime) {
-        allocation->SetPreemptibleProgressStartTime(timeStatistics.PreemptibleProgressStartTime);
+    auto previousPreemptibleProgressStartTime = allocation->GetPreemptibleProgressStartTime();
+    YT_VERIFY(previousPreemptibleProgressStartTime < newPreemptibleProgressStartTime);
+
+    allocation->SetPreemptibleProgressStartTime(newPreemptibleProgressStartTime);
+
+    if (auto* operationState = FindOperationState(allocation->GetOperationId())) {
+        // We do not consider exact preemptible progress start time in strategy.
+        YT_LOG_DEBUG("Preemptible progress reset (AllocationId: %v)", allocation->GetId());
+        auto& allocationToSubmitToStrategy = AddAllocationUpdateToSubmitToStrategy(
+            allocation,
+            operationState);
+        allocationToSubmitToStrategy.ResetPreemptibleProgress = true;
     }
+}
+
+TAllocationUpdate& TNodeShard::AddAllocationUpdateToSubmitToStrategy(
+    const TAllocationPtr& allocation,
+    TNonNullPtr<TOperationState> operationState)
+{
+    auto [it, inserted] = AllocationsToSubmitToStrategy_.try_emplace(allocation->GetId(), TAllocationUpdate{});
+    auto& allocationToSubmitToStrategy = it->second;
+
+    if (inserted) {
+        allocationToSubmitToStrategy = TAllocationUpdate{
+            .OperationId = allocation->GetOperationId(),
+            .AllocationId = allocation->GetId(),
+            .TreeId = allocation->GetTreeId(),
+            .AllocationResources = allocation->ResourceUsage(),
+            .AllocationDataCenter = allocation->GetNode()->NodeDescriptor().GetDataCenter(),
+            .AllocationInfinibandCluster = allocation->GetNode()->GetInfinibandCluster(),
+        };
+
+        operationState->AllocationsToSubmitToStrategy.insert(allocation->GetId());
+
+        return allocationToSubmitToStrategy;
+    }
+
+    allocationToSubmitToStrategy.AllocationResources = allocation->ResourceUsage();
+
+    return allocationToSubmitToStrategy;
 }
 
 void TNodeShard::UpdateRunningAllocationsStatistics(const std::vector<TRunningAllocationStatisticsUpdate>& updates)
 {
     YT_LOG_DEBUG("Update running allocation time statistics (UpdateCount: %v)", std::size(updates));
 
-    for (auto [allocationId, timeStatistics] : updates) {
+    // Allocation statistics currently contain only progress info.
+    for (auto [allocationId, progressInfo] : updates) {
         if (const auto& allocation = FindAllocation(allocationId)) {
-            UpdateAllocationTimeStatisticsIfNeeded(allocation, timeStatistics);
+            UpdateAllocationPreemptibleProgressStartTime(allocation, progressInfo.ProgressStartTime);
         }
     }
 }
@@ -2057,16 +2095,11 @@ void TNodeShard::ProcessScheduledAndPreemptedAllocations(
                     allocation->GetId(),
                     EAbortReason::SchedulingOperationSuspended,
                     allocation->GetControllerEpoch());
-                AllocationsToSubmitToStrategy_[allocation->GetId()] = TAllocationUpdate{
-                    EAllocationUpdateStatus::Finished,
-                    allocation->GetOperationId(),
-                    allocation->GetId(),
-                    allocation->GetTreeId(),
-                    TJobResources(),
-                    allocation->GetNode()->NodeDescriptor().GetDataCenter(),
-                    allocation->GetNode()->GetInfinibandCluster()
-                };
-                operationState->AllocationsToSubmitToStrategy.insert(allocation->GetId());
+
+                auto& allocationToSubmitToStrategy = AddAllocationUpdateToSubmitToStrategy(
+                    allocation,
+                    operationState);
+                allocationToSubmitToStrategy.Finished = true;
             }
             continue;
         }
@@ -2138,20 +2171,11 @@ void TNodeShard::OnAllocationRunning(const TAllocationPtr& allocation, NProto::T
 
     auto* operationState = FindOperationState(allocation->GetOperationId());
     if (operationState) {
-        auto it = AllocationsToSubmitToStrategy_.find(allocation->GetId());
-        if (it == AllocationsToSubmitToStrategy_.end() || it->second.Status != EAllocationUpdateStatus::Finished) {
-            AllocationsToSubmitToStrategy_[allocation->GetId()] = TAllocationUpdate{
-                EAllocationUpdateStatus::Running,
-                allocation->GetOperationId(),
-                allocation->GetId(),
-                allocation->GetTreeId(),
-                allocation->ResourceUsage(),
-                allocation->GetNode()->NodeDescriptor().GetDataCenter(),
-                allocation->GetNode()->GetInfinibandCluster()
-            };
+        auto& allocationToSubmitToStrategy = AddAllocationUpdateToSubmitToStrategy(
+            allocation,
+            operationState);
 
-            operationState->AllocationsToSubmitToStrategy.insert(allocation->GetId());
-        }
+        allocationToSubmitToStrategy.ResourceUsageUpdated = true;;
     }
 }
 
@@ -2235,7 +2259,7 @@ void TNodeShard::SubmitAllocationsToStrategy()
                 EraseOrCrash(AllocationsToSubmitToStrategy_, allocationId);
             }
         }
-        SubmitToStrategyAllocationCount_.store(AllocationsToSubmitToStrategy_.size());
+        SubmitToStrategyAllocationCount_.store(size(AllocationsToSubmitToStrategy_));
     }
 }
 
@@ -2420,17 +2444,11 @@ void TNodeShard::UnregisterAllocation(const TAllocationPtr& allocation, bool cau
     --ActiveAllocationCount_;
 
     if (operationState && operationState->Allocations.erase(allocationId)) {
-        AllocationsToSubmitToStrategy_[allocationId] =
-            TAllocationUpdate{
-                EAllocationUpdateStatus::Finished,
-                allocation->GetOperationId(),
-                allocationId,
-                allocation->GetTreeId(),
-                TJobResources(),
-                allocation->GetNode()->NodeDescriptor().GetDataCenter(),
-                allocation->GetNode()->GetInfinibandCluster(),
-            };
-        operationState->AllocationsToSubmitToStrategy.insert(allocationId);
+        auto& allocationToSubmitToStrategy = AddAllocationUpdateToSubmitToStrategy(
+            allocation,
+            operationState);
+
+        allocationToSubmitToStrategy.Finished = true;
 
         YT_LOG_DEBUG_IF(
             !causedByRevival,

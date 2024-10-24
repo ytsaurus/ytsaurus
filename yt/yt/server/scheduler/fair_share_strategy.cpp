@@ -1020,21 +1020,16 @@ public:
         for (const auto& [treeId, treeAllocationUpdates] : allocationUpdatesPerTree) {
             auto it = idToTree.find(treeId);
             if (it == idToTree.end()) {
-                for (const auto& allocationUpdate : treeAllocationUpdates) {
-                    switch (allocationUpdate.Status) {
-                        case EAllocationUpdateStatus::Running:
-                            // Allocation is orphaned (does not belong to any tree), aborting it.
-                            EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, EAbortReason::NonexistentPoolTree);
-                            break;
-                        case EAllocationUpdateStatus::Finished:
-                            // Allocation is finished but tree does not exist, nothing to do.
-                            YT_LOG_DEBUG(
-                                "Dropping allocation update since pool tree is missing (OperationId: %v, AllocationId: %v)",
-                                allocationUpdate.OperationId,
-                                allocationUpdate.AllocationId);
-                            break;
-                        default:
-                            YT_ABORT();
+                for (const auto& allocationUpdates : treeAllocationUpdates) {
+                    if (allocationUpdates.Finished) {
+                        // Allocation is finished but tree does not exist, nothing to do.
+                        YT_LOG_DEBUG(
+                            "Dropping allocation update since pool tree is missing (OperationId: %v, AllocationId: %v)",
+                            allocationUpdates.OperationId,
+                            allocationUpdates.AllocationId);
+                    } else {
+                        // Allocation is orphaned (does not belong to any tree), aborting it.
+                        EmplaceOrCrash(*allocationsToAbort, allocationUpdates.AllocationId, EAbortReason::NonexistentPoolTree);
                     }
                 }
 

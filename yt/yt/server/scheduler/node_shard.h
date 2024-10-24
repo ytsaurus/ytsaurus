@@ -29,6 +29,8 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
+#include <library/cpp/yt/misc/non_null_ptr.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -152,15 +154,15 @@ public:
         TIncarnationId incarnationId);
     void UnregisterAgent(TAgentId id);
 
-    struct TRunningAllocationTimeStatistics
+    struct TAllocationProgressInfo
     {
-        TInstant PreemptibleProgressStartTime;
+        TInstant ProgressStartTime;
     };
 
     struct TRunningAllocationStatisticsUpdate
     {
         TAllocationId AllocationId;
-        TRunningAllocationTimeStatistics TimeStatistics;
+        TAllocationProgressInfo ProgressInfo;
     };
     void UpdateRunningAllocationsStatistics(const std::vector<TRunningAllocationStatisticsUpdate>& updates);
 
@@ -415,7 +417,11 @@ private:
 
     TJobResources GetMinSpareResources() const;
 
-    void UpdateAllocationTimeStatisticsIfNeeded(const TAllocationPtr& allocation, TRunningAllocationTimeStatistics timeStatistics);
+    void UpdateAllocationPreemptibleProgressStartTime(const TAllocationPtr& allocation, TInstant newPreemptibleProgressStartTime);
+
+    TAllocationUpdate& AddAllocationUpdateToSubmitToStrategy(
+        const TAllocationPtr& allocation,
+        TNonNullPtr<TOperationState> operationState);
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeShard)

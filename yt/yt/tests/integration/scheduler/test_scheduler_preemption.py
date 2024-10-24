@@ -9,7 +9,7 @@ from yt_commands import (
     authors, print_debug, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
     events_on_fs, reset_events_on_fs,
     create, ls, get, set, remove, exists, create_pool, read_table, write_table,
-    map, run_test_vanilla, run_sleeping_vanilla, get_job,
+    map, run_test_vanilla, run_sleeping_vanilla, get_job, update_nodes_dynamic_config,
     sync_create_cells, update_controller_agent_config, update_pool_tree_config, update_pool_tree_config_option,
     update_scheduler_config, update_op_parameters, create_test_tables, retry, create_domestic_medium,
     disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node, get_allocation_id_from_job_id)
@@ -691,6 +691,172 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         wait(lambda: get(scheduler_orchid_operation_path(op2.id) + "/effective_fair_share_starvation_tolerance", default=None) == 0.8)
         wait(lambda: get(scheduler_orchid_operation_path(op2.id) + "/effective_fair_share_starvation_timeout", default=None) == 2000)
+
+
+class TestPreemptibleProgressUpdate(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 20,
+            "min_spare_job_resources_on_node": {
+                "cpu": 0,
+                "user_slots": 0,
+                "memory": 0,
+                "gpu": 0,
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 3,
+                "user_slots": 3,
+            },
+        },
+        "resource_limits_update_period": 1,
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+            },
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestPreemptibleProgressUpdate, self).setup_method(method)
+
+        update_pool_tree_config("default", {
+            "preemption_satisfaction_threshold": 0.99,
+            "aggressive_preemption_satisfaction_threshold": 0.4,
+            "fair_share_starvation_tolerance": 0.9,
+            "fair_share_starvation_timeout": 100,
+            "fair_share_aggressive_starvation_timeout": 200,
+            "non_preemptible_resource_usage_threshold": {"user_slots": 0},
+            "preemptive_scheduling_backoff": 0,
+            "allocation_graceful_preemption_timeout": 10000,
+        })
+
+    def _wait_single_job_and_get_it_id(self, breakpoint_name):
+        job_ids = wait_breakpoint(breakpoint_name=breakpoint_name)
+        assert len(job_ids) == 1
+        return job_ids[0]
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("several_jobs_in_allocation", [False, True])
+    def test_allocation_preemption(self, several_jobs_in_allocation):
+        update_scheduler_config("nodes_attributes_update_period", 20)
+
+        update_pool_tree_config("default", {
+            "allocation_graceful_preemption_timeout": 10,
+            "allocation_preemption_timeout": 100,
+            "main_resource": "user_slots",
+        })
+
+        set("//sys/pool_trees/default/@config/waiting_job_timeout", 10000)
+
+        total_user_slots = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/user_slots")
+        create_pool("test_pool", attributes={"strong_guarantee_resources": {"user_slots": total_user_slots}, "enable_aggressive_starvation": True})
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        set("//tmp/t_in" + "/@replication_factor", 1)
+        set("//tmp/t_out" + "/@replication_factor", 1)
+
+        write_table("//tmp/t_in", [{"foo": "bar"}] * 6)
+
+        update_nodes_dynamic_config({"resource_limits": {"overrides": {"cpu": 1}}})
+
+        (node, ) = ls("//sys/scheduler/orchid/scheduler/nodes")
+
+        wait(lambda: get(f"//sys/scheduler/orchid/scheduler/nodes/{node}/resource_limits")["cpu"] == 1.)
+
+        map_op = map(
+            wait_for_jobs=True,
+            track=False,
+            command=with_breakpoint("BREAKPOINT ; cat", breakpoint_name="map"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"pool": "fake_pool", "data_size_per_job": 1},
+        )
+
+        for i in range(1, 4):
+            update_nodes_dynamic_config({"resource_limits": {"overrides": {"cpu": i}}})
+
+            map_job_ids = wait_breakpoint(breakpoint_name="map", job_count=i)
+            assert len(map_job_ids) == i
+
+            time.sleep(0.5)
+
+        map_job_ids_1 = wait_breakpoint(breakpoint_name="map", job_count=3)
+
+        def get_allocation_info(job_id):
+            allocation_id = get_allocation_id_from_job_id(job_id)
+            wait(lambda: exists(f"//sys/scheduler/orchid/scheduler/allocations/{allocation_id}"))
+
+            allocation_info = get(f"//sys/scheduler/orchid/scheduler/allocations/{allocation_id}")
+            allocation_info.update({"job_id": job_id})
+
+            return allocation_info
+
+        map_allocation_infos = [
+            get_allocation_info(job_id)
+            for job_id in map_job_ids_1
+        ]
+
+        sorted_map_allocation_infos = sorted(map_allocation_infos, key=lambda x: x["preemptible_progress_start_time"])
+
+        print_debug("Sorted map_allocation_infos is ", sorted_map_allocation_infos)
+
+        if several_jobs_in_allocation:
+            first_allocation_info = sorted_map_allocation_infos[0]
+            job_to_release = first_allocation_info["job_id"]
+
+            release_breakpoint(job_id=job_to_release, breakpoint_name="map")
+
+            map_job_ids_2 = wait_breakpoint(breakpoint_name="map", job_count=3)
+
+            first_map_allocation_infos = {*[get_allocation_id_from_job_id(job_id) for job_id in map_job_ids_1]}
+            second_map_allocation_infos = {*[get_allocation_id_from_job_id(job_id) for job_id in map_job_ids_2]}
+
+            assert first_map_allocation_infos == second_map_allocation_infos
+
+        vanilla_op = run_test_vanilla(with_breakpoint("BREAKPOINT", breakpoint_name="vanilla"), spec={"pool": "test_pool"})
+
+        wait(lambda: map_op.get_job_count("aborted") == 1)
+
+        vanilla_jobs = wait_breakpoint(breakpoint_name="vanilla")
+        assert len(vanilla_jobs) == 1
+
+        allocation_expected_to_be_preempted = sorted_map_allocation_infos[0] if several_jobs_in_allocation else sorted_map_allocation_infos[-1]
+
+        print_debug("Allocation expected to be preempted is ", allocation_expected_to_be_preempted)
+
+        def check_allocation_preempted():
+            map_allocation_infos_after_preemption = {
+                get_allocation_id_from_job_id(job_id): get_allocation_info(job_id)
+                for job_id in map_job_ids_1
+            }
+
+            return not map_allocation_infos_after_preemption[get_allocation_id_from_job_id(allocation_expected_to_be_preempted["job_id"])]["running"]
+
+        wait(lambda: check_allocation_preempted())
+
+        vanilla_op.abort()
+
+        release_breakpoint(breakpoint_name="map")
+
+        map_op.track()
 
 
 class TestNonPreemptibleResourceUsageThreshold(YTEnvSetup):

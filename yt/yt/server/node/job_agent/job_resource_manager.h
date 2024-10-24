@@ -71,8 +71,8 @@ public:
     virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
 
     virtual void OnDynamicConfigChanged(
-        const TJobResourceManagerDynamicConfigPtr& oldConfig,
-        const TJobResourceManagerDynamicConfigPtr& newConfig) = 0;
+        const NClusterNode::TClusterNodeDynamicConfigPtr& oldConfig,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) = 0;
 
     static TJobResourceManagerPtr CreateJobResourceManager(NClusterNode::IBootstrapBase* bootstrap);
 

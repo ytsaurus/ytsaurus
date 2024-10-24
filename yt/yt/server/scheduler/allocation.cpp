@@ -64,7 +64,7 @@ NLogging::TLogger TAllocation::CreateLogger()
         Node_ ? Node_->GetDefaultAddress() : "<unknown>");
 }
 
-TDuration TAllocation::PreemptibleProgressTime() const
+TDuration TAllocation::GetPreemptibleProgressDuration() const
 {
     if (PreemptibleProgressStartTime_) {
         return TInstant::Now() - PreemptibleProgressStartTime_;

@@ -18,8 +18,12 @@ public:
         int updatePreemptibleAllocationsListLoggingPeriod,
         const NLogging::TLogger& logger);
 
-    // Returns resources delta if operation is enabled and std::nullopt otherwise.
-    std::optional<TJobResources> SetAllocationResourceUsage(TAllocationId allocationId, const TJobResources& resources);
+    // Returns true if operation is enabled and false otherwise.
+    bool ProcessAllocationUpdate(
+        TSchedulerOperationElement* operationElement,
+        TAllocationId allocationId,
+        const TJobResources& resources,
+        bool ResetAllocationPreemptibleProgress);
 
     TDiskQuota GetTotalDiskQuota() const;
 
@@ -33,7 +37,8 @@ public:
         TControllerEpoch scheduleAllocationEpoch,
         bool force = false);
     bool OnAllocationFinished(TSchedulerOperationElement* operationElement, TAllocationId allocationId);
-    void UpdatePreemptibleAllocationsList(const TSchedulerOperationElement* element);
+    void UpdatePreemptibleAllocationsList(
+        const TSchedulerOperationElement* element);
 
     bool GetPreemptible() const;
     void SetPreemptible(bool value);
@@ -155,13 +160,17 @@ private:
     void AddAllocation(TAllocationId allocationId, const TJobResourcesWithQuota& resourceUsage);
     std::optional<TJobResources> RemoveAllocation(TAllocationId allocationId);
 
-    TJobResources SetAllocationResourceUsage(TAllocationProperties* properties, const TJobResources& resources);
+    TJobResources SetAllocationResourceUsage(
+        TAllocationProperties* properties,
+        const TJobResources& resources);
 
     TAllocationProperties* GetAllocationProperties(TAllocationId allocationId);
     const TAllocationProperties* GetAllocationProperties(TAllocationId allocationId) const;
 
     // Collect up-to-date values from node shards local counters.
     void UpdateDiagnosticCounters();
+
+    void ResetAllocationPreemptibleProgress(TSchedulerOperationElement* operationElement, TAllocationId allocationId);
 };
 
 using TFairShareTreeAllocationSchedulerOperationSharedStatePtr = TIntrusivePtr<TFairShareTreeAllocationSchedulerOperationSharedState>;

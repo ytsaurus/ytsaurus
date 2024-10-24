@@ -1026,8 +1026,8 @@ public:
 
                                 runningAllocationStatisticsUpdates.push_back({
                                     .AllocationId = allocationId,
-                                    .TimeStatistics = {
-                                        .PreemptibleProgressStartTime = preemptibleProgressStartTime,
+                                    .ProgressInfo = {
+                                        .ProgressStartTime = preemptibleProgressStartTime,
                                     }});
                             }
 

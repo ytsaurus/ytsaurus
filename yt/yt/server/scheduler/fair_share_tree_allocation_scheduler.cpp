@@ -111,7 +111,7 @@ void SortAllocationsWithPreemptionInfo(std::vector<TAllocationWithPreemptionInfo
                 }
             }
 
-            return lhs.Allocation->GetStartTime() < rhs.Allocation->GetStartTime();
+            return lhs.Allocation->GetPreemptibleProgressStartTime() < rhs.Allocation->GetPreemptibleProgressStartTime();
         });
 }
 
@@ -1333,10 +1333,11 @@ void TScheduleAllocationsContext::PreemptAllocation(
     allocation->ResourceUsage() = TJobResources();
 
     const auto& operationSharedState = TreeSnapshot_->SchedulingSnapshot()->GetEnabledOperationSharedState(element);
-    if (auto delta = operationSharedState->SetAllocationResourceUsage(allocation->GetId(), TJobResources())) {
-        element->IncreaseHierarchicalResourceUsage(*delta);
-        operationSharedState->UpdatePreemptibleAllocationsList(element);
-    }
+    operationSharedState->ProcessAllocationUpdate(
+        element,
+        allocation->GetId(),
+        TJobResources(),
+        /*resetPreemptibleProgress*/ false);
 
     SchedulingContext_->PreemptAllocation(allocation, treeConfig->AllocationPreemptionTimeout, preemptionReason);
 }
@@ -2794,11 +2795,12 @@ void TFairShareTreeAllocationScheduler::RegisterAllocationsFromRevivedOperation(
     }
 }
 
-bool TFairShareTreeAllocationScheduler::ProcessUpdatedAllocation(
+bool TFairShareTreeAllocationScheduler::ProcessAllocationUpdate(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
     TSchedulerOperationElement* element,
     TAllocationId allocationId,
     const TJobResources& allocationResources,
+    bool resetPreemptibleProgress,
     const std::optional<std::string>& allocationDataCenter,
     const std::optional<std::string>& allocationInfinibandCluster,
     std::optional<EAbortReason>* maybeAbortReason) const
@@ -2806,14 +2808,15 @@ bool TFairShareTreeAllocationScheduler::ProcessUpdatedAllocation(
     const auto& operationState = treeSnapshot->SchedulingSnapshot()->GetEnabledOperationState(element);
     const auto& operationSharedState = treeSnapshot->SchedulingSnapshot()->GetEnabledOperationSharedState(element);
 
-    auto delta = operationSharedState->SetAllocationResourceUsage(allocationId, allocationResources);
-    if (!delta) {
+    if (!operationSharedState->ProcessAllocationUpdate(
+        element,
+        allocationId,
+        allocationResources,
+        resetPreemptibleProgress))
+    {
         // Operation is disabled.
         return false;
     }
-
-    element->IncreaseHierarchicalResourceUsage(*delta);
-    operationSharedState->UpdatePreemptibleAllocationsList(element);
 
     const auto& operationSchedulingSegment = operationState->SchedulingSegment;
     if (operationSchedulingSegment && IsModuleAwareSchedulingSegment(*operationSchedulingSegment)) {
@@ -3236,16 +3239,17 @@ void TFairShareTreeAllocationScheduler::OnAllocationStartedInTest(
         /*scheduleAllocationEpoch*/ TControllerEpoch(0));
 }
 
-void TFairShareTreeAllocationScheduler::ProcessUpdatedAllocationInTest(
+void TFairShareTreeAllocationScheduler::ProcessAllocationUpdateInTest(
     TSchedulerOperationElement* element,
     TAllocationId allocationId,
     const TJobResources& allocationResources)
 {
     const auto& operationSharedState = GetOperationSharedState(element->GetOperationId());
-    auto delta = operationSharedState->SetAllocationResourceUsage(allocationId, allocationResources);
-    YT_VERIFY(delta);
-    element->IncreaseHierarchicalResourceUsage(*delta);
-    operationSharedState->UpdatePreemptibleAllocationsList(element);
+    YT_VERIFY(operationSharedState->ProcessAllocationUpdate(
+        element,
+        allocationId,
+        allocationResources,
+        /*resetPreemptibleProgress*/ false));
 }
 
 EAllocationPreemptionStatus TFairShareTreeAllocationScheduler::GetAllocationPreemptionStatusInTest(

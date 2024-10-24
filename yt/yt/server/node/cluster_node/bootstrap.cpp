@@ -1447,8 +1447,8 @@ private:
         ReconfigureCaches(bundleConfig, newConfig);
 
         JobResourceManager_->OnDynamicConfigChanged(
-            oldConfig->JobResourceManager,
-            newConfig->JobResourceManager);
+            oldConfig,
+            newConfig);
 
         auto newChunkReplicaCacheConfig = CloneYsonStruct(Config_->ClusterConnection->Dynamic->ChunkReplicaCache);
         if (const auto& newExpirationTime = newConfig->ChunkReplicaCacheConfig->ExpirationTime; newExpirationTime) {
