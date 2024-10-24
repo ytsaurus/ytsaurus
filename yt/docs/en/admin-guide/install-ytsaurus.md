@@ -15,7 +15,9 @@ metadata:
     - property: 'article:modified_time'
       content: '2024-10-18T20:00:00+03:00'
     - property: 'article:author'
-      content: 'Nadezhda Savchenko, Maxim Efremov'
+      content: 'Nadezhda Savchenko'
+    - property: 'article:author'
+      content: 'Maxim Efremov'
 ---
 
 {% include [Installating YTsaurus](../_includes/admin-guide/install-ytsaurus.md) %}

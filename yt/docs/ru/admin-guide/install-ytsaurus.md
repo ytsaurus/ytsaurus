@@ -13,7 +13,9 @@ metadata:
     - property: 'article:modified_time'
       content: '2024-10-24T20:00:00+03:00'
     - property: 'article:author'
-      content: 'Надежда Савченко, Максим Ефремов'
+      content: 'Надежда Савченко'
+    - property: 'article:author'
+      content: 'Максим Ефремов'
 ---
 
 {% include [Установка YTsaurus](../_includes/admin-guide/install-ytsaurus.md) %}
