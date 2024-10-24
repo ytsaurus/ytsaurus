@@ -286,7 +286,7 @@ public:
 
         const auto& nodeResourceManager = Bootstrap_->GetNodeResourceManager();
         result.Cpu = nodeResourceManager->GetJobsCpuLimit();
-        SetActualVcpu(result);
+        result.VCpu = static_cast<double>(NVectorHdrf::TCpuResource(result.Cpu * GetCpuToVCpuFactor()));
 
         return result;
     }
@@ -558,11 +558,11 @@ public:
         }
 
         YT_LOG_DEBUG(
-            "Resource holder registered (ResourceDemand: %v, PendingResources: %v, AcquiredResources: %v, ReleasingResources %v)",
-            resources,
-            pendingResources,
-            acquiredResources,
-            releasingResources);
+            "Resource holder registered (Resources: %v, PendingResources: %v, AcquiredResources: %v, ReleasingResources %v)",
+            FormatResources(resources),
+            FormatResources(pendingResources),
+            FormatResources(acquiredResources),
+            FormatResources(releasingResources));
     }
 
     bool TryReserveResources(const TLogger& Logger, const TJobResources& resources)
@@ -580,15 +580,13 @@ public:
             auto& acquiredUsage = ResourceUsages_[EResourcesState::Acquired];
             releasingResources = ResourceUsages_[EResourcesState::Releasing];
 
-            if (auto error = VerifyHasEnoughResources(resources, acquiredUsage + releasingResources, resourceLimits);
-                !error.IsOK()) {
+            if (!HasEnoughResources(resources, acquiredUsage + releasingResources, resourceLimits)) {
                 YT_LOG_DEBUG(
-                    error,
                     "Not enough resources (NeededResources: %v, ResourceUsage: %v, AcquiredResources: %v, ReleasingResources: %v)",
-                    resources,
+                    FormatResources(resources),
                     FormatResourceUsage(acquiredUsage + releasingResources, resourceLimits),
-                    acquiredUsage,
-                    releasingResources);
+                    FormatResources(acquiredUsage),
+                    FormatResources(releasingResources));
 
                 return false;
             }
@@ -604,10 +602,10 @@ public:
 
         YT_LOG_DEBUG(
             "Resources reserved (Resources: %v, PendingResources: %v, AcquiredResources: %v, ReleasingResources: %v)",
-            resources,
-            pendingResources,
-            acquiredResources,
-            releasingResources);
+            FormatResources(resources),
+            FormatResources(pendingResources),
+            FormatResources(acquiredResources),
+            FormatResources(releasingResources));
 
         return true;
     }
@@ -647,11 +645,11 @@ public:
         }
 
         YT_LOG_DEBUG(
-            "Resources acquisition failed (ResourceDemand: %v, PendingResources: %v, AcquiredResources: %v, ReleasingResources: %v)",
-            resources,
-            pendingResources,
-            acquiredResources,
-            releasingResources);
+            "Resources acquisition failed (Resources: %v, PendingResources: %v, AcquiredResources: %v, ReleasingResources: %v)",
+            FormatResources(resources),
+            FormatResources(pendingResources),
+            FormatResources(acquiredResources),
+            FormatResources(releasingResources));
 
         NotifyResourcesReleased();
     }
@@ -685,12 +683,11 @@ public:
         }
 
         YT_LOG_DEBUG(
-            "Preparing resources release (State: %v, ReleasedResources: %v, PendingResources: %v, AcquiredResources: %v, ReleasingResources: %v)",
+            "Preparing resources release (State: %v, PendingResources: %v, AcquiredResources: %v, ReleasingResources: %v)",
             observed,
-            resources,
-            pendingResources,
-            acquiredResources,
-            releasingResources);
+            FormatResources(pendingResources),
+            FormatResources(acquiredResources),
+            FormatResources(releasingResources));
     }
 
     bool AcquireResourcesFor(const TResourceHolderPtr& resourceHolder)
@@ -704,7 +701,7 @@ public:
 
         YT_LOG_DEBUG(
             "Trying to acquire resources (NeededResources: %v, PortCount: %v)",
-            neededResources,
+            FormatResources(neededResources),
             allocationAttributes.PortCount);
 
         ISlotPtr userSlot;
@@ -916,13 +913,13 @@ public:
 
         YT_LOG_DEBUG(
             "Resources released "
-            "(ResourceConsumerType: %v, ResourceHolderStarted: %v, ReleasedResources: %v, PendingResources: %v, AcquiredResources: %v, ReleasingResources: %v)",
+            "(ResourceConsumerType: %v, ResourceHolderStarted: %v, Delta: %v, PendingResources: %v, AcquiredResources: %v, ReleasingResources: %v)",
             resourcesConsumerType,
             resourceHolderStarted,
-            baseResources,
-            pendingResources,
-            acquiredResources,
-            releasingResources);
+            FormatResources(baseResources),
+            FormatResources(pendingResources),
+            FormatResources(acquiredResources),
+            FormatResources(releasingResources));
 
         NotifyResourcesReleased();
     }
@@ -982,11 +979,11 @@ public:
                 "(ResourcesConsumerType: %v, CurrentState: %v, Delta: %v, AcquiredResources: %v, ReleasingResources: %v, ResourceLimits: %v, PendingResourceUsage: %v)",
                 resourcesConsumerType,
                 state,
-                resourceDelta,
-                acquiredResources,
-                releasingResources,
-                resourceLimits,
-                pendingResources);
+                FormatResources(resourceDelta),
+                FormatResources(acquiredResources),
+                FormatResources(releasingResources),
+                FormatResources(resourceLimits),
+                FormatResources(pendingResources));
 
             ResourceUsageOverdraftOccurred_.Fire(MakeStrong(resourceHolder));
         } else {
@@ -995,11 +992,11 @@ public:
                 "(ResourcesConsumerType: %v, CurrentState: %v, Delta: %v, AcquiredResources: %v, ReleasingResources: %v, ResourceLimits: %v, PendingResourceUsage: %v)",
                 resourcesConsumerType,
                 state,
-                resourceDelta,
-                acquiredResources,
-                releasingResources,
-                resourceLimits,
-                pendingResources);
+                FormatResources(resourceDelta),
+                FormatResources(acquiredResources),
+                FormatResources(releasingResources),
+                FormatResources(resourceLimits),
+                FormatResources(pendingResources));
         }
 
         return resourceUsageOverdraftOccurred;
@@ -1352,7 +1349,7 @@ private:
     //! Takes special care with ReplicationDataSize and RepairDataSize enabling
     //! an arbitrary large overdraft for the
     //! first acquiring.
-    TError VerifyHasEnoughResources(
+    bool HasEnoughResources(
         const TJobResources& neededResources,
         const TJobResources& usedResources,
         const TJobResources& totalResources)
@@ -1368,7 +1365,7 @@ private:
         // JRM doesn't track disk resources
         // TODO(pogorelov): Add disk resources support
         spareResources.DiskSpaceRequest = InfiniteJobResources().DiskSpaceRequest;
-        return VerifyDominates(spareResources + TJobResources::Epsilon(), neededResources, "Not enough resources");
+        return Dominates(spareResources, neededResources);
     }
 
     friend class TResourceHolder;
@@ -1572,7 +1569,7 @@ TResourceHolder::~TResourceHolder()
         YT_LOG_DEBUG(
             "Destroying unreleased resource holder (State: %v, Resources: %v)",
             State_,
-            GetResourceUsage());
+            FormatResources(GetResourceUsage()));
 
         ReleaseBaseResources();
     }
@@ -1779,7 +1776,7 @@ void TResourceHolder::UpdateResourceDemand(
 
     YT_LOG_DEBUG(
         "Resource demand updated (NewRecourceDemand: %v, NewPortCount: %v)",
-        resources,
+        FormatResources(resources),
         allocationAttributes.PortCount);
 
     BaseResourceUsage_ = resources;
@@ -1886,7 +1883,7 @@ bool TResourceHolder::DoSetResourceUsage(
         "Setting resources to holder (CurrentState: %v, %v: %v)",
         State_,
         argumentName,
-        newResourceUsage);
+        FormatResources(newResourceUsage));
 
     auto stateFacade = State_;
     if (stateFacade == EResourcesState::Released) {

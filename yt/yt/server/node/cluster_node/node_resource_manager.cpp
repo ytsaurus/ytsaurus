@@ -59,13 +59,12 @@ TString FormatMemoryUsage(i64 memoryUsage)
     return Format("%v%vMB", prefix, memoryUsage / 1_MB);
 }
 
-void FormatResources(
-    TStringBuilderBase* builder,
+TString FormatResources(
     const TJobResources& usage,
     const TJobResources& limits)
 {
-    builder->AppendFormat(
-        "UserSlots: %v/%v, Cpu: %v/%v, VCpu: %v/%v, Gpu: %v/%v, UserMemory: %v/%v, SystemMemory: %v/%v, Network: %v/%v, "
+    return Format(
+        "UserSlots: %v/%v, Cpu: %v/%v, Gpu: %v/%v, UserMemory: %v/%v, SystemMemory: %v/%v, Network: %v/%v, "
         "ReplicationSlots: %v/%v, ReplicationDataSize: %v/%v, "
         "RemovalSlots: %v/%v, "
         "RepairSlots: %v/%v, RepairDataSize: %v/%v, "
@@ -78,9 +77,6 @@ void FormatResources(
         // Cpu
         usage.Cpu,
         limits.Cpu,
-        // VCpu
-        usage.VCpu,
-        limits.VCpu,
         // Gpu,
         usage.Gpu,
         limits.Gpu,
@@ -125,36 +121,18 @@ void FormatResources(
         limits.ReincarnationSlots);
 }
 
-TJobResources TJobResources::Epsilon()
-{
-    return TJobResources{
-        .Cpu = 0.01,
-        .VCpu = 0.01,
-    };
-}
-
 TString FormatResourceUsage(
     const TJobResources& usage,
     const TJobResources& limits)
 {
-    TStringBuilder builder;
-
-    builder.Preallocate(128);
-
-    builder.AppendChar('{');
-
-    FormatResources(&builder, usage, limits);
-
-    builder.AppendChar('}');
-
-    return builder.Flush();
+    return Format("{%v}", FormatResources(usage, limits));
 }
 
-void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TStringBuf /*format*/)
+TString FormatResources(const TJobResources& resources)
 {
-    builder->AppendFormat(
+    return Format(
         "{"
-        "UserSlots: %v, Cpu: %v, VCpu: %v, Gpu: %v, UserMemory: %v, SystemMemory: %v, Network: %v, "
+        "UserSlots: %v, Cpu: %v, Gpu: %v, UserMemory: %v, SystemMemory: %v, Network: %v, "
         "ReplicationSlots: %v, ReplicationDataSize: %v, "
         "RemovalSlots: %v, "
         "RepairSlots: %v, RepairDataSize: %v, "
@@ -165,7 +143,6 @@ void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TS
         "}",
         resources.UserSlots,
         resources.Cpu,
-        resources.VCpu,
         resources.Gpu,
         FormatMemoryUsage(resources.UserMemory),
         FormatMemoryUsage(resources.SystemMemory),
@@ -351,21 +328,6 @@ bool Dominates(const TJobResources& lhs, const TJobResources& rhs)
         ITERATE_JOB_RESOURCE_FIELDS(XX)
         #undef XX
         true;
-}
-
-TError VerifyDominates(const TJobResources& lhs, const TJobResources& rhs, TStringBuf failMessage)
-{
-    #define XX(name, Name) if (lhs.Name < rhs.Name) { \
-            return TError(TRuntimeFormat(failMessage)) \
-                << TErrorAttribute("resource_name", PP_STRINGIZE(name)) \
-                << TErrorAttribute("value", lhs.Name) \
-                << TErrorAttribute("expected_ge_to", rhs.Name); \
-        }
-
-    ITERATE_JOB_RESOURCE_FIELDS(XX)
-    #undef XX
-
-    return {};
 }
 
 TJobResources Max(const TJobResources& a, const TJobResources& b)

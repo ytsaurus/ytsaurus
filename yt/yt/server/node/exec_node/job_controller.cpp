@@ -907,7 +907,7 @@ private:
                 NExecNode::EErrorCode::ResourceOverdraft,
                 "Resource usage overdraft occurred")
                 // GetResourceUsage can be updated again, but it is pretty rare situation.
-                << TErrorAttribute("resource_usage", currentAllocation->GetResourceUsage()));
+                << TErrorAttribute("resource_usage", FormatResources(currentAllocation->GetResourceUsage())));
         } else {
             bool foundJobToAbort = false;
             for (const auto& [_, allocation] : IdToAllocations_) {
@@ -917,7 +917,7 @@ private:
                     allocation->Abort(TError(
                         NExecNode::EErrorCode::ResourceOverdraft,
                         "Some other allocation with guarantee overdraft total node resource usage")
-                        << TErrorAttribute("resource_usage", job->GetResourceUsage())
+                        << TErrorAttribute("resource_usage", FormatResources(job->GetResourceUsage()))
                         << TErrorAttribute("other_allocation_id", currentAllocationId));
                     foundJobToAbort = true;
                     break;
@@ -1779,7 +1779,7 @@ private:
             NJobAgent::EResourcesState::Acquired,
             NJobAgent::EResourcesState::Releasing,
         });
-        auto limits = JobResourceManager_->GetResourceLimits() + NClusterNode::TJobResources::Epsilon();
+        auto limits = JobResourceManager_->GetResourceLimits();
 
         bool preemptMemoryOverdraft = false;
         bool preemptCpuOverdraft = false;
