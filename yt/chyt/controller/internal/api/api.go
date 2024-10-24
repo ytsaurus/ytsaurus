@@ -104,26 +104,30 @@ func findPoolPath(poolsNode map[string]any, pool string) string {
 	return ""
 }
 
-func (a *API) CheckPermissionToPool(ctx context.Context, pool string, permission yt.Permission) error {
-	user, err := getUser(ctx)
-	if err != nil {
-		a.l.Error("failed to get user", log.Error(err))
-		return err
-	}
+func (a *API) checkPermissionToPoolForPoolTree(ctx context.Context, poolTree string, pool string, user string, permission yt.Permission) error {
+	poolTreePath := ypath.Path("//sys/pool_trees").Child(poolTree)
 
 	var poolsNode map[string]any
-	err = a.Ytc.GetNode(ctx, ypath.Path("//sys/pools"), &poolsNode, nil)
+	err := a.Ytc.GetNode(ctx, poolTreePath, &poolsNode, nil)
 	if err != nil {
-		return err
+		if yterrors.ContainsResolveError(err) {
+			return yterrors.Err(
+				err,
+				fmt.Sprintf("pool_tree %v does not exist", poolTree),
+				yterrors.Attr("pool_tree", poolTree))
+		} else {
+			return err
+		}
 	}
 
 	poolSubPath := findPoolPath(poolsNode, pool)
 	if poolSubPath == "" {
 		return yterrors.Err(
-			fmt.Sprintf("pool %v does not exist", pool),
-			yterrors.Attr("pool", pool))
+			fmt.Sprintf("pool %v in pool_tree %v does not exist", pool, poolTree),
+			yterrors.Attr("pool", pool),
+			yterrors.Attr("pool_tree", poolTree))
 	}
-	poolPath := ypath.Path("//sys/pools").Child(poolSubPath)
+	poolPath := poolTreePath.Child(poolSubPath)
 
 	response, err := a.Ytc.CheckPermission(ctx, user, permission, poolPath, nil)
 	if err != nil {
@@ -132,9 +136,10 @@ func (a *API) CheckPermissionToPool(ctx context.Context, pool string, permission
 
 	if response.Action != yt.ActionAllow {
 		return yterrors.Err(
-			fmt.Sprintf("%v permission to pool %v denied for user %v", permission, pool, user),
+			fmt.Sprintf("%v permission to pool %v in pool_tree %v denied for user %v", permission, pool, poolTree, user),
 			yterrors.CodeAuthorizationError,
 			yterrors.Attr("pool", pool),
+			yterrors.Attr("pool_tree", poolTree),
 			yterrors.Attr("permission", permission),
 			yterrors.Attr("user", user))
 	}
@@ -146,30 +151,80 @@ func (a *API) CheckPermissionToPool(ctx context.Context, pool string, permission
 		}
 		if response.Action != yt.ActionAllow {
 			return yterrors.Err(
-				fmt.Sprintf("use permission to pool %v denied for system user %v; "+
+				fmt.Sprintf("use permission to pool %v in pool_tree %v denied for system user %v; "+
 					"in order to use the pool in the controller, you need to grant use permission to our system user %v",
 					pool,
+					poolTree,
 					a.cfg.RobotUsername,
 					a.cfg.RobotUsername),
 				yterrors.Attr("pool", pool),
+				yterrors.Attr("pool_tree", poolTree),
 				yterrors.Attr("permission", permission),
 				yterrors.Attr("user", a.cfg.RobotUsername))
+		}
+	}
+	return nil
+}
+
+func (a *API) CheckPermissionToPool(ctx context.Context, poolTrees []string, pool string, permission yt.Permission) error {
+	user, err := getUser(ctx)
+	if err != nil {
+		a.l.Error("failed to get user", log.Error(err))
+		return err
+	}
+
+	var effectivePoolTrees []string
+	if len(poolTrees) == 0 {
+		var defaultPoolTree string
+		err = a.Ytc.GetNode(ctx, ypath.Path("//sys/pool_trees/@default_tree"), &defaultPoolTree, nil)
+		if err != nil {
+			return err
+		}
+		effectivePoolTrees = []string{defaultPoolTree}
+	} else {
+		effectivePoolTrees = poolTrees
+	}
+
+	for _, poolTree := range effectivePoolTrees {
+		if err = a.checkPermissionToPoolForPoolTree(ctx, poolTree, pool, user, permission); err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
-func (a *API) validatePoolOption(ctx context.Context, value any) error {
-	pool, ok := value.(string)
+func (a *API) validatePoolOption(ctx context.Context, poolValue any, poolTreesValue any) error {
+	pool, ok := poolValue.(string)
 	if !ok {
-		typeName := reflect.TypeOf(value).String()
+		typeName := reflect.TypeOf(poolValue).String()
 		return yterrors.Err(
 			fmt.Sprintf("pool option has unexpected value type %v", typeName),
 			yterrors.Attr("type", typeName))
 	}
+	var poolTrees []string
+	if poolTreesValue != nil {
+		poolTreeValues, ok := poolTreesValue.([]any)
+		if !ok {
+			typeName := reflect.TypeOf(poolTreesValue).String()
+			return yterrors.Err(
+				fmt.Sprintf("pool_trees option has unexpected value type %v", typeName),
+				yterrors.Attr("type", typeName))
+		}
+		poolTrees = make([]string, len(poolTreeValues))
+		for _, poolTreeValue := range poolTreeValues {
+			poolTree, ok := poolTreeValue.(string)
+			if !ok {
+				typeName := reflect.TypeOf(poolTreeValue).String()
+				return yterrors.Err(
+					fmt.Sprintf("element of pool_trees option has unexpected value type %v", typeName),
+					yterrors.Attr("type", typeName))
+			}
+			poolTrees = append(poolTrees, poolTree)
+		}
+	}
 	if a.cfg.ValidatePoolAccessOrDefault() {
-		return a.CheckPermissionToPool(ctx, pool, yt.PermissionUse)
+		return a.CheckPermissionToPool(ctx, poolTrees, pool, yt.PermissionUse)
 	}
 	return nil
 
@@ -275,6 +330,7 @@ func (a *API) Create(
 	}
 
 	pool, poolIsSet := specletOptions["pool"]
+	poolTrees := specletOptions["pool_trees"]
 
 	if active, ok := specletOptions["active"]; ok {
 		if err := validateBool(active); err != nil {
@@ -286,7 +342,7 @@ func (a *API) Create(
 	}
 
 	if poolIsSet {
-		if err := a.validatePoolOption(ctx, pool); err != nil {
+		if err := a.validatePoolOption(ctx, pool, poolTrees); err != nil {
 			return err
 		}
 	}
@@ -455,13 +511,7 @@ func (a *API) GetBriefInfo(ctx context.Context, alias string) (strawberry.OpletB
 	return a.getOpletBriefInfoFromCypress(ctx, alias)
 }
 
-func (a *API) GetOption(ctx context.Context, alias, key string) (value any, err error) {
-	if err = a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
-		return
-	}
-	if err = a.CheckPermissionToOp(ctx, alias, yt.PermissionRead); err != nil {
-		return
-	}
+func (a *API) getOption(ctx context.Context, alias, key string) (value any, err error) {
 	err = a.Ytc.GetNode(
 		ctx,
 		a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "speclet", key),
@@ -470,22 +520,38 @@ func (a *API) GetOption(ctx context.Context, alias, key string) (value any, err 
 	return
 }
 
+func (a *API) GetOption(ctx context.Context, alias, key string) (value any, err error) {
+	if err = a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
+		return
+	}
+	if err = a.CheckPermissionToOp(ctx, alias, yt.PermissionRead); err != nil {
+		return
+	}
+	value, err = a.getOption(ctx, alias, key)
+	return
+}
+
 func (a *API) SetOption(ctx context.Context, alias, key string, value any) error {
+	// NB: pool and pool_trees options require validation.
+	if key == "pool" || key == "pool_trees" {
+		return a.EditOptions(ctx, alias, map[string]any{key: value}, nil)
+	}
+
 	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
 		return err
 	}
 	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
 		return err
 	}
-	if key == "pool" {
-		if err := a.validatePoolOption(ctx, value); err != nil {
-			return err
-		}
-	}
 	return a.Ytc.SetNode(ctx, a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "speclet", key), value, &yt.SetNodeOptions{Recursive: true, Force: true})
 }
 
 func (a *API) RemoveOption(ctx context.Context, alias, key string) error {
+	// NB: pool and pool_trees options require validation.
+	if key == "pool" || key == "pool_trees" {
+		return a.EditOptions(ctx, alias, nil, []string{key})
+	}
+
 	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
 		return err
 	}
@@ -608,7 +674,7 @@ func (a *API) SetSpeclet(ctx context.Context, alias string, speclet map[string]a
 	}
 
 	if pool, ok := speclet["pool"]; ok {
-		if err := a.validatePoolOption(ctx, pool); err != nil {
+		if err := a.validatePoolOption(ctx, pool, speclet["pool_trees"]); err != nil {
 			return err
 		}
 	}
@@ -670,12 +736,6 @@ func (a *API) EditOptions(
 		return nil
 	}
 
-	if pool, ok := optionsToSet["pool"]; ok {
-		if err := a.validatePoolOption(ctx, pool); err != nil {
-			return err
-		}
-	}
-
 	var node struct {
 		Speclet  map[string]any `yson:"value"`
 		Revision yt.Revision    `yson:"revision"`
@@ -686,18 +746,34 @@ func (a *API) EditOptions(
 		return err
 	}
 
+	speclet := node.Speclet
+
+	poolOptionsChanged := false
+
 	for _, key := range optionsToRemove {
-		delete(node.Speclet, key)
+		delete(speclet, key)
+		if key == "pool" || key == "pool_trees" {
+			poolOptionsChanged = true
+		}
 	}
 
 	for key, value := range optionsToSet {
-		node.Speclet[key] = value
+		speclet[key] = value
+		if key == "pool" || key == "pool_trees" {
+			poolOptionsChanged = true
+		}
+	}
+
+	if pool, ok := speclet["pool"]; ok && poolOptionsChanged {
+		if err := a.validatePoolOption(ctx, pool, speclet["pool_trees"]); err != nil {
+			return err
+		}
 	}
 
 	return a.Ytc.SetNode(
 		ctx,
 		specletPath,
-		node.Speclet,
+		speclet,
 		&yt.SetNodeOptions{
 			PrerequisiteOptions: &yt.PrerequisiteOptions{
 				Revisions: []yt.PrerequisiteRevision{

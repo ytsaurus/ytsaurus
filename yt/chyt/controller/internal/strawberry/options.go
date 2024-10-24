@@ -8,6 +8,7 @@ const (
 	TypeInt64     OptionType = "int64"
 	TypeYson      OptionType = "yson"
 	TypePath      OptionType = "path"
+	TypePoolTrees OptionType = "pool_trees"
 	TypePool      OptionType = "pool"
 	TypeByteCount OptionType = "byte_count"
 )
