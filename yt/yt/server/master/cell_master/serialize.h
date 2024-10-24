@@ -186,6 +186,7 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexUnfoldedColumnApi)                              (2746))  // sabdenovch
     ((Decimal256)                                                   (2747))  // achulkov2+ermolovd
     ((SequoiaSetActionLatePrapare)                                  (2748))  // danilalexeev
+    ((HunkStorageMulticell)                                         (2749))  // akozhikhov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

@@ -126,6 +126,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto enableStripedErasure = combinedAttributes->GetAndRemove<bool>("use_striped_erasure", false);
     auto replicationProgress = combinedAttributes->FindAndRemove<TReplicationProgress>("replication_progress");
     auto trimmedRowCounts = combinedAttributes->GetAndRemove<std::vector<i64>>("trimmed_row_counts", {});
+    auto hunkStorageId = combinedAttributes->FindAndRemove<TObjectId>("hunk_storage_id");
 
     ValidateReplicationFactor(replicationFactor);
 
@@ -325,6 +326,12 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
                 ScatterReplicationProgress(node, *replicationProgress);
             }
         }
+
+        if (hunkStorageId) {
+            const auto& objectManager = this->GetBootstrap()->GetObjectManager();
+            auto* object = objectManager->GetObjectOrThrow(*hunkStorageId);
+            node->ValidateAndSetHunkStorage(object);
+        }
     } catch (const std::exception&) {
         this->Zombify(node);
         this->Destroy(node);
@@ -365,7 +372,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoDestroy(TImpl* table)
     const auto& configManager = this->GetBootstrap()->GetConfigManager();
     const auto& config = configManager->GetConfig()->ObjectManager;
     if (config->ResetHunkStorageInTableDestroy) {
-        table->ResetHunkStorageNode();
+        table->ResetHunkStorage();
     }
 }
 
@@ -414,7 +421,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
         this->GetBootstrap()->GetTabletManager()->GetReplicatedTableDestroyedSignal()->Fire(table->GetId());
     }
 
-    table->ResetHunkStorageNode();
+    table->ResetHunkStorage();
 }
 
 template <class TImpl>
@@ -426,7 +433,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
     TTabletOwnerTypeHandler::DoBranch(originatingNode, branchedNode, lockRequest);
     TSchemafulNodeTypeHandler::DoBranch(originatingNode, branchedNode, lockRequest);
 
-    branchedNode->SetHunkStorageNode(originatingNode->GetHunkStorageNode());
+    branchedNode->SetHunkStorage(originatingNode->GetHunkStorage());
     branchedNode->SetOptimizeFor(originatingNode->GetOptimizeFor());
     branchedNode->SetHunkErasureCodec(originatingNode->GetHunkErasureCodec());
     branchedNode->SetProfilingMode(originatingNode->GetProfilingMode());
@@ -448,8 +455,8 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMerge(
 {
     bool isQueueObjectBefore = originatingNode->IsTrackedQueueObject();
 
-    originatingNode->SetHunkStorageNode(branchedNode->GetHunkStorageNode());
-    branchedNode->ResetHunkStorageNode();
+    originatingNode->SetHunkStorage(branchedNode->GetHunkStorage());
+    branchedNode->ResetHunkStorage();
 
     originatingNode->MergeOptimizeFor(branchedNode);
     originatingNode->MergeHunkErasureCodec(branchedNode);
@@ -487,7 +494,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     TSchemafulNodeTypeHandler::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
     TTabletOwnerTypeHandler::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
 
-    clonedTrunkNode->SetHunkStorageNode(sourceNode->GetHunkStorageNode());
+    clonedTrunkNode->SetHunkStorage(sourceNode->GetHunkStorage());
 
     clonedTrunkNode->SetOptimizeFor(sourceNode->GetOptimizeFor());
     if (auto optionalChunkFormat = sourceNode->TryGetChunkFormat()) {
@@ -533,9 +540,9 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
         }
     }
 
-    if (auto hunkStorageNode = node->GetHunkStorageNode()) {
+    if (auto* hunkStorage = node->GetHunkStorage()) {
         THROW_ERROR_EXCEPTION("Cannot cross-cell copy a table with hunk storage node %v",
-            hunkStorageNode->GetId());
+            hunkStorage->GetId());
     }
 
     using NYT::Save;

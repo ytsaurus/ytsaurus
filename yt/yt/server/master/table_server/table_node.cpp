@@ -104,7 +104,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, TreatAsQueueConsumer);
     Save(context, IsVitalConsumer);
     Save(context, *MountConfigStorage);
-    Save(context, HunkStorageNode);
+    Save(context, HunkStorage);
     Save(context, SecondaryIndices);
     Save(context, IndexTo);
     Save(context, TreatAsQueueProducer);
@@ -142,7 +142,7 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, TreatAsQueueConsumer);
     Load(context, IsVitalConsumer);
     Load(context, *MountConfigStorage);
-    Load(context, HunkStorageNode);
+    Load(context, HunkStorage);
 
     // COMPAT(sabdenovch)
     if (context.GetVersion() >= EMasterReign::SecondaryIndex) {
@@ -792,9 +792,9 @@ void TTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const
         }
     }
 
-    if (DynamicTableAttributes_ && DynamicTableAttributes_->HunkStorageNode) {
+    if (DynamicTableAttributes_ && DynamicTableAttributes_->HunkStorage) {
         auto id = GetVersionedId();
-        YT_VERIFY(DynamicTableAttributes_->HunkStorageNode->AssociatedNodeIds().contains(id));
+        YT_VERIFY(DynamicTableAttributes_->HunkStorage->AssociatedNodeIds().contains(id));
     }
 
     if (IsObjectAlive(this)) {
@@ -818,21 +818,47 @@ TMountConfigStorage* TTableNode::GetMutableMountConfigStorage()
     return DynamicTableAttributes_->MountConfigStorage.Get();
 }
 
-void TTableNode::ResetHunkStorageNode()
+void TTableNode::ResetHunkStorage()
 {
-    if (!DynamicTableAttributes_ || !DynamicTableAttributes_->HunkStorageNode) {
+    if (!DynamicTableAttributes_ || !DynamicTableAttributes_->HunkStorage) {
         return;
     }
 
     auto id = GetVersionedId();
-    EraseOrCrash(DynamicTableAttributes_->HunkStorageNode->AssociatedNodeIds(), id);
+    EraseOrCrash(DynamicTableAttributes_->HunkStorage->AssociatedNodeIds(), id);
 
-    DynamicTableAttributes_->HunkStorageNode.Reset();
+    DynamicTableAttributes_->HunkStorage.Reset();
 }
 
-void TTableNode::SetHunkStorageNode(THunkStorageNode* node)
+void TTableNode::ValidateAndSetHunkStorage(TObject* node)
 {
-    ResetHunkStorageNode();
+    if (!IsDynamic()) {
+        THROW_ERROR_EXCEPTION("Hunk storage can only be assigned to a dynamic table");
+    }
+
+    if (node->GetType() != EObjectType::HunkStorage) {
+        THROW_ERROR_EXCEPTION("Unexpected node type: expected %Qlv, got %Qlv",
+            EObjectType::HunkStorage,
+            node->GetType())
+            << TErrorAttribute("object_id", node->GetId());
+    }
+
+    auto* hunkStorage = node->As<THunkStorageNode>();
+
+    if (GetExternalCellTag() != hunkStorage->GetExternalCellTag()) {
+        THROW_ERROR_EXCEPTION("Table and its hunk storage must reside on the same external cell")
+            << TErrorAttribute("table_id", GetId())
+            << TErrorAttribute("table_external_cell_tag", GetExternalCellTag())
+            << TErrorAttribute("hunk_storage_id", hunkStorage->GetId())
+            << TErrorAttribute("hunk_storage_external_cell_tag", hunkStorage->GetExternalCellTag());
+    }
+
+    SetHunkStorage(hunkStorage);
+}
+
+void TTableNode::SetHunkStorage(THunkStorageNode* node)
+{
+    ResetHunkStorage();
 
     if (!node) {
         return;
@@ -840,16 +866,16 @@ void TTableNode::SetHunkStorageNode(THunkStorageNode* node)
 
     INITIALIZE_EXTRA_PROPERTY_HOLDER(DynamicTableAttributes);
 
-    THunkStorageNodePtr hunkStorageNodePtr(node);
-    DynamicTableAttributes_->HunkStorageNode = std::move(hunkStorageNodePtr);
+    THunkStorageNodePtr hunkStoragePtr(node);
+    DynamicTableAttributes_->HunkStorage = std::move(hunkStoragePtr);
     auto id = GetVersionedId();
-    InsertOrCrash(DynamicTableAttributes_->HunkStorageNode->AssociatedNodeIds(), id);
+    InsertOrCrash(DynamicTableAttributes_->HunkStorage->AssociatedNodeIds(), id);
 }
 
-THunkStorageNode* TTableNode::GetHunkStorageNode() const
+THunkStorageNode* TTableNode::GetHunkStorage() const
 {
     return DynamicTableAttributes_
-        ? DynamicTableAttributes_->HunkStorageNode.Get()
+        ? DynamicTableAttributes_->HunkStorage.Get()
         : nullptr;
 }
 

@@ -193,11 +193,12 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
         except WaitFailed:
             return True
 
-    def _create_hunk_storage(self, name):
-        create("hunk_storage", name, attributes={
-            "store_rotation_period": 10000,
-            "store_removal_grace_period": 10000,
-        })
+    def _create_hunk_storage(self, name, **attributes):
+        if "store_rotation_period" not in attributes:
+            attributes.update({"store_rotation_period": 10000})
+        if "store_removal_grace_period" not in attributes:
+            attributes.update({"store_removal_grace_period": 10000})
+        return create("hunk_storage", name, attributes=attributes)
 
     def _get_hunk_table_schema(self, schema, max_inline_hunk_size):
         new_schema = deepcopy(schema)
@@ -668,8 +669,12 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         )
 
         if use_hunks:
-            self._create_hunk_storage("//tmp/h")
-            set("//tmp/t/@hunk_storage_node", "//tmp/h")
+            if self.is_multicell():
+                external_cell_tag = get("//tmp/t/@external_cell_tag")
+                hunk_storage_id = self._create_hunk_storage("//tmp/h", external_cell_tag=external_cell_tag)
+            else:
+                hunk_storage_id = self._create_hunk_storage("//tmp/h")
+            set("//tmp/t/@hunk_storage_id", hunk_storage_id)
             sync_mount_table("//tmp/h")
 
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
@@ -720,8 +725,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             }
         )
 
-        # TODO(aleksandra-zh, gritukan): fix multicell
-        if use_hunks and not self.is_multicell():
+        if use_hunks:
             set("//sys/cluster_nodes/@config", {"%true": {
                 "tablet_node": {"hunk_lock_manager": {"hunk_store_extra_lifetime": 123, "unlock_check_period": 127}}
             }})
@@ -1118,8 +1122,12 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_replicated_table("//tmp/t", self.SIMPLE_SCHEMA_ORDERED)
 
         if use_hunks:
-            self._create_hunk_storage("//tmp/h")
-            set("//tmp/t/@hunk_storage_node", "//tmp/h")
+            if self.is_multicell():
+                external_cell_tag = get("//tmp/t/@external_cell_tag")
+                hunk_storage_id = self._create_hunk_storage("//tmp/h", external_cell_tag=external_cell_tag)
+            else:
+                hunk_storage_id = self._create_hunk_storage("//tmp/h")
+            set("//tmp/t/@hunk_storage_id", hunk_storage_id)
             sync_mount_table("//tmp/h")
 
         replica_id1 = create_table_replica(

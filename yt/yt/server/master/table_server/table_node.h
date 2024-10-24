@@ -88,7 +88,7 @@ private:
         bool IsVitalConsumer = false;
         bool TreatAsQueueProducer = false;
         NTabletServer::TMountConfigStoragePtr MountConfigStorage;
-        NTabletServer::THunkStorageNodePtr HunkStorageNode;
+        NTabletServer::THunkStorageNodePtr HunkStorage;
         THashSet<TSecondaryIndex*> SecondaryIndices;
         TSecondaryIndex* IndexTo = nullptr;
 
@@ -227,9 +227,10 @@ public:
     const NTabletServer::TMountConfigStorage* FindMountConfigStorage() const;
     NTabletServer::TMountConfigStorage* GetMutableMountConfigStorage();
 
-    void SetHunkStorageNode(NTabletServer::THunkStorageNode* node);
-    void ResetHunkStorageNode();
-    NTabletServer::THunkStorageNode* GetHunkStorageNode() const;
+    void ValidateAndSetHunkStorage(TObject* node);
+    void SetHunkStorage(NTabletServer::THunkStorageNode* node);
+    void ResetHunkStorage();
+    NTabletServer::THunkStorageNode* GetHunkStorage() const;
 
 private:
     NTransactionClient::TTimestamp CalculateRetainedTimestamp() const;

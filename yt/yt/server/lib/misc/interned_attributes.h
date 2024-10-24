@@ -249,7 +249,7 @@
     XX(HunkPrimaryMedium, hunk_primary_medium) \
     XX(HunkStatistics, hunk_statistics) \
     XX(HunkStoreWriter, hunk_store_writer) \
-    XX(HunkStorageNode, hunk_storage_node) \
+    XX(HunkStorageId, hunk_storage_id) \
     XX(HydraReadOnly, hydra_read_only) \
     XX(Id, id) \
     XX(Implicit, implicit) \
