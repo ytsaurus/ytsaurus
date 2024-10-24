@@ -2189,9 +2189,15 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                     case ESecondaryIndexKind::FullSync:
                         ValidateFullSyncIndexSchema(*schema, *indexTableSchema);
                         break;
+
                     case ESecondaryIndexKind::Unfolding:
                         FindUnfoldingColumnAndValidate(*schema, *indexTableSchema);
                         break;
+
+                    case ESecondaryIndexKind::Unique:
+                        ValidateUniqueIndexSchema(*schema, *indexTableSchema);
+                        break;
+
                     default:
                         YT_ABORT();
                 }
@@ -2204,9 +2210,15 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                     case ESecondaryIndexKind::FullSync:
                         ValidateFullSyncIndexSchema(*tableSchema, *schema);
                         break;
+
                     case ESecondaryIndexKind::Unfolding:
                         FindUnfoldingColumnAndValidate(*tableSchema, *schema);
                         break;
+
+                    case ESecondaryIndexKind::Unique:
+                        ValidateUniqueIndexSchema(*tableSchema, *schema);
+                        break;
+
                     default:
                         YT_ABORT();
                 }
