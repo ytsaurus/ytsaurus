@@ -2291,6 +2291,52 @@ class TestOffloadingPools(YTEnvSetup):
         release_breakpoint()
         op.track()
 
+    @authors("renadeen")
+    def test_schedule_in_single_tree_with_offloading(self):
+        create_pool(
+            "some_pool",
+            pool_tree="default",
+            attributes={
+                "offloading_settings": {
+                    "offload_tree": {}
+                }
+            })
+
+        create_custom_pool_tree_with_one_node("offload_tree")
+        create_pool("some_pool", pool_tree="offload_tree")
+
+        # Core was in operation materialization
+        op = run_test_vanilla(":", spec={"pool": "some_pool", "schedule_in_single_tree": True})
+        op.track()
+
+    @authors("renadeen")
+    def test_schedule_in_single_tree_with_offloading_when_main_tree_is_empty(self):
+        create_pool("some_pool", pool_tree="default")
+        create_pool_tree("main_tree", config={"nodes_filter": "empty"})
+
+        create_pool(
+            "some_pool",
+            pool_tree="main_tree",
+            attributes={
+                "offloading_settings": {
+                    "default": {}
+                }
+            })
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={
+            "pool_trees": ["main_tree"],
+            "pool": "some_pool",
+            "schedule_in_single_tree": True
+            })
+
+        offload_tree_op_path = scheduler_orchid_operation_path(op.id, "default")
+        wait(lambda: get(offload_tree_op_path + "/pool", default="") == "some_pool")
+
+        wait(lambda: not exists(scheduler_orchid_operation_path(op.id, "main_tree")))
+
+        release_breakpoint()
+        op.track()
+
 
 ##################################################################
 
