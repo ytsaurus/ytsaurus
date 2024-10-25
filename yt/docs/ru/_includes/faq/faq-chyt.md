@@ -70,17 +70,16 @@ yt mount-table //home/dev/test_table --sync
 Для проверки того, что таблица действительно изменила медиум можно воспользоваться командой:
 
 ```bash
-yt get //home/dev/test_table/@resource_usage
+$ yt get //home/dev/test_table/@chunk_media_statistics
 
 {
-    "tablet_count" = 0;
-    "disk_space_per_medium" = {
-        "ssd_blobs" = 930;
+    "ssd_blobs" = {
+        "chunk_count" = 2126;
+        "uncompressed_data_size" = 9667220402266;
+        "compressed_data_size" = 4954465956017;
+        "data_weight" = 10764306825793;
+        "max_block_size" = 6584787;
     };
-    "tablet_static_memory" = 0;
-    "disk_space" = 930;
-    "node_count" = 1;
-    "chunk_count" = 1;
 }
 ```
 
