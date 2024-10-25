@@ -1219,7 +1219,7 @@ TSharedRef TDecoratedAutomaton::SanitizeLocalHostName() const
 
     auto leaderAddress = GetEpochContext()->CellManager->GetClusterPeerAddress(GetEpochContext()->LeaderId);
     if (leaderAddress) {
-        auto sanitizedLocalHost = TString(GetServiceHostName(*leaderAddress));
+        auto sanitizedLocalHost = Format("?%v", GetServiceHostName(*leaderAddress));
         YT_LOG_INFO(
             "Local host name sanitized (LocalHost: %v, SanitizedLocalHost: %v)",
             localHost,

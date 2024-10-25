@@ -55,7 +55,7 @@ class TestResponseKeeper(YTEnvSetup):
         with raises_yt_error() as err:
             create("table", "//tmp/t")
 
-        assert err[0].inner_errors[0]["attributes"]["host"] == "localhost"
+        assert err[0].inner_errors[0]["attributes"]["host"] == "?localhost"
 
 
 class TestSequoiaResponseKeeper(YTEnvSetup):
