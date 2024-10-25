@@ -216,6 +216,24 @@ def build_heartbeats():
             )
     )
 
+def build_epoch_timings():
+    return (Rowset()
+        .stack(False)
+        .all("computation_id")
+        .row()
+            .cell(
+                "Epoch duration max time",
+                MonitoringExpr(FlowWorker("yt.flow.worker.computation.computation.epoch_time.max"))
+                    .all("host")
+                    .top()
+                    .unit("UNIT_SECONDS"))
+            .cell(
+                "Epoch count total",
+                MonitoringExpr(FlowWorker("yt.flow.worker.computation.computation.epoch.rate"))
+                    .aggr("host")
+                    .unit("UNIT_COUNT"))
+    )
+
 def build_pipeline():
     d = Dashboard()
     d.add(build_versions())
@@ -228,6 +246,7 @@ def build_pipeline():
     d.add(build_buffers())
     d.add(build_partition_store_commits())
     d.add(build_heartbeats())
+    d.add(build_epoch_timings())
 
     d.set_title("[YT Flow] Pipeline general")
     d.add_parameter("project", "Pipeline project", MonitoringTextDashboardParameter())
