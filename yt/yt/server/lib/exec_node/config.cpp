@@ -612,6 +612,12 @@ void TShellCommandConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTestingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("fail_address_resolve", &TThis::FailAddressResolve)
+        .Default(false);
+}
+
 void TJobCommonConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("node_directory_prepare_retry_count", &TThis::NodeDirectoryPrepareRetryCount)
@@ -661,6 +667,9 @@ void TJobCommonConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("virtual_sandbox_squash_fs_block_size", &TThis::VirtualSandboxSquashFSBlockSize)
         .Default(128_KB);
+
+    registrar.Parameter("testing", &TThis::Testing)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
