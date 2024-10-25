@@ -170,18 +170,16 @@ yt merge --mode auto --spec '{"force_transform"=true;}' --src //home/dev/test_ta
 Чтобы проверить, изменился ли медиум, в котором находится таблица, выполните команду.
 
 ```bash
-yt get //home/dev/test_table/@resource_usage
-```
-```
+$ yt get //home/dev/test_table/@chunk_media_statistics
+
 {
-    "tablet_count" = 0;
-    "disk_space_per_medium" = {
-        "ssd_blobs" = 930;
+    "ssd_blobs" = {
+        "chunk_count" = 2126;
+        "uncompressed_data_size" = 9667220402266;
+        "compressed_data_size" = 4954465956017;
+        "data_weight" = 10764306825793;
+        "max_block_size" = 6584787;
     };
-    "tablet_static_memory" = 0;
-    "disk_space" = 930;
-    "node_count" = 1;
-    "chunk_count" = 1;
 }
 ```
 Объем указан в байтах.
