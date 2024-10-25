@@ -289,14 +289,17 @@ struct TInExpression
 {
     TExpressionList Expr;
     TLiteralValueTupleList Values;
+    bool Simd = false;
 
     TInExpression(
         const TSourceLocation& sourceLocation,
         TExpressionList expression,
-        TLiteralValueTupleList values)
+        TLiteralValueTupleList values,
+        bool simd = false)
         : TExpression(sourceLocation)
         , Expr(std::move(expression))
         , Values(std::move(values))
+        , Simd(simd)
     { }
 };
 

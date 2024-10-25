@@ -1,0 +1,11 @@
+CompileFlags: 
+  Add:
+    - "--include-directory=/workspaces/ytsaurus"
+    - "--include-directory=/workspaces/ytsaurus/contrib/libs/llvm16/include"
+    - "-xc-header"
+    - "-xc++-header"
+    - "-xc++"
+    - "-xc"
+  CompilationDatabase: 
+    build/
+    

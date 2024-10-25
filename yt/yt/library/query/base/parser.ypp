@@ -95,6 +95,7 @@
 %token KwNull "keyword `NULL`"
 %token KwBetween "keyword `BETWEEN`"
 %token KwIn "keyword `IN`"
+%token KwInSimd "keyword `IN_SIMD`"
 %token KwTransform "keyword `TRANSFORM`"
 %token KwCaseBegin "keyword `CASE`"
 %token KwCaseWhen "keyword `WHEN`"
@@ -601,6 +602,10 @@ relational-op-expr
         {
             $$ = MakeExpression<TInExpression>(head, @$, $expr, $args);
         }
+    | additive-op-expr[expr] KwInSimd LeftParenthesis const-tuple-list[args] RightParenthesis
+        {
+            $$ = MakeExpression<TInExpression>(head, @$, $expr, $args, true);
+        }    
     | additive-op-expr[expr] KwNot KwIn LeftParenthesis const-tuple-list[args] RightParenthesis
         {
             $$ = MakeExpression<TUnaryOpExpression>(head, @$, EUnaryOp::Not,

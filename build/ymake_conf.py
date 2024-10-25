@@ -2075,6 +2075,7 @@ class MSVCCompiler(MSVC, Compiler):
                 flags.append('-m32')
             elif target.is_x86_64:
                 flags.append('-m64')
+                flags.append('-mavx2')
 
             c_warnings.extend((
                 '-Wno-format',

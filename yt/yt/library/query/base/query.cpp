@@ -141,10 +141,12 @@ TInExpression::TInExpression(EValueType type)
 
 TInExpression::TInExpression(
     std::vector<TConstExpressionPtr> arguments,
-    TSharedRange<TRow> values)
+    TSharedRange<TRow> values,
+    bool simd)
     : TExpression(EValueType::Boolean)
     , Arguments(std::move(arguments))
     , Values(std::move(values))
+    , Simd(simd)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

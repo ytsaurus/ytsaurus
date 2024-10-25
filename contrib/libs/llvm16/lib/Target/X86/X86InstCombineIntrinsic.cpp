@@ -1905,7 +1905,7 @@ std::optional<Value *> X86TTIImpl::simplifyDemandedVectorEltsIntrinsic(
       UndefElts.clearBit(0);
     break;
 
-  // TODO: Add fmaddsub support?
+  // TODO: Add fmaddsub sufpport?
   case Intrinsic::x86_sse3_addsub_pd:
   case Intrinsic::x86_sse3_addsub_ps:
   case Intrinsic::x86_avx_addsub_pd_256:

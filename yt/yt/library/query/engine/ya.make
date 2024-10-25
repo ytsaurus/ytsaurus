@@ -45,13 +45,14 @@ ADDINCL(
 )
 
 CFLAGS(
+    -mavx2
     -DWASM_C_API=WAVM_API
     -DWAVM_API=
 )
 
 PEERDIR(
     yt/yt/core
-    yt/yt/library/codegen
+    yt/yt/library/codegen   
     yt/yt/library/web_assembly/api
     yt/yt/library/web_assembly/engine
     yt/yt/library/query/base

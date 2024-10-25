@@ -213,6 +213,7 @@ void ScanOpHelper(
     TUnversionedRowsConsumer consumeRowsFunction,
     TRowSchemaInformation* rowSchemaInformation)
 {
+    std::cout << "ricnorr, ScanOpHelper" << std::endl;
     auto consumeRows = PrepareFunction(consumeRowsFunction);
 
     auto finalLogger = Finally([&] {

@@ -151,12 +151,13 @@ struct TInExpression
 {
     std::vector<TConstExpressionPtr> Arguments;
     TSharedRange<TRow> Values;
-
+    bool Simd = false;
     explicit TInExpression(EValueType type);
 
     TInExpression(
         std::vector<TConstExpressionPtr> arguments,
-        TSharedRange<TRow> values);
+        TSharedRange<TRow> values,
+        bool simd = false);
 };
 
 struct TBetweenExpression

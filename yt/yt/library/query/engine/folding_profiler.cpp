@@ -2350,6 +2350,7 @@ void TQueryProfiler::Profile(
     const TConstFrontQueryPtr& query,
     size_t* slotCount)
 {
+    std::cout << "ricnorr, fill codegenSource" << std::endl;
     Fold(ExecutionBackend_);
     Fold(EFoldingObjectType::ScanOp);
 

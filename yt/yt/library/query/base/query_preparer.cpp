@@ -2298,7 +2298,7 @@ TUntypedExpression TBuilderCtx::OnInOp(
     }
 
     auto capturedRows = LiteralTupleListToRows(inExpr->Values, argTypes, source);
-    auto result = New<TInExpression>(std::move(typedArguments), std::move(capturedRows));
+    auto result = New<TInExpression>(std::move(typedArguments), std::move(capturedRows), inExpr->Simd);
 
     TTypeSet resultTypes({EValueType::Boolean});
     TExpressionGenerator generator = [result] (EValueType /*type*/) mutable {
