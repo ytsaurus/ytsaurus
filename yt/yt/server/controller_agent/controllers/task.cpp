@@ -524,6 +524,11 @@ NScheduler::TAllocationStartDescriptor TTask::CreateAllocationStartDescriptor(
     return startDescriptor;
 }
 
+void TTask::ResetJobIndexGenerator()
+{
+    TaskJobIndexGenerator_.Reset();
+}
+
 void TTask::CheckAndProcessOperationCompletedInScheduleJob()
 {
     if (TaskHost_->IsCompleted()) {

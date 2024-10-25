@@ -28,6 +28,7 @@ using namespace NYTree;
 using namespace NTableClient;
 using namespace NYPath;
 using namespace NYson;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -206,6 +207,8 @@ public:
 
     void TrySwitchToNewOperationIncarnation(const TJobletPtr& joblet, bool operationIsReviving);
 
+    void OnOperationIncarnationChanged(bool operationIsReviving);
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaController, 0x99fa99ae);
 
@@ -276,7 +279,7 @@ void TGangManager::TrySwitchToNewIncarnation(bool operationIsReviving)
         oldIncarnation,
         Incarnation_);
 
-    VanillaOperationController_->RestartAllRunningJobsPreservingAllocations(operationIsReviving);
+    VanillaOperationController_->OnOperationIncarnationChanged(operationIsReviving);
 }
 
 void TGangManager::TrySwitchToNewIncarnation(const TString& consideredIncarnation, bool operationIsReviving)
@@ -759,6 +762,21 @@ void TVanillaController::TrySwitchToNewOperationIncarnation(const TJobletPtr& jo
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
     GangManager_.TrySwitchToNewIncarnation(joblet->OperationIncarnation, operationIsReviving);
+}
+
+void TVanillaController::OnOperationIncarnationChanged(bool operationIsReviving)
+{
+    VERIFY_INVOKER_POOL_AFFINITY(InvokerPool);
+
+    TForbidContextSwitchGuard guard;
+
+    ResetJobIndexGenerator();
+
+    for (const auto& task : Tasks_) {
+        task->ResetJobIndexGenerator();
+    }
+
+    RestartAllRunningJobsPreservingAllocations(operationIsReviving);
 }
 
 void TVanillaController::ValidateOperationLimits()
