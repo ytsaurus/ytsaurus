@@ -220,3 +220,39 @@ class TestJobProxyCallFailed(YTEnvSetup):
         })
 
         op.track()
+
+
+class TestNodeAddressResolveFailed(YTEnvSetup):
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "testing": {
+                            "fail_address_resolve": True,
+                        },
+                    },
+                },
+            },
+        },
+    }
+
+    @authors("pogorelov")
+    def test_resolve_failed(self):
+        aborted_job_profiler = JobCountProfiler(
+            "aborted", tags={"tree": "default", "job_type": "vanilla", "abort_reason": "address_resolve_failed"})
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1)
+
+        wait(lambda: aborted_job_profiler.get_job_count_delta() > 0)
+
+        update_nodes_dynamic_config(value=False, path="exec_node/job_controller/job_common/testing/fail_address_resolve")
+
+        wait_breakpoint(job_count=1)
+
+        release_breakpoint()
+
+        op.track()

@@ -598,6 +598,21 @@ DEFINE_REFCOUNTED_TYPE(TShellCommandConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTestingConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool FailAddressResolve;
+
+    REGISTER_YSON_STRUCT(TTestingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DECLARE_REFCOUNTED_CLASS(TTestingConfig)
+
+DEFINE_REFCOUNTED_TYPE(TTestingConfig)
+
 class TJobCommonConfig
     : public NYTree::TYsonStruct
 {
@@ -635,6 +650,8 @@ public:
 
     //! Job throttler config, eg. its RPC timeout and backoff.
     NJobProxy::TJobThrottlerConfigPtr JobThrottler;
+
+    TTestingConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TJobCommonConfig);
 

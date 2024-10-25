@@ -697,6 +697,12 @@ void TShellCommandConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTestingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("fail_address_resolve", &TThis::FailAddressResolve)
+        .Default(false);
+}
+
 void TJobCommonConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("use_artifact_binds", &TThis::UseArtifactBinds)
@@ -746,6 +752,9 @@ void TJobCommonConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_throttler", &TThis::JobThrottler)
         .DefaultNew();
+
+    registrar.Parameter("testing", &TThis::Testing)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
