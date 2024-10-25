@@ -1774,16 +1774,18 @@ private:
         };
 
         try {
-            auto stat = NYT::GetBlockDeviceStat(DeviceName_);
-            if (stat) {
-                counters.DiskRead = stat->SectorsRead * UnixSectorSize;
-                counters.DiskWritten = stat->SectorsWritten * UnixSectorSize;
-            } else {
-                YT_LOG_WARNING("Cannot find disk IO statistics (DeviceName: %v)",
+            auto stat = GetBlockDeviceStat(DeviceName_);
+            if (!stat) {
+                YT_LOG_WARNING("Cannot find disk statistics (DeviceName: %v, Func: GetCounters)",
                     DeviceName_);
+                return counters;
             }
+
+            counters.DiskRead = stat->SectorsRead * UnixSectorSize;
+            counters.DiskWritten = stat->SectorsWritten * UnixSectorSize;
+
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to get disk IO statistics");
+            YT_LOG_WARNING(ex, "Failed to get disk statistics (Func: GetCounters)");
         }
 
         return counters;
@@ -1829,6 +1831,8 @@ private:
         try {
             auto stat = GetBlockDeviceStat(DeviceName_);
             if (!stat) {
+                YT_LOG_WARNING("Cannot find disk statistics (DeviceName: %v, Func: CollectSensors)",
+                    DeviceName_);
                 return;
             }
 
@@ -1850,7 +1854,7 @@ private:
 
         } catch (const std::exception& ex) {
             if (!ErrorLogged_) {
-                YT_LOG_ERROR(ex, "Failed to collect disk statistics");
+                YT_LOG_ERROR(ex, "Failed to get disk statistics (Func: CollectSensors)");
                 ErrorLogged_ = true;
             }
         }
