@@ -1,9 +1,13 @@
 from yt_commands import (
     sync_create_cells, sync_remove_tablet_cells, ls, set, get)
 
+from yt.common import wait
+
 from yt.environment.components.query_tracker import QueryTracker as QueryTrackerComponent
 
 from yt.environment.helpers import wait_for_dynamic_config_update
+
+from yt_queries import list_queries
 
 import pytest
 
@@ -25,6 +29,10 @@ class QueryTracker:
     def __enter__(self):
         self.query_tracker.run()
         self.query_tracker.wait()
+
+        # Wait for test driver readiness
+        wait(lambda: list_queries(), ignore_exceptions=True)
+
         self.query_tracker.init()
         return self
 
