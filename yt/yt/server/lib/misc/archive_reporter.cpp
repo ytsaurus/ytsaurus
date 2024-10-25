@@ -19,6 +19,7 @@ using namespace NProfiling;
 using namespace NTableClient;
 using namespace NLogging;
 using namespace NTransactionClient;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -237,6 +238,8 @@ private:
 
     void WriteBatchWithExpBackoff(const TBatch& batch)
     {
+        TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("ReportRowsToArchive"));
+
         const auto& reporterConfig = ReporterConfig_.Acquire();
         auto delay = reporterConfig->MinRepeatDelay;
         auto maxRepeatDelay = reporterConfig->MaxRepeatDelay;

@@ -62,6 +62,7 @@ using namespace NApi;
 using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NProfiling;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1388,15 +1389,19 @@ private:
         if (!batch.empty()) {
             while (IsOperationArchivationEnabled()) {
                 TError error;
-                try {
-                    TryArchiveOperations(batch);
-                } catch (const std::exception& ex) {
-                    int pendingCount = ArchivePending_.load();
-                    error = TError("Failed to archive operations")
-                        << TErrorAttribute("pending_count", pendingCount)
-                        << ex;
-                    YT_LOG_WARNING(error);
-                    ArchiveErrorCounter_.Increment();
+                {
+                    TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("ArchiveOperations"));
+
+                    try {
+                        TryArchiveOperations(batch);
+                    } catch (const std::exception& ex) {
+                        int pendingCount = ArchivePending_.load();
+                        error = TError("Failed to archive operations")
+                            << TErrorAttribute("pending_count", pendingCount)
+                            << ex;
+                        YT_LOG_WARNING(error);
+                        ArchiveErrorCounter_.Increment();
+                    }
                 }
 
                 int pendingCount = ArchivePending_.load();
