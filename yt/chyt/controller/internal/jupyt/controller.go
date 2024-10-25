@@ -18,6 +18,7 @@ import (
 
 type Config struct {
 	YTAuthCookieName    *string           `yson:"yt_auth_cookie_name"`
+	YTProxy             *string           `yson:"yt_proxy"`
 	ExtraEnvVars        map[string]string `yson:"extra_env_vars"`
 	LastActivityURLPath *string           `yson:"last_activity_url_path"`
 	Command             *string           `yson:"command"`
@@ -138,6 +139,13 @@ func (c *Controller) Root() ypath.Path {
 	return c.root
 }
 
+func (c *Controller) YTProxy() string {
+	if c.config.YTProxy != nil {
+		return *c.config.YTProxy
+	}
+	return c.cluster
+}
+
 func (c *Controller) ParseSpeclet(specletYson yson.RawValue) (any, error) {
 	var speclet Speclet
 	err := yson.Unmarshal(specletYson, &speclet)
@@ -231,7 +239,7 @@ func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {
 
 func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet, filePaths *[]ypath.Rich) error {
 	serverConfig := jupytServerConfig{
-		YTProxy:          c.cluster,
+		YTProxy:          c.YTProxy(),
 		YTAuthCookieName: c.config.YTAuthCookieNameOrDefault(),
 		YTACOName:        oplet.Alias(),
 		YTACONamespace:   c.Family(),
