@@ -188,7 +188,7 @@ public:
                 ToProto(actionRequest.mutable_tablet_id(), TabletId_);
                 actionRequest.set_mount_revision(tablet->GetMountRevision());
                 actionRequest.set_create_hunk_chunks_during_prepare(true);
-                actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::DictionaryBuilding));
+                actionRequest.set_update_reason(ToProto(ETabletStoresUpdateReason::DictionaryBuilding));
 
                 auto* descriptor = actionRequest.add_hunk_chunks_to_add();
                 ToProto(descriptor->mutable_chunk_id(), HunkWriter_->GetChunkId());
@@ -758,7 +758,7 @@ private:
 
         HunkWriter_->GetMeta()->RegisterFinalizer([&] (TDeferredChunkMeta* meta) mutable {
             auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
-            miscExt.set_dictionary_compression_policy(ToProto<int>(Policy_));
+            miscExt.set_dictionary_compression_policy(ToProto(Policy_));
             SetProtoExtension(meta->mutable_extensions(), miscExt);
 
             NTableClient::NProto::TCompressionDictionaryExt compressionDictionaryExt;

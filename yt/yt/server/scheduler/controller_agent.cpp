@@ -26,7 +26,7 @@ void ToProto(NProto::TScheduleAllocationRequest* protoRequest, const TScheduleAl
     ToProto(protoRequest->mutable_node_disk_resources(), request.NodeDiskResources);
     auto* spec = protoRequest->mutable_spec();
     if (request.Spec.WaitingForResourcesOnNodeTimeout) {
-        spec->set_waiting_for_resources_on_node_timeout(ToProto<i64>(*request.Spec.WaitingForResourcesOnNodeTimeout));
+        spec->set_waiting_for_resources_on_node_timeout(ToProto(*request.Spec.WaitingForResourcesOnNodeTimeout));
     }
 }
 

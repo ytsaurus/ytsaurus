@@ -18,6 +18,8 @@
 
 namespace NYT::NNodeTrackerServer {
 
+using NYT::ToProto;
+
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NCellMaster;
@@ -200,9 +202,9 @@ void TNodeDiscoveryManager::UpdateNodeList()
 void TNodeDiscoveryManager::CommitNewNodes(const THashSet<TNode*>& nodes)
 {
     NProto::TReqUpdateNodesForRole request;
-    request.set_node_role(static_cast<int>(NodeRole_));
+    request.set_node_role(ToProto(NodeRole_));
     for (auto* node : nodes) {
-        request.add_node_ids(ToProto<ui32>(node->GetId()));
+        request.add_node_ids(ToProto(node->GetId()));
     }
 
     YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)

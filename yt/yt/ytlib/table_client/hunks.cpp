@@ -183,7 +183,7 @@ void ToProto(NTableClient::NProto::THunkChunkRef* protoRef, const THunkChunkRef&
 {
     ToProto(protoRef->mutable_chunk_id(), ref.ChunkId);
     if (ref.ErasureCodec != NErasure::ECodec::None) {
-        protoRef->set_erasure_codec(ToProto<int>(ref.ErasureCodec));
+        protoRef->set_erasure_codec(ToProto(ref.ErasureCodec));
     }
     protoRef->set_hunk_count(ref.HunkCount);
     protoRef->set_total_hunk_length(ref.TotalHunkLength);
@@ -1106,7 +1106,7 @@ public:
 
                     auto chunkFeatures = FromProto<EChunkFeatures>(meta->features());
                     chunkFeatures |= EChunkFeatures::CompressedHunkValues;
-                    meta->set_features(ToProto<ui64>(chunkFeatures));
+                    meta->set_features(ToProto(chunkFeatures));
                 }
 
                 if (hunkChunkRefs.empty()) {
@@ -2237,12 +2237,12 @@ public:
             return Underlying_->Cancel();
         }
 
-        Meta_->set_type(ToProto<int>(EChunkType::Hunk));
-        Meta_->set_format(ToProto<int>(EChunkFormat::HunkDefault));
+        Meta_->set_type(ToProto(EChunkType::Hunk));
+        Meta_->set_format(ToProto(EChunkFormat::HunkDefault));
 
         {
             NChunkClient::NProto::TMiscExt ext;
-            ext.set_compression_codec(ToProto<int>(NCompression::ECodec::None));
+            ext.set_compression_codec(ToProto(NCompression::ECodec::None));
             ext.set_data_weight(DataWeight_);
             ext.set_uncompressed_data_size(DataSize_);
             ext.set_compressed_data_size(DataSize_);

@@ -67,22 +67,22 @@ void ToProto(
     const TTimeStatistics& timeStatistics)
 {
     if (timeStatistics.WaitingForResourcesDuration) {
-        timeStatisticsProto->set_waiting_for_resources_duration(ToProto<i64>(*timeStatistics.WaitingForResourcesDuration));
+        timeStatisticsProto->set_waiting_for_resources_duration(ToProto(*timeStatistics.WaitingForResourcesDuration));
     }
     if (timeStatistics.PrepareDuration) {
-        timeStatisticsProto->set_prepare_duration(ToProto<i64>(*timeStatistics.PrepareDuration));
+        timeStatisticsProto->set_prepare_duration(ToProto(*timeStatistics.PrepareDuration));
     }
     if (timeStatistics.ArtifactsDownloadDuration) {
-        timeStatisticsProto->set_artifacts_download_duration(ToProto<i64>(*timeStatistics.ArtifactsDownloadDuration));
+        timeStatisticsProto->set_artifacts_download_duration(ToProto(*timeStatistics.ArtifactsDownloadDuration));
     }
     if (timeStatistics.PrepareRootFSDuration) {
-        timeStatisticsProto->set_prepare_root_fs_duration(ToProto<i64>(*timeStatistics.PrepareRootFSDuration));
+        timeStatisticsProto->set_prepare_root_fs_duration(ToProto(*timeStatistics.PrepareRootFSDuration));
     }
     if (timeStatistics.ExecDuration) {
-        timeStatisticsProto->set_exec_duration(ToProto<i64>(*timeStatistics.ExecDuration));
+        timeStatisticsProto->set_exec_duration(ToProto(*timeStatistics.ExecDuration));
     }
     if (timeStatistics.GpuCheckDuration) {
-        timeStatisticsProto->set_gpu_check_duration(ToProto<i64>(*timeStatistics.GpuCheckDuration));
+        timeStatisticsProto->set_gpu_check_duration(ToProto(*timeStatistics.GpuCheckDuration));
     }
 }
 

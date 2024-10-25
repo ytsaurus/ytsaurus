@@ -799,7 +799,7 @@ private:
             // because some further replication results depend on these cell tags.
             NProto::TReqReplicateDynamicallyPropagatedMasterCellTags request;
             for (auto cellTag : GetDynamicallyPropagatedMastersCellTags()) {
-                request.add_dynamically_propagated_masters_cell_tags(ToProto<ui32>(cellTag));
+                request.add_dynamically_propagated_masters_cell_tags(ToProto(cellTag));
             }
             PostToMaster(request, cellTag, true);
         }
@@ -815,14 +815,14 @@ private:
             {
                 // Inform others about the new secondary.
                 NProto::TReqRegisterSecondaryMasterAtSecondary request;
-                request.set_cell_tag(ToProto<int>(cellTag));
+                request.set_cell_tag(ToProto(cellTag));
                 PostToMaster(request, registeredCellTag, true);
             }
 
             {
                 // Inform the new secondary about others.
                 NProto::TReqRegisterSecondaryMasterAtSecondary request;
-                request.set_cell_tag(ToProto<int>(registeredCellTag));
+                request.set_cell_tag(ToProto(registeredCellTag));
                 PostToMaster(request, cellTag, true);
             }
         }
@@ -905,7 +905,7 @@ private:
         RegisterMasterEntry(GetPrimaryCellTag());
 
         NProto::TReqRegisterSecondaryMasterAtPrimary request;
-        request.set_cell_tag(ToProto<int>(GetCellTag()));
+        request.set_cell_tag(ToProto(GetCellTag()));
         PostToPrimaryMaster(request, true);
     }
 
@@ -1183,7 +1183,7 @@ private:
     NProto::TReqSetCellStatistics GetTransientLocalCellStatistics()
     {
         NProto::TReqSetCellStatistics result;
-        result.set_cell_tag(ToProto<int>(GetCellTag()));
+        result.set_cell_tag(ToProto(GetCellTag()));
         auto* cellStatistics = result.mutable_statistics();
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -1206,7 +1206,7 @@ private:
         YT_VERIFY(IsPrimaryMaster());
 
         NProto::TReqSetCellStatistics result;
-        result.set_cell_tag(ToProto<int>(GetCellTag()));
+        result.set_cell_tag(ToProto(GetCellTag()));
         *result.mutable_statistics() = ClusterCellStatisics_;
 
         return result;
@@ -1220,7 +1220,7 @@ private:
 
         auto addCellStatistics = [&] (TCellTag cellTag, const NProto::TCellStatistics& statistics) {
             auto* cellStatistics = result.add_statistics();
-            cellStatistics->set_cell_tag(ToProto<int>(cellTag));
+            cellStatistics->set_cell_tag(ToProto(cellTag));
             *cellStatistics->mutable_statistics() = statistics;
         };
 

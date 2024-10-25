@@ -401,7 +401,7 @@ TFuture<void> TOperationControllerImpl::Register(const TOperationPtr& operation)
     descriptor->set_operation_type(static_cast<int>(operation->GetType()));
     descriptor->set_spec(operation->GetSpecString().ToString());
     descriptor->set_experiment_assignments(ConvertToYsonString(operation->ExperimentAssignments()).ToString());
-    descriptor->set_start_time(ToProto<ui64>(operation->GetStartTime()));
+    descriptor->set_start_time(ToProto(operation->GetStartTime()));
     descriptor->set_authenticated_user(operation->GetAuthenticatedUser());
     if (operation->GetSecureVault()) {
         descriptor->set_secure_vault(ConvertToYsonString(operation->GetSecureVault()).ToString());

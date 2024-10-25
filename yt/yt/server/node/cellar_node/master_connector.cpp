@@ -105,14 +105,14 @@ public:
         auto heartbeatRequest = proxy.Heartbeat();
         heartbeatRequest->SetTimeout(GetDynamicConfig()->HeartbeatTimeout);
 
-        heartbeatRequest->set_node_id(ToProto<ui32>(Bootstrap_->GetNodeId()));
+        heartbeatRequest->set_node_id(ToProto(Bootstrap_->GetNodeId()));
 
         const auto& cellarManager = Bootstrap_->GetCellarManager();
 
         for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
             if (auto cellar = cellarManager->FindCellar(cellarType)) {
                 auto* cellarInfo = heartbeatRequest->add_cellars();
-                cellarInfo->set_type(ToProto<int>(cellarType));
+                cellarInfo->set_type(ToProto(cellarType));
 
                 AddCellarInfoToHeartbeatRequest(
                     cellarType,

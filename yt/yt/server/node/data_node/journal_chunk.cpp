@@ -121,8 +121,8 @@ TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
     miscExt.set_sealed(IsSealed());
 
     auto meta = New<TRefCountedChunkMeta>();
-    meta->set_type(ToProto<int>(EChunkType::Journal));
-    meta->set_format(ToProto<int>(EChunkFormat::JournalDefault));
+    meta->set_type(ToProto(EChunkType::Journal));
+    meta->set_format(ToProto(EChunkFormat::JournalDefault));
     SetProtoExtension(meta->mutable_extensions(), miscExt);
 
     ProfileReadMetaLatency(session);

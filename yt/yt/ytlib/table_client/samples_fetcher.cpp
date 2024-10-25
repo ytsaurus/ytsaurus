@@ -115,7 +115,7 @@ TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector
     req->SetMultiplexingBand(EMultiplexingBand::Heavy);
     ToProto(req->mutable_key_columns(), KeyColumns_);
     req->set_max_sample_size(MaxSampleSize_);
-    req->set_sampling_policy(ToProto<int>(SamplingPolicy_));
+    req->set_sampling_policy(ToProto(SamplingPolicy_));
 
     i64 currentSize = SizeBetweenSamples_;
     i64 currentSampleCount = 0;

@@ -151,7 +151,7 @@ public:
         auto heartbeat = proxy.Heartbeat();
         heartbeat->SetTimeout(Config_->HeartbeatTimeout);
 
-        heartbeat->set_node_id(ToProto<ui32>(GetNodeId()));
+        heartbeat->set_node_id(ToProto(GetNodeId()));
 
         const auto& memoryTracker = Bootstrap_->GetNodeMemoryUsageTracker();
         auto* protoMemory = heartbeat->mutable_statistics()->mutable_memory();
@@ -579,7 +579,7 @@ private:
         ToProto(req->mutable_lease_transaction_id(), LeaseTransaction_->GetId());
         ToProto(req->mutable_tags(), NodeTags_);
         if (const auto& hostName = Bootstrap_->GetConfig()->HostName) {
-            req->set_host_name(ToProto<TProtobufString>(*hostName));
+            req->set_host_name(ToProto(*hostName));
         }
 
         for (auto flavor : Bootstrap_->GetFlavors()) {

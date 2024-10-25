@@ -265,8 +265,8 @@ protected:
 
     void FillCommonMeta(TChunkMeta* meta) const
     {
-        meta->set_type(ToProto<int>(EChunkType::Table));
-        meta->set_format(ToProto<int>(GetChunkFormat()));
+        meta->set_type(ToProto(EChunkType::Table));
+        meta->set_format(ToProto(GetChunkFormat()));
 
         SetProtoExtension(meta->mutable_extensions(), BoundaryKeysExt_);
     }
@@ -423,7 +423,7 @@ protected:
         const auto& meta = encodingChunkWriter->GetMeta();
         auto chunkFeatures = FromProto<EChunkFeatures>(meta->features());
         chunkFeatures |= EChunkFeatures::SlimBlockFormat;
-        meta->set_features(ToProto<ui64>(chunkFeatures));
+        meta->set_features(ToProto(chunkFeatures));
     }
 
     EChunkFormat GetChunkFormat() const
@@ -480,7 +480,7 @@ protected:
 
         auto chunkFeatures = FromProto<EChunkFeatures>(meta->features());
         chunkFeatures |= EChunkFeatures::IndexedBlockFormat;
-        meta->set_features(ToProto<ui64>(chunkFeatures));
+        meta->set_features(ToProto(chunkFeatures));
 
         auto& miscExt = encodingChunkWriter->MiscExt();
         miscExt.set_block_format_version(TIndexedVersionedBlockWriter::GetBlockFormatVersion());
@@ -904,7 +904,7 @@ private:
         } else {
             auto chunkFeatures = FromProto<EChunkFeatures>(meta->features());
             chunkFeatures |= EChunkFeatures::NoColumnMetaInChunkMeta;
-            meta->set_features(ToProto<ui64>(chunkFeatures));
+            meta->set_features(ToProto(chunkFeatures));
         }
 
         meta->UpdateMemoryUsage();

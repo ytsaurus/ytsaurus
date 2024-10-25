@@ -675,7 +675,7 @@ void TP2PDistributor::DistributeBlocks()
             auto req = proxy.UpdateP2PBlocks();
             req->SetMultiplexingBand(EMultiplexingBand::Heavy);
 
-            req->set_source_node_id(ToProto<ui32>(selfNodeId));
+            req->set_source_node_id(ToProto(selfNodeId));
             req->set_iteration(currentTick);
             ToProto(req->mutable_session_id(), Snooper_->GetSessionId());
 

@@ -277,7 +277,7 @@ public:
         NTabletClient::NProto::TReqRegisterTransactionActions request;
         ToProto(request.mutable_transaction_id(), transactionId);
         request.set_transaction_start_timestamp(transactionStartTimestamp);
-        request.set_transaction_timeout(ToProto<i64>(transactionTimeout));
+        request.set_transaction_timeout(ToProto(transactionTimeout));
         request.set_signature(signature);
         request.mutable_actions()->Swap(&actions);
         NRpc::WriteAuthenticationIdentityToProto(&request, NRpc::GetCurrentAuthenticationIdentity());

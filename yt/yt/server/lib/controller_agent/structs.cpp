@@ -323,7 +323,7 @@ void ToProto(
     ToProto(protoEvent->mutable_operation_id(), abortedAllocationSummary.OperationId);
     ToProto(protoEvent->mutable_allocation_id(), abortedAllocationSummary.Id);
 
-    protoEvent->set_finish_time(ToProto<ui64>(abortedAllocationSummary.FinishTime));
+    protoEvent->set_finish_time(ToProto(abortedAllocationSummary.FinishTime));
     protoEvent->set_abort_reason(static_cast<int>(abortedAllocationSummary.AbortReason));
     ToProto(protoEvent->mutable_error(), abortedAllocationSummary.Error);
     protoEvent->set_scheduled(abortedAllocationSummary.Scheduled);
@@ -362,7 +362,7 @@ void ToProto(
     ToProto(protoEvent->mutable_operation_id(), summary.OperationId);
     ToProto(protoEvent->mutable_allocation_id(), summary.Id);
 
-    protoEvent->set_finish_time(ToProto<ui64>(summary.FinishTime));
+    protoEvent->set_finish_time(ToProto(summary.FinishTime));
 }
 
 void FromProto(

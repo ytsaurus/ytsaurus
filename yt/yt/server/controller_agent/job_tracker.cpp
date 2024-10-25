@@ -2008,8 +2008,8 @@ void TJobTracker::ProcessInterruptionRequest(
 
     auto* protoJobToInterrupt = response->add_jobs_to_interrupt();
     ToProto(protoJobToInterrupt->mutable_job_id(), jobId);
-    protoJobToInterrupt->set_timeout(ToProto<i64>(requestOptions.Timeout));
-    protoJobToInterrupt->set_reason(ToProto<i32>(requestOptions.Reason));
+    protoJobToInterrupt->set_timeout(ToProto(requestOptions.Timeout));
+    protoJobToInterrupt->set_reason(ToProto(requestOptions.Reason));
 }
 
 void TJobTracker::ProcessGracefulAbortRequest(

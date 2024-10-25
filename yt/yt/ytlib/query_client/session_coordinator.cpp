@@ -235,8 +235,8 @@ private:
 
         auto req = proxy.CreateDistributedSession();
         ToProto(req->mutable_session_id(), Context_->SessionId);
-        req->set_retention_time(ToProto<i64>(Context_->Options.RetentionTime));
-        req->set_codec(ToProto<i32>(Context_->CodecId));
+        req->set_retention_time(ToProto(Context_->Options.RetentionTime));
+        req->set_codec(ToProto(Context_->CodecId));
         req->SetTimeout(Context_->Options.ControlRpcTimeout);
 
         return req->Invoke()

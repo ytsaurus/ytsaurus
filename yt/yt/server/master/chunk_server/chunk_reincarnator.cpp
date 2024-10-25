@@ -554,12 +554,12 @@ bool TReincarnationJob::FillJobSpec(
         TReincarnateChunkJobSpecExt::reincarnate_chunk_job_spec_ext);
 
     ToProto(jobSpecExt->mutable_old_chunk_id(), OldChunkId_);
-    jobSpecExt->set_erasure_codec(ToProto<int>(ErasureCodec_));
-    jobSpecExt->set_compression_codec(ToProto<int>(CompressionCodec_));
+    jobSpecExt->set_erasure_codec(ToProto(ErasureCodec_));
+    jobSpecExt->set_compression_codec(ToProto(CompressionCodec_));
     ToProto(jobSpecExt->mutable_new_chunk_id(), NewChunkId_);
 
     for (auto replica : TargetReplicas_) {
-        jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
+        jobSpecExt->add_target_replicas(ToProto(replica));
     }
 
     NNodeTrackerServer::TNodeDirectoryBuilder builder(
@@ -1941,7 +1941,7 @@ private:
         TChunkAncestorTraverser traverser(Bootstrap_);
 
         NProto::TReqOnExportedChunkReincarnationCheckFinished response;
-        response.set_foreign_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
+        response.set_foreign_cell_tag(ToProto(multicellManager->GetCellTag()));
         response.set_config_version(request->config_version());
 
         std::optional<TCellTag> nativeCellTag;
@@ -1953,7 +1953,7 @@ private:
             ToProto(subresponse->mutable_chunk_id(), chunkId);
             auto* chunk = chunkManager->FindChunk(FromProto<TChunkId>(chunkId));
             if (!IsObjectAlive(chunk)) {
-                subresponse->set_result(ToProto<int>(EReincarnationResult::NoSuchChunk));
+                subresponse->set_result(ToProto(EReincarnationResult::NoSuchChunk));
                 continue;
             }
 
@@ -1971,7 +1971,7 @@ private:
                 ++readyToReincarnateChunkCount;
             }
 
-            subresponse->set_result(ToProto<int>(result));
+            subresponse->set_result(ToProto(result));
         }
 
         if (nativeCellTag) [[likely]] {

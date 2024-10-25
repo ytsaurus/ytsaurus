@@ -675,7 +675,7 @@ private:
                 *chunkSpec.mutable_chunk_meta() = store->GetChunkMeta();
                 ToProto(chunkSpec.mutable_lower_limit(), TLegacyReadLimit(partition->GetPivotKey()));
                 ToProto(chunkSpec.mutable_upper_limit(), TLegacyReadLimit(partition->GetNextPivotKey()));
-                chunkSpec.set_erasure_codec(ToProto<int>(store->GetErasureCodecId()));
+                chunkSpec.set_erasure_codec(ToProto(store->GetErasureCodecId()));
 
                 auto inputChunk = New<TInputChunk>(chunkSpec);
                 samplesFetcher->AddChunk(std::move(inputChunk));

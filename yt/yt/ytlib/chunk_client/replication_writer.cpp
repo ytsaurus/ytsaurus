@@ -366,8 +366,8 @@ public:
         } else {
             // This is a journal chunk; let's synthesize some meta.
             ChunkMeta_ = New<TDeferredChunkMeta>();
-            ChunkMeta_->set_type(ToProto<int>(EChunkType::Journal));
-            ChunkMeta_->set_format(ToProto<int>(EChunkFormat::JournalDefault));
+            ChunkMeta_->set_type(ToProto(EChunkType::Journal));
+            ChunkMeta_->set_format(ToProto(EChunkFormat::JournalDefault));
             ChunkMeta_->mutable_extensions();
         }
 

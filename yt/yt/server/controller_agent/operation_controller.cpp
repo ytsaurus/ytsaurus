@@ -79,8 +79,8 @@ void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationContro
     for (const auto& allocation : result.RevivedAllocations) {
         auto* allocationProto = resultProto->add_revived_allocations();
         ToProto(allocationProto->mutable_allocation_id(), allocation.AllocationId);
-        allocationProto->set_start_time(ToProto<ui64>(allocation.StartTime));
-        allocationProto->set_preemptible_progress_start_time(ToProto<ui64>(allocation.PreemptibleProgressStartTime));
+        allocationProto->set_start_time(ToProto(allocation.StartTime));
+        allocationProto->set_preemptible_progress_start_time(ToProto(allocation.PreemptibleProgressStartTime));
         ToProto(
             allocationProto->mutable_resource_limits(),
             TJobResourcesWithQuota(
@@ -88,7 +88,7 @@ void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationContro
                 allocation.DiskQuota));
 
         allocationProto->set_tree_id(allocation.TreeId);
-        allocationProto->set_node_id(ToProto<ui32>(allocation.NodeId));
+        allocationProto->set_node_id(ToProto(allocation.NodeId));
         allocationProto->set_node_address(allocation.NodeAddress);
     }
     ToProto(resultProto->mutable_revived_banned_tree_ids(), result.RevivedBannedTreeIds);
@@ -111,7 +111,7 @@ void ToProto(
 {
     ToProto(allocationStatisticsProto->mutable_allocation_id(), allocationStatistics.AllocationId);
 
-    allocationStatisticsProto->set_preemptible_progress_start_time(ToProto<ui64>(allocationStatistics.PreemptibleProgressStartTime));
+    allocationStatisticsProto->set_preemptible_progress_start_time(ToProto(allocationStatistics.PreemptibleProgressStartTime));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -177,7 +177,7 @@ private:
                 auto* descriptor = actionRequest.add_hunk_chunks_to_remove();
                 ToProto(descriptor->mutable_chunk_id(), hunkChunk->GetId());
             }
-            actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Sweep));
+            actionRequest.set_update_reason(ToProto(ETabletStoresUpdateReason::Sweep));
 
             auto actionData = MakeTransactionActionData(actionRequest);
             auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tablet->GetId()));

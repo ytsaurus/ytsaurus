@@ -1938,7 +1938,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
     if (TaskHost_->GetSpec()->JobProxyMemoryOvercommitLimit) {
         jobSpecExt->set_job_proxy_memory_overcommit_limit(*TaskHost_->GetSpec()->JobProxyMemoryOvercommitLimit);
     }
-    jobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto<i64>(TaskHost_->GetSpec()->JobProxyRefCountedTrackerLogPeriod));
+    jobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto(TaskHost_->GetSpec()->JobProxyRefCountedTrackerLogPeriod));
     jobSpecExt->set_abort_job_if_account_limit_exceeded(TaskHost_->GetSpec()->SuspendOperationIfAccountLimitExceeded);
     jobSpecExt->set_allow_idle_cpu_policy(TaskHost_->IsIdleCpuPolicyAllowedInTree(joblet->TreeId));
     if (TaskHost_->GetSpec()->ForceJobProxyTracing) {
@@ -1947,7 +1947,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
 
     if (scheduleAllocationSpec) {
         if (auto waitingJobTimeout = InferWaitingForResourcesTimeout(*scheduleAllocationSpec)) {
-            jobSpecExt->set_waiting_job_timeout(ToProto<i64>(*waitingJobTimeout));
+            jobSpecExt->set_waiting_job_timeout(ToProto(*waitingJobTimeout));
         }
     }
 
@@ -1983,7 +1983,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
 
     jobSpecExt->set_task_name(GetVertexDescriptor());
     jobSpecExt->set_tree_id(joblet->TreeId);
-    jobSpecExt->set_authenticated_user(ToProto<TProtobufString>(TaskHost_->GetAuthenticatedUser()));
+    jobSpecExt->set_authenticated_user(ToProto(TaskHost_->GetAuthenticatedUser()));
 
     auto ioTags = CreateEphemeralAttributes();
     if (joblet->PoolPath) {

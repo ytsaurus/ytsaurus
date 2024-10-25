@@ -154,7 +154,7 @@ void FromProto(TSequoiaChunkReplica* replica, const NProto::TSequoiaReplicaInfo&
 
 void ToProto(NProto::TSequoiaReplicaInfo* protoReplica, const TSequoiaChunkReplica& replica)
 {
-    protoReplica->set_node_id(ToProto<ui32>(replica.NodeId));
+    protoReplica->set_node_id(ToProto(replica.NodeId));
     protoReplica->set_replica_index(replica.ReplicaIndex);
     ToProto(protoReplica->mutable_chunk_id(), replica.ChunkId);
     ToProto(protoReplica->mutable_location_uuid(), replica.LocationUuid);

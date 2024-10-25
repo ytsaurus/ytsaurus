@@ -114,9 +114,9 @@ void ToProto(
     const THashSet<int>* tags,
     bool setMetaExtensions)
 {
-    protoMeta->set_type(ToProto<int>(meta->Type_));
-    protoMeta->set_format(ToProto<int>(meta->Format_));
-    protoMeta->set_features(ToProto<ui64>(meta->Features_));
+    protoMeta->set_type(ToProto(meta->Type_));
+    protoMeta->set_format(ToProto(meta->Format_));
+    protoMeta->set_features(ToProto(meta->Features_));
 
     if (!setMetaExtensions) {
         return;

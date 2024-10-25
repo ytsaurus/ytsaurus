@@ -1093,7 +1093,7 @@ private:
         auto localNodeId = Bootstrap_->GetNodeId();
         TChunkReplicaWithMedium replica(localNodeId, GenericChunkReplicaIndex, GenericMediumIndex);
         chunkSpec->add_legacy_replicas(ToProto<ui32>(replica.ToChunkReplica()));
-        chunkSpec->add_replicas(ToProto<ui64>(replica));
+        chunkSpec->add_replicas(ToProto(replica));
 
         if (!lowerLimit.IsTrivial()) {
             ToProto(chunkSpec->mutable_lower_limit(), lowerLimit);

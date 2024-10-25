@@ -38,7 +38,7 @@ public:
     {
         auto request = Proxy_.ThrottleJob();
         SetRequestWorkloadDescriptor(request, descriptor);
-        request->set_throttler_type(ToProto<int>(throttleDirection));
+        request->set_throttler_type(ToProto(throttleDirection));
         request->set_amount(amount);
         ToProto(request->mutable_job_id(), jobId);
 

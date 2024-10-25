@@ -76,7 +76,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, GetBasicAttributes)
     }
 
     ToProto(response->mutable_object_id(), TGuid());
-    response->set_external_cell_tag(ToProto<int>(PrimaryMasterCellTagSentinel));
+    response->set_external_cell_tag(ToProto(PrimaryMasterCellTagSentinel));
 
     context->Reply();
 }
@@ -159,7 +159,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, CheckPermission)
         action = ESecurityAction::Deny;
     }
 
-    response->set_action(ToProto<int>(action));
+    response->set_action(ToProto(action));
 
     context->SetResponseInfo("Action: %v",
         action);

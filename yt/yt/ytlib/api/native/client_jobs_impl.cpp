@@ -43,7 +43,7 @@ void RequestJobInterruption(
     ToProto(req->mutable_job_id(), jobId);
     ToProto(req->mutable_operation_id(), operationId);
 
-    req->set_timeout(ToProto<i64>(timeout));
+    req->set_timeout(ToProto(timeout));
 
     auto rspOrError = WaitFor(req->Invoke());
     if (!rspOrError.IsOK()) {

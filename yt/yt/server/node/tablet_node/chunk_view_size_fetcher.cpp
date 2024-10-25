@@ -244,7 +244,7 @@ private:
             ToProto(chunkSpec.mutable_upper_limit(), *upperLimit);
         }
 
-        chunkSpec.set_erasure_codec(ToProto<int>(store->GetErasureCodecId()));
+        chunkSpec.set_erasure_codec(ToProto(store->GetErasureCodecId()));
 
         return New<TInputChunk>(chunkSpec);
     }

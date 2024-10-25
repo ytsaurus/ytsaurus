@@ -1379,8 +1379,8 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
 
         auto req = proxy.Multiread();
         req->SetMultiplexingBand(options.MultiplexingBand);
-        req->set_request_codec(ToProto<int>(connectionConfig->LookupRowsRequestCodec));
-        req->set_response_codec(ToProto<int>(connectionConfig->LookupRowsResponseCodec));
+        req->set_request_codec(ToProto(connectionConfig->LookupRowsRequestCodec));
+        req->set_response_codec(ToProto(connectionConfig->LookupRowsResponseCodec));
         req->set_timestamp(options.Timestamp);
         req->set_retention_timestamp(options.RetentionTimestamp);
         req->set_enable_partial_result(options.EnablePartialResult);
@@ -1390,12 +1390,12 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
 
         if (inMemoryMode == EInMemoryMode::None) {
             if (auto timeout = connectionConfig->LookupRowsExtMemoryLoggingSuppressionTimeout) {
-                req->Header().set_logging_suppression_timeout(ToProto<i64>(*timeout));
+                req->Header().set_logging_suppression_timeout(ToProto(*timeout));
             }
         } else {
             req->Header().set_uncancelable(true);
             if (auto timeout = connectionConfig->LookupRowsInMemoryLoggingSuppressionTimeout) {
-                req->Header().set_logging_suppression_timeout(ToProto<i64>(*timeout));
+                req->Header().set_logging_suppression_timeout(ToProto(*timeout));
             }
         }
 
@@ -1416,7 +1416,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
         }
 
         auto* ext = req->Header().MutableExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
-        ext->set_in_memory_mode(ToProto<int>(inMemoryMode));
+        ext->set_in_memory_mode(ToProto(inMemoryMode));
 
         multireadFutures.push_back(req->Invoke());
     }

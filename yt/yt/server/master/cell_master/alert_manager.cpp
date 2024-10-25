@@ -178,7 +178,7 @@ private:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         TReqSetCellAlerts request;
-        request.set_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
+        request.set_cell_tag(ToProto(multicellManager->GetCellTag()));
         ToProto(request.mutable_alerts(), localAlerts);
 
         if (multicellManager->IsPrimaryMaster()) {

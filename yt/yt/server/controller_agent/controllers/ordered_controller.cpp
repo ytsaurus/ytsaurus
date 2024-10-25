@@ -1456,8 +1456,8 @@ private:
         remoteCopyJobSpecExt->set_connection_config(ConvertToYsonString(connectionNode).ToString());
         remoteCopyJobSpecExt->set_concurrency(Spec_->Concurrency);
         remoteCopyJobSpecExt->set_block_buffer_size(Spec_->BlockBufferSize);
-        remoteCopyJobSpecExt->set_delay_in_copy_chunk(ToProto<i64>(Spec_->DelayInCopyChunk));
-        remoteCopyJobSpecExt->set_erasure_chunk_repair_delay(ToProto<i64>(Spec_->ErasureChunkRepairDelay));
+        remoteCopyJobSpecExt->set_delay_in_copy_chunk(ToProto(Spec_->DelayInCopyChunk));
+        remoteCopyJobSpecExt->set_erasure_chunk_repair_delay(ToProto(Spec_->ErasureChunkRepairDelay));
         remoteCopyJobSpecExt->set_repair_erasure_chunks(Spec_->RepairErasureChunks);
 
         // TODO(alexelex): For the future, now it is always empty: YT-20044

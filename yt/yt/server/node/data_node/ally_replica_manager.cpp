@@ -61,7 +61,7 @@ void ToProto(
 {
     ToProto(protoAnnouncement->mutable_chunk_id(), announcement.ChunkId);
     ToProto(protoAnnouncement->mutable_replicas(), announcement.Replicas);
-    protoAnnouncement->set_revision(ToProto<i64>(announcement.Revision));
+    protoAnnouncement->set_revision(ToProto(announcement.Revision));
 }
 
 void FromProto(
@@ -659,7 +659,7 @@ private:
                 TDataNodeServiceProxy proxy(channel);
 
                 auto req = proxy.AnnounceChunkReplicas();
-                req->set_source_node_id(ToProto<ui32>(selfNodeId));
+                req->set_source_node_id(ToProto(selfNodeId));
                 ToProto(req->mutable_announcements(), parcel);
                 req->SetTimeout(config->AnnouncementRequestTimeout);
 

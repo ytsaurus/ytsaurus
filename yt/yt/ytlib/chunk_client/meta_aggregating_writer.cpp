@@ -62,8 +62,8 @@ public:
         , Options_(std::move(options))
         , Logger(ChunkClientLogger().WithTag("ChunkId: %v", UnderlyingWriter_->GetChunkId()))
     {
-        MiscExt_.set_compression_codec(ToProto<int>(Options_->CompressionCodec));
-        MiscExt_.set_erasure_codec(ToProto<int>(UnderlyingWriter_->GetErasureCodecId()));
+        MiscExt_.set_compression_codec(ToProto(Options_->CompressionCodec));
+        MiscExt_.set_erasure_codec(ToProto(UnderlyingWriter_->GetErasureCodecId()));
         MiscExt_.set_shared_to_skynet(Options_->EnableSkynetSharing);
         if (Options_->TableSchema)  {
             MiscExt_.set_sorted(Options_->TableSchema->IsSorted());

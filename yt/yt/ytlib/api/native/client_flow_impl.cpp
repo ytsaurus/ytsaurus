@@ -92,7 +92,7 @@ TSetPipelineSpecResult TClient::DoSetPipelineSpec(
     req->set_spec(spec.ToString());
     req->set_force(options.Force);
     if (options.ExpectedVersion) {
-        req->set_expected_version(ToProto<i64>(*options.ExpectedVersion));
+        req->set_expected_version(ToProto(*options.ExpectedVersion));
     }
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
@@ -124,7 +124,7 @@ TSetPipelineDynamicSpecResult TClient::DoSetPipelineDynamicSpec(
     auto req = proxy.SetDynamicSpec();
     req->set_spec(spec.ToString());
     if (options.ExpectedVersion) {
-        req->set_expected_version(ToProto<i64>(*options.ExpectedVersion));
+        req->set_expected_version(ToProto(*options.ExpectedVersion));
     }
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();

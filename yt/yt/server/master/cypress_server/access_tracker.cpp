@@ -92,7 +92,7 @@ void TAccessTracker::SetAccessed(TCypressNode* trunkNode)
 
     auto now = NProfiling::GetInstant();
     auto* update = shard->UpdateAccessStatisticsRequest.mutable_updates(index);
-    update->set_access_time(ToProto<i64>(now));
+    update->set_access_time(ToProto(now));
     update->set_access_counter_delta(update->access_counter_delta() + 1);
 }
 
@@ -119,7 +119,7 @@ void TAccessTracker::SetTouched(TCypressNode* trunkNode)
 
     auto now = NProfiling::GetInstant();
     auto* update = shard->TouchNodesRequest.mutable_updates(index);
-    update->set_touch_time(ToProto<i64>(now));
+    update->set_touch_time(ToProto(now));
 }
 
 void TAccessTracker::Reset()

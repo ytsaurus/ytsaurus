@@ -156,7 +156,7 @@ private:
             .ThrowOnError();
 
         ToProto(response->mutable_node_id(), rootstockId);
-        response->set_cell_tag(ToProto<int>(rootstockCellTag));
+        response->set_cell_tag(ToProto(rootstockCellTag));
         context->Reply();
     }
 };

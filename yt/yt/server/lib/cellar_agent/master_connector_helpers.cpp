@@ -54,7 +54,7 @@ void AddCellarInfoToHeartbeatRequest(
             };
 
             ToProto(protoSlotInfo->mutable_cell_info(), cellInfo);
-            protoSlotInfo->set_peer_state(ToProto<int>(occupant->GetControlState()));
+            protoSlotInfo->set_peer_state(ToProto(occupant->GetControlState()));
             protoSlotInfo->set_peer_id(occupant->GetPeerId());
             protoSlotInfo->set_dynamic_config_version(occupant->GetDynamicConfigVersion());
 
@@ -62,7 +62,7 @@ void AddCellarInfoToHeartbeatRequest(
                 protoSlotInfo->set_is_response_keeper_warming_up(responseKeeper->IsWarmingUp());
             }
         } else {
-            protoSlotInfo->set_peer_state(ToProto<int>(NHydra::EPeerState::None));
+            protoSlotInfo->set_peer_state(ToProto(NHydra::EPeerState::None));
         }
     }
 }

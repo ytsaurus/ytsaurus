@@ -19,8 +19,7 @@ void ToProto(
     protoOptions->set_persistent(options.Persistent);
     protoOptions->set_late_prepare(options.LatePrepare);
     protoOptions->set_prepare_timestamp(options.PrepareTimestamp);
-    protoOptions->set_prepare_timestamp_cluster_tag(
-        ToProto<ui32>(options.PrepareTimestampClusterTag));
+    protoOptions->set_prepare_timestamp_cluster_tag(ToProto(options.PrepareTimestampClusterTag));
     ToProto(
         protoOptions->mutable_prerequisite_transaction_ids(),
         options.PrerequisiteTransactionIds);
@@ -45,8 +44,7 @@ void ToProto(
     const TTransactionCommitOptions& options)
 {
     protoOptions->set_commit_timestamp(options.CommitTimestamp);
-    protoOptions->set_commit_timestamp_cluster_tag(
-        ToProto<ui32>(options.CommitTimestampClusterTag));
+    protoOptions->set_commit_timestamp_cluster_tag(ToProto(options.CommitTimestampClusterTag));
 }
 
 void FromProto(

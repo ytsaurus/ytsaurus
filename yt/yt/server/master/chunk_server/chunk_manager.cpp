@@ -1838,7 +1838,7 @@ public:
 
         for (const auto& scheduledJob : schedulingContext.GetScheduledJobs()) {
             NProto::TJobSpec jobSpec;
-            jobSpec.set_type(ToProto<int>(scheduledJob->GetType()));
+            jobSpec.set_type(ToProto(scheduledJob->GetType()));
 
             if (!scheduledJob->FillJobSpec(Bootstrap_, &jobSpec)) {
                 continue;
@@ -1857,7 +1857,7 @@ public:
         // followers may end up with strange reorderings.
         if (IsLeader() && (node->ResourceUsage() != resourceUsage || node->ResourceLimits() != resourceLimits)) {
             NNodeTrackerServer::NProto::TReqUpdateNodeResources request;
-            request.set_node_id(ToProto<ui32>(node->GetId()));
+            request.set_node_id(ToProto(node->GetId()));
             request.mutable_resource_usage()->CopyFrom(resourceUsage);
             request.mutable_resource_limits()->CopyFrom(resourceLimits);
 
@@ -2954,7 +2954,7 @@ private:
                 request->set_lazy(true);
                 ++LazyAllyReplicasAnnounced_;
             } else if (!IsExactlyReplicatedByApprovedReplicas(chunk)) {
-                request->set_delay(ToProto<i64>(
+                request->set_delay(ToProto(
                     dynamicConfig->UnderreplicatedChunkAnnouncementRequestDelay));
                 ++DelayedAllyReplicasAnnounced_;
             } else {
@@ -3776,7 +3776,7 @@ private:
             auto it = crossCellRequestMap.find(cellTag);
             if (it == crossCellRequestMap.end()) {
                 it = crossCellRequestMap.emplace(cellTag, NProto::TReqUpdateChunkRequisition()).first;
-                it->second.set_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
+                it->second.set_cell_tag(ToProto(multicellManager->GetCellTag()));
             }
             return it->second;
         };
@@ -4054,7 +4054,7 @@ private:
                 ToProto(importData->mutable_chunk_schema_id(), schema->GetId());
             }
 
-            importData->set_erasure_codec(ToProto<int>(chunk->GetErasureCodec()));
+            importData->set_erasure_codec(ToProto(chunk->GetErasureCodec()));
         }
 
         YT_LOG_DEBUG("Chunks exported (TransactionId: %v, ChunkCount: %v, ChunkIdToDestinationCellTag: %v)",
@@ -4472,7 +4472,7 @@ private:
             if (subrequest->request_statistics()) {
                 ToProto(subresponse->mutable_statistics(), chunk->GetStatistics().ToDataStatistics());
             }
-            subresponse->set_revision(ToProto<i64>(GetCurrentMutationContext()->GetVersion().ToRevision()));
+            subresponse->set_revision(ToProto(GetCurrentMutationContext()->GetVersion().ToRevision()));
         }
     }
 

@@ -65,7 +65,7 @@ public:
         for (int recordIndex = 0; recordIndex < RecordCount; ++recordIndex) {
             NHydra::NProto::TMutationHeader mutationHeader;
             mutationHeader.set_mutation_type("FakeMutationType");
-            mutationHeader.set_timestamp(ToProto<ui64>(TInstant::Now()));
+            mutationHeader.set_timestamp(ToProto(TInstant::Now()));
             mutationHeader.set_random_seed(123);
             mutationHeader.set_segment_id(1);
             mutationHeader.set_record_id(recordIndex);

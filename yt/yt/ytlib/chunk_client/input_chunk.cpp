@@ -360,7 +360,7 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
     }
 
     if (inputChunk->ErasureCodec_ != NErasure::ECodec::None) {
-        chunkSpec->set_erasure_codec(ToProto<int>(inputChunk->ErasureCodec_));
+        chunkSpec->set_erasure_codec(ToProto(inputChunk->ErasureCodec_));
     }
 
     chunkSpec->set_striped_erasure(inputChunk->StripedErasure_);
@@ -396,8 +396,8 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
         ToProto(chunkSpec->mutable_upper_limit(), *inputChunk->UpperLimit_);
     }
 
-    chunkSpec->mutable_chunk_meta()->set_type(ToProto<int>(EChunkType::Table));
-    chunkSpec->mutable_chunk_meta()->set_format(ToProto<int>(inputChunk->ChunkFormat_));
+    chunkSpec->mutable_chunk_meta()->set_type(ToProto(EChunkType::Table));
+    chunkSpec->mutable_chunk_meta()->set_format(ToProto(inputChunk->ChunkFormat_));
     chunkSpec->mutable_chunk_meta()->mutable_extensions();
 }
 

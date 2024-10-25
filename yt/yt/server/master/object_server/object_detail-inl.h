@@ -153,15 +153,15 @@ template <class T>
     const auto& objectManager = bootstrap->GetObjectManager();
 
     auto fillResult = [&] (auto* protoResult, const auto& result) {
-        protoResult->set_action(ToProto<int>(result.Action));
+        protoResult->set_action(ToProto(result.Action));
         if (result.Object) {
             ToProto(protoResult->mutable_object_id(), result.Object->GetId());
             const auto& handler = objectManager->GetHandler(result.Object);
-            protoResult->set_object_name(ToProto<TProtobufString>(handler->GetName(result.Object)));
+            protoResult->set_object_name(ToProto(handler->GetName(result.Object)));
         }
         if (result.Subject) {
             ToProto(protoResult->mutable_subject_id(), result.Subject->GetId());
-            protoResult->set_subject_name(ToProto<TProtobufString>(result.Subject->GetName()));
+            protoResult->set_subject_name(ToProto(result.Subject->GetName()));
         }
     };
 

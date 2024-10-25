@@ -923,7 +923,7 @@ void TClient::DoMultisetAttributesNode(
     auto nestingLevelLimit = Connection_->GetConfig()->CypressWriteYsonNestingLevelLimit;
     for (const auto& [attribute, value] : children) {
         auto* protoSubrequest = req->add_subrequests();
-        protoSubrequest->set_attribute(ToProto<TProtobufString>(attribute));
+        protoSubrequest->set_attribute(ToProto(attribute));
         auto binarizedValue = ConvertToYsonStringNestingLimited(value, nestingLevelLimit);
         protoSubrequest->set_value(binarizedValue.ToString());
     }
@@ -1311,7 +1311,7 @@ private:
 
         for (auto& srcObject : SrcObjects_) {
             auto req = TObjectYPathProxy::GetBasicAttributes(srcObject.GetPath());
-            req->set_permission(ToProto<ui64>(EPermission::FullRead));
+            req->set_permission(ToProto(EPermission::FullRead));
             req->set_populate_security_tags(true);
             req->Tag() = &srcObject;
             NCypressClient::SetTransactionId(req, *srcObject.TransactionId);
@@ -1890,7 +1890,7 @@ private:
             std::remove(cellTags.begin(), cellTags.end(), dstObjectCellTag),
             cellTags.end());
         ToProto(req->mutable_upload_transaction_secondary_cell_tags(), cellTags);
-        req->set_upload_transaction_timeout(ToProto<i64>(Client_->Connection_->GetConfig()->UploadTransactionTimeout));
+        req->set_upload_transaction_timeout(ToProto(Client_->Connection_->GetConfig()->UploadTransactionTimeout));
         NRpc::GenerateMutationId(req);
         Client_->SetTransactionId(req, Options_, true);
 

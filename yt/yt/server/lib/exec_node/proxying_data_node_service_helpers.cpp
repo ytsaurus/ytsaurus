@@ -150,7 +150,7 @@ void PrepareProxiedChunkReading(
         newReplicas.emplace_back(nodeId, 0, AllMediaIndex);
 
         ToProto(proxiedChunkSpec.mutable_chunk_id(), proxiedChunkId);
-        proxiedChunkSpec.set_erasure_codec(ToProto<int>(NErasure::ECodec::None));
+        proxiedChunkSpec.set_erasure_codec(ToProto(NErasure::ECodec::None));
         ToProto(proxiedChunkSpec.mutable_replicas(), newReplicas);
 
         proxiedChunkSpecs.push_back(std::move(proxiedChunkSpec));

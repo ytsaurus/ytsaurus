@@ -37,9 +37,9 @@ TEST(TImmutableChunkMetaTest, Null)
 NChunkClient::NProto::TChunkMeta MakeProtoMetaWithExtensions()
 {
     NChunkClient::NProto::TChunkMeta protoMeta;
-    protoMeta.set_type(ToProto<int>(EChunkType::Table));
-    protoMeta.set_format(ToProto<int>(EChunkFormat::TableVersionedColumnar));
-    protoMeta.set_features(ToProto<ui64>(EChunkFeatures::DescendingSortOrder));
+    protoMeta.set_type(ToProto(EChunkType::Table));
+    protoMeta.set_format(ToProto(EChunkFormat::TableVersionedColumnar));
+    protoMeta.set_features(ToProto(EChunkFeatures::DescendingSortOrder));
 
     NChunkClient::NProto::TMiscExt miscExt;
     miscExt.set_row_count(100);

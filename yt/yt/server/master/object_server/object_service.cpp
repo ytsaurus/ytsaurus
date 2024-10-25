@@ -649,10 +649,10 @@ private:
                 NRpc::WriteAuthenticationIdentityToProto(&requestHeader, RpcContext_->GetAuthenticationIdentity());
             }
             if (!requestHeader.has_timeout()) {
-                requestHeader.set_timeout(ToProto<i64>(RpcContext_->GetTimeout().value_or(Owner_->Config_->DefaultExecuteTimeout)));
+                requestHeader.set_timeout(ToProto(RpcContext_->GetTimeout().value_or(Owner_->Config_->DefaultExecuteTimeout)));
             }
             if (!requestHeader.has_start_time()) {
-                requestHeader.set_start_time(ToProto<ui64>(RpcContext_->GetStartTime().value_or(now)));
+                requestHeader.set_start_time(ToProto(RpcContext_->GetStartTime().value_or(now)));
             }
             if (GetSuppressUpstreamSync(RpcContext_)) {
                 SetSuppressUpstreamSync(&requestHeader, true);

@@ -1017,8 +1017,8 @@ void TJobProxy::ReportResult(
     auto req = SupervisorProxy_->OnJobFinished();
     ToProto(req->mutable_job_id(), JobId_);
     *req->mutable_result() = result;
-    req->set_start_time(ToProto<i64>(startTime));
-    req->set_finish_time(ToProto<i64>(finishTime));
+    req->set_start_time(ToProto(startTime));
+    req->set_finish_time(ToProto(finishTime));
     auto job = FindJob();
     if (job) {
         FillStatistics(req, job, GetEnrichedStatistics());

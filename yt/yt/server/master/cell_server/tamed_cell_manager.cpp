@@ -471,7 +471,7 @@ public:
         // Create "snapshots" child.
         {
             auto req = TCypressYPathProxy::Create(path + "/snapshots");
-            req->set_type(ToProto<int>(EObjectType::MapNode));
+            req->set_type(ToProto(EObjectType::MapNode));
             req->set_ignore_existing(true);
             ToProto(req->mutable_node_attributes(), *snapshotAttributes);
             SyncExecuteVerb(cellMapNodeProxy, req);
@@ -480,7 +480,7 @@ public:
         // Create "changelogs" child.
         {
             auto req = TCypressYPathProxy::Create(path + "/changelogs");
-            req->set_type(ToProto<int>(EObjectType::MapNode));
+            req->set_type(ToProto(EObjectType::MapNode));
             req->set_ignore_existing(true);
             ToProto(req->mutable_node_attributes(), *changelogAttributes);
             SyncExecuteVerb(cellMapNodeProxy, req);
@@ -562,7 +562,7 @@ public:
             // Create Cypress node.
             {
                 auto req = TCypressYPathProxy::Create(cellNodePath);
-                req->set_type(ToProto<int>(EObjectType::TabletCellNode));
+                req->set_type(ToProto(EObjectType::TabletCellNode));
 
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("opaque", true);
@@ -593,7 +593,7 @@ public:
 
                         {
                             auto req = TCypressYPathProxy::Create(peerNodePath);
-                            req->set_type(ToProto<int>(EObjectType::MapNode));
+                            req->set_type(ToProto(EObjectType::MapNode));
                             SyncExecuteVerb(cellMapNodeProxy, req);
                         }
 
@@ -1455,7 +1455,7 @@ private:
             incremental);
 
         NProto::TReqSetCellStatus request;
-        request.set_cell_tag(ToProto<int>(Bootstrap_->GetCellTag()));
+        request.set_cell_tag(ToProto(Bootstrap_->GetCellTag()));
 
         for (auto [cellId, cell] : CellMap_) {
             if (!IsObjectAlive(cell)) {
@@ -1701,7 +1701,7 @@ private:
             const auto& cellBundle = cell->CellBundle();
             protoInfo->set_options(ConvertToYsonString(cellBundle->GetOptions()).ToString());
 
-            protoInfo->set_cell_bundle(ToProto<TProtobufString>(cellBundle->GetName()));
+            protoInfo->set_cell_bundle(ToProto(cellBundle->GetName()));
 
             YT_LOG_DEBUG("Occupant creation requested (Address: %v, CellId: %v, PeerId: %v)",
                 node->GetDefaultAddress(),

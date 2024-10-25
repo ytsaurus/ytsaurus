@@ -108,7 +108,7 @@ public:
         auto heartbeatRequest = proxy.Heartbeat();
         heartbeatRequest->SetTimeout(GetDynamicConfig()->HeartbeatTimeout);
 
-        heartbeatRequest->set_node_id(ToProto<ui32>(Bootstrap_->GetNodeId()));
+        heartbeatRequest->set_node_id(ToProto(Bootstrap_->GetNodeId()));
         AddTabletInfoToHeartbeatRequest(cellTag, heartbeatRequest);
 
         return heartbeatRequest;
@@ -199,8 +199,8 @@ private:
                     totalDynamicMemoryUsage += tabletSnapshot->TabletRuntimeData->DynamicMemoryUsagePerType[type].load();
                 }
                 protoTabletStatistics->set_dynamic_memory_pool_size(totalDynamicMemoryUsage);
-                protoTabletStatistics->set_modification_time(ToProto<ui64>(tabletSnapshot->TabletRuntimeData->ModificationTime));
-                protoTabletStatistics->set_access_time(ToProto<ui64>(tabletSnapshot->TabletRuntimeData->AccessTime));
+                protoTabletStatistics->set_modification_time(ToProto(tabletSnapshot->TabletRuntimeData->ModificationTime.load()));
+                protoTabletStatistics->set_access_time(ToProto(tabletSnapshot->TabletRuntimeData->AccessTime.load()));
 
                 int tabletErrorCount = 0;
                 tabletSnapshot->TabletRuntimeData->Errors.ForEachError([&tabletErrorCount] (const TError& error) {

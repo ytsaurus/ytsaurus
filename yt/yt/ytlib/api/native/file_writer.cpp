@@ -238,7 +238,7 @@ private:
                 auto lockMode = (append && !Options_.ComputeMD5) ? ELockMode::Shared : ELockMode::Exclusive;
                 req->set_lock_mode(static_cast<int>(lockMode));
                 req->set_upload_transaction_title(Format("Upload to %v", Path_.GetPath()));
-                req->set_upload_transaction_timeout(ToProto<i64>(Client_->GetNativeConnection()->GetConfig()->UploadTransactionTimeout));
+                req->set_upload_transaction_timeout(ToProto(Client_->GetNativeConnection()->GetConfig()->UploadTransactionTimeout));
                 GenerateMutationId(req);
                 SetTransactionId(req, Transaction_);
                 batchReq->AddRequest(req, "begin_upload");

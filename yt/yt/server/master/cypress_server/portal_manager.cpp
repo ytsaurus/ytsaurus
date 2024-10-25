@@ -170,7 +170,7 @@ public:
 
                 portalExitInfo->set_inherit_acl(node->Acd().Inherit());
 
-                portalExitInfo->set_owner(ToProto<TProtobufString>(node->Acd().GetOwner()->GetName()));
+                portalExitInfo->set_owner(ToProto(node->Acd().GetOwner()->GetName()));
 
                 if (auto annotationNode = FindClosestAncestorWithAnnotation(node)) {
                     portalExitInfo->mutable_effective_annotation()->set_annotation(*annotationNode->TryGetAnnotation());
@@ -213,7 +213,7 @@ public:
         ToProto(request.mutable_explicit_node_attributes(), explicitAttributes);
         ToProto(request.mutable_parent_id(), trunkNode->GetParent()->GetId());
         if (auto optionalKey = FindNodeKey(cypressManager, trunkNode, transaction)) {
-            request.set_key(ToProto<TProtobufString>(*optionalKey));
+            request.set_key(ToProto(*optionalKey));
         }
 
         if (effectiveAnnotation) {

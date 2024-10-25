@@ -941,7 +941,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         {
             auto& descriptor = result.StoresToAdd.emplace_back();
-            descriptor.set_store_type(ToProto<int>(EStoreType::SortedChunk));
+            descriptor.set_store_type(ToProto(EStoreType::SortedChunk));
             ToProto(descriptor.mutable_store_id(), storeChunkWriter->GetChunkId());
             ToProto(descriptor.mutable_backing_store_id(), store->GetId());
             *descriptor.mutable_chunk_meta() = *storeWriter->GetMeta();

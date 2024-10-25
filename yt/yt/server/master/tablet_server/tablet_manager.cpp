@@ -705,10 +705,10 @@ public:
             }
 
             if (mode) {
-                req.set_mode(ToProto<int>(*mode));
+                req.set_mode(ToProto(*mode));
             }
             if (atomicity) {
-                req.set_atomicity(ToProto<int>(*atomicity));
+                req.set_atomicity(ToProto(*atomicity));
             }
             if (preserveTimestamps) {
                 req.set_preserve_timestamps(*preserveTimestamps);
@@ -1712,7 +1712,7 @@ public:
             ToProto(req.mutable_transaction_id(), transaction->GetId());
             req.set_commit_timestamp(static_cast<i64>(
                 transactionManager->GetTimestampHolderTimestamp(transaction->GetId())));
-            req.set_update_mode(ToProto<int>(updateMode));
+            req.set_update_mode(ToProto(updateMode));
 
             i64 startingRowIndex = 0;
             for (const auto* store : stores) {
@@ -3764,8 +3764,8 @@ private:
             ToProto(reqEssential.mutable_next_pivot_key(), upper);
         }
 
-        reqEssential.set_atomicity(ToProto<int>(table->GetAtomicity()));
-        reqEssential.set_commit_ordering(ToProto<int>(table->GetCommitOrdering()));
+        reqEssential.set_atomicity(ToProto(table->GetAtomicity()));
+        reqEssential.set_commit_ordering(ToProto(table->GetCommitOrdering()));
         ToProto(reqEssential.mutable_upstream_replica_id(), table->GetUpstreamReplicaId());
 
         return req;
@@ -5048,7 +5048,7 @@ private:
         YT_LOG_INFO("Sending tablet cell statistics gossip message");
 
         NProto::TReqSetTabletCellStatistics request;
-        request.set_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
+        request.set_cell_tag(ToProto(multicellManager->GetCellTag()));
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         for (auto* cellBase : GetValuesSortedByKey(cellManager->Cells(ECellarType::Tablet))) {
@@ -5386,12 +5386,12 @@ private:
 
             NProto::TReqUpdateUpstreamTabletState request;
             ToProto(request.mutable_table_id(), table->GetId());
-            request.set_actual_tablet_state(ToProto<int>(actualState));
+            request.set_actual_tablet_state(ToProto(actualState));
             if (clearLastMountTransactionId) {
                 ToProto(request.mutable_last_mount_transaction_id(), table->GetLastMountTransactionId());
             }
             if (expectedState) {
-                request.set_expected_tablet_state(ToProto<int>(*expectedState));
+                request.set_expected_tablet_state(ToProto(*expectedState));
             }
 
             multicellManager->PostToMaster(request, table->GetNativeCellTag());
@@ -7325,7 +7325,7 @@ private:
         NTabletNode::NProto::TAddStoreDescriptor* descriptor,
         i64* startingRowIndex)
     {
-        descriptor->set_store_type(ToProto<int>(GetStoreType(table, chunkOrView)));
+        descriptor->set_store_type(ToProto(GetStoreType(table, chunkOrView)));
         ToProto(descriptor->mutable_store_id(), chunkOrView->GetId());
 
         const TChunk* chunk;
@@ -7447,9 +7447,9 @@ private:
         descriptor->set_cluster_name(replica->GetClusterName());
         descriptor->set_replica_path(replica->GetReplicaPath());
         descriptor->set_start_replication_timestamp(replica->GetStartReplicationTimestamp());
-        descriptor->set_mode(ToProto<int>(replica->GetMode()));
+        descriptor->set_mode(ToProto(replica->GetMode()));
         descriptor->set_preserve_timestamps(replica->GetPreserveTimestamps());
-        descriptor->set_atomicity(ToProto<int>(replica->GetAtomicity()));
+        descriptor->set_atomicity(ToProto(replica->GetAtomicity()));
         info.Populate(descriptor->mutable_statistics());
     }
 

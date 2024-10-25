@@ -189,7 +189,7 @@ std::shared_ptr<TNodeDirectoryBuilder> TNodeDirectoryBuilderFactory::GetNodeDire
         auto* protoNodeDirectory = JobSpecExt_->mutable_input_node_directory();
         if (!IsLocal(clusterName)) {
             auto* remoteClusterProto = &((*JobSpecExt_->mutable_remote_input_clusters())[clusterName.Underlying()]);
-            remoteClusterProto->set_name(ToProto<TProtobufString>(clusterName.Underlying()));
+            remoteClusterProto->set_name(ToProto(clusterName.Underlying()));
             protoNodeDirectory = remoteClusterProto->mutable_node_directory();
         }
         Builders_.emplace(
@@ -305,7 +305,7 @@ void TInputCluster::LockTables()
     for (const auto& table : InputTables_) {
         auto req = TTableYPathProxy::Lock(table->GetPath());
         req->Tag() = table;
-        req->set_mode(ToProto<int>(ELockMode::Snapshot));
+        req->set_mode(ToProto(ELockMode::Snapshot));
         SetTransactionId(req, *table->TransactionId);
         GenerateMutationId(req);
         batchReq->AddRequest(req);

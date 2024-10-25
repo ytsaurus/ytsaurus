@@ -50,7 +50,7 @@ TCheckPermissionByAclResult TClient::DoCheckPermissionByAcl(
 
     auto req = TMasterYPathProxy::CheckPermissionByAcl();
     if (user) {
-        req->set_user(ToProto<TProtobufString>(*user));
+        req->set_user(ToProto(*user));
     }
     req->set_permission(static_cast<int>(permission));
     req->set_acl(ConvertToYsonString(acl).ToString());
@@ -126,7 +126,7 @@ TCheckPermissionResponse TClient::DoCheckPermission(
     SetBalancingHeader(batchReq, options);
 
     auto req = TObjectYPathProxy::CheckPermission(path);
-    req->set_user(ToProto<TProtobufString>(user));
+    req->set_user(ToProto(user));
     req->set_permission(static_cast<int>(permission));
     if (options.Columns) {
         ToProto(req->mutable_columns()->mutable_items(), *options.Columns);

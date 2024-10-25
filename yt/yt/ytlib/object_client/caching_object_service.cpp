@@ -199,7 +199,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
             cacheEntryFutures.push_back(MakeFuture(cookie.ExpiredEntry()));
             // Since stale response was successfully found on this cache level,
             // we forbid stale responses on upper levels.
-            cachingRequestHeaderExt->set_success_staleness_bound(ToProto<i64>(TDuration::Zero()));
+            cachingRequestHeaderExt->set_success_staleness_bound(ToProto(TDuration::Zero()));
         } else {
             cacheEntryFutures.push_back(cookie.GetValue());
         }
@@ -214,8 +214,8 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                 balancingHeaderExt->set_enable_stickiness(true);
                 balancingHeaderExt->set_sticky_group_size(1);
 
-                cachingRequestHeaderExt->set_expire_after_successful_update_time(ToProto<i64>(expireAfterSuccessfulUpdateTime - nodeExpireAfterSuccessfulUpdateTime));
-                cachingRequestHeaderExt->set_expire_after_failed_update_time(ToProto<i64>(expireAfterFailedUpdateTime - nodeExpireAfterFailedUpdateTime));
+                cachingRequestHeaderExt->set_expire_after_successful_update_time(ToProto(expireAfterSuccessfulUpdateTime - nodeExpireAfterSuccessfulUpdateTime));
+                cachingRequestHeaderExt->set_expire_after_failed_update_time(ToProto(expireAfterFailedUpdateTime - nodeExpireAfterFailedUpdateTime));
             }
 
             auto* multicellSyncExt = req->Header().MutableExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);

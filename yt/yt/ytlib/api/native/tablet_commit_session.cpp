@@ -226,7 +226,7 @@ private:
         ToProto(req->mutable_transaction_id(), transaction->GetId());
         if (transaction->GetAtomicity() == EAtomicity::Full) {
             req->set_transaction_start_timestamp(transaction->GetStartTimestamp());
-            req->set_transaction_timeout(ToProto<i64>(transaction->GetTimeout()));
+            req->set_transaction_timeout(ToProto(transaction->GetTimeout()));
         }
         ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
         req->set_mount_revision(TabletInfo_->MountRevision);

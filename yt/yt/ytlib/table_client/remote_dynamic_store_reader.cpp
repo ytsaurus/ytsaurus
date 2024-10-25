@@ -998,7 +998,7 @@ protected:
             ChunkSpec_.clear_replicas();
             for (auto replica : replicas) {
                 ChunkSpec_.add_legacy_replicas(ToProto<ui32>(replica.ToChunkReplica()));
-                ChunkSpec_.add_replicas(ToProto<ui64>(replica));
+                ChunkSpec_.add_replicas(ToProto(replica));
             }
 
             PatchChunkSpecWithContinuationToken();

@@ -133,7 +133,7 @@ void TChunkTeleporter::DoExport(TCellTag cellTag, const std::vector<TChunkEntry*
             auto* protoData = req->add_chunks();
             const auto* entry = chunks[index];
             ToProto(protoData->mutable_id(), entry->ChunkId);
-            protoData->set_destination_cell_tag(ToProto<int>(entry->DestinationCellTag));
+            protoData->set_destination_cell_tag(ToProto(entry->DestinationCellTag));
         }
 
         YT_LOG_INFO("Exporting chunks (CellTag: %v, ChunkCount: %v)",

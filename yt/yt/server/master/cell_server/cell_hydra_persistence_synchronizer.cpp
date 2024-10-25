@@ -262,7 +262,7 @@ private:
 
         {
             auto req = TCypressYPathProxy::Create(cellNodePath);
-            req->set_type(ToProto<int>(EObjectType::MapNode));
+            req->set_type(ToProto(EObjectType::MapNode));
             req->set_ignore_existing(true);
             batchReq->AddRequest(req);
         }
@@ -287,7 +287,7 @@ private:
                     // Create "snapshots" child.
                     {
                         auto req = TCypressYPathProxy::Create(path + "/snapshots");
-                        req->set_type(ToProto<int>(EObjectType::MapNode));
+                        req->set_type(ToProto(EObjectType::MapNode));
                         req->set_ignore_existing(true);
                         ToProto(req->mutable_node_attributes(), *snapshotAttributes);
                         batchReq->AddRequest(req);
@@ -295,7 +295,7 @@ private:
                     // Create "changelogs" child.
                     {
                         auto req = TCypressYPathProxy::Create(path + "/changelogs");
-                        req->set_type(ToProto<int>(EObjectType::MapNode));
+                        req->set_type(ToProto(EObjectType::MapNode));
                         req->set_ignore_existing(true);
                         ToProto(req->mutable_node_attributes(), *changelogAttributes);
                         batchReq->AddRequest(req);
@@ -312,7 +312,7 @@ private:
                         }
 
                         auto req = TCypressYPathProxy::Create(YPathJoin(cellNodePath, peerId));
-                        req->set_type(ToProto<int>(EObjectType::MapNode));
+                        req->set_type(ToProto(EObjectType::MapNode));
                         req->set_ignore_existing(true);
                         req->Tag() = peerId;
                         batchReq->AddRequest(req);
@@ -331,7 +331,7 @@ private:
                 if (TypeFromId(cellId) == EObjectType::TabletCell) {
                     static const TString OrchidKey("orchid");
                     auto req = TCypressYPathProxy::Create(YPathJoin(cellNodePath, OrchidKey));
-                    req->set_type(ToProto<int>(EObjectType::CellOrchidNode));
+                    req->set_type(ToProto(EObjectType::CellOrchidNode));
                     auto attributes = CreateEphemeralAttributes();
                     attributes->Set("cell_id", cellId);
                     ToProto(req->mutable_node_attributes(), *attributes);

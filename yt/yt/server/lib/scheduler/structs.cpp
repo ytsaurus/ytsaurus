@@ -20,27 +20,26 @@ void ToProto(
     const TAllocationAttributes& attributes)
 {
     if (auto timeout = attributes.WaitingForResourcesOnNodeTimeout) {
-        protoAttributes->set_waiting_for_resources_on_node_timeout(ToProto<i64>(*timeout));
+        protoAttributes->set_waiting_for_resources_on_node_timeout(ToProto(*timeout));
     }
     if (const auto& cudaToolkitVersion = attributes.CudaToolkitVersion) {
         protoAttributes->set_cuda_toolkit_version(*cudaToolkitVersion);
     }
     {
-        auto& diskRequest =
-            (*protoAttributes->mutable_disk_request() = {});
-        if (auto& diskSpace = attributes.DiskRequest.DiskSpace) {
-            diskRequest.set_disk_space(ToProto<i64>(*diskSpace));
+        auto& diskRequest = (*protoAttributes->mutable_disk_request() = {});
+        if (auto diskSpace = attributes.DiskRequest.DiskSpace) {
+            diskRequest.set_disk_space(*diskSpace);
         }
-        if (auto& mediumIndex = attributes.DiskRequest.MediumIndex) {
-            diskRequest.set_medium_index(ToProto<i32>(*mediumIndex));
+        if (auto mediumIndex = attributes.DiskRequest.MediumIndex) {
+            diskRequest.set_medium_index(*mediumIndex);
         }
         if (auto& inodeCount = attributes.DiskRequest.InodeCount) {
-            diskRequest.set_inode_count(ToProto<i64>(*inodeCount));
+            diskRequest.set_inode_count(*inodeCount);
         }
     }
 
     protoAttributes->set_allow_idle_cpu_policy(attributes.AllowIdleCpuPolicy);
-    protoAttributes->set_port_count(ToProto<i64>(attributes.PortCount));
+    protoAttributes->set_port_count(attributes.PortCount);
 }
 
 void FromProto(
@@ -112,9 +111,9 @@ void ToProto(
             startDescriptor.AllocationAttributes);
     }
 
-    protoResponse->set_duration(ToProto<i64>(scheduleJobResult.Duration));
+    protoResponse->set_duration(ToProto(scheduleJobResult.Duration));
     if (scheduleJobResult.NextDurationEstimate) {
-        protoResponse->set_next_duration_estimate(ToProto<i64>(*scheduleJobResult.NextDurationEstimate));
+        protoResponse->set_next_duration_estimate(ToProto(*scheduleJobResult.NextDurationEstimate));
     }
     for (auto reason : TEnumTraits<EScheduleFailReason>::GetDomainValues()) {
         if (scheduleJobResult.Failed[reason] > 0) {

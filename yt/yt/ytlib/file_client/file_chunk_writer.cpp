@@ -179,8 +179,8 @@ TFuture<void> TFileChunkWriter::Close()
     }
 
     auto meta = EncodingChunkWriter_->GetMeta();
-    meta->set_type(ToProto<int>(EChunkType::File));
-    meta->set_format(ToProto<int>(EChunkFormat::FileDefault));
+    meta->set_type(ToProto(EChunkType::File));
+    meta->set_format(ToProto(EChunkFormat::FileDefault));
     SetProtoExtension(meta->mutable_extensions(), BlocksExt_);
 
     return BIND(&TEncodingChunkWriter::Close, EncodingChunkWriter_)

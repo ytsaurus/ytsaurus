@@ -78,7 +78,7 @@ private:
                 context->SetResponseInfo("Timestamp: %v", timestamp);
                 response->set_timestamp(timestamp);
                 if (clockClusterTag != InvalidCellTag) {
-                    response->set_clock_cluster_tag(ToProto<int>(clockClusterTag));
+                    response->set_clock_cluster_tag(ToProto(clockClusterTag));
                 }
 
                 context->Reply();

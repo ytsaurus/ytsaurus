@@ -1009,7 +1009,7 @@ private:
             auto owner = GetOwnerOrThrow();
             auto state = owner->PingFollower(epochId, term, alivePeerIds);
 
-            response->set_state(ToProto<int>(state));
+            response->set_state(ToProto(state));
 
             // Reply with OK in any case.
             context->Reply();

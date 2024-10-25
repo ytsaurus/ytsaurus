@@ -30,7 +30,7 @@ void TNodeDirectoryBuilder::Add(TChunkReplica replica)
 
     const auto& descriptor = Directory_->GetDescriptor(replica);
     auto* item = ProtoDirectory_->add_items();
-    item->set_node_id(ToProto<ui32>(nodeId));
+    item->set_node_id(ToProto(nodeId));
     ToProto(item->mutable_node_descriptor(), descriptor);
 }
 

@@ -1105,7 +1105,7 @@ private:
     {
         TTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
         auto req = proxy.StartTransaction();
-        req->set_timeout(ToProto<i64>(Config_->WorldInitializer->InitTransactionTimeout));
+        req->set_timeout(ToProto(Config_->WorldInitializer->InitTransactionTimeout));
         req->set_title("World initialization");
 
         auto rsp = WaitFor(req->Invoke())
@@ -1170,7 +1170,7 @@ private:
         auto batchReq = proxy.ExecuteBatch();
 
         auto req = TMasterYPathProxy::CreateObject();
-        req->set_type(ToProto<int>(type));
+        req->set_type(ToProto(type));
         req->set_ignore_existing(true);
         ToProto(req->mutable_object_attributes(), *attributes);
         batchReq->AddRequest(req);

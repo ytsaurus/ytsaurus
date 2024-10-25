@@ -18,7 +18,7 @@ TOperationId TClient::DoStartOperation(
     auto req = SchedulerOperationProxy_->StartOperation();
     SetTransactionId(req, options, true);
     SetMutationId(req, options);
-    req->set_type(ToProto<int>(type));
+    req->set_type(ToProto(type));
     req->set_spec(spec.ToString());
 
     auto rsp = WaitFor(req->Invoke())

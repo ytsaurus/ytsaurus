@@ -789,9 +789,9 @@ TMaintenanceIdPerTarget TClient::DoAddMaintenance(
     batchRequest->SetSuppressTransactionCoordinatorSync(true);
 
     auto request = TMasterYPathProxy::AddMaintenance();
-    request->set_component(ToProto<int>(component));
-    request->set_address(ToProto<TProtobufString>(address));
-    request->set_type(ToProto<int>(type));
+    request->set_component(ToProto(component));
+    request->set_address(ToProto(address));
+    request->set_type(ToProto(type));
     request->set_comment(comment);
     if (componentRegistryId != NullObjectId) {
         ToProto(request->mutable_component_registry_id(), componentRegistryId);
@@ -832,8 +832,8 @@ TMaintenanceCountsPerTarget TClient::DoRemoveMaintenance(
     batchRequest->SetSuppressTransactionCoordinatorSync(true);
 
     auto request = TMasterYPathProxy::RemoveMaintenance();
-    request->set_component(ToProto<int>(component));
-    request->set_address(ToProto<TProtobufString>(address));
+    request->set_component(ToProto(component));
+    request->set_address(ToProto(address));
 
     ToProto(request->mutable_ids(), filter.Ids);
 
@@ -849,7 +849,7 @@ TMaintenanceCountsPerTarget TClient::DoRemoveMaintenance(
             request->set_mine(true);
         },
         [&] (const std::string& user) {
-            request->set_user(ToProto<TProtobufString>(user));
+            request->set_user(ToProto(user));
         });
 
     if (componentRegistryId != NullObjectId) {

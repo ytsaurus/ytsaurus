@@ -1455,7 +1455,7 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     ToProto(serialized->mutable_workload_descriptor(), original.WorkloadDescriptor);
     serialized->set_allow_full_scan(original.AllowFullScan);
     ToProto(serialized->mutable_read_session_id(), original.ReadSessionId);
-    serialized->set_deadline(ToProto<ui64>(original.Deadline));
+    serialized->set_deadline(ToProto(original.Deadline));
     serialized->set_memory_limit_per_node(original.MemoryLimitPerNode);
     if (original.ExecutionPool) {
         serialized->set_execution_pool(*original.ExecutionPool);

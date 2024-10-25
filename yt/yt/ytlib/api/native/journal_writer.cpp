@@ -509,10 +509,10 @@ private:
 
                 {
                     auto req = TJournalYPathProxy::BeginUpload(objectIdPath);
-                    req->set_update_mode(ToProto<int>(EUpdateMode::Append));
-                    req->set_lock_mode(ToProto<int>(ELockMode::Exclusive));
+                    req->set_update_mode(ToProto(EUpdateMode::Append));
+                    req->set_lock_mode(ToProto(ELockMode::Exclusive));
                     req->set_upload_transaction_title(Format("Upload to %v", Path_));
-                    req->set_upload_transaction_timeout(ToProto<i64>(Client_->GetNativeConnection()->GetConfig()->UploadTransactionTimeout));
+                    req->set_upload_transaction_timeout(ToProto(Client_->GetNativeConnection()->GetConfig()->UploadTransactionTimeout));
                     ToProto(req->mutable_upload_prerequisite_transaction_ids(), Options_.PrerequisiteTransactionIds);
                     GenerateMutationId(req);
                     SetTransactionId(req, Transaction_);
@@ -695,12 +695,12 @@ private:
                 // NB: It is too dangerous to throttle journals.
                 // Hence we omit setting logical_request_weight.
                 // And set user to "root".
-                req->set_type(ToProto<int>(ErasureCodec_ == NErasure::ECodec::None ? EObjectType::JournalChunk : EObjectType::ErasureJournalChunk));
+                req->set_type(ToProto(ErasureCodec_ == NErasure::ECodec::None ? EObjectType::JournalChunk : EObjectType::ErasureJournalChunk));
                 req->set_account(Account_);
                 ToProto(req->mutable_transaction_id(), UploadTransaction_->GetId());
                 req->set_replication_factor(ReplicationFactor_);
                 req->set_medium_name(PrimaryMedium_);
-                req->set_erasure_codec(ToProto<int>(ErasureCodec_));
+                req->set_erasure_codec(ToProto(ErasureCodec_));
                 req->set_read_quorum(ReadQuorum_);
                 req->set_write_quorum(WriteQuorum_);
                 req->set_movable(true);
@@ -845,14 +845,14 @@ private:
                 if (useLocationUuids) {
                     for (int i = 0; i < std::ssize(replicas); ++i) {
                         auto* replicaInfo = req->add_replicas();
-                        replicaInfo->set_replica(ToProto<ui64>(replicas[i]));
+                        replicaInfo->set_replica(ToProto(replicas[i]));
                         ToProto(replicaInfo->mutable_location_uuid(), session->Nodes[i]->TargetLocationUuid);
                     }
                 }
 
                 auto* meta = req->mutable_chunk_meta();
-                meta->set_type(ToProto<int>(EChunkType::Journal));
-                meta->set_format(ToProto<int>(EChunkFormat::JournalDefault));
+                meta->set_type(ToProto(EChunkType::Journal));
+                meta->set_format(ToProto(EChunkFormat::JournalDefault));
                 TMiscExt miscExt;
                 SetProtoExtension(meta->mutable_extensions(), miscExt);
 

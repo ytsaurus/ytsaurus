@@ -162,7 +162,7 @@ private:
         ToProto(startQueryReq->mutable_query_id(), QueryId_);
         yqlRequest->set_query(Query_);
         yqlRequest->set_settings(ConvertToYsonString(SettingsNode_).ToString());
-        yqlRequest->set_mode(ToProto<int>(ExecuteMode_));
+        yqlRequest->set_mode(ToProto(ExecuteMode_));
 
         for (const auto& file : Files_) {
             auto* protoFile = yqlRequest->add_files();

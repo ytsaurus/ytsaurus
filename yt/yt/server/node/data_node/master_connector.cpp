@@ -173,7 +173,7 @@ public:
         req->SetRequestCodec(NCompression::ECodec::Lz4);
         req->SetTimeout(GetDynamicConfig()->FullHeartbeatTimeout);
 
-        req->set_node_id(ToProto<ui32>(nodeId));
+        req->set_node_id(ToProto(nodeId));
 
         ComputeStatistics(req->mutable_statistics());
 
@@ -237,7 +237,7 @@ public:
         req->SetRequestCodec(NCompression::ECodec::Lz4);
         req->SetTimeout(GetDynamicConfig()->IncrementalHeartbeatTimeout);
 
-        req->set_node_id(ToProto<ui32>(nodeId));
+        req->set_node_id(ToProto(nodeId));
         req->set_sequence_number(SequenceNumber_);
         ++SequenceNumber_;
 

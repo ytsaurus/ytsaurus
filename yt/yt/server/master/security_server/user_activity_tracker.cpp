@@ -75,7 +75,7 @@ public:
 
         auto now = NProfiling::GetInstant();
         NProto::TUserActivityStatisticsUpdate update;
-        update.set_last_seen_time(NYT::ToProto<i64>(now));
+        update.set_last_seen_time(NYT::ToProto(now));
         ToProto(update.mutable_user_id(), user->GetId());
 
         auto accumulatedStatistics = UserToActivityStatistics_.empty() ? update : UserToActivityStatistics_[user->GetId()];

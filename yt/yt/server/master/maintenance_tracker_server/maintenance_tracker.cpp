@@ -248,11 +248,11 @@ private:
         }
 
         TReqReplicateMaintenanceRequestCreation mutationRequest;
-        mutationRequest.set_component(ToProto<int>(component));
-        mutationRequest.set_address(ToProto<TProtobufString>(address));
+        mutationRequest.set_component(ToProto(component));
+        mutationRequest.set_address(ToProto(address));
         ToProto(mutationRequest.mutable_id(), id);
-        mutationRequest.set_user(ToProto<TProtobufString>(user));
-        mutationRequest.set_type(ToProto<int>(type));
+        mutationRequest.set_user(ToProto(user));
+        mutationRequest.set_type(ToProto(type));
         mutationRequest.set_comment(comment);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -296,8 +296,8 @@ private:
         }
 
         TReqReplicateMaintenanceRequestRemoval mutationRequest;
-        mutationRequest.set_component(ToProto<int>(component));
-        mutationRequest.set_address(ToProto<TProtobufString>(address));
+        mutationRequest.set_component(ToProto(component));
+        mutationRequest.set_address(ToProto(address));
 
         ToProto(mutationRequest.mutable_ids(), ids);
 

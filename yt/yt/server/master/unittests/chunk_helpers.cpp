@@ -82,7 +82,7 @@ TChunk* TChunkGeneratorBase::CreateJournalChunk(bool sealed, bool overlayed)
     chunk->RefObject();
 
     NChunkClient::NProto::TChunkMeta chunkMeta;
-    chunkMeta.set_type(ToProto<int>(EChunkType::Journal));
+    chunkMeta.set_type(ToProto(EChunkType::Journal));
 
     NChunkClient::NProto::TMiscExt miscExt;
     SetProtoExtension(chunkMeta.mutable_extensions(), miscExt);

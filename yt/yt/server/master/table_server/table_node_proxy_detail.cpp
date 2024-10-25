@@ -1950,8 +1950,8 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         auto* protoTablet = response->add_tablets();
         ToProto(protoTablet->mutable_tablet_id(), tablet->GetId());
         protoTablet->set_mount_revision(tablet->Servant().GetMountRevision());
-        protoTablet->set_state(ToProto<int>(tablet->GetState()));
-        protoTablet->set_in_memory_mode(ToProto<int>(tablet->GetInMemoryMode()));
+        protoTablet->set_state(ToProto(tablet->GetState()));
+        protoTablet->set_in_memory_mode(ToProto(tablet->GetInMemoryMode()));
         ToProto(protoTablet->mutable_pivot_key(), tablet->GetPivotKey());
         if (cell) {
             ToProto(protoTablet->mutable_cell_id(), cell->GetId());
@@ -1966,7 +1966,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     for (const auto* index : trunkTable->SecondaryIndices()) {
         auto* protoIndexInfo = response->add_indices();
         ToProto(protoIndexInfo->mutable_index_table_id(), index->GetIndexTableId());
-        protoIndexInfo->set_index_kind(ToProto<i32>(index->GetKind()));
+        protoIndexInfo->set_index_kind(ToProto(index->GetKind()));
         if (const auto& predicate = index->Predicate()) {
             ToProto(protoIndexInfo->mutable_predicate(), *predicate);
         }
