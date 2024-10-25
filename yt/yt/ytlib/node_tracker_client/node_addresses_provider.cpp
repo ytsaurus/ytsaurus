@@ -231,9 +231,9 @@ private:
             // TODO(aleksandra-zh): think of a better way of annotating req and batchReq.
             TGetClusterMetaOptions options;
             auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-            cachingHeaderExt->set_expire_after_successful_update_time(ToProto<i64>(
+            cachingHeaderExt->set_expire_after_successful_update_time(ToProto(
                 std::min(options.ExpireAfterSuccessfulUpdateTime, SyncPeriod_)));
-            cachingHeaderExt->set_expire_after_failed_update_time(ToProto<i64>(
+            cachingHeaderExt->set_expire_after_failed_update_time(ToProto(
                 std::min(options.ExpireAfterFailedUpdateTime, SyncPeriod_)));
 
             auto batchReq = proxy.ExecuteBatch();

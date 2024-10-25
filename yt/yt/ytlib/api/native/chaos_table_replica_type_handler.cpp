@@ -54,7 +54,7 @@ public:
         ToProto(req->mutable_replication_card_id(), replicationCardId);
         ToProto(req->mutable_replica_id(), replicaId);
         if (options.Mode) {
-            req->set_mode(ToProto<int>(*options.Mode));
+            req->set_mode(ToProto(*options.Mode));
         }
 
         if (options.Enabled) {
@@ -133,8 +133,8 @@ private:
         ToProto(req->mutable_replication_card_id(), replicationCardId);
         req->set_cluster_name(clusterName);
         req->set_replica_path(replicaPath);
-        req->set_content_type(ToProto<int>(contentType));
-        req->set_mode(ToProto<int>(mode));
+        req->set_content_type(ToProto(contentType));
+        req->set_mode(ToProto(mode));
         req->set_enabled(enabled);
         req->set_catchup(catchup);
         req->set_enable_replicated_table_tracker(enableReplicatedTableTracker);

@@ -232,8 +232,8 @@ public:
             auto* table = chunkOwner->As<TTableNode>();
             ToProto(entry->mutable_tablet_resource_usage(), table->GetTabletResourceUsage());
         }
-        entry->set_modification_time(ToProto<ui64>(chunkOwner->GetModificationTime()));
-        entry->set_access_time(ToProto<ui64>(chunkOwner->GetAccessTime()));
+        entry->set_modification_time(ToProto(chunkOwner->GetModificationTime()));
+        entry->set_access_time(ToProto(chunkOwner->GetAccessTime()));
         if (statistics.UseNativeContentRevisionCas) {
             entry->set_expected_content_revision(chunkOwner->GetNativeContentRevision());
         }
@@ -1545,10 +1545,10 @@ private:
                 ToProto(entry->mutable_tablet_resource_usage(), table->GetTabletResourceUsage());
             }
             if (statistics.UpdateModificationTime) {
-                entry->set_modification_time(ToProto<ui64>(chunkOwner->GetModificationTime()));
+                entry->set_modification_time(ToProto(chunkOwner->GetModificationTime()));
             }
             if (statistics.UpdateAccessTime) {
-                entry->set_access_time(ToProto<ui64>(chunkOwner->GetAccessTime()));
+                entry->set_access_time(ToProto(chunkOwner->GetAccessTime()));
             }
             if (statistics.UseNativeContentRevisionCas) {
                 entry->set_expected_content_revision(chunkOwner->GetNativeContentRevision());

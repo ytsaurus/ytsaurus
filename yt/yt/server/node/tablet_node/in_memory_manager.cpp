@@ -1103,7 +1103,7 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
 
         auto req = proxy.StartSession();
         req->SetTimeout(config->ControlRpcTimeout);
-        req->set_in_memory_mode(ToProto<int>(inMemoryMode));
+        req->set_in_memory_mode(ToProto(inMemoryMode));
 
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {

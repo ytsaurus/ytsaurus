@@ -59,7 +59,7 @@ std::unique_ptr<TMutation> CreateMutation(
     // COMPAT(danilalexeev): legacy RPC codecs
     TSharedRef requestData;
     if (header.has_request_codec()) {
-        YT_VERIFY(header.request_codec() == ToProto<int>(NCompression::ECodec::None));
+        YT_VERIFY(header.request_codec() == ToProto(NCompression::ECodec::None));
         requestData = PushEnvelope(context->GetRequestBody());
     } else {
         requestData = context->GetRequestBody();

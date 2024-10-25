@@ -1602,7 +1602,7 @@ private:
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             actionRequest.set_create_hunk_chunks_during_prepare(true);
-            actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Partitioning));
+            actionRequest.set_update_reason(ToProto(ETabletStoresUpdateReason::Partitioning));
             for (const auto& [writer, partitionIndex] : partitionWriters) {
                 AddStoresToAdd(&actionRequest, writer);
             }
@@ -1740,7 +1740,7 @@ private:
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             actionRequest.set_create_hunk_chunks_during_prepare(true);
             actionRequest.set_retained_timestamp(retainedTimestamp);
-            actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Compaction));
+            actionRequest.set_update_reason(ToProto(ETabletStoresUpdateReason::Compaction));
             AddStoresToRemove(&actionRequest, stores);
 
             YT_LOG_INFO("Partition stores discarded by TTL "
@@ -2003,7 +2003,7 @@ private:
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             actionRequest.set_create_hunk_chunks_during_prepare(true);
             actionRequest.set_retained_timestamp(retainedTimestamp);
-            actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Compaction));
+            actionRequest.set_update_reason(ToProto(ETabletStoresUpdateReason::Compaction));
             AddStoresToAdd(&actionRequest, compactionResult.StoreWriter);
             AddStoresToAdd(&actionRequest, compactionResult.HunkWriter);
             AddStoresToRemove(&actionRequest, stores);
@@ -2314,7 +2314,7 @@ private:
     {
         for (const auto& chunkSpec : writer->GetWrittenChunkSpecs()) {
             auto* descriptor = actionRequest->add_stores_to_add();
-            descriptor->set_store_type(ToProto<int>(EStoreType::SortedChunk));
+            descriptor->set_store_type(ToProto(EStoreType::SortedChunk));
             *descriptor->mutable_store_id() = chunkSpec.chunk_id();
             *descriptor->mutable_chunk_meta() = chunkSpec.chunk_meta();
             FilterProtoExtensions(

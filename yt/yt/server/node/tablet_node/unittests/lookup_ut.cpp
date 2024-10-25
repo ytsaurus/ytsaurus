@@ -71,7 +71,7 @@ public:
         const TTableSchemaPtr& chunkSchema = nullptr)
     {
         NTabletNode::NProto::TAddStoreDescriptor descriptor;
-        descriptor.set_store_type(ToProto<int>(EStoreType::SortedChunk));
+        descriptor.set_store_type(ToProto(EStoreType::SortedChunk));
         auto storeId = MakeId(
             EObjectType::Chunk,
             InvalidCellTag,
@@ -162,8 +162,8 @@ private:
         YT_VERIFY(!rows.empty());
 
         NChunkClient::NProto::TChunkMeta chunkMeta;
-        chunkMeta.set_type(ToProto<int>(EChunkType::Table));
-        chunkMeta.set_format(ToProto<int>(EChunkFormat::TableVersionedSimple));
+        chunkMeta.set_type(ToProto(EChunkType::Table));
+        chunkMeta.set_format(ToProto(EChunkFormat::TableVersionedSimple));
 
         TTimestamp minTimestamp;
         TTimestamp maxTimestamp;

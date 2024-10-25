@@ -211,7 +211,7 @@ public:
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
                 req.set_mount_revision(tablet->Servant().GetMountRevision());
                 req.set_timestamp(timestamp);
-                req.set_backup_mode(ToProto<int>(backupMode));
+                req.set_backup_mode(ToProto(backupMode));
 
                 TDynamicStoreId allocatedDynamicStoreId;
 

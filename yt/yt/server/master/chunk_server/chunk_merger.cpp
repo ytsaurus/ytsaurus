@@ -131,7 +131,7 @@ bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
 
     auto* jobSpecExt = jobSpec->MutableExtension(TMergeChunksJobSpecExt::merge_chunks_job_spec_ext);
 
-    jobSpecExt->set_cell_tag(ToProto<int>(bootstrap->GetCellTag()));
+    jobSpecExt->set_cell_tag(ToProto(bootstrap->GetCellTag()));
 
     ToProto(jobSpecExt->mutable_output_chunk_id(), ChunkIdWithIndexes_.Id);
     jobSpecExt->set_medium_index(ChunkIdWithIndexes_.MediumIndex);
@@ -156,13 +156,13 @@ bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
         ToProto(protoChunk->mutable_source_replicas(), replicas);
         builder.Add(replicas);
 
-        protoChunk->set_erasure_codec(ToProto<int>(chunk->GetErasureCodec()));
+        protoChunk->set_erasure_codec(ToProto(chunk->GetErasureCodec()));
         protoChunk->set_row_count(chunk->GetRowCount());
     }
 
     builder.Add(TargetReplicas_);
     for (auto replica : TargetReplicas_) {
-        jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
+        jobSpecExt->add_target_replicas(ToProto(replica));
     }
 
     jobSpecExt->set_validate_shallow_merge(ValidateShallowMerge_);
@@ -1456,7 +1456,7 @@ void TChunkMerger::FinalizeSessions()
         auto* req = request.add_subrequests();
         const auto& sessionResult = SessionsAwaitingFinalization_.front();
         ToProto(req->mutable_node_id(), sessionResult.NodeId);
-        req->set_result(ToProto<int>(sessionResult.Result));
+        req->set_result(ToProto(sessionResult.Result));
 
         if (sessionResult.Result != EMergeSessionResult::TransientFailure) {
             ToProto(req->mutable_traversal_info(), sessionResult.TraversalStatistics);
@@ -1605,14 +1605,14 @@ void TChunkMerger::CreateChunks()
         req->set_medium_index(mediumIndex);
 
         auto erasureCodec = chunkOwner->GetErasureCodec();
-        req->set_erasure_codec(ToProto<int>(erasureCodec));
+        req->set_erasure_codec(ToProto(erasureCodec));
 
         if (erasureCodec == NErasure::ECodec::None) {
-            req->set_type(ToProto<int>(EObjectType::Chunk));
+            req->set_type(ToProto(EObjectType::Chunk));
             const auto& policy = chunkOwner->Replication().Get(mediumIndex);
             req->set_replication_factor(policy.GetReplicationFactor());
         } else {
-            req->set_type(ToProto<int>(EObjectType::ErasureChunk));
+            req->set_type(ToProto(EObjectType::ErasureChunk));
             req->set_replication_factor(1);
         }
 
@@ -1656,12 +1656,12 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
         const auto* schema = table->GetSchema();
         ToProto(chunkMergerWriterOptions.mutable_schema(), *schema->AsTableSchema());
         ToProto(chunkMergerWriterOptions.mutable_schema_id(), schema->GetId());
-        chunkMergerWriterOptions.set_optimize_for(ToProto<int>(table->GetOptimizeFor()));
+        chunkMergerWriterOptions.set_optimize_for(ToProto(table->GetOptimizeFor()));
     }
-    chunkMergerWriterOptions.set_compression_codec(ToProto<int>(chunkOwner->GetCompressionCodec()));
-    chunkMergerWriterOptions.set_erasure_codec(ToProto<int>(erasureCodec));
+    chunkMergerWriterOptions.set_compression_codec(ToProto(chunkOwner->GetCompressionCodec()));
+    chunkMergerWriterOptions.set_erasure_codec(ToProto(erasureCodec));
     chunkMergerWriterOptions.set_enable_skynet_sharing(chunkOwner->GetEnableSkynetSharing());
-    chunkMergerWriterOptions.set_merge_mode(ToProto<int>(jobInfo.MergeMode));
+    chunkMergerWriterOptions.set_merge_mode(ToProto(jobInfo.MergeMode));
     chunkMergerWriterOptions.set_max_heavy_columns(Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->MaxHeavyColumns);
     chunkMergerWriterOptions.set_max_block_count(GetDynamicConfig()->MaxBlockCount);
 

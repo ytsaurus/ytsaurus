@@ -216,9 +216,9 @@ public:
 
             TReqChangeSmoothMovementStage req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
-            req.set_mount_revision(ToProto<ui64>(tablet->GetMountRevision()));
-            req.set_expected_stage(ToProto<int>(movementData.GetStage()));
-            req.set_new_stage(ToProto<int>(*newStage));
+            req.set_mount_revision(ToProto(tablet->GetMountRevision()));
+            req.set_expected_stage(ToProto(movementData.GetStage()));
+            req.set_new_stage(ToProto(*newStage));
 
             auto mutation = CreateMutation(HydraManager_, req);
             YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger)
@@ -453,7 +453,7 @@ private:
         NTabletServer::NProto::TReqReportSmoothMovementProgress req;
         ToProto(req.mutable_tablet_id(), tablet->GetId());
         req.set_mount_revision(tablet->GetMountRevision());
-        req.set_stage(ToProto<int>(newStage));
+        req.set_stage(ToProto(newStage));
         Host_->PostMasterMessage(tablet, req, /*forceCellMailbox*/ true);
 
         CheckTablet(tablet);
@@ -570,9 +570,9 @@ private:
 
                 TReqChangeSmoothMovementStage req;
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
-                req.set_mount_revision(ToProto<ui64>(movementData.GetSiblingMountRevision()));
-                req.set_expected_stage(ToProto<i32>(ESmoothMovementStage::TargetActivated));
-                req.set_new_stage(ToProto<i32>(ESmoothMovementStage::ServantSwitchRequested));
+                req.set_mount_revision(ToProto(movementData.GetSiblingMountRevision()));
+                req.set_expected_stage(ToProto(ESmoothMovementStage::TargetActivated));
+                req.set_new_stage(ToProto(ESmoothMovementStage::ServantSwitchRequested));
 
                 Host_->PostAvenueMessage(
                     movementData.GetSiblingAvenueEndpointId(),

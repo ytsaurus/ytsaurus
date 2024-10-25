@@ -703,7 +703,7 @@ TObjectId TClient::CreateObjectImpl(
 
     auto req = TMasterYPathProxy::CreateObject();
     SetMutationId(req, options);
-    req->set_type(ToProto<int>(type));
+    req->set_type(ToProto(type));
     req->set_ignore_existing(options.IgnoreExisting);
     ToProto(req->mutable_object_attributes(), attributes);
     batchReq->AddRequest(req);

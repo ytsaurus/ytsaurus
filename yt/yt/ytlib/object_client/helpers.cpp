@@ -20,7 +20,7 @@ using namespace NRpc;
 void AddCellTagToSyncWith(const IClientRequestPtr& request, TCellTag cellTag)
 {
     auto* ext = request->Header().MutableExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
-    ext->add_cell_tags_to_sync_with(ToProto<int>(cellTag));
+    ext->add_cell_tags_to_sync_with(ToProto(cellTag));
 }
 
 void AddCellTagToSyncWith(const IClientRequestPtr& request, TObjectId objectId)

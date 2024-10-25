@@ -565,8 +565,8 @@ void TJobProfilerSpec::Register(TRegistrar registrar)
 
 void ToProto(NControllerAgent::NProto::TJobProfilerSpec* protoJobProfilerSpec, const TJobProfilerSpec& jobProfilerSpec)
 {
-    protoJobProfilerSpec->set_binary(::NYT::ToProto<int>(jobProfilerSpec.Binary));
-    protoJobProfilerSpec->set_type(::NYT::ToProto<int>(jobProfilerSpec.Type));
+    protoJobProfilerSpec->set_binary(::NYT::ToProto(jobProfilerSpec.Binary));
+    protoJobProfilerSpec->set_type(::NYT::ToProto(jobProfilerSpec.Type));
     protoJobProfilerSpec->set_profiling_probability(jobProfilerSpec.ProfilingProbability);
     protoJobProfilerSpec->set_sampling_frequency(jobProfilerSpec.SamplingFrequency);
     protoJobProfilerSpec->set_run_external_symbolizer(jobProfilerSpec.RunExternalSymbolizer);

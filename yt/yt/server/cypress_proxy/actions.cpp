@@ -120,7 +120,7 @@ void CreateNode(
         transaction);
 
     NCypressServer::NProto::TReqCreateNode createNodeRequest;
-    createNodeRequest.set_type(ToProto<int>(type));
+    createNodeRequest.set_type(ToProto(type));
     ToProto(createNodeRequest.mutable_node_id(), id);
     createNodeRequest.set_path(path.ToRawYPath().Underlying());
     ToProto(createNodeRequest.mutable_node_attributes(), *explicitAttributes);
@@ -258,7 +258,7 @@ TLockId LockNodeInMaster(
     NCypressServer::NProto::TReqLockNode request;
     ToProto(request.mutable_node_id(), nodeId.ObjectId);
     ToProto(request.mutable_transaction_id(), nodeId.TransactionId);
-    request.set_mode(ToProto<int>(lockMode));
+    request.set_mode(ToProto(lockMode));
     if (childKey) {
         request.set_child_key(*childKey);
     }

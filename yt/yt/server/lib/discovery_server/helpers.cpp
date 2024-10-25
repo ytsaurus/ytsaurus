@@ -11,7 +11,7 @@ void ToProto(NProto::TGossipMemberInfo* protoMemberInfo, const TGossipMemberInfo
 {
     ToProto(protoMemberInfo->mutable_member_info(), memberInfo.MemberInfo);
     protoMemberInfo->set_group_id(memberInfo.GroupId);
-    protoMemberInfo->set_lease_deadline(NYT::ToProto<i64>(memberInfo.LeaseDeadline));
+    protoMemberInfo->set_lease_deadline(NYT::ToProto(memberInfo.LeaseDeadline));
 }
 
 void FromProto(TGossipMemberInfo* memberInfo, const NProto::TGossipMemberInfo& protoMemberInfo)

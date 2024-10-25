@@ -3105,7 +3105,7 @@ bool TJob::CanBeAccessedViaVirtualSandbox(const TArtifact& artifact) const
 {
     if (artifact.BypassArtifactCache ||
         artifact.CopyFile ||
-        artifact.Key.data_source().type() != ToProto<int>(NChunkClient::EDataSourceType::File))
+        artifact.Key.data_source().type() != ToProto(NChunkClient::EDataSourceType::File))
     {
         return false;
     }
@@ -4060,11 +4060,11 @@ void FillJobStatus(NControllerAgent::NProto::TJobStatus* status, const TJobPtr& 
     ToProto(status->mutable_job_id(), job->GetId());
     ToProto(status->mutable_operation_id(), job->GetOperationId());
 
-    status->set_job_type(ToProto<int>(job->GetType()));
-    status->set_state(ToProto<int>(job->GetState()));
-    status->set_phase(ToProto<int>(job->GetPhase()));
+    status->set_job_type(ToProto(job->GetType()));
+    status->set_state(ToProto(job->GetState()));
+    status->set_phase(ToProto(job->GetPhase()));
     status->set_job_execution_completed(job->IsJobProxyCompleted());
-    status->set_interruption_reason(ToProto<int>(job->GetInterruptionReason()));
+    status->set_interruption_reason(ToProto(job->GetInterruptionReason()));
     status->set_progress(job->GetProgress());
     *status->mutable_total_input_data_statistics() = job->GetTotalInputDataStatistics();
     ToProto(status->mutable_time_statistics(), job->GetTimeStatistics());
@@ -4082,7 +4082,7 @@ void FillJobStatus(NControllerAgent::NProto::TJobStatus* status, const TJobPtr& 
         status->set_start_time(startTime->GetValue());
     }
 
-    status->set_status_timestamp(ToProto<ui64>(TInstant::Now()));
+    status->set_status_timestamp(ToProto(TInstant::Now()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

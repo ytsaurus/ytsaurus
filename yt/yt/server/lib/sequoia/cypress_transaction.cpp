@@ -1984,7 +1984,7 @@ private:
                 action.mutable_destination_cell_tags()->Reserve(DestinationCellTags_.size());
                 for (auto cellTag : DestinationCellTags_) {
                     if (coordinatorCellTag != cellTag) {
-                        action.add_destination_cell_tags(ToProto<ui32>(cellTag));
+                        action.add_destination_cell_tags(ToProto(cellTag));
                     }
                 }
 

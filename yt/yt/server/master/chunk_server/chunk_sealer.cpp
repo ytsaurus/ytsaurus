@@ -100,7 +100,7 @@ public:
 
         auto* jobSpecExt = jobSpec->MutableExtension(TSealChunkJobSpecExt::seal_chunk_job_spec_ext);
         ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(chunkId));
-        jobSpecExt->set_codec_id(ToProto<int>(Chunk_->GetErasureCodec()));
+        jobSpecExt->set_codec_id(ToProto(Chunk_->GetErasureCodec()));
         jobSpecExt->set_medium_index(chunkId.MediumIndex);
         jobSpecExt->set_row_count(Chunk_->GetPhysicalSealedRowCount());
 
@@ -114,7 +114,7 @@ public:
             jobSpecExt->add_legacy_source_replicas(ToProto<ui32>(TNodePtrWithReplicaIndex(
                 location->GetNode(),
                 replica.GetReplicaIndex())));
-            jobSpecExt->add_source_replicas(ToProto<ui64>(TNodePtrWithReplicaAndMediumIndex(
+            jobSpecExt->add_source_replicas(ToProto(TNodePtrWithReplicaAndMediumIndex(
                 location->GetNode(),
                 replica.GetReplicaIndex(),
                 location->GetEffectiveMediumIndex())));

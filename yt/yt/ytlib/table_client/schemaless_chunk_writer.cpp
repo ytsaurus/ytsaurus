@@ -465,8 +465,8 @@ private:
 
     void FillCommonMeta(TChunkMeta* meta) const
     {
-        meta->set_type(ToProto<int>(EChunkType::Table));
-        meta->set_format(ToProto<int>(GetChunkFormat()));
+        meta->set_type(ToProto(EChunkType::Table));
+        meta->set_format(ToProto(GetChunkFormat()));
 
         {
             auto chunkFeatures = FromProto<EChunkFeatures>(meta->features());
@@ -2488,7 +2488,7 @@ std::tuple<TMasterTableSchemaId, TTransactionId> BeginTableUpload(
         req->set_lock_mode(static_cast<int>(tableUploadOptions.LockMode));
         req->set_upload_transaction_title(Format("Upload to %v", path));
         if (setUploadTxTimeout) {
-            req->set_upload_transaction_timeout(ToProto<i64>(client->GetNativeConnection()->GetConfig()->UploadTransactionTimeout));
+            req->set_upload_transaction_timeout(ToProto(client->GetNativeConnection()->GetConfig()->UploadTransactionTimeout));
         }
         NCypressClient::SetTransactionId(req, transactionId);
         GenerateMutationId(req);
@@ -2582,14 +2582,14 @@ void EndTableUpload(
         auto req = TTableYPathProxy::EndUpload(objectIdPath);
         *req->mutable_statistics() = dataStatistics;
         if (tableUploadOptions.ChunkFormat) {
-            req->set_chunk_format(ToProto<int>(*tableUploadOptions.ChunkFormat));
+            req->set_chunk_format(ToProto(*tableUploadOptions.ChunkFormat));
         }
-        req->set_compression_codec(ToProto<int>(tableUploadOptions.CompressionCodec));
-        req->set_erasure_codec(ToProto<int>(tableUploadOptions.ErasureCodec));
-        req->set_optimize_for(ToProto<int>(tableUploadOptions.OptimizeFor));
+        req->set_compression_codec(ToProto(tableUploadOptions.CompressionCodec));
+        req->set_erasure_codec(ToProto(tableUploadOptions.ErasureCodec));
+        req->set_optimize_for(ToProto(tableUploadOptions.OptimizeFor));
 
         // COMPAT(h0pless): remove this when all masters are 24.2.
-        req->set_schema_mode(ToProto<int>(tableUploadOptions.SchemaMode));
+        req->set_schema_mode(ToProto(tableUploadOptions.SchemaMode));
 
         if (tableUploadOptions.SecurityTags) {
             ToProto(req->mutable_security_tags()->mutable_items(), *tableUploadOptions.SecurityTags);

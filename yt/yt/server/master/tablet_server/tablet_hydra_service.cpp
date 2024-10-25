@@ -173,7 +173,7 @@ private:
                 auto* balancingAttributes = protoTable->mutable_balancing_attributes();
 
                 balancingAttributes->set_dynamic(table->IsDynamic());
-                balancingAttributes->set_in_memory_mode(ToProto<int>(table->GetInMemoryMode()));
+                balancingAttributes->set_in_memory_mode(ToProto(table->GetInMemoryMode()));
 
                 auto config = ConvertToYsonString(table->TabletBalancerConfig()).ToString();
                 balancingAttributes->set_tablet_balancer_config(config);
@@ -189,10 +189,10 @@ private:
 
                     if (auto* cell = tablet->GetCell()) {
                         ToProto(protoTablet->mutable_cell_id(), cell->GetId());
-                        protoTablet->set_mount_time(ToProto<i64>(tablet->Servant().GetMountTime()));
+                        protoTablet->set_mount_time(ToProto(tablet->Servant().GetMountTime()));
                     }
 
-                    protoTablet->set_state(ToProto<int>(tablet->GetState()));
+                    protoTablet->set_state(ToProto(tablet->GetState()));
                     protoTablet->set_index(tablet->GetIndex());
 
                     auto statistics = tablet->GetTabletStatistics();

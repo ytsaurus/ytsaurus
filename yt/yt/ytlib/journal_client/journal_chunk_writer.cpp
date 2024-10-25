@@ -353,13 +353,13 @@ private:
         req->set_location_uuids_supported(true);
         for (int index = 0; index < std::ssize(replicas); ++index) {
             auto* replicaInfo = req->add_replicas();
-            replicaInfo->set_replica(ToProto<ui64>(replicas[index]));
+            replicaInfo->set_replica(ToProto(replicas[index]));
             ToProto(replicaInfo->mutable_location_uuid(), Nodes_[index]->TargetLocationUuid);
         }
 
         auto* meta = req->mutable_chunk_meta();
-        meta->set_type(ToProto<int>(EChunkType::Journal));
-        meta->set_format(ToProto<int>(EChunkFormat::JournalDefault));
+        meta->set_type(ToProto(EChunkType::Journal));
+        meta->set_format(ToProto(EChunkFormat::JournalDefault));
         NChunkClient::NProto::TMiscExt miscExt;
         SetProtoExtension(meta->mutable_extensions(), miscExt);
 

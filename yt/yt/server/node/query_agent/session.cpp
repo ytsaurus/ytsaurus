@@ -119,7 +119,7 @@ public:
 
             auto request = proxy.CreateDistributedSession();
             ToProto(request->mutable_session_id(), SessionId_);
-            request->set_retention_time(ToProto<i64>(RetentionTime_));
+            request->set_retention_time(ToProto(RetentionTime_));
             request->set_codec(static_cast<int>(CodecId_));
 
             WaitFor(request->Invoke())

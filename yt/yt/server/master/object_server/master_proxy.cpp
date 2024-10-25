@@ -175,7 +175,7 @@ private:
         response->set_action(static_cast<int>(result.Action));
         if (result.Subject) {
             ToProto(response->mutable_subject_id(), result.Subject->GetId());
-            response->set_subject_name(ToProto<TProtobufString>(result.Subject->GetName()));
+            response->set_subject_name(ToProto(result.Subject->GetName()));
         }
 
         context->SetResponseInfo("Action: %v", result.Action);
@@ -229,7 +229,7 @@ private:
             auto* protoClusterDirectory = response->mutable_cluster_directory();
             for (const auto& [key, child] : mapNode->GetChildren()) {
                 auto* protoItem = protoClusterDirectory->add_items();
-                protoItem->set_name(ToProto<TProtobufString>(key));
+                protoItem->set_name(ToProto(key));
                 protoItem->set_config(ConvertToYsonString(child).ToString());
             }
         }
@@ -358,7 +358,7 @@ private:
 
             for (const auto& [target, id] : ids) {
                 auto* proto = response->add_ids();
-                proto->set_target(ToProto<TProtobufString>(target));
+                proto->set_target(ToProto(target));
                 ToProto(proto->mutable_id(), id);
             }
         }
@@ -428,7 +428,7 @@ private:
             auto* proto,
             EMaintenanceType type,
             const TMaintenanceCounts& counts) {
-                proto->set_type(ToProto<int>(type));
+                proto->set_type(ToProto(type));
                 proto->set_count(counts[type]);
             };
 
@@ -448,7 +448,7 @@ private:
             response->set_supports_per_target_response(true);
             for (const auto& [target, counts] : removedMaintenanceCounts) {
                 auto* perTargetResponse = response->add_removed_maintenance_counts_per_target();
-                perTargetResponse->set_target(ToProto<TProtobufString>(target));
+                perTargetResponse->set_target(ToProto(target));
                 for (auto type : TEnumTraits<EMaintenanceType>::GetDomainValues()) {
                     fillMaintenanceCount(perTargetResponse->add_counts(), type, counts);
                 }

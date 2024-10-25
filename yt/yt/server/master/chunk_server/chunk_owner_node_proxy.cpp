@@ -191,7 +191,7 @@ void BuildReplicalessChunkSpec(
     auto erasureCodecId = chunk->GetErasureCodec();
 
     ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
-    chunkSpec->set_erasure_codec(ToProto<int>(erasureCodecId));
+    chunkSpec->set_erasure_codec(ToProto(erasureCodecId));
     chunkSpec->set_striped_erasure(chunk->GetStripedErasure());
 
     ToProto(
@@ -315,7 +315,7 @@ void BuildDynamicStoreSpec(
     if (auto* node = tabletManager->FindTabletLeaderNode(tablet)) {
         nodeDirectoryBuilder->Add(node);
         chunkSpec->add_legacy_replicas(ToProto<ui32>(TNodePtrWithReplicaIndex(node, GenericChunkReplicaIndex)));
-        chunkSpec->add_replicas(ToProto<ui64>(TNodePtrWithReplicaAndMediumIndex(node, GenericChunkReplicaIndex, GenericMediumIndex)));
+        chunkSpec->add_replicas(ToProto(TNodePtrWithReplicaAndMediumIndex(node, GenericChunkReplicaIndex, GenericMediumIndex)));
     }
 
     if (!lowerLimit.IsTrivial()) {
@@ -1927,7 +1927,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     ToProto(response->mutable_upload_transaction_id(), uploadTransactionId);
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    response->set_cell_tag(ToProto<int>(externalCellTag == NotReplicatedCellTagSentinel
+    response->set_cell_tag(ToProto(externalCellTag == NotReplicatedCellTagSentinel
         ? multicellManager->GetCellTag()
         : externalCellTag));
 

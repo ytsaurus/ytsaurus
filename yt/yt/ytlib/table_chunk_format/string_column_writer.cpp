@@ -335,14 +335,14 @@ private:
         if (dictionaryByteSize < directByteSize) {
             this->DumpDictionaryValues(&segmentInfo, &rawMeta);
 
-            segmentInfo.SegmentMeta.set_type(ToProto<int>(segmentInfo.Dense
+            segmentInfo.SegmentMeta.set_type(ToProto(segmentInfo.Dense
                 ? EVersionedStringSegmentType::DictionaryDense
                 : EVersionedStringSegmentType::DictionarySparse));
 
         } else {
             this->DumpDirectValues(&segmentInfo, NullBitmap_.Flush<TSegmentWriterTag>(), &rawMeta);
 
-            segmentInfo.SegmentMeta.set_type(ToProto<int>(segmentInfo.Dense
+            segmentInfo.SegmentMeta.set_type(ToProto(segmentInfo.Dense
                 ? EVersionedStringSegmentType::DirectDense
                 : EVersionedStringSegmentType::DirectSparse));
         }
@@ -599,7 +599,7 @@ private:
         auto type = EUnversionedStringSegmentType(std::distance(sizes.begin(), minElement));
 
         TSegmentInfo segmentInfo;
-        segmentInfo.SegmentMeta.set_type(ToProto<int>(type));
+        segmentInfo.SegmentMeta.set_type(ToProto(type));
         segmentInfo.SegmentMeta.set_version(0);
         segmentInfo.SegmentMeta.set_row_count(Values_.size());
 

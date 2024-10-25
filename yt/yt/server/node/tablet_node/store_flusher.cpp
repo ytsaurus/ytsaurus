@@ -530,7 +530,7 @@ private:
             updateTabletStoresReq.set_create_hunk_chunks_during_prepare(true);
 
             ToProto(updateTabletStoresReq.add_stores_to_remove()->mutable_store_id(), store->GetId());
-            updateTabletStoresReq.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Flush));
+            updateTabletStoresReq.set_update_reason(ToProto(ETabletStoresUpdateReason::Flush));
 
             // If dynamic stores for an ordered tablet are requested both with flush and
             // via AllocateDynamicStore, reordering is possible and dynamic stores will

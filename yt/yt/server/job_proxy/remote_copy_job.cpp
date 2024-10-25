@@ -879,7 +879,7 @@ private:
         if (useLocationUuids) {
             for (const auto& replica : writtenReplicas) {
                 auto* replicaInfo = req->add_replicas();
-                replicaInfo->set_replica(ToProto<ui64>(replica));
+                replicaInfo->set_replica(ToProto(TChunkReplicaWithMedium(replica)));
                 ToProto(replicaInfo->mutable_location_uuid(), replica.GetChunkLocationUuid());
             }
         }

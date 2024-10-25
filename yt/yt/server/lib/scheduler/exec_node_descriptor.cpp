@@ -63,14 +63,14 @@ void TExecNodeDescriptor::Persist(const TStreamPersistenceContext& context)
 
 void ToProto(NScheduler::NProto::TExecNodeDescriptor* protoDescriptor, const NScheduler::TExecNodeDescriptor& descriptor)
 {
-    protoDescriptor->set_node_id(ToProto<ui32>(descriptor.Id));
-    protoDescriptor->set_address(ToProto<TProtobufString>(descriptor.Address));
+    protoDescriptor->set_node_id(ToProto(descriptor.Id));
+    protoDescriptor->set_address(ToProto(descriptor.Address));
     protoDescriptor->set_io_weight(descriptor.IOWeight);
     protoDescriptor->set_online(descriptor.Online);
     ToProto(protoDescriptor->mutable_resource_limits(), descriptor.ResourceLimits);
     ToProto(protoDescriptor->mutable_disk_resources(), descriptor.DiskResources);
     for (const auto& tag : descriptor.Tags.GetSourceTags()) {
-        protoDescriptor->add_tags(ToProto<TProtobufString>(tag));
+        protoDescriptor->add_tags(ToProto(tag));
     }
 }
 

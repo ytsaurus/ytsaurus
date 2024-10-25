@@ -88,7 +88,7 @@ public:
         auto heartbeat = proxy.Heartbeat();
         heartbeat->SetTimeout(GetDynamicConfig()->HeartbeatTimeout);
 
-        heartbeat->set_node_id(ToProto<ui32>(Bootstrap_->GetNodeId()));
+        heartbeat->set_node_id(ToProto(Bootstrap_->GetNodeId()));
 
         auto* statistics = heartbeat->mutable_statistics();
         const auto& slotManager = Bootstrap_->GetSlotManager();

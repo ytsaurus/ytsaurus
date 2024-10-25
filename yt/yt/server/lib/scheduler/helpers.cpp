@@ -96,7 +96,7 @@ void ToProto(NProto::NNode::TAllocationToAbort* protoAllocationToAbort, const TA
 {
     ToProto(protoAllocationToAbort->mutable_allocation_id(), allocationToAbort.AllocationId);
     if (allocationToAbort.AbortReason) {
-        protoAllocationToAbort->set_abort_reason(NYT::ToProto<int>(*allocationToAbort.AbortReason));
+        protoAllocationToAbort->set_abort_reason(NYT::ToProto(*allocationToAbort.AbortReason));
     }
 }
 

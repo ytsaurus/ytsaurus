@@ -557,14 +557,14 @@ private:
         auto proxy = CreateObjectServiceWriteProxy(Client_, destinationObjectCellTag);
 
         auto req = TChunkOwnerYPathProxy::BeginUpload(DestinationObject_.GetObjectIdPath());
-        req->set_update_mode(ToProto<int>(EUpdateMode::Overwrite));
-        req->set_lock_mode(ToProto<int>(ELockMode::Exclusive));
+        req->set_update_mode(ToProto(EUpdateMode::Overwrite));
+        req->set_lock_mode(ToProto(ELockMode::Exclusive));
         if (CanUseSchemaId()) {
             ToProto(req->mutable_table_schema_id(), QueueSchemaId_);
         } else {
             ToProto(req->mutable_table_schema(), QueueSchema_);
         }
-        req->set_schema_mode(ToProto<int>(ETableSchemaMode::Strong));
+        req->set_schema_mode(ToProto(ETableSchemaMode::Strong));
 
         req->set_upload_transaction_title(Format(
             "Exporting queue %v to static table %v",
@@ -577,7 +577,7 @@ private:
             /*cellTagToExclude*/ destinationObjectCellTag);
         ToProto(req->mutable_upload_transaction_secondary_cell_tags(), cellTags);
         req->set_upload_transaction_timeout(
-            ToProto<i64>(Connection_->GetConfig()->UploadTransactionTimeout));
+            ToProto(Connection_->GetConfig()->UploadTransactionTimeout));
         GenerateMutationId(req);
 
         SetTransactionId(req, Options_.TransactionId);
@@ -695,7 +695,7 @@ private:
 
         auto req = TChunkOwnerYPathProxy::EndUpload(DestinationObject_.GetObjectIdPath());
         // COMPAT(h0pless): remove this when all masters are 24.2.
-        req->set_schema_mode(ToProto<int>(ETableSchemaMode::Strong));
+        req->set_schema_mode(ToProto(ETableSchemaMode::Strong));
         *req->mutable_statistics() = DataStatistics_;
 
         std::vector<TSecurityTag> inferredSecurityTags;

@@ -483,7 +483,7 @@ private:
         {
             auto chunkFeatures = FromProto<EChunkFeatures>(chunkMeta->features());
             chunkFeatures |= EChunkFeatures::StripedErasure;
-            chunkMeta->set_features(ToProto<ui64>(chunkFeatures));
+            chunkMeta->set_features(ToProto(chunkFeatures));
         }
 
         auto miscExt = GetProtoExtension<NProto::TMiscExt>(chunkMeta->extensions());

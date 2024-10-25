@@ -100,7 +100,7 @@ void AddAllocationToPreempt(
 {
     auto allocationToPreempt = response->add_allocations_to_preempt();
     ToProto(allocationToPreempt->mutable_allocation_id(), allocationId);
-    allocationToPreempt->set_timeout(ToProto<i64>(duration));
+    allocationToPreempt->set_timeout(ToProto(duration));
 
     // COMPAT(pogorelov): Remove after 23.3 will be everywhere.
     allocationToPreempt->set_interruption_reason(static_cast<int>(EInterruptReason::Preemption));

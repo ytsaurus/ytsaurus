@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -280,6 +282,26 @@ void ToProto(NProto::TSequoiaReplicaInfo* protoReplica, const TSequoiaChunkRepli
 } // namespace NYT::NChunkServer
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+struct TProtoTraits<NChunkServer::TNodePtrWithReplicaAndMediumIndex>
+{
+    using TSerialized = ui64;
+};
+
+template <>
+struct TProtoTraits<NChunkServer::TChunkLocationPtrWithReplicaIndex>
+{
+    using TSerialized = ui64;
+};
+
+template <>
+struct TProtoTraits<NChunkServer::TChunkLocationPtrWithReplicaInfo>
+{
+    using TSerialized = ui64;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1028,7 +1028,7 @@ void TOperationControllerBase::CreateOutputTables(
     for (auto* table : tablesToCreate) {
         auto req = TCypressYPathProxy::Create(table->Path.GetPath());
         req->set_ignore_existing(true);
-        req->set_type(ToProto<int>(desiredType));
+        req->set_type(ToProto(desiredType));
 
         NCypressClient::SetTransactionId(req, table->TransactionId.value_or(defaultTransactionId));
         GenerateMutationId(req);
@@ -2913,15 +2913,15 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
 
                     if (!table->IsFile()) {
                         // COMPAT(h0pless): remove this when all masters are 24.2.
-                        req->set_schema_mode(ToProto<int>(table->TableUploadOptions.SchemaMode));
+                        req->set_schema_mode(ToProto(table->TableUploadOptions.SchemaMode));
 
-                        req->set_optimize_for(ToProto<int>(table->TableUploadOptions.OptimizeFor));
+                        req->set_optimize_for(ToProto(table->TableUploadOptions.OptimizeFor));
                         if (table->TableUploadOptions.ChunkFormat) {
-                            req->set_chunk_format(ToProto<int>(*table->TableUploadOptions.ChunkFormat));
+                            req->set_chunk_format(ToProto(*table->TableUploadOptions.ChunkFormat));
                         }
                     }
-                    req->set_compression_codec(ToProto<int>(table->TableUploadOptions.CompressionCodec));
-                    req->set_erasure_codec(ToProto<int>(table->TableUploadOptions.ErasureCodec));
+                    req->set_compression_codec(ToProto(table->TableUploadOptions.CompressionCodec));
+                    req->set_erasure_codec(ToProto(table->TableUploadOptions.ErasureCodec));
                     if (table->TableUploadOptions.SecurityTags) {
                         ToProto(req->mutable_security_tags()->mutable_items(), *table->TableUploadOptions.SecurityTags);
                     }
@@ -5971,7 +5971,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         }
 
         auto req = TCypressYPathProxy::Create(path);
-        req->set_type(ToProto<int>(EObjectType::Table));
+        req->set_type(ToProto(EObjectType::Table));
         req->set_ignore_existing(true);
 
         const auto nestingLevelLimit = Host
@@ -6391,7 +6391,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             auto req = TTableYPathProxy::Lock(table->GetObjectIdPath());
             SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
             GenerateMutationId(req);
-            req->set_mode(ToProto<int>(table->TableUploadOptions.LockMode));
+            req->set_mode(ToProto(table->TableUploadOptions.LockMode));
             req->Tag() = table;
             batchReq->AddRequest(req);
         }
@@ -6695,10 +6695,10 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
                         ToProto(req->mutable_table_schema(), table->TableUploadOptions.TableSchema.Get());
                     }
 
-                    req->set_schema_mode(ToProto<int>(table->TableUploadOptions.SchemaMode));
+                    req->set_schema_mode(ToProto(table->TableUploadOptions.SchemaMode));
                 }
-                req->set_update_mode(ToProto<int>(table->TableUploadOptions.UpdateMode));
-                req->set_lock_mode(ToProto<int>(table->TableUploadOptions.LockMode));
+                req->set_update_mode(ToProto(table->TableUploadOptions.UpdateMode));
+                req->set_lock_mode(ToProto(table->TableUploadOptions.LockMode));
                 req->set_upload_transaction_title(Format("Upload to %v from operation %v",
                     table->GetPath(),
                     OperationId));
@@ -7071,7 +7071,7 @@ void TOperationControllerBase::LockUserFiles()
 
     auto lockFile = [&batchReq] (TUserFile& file) {
         auto req = TFileYPathProxy::Lock(file.Path.GetPath());
-        req->set_mode(ToProto<int>(ELockMode::Snapshot));
+        req->set_mode(ToProto(ELockMode::Snapshot));
         GenerateMutationId(req);
         SetTransactionId(req, *file.TransactionId);
         req->Tag() = &file;
@@ -7606,7 +7606,7 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                     .PrerequisiteTransactionIds = {InputTransactions->GetLocalInputTransactionId()},
                 });
 
-                req->set_type(ToProto<int>(EObjectType::AccountResourceUsageLease));
+                req->set_type(ToProto(EObjectType::AccountResourceUsageLease));
 
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("account", account);
@@ -9670,9 +9670,9 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     jobSpec->set_shell_command(jobSpecConfig->Command);
     if (jobSpecConfig->JobTimeLimit) {
-        jobSpec->set_job_time_limit(ToProto<i64>(*jobSpecConfig->JobTimeLimit));
+        jobSpec->set_job_time_limit(ToProto(*jobSpecConfig->JobTimeLimit));
     }
-    jobSpec->set_prepare_time_limit(ToProto<i64>(jobSpecConfig->PrepareTimeLimit));
+    jobSpec->set_prepare_time_limit(ToProto(jobSpecConfig->PrepareTimeLimit));
     jobSpec->set_memory_limit(jobSpecConfig->MemoryLimit);
     jobSpec->set_include_memory_mapped_files(jobSpecConfig->IncludeMemoryMappedFiles);
     jobSpec->set_use_yamr_descriptors(jobSpecConfig->UseYamrDescriptors);
@@ -9779,7 +9779,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_disable_network(networkProjectAttributes->Get<bool>("disable_network", false));
     }
 
-    jobSpec->set_enable_porto(ToProto<int>(jobSpecConfig->EnablePorto.value_or(Config->DefaultEnablePorto)));
+    jobSpec->set_enable_porto(ToProto(jobSpecConfig->EnablePorto.value_or(Config->DefaultEnablePorto)));
     jobSpec->set_fail_job_on_core_dump(jobSpecConfig->FailJobOnCoreDump);
     jobSpec->set_enable_cuda_gpu_core_dump(GetEnableCudaGpuCoreDump());
 
@@ -9824,7 +9824,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
 
     if (Config->EnableJobArchiveTtl && jobSpecConfig->ArchiveTtl) {
-        jobSpec->set_archive_ttl(ToProto<i64>(*jobSpecConfig->ArchiveTtl));
+        jobSpec->set_archive_ttl(ToProto(*jobSpecConfig->ArchiveTtl));
     }
 
     jobSpec->set_enable_rpc_proxy_in_job_proxy(jobSpecConfig->EnableRpcProxyInJobProxy);

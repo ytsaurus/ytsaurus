@@ -13,7 +13,7 @@ void SetNodeInfoToRequest(
     const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor,
     const auto& request)
 {
-    request->set_node_id(NYT::ToProto<ui32>(nodeId));
+    request->set_node_id(NYT::ToProto(nodeId));
     ToProto(request->mutable_node_descriptor(), nodeDescriptor);
 }
 

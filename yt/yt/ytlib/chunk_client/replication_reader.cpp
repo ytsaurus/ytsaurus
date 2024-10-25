@@ -2227,7 +2227,7 @@ private:
 
                 ToProto(waitBarrier.mutable_session_id(), sessionId);
                 waitBarrier.set_iteration(iteration);
-                waitBarrier.set_if_node_id(ToProto<ui32>(peer.Replica.GetNodeId()));
+                waitBarrier.set_if_node_id(ToProto(peer.Replica.GetNodeId()));
 
                 barriers.push_back(waitBarrier);
             }
@@ -3115,7 +3115,7 @@ private:
         ToProto(req->mutable_chunk_id(), ChunkId_);
         ToProto(req->mutable_read_session_id(), SessionOptions_.ReadSessionId);
         req->set_timestamp(Options_->Timestamp);
-        req->set_compression_codec(ToProto<int>(CodecId_));
+        req->set_compression_codec(ToProto(CodecId_));
         ToProto(req->mutable_column_filter(), Options_->ColumnFilter);
         req->set_produce_all_versions(Options_->ProduceAllVersions);
         req->set_override_timestamp(Options_->OverrideTimestamp);

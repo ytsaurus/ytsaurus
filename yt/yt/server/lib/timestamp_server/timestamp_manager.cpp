@@ -218,7 +218,7 @@ private:
 
         context->Response().set_timestamp(result);
         if (ClockClusterTag_ != InvalidCellTag) {
-            context->Response().set_clock_cluster_tag(ToProto<int>(ClockClusterTag_));
+            context->Response().set_clock_cluster_tag(ToProto(ClockClusterTag_));
         }
         context->Reply();
     }

@@ -46,7 +46,7 @@ public:
         auto guard = Guard(Lock_);
 
         auto* subrequest = Subrequests_.Add();
-        subrequest->set_host_name(ToProto<TProtobufString>(hostName));
+        subrequest->set_host_name(ToProto(hostName));
         ToProto(subrequest->mutable_options(), options);
 
         auto promise = NewPromise<TNetworkAddress>();

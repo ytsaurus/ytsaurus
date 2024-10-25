@@ -320,10 +320,10 @@ public:
                 TReqWriteRows hydraRequest;
                 ToProto(hydraRequest.mutable_transaction_id(), params.TransactionId);
                 hydraRequest.set_transaction_start_timestamp(params.TransactionStartTimestamp);
-                hydraRequest.set_transaction_timeout(ToProto<i64>(params.TransactionTimeout));
+                hydraRequest.set_transaction_timeout(ToProto(params.TransactionTimeout));
                 ToProto(hydraRequest.mutable_tablet_id(), tabletId);
                 hydraRequest.set_mount_revision(tablet->GetMountRevision());
-                hydraRequest.set_codec(ToProto<int>(ChangelogCodec_->GetId()));
+                hydraRequest.set_codec(ToProto(ChangelogCodec_->GetId()));
                 hydraRequest.set_compressed_data(ToString(compressedRecordData));
                 hydraRequest.set_prepare_signature(mutationPrepareSignature);
                 hydraRequest.set_commit_signature(mutationCommitSignature);

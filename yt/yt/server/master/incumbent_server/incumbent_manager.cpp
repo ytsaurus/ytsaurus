@@ -420,7 +420,7 @@ private:
                 protoDescriptor->set_type(static_cast<int>(incumbentType));
                 for (const auto& address : descriptor.Addresses) {
                     if (address) {
-                        protoDescriptor->add_addresses(ToProto<TProtobufString>(*address));
+                        protoDescriptor->add_addresses(ToProto(*address));
                     } else {
                         protoDescriptor->add_addresses();
                     }
@@ -428,7 +428,7 @@ private:
             }
 
             auto requestStart = TInstant::Now();
-            heartbeat->set_peer_lease_deadline(ToProto<i64>(requestStart + Config_->PeerLeaseDuration));
+            heartbeat->set_peer_lease_deadline(ToProto(requestStart + Config_->PeerLeaseDuration));
 
             auto future = heartbeat->Invoke()
                 .Apply(BIND(

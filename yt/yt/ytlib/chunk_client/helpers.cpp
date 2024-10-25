@@ -556,7 +556,7 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
         req->set_replication_factor_override(*replicationFactorOverride);
     }
     if (preferredHostName) {
-        req->set_preferred_host_name(ToProto<TProtobufString>(*preferredHostName));
+        req->set_preferred_host_name(ToProto(*preferredHostName));
     }
     ToProto(req->mutable_forbidden_addresses(), forbiddenAddresses);
     ToProto(req->mutable_allocated_addresses(), allocatedAddresses);
@@ -804,7 +804,7 @@ void LocateChunks(
             auto req = proxy.LocateChunks();
             req->SetRequestHeavy(true);
             req->SetResponseHeavy(true);
-            req->set_address_type(ToProto<int>(addressType));
+            req->set_address_type(ToProto(addressType));
             for (int index = beginIndex; index < endIndex; ++index) {
                 *req->add_subrequests() = chunkSpecs[index]->chunk_id();
             }

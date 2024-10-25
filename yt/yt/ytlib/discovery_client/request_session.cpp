@@ -446,7 +446,7 @@ TFuture<void> THeartbeatSession::MakeRequest(const std::string& address)
     if (Attributes_) {
         ToProto(protoMemberInfo->mutable_attributes(), *Attributes_);
     }
-    req->set_lease_timeout(ToProto<i64>(ClientConfig_->LeaseTimeout));
+    req->set_lease_timeout(ToProto(ClientConfig_->LeaseTimeout));
 
     return req->Invoke().Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TDiscoveryClientServiceProxy::TRspHeartbeatPtr>& rspOrError) {
         if (!rspOrError.IsOK()) {

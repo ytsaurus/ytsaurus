@@ -1085,11 +1085,11 @@ private:
         ::google::protobuf::RepeatedPtrField<TProtoStringType>* rspTags,
         const THashSet<std::string>& tags)
     {
-        TCompactVector<TString, 16> sortedTags(tags.begin(), tags.end());
+        TCompactVector<std::string, 16> sortedTags(tags.begin(), tags.end());
         std::sort(sortedTags.begin(), sortedTags.end());
         rspTags->Reserve(sortedTags.size());
         for (const auto& tag : sortedTags) {
-            rspTags->Add(ToProto<TProtobufString>(tag));
+            rspTags->Add(ToProto(tag));
         }
     }
 
@@ -1098,7 +1098,7 @@ private:
         YT_VERIFY(HasMutationContext());
 
         if (options.DataCenter && !options.Rack) {
-          THROW_ERROR_EXCEPTION("Data center %Qv defined without rack", options.DataCenter);
+            THROW_ERROR_EXCEPTION("Data center %Qv defined without rack", options.DataCenter);
         }
 
         // Check lease transaction.
@@ -1236,7 +1236,7 @@ private:
         YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
         auto req = TMasterYPathProxy::CreateObject();
-        req->set_type(ToProto<int>(EObjectType::Host));
+        req->set_type(ToProto(EObjectType::Host));
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("name", hostName);
@@ -1265,7 +1265,7 @@ private:
         YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
         auto req = TMasterYPathProxy::CreateObject();
-        req->set_type(ToProto<int>(EObjectType::DataCenter));
+        req->set_type(ToProto(EObjectType::DataCenter));
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("name", name);
@@ -1286,7 +1286,7 @@ private:
         YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
         auto req = TMasterYPathProxy::CreateObject();
-        req->set_type(ToProto<int>(EObjectType::Rack));
+        req->set_type(ToProto(EObjectType::Rack));
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("name", name);
@@ -1388,7 +1388,7 @@ private:
             PostRegisterNodeMutation(node, request);
         }
 
-        response->set_node_id(ToProto<ui32>(node->GetId()));
+        response->set_node_id(ToProto(node->GetId()));
 
         FillResponseNodeTags(response->mutable_tags(), node->Tags());
 
@@ -2269,14 +2269,14 @@ private:
         }
 
         TReqSetNodeStatistics request;
-        request.set_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
+        request.set_cell_tag(ToProto(multicellManager->GetCellTag()));
         for (auto [nodeId, node] : NodeMap_) {
             if (!IsObjectAlive(node)) {
                 continue;
             }
 
             auto* entry = request.add_entries();
-            entry->set_node_id(ToProto<ui32>(node->GetId()));
+            entry->set_node_id(ToProto(node->GetId()));
             ToProto(entry->mutable_statistics(), node->ComputeCellStatistics());
         }
 
@@ -2300,9 +2300,9 @@ private:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         TReqSetNodeAggregatedStateReliability request;
-        request.set_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
-        request.set_node_id(ToProto<ui32>(node->GetId()));
-        request.set_cell_reliability(ToProto<int>(reliability));
+        request.set_cell_tag(ToProto(multicellManager->GetCellTag()));
+        request.set_node_id(ToProto(node->GetId()));
+        request.set_cell_reliability(ToProto(reliability));
         node->SetLastCellAggregatedStateReliability(reliability);
 
         YT_LOG_INFO("Sending node local aggregated state cell reliability (NodeId: %v, CellReliability: %v)",
@@ -2318,15 +2318,15 @@ private:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         TReqSetNodeState request;
-        request.set_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
+        request.set_cell_tag(ToProto(multicellManager->GetCellTag()));
 
         auto state = node->GetLocalState();
         if (state == node->GetLastGossipState()) {
             return;
         }
 
-        request.set_node_id(ToProto<ui32>(node->GetId()));
-        request.set_state(ToProto<int>(state));
+        request.set_node_id(ToProto(node->GetId()));
+        request.set_state(ToProto(state));
         node->SetLastGossipState(state);
 
         YT_LOG_INFO("Sending node state (NodeId: %v, State: %v)",
@@ -2350,7 +2350,7 @@ private:
             TInstant::Now() - GetDynamicConfig()->PendingRestartLeaseTimeout);
 
         for (auto it = PendingRestartMaintenanceNodeIds_.begin(); it != endIt; ++it) {
-            request.add_node_ids(ToProto<ui32>(it->second));
+            request.add_node_ids(ToProto(it->second));
         }
 
         if (request.node_ids_size() != 0) {
@@ -2362,7 +2362,7 @@ private:
     void PostRegisterNodeMutation(TNode* node, const TReqRegisterNode* originalRequest)
     {
         TReqRegisterNode request;
-        request.set_node_id(ToProto<ui32>(node->GetId()));
+        request.set_node_id(ToProto(node->GetId()));
         ToProto(request.mutable_node_addresses(), node->GetNodeAddresses());
         ToProto(request.mutable_tags(), node->NodeTags());
         request.set_cypress_annotations(node->GetAnnotations().ToString());
@@ -2392,7 +2392,7 @@ private:
     void PostUnregisterNodeMutation(TNode* node)
     {
         TReqUnregisterNode request;
-        request.set_node_id(ToProto<ui32>(node->GetId()));
+        request.set_node_id(ToProto(node->GetId()));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToSecondaryMasters(request);
@@ -2459,10 +2459,10 @@ private:
             for (const auto& [id, request] : node->MaintenanceRequests()) {
                 using NMaintenanceTrackerServer::NProto::TReqReplicateMaintenanceRequestCreation;
                 TReqReplicateMaintenanceRequestCreation addMaintenance;
-                addMaintenance.set_component(ToProto<i32>(EMaintenanceComponent::ClusterNode));
+                addMaintenance.set_component(ToProto(EMaintenanceComponent::ClusterNode));
                 addMaintenance.set_comment(request.Comment);
-                addMaintenance.set_user(ToProto<TProtobufString>(request.User));
-                addMaintenance.set_type(ToProto<i32>(request.Type));
+                addMaintenance.set_user(ToProto(request.User));
+                addMaintenance.set_type(ToProto(request.Type));
                 addMaintenance.set_address(node->GetDefaultAddress());
                 ToProto(addMaintenance.mutable_id(), id);
                 multicellManager->PostToMaster(addMaintenance, cellTag);
@@ -2478,7 +2478,7 @@ private:
         YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
         TReqMaterializeNode request;
-        request.set_node_id(ToProto<ui32>(node->GetId()));
+        request.set_node_id(ToProto(node->GetId()));
         ToProto(request.mutable_node_addresses(), node->GetNodeAddresses());
         ToProto(request.mutable_tags(), node->NodeTags());
         request.set_cypress_annotations(node->GetAnnotations().ToString());
@@ -2496,7 +2496,7 @@ private:
         auto materializedState = (state == ENodeState::Online || state == ENodeState::Registered)
             ? ENodeState::Registered
             : ENodeState::Offline;
-        request.set_node_state(ToProto<int>(materializedState));
+        request.set_node_state(ToProto(materializedState));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(request, cellTag);

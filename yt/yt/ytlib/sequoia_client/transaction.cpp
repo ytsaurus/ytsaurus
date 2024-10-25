@@ -760,7 +760,7 @@ private:
             TSequoiaTransactionServiceProxy proxy(std::move(channel));
             auto req = proxy.StartTransaction();
             ToProto(req->mutable_id(), Transaction_->GetId());
-            req->set_timeout(::NYT::ToProto<i64>(*StartOptions_.Timeout));
+            req->set_timeout(::NYT::ToProto(*StartOptions_.Timeout));
             if (const auto& attributes = StartOptions_.Attributes) {
                 ToProto(req->mutable_attributes(), *attributes);
             } else {

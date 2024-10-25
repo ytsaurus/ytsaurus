@@ -762,18 +762,18 @@ private:
             request->set_title(*optionalTitle);
         }
         ToProto(request->mutable_attributes(), *attributes);
-        request->set_timeout(ToProto<i64>(GetTimeout()));
+        request->set_timeout(ToProto(GetTimeout()));
         if (options.ParentId) {
             ToProto(request->mutable_parent_id(), options.ParentId);
         }
         ToProto(request->mutable_prerequisite_transaction_ids(), options.PrerequisiteTransactionIds);
         if (options.Deadline) {
-            request->set_deadline(ToProto<ui64>(*options.Deadline));
+            request->set_deadline(ToProto(*options.Deadline));
         }
         if (options.ReplicateToMasterCellTags) {
             for (auto tag : *options.ReplicateToMasterCellTags) {
                 if (tag != CoordinatorMasterCellTag_) {
-                    request->add_replicate_to_cell_tags(ToProto<ui32>(tag));
+                    request->add_replicate_to_cell_tags(ToProto(tag));
                 }
             }
         }
@@ -1001,10 +1001,10 @@ private:
         req->set_force_2pc(options.Force2PC);
         req->set_generate_prepare_timestamp(options.GeneratePrepareTimestamp);
         req->set_inherit_commit_timestamp(options.InheritCommitTimestamp);
-        req->set_coordinator_prepare_mode(ToProto<int>(options.CoordinatorPrepareMode));
-        req->set_coordinator_commit_mode(ToProto<int>(options.CoordinatorCommitMode));
+        req->set_coordinator_prepare_mode(ToProto(options.CoordinatorPrepareMode));
+        req->set_coordinator_commit_mode(ToProto(options.CoordinatorCommitMode));
         req->set_max_allowed_commit_timestamp(options.MaxAllowedCommitTimestamp);
-        req->set_clock_cluster_tag(ToProto<int>(ClockClusterTag_));
+        req->set_clock_cluster_tag(ToProto(ClockClusterTag_));
         SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 
         return req->Invoke().Apply(

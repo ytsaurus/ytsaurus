@@ -370,11 +370,11 @@ private:
                     ? EObjectType::JournalChunk
                     : EObjectType::ErasureJournalChunk;
 
-                request->set_type(ToProto<int>(chunkType));
+                request->set_type(ToProto(chunkType));
                 request->set_account(writerOptions->Account);
                 ToProto(request->mutable_transaction_id(), transactionId);
                 request->set_replication_factor(writerOptions->ReplicationFactor);
-                request->set_erasure_codec(ToProto<int>(writerOptions->ErasureCodec));
+                request->set_erasure_codec(ToProto(writerOptions->ErasureCodec));
                 request->set_medium_name(writerOptions->MediumName);
                 request->set_read_quorum(writerOptions->ReadQuorum);
                 request->set_write_quorum(writerOptions->WriteQuorum);

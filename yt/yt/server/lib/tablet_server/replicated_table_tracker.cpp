@@ -79,12 +79,12 @@ void ToProto(
 {
     ToProto(protoReplicaData->mutable_table_id(), replicaData.TableId);
     ToProto(protoReplicaData->mutable_replica_id(), replicaData.Id);
-    protoReplicaData->set_mode(ToProto<int>(replicaData.Mode));
+    protoReplicaData->set_mode(ToProto(replicaData.Mode));
     protoReplicaData->set_enabled(replicaData.Enabled);
-    protoReplicaData->set_cluster_name(ToProto<TProtobufString>(replicaData.ClusterName));
+    protoReplicaData->set_cluster_name(ToProto(replicaData.ClusterName));
     protoReplicaData->set_table_path(replicaData.TablePath);
     protoReplicaData->set_tracking_enabled(replicaData.TrackingEnabled);
-    protoReplicaData->set_content_type(ToProto<int>(replicaData.ContentType));
+    protoReplicaData->set_content_type(ToProto(replicaData.ContentType));
 }
 
 void FromProto(
@@ -174,7 +174,7 @@ void ToProto(
     const TChangeReplicaModeCommand& command)
 {
     ToProto(protoCommand->mutable_replica_id(), command.ReplicaId);
-    protoCommand->set_target_mode(ToProto<int>(command.TargetMode));
+    protoCommand->set_target_mode(ToProto(command.TargetMode));
 }
 
 void FromProto(

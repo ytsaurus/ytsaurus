@@ -80,7 +80,7 @@ public:
         YT_VERIFY(IsLeader());
 
         TReqStartNodeDisposal request;
-        request.set_node_id(ToProto<ui32>(node->GetId()));
+        request.set_node_id(ToProto(node->GetId()));
 
         auto mutation = CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
@@ -230,7 +230,7 @@ private:
         YT_VERIFY(IsLeader());
 
         TReqFinishNodeDisposal request;
-        request.set_node_id(ToProto<ui32>(nodeId));
+        request.set_node_id(ToProto(nodeId));
 
         auto mutation = CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
@@ -306,7 +306,7 @@ private:
 
         auto sequoiaRequest = std::make_unique<TReqModifyReplicas>();
         TChunkLocationDirectory locationDirectory;
-        sequoiaRequest->set_node_id(ToProto<ui32>(node->GetId()));
+        sequoiaRequest->set_node_id(ToProto(node->GetId()));
         sequoiaRequest->set_caused_by_node_disposal(true);
         for (const auto& replica : sequoiaReplicas) {
             TChunkRemoveInfo chunkRemoveInfo;
@@ -324,7 +324,7 @@ private:
         ToProto(sequoiaRequest->mutable_location_directory(), locationDirectory);
 
         TReqDisposeLocation request;
-        request.set_node_id(ToProto<ui32>(node->GetId()));
+        request.set_node_id(ToProto(node->GetId()));
         request.set_location_index(locationIndex);
         auto mutation = CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),

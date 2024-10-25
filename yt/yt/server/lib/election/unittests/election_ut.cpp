@@ -190,7 +190,7 @@ TEST_F(TElectionTest, JoinActiveQuorumNoResponseThenResponse)
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
             .WillOnce(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, [=], { }))
             .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
-                response->set_state(ToProto<int>(id == 2 ? EPeerState::Leading : EPeerState::Following));
+                response->set_state(ToProto(id == 2 ? EPeerState::Leading : EPeerState::Following));
                 response->set_vote_id(2);
                 ToProto(response->mutable_vote_epoch_id(), TEpochId());
                 ToProto(response->mutable_priority(), std::pair<i64, i64>(0LL, id));
@@ -226,7 +226,7 @@ TEST_F(TElectionTest, BecomeLeaderOneHealthyFollower)
                 EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
                 const auto& rsp = rspOrError.Value();
 
-                response->set_state(ToProto<int>(EPeerState::Following));
+                response->set_state(ToProto(EPeerState::Following));
                 response->set_vote_id(0);
                 ToProto(response->mutable_vote_epoch_id(), rsp->vote_epoch_id());
                 ToProto(response->mutable_priority(), std::pair<i64, i64>(0, id));
@@ -273,7 +273,7 @@ TEST_F(TElectionTest, BecomeLeaderTwoHealthyFollowers)
                 EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
                 const auto& rsp = rspOrError.Value();
 
-                response->set_state(ToProto<int>(EPeerState::Following));
+                response->set_state(ToProto(EPeerState::Following));
                 response->set_vote_id(0);
                 ToProto(response->mutable_vote_epoch_id(), rsp->vote_epoch_id());
                 ToProto(response->mutable_priority(), std::pair<i64, i64>(0, id));
@@ -314,7 +314,7 @@ TEST_F(TElectionTest, BecomeLeaderQuorumLostOnce)
                 EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
                 const auto& rsp = rspOrError.Value();
 
-                response->set_state(ToProto<int>(EPeerState::Following));
+                response->set_state(ToProto(EPeerState::Following));
                 response->set_vote_id(0);
                 ToProto(response->mutable_vote_epoch_id(), rsp->vote_epoch_id());
                 ToProto(response->mutable_priority(), std::pair<i64, i64>(0, id));
@@ -367,7 +367,7 @@ TEST_F(TElectionTest, BecomeLeaderGracePeriod)
                 EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
                 const auto& rsp = rspOrError.Value();
 
-                response->set_state(ToProto<int>(EPeerState::Following));
+                response->set_state(ToProto(EPeerState::Following));
                 response->set_vote_id(0);
                 ToProto(response->mutable_vote_epoch_id(), rsp->vote_epoch_id());
                 ToProto(response->mutable_priority(), std::pair<i64, i64>(0, id));
@@ -449,7 +449,7 @@ TEST_P(TElectionGenericTest, Basic)
             .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
                 const auto& status = data.Statuses[id - 1];
                 if (status) {
-                    response->set_state(ToProto<int>(status->State));
+                    response->set_state(ToProto(status->State));
                     response->set_vote_id(status->VoteId);
                     ToProto(response->mutable_vote_epoch_id(), status->VoteEpochId);
                     ToProto(response->mutable_priority(), status->Priority);
@@ -530,7 +530,7 @@ TEST_P(TElectionDelayedTest, JoinActiveQuorum)
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
             .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
                 TDelayedExecutor::Submit(BIND([=] {
-                    response->set_state(ToProto<int>(id == 2 ? EPeerState::Leading : EPeerState::Following));
+                    response->set_state(ToProto(id == 2 ? EPeerState::Leading : EPeerState::Following));
                     response->set_vote_id(2);
                     ToProto(response->mutable_vote_epoch_id(), TEpochId());
                     ToProto(response->mutable_priority(), std::pair<i64, i64>(0, id));

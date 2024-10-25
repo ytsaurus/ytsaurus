@@ -1534,7 +1534,7 @@ private:
 
         for (auto replica : writer->GetWrittenChunkReplicasInfo().Replicas) {
             chunkInfo.add_legacy_source_replicas(ToProto<ui32>(replica.ToChunkReplica()));
-            chunkInfo.add_source_replicas(ToProto<ui64>(replica));
+            chunkInfo.add_source_replicas(ToProto(TChunkReplicaWithMedium(replica)));
         }
 
         chunkInfo.set_row_count(miscExt.row_count());
@@ -2057,7 +2057,7 @@ private:
 
         TChunkSpec oldChunkSpec;
         ToProto(oldChunkSpec.mutable_chunk_id(), OldChunkId_);
-        oldChunkSpec.set_erasure_codec(ToProto<int>(ErasureCodec_));
+        oldChunkSpec.set_erasure_codec(ToProto(ErasureCodec_));
         *oldChunkSpec.mutable_legacy_replicas() = JobSpecExt_.legacy_source_replicas();
         *oldChunkSpec.mutable_replicas() = JobSpecExt_.source_replicas();
 
@@ -2868,8 +2868,8 @@ private:
         req->mutable_chunk_info();
         ToProto(req->mutable_legacy_replicas(), writtenReplicas);
         auto* meta = req->mutable_chunk_meta();
-        meta->set_type(ToProto<int>(EChunkType::Journal));
-        meta->set_format(ToProto<int>(EChunkFormat::JournalDefault));
+        meta->set_type(ToProto(EChunkType::Journal));
+        meta->set_format(ToProto(EChunkFormat::JournalDefault));
         TMiscExt miscExt;
         SetProtoExtension(meta->mutable_extensions(), miscExt);
 
@@ -2884,7 +2884,7 @@ private:
         if (useLocationUuids) {
             for (const auto& replica : writtenReplicas) {
                 auto* replicaInfo = req->add_replicas();
-                replicaInfo->set_replica(ToProto<ui64>(replica));
+                replicaInfo->set_replica(ToProto(TChunkReplicaWithMedium(replica)));
                 ToProto(replicaInfo->mutable_location_uuid(), replica.GetChunkLocationUuid());
             }
         }

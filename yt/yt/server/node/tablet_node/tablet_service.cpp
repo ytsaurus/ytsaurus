@@ -457,7 +457,7 @@ private:
                     protoDescriptor->set_record_index(descriptor.RecordIndex);
                     protoDescriptor->set_record_offset(descriptor.RecordOffset);
                     protoDescriptor->set_length(descriptor.Length);
-                    protoDescriptor->set_erasure_codec(ToProto<int>(descriptor.ErasureCodec));
+                    protoDescriptor->set_erasure_codec(ToProto(descriptor.ErasureCodec));
                     if (descriptor.RecordSize) {
                         protoDescriptor->set_record_size(*descriptor.RecordSize);
                     }

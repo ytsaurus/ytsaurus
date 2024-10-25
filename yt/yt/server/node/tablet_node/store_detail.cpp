@@ -161,7 +161,7 @@ public:
         auto createRemoteReaders = [&] (IBlockCachePtr blockCache) {
             TChunkSpec chunkSpec;
             ToProto(chunkSpec.mutable_chunk_id(), owner->GetChunkId());
-            chunkSpec.set_erasure_codec(ToProto<int>(owner->GetErasureCodecId()));
+            chunkSpec.set_erasure_codec(ToProto(owner->GetErasureCodecId()));
             chunkSpec.set_striped_erasure(owner->IsStripedErasure());
             *chunkSpec.mutable_chunk_meta() = owner->GetChunkMeta();
             CachedWeakChunk_.Reset();
@@ -530,7 +530,7 @@ void TStoreBase::PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* descrip
 {
     YT_VERIFY(GetType() != EStoreType::HunkChunk);
 
-    descriptor->set_store_type(ToProto<int>(GetType()));
+    descriptor->set_store_type(ToProto(GetType()));
     ToProto(descriptor->mutable_store_id(), GetId());
 }
 

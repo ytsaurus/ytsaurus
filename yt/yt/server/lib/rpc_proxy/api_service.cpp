@@ -1503,7 +1503,7 @@ private:
         response->set_start_timestamp(transaction->GetStartTimestamp());
         response->set_atomicity(static_cast<NApi::NRpcProxy::NProto::EAtomicity>(transaction->GetAtomicity()));
         response->set_durability(static_cast<NApi::NRpcProxy::NProto::EDurability>(transaction->GetDurability()));
-        response->set_timeout(ToProto<i64>(transaction->GetTimeout().GetValue()));
+        response->set_timeout(ToProto(transaction->GetTimeout()));
         if (transaction->GetType() == ETransactionType::Tablet) {
             response->set_sequence_number_source_id(NextSequenceNumberSourceId_++);
         }
@@ -1585,14 +1585,14 @@ private:
                     ToProto(protoReplica->mutable_replica_id(), replica->ReplicaId);
                     protoReplica->set_cluster_name(replica->ClusterName);
                     protoReplica->set_replica_path(replica->ReplicaPath);
-                    protoReplica->set_mode(ToProto<i32>(replica->Mode));
+                    protoReplica->set_mode(ToProto(replica->Mode));
                 }
                 response->set_physical_path(tableMountInfo->PhysicalPath);
 
                 for (const auto& indexInfo : tableMountInfo->Indices) {
                     auto* protoIndexInfo = response->add_indices();
                     ToProto(protoIndexInfo->mutable_index_table_id(), indexInfo.TableId);
-                    protoIndexInfo->set_index_kind(ToProto<i32>(indexInfo.Kind));
+                    protoIndexInfo->set_index_kind(ToProto(indexInfo.Kind));
                     if (const auto& predicate = indexInfo.Predicate) {
                         ToProto(protoIndexInfo->mutable_predicate(), *predicate);
                     }
@@ -6164,7 +6164,7 @@ private:
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_version(ToProto<i64>(result.Version));
+                response->set_version(ToProto(result.Version));
                 response->set_spec(result.Spec.ToString());
 
                 context->SetResponseInfo("Version: %v",
@@ -6201,7 +6201,7 @@ private:
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_version(ToProto<i64>(result.Version));
+                response->set_version(ToProto(result.Version));
 
                 context->SetResponseInfo("Version: %v",
                     result.Version);
@@ -6225,7 +6225,7 @@ private:
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_version(ToProto<i64>(result.Version));
+                response->set_version(ToProto(result.Version));
                 response->set_spec(result.Spec.ToString());
 
                 context->SetResponseInfo("Version: %v",
@@ -6259,7 +6259,7 @@ private:
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_version(ToProto<i64>(result.Version));
+                response->set_version(ToProto(result.Version));
 
                 context->SetResponseInfo("Version: %v",
                     result.Version);
@@ -6334,7 +6334,7 @@ private:
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_state(ToProto<int>(result.State));
+                response->set_state(ToProto(result.State));
 
                 context->SetResponseInfo("State: %v",
                     result.State);

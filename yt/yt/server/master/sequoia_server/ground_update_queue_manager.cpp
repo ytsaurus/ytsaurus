@@ -315,7 +315,7 @@ private:
                 auto endSequenceNumber = lastRecordToFlush.SequenceNumber;
 
                 TReqFlushGroundUpdateQueue request;
-                request.set_queue(ToProto<int>(queue));
+                request.set_queue(ToProto(queue));
                 request.set_start_sequence_number(startSequenceNumber);
                 request.set_end_sequence_number(endSequenceNumber);
 

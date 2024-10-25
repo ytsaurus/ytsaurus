@@ -4512,7 +4512,7 @@ private:
         auto replicateMembership = [&] (TSubject* subject) {
             for (auto* group : subject->MemberOf()) {
                 auto req = TGroupYPathProxy::AddMember(FromObjectId(group->GetId()));
-                req->set_name(ToProto<TProtobufString>(subject->GetName()));
+                req->set_name(ToProto(subject->GetName()));
                 req->set_ignore_existing(true);
                 multicellManager->PostToMaster(req, cellTag);
             }

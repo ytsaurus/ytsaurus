@@ -737,11 +737,11 @@ void FillStatus(NScheduler::NProto::TAllocationStatus* status, const TAllocation
 
     ToProto(status->mutable_allocation_id(), allocation->GetId());
 
-    status->set_state(ToProto<int>(allocation->GetState()));
+    status->set_state(ToProto(allocation->GetState()));
 
     ToProto(status->mutable_operation_id(), allocation->GetOperationId());
 
-    status->set_status_timestamp(ToProto<ui64>(TInstant::Now()));
+    status->set_status_timestamp(ToProto(TInstant::Now()));
 
     ToProto(status->mutable_result()->mutable_error(), allocation->GetFinishError());
 }

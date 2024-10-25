@@ -1368,10 +1368,10 @@ private:
         ToProto(request.mutable_cell_ids_to_sync_with_before_prepare(), commit->CellIdsToSyncWithBeforePrepare());
         request.set_generate_prepare_timestamp(commit->GetGeneratePrepareTimestamp());
         request.set_inherit_commit_timestamp(commit->GetInheritCommitTimestamp());
-        request.set_coordinator_commit_mode(ToProto<int>(commit->GetCoordinatorCommitMode()));
-        request.set_coordinator_prepare_mode(ToProto<int>(commit->GetCoordinatorPrepareMode()));
+        request.set_coordinator_commit_mode(ToProto(commit->GetCoordinatorCommitMode()));
+        request.set_coordinator_prepare_mode(ToProto(commit->GetCoordinatorPrepareMode()));
         request.set_prepare_timestamp(prepareTimestamp);
-        request.set_prepare_timestamp_cluster_tag(ToProto<int>(SelfClockClusterTag_));
+        request.set_prepare_timestamp_cluster_tag(ToProto(SelfClockClusterTag_));
         request.set_max_allowed_commit_timestamp(commit->GetMaxAllowedCommitTimestamp());
         WriteAuthenticationIdentityToProto(&request, commit->AuthenticationIdentity());
 

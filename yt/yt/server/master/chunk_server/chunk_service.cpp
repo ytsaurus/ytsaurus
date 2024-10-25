@@ -332,7 +332,7 @@ private:
             TChunkPtrWithReplicaIndex chunkWithReplicaIndex(
                 chunk,
                 chunkIdWithIndex.ReplicaIndex);
-            subresponse->set_erasure_codec(ToProto<int>(chunk->GetErasureCodec()));
+            subresponse->set_erasure_codec(ToProto(chunk->GetErasureCodec()));
 
             auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(chunk);
             auto replicasOrError = chunkManager->LocateChunk(chunkWithReplicaIndex);
@@ -349,7 +349,7 @@ private:
             const auto& replicas = replicasOrError.Value();
             for (auto replica : replicas) {
                 subresponse->add_legacy_replicas(ToProto<ui32>(replica));
-                subresponse->add_replicas(ToProto<ui64>(replica));
+                subresponse->add_replicas(ToProto(replica));
                 nodeDirectoryBuilder.Add(replica.GetPtr());
             }
 
@@ -457,7 +457,7 @@ private:
                     nodeDirectoryBuilder.Add(node);
                     auto replica = TNodePtrWithReplicaAndMediumIndex(node, GenericChunkReplicaIndex, GenericMediumIndex);
                     chunkSpec->add_legacy_replicas(ToProto<ui32>(replica));
-                    chunkSpec->add_replicas(ToProto<ui64>(replica));
+                    chunkSpec->add_replicas(ToProto(replica));
                 }
                 ToProto(chunkSpec->mutable_tablet_id(), tablet->GetId());
             }
@@ -592,7 +592,7 @@ private:
                     auto* target = targets[index];
                     builder.Add(target);
                     auto replica = TNodePtrWithReplicaAndMediumIndex(target, GenericChunkReplicaIndex, medium->GetIndex());
-                    subresponse->add_replicas(ToProto<ui64>(replica));
+                    subresponse->add_replicas(ToProto(replica));
                 }
 
                 YT_LOG_DEBUG("Write targets allocated "

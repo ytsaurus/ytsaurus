@@ -247,7 +247,7 @@ private:
         request.set_path(path);
 
         if (auto key = FindNodeKey(cypressManager, trunkNode, transaction)) {
-            request.set_key(ToProto<TProtobufString>(*key));
+            request.set_key(ToProto(*key));
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();

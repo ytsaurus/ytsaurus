@@ -426,7 +426,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         TStoreFlushResult result;
         {
             auto& descriptor = result.StoresToAdd.emplace_back();
-            descriptor.set_store_type(ToProto<int>(EStoreType::OrderedChunk));
+            descriptor.set_store_type(ToProto(EStoreType::OrderedChunk));
             ToProto(descriptor.mutable_store_id(), chunkWriter->GetChunkId());
             *descriptor.mutable_chunk_meta() = *tableWriter->GetMeta();
             FilterProtoExtensions(descriptor.mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());

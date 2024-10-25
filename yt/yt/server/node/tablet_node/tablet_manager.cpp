@@ -1274,7 +1274,7 @@ private:
         // Essential stuff.
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(
-            ToProto<ui64>(tablet->SmoothMovementData().GetSiblingMountRevision()));
+            ToProto(tablet->SmoothMovementData().GetSiblingMountRevision()));
 
         // Local tablet stuff: id generator, partition pivot keys, retained timestamp.
         tablet->PopulateReplicateTabletContentRequest(&request);
@@ -5006,7 +5006,7 @@ private:
                 NProto::TReqExternalizeTransaction req;
                 ToProto(req.mutable_transaction_id(), transaction->GetId());
                 req.set_transaction_start_timestamp(transaction->GetStartTimestamp());
-                req.set_transaction_timeout(ToProto<i64>(transaction->GetTimeout()));
+                req.set_transaction_timeout(ToProto(transaction->GetTimeout()));
                 ToProto(req.mutable_externalizer_tablet_id(), tablet->GetId());
 
                 NRpc::WriteAuthenticationIdentityToProto(

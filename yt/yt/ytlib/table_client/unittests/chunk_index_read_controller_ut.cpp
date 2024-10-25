@@ -222,8 +222,8 @@ public:
         auto block = blockWriter.FlushBlock();
 
         TChunkMeta protoMeta;
-        protoMeta.set_type(ToProto<int>(EChunkType::Table));
-        protoMeta.set_format(ToProto<int>(EChunkFormat::TableVersionedIndexed));
+        protoMeta.set_type(ToProto(EChunkType::Table));
+        protoMeta.set_format(ToProto(EChunkFormat::TableVersionedIndexed));
 
         SetProtoExtension(protoMeta.mutable_extensions(), TMiscExt());
         SetProtoExtension(protoMeta.mutable_extensions(), ToProto<NProto::TTableSchemaExt>(writeSchema));

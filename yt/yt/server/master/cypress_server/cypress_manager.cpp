@@ -3920,15 +3920,15 @@ private:
         NProto::TReqLockForeignNode request;
         ToProto(request.mutable_transaction_id(), externalizedTransactionId);
         ToProto(request.mutable_node_id(), trunkNode->GetId());
-        request.set_mode(ToProto<int>(lock->Request().Mode));
+        request.set_mode(ToProto(lock->Request().Mode));
         switch (lock->Request().Key.Kind) {
             case ELockKeyKind::None:
                 break;
             case ELockKeyKind::Child:
-                request.set_child_key(ToProto<TProtobufString>(lock->Request().Key.Name));
+                request.set_child_key(ToProto(lock->Request().Key.Name));
                 break;
             case ELockKeyKind::Attribute:
-                request.set_attribute_key(ToProto<TProtobufString>(lock->Request().Key.Name));
+                request.set_attribute_key(ToProto(lock->Request().Key.Name));
                 break;
             default:
                 break;

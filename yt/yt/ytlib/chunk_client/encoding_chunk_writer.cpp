@@ -35,8 +35,8 @@ TEncodingChunkWriter::TEncodingChunkWriter(
         blockCache,
         std::move(logger)))
 {
-    MiscExt_.set_compression_codec(ToProto<int>(options->CompressionCodec));
-    MiscExt_.set_erasure_codec(ToProto<int>(ChunkWriter_->GetErasureCodecId()));
+    MiscExt_.set_compression_codec(ToProto(options->CompressionCodec));
+    MiscExt_.set_erasure_codec(ToProto(ChunkWriter_->GetErasureCodecId()));
     MiscExt_.set_eden(options->ChunksEden);
 }
 

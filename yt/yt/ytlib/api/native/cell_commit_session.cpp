@@ -115,7 +115,7 @@ private:
         req->SetTimeout(Client_->GetNativeConnection()->GetConfig()->DefaultRegisterTransactionActionsTimeout);
         ToProto(req->mutable_transaction_id(), owner->GetId());
         req->set_transaction_start_timestamp(owner->GetStartTimestamp());
-        req->set_transaction_timeout(ToProto<i64>(owner->GetTimeout()));
+        req->set_transaction_timeout(ToProto(owner->GetTimeout()));
         req->set_signature(PrepareSignatureGenerator_.GenerateSignature());
         ToProto(req->mutable_actions(), Actions_);
         return req->Invoke().As<void>();
@@ -139,7 +139,7 @@ private:
         req->SetTimeout(Client_->GetNativeConnection()->GetConfig()->DefaultRegisterTransactionActionsTimeout);
         ToProto(req->mutable_transaction_id(), owner->GetId());
         req->set_transaction_start_timestamp(owner->GetStartTimestamp());
-        req->set_transaction_timeout(ToProto<i64>(owner->GetTimeout()));
+        req->set_transaction_timeout(ToProto(owner->GetTimeout()));
         req->set_signature(PrepareSignatureGenerator_.GenerateSignature());
         ToProto(req->mutable_actions(), Actions_);
         return req->Invoke().As<void>();

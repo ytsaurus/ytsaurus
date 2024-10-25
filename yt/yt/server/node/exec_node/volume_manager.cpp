@@ -1298,7 +1298,7 @@ private:
         volumeProperties["storage"] = builder.Flush();
 
         TVolumeMeta volumeMeta;
-        volumeMeta.set_type(ToProto<int>(EVolumeType::Nbd));
+        volumeMeta.set_type(ToProto(EVolumeType::Nbd));
         volumeMeta.add_layer_artifact_keys()->MergeFrom(artifactKey);
         volumeMeta.add_layer_paths("nbd:" + artifactKey.data_source().path());
 
@@ -1351,7 +1351,7 @@ private:
         volumeProperties["layers"] = builder.Flush();
 
         TVolumeMeta volumeMeta;
-        volumeMeta.set_type(ToProto<int>(EVolumeType::Overlay));
+        volumeMeta.set_type(ToProto(EVolumeType::Overlay));
 
         for (const auto& volumeOrLayer : overlayDataArray) {
             YT_ASSERT(!volumeOrLayer.GetPath().empty());
@@ -1383,7 +1383,7 @@ private:
         };
 
         TVolumeMeta volumeMeta;
-        volumeMeta.set_type(ToProto<int>(EVolumeType::SquashFS));
+        volumeMeta.set_type(ToProto(EVolumeType::SquashFS));
         volumeMeta.add_layer_artifact_keys()->MergeFrom(artifactKey);
         volumeMeta.add_layer_paths(squashFSFilePath);
 
@@ -2802,12 +2802,12 @@ public:
         if (options.VirtualSandboxData) {
             TArtifactKey virtualArtifactKey;
 
-            virtualArtifactKey.set_access_method(ToProto<int>(NControllerAgent::ELayerAccessMethod::Nbd));
-            virtualArtifactKey.set_filesystem(ToProto<int>(NControllerAgent::ELayerFilesystem::SquashFS));
+            virtualArtifactKey.set_access_method(ToProto(NControllerAgent::ELayerAccessMethod::Nbd));
+            virtualArtifactKey.set_filesystem(ToProto(NControllerAgent::ELayerFilesystem::SquashFS));
             virtualArtifactKey.set_nbd_export_id(options.VirtualSandboxData->NbdExportId);
 
             NChunkClient::NProto::TDataSource* dataSource = virtualArtifactKey.mutable_data_source();
-            dataSource->set_type(ToProto<int>(NChunkClient::EDataSourceType::File));
+            dataSource->set_type(ToProto(NChunkClient::EDataSourceType::File));
             dataSource->set_path("virtual");
 
             overlayDataFutures.push_back(PrepareNbdVolume(

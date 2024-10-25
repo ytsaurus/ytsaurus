@@ -141,7 +141,7 @@ public:
 
         NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
         for (auto replica : TargetReplicas_) {
-            jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
+            jobSpecExt->add_target_replicas(ToProto(replica));
             builder.Add(replica);
         }
 
@@ -221,6 +221,7 @@ public:
             if (isErasure && replica.GetReplicaIndex() != ChunkIdWithIndexes_.ReplicaIndex) {
                 continue;
             }
+            // XXX(babenko): legacy replica?
             jobSpecExt->add_replicas(ToProto<ui32>(replica));
         }
 
@@ -228,7 +229,7 @@ public:
         const auto& config = configManager->GetConfig()->ChunkManager;
         auto chunkRemovalJobExpirationDeadline = TInstant::Now() + config->ChunkRemovalJobReplicasExpirationTime;
 
-        jobSpecExt->set_replicas_expiration_deadline(ToProto<ui64>(chunkRemovalJobExpirationDeadline));
+        jobSpecExt->set_replicas_expiration_deadline(ToProto(chunkRemovalJobExpirationDeadline));
 
         return true;
     }
@@ -283,7 +284,7 @@ public:
         }
 
         auto* jobSpecExt = jobSpec->MutableExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext);
-        jobSpecExt->set_erasure_codec(ToProto<int>(Chunk_->GetErasureCodec()));
+        jobSpecExt->set_erasure_codec(ToProto(Chunk_->GetErasureCodec()));
         ToProto(jobSpecExt->mutable_chunk_id(), Chunk_->GetId());
         jobSpecExt->set_decommission(Decommission_);
 
@@ -310,7 +311,7 @@ public:
         jobSpecExt->set_striped_erasure_chunk(Chunk_->GetStripedErasure());
 
         for (auto replica : TargetReplicas_) {
-            jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
+            jobSpecExt->add_target_replicas(ToProto(replica));
             builder.Add(replica);
         }
 
@@ -3291,7 +3292,7 @@ void TChunkReplicator::OnRequisitionUpdate()
 
     TReqUpdateChunkRequisition request;
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    request.set_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
+    request.set_cell_tag(ToProto(multicellManager->GetCellTag()));
 
     YT_LOG_DEBUG("Chunk requisition update iteration started");
 

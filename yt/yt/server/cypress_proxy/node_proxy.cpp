@@ -618,7 +618,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
         }
 
         ToProto(response->mutable_node_id(), Id_);
-        response->set_cell_tag(ToProto<int>(CellTagFromId(Id_)));
+        response->set_cell_tag(ToProto(CellTagFromId(Id_)));
 
         context->SetResponseInfo("ExistingNodeId: %v", Id_);
 
@@ -642,7 +642,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
         targetParentNodeId);
 
     ToProto(response->mutable_node_id(), createdNodeId);
-    response->set_cell_tag(ToProto<int>(CellTagFromId(createdNodeId)));
+    response->set_cell_tag(ToProto(CellTagFromId(createdNodeId)));
 
     // TODO(h0pless): Add account info here, currently impossible to integrate properly due to the fact
     // that there is no such attribute stored in Sequoia dynamic tables.
@@ -925,7 +925,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
     ToProto(response->mutable_lock_id(), lockId);
     ToProto(response->mutable_node_id(), Id_);
     ToProto(response->mutable_external_transaction_id(), externalTransactionId);
-    response->set_external_cell_tag(ToProto<int>(externalCellTag));
+    response->set_external_cell_tag(ToProto(externalCellTag));
     response->set_revision(revision);
 
     context->SetResponseInfo("LockId: %v, ExternalCellTag: %v, ExternalTransactionId: %v, Revision: %x",

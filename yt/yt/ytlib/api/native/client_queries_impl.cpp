@@ -173,7 +173,7 @@ TQuery TClient::DoGetQuery(TQueryId queryId, const TGetQueryOptions& options)
         ToProto(rpcRequest->mutable_attributes(), options.Attributes);
     }
     if (options.Timestamp) {
-        rpcRequest->set_timestamp(ToProto<i64>(options.Timestamp));
+        rpcRequest->set_timestamp(ToProto<ui64>(options.Timestamp));
     }
 
     auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
@@ -195,13 +195,13 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
     auto* rpcRequest = req->mutable_rpc_proxy_request();
     rpcRequest->set_query_tracker_stage(options.QueryTrackerStage);
     if (options.FromTime) {
-        rpcRequest->set_from_time(NYT::ToProto<i64>(*options.FromTime));
+        rpcRequest->set_from_time(NYT::ToProto(*options.FromTime));
     }
     if (options.ToTime) {
-        rpcRequest->set_to_time(NYT::ToProto<i64>(*options.ToTime));
+        rpcRequest->set_to_time(NYT::ToProto(*options.ToTime));
     }
     if (options.CursorTime) {
-        rpcRequest->set_cursor_time(NYT::ToProto<i64>(*options.CursorTime));
+        rpcRequest->set_cursor_time(NYT::ToProto(*options.CursorTime));
     }
 
     rpcRequest->set_cursor_direction(static_cast<NProto::EOperationSortDirection>(options.CursorDirection));

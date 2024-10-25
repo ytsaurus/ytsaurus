@@ -351,7 +351,7 @@ private:
                 auto* descriptor = actionRequest.add_stores_to_remove();
                 ToProto(descriptor->mutable_store_id(), store->GetId());
             }
-            actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Trim));
+            actionRequest.set_update_reason(ToProto(ETabletStoresUpdateReason::Trim));
 
             auto actionData = MakeTransactionActionData(actionRequest);
             auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tablet->GetId()));
