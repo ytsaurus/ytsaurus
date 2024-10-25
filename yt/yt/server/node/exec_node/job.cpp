@@ -255,8 +255,10 @@ void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddress
             auto now = TInstant::Now();
             PreparationStartTime_ = now;
 
-            if (!resolvedNodeAddresses.IsOK()) {
-                THROW_ERROR TError("Failed to resolve node addresses") << std::move(resolvedNodeAddresses);
+            if (!resolvedNodeAddresses.IsOK() || (CommonConfig_->Testing && CommonConfig_->Testing->FailAddressResolve)) {
+                THROW_ERROR TError("Failed to resolve node addresses")
+                    << TErrorAttribute("abort_reason", EAbortReason::AddressResolveFailed)
+                    << std::move(resolvedNodeAddresses);
             }
 
             ResolvedNodeAddresses_ = std::move(resolvedNodeAddresses.Value());
@@ -364,7 +366,7 @@ void TJob::Start() noexcept
                         [
                             this,
                             this_ = MakeStrong(this),
-                            address = std::move(address),
+                            address,
                             addressName = std::move(addressName)
                         ] (const TErrorOr<TNetworkAddress>& resolvedAddressOrError) mutable {
                             if (!resolvedAddressOrError.IsOK()) {
