@@ -5729,6 +5729,13 @@ TJobletPtr TOperationControllerBase::CreateJoblet(
     return joblet;
 }
 
+void TOperationControllerBase::ResetJobIndexGenerator()
+{
+    VERIFY_INVOKER_POOL_AFFINITY(InvokerPool);
+
+    JobIndexGenerator.Reset();
+}
+
 // NB(pogorelov): In case of restarting job during operation revival, we do not know the latest job id, started on node in the allocation,
 // so we can not create new job immediately, and we do not force new job started in the same allocation.
 // We could avoid this problem if node will know operation incarnation of jobs, but I'm not sure that this case is important.

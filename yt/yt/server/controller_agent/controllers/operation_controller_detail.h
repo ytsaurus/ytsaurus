@@ -488,8 +488,6 @@ public:
         std::optional<TString> poolPath,
         bool treeIsTentative) override;
 
-    void RestartAllRunningJobsPreservingAllocations(bool operationIsReviving);
-
 protected:
     const IOperationControllerHostPtr Host;
     TControllerAgentConfigPtr Config;
@@ -1078,6 +1076,10 @@ protected:
     virtual void OnOperationRevived();
 
     virtual void BuildControllerInfoYson(NYTree::TFluentMap fluent) const;
+
+    void RestartAllRunningJobsPreservingAllocations(bool operationIsReviving);
+
+    void ResetJobIndexGenerator();
 
 private:
     using TThis = TOperationControllerBase;

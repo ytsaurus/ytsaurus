@@ -269,6 +269,8 @@ public:
         // COMPAT(pogorelov)
         const NScheduler::NProto::TScheduleAllocationSpec& allocationSpec) const;
 
+    void ResetJobIndexGenerator();
+
 protected:
     NLogging::TSerializableLogger Logger;
 
