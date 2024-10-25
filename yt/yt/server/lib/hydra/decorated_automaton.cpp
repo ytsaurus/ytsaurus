@@ -64,6 +64,8 @@ using namespace NNet;
 static const i64 SnapshotTransferBlockSize = 1_MB;
 static const i64 LogTransferBlockSize = 1_KB;
 
+static constexpr auto UnknownHostName = "<unknown>";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TPendingMutation::TPendingMutation(
@@ -844,7 +846,7 @@ void TDecoratedAutomaton::ResetState()
             TVersion(),
             TInstant::Zero(),
             /*randomSeed*/ 0,
-            /*localHostNameOverride*/ TSharedRef::FromString("<unknown>"));
+            /*localHostNameOverride*/ TSharedRef::FromString(UnknownHostName));
         THydraContextGuard hydraContextGuard(&hydraContext);
 
         ClearState();
@@ -1214,28 +1216,23 @@ void TDecoratedAutomaton::PublishMutationApplicationResults(std::vector<TMutatio
 TSharedRef TDecoratedAutomaton::SanitizeLocalHostName() const
 {
     auto localHost = ReadLocalHostName();
-    if (Options_.EnableLocalHostSanitizing) {
-        THashSet<TString> hosts;
-        for (const auto& peer : GetEpochContext()->CellManager->GetClusterPeersAddresses()) {
-            TStringBuf host;
-            int port;
-            ParseServiceAddress(peer, &host, &port);
-            hosts.insert(TString(host));
-        }
 
-        if (auto sanitizedLocalHost = NHydra::SanitizeLocalHostName(hosts, localHost)) {
-            YT_LOG_INFO("Local host name sanitized (Hosts: %v, LocalHost: %v, SanitizedLocalHost: %v)",
-                hosts,
-                localHost,
-                *sanitizedLocalHost);
-            return *sanitizedLocalHost;
-        }
-
-        YT_LOG_ALERT("Failed to sanitize local host name, perhaps the hosts have different lengths (Hosts: %v, LocalHost: %v)",
-            hosts,
-            localHost);
+    auto leaderAddress = GetEpochContext()->CellManager->GetClusterPeerAddress(GetEpochContext()->LeaderId);
+    if (leaderAddress) {
+        auto sanitizedLocalHost = TString(GetServiceHostName(*leaderAddress));
+        YT_LOG_INFO(
+            "Local host name sanitized (LocalHost: %v, SanitizedLocalHost: %v)",
+            localHost,
+            sanitizedLocalHost);
+        return TSharedRef::FromString(sanitizedLocalHost);
     }
-    return TSharedRef::FromString(ToString(localHost));
+
+    YT_LOG_ALERT(
+        "Failed to sanitize host name, leader address is not available; falling back to default placeholder (LocalHost: %v, SanitizedLocalHost: %v)",
+        localHost,
+        UnknownHostName);
+
+    return TSharedRef::FromString(UnknownHostName);
 }
 
 TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutation(

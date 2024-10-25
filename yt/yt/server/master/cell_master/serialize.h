@@ -136,6 +136,7 @@ DEFINE_ENUM(EMasterReign,
     ((DynamicTableSchemaContraint)                                  (2597))  // whatsername
     ((RemoveSchemalessEndUploadPreservesTableSchema_24_1)           (2598))  // h0pless
     ((ValidateResourceUsageIncreaseOnPrimaryMediumChange_24_1)      (2599))  // danilalexeev
+    ((LeaderAsSanitizedHost_24_1)                                   (2600))  // achulkov2
     // 24.2 starts here.
     ((Start_24_2)                                                   (2700))  //
     ((DropLegacyClusterNodeMap)                                     (2701))  // babenko
@@ -186,8 +187,10 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexUnfoldedColumnApi)                              (2746))  // sabdenovch
     ((Decimal256)                                                   (2747))  // achulkov2+ermolovd
     ((HunkStorageMulticell)                                         (2748))  // akozhikhov
+    ((LeaderAsSanitizedHost_24_2)                                   (2749))  // achulkov2
     // 25.1 starts here.
     ((SequoiaSetActionLatePrapare)                                  (2800))  // danilalexeev
+    ((LeaderAsSanitizedHost)                                        (2801))  // achulkov2
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

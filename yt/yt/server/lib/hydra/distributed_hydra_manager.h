@@ -19,7 +19,6 @@ struct TDistributedHydraManagerOptions
     bool UseFork = false;
     bool EnableObserverPersistence = true;
     NRpc::IResponseKeeperPtr ResponseKeeper;
-    bool EnableLocalHostSanitizing = true;
 };
 
 struct TDistributedHydraManagerDynamicOptions
