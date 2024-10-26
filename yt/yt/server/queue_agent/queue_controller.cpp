@@ -978,6 +978,8 @@ private:
     TAggregatedQueueExportsProgress GetAggregatedGenericQueueExportsProgress(const TQueueSnapshotPtr& queueSnapshot) const
     {
         YT_VERIFY(queueSnapshot->Row.ObjectType);
+        auto config = DynamicConfig_.Acquire();
+        auto enableCrtTrimByExports = config->EnableCrtTrimByExports;
         auto objectType = *queueSnapshot->Row.ObjectType;
         switch (objectType) {
             case EObjectType::Table: {
@@ -989,8 +991,13 @@ private:
             }
             case EObjectType::ReplicatedTable:
                 return GetAggregatedReplicatedQueueExportsProgress(queueSnapshot);
-            case EObjectType::ChaosReplicatedTable:
-                return GetAggregatedChaosReplicatedQueueExportsProgress(queueSnapshot);
+            case EObjectType::ChaosReplicatedTable: {
+                // NB(apachee): Currently trimming CRT using queue agent with taking exports into account can potentially lead to tabnode crash (see YT-22882).
+                // To avoid crashes new behavior is opt-in.
+                return enableCrtTrimByExports
+                    ? GetAggregatedChaosReplicatedQueueExportsProgress(queueSnapshot)
+                    : TAggregatedQueueExportsProgress();
+            }
             default:
                 YT_ABORT();
         }
