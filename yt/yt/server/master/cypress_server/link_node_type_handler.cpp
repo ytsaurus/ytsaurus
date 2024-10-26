@@ -179,6 +179,11 @@ private:
             }
         }
 
+        if (originalLinkPath.back() == '/') {
+            THROW_ERROR_EXCEPTION("Failed to create link: invalid YPath")
+                << TErrorAttribute("path", originalLinkPath);
+        }
+
         auto implHolder = TBase::DoCreate(id, context);
         implHolder->SetTargetPath(originalTargetPath);
 
