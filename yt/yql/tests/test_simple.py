@@ -287,9 +287,8 @@ class TestExecutionModesYql(TestQueriesYqlBase):
         rows = [{"a": 42}, {"a": 43}]
         write_table("//tmp/t1", rows)
 
-        for mode in ["Validate", "Optimize", "Run"]:
-            with raises_yt_error('Enum value "' + str(mode) + '" is neither in a proper underscore case nor in a format'):
-                self._run_simple_query("select * from `//tmp/t1`", settings={"execution_mode": mode})
+        with raises_yt_error('Error parsing'):
+            self._run_simple_query("select * from `//tmp/t1`", settings={"execution_mode": "unknown"})
 
         with raises_yt_error("Error casting"):
             self._run_simple_query("select * from `//tmp/t1`", settings={"execution_mode": 42})
