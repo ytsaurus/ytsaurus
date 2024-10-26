@@ -127,6 +127,12 @@ public:
     //! once in `ceil(TrimmingPeriod / PassPeriod)` queue controller passes.
     std::optional<TDuration> TrimmingPeriod;
 
+    //! COMPAT(apachee): This flag is used to disable taking exports progress
+    //! into account for CRT queues, since at this moment this can potentially
+    //! lead to crash in tabnodes (see YT-22882).
+    //! Default is false to reflect previous behavior that is known to work.
+    bool EnableCrtTrimByExports;
+
     TQueueExporterDynamicConfig QueueExporter;
 
     NAlertManager::TAlertManagerDynamicConfigPtr AlertManager;

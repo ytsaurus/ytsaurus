@@ -72,6 +72,8 @@ void TQueueControllerDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("trimming_period", &TThis::TrimmingPeriod)
         .Default();
+    registrar.Parameter("enable_crt_trim_by_exports", &TThis::EnableCrtTrimByExports)
+        .Default(false);
     registrar.Parameter("queue_exporter", &TThis::QueueExporter)
         .Default();
     registrar.Parameter("alert_manager", &TThis::AlertManager)

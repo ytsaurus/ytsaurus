@@ -3774,7 +3774,7 @@ def _with_create_cells(f):
 
 
 class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterReplicatedTableObjectsBase, QueueStaticExportHelpers):
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 3
 
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
@@ -3787,11 +3787,25 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
             "handle_replicated_objects": True,
             "controller": {
                 "enable_automatic_trimming": True,
+                "enable_crt_trim_by_exports": True,
             }
         }
     }
 
     INF_PERIOD = 10 ** 15
+
+    def setup_method(self, method):
+        super(TestMultiClusterReplicatedTableObjectsTrimWithExports, self).setup_method(method)
+
+        self._apply_dynamic_config_patch({
+            "queue_agent": {
+                "controller": {
+                    "enable_crt_trim_by_exports": True,
+                }
+            }
+        })
+
+        assert get("//sys/queue_agents/config/queue_agent/controller/enable_crt_trim_by_exports")
 
     # NB(apachee): Since 2 following methods are used for creating queue + consumer pair
     # we need create_cells to prevent methods creating queue + consumer pair to create cells
@@ -4108,3 +4122,83 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
             cluster_name = replica["cluster_name"]
             replica_driver = get_driver(cluster=cluster_name)
             self.remove_export_destination(export_dir, driver=replica_driver)
+
+    @authors("apachee")
+    @pytest.mark.timeout(150)
+    def test_enable_crt_trim_by_exports_compat(self):
+        # TODO(apachee): Rewrite as soon as YT-22882 is fixed.
+
+        self._apply_dynamic_config_patch({
+            "queue_agent": {
+                "controller": {
+                    "enable_crt_trim_by_exports": False,
+                }
+            }
+        })
+
+        queue_agent_orchid = QueueAgentOrchid()
+
+        queue_path, replicas, consumer_path, _ = self._create_chaos_queue_consumer_pair()
+        self._prepare_queue_replicas(replicas)
+
+        set(f"{queue_path}/@auto_trim_config", {
+            "enable": True,
+        })
+
+        export_dir = "//tmp/export"
+        for replica in replicas[1:]:
+            replica_driver = get_driver(cluster=replica["cluster_name"])
+            replica_path = replica["replica_path"]
+            replica_id = get(f"{replica_path}/@id", driver=replica_driver)
+            self._create_export_destination(export_dir, replica_id, driver=replica_driver)
+            assert self._get_export_tables_count(replica) == 0
+
+            export_config = {
+                "default": {
+                    "export_directory": export_dir,
+                    "export_period": self.INF_PERIOD
+                }
+            }
+            set(f"{replica_path}/@static_export_config", export_config, driver=replica_driver)
+
+        self._wait_for_component_passes()
+
+        # Register queues and consumers for cypress synchronizer to see them.
+        register_queue_consumer(queue_path, consumer_path, vital=True)
+
+        queue_orchid = queue_agent_orchid.get_queue_orchid(f"primary:{queue_path}")
+        consumer_orchid = queue_agent_orchid.get_consumer_orchid(f"primary:{consumer_path}")
+        replicas_orchids: list[OrchidWithRegularPasses] = []
+        for replica in replicas:
+            replica_cluster = replica["cluster_name"]
+            replica_path = replica["replica_path"]
+            replicas_orchids.append(queue_agent_orchid.get_queue_orchid(f"{replica_cluster}:{replica_path}"))
+
+        # Wait for registration to be acknowledged by Queue Agent.
+        wait(lambda: len(get(f"{queue_path}/@queue_status/registrations")) == 1)
+
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 3)
+        self._wait_for_replicated_queue_row_range(replicas, range(3))
+        self._flush_replicated_queue(replicas)
+
+        queue_orchid.wait_fresh_pass()
+        # Wait to check that trim did not occur.
+        time.sleep(10)
+
+        # Nothing should be trimmed.
+        assert self._get_export_tables_count(replicas[1]) == 0
+        assert self._get_export_tables_count(replicas[2]) == 0
+        self._wait_for_replicated_queue_row_range(replicas, range(3))
+
+        def wait_for_all_exports(count):
+            for replica in replicas[1:]:
+                wait(lambda: self._get_export_tables_count(replica) == count)
+
+        advance_consumer(consumer_path, queue_path, 0, 0, 3)
+        consumer_orchid.wait_fresh_pass()
+
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 3)
+
+        self._wait_for_replicated_queue_row_range(replicas, range(3, 6))
+
+        wait_for_all_exports(0)
