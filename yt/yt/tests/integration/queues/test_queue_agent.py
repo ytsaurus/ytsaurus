@@ -3,11 +3,12 @@ from yt_queue_agent_test_base import (OrchidWithRegularPasses, TestQueueAgentBas
                                       CypressSynchronizerOrchid, AlertManagerOrchid, QueueAgentShardingManagerOrchid,
                                       ObjectAlertHelper)
 
-from yt_commands import (authors, get, get_driver, set, ls, wait, assert_yt_error, create, sync_mount_table, insert_rows,
+from yt_commands import (authors, get, get_batch_output, get_driver, set, ls, wait, assert_yt_error, create, sync_mount_table, insert_rows,
                          delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
                          sync_unmount_table, trim_rows, print_debug, alter_table, register_queue_consumer,
                          unregister_queue_consumer, mount_table, wait_for_tablet_state, sync_freeze_table,
-                         sync_unfreeze_table, advance_consumer, sync_flush_table, sync_create_cells, read_table, lock)
+                         sync_unfreeze_table, advance_consumer, sync_flush_table, sync_create_cells, read_table, lock,
+                         execute_batch, make_batch_request)
 
 from yt.common import YtError, update_inplace
 
@@ -1352,12 +1353,23 @@ class TestMultipleAgents(TestQueueAgentBase):
 
         def perform_checks(ignore_instances=()):
             # Balancing channel should send request to random instances.
+            statuses_requests = []
             for queue in queues:
-                assert len(get(queue + "/@queue_status/registrations")) == 20
+                statuses_requests.append(make_batch_request("get", path=f"{queue}/@queue_status", return_only_value=True))
             for consumer in consumers:
-                consumer_registrations = get(consumer + "/@queue_consumer_status/registrations")
+                statuses_requests.append(make_batch_request("get", path=f"{consumer}/@queue_consumer_status", return_only_value=True))
+            statuses_response = execute_batch(statuses_requests)
+
+            statuses = dict()
+            for obj, status in zip(queues + consumers, statuses_response):
+                statuses[obj] = get_batch_output(status)
+
+            for queue in queues:
+                assert len(statuses[queue]["registrations"]) == 20
+            for consumer in consumers:
+                consumer_registrations = statuses[consumer]["registrations"]
                 assert len(consumer_registrations) == 2
-                consumer_queues = get(consumer + "/@queue_consumer_status/queues")
+                consumer_queues = statuses[consumer]["queues"]
                 assert len(consumer_queues) == 2
                 for registration in consumer_registrations:
                     assert "error" not in consumer_queues[registration["queue"]]
@@ -1366,12 +1378,24 @@ class TestMultipleAgents(TestQueueAgentBase):
             for instance in instances:
                 if instance in ignore_instances:
                     continue
+
+                statuses_requests = []
                 for queue in queues:
                     queue_orchid = queue_agent_orchids[instance].get_queue_orchid("primary:" + queue)
-                    assert len(queue_orchid.get_status()["registrations"]) == 20
+                    statuses_requests.append(make_batch_request("get", path=f"{queue_orchid.orchid_path()}/status", return_only_value=True))
                 for consumer in consumers:
                     consumer_orchid = queue_agent_orchids[instance].get_consumer_orchid("primary:" + consumer)
-                    consumer_status = consumer_orchid.get_status()
+                    statuses_requests.append(make_batch_request("get", path=f"{consumer_orchid.orchid_path()}/status", return_only_value=True))
+                statuses_response = execute_batch(statuses_requests)
+
+                statuses = dict()
+                for obj, status in zip(queues + consumers, statuses_response):
+                    statuses[obj] = get_batch_output(status)
+
+                for queue in queues:
+                    assert len(statuses[queue]["registrations"]) == 20
+                for consumer in consumers:
+                    consumer_status = statuses[consumer]
                     consumer_queues = consumer_status["queues"]
                     assert len(consumer_queues) == 2
                     for registration in consumer_status["registrations"]:
