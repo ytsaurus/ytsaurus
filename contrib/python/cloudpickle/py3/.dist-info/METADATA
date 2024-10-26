@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: cloudpickle
-Version: 3.0.0
+Version: 3.1.0
 Summary: Pickler class to extend the standard pickle.Pickler functionality
 Home-page: https://github.com/cloudpipe/cloudpickle
 License: BSD-3-Clause
