@@ -2261,7 +2261,7 @@ void TClient::DoAlterTable(
         ToProto(req->mutable_upstream_replica_id(), *options.UpstreamReplicaId);
     }
     if (options.SchemaModification) {
-        req->set_schema_modification(static_cast<int>(*options.SchemaModification));
+        req->set_schema_modification(ToProto(*options.SchemaModification));
     }
     if (options.ReplicationProgress) {
         ToProto(req->mutable_replication_progress(), *options.ReplicationProgress);
@@ -3169,8 +3169,8 @@ private:
             TQueryServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Options_.Timeout.value_or(connection->GetConfig()->DefaultPullRowsTimeout));
             auto req = proxy.PullRows();
-            req->set_request_codec(static_cast<int>(connection->GetConfig()->LookupRowsRequestCodec));
-            req->set_response_codec(static_cast<int>(connection->GetConfig()->LookupRowsResponseCodec));
+            req->set_request_codec(ToProto(connection->GetConfig()->LookupRowsRequestCodec));
+            req->set_response_codec(ToProto(connection->GetConfig()->LookupRowsResponseCodec));
             req->set_mount_revision(ToProto(TabletInfo_->MountRevision));
             req->set_max_rows_per_read(Options_.TabletRowsPerRead);
             req->set_max_data_weight(MaxDataWeight_);

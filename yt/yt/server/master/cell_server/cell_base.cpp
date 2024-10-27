@@ -34,6 +34,8 @@ using namespace NTabletClient;
 using namespace NTabletServer;
 using namespace NYTree;
 
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // COMPAT(savrus)
@@ -63,13 +65,15 @@ void TCellStatus::Persist(const TPersistenceContext& context)
 void ToProto(NProto::TCellStatus* protoStatus, const TCellStatus& status)
 {
     protoStatus->set_decommissioned(status.Decommissioned);
-    protoStatus->set_health(static_cast<int>(status.Health));
+    protoStatus->set_health(ToProto(status.Health));
 }
 
 void FromProto(TCellStatus* status, const NProto::TCellStatus& protoStatus)
 {
+    using NYT::FromProto;
+
     status->Decommissioned = protoStatus.decommissioned();
-    status->Health = ECellHealth(protoStatus.health());
+    status->Health = FromProto<ECellHealth>(protoStatus.health());
 }
 
 void Serialize(const TCellStatus& status, NYson::IYsonConsumer* consumer)

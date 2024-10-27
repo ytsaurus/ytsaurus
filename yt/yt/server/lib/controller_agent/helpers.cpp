@@ -235,8 +235,10 @@ void FromProto(NControllerAgent::TJobToRelease* jobToRelease, const NProto::TJob
 
 void ToProto(NProto::TJobToAbort* protoJobToAbort, const NControllerAgent::TJobToAbort& jobToAbort)
 {
+    using NYT::ToProto;
+
     ToProto(protoJobToAbort->mutable_job_id(), jobToAbort.JobId);
-    protoJobToAbort->set_abort_reason(static_cast<i32>(jobToAbort.AbortReason));
+    protoJobToAbort->set_abort_reason(ToProto(jobToAbort.AbortReason));
     protoJobToAbort->set_graceful(jobToAbort.Graceful);
     protoJobToAbort->set_request_new_job(jobToAbort.RequestNewJob);
 }

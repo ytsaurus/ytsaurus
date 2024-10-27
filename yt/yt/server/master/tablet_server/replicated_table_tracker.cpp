@@ -82,6 +82,8 @@ using namespace NApi;
 using namespace NRpc;
 using namespace NReplicatedTableTrackerClient;
 
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto& Logger = TabletServerLogger;
@@ -406,7 +408,7 @@ private:
             return BIND([=, this, this_ = MakeStrong(this)] {
                 auto req = TTableReplicaYPathProxy::Alter(FromObjectId(Id_));
                 GenerateMutationId(req);
-                req->set_mode(static_cast<int>(mode));
+                req->set_mode(ToProto(mode));
 
                 const auto& objectManager = bootstrap->GetObjectManager();
                 auto rootService = objectManager->GetRootService();
@@ -1490,7 +1492,7 @@ public:
 
                 auto req = TTableReplicaYPathProxy::Alter(FromObjectId(command.ReplicaId));
                 GenerateMutationId(req);
-                req->set_mode(static_cast<int>(command.TargetMode));
+                req->set_mode(ToProto(command.TargetMode));
 
                 const auto& objectManager = bootstrap->GetObjectManager();
                 auto rootService = objectManager->GetRootService();

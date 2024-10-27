@@ -399,8 +399,8 @@ private:
         using NYT::ToProto;
 
         ToProto(status->mutable_job_id(), job->GetId());
-        status->set_job_type(static_cast<int>(job->GetType()));
-        status->set_state(static_cast<int>(job->GetState()));
+        status->set_job_type(ToProto(job->GetType()));
+        status->set_state(ToProto(job->GetState()));
     }
 
     void DoPrepareHeartbeatRequest(

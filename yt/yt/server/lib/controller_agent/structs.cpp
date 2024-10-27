@@ -324,7 +324,7 @@ void ToProto(
     ToProto(protoEvent->mutable_allocation_id(), abortedAllocationSummary.Id);
 
     protoEvent->set_finish_time(ToProto(abortedAllocationSummary.FinishTime));
-    protoEvent->set_abort_reason(static_cast<int>(abortedAllocationSummary.AbortReason));
+    protoEvent->set_abort_reason(ToProto(abortedAllocationSummary.AbortReason));
     ToProto(protoEvent->mutable_error(), abortedAllocationSummary.Error);
     protoEvent->set_scheduled(abortedAllocationSummary.Scheduled);
 }

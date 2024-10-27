@@ -1826,9 +1826,10 @@ private:
 
             const auto& slotInfo = request->cell_slots(slotIndex);
 
-            auto state = EPeerState(slotInfo.peer_state());
-            if (state == EPeerState::None)
+            auto state = FromProto<EPeerState>(slotInfo.peer_state());
+            if (state == EPeerState::None) {
                 continue;
+            }
 
             auto cellInfo = FromProto<TCellInfo>(slotInfo.cell_info());
             auto cellId = cellInfo.CellId;

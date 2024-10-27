@@ -42,7 +42,7 @@ TChunk* TChunkGeneratorBase::CreateChunk(
     chunk->RefObject();
 
     NChunkClient::NProto::TChunkMeta chunkMeta;
-    chunkMeta.set_type(static_cast<int>(chunkType));
+    chunkMeta.set_type(ToProto(chunkType));
 
     NChunkClient::NProto::TMiscExt miscExt;
     miscExt.set_row_count(rowCount);

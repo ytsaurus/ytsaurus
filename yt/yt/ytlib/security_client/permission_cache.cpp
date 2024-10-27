@@ -197,7 +197,7 @@ NYTree::TYPathRequestPtr TPermissionCache::MakeRequest(
     if (key.Object) {
         auto typedReq = TObjectYPathProxy::CheckPermission(*key.Object);
         typedReq->set_user(ToProto(key.User));
-        typedReq->set_permission(static_cast<int>(key.Permission));
+        typedReq->set_permission(ToProto(key.Permission));
         if (key.Columns) {
             ToProto(typedReq->mutable_columns()->mutable_items(), *key.Columns);
         }
@@ -209,7 +209,7 @@ NYTree::TYPathRequestPtr TPermissionCache::MakeRequest(
     } else {
         auto typedReq = TMasterYPathProxy::CheckPermissionByAcl();
         typedReq->set_user(ToProto(key.User));
-        typedReq->set_permission(static_cast<int>(key.Permission));
+        typedReq->set_permission(ToProto(key.Permission));
         typedReq->set_acl(key.Acl->ToString());
         typedReq->set_ignore_missing_subjects(true);
         req = std::move(typedReq);

@@ -107,7 +107,7 @@ void SetCopyNodeRequestParameters(
     const TCopyNodeOptions& options)
 {
     SetCopyNodeBaseRequestParameters(req, options);
-    req->set_mode(static_cast<int>(ENodeCloneMode::Copy));
+    req->set_mode(ToProto(ENodeCloneMode::Copy));
 }
 
 void SetCopyNodeRequestParameters(
@@ -115,21 +115,21 @@ void SetCopyNodeRequestParameters(
     const TMoveNodeOptions& options)
 {
     SetMoveNodeBaseRequestParameters(req, options);
-    req->set_mode(static_cast<int>(ENodeCloneMode::Move));
+    req->set_mode(ToProto(ENodeCloneMode::Move));
 }
 
 void SetBeginCopyNodeRequestParameters(
     const TCypressYPathProxy::TReqBeginCopyPtr& req,
     const TCopyNodeOptions& /*options*/)
 {
-    req->set_mode(static_cast<int>(ENodeCloneMode::Copy));
+    req->set_mode(ToProto(ENodeCloneMode::Copy));
 }
 
 void SetBeginCopyNodeRequestParameters(
     const TCypressYPathProxy::TReqBeginCopyPtr& req,
     const TMoveNodeOptions& /*options*/)
 {
-    req->set_mode(static_cast<int>(ENodeCloneMode::Move));
+    req->set_mode(ToProto(ENodeCloneMode::Move));
 }
 
 void SetEndCopyNodeRequestParameters(
@@ -137,7 +137,7 @@ void SetEndCopyNodeRequestParameters(
     const TCopyNodeOptions& options)
 {
     SetCopyNodeBaseRequestParameters(req, options);
-    req->set_mode(static_cast<int>(ENodeCloneMode::Copy));
+    req->set_mode(ToProto(ENodeCloneMode::Copy));
 }
 
 void SetEndCopyNodeRequestParameters(
@@ -145,7 +145,7 @@ void SetEndCopyNodeRequestParameters(
     const TMoveNodeOptions& options)
 {
     SetMoveNodeBaseRequestParameters(req, options);
-    req->set_mode(static_cast<int>(ENodeCloneMode::Move));
+    req->set_mode(ToProto(ENodeCloneMode::Move));
 }
 
 class TCrossCellExecutor
@@ -837,7 +837,7 @@ TNodeId TClient::CreateNodeImpl(
     auto req = TCypressYPathProxy::Create(path);
     SetTransactionId(req, options, true);
     SetMutationId(req, options);
-    req->set_type(static_cast<int>(type));
+    req->set_type(ToProto(type));
     req->set_recursive(options.Recursive);
     req->set_ignore_existing(options.IgnoreExisting);
     req->set_lock_existing(options.LockExisting);
@@ -999,7 +999,7 @@ TLockNodeResult TClient::DoLockNode(
     auto req = TCypressYPathProxy::Lock(path);
     SetTransactionId(req, options, false);
     SetMutationId(req, options);
-    req->set_mode(static_cast<int>(mode));
+    req->set_mode(ToProto(mode));
     req->set_waitable(options.Waitable);
     if (options.ChildKey) {
         req->set_child_key(*options.ChildKey);
@@ -1143,7 +1143,7 @@ TNodeId TClient::DoLinkNode(
     SetPrerequisites(batchReq, options);
 
     auto req = TCypressYPathProxy::Create(dstPath);
-    req->set_type(static_cast<int>(EObjectType::Link));
+    req->set_type(ToProto(EObjectType::Link));
     req->set_recursive(options.Recursive);
     req->set_ignore_existing(options.IgnoreExisting);
     req->set_lock_existing(options.LockExisting);
@@ -1869,11 +1869,11 @@ private:
         auto proxy = Client_->CreateObjectServiceWriteProxy(dstObjectCellTag);
 
         auto req = TChunkOwnerYPathProxy::BeginUpload(DstObject_.GetObjectIdPath());
-        req->set_update_mode(static_cast<int>(Append_ ? EUpdateMode::Append : EUpdateMode::Overwrite));
-        req->set_lock_mode(static_cast<int>(Append_ ? ELockMode::Shared : ELockMode::Exclusive));
+        req->set_update_mode(ToProto(Append_ ? EUpdateMode::Append : EUpdateMode::Overwrite));
+        req->set_lock_mode(ToProto(Append_ ? ELockMode::Shared : ELockMode::Exclusive));
         if (CommonType_ == EObjectType::Table) {
             ToProto(req->mutable_table_schema(), OutputTableSchema_);
-            req->set_schema_mode(static_cast<int>(OutputTableSchemaMode_));
+            req->set_schema_mode(ToProto(OutputTableSchemaMode_));
         }
 
         std::vector<TString> srcObjectPaths;
@@ -1988,7 +1988,7 @@ private:
 
         // COMPAT(h0pless): remove this when all masters are 24.2.
         if (CommonType_ == EObjectType::Table) {
-            req->set_schema_mode(static_cast<int>(OutputTableSchemaMode_));
+            req->set_schema_mode(ToProto(OutputTableSchemaMode_));
         }
 
         std::vector<TSecurityTag> inferredSecurityTags;

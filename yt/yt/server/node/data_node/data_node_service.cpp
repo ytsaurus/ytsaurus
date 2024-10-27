@@ -2393,7 +2393,7 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Error getting meta");
             const auto& meta = *metaOrError.Value();
 
-            auto type = EChunkType(meta.type());
+            auto type = FromProto<EChunkType>(meta.type());
             if (type != EChunkType::Table) {
                 THROW_ERROR_EXCEPTION(
                     "Invalid type: expected %Qlv, actual %Qlv",

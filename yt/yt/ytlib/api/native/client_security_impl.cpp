@@ -52,7 +52,7 @@ TCheckPermissionByAclResult TClient::DoCheckPermissionByAcl(
     if (user) {
         req->set_user(ToProto(*user));
     }
-    req->set_permission(static_cast<int>(permission));
+    req->set_permission(ToProto(permission));
     req->set_acl(ConvertToYsonString(acl).ToString());
     req->set_ignore_missing_subjects(options.IgnoreMissingSubjects);
     SetCachingHeader(req, options);
@@ -127,7 +127,7 @@ TCheckPermissionResponse TClient::DoCheckPermission(
 
     auto req = TObjectYPathProxy::CheckPermission(path);
     req->set_user(ToProto(user));
-    req->set_permission(static_cast<int>(permission));
+    req->set_permission(ToProto(permission));
     if (options.Columns) {
         ToProto(req->mutable_columns()->mutable_items(), *options.Columns);
     }

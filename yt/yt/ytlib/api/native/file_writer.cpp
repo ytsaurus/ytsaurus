@@ -234,9 +234,9 @@ private:
                 bool append = Path_.GetAppend();
                 auto req = TFileYPathProxy::BeginUpload(objectIdPath);
                 auto updateMode = append ? EUpdateMode::Append : EUpdateMode::Overwrite;
-                req->set_update_mode(static_cast<int>(updateMode));
+                req->set_update_mode(ToProto(updateMode));
                 auto lockMode = (append && !Options_.ComputeMD5) ? ELockMode::Shared : ELockMode::Exclusive;
-                req->set_lock_mode(static_cast<int>(lockMode));
+                req->set_lock_mode(ToProto(lockMode));
                 req->set_upload_transaction_title(Format("Upload to %v", Path_.GetPath()));
                 req->set_upload_transaction_timeout(ToProto(Client_->GetNativeConnection()->GetConfig()->UploadTransactionTimeout));
                 GenerateMutationId(req);
@@ -362,11 +362,11 @@ private:
             ToProto(req->mutable_md5_hasher(), MD5Hasher_);
 
             if (auto compressionCodec = Path_.GetCompressionCodec()) {
-                req->set_compression_codec(static_cast<int>(*compressionCodec));
+                req->set_compression_codec(ToProto(*compressionCodec));
             }
 
             if (auto erasureCodec = Path_.GetErasureCodec()) {
-                req->set_erasure_codec(static_cast<int>(*erasureCodec));
+                req->set_erasure_codec(ToProto(*erasureCodec));
             }
 
             if (auto securityTags = Path_.GetSecurityTags()) {

@@ -475,7 +475,7 @@ public:
         TReqRotateStore request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(ToProto(tablet->GetMountRevision()));
-        request.set_reason(static_cast<int>(reason));
+        request.set_reason(ToProto(reason));
 
         auto activeStore = tablet->GetActiveStore();
         // Out of band immediate rotation may happen when this mutation is scheduled but not applied.
@@ -3942,7 +3942,7 @@ private:
             TReqSetTabletState request;
             ToProto(request.mutable_tablet_id(), tablet->GetId());
             request.set_mount_revision(ToProto(tablet->GetMountRevision()));
-            request.set_state(static_cast<int>(newPersistentState));
+            request.set_state(ToProto(newPersistentState));
             Slot_->CommitTabletMutation(request);
         }
     }
@@ -3989,7 +3989,7 @@ private:
         TReqSetTabletState request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(ToProto(tablet->GetMountRevision()));
-        request.set_state(static_cast<int>(newPersistentState));
+        request.set_state(ToProto(newPersistentState));
         Slot_->CommitTabletMutation(request);
     }
 

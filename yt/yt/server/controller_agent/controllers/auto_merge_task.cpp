@@ -26,6 +26,8 @@ using namespace NControllerAgent::NProto;
 using namespace NNodeTrackerClient;
 using namespace NYson;
 
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TAutoMergeChunkPoolAdapter::TAutoMergeChunkPoolAdapter(
@@ -494,7 +496,7 @@ void TAutoMergeTask::InitAutoMergeJobSpecTemplates()
     JobSpecTemplates_.resize(tableCount);
     for (int tableIndex = 0; tableIndex < tableCount; ++tableIndex) {
         TJobSpec jobSpecTemplate;
-        jobSpecTemplate.set_type(static_cast<int>(EJobType::UnorderedMerge));
+        jobSpecTemplate.set_type(ToProto(EJobType::UnorderedMerge));
         auto* jobSpecExt = jobSpecTemplate
             .MutableExtension(TJobSpecExt::job_spec_ext);
         jobSpecExt->set_table_reader_options(
@@ -532,7 +534,7 @@ void TAutoMergeTask::InitAutoMergeJobSpecTemplates()
 
         auto& shallowTemplate = JobSpecTemplates_[tableIndex][EMergeJobType::Shallow];
         shallowTemplate = jobSpecTemplate;
-        shallowTemplate.set_type(static_cast<int>(EJobType::ShallowMerge));
+        shallowTemplate.set_type(ToProto(EJobType::ShallowMerge));
         auto* shallowMergeJobSpecExt = shallowTemplate
             .MutableExtension(TShallowMergeJobSpecExt::shallow_merge_job_spec_ext);
         shallowMergeJobSpecExt->set_allow_unknown_extensions(autoMergeSpec->AllowUnknownExtensions);

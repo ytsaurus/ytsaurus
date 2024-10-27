@@ -364,7 +364,7 @@ TFuture<void> TOperationControllerImpl::Terminate(EOperationState finalState)
 
     auto req = ControllerAgentTrackerProxy_->TerminateOperation();
     ToProto(req->mutable_operation_id(), OperationId_);
-    req->set_controller_final_state(static_cast<int>(controllerFinalState));
+    req->set_controller_final_state(ToProto(controllerFinalState));
     req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
     return InvokeAgent<TControllerAgentServiceProxy::TRspTerminateOperation>(req).As<void>();
 }
@@ -398,7 +398,7 @@ TFuture<void> TOperationControllerImpl::Register(const TOperationPtr& operation)
 
     auto* descriptor = req->mutable_operation_descriptor();
     ToProto(descriptor->mutable_operation_id(), operation->GetId());
-    descriptor->set_operation_type(static_cast<int>(operation->GetType()));
+    descriptor->set_operation_type(ToProto(operation->GetType()));
     descriptor->set_spec(operation->GetSpecString().ToString());
     descriptor->set_experiment_assignments(ConvertToYsonString(operation->ExperimentAssignments()).ToString());
     descriptor->set_start_time(ToProto(operation->GetStartTime()));

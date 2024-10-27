@@ -30,6 +30,8 @@ using namespace NYPath;
 using namespace NYson;
 using namespace NConcurrency;
 
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVanillaController;
@@ -471,7 +473,7 @@ TJobSplitterConfigPtr TVanillaTask::GetJobSplitterConfig() const
 
 void TVanillaTask::InitJobSpecTemplate()
 {
-    JobSpecTemplate_.set_type(static_cast<int>(EJobType::Vanilla));
+    JobSpecTemplate_.set_type(ToProto(EJobType::Vanilla));
     auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
 
     jobSpecExt->set_io_config(ConvertToYsonString(Spec_->JobIO).ToString());

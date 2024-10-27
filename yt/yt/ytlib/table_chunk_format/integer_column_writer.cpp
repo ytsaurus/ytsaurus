@@ -228,14 +228,14 @@ private:
         if (dictionarySize < directSize) {
             DumpDictionaryValues(&segmentInfo, NullBitmap_, &rawMeta);
 
-            segmentInfo.SegmentMeta.set_type(static_cast<int>(segmentInfo.Dense
+            segmentInfo.SegmentMeta.set_type(ToProto(segmentInfo.Dense
                 ? EVersionedIntegerSegmentType::DictionaryDense
                 : EVersionedIntegerSegmentType::DictionarySparse));
 
         } else {
             DumpDirectValues(&segmentInfo, NullBitmap_, &rawMeta);
 
-            segmentInfo.SegmentMeta.set_type(static_cast<int>(segmentInfo.Dense
+            segmentInfo.SegmentMeta.set_type(ToProto(segmentInfo.Dense
                 ? EVersionedIntegerSegmentType::DirectDense
                 : EVersionedIntegerSegmentType::DirectSparse));
         }
@@ -513,7 +513,7 @@ private:
         rawMeta.ChunkRowCount = RowCount_;
 
         TSegmentInfo segmentInfo;
-        segmentInfo.SegmentMeta.set_type(static_cast<int>(type));
+        segmentInfo.SegmentMeta.set_type(ToProto(type));
         segmentInfo.SegmentMeta.set_version(0);
         segmentInfo.SegmentMeta.set_row_count(Values_.size());
 

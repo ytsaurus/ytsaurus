@@ -296,7 +296,7 @@ void UnlockNodeInMaster(TVersionedNodeId nodeId, const ISequoiaTransactionPtr &s
 
 void ToProto(TReqCloneNode::TCloneOptions* protoOptions, const TCopyOptions& options)
 {
-    protoOptions->set_mode(static_cast<int>(options.Mode));
+    protoOptions->set_mode(ToProto(options.Mode));
     protoOptions->set_preserve_acl(options.PreserveAcl);
     protoOptions->set_preserve_account(options.PreserveAccount);
     protoOptions->set_preserve_owner(options.PreserveOwner);

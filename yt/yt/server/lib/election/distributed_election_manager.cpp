@@ -1053,7 +1053,7 @@ DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, GetStatus)
 
     auto priority = ElectionCallbacks_->GetPriority();
 
-    response->set_state(static_cast<int>(State_));
+    response->set_state(ToProto(State_));
     response->set_vote_id(VoteId_);
     ToProto(response->mutable_priority(), priority);
     ToProto(response->mutable_vote_epoch_id(), VoteEpochId_);

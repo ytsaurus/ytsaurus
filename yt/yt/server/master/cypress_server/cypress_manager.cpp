@@ -237,7 +237,7 @@ public:
             if (clone.ClonedNodeId.TransactionId) {
                 ToProto(protoRequest.mutable_cloned_transaction_id(), clone.ClonedNodeId.TransactionId);
             }
-            protoRequest.set_mode(static_cast<int>(clone.Mode));
+            protoRequest.set_mode(ToProto(clone.Mode));
             ToProto(protoRequest.mutable_account_id(), clone.CloneAccountId);
             protoRequest.set_native_content_revision(ToProto(clone.NativeContentRevision));
             ToProto(protoRequest.mutable_inherited_node_attributes(), *clone.ReplicationInheritedAttributes);
@@ -250,7 +250,7 @@ public:
             if (externalNode.NodeId.TransactionId) {
                 ToProto(protoRequest.mutable_transaction_id(), externalNode.NodeId.TransactionId);
             }
-            protoRequest.set_type(static_cast<int>(externalNode.NodeType));
+            protoRequest.set_type(ToProto(externalNode.NodeType));
             ToProto(protoRequest.mutable_explicit_node_attributes(), *externalNode.ReplicationExplicitAttributes);
             ToProto(protoRequest.mutable_inherited_node_attributes(), *externalNode.ReplicationInheritedAttributes);
             ToProto(protoRequest.mutable_account_id(), externalNode.AccountId);

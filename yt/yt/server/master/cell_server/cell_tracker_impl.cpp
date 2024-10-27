@@ -517,7 +517,7 @@ bool TCellTrackerImpl::SchedulePeerCountChange(TCellBase* cell, TReqReassignPeer
         // so we need extra peer to perform decommission.
         auto* updatePeerCountRequest = request->add_peer_count_updates();
         ToProto(updatePeerCountRequest->mutable_cell_id(), cell->GetId());
-        updatePeerCountRequest->set_peer_count(static_cast<int>(cell->Peers().size() + 1));
+        updatePeerCountRequest->set_peer_count(std::ssize(cell->Peers()) + 1);
         return true;
     } else if ((!leaderDecommissioned || cell->GetLeadingPeerId() != 0) && leadingPeer.LastSeenState == EPeerState::Leading && hasExtraPeers) {
         // Wait for a proper amount of time before dropping an extra peer.

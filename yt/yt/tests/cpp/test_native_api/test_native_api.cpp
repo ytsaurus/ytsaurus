@@ -116,7 +116,7 @@ protected:
         RecentTableGuid_ = TGuid::Create();
 
         auto req = TCypressYPathProxy::Create(GetRecentTablePath());
-        req->set_type(static_cast<int>(EObjectType::Table));
+        req->set_type(ToProto(EObjectType::Table));
         req->set_recursive(false);
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("replication_factor", 1);
@@ -342,7 +342,7 @@ protected:
     static TYPathRequestPtr CreateRequest(const TString& tablePath)
     {
         auto request = TCypressYPathProxy::Create(tablePath);
-        request->set_type(static_cast<int>(EObjectType::Table));
+        request->set_type(ToProto(EObjectType::Table));
         request->set_recursive(false);
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("replication_factor", 1);
@@ -822,7 +822,7 @@ TEST_F(TAlterTableTest, TestUnknownType)
         auto* column = schema.add_columns();
         column->set_name("foo");
         column->set_stable_name("foo");
-        column->set_type(static_cast<int>(EValueType::Min));
+        column->set_type(ToProto(EValueType::Min));
 
         EXPECT_THROW_THAT(
             AlterTable("//tmp/t1", schema),
@@ -848,7 +848,7 @@ TEST_F(TAlterTableTest, TestUnknownType)
         auto* column = schema.add_columns();
         column->set_name("foo");
         column->set_stable_name("foo");
-        column->set_type(static_cast<int>(EValueType::Any));
+        column->set_type(ToProto(EValueType::Any));
         column->set_simple_logical_type(-1);
 
         EXPECT_THROW_THAT(
@@ -862,8 +862,8 @@ TEST_F(TAlterTableTest, TestUnknownType)
         auto* column = schema.add_columns();
         column->set_name("foo");
         column->set_stable_name("foo");
-        column->set_type(static_cast<int>(EValueType::Any));
-        column->set_simple_logical_type(static_cast<int>(ESimpleLogicalValueType::Int64));
+        column->set_type(ToProto(EValueType::Any));
+        column->set_simple_logical_type(ToProto(ESimpleLogicalValueType::Int64));
 
         EXPECT_NO_THROW(AlterTable("//tmp/t1", schema));
     }
@@ -874,7 +874,7 @@ TEST_F(TAlterTableTest, TestUnknownType)
         auto* column = schema.add_columns();
         column->set_name("foo");
         column->set_stable_name("foo");
-        column->set_type(static_cast<int>(EValueType::Int64));
+        column->set_type(ToProto(EValueType::Int64));
         column->mutable_logical_type()->set_simple(-1);
 
         EXPECT_THROW_THAT(
@@ -888,7 +888,7 @@ TEST_F(TAlterTableTest, TestUnknownType)
         auto* column = schema.add_columns();
         column->set_name("foo");
         column->set_stable_name("foo");
-        column->set_type(static_cast<int>(EValueType::Int64));
+        column->set_type(ToProto(EValueType::Int64));
         column->mutable_logical_type();
 
         EXPECT_THROW_THAT(
@@ -902,7 +902,7 @@ TEST_F(TAlterTableTest, TestUnknownType)
         auto* column = schema.add_columns();
         column->set_name("foo");
         column->set_stable_name("foo");
-        column->set_type(static_cast<int>(EValueType::Int64));
+        column->set_type(ToProto(EValueType::Int64));
         column->mutable_logical_type();
         auto unknownFields = column->GetReflection()->MutableUnknownFields(column);
         unknownFields->AddVarint(100500, 0);
@@ -1101,7 +1101,7 @@ public:
         std::function<void(TChunkOwnerYPathProxy::TReqFetchPtr&)> prepareRequest)
     {
         auto req = TChunkOwnerYPathProxy::Fetch(FromObjectId(tableId));
-        req->set_chunk_list_content_type(static_cast<int>(EChunkListContentType::Hunk));
+        req->set_chunk_list_content_type(ToProto(EChunkListContentType::Hunk));
         req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
         ToProto(req->mutable_ranges(), std::move(ranges));
         prepareRequest(req);

@@ -1512,7 +1512,7 @@ TObject* TObjectManager::CreateObject(
     if (replicate) {
         NProto::TReqCreateForeignObject replicationRequest;
         ToProto(replicationRequest.mutable_object_id(), object->GetId());
-        replicationRequest.set_type(static_cast<int>(type));
+        replicationRequest.set_type(ToProto(type));
         ToProto(replicationRequest.mutable_object_attributes(), *replicatedAttributes);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -1619,7 +1619,7 @@ void TObjectManager::AdvanceObjectLifeStageAtSecondaryMasters(TObject* object)
 
     NProto::TReqAdvanceObjectLifeStage advanceRequest;
     ToProto(advanceRequest.mutable_object_id(), object->GetId());
-    advanceRequest.set_new_life_stage(static_cast<int>(object->GetLifeStage()));
+    advanceRequest.set_new_life_stage(ToProto(object->GetLifeStage()));
     multicellManager->PostToSecondaryMasters(advanceRequest);
 }
 
@@ -1822,7 +1822,7 @@ void TObjectManager::ReplicateObjectCreationToSecondaryMaster(
     } else {
         NProto::TReqCreateForeignObject request;
         ToProto(request.mutable_object_id(), object->GetId());
-        request.set_type(static_cast<int>(object->GetType()));
+        request.set_type(ToProto(object->GetType()));
         auto replicatedAttributes = GetReplicatedAttributes(object, /*mandatory*/ true, /*writableOnly*/ false);
         ToProto(request.mutable_object_attributes(), *replicatedAttributes);
 

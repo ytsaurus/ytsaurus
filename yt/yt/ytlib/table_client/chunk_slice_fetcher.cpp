@@ -246,7 +246,7 @@ private:
                 }
 
                 // TODO(max42, gritukan): this field seems useless. Consider dropping it here and in proto message.
-                protoSliceRequest->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
+                protoSliceRequest->set_erasure_codec(ToProto(chunk->GetErasureCodec()));
                 protoSliceRequest->set_slice_data_weight(chunkSliceDataWeight);
                 protoSliceRequest->set_slice_by_keys(sliceByKeys);
                 protoSliceRequest->set_key_column_count(comparator.GetLength());

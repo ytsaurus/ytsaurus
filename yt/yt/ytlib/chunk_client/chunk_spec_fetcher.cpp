@@ -107,7 +107,7 @@ void TMasterChunkSpecFetcher::Add(
             ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
             req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
             if (FetchHunkChunks_) {
-                req->set_chunk_list_content_type(static_cast<int>(EChunkListContentType::Hunk));
+                req->set_chunk_list_content_type(ToProto(EChunkListContentType::Hunk));
             }
             SetCachingHeader(req, Client_->GetNativeConnection(), MasterReadOptions_);
 

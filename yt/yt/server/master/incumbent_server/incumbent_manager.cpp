@@ -417,7 +417,7 @@ private:
             for (auto incumbentType : TEnumTraits<EIncumbentType>::GetDomainValues()) {
                 const auto& descriptor = newIncumbents[incumbentType];
                 auto* protoDescriptor = heartbeat->add_descriptors();
-                protoDescriptor->set_type(static_cast<int>(incumbentType));
+                protoDescriptor->set_type(ToProto(incumbentType));
                 for (const auto& address : descriptor.Addresses) {
                     if (address) {
                         protoDescriptor->add_addresses(ToProto(*address));

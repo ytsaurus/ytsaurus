@@ -118,7 +118,7 @@ void ToProto(
     for (auto reason : TEnumTraits<EScheduleFailReason>::GetDomainValues()) {
         if (scheduleJobResult.Failed[reason] > 0) {
             auto* protoCounter = protoResponse->add_failed();
-            protoCounter->set_reason(static_cast<int>(reason));
+            protoCounter->set_reason(ToProto(reason));
             protoCounter->set_value(scheduleJobResult.Failed[reason]);
         }
     }
@@ -137,7 +137,7 @@ void ToProto(
         protoTreeSettings->set_tentative(settings.Tentative);
         protoTreeSettings->set_probing(settings.Probing);
         protoTreeSettings->set_offloading(settings.Offloading);
-        protoTreeSettings->set_main_resource(static_cast<int>(settings.MainResource));
+        protoTreeSettings->set_main_resource(ToProto(settings.MainResource));
         protoTreeSettings->set_allow_idle_cpu_policy(settings.AllowIdleCpuPolicy);
     }
 }
