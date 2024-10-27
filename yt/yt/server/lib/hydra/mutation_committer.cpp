@@ -537,7 +537,10 @@ void TLeaderCommitter::FlushMutations()
 
                 YT_UNUSED_FUTURE(req->Invoke());
 
-                followerState = {};
+                followerState.NextExpectedSequenceNumber = -1;
+                followerState.LastLoggedSequenceNumber = -1;
+                followerState.Mode = EAcceptMutationsMode::Slow;
+
                 continue;
             }
         }
