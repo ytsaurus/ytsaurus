@@ -52,7 +52,7 @@ void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource
 {
     using NYT::ToProto;
 
-    protoDataSource->set_type(static_cast<int>(dataSource.GetType()));
+    protoDataSource->set_type(ToProto(dataSource.GetType()));
 
     if (dataSource.Schema()) {
         if (schemaDictionary) {

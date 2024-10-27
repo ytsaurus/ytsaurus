@@ -156,7 +156,7 @@ bool TChunkFileWriter::WriteBlocks(
 
         auto* blockInfo = BlocksExt_.add_blocks();
         blockInfo->set_offset(currentOffset);
-        blockInfo->set_size(static_cast<int>(block.Size()));
+        blockInfo->set_size(ToProto(block.Size()));
         blockInfo->set_checksum(block.GetOrComputeChecksum());
 
         currentOffset += block.Size();

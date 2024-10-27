@@ -13,6 +13,7 @@
 namespace NYT::NSecurityServer {
 
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -149,7 +150,7 @@ void ToProto(
 {
     for (auto masterMemoryType : TEnumTraits<EMasterMemoryType>::GetDomainValues()) {
         auto* entry = protoDetailedMasterMemory->add_entries();
-        entry->set_master_memory_type(static_cast<int>(masterMemoryType));
+        entry->set_master_memory_type(ToProto(masterMemoryType));
         entry->set_master_memory_usage(detailedMasterMemory[masterMemoryType]);
     }
 }

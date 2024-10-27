@@ -77,6 +77,7 @@ using namespace NConcurrency;
 using namespace NYPath;
 
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -859,7 +860,7 @@ private:
             auto req = proxy.ProcessGossip();
             req->SetTimeout(Config_->Gossip->Timeout);
             req->set_instance_id(ToString(Config_->InstanceId));
-            req->set_instance_state(static_cast<int>(selfState));
+            req->set_instance_state(ToProto(selfState));
             futures.push_back(req->Invoke());
         }
         auto responses = WaitFor(AllSet(futures))

@@ -14,6 +14,7 @@ using namespace NRpc;
 using namespace NRpc::NProto;
 
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,7 +46,7 @@ private:
 
         response->set_instance_id(ToString(Host_->GetConfig()->InstanceId));
         auto state = Host_->GetInstanceState();
-        response->set_instance_state(static_cast<int>(state));
+        response->set_instance_state(ToProto(state));
 
         context->SetResponseInfo("SelfInstanceId: %v, SelfState: %v",
             Host_->GetConfig()->InstanceId,

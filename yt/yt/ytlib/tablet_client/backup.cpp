@@ -1,7 +1,6 @@
 #include "backup.h"
 
-#include <yt/yt/core/misc/guid.h>
-#include <yt/yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NTabletClient {
 
@@ -23,7 +22,7 @@ void ToProto(
     using NYT::ToProto;
 
     ToProto(protoDescriptor->mutable_replica_id(), descriptor.ReplicaId);
-    protoDescriptor->set_replica_mode(static_cast<int>(descriptor.Mode));
+    protoDescriptor->set_replica_mode(ToProto(descriptor.Mode));
     protoDescriptor->set_replica_path(descriptor.ReplicaPath);
 }
 
@@ -34,7 +33,7 @@ void FromProto(
     using NYT::FromProto;
 
     FromProto(&descriptor->ReplicaId, protoDescriptor.replica_id());
-    descriptor->Mode = static_cast<ETableReplicaMode>(protoDescriptor.replica_mode());
+    descriptor->Mode = FromProto<ETableReplicaMode>(protoDescriptor.replica_mode());
     descriptor->ReplicaPath = protoDescriptor.replica_path();
 }
 

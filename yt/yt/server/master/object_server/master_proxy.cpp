@@ -172,7 +172,7 @@ private:
 
         auto result = securityManager->CheckPermission(user, permission, acl);
 
-        response->set_action(static_cast<int>(result.Action));
+        response->set_action(ToProto(result.Action));
         if (result.Subject) {
             ToProto(response->mutable_subject_id(), result.Subject->GetId());
             response->set_subject_name(ToProto(result.Subject->GetName()));

@@ -714,7 +714,7 @@ private:
             }
 
             ToProto(req->mutable_data_sources(), dataSources, schema, lookupSupported, minKeyWidth);
-            req->set_response_codec(static_cast<int>(config->SelectRowsResponseCodec));
+            req->set_response_codec(ToProto(config->SelectRowsResponseCodec));
         }
 
         ToProto(req->mutable_feature_flags(), requestFeatureFlags);

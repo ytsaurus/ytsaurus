@@ -252,7 +252,7 @@ public:
                 attributes->Set("acl", ConvertToYsonString(operation->BaseAcl()));
 
                 auto req = TCypressYPathProxy::Create(GetSecureVaultPath(operationId));
-                req->set_type(static_cast<int>(EObjectType::Document));
+                req->set_type(ToProto(EObjectType::Document));
                 ToProto(req->mutable_node_attributes(), *attributes);
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
@@ -487,7 +487,7 @@ public:
         auto batchReq = StartObjectBatchRequest();
 
         auto req = NCypressClient::TCypressYPathProxy::Create(StrategyStatePath);
-        req->set_type(static_cast<int>(EObjectType::Document));
+        req->set_type(ToProto(EObjectType::Document));
         req->set_force(true);
 
         auto* attribute = req->mutable_node_attributes()->add_attributes();
@@ -856,7 +856,7 @@ private:
             {
                 auto req = TCypressYPathProxy::Create(path);
                 req->set_ignore_existing(true);
-                req->set_type(static_cast<int>(EObjectType::MapNode));
+                req->set_type(ToProto(EObjectType::MapNode));
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
@@ -869,7 +869,7 @@ private:
             {
                 auto req = TCypressYPathProxy::Create(path + "/orchid");
                 req->set_ignore_existing(true);
-                req->set_type(static_cast<int>(EObjectType::Orchid));
+                req->set_type(ToProto(EObjectType::Orchid));
                 auto attributes = Owner_->CreateEphemeralAttributesNestingLimited();
                 attributes->Set("remote_addresses", ServiceAddresses_);
                 ToProto(req->mutable_node_attributes(), *attributes);

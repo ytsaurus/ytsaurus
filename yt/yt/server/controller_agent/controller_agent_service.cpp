@@ -87,7 +87,7 @@ private:
         response->set_brief_progress(result.BriefProgress.ToString());
         response->set_running_jobs(result.RunningJobs.ToString());
         response->set_controller_memory_usage(result.MemoryUsage);
-        response->set_controller_state(static_cast<i32>(result.ControllerState));
+        response->set_controller_state(ToProto(result.ControllerState));
         response->set_alerts(result.Alerts.ToString());
 
         context->Reply();

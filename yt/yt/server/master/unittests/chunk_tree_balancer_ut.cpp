@@ -22,6 +22,7 @@ using namespace NObjectClient;
 using namespace NChunkClient::NProto;
 
 using NChunkClient::TLegacyReadLimit;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +43,7 @@ std::unique_ptr<TChunk> CreateChunk()
     auto chunk = TPoolAllocator::New<TChunk>(GenerateChunkId());
 
     TChunkMeta chunkMeta;
-    chunkMeta.set_type(static_cast<int>(EChunkType::Table));
+    chunkMeta.set_type(ToProto(EChunkType::Table));
 
     TMiscExt miscExt;
     SetProtoExtension<TMiscExt>(chunkMeta.mutable_extensions(), miscExt);

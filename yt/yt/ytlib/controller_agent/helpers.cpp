@@ -114,7 +114,7 @@ void SaveJobFiles(
             auto req = TCypressYPathProxy::Create(file.Path);
             req->set_recursive(true);
             req->set_force(true);
-            req->set_type(static_cast<int>(EObjectType::File));
+            req->set_type(ToProto(EObjectType::File));
 
             auto attributes = CreateEphemeralAttributes(nestingLevelLimit);
             attributes->Set("external", true);
@@ -166,8 +166,8 @@ void SaveJobFiles(
         for (const auto* file : files) {
             const auto& info = fileToInfo[file];
             auto req = TFileYPathProxy::BeginUpload(FromObjectId(info.NodeId));
-            req->set_update_mode(static_cast<int>(EUpdateMode::Overwrite));
-            req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
+            req->set_update_mode(ToProto(EUpdateMode::Overwrite));
+            req->set_lock_mode(ToProto(ELockMode::Exclusive));
             req->set_upload_transaction_title(Format("Saving files of job %v of operation %v",
                 file->JobId,
                 operationId));

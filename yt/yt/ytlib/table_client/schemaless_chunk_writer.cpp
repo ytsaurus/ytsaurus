@@ -486,7 +486,7 @@ private:
                 chunkFeatures |= EChunkFeatures::UnversionedHunks;
             }
 
-            meta->set_features(static_cast<ui64>(chunkFeatures));
+            meta->set_features(ToProto(chunkFeatures));
         }
 
         if (Config_->TestingOptions->AddUnsupportedFeature) {
@@ -2482,10 +2482,10 @@ std::tuple<TMasterTableSchemaId, TTransactionId> BeginTableUpload(
             }
             ToProto(req->mutable_chunk_schema(), chunkSchema);
         }
-        req->set_schema_mode(static_cast<int>(tableUploadOptions.SchemaMode));
-        req->set_optimize_for(static_cast<int>(tableUploadOptions.OptimizeFor));
-        req->set_update_mode(static_cast<int>(tableUploadOptions.UpdateMode));
-        req->set_lock_mode(static_cast<int>(tableUploadOptions.LockMode));
+        req->set_schema_mode(ToProto(tableUploadOptions.SchemaMode));
+        req->set_optimize_for(ToProto(tableUploadOptions.OptimizeFor));
+        req->set_update_mode(ToProto(tableUploadOptions.UpdateMode));
+        req->set_lock_mode(ToProto(tableUploadOptions.LockMode));
         req->set_upload_transaction_title(Format("Upload to %v", path));
         if (setUploadTxTimeout) {
             req->set_upload_transaction_timeout(ToProto(client->GetNativeConnection()->GetConfig()->UploadTransactionTimeout));

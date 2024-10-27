@@ -428,7 +428,7 @@ public:
                 }
 
                 auto req = TMasterYPathProxy::CreateObject();
-                req->set_type(static_cast<int>(EObjectType::ChunkLocation));
+                req->set_type(ToProto(EObjectType::ChunkLocation));
 
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("uuid", locationUuid);

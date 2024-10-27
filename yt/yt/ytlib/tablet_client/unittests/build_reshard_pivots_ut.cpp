@@ -129,7 +129,7 @@ private:
         SetProtoExtension(chunkMeta.mutable_extensions(), miscExt);
         SetProtoExtension(chunkMeta.mutable_extensions(), boundaryKeys);
 
-        chunkMeta.set_type(static_cast<int>(EChunkType::Table));
+        chunkMeta.set_type(ToProto(EChunkType::Table));
 
         ToProto(chunkSpec.mutable_chunk_meta(), chunkMeta);
 

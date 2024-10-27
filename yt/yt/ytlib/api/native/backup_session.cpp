@@ -335,7 +335,7 @@ void TClusterBackupSession::StartBackup()
             }
         }
 
-        req->set_backup_mode(static_cast<int>(mode));
+        req->set_backup_mode(ToProto(mode));
 
         if (table.UpstreamReplicaId) {
             ToProto(req->mutable_upstream_replica_id(), table.UpstreamReplicaId);
@@ -455,7 +455,7 @@ void TClusterBackupSession::CloneTables(ENodeCloneMode nodeCloneMode)
 
     for (const auto& table : Tables_) {
         auto req = TCypressYPathProxy::Copy(table.DestinationPath);
-        req->set_mode(static_cast<int>(nodeCloneMode));
+        req->set_mode(ToProto(nodeCloneMode));
         req->set_force(force);
         req->set_preserve_account(preserveAccount);
         Client_->SetTransactionId(req, options, /*allowNullTransaction*/ false);

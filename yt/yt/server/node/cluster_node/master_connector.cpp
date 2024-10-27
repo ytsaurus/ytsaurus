@@ -159,7 +159,7 @@ public:
         protoMemory->set_total_used(memoryTracker->GetTotalUsed());
         for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
             auto* protoCategory = protoMemory->add_categories();
-            protoCategory->set_type(static_cast<int>(category));
+            protoCategory->set_type(ToProto(category));
             auto limit = memoryTracker->GetExplicitLimit(category);
             if (limit < std::numeric_limits<i64>::max()) {
                 protoCategory->set_limit(limit);
@@ -565,15 +565,15 @@ private:
         auto* nodeAddresses = req->mutable_node_addresses();
 
         auto* rpcAddresses = nodeAddresses->add_entries();
-        rpcAddresses->set_address_type(static_cast<int>(EAddressType::InternalRpc));
+        rpcAddresses->set_address_type(ToProto(EAddressType::InternalRpc));
         ToProto(rpcAddresses->mutable_addresses(), RpcAddresses_);
 
         auto* skynetHttpAddresses = nodeAddresses->add_entries();
-        skynetHttpAddresses->set_address_type(static_cast<int>(EAddressType::SkynetHttp));
+        skynetHttpAddresses->set_address_type(ToProto(EAddressType::SkynetHttp));
         ToProto(skynetHttpAddresses->mutable_addresses(), SkynetHttpAddresses_);
 
         auto* monitoringHttpAddresses = nodeAddresses->add_entries();
-        monitoringHttpAddresses->set_address_type(static_cast<int>(EAddressType::MonitoringHttp));
+        monitoringHttpAddresses->set_address_type(ToProto(EAddressType::MonitoringHttp));
         ToProto(monitoringHttpAddresses->mutable_addresses(), MonitoringHttpAddresses_);
 
         ToProto(req->mutable_lease_transaction_id(), LeaseTransaction_->GetId());

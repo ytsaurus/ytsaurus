@@ -485,7 +485,7 @@ private:
             auto req = TCypressYPathProxy::Create(path + "/lock");
             req->set_ignore_existing(true);
             req->set_recursive(true);
-            req->set_type(static_cast<int>(EObjectType::MapNode));
+            req->set_type(ToProto(EObjectType::MapNode));
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
@@ -499,7 +499,7 @@ private:
             auto req = TCypressYPathProxy::Create(path + "/orchid");
             req->set_ignore_existing(true);
             req->set_recursive(true);
-            req->set_type(static_cast<int>(EObjectType::Orchid));
+            req->set_type(ToProto(EObjectType::Orchid));
             auto attributes = CreateEphemeralAttributesNestingLimited();
             attributes->Set("remote_addresses", Bootstrap_->GetLocalAddresses());
             ToProto(req->mutable_node_attributes(), *attributes);
@@ -670,7 +670,7 @@ private:
         {
             auto req = TCypressYPathProxy::Create(operationPath + "/controller_orchid");
             req->set_force(true);
-            req->set_type(static_cast<int>(EObjectType::Orchid));
+            req->set_type(ToProto(EObjectType::Orchid));
             auto attributes = CreateEphemeralAttributesNestingLimited();
             attributes->Set("remote_addresses", Bootstrap_->GetLocalAddresses());
             attributes->Set("remote_root", "//controller_agent/operations/" + ToYPathLiteral(ToString(operationId)));
@@ -1001,8 +1001,8 @@ private:
 
             for (const auto* tableInfo : tableInfos) {
                 auto req = TTableYPathProxy::BeginUpload(FromObjectId(tableInfo->TableId));
-                req->set_update_mode(static_cast<int>(EUpdateMode::Append));
-                req->set_lock_mode(static_cast<int>(ELockMode::Shared));
+                req->set_update_mode(ToProto(EUpdateMode::Append));
+                req->set_lock_mode(ToProto(ELockMode::Shared));
                 req->set_upload_transaction_title(Format("Attaching live preview chunks of operation %v",
                     operationId));
                 SetTransactionId(req, transactionId);

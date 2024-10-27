@@ -1982,7 +1982,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
             ToProto(protoReplica->mutable_replica_id(), replica->GetId());
             protoReplica->set_cluster_name(replica->GetClusterName());
             protoReplica->set_replica_path(replica->GetReplicaPath());
-            protoReplica->set_mode(static_cast<int>(replica->GetMode()));
+            protoReplica->set_mode(ToProto(replica->GetMode()));
         }
     }
 

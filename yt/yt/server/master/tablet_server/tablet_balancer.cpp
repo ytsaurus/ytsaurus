@@ -40,6 +40,8 @@ using namespace NTabletServer::NProto;
 using namespace NYTree;
 using namespace NYson;
 
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto& Logger = TabletServerLogger;
@@ -333,7 +335,7 @@ private:
             correlationId);
 
         TReqCreateTabletAction request;
-        request.set_kind(static_cast<int>(ETabletActionKind::Move));
+        request.set_kind(ToProto(ETabletActionKind::Move));
         ToProto(request.mutable_tablet_ids(), std::vector<TTabletId>{tablet->GetId()});
         ToProto(request.mutable_cell_ids(), std::vector<TTabletCellId>{targetCellId});
         ToProto(request.mutable_correlation_id(), correlationId);
@@ -364,7 +366,7 @@ private:
             correlationId);
 
         TReqCreateTabletAction request;
-        request.set_kind(static_cast<int>(ETabletActionKind::Reshard));
+        request.set_kind(ToProto(ETabletActionKind::Reshard));
         ToProto(request.mutable_tablet_ids(), tabletIds);
         request.set_tablet_count(newTabletCount);
         ToProto(request.mutable_correlation_id(), correlationId);

@@ -22,7 +22,7 @@ public:
     void EnrichRequest(NRpc::NProto::TReqDiscover* request) const override
     {
         auto* ext = request->MutableExtension(NProto::TPeerKindExt::peer_kind_ext);
-        ext->set_peer_kind(static_cast<int>(Kind_));
+        ext->set_peer_kind(ToProto(Kind_));
     }
 
     void HandleResponse(NRpc::NProto::TRspDiscover* response) const override

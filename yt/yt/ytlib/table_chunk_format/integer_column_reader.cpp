@@ -236,7 +236,7 @@ private:
             TDictionarySparseVersionedIntegerValueExtractor<ValueType>>;
 
         const auto& meta = ColumnMeta_.segments(segmentIndex);
-        auto segmentType = EVersionedIntegerSegmentType(meta.type());
+        auto segmentType = FromProto<EVersionedIntegerSegmentType>(meta.type());
 
         switch (segmentType) {
             case EVersionedIntegerSegmentType::DirectDense:

@@ -598,7 +598,7 @@ private:
 
     void InitJobSpecTemplate() override
     {
-        JobSpecTemplate_.set_type(static_cast<int>(EJobType::OrderedMerge));
+        JobSpecTemplate_.set_type(ToProto(EJobType::OrderedMerge));
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
         jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
 
@@ -824,7 +824,7 @@ private:
 
     void InitJobSpecTemplate() override
     {
-        JobSpecTemplate_.set_type(static_cast<int>(EJobType::OrderedMap));
+        JobSpecTemplate_.set_type(ToProto(EJobType::OrderedMap));
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
         jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
 
@@ -1081,7 +1081,7 @@ private:
 
     void InitJobSpecTemplate() override
     {
-        JobSpecTemplate_.set_type(static_cast<int>(EJobType::OrderedMerge));
+        JobSpecTemplate_.set_type(ToProto(EJobType::OrderedMerge));
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
         jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
 
@@ -1419,7 +1419,7 @@ private:
 
     void InitJobSpecTemplate() override
     {
-        JobSpecTemplate_.set_type(static_cast<int>(EJobType::RemoteCopy));
+        JobSpecTemplate_.set_type(ToProto(EJobType::RemoteCopy));
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(
             TJobSpecExt::job_spec_ext);
 

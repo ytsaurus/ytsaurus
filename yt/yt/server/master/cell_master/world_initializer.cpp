@@ -1149,7 +1149,7 @@ private:
         auto service = Bootstrap_->GetObjectManager()->GetRootService();
         auto req = TCypressYPathProxy::Create(path);
         SetTransactionId(req, transactionId);
-        req->set_type(static_cast<int>(type));
+        req->set_type(ToProto(type));
         req->set_recursive(true);
         if (force) {
             req->set_force(true);

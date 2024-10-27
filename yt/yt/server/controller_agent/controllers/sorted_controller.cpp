@@ -847,7 +847,7 @@ public:
 
     void InitJobSpecTemplate() override
     {
-        JobSpecTemplate_.set_type(static_cast<int>(EJobType::SortedMerge));
+        JobSpecTemplate_.set_type(ToProto(EJobType::SortedMerge));
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
         auto* mergeJobSpecExt = JobSpecTemplate_.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
         jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
@@ -1060,7 +1060,7 @@ public:
     {
         YT_VERIFY(!PrimarySortColumns_.empty());
 
-        JobSpecTemplate_.set_type(static_cast<int>(GetJobType()));
+        JobSpecTemplate_.set_type(ToProto(GetJobType()));
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
         jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
 

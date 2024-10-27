@@ -3623,7 +3623,7 @@ private:
         auto intermediateReaderOptions = New<TTableReaderOptions>();
 
         {
-            RootPartitionJobSpecTemplate.set_type(static_cast<int>(EJobType::Partition));
+            RootPartitionJobSpecTemplate.set_type(ToProto(EJobType::Partition));
             auto* jobSpecExt = RootPartitionJobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
             jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(RootPartitionJobIOConfig)).ToString());
             jobSpecExt->set_io_config(ConvertToYsonString(RootPartitionJobIOConfig).ToString());
@@ -3641,7 +3641,7 @@ private:
         }
 
         {
-            PartitionJobSpecTemplate.set_type(static_cast<int>(EJobType::Partition));
+            PartitionJobSpecTemplate.set_type(ToProto(EJobType::Partition));
             auto* jobSpecExt = PartitionJobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
             jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(PartitionJobIOConfig)).ToString());
             jobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).ToString());
@@ -3680,7 +3680,7 @@ private:
 
         {
             IntermediateSortJobSpecTemplate = sortJobSpecTemplate;
-            IntermediateSortJobSpecTemplate.set_type(static_cast<int>(GetIntermediateSortJobType()));
+            IntermediateSortJobSpecTemplate.set_type(ToProto(GetIntermediateSortJobType()));
             auto* jobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
             SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
@@ -3690,7 +3690,7 @@ private:
 
         {
             FinalSortJobSpecTemplate = sortJobSpecTemplate;
-            FinalSortJobSpecTemplate.set_type(static_cast<int>(GetFinalSortJobType()));
+            FinalSortJobSpecTemplate.set_type(ToProto(GetFinalSortJobType()));
             auto* jobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
             SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
@@ -3699,7 +3699,7 @@ private:
         }
 
         {
-            SortedMergeJobSpecTemplate.set_type(static_cast<int>(EJobType::SortedMerge));
+            SortedMergeJobSpecTemplate.set_type(ToProto(EJobType::SortedMerge));
             auto* jobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
             auto* mergeJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
@@ -3720,7 +3720,7 @@ private:
         }
 
         {
-            UnorderedMergeJobSpecTemplate.set_type(static_cast<int>(EJobType::UnorderedMerge));
+            UnorderedMergeJobSpecTemplate.set_type(ToProto(EJobType::UnorderedMerge));
             auto* jobSpecExt = UnorderedMergeJobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
             auto* mergeJobSpecExt = UnorderedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
@@ -4484,7 +4484,7 @@ private:
     void InitJobSpecTemplates()
     {
         {
-            RootPartitionJobSpecTemplate.set_type(static_cast<int>(GetPartitionJobType(/*isRoot*/ true)));
+            RootPartitionJobSpecTemplate.set_type(ToProto(GetPartitionJobType(/*isRoot*/ true)));
 
             auto* jobSpecExt = RootPartitionJobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
 
@@ -4518,7 +4518,7 @@ private:
         }
 
         {
-            PartitionJobSpecTemplate.set_type(static_cast<int>(EJobType::Partition));
+            PartitionJobSpecTemplate.set_type(ToProto(EJobType::Partition));
             auto* jobSpecExt = PartitionJobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
             jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(PartitionJobIOConfig)).ToString());
 
@@ -4556,7 +4556,7 @@ private:
                 BuildIntermediateDataSinkDirectory(GetSpec()->IntermediateDataAccount));
 
             if (Spec->HasNontrivialReduceCombiner()) {
-                IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::ReduceCombiner));
+                IntermediateSortJobSpecTemplate.set_type(ToProto(EJobType::ReduceCombiner));
 
                 auto* reduceJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 ToProto(reduceJobSpecExt->mutable_key_columns(), GetColumnNames(Spec->SortBy));
@@ -4570,14 +4570,14 @@ private:
                     Spec->DebugArtifactsAccount);
                 jobSpecExt->mutable_user_job_spec()->set_cast_input_any_to_composite(castAnyToComposite);
             } else {
-                IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::IntermediateSort));
+                IntermediateSortJobSpecTemplate.set_type(ToProto(EJobType::IntermediateSort));
                 auto* sortJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
                 ToProto(sortJobSpecExt->mutable_key_columns(), GetColumnNames(Spec->SortBy));
             }
         }
 
         {
-            FinalSortJobSpecTemplate.set_type(static_cast<int>(EJobType::PartitionReduce));
+            FinalSortJobSpecTemplate.set_type(ToProto(EJobType::PartitionReduce));
 
             auto* jobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
             auto* reduceJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
@@ -4606,7 +4606,7 @@ private:
         }
 
         {
-            SortedMergeJobSpecTemplate.set_type(static_cast<int>(EJobType::SortedReduce));
+            SortedMergeJobSpecTemplate.set_type(ToProto(EJobType::SortedReduce));
 
             auto* jobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
             auto* reduceJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);

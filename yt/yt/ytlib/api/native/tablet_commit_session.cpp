@@ -230,7 +230,7 @@ private:
         }
         ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
         req->set_mount_revision(ToProto(TabletInfo_->MountRevision));
-        req->set_durability(static_cast<int>(transaction->GetDurability()));
+        req->set_durability(ToProto(transaction->GetDurability()));
 
         const auto& batchSignatures = BatchSignatures_[batchIndex];
         req->set_prepare_signature(batchSignatures.PrepareSignature);
@@ -238,7 +238,7 @@ private:
 
         req->set_generation(commitContext->RetryIndex);
 
-        req->set_request_codec(static_cast<int>(Config_->WriteRowsRequestCodec));
+        req->set_request_codec(ToProto(Config_->WriteRowsRequestCodec));
         req->set_row_count(batch->RowCount);
         req->set_data_weight(batch->DataWeight);
         req->set_versioned(IsVersioned_);

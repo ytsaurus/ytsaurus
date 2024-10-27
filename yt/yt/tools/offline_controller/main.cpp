@@ -381,7 +381,7 @@ IOperationControllerPtr CreateOperationController(const TOfflineOperation& offli
     NControllerAgent::NProto::TOperationDescriptor operationDescriptor;
     operationDescriptor.set_spec(offlineOperation.Spec);
     operationDescriptor.set_acl("[]");
-    operationDescriptor.set_operation_type(static_cast<int>(offlineOperation.Type));
+    operationDescriptor.set_operation_type(ToProto(offlineOperation.Type));
 
     auto operation = New<TOperation>(operationDescriptor);
 

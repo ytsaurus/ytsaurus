@@ -161,7 +161,7 @@ void GetUserObjectBasicAttributes(
 
     for (auto* userObject : objects) {
         auto req = TObjectYPathProxy::GetBasicAttributes(userObject->GetObjectIdPathIfAvailable());
-        req->set_permission(static_cast<int>(permission));
+        req->set_permission(ToProto(permission));
         req->set_omit_inaccessible_columns(options.OmitInaccessibleColumns);
         req->set_populate_security_tags(options.PopulateSecurityTags);
         if (auto optionalColumns = userObject->Path.GetColumns()) {
@@ -246,12 +246,12 @@ TSessionId CreateChunk(
     req->Header().set_logical_request_weight(1);
 
     ToProto(req->mutable_transaction_id(), transactionId);
-    req->set_type(static_cast<int>(chunkType));
+    req->set_type(ToProto(chunkType));
     req->set_account(options->Account);
     req->set_replication_factor(options->ReplicationFactor);
     req->set_movable(options->ChunksMovable);
     req->set_vital(options->ChunksVital);
-    req->set_erasure_codec(static_cast<int>(options->ErasureCodec));
+    req->set_erasure_codec(ToProto(options->ErasureCodec));
     req->set_medium_name(options->MediumName);
     req->set_validate_resource_usage_increase(options->ValidateResourceUsageIncrease);
     if (chunkListId) {
@@ -366,7 +366,7 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
             auto req = TChunkOwnerYPathProxy::Fetch(userObject.GetObjectIdPathIfAvailable());
             AddCellTagToSyncWith(req, userObject.ObjectId);
             req->Tag() = rangeIndex;
-            req->set_address_type(static_cast<int>(addressType));
+            req->set_address_type(ToProto(addressType));
             initializeFetchRequest(req.Get());
             ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
             req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
@@ -693,7 +693,7 @@ IChunkReaderPtr CreateRemoteReader(
     optionsPerChunk->UseProxyingDataNodeService = chunkSpec.use_proxying_data_node_service();
 
     if (IsErasureChunkId(chunkId)) {
-        auto erasureCodecId = ECodec(chunkSpec.erasure_codec());
+        auto erasureCodecId = FromProto<ECodec>(chunkSpec.erasure_codec());
         YT_LOG_DEBUG("Creating erasure remote reader (Codec: %v)",
             erasureCodecId);
 

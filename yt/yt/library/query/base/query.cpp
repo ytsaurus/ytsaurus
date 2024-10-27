@@ -819,7 +819,7 @@ void FromProto(TCompositeMemberAccessorPath* original, const NProto::TCompositeM
 void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& original)
 {
     if (!original) {
-        serialized->set_kind(static_cast<int>(EExpressionKind::None));
+        serialized->set_kind(ToProto(EExpressionKind::None));
         return;
     }
 
@@ -828,7 +828,7 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
     const auto wireType = NTableClient::GetPhysicalType(
         NTableClient::CastToV1Type(original->LogicalType).first);
 
-    serialized->set_type(static_cast<int>(wireType));
+    serialized->set_type(ToProto(wireType));
 
     if (!IsV1Type(original->LogicalType) ||
         *original->LogicalType != *MakeLogicalType(GetLogicalType(wireType), /*required*/ false))
@@ -837,7 +837,7 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
     }
 
     if (auto literalExpr = original->As<TLiteralExpression>()) {
-        serialized->set_kind(static_cast<int>(EExpressionKind::Literal));
+        serialized->set_kind(ToProto(EExpressionKind::Literal));
         auto* proto = serialized->MutableExtension(NProto::TLiteralExpression::literal_expression);
         auto value = TValue(literalExpr->Value);
         auto data = value.Data;
@@ -887,27 +887,27 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         }
 
     } else if (auto referenceExpr = original->As<TReferenceExpression>()) {
-        serialized->set_kind(static_cast<int>(EExpressionKind::Reference));
+        serialized->set_kind(ToProto(EExpressionKind::Reference));
         auto* proto = serialized->MutableExtension(NProto::TReferenceExpression::reference_expression);
         proto->set_column_name(referenceExpr->ColumnName);
     } else if (auto functionExpr = original->As<TFunctionExpression>()) {
-        serialized->set_kind(static_cast<int>(EExpressionKind::Function));
+        serialized->set_kind(ToProto(EExpressionKind::Function));
         auto* proto = serialized->MutableExtension(NProto::TFunctionExpression::function_expression);
         proto->set_function_name(functionExpr->FunctionName);
         ToProto(proto->mutable_arguments(), functionExpr->Arguments);
     } else if (auto unaryOpExpr = original->As<TUnaryOpExpression>()) {
-        serialized->set_kind(static_cast<int>(EExpressionKind::UnaryOp));
+        serialized->set_kind(ToProto(EExpressionKind::UnaryOp));
         auto* proto = serialized->MutableExtension(NProto::TUnaryOpExpression::unary_op_expression);
-        proto->set_opcode(static_cast<int>(unaryOpExpr->Opcode));
+        proto->set_opcode(ToProto(unaryOpExpr->Opcode));
         ToProto(proto->mutable_operand(), unaryOpExpr->Operand);
     } else if (auto binaryOpExpr = original->As<TBinaryOpExpression>()) {
-        serialized->set_kind(static_cast<int>(EExpressionKind::BinaryOp));
+        serialized->set_kind(ToProto(EExpressionKind::BinaryOp));
         auto* proto = serialized->MutableExtension(NProto::TBinaryOpExpression::binary_op_expression);
-        proto->set_opcode(static_cast<int>(binaryOpExpr->Opcode));
+        proto->set_opcode(ToProto(binaryOpExpr->Opcode));
         ToProto(proto->mutable_lhs(), binaryOpExpr->Lhs);
         ToProto(proto->mutable_rhs(), binaryOpExpr->Rhs);
     } else if (auto inExpr = original->As<TInExpression>()) {
-        serialized->set_kind(static_cast<int>(EExpressionKind::In));
+        serialized->set_kind(ToProto(EExpressionKind::In));
         auto* proto = serialized->MutableExtension(NProto::TInExpression::in_expression);
         ToProto(proto->mutable_arguments(), inExpr->Arguments);
 
@@ -915,7 +915,7 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         writer->WriteUnversionedRowset(inExpr->Values);
         ToProto(proto->mutable_values(), MergeRefsToString(writer->Finish()));
     } else if (auto betweenExpr = original->As<TBetweenExpression>()) {
-        serialized->set_kind(static_cast<int>(EExpressionKind::Between));
+        serialized->set_kind(ToProto(EExpressionKind::Between));
         auto* proto = serialized->MutableExtension(NProto::TBetweenExpression::between_expression);
         ToProto(proto->mutable_arguments(), betweenExpr->Arguments);
 
@@ -926,7 +926,7 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         }
         ToProto(proto->mutable_ranges(), MergeRefsToString(rangesWriter->Finish()));
     } else if (auto transformExpr = original->As<TTransformExpression>()) {
-        serialized->set_kind(static_cast<int>(EExpressionKind::Transform));
+        serialized->set_kind(ToProto(EExpressionKind::Transform));
         auto* proto = serialized->MutableExtension(NProto::TTransformExpression::transform_expression);
         ToProto(proto->mutable_arguments(), transformExpr->Arguments);
 
@@ -937,7 +937,7 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
             ToProto(proto->mutable_default_expression(), transformExpr->DefaultExpression);
         }
     } else if (auto caseExpr = original->As<TCaseExpression>()) {
-        serialized->set_kind(static_cast<int>(EExpressionKind::Case));
+        serialized->set_kind(ToProto(EExpressionKind::Case));
         auto* proto = serialized->MutableExtension(NProto::TCaseExpression::case_expression);
 
         if (caseExpr->OptionalOperand) {
@@ -950,17 +950,17 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
             ToProto(proto->mutable_default_expression(), caseExpr->DefaultExpression);
         }
     } else if (auto likeExpr = original->As<TLikeExpression>()) {
-        serialized->set_kind(static_cast<int>(EExpressionKind::Like));
+        serialized->set_kind(ToProto(EExpressionKind::Like));
         auto* proto = serialized->MutableExtension(NProto::TLikeExpression::like_expression);
 
         ToProto(proto->mutable_text(), likeExpr->Text);
-        proto->set_opcode(static_cast<int>(likeExpr->Opcode));
+        proto->set_opcode(ToProto(likeExpr->Opcode));
         ToProto(proto->mutable_pattern(), likeExpr->Pattern);
         if (likeExpr->EscapeCharacter) {
             ToProto(proto->mutable_escape_character(), likeExpr->EscapeCharacter);
         }
     } else if (auto memberAccessorExpr = original->As<TCompositeMemberAccessorExpression>()) {
-        serialized->set_kind(static_cast<int>(EExpressionKind::CompositeMemberAccessor));
+        serialized->set_kind(ToProto(EExpressionKind::CompositeMemberAccessor));
         auto* proto = serialized->MutableExtension(NProto::TCompositeMemberAccessor::composite_member_accessor_expression);
 
         ToProto(proto->mutable_composite(), memberAccessorExpr->CompositeExpression);
@@ -1032,7 +1032,7 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
         case EExpressionKind::UnaryOp: {
             auto result = New<TUnaryOpExpression>(GetWireType(type));
             const auto& ext = serialized.GetExtension(NProto::TUnaryOpExpression::unary_op_expression);
-            result->Opcode = EUnaryOp(ext.opcode());
+            FromProto(&result->Opcode, ext.opcode());
             FromProto(&result->Operand, ext.operand());
             *original = result;
             return;
@@ -1041,7 +1041,7 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
         case EExpressionKind::BinaryOp: {
             auto result = New<TBinaryOpExpression>(GetWireType(type));
             const auto& ext = serialized.GetExtension(NProto::TBinaryOpExpression::binary_op_expression);
-            result->Opcode = EBinaryOp(ext.opcode());
+            FromProto(&result->Opcode, ext.opcode());
             FromProto(&result->Lhs, ext.lhs());
             FromProto(&result->Rhs, ext.rhs());
             *original = result;
@@ -1168,8 +1168,8 @@ void ToProto(NProto::TAggregateItem* serialized, const TAggregateItem& original)
 {
     ToProto(serialized->mutable_expression(), original.Arguments.front());
     serialized->set_aggregate_function_name(original.AggregateFunction);
-    serialized->set_state_type(static_cast<int>(original.StateType));
-    serialized->set_result_type(static_cast<int>(original.ResultType));
+    serialized->set_state_type(ToProto(original.StateType));
+    serialized->set_result_type(ToProto(original.ResultType));
     ToProto(serialized->mutable_name(), original.Name);
     ToProto(serialized->mutable_arguments(), original.Arguments);
 }
@@ -1287,8 +1287,8 @@ void ToProto(NProto::TGroupClause* proto, const TConstGroupClausePtr& original)
 {
     ToProto(proto->mutable_group_items(), original->GroupItems);
     ToProto(proto->mutable_aggregate_items(), original->AggregateItems);
-    proto->set_totals_mode(static_cast<int>(original->TotalsMode));
-    proto->set_common_prefix_with_primary_key(static_cast<int>(original->CommonPrefixWithPrimaryKey));
+    proto->set_totals_mode(ToProto(original->TotalsMode));
+    proto->set_common_prefix_with_primary_key(ToProto(original->CommonPrefixWithPrimaryKey));
 }
 
 void FromProto(TConstGroupClausePtr* original, const NProto::TGroupClause& serialized)
@@ -1296,9 +1296,8 @@ void FromProto(TConstGroupClausePtr* original, const NProto::TGroupClause& seria
     auto result = New<TGroupClause>();
     FromProto(&result->GroupItems, serialized.group_items());
     FromProto(&result->AggregateItems, serialized.aggregate_items());
-    result->TotalsMode = ETotalsMode(serialized.totals_mode());
-    result->CommonPrefixWithPrimaryKey = serialized.common_prefix_with_primary_key();
-
+    FromProto(&result->TotalsMode, serialized.totals_mode());
+    FromProto(&result->CommonPrefixWithPrimaryKey, serialized.common_prefix_with_primary_key());
     *original = result;
 }
 
@@ -1449,7 +1448,7 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     serialized->set_verbose_logging(original.VerboseLogging);
     serialized->set_new_range_inference(original.NewRangeInference);
     serialized->set_use_canonical_null_relations(original.UseCanonicalNullRelations);
-    serialized->set_execution_backend(static_cast<int>(original.ExecutionBackend));
+    serialized->set_execution_backend(ToProto(original.ExecutionBackend));
     serialized->set_max_subqueries(original.MaxSubqueries);
     serialized->set_enable_code_cache(original.EnableCodeCache);
     ToProto(serialized->mutable_workload_descriptor(), original.WorkloadDescriptor);

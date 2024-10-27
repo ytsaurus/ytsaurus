@@ -970,7 +970,7 @@ public:
                 agent->GetOperationEventsOutbox()->BuildOutcoming(
                     response->mutable_scheduler_to_agent_operation_events(),
                     [] (auto* protoEvent, const auto& event) {
-                        protoEvent->set_event_type(static_cast<int>(event.EventType));
+                        protoEvent->set_event_type(ToProto(event.EventType));
                         ToProto(protoEvent->mutable_operation_id(), event.OperationId);
                     });
 

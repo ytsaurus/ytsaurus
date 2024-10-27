@@ -819,7 +819,7 @@ void FromProto(TExternalFunctionImpl* original, const NProto::TExternalFunctionI
     original->IsAggregate = serialized.is_aggregate();
     original->Name = serialized.name();
     original->SymbolName = serialized.symbol_name();
-    original->CallingConvention = ECallingConvention(serialized.calling_convention());
+    original->CallingConvention = FromProto<ECallingConvention>(serialized.calling_convention());
     original->ChunkSpecs = FromProto<std::vector<NChunkClient::NProto::TChunkSpec>>(serialized.chunk_specs());
     original->RepeatedArgType = ConvertTo<TDescriptorType>(NYson::TYsonString(serialized.repeated_arg_type())).Type;
     original->RepeatedArgIndex = serialized.repeated_arg_index();

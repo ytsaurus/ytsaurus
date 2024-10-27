@@ -101,14 +101,14 @@ private:
         {
             auto req = TCypressYPathProxy::Create(path);
             req->set_ignore_existing(true);
-            req->set_type(static_cast<int>(EObjectType::MapNode));
+            req->set_type(ToProto(EObjectType::MapNode));
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
         {
             auto req = TCypressYPathProxy::Create(path + "/orchid");
             req->set_ignore_existing(true);
-            req->set_type(static_cast<int>(EObjectType::Orchid));
+            req->set_type(ToProto(EObjectType::Orchid));
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("remote_addresses", Bootstrap_->GetLocalAddresses());
             ToProto(req->mutable_node_attributes(), *attributes);

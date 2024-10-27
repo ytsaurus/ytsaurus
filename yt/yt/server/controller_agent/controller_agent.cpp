@@ -1408,7 +1408,7 @@ private:
         OperationEventsOutbox_->BuildOutcoming(
             request->mutable_agent_to_scheduler_operation_events(),
             [&flushJobMetricsOperationIds, &finishedOperationIds] (auto* protoEvent, const auto& event) {
-                protoEvent->set_event_type(static_cast<int>(event.EventType));
+                protoEvent->set_event_type(ToProto(event.EventType));
                 ToProto(protoEvent->mutable_operation_id(), event.OperationId);
                 protoEvent->set_controller_epoch(event.ControllerEpoch.Underlying());
                 switch (event.EventType) {
@@ -1524,7 +1524,7 @@ private:
                 auto* protoAlerts = protoOperation->mutable_alerts();
                 for (const auto& [alertType, alert] : controller->GetAlerts()) {
                     auto* protoAlert = protoAlerts->add_alerts();
-                    protoAlert->set_type(static_cast<int>(alertType));
+                    protoAlert->set_type(ToProto(alertType));
                     ToProto(protoAlert->mutable_error(), alert);
                 }
             }

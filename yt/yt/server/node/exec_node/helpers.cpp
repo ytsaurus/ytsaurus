@@ -167,7 +167,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
 
     TArtifactKey layerKey;
     ToProto(layerKey.mutable_chunk_specs(), chunkSpecs);
-    layerKey.mutable_data_source()->set_type(static_cast<int>(EDataSourceType::File));
+    layerKey.mutable_data_source()->set_type(ToProto(EDataSourceType::File));
     layerKey.mutable_data_source()->set_path(path);
 
     result.ArtifactKey = std::move(layerKey);

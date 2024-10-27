@@ -29,6 +29,8 @@ using namespace NTabletClient;
 using namespace NTabletServer::NProto;
 using namespace NYTree;
 
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const auto static& Logger = TabletServerLogger;
@@ -192,7 +194,7 @@ private:
             }
 
             TReqCreateTabletAction request;
-            request.set_kind(static_cast<int>(ETabletActionKind::Move));
+            request.set_kind(ToProto(ETabletActionKind::Move));
             ToProto(request.mutable_tablet_ids(), std::vector<TTabletId>{tablet->GetId()});
 
             const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();

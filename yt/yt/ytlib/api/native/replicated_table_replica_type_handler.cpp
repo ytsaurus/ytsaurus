@@ -123,13 +123,13 @@ public:
             if (!IsStableReplicaMode(*options.Mode)) {
                 THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", *options.Mode);
             }
-            req->set_mode(static_cast<int>(*options.Mode));
+            req->set_mode(ToProto(*options.Mode));
         }
         if (options.PreserveTimestamps) {
             req->set_preserve_timestamps(*options.PreserveTimestamps);
         }
         if (options.Atomicity) {
-            req->set_atomicity(static_cast<int>(*options.Atomicity));
+            req->set_atomicity(ToProto(*options.Atomicity));
         }
         if (options.EnableReplicatedTableTracker) {
             req->set_enable_replicated_table_tracker(*options.EnableReplicatedTableTracker);

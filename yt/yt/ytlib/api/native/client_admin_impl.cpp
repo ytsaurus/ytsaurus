@@ -838,7 +838,7 @@ TMaintenanceCountsPerTarget TClient::DoRemoveMaintenance(
     ToProto(request->mutable_ids(), filter.Ids);
 
     if (filter.Type) {
-        request->set_type(static_cast<int>(*filter.Type));
+        request->set_type(ToProto(*filter.Type));
     }
 
     using TByUser = TMaintenanceFilter::TByUser;

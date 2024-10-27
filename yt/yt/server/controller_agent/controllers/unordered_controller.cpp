@@ -56,6 +56,8 @@ using namespace NTableClient;
 using namespace NConcurrency;
 using namespace NScheduler;
 
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUnorderedControllerBase
@@ -508,7 +510,7 @@ protected:
 
     virtual void InitJobSpecTemplate()
     {
-        JobSpecTemplate.set_type(static_cast<int>(GetJobType()));
+        JobSpecTemplate.set_type(ToProto(GetJobType()));
         auto* jobSpecExt = JobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
         jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->JobIO)).ToString());
 
