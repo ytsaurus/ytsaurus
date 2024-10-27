@@ -30,8 +30,6 @@ using namespace NTransactionServer;
 using namespace NYPath;
 using namespace NYTree;
 
-static const auto& Logger = CypressServerLogger();
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TBeginCopyContext::TBeginCopyContext(
