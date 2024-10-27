@@ -294,7 +294,7 @@ private:
 
         NProto::TReqTrimRows hydraRequest;
         ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
-        hydraRequest.set_mount_revision(tablet->GetMountRevision());
+        hydraRequest.set_mount_revision(ToProto(tablet->GetMountRevision()));
         hydraRequest.set_trimmed_row_count(trimmedRowCount);
         YT_UNUSED_FUTURE(CreateMutation(slot->GetHydraManager(), hydraRequest)
             ->CommitAndLog(Logger()));
@@ -346,7 +346,7 @@ private:
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             actionRequest.set_create_hunk_chunks_during_prepare(true);
             ToProto(actionRequest.mutable_tablet_id(), tabletId);
-            actionRequest.set_mount_revision(tablet->GetMountRevision());
+            actionRequest.set_mount_revision(ToProto(tablet->GetMountRevision()));
             for (const auto& store : stores) {
                 auto* descriptor = actionRequest.add_stores_to_remove();
                 ToProto(descriptor->mutable_store_id(), store->GetId());

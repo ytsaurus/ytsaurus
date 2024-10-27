@@ -376,7 +376,7 @@ private:
 
             TReqSplitPartition request;
             ToProto(request.mutable_tablet_id(), tablet->GetId());
-            request.set_mount_revision(tablet->GetMountRevision());
+            request.set_mount_revision(ToProto(tablet->GetMountRevision()));
             ToProto(request.mutable_partition_id(), partition->GetId());
             ToProto(request.mutable_pivot_keys(), pivotKeys);
 
@@ -412,7 +412,7 @@ private:
         const auto& hydraManager = slot->GetHydraManager();
         TReqSplitPartition request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
-        request.set_mount_revision(tablet->GetMountRevision());
+        request.set_mount_revision(ToProto(tablet->GetMountRevision()));
         ToProto(request.mutable_partition_id(), partition->GetId());
         ToProto(request.mutable_pivot_keys(), pivotKeys);
 
@@ -470,7 +470,7 @@ private:
 
         TReqMergePartitions request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
-        request.set_mount_revision(tablet->GetMountRevision());
+        request.set_mount_revision(ToProto(tablet->GetMountRevision()));
         ToProto(request.mutable_partition_id(), tablet->PartitionList()[firstPartitionIndex]->GetId());
         request.set_partition_count(lastPartitionIndex - firstPartitionIndex + 1);
 
@@ -548,7 +548,7 @@ private:
 
             TReqUpdatePartitionSampleKeys request;
             ToProto(request.mutable_tablet_id(), tablet->GetId());
-            request.set_mount_revision(tablet->GetMountRevision());
+            request.set_mount_revision(ToProto(tablet->GetMountRevision()));
             ToProto(request.mutable_partition_id(), partition->GetId());
             request.set_sample_keys(MergeRefsToString(writer->Finish()));
 

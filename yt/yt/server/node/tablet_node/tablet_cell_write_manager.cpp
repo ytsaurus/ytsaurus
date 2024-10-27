@@ -322,7 +322,7 @@ public:
                 hydraRequest.set_transaction_start_timestamp(params.TransactionStartTimestamp);
                 hydraRequest.set_transaction_timeout(ToProto(params.TransactionTimeout));
                 ToProto(hydraRequest.mutable_tablet_id(), tabletId);
-                hydraRequest.set_mount_revision(tablet->GetMountRevision());
+                hydraRequest.set_mount_revision(ToProto(tablet->GetMountRevision()));
                 hydraRequest.set_codec(ToProto(ChangelogCodec_->GetId()));
                 hydraRequest.set_compressed_data(ToString(compressedRecordData));
                 hydraRequest.set_prepare_signature(mutationPrepareSignature);
@@ -599,7 +599,7 @@ private:
             return;
         }
 
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         if (mountRevision != tablet->GetMountRevision()) {
             // Same as above.
             return;

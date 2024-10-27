@@ -186,7 +186,7 @@ public:
             if (HunkWriter_->HasHunks()) {
                 NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
                 ToProto(actionRequest.mutable_tablet_id(), TabletId_);
-                actionRequest.set_mount_revision(tablet->GetMountRevision());
+                actionRequest.set_mount_revision(ToProto(tablet->GetMountRevision()));
                 actionRequest.set_create_hunk_chunks_during_prepare(true);
                 actionRequest.set_update_reason(ToProto(ETabletStoresUpdateReason::DictionaryBuilding));
 

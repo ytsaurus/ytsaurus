@@ -1373,7 +1373,7 @@ private:
         tablet->ThrottleTabletStoresUpdate(slot, Logger);
 
         ToProto(actionRequest.mutable_tablet_id(), tablet->GetId());
-        actionRequest.set_mount_revision(tablet->GetMountRevision());
+        actionRequest.set_mount_revision(ToProto(tablet->GetMountRevision()));
 
         auto actionData = MakeTransactionActionData(actionRequest);
         auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tablet->GetId()));
@@ -2112,7 +2112,7 @@ private:
             mountConfig->ForcedCompactionRevision,
             mountConfig->ForcedHunkCompactionRevision);
 
-        auto revision = CounterFromId(chunk->GetId());
+        auto revision = RevisionFromId(chunk->GetId());
         return revision <= forcedCompactionRevision.value_or(NHydra::NullRevision);
     }
 

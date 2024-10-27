@@ -42,7 +42,7 @@ namespace {
 
 TRowRevision NextRowRevision(const std::optional<TRowRevision> rowRevision)
 {
-    return rowRevision.value_or(0) + 1;
+    return TRowRevision(rowRevision.value_or(NullRowRevision).Underlying() + 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

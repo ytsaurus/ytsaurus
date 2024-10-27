@@ -70,7 +70,7 @@ void FromProto(
 {
     FromProto(&announcement->ChunkId, protoAnnouncement.chunk_id());
     FromProto(&announcement->Replicas, protoAnnouncement.replicas());
-    announcement->Revision = FromProto<i64>(protoAnnouncement.revision());
+    FromProto(&announcement->Revision, protoAnnouncement.revision());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/queue_client/common.h>
 
+#include <yt/yt/client/hydra/public.h>
+
 namespace NYT::NQueueClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,8 +19,8 @@ inline const TString ProductionStage = "production";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TRowRevision = ui64;
-constexpr TRowRevision NullRowRevision = 0;
+using TRowRevision = NHydra::TRevision;
+constexpr auto NullRowRevision = NHydra::NullRevision;
 
 ////////////////////////////////////////////////////////////////////////////////
 

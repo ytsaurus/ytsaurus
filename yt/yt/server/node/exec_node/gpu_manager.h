@@ -156,7 +156,7 @@ private:
     TInstant BannedDeadline_ = TInstant::Zero();
 
     NYPath::TYPath DriverLayerPath_;
-    NHydra::TRevision DriverLayerRevision_ = 0;
+    NHydra::TRevision DriverLayerRevision_ = NHydra::NullRevision;
     std::optional<NDataNode::TArtifactKey> DriverLayerKey_;
     TString DriverVersionString_;
     TAtomicIntrusivePtr<NGpu::IGpuInfoProvider> GpuInfoProvider_;

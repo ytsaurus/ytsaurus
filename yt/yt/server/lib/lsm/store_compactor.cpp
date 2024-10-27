@@ -571,7 +571,7 @@ private:
                 mountConfig->ForcedChunkViewCompactionRevision);
         }
 
-        auto revision = CounterFromId(store->GetId());
+        auto revision = RevisionFromId(store->GetId());
         return revision <= forcedCompactionRevision.value_or(NHydra::NullRevision);
     }
 

@@ -517,7 +517,7 @@ private:
         for (int index = 0; index < tabletCount; ++index) {
             auto tabletId = FromProto<TTabletId>(request->tablet_ids(index));
             auto cellId = FromProto<TCellId>(request->cell_ids(index));
-            auto mountRevision = request->mount_revisions(index);
+            auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revisions(index));
 
             // TODO(akozhikhov): Consider compressing/decompressing all requests' data at once.
             auto requestData = requestCodec->Decompress(request->Attachments()[index]);
@@ -556,7 +556,7 @@ private:
         auto upstreamReplicaId = FromProto<TReplicaId>(request->upstream_replica_id());
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto cellId = FromProto<TTabletCellId>(request->cell_id());
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         auto responseCodecId = CheckedEnumCast<NCompression::ECodec>(request->response_codec());
         auto progress = FromProto<NChaosClient::TReplicationProgress>(request->start_replication_progress());
         auto startReplicationRowIndex = request->has_start_replication_row_index()
@@ -1187,7 +1187,7 @@ private:
                 NTabletNode::TTabletSnapshotPtr tabletSnapshot;
                 try {
                     tabletSnapshot = subrequest.has_mount_revision()
-                        ? snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, subrequest.mount_revision())
+                        ? snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, FromProto<NHydra::TRevision>(subrequest.mount_revision()))
                         : snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
                     snapshotStore->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
                     snapshotStore->ValidateBundleNotBanned(tabletSnapshot);
@@ -1354,7 +1354,7 @@ private:
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto cellId = FromProto<TCellId>(request->cell_id());
         auto tabletSnapshot = request->has_mount_revision()
-            ? snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, request->mount_revision())
+            ? snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, FromProto<NHydra::TRevision>(request->mount_revision()))
             : snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
         SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
@@ -1575,7 +1575,7 @@ private:
                 MakeStrong(this),
                 FromProto<TTabletId>(subrequest.tablet_id()),
                 FromProto<TCellId>(subrequest.cell_id()),
-                YT_PROTO_OPTIONAL(subrequest, mount_revision),
+                YT_PROTO_OPTIONAL(subrequest, mount_revision, NHydra::TRevision),
                 subrequest.timestamp())
                 .AsyncVia(GetCurrentInvoker())
                 .Run());

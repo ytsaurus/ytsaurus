@@ -172,7 +172,7 @@ private:
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             actionRequest.set_create_hunk_chunks_during_prepare(true);
             ToProto(actionRequest.mutable_tablet_id(), tabletId);
-            actionRequest.set_mount_revision(tablet->GetMountRevision());
+            actionRequest.set_mount_revision(ToProto(tablet->GetMountRevision()));
             for (const auto& hunkChunk : hunkChunks) {
                 auto* descriptor = actionRequest.add_hunk_chunks_to_remove();
                 ToProto(descriptor->mutable_chunk_id(), hunkChunk->GetId());

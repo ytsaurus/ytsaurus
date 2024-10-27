@@ -76,7 +76,7 @@ void TSimpleTabletManager::InitializeTablet(TTabletOptions options)
         auto tablet = std::make_unique<TTablet>(
             NullTabletId,
             TTableSettings::CreateNew(),
-            0,
+            NHydra::NullRevision,
             NullObjectId,
             "ut",
             &TabletContext_,
@@ -169,7 +169,7 @@ TTablet* TSimpleTabletManager::GetTablet(const TTabletId& id) const
     return tablet;
 }
 
-const NHydra::TReadOnlyEntityMap<TTablet>& TSimpleTabletManager::Tablets() const
+const TReadOnlyEntityMap<TTablet>& TSimpleTabletManager::Tablets() const
 {
     return TabletMap_;
 }

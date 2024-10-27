@@ -152,7 +152,7 @@ void FromProto(
         const auto& protoItem = proto.revisions(i);
         options->PrerequisiteRevisions[i] = New<TPrerequisiteRevisionConfig>();
         auto& item = *options->PrerequisiteRevisions[i];
-        item.Revision = protoItem.revision();
+        item.Revision = FromProto<NHydra::TRevision>(protoItem.revision());
         item.Path = protoItem.path();
     }
 }
@@ -1970,7 +1970,7 @@ private:
                 auto* response = &context->Response();
                 ToProto(response->mutable_node_id(), result.NodeId);
                 ToProto(response->mutable_lock_id(), result.LockId);
-                response->set_revision(result.Revision);
+                response->set_revision(ToProto(result.Revision));
 
                 context->SetResponseInfo("NodeId: %v, LockId: %v, Revision: %x",
                     result.NodeId,
@@ -5468,7 +5468,7 @@ private:
 
         NApi::NRpcProxy::NProto::TReadFileMeta meta;
         ToProto(meta.mutable_id(), fileReader->GetId());
-        meta.set_revision(fileReader->GetRevision());
+        meta.set_revision(ToProto(fileReader->GetRevision()));
 
         auto metaRef = SerializeProtoToRef(meta);
         WaitFor(outputStream->Write(metaRef))

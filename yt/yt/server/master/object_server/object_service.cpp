@@ -748,7 +748,7 @@ private:
                 FromProto<TDuration>(cachingRequestHeaderExt.expire_after_successful_update_time()),
                 FromProto<TDuration>(cachingRequestHeaderExt.expire_after_failed_update_time()),
                 FromProto<TDuration>(cachingRequestHeaderExt.success_staleness_bound()),
-                refreshRevision);
+                FromProto<NHydra::TRevision>(refreshRevision));
 
             if (cookie.IsActive()) {
                 subrequest.CacheCookie.emplace(std::move(cookie));
@@ -2083,12 +2083,12 @@ private:
 
             // COMPAT(babenko)
             response.add_part_counts(subresponseMessage.Size());
-            response.add_revisions(subrequest.Revision);
+            response.add_revisions(ToProto(subrequest.Revision));
 
             auto* subresponse = response.add_subresponses();
             subresponse->set_index(index);
             subresponse->set_part_count(subresponseMessage.Size());
-            subresponse->set_revision(subrequest.Revision);
+            subresponse->set_revision(ToProto(subrequest.Revision));
         }
 
         if (Owner_->EnableTwoLevelCache_) {

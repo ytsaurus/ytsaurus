@@ -13,6 +13,8 @@ namespace NYT::NClickHouseServer {
 using namespace NRpc;
 using namespace NRpc::NProto;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClickHouseService
@@ -86,7 +88,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, RemoveSqlObject)
     {
         auto objectName = request->object_name();
-        auto revision = request->revision();
+        auto revision = FromProto<NHydra::TRevision>(request->revision());
 
         context->SetRequestInfo("ObjectName: %v, Revision: %v",
             objectName,

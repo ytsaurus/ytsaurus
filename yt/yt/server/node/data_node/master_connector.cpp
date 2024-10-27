@@ -302,7 +302,7 @@ public:
         for (auto [chunkId, revision] : unconfirmedAnnouncementRequests) {
             auto* protoRequest = req->add_confirmed_replica_announcement_requests();
             ToProto(protoRequest->mutable_chunk_id(), chunkId);
-            protoRequest->set_revision(revision);
+            protoRequest->set_revision(ToProto(revision));
         }
 
         if (EnableIncrementalHeartbeatProfiling_) {
@@ -362,7 +362,7 @@ public:
             YT_VERIFY(response.has_revision());
             allyReplicaManager->ScheduleAnnouncements(
                 TRange(response.replica_announcement_requests()),
-                response.revision(),
+                FromProto<NHydra::TRevision>(response.revision()),
                 /*onFullHeartbeat*/ true);
         }
 
@@ -465,7 +465,7 @@ public:
             YT_VERIFY(response.has_revision());
             allyReplicaManager->ScheduleAnnouncements(
                 TRange(response.replica_announcement_requests()),
-                response.revision(),
+                FromProto<NHydra::TRevision>(response.revision()),
                 /*onFullHeartbeat*/ false);
         }
         if (response.has_enable_lazy_replica_announcements()) {
@@ -765,7 +765,7 @@ private:
             const auto& nonSequoiaAnnouncements = replicaAnnouncements.non_sequoia_announcements();
             allyReplicaManager->ScheduleAnnouncements(
                 TRange(nonSequoiaAnnouncements.replica_announcement_requests()),
-                nonSequoiaAnnouncements.revision(),
+                FromProto<NHydra::TRevision>(nonSequoiaAnnouncements.revision()),
                 onFullHeartbeat);
         }
 
@@ -773,7 +773,7 @@ private:
             const auto& sequoiaAnnouncements = replicaAnnouncements.sequoia_announcements();
             allyReplicaManager->ScheduleAnnouncements(
                 TRange(sequoiaAnnouncements.replica_announcement_requests()),
-                sequoiaAnnouncements.revision(),
+                FromProto<NHydra::TRevision>(sequoiaAnnouncements.revision()),
                 onFullHeartbeat);
         }
 

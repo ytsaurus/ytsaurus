@@ -1546,7 +1546,7 @@ void ToProto(
 {
     ToProto(serialized->mutable_object_id(), original.ObjectId);
     ToProto(serialized->mutable_cell_id(), original.CellId);
-    serialized->set_mount_revision(original.MountRevision);
+    serialized->set_mount_revision(ToProto(original.MountRevision));
 
     auto rangesWriter = CreateWireProtocolWriter();
     for (const auto& range : original.Ranges) {
@@ -1580,7 +1580,7 @@ void FromProto(
 {
     FromProto(&original->ObjectId, serialized.object_id());
     FromProto(&original->CellId, serialized.cell_id());
-    original->MountRevision = serialized.mount_revision();
+    FromProto(&original->MountRevision, serialized.mount_revision());
 
     struct TDataSourceBufferTag
     { };

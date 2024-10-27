@@ -22,6 +22,14 @@ void ValidateEqual(const TSharedRefArray& lhs, const TSharedRefArray& rhs)
     }
 }
 
+[[nodiscard]]
+NHydra::TRevision Increment(NHydra::TRevision revision)
+{
+    return NHydra::TRevision(revision.Underlying() + 1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TObjectServiceCacheTest, TestStaleResponse)
 {
     auto cache = New<TObjectServiceCache>(
@@ -56,12 +64,13 @@ TEST(TObjectServiceCacheTest, TestStaleResponse)
     };
 
     auto endLookup = [&] (TObjectServiceCache::TCookie&& cookie) {
+        currentRevision = Increment(currentRevision);
         cache->EndLookup(
             requestId,
             std::move(cookie),
             data,
-            ++currentRevision,
-            true);
+            currentRevision,
+            /*success*/ true);
     };
 
     {
@@ -89,7 +98,7 @@ TEST(TObjectServiceCacheTest, TestStaleResponse)
 
     {
         // Stale response ruled out by both conditions.
-        auto cookie1 = beginLookup(3 * expirationTime, currentRevision + 1);
+        auto cookie1 = beginLookup(3 * expirationTime, Increment(currentRevision));
 
         EXPECT_TRUE(cookie1.IsActive());
         EXPECT_EQ(nullptr, cookie1.ExpiredEntry());
@@ -101,7 +110,7 @@ TEST(TObjectServiceCacheTest, TestStaleResponse)
         EXPECT_EQ(nullptr, cookie2.ExpiredEntry());
 
         // Stale response ruled out by revision.
-        auto cookie3 = beginLookup(10 * expirationTime, currentRevision + 1);
+        auto cookie3 = beginLookup(10 * expirationTime, Increment(currentRevision));
 
         EXPECT_FALSE(cookie3.IsActive());
         EXPECT_FALSE(cookie2.GetValue().IsSet());
@@ -155,12 +164,13 @@ TEST(TObjectServiceCacheTest, TestStaleError)
     };
 
     auto endLookup = [&] (TObjectServiceCache::TCookie&& cookie) {
+        currentRevision = Increment(currentRevision);
         cache->EndLookup(
             requestId,
             std::move(cookie),
             data,
-            ++currentRevision,
-            false);
+            currentRevision,
+            /*success*/ false);
     };
 
     {
@@ -188,7 +198,7 @@ TEST(TObjectServiceCacheTest, TestStaleError)
 
     {
         // Stale response ruled out by both conditions.
-        auto cookie1 = beginLookup(3 * expirationTime, currentRevision + 1);
+        auto cookie1 = beginLookup(3 * expirationTime, Increment(currentRevision));
 
         EXPECT_TRUE(cookie1.IsActive());
         EXPECT_EQ(nullptr, cookie1.ExpiredEntry());

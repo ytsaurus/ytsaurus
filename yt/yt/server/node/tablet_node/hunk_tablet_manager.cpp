@@ -316,7 +316,7 @@ private:
         YT_VERIFY(HasHydraContext());
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         auto masterAvenueEndpointId = FromProto<TAvenueEndpointId>(request->master_avenue_endpoint_id());
 
         auto tabletHolder = std::make_unique<THunkTablet>(MakeStrong(this), tabletId);
@@ -354,7 +354,7 @@ private:
 
             // COMPAT(ifsmirnov)
             if (GetCurrentMutationContext()->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
-                response.set_mount_revision(tablet->GetMountRevision());
+                response.set_mount_revision(ToProto(tablet->GetMountRevision()));
             }
 
             Slot_->PostMasterMessage(tabletId, response);
@@ -403,7 +403,7 @@ private:
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = GetTabletOrThrow(tabletId);
 
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         tablet->ValidateMountRevision(mountRevision);
 
         auto transactionId = transaction->GetId();
@@ -453,7 +453,7 @@ private:
         }
 
         // Mount revision mismatch is possible in case of force unmount.
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         if (tablet->GetMountRevision() != mountRevision) {
             return;
         }
@@ -535,7 +535,7 @@ private:
         }
 
         // Mount revision mismatch is possible in case of force unmount.
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         if (tablet->GetMountRevision() != mountRevision) {
             return;
         }
@@ -583,7 +583,7 @@ private:
 
         auto* tablet = GetTabletOrThrow(tabletId);
 
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         auto lock = request->lock();
 
         if (lock) {
@@ -629,7 +629,7 @@ private:
             return;
         }
 
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         if (tablet->GetMountRevision() != mountRevision) {
             return;
         }
@@ -696,7 +696,7 @@ private:
             return;
         }
 
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         if (tablet->GetMountRevision() != mountRevision) {
             return;
         }
@@ -764,7 +764,7 @@ private:
             ToProto(response.mutable_tablet_id(), tabletId);
 
             if (GetCurrentMutationContext()->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
-                response.set_mount_revision(tablet->GetMountRevision());
+                response.set_mount_revision(ToProto(tablet->GetMountRevision()));
             }
 
             Slot_->PostMasterMessage(tabletId, response);

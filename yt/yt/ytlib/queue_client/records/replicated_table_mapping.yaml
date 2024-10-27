@@ -19,7 +19,7 @@ types:
         required: True
 
       - cpp_name: Revision
-        cpp_type: std::optional<ui64>
+        cpp_type: std::optional<NHydra::TRevision>
         column_name: revision
         column_type: Uint64
 

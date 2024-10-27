@@ -153,7 +153,7 @@ public:
             .HunkCellId = hunkCellId,
             .HunkTabletId = hunkTabletId,
             .HunkMountRevision = hunkMountRevision,
-            .LastChangeTime = TInstant::Now()
+            .LastChangeTime = TInstant::Now(),
         };
         if (!HunkStoreIdToLockingState_.emplace(hunkStoreId, lockingState).second) {
             YT_LOG_ALERT("Trying to register hunk lock that is already registered (HunkStoreId: %v)",
@@ -499,7 +499,7 @@ private:
                 ToProto(hunkRequest.mutable_store_id(), hunkStoreId);
                 ToProto(hunkRequest.mutable_locker_tablet_id(), Tablet_->GetId());
                 hunkRequest.set_lock(lock);
-                hunkRequest.set_mount_revision(hunkMountRevision);
+                hunkRequest.set_mount_revision(ToProto(hunkMountRevision));
                 transaction->AddAction(hunkCellId, MakeTransactionActionData(hunkRequest));
 
                 NTabletClient::NProto::TReqBoggleHunkTabletStoreLock localRequest;
@@ -508,13 +508,13 @@ private:
                 ToProto(localRequest.mutable_tablet_id(), Tablet_->GetId());
                 ToProto(localRequest.mutable_hunk_cell_id(), hunkCellId);
                 localRequest.set_lock(lock);
-                localRequest.set_mount_revision(hunkMountRevision);
+                localRequest.set_mount_revision(ToProto(hunkMountRevision));
                 localRequest.set_term(term);
                 transaction->AddAction(Context_->GetCellId(), MakeTransactionActionData(localRequest));
 
                 NApi::TTransactionCommitOptions commitOptions{
                     .Force2PC = true,
-                    .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late
+                    .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
                 };
                 return transaction->Commit(commitOptions);
             }))

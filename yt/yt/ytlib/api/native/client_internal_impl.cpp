@@ -102,7 +102,7 @@ std::vector<THunkDescriptor> TClient::DoWriteHunks(
     auto req = proxy.WriteHunks();
     req->SetTimeout(options.Timeout);
     ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
-    req->set_mount_revision(tabletInfo->MountRevision);
+    req->set_mount_revision(ToProto(tabletInfo->MountRevision));
 
     for (const auto& payload : payloads) {
         req->Attachments().push_back(payload);
@@ -258,7 +258,7 @@ void TClient::DoToggleHunkStoreLock(
 
     NTabletClient::NProto::TReqToggleHunkTabletStoreLock request;
     ToProto(request.mutable_tablet_id(), tabletInfo->TabletId);
-    request.set_mount_revision(tabletInfo->MountRevision);
+    request.set_mount_revision(ToProto(tabletInfo->MountRevision));
     ToProto(request.mutable_store_id(), storeId);
     ToProto(request.mutable_locker_tablet_id(), lockerTabletId);
     request.set_lock(lock);
@@ -308,7 +308,7 @@ std::vector<TErrorOr<i64>> TClient::DoGetOrderedTabletSafeTrimRowCount(
         TSubrequest subrequest;
         ToProto(subrequest.mutable_tablet_id(), tabletInfo->TabletId);
         ToProto(subrequest.mutable_cell_id(), tabletInfo->CellId);
-        subrequest.set_mount_revision(tabletInfo->MountRevision);
+        subrequest.set_mount_revision(ToProto(tabletInfo->MountRevision));
         subrequest.set_timestamp(request.Timestamp);
 
         auto cellDescriptor = cellDirectory->GetDescriptorByCellIdOrThrow(tabletInfo->CellId);

@@ -235,7 +235,7 @@ public:
         entry->set_modification_time(ToProto(chunkOwner->GetModificationTime()));
         entry->set_access_time(ToProto(chunkOwner->GetAccessTime()));
         if (statistics.UseNativeContentRevisionCas) {
-            entry->set_expected_content_revision(chunkOwner->GetNativeContentRevision());
+            entry->set_expected_content_revision(ToProto(chunkOwner->GetNativeContentRevision()));
         }
         multicellManager->PostToMaster(req, chunkOwner->GetNativeCellTag());
 
@@ -1551,7 +1551,7 @@ private:
                 entry->set_access_time(ToProto(chunkOwner->GetAccessTime()));
             }
             if (statistics.UseNativeContentRevisionCas) {
-                entry->set_expected_content_revision(chunkOwner->GetNativeContentRevision());
+                entry->set_expected_content_revision(ToProto(chunkOwner->GetNativeContentRevision()));
             }
             nodeIds.push_back(nodeId);
         }
@@ -1598,7 +1598,7 @@ private:
             externalCellTag = chunkOwner->GetExternalCellTag();
 
             if (entry.has_expected_content_revision() &&
-                chunkOwner->GetContentRevision() != entry.expected_content_revision())
+                chunkOwner->GetContentRevision() != FromProto<NHydra::TRevision>(entry.expected_content_revision()))
             {
                 nodeIdsToRetry.push_back(nodeId);
                 auto* retryEntry = confirmRequest.add_content_revision_cas_failed_nodes();
@@ -1609,7 +1609,7 @@ private:
                 // speaking, this is only necessary for migrating on update. (A newly
                 // updated external cell doesn't know native content revisions - and it
                 // has no way of acquiring that knowledge other than these notifications.)
-                retryEntry->set_actual_content_revision(chunkOwner->GetContentRevision());
+                retryEntry->set_actual_content_revision(ToProto(chunkOwner->GetContentRevision()));
                 continue;
             }
 
@@ -1666,7 +1666,7 @@ private:
             YT_VERIFY(IsSupportedNodeType(node->GetType()));
             auto* chunkOwner = node->As<TChunkOwnerBase>();
 
-            auto actualContentRevision = entry.actual_content_revision();
+            auto actualContentRevision = FromProto<NHydra::TRevision>(entry.actual_content_revision());
             if (actualContentRevision >= chunkOwner->GetNativeContentRevision()) {
                 chunkOwner->SetNativeContentRevision(actualContentRevision);
             } else {

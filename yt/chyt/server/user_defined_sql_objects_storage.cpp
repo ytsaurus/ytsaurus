@@ -36,6 +36,8 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto& Logger = ClickHouseYtLogger;
@@ -44,13 +46,13 @@ static constexpr auto& Logger = ClickHouseYtLogger;
 
 void ToProto(NProto::TSqlObjectInfo* protoInfo, const TSqlObjectInfo& info)
 {
-    protoInfo->set_revision(info.Revision);
+    protoInfo->set_revision(ToProto(info.Revision));
     protoInfo->set_create_object_query(info.CreateObjectQuery);
 }
 
 void FromProto(TSqlObjectInfo* info, const NProto::TSqlObjectInfo& protoInfo)
 {
-    info->Revision = protoInfo.revision();
+    info->Revision = FromProto<NHydra::TRevision>(protoInfo.revision());
     info->CreateObjectQuery = protoInfo.create_object_query();
 }
 

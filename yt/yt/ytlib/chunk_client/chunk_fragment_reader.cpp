@@ -693,7 +693,7 @@ private:
         SetRequestWorkloadDescriptor(req, Options_.WorkloadDescriptor);
         for (const auto& replicaProbingInfo : probingInfo.ReplicaProbingInfos) {
             ToProto(req->add_chunk_ids(), EncodeChunkId(replicaProbingInfo.ChunkIdWithIndexes));
-            req->add_ally_replicas_revisions(replicaProbingInfo.Revision);
+            req->add_ally_replicas_revisions(ToProto(replicaProbingInfo.Revision));
         }
         req->SetAcknowledgementTimeout(std::nullopt);
 

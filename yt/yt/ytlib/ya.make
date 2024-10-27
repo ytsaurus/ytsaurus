@@ -663,38 +663,41 @@ GENERATE_YT_RECORD(
 GENERATE_YT_RECORD(
     queue_client/records/queue_producer_session.yaml
     OUTPUT_INCLUDES
-    yt/yt/core/yson/string.h
+        yt/yt/core/yson/string.h
 )
 
 GENERATE_YT_RECORD(
     queue_client/records/queue_object.yaml
     OUTPUT_INCLUDES
-    yt/yt/core/yson/string.h
-    yt/yt/client/object_client/public.h
+        yt/yt/core/yson/string.h
+        yt/yt/client/object_client/public.h
+        yt/yt/ytlib/queue_client/public.h
 )
 
 GENERATE_YT_RECORD(
     queue_client/records/consumer_object.yaml
     OUTPUT_INCLUDES
-    yt/yt/core/yson/string.h
+        yt/yt/core/yson/string.h
+        yt/yt/ytlib/queue_client/public.h
 )
 
 GENERATE_YT_RECORD(
     queue_client/records/consumer_registration.yaml
     OUTPUT_INCLUDES
-    yt/yt/core/yson/string.h
+        yt/yt/core/yson/string.h
 )
 
 GENERATE_YT_RECORD(
     queue_client/records/queue_agent_object_mapping.yaml
     OUTPUT_INCLUDES
-    yt/yt/core/yson/string.h
+        yt/yt/core/yson/string.h
 )
 
 GENERATE_YT_RECORD(
     queue_client/records/replicated_table_mapping.yaml
     OUTPUT_INCLUDES
-    yt/yt/core/yson/string.h
+        yt/yt/core/yson/string.h
+        yt/yt/ytlib/queue_client/public.h
 )
 
 ADDINCL(

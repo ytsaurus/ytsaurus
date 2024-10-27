@@ -1907,9 +1907,7 @@ private:
                 if (it != CachedLayerDescriptors_.end()) {
                     cachedLayerDescriptors.insert(*it);
                 } else {
-                    cachedLayerDescriptors.emplace(
-                        path,
-                        TFetchedArtifactKey{.ContentRevision = 0});
+                    cachedLayerDescriptors.emplace(path, TFetchedArtifactKey{});
                 }
             }
 

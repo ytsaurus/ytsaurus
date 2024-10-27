@@ -399,7 +399,7 @@ private:
         {
             NTabletServer::NProto::TReqUpdateHunkTabletStores actionRequest;
             ToProto(actionRequest.mutable_tablet_id(), Tablet_->GetId());
-            actionRequest.set_mount_revision(Tablet_->GetMountRevision());
+            actionRequest.set_mount_revision(ToProto(Tablet_->GetMountRevision()));
 
             return actionRequest;
         }

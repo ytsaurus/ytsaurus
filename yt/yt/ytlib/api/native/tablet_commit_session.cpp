@@ -229,7 +229,7 @@ private:
             req->set_transaction_timeout(ToProto(transaction->GetTimeout()));
         }
         ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
-        req->set_mount_revision(TabletInfo_->MountRevision);
+        req->set_mount_revision(ToProto(TabletInfo_->MountRevision));
         req->set_durability(static_cast<int>(transaction->GetDurability()));
 
         const auto& batchSignatures = BatchSignatures_[batchIndex];

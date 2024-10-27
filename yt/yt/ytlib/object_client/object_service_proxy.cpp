@@ -745,7 +745,7 @@ bool TObjectServiceProxy::TRspExecuteBatch::TryDeserializeBody(
         for (const auto& subresponse : body.subresponses()) {
             auto subrequestIndex = subresponse.index();
             auto partCount = subresponse.part_count();
-            auto revision = subresponse.revision();
+            auto revision = FromProto<NHydra::TRevision>(subresponse.revision());
             if (subresponse.has_advised_sticky_group_size() && StickyGroupSizeCache_) {
                 auto advisedStickyGroupSize = subresponse.advised_sticky_group_size();
                 auto key = InnerRequestDescriptors_[subrequestIndex].GetKey();
@@ -774,7 +774,7 @@ bool TObjectServiceProxy::TRspExecuteBatch::TryDeserializeBody(
         YT_VERIFY(body.advised_sticky_group_size_size() == body.part_counts_size() || body.advised_sticky_group_size_size() == 0);
 
         auto revisions = body.revisions_size() == 0
-            ? std::vector<ui64>(body.part_counts_size())
+            ? std::vector<NHydra::TRevision>(body.part_counts_size())
             : FromProto<std::vector<NHydra::TRevision>>(body.revisions());
 
         auto partIndex = 0;

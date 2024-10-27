@@ -364,7 +364,7 @@ private:
                 auto tabletInfo = New<TTabletInfo>();
                 tabletInfo->CellId = FromProto<TCellId>(protoTabletInfo.cell_id());
                 tabletInfo->TabletId = FromProto<TObjectId>(protoTabletInfo.tablet_id());
-                tabletInfo->MountRevision = protoTabletInfo.mount_revision();
+                tabletInfo->MountRevision = FromProto<NHydra::TRevision>(protoTabletInfo.mount_revision());
                 tabletInfo->State = FromProto<ETabletState>(protoTabletInfo.state());
                 tabletInfo->UpdateTime = Now();
                 tabletInfo->InMemoryMode = FromProto<EInMemoryMode>(protoTabletInfo.in_memory_mode());

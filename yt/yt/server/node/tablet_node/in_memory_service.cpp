@@ -225,7 +225,7 @@ private:
 
                 // COMPAT(ifsmirnov)
                 auto tabletSnapshot = request->mount_revision_size() > 0
-                    ? snapshotStore->FindTabletSnapshot(tabletId, request->mount_revision(index))
+                    ? snapshotStore->FindTabletSnapshot(tabletId, FromProto<NHydra::TRevision>(request->mount_revision(index)))
                     : snapshotStore->FindLatestTabletSnapshot(tabletId);
 
                 if (!tabletSnapshot) {

@@ -644,13 +644,14 @@ private:
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
         if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
-            if (allyReplicas.Revision > request->ally_replicas_revision()) {
+            auto allyReplicasRevision = FromProto<NHydra::TRevision>(request->ally_replicas_revision());
+            if (allyReplicas.Revision > allyReplicasRevision) {
                 ToProto(response->mutable_ally_replicas(), allyReplicas);
                 YT_LOG_DEBUG("Ally replicas suggested "
                     "(ChunkId: %v, AllyReplicas: %v, ClientAllyReplicasRevision: %v)",
                     chunkId,
                     allyReplicas,
-                    request->ally_replicas_revision());
+                    allyReplicasRevision);
             }
         }
     }
@@ -739,11 +740,11 @@ private:
             if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
                 // COMPAT(akozhikhov): Empty revision list.
                 if (request->ally_replicas_revisions_size() == 0 ||
-                    request->ally_replicas_revisions(chunkIndex) < allyReplicas.Revision)
+                    FromProto<NHydra::TRevision>(request->ally_replicas_revisions(chunkIndex)) < allyReplicas.Revision)
                 {
                     auto clientAllyReplicasRevision = request->ally_replicas_revisions_size() == 0
                         ? std::nullopt
-                        : std::make_optional(request->ally_replicas_revisions(chunkIndex));
+                        : std::make_optional(FromProto<NHydra::TRevision>(request->ally_replicas_revisions(chunkIndex)));
 
                     ToProto(subresponse->mutable_ally_replicas(), allyReplicas);
                     YT_LOG_DEBUG("Ally replicas suggested "
@@ -1289,13 +1290,14 @@ private:
 
                 const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
                 if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
-                    if (allyReplicas.Revision > subrequest.ally_replicas_revision()) {
+                    auto allyReplicasRevision = FromProto<NHydra::TRevision>(subrequest.ally_replicas_revision());
+                    if (allyReplicas.Revision > allyReplicasRevision) {
                         ToProto(subresponse->mutable_ally_replicas(), allyReplicas);
                         YT_LOG_DEBUG("Ally replicas suggested "
                             "(ChunkId: %v, AllyReplicas: %v, ClientAllyReplicasRevision: %v)",
                             chunkId,
                             allyReplicas,
-                            subrequest.ally_replicas_revision());
+                            allyReplicasRevision);
                     }
                 }
 

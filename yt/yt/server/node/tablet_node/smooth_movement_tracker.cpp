@@ -3,7 +3,6 @@
 #include "automaton.h"
 #include "store_manager.h"
 #include "tablet.h"
-#include "tablet_manager.h"
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
@@ -249,8 +248,8 @@ private:
             return;
         }
 
-        auto sourceMountRevision = request->source_mount_revision();
-        auto targetMountRevision = request->target_mount_revision();
+        auto sourceMountRevision = FromProto<NHydra::TRevision>(request->source_mount_revision());
+        auto targetMountRevision = FromProto<NHydra::TRevision>(request->target_mount_revision());
 
         if (sourceMountRevision != tablet->GetMountRevision()) {
             return;
@@ -452,7 +451,7 @@ private:
 
         NTabletServer::NProto::TReqReportSmoothMovementProgress req;
         ToProto(req.mutable_tablet_id(), tablet->GetId());
-        req.set_mount_revision(tablet->GetMountRevision());
+        req.set_mount_revision(ToProto(tablet->GetMountRevision()));
         req.set_stage(ToProto(newStage));
         Host_->PostMasterMessage(tablet, req, /*forceCellMailbox*/ true);
 
@@ -511,8 +510,8 @@ private:
                 {
                     NTabletServer::NProto::TReqSwitchServant req;
                     ToProto(req.mutable_tablet_id(), tablet->GetId());
-                    req.set_source_mount_revision(tablet->GetMountRevision());
-                    req.set_target_mount_revision(movementData.GetSiblingMountRevision());
+                    req.set_source_mount_revision(ToProto(tablet->GetMountRevision()));
+                    req.set_target_mount_revision(ToProto(movementData.GetSiblingMountRevision()));
                     Host_->PostMasterMessage(tablet, req);
                 }
 
@@ -520,7 +519,7 @@ private:
                 {
                     TReqSwitchServant req;
                     ToProto(req.mutable_tablet_id(), tablet->GetId());
-                    req.set_mount_revision(movementData.GetSiblingMountRevision());
+                    req.set_mount_revision(ToProto(movementData.GetSiblingMountRevision()));
 
                     {
                         auto& runtimeData = tablet->RuntimeData()->SmoothMovementData;
@@ -589,7 +588,7 @@ private:
 
                 NTabletServer::NProto::TReqDeallocateServant req;
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
-                req.set_auxiliary_mount_revision(movementData.GetSiblingMountRevision());
+                req.set_auxiliary_mount_revision(ToProto(movementData.GetSiblingMountRevision()));
                 Host_->PostMasterMessage(tablet, req);
 
                 Host_->UnregisterSiblingTabletAvenue(

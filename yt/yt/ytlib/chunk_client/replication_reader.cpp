@@ -3125,7 +3125,7 @@ private:
 
         auto schemaData = req->mutable_schema_data();
         ToProto(schemaData->mutable_table_id(), Options_->TableId);
-        schemaData->set_revision(Options_->MountRevision);
+        schemaData->set_revision(ToProto(Options_->MountRevision));
         schemaData->set_schema_size(Options_->TableSchema->GetMemoryUsage());
         if (schemaRequested) {
             req->SetRequestHeavy(true);
@@ -3570,7 +3570,7 @@ private:
         ToProto(req->mutable_chunk_id(), ChunkId_);
         ToProto(req->mutable_block_indexes(), std::vector<int>(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end()));
         req->SetAcknowledgementTimeout(std::nullopt);
-        req->set_ally_replicas_revision(queuedBatch.Session->SeedReplicas_.Revision);
+        req->set_ally_replicas_revision(ToProto(queuedBatch.Session->SeedReplicas_.Revision));
 
         return req->Invoke();
     }

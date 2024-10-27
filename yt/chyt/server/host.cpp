@@ -676,7 +676,7 @@ public:
 
             auto req = proxy.RemoveSqlObject();
             req->set_object_name(objectName);
-            req->set_revision(revision);
+            req->set_revision(ToProto(revision));
 
             futures.push_back(req->Invoke());
         }
