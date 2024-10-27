@@ -365,7 +365,7 @@ private:
 
         const auto& rsp = rspOrError.Value();
         DataStatistics_ = rsp->statistics();
-        ConfirmationRevision_ = FromProto<i64>(rsp->revision());
+        ConfirmationRevision_ = FromProto<NHydra::TRevision>(rsp->revision());
 
         Closed_ = true;
 

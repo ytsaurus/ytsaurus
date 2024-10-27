@@ -702,7 +702,7 @@ public:
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_commit_timestamp(options.CommitTimestamp);
             const auto* mutationContext = GetCurrentMutationContext();
-            request.set_native_commit_mutation_revision(mutationContext->GetVersion().ToRevision());
+            request.set_native_commit_mutation_revision(ToProto(mutationContext->GetVersion().ToRevision()));
             multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
         }
 
@@ -711,7 +711,7 @@ public:
             ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag()));
             request.set_commit_timestamp(options.CommitTimestamp);
             const auto* mutationContext = GetCurrentMutationContext();
-            request.set_native_commit_mutation_revision(mutationContext->GetVersion().ToRevision());
+            request.set_native_commit_mutation_revision(ToProto(mutationContext->GetVersion().ToRevision()));
             multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
         }
 
@@ -2278,7 +2278,7 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto commitTimestamp = request->commit_timestamp();
-        auto nativeCommitMutationRevision = request->native_commit_mutation_revision();
+        auto nativeCommitMutationRevision = FromProto<NHydra::TRevision>(request->native_commit_mutation_revision());
 
         TTransactionCommitOptions options{
             .CommitTimestamp = commitTimestamp,

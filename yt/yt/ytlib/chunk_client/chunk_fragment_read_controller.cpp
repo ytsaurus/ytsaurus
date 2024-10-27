@@ -173,7 +173,7 @@ public:
         NChunkClient::NProto::TReqGetChunkFragmentSet_TSubrequest* subrequest) override
     {
         ToProto(subrequest->mutable_chunk_id(), ChunkId_);
-        subrequest->set_ally_replicas_revision(ReplicasWithRevision_.Revision);
+        subrequest->set_ally_replicas_revision(ToProto(ReplicasWithRevision_.Revision));
 
         for (const auto& fragmentRequest : FragmentRequests_) {
             auto* fragment = subrequest->add_fragments();
@@ -503,7 +503,7 @@ private:
         YT_ASSERT(partIndex >= 0 && partIndex < DataPartCount_);
 
         ToProto(subrequest->mutable_chunk_id(), ErasurePartIdFromChunkId(ChunkId_, partIndex));
-        subrequest->set_ally_replicas_revision(ReplicasRevision_);
+        subrequest->set_ally_replicas_revision(ToProto(ReplicasRevision_));
 
         for (auto requestIndex : PartIndexToRegularRequestIndices_[partIndex]) {
             const auto& request = Requests_[requestIndex];
@@ -620,7 +620,7 @@ private:
         NChunkClient::NProto::TReqGetChunkFragmentSet_TSubrequest* subrequest)
     {
         ToProto(subrequest->mutable_chunk_id(), ErasurePartIdFromChunkId(ChunkId_, partIndex));
-        subrequest->set_ally_replicas_revision(ReplicasRevision_);
+        subrequest->set_ally_replicas_revision(ToProto(ReplicasRevision_));
 
         for (const auto& repairFragment : RepairFragments_) {
             auto* fragment = subrequest->add_fragments();

@@ -520,7 +520,7 @@ private:
 
             NTabletServer::NProto::TReqUpdateTabletStores updateTabletStoresReq;
             ToProto(updateTabletStoresReq.mutable_tablet_id(), tabletId);
-            updateTabletStoresReq.set_mount_revision(tablet->GetMountRevision());
+            updateTabletStoresReq.set_mount_revision(ToProto(tablet->GetMountRevision()));
             for (auto& descriptor : flushResult.StoresToAdd) {
                 *updateTabletStoresReq.add_stores_to_add() = std::move(descriptor);
             }

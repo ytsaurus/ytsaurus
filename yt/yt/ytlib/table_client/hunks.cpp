@@ -240,7 +240,7 @@ void ToProto(
 {
     ToProto(protoHunkChunkInfo->mutable_hunk_cell_id(), hunkChunkInfo.CellId);
     ToProto(protoHunkChunkInfo->mutable_hunk_tablet_id(), hunkChunkInfo.HunkTabletId);
-    protoHunkChunkInfo->set_hunk_mount_revision(hunkChunkInfo.MountRevision);
+    protoHunkChunkInfo->set_hunk_mount_revision(ToProto(hunkChunkInfo.MountRevision));
     for (const auto& [_, ref] : hunkChunkInfo.HunkChunkRefs) {
         ToProto(protoHunkChunkInfo->add_hunk_chunk_refs(), ref);
     }
@@ -250,9 +250,9 @@ void FromProto(
     THunkChunksInfo* hunkChunkInfo,
     const NTabletClient::NProto::THunkChunksInfo& protoHunkChunkInfo)
 {
-    hunkChunkInfo->CellId = FromProto<TCellId>(protoHunkChunkInfo.hunk_cell_id());
-    hunkChunkInfo->HunkTabletId = FromProto<TTabletId>(protoHunkChunkInfo.hunk_tablet_id());
-    hunkChunkInfo->MountRevision = protoHunkChunkInfo.hunk_mount_revision();
+    FromProto(&hunkChunkInfo->CellId, protoHunkChunkInfo.hunk_cell_id());
+    FromProto(&hunkChunkInfo->HunkTabletId, protoHunkChunkInfo.hunk_tablet_id());
+    FromProto(&hunkChunkInfo->MountRevision, protoHunkChunkInfo.hunk_mount_revision());
     for (const auto& protoHunkRef : protoHunkChunkInfo.hunk_chunk_refs()) {
         auto ref = FromProto<THunkChunkRef>(protoHunkRef);
         EmplaceOrCrash(hunkChunkInfo->HunkChunkRefs, ref.ChunkId, ref);

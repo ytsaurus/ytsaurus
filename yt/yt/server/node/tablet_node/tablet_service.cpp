@@ -151,7 +151,7 @@ private:
         ValidatePeer(EPeerKind::Leader);
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         auto requestCodecId = CheckedEnumCast<NCompression::ECodec>(request->request_codec());
         auto upstreamReplicaId = FromProto<TTableReplicaId>(request->upstream_replica_id());
         auto replicationEra = request->has_replication_era()
@@ -389,7 +389,7 @@ private:
         ValidatePeer(EPeerKind::Leader);
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         auto trimmedRowCount = request->trimmed_row_count();
 
         context->SetRequestInfo("TabletId: %v, TrimmedRowCount: %v",
@@ -437,7 +437,7 @@ private:
         ValidatePeer(EPeerKind::Leader);
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         auto payloads = std::move(request->Attachments());
 
         context->SetRequestInfo("TabletId: %v, MountRevision: %v, HunkCount: %v",

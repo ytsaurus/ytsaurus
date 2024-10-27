@@ -362,7 +362,7 @@ private:
             }
         }
 
-        response->set_revision(revision);
+        response->set_revision(ToProto(revision));
 
         for (const auto& [channel, request] : channelToTouchChunksRequest) {
             TChunkServiceProxy proxy(channel);

@@ -1078,7 +1078,7 @@ void TTablet::Load(TLoadContext& context)
         Load(context, IdGenerator_);
     } else {
         // Seems random enough.
-        auto preSeed = Id_.Parts64[1] ^ TableId_.Parts64[1] ^ SchemaId_.Parts64[1] ^ RuntimeData_->LastCommitTimestamp ^ MountRevision_;
+        auto preSeed = Id_.Parts64[1] ^ TableId_.Parts64[1] ^ SchemaId_.Parts64[1] ^ RuntimeData_->LastCommitTimestamp ^ MountRevision_.Underlying();
         auto seed = TRandomGenerator(preSeed).Generate<ui64>();
 
         IdGenerator_ = TIdGenerator(

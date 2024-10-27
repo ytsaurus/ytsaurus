@@ -190,10 +190,10 @@ void GetUserObjectBasicAttributes(
         userObject->Type = TypeFromId(userObject->ObjectId);
 
         // COMPAT(shakurov, gritukan): Remove check when masters will be fresh enough.
-        if (rsp->revision() != NHydra::NullRevision) {
-            userObject->Revision = rsp->revision();
-            userObject->ContentRevision = rsp->content_revision();
-            userObject->AttributeRevision = rsp->attribute_revision();
+        if (FromProto<NHydra::TRevision>(rsp->revision()) != NHydra::NullRevision) {
+            userObject->Revision = FromProto<NHydra::TRevision>(rsp->revision());
+            userObject->ContentRevision = FromProto<NHydra::TRevision>(rsp->content_revision());
+            userObject->AttributeRevision = FromProto<NHydra::TRevision>(rsp->attribute_revision());
         }
 
         if (rsp->has_omitted_inaccessible_columns()) {
@@ -439,7 +439,7 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
         ToProto(subrequest.mutable_tablet_id(), tabletInfo->TabletId);
         ToProto(subrequest.mutable_cell_id(), tabletInfo->CellId);
         subrequest.set_table_index(0);
-        subrequest.set_mount_revision(tabletInfo->MountRevision);
+        subrequest.set_mount_revision(ToProto(tabletInfo->MountRevision));
         for (int rangeIndex = 0; rangeIndex < std::ssize(ranges); ++rangeIndex) {
             const auto& range = ranges[rangeIndex];
             // We don't do any pruning for now.
@@ -1062,7 +1062,7 @@ void ToProto(
     const TAllyReplicasInfo& allyReplicas)
 {
     ToProto(protoAllyReplicas->mutable_replicas(), allyReplicas.Replicas);
-    protoAllyReplicas->set_revision(allyReplicas.Revision);
+    protoAllyReplicas->set_revision(ToProto(allyReplicas.Revision));
 }
 
 void FromProto(
@@ -1070,7 +1070,7 @@ void FromProto(
     const NProto::TAllyReplicasInfo& protoAllyReplicas)
 {
     FromProto(&allyReplicas->Replicas, protoAllyReplicas.replicas());
-    allyReplicas->Revision = protoAllyReplicas.revision();
+    FromProto(&allyReplicas->Revision, protoAllyReplicas.revision());
 }
 
 void FormatValue(

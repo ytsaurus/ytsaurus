@@ -190,7 +190,7 @@ public:
         Tablet_ = std::make_unique<TTablet>(
             NullTabletId,
             TableSettings_,
-            /*mountRevision*/ 0,
+            /*mountRevision*/ NHydra::NullRevision,
             /*tableId*/ NullObjectId,
             "ut",
             &TabletContext_,

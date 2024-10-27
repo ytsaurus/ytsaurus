@@ -182,7 +182,7 @@ private:
             if (CellTagFromId(tabletSnapshot->TabletId) == cellTag) {
                 auto* protoTabletInfo = heartbeatRequest->add_tablets();
                 ToProto(protoTabletInfo->mutable_tablet_id(), tabletSnapshot->TabletId);
-                protoTabletInfo->set_mount_revision(tabletSnapshot->MountRevision);
+                protoTabletInfo->set_mount_revision(ToProto(tabletSnapshot->MountRevision));
 
                 auto* protoTabletStatistics = protoTabletInfo->mutable_statistics();
                 protoTabletStatistics->set_partition_count(tabletSnapshot->PartitionList.size());

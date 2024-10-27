@@ -373,7 +373,7 @@ void TTabletChunkSpecFetcher::AddSorted(
             if (!subrequest) {
                 subrequest.emplace();
                 subrequest->set_table_index(tableIndex);
-                subrequest->set_mount_revision(tabletInfo->MountRevision);
+                subrequest->set_mount_revision(ToProto(tabletInfo->MountRevision));
                 ToProto(subrequest->mutable_tablet_id(), tabletInfo->TabletId);
                 ToProto(subrequest->mutable_cell_id(), tabletInfo->CellId);
             }

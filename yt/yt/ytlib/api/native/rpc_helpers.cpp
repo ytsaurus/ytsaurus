@@ -51,7 +51,7 @@ void SetCachingHeader(
     cachingHeaderExt->set_expire_after_failed_update_time(ToProto(options.ExpireAfterFailedUpdateTime));
     cachingHeaderExt->set_success_staleness_bound(ToProto(options.SuccessStalenessBound));
     if (refreshRevision != NHydra::NullRevision) {
-        cachingHeaderExt->set_refresh_revision(refreshRevision);
+        cachingHeaderExt->set_refresh_revision(ToProto(refreshRevision));
     }
 }
 

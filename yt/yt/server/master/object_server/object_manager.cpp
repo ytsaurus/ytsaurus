@@ -1716,7 +1716,7 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
 
     for (const auto& prerequisite : prerequisites.revisions()) {
         const auto& path = prerequisite.path();
-        auto revision = prerequisite.revision();
+        auto revision = FromProto<NHydra::TRevision>(prerequisite.revision());
 
         TCypressNode* trunkNode;
         try {

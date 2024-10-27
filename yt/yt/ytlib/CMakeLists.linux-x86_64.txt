@@ -1408,6 +1408,8 @@ add_custom_command(
   yt/yt/core/yson/string.h
   --output-include
   yt/yt/client/object_client/public.h
+  --output-include
+  yt/yt/ytlib/queue_client/public.h
 )
 
 add_custom_command(
@@ -1433,6 +1435,8 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/consumer_object.record.cpp
   --output-include
   yt/yt/core/yson/string.h
+  --output-include
+  yt/yt/ytlib/queue_client/public.h
 )
 
 add_custom_command(
@@ -1508,6 +1512,8 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replicated_table_mapping.record.cpp
   --output-include
   yt/yt/core/yson/string.h
+  --output-include
+  yt/yt/ytlib/queue_client/public.h
 )
 
 target_proto_outs(yt-yt-ytlib

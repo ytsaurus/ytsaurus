@@ -1409,7 +1409,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
             for (const auto& batch : batchesByCells[batchIndex]) {
                 ToProto(req->add_cell_ids(), cellId);
                 ToProto(req->add_tablet_ids(), batch.TabletId);
-                req->add_mount_revisions(batch.MountRevision);
+                req->add_mount_revisions(ToProto(batch.MountRevision));
                 auto requestData = codec->Compress(boundEncoder(batch.Keys));
                 req->Attachments().push_back(requestData);
             }
@@ -2303,7 +2303,7 @@ void TClient::DoTrimTable(
 
     auto req = proxy.Trim();
     ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
-    req->set_mount_revision(tabletInfo->MountRevision);
+    req->set_mount_revision(ToProto(tabletInfo->MountRevision));
     req->set_trimmed_row_count(trimmedRowCount);
 
     WaitFor(req->Invoke())
@@ -2703,7 +2703,7 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaTabletNodeApi(
     auto req = proxy.FetchTableRows();
     ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
     ToProto(req->mutable_cell_id(), tabletInfo->CellId);
-    req->set_mount_revision(tabletInfo->MountRevision);
+    req->set_mount_revision(ToProto(tabletInfo->MountRevision));
     req->set_tablet_index(partitionIndex);
     req->set_row_index(offset);
     req->set_max_row_count(rowBatchReadOptions.MaxRowCount);
@@ -3171,7 +3171,7 @@ private:
             auto req = proxy.PullRows();
             req->set_request_codec(static_cast<int>(connection->GetConfig()->LookupRowsRequestCodec));
             req->set_response_codec(static_cast<int>(connection->GetConfig()->LookupRowsResponseCodec));
-            req->set_mount_revision(TabletInfo_->MountRevision);
+            req->set_mount_revision(ToProto(TabletInfo_->MountRevision));
             req->set_max_rows_per_read(Options_.TabletRowsPerRead);
             req->set_max_data_weight(MaxDataWeight_);
             req->set_upper_timestamp(Options_.UpperTimestamp);

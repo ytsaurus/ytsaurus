@@ -56,11 +56,6 @@ IIOEnginePtr CreateIOEngine()
     return CreateIOEngine(EIOEngineType::ThreadPool, NYTree::INodePtr());
 }
 
-struct TLocalChunkStore
-{
-    THashMap<TChunkId, TChunkFileReaderPtr> Readers_;
-};
-
 TTableSchemaPtr GetTableSchema()
 {
     TFileInput file("schema.yson");

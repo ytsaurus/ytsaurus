@@ -1030,7 +1030,7 @@ private:
                 ToProto(req->add_chunk_id(), chunkInfo.ChunkId);
                 *req->add_chunk_meta() = *chunkInfo.ChunkMeta;
                 ToProto(req->add_tablet_id(), chunkInfo.TabletId);
-                req->add_mount_revision(chunkInfo.MountRevision);
+                req->add_mount_revision(ToProto(chunkInfo.MountRevision));
             }
 
             asyncResults.push_back(req->Invoke().As<void>());

@@ -926,7 +926,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
     ToProto(response->mutable_node_id(), Id_);
     ToProto(response->mutable_external_transaction_id(), externalTransactionId);
     response->set_external_cell_tag(ToProto(externalCellTag));
-    response->set_revision(revision);
+    response->set_revision(ToProto(revision));
 
     context->SetResponseInfo("LockId: %v, ExternalCellTag: %v, ExternalTransactionId: %v, Revision: %x",
         lockId,

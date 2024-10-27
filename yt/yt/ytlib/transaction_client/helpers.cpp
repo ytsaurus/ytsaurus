@@ -42,7 +42,7 @@ void SetPrerequisites(
     for (const auto& revision : options.PrerequisiteRevisions) {
         auto* prerequisiteRevision = prerequisitesExt->add_revisions();
         prerequisiteRevision->set_path(revision->Path);
-        prerequisiteRevision->set_revision(revision->Revision);
+        prerequisiteRevision->set_revision(ToProto(revision->Revision));
     }
 }
 

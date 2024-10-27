@@ -239,7 +239,7 @@ public:
             }
             protoRequest.set_mode(static_cast<int>(clone.Mode));
             ToProto(protoRequest.mutable_account_id(), clone.CloneAccountId);
-            protoRequest.set_native_content_revision(clone.NativeContentRevision);
+            protoRequest.set_native_content_revision(ToProto(clone.NativeContentRevision));
             ToProto(protoRequest.mutable_inherited_node_attributes(), *clone.ReplicationInheritedAttributes);
             multicellManager->PostToMaster(protoRequest, clone.ExternalCellTag);
         }
@@ -254,7 +254,7 @@ public:
             ToProto(protoRequest.mutable_explicit_node_attributes(), *externalNode.ReplicationExplicitAttributes);
             ToProto(protoRequest.mutable_inherited_node_attributes(), *externalNode.ReplicationInheritedAttributes);
             ToProto(protoRequest.mutable_account_id(), externalNode.AccountId);
-            protoRequest.set_native_content_revision(externalNode.NativeContentRevision);
+            protoRequest.set_native_content_revision(ToProto(externalNode.NativeContentRevision));
             multicellManager->PostToMaster(protoRequest, externalNode.ExternalCellTag);
         }
 
@@ -4249,8 +4249,8 @@ private:
         auto nodeId = FromProto<TObjectId>(request->node_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto accountId = FromProto<TAccountId>(request->account_id());
-        auto type = EObjectType(request->type());
-        auto nativeContentRevision = request->native_content_revision();
+        auto type = FromProto<EObjectType>(request->type());
+        auto nativeContentRevision = FromProto<NHydra::TRevision>(request->native_content_revision());
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionId
             ? transactionManager->GetTransactionOrThrow(transactionId)
@@ -4274,7 +4274,7 @@ private:
                 .InheritedAttributes = inheritedAttributes.Get(),
                 .ExplicitAttributes = explicitAttributes.Get(),
                 .Account = account,
-                .NativeContentRevision = nativeContentRevision
+                .NativeContentRevision = nativeContentRevision,
             });
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -4298,7 +4298,7 @@ private:
         auto clonedTransactionId = FromProto<TTransactionId>(request->cloned_transaction_id());
         auto mode = CheckedEnumCast<ENodeCloneMode>(request->mode());
         auto accountId = FromProto<TAccountId>(request->account_id());
-        auto nativeContentRevision = request->native_content_revision();
+        auto nativeContentRevision = FromProto<NHydra::TRevision>(request->native_content_revision());
         auto schemaId = FromProto<TMasterTableSchemaId>(request->schema_id_hint());
         auto inheritedAttributes = request->has_inherited_node_attributes()
             ? FromProto(request->inherited_node_attributes())

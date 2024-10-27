@@ -42,7 +42,7 @@ TTable::TTable(TRichYPath path, const IAttributeDictionaryPtr& attributes)
         ? attributes->Get<TCellTag>("external_cell_tag")
         : CellTagFromId(ObjectId);
     ChunkCount = attributes->Get<i64>("chunk_count", 0);
-    Revision = attributes->Get<i64>("revision");
+    Revision = attributes->Get<NHydra::TRevision>("revision");
     Schema = attributes->Get<TTableSchemaPtr>("schema");
     Comparator = Schema->ToComparator();
     RowCount = attributes->Find<i64>("row_count");

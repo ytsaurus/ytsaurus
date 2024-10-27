@@ -2935,7 +2935,7 @@ private:
         auto* announcements = isSequoia ?
             replicaAnnouncements->mutable_sequoia_announcements() :
             replicaAnnouncements->mutable_non_sequoia_announcements();
-        announcements->set_revision(GetCurrentMutationContext()->GetVersion().ToRevision());
+        announcements->set_revision(ToProto(GetCurrentMutationContext()->GetVersion().ToRevision()));
 
         auto onChunk = [&] (TChunk* chunk, bool confirmationNeeded) {
             // Fast path: no need to announce replicas of chunks with RF=1.
@@ -3486,7 +3486,7 @@ private:
 
         for (const auto& protoRequest : request->confirmed_replica_announcement_requests()) {
             auto chunkId = FromProto<TChunkId>(protoRequest.chunk_id());
-            auto revision = FromProto<ui64>(protoRequest.revision());
+            auto revision = FromProto<NHydra::TRevision>(protoRequest.revision());
 
             if (auto* chunk = FindChunk(chunkId); IsObjectAlive(chunk)) {
                 auto it = node->ReplicaEndorsements().find(chunk);

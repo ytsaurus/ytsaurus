@@ -378,7 +378,7 @@ private:
     void HydraSetBackupCheckpoint(NProto::TReqSetBackupCheckpoint* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         auto timestamp = request->timestamp();
         auto mode = FromProto<EBackupMode>(request->backup_mode());
         auto clockClusterTag = request->has_clock_cluster_tag()
@@ -386,10 +386,7 @@ private:
             : std::nullopt;
         auto replicaDescriptors = FromProto<std::vector<TTableReplicaBackupDescriptor>>(
             request->replicas());
-        TDynamicStoreId allocatedDynamicStoreId;
-        if (request->has_dynamic_store_id()) {
-            FromProto(&allocatedDynamicStoreId, request->dynamic_store_id());
-        }
+        auto allocatedDynamicStoreId = FromProto<TDynamicStoreId>(request->dynamic_store_id());
 
         const auto& tabletManager = Slot_->GetTabletManager();
         auto* tablet = tabletManager->FindTablet(tabletId);
@@ -445,7 +442,7 @@ private:
     {
         const auto& tabletManager = Slot_->GetTabletManager();
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         auto* tablet = tabletManager->FindTablet(tabletId);
         if (!tablet) {
             return;
@@ -742,7 +739,7 @@ private:
     {
         NTabletServer::NProto::TReqReportBackupCheckpointPassed req;
         ToProto(req.mutable_tablet_id(), tablet->GetId());
-        req.set_mount_revision(tablet->GetMountRevision());
+        req.set_mount_revision(ToProto(tablet->GetMountRevision()));
         req.set_confirmed(false);
         ToProto(req.mutable_error(), error);
         Slot_->PostMasterMessage(tablet->GetId(), req);
@@ -779,7 +776,7 @@ private:
 
         NTabletServer::NProto::TReqReportBackupCheckpointPassed req;
         ToProto(req.mutable_tablet_id(), tablet->GetId());
-        req.set_mount_revision(tablet->GetMountRevision());
+        req.set_mount_revision(ToProto(tablet->GetMountRevision()));
 
         auto respond = [&] (bool success) {
             Slot_->PostMasterMessage(tablet->GetId(), req);

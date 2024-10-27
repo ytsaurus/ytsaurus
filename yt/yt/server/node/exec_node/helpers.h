@@ -25,7 +25,7 @@ namespace NYT::NExecNode {
 
 struct TFetchedArtifactKey
 {
-    NHydra::TRevision ContentRevision;
+    NHydra::TRevision ContentRevision = NHydra::NullRevision;
     std::optional<NDataNode::TArtifactKey> ArtifactKey;
 };
 

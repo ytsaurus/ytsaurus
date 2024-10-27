@@ -446,7 +446,7 @@ public:
 
             NProto::TReqTrimRows hydraRequest;
             ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
-            hydraRequest.set_mount_revision(tablet->GetMountRevision());
+            hydraRequest.set_mount_revision(ToProto(tablet->GetMountRevision()));
             hydraRequest.set_trimmed_row_count(trimmedRowCount);
 
             auto mutation = CreateMutation(Slot_->GetHydraManager(), hydraRequest);
@@ -474,7 +474,7 @@ public:
 
         TReqRotateStore request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
-        request.set_mount_revision(tablet->GetMountRevision());
+        request.set_mount_revision(ToProto(tablet->GetMountRevision()));
         request.set_reason(static_cast<int>(reason));
 
         auto activeStore = tablet->GetActiveStore();
@@ -1021,7 +1021,7 @@ private:
     {
         const auto* context = GetCurrentMutationContext();
         if (context->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
-            response->set_mount_revision(tablet->GetMountRevision());
+            response->set_mount_revision(ToProto(tablet->GetMountRevision()));
         }
     }
 
@@ -1039,7 +1039,7 @@ private:
                 : request->field_name ## _deprecated())
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         auto tableId = FromProto<TObjectId>(request->table_id());
         auto masterAvenueEndpointId = FromProto<TAvenueEndpointId>(request->master_avenue_endpoint_id());
         const auto& path = GET_FROM_ESSENTIAL(path);
@@ -1090,7 +1090,7 @@ private:
             if (mutationContext->Request().Reign >= ToUnderlying(ETabletReign::TabletIdGenerator)) {
                 return mutationContext->RandomGenerator()->Generate<ui64>();
             } else {
-                auto preSeed = mutationContext->GetRandomSeed() ^ tabletId.Parts64[1] ^ tableId.Parts64[1] ^ mountRevision;
+                auto preSeed = mutationContext->GetRandomSeed() ^ tabletId.Parts64[1] ^ tableId.Parts64[1] ^ mountRevision.Underlying();
                 // Seems random enough.
                 return TRandomGenerator(preSeed).Generate<ui64>();
             }
@@ -1495,7 +1495,7 @@ private:
     void HydraUpdateTabletSettings(TReqUpdateTabletSettings* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
 
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
@@ -1670,7 +1670,7 @@ private:
         const auto* context = GetCurrentMutationContext();
         if (static_cast<ETabletReign>(context->Request().Reign) < ETabletReign::NoMountRevisionCheckInBulkInsert) {
             if (request->has_mount_revision() && request->mount_revision() != 0) {
-                auto mountRevision = request->mount_revision();
+                auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
                 if (mountRevision != tablet->GetMountRevision()) {
                     return;
                 }
@@ -1763,7 +1763,7 @@ private:
             return;
         }
 
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
@@ -1877,7 +1877,7 @@ private:
             return;
         }
 
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
@@ -1893,8 +1893,8 @@ private:
     void HydraRotateStore(TReqRotateStore* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto mountRevision = request->mount_revision();
-        auto reason = static_cast<EStoreRotationReason>(request->reason());
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
+        auto reason = FromProto<EStoreRotationReason>(request->reason());
         auto expectedActiveStoreId = FromProto<TStoreId>(request->expected_active_store_id());
         auto allowEmptyStore = request->allow_empty_store();
 
@@ -1994,7 +1994,7 @@ private:
         auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
 
         // Validate.
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         if (tablet->IsActiveServant()) {
             tablet->ValidateMountRevision(mountRevision);
         } else {
@@ -2251,7 +2251,7 @@ private:
 
         auto hunkCellId = FromProto<TCellId>(request->hunk_cell_id());
         auto hunkTabletId = FromProto<TTabletId>(request->hunk_tablet_id());
-        auto hunkMountRevision = request->mount_revision();
+        auto hunkMountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         auto hunkStoreId = FromProto<THunkStoreId>(request->store_id());
         auto lock = request->lock();
 
@@ -2331,7 +2331,7 @@ private:
             return;
         }
 
-        auto actualMountRevision = request->mount_revision();
+        auto actualMountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         auto expectedMountRevision = tablet->IsActiveServant()
             ? tablet->GetMountRevision()
             : tablet->SmoothMovementData().GetSiblingMountRevision();
@@ -2465,7 +2465,7 @@ private:
             return;
         }
 
-        auto actualMountRevision = request->mount_revision();
+        auto actualMountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         auto expectedMountRevision = tablet->IsActiveServant()
             ? tablet->GetMountRevision()
             : tablet->SmoothMovementData().GetSiblingMountRevision();
@@ -2754,7 +2754,7 @@ private:
 
         YT_VERIFY(tablet->IsPhysicallySorted());
 
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
@@ -2802,7 +2802,7 @@ private:
 
         YT_VERIFY(tablet->IsPhysicallySorted());
 
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
@@ -2851,7 +2851,7 @@ private:
 
         YT_VERIFY(tablet->IsPhysicallySorted());
 
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
@@ -3732,7 +3732,7 @@ private:
 
         TReqAllocateDynamicStore req;
         ToProto(req.mutable_tablet_id(), tablet->GetId());
-        req.set_mount_revision(tablet->GetMountRevision());
+        req.set_mount_revision(ToProto(tablet->GetMountRevision()));
         tablet->SetDynamicStoreIdRequested(true);
         PostMasterMessage(tablet, req);
     }
@@ -3941,7 +3941,7 @@ private:
         {
             TReqSetTabletState request;
             ToProto(request.mutable_tablet_id(), tablet->GetId());
-            request.set_mount_revision(tablet->GetMountRevision());
+            request.set_mount_revision(ToProto(tablet->GetMountRevision()));
             request.set_state(static_cast<int>(newPersistentState));
             Slot_->CommitTabletMutation(request);
         }
@@ -3988,7 +3988,7 @@ private:
 
         TReqSetTabletState request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
-        request.set_mount_revision(tablet->GetMountRevision());
+        request.set_mount_revision(ToProto(tablet->GetMountRevision()));
         request.set_state(static_cast<int>(newPersistentState));
         Slot_->CommitTabletMutation(request);
     }
@@ -4853,7 +4853,7 @@ private:
             TRspEnableTableReplica response;
             ToProto(response.mutable_tablet_id(), tablet->GetId());
             ToProto(response.mutable_replica_id(), replicaInfo->GetId());
-            response.set_mount_revision(tablet->GetMountRevision());
+            response.set_mount_revision(ToProto(tablet->GetMountRevision()));
             PostMasterMessage(tablet, response);
         }
     }
@@ -4880,7 +4880,7 @@ private:
             TRspDisableTableReplica response;
             ToProto(response.mutable_tablet_id(), tablet->GetId());
             ToProto(response.mutable_replica_id(), replicaInfo->GetId());
-            response.set_mount_revision(tablet->GetMountRevision());
+            response.set_mount_revision(ToProto(tablet->GetMountRevision()));
             PostMasterMessage(tablet, response);
         }
     }
@@ -4890,7 +4890,7 @@ private:
         TReqUpdateTableReplicaStatistics request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         ToProto(request.mutable_replica_id(), replicaInfo.GetId());
-        request.set_mount_revision(tablet->GetMountRevision());
+        request.set_mount_revision(ToProto(tablet->GetMountRevision()));
         replicaInfo.PopulateStatistics(request.mutable_statistics());
         PostMasterMessage(tablet, request);
     }
@@ -4907,7 +4907,7 @@ private:
         if (tablet->IsActiveServant()) {
             TReqUpdateTabletTrimmedRowCount masterRequest;
             ToProto(masterRequest.mutable_tablet_id(), tablet->GetId());
-            masterRequest.set_mount_revision(tablet->GetMountRevision());
+            masterRequest.set_mount_revision(ToProto(tablet->GetMountRevision()));
             masterRequest.set_trimmed_row_count(trimmedRowCount);
             PostMasterMessage(tablet, masterRequest);
         }
@@ -5165,7 +5165,7 @@ private:
         auto scheduleUpdate = [&] {
             TReqUpdateTabletSettings req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
-            req.set_mount_revision(tablet->GetMountRevision());
+            req.set_mount_revision(ToProto(tablet->GetMountRevision()));
             req.set_global_patch(globalPatchYson);
             req.set_experiments(experimentsYson);
             Slot_->CommitTabletMutation(req);

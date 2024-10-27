@@ -319,7 +319,7 @@ void TInputCluster::LockTables()
         const auto& rsp = rspOrError.Value();
         auto table = std::any_cast<TInputTablePtr>(rsp->Tag());
         table->ObjectId = FromProto<TObjectId>(rsp->node_id());
-        table->Revision = rsp->revision();
+        table->Revision = FromProto<NHydra::TRevision>(rsp->revision());
         table->ExternalCellTag = FromProto<TCellTag>(rsp->external_cell_tag());
         table->ExternalTransactionId = rsp->has_external_transaction_id()
             ? FromProto<TTransactionId>(rsp->external_transaction_id())

@@ -3602,8 +3602,8 @@ private:
                 TReqStartSmoothMovement req;
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
                 ToProto(req.mutable_target_cell_id(), cell->GetId());
-                req.set_source_mount_revision(tablet->Servant().GetMountRevision());
-                req.set_target_mount_revision(tablet->AuxiliaryServant().GetMountRevision());
+                req.set_source_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
+                req.set_target_mount_revision(ToProto(tablet->AuxiliaryServant().GetMountRevision()));
                 ToProto(
                     req.mutable_source_avenue_endpoint_id(),
                     tablet->GetTabletwiseAvenueEndpointId());
@@ -3954,7 +3954,7 @@ private:
                 reqReplicatable.set_custom_runtime_data(customRuntimeData.ToString());
             }
 
-            req.set_mount_revision(tablet->Servant().GetMountRevision());
+            req.set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
             req.set_freeze(freeze);
 
             if (table->IsReplicated()) {
@@ -4107,7 +4107,7 @@ private:
 
         TReqMountHunkTablet request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
-        request.set_mount_revision(tablet->Servant().GetMountRevision());
+        request.set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
 
         MaybeSetTabletAvenueEndpointId(tablet, cell->GetId(), &request);
 
@@ -4182,8 +4182,8 @@ private:
 
         auto req = PrepareMountRequestStem(tablet, serializedTableSettings);
         ToProto(req.mutable_movement_source_cell_id(), tablet->GetCell()->GetId());
-        req.set_mount_revision(auxiliaryServant.GetMountRevision());
-        req.set_movement_source_mount_revision(tablet->Servant().GetMountRevision());
+        req.set_mount_revision(ToProto(auxiliaryServant.GetMountRevision()));
+        req.set_movement_source_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
         ToProto(req.mutable_movement_source_avenue_endpoint_id(), avenueEndpointId);
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
@@ -4318,7 +4318,7 @@ private:
                 TReqUnlockTablet req;
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
                 ToProto(req.mutable_transaction_id(), transaction->GetId());
-                req.set_mount_revision(tablet->Servant().GetMountRevision());
+                req.set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
                 // Aborted bulk insert should not conflict with concurrent tablet transactions.
                 req.set_commit_timestamp(static_cast<i64>(MinTimestamp));
 
@@ -5124,7 +5124,7 @@ private:
 
         for (auto& tabletInfo : request->tablets()) {
             auto tabletId = FromProto<TTabletId>(tabletInfo.tablet_id());
-            auto mountRevision = tabletInfo.mount_revision();
+            auto mountRevision = FromProto<NHydra::TRevision>(tabletInfo.mount_revision());
 
             auto* tabletBase = FindTablet(tabletId)->As<TTablet>();
             if (!IsObjectAlive(tabletBase)) {
@@ -5474,14 +5474,14 @@ private:
         YT_VERIFY(TypeFromId(tabletId) == EObjectType::Tablet);
 
         auto frozen = response->frozen();
-        OnTabletMounted(tabletId, frozen, response->mount_revision());
+        OnTabletMounted(tabletId, frozen, FromProto<NHydra::TRevision>(response->mount_revision()));
     }
 
     void HydraOnHunkTabletMounted(NProto::TRspMountHunkTablet* response)
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
         YT_VERIFY(TypeFromId(tabletId) == EObjectType::HunkTablet);
-        OnTabletMounted(tabletId, /*frozen*/ false, response->mount_revision());
+        OnTabletMounted(tabletId, /*frozen*/ false, FromProto<NHydra::TRevision>(response->mount_revision()));
     }
 
     void OnTabletMounted(TTabletId tabletId, bool frozen, TRevision mountRevision)
@@ -5560,7 +5560,7 @@ private:
         auto senderId = GetHiveMutationSenderId();
         auto* servant = FindServantForStateTransition(
             tablet,
-            response->mount_revision(),
+            FromProto<NHydra::TRevision>(response->mount_revision()),
             senderId,
             /*senderIsCell*/ true,
             "Unmounted");
@@ -5621,7 +5621,7 @@ private:
         auto senderId = GetHiveMutationSenderId();
         auto* servant = FindServantForStateTransition(
             tablet,
-            response->mount_revision(),
+            FromProto<NHydra::TRevision>(response->mount_revision()),
             senderId,
             /*senderIsCell*/ false,
             "Frozen");
@@ -5673,7 +5673,7 @@ private:
         auto senderId = GetHiveMutationSenderId();
         auto* servant = FindServantForStateTransition(
             tablet,
-            response->mount_revision(),
+            FromProto<NHydra::TRevision>(response->mount_revision()),
             senderId,
             /*senderIsCell*/ false,
             "Unfrozen");
@@ -5708,8 +5708,8 @@ private:
     void HydraSwitchServant(NProto::TReqSwitchServant* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto sourceMountRevision = request->source_mount_revision();
-        auto targetMountRevision = request->target_mount_revision();
+        auto sourceMountRevision = FromProto<NHydra::TRevision>(request->source_mount_revision());
+        auto targetMountRevision = FromProto<NHydra::TRevision>(request->target_mount_revision());
 
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
@@ -5780,7 +5780,7 @@ private:
     void HydraDeallocateServant(NProto::TReqDeallocateServant* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto auxiliaryMountRevision = request->auxiliary_mount_revision();
+        auto auxiliaryMountRevision = FromProto<NHydra::TRevision>(request->auxiliary_mount_revision());
 
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
@@ -5808,7 +5808,7 @@ private:
     void HydraReportSmoothMovementProgress(NProto::TReqReportSmoothMovementProgress* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         auto stage = FromProto<NTabletNode::ESmoothMovementStage>(request->stage());
 
         auto* tablet = FindTablet(tabletId);
@@ -5896,7 +5896,7 @@ private:
             return;
         }
 
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         if (tablet->Servant().GetMountRevision() != mountRevision) {
             return;
         }
@@ -5929,7 +5929,7 @@ private:
             return;
         }
 
-        auto mountRevision = response->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(response->mount_revision());
         if (tablet->Servant().GetMountRevision() != mountRevision) {
             return;
         }
@@ -5965,7 +5965,7 @@ private:
             return;
         }
 
-        auto mountRevision = response->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(response->mount_revision());
         if (tablet->Servant().GetMountRevision() != mountRevision) {
             return;
         }
@@ -6314,7 +6314,7 @@ private:
 
         PrepareUpdateTabletStoresBase(tablet);
 
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         tablet->ValidateMountRevision(mountRevision);
 
         TabletChunkManager_->PrepareUpdateTabletStores(tablet, request);
@@ -6339,7 +6339,7 @@ private:
         YT_VERIFY(TypeFromId(tabletId) == EObjectType::HunkTablet);
         auto* tablet = GetTabletOrThrow(tabletId)->As<THunkTablet>();
 
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         tablet->ValidateMountRevision(mountRevision);
 
         PrepareUpdateTabletStoresBase(tablet);
@@ -6384,7 +6384,7 @@ private:
             return;
         }
 
-        if (!CommitUpdateTabletStoresBase(transaction, tablet, request->mount_revision())) {
+        if (!CommitUpdateTabletStoresBase(transaction, tablet, FromProto<NHydra::TRevision>(request->mount_revision()))) {
             return;
         }
 
@@ -6411,7 +6411,7 @@ private:
             return;
         }
 
-        if (!CommitUpdateTabletStoresBase(transaction, tablet, request->mount_revision())) {
+        if (!CommitUpdateTabletStoresBase(transaction, tablet, FromProto<NHydra::TRevision>(request->mount_revision()))) {
             return;
         }
 
@@ -6604,7 +6604,7 @@ private:
 
         YT_VERIFY(tablet->GetType() == EObjectType::Tablet);
 
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         if (tablet->Servant().GetMountRevision() != mountRevision) {
             return;
         }
@@ -6632,7 +6632,7 @@ private:
 
         YT_VERIFY(tablet->GetType() == EObjectType::Tablet);
 
-        auto mountRevision = request->mount_revision();
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         if (tablet->Servant().GetMountRevision() != mountRevision) {
             return;
         }
@@ -6643,7 +6643,7 @@ private:
         TRspAllocateDynamicStore rsp;
         ToProto(rsp.mutable_dynamic_store_id(), dynamicStore->GetId());
         ToProto(rsp.mutable_tablet_id(), tabletId);
-        rsp.set_mount_revision(tablet->Servant().GetMountRevision());
+        rsp.set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
 
         YT_LOG_DEBUG("Dynamic store allocated (StoreId: %v, TabletId: %v, TableId: %v)",
             dynamicStore->GetId(),

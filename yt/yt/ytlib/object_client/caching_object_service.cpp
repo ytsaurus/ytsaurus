@@ -139,7 +139,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
         }
         auto* cachingRequestHeaderExt = subrequestHeader.MutableExtension(TCachingHeaderExt::caching_header_ext);
 
-        auto refreshRevision = cachingRequestHeaderExt->refresh_revision();
+        auto refreshRevision = FromProto<NHydra::TRevision>(cachingRequestHeaderExt->refresh_revision());
 
         auto suppressUpstreamSync = request->suppress_upstream_sync();
         auto suppressTransactionCoordinatorSync = request->suppress_transaction_coordinator_sync();
@@ -255,7 +255,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                     }
 
                     auto responseError = FromProto<TError>(responseHeader.error());
-                    auto revision = rsp->revisions_size() > 0 ? rsp->revisions(0) : NHydra::NullRevision;
+                    auto revision = rsp->revisions_size() > 0 ? FromProto<NHydra::TRevision>(rsp->revisions(0)) : NHydra::NullRevision;
 
                     bool cachingEnabled = rsp->caching_enabled();
                     if (CachingEnabled_.exchange(cachingEnabled) != cachingEnabled) {
@@ -303,7 +303,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                     response->clear_revisions();
                     break;
                 }
-                response->add_revisions(cacheEntry->GetRevision());
+                response->add_revisions(ToProto(cacheEntry->GetRevision()));
             }
 
             response->set_caching_enabled(true);

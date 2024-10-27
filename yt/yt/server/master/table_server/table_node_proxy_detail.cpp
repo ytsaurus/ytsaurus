@@ -1949,7 +1949,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         auto* cell = tablet->GetCell();
         auto* protoTablet = response->add_tablets();
         ToProto(protoTablet->mutable_tablet_id(), tablet->GetId());
-        protoTablet->set_mount_revision(tablet->Servant().GetMountRevision());
+        protoTablet->set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
         protoTablet->set_state(ToProto(tablet->GetState()));
         protoTablet->set_in_memory_mode(ToProto(tablet->GetInMemoryMode()));
         ToProto(protoTablet->mutable_pivot_key(), tablet->GetPivotKey());

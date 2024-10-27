@@ -1020,7 +1020,7 @@ TLockNodeResult TClient::DoLockNode(
     return TLockNodeResult{
         FromProto<TLockId>(rsp->lock_id()),
         FromProto<TNodeId>(rsp->node_id()),
-        rsp->revision()
+        FromProto<NHydra::TRevision>(rsp->revision()),
     };
 }
 

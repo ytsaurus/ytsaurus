@@ -940,7 +940,7 @@ private:
             TTabletServiceProxy proxy(cellChannel);
             auto req = proxy.WriteHunks();
             ToProto(req->mutable_tablet_id(), RandomHunkTabletInfo_->TabletId);
-            req->set_mount_revision(RandomHunkTabletInfo_->MountRevision);
+            req->set_mount_revision(ToProto(RandomHunkTabletInfo_->MountRevision));
 
             auto payloadCount = std::ssize(HunkPayloads_);
             auto payloadHolder = MakeSharedRangeHolder(std::move(transaction));
