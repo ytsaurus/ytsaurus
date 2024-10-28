@@ -57,12 +57,6 @@ class TEvaluator
     : public TAsyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGQueryImage>
     , public IEvaluator
 {
-    static void CheckQueryOptions(const TQueryBaseOptions& options)
-    {
-        THROW_ERROR_EXCEPTION_IF(options.InputRowLimit < 0, "Negative input row limit is forbidden");
-        THROW_ERROR_EXCEPTION_IF(options.OutputRowLimit < 0, "Negative output row limit is forbidden");
-    }
-
 public:
     TEvaluator(
         const TExecutorConfigPtr& config,
@@ -253,6 +247,12 @@ private:
         NTracing::TChildTraceContextGuard traceContextGuard("QueryClient.Compile");
         TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics.CodegenTime);
         return cachedQueryImage->Image.Instantiate();
+    }
+
+    static void CheckQueryOptions(const TQueryBaseOptions& options)
+    {
+        THROW_ERROR_EXCEPTION_IF(options.InputRowLimit < 0, "Negative input row limit is forbidden");
+        THROW_ERROR_EXCEPTION_IF(options.OutputRowLimit < 0, "Negative output row limit is forbidden");
     }
 };
 
