@@ -568,9 +568,7 @@ void TJob::OnJobPrepared()
         });
 }
 
-void TJob::Terminate(
-    EJobState finalState,
-    TError error)
+void TJob::Terminate(EJobState finalState, TError error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -578,14 +576,14 @@ void TJob::Terminate(
         auto timeout = CommonConfig_->WaitingForJobCleanupTimeout;
 
         SetJobPhase(EJobPhase::WaitingForCleanup);
-        Finalize(
-            finalState,
-            std::move(error));
+        Finalize(finalState,std::move(error));
+
         YT_LOG_INFO("Waiting for job cleanup (Timeout: %v)", timeout);
         TDelayedExecutor::Submit(
             BIND(&TJob::OnWaitingForCleanupTimeout, MakeStrong(this))
                 .Via(Invoker_),
             timeout);
+
         ArtifactsFuture_.Cancel(TError("Job terminated"));
         WorkspaceBuildingFuture_.Cancel(TError("Job preparation canceled"));
 

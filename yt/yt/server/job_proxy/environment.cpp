@@ -524,13 +524,13 @@ private:
 
         // TODO(artemagafonov): Decide which directories need to be created here.
         // NB: Paths are relative and ordered in the creation sequence. Must create directory before its subdirectory.
-        const std::vector<TString> directoryPaths{
+        static const std::vector<TString> directoryPaths{
             "slot",
             "slot/sandbox",
             "slot/tmp",
             "tmp",
             "var",
-            "var/tmp"
+            "var/tmp",
         };
 
         for (const auto& directoryPath : directoryPaths) {

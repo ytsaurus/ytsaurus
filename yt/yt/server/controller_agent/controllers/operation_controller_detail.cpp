@@ -4655,9 +4655,7 @@ void TOperationControllerBase::UpdateConfig(const TControllerAgentConfigPtr& con
 void TOperationControllerBase::CustomizeJoblet(const TJobletPtr& /*joblet*/)
 { }
 
-void TOperationControllerBase::CustomizeJobSpec(
-    const TJobletPtr& joblet,
-    TJobSpec* jobSpec) const
+void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) const
 {
     VERIFY_INVOKER_AFFINITY(JobSpecBuildInvoker_);
 

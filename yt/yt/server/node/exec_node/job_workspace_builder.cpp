@@ -313,7 +313,7 @@ private:
         YT_LOG_INFO("Started preparing sandbox directories");
 
         return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions)
-            .Apply(BIND([this, this_ = MakeStrong(this)] (std::vector<TString> tmpfsPaths) {
+            .Apply(BIND([this, this_ = MakeStrong(this)] (std::vector<TString> tmpfsPaths) mutable {
                 ResultHolder_.TmpfsPaths = std::move(tmpfsPaths);
 
                 MakeArtifactSymlinks();
@@ -405,9 +405,7 @@ private:
 
             for (const auto& layer : layerArtifactKeys) {
                 i64 layerSize = layer.GetCompressedDataSize();
-                UpdateArtifactStatistics(
-                    layerSize,
-                    slot->IsLayerCached(layer));
+                UpdateArtifactStatistics(layerSize, slot->IsLayerCached(layer));
             }
 
             return slot->PrepareRootVolume(
@@ -448,7 +446,7 @@ private:
         bool ignoreQuota = Context_.UserSandboxOptions.EnableRootVolumeDiskQuota && ResultHolder_.RootVolume;
 
         return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions, ignoreQuota)
-            .Apply(BIND([this, this_ = MakeStrong(this)] (std::vector<TString> tmpfsPaths) {
+            .Apply(BIND([this, this_ = MakeStrong(this)] (std::vector<TString> tmpfsPaths) mutable {
                 ResultHolder_.TmpfsPaths = std::move(tmpfsPaths);
 
                 if (ResultHolder_.RootVolume) {
@@ -476,7 +474,7 @@ private:
         return TRootFS{
             .RootPath = ResultHolder_.RootVolume->GetPath(),
             .IsRootReadOnly = false,
-            .Binds = std::move(binds)
+            .Binds = std::move(binds),
         };
     }
 
@@ -668,7 +666,7 @@ private:
         YT_LOG_INFO("Started preparing sandbox directories");
 
         return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions)
-            .Apply(BIND([this, this_ = MakeStrong(this)] (std::vector<TString> tmpfsPaths) {
+            .Apply(BIND([this, this_ = MakeStrong(this)] (std::vector<TString> tmpfsPaths) mutable {
                 ResultHolder_.TmpfsPaths = std::move(tmpfsPaths);
 
                 PrepareArtifactBinds();
