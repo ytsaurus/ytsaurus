@@ -58,7 +58,7 @@ RUN apt-get update \
       git \
     && rm -rf /var/lib/apt/lists/*
 
-RUN python3 -m pip install PyYAML==6.0 conan==1.57.0 dacite
+RUN python3 -m pip install PyYAML==6.0.1 conan==1.57.0 dacite
 
 ARG PROTOC_VERSION
 ENV PROTOC_VERSION $PROTOC_VERSION

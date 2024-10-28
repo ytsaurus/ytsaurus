@@ -55,7 +55,7 @@
 
     ```
     sudo apt-get install -y python3-pip ninja-build libidn11-dev m4 clang-16 lld-16 cmake unzip
-    sudo python3 -m pip install PyYAML==6.0 conan==2.4.1 dacite
+    sudo python3 -m pip install PyYAML==6.0.1 conan==2.4.1 dacite
     ```
  1. Install protoc.
 
