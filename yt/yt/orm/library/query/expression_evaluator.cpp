@@ -1,4 +1,6 @@
 #include "expression_evaluator.h"
+
+#include "helpers.h"
 #include "query_evaluator.h"
 #include "query_rewriter.h"
 
@@ -63,7 +65,6 @@ void ValidateAttributePaths(const std::vector<TTypedAttributePath>& typedAttribu
     }
 
     for (const auto& typedPath : typedAttributePaths) {
-        ValidateAttributeType(typedPath.Type);
         NAttributes::ValidateAttributePath(typedPath.Path);
     }
 
@@ -256,15 +257,12 @@ TExpressionPtr CreateFakeTableAttributeSelector(
         if (queryAttributePathSuffix.empty()) {
             return CreateFakeTableColumnReference(dataAttributePath, holder);
         }
-        if (typedDataAttributePath.Type != EValueType::Any) {
-            THROW_ERROR_EXCEPTION(
-                "Attribute path of type %Qlv does not support nested attributes",
-                typedDataAttributePath.Type);
-        }
 
+        auto subtype = typedDataAttributePath.TypeResolver->ResolveType(queryAttributePathSuffix);
+        ValidateAttributeType(subtype);
         return holder->New<TFunctionExpression>(
             NQueryClient::NullSourceLocation,
-            "try_get_any",
+            GetYsonExtractFunction(subtype),
             TExpressionList{
                 CreateFakeTableColumnReference(dataAttributePath, holder),
                 holder->New<TLiteralExpression>(
@@ -281,7 +279,9 @@ std::vector<TColumnSchema> CreateColumnsFromPaths(const std::vector<TTypedAttrib
 {
     std::vector<TColumnSchema> columns;
     for (const auto& typedPath : typedAttributePaths) {
-        columns.emplace_back(GetFakeTableColumnName(typedPath.Path), typedPath.Type);
+        auto type = typedPath.TypeResolver->ResolveType();
+        ValidateAttributeType(type);
+        columns.emplace_back(GetFakeTableColumnName(typedPath.Path), type);
     }
     return std::move(columns);
 }
@@ -359,7 +359,7 @@ IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
     for (auto& path : attributePaths) {
         typedAttributePaths.push_back(TTypedAttributePath{
             .Path = std::move(path),
-            .Type = EValueType::Any,
+            .TypeResolver = GetTypeResolver(NTableClient::EValueType::Any),
         });
     }
 

@@ -10,10 +10,19 @@ namespace NYT::NOrm::NQuery {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct ITypeResolver
+{
+    virtual ~ITypeResolver() = default;
+
+    virtual NTableClient::EValueType ResolveType(NYPath::TYPathBuf suffixPath = {}) const = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTypedAttributePath
 {
     TString Path;
-    NTableClient::EValueType Type;
+    const ITypeResolver* TypeResolver;
 };
 
 using TNonOwningAttributePayload = std::variant<TStringBuf, NYson::TYsonStringBuf>;
