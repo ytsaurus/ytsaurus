@@ -282,7 +282,7 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
             auto properties = TJobDirectoryProperties{
                 .DiskSpaceLimit = tmpfsVolume.Size,
                 .InodeLimit = std::nullopt,
-                .UserId = userId
+                .UserId = userId,
             };
             WaitFor(JobDirectoryManager_->CreateTmpfsDirectory(tmpfsPath, properties))
                 .ThrowOnError();

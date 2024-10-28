@@ -860,9 +860,10 @@ private:
         auto readMetaTimeoutFraction = GetDynamicConfig()->ReadMetaTimeoutFraction;
 
         if (context->GetTimeout() && context->GetStartTime() && readMetaTimeoutFraction) {
+            auto fraction = *readMetaTimeoutFraction;
             options.ReadMetaDeadLine =
                 *context->GetStartTime() +
-                *context->GetTimeout() * readMetaTimeoutFraction.value();
+                *context->GetTimeout() * fraction;
         }
 
         return options;
