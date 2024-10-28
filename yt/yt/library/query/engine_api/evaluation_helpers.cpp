@@ -14,6 +14,42 @@ static constexpr auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+TGroupHasher::TGroupHasher(NWebAssembly::TCompartmentFunction<THasherFunction> hasher)
+    : Hasher_(hasher)
+{ }
+
+ui64 TGroupHasher::operator () (const TPIValue* row) const
+{
+    return Hasher_(row);
+}
+
+const TPIValue* TRowComparer::MakeSentinel(ESentinelType type)
+{
+    return std::bit_cast<TPIValue*>(type);
+}
+
+bool TRowComparer::IsSentinel(const TPIValue* value)
+{
+    return value == MakeSentinel(ESentinelType::Empty) ||
+        value == MakeSentinel(ESentinelType::Deleted);
+}
+
+TRowComparer::TRowComparer(NWebAssembly::TCompartmentFunction<TComparerFunction> comparer)
+    : Comparer_(comparer)
+{ }
+
+bool TRowComparer::operator () (const TPIValue* lhs, const TPIValue* rhs) const
+{
+    return (lhs == rhs) ||
+        (!IsSentinel(lhs) && !IsSentinel(rhs) && Comparer_(lhs, rhs));
+}
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool IsRe2SpecialCharacter(char character)
 {
     return character == '\\' ||
