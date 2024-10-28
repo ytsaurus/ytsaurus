@@ -2856,6 +2856,9 @@ private:
     // COMPAT(ifsmirnov)
     int NonAvenueTabletCount_ = 0;
 
+    // COMPAT(ifsmirnov)
+    bool ForbidAvenuesDuringMigration_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -3901,11 +3904,32 @@ private:
         return result;
     }
 
+    bool AreAvenuesEnabledForTablet(TTabletBase* tablet)
+    {
+        if (GetDynamicConfig()->UseAvenues) {
+            return true;
+        }
+
+        auto* owner = tablet->GetOwner();
+        const auto& bundle = owner->TabletCellBundle();
+        if (auto* yson = bundle->FindAttribute("use_avenues")) {
+            try {
+                return ConvertTo<bool>(*yson);
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING("Failed to parse \"use_avenues\" attribute of a tablet cell bundle "
+                    "(BundleName: %v)",
+                    bundle->GetName());
+            }
+        }
+
+        return false;
+    }
+
     template <class TReq>
     void MaybeSetTabletAvenueEndpointId(TTabletBase* tablet, TCellId cellId, TReq* mountReq)
     {
         // COMPAT(ifsmirnov): remove "Maybe" from method name when avenues are adopted.
-        if (!GetDynamicConfig()->UseAvenues) {
+        if (!AreAvenuesEnabledForTablet(tablet)) {
             return;
         }
 
@@ -4802,6 +4826,8 @@ private:
 
         // Update mount config keys whenever the reign changes.
         FillMountConfigKeys_ = context.GetVersion() != static_cast<EMasterReign>(GetCurrentReign());
+
+        ForbidAvenuesDuringMigration_ = context.GetVersion() < EMasterReign::NoAvenuesDuringMigrationTo24_2;
     }
 
     void RecomputeHunkResourceUsage()
@@ -4858,6 +4884,7 @@ private:
         RecomputeAggregateTabletStatistics_ = false;
         RecomputeHunkResourceUsage_ = false;
         FillMountConfigKeys_ = false;
+        ForbidAvenuesDuringMigration_ = false;
     }
 
     void OnAfterSnapshotLoaded() override
@@ -4897,6 +4924,16 @@ private:
         for (auto [id, tablet] : Tablets()) {
             if (tablet->GetState() != ETabletState::Unmounted && !tablet->IsMountedWithAvenue()) {
                 ++NonAvenueTabletCount_;
+            }
+        }
+
+        if (ForbidAvenuesDuringMigration_) {
+            for (auto [id, tablet] : Tablets()) {
+                if (tablet->IsMountedWithAvenue()) {
+                    YT_LOG_FATAL("Tablets mounted with avenues are not allowed during this migration "
+                        "(TabletId: %v)",
+                        id);
+                }
             }
         }
     }

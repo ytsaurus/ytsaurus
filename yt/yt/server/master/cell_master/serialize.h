@@ -186,6 +186,7 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexUnfoldedColumnApi)                              (2746))  // sabdenovch
     ((Decimal256)                                                   (2747))  // achulkov2+ermolovd
     ((HunkStorageMulticell)                                         (2748))  // akozhikhov
+    ((NoAvenuesDuringMigrationTo24_2)                               (2749))  // ifsmirnov
     // 25.1 starts here.
     ((SequoiaSetActionLatePrapare)                                  (2800))  // danilalexeev
 );
