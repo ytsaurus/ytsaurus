@@ -707,7 +707,7 @@ public:
             return ContentType_;
         }
 
-        void SetTablePath(TString tablePath)
+        void SetTablePath(TYPath tablePath)
         {
             TablePath_ = std::move(tablePath);
         }
