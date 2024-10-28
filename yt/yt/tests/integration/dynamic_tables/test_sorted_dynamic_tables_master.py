@@ -295,6 +295,38 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
         assert not exists("//tmp/t")
 
     @authors("ifsmirnov")
+    def test_enable_avenues_switch(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        def _is_mounted_with_avenue(tablet_id):
+            endpoint_id = get(f"#{tablet_id}/@node_endpoint_id")
+            # Check against tablet cell type.
+            return not endpoint_id.split("-")[2].endswith("2bc")
+
+        sync_mount_table("//tmp/t")
+        assert _is_mounted_with_avenue(tablet_id)
+        sync_unmount_table("//tmp/t")
+
+        set("//sys/@config/tablet_manager/use_avenues", False)
+        sync_mount_table("//tmp/t")
+        assert not _is_mounted_with_avenue(tablet_id)
+        sync_unmount_table("//tmp/t")
+
+        set("//sys/tablet_cell_bundles/default/@use_avenues", True)
+        sync_mount_table("//tmp/t")
+        assert _is_mounted_with_avenue(tablet_id)
+        sync_unmount_table("//tmp/t")
+
+        set("//sys/tablet_cell_bundles/default/@use_avenues", "some_trash")
+        sync_mount_table("//tmp/t")
+        assert not _is_mounted_with_avenue(tablet_id)
+        sync_unmount_table("//tmp/t")
+
+        remove("//sys/tablet_cell_bundles/default/@use_avenues")
+
+    @authors("ifsmirnov")
     def test_avenue_mailboxes(self):
         cell_id = sync_create_cells(1)[0]
         self._create_simple_table("//tmp/t")
