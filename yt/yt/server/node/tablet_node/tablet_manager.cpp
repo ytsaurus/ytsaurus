@@ -259,6 +259,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraReplicateTabletContent, Unretained(this)));
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnDynamicStoreAllocated, Unretained(this)));
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraSetCustomRuntimeData, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUnregisterMasterAvenueEndpoint, Unretained(this)));
     }
 
     void Initialize() override
@@ -1408,6 +1409,10 @@ private:
                 UnregisterSiblingTabletAvenue(endpointId);
             }
 
+            if (auto endpointId = tablet->GetMasterAvenueEndpointId()) {
+                UnregisterMasterAvenue(endpointId);
+            }
+
             if (!IsRecovery()) {
                 StopTabletEpoch(tablet);
             }
@@ -1821,11 +1826,10 @@ private:
                 }
                 SetMountRevisionCompat(&response, tablet);
 
-                if (auto masterEndpointId = tablet->GetMasterAvenueEndpointId()) {
-                    Slot_->UnregisterMasterAvenue(masterEndpointId);
-                }
+                // NB: Do not unregister master avenue since it still has pending messages.
+                // It will be unregistered later by TReqUnregisterMasterAvenueEndpoint message.
 
-                PostMasterMessage(tablet, response, /*forceCellMailbox*/ true);
+                PostMasterMessage(tablet, response);
 
                 TabletMap_.Remove(tabletId);
 
@@ -3589,6 +3593,24 @@ private:
 
             tablet->CustomRuntimeData() = TYsonString();
         }
+    }
+
+    void HydraUnregisterMasterAvenueEndpoint(TReqUnregisterMasterAvenueEndpoint* request)
+    {
+        auto masterEndpointId = FromProto<TAvenueEndpointId>(request->master_avenue_endpoint_id());
+
+        const auto& hiveManager = Slot_->GetHiveManager();
+        if (!hiveManager->FindMailbox(masterEndpointId)) {
+            YT_LOG_ALERT("Requested to unregister unexisting master avenue, ignored "
+                "(MasterEndpointId: %v)",
+                masterEndpointId);
+            return;
+        }
+
+        YT_LOG_DEBUG("Master avenue endpoint unregistered (MasterEndpointId: %v)",
+            masterEndpointId);
+
+        UnregisterMasterAvenue(masterEndpointId);
     }
 
     void SetTabletCellSuspend(bool suspend)

@@ -5562,7 +5562,7 @@ private:
             tablet,
             FromProto<NHydra::TRevision>(response->mount_revision()),
             senderId,
-            /*senderIsCell*/ true,
+            /*senderIsCell*/ false,
             "Unmounted");
         if (!servant) {
             return;
@@ -6136,6 +6136,18 @@ private:
 
         CheckIfFullyUnmounted(cell);
 
+        // Request master avenue endpoint deallocation.
+        if (!servant->IsAuxiliary() && !force && tablet->IsMountedWithAvenue()) {
+            auto masterEndpointId = GetSiblingAvenueEndpointId(tablet->GetNodeEndpointId());
+
+            NTabletNode::NProto::TReqUnregisterMasterAvenueEndpoint req;
+            ToProto(req.mutable_master_avenue_endpoint_id(), masterEndpointId);
+
+            const auto& hiveManager = Bootstrap_->GetHiveManager();
+            auto mailbox = hiveManager->GetMailboxOrThrow(cell->GetId());
+            hiveManager->PostMessage(mailbox, req);
+        }
+
         EraseOrCrash(cell->Tablets(), tablet);
 
         servant->Clear();
@@ -6182,7 +6194,9 @@ private:
             tablet->SetNodeAvenueEndpointId({});
 
             Bootstrap_->GetAvenueDirectory()->UpdateEndpoint(nodeEndpointId, /*cellId*/ {});
-            Bootstrap_->GetHiveManager()->UnregisterAvenueEndpoint(masterEndpointId);
+            Bootstrap_->GetHiveManager()->UnregisterAvenueEndpoint(
+                masterEndpointId,
+                /*allowDestructionInMessageToSelf*/ true);
         } else {
             --NonAvenueTabletCount_;
         }

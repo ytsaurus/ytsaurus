@@ -755,9 +755,8 @@ private:
             OrphanedTabletMap_.Insert(tabletId, std::move(tabletHolder));
         }
 
-        if (auto masterEndpointId = tablet->GetMasterAvenueEndpointId()) {
-            Slot_->UnregisterMasterAvenue(masterEndpointId);
-        }
+        // NB: Do not unregister master avenue since it still has pending messages.
+        // It will be unregistered later by TReqUnregisterMasterAvenueEndpoint message.
 
         {
             TRspUnmountHunkTablet response;

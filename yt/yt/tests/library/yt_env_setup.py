@@ -1903,6 +1903,19 @@ class YTEnvSetup(object):
         wait(check)
 
     def _setup_tablet_manager(self, driver=None):
+        # COMPAT(ifsmirnov): Avenue protocol has incompatible changes from 24.1 to 24.2.
+        use_avenues = True
+        if hasattr(self, "ARTIFACT_COMPONENTS"):
+            node_version = None
+            master_version = None
+            for version, components in self.ARTIFACT_COMPONENTS.items():
+                if "node" in components:
+                    node_version = version
+                if "master" in components:
+                    master_version = version
+            if master_version == "24_1" and node_version != master_version:
+                use_avenues = False
+
         for response in yt_commands.execute_batch(
             [
                 yt_commands.make_batch_request(
@@ -1938,7 +1951,7 @@ class YTEnvSetup(object):
                 yt_commands.make_batch_request(
                     "set",
                     path="//sys/@config/tablet_manager/use_avenues",
-                    input=True,
+                    input=use_avenues,
                 ),
                 yt_commands.make_batch_request(
                     "set",

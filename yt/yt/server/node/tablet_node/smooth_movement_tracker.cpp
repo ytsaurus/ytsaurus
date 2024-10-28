@@ -96,10 +96,10 @@ using namespace NTableClient;
   ---   *                                            *
   ---   *        TReqSwitchServant                   *
   TTT   * ----------------------------------------> (*) ServantSwitched
-  TTT   *                                            * * start accepting reads, writes and compactions
-  TTT   *                                            * * target is the main servant from this moment
+  TTT   *                                            *  * start accepting reads, writes and compactions
+  TTT   *                                            *  * target is the main servant from this moment
   TTT   *                                            *
-  TTT   *                                            * - send deallocation request to master.
+  TTT   *                                            *  - send deallocation request to master.
   TTT   *                                            *   TODO: wait for client cache invalidation
   TTT   *                                            *   because client retries rely on source being
   TTT   *                                            *   alive.

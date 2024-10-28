@@ -523,4 +523,9 @@ message TReqSetCustomRuntimeData
     optional bytes custom_runtime_data = 2; // YSON-serialized
 }
 
+message TReqUnregisterMasterAvenueEndpoint
+{
+    required NYT.NProto.TGuid master_avenue_endpoint_id = 1; 
+}
+
 ////////////////////////////////////////////////////////////////////////////////
