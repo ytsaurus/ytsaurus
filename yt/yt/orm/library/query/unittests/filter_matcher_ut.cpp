@@ -1,4 +1,5 @@
 #include <yt/yt/orm/library/query/filter_matcher.h>
+#include <yt/yt/orm/library/query/helpers.h>
 
 #include <yt/yt/client/table_client/row_base.h>
 
@@ -272,15 +273,15 @@ TEST(TFilterMatcherTest, TypedAttributePaths)
         /*typedAttributePaths*/ {
             TTypedAttributePath{
                 .Path = "/meta/pod_set_id",
-                .Type = NTableClient::EValueType::String,
+                .TypeResolver = GetTypeResolver(NTableClient::EValueType::String),
             },
             TTypedAttributePath{
                 .Path = "/meta/id",
-                .Type = NTableClient::EValueType::String,
+                .TypeResolver = GetTypeResolver(NTableClient::EValueType::String),
             },
             TTypedAttributePath{
                 .Path = "/labels",
-                .Type = NTableClient::EValueType::Any,
+                .TypeResolver = GetTypeResolver(NTableClient::EValueType::Any),
             },
         });
 

@@ -1,0 +1,15 @@
+#pragma once
+
+#include "public.h"
+
+namespace NYT::NOrm::NQuery {
+
+////////////////////////////////////////////////////////////////////////////////
+
+const ITypeResolver* GetTypeResolver(NTableClient::EValueType type);
+
+const TString& GetYsonExtractFunction(NTableClient::EValueType type);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NOrm::NQuery

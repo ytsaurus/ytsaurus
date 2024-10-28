@@ -1,6 +1,7 @@
 #include "filter_matcher.h"
 
 #include "expression_evaluator.h"
+#include "helpers.h"
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -112,7 +113,7 @@ IFilterMatcherPtr CreateFilterMatcher(
     for (auto& path : attributePaths) {
         typedAttributePaths.push_back(TTypedAttributePath{
             .Path = std::move(path),
-            .Type = EValueType::Any,
+            .TypeResolver = GetTypeResolver(EValueType::Any),
         });
     }
     return New<TFilterMatcher>(

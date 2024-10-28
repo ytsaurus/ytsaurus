@@ -1,4 +1,5 @@
 #include <yt/yt/orm/library/query/expression_evaluator.h>
+#include <yt/yt/orm/library/query/helpers.h>
 
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_value.h>
@@ -57,7 +58,7 @@ TEST(TExpressionEvaluatorTest, OrmTypedAttributePaths)
                 /*attributePaths*/ {
                     TTypedAttributePath{
                         .Path = "/meta/type",
-                        .Type = type,
+                        .TypeResolver = GetTypeResolver(type),
                     },
                 }),
             Format("Attribute type %Qlv is not supported", type));
@@ -66,23 +67,23 @@ TEST(TExpressionEvaluatorTest, OrmTypedAttributePaths)
     static const auto typedAttributePaths = {
         TTypedAttributePath{
             .Path = "/meta/id",
-            .Type = EValueType::String,
+            .TypeResolver = GetTypeResolver(EValueType::String),
         },
         TTypedAttributePath{
             .Path = "/spec/weight",
-            .Type = EValueType::Double,
+            .TypeResolver = GetTypeResolver(EValueType::Double),
         },
         TTypedAttributePath{
             .Path = "/status/read_count",
-            .Type = EValueType::Int64,
+            .TypeResolver = GetTypeResolver(EValueType::Int64),
         },
         TTypedAttributePath{
             .Path = "/labels",
-            .Type = EValueType::Any,
+            .TypeResolver = GetTypeResolver(EValueType::Any),
         },
         TTypedAttributePath{
             .Path = "/extras/special",
-            .Type = EValueType::Boolean,
+            .TypeResolver = GetTypeResolver(EValueType::Boolean),
         },
     };
     auto createEvaluator = [&] (const TString& filter) {
