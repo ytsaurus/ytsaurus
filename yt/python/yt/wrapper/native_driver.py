@@ -334,7 +334,7 @@ def make_request(command_name, params,
             token=token,
             service_ticket=service_ticket,
             **additional_kwargs)
-    except TypeError as e:
+    except TypeError:
         request = driver_bindings.Request(
             command_name=command_name,
             parameters=params,
