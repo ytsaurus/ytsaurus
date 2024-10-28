@@ -603,11 +603,19 @@ private:
 
         auto runtimeData = FindMailboxRuntimeData(srcEndpointId, /*throwIfUnavailable*/ true);
         if (!runtimeData) {
-            YT_LOG_DEBUG(
-                "Received a message to a non-registered avenue mailbox "
-                "(SrcEndpointId: %v, DstEndpointId: %v)",
-                srcEndpointId,
-                GetSiblingAvenueEndpointId(srcEndpointId));
+            if (IsAvenueEndpointType(TypeFromId(srcEndpointId))) {
+                YT_LOG_DEBUG(
+                    "Received a message to a non-registered avenue mailbox "
+                    "(SrcEndpointId: %v, DstEndpointId: %v)",
+                    srcEndpointId,
+                    GetSiblingAvenueEndpointId(srcEndpointId));
+            } else {
+                YT_LOG_DEBUG(
+                    "Received a message to a non-registered cell mailbox "
+                    "(SrcCellId: %v, DstCellId: %v)",
+                    srcEndpointId,
+                    SelfCellId_);
+            }
             response->set_next_transient_incoming_message_id(-1);
             return false;
         }
@@ -666,17 +674,19 @@ private:
                 srcCellId);
         }
 
-        bool shouldCommit = DoPostMessages(request, response);
-        if (!shouldCommit) {
-            request->clear_messages();
-        }
+        bool shouldCommit = false;
 
-        for (auto& subrequest : *request->mutable_avenue_subrequests()) {
-            if (DoPostMessages(&subrequest, response->add_avenue_subresponses())) {
+        auto handleRequest = [&] (auto* request, auto* response) {
+            if (DoPostMessages(request, response)) {
                 shouldCommit = true;
             } else {
-                subrequest.clear_messages();
+                request->clear_messages();
             }
+        };
+
+        handleRequest(request, response);
+        for (auto& subrequest : *request->mutable_avenue_subrequests()) {
+            handleRequest(&subrequest, response->add_avenue_subresponses());
         }
 
         if (shouldCommit) {
