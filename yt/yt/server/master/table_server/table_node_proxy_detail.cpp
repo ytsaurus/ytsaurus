@@ -1981,6 +1981,9 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         if (const auto& predicate = index->Predicate()) {
             ToProto(protoIndexInfo->mutable_predicate(), *predicate);
         }
+        if (const auto& unfoldedColumn = index->UnfoldedColumn()) {
+            ToProto(protoIndexInfo->mutable_unfolded_column(), *unfoldedColumn);
+        }
     }
 
     if (trunkTable->IsReplicated()) {
@@ -2191,7 +2194,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                         break;
 
                     case ESecondaryIndexKind::Unfolding:
-                        FindUnfoldingColumnAndValidate(*schema, *indexTableSchema);
+                        ValidateUnfoldingIndexSchema(*schema, *indexTableSchema, *index->UnfoldedColumn());
                         break;
 
                     case ESecondaryIndexKind::Unique:
@@ -2212,7 +2215,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                         break;
 
                     case ESecondaryIndexKind::Unfolding:
-                        FindUnfoldingColumnAndValidate(*tableSchema, *schema);
+                        ValidateUnfoldingIndexSchema(*tableSchema, *schema, *index->UnfoldedColumn());
                         break;
 
                     case ESecondaryIndexKind::Unique:

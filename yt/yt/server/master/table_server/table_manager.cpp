@@ -760,7 +760,8 @@ public:
         ESecondaryIndexKind kind,
         TTableId tableId,
         TTableId indexTableId,
-        std::optional<TString> predicate) override
+        std::optional<TString> predicate,
+        std::optional<TString> unfoldedColumnName) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -843,9 +844,10 @@ public:
                     break;
 
                 case ESecondaryIndexKind::Unfolding:
-                    FindUnfoldingColumnAndValidate(
+                    ValidateUnfoldingIndexSchema(
                         tableSchema,
-                        indexTableSchema);
+                        indexTableSchema,
+                        *unfoldedColumnName);
                     break;
 
                 case ESecondaryIndexKind::Unique:
@@ -1393,6 +1395,8 @@ private:
 
     // COMPAT(sabdenovch)
     bool NeedToFillTableIdsForSecondaryIndices_ = false;
+    // COMPAT(sabdenovch)
+    bool NeedToFindUnfoldedColumnName_ = false;
 
     //! Contains native trunk nodes for which IsQueue() is true.
     THashSet<TTableNode*> Queues_;
@@ -1732,8 +1736,8 @@ private:
         Queues_.clear();
         QueueConsumers_.clear();
         QueueProducers_.clear();
-
-        NeedToAddReplicatedQueues_ = false;
+        NeedToFillTableIdsForSecondaryIndices_ = false;
+        NeedToFindUnfoldedColumnName_ = false;
     }
 
     void SetZeroState() override
@@ -1756,9 +1760,10 @@ private:
         }
 
         // COMPAT(sabdenovch)
-        if (context.GetVersion() < EMasterReign::SecondaryIndexExternalCellTag) {
-            NeedToFillTableIdsForSecondaryIndices_ = true;
-        }
+        NeedToFillTableIdsForSecondaryIndices_ = context.GetVersion() < EMasterReign::SecondaryIndexExternalCellTag;
+
+        // COMPAT(sabdenovch)
+        NeedToFindUnfoldedColumnName_ = context.GetVersion() < EMasterReign::SecondaryIndexUnfoldedColumnApi;
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -1982,6 +1987,22 @@ private:
         if (NeedToFillTableIdsForSecondaryIndices_) {
             for (const auto& [id, secondaryIndex] : SecondaryIndexMap_) {
                 secondaryIndex->SetIdsFromCompat();
+            }
+        }
+
+        if (NeedToFindUnfoldedColumnName_) {
+            for (const auto& [id, secondaryIndex] : SecondaryIndexMap_) {
+                if (secondaryIndex->GetKind() == ESecondaryIndexKind::Unfolding) {
+                    const auto& indexUnfoldedColumn = FindUnfoldedColumnAndValidate(
+                        *GetTableNodeOrThrow(secondaryIndex->GetTableId())
+                        ->GetSchema()
+                        ->AsTableSchema(),
+                        *GetTableNodeOrThrow(secondaryIndex->GetIndexTableId())
+                        ->GetSchema()
+                        ->AsTableSchema());
+
+                    secondaryIndex->UnfoldedColumn() = indexUnfoldedColumn.Name();
+                }
             }
         }
     }

@@ -250,6 +250,7 @@ DEFINE_ENUM(EMasterReign,
     ((TtlVerificationInRemoveExpiredNodes)                          (2743))  // koloshmet
     ((ValidateResourceUsageIncreaseOnPrimaryMediumChange)           (2744))  // danilalexeev
     ((Int64InHistogramSnapshot)                                     (2745))  // babenko
+    ((SecondaryIndexUnfoldedColumnApi)                              (2746))  // sabdenovch
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

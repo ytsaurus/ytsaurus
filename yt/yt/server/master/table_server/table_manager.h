@@ -155,7 +155,8 @@ public:
         ESecondaryIndexKind type,
         TTableId table,
         TTableId secondaryIndex,
-        std::optional<TString> predicate) = 0;
+        std::optional<TString> predicate,
+        std::optional<TString> unfoldedColumnName) = 0;
 
     // Table collocation management.
     virtual TTableCollocation* CreateTableCollocation(

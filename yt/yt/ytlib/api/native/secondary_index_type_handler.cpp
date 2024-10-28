@@ -81,11 +81,21 @@ public:
                     *indexTableSchema);
                 break;
 
-            case ESecondaryIndexKind::Unfolding:
-                FindUnfoldingColumnAndValidate(
-                    *tableSchema,
-                    *indexTableSchema);
+            case ESecondaryIndexKind::Unfolding: {
+                auto unfoldedColumnName = attributes->Find<TString>("unfolded_column");
+                // COMPAT(sabdenovch)
+                if (unfoldedColumnName) {
+                    ValidateUnfoldingIndexSchema(
+                        *tableSchema,
+                        *indexTableSchema,
+                        *unfoldedColumnName);
+                } else {
+                    FindUnfoldedColumnAndValidate(
+                        *tableSchema,
+                        *indexTableSchema);
+                }
                 break;
+            }
 
             case ESecondaryIndexKind::Unique:
                 ValidateUniqueIndexSchema(

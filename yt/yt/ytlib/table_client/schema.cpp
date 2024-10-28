@@ -232,7 +232,7 @@ bool IsValidUnfoldedColumnPair(const TLogicalTypePtr& tableColumnType, const TLo
     return *tableColumnElementType == *indexColumnType;
 }
 
-const TColumnSchema& FindUnfoldingColumnAndValidate(const TTableSchema& tableSchema, const TTableSchema& indexTableSchema)
+const TColumnSchema& FindUnfoldedColumnAndValidate(const TTableSchema& tableSchema, const TTableSchema& indexTableSchema)
 {
     const TColumnSchema* unfoldedColumn = nullptr;
 
@@ -255,6 +255,29 @@ const TColumnSchema& FindUnfoldingColumnAndValidate(const TTableSchema& tableSch
         "No candidate for unfolded column found in the index table schema");
 
     return *unfoldedColumn;
+}
+
+void ValidateUnfoldingIndexSchema(
+    const TTableSchema& tableSchema,
+    const TTableSchema& indexTableSchema,
+    const TString& unfoldedColumnName)
+{
+    auto typeMismatchCallback = [&] (const TColumnSchema& indexColumn, const TColumnSchema& tableColumn) {
+        if (indexColumn.Name() != unfoldedColumnName) {
+            ThrowExpectedTypeMatch(indexColumn, tableColumn);
+        }
+    };
+
+    ValidateIndexSchema(tableSchema, indexTableSchema, typeMismatchCallback);
+
+    const auto& tableUnfoldedColumn = tableSchema.GetColumnOrThrow(unfoldedColumnName);
+    const auto& indexUnfoldedColumn = indexTableSchema.GetColumnOrThrow(unfoldedColumnName);
+
+    THROW_ERROR_EXCEPTION_IF(!IsValidUnfoldedColumnPair(tableUnfoldedColumn.LogicalType(), indexUnfoldedColumn.LogicalType()),
+        "Type mismatch for the unfolded column %Qv: %v is not a list of %v",
+        indexUnfoldedColumn.Name(),
+        *tableUnfoldedColumn.LogicalType(),
+        *indexUnfoldedColumn.LogicalType());
 }
 
 void ValidateColumnsAreInIndexLockGroup(

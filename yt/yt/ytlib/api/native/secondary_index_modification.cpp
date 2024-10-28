@@ -176,6 +176,9 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
                 .Visit(std::get<NAst::TExpressionPtr>(parsedSource->AstHead.Ast));
             descriptor.Predicate = std::move(parsedSource);
         }
+        if (const auto& unfoldedColumn = TableMountInfo_->Indices[index].UnfoldedColumn) {
+            descriptor.UnfoldedColumnPosition = indexSchema.GetColumnIndex(*unfoldedColumn);
+        }
 
         switch (auto kind = descriptor.Kind = TableMountInfo_->Indices[index].Kind) {
             case ESecondaryIndexKind::FullSync:
@@ -185,10 +188,17 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
                 break;
 
             case ESecondaryIndexKind::Unfolding:
-                descriptor.UnfoldedColumnPosition = indexSchema.GetColumnIndex(
-                    FindUnfoldingColumnAndValidate(
+                // COMPAT(sabdenovch)
+                if (!TableMountInfo_->Indices[index].UnfoldedColumn) {
+                    descriptor.UnfoldedColumnPosition = indexSchema.GetColumnIndex(FindUnfoldedColumnAndValidate(
                         *TableMountInfo_->Schemas[ETableSchemaKind::Primary],
                         indexSchema));
+                } else {
+                    ValidateUnfoldingIndexSchema(
+                        *TableMountInfo_->Schemas[ETableSchemaKind::Primary],
+                        indexSchema,
+                        *TableMountInfo_->Indices[index].UnfoldedColumn);
+                }
                 break;
 
             case ESecondaryIndexKind::Unique:
