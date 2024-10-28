@@ -26,18 +26,6 @@ struct ISmoothMovementTrackerHost
     virtual NProto::TReqReplicateTabletContent PrepareReplicateTabletContentRequest(
         TTablet* tablet) = 0;
 
-    virtual void PostMasterMessage(
-        TTablet* tablet,
-        const ::google::protobuf::MessageLite& message,
-        bool forceCellMailbox = false) = 0;
-
-    virtual void RegisterSiblingTabletAvenue(
-        NHiveServer::TAvenueEndpointId siblingEndpointId,
-        TCellId siblingCellId) = 0;
-
-    virtual void UnregisterSiblingTabletAvenue(
-        NHiveServer::TAvenueEndpointId siblingEndpointId) = 0;
-
     virtual void PostAvenueMessage(
         NHiveServer::TAvenueEndpointId endpointId,
         const ::google::protobuf::MessageLite& message) = 0;
@@ -47,8 +35,20 @@ struct ISmoothMovementTrackerHost
         NHiveServer::TAvenueEndpointId masterEndpointId,
         NHiveServer::TPersistentMailboxStateCookie&& cookie) = 0;
 
-    virtual NHiveServer::TPersistentMailboxStateCookie UnregisterMasterAvenue(
+    [[nodiscard]] virtual NHiveServer::TPersistentMailboxStateCookie UnregisterMasterAvenue(
         NHiveServer::TAvenueEndpointId masterEndpointId) = 0;
+
+    virtual void RegisterSiblingTabletAvenue(
+        NHiveServer::TAvenueEndpointId siblingEndpointId,
+        TCellId siblingCellId) = 0;
+
+    virtual void UnregisterSiblingTabletAvenue(
+        NHiveServer::TAvenueEndpointId siblingEndpointId) = 0;
+
+    virtual void PostMasterMessage(
+        TTablet* tablet,
+        const ::google::protobuf::MessageLite& message,
+        bool forceCellMailbox = false) = 0;
 
     virtual TTablet* GetTabletOrThrow(TTabletId id) = 0;
     virtual TTablet* FindTablet(const TTabletId& id) const = 0;

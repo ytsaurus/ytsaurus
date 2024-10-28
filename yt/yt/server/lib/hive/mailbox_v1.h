@@ -107,6 +107,12 @@ class TAvenueMailbox
 public:
     DEFINE_BYVAL_RW_PROPERTY(TCellMailbox*, CellMailbox);
 
+    //! Denotes a mailbox which was unregistered within a mutation which came
+    //! as a message to itself. Such mailboxes shound not be unregistered
+    //! immediately. Instead they are flagged and removed after the message
+    //! is fully applied.
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(RemovalScheduled);
+
 public:
     using TMailbox::TMailbox;
 

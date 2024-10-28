@@ -93,7 +93,16 @@ struct IHiveManager
         TAvenueEndpointId selfEndpointId,
         TPersistentMailboxStateCookie&& cookie) = 0;
 
-    virtual TPersistentMailboxStateCookie UnregisterAvenueEndpoint(TAvenueEndpointId selfEndpointId) = 0;
+    //! Unregisters given avenue endpoint and returns its state that allows
+    //! to re-register this endpoint at some other cell later.
+    /*!
+     *  \note If the method is executed within a mutation received via current avenue
+     *    then the return value will be empty. |allowDestructionInMessageToSelf| must
+     *    be explicitly set to true to allow such behaviour.
+     */
+    virtual TPersistentMailboxStateCookie UnregisterAvenueEndpoint(
+        TAvenueEndpointId selfEndpointId,
+        bool allowDestructionInMessageToSelf = false) = 0;
 
     //! Posts a message for delivery (either reliable or not).
     virtual void PostMessage(

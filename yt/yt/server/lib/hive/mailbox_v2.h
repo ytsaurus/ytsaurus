@@ -218,6 +218,13 @@ class TAvenueMailbox
 public:
     using TMailbox::TMailbox;
 
+    //! Denotes a mailbox which was unregistered within a mutation which came
+    //! as a message to itself. Such mailboxes shound not be unregistered
+    //! immediately. Instead they are flagged and removed after the message
+    //! is fully applied.
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(RemovalScheduled);
+
+public:
     const TAvenueMailboxRuntimeDataPtr& GetRuntimeData() const;
     void SetRuntimeData(TAvenueMailboxRuntimeDataPtr runtimeData);
 

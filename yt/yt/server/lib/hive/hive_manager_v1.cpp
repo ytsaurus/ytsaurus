@@ -368,7 +368,9 @@ public:
             mailbox->GetNextPersistentIncomingMessageId());
     }
 
-    TPersistentMailboxStateCookie UnregisterAvenueEndpoint(TAvenueEndpointId selfEndpointId) override
+    TPersistentMailboxStateCookie UnregisterAvenueEndpoint(
+        TAvenueEndpointId selfEndpointId,
+        bool allowDestructionInMessageToSelf) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
@@ -377,12 +379,36 @@ public:
 
         auto* mailbox = AvenueMailboxMap_.Find(otherEndpointId);
         if (!mailbox) {
-            YT_LOG_ALERT("Attempted to remove a non-existing avenue endpoint, ignored "
+            YT_LOG_ALERT("Attempted to unregister a non-existing avenue endpoint, ignored "
                 "(SelfCellId: %v, SelfEndpointId: %v)",
                 SelfCellId_,
                 selfEndpointId);
             return {};
         }
+
+        if (GetHiveMutationSenderId() == otherEndpointId) {
+            if (allowDestructionInMessageToSelf) {
+                YT_LOG_DEBUG("Attempted to unregister avenue endpoint in the mutation "
+                    "received by itself, unregistration will be delayed (%v)",
+                    FormatIncomingMailboxEndpoints(mailbox));
+                mailbox->SetRemovalScheduled(true);
+                return {};
+            } else {
+                YT_LOG_FATAL("Attempted to unregister avenue endpoint in the mutation "
+                    "received by itself (%v)",
+                    FormatIncomingMailboxEndpoints(mailbox));
+            }
+        }
+
+        return DoUnregisterAvenueEndpoint(mailbox);
+    }
+
+    TPersistentMailboxStateCookie DoUnregisterAvenueEndpoint(TAvenueMailbox* mailbox)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto otherEndpointId = mailbox->GetEndpointId();
+        auto selfEndpointId = GetSiblingAvenueEndpointId(otherEndpointId);
 
         {
             auto guard = WriterGuard(MailboxRuntimeDataMapLock_);
@@ -1928,8 +1954,18 @@ private:
     void ApplyReliableIncomingMessages(TMailbox* mailbox, const NHiveClient::NProto::TReqPostMessages* req)
     {
         for (int index = 0; index < req->messages_size(); ++index) {
+            if (mailbox->IsAvenue()) {
+                YT_VERIFY(!mailbox->AsAvenue()->IsRemovalScheduled());
+            }
+
             auto messageId = req->first_message_id() + index;
             ApplyReliableIncomingMessage(mailbox, messageId, req->messages(index));
+
+            // Avenue endpoint was unregistered within current mutation,
+            // now the time has come to destroy it.
+            if (mailbox->IsAvenue() && mailbox->AsAvenue()->IsRemovalScheduled()) {
+                DoUnregisterAvenueEndpoint(mailbox->AsAvenue());
+            }
         }
     }
 

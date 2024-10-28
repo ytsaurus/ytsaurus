@@ -361,7 +361,9 @@ public:
         }
     }
 
-    TPersistentMailboxStateCookie UnregisterAvenueEndpoint(TAvenueEndpointId selfEndpointId) override
+    TPersistentMailboxStateCookie UnregisterAvenueEndpoint(
+        TAvenueEndpointId selfEndpointId,
+        bool allowDestructionInMessageToSelf) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
@@ -376,6 +378,30 @@ public:
                 selfEndpointId);
             return {};
         }
+
+        if (GetHiveMutationSenderId() == otherEndpointId) {
+            if (allowDestructionInMessageToSelf) {
+                YT_LOG_DEBUG("Attempted to unregister avenue endpoint in the mutation "
+                    "received by itself, unregistration will be delayed (%v)",
+                    FormatIncomingMailboxEndpoints(otherEndpointId));
+                mailbox->SetRemovalScheduled(true);
+                return {};
+            } else {
+                YT_LOG_FATAL("Attempted to unregister avenue endpoint in the mutation "
+                    "received by itself (%v)",
+                    FormatIncomingMailboxEndpoints(otherEndpointId));
+            }
+        }
+
+        return DoUnregisterAvenueEndpoint(mailbox);
+    }
+
+    TPersistentMailboxStateCookie DoUnregisterAvenueEndpoint(TAvenueMailbox* mailbox)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto otherEndpointId = mailbox->GetEndpointId();
+        auto selfEndpointId = GetSiblingAvenueEndpointId(otherEndpointId);
 
         if (!IsRecovery()) {
             RuntimeData_.Transform([&] (auto& runtimeData) {
@@ -2066,8 +2092,18 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         for (int index = 0; index < req->messages_size(); ++index) {
+            if (mailbox->IsAvenue()) {
+                YT_VERIFY(!mailbox->AsAvenue()->IsRemovalScheduled());
+            }
+
             auto messageId = req->first_message_id() + index;
             ApplyReliableIncomingMessage(mailbox, messageId, req->messages(index));
+
+            // Avenue endpoint was unregistered within current mutation,
+            // now the time has come to destroy it.
+            if (mailbox->IsAvenue() && mailbox->AsAvenue()->IsRemovalScheduled()) {
+                DoUnregisterAvenueEndpoint(mailbox->AsAvenue());
+            }
         }
     }
 

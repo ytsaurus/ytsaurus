@@ -3,7 +3,7 @@ from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 from yt_env_setup import parametrize_external
 
 from yt_commands import (
-    authors, wait, create, get, set, copy, remove,
+    authors, wait, create, get, set, copy, remove, ls,
     exists, insert_rows,
     select_rows, lookup_rows, delete_rows, alter_table, read_table, write_table,
     mount_table, reshard_table, generate_timestamp,
@@ -293,6 +293,44 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
                 },
             )
         assert not exists("//tmp/t")
+
+    @authors("ifsmirnov")
+    def test_avenue_mailboxes(self):
+        cell_id = sync_create_cells(1)[0]
+        self._create_simple_table("//tmp/t")
+
+        if self.NUM_SECONDARY_MASTER_CELLS > 0:
+            cell_tag = get("//tmp/t/@external_cell_tag")
+            master_instance = ls(f"//sys/secondary_masters/{cell_tag}")[0]
+            master_orchid_path = f"//sys/secondary_masters/{cell_tag}/{master_instance}/orchid"
+        else:
+            master_instance = ls("//sys/primary_masters")[0]
+            master_orchid_path = f"//sys/primary_masters/{master_instance}/orchid"
+
+        tablet_cell_orchid_path = f"//sys/tablet_cells/{cell_id}/orchid"
+
+        def _get_master_orchid(path):
+            return get(master_orchid_path + "/" + path)
+
+        def _get_cell_orchid(path):
+            return get(tablet_cell_orchid_path + "/" + path)
+
+        sync_mount_table("//tmp/t")
+        node_endpoint = list(_get_master_orchid("hive/avenue_mailboxes"))[0]
+        master_endpoint = list(_get_master_orchid("hive/avenue_mailboxes"))[0]
+        assert node_endpoint.split("-")[-1] == master_endpoint.split("-")[-1]
+
+        sync_unmount_table("//tmp/t")
+        assert len(_get_master_orchid("hive/avenue_mailboxes")) == 0
+        wait(lambda: len(_get_cell_orchid("hive/avenue_mailboxes")) == 0)
+
+        sync_mount_table("//tmp/t")
+        assert len(_get_master_orchid("hive/avenue_mailboxes")) == 1
+        assert len(_get_cell_orchid("hive/avenue_mailboxes")) == 1
+
+        sync_unmount_table("//tmp/t", force=True)
+        assert len(_get_master_orchid("hive/avenue_mailboxes")) == 0
+        wait(lambda: len(_get_cell_orchid("hive/avenue_mailboxes")) == 0)
 
 
 class TestSortedDynamicTablesMountUnmountFreezeMulticell(TestSortedDynamicTablesMountUnmountFreeze):
