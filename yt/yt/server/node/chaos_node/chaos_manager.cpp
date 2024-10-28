@@ -1258,8 +1258,8 @@ private:
 
         if (replicaPath && replicaInfo->ReplicaPath != *replicaPath) {
             for (const auto& [existingReplicaId, existingReplicaInfo] : replicationCard->Replicas()) {
-                if (existingReplicaInfo.ClusterName == replicaInfo->ClusterName
-                    && existingReplicaInfo.ReplicaPath == *replicaPath)
+                if (existingReplicaInfo.ClusterName == replicaInfo->ClusterName &&
+                    existingReplicaInfo.ReplicaPath == *replicaPath)
                 {
                     THROW_ERROR_EXCEPTION("Replica already exists")
                         << TErrorAttribute("replica_id", existingReplicaId)
