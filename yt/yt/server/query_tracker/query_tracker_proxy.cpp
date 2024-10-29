@@ -160,6 +160,7 @@ THashSet<TString> GetUserSubjects(const std::string& user, const IClientPtr& cli
     // Get all subjects for the user.
     TGetNodeOptions options;
     options.ReadFrom = EMasterChannelKind::Cache;
+    options.SuccessStalenessBound = TDuration::Minutes(1);
     auto userSubjectsOrError = WaitFor(client->GetNode("//sys/users/" + user + "/@member_of_closure", options));
     if (!userSubjectsOrError.IsOK()) {
         THROW_ERROR_EXCEPTION("Error while fetching user membership for the user %Qv", user)
@@ -297,6 +298,7 @@ std::vector<TString> GetAcosForSubjects(const THashSet<TString>& subjects, bool 
         "principal_acl",
     };
     options.ReadFrom = EMasterChannelKind::Cache;
+    options.SuccessStalenessBound = TDuration::Minutes(1);
 
     auto allAcosOrError = WaitFor(client->GetNode(TString(QueriesAcoNamespacePath), options));
 
@@ -1452,6 +1454,7 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
 
     TNodeExistsOptions nodeExistsOptions;
     nodeExistsOptions.ReadFrom = EMasterChannelKind::Cache;
+    nodeExistsOptions.SuccessStalenessBound = TDuration::Minutes(1);
 
     static const TYsonString EmptyMap = TYsonString(TString("{}"));
     TYsonString supportedFeatures = EmptyMap;
@@ -1469,6 +1472,7 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
         YT_LOG_DEBUG("Getting access control objects");
         TListNodeOptions listOptions;
         listOptions.ReadFrom = EMasterChannelKind::Cache;
+        listOptions.SuccessStalenessBound = TDuration::Minutes(1);
         auto allAcos = WaitFor(StateClient_->ListNode(TString(QueriesAcoNamespacePath), listOptions))
             .ValueOrThrow();
         accessControlObjects = ConvertTo<std::vector<TString>>(allAcos);
