@@ -223,13 +223,13 @@ def build_epoch_timings():
         .row()
             .cell(
                 "Epoch duration max time",
-                MonitoringExpr(FlowWorker("yt.flow.worker.computation.computation.epoch_time.max"))
+                MonitoringExpr(FlowWorker("yt.flow.worker.computation.epoch_time.max"))
                     .all("host")
                     .top()
                     .unit("UNIT_SECONDS"))
             .cell(
                 "Epoch count total",
-                MonitoringExpr(FlowWorker("yt.flow.worker.computation.computation.epoch.rate"))
+                MonitoringExpr(FlowWorker("yt.flow.worker.computation.epoch.rate"))
                     .aggr("host")
                     .unit("UNIT_COUNT"))
     )
