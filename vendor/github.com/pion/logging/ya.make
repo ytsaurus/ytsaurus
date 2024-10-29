@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
+VERSION(v0.2.2)
+
 SRCS(
     logger.go
     scoped.go

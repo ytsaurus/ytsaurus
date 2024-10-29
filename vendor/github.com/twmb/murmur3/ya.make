@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
+VERSION(v1.1.8)
+
 SRCS(
     murmur.go
     murmur128.go

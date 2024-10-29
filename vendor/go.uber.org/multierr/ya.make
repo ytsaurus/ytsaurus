@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
+VERSION(v1.11.0)
+
 SRCS(
     error.go
     error_post_go120.go

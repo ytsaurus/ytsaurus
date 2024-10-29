@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
+VERSION(v1.0.0)
+
 SRCS(
     algorithm.go
     digest.go

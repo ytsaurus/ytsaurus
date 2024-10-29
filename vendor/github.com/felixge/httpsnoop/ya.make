@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
+VERSION(v1.0.4)
+
 SRCS(
     capture_metrics.go
     docs.go

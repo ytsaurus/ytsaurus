@@ -5,6 +5,8 @@ LICENSE(
     MIT
 )
 
+VERSION(v3.0.1)
+
 SRCS(
     apic.go
     decode.go

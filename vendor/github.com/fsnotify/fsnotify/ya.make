@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
+VERSION(v1.7.0)
+
 GO_SKIP_TESTS(TestInotifyNoBlockingSyscalls)
 
 SRCS(

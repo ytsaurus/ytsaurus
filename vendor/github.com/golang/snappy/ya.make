@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
+VERSION(v0.0.4)
+
 SRCS(
     decode.go
     decode_asm.go

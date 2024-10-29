@@ -6,6 +6,8 @@ LICENSE(
     MIT
 )
 
+VERSION(v1.17.9)
+
 SRCS(
     deflate.go
     dict_decoder.go

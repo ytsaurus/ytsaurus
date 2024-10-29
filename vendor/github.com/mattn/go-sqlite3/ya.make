@@ -2,6 +2,8 @@ GO_LIBRARY(sqlite3)
 
 LICENSE(MIT)
 
+VERSION(v1.14.16)
+
 NO_COMPILER_WARNINGS()
 
 PEERDIR(contrib/libs/sqlite3)

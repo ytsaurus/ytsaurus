@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
+VERSION(v1.9.0)
+
 SRCS(
     doc.go
     forward_requirements.go
