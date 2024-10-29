@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
+VERSION(v1.27.0)
+
 SRCS(
     clock.go
     doc.go

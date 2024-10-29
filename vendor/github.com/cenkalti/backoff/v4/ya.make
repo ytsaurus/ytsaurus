@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
+VERSION(v4.3.0)
+
 SRCS(
     backoff.go
     context.go

@@ -6,6 +6,8 @@ LICENSE(
     MIT
 )
 
+VERSION(v1.17.9)
+
 DATA(
     arcadia/vendor/github.com/klauspost/compress/gzip/testdata
 )

@@ -6,6 +6,8 @@ LICENSE(
     MIT
 )
 
+VERSION(v1.17.9)
+
 SRCS(
     compress.go
     compress_go120.go

@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
+VERSION(v2.3.0)
+
 SRCS(
     xxhash.go
     xxhash_asm.go

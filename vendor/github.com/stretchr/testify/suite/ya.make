@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
+VERSION(v1.9.0)
+
 GO_SKIP_TESTS(
     TestSuiteRequireTwice
     TestFailfastSuiteFailFastOn

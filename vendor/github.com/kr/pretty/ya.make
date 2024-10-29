@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
+VERSION(v0.3.1)
+
 SRCS(
     diff.go
     formatter.go

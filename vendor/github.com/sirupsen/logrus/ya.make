@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
+VERSION(v1.9.3)
+
 SRCS(
     alt_exit.go
     buffer_pool.go

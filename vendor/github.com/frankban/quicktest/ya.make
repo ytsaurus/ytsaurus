@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
+VERSION(v1.14.6)
+
 SRCS(
     checker.go
     checker_err.go

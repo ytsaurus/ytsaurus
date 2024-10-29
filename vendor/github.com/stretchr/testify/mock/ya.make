@@ -4,6 +4,8 @@ SUBSCRIBER(g:go-contrib)
 
 LICENSE(MIT)
 
+VERSION(v1.9.0)
+
 GO_SKIP_TESTS(
     Test_Mock_Chained_On
     Test_Mock_Chained_UnsetOnlyUnsetsLastCall

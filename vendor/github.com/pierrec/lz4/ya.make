@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
+VERSION(v2.6.1+incompatible)
+
 SRCS(
     block.go
     debug_stub.go

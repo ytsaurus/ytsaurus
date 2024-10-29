@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
+VERSION(v1.3.0)
+
 SRCS(
     doc.go
     leaks.go

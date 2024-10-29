@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(BSD-2-Clause)
 
+VERSION(v1.8.7)
+
 SRCS(
     decode.go
     doc.go

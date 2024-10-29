@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
+VERSION(v1.9.0)
+
 SRCS(
     assertion_compare.go
     assertion_format.go

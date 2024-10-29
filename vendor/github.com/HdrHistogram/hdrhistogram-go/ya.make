@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
+VERSION(v1.1.2)
+
 DATA(
     arcadia/vendor/github.com/HdrHistogram/hdrhistogram-go/test
 )
