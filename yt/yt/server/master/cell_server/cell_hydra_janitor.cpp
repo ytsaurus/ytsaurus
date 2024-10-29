@@ -379,7 +379,7 @@ private:
 
         for (const auto& [tag, rspOrError] : batchRsp->GetTaggedResponses<TYPathProxy::TRspRemove>()) {
             auto filePath = std::any_cast<TString>(tag);
-            if (!rspOrError.IsOK()) {
+            if (rspOrError.IsOK()) {
                 YT_LOG_DEBUG("Janitor has successfully removed Hydra file (Path: %v)", filePath);
             } else {
                 YT_LOG_WARNING(rspOrError, "Janitor has failed to remove Hydra file (Path: %v)", filePath);
