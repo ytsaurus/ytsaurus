@@ -346,7 +346,7 @@ default_config = {
         # Bypass artifacts cache for modules files.
         "modules_bypass_artifacts_cache": None,
         # Ignore "system" python modules (installed on client's host and presented in YT runtime).
-        "ignore_system_modules": False,
+        "ignore_system_modules": RemotePatchableBoolean(False, "python_pickling_ignore_system_modules"),
         "system_module_patterns": [
             r"/lib/python[\d\.]+/(site|dist)-packages/",
             r"/lib/python[\d\.]+/.+\.(py|pyc|so)$",
