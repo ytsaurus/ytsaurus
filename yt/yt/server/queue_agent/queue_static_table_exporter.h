@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "config.h"
 
 #include <yt/yt/server/lib/alert_manager/alert_manager.h>
 
@@ -16,6 +17,8 @@
 #include <yt/yt/client/queue_client/config.h>
 
 #include <yt/yt/library/auth/auth.h>
+
+#include <yt/yt/core/concurrency/public.h>
 
 namespace NYT::NQueueAgent {
 
@@ -81,25 +84,25 @@ public:
     TQueueExporter(
         TString exportName,
         NQueueClient::TCrossClusterReference queue,
-        const NQueueClient::TQueueStaticExportConfig& config,
+        const NQueueClient::TQueueStaticExportConfig& exportConfig,
+        const TQueueExporterDynamicConfig& dynamicConfig,
         NHiveClient::TClientDirectoryPtr clientDirectory,
         IInvokerPtr invoker,
         NAlertManager::IAlertCollectorPtr alertCollector,
         const NProfiling::TProfiler& queueProfiler,
         const NLogging::TLogger& logger);
 
-    TFuture<void> RunExportIteration();
-
     TQueueExportProgressPtr GetExportProgress() const;
 
-    void Reconfigure(const NQueueClient::TQueueStaticExportConfig& config);
+    void Reconfigure(const NQueueClient::TQueueStaticExportConfig& newExportConfig, const TQueueExporterDynamicConfig& newDynamicConfig);
 
 private:
     const TString ExportName_;
     const NQueueClient::TCrossClusterReference Queue_;
 
     NThreading::TSpinLock Lock_;
-    NQueueClient::TQueueStaticExportConfig Config_;
+    NQueueClient::TQueueStaticExportConfig ExportConfig_;
+    TQueueExporterDynamicConfig DynamicConfig_;
     TQueueExportProgressPtr ExportProgress_;
 
     const NHiveClient::TClientDirectoryPtr ClientDirectory_;
@@ -107,7 +110,12 @@ private:
     const NAlertManager::IAlertCollectorPtr AlertCollector_;
     const TQueueExportProfilingCountersPtr ProfilingCounters_;
 
+    NConcurrency::TScheduledExecutorPtr Executor_;
+
     const NLogging::TLogger Logger;
+
+    void Export();
+    void GuardedExport();
 
     NQueueClient::TQueueStaticExportConfig GetConfig();
 };

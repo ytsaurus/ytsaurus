@@ -30,7 +30,6 @@
 #include <yt/yt/client/chaos_client/replication_card.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
-#include <yt/yt/core/concurrency/scheduled_executor.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -72,6 +71,55 @@ struct IQueueController
 };
 
 DEFINE_REFCOUNTED_TYPE(IQueueController)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAggregatedQueueExportsProgress
+{
+    bool HasExports = false;
+    THashMap<i64, i64> TabletIndexToRowCount;
+
+    void MergeWith(const TAggregatedQueueExportsProgress& rhs)
+    {
+        if (!HasExports) {
+            *this = rhs;
+            return;
+        }
+        if (!rhs.HasExports) {
+            return;
+        }
+        for (auto& [tabletIndex, rowCount] : TabletIndexToRowCount) {
+            if (auto it = rhs.TabletIndexToRowCount.find(tabletIndex); it != rhs.TabletIndexToRowCount.end()) {
+                rowCount = std::min(rowCount, it->second);
+            } else {
+                rowCount = 0;
+            }
+        }
+    }
+};
+
+TAggregatedQueueExportsProgress AggregateQueueExports(const THashMap<TString, TQueueExportProgressPtr>& queueExportsProgress)
+{
+    if (queueExportsProgress.empty()) {
+        return {
+            .HasExports = false,
+        };
+    }
+
+    TAggregatedQueueExportsProgress progress{
+        .HasExports = true,
+    };
+    for (const auto& [_, exportProgress] : queueExportsProgress) {
+        for (const auto& [tabletIndex, tabletExportProgress] : exportProgress->Tablets) {
+            if (auto tabletIt = progress.TabletIndexToRowCount.find(tabletIndex); tabletIt != progress.TabletIndexToRowCount.end()) {
+                tabletIt->second = std::min(tabletIt->second, tabletExportProgress->RowCount);
+            } else {
+                progress.TabletIndexToRowCount[tabletIndex] = tabletExportProgress->RowCount;
+            }
+        }
+    }
+    return progress;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -322,7 +370,7 @@ public:
         , DynamicConfig_(dynamicConfig)
         , ClientDirectory_(std::move(clientDirectory))
         , Invoker_(std::move(invoker))
-        , Logger(QueueAgentLogger().WithTag("Queue: %v, Leading: %v", QueueRef_, Leading_))
+        , Logger(QueueControllerLogger().WithTag("Queue: %v, Leading: %v", QueueRef_, Leading_))
         , PassExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TOrderedDynamicTableController::Pass, MakeWeak(this)),
@@ -363,6 +411,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto queueSnapshot = QueueSnapshot_.Acquire();
+        auto queueExportsProgressOrError = GetQueueExportsProgressOrError();
 
         YT_LOG_DEBUG("Building queue controller orchid (PassIndex: %v)", queueSnapshot->PassIndex);
 
@@ -372,7 +421,7 @@ public:
             .Item("pass_instant").Value(queueSnapshot->PassInstant)
             .Item("row").Value(queueSnapshot->Row)
             .Item("replicated_table_mapping_row").Value(queueSnapshot->ReplicatedTableMappingRow)
-            .Item("status").Do(std::bind(BuildQueueStatusYson, queueSnapshot, AlertManager_, _1))
+            .Item("status").Do(std::bind(BuildQueueStatusYson, queueSnapshot, AlertManager_, queueExportsProgressOrError, _1))
             .Item("partitions").Do(std::bind(BuildQueuePartitionListYson, queueSnapshot, _1))
         .EndMap();
     }
@@ -450,44 +499,9 @@ private:
     const IAlertCollectorPtr TrimAlertCollector_;
     const IAlertCollectorPtr QueueExportsAlertCollector_;
 
-    struct TQueueExport
-    {
-        TScheduledExecutorPtr Executor;
-        TQueueExporterPtr Exporter;
-    };
-
-    using QueueExportsMappingOrError = TErrorOr<THashMap<TString, TQueueExport>>;
+    using QueueExportsMappingOrError = TErrorOr<THashMap<TString, TQueueExporterPtr>>;
     QueueExportsMappingOrError QueueExports_;
     TReaderWriterSpinLock QueueExportsLock_;
-
-    void Export(const TString& exportName)
-    {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
-
-        if (!DynamicConfig_.Acquire()->EnableQueueStaticExport) {
-            YT_LOG_DEBUG("Skipping queue static export iteration, since it is disabled controller-wide");
-            return;
-        }
-
-        TQueueExporterPtr exporter;
-        {
-            auto guard = ReaderGuard(QueueExportsLock_);
-            if (!QueueExports_.IsOK()) {
-                YT_LOG_DEBUG(QueueExports_, "Skipping queue static export iteration, because config is incorrect (ExportName: %v)", exportName);
-                return;
-            }
-            const auto& queueExports = QueueExports_.Value();
-            auto queueExport = queueExports.find(exportName);
-            if (queueExport == queueExports.end()) {
-                YT_LOG_DEBUG("Skipping queue static export iteration, since there is no exporter for it (ExportName: %v)", exportName);
-                return;
-            }
-            exporter = queueExport->second.Exporter;
-        }
-
-        auto exportError = WaitFor(exporter->RunExportIteration());
-        YT_LOG_ERROR_UNLESS(exportError.IsOK(), exportError, "Failed to perform static export for queue");
-    }
 
     void Pass()
     {
@@ -517,6 +531,8 @@ private:
             ->Build();
         auto previousQueueSnapshot = QueueSnapshot_.Exchange(nextQueueSnapshot);
 
+        // XXX(apachee): Is it ok that we do not check snapshot error here?
+
         YT_LOG_INFO("Queue snapshot updated");
 
         auto finalizePass = Finally([&] {
@@ -544,6 +560,8 @@ private:
 
             if (ShouldTrim(nextQueueSnapshot->PassIndex)) {
                 Trim();
+            } else {
+                YT_LOG_INFO("Skipping trim in this queue controller pass on a basis of trimming period");
             }
         }
 
@@ -558,7 +576,7 @@ private:
             QueueExportsAlertCollector_->PublishAlerts();
         });
 
-        auto enableQueueStaticExport = DynamicConfig_.Acquire()->EnableQueueStaticExport;
+        auto queueExporterConfig = DynamicConfig_.Acquire()->QueueExporter;
         const auto& staticExportConfig = nextQueueSnapshot->Row.StaticExportConfig;
 
         auto guard = WriterGuard(QueueExportsLock_);
@@ -567,7 +585,7 @@ private:
             QueueExports_ = QueueExportsMappingOrError();
             return;
         }
-        if (auto staticExportConfigError = CheckStaticExportConfig(*staticExportConfig); !staticExportConfigError.IsOK()) {
+        if (auto staticExportConfigError = CheckStaticExportConfig(*staticExportConfig, nextQueueSnapshot->Row.ObjectType); !staticExportConfigError.IsOK()) {
             QueueExports_ = staticExportConfigError;
             QueueExportsAlertCollector_->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::QueueAgentQueueControllerStaticExportMisconfiguration,
@@ -581,32 +599,21 @@ private:
             QueueExports_ = QueueExportsMappingOrError();
         }
         auto& queueExports = QueueExports_.Value();
-        for (const auto& [name, config] : *staticExportConfig) {
+        for (const auto& [name, exportConfig] : *staticExportConfig) {
             if (queueExports.find(name) == queueExports.end()) {
-                queueExports[name] = {
-                    .Executor = New<TScheduledExecutor>(
-                        Invoker_,
-                        BIND(&TOrderedDynamicTableController::Export, MakeWeak(this), name),
-                        /*interval*/ std::nullopt),
-                    .Exporter = New<TQueueExporter>(
-                        name,
-                        QueueRef_,
-                        config,
-                        ClientDirectory_->GetUnderlyingClientDirectory(),
-                        Invoker_,
-                        CreateAlertCollector(AlertManager_),
-                        ProfileManager_->GetQueueProfiler(),
-                        Logger),
-                };
-
-                queueExports[name].Executor->Start();
+                queueExports[name] = New<TQueueExporter>(
+                    name,
+                    QueueRef_,
+                    exportConfig,
+                    queueExporterConfig,
+                    ClientDirectory_->GetUnderlyingClientDirectory(),
+                    Invoker_,
+                    CreateAlertCollector(AlertManager_),
+                    ProfileManager_->GetQueueProfiler(),
+                    Logger);
             } else {
-                queueExports[name].Exporter->Reconfigure(config);
+                queueExports[name]->Reconfigure(exportConfig, queueExporterConfig);
             }
-
-            queueExports[name].Executor->SetInterval(enableQueueStaticExport
-                ? std::optional(config.ExportPeriod)
-                : std::nullopt);
         }
 
         // Remove unused exports.
@@ -621,8 +628,15 @@ private:
         }
     }
 
-    TError CheckStaticExportConfig(const THashMap<TString, TQueueStaticExportConfig>& configs) const
+    TError CheckStaticExportConfig(const THashMap<TString, TQueueStaticExportConfig>& configs, std::optional<EObjectType> objectType) const
     {
+        if (!objectType) {
+            return TError("Cannot check \"static_export_config\", because object type is not known");
+        }
+        if (*objectType != EObjectType::Table) {
+            return TError("Attribute \"static_export_config\" can only be set on replicas, not %lv", *objectType);
+        }
+
         THashSet<TYPath> directories;
         THashSet<TYPath> duplicateDirectories;
         for (const auto& [_, config] : configs) {
@@ -810,7 +824,7 @@ private:
     {
         auto federatedClient = ClientDirectory_->GetFederatedClient(GetRelevantReplicas(*queueSnapshot->ReplicatedTableMappingRow));
 
-        NApi::TGetReplicationCardOptions options;
+        TGetReplicationCardOptions options;
         options.IncludeProgress = true;
         auto replicationCard = WaitFor(federatedClient->GetReplicationCard(
             queueSnapshot->ReplicatedTableMappingRow->Meta->ChaosReplicatedTableMeta->ReplicationCardId,
@@ -843,10 +857,10 @@ private:
         }
 
         std::vector<TFuture<std::vector<TErrorOr<i64>>>> asyncSafeTrimRowCounts;
-        std::vector<NApi::IInternalClientPtr> internalClients;
+        std::vector<IInternalClientPtr> internalClients;
         for (const auto& replicaContext : replicaContexts) {
-            auto internalClient = DynamicPointerCast<NApi::IInternalClient>(ClientDirectory_->GetClientOrThrow(replicaContext.Ref.Cluster));
-            std::vector<NApi::TGetOrderedTabletSafeTrimRowCountRequest> safeTrimRowCountRequests;
+            auto internalClient = DynamicPointerCast<IInternalClient>(ClientDirectory_->GetClientOrThrow(replicaContext.Ref.Cluster));
+            std::vector<TGetOrderedTabletSafeTrimRowCountRequest> safeTrimRowCountRequests;
             for (int partitionIndex = 0; partitionIndex < replicaContext.ReplicaSnapshot->PartitionCount; ++partitionIndex) {
                 YT_VERIFY(minReplicationTimestamps[partitionIndex]);
                 safeTrimRowCountRequests.push_back({
@@ -885,6 +899,8 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
+        YT_LOG_INFO("Starting trimming");
+
         // Guard against context switches, just to be on the safe side.
         auto queueSnapshot = QueueSnapshot_.Acquire();
 
@@ -912,9 +928,16 @@ private:
         }
         auto currentTimestamp = currentTimestampOrError.Value();
 
+        if ((queueSnapshot->Row.ObjectType == EObjectType::ReplicatedTable || queueSnapshot->Row.ObjectType == EObjectType::ChaosReplicatedTable) &&
+            !queueSnapshot->ReplicatedTableMappingRow)
+        {
+            THROW_ERROR_EXCEPTION("Trimming iteration skipped due to missing replicated table mapping row in snapshot for queue of type %Qlv",
+                queueSnapshot->Row.ObjectType);
+        }
+
         auto replicaContexts = GetReplicasToTrim(queueSnapshot);
 
-        auto queueExportProgress = GetQueueExportProgressOrThrow();
+        auto aggregatedQueueExportsProgress = GetAggregatedGenericQueueExportsProgress(queueSnapshot);
 
         std::vector<TIntrusivePtr<TQueueTrimSession>> trimSessions;
         for (const auto& replicaContext : replicaContexts) {
@@ -924,7 +947,7 @@ private:
                 replicaContext,
                 currentTimestamp,
                 ClientDirectory_->GetClientOrThrow(replicaContext.Ref.Cluster),
-                std::move(queueExportProgress),
+                aggregatedQueueExportsProgress,
                 ObjectStore_,
                 Logger));
             // NB: We do not invoke sessions immediately, so that we don't waste resources in case of an incomplete cluster directory.
@@ -948,27 +971,105 @@ private:
             THROW_ERROR_EXCEPTION("Error trimming %v queue replicas", trimSessionErrors.size())
                 << trimSessionErrors;
         }
+
+        YT_LOG_DEBUG("Trimming finished successfully");
     }
 
-    THashMap<TString, TQueueExportProgressPtr> GetQueueExportProgressOrThrow()
+    TAggregatedQueueExportsProgress GetAggregatedGenericQueueExportsProgress(const TQueueSnapshotPtr& queueSnapshot) const
     {
+        YT_VERIFY(queueSnapshot->Row.ObjectType);
+        auto config = DynamicConfig_.Acquire();
+        auto enableCrtTrimByExports = config->EnableCrtTrimByExports;
+        auto objectType = *queueSnapshot->Row.ObjectType;
+        switch (objectType) {
+            case EObjectType::Table: {
+                auto queueExportsProgress = GetQueueExportsProgressOrError();
+                if (!queueExportsProgress.IsOK()) {
+                    THROW_ERROR_EXCEPTION("Failed to get aggregate queue exports progress") << queueExportsProgress;
+                }
+                return AggregateQueueExports(queueExportsProgress.Value());
+            }
+            case EObjectType::ReplicatedTable:
+                return GetAggregatedReplicatedQueueExportsProgress(queueSnapshot);
+            case EObjectType::ChaosReplicatedTable: {
+                // NB(apachee): Currently trimming CRT using queue agent with taking exports into account can potentially lead to tabnode crash (see YT-22882).
+                // To avoid crashes new behavior is opt-in.
+                return enableCrtTrimByExports
+                    ? GetAggregatedChaosReplicatedQueueExportsProgress(queueSnapshot)
+                    : TAggregatedQueueExportsProgress();
+            }
+            default:
+                YT_ABORT();
+        }
+    }
+
+    TAggregatedQueueExportsProgress AggregateReplicasQueueExportsProgress(const std::vector<TRichYPath>& replicas) const
+    {
+        std::vector<TFuture<THashMap<TString, TQueueExportProgressPtr>>> asyncReplicasProgress;
+        asyncReplicasProgress.reserve(replicas.size());
+
+        for (const auto& replica : replicas) {
+            asyncReplicasProgress.push_back(GetQueueExportProgressFromObjectService(ObjectStore_->GetObjectService(EObjectKind::Queue), replica));
+        }
+        auto replicasProgress = WaitFor(AllSucceeded(asyncReplicasProgress))
+            .ValueOrThrow("Trimming iteration skipped due to missing exports progress for some replicas");
+
+        TAggregatedQueueExportsProgress progress;
+        for (const auto& replicaProgress : replicasProgress) {
+            progress.MergeWith(AggregateQueueExports(replicaProgress));
+        }
+        return progress;
+    }
+
+    TAggregatedQueueExportsProgress GetAggregatedReplicatedQueueExportsProgress(const TQueueSnapshotPtr& queueSnapshot) const
+    {
+        return AggregateReplicasQueueExportsProgress(queueSnapshot->ReplicatedTableMappingRow->GetReplicas());
+    }
+
+    TAggregatedQueueExportsProgress GetAggregatedChaosReplicatedQueueExportsProgress(const TQueueSnapshotPtr& queueSnapshot) const
+    {
+        auto federatedClient = ClientDirectory_->GetFederatedClient(GetRelevantReplicas(*queueSnapshot->ReplicatedTableMappingRow));
+
+        TGetReplicationCardOptions options;
+        options.IncludeProgress = true;
+        auto replicationCard = WaitFor(federatedClient->GetReplicationCard(
+            queueSnapshot->ReplicatedTableMappingRow->Meta->ChaosReplicatedTableMeta->ReplicationCardId,
+            options))
+            .ValueOrThrow();
+
+        std::vector<TRichYPath> replicas;
+        replicas.reserve(replicationCard->Replicas.size());
+
+        for (const auto& replicaInfo : GetValues(replicationCard->Replicas)) {
+            auto& replicaPath = replicas.emplace_back();
+            replicaPath.SetPath(replicaInfo.ReplicaPath);
+            replicaPath.SetCluster(replicaInfo.ClusterName);
+        }
+
+        return AggregateReplicasQueueExportsProgress(replicas);
+    }
+
+    TErrorOr<THashMap<TString, TQueueExportProgressPtr>> GetQueueExportsProgressOrError() const
+    {
+        if (!Leading_) {
+            return TError("Following queue controller can't track exports progress");
+        }
+
         auto guard = ReaderGuard(QueueExportsLock_);
 
-        THashMap<TString, TQueueExportProgressPtr> queueExportProgress;
+        THashMap<TString, TQueueExportProgressPtr> queueExportsProgress;
 
-        // NB(apachee): Since static queue exports are taken into account when trimming,
-        // we skip trim iteration to prevent potential data loss due to misconfiguration of exports.
         if (!QueueExports_.IsOK()) {
-            THROW_ERROR_EXCEPTION("Incorrect queue exports, trimming at this point can lead to data loss for queue exports, trimming iteration skipped")
+            return TError("Incorrect queue exports")
                 << QueueExports_;
         }
 
         const auto& queueExports = QueueExports_.Value();
-        queueExportProgress.reserve(queueExports.size());
+        queueExportsProgress.reserve(queueExports.size());
         for (const auto& [queueExportName, queueExport] : queueExports) {
-            queueExportProgress[queueExportName] = queueExport.Exporter->GetExportProgress();
+            queueExportsProgress[queueExportName] = queueExport->GetExportProgress();
         }
-        return queueExportProgress;
+        return TErrorOr(std::move(queueExportsProgress));
     }
 
     struct TQueueTrimSession final
@@ -979,8 +1080,8 @@ private:
         TQueueTrimContext Context;
         TTimestamp CurrentTimestamp;
         //! Replica-cluster client.
-        const NApi::NNative::IClientPtr Client;
-        THashMap<TString, TQueueExportProgressPtr> QueueExportProgress;
+        const NNative::IClientPtr Client;
+        TAggregatedQueueExportsProgress AggregatedQueueExportsProgress;
         const IObjectStore* ObjectStore;
         NLogging::TLogger Logger;
 
@@ -991,8 +1092,8 @@ private:
             TQueueSnapshotPtr queueSnapshot,
             TQueueTrimContext context,
             TTimestamp currentTimestamp,
-            NApi::NNative::IClientPtr client,
-            THashMap<TString, TQueueExportProgressPtr> queueExportProgress,
+            NNative::IClientPtr client,
+            TAggregatedQueueExportsProgress aggregatedQueueExportsProgress,
             const IObjectStore* objectStore,
             const NLogging::TLogger& logger)
             : QueueRef(std::move(queueRef))
@@ -1000,7 +1101,7 @@ private:
             , Context(std::move(context))
             , CurrentTimestamp(currentTimestamp)
             , Client(std::move(client))
-            , QueueExportProgress(std::move(queueExportProgress))
+            , AggregatedQueueExportsProgress(std::move(aggregatedQueueExportsProgress))
             , ObjectStore(objectStore)
             , Logger(logger.WithTag("Replica: %v, ObjectPath: %v", Context.Ref, Context.ObjectPath))
         { }
@@ -1030,7 +1131,7 @@ private:
                     Context.ReplicaSnapshot->PartitionCount);
             }
 
-            YT_LOG_DEBUG("Performing trimming iteration");
+            YT_LOG_DEBUG("Performing trimming session");
 
             CollectVitalConsumerSubSnapshots();
 
@@ -1046,6 +1147,8 @@ private:
 
             RequestTrimming();
             ReportErrors();
+
+            YT_LOG_DEBUG("Trimming session finished successfully");
         }
 
         //! Collects vital consumer snapshots from queue consumer registrations and validates error-correctness.
@@ -1085,7 +1188,7 @@ private:
                 VitalConsumerSubSnapshots[consumerSnapshot->Row.Ref] = consumerSubSnapshot;
             }
 
-            if (VitalConsumerSubSnapshots.empty() && QueueExportProgress.empty()) {
+            if (VitalConsumerSubSnapshots.empty() && !AggregatedQueueExportsProgress.HasExports) {
                 THROW_ERROR_EXCEPTION(
                     "Attempted trimming iteration on queue %Qv with no vital consumers and no configured static table exports",
                     QueueRef);
@@ -1173,7 +1276,7 @@ private:
 
             auto maxTimestampToTrim = GetMaxTimestampToTrim(*lifetimeDuration);
 
-            std::vector<NApi::TGetOrderedTabletSafeTrimRowCountRequest> safeTrimRowCountRequests;
+            std::vector<TGetOrderedTabletSafeTrimRowCountRequest> safeTrimRowCountRequests;
             safeTrimRowCountRequests.reserve(QueueSnapshot->PartitionCount);
 
             for (const auto& partitionContext : Context.Partitions) {
@@ -1183,14 +1286,14 @@ private:
                 }
 
                 safeTrimRowCountRequests.push_back(
-                    NApi::TGetOrderedTabletSafeTrimRowCountRequest{
+                    TGetOrderedTabletSafeTrimRowCountRequest{
                         Context.ObjectPath,
                         partitionContext.PartitionIndex,
                         maxTimestampToTrim
                     });
             }
 
-            auto internalClient = DynamicPointerCast<NApi::IInternalClient>(Client);
+            auto internalClient = DynamicPointerCast<IInternalClient>(Client);
 
             auto safeTrimRowCountsOrError = WaitFor(internalClient->GetOrderedTabletSafeTrimRowCount(safeTrimRowCountRequests));
             if (!safeTrimRowCountsOrError.IsOK()) {
@@ -1255,18 +1358,14 @@ private:
                 }
 
                 // Handle queue exports.
-                if (QueueExportProgress) {
-                    for (auto& [exportName, exportProgress] : QueueExportProgress) {
-                        auto partitionProgressIt = exportProgress->Tablets.find(partitionContext.PartitionIndex);
-                        if (partitionProgressIt == exportProgress->Tablets.end()) {
-                            minTrimmedRowCount = MinOrValue<i64>(minTrimmedRowCount, 0);
-                            continue;
-                        }
-                        const auto& partitionProgress = partitionProgressIt->second;
-                        minTrimmedRowCount = MinOrValue<i64>(
-                            minTrimmedRowCount,
-                            partitionProgress->RowCount);
-                    }
+                if (AggregatedQueueExportsProgress.HasExports) {
+                    auto rowCountIt = AggregatedQueueExportsProgress.TabletIndexToRowCount.find(partitionContext.PartitionIndex);
+                    auto rowCount = (rowCountIt != AggregatedQueueExportsProgress.TabletIndexToRowCount.end())
+                        ? rowCountIt->second
+                        : 0;
+                    minTrimmedRowCount = MinOrValue<i64>(
+                        minTrimmedRowCount,
+                        rowCount);
                 }
 
                 partitionContext.Update({
@@ -1412,7 +1511,7 @@ bool UpdateQueueController(
     const TQueueTableRow& row,
     const std::optional<TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
     const IObjectStore* store,
-    TQueueControllerDynamicConfigPtr dynamicConfig,
+    const TQueueControllerDynamicConfigPtr& dynamicConfig,
     TQueueAgentClientDirectoryPtr clientDirectory,
     IInvokerPtr invoker)
 {
@@ -1444,7 +1543,7 @@ bool UpdateQueueController(
                 row,
                 replicatedTableMappingRow,
                 store,
-                std::move(dynamicConfig),
+                dynamicConfig,
                 std::move(clientDirectory),
                 std::move(invoker));
             break;

@@ -96,6 +96,21 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB(apachee): Separate config for exports for future refactoring. See YT-23208.
+
+class TQueueExporterDynamicConfig
+    : public NYTree::TYsonStructLite
+{
+public:
+    bool Enable;
+
+    REGISTER_YSON_STRUCT_LITE(TQueueExporterDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueueControllerDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -112,7 +127,13 @@ public:
     //! once in `ceil(TrimmingPeriod / PassPeriod)` queue controller passes.
     std::optional<TDuration> TrimmingPeriod;
 
-    bool EnableQueueStaticExport;
+    //! COMPAT(apachee): This flag is used to disable taking exports progress
+    //! into account for CRT queues, since at this moment this can potentially
+    //! lead to crash in tabnodes (see YT-22882).
+    //! Default is false to reflect previous behavior that is known to work.
+    bool EnableCrtTrimByExports;
+
+    TQueueExporterDynamicConfig QueueExporter;
 
     NAlertManager::TAlertManagerDynamicConfigPtr AlertManager;
 

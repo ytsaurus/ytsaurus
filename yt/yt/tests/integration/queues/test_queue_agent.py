@@ -21,6 +21,7 @@ import pytz
 import pytest
 
 from collections import defaultdict
+from functools import wraps
 from operator import itemgetter
 
 from yt.yson import YsonUint64, YsonEntity
@@ -2289,9 +2290,7 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
         assert "Error parsing attribute \"auto_trim_config\"" in str(queue_error)
 
 
-class TestMultiClusterReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
-    NUM_TEST_PARTITIONS = 2
-
+class TestMultiClusterReplicatedTableObjectsBase(TestQueueAgentBase, ReplicatedObjectBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
             "policy": "watching",
@@ -2468,6 +2467,19 @@ class TestMultiClusterReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjec
             replicated_table_attributes={"treat_as_queue_producer": True})
         return chaos_replicated_producer_replicas
 
+    def _add_chaos_queue_registration(self, queue):
+        insert_rows("//sys/queue_agents/consumer_registrations", [{
+            "queue_cluster": "primary",
+            "queue_path": queue,
+            "consumer_cluster": "primary",
+            "consumer_path": queue,
+            "vital": True,
+        }])
+
+
+class TestMultiClusterReplicatedTableObjects(TestMultiClusterReplicatedTableObjectsBase):
+    NUM_TEST_PARTITIONS = 2
+
     @authors("apachee")
     def test_no_queue_agent_instances_on_remote_clusters(self):
         for remote_index in range(self.NUM_REMOTE_CLUSTERS):
@@ -2479,8 +2491,8 @@ class TestMultiClusterReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjec
 
     @authors("achulkov2", "nadya73")
     @pytest.mark.parametrize("create_queue_consumer_pair", [
-        _create_chaos_queue_consumer_pair,
-        _create_replicated_queue_consumer_pair,
+        TestMultiClusterReplicatedTableObjectsBase._create_chaos_queue_consumer_pair,
+        TestMultiClusterReplicatedTableObjectsBase._create_replicated_queue_consumer_pair,
     ])
     @pytest.mark.timeout(150)
     def test_replicated_trim(self, create_queue_consumer_pair):
@@ -2578,15 +2590,6 @@ class TestMultiClusterReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjec
         tx = start_transaction()
         with raises_yt_error("Operation cannot be performed in transaction"):
             set("//tmp/crq/@queue_agent_stage", "value_under_tx", tx=tx)
-
-    def _add_chaos_queue_registration(self, queue):
-        insert_rows("//sys/queue_agents/consumer_registrations", [{
-            "queue_cluster": "primary",
-            "queue_path": queue,
-            "consumer_cluster": "primary",
-            "consumer_path": queue,
-            "vital": True,
-        }])
 
     @authors("nadya73")
     def test_chaos_queue_attributes(self):
@@ -2834,51 +2837,40 @@ class TestDynamicConfig(TestQueueAgentBase):
         orchid.wait_fresh_pass()
 
 
-class TestQueueStaticExportBase(TestQueueAgentBase):
-    NUM_SECONDARY_MASTER_CELLS = 2
-    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
-        "queue_agent": {
-            "controller": {
-                "enable_queue_static_export": True,
-            },
-        },
-        "cypress_synchronizer": {
-            "policy": "watching",
-            "enable": True,
-        },
-    }
-
+class QueueStaticExportHelpers:
     @staticmethod
-    def _create_export_destination(export_directory, queue_id):
-        create("map_node", export_directory, recursive=True, ignore_existing=True)
+    def _create_export_destination(export_directory, queue_id, **kwargs):
+        create("map_node", export_directory, recursive=True, ignore_existing=True, **kwargs)
         set(f"{export_directory}/@queue_static_export_destination", {
             "originating_queue_id": queue_id,
-        })
+        }, **kwargs)
+        assert exists(export_directory, driver=kwargs.pop("driver", None))
 
     @staticmethod
-    def remove_export_destination(export_directory):
+    def remove_export_destination(export_directory, **kwargs):
         def try_remove():
-            remove(export_directory)
+            remove(export_directory, **kwargs)
             return True
 
         wait(try_remove, ignore_exceptions=True)
+        assert not exists(export_directory, driver=kwargs.pop("driver", None))
 
     @staticmethod
     # NB: The last two options should be used carefully: currently they strictly check that all timestamps are within [ts - period, ts], which might not generally be the case.
-    def _check_export(export_directory, expected_data, queue_path=None, use_upper_bound_for_table_names=False, check_lower_bound=False):
-        export_fragments = [name for name in sorted(ls(export_directory)) if f"{export_directory}/{name}" != queue_path]
+    def _check_export(export_directory, expected_data, queue_path=None, use_upper_bound_for_table_names=False, check_lower_bound=False, **kwargs):
+        export_fragments = [name for name in sorted(ls(export_directory, **kwargs)) if f"{export_directory}/{name}" != queue_path]
         assert len(export_fragments) == len(expected_data)
 
-        queue_id = get(f"{export_directory}/@queue_static_export_destination/originating_queue_id")
+        queue_id = get(f"{export_directory}/@queue_static_export_destination/originating_queue_id", **kwargs)
 
-        export_progress = get(f"{export_directory}/@queue_static_export_progress")
+        export_progress = get(f"{export_directory}/@queue_static_export_progress", **kwargs)
 
         last_fragment_unix_tx, last_fragment_export_period = map(int, export_fragments[-1].split("-"))
         assert export_progress["last_exported_fragment_unix_ts"] == last_fragment_unix_tx + (0 if use_upper_bound_for_table_names else last_fragment_export_period)
 
-        queue_schema_id = get(f"#{queue_id}/@schema_id")
-        queue_schema = get(f"#{queue_id}/@schema")
-        queue_native_cell_tag = get(f"#{queue_id}/@native_cell_tag")
+        queue_schema_id = get(f"#{queue_id}/@schema_id", **kwargs)
+        queue_schema = get(f"#{queue_id}/@schema", **kwargs)
+        queue_native_cell_tag = get(f"#{queue_id}/@native_cell_tag", **kwargs)
 
         max_timestamp = 0
         total_row_count = 0
@@ -2891,17 +2883,17 @@ class TestQueueStaticExportBase(TestQueueAgentBase):
 
             fragment_unix_ts, fragment_export_period = map(int, fragment_name.split("-"))
 
-            fragment_native_cell_tag = get(f"{fragment_table_path}/@native_cell_tag")
+            fragment_native_cell_tag = get(f"{fragment_table_path}/@native_cell_tag", **kwargs)
 
             # If both tables are on the same native cell, we use schema ids in upload.
             if fragment_native_cell_tag == queue_native_cell_tag:
-                fragment_schema_id = get(f"{fragment_table_path}/@schema_id")
+                fragment_schema_id = get(f"{fragment_table_path}/@schema_id", **kwargs)
                 assert fragment_schema_id == queue_schema_id
 
-            fragment_schema = get(f"{fragment_table_path}/@schema")
+            fragment_schema = get(f"{fragment_table_path}/@schema", **kwargs)
             assert fragment_schema == queue_schema
 
-            rows = list(read_table(fragment_table_path))
+            rows = list(read_table(fragment_table_path, **kwargs))
             assert list(map(itemgetter("data"), rows)) == expected_data[fragment_index]
 
             ts_lower_bound = fragment_unix_ts - (fragment_export_period if use_upper_bound_for_table_names else 0)
@@ -2921,10 +2913,6 @@ class TestQueueStaticExportBase(TestQueueAgentBase):
         assert max(map(itemgetter("max_timestamp"), export_progress["tablets"].values())) == max_timestamp
         assert sum(map(itemgetter("row_count"), export_progress["tablets"].values())) == total_row_count
 
-    # NB: We rely on manual flushing in almost all of the static export tests. Override if necessary.
-    def _create_queue(self, *args, **kwargs):
-        return super()._create_queue(*args, dynamic_store_auto_flush_period=kwargs.pop("dynamic_store_auto_flush_period", YsonEntity()), **kwargs)
-
     # Sleeps until next instant which is at the specified offset (in seconds) in the specified periodic cycle.
     def _sleep_until_next_export_instant(self, period, offset=0.0):
         now = time.time()
@@ -2937,11 +2925,24 @@ class TestQueueStaticExportBase(TestQueueAgentBase):
         return next_instant
 
 
+class TestQueueStaticExportBase(TestQueueAgentBase, QueueStaticExportHelpers):
+    NUM_SECONDARY_MASTER_CELLS = 2
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "cypress_synchronizer": {
+            "policy": "watching",
+            "enable": True,
+        },
+    }
+
+    # NB: We rely on manual flushing in almost all of the static export tests. Override if necessary.
+    def _create_queue(self, *args, **kwargs):
+        return super()._create_queue(*args, dynamic_store_auto_flush_period=kwargs.pop("dynamic_store_auto_flush_period", YsonEntity()), **kwargs)
+
+
 class TestQueueAgentBannedAttribute(TestQueueStaticExportBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
             "controller": {
-                "enable_queue_static_export": True,
                 "enable_automatic_trimming": True,
             },
         },
@@ -3522,7 +3523,6 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
             "controller": {
-                "enable_queue_static_export": True,
                 "enable_automatic_trimming": True,
             },
         },
@@ -3692,7 +3692,6 @@ class TestObjectAlertCollection(TestQueueStaticExportBase):
         "queue_agent": {
             "controller": {
                 "enable_automatic_trimming": True,
-                "enable_queue_static_export": True,
             },
         },
         "cypress_synchronizer": {
@@ -3762,3 +3761,442 @@ class TestObjectAlertCollection(TestQueueStaticExportBase):
         alerts = ObjectAlertHelper(get(f"{queue_path}/@queue_status/alerts"))
         alerts.assert_matching("queue_agent_queue_controller_static_export_misconfiguration", text="Static export config check failed")
         assert alerts.get_alert_count() == 1
+
+
+def _with_create_cells(f):
+    @wraps(f)
+    def g(*args, **kwargs):
+        kwargs["create_cells"] = True
+        return f(*args, **kwargs)
+    return g
+
+
+class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterReplicatedTableObjectsBase, QueueStaticExportHelpers):
+    NUM_TEST_PARTITIONS = 3
+
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "cypress_synchronizer": {
+            "policy": "watching",
+            "clusters": ["primary", "remote_0", "remote_1"],
+            "poll_replicated_objects": True,
+            "write_replicated_table_mapping": True,
+        },
+        "queue_agent": {
+            "handle_replicated_objects": True,
+            "controller": {
+                "enable_automatic_trimming": True,
+                "enable_crt_trim_by_exports": True,
+            }
+        }
+    }
+
+    INF_PERIOD = 10 ** 15
+
+    def setup_method(self, method):
+        super(TestMultiClusterReplicatedTableObjectsTrimWithExports, self).setup_method(method)
+
+        self._apply_dynamic_config_patch({
+            "queue_agent": {
+                "controller": {
+                    "enable_crt_trim_by_exports": True,
+                }
+            }
+        })
+
+        assert get("//sys/queue_agents/config/queue_agent/controller/enable_crt_trim_by_exports")
+
+    # NB(apachee): Since 2 following methods are used for creating queue + consumer pair
+    # we need create_cells to prevent methods creating queue + consumer pair to create cells
+    # the second time.
+
+    def _create_replicated_queue(self, path, create_cells=False):
+        if create_cells:
+            self._create_cells()
+        return super()._create_replicated_queue(path)
+
+    def _create_chaos_replicated_queue(self, path, create_cells=False):
+        if create_cells:
+            cell_id = self._sync_create_chaos_bundle_and_cell()
+            set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+        return super()._create_chaos_replicated_queue(path)
+
+    def _prepare_queue_replicas(self, replicas):
+        for replica in replicas:
+            driver = get_driver(cluster=replica["cluster_name"])
+            replica_path = replica["replica_path"]
+            sync_unmount_table(replica_path, driver=driver)
+            set(f"{replica_path}/@dynamic_store_auto_flush_period", YsonEntity(), driver=driver)
+            sync_mount_table(replica_path, driver=driver)
+
+    def _update_export_period(self, replica, export_period, export_name="default"):
+        replica_driver = get_driver(cluster=replica["cluster_name"])
+        replica_path = replica["replica_path"]
+        set(f"{replica_path}/@static_export_config/{export_name}/export_period",
+            export_period, driver=replica_driver)
+
+    def _update_export_periods(self, replicas, export_period, replicas_orchids: list[OrchidWithRegularPasses] = None, queue_orchid: OrchidWithRegularPasses = None, export_name="default"):
+        for replica in replicas:
+            replica_driver = get_driver(cluster=replica["cluster_name"])
+            replica_path = replica["replica_path"]
+            set(f"{replica_path}/@static_export_config/{export_name}/export_period",
+                export_period, driver=replica_driver)
+
+        if replicas_orchids is None or queue_orchid is None:
+            return
+
+        self._wait_for_export_period_update(replicas_orchids, queue_orchid)
+
+    def _get_export_tables_count(self, replica, export_dir="//tmp/export"):
+        replica_cluster = replica["cluster_name"]
+        return len(ls(export_dir, driver=get_driver(cluster=replica_cluster)))
+
+    @classmethod
+    def _wait_for_replicated_queue_row_range(cls, replicas, row_index_range, partition_index=0):
+        row_index_range_set = builtins.set(row_index_range)
+
+        def ok():
+            for replica in replicas:
+                path = replica["replica_path"]
+                cluster = replica["cluster_name"]
+                actual_row_index_range = builtins.set(row["$row_index"] for row in select_rows(
+                    f"[$row_index] from [{path}] where [$tablet_index] = {partition_index}",
+                    driver=get_driver(cluster=cluster)))
+                if actual_row_index_range != row_index_range_set:
+                    print_debug(f"Expected {row_index_range_set} rows in replica {cluster}:{path}, but found {actual_row_index_range}")
+                    return False
+            return True
+
+        wait(ok)
+
+    @classmethod
+    def _wait_for_export_period_update(cls, replicas_orchids: list[OrchidWithRegularPasses], queue_orchid: OrchidWithRegularPasses):
+        instances = cls.INSTANCES
+        assert instances is not None
+
+        leading_cypress_synchronizer_orchid = CypressSynchronizerOrchid.leader_orchid(instances=instances)
+        leading_cypress_synchronizer_orchid.wait_fresh_pass()
+
+        queue_agent_orchids = [QueueAgentOrchid(instance) for instance in instances]
+        cls.wait_fresh_pass(queue_agent_orchids)
+
+        for orchid in replicas_orchids:
+            orchid.wait_fresh_pass()
+        queue_orchid.wait_fresh_pass()
+
+    @authors("apachee")
+    @pytest.mark.parametrize("create_replicated_queue", [
+        _with_create_cells(_create_replicated_queue),
+        _with_create_cells(_create_chaos_replicated_queue),
+    ])
+    @pytest.mark.timeout(200)
+    def test_replicated_queue_with_no_vital_consumers(self, create_replicated_queue):
+        # TODO(apachee): Rewrite as soon as enable, and vital flags are added to static_export_config.
+
+        queue_agent_orchid = QueueAgentOrchid()
+
+        queue_path = "//tmp/queue"
+        replicas = create_replicated_queue(self, queue_path)
+        self._prepare_queue_replicas(replicas)
+
+        set(f"{queue_path}/@auto_trim_config", {
+            "enable": True,
+        })
+
+        export_dir = "//tmp/export"
+        for replica in replicas[1:]:
+            replica_driver = get_driver(cluster=replica["cluster_name"])
+            replica_path = replica["replica_path"]
+            replica_id = get(f"{replica_path}/@id", driver=replica_driver)
+            self._create_export_destination(export_dir, replica_id, driver=replica_driver)
+            assert self._get_export_tables_count(replica) == 0
+
+            export_config = {
+                "default": {
+                    "export_directory": export_dir,
+                    "export_period": self.INF_PERIOD
+                }
+            }
+            set(f"{replica_path}/@static_export_config", export_config, driver=replica_driver)
+
+        self._wait_for_component_passes()
+        queue_orchid = queue_agent_orchid.get_queue_orchid(f"primary:{queue_path}")
+        replicas_orchids: list[OrchidWithRegularPasses] = []
+        for replica in replicas:
+            replica_cluster = replica["cluster_name"]
+            replica_path = replica["replica_path"]
+            replicas_orchids.append(queue_agent_orchid.get_queue_orchid(f"{replica_cluster}:{replica_path}"))
+
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 3)
+        self._wait_for_replicated_queue_row_range(replicas, range(3))
+        self._flush_replicated_queue(replicas)
+
+        queue_orchid.wait_fresh_pass()
+        # Wait to check that trim did not occur.
+        time.sleep(10)
+
+        # Nothing should be trimmed.
+        assert self._get_export_tables_count(replicas[1]) == 0
+        assert self._get_export_tables_count(replicas[2]) == 0
+        self._wait_for_replicated_queue_row_range(replicas, range(3))
+
+        # We first check that trim correctly takes into account second export (remote_1),
+        # and then the first (remote_0) to check that export progress aggregation works as expected.
+
+        # Checking trim for export on remote_1 cluster.
+
+        self._update_export_period(replicas[1], 1000)
+
+        wait(lambda: self._get_export_tables_count(replicas[1]) == 1)
+        replicas_orchids[1].wait_fresh_pass()
+        queue_orchid.wait_fresh_pass()
+        # Wait to check that trim did not occur.
+        time.sleep(10)
+
+        # Nothing should be trimmed as no exports for replicas[2] has occured.
+        assert self._get_export_tables_count(replicas[2]) == 0
+        self._wait_for_replicated_queue_row_range(replicas, range(3))
+
+        self._update_export_period(replicas[2], 1000)
+
+        wait(lambda: self._get_export_tables_count(replicas[2]) == 1)
+
+        # NB(apachee): Workaround for the fact that trimming all rows fails for chaos queues
+        self._update_export_periods(replicas[1:], self.INF_PERIOD, replicas_orchids[1:], queue_orchid)
+        time.sleep(1)  # Wait for latest export iteration to finish
+
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 3)
+
+        self._wait_for_replicated_queue_row_range(replicas, range(3, 6))
+        self._flush_replicated_queue(replicas)
+
+        # Checking trim for export on remote_2 cluster.
+
+        self._update_export_period(replicas[2], 1000)
+
+        wait(lambda: self._get_export_tables_count(replicas[2]) == 2)
+        replicas_orchids[2].wait_fresh_pass()
+        queue_orchid.wait_fresh_pass()
+        # Wait to check that trim did not occur.
+        time.sleep(10)
+
+        # Nothing should be trimmed as no exports for replicas[1] has occured.
+        assert self._get_export_tables_count(replicas[1]) == 1
+        self._wait_for_replicated_queue_row_range(replicas, range(3, 6))
+
+        self._update_export_period(replicas[1], 1000)
+
+        wait(lambda: self._get_export_tables_count(replicas[1]) == 2)
+
+        # NB(apachee): Workaround for the fact that trimming all rows fails for chaos queues
+        self._update_export_periods(replicas[1:], self.INF_PERIOD, replicas_orchids[1:], queue_orchid)
+        time.sleep(1)  # Wait for the latest export iteration to finish
+
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 3)
+
+        self._wait_for_replicated_queue_row_range(replicas, range(6, 9))
+
+        for replica in replicas[1:]:
+            cluster_name = replica["cluster_name"]
+            replica_driver = get_driver(cluster=cluster_name)
+            self.remove_export_destination(export_dir, driver=replica_driver)
+
+    @authors("apachee")
+    @pytest.mark.parametrize("create_queue_consumer_pair", [
+        TestMultiClusterReplicatedTableObjectsBase._create_chaos_queue_consumer_pair,
+        TestMultiClusterReplicatedTableObjectsBase._create_replicated_queue_consumer_pair,
+    ])
+    @pytest.mark.timeout(200)
+    def test_replicated_queue_with_vital_consumers(self, create_queue_consumer_pair):
+        # TODO(apachee): Rewrite as soon as enable, and vital flags are added to static_export_config.
+
+        queue_agent_orchid = QueueAgentOrchid()
+
+        queue_path, replicas, consumer_path, _ = create_queue_consumer_pair(self)
+        self._prepare_queue_replicas(replicas)
+
+        set(f"{queue_path}/@auto_trim_config", {
+            "enable": True,
+        })
+
+        export_dir = "//tmp/export"
+        for replica in replicas[1:]:
+            replica_driver = get_driver(cluster=replica["cluster_name"])
+            replica_path = replica["replica_path"]
+            replica_id = get(f"{replica_path}/@id", driver=replica_driver)
+            self._create_export_destination(export_dir, replica_id, driver=replica_driver)
+            assert self._get_export_tables_count(replica) == 0
+
+            # Register queues and consumers for cypress synchronizer to see them.
+            register_queue_consumer(queue_path, consumer_path, vital=True)
+
+            export_config = {
+                "default": {
+                    "export_directory": export_dir,
+                    "export_period": self.INF_PERIOD
+                }
+            }
+            set(f"{replica_path}/@static_export_config", export_config, driver=replica_driver)
+
+        self._wait_for_component_passes()
+        queue_orchid = queue_agent_orchid.get_queue_orchid(f"primary:{queue_path}")
+        consumer_orchid = queue_agent_orchid.get_consumer_orchid(f"primary:{consumer_path}")
+        replicas_orchids: list[OrchidWithRegularPasses] = []
+        for replica in replicas:
+            replica_cluster = replica["cluster_name"]
+            replica_path = replica["replica_path"]
+            replicas_orchids.append(queue_agent_orchid.get_queue_orchid(f"{replica_cluster}:{replica_path}"))
+
+        # Wait for registration to be acknowledged by Queue Agent.
+        wait(lambda: len(get(f"{queue_path}/@queue_status/registrations")) == 1)
+
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 3)
+        self._wait_for_replicated_queue_row_range(replicas, range(3))
+        self._flush_replicated_queue(replicas)
+
+        queue_orchid.wait_fresh_pass()
+        # Wait to check that trim did not occur.
+        time.sleep(10)
+
+        # Nothing should be trimmed.
+        assert self._get_export_tables_count(replicas[1]) == 0
+        assert self._get_export_tables_count(replicas[2]) == 0
+        self._wait_for_replicated_queue_row_range(replicas, range(3))
+
+        def wait_for_all_exports(count):
+            for replica in replicas[1:]:
+                wait(lambda: self._get_export_tables_count(replica) == count)
+
+        def wait_for_all_replica_orchids(wait_for_queue=False):
+            replicas_orchids[1].wait_fresh_pass()
+            replicas_orchids[2].wait_fresh_pass()
+            queue_orchid.wait_fresh_pass()
+
+        # Firstly, we check that vital consumers are properly handled, when exports are present.
+
+        self._update_export_periods(replicas[1:], 1000)
+        wait_for_all_exports(1)
+        wait_for_all_replica_orchids()
+        # Wait to check that trim did not occur.
+        time.sleep(10)
+
+        # Nothing should be trimmed as no consumer offset is 0.
+        self._wait_for_replicated_queue_row_range(replicas, range(3))
+
+        advance_consumer(consumer_path, queue_path, 0, 0, 3)
+        consumer_orchid.wait_fresh_pass()
+
+        # NB(apachee): Workaround for the fact that trimming all rows fails for chaos queues
+        self._update_export_periods(replicas[1:], self.INF_PERIOD, replicas_orchids[1:], queue_orchid)
+        time.sleep(1)  # Wait for the latest export iteration to finish
+
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 3)
+
+        self._wait_for_replicated_queue_row_range(replicas, range(3, 6))
+        self._flush_replicated_queue(replicas)
+
+        # Secondly, we check that exports are properly handled, when vital consumers are present.
+
+        advance_consumer(consumer_path, queue_path, 0, 3, 6)
+        consumer_orchid.wait_fresh_pass()
+        queue_orchid.wait_fresh_pass()
+        # Wait to check that trim did not occur.
+        time.sleep(10)
+
+        # Nothing should be trimmed as nothing is exported yet.
+        self._wait_for_replicated_queue_row_range(replicas, range(3, 6))
+
+        self._update_export_periods(replicas[1:], 1000)
+        wait_for_all_exports(2)
+
+        # NB(apachee): Workaround for the fact that trimming all rows fails for chaos queues
+        self._update_export_periods(replicas[1:], self.INF_PERIOD, replicas_orchids[1:], queue_orchid)
+        time.sleep(1)  # Wait for the latest export iteration to finish
+
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 3)
+
+        self._wait_for_replicated_queue_row_range(replicas, range(6, 9))
+
+        for replica in replicas[1:]:
+            cluster_name = replica["cluster_name"]
+            replica_driver = get_driver(cluster=cluster_name)
+            self.remove_export_destination(export_dir, driver=replica_driver)
+
+    @authors("apachee")
+    @pytest.mark.timeout(150)
+    def test_enable_crt_trim_by_exports_compat(self):
+        # TODO(apachee): Rewrite as soon as YT-22882 is fixed.
+
+        self._apply_dynamic_config_patch({
+            "queue_agent": {
+                "controller": {
+                    "enable_crt_trim_by_exports": False,
+                }
+            }
+        })
+
+        queue_agent_orchid = QueueAgentOrchid()
+
+        queue_path, replicas, consumer_path, _ = self._create_chaos_queue_consumer_pair()
+        self._prepare_queue_replicas(replicas)
+
+        set(f"{queue_path}/@auto_trim_config", {
+            "enable": True,
+        })
+
+        export_dir = "//tmp/export"
+        for replica in replicas[1:]:
+            replica_driver = get_driver(cluster=replica["cluster_name"])
+            replica_path = replica["replica_path"]
+            replica_id = get(f"{replica_path}/@id", driver=replica_driver)
+            self._create_export_destination(export_dir, replica_id, driver=replica_driver)
+            assert self._get_export_tables_count(replica) == 0
+
+            export_config = {
+                "default": {
+                    "export_directory": export_dir,
+                    "export_period": self.INF_PERIOD
+                }
+            }
+            set(f"{replica_path}/@static_export_config", export_config, driver=replica_driver)
+
+        self._wait_for_component_passes()
+
+        # Register queues and consumers for cypress synchronizer to see them.
+        register_queue_consumer(queue_path, consumer_path, vital=True)
+
+        queue_orchid = queue_agent_orchid.get_queue_orchid(f"primary:{queue_path}")
+        consumer_orchid = queue_agent_orchid.get_consumer_orchid(f"primary:{consumer_path}")
+        replicas_orchids: list[OrchidWithRegularPasses] = []
+        for replica in replicas:
+            replica_cluster = replica["cluster_name"]
+            replica_path = replica["replica_path"]
+            replicas_orchids.append(queue_agent_orchid.get_queue_orchid(f"{replica_cluster}:{replica_path}"))
+
+        # Wait for registration to be acknowledged by Queue Agent.
+        wait(lambda: len(get(f"{queue_path}/@queue_status/registrations")) == 1)
+
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 3)
+        self._wait_for_replicated_queue_row_range(replicas, range(3))
+        self._flush_replicated_queue(replicas)
+
+        queue_orchid.wait_fresh_pass()
+        # Wait to check that trim did not occur.
+        time.sleep(10)
+
+        # Nothing should be trimmed.
+        assert self._get_export_tables_count(replicas[1]) == 0
+        assert self._get_export_tables_count(replicas[2]) == 0
+        self._wait_for_replicated_queue_row_range(replicas, range(3))
+
+        def wait_for_all_exports(count):
+            for replica in replicas[1:]:
+                wait(lambda: self._get_export_tables_count(replica) == count)
+
+        advance_consumer(consumer_path, queue_path, 0, 0, 3)
+        consumer_orchid.wait_fresh_pass()
+
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 3)
+
+        self._wait_for_replicated_queue_row_range(replicas, range(3, 6))
+
+        wait_for_all_exports(0)

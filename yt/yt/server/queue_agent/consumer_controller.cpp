@@ -448,7 +448,7 @@ public:
         , DynamicConfig_(dynamicConfig)
         , ClientDirectory_(std::move(clientDirectory))
         , Invoker_(std::move(invoker))
-        , Logger(QueueAgentLogger().WithTag("Consumer: %v, Leading: %v", ConsumerRef_, Leading_))
+        , Logger(ConsumerControllerLogger().WithTag("Consumer: %v, Leading: %v", ConsumerRef_, Leading_))
         , PassExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TConsumerController::Pass, MakeWeak(this)),
@@ -608,7 +608,7 @@ bool UpdateConsumerController(
     const TConsumerTableRow& row,
     const std::optional<TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
     const IObjectStore* store,
-    TQueueControllerDynamicConfigPtr dynamicConfig,
+    const TQueueControllerDynamicConfigPtr& dynamicConfig,
     TQueueAgentClientDirectoryPtr clientDirectory,
     IInvokerPtr invoker)
 {
@@ -621,7 +621,7 @@ bool UpdateConsumerController(
         row,
         replicatedTableMappingRow,
         store,
-        std::move(dynamicConfig),
+        dynamicConfig,
         std::move(clientDirectory),
         std::move(invoker));
     return true;

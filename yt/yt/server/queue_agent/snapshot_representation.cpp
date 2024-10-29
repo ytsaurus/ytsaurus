@@ -1,6 +1,8 @@
 #include "snapshot_representation.h"
 #include "snapshot.h"
 
+#include "queue_static_table_exporter.h"
+
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/net/local_address.h>
@@ -49,7 +51,11 @@ void BuildRegistrationYson(TFluentList fluent, TConsumerRegistrationTableRow reg
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void BuildQueueStatusYson(const TQueueSnapshotPtr& snapshot, const IAlertManagerPtr& alertManager, TFluentAny fluent)
+void BuildQueueStatusYson(
+    const TQueueSnapshotPtr& snapshot,
+    const IAlertManagerPtr& alertManager,
+    const TErrorOr<THashMap<TString, TQueueExportProgressPtr>>& queueExportsProgressOrError,
+    TFluentAny fluent)
 {
     fluent
         .BeginMap()
@@ -60,6 +66,15 @@ void BuildQueueStatusYson(const TQueueSnapshotPtr& snapshot, const IAlertManager
                 // //     .Item("opaque").Value(true)
                 // // .EndAttributes()
                 .Value(alertManager->GetAlerts())
+            .Item("exports")
+                .BeginMap()
+                    .DoIf(queueExportsProgressOrError.IsOK(), [&] (TFluentMap fluentMap) {
+                        fluentMap.Item("progress").Value(queueExportsProgressOrError.Value());
+                    })
+                    .DoIf(!queueExportsProgressOrError.IsOK(), [&] (TFluentMap fluentMap) {
+                        fluentMap.Item("error").Value(queueExportsProgressOrError);
+                    })
+                .EndMap()
             .DoIf(snapshot->Error.IsOK(), [&] (TFluentMap fluentMap) {
                 fluentMap.Item("family").Value(snapshot->Family);
                 fluentMap.Item("partition_count").Value(snapshot->PartitionCount);
