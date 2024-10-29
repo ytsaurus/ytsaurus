@@ -1,3 +1,5 @@
+import inspect
+
 from .config import get_config, get_option, set_option
 from .common import require, generate_int64, update, get_value
 from .constants import RPC_PACKAGE_INSTALLATION_TEXT, ENABLE_YP_SERVICE_DISCOVERY
@@ -319,6 +321,10 @@ def make_request(command_name, params,
     trace_id = params.get("trace_id", None)
 
     try:
+        additional_kwargs = {}
+        if "trace_id" in inspect.signature(driver_bindings.Request).parameters:
+            additional_kwargs["trace_id"] = trace_id
+
         request = driver_bindings.Request(
             command_name=command_name,
             parameters=params,
@@ -326,8 +332,8 @@ def make_request(command_name, params,
             output_stream=output_stream,
             user=driver_user_name,
             token=token,
-            trace_id=trace_id,
-            service_ticket=service_ticket)
+            service_ticket=service_ticket,
+            **additional_kwargs)
     except TypeError:
         request = driver_bindings.Request(
             command_name=command_name,
