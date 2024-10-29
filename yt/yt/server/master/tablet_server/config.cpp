@@ -109,8 +109,6 @@ void TDynamicTabletNodeTrackerConfig::Register(TRegistrar registrar)
 
 void TDynamicCellHydraPersistenceSynchronizerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("use_hydra_persistence_directory", &TThis::UseHydraPersistenceDirectory)
-        .Default(true);
     registrar.Parameter("migrate_to_virtual_cell_maps", &TThis::MigrateToVirtualCellMaps)
         .Default(false);
     registrar.Parameter("synchronization_period", &TThis::SynchronizationPeriod)

@@ -166,12 +166,6 @@ class TDynamicCellHydraPersistenceSynchronizerConfig
     : public NYTree::TYsonStruct
 {
 public:
-    // COMPAT(danilalexeev)
-    //! Remarks the beginning of Hydra persistence migration for tablet and chaos cells.
-    //! Further Hydra persistence is created at a new storage at Cypress, whereas the old one
-    //! is gradually emptied by janitor.
-    bool UseHydraPersistenceDirectory;
-
     //! Allows safe deletion of the old storage at Cypress without it affecting cell instances.
     //! Reconfigures master in a way that the old storage is no longer being accessed.
     bool MigrateToVirtualCellMaps;

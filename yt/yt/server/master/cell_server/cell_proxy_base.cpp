@@ -131,7 +131,6 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
 {
     const auto* cell = GetThisImpl();
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->CellHydraPersistenceSynchronizer;
 
     switch (key) {
         case EInternedAttributeKey::LeadingPeerId:
@@ -140,9 +139,7 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
             return true;
 
         case EInternedAttributeKey::Health:
-            // COMPAT(danilalexeev)
-            if (config->UseHydraPersistenceDirectory &&
-                multicellManager->IsPrimaryMaster() &&
+            if (multicellManager->IsPrimaryMaster() &&
                 !cell->GetRegisteredInCypress())
             {
                  BuildYsonFluently(consumer)

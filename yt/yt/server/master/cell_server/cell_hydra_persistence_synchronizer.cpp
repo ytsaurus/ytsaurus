@@ -519,9 +519,6 @@ private:
     void OnSynchronize()
     {
         auto dynamicConfig = GetDynamicConfig();
-        if (!dynamicConfig->UseHydraPersistenceDirectory) {
-            return;
-        }
 
         YT_LOG_DEBUG("Synchronizing cells Hydra presistence");
 
