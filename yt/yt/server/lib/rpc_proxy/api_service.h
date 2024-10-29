@@ -6,11 +6,11 @@
 
 #include <yt/yt/ytlib/misc/public.h>
 
-#include <yt/yt/library/profiling/public.h>
-
 #include <yt/yt/library/tracing/jaeger/public.h>
 
 #include <yt/yt/core/rpc/service.h>
+
+#include <yt/yt/library/profiling/public.h>
 
 #include <yt/yt/core/logging/public.h>
 
