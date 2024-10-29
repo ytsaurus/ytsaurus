@@ -41,10 +41,7 @@ def need_to_update_state(last_check_data):
 def discover_versions(yt_client, yt_token, logger):
     # type: (YtClient, str, logging.Logger) -> typing.List[dict] or None
     try:
-        proxy = (
-            yt_client.config["proxy"]["url"]
-            + yt_client.config["proxy"]["default_suffix"]
-        )
+        proxy = yt_client.config["proxy"]["url"]
         url = f"https://{proxy}/internal/discover_versions/v2"
         resp = requests.get(
             url, headers={"Authorization": "OAuth " + yt_token}, timeout=TIMEOUT
