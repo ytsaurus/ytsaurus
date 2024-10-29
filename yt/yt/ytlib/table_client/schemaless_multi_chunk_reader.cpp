@@ -295,12 +295,13 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                     }).AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
                 });
 
-                std::optional<std::vector<TString>> columnsToRead;
+                std::optional<std::vector<std::string>> columnsToRead;
                 if (!columnFilter.IsUniversal()) {
-                    columnsToRead = std::vector<TString>{};
+                    columnsToRead.emplace();
                     columnsToRead->reserve(columnFilter.GetIndexes().size());
                     for (auto columnIndex : columnFilter.GetIndexes()) {
-                        columnsToRead->emplace_back(nameTable->GetName(columnIndex));
+                        // TODO(babenko): switch to std::string
+                        columnsToRead->push_back(std::string(nameTable->GetName(columnIndex)));
                     }
                 } else {
                     columnsToRead = dataSource.Columns();

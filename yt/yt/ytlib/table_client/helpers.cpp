@@ -125,7 +125,7 @@ public:
         YT_ABORT();
     }
 
-    const std::vector<TString>& GetOmittedInaccessibleColumns() const override
+    const std::vector<std::string>& GetOmittedInaccessibleColumns() const override
     {
         YT_ABORT();
     }
@@ -174,7 +174,7 @@ void ValidateSortColumns(
 }
 
 TColumnFilter CreateColumnFilter(
-    const std::optional<std::vector<TString>>& columns,
+    const std::optional<std::vector<std::string>>& columns,
     const TNameTablePtr& nameTable)
 {
     if (!columns) {

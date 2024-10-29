@@ -11,7 +11,7 @@ namespace NYT::NQueryClient {
 
 struct TConstraintExtractorMap
     : public TRefCounted
-    , public std::unordered_map<TString, TConstraintExtractor>
+    , public std::unordered_map<std::string, TConstraintExtractor>
 { };
 
 DEFINE_REFCOUNTED_TYPE(TConstraintExtractorMap)

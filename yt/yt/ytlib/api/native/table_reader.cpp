@@ -147,7 +147,7 @@ public:
         return TableSchema_;
     }
 
-    const std::vector<TString>& GetOmittedInaccessibleColumns() const override
+    const std::vector<std::string>& GetOmittedInaccessibleColumns() const override
     {
         YT_VERIFY(Reader_);
         return OmittedInaccessibleColumns_;
@@ -169,7 +169,7 @@ private:
     TFuture<void> ReadyEvent_;
     ISchemalessMultiChunkReaderPtr Reader_;
     TTableSchemaPtr TableSchema_;
-    std::vector<TString> OmittedInaccessibleColumns_;
+    std::vector<std::string> OmittedInaccessibleColumns_;
     i64 StartRowIndex_;
     NProfiling::TCpuInstant ReadDeadline_ = Max<NProfiling::TCpuInstant>();
 

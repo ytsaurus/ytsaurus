@@ -253,7 +253,7 @@ DB::Pipe CreateRemoteSource(
 }
 
 void ValidateReadPermissions(
-    const std::vector<TString>& columnNames,
+    const std::vector<std::string>& columnNames,
     const std::vector<TTablePtr>& tables,
     TQueryContext* queryContext)
 {
@@ -340,8 +340,8 @@ class TDistributedQueryPreparer
 {
 public:
     TDistributedQueryPreparer(
-        const std::vector<TString>& realColumnNames,
-        const std::vector<TString>& virtualColumnNames,
+        const std::vector<std::string>& realColumnNames,
+        const std::vector<std::string>& virtualColumnNames,
         DB::SelectQueryInfo& queryInfo,
         DB::ContextPtr context,
         TQueryContext* queryContext,
@@ -542,14 +542,14 @@ public:
     }
 
 private:
-    std::vector<TString> RealColumnNames_;
-    std::vector<TString> VirtualColumnNames_;
+    const std::vector<std::string> RealColumnNames_;
+    const std::vector<std::string> VirtualColumnNames_;
     DB::SelectQueryInfo QueryInfo_;
-    DB::ContextPtr Context_;
-    TQueryContext* QueryContext_;
+    const DB::ContextPtr Context_;
+    TQueryContext* const QueryContext_;
     TStorageContext* const StorageContext_;
     const DB::QueryProcessingStage::Enum ProcessingStage_;
-    size_t DistributionSeed_;
+    const size_t DistributionSeed_;
     const TLogger Logger;
 
     TSubquerySpec SpecTemplate_;

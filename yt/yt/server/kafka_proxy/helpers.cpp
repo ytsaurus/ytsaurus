@@ -29,13 +29,13 @@ namespace {
 
 bool IsKafkaQueue(const TTableSchemaPtr& schema)
 {
-    static const THashMap<TString, EValueType> KafkaQueueColumns = {
+    static const THashMap<std::string, EValueType> KafkaQueueColumns = {
         {"key", EValueType::String},
         {"value", EValueType::String},
     };
 
     for (const auto& column : schema->Columns()) {
-        if (column.Name().StartsWith(SystemColumnNamePrefix)) {
+        if (column.Name().starts_with(SystemColumnNamePrefix)) {
             continue;
         }
 

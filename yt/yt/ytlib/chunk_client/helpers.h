@@ -177,7 +177,7 @@ struct TUserObject
     NHydra::TRevision Revision = NHydra::NullRevision;
     NHydra::TRevision ContentRevision = NHydra::NullRevision;
     NHydra::TRevision AttributeRevision = NHydra::NullRevision;
-    std::vector<TString> OmittedInaccessibleColumns;
+    std::vector<std::string> OmittedInaccessibleColumns;
     std::vector<NSecurityClient::TSecurityTag> SecurityTags;
     i64 ChunkCount = -1;
 

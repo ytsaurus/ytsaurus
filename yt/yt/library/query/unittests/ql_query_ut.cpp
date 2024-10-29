@@ -1455,7 +1455,7 @@ TQueryStatistics DoExecuteQuery(
         MakeFuture(MostFreshFeatureFlags()));
 }
 
-std::vector<TRow> OrderRowsBy(TRange<TRow> rows, const std::vector<TString>& columns, const TTableSchema& tableSchema)
+std::vector<TRow> OrderRowsBy(TRange<TRow> rows, const std::vector<std::string>& columns, const TTableSchema& tableSchema)
 {
     std::vector<int> indexes;
     for (const auto& column : columns) {
@@ -1527,7 +1527,7 @@ TResultMatcher ResultMatcher(std::vector<TOwningRow> expectedResult, TTableSchem
 
 TResultMatcher OrderedResultMatcher(
     std::vector<TOwningRow> expectedResult,
-    std::vector<TString> columns)
+    std::vector<std::string> columns)
 {
     return [
             expectedResult = std::move(expectedResult),

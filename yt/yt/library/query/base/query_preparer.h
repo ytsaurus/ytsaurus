@@ -75,13 +75,13 @@ TConstExpressionPtr PrepareExpression(
     const TString& source,
     const TTableSchema& tableSchema,
     const TConstTypeInferrerMapPtr& functions = GetBuiltinTypeInferrers(),
-    THashSet<TString>* references = nullptr);
+    THashSet<std::string>* references = nullptr);
 
 TConstExpressionPtr PrepareExpression(
     const TParsedSource& parsedSource,
     const TTableSchema& tableSchema,
     const TConstTypeInferrerMapPtr& functions = GetBuiltinTypeInferrers(),
-    THashSet<TString>* references = nullptr);
+    THashSet<std::string>* references = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -16,7 +16,7 @@ namespace NYT::NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Computes key index for a given column name.
-int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const TString& columnName);
+int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const std::string& columnName);
 
 //! Derives type of reference expression based on table column type.
 //!
@@ -29,7 +29,7 @@ struct TColumnDescriptor
 {
     // Renamed column.
     // TODO: Do not keep name but restore name from table alias and column name from original schema.
-    TString Name;
+    std::string Name;
     // Index in schema.
     int Index;
 };
@@ -90,24 +90,24 @@ struct TLiteralExpression
 struct TReferenceExpression
     : public TExpression
 {
-    TString ColumnName;
+    std::string ColumnName;
 
     explicit TReferenceExpression(const NTableClient::TLogicalTypePtr& type);
 
-    TReferenceExpression(const NTableClient::TLogicalTypePtr& type, TString columnName);
+    TReferenceExpression(const NTableClient::TLogicalTypePtr& type, const std::string& columnName);
 };
 
 struct TFunctionExpression
     : public TExpression
 {
-    TString FunctionName;
+    std::string FunctionName;
     std::vector<TConstExpressionPtr> Arguments;
 
     explicit TFunctionExpression(EValueType type);
 
     TFunctionExpression(
         EValueType type,
-        TString functionName,
+        const std::string& functionName,
         std::vector<TConstExpressionPtr> arguments);
 };
 
@@ -287,11 +287,10 @@ void ThrowTypeMismatchError(
 struct TNamedItem
 {
     TConstExpressionPtr Expression;
-    TString Name;
+    std::string Name;
 
     TNamedItem() = default;
-
-    TNamedItem(TConstExpressionPtr expression, TString name);
+    TNamedItem(TConstExpressionPtr expression, const std::string& name);
 };
 
 using TNamedItemList = std::vector<TNamedItem>;
@@ -299,8 +298,8 @@ using TNamedItemList = std::vector<TNamedItem>;
 struct TAggregateItem
 {
     std::vector<TConstExpressionPtr> Arguments;
-    TString Name;
-    TString AggregateFunction;
+    std::string Name;
+    std::string AggregateFunction;
     EValueType StateType;
     EValueType ResultType;
 
@@ -308,8 +307,8 @@ struct TAggregateItem
 
     TAggregateItem(
         std::vector<TConstExpressionPtr> arguments,
-        TString aggregateFunction,
-        TString name,
+        const std::string& aggregateFunction,
+        const std::string& name,
         EValueType stateType,
         EValueType resultType);
 };
@@ -340,8 +339,8 @@ struct TJoinClause
     : public TRefCounted
 {
     TMappedSchema Schema;
-    THashSet<TString> SelfJoinedColumns;
-    THashSet<TString> ForeignJoinedColumns;
+    THashSet<std::string> SelfJoinedColumns;
+    THashSet<std::string> ForeignJoinedColumns;
 
     TConstExpressionPtr Predicate;
 
@@ -381,7 +380,7 @@ struct TGroupClause
 
     void AddGroupItem(TNamedItem namedItem);
 
-    void AddGroupItem(TConstExpressionPtr expression, TString name);
+    void AddGroupItem(TConstExpressionPtr expression, const std::string& name);
 
     TTableSchemaPtr GetTableSchema(bool isFinal) const;
 };
@@ -409,7 +408,7 @@ struct TProjectClause
 
     void AddProjection(TNamedItem namedItem);
 
-    void AddProjection(TConstExpressionPtr expression, TString name);
+    void AddProjection(TConstExpressionPtr expression, const std::string& name);
 
     TTableSchemaPtr GetTableSchema() const;
 };

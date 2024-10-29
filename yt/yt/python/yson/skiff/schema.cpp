@@ -18,8 +18,8 @@ using namespace NSkiffExt;
 
 TSkiffSchema::TSkiffSchema(
     const std::shared_ptr<NSkiff::TSkiffSchema>& skiffSchema,
-    const TString& rangeIndexColumnName,
-    const TString& rowIndexColumnName)
+    const std::string& rangeIndexColumnName,
+    const std::string& rowIndexColumnName)
     : SkiffSchema_(skiffSchema)
 {
     TableDescription_ = CreateTableDescriptionList({skiffSchema}, rangeIndexColumnName, rowIndexColumnName)[0];

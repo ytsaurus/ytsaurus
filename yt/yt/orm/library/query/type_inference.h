@@ -8,7 +8,7 @@ namespace NYT::NOrm::NQuery {
 
 //! Considers only builtin functions. Returns std::nullopt
 //! if function is not found or has ambiguous return type.
-std::optional<NTableClient::EValueType> TryInferFunctionReturnType(const TString& functionName);
+std::optional<NTableClient::EValueType> TryInferFunctionReturnType(const std::string& functionName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

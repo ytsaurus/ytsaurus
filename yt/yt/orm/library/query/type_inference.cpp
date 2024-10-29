@@ -7,7 +7,7 @@ namespace NYT::NOrm::NQuery {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<NTableClient::EValueType> TryInferFunctionReturnType(const TString& functionName)
+std::optional<NTableClient::EValueType> TryInferFunctionReturnType(const std::string& functionName)
 {
     auto inferrers = NQueryClient::GetBuiltinTypeInferrers();
     auto functionIterator = inferrers->find(functionName);

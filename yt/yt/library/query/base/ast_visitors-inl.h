@@ -399,7 +399,7 @@ void TAliasVisitingAstVisitor<TDerived>::OnReference(TReferenceExpressionPtr ref
 
     YT_ASSERT(referenceExpr->Reference.CompositeTypeAccessor.IsEmpty());
 
-    auto name = referenceExpr->Reference.ColumnName;
+    const auto& name = referenceExpr->Reference.ColumnName;
     auto it = AliasMap_.find(name);
     if (it != AliasMap_.end()) {
         if (UsedAliases_.insert(name).second) {

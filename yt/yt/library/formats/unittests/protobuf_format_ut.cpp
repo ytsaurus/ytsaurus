@@ -1400,11 +1400,11 @@ TEST(TProtobufFormat, TestTabletIndex)
 
     EXPECT_EQ(true, writer->Write({
         MakeRow(nameTable, {
-            {TabletIndexColumnName, 1LL << 50},
+            {TString(TabletIndexColumnName), 1LL << 50},
             {"int64_field", -2345},
         }).Get(),
         MakeRow(nameTable, {
-            {TabletIndexColumnName, 12},
+            {TString(TabletIndexColumnName), 12},
             {"int64_field", 2345},
         }).Get(),
     }));
@@ -3635,11 +3635,11 @@ TEST(TProtobufFormat, MultipleOtherColumns)
     EXPECT_EQ(true, protoWriter->Write(
         std::vector<TUnversionedRow>{
             NNamedValue::MakeRow(nameTable, {
-                {TableIndexColumnName, 0},
+                {TString(TableIndexColumnName), 0},
                 {"field1", "foo"},
             }),
             NNamedValue::MakeRow(nameTable, {
-                {TableIndexColumnName, 1},
+                {TString(TableIndexColumnName), 1},
                 {"field2", "bar"},
             }),
         }));

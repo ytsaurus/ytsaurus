@@ -339,7 +339,7 @@ IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
         if (reference.TableName) {
             THROW_ERROR_EXCEPTION("Table references are not supported");
         }
-        return CreateFakeTableAttributeSelector(reference.ColumnName, typedAttributePaths, &objectsHolder);
+        return CreateFakeTableAttributeSelector(TYPath(reference.ColumnName), typedAttributePaths, &objectsHolder);
     };
     TQueryRewriter rewriter(&objectsHolder, std::move(referenceMapping));
     objectsHolder.Ast = rewriter.Run(queryExpression);

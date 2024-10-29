@@ -27,7 +27,7 @@ using NCodegen::EExecutionBackend;
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Computes key index for a given column name.
-int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const TString& columnName)
+int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const std::string& columnName)
 {
     for (int index = 0; index < std::ssize(keyColumns); ++index) {
         if (keyColumns[index] == columnName) {
@@ -79,9 +79,9 @@ TReferenceExpression::TReferenceExpression(const NTableClient::TLogicalTypePtr& 
     : TExpression(ToQLType(type))
 { }
 
-TReferenceExpression::TReferenceExpression(const NTableClient::TLogicalTypePtr& type, TString columnName)
+TReferenceExpression::TReferenceExpression(const NTableClient::TLogicalTypePtr& type, const std::string& columnName)
     : TExpression(ToQLType(type))
-    , ColumnName(std::move(columnName))
+    , ColumnName(columnName)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,10 +92,10 @@ TFunctionExpression::TFunctionExpression(EValueType type)
 
 TFunctionExpression::TFunctionExpression(
     EValueType type,
-    TString functionName,
+    const std::string& functionName,
     std::vector<TConstExpressionPtr> arguments)
     : TExpression(type)
-    , FunctionName(std::move(functionName))
+    , FunctionName(functionName)
     , Arguments(std::move(arguments))
 { }
 
@@ -210,22 +210,22 @@ void TCompositeMemberAccessorPath::Reserve(int length)
 
 TNamedItem::TNamedItem(
     TConstExpressionPtr expression,
-    TString name)
+    const std::string& name)
     : Expression(std::move(expression))
-    , Name(std::move(name))
+    , Name(name)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TAggregateItem::TAggregateItem(
     std::vector<TConstExpressionPtr> arguments,
-    TString aggregateFunction,
-    TString name,
+    const std::string& aggregateFunction,
+    const std::string& name,
     EValueType stateType,
     EValueType resultType)
     : Arguments(std::move(arguments))
-    , Name(std::move(name))
-    , AggregateFunction(std::move(aggregateFunction))
+    , Name(name)
+    , AggregateFunction(aggregateFunction)
     , StateType(stateType)
     , ResultType(resultType)
 { }
@@ -301,9 +301,9 @@ void TGroupClause::AddGroupItem(TNamedItem namedItem)
     GroupItems.push_back(std::move(namedItem));
 }
 
-void TGroupClause::AddGroupItem(TConstExpressionPtr expression, TString name)
+void TGroupClause::AddGroupItem(TConstExpressionPtr expression, const std::string& name)
 {
-    AddGroupItem(TNamedItem(std::move(expression), std::move(name)));
+    AddGroupItem(TNamedItem(std::move(expression), name));
 }
 
 TTableSchemaPtr TGroupClause::GetTableSchema(bool isFinal) const
@@ -328,9 +328,9 @@ void TProjectClause::AddProjection(TNamedItem namedItem)
     Projections.push_back(std::move(namedItem));
 }
 
-void TProjectClause::AddProjection(TConstExpressionPtr expression, TString name)
+void TProjectClause::AddProjection(TConstExpressionPtr expression, const std::string& name)
 {
-    AddProjection(TNamedItem(std::move(expression), std::move(name)));
+    AddProjection(TNamedItem(std::move(expression), name));
 }
 
 TTableSchemaPtr TProjectClause::GetTableSchema() const
@@ -717,10 +717,10 @@ struct TExtraColumnsChecker
 {
     using TBase = TVisitor<TExtraColumnsChecker>;
 
-    const THashSet<TString>& Names;
+    const THashSet<std::string>& Names;
     bool HasExtraColumns = false;
 
-    explicit TExtraColumnsChecker(const THashSet<TString>& names)
+    explicit TExtraColumnsChecker(const THashSet<std::string>& names)
         : Names(names)
     { }
 
@@ -736,7 +736,7 @@ std::vector<size_t> GetJoinGroups(
     const std::vector<TConstJoinClausePtr>& joinClauses,
     TTableSchemaPtr schema)
 {
-    THashSet<TString> names;
+    THashSet<std::string> names;
     auto collectColumnNames = [&] (const TTableSchema& schema) {
         names.clear();
         for (const auto& column : schema.Columns()) {
@@ -889,11 +889,11 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
     } else if (auto referenceExpr = original->As<TReferenceExpression>()) {
         serialized->set_kind(ToProto(EExpressionKind::Reference));
         auto* proto = serialized->MutableExtension(NProto::TReferenceExpression::reference_expression);
-        proto->set_column_name(referenceExpr->ColumnName);
+        proto->set_column_name(ToProto(referenceExpr->ColumnName));
     } else if (auto functionExpr = original->As<TFunctionExpression>()) {
         serialized->set_kind(ToProto(EExpressionKind::Function));
         auto* proto = serialized->MutableExtension(NProto::TFunctionExpression::function_expression);
-        proto->set_function_name(functionExpr->FunctionName);
+        proto->set_function_name(ToProto(functionExpr->FunctionName));
         ToProto(proto->mutable_arguments(), functionExpr->Arguments);
     } else if (auto unaryOpExpr = original->As<TUnaryOpExpression>()) {
         serialized->set_kind(ToProto(EExpressionKind::UnaryOp));
@@ -1166,8 +1166,10 @@ void FromProto(TNamedItem* original, const NProto::TNamedItem& serialized)
 
 void ToProto(NProto::TAggregateItem* serialized, const TAggregateItem& original)
 {
+    using NYT::ToProto;
+
     ToProto(serialized->mutable_expression(), original.Arguments.front());
-    serialized->set_aggregate_function_name(original.AggregateFunction);
+    serialized->set_aggregate_function_name(ToProto(original.AggregateFunction));
     serialized->set_state_type(ToProto(original.StateType));
     serialized->set_result_type(ToProto(original.ResultType));
     ToProto(serialized->mutable_name(), original.Name);
@@ -1178,8 +1180,8 @@ void FromProto(TAggregateItem* original, const NProto::TAggregateItem& serialize
 {
     original->AggregateFunction = serialized.aggregate_function_name();
     original->Name = serialized.name();
-    original->StateType = static_cast<EValueType>(serialized.state_type());
-    original->ResultType = static_cast<EValueType>(serialized.result_type());
+    original->StateType = FromProto<EValueType>(serialized.state_type());
+    original->ResultType = FromProto<EValueType>(serialized.result_type());
     // COMPAT(sabdenovch)
     if (serialized.arguments_size() > 0) {
         original->Arguments = FromProto<std::vector<TConstExpressionPtr>>(serialized.arguments());
@@ -1206,7 +1208,9 @@ void FromProto(TSelfEquation* original, const NProto::TSelfEquation& serialized)
 
 void ToProto(NProto::TColumnDescriptor* proto, const TColumnDescriptor& original)
 {
-    proto->set_name(original.Name);
+    using NYT::ToProto;
+
+    proto->set_name(ToProto(original.Name));
     proto->set_index(original.Index);
 }
 

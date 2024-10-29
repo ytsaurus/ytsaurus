@@ -13,7 +13,7 @@ NTableClient::IGranuleFilterPtr CreateGranuleMinMaxFilter(
     TCompositeSettingsPtr settings,
     const NTableClient::TTableSchemaPtr& schema,
     const DB::ContextPtr& context,
-    const std::vector<TString>& realColumnNames);
+    const std::vector<std::string>& realColumnNames);
 
 ////////////////////////////////////////////////////////////////////////////////
 

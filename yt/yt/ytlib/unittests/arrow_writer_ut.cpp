@@ -469,7 +469,7 @@ TEST(TArrowWriterTest, SimpleInteger)
     std::vector<std::string> columnNames = {"integer"};
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
-                TColumnSchema(TString(columnNames[0]), EValueType::Int64),
+        TColumnSchema(columnNames[0], EValueType::Int64),
     }));
 
     TStringStream outputStream;
@@ -498,7 +498,7 @@ TEST(TArrowWriterTest, YT_20699_WrongAlign)
 
     // In such a scheme, the metadata will have a size not a multiple of 2^8
     tableSchemas.push_back(New<TTableSchema>(std::vector{
-        TColumnSchema(TString(columnNames[0]), ESimpleLogicalValueType::Date),
+        TColumnSchema(columnNames[0], ESimpleLogicalValueType::Date),
     }));
 
     TStringStream outputStream;
@@ -538,7 +538,7 @@ TEST(TArrowWriterTest, SimpleDate)
     std::vector<std::string> columnNames = {"date"};
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
-        TColumnSchema(TString(columnNames[0]), ESimpleLogicalValueType::Date),
+        TColumnSchema(columnNames[0], ESimpleLogicalValueType::Date),
     }));
 
     TStringStream outputStream;
@@ -567,7 +567,7 @@ TEST(TArrowWriterTest, SimpleDatatime)
     std::vector<std::string> columnNames = {"datatime"};
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
-        TColumnSchema(TString(columnNames[0]), ESimpleLogicalValueType::Datetime),
+        TColumnSchema(columnNames[0], ESimpleLogicalValueType::Datetime),
     }));
 
     TStringStream outputStream;
@@ -597,7 +597,7 @@ TEST(TArrowWriterTest, SimpleTimestamp)
     std::vector<std::string> columnNames = {"timestamp"};
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
-        TColumnSchema(TString(columnNames[0]), ESimpleLogicalValueType::Timestamp),
+        TColumnSchema(columnNames[0], ESimpleLogicalValueType::Timestamp),
     }));
 
     TStringStream outputStream;
@@ -626,7 +626,7 @@ TEST(TArrowWriterTest, SimpleInterval)
     std::vector<std::string> columnNames = {"Interval"};
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
-        TColumnSchema(TString(columnNames[0]), ESimpleLogicalValueType::Interval),
+        TColumnSchema(columnNames[0], ESimpleLogicalValueType::Interval),
     }));
 
     TStringStream outputStream;
@@ -656,7 +656,7 @@ TEST(TArrowWriterTest, SimpleFloat)
     std::vector<std::string> columnNames = {"float"};
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
-                TColumnSchema(TString(columnNames[0]), ESimpleLogicalValueType::Float),
+                TColumnSchema(columnNames[0], ESimpleLogicalValueType::Float),
     }));
 
     TStringStream outputStream;
@@ -684,7 +684,7 @@ TEST(TArrowWriterTest, ColumnarBatch)
     std::vector<std::string> columnNames = {"integer"};
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
-                TColumnSchema(TString(columnNames[0]), EValueType::Int64),
+                TColumnSchema(columnNames[0], EValueType::Int64),
     }));
 
     TStringStream outputStream;
@@ -713,7 +713,7 @@ TEST(TArrowWriterTest, RowBatch)
     std::vector<std::string> columnNames = {"integer"};
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
-                TColumnSchema(TString(columnNames[0]), EValueType::Int64),
+                TColumnSchema(columnNames[0], EValueType::Int64),
     }));
 
     TStringStream outputStream;
@@ -742,8 +742,8 @@ TEST(TArrowWriterTest, Null)
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"integer", "null"};
     tableSchemas.push_back(New<TTableSchema>(std::vector{
-                TColumnSchema(TString(columnNames[0]), EValueType::Int64),
-                TColumnSchema(TString(columnNames[1]), EValueType::Null),
+        TColumnSchema(columnNames[0], EValueType::Int64),
+        TColumnSchema(columnNames[1], EValueType::Null),
     }));
 
     TStringStream outputStream;
@@ -778,20 +778,20 @@ TEST(TArrowWriterTest, SimpleMultiTypes)
     std::vector<std::string> columnNames1 = {"string"};
     std::vector<TTableSchemaPtr> tableSchemas;
     tableSchemas.push_back(New<TTableSchema>(std::vector{
-        TColumnSchema(TString(columnNames1[0]), EValueType::String),
+        TColumnSchema(columnNames1[0], EValueType::String),
     }));
 
     // Second table
     std::vector<std::string> columnNames2 = {"int"};
     tableSchemas.push_back(New<TTableSchema>(std::vector{
-        TColumnSchema(TString(columnNames2[0]), EValueType::Int64),
+        TColumnSchema(columnNames2[0], EValueType::Int64),
     }));
 
     // Third table
     std::vector<std::string> columnNames3 = {"int2", "string2"};
     tableSchemas.push_back(New<TTableSchema>(std::vector{
-        TColumnSchema(TString(columnNames3[0]), EValueType::Int64),
-        TColumnSchema(TString(columnNames3[1]), EValueType::String),
+        TColumnSchema(columnNames3[0], EValueType::Int64),
+        TColumnSchema(columnNames3[1], EValueType::String),
     }));
 
     TStringStream outputStream;
@@ -910,7 +910,7 @@ TEST(TArrowWriterTest, SimpleString)
     std::vector<std::string> columnNames = {"string"};
     std::vector<TTableSchemaPtr> tableSchemas;
     tableSchemas.push_back(New<TTableSchema>(std::vector{
-                TColumnSchema(TString(columnNames[0]), EValueType::String),
+                TColumnSchema(columnNames[0], EValueType::String),
     }));
 
     TStringStream outputStream;
@@ -937,7 +937,7 @@ TEST(TArrowWriterTest, DictionaryString)
     std::vector<std::string> columnNames = {"string"};
     std::vector<TTableSchemaPtr> tableSchemas;
     tableSchemas.push_back(New<TTableSchema>(std::vector{
-                TColumnSchema(TString(columnNames[0]), EValueType::String),
+                TColumnSchema(columnNames[0], EValueType::String),
     }));
     TStringStream outputStream;
 
@@ -972,9 +972,9 @@ TEST(TArrowWriterTest, EnumString)
     std::vector<std::string> columnNames = {"string", "string2", "string3"};
     std::vector<TTableSchemaPtr> tableSchemas;
     tableSchemas.push_back(New<TTableSchema>(std::vector{
-        TColumnSchema(TString(columnNames[0]), EValueType::String),
-        TColumnSchema(TString(columnNames[1]), EValueType::String),
-        TColumnSchema(TString(columnNames[2]), EValueType::String),
+        TColumnSchema(columnNames[0], EValueType::String),
+        TColumnSchema(columnNames[1], EValueType::String),
+        TColumnSchema(columnNames[2], EValueType::String),
     }));
 
     TStringStream outputStream;
@@ -1051,7 +1051,7 @@ TEST(TArrowWriterTest, DictionaryAndDirectStrings)
     std::vector<std::string> columnNames = {"string"};
     std::vector<TTableSchemaPtr> tableSchemas;
     tableSchemas.push_back(New<TTableSchema>(std::vector{
-                TColumnSchema(TString(columnNames[0]), EValueType::String),
+                TColumnSchema(columnNames[0], EValueType::String),
     }));
 
     TStringStream outputStream;
@@ -1113,7 +1113,7 @@ TEST(TArrowWriterTest, SeveralIntegerColumnsOneBatch)
 
     std::vector<TColumnSchema> schemas_;
     for (size_t columnIdx = 0; columnIdx < columnCount; columnIdx++) {
-        schemas_.push_back(TColumnSchema(TString(columnNames[columnIdx]), EValueType::Int64));
+        schemas_.push_back(TColumnSchema(columnNames[columnIdx], EValueType::Int64));
     }
     tableSchemas.push_back(New<TTableSchema>(schemas_));
 
@@ -1160,7 +1160,7 @@ TEST(TArrowWriterTest, SeveralStringColumnsOneBatch)
 
     std::vector<TColumnSchema> schemas_;
     for (size_t columnIdx = 0; columnIdx < columnCount; columnIdx++) {
-        schemas_.push_back(TColumnSchema(TString(columnNames[columnIdx]), EValueType::String));
+        schemas_.push_back(TColumnSchema(columnNames[columnIdx], EValueType::String));
     }
     tableSchemas.push_back(New<TTableSchema>(schemas_));
 
@@ -1276,7 +1276,7 @@ TEST(TArrowWriterTest, SeveralIntegerSeveralBatches)
     for (size_t columnIdx = 0; columnIdx < columnCount; columnIdx++) {
         std::string ColumnName = "integer" + std::to_string(columnIdx);
         columnNames.push_back(ColumnName);
-        schemas_.push_back(TColumnSchema(TString(columnNames[columnIdx]), EValueType::Int64));
+        schemas_.push_back(TColumnSchema(columnNames[columnIdx], EValueType::Int64));
     }
     tableSchemas.push_back(New<TTableSchema>(schemas_));
 

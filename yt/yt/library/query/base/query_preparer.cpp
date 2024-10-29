@@ -1216,17 +1216,16 @@ EValueType RefineUnaryExprTypes(
 
 struct TBaseColumn
 {
-    TBaseColumn(const TString& name, TLogicalTypePtr type)
+    TBaseColumn(const std::string& name, TLogicalTypePtr type)
         : Name(name)
         , LogicalType(type)
     { }
 
-    TString Name;
+    std::string Name;
     TLogicalTypePtr LogicalType;
 };
 
-
-struct TBuilderCtxBase
+class TBuilderContextBase
 {
 private:
     struct TTable
@@ -1262,7 +1261,7 @@ public:
         NAst::TCompositeAgnosticReferenceHasher,
         NAst::TCompositeAgnosticReferenceEqComparer> Lookup;
 
-    TBuilderCtxBase(
+    TBuilderContextBase(
         const TTableSchema& schema,
         std::optional<TString> alias,
         std::vector<TColumnDescriptor>* mapping)
@@ -1273,7 +1272,7 @@ public:
     // Columns already presented in Lookup are shared.
     // In mapping presented all columns needed for read and renamed schema.
     // SelfJoinedColumns and ForeignJoinedColumns are built from Lookup using OriginTableIndex and LastTableIndex.
-    void Merge(TBuilderCtxBase& other)
+    void Merge(TBuilderContextBase& other)
     {
         size_t otherTablesCount = other.Tables_.size();
         size_t tablesCount = Tables_.size();
@@ -1360,7 +1359,7 @@ public:
         return {result, type};
     }
 
-    static const std::optional<TBaseColumn> FindColumn(const TNamedItemList& schema, const TString& name)
+    static const std::optional<TBaseColumn> FindColumn(const TNamedItemList& schema, const std::string& name)
     {
         for (int index = 0; index < std::ssize(schema); ++index) {
             if (schema[index].Name == name) {
@@ -1424,7 +1423,7 @@ struct TUntypedExpression
 };
 
 struct TBuilderCtx
-    : public TBuilderCtxBase
+    : public TBuilderContextBase
 {
 public:
     const TString& Source;
@@ -1432,7 +1431,7 @@ public:
     const NAst::TAliasMap& AliasMap;
 
 private:
-    std::set<TString> UsedAliases_;
+    std::set<std::string> UsedAliases_;
     int Depth_ = 0;
 
     THashMap<std::pair<TString, EValueType>, TConstExpressionPtr> AggregateLookup_;
@@ -1445,24 +1444,23 @@ public:
         const TTableSchema& schema,
         std::optional<TString> alias,
         std::vector<TColumnDescriptor>* mapping)
-        : TBuilderCtxBase(schema, alias, mapping)
+        : TBuilderContextBase(schema, alias, mapping)
         , Source(source)
         , Functions(functions)
         , AliasMap(aliasMap)
     { }
 
-    // TODO: Move ProvideAggregateColumn and GetAggregateColumnPtr to TBuilderCtxBase and provide callback
-    //  OnExpression.
-    // Or split into two functions. GetAggregate and SetAggregate.
+    // TODO(lukyan): Move ProvideAggregateColumn and GetAggregateColumnPtr to TBuilderCtxBase and provide callback
+    // OnExpression or split into two functions (GetAggregate and SetAggregate).
     std::pair<TTypeSet, std::function<TConstExpressionPtr(EValueType)>> ProvideAggregateColumn(
-        const TString& name,
+        const std::string& name,
         const TAggregateTypeInferrer* aggregateItem,
         const NAst::TExpression* argument,
         const TString& subexpressionName)
     {
         YT_VERIFY(AfterGroupBy_);
 
-        // TODO: Use guard.
+        // TODO(lukyan): Use guard.
         AfterGroupBy_ = false;
         auto untypedOperand = OnExpression(argument);
         AfterGroupBy_ = true;
@@ -1524,7 +1522,7 @@ public:
     }
 
     TUntypedExpression GetAggregateColumnPtr(
-        const TString& functionName,
+        const std::string& functionName,
         const TAggregateTypeInferrer* aggregateItem,
         const NAst::TExpression* argument,
         const TString& subexpressionName)
@@ -2254,12 +2252,12 @@ void TBuilderCtx::InferArgumentTypes(
     TStringBuf operatorName,
     TStringBuf source)
 {
-    std::unordered_set<TString> columnNames;
+    std::unordered_set<std::string> columnNames;
 
     for (const auto& argument : expressions) {
         auto untypedArgument = OnExpression(argument);
 
-        EValueType argType = GetFrontWithCheck(untypedArgument.FeasibleTypes, argument->GetSource(Source));
+        auto argType = GetFrontWithCheck(untypedArgument.FeasibleTypes, argument->GetSource(Source));
         auto typedArgument = untypedArgument.Generator(argType);
 
         typedArguments->push_back(typedArgument);
@@ -2760,7 +2758,7 @@ void PrepareQuery(
             }
 
             // Call PrepareExpression to extract references only.
-            THashSet<TString> references;
+            THashSet<std::string> references;
             PrepareExpression(*expression, *query->Schema.Original, builder.Functions, &references);
 
             auto canEvaluate = true;
@@ -3212,7 +3210,7 @@ TJoinClausePtr BuildJoinClause(
             break;
         }
 
-        THashSet<TString> references;
+        THashSet<std::string> references;
         auto evaluatedColumnExpression = PrepareExpression(
             *foreignColumnExpression,
             *foreignTableSchema,
@@ -3609,7 +3607,7 @@ TConstExpressionPtr PrepareExpression(
     const TString& source,
     const TTableSchema& tableSchema,
     const TConstTypeInferrerMapPtr& functions,
-    THashSet<TString>* references)
+    THashSet<std::string>* references)
 {
     return PrepareExpression(
         *ParseSource(source, EParseMode::Expression),
@@ -3622,7 +3620,7 @@ TConstExpressionPtr PrepareExpression(
     const TParsedSource& parsedSource,
     const TTableSchema& tableSchema,
     const TConstTypeInferrerMapPtr& functions,
-    THashSet<TString>* references)
+    THashSet<std::string>* references)
 {
     auto expr = std::get<NAst::TExpressionPtr>(parsedSource.AstHead.Ast);
     const auto& aliasMap = parsedSource.AstHead.AliasMap;

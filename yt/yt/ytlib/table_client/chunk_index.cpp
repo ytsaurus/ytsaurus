@@ -25,7 +25,7 @@ TIndexedVersionedBlockFormatDetail::TIndexedVersionedBlockFormatDetail(
     const TTableSchemaPtr& schema)
     : KeyColumnCount_(schema->GetKeyColumnCount())
 {
-    TCompactFlatMap<std::optional<TString>, int, IndexedRowTypicalGroupCount> groupNameToIndex;
+    TCompactFlatMap<std::optional<std::string>, int, IndexedRowTypicalGroupCount> groupNameToIndex;
     TCompactVector<int, IndexedRowTypicalGroupCount> groupColumnCounts;
 
     ColumnIdToColumnInfo_.reserve(schema->GetValueColumnCount());
@@ -38,7 +38,7 @@ TIndexedVersionedBlockFormatDetail::TIndexedVersionedBlockFormatDetail(
             it = EmplaceOrCrash(
                 groupNameToIndex,
                 column.Group(),
-                static_cast<int>(groupNameToIndex.size()));
+                std::ssize(groupNameToIndex));
 
             groupColumnCounts.push_back(0);
         }

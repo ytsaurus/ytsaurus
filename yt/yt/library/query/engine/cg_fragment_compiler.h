@@ -94,7 +94,7 @@ TCodegenExpression MakeCodegenLiteralExpr(
 TCodegenExpression MakeCodegenReferenceExpr(
     int index,
     EValueType type,
-    TString name);
+    const std::string& name);
 
 TCGValue CodegenFragment(
     TCGExprContext& builder,

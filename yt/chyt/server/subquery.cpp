@@ -127,8 +127,8 @@ public:
     TInputFetcher(
         TStorageContext* storageContext,
         const TQueryAnalysisResult& queryAnalysisResult,
-        const std::vector<TString>& realColumnNames,
-        const std::vector<TString>& virtualColumnNames,
+        const std::vector<std::string>& realColumnNames,
+        const std::vector<std::string>& virtualColumnNames,
         const TClickHouseIndexBuilder& indexBuilder,
         TTransactionId transactionId)
         : StorageContext_(storageContext)
@@ -176,12 +176,11 @@ private:
 
     IInvokerPtr Invoker_;
 
-
     std::vector<TTableSchemaPtr> OperandSchemas_;
     std::vector<std::optional<DB::KeyCondition>> KeyConditions_;
 
-    std::vector<TString> RealColumnNames_;
-    std::vector<TString> VirtualColumnNames_;
+    std::vector<std::string> RealColumnNames_;
+    std::vector<std::string> VirtualColumnNames_;
 
     TClickHouseIndexBuilder IndexBuilder_;
 
@@ -329,8 +328,7 @@ private:
             DB::Block virtualValues;
             const auto& sampleBlock = index->Description().sample_block;
 
-            for (const auto& [_, type, stdName] : sampleBlock.getColumnsWithTypeAndName()) {
-                auto name = TString(stdName);
+            for (const auto& [_, type, name] : sampleBlock.getColumnsWithTypeAndName()) {
                 auto column = type->createColumn();
 
                 if (name == TableIndexColumnName) {
@@ -345,7 +343,7 @@ private:
                     // Unreachable.
                     YT_ABORT();
                 }
-                virtualValues.insert({std::move(column), type, stdName});
+                virtualValues.insert({std::move(column), type, name});
             }
 
             size_t position = 0;
@@ -793,7 +791,7 @@ private:
         auto toFormattable = [&] (DB::FieldRef* fields, int keyColumnUsed) {
             return MakeFormattableView(
                 TRange(fields, fields + keyColumnUsed),
-                [&] (auto* builder, DB::FieldRef field) { builder->AppendString(TString(field.dump())); });
+                [&] (auto* builder, DB::FieldRef field) { builder->AppendString(TStringBuf(field.dump())); });
         };
 
         YT_LOG_TRACE("Chunk keys were successfully converted to CH keys (LowerBound: %v, UpperBound: %v, MinKey: %v, MaxKey: %v)",
@@ -833,8 +831,8 @@ DEFINE_REFCOUNTED_TYPE(TInputFetcher)
 TQueryInput FetchInput(
     TStorageContext* storageContext,
     const TQueryAnalysisResult& queryAnalysisResult,
-    const std::vector<TString>& realColumnNames,
-    const std::vector<TString>& virtualColumnNames,
+    const std::vector<std::string>& realColumnNames,
+    const std::vector<std::string>& virtualColumnNames,
     const TClickHouseIndexBuilder& indexBuilder,
     NTransactionClient::TTransactionId transactionId)
 {

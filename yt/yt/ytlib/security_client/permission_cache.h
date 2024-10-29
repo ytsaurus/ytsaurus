@@ -27,7 +27,7 @@ struct TPermissionKey
 
     // Fields below may be specified only when `Object` is set.
 
-    std::optional<std::vector<TString>> Columns;
+    std::optional<std::vector<std::string>> Columns;
     std::optional<bool> Vital;
 
     void AssertValidity() const;

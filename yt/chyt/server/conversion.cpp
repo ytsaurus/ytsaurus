@@ -227,7 +227,9 @@ std::vector<DB::Field> UnversionedRowToFields(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<int> GetColumnIndexToId(const TNameTablePtr& nameTable, const std::vector<TString>& columnNames)
+std::vector<int> GetColumnIndexToId(
+    const TNameTablePtr& nameTable,
+    const std::vector<std::string>& columnNames)
 {
     std::vector<int> columnIndexToId;
     columnIndexToId.reserve(columnNames.size());

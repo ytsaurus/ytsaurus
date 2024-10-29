@@ -74,12 +74,11 @@ protected:
     const int KeyColumnCount_;
     const int SchemaColumnCount_;
     const int ColumnLockCount_;
-    const std::vector<TString> LockIndexToName_;
+    const std::vector<std::string> LockIndexToName_;
     const std::vector<int> ColumnIndexToLockIndex_;
+    const NLogging::TLogger Logger;
 
     EStoreState StoreState_ = EStoreState::Undefined;
-
-    const NLogging::TLogger Logger;
 
     INodeMemoryTrackerPtr MemoryTracker_;
     TMemoryUsageTrackerGuard DynamicMemoryTrackerGuard_;

@@ -150,7 +150,7 @@ TExternalCGInfo::TExternalCGInfo()
 
 namespace {
 
-TString GetUdfDescriptorPath(const TYPath& registryPath, const TString& functionName)
+TString GetUdfDescriptorPath(const TYPath& registryPath, const std::string& functionName)
 {
     return registryPath + "/" + ToYPathLiteral(functionName);
 }

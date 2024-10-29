@@ -22,7 +22,7 @@ bool TryOptimizeJoin(NQueryClient::NAst::TQuery* query);
  */
 bool TryOptimizeGroupByWithUniquePrefix(
     NQueryClient::NAst::TExpressionPtr filterExpression,
-    const std::vector<TString>& prefixReferences,
+    const std::vector<std::string>& prefixReferences,
     const TString& tableName);
 
 ////////////////////////////////////////////////////////////////////////////////

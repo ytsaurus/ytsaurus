@@ -1870,7 +1870,7 @@ class TMapReduceOperationSpec
 public:
     std::vector<NYPath::TRichYPath> OutputTablePaths;
 
-    std::vector<TString> ReduceBy;
+    std::vector<std::string> ReduceBy;
 
     TOptionalUserJobSpecPtr Mapper;
     TOptionalUserJobSpecPtr ReduceCombiner;

@@ -169,12 +169,11 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, IntegralTypeRepresentations)
 
 TEST_F(TSchemalessWriterForSchemafulDsvTest, EmptyColumnList)
 {
-    Config_->Columns = std::vector<TString>();
+    Config_->Columns = std::vector<std::string>();
     CreateStandardWriter();
 
     TUnversionedRowBuilder row1;
     row1.AddValue(MakeUnversionedInt64Value(0LL, KeyAId_));
-
 
     std::vector<TUnversionedRow> rows = { row1.GetRow() };
 

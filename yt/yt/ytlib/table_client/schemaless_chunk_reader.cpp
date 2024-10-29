@@ -61,8 +61,10 @@ using NChunkClient::TReadRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 TKeyWideningOptions BuildKeyWideningOptions(
-    const std::vector<TString>& sortColumns,
+    const std::vector<std::string>& sortColumns,
     const TNameTablePtr& nameTable,
     int commonKeyPrefix)
 {
@@ -76,9 +78,7 @@ TKeyWideningOptions BuildKeyWideningOptions(
     return keyWideningOptions;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-int GetRowIndexId(TNameTablePtr readerNameTable, TChunkReaderOptionsPtr options)
+int GetRowIndexId(const TNameTablePtr& readerNameTable, const TChunkReaderOptionsPtr& options)
 {
     if (options->EnableRowIndex) {
         return readerNameTable->GetIdOrRegisterName(RowIndexColumnName);
@@ -86,12 +86,14 @@ int GetRowIndexId(TNameTablePtr readerNameTable, TChunkReaderOptionsPtr options)
     return -1;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 bool IsInsideRange(TRange<TLegacyKey> range, const TLegacyKey* item)
 {
     return item >= range.begin() && item < range.end();
 }
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
 
 // TODO(lukyan): Use raw vector of names for chunk name table instead of TNameTable.
 // TNameTable is thread safe and uses spinlock for each operation.
@@ -101,7 +103,7 @@ std::vector<int> BuildColumnIdMapping(
     const TTableSchemaPtr& readerSchema,
     const TNameTablePtr& readerNameTable,
     const TColumnFilter& columnFilter,
-    const TRange<TString> omittedInaccessibleColumns)
+    const std::vector<std::string> omittedInaccessibleColumns)
 {
     THashSet<TStringBuf> omittedInaccessibleColumnSet(
         omittedInaccessibleColumns.begin(),
@@ -2291,8 +2293,8 @@ struct TReaderParams
         const TChunkReaderOptionsPtr& options,
         const TNameTablePtr& nameTable,
         const TColumnFilter& columnFilter,
-        const std::vector<TString>& omittedInaccessibleColumns,
-        const std::vector<TString>& sortColumnNames,
+        const std::vector<std::string>& omittedInaccessibleColumns,
+        const std::vector<std::string>& sortColumnNames,
         std::optional<i64> virtualRowIndex = std::nullopt)
     {
         YT_VERIFY(chunkMeta->GetChunkType() == EChunkType::Table);
@@ -2315,7 +2317,7 @@ struct TReaderParams
             chunkState->VirtualValueDirectory,
             virtualRowIndex);
 
-        TNameTablePtr chunkNameTable = options->DynamicTable
+        auto chunkNameTable = options->DynamicTable
             ? TNameTable::FromSchema(*chunkMeta->ChunkSchema())
             : chunkMeta->ChunkNameTable();
 
@@ -2356,7 +2358,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     TNameTablePtr nameTable,
     const TClientChunkReadOptions& chunkReadOptions,
     TSortColumns sortColumns,
-    const std::vector<TString>& omittedInaccessibleColumns,
+    const std::vector<std::string>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TReadRange& readRange,
     std::optional<int> partitionTag,
@@ -2446,7 +2448,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
     TNameTablePtr nameTable,
     const TClientChunkReadOptions& chunkReadOptions,
     const TSortColumns& sortColumns,
-    const std::vector<TString>& omittedInaccessibleColumns,
+    const std::vector<std::string>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keys,
     std::optional<int> partitionTag,
@@ -2523,7 +2525,7 @@ ISchemalessChunkReaderPtr CreateSchemalessKeyRangesChunkReader(
     TNameTablePtr nameTable,
     const TClientChunkReadOptions& chunkReadOptions,
     const TSortColumns& sortColumns,
-    const std::vector<TString>& omittedInaccessibleColumns,
+    const std::vector<std::string>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keyPrefixes,
     std::optional<int> partitionTag,

@@ -236,7 +236,7 @@ TTableSchemaPtr InferCommonTableSchema(
         maxColumnCount = std::max(maxColumnCount, table->Schema->GetColumnCount());
     }
 
-    auto getColumnPositions = [&] (const TString& columnName) {
+    auto getColumnPositions = [&] (const std::string& columnName) {
         std::vector<int> positions;
         positions.reserve(schemas.size());
 
@@ -271,7 +271,7 @@ TTableSchemaPtr InferCommonTableSchema(
 
     bool strict = true;
 
-    THashSet<TString> usedColumnNames;
+    THashSet<std::string> usedColumnNames;
 
     bool isSortedPrefix = true;
     int commonColumnInAllSchemasCount = 0;

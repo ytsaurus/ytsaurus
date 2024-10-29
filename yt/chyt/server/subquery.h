@@ -34,8 +34,8 @@ struct TQueryInput
 TQueryInput FetchInput(
     TStorageContext* storageContext,
     const TQueryAnalysisResult& queryAnalysisResult,
-    const std::vector<TString>& realColumnNames,
-    const std::vector<TString>& virtualColumnNames,
+    const std::vector<std::string>& realColumnNames,
+    const std::vector<std::string>& virtualColumnNames,
     const TClickHouseIndexBuilder& indexBuilder,
     NTransactionClient::TTransactionId transactionId);
 

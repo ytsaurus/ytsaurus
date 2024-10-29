@@ -8,7 +8,6 @@
 #include "host.h"
 #include "query_context.h"
 #include "query_context.h"
-#include "std_helpers.h"
 #include "subquery.h"
 #include "table.h"
 
@@ -910,7 +909,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
                 }
             }
 
-            keyCondition.emplace(queryInfoForKeyCondition, getContext(), ToNames(schema->GetKeyColumns()), primaryKeyExpression);
+            keyCondition.emplace(queryInfoForKeyCondition, getContext(), schema->GetKeyColumns(), primaryKeyExpression);
         }
         result.KeyConditions.emplace_back(std::move(keyCondition));
         result.TableSchemas.emplace_back(storage->GetSchema());

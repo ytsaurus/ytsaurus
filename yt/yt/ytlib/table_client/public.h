@@ -32,7 +32,7 @@ class TSchemaDictionary;
 template <typename TColumnName>
 class TGenericColumnFilterDictionary;
 
-using TColumnFilterDictionary = TGenericColumnFilterDictionary<TString>;
+using TColumnFilterDictionary = TGenericColumnFilterDictionary<std::string>;
 using TColumnStableNameFilterDictionary = TGenericColumnFilterDictionary<TColumnStableName>;
 
 class THorizontalBlockReader;

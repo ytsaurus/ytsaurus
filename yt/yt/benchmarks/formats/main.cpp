@@ -89,7 +89,7 @@ TTableSchemaPtr GetSchema()
 TSchemafulDsvFormatConfigPtr GetSchemafulDsvConfig()
 {
     auto config = New<TSchemafulDsvFormatConfig>();
-    config->Columns = std::vector<TString>();
+    config->Columns.emplace();
     auto schema = GetSchema();
     for (const auto& column : schema->Columns()) {
         config->Columns->push_back(column.Name());

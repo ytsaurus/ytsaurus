@@ -11,8 +11,8 @@ void AppendFunctionImplementation(
     const TFunctionProfilerMapPtr& functionProfilers,
     const TAggregateProfilerMapPtr& aggregateProfilers,
     bool functionIsAggregate,
-    const TString& functionName,
-    const TString& functionSymbolName,
+    const std::string& functionName,
+    const std::string& functionSymbolName,
     ECallingConvention functionCallingConvention,
     TSharedRef functionChunkSpecsFingerprint,
     TType functionRepeatedArgType,
@@ -22,18 +22,16 @@ void AppendFunctionImplementation(
 {
     YT_VERIFY(!functionImpl.Empty());
 
-    const auto& name = functionName;
-
     if (functionIsAggregate) {
-        aggregateProfilers->emplace(name, New<TExternalAggregateCodegen>(
-            name,
+        aggregateProfilers->emplace(functionName, New<TExternalAggregateCodegen>(
+            functionName,
             functionImpl,
             functionCallingConvention,
             /*isFirst*/ false,
             functionChunkSpecsFingerprint));
     } else {
-        functionProfilers->emplace(name, New<TExternalFunctionCodegen>(
-            name,
+        functionProfilers->emplace(functionName, New<TExternalFunctionCodegen>(
+            functionName,
             functionSymbolName,
             functionImpl,
             functionCallingConvention,

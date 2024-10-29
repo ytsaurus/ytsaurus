@@ -5331,7 +5331,7 @@ private:
 
         TCheckPermissionOptions options;
         if (request->has_columns()) {
-            options.Columns = FromProto<std::vector<TString>>(request->columns().items());
+            options.Columns = FromProto<std::vector<std::string>>(request->columns().items());
         }
         if (request->has_vital()) {
             options.Vital = request->vital();

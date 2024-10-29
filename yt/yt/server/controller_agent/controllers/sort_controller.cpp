@@ -3509,14 +3509,14 @@ private:
 
     TTableSchemaPtr GetSampleSchema() const
     {
-        THashSet<TString> uniqueColumns;
+        THashSet<std::string> uniqueColumns;
         auto schema = OutputTables_[0]->TableUploadOptions.GetUploadSchema();
 
         for (const auto& sortColumn : Spec->SortBy) {
             const auto& column = schema->GetColumn(sortColumn.Name);
 
             if (const auto& expression = column.Expression()) {
-                THashSet<TString> references;
+                THashSet<std::string> references;
                 NQueryClient::PrepareExpression(*expression, *schema, NQueryClient::GetBuiltinTypeInferrers(), &references);
 
                 uniqueColumns.insert(references.begin(), references.end());
@@ -4210,7 +4210,7 @@ private:
                 auto toStreamSchema = [] (
                     const TTableSchemaPtr& schema,
                     const TSortColumns& sortColumns,
-                    const std::optional<std::vector<TString>>& columnFilter)
+                    const std::optional<std::vector<std::string>>& columnFilter)
                 {
                     auto columns = schema->Columns();
                     if (columnFilter) {

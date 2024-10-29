@@ -68,7 +68,7 @@ public:
 
 private:
     const NAst::TAliasMap& AliasMap_;
-    THashSet<TString> UsedAliases_;
+    THashSet<std::string> UsedAliases_;
 };
 
 template <class TDerived>
@@ -140,13 +140,13 @@ struct TTableReferenceReplacer
 {
     using TBase = TRewriter<TTableReferenceReplacer>;
 
-    const THashSet<TString> ReplacedColumns;
+    const THashSet<std::string> ReplacedColumns;
     const std::optional<TString>& OldAlias;
     const std::optional<TString>& NewAlias;
 
     TTableReferenceReplacer(
         TAstHead* head,
-        THashSet<TString> replacedColumns,
+        THashSet<std::string> replacedColumns,
         const std::optional<TString>& oldAlias,
         const std::optional<TString>& newAlias);
 
