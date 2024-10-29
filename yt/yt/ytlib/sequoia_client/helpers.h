@@ -33,6 +33,8 @@ TString ToStringLiteral(TStringBuf key);
 
 bool IsRetriableSequoiaError(const TError& error);
 
+bool IsRetriableSequoiaReplicasError(const TError& error);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSequoiaClient

@@ -104,6 +104,7 @@
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
@@ -3242,12 +3243,14 @@ private:
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
                 };
-                // TODO(aleksandra-zh): whitelist retriable errors.
+
                 auto result = WaitFor(transaction->Commit(commitOptions));
-                if (!result.IsOK()) {
-                    result.SetCode(NRpc::EErrorCode::TransientFailure);
+                if (IsRetriableSequoiaReplicasError(result)) {
+                    THROW_ERROR_EXCEPTION(
+                        NRpc::EErrorCode::TransientFailure,
+                        "Sequoia retriable error")
+                        << std::move(result);
                 }
-                result.ThrowOnError();
             }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
@@ -3315,8 +3318,11 @@ private:
 
                 auto replicasFuture = transaction->LookupRows(keys);
                 auto removedReplicasOrError = WaitFor(replicasFuture);
-                if (!removedReplicasOrError.IsOK()) {
-                    removedReplicasOrError.SetCode(NRpc::EErrorCode::TransientFailure);
+                if (IsRetriableSequoiaReplicasError(removedReplicasOrError)) {
+                    THROW_ERROR_EXCEPTION(
+                        NRpc::EErrorCode::TransientFailure,
+                        "Sequoia retriable error")
+                        << std::move(removedReplicasOrError);
                 }
                 const auto& removedReplicas = removedReplicasOrError
                     .ValueOrThrow();
@@ -3395,12 +3401,13 @@ private:
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
                 };
-                // TODO(aleksandra-zh): whitelist retriable errors.
                 auto result = WaitFor(transaction->Commit(commitOptions));
-                if (!result.IsOK()) {
-                    result.SetCode(NRpc::EErrorCode::TransientFailure);
+                if (IsRetriableSequoiaReplicasError(result)) {
+                    THROW_ERROR_EXCEPTION(
+                        NRpc::EErrorCode::TransientFailure,
+                        "Sequoia retriable error")
+                        << std::move(result);
                 }
-                result.ThrowOnError();
 
                 // TODO(aleksandra-zh): add ally replica info.
                 TRspModifyReplicas response;

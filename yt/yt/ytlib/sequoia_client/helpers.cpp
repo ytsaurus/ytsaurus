@@ -56,6 +56,13 @@ bool IsRetriableSequoiaError(const TError& error)
     });
 }
 
+bool IsRetriableSequoiaReplicasError(const TError& error)
+{
+    // TODO(aleksandra-zh or someone else): use IsRetriableSequoiaError with a proper whitelist of errors,
+    // including Hydra ones.
+    return !error.IsOK();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSequoiaClient
