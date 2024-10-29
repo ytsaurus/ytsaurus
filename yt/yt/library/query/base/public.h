@@ -146,7 +146,7 @@ using TMutableRowRange = std::pair<TMutableRow, TMutableRow>;
 using TRowRanges = std::vector<TRowRange>;
 using TMutableRowRanges = std::vector<TMutableRowRange>;
 
-using TColumnSet = THashSet<TString>;
+using TColumnSet = THashSet<std::string>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

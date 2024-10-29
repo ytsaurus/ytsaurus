@@ -219,7 +219,7 @@ std::pair<int, int> TAggregateFunctionTypeInferrer::GetNormalizedConstraints(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const ITypeInferrerPtr& TTypeInferrerMap::GetFunction(const TString& functionName) const
+const ITypeInferrerPtr& TTypeInferrerMap::GetFunction(const std::string& functionName) const
 {
     auto found = this->find(functionName);
     if (found == this->end()) {
@@ -231,7 +231,7 @@ const ITypeInferrerPtr& TTypeInferrerMap::GetFunction(const TString& functionNam
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsUserCastFunction(const TString& name)
+bool IsUserCastFunction(const std::string& name)
 {
     return name == "int64" || name == "uint64" || name == "double";
 }

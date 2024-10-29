@@ -38,7 +38,7 @@ public:
     TSortingReader(
         ISchemalessMultiChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        const std::vector<TString>& outputColumns,
+        const std::vector<std::string>& outputColumns,
         TComparator comparator,
         TColumnEvaluatorPtr evaluator)
         : UnderlyingReader_(std::move(underlyingReader))
@@ -190,7 +190,7 @@ private:
 ISchemalessMultiChunkReaderPtr CreateSortingReader(
     ISchemalessMultiChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    const std::vector<TString>& outputColumns,
+    const std::vector<std::string>& outputColumns,
     TComparator comparator,
     TColumnEvaluatorPtr evaluator)
 {

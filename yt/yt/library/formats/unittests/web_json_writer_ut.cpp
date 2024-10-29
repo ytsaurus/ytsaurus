@@ -75,12 +75,12 @@ TEST_F(TWriterForWebJson, Simple)
             {"column_a", 100500u},
             {"column_b", true},
             {"column_c", "row1_c"},
-            {RowIndexColumnName, 0},
+            {TString(RowIndexColumnName), 0},
         }).Get(),
         MakeRow(NameTable_, {
             {"column_c", "row2_c"},
             {"column_b", "row2_b"},
-            {RowIndexColumnName, 1},
+            {TString(RowIndexColumnName), 1},
         }).Get(),
     });
     EXPECT_TRUE(written);
@@ -338,9 +338,9 @@ TEST_F(TWriterForWebJson, NotSkipSystemColumns)
 
     bool written = Writer_->Write({
         MakeRow(NameTable_, {
-            {TableIndexColumnName, 0},
-            {RowIndexColumnName, 1},
-            {TabletIndexColumnName, 2},
+            {TString(TableIndexColumnName), 0},
+            {TString(RowIndexColumnName), 1},
+            {TString(TabletIndexColumnName), 2},
             {ValueColumnName_, 3}
         }).Get(),
     });
@@ -392,9 +392,9 @@ TEST_F(TWriterForWebJson, SkipSystemColumns)
 
     bool written = Writer_->Write({
         MakeRow(NameTable_, {
-            {TableIndexColumnName, 0},
-            {RowIndexColumnName, 1},
-            {TabletIndexColumnName, 2},
+            {TString(TableIndexColumnName), 0},
+            {TString(RowIndexColumnName), 1},
+            {TString(TabletIndexColumnName), 2},
             {ValueColumnName_, 3}
         }).Get(),
     });
@@ -426,15 +426,15 @@ TEST_F(TWriterForWebJson, SkipSystemColumns)
 TEST_F(TWriterForWebJson, NotSkipRequestedSystemColumns)
 {
     Config_->SkipSystemColumns = true;
-    Config_->ColumnNames = std::vector<TString>({TabletIndexColumnName, ValueColumnName_});
+    Config_->ColumnNames = std::vector<std::string>{TabletIndexColumnName, ValueColumnName_};
 
     CreateStandardWriter();
 
     bool written = Writer_->Write({
         MakeRow(NameTable_, {
-            {TableIndexColumnName, 0},
-            {RowIndexColumnName, 1},
-            {TabletIndexColumnName, 2},
+            {TString(TableIndexColumnName), 0},
+            {TString(RowIndexColumnName), 1},
+            {TString(TabletIndexColumnName), 2},
             {ValueColumnName_, 3}
         }).Get(),
     });
@@ -528,7 +528,7 @@ TEST_F(TWriterForWebJson, SliceColumnsByName)
             {"column_a", 100500u},
             {"column_b", 0.42},
             {"column_c", "abracadabra"},
-            {TabletIndexColumnName, 10},
+            {TString(TabletIndexColumnName), 10},
         }).Get(),
     });
     EXPECT_TRUE(written);
@@ -660,20 +660,20 @@ TEST_F(TWriterForWebJson, YqlValueFormat_SimpleTypes)
                 {"column_a", 100500u},
                 {"column_b", true},
                 {"column_c", "row1_c"},
-                {RowIndexColumnName, 0},
-                {TableIndexColumnName, 0},
+                {TString(RowIndexColumnName), 0},
+                {TString(TableIndexColumnName), 0},
             }).Get(),
             MakeRow(NameTable_, {
                 {"column_c", "row2_c"},
                 {"column_b", "row2_b"},
-                {RowIndexColumnName, 1},
-                {TableIndexColumnName, 0},
+                {TString(RowIndexColumnName), 1},
+                {TString(TableIndexColumnName), 0},
             }).Get(),
             MakeRow(NameTable_, {
                 {"column_a", -100500},
                 {"column_b", EValueType::Any, "{x=2;y=3}"},
                 {"column_c", 2.71828},
-                {RowIndexColumnName, 1},
+                {TString(RowIndexColumnName), 1},
             }).Get(),
         });
         EXPECT_TRUE(written);
@@ -1039,8 +1039,8 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                 },
                 {"column_c", EValueType::Composite, R"([[[#]; "value"]; [["key"]; #]])"},
                 {"column_d", -49},
-                {TableIndexColumnName, 0},
-                {RowIndexColumnName, 0},
+                {TString(TableIndexColumnName), 0},
+                {TString(RowIndexColumnName), 0},
             }).Get(),
             MakeRow(NameTable_, {
                 {"column_a", EValueType::Composite, R"([0; -2; -5; 177])"},
@@ -1068,7 +1068,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                 },
                 {"column_c", EValueType::Composite, R"([[#; #]; [["key1"]; #]])"},
                 {"column_d", 49u},
-                {RowIndexColumnName, 1},
+                {TString(RowIndexColumnName), 1},
             }).Get(),
             MakeRow(NameTable_, {
                 {"column_a", EValueType::Composite, "[]"},
@@ -1096,7 +1096,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                 },
                 {"column_c", EValueType::Composite, "[[[key]; #]]"},
                 {"column_d", "49"},
-                {RowIndexColumnName, 2},
+                {TString(RowIndexColumnName), 2},
             }).Get(),
 
             MakeRow(NameTable_, {
@@ -1127,7 +1127,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                 },
                 {"column_c", EValueType::Composite, "[]"},
                 {"column_d", EValueType::Any, "{x=49}"},
-                {RowIndexColumnName, 3},
+                {TString(RowIndexColumnName), 3},
             }).Get(),
 
             // Here come rows from the second table.
@@ -1136,8 +1136,8 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                 {"column_b", nullptr},
                 {"column_c", nullptr},
                 {"column_d", -49},
-                {TableIndexColumnName, 1},
-                {RowIndexColumnName, 0},
+                {TString(TableIndexColumnName), 1},
+                {TString(RowIndexColumnName), 0},
             }).Get(),
 
             MakeRow(NameTable_, {
@@ -1145,8 +1145,8 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                 {"column_b", nullptr},
                 {"column_c", EValueType::Composite, "[#]"},
                 {"column_d", nullptr},
-                {TableIndexColumnName, 1},
-                {RowIndexColumnName, 1},
+                {TString(TableIndexColumnName), 1},
+                {TString(RowIndexColumnName), 1},
             }).Get(),
         });
         EXPECT_TRUE(written);

@@ -692,8 +692,8 @@ public:
         //    all columns (key and value) have the same group in schema.
         auto mainBlockWriter = createBlockWriter();
 
-        THashMap<TString, int> groupBlockWriters;
-        auto getBlockWriterIndex = [&] (const std::optional<TString>& group) {
+        THashMap<std::string, int> groupBlockWriters;
+        auto getBlockWriterIndex = [&] (const std::optional<std::string>& group) {
             if (group) {
                 auto [it, inserted] = groupBlockWriters.emplace(*group, 0);
                 if (inserted) {

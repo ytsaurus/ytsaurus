@@ -228,7 +228,7 @@ TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
 
 TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
     const TShuffleHandlePtr& shuffleHandle,
-    const TString& partitionColumn,
+    const std::string& partitionColumn,
     const TTableWriterConfigPtr& config)
 {
     auto nameTable = TNameTable::FromKeyColumns({partitionColumn});

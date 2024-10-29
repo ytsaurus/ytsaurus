@@ -35,7 +35,7 @@ public:
         TCGExprContext& builder,
         std::vector<size_t> argIds,
         EValueType type,
-        const TString& name)
+        const std::string& name)
     {
         auto nameTwine = Twine(name.c_str());
 
@@ -82,7 +82,7 @@ public:
         std::unique_ptr<bool[]> /*literalArgs*/,
         std::vector<EValueType> /*argumentTypes*/,
         EValueType type,
-        const TString& name,
+        const std::string& name,
         NCodegen::EExecutionBackend /*executionBackend*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
@@ -219,7 +219,7 @@ public:
         std::unique_ptr<bool[]> /*literalArgs*/,
         std::vector<EValueType> /*argumentTypes*/,
         EValueType type,
-        const TString& /*name*/,
+        const std::string& /*name*/,
         NCodegen::EExecutionBackend /*executionBackend*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
@@ -264,7 +264,7 @@ public:
         std::unique_ptr<bool[]> /*literalArgs*/,
         std::vector<EValueType> /*argumentTypes*/,
         EValueType type,
-        const TString& /*name*/,
+        const std::string& /*name*/,
         NCodegen::EExecutionBackend /*executionBackend*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
@@ -321,7 +321,7 @@ public:
         std::unique_ptr<bool[]> /*literalArgs*/,
         std::vector<EValueType> /*argumentTypes*/,
         EValueType type,
-        const TString& /*name*/,
+        const std::string& /*name*/,
         NCodegen::EExecutionBackend /*executionBackend*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
@@ -369,7 +369,7 @@ public:
         std::unique_ptr<bool[]> /*literalArgs*/,
         std::vector<EValueType> /*argumentTypes*/,
         EValueType type,
-        const TString& /*name*/,
+        const std::string& /*name*/,
         NCodegen::EExecutionBackend /*executionBackend*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
@@ -429,7 +429,7 @@ public:
         std::unique_ptr<bool[]> /*literalArgs*/,
         std::vector<EValueType> argumentTypes,
         EValueType type,
-        const TString& /*name*/,
+        const std::string& /*name*/,
         NCodegen::EExecutionBackend /*executionBackend*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
@@ -563,7 +563,7 @@ class TSimpleAggregateCodegen
     : public IAggregateCodegen
 {
 public:
-    explicit TSimpleAggregateCodegen(const TString& function)
+    explicit TSimpleAggregateCodegen(const std::string& function)
         : Function_(function)
     { }
 
@@ -571,7 +571,7 @@ public:
         std::vector<EValueType> argumentTypes,
         EValueType stateType,
         EValueType /*resultType*/,
-        const TString& name,
+        const std::string& name,
         NCodegen::EExecutionBackend /*executionBackend*/,
         llvm::FoldingSetNodeID* id) const override
     {
@@ -766,14 +766,14 @@ public:
     }
 
 private:
-    const TString Function_;
+    const std::string Function_;
 };
 
 class TArgMinMaxAggregateCodegen
     : public IAggregateCodegen
 {
 public:
-    explicit TArgMinMaxAggregateCodegen(const TString& function)
+    explicit TArgMinMaxAggregateCodegen(const std::string& function)
         : Function_(function)
     { }
 
@@ -781,7 +781,7 @@ public:
         std::vector<EValueType> argumentTypes,
         EValueType stateType,
         EValueType /*resultType*/,
-        const TString& name,
+        const std::string& name,
         NCodegen::EExecutionBackend /*executionBackend*/,
         llvm::FoldingSetNodeID* id) const override
     {
@@ -1007,7 +1007,7 @@ public:
     }
 
 private:
-    const TString Function_;
+    const std::string Function_;
 
     static bool AllScalar(const std::vector<EValueType>& argTypes)
     {
@@ -1182,8 +1182,8 @@ public:
     { }
 
     void RegisterFunction(
-        const TString& functionName,
-        const TString& symbolName,
+        const std::string& functionName,
+        const std::string& symbolName,
         std::unordered_map<TTypeParameter, TUnionType> /*typeParameterConstraints*/,
         std::vector<TType> /*argumentTypes*/,
         TType /*repeatedArgType*/,
@@ -1204,7 +1204,7 @@ public:
     }
 
     void RegisterFunction(
-        const TString& functionName,
+        const std::string& functionName,
         std::vector<TType> /*argumentTypes*/,
         TType /*resultType*/,
         TStringBuf implementationFile,
@@ -1222,7 +1222,7 @@ public:
     }
 
     void RegisterFunction(
-        const TString& functionName,
+        const std::string& functionName,
         std::unordered_map<TTypeParameter, TUnionType> /*typeParameterConstraints*/,
         std::vector<TType> argumentTypes,
         TType repeatedArgType,
@@ -1241,7 +1241,7 @@ public:
     }
 
     void RegisterAggregate(
-        const TString& aggregateName,
+        const std::string& aggregateName,
         std::unordered_map<TTypeParameter, TUnionType> /*typeParameterConstraints*/,
         TType /*argumentType*/,
         TType /*resultType*/,

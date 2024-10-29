@@ -13,8 +13,8 @@ struct IFunctionRegistryBuilder
     virtual ~IFunctionRegistryBuilder() = default;
 
     virtual void RegisterFunction(
-        const TString& functionName,
-        const TString& symbolName,
+        const std::string& functionName,
+        const std::string& symbolName,
         std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgType,
@@ -24,14 +24,14 @@ struct IFunctionRegistryBuilder
         bool useFunctionContext = false) = 0;
 
     virtual void RegisterFunction(
-        const TString& functionName,
+        const std::string& functionName,
         std::vector<TType> argumentTypes,
         TType resultType,
         TStringBuf implementationFile,
         ECallingConvention callingConvention) = 0;
 
     virtual void RegisterFunction(
-        const TString& functionName,
+        const std::string& functionName,
         std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgType,
@@ -39,7 +39,7 @@ struct IFunctionRegistryBuilder
         TStringBuf implementationFile) = 0;
 
     virtual void RegisterAggregate(
-        const TString& aggregateName,
+        const std::string& aggregateName,
         std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         TType argumentType,
         TType resultType,

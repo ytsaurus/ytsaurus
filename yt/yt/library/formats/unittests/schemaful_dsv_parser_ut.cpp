@@ -42,9 +42,7 @@ TEST(TSchemafulDsvParserTest, Simple)
         "100\tmax\\tignat\n";
 
     auto config = New<TSchemafulDsvFormatConfig>();
-    config->Columns = std::vector<TString>();
-    config->Columns->push_back("a");
-    config->Columns->push_back("b");
+    config->Columns = {"a", "b"};
 
     ParseSchemafulDsv(input, &Mock, config);
 }
@@ -94,8 +92,7 @@ TEST(TSchemafulDsvParserTest, TableIndex)
         "0\tz\n";
 
     auto config = New<TSchemafulDsvFormatConfig>();
-    config->Columns = std::vector<TString>();
-    config->Columns->push_back("a");
+    config->Columns = {"a"};
     config->EnableTableIndex = true;
 
     ParseSchemafulDsv(input, &Mock, config);
@@ -128,9 +125,7 @@ TEST(TSchemafulDsvParserTest, SpecialSymbols)
     TString input("5\r\t6\0\n", 6);
 
     auto config = New<TSchemafulDsvFormatConfig>();
-    config->Columns = std::vector<TString>();
-    config->Columns->push_back("a");
-    config->Columns->push_back("b");
+    config->Columns = {"a", "b"};
 
     ParseSchemafulDsv(input, &Mock, config);
 }
@@ -152,9 +147,7 @@ TEST(TSchemafulDsvParserTest, EnabledEscaping)
     TString input("5\r\\r\t6\0\n", 8);
 
     auto config = New<TSchemafulDsvFormatConfig>();
-    config->Columns = std::vector<TString>();
-    config->Columns->push_back("a");
-    config->Columns->push_back("b");
+    config->Columns = {"a", "b"};
     config->EnableEscaping = true;
 
     ParseSchemafulDsv(input, &Mock, config);
@@ -177,9 +170,7 @@ TEST(TSchemafulDsvParserTest, DisabledEscaping)
     TString input("5\r\\r\t6\0\n", 8);
 
     auto config = New<TSchemafulDsvFormatConfig>();
-    config->Columns = std::vector<TString>();
-    config->Columns->push_back("a");
-    config->Columns->push_back("b");
+    config->Columns = {"a", "b"};
     config->EnableEscaping = false;
 
     ParseSchemafulDsv(input, &Mock, config);
@@ -190,9 +181,7 @@ TEST(TSchemafulDsvParserTest, ColumnsNamesHeader)
     TString input("a\tb\n1\t2\n");
 
     auto config = New<TSchemafulDsvFormatConfig>();
-    config->Columns = std::vector<TString>();
-    config->Columns->push_back("a");
-    config->Columns->push_back("b");
+    config->Columns = {"a", "b"};
     config->EnableColumnNamesHeader = true;
 
     EXPECT_THROW(ParseSchemafulDsv(input, GetNullYsonConsumer(), config), std::exception);

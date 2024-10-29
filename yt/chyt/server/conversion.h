@@ -68,7 +68,9 @@ void ToUnversionedValue(const DB::Field& field, NTableClient::TUnversionedValue*
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<int> GetColumnIndexToId(const NTableClient::TNameTablePtr& nameTable, const std::vector<TString>& columnNames);
+std::vector<int> GetColumnIndexToId(
+    const NTableClient::TNameTablePtr& nameTable,
+    const std::vector<std::string>& columnNames);
 
 ////////////////////////////////////////////////////////////////////////////////
 

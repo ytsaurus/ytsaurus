@@ -323,15 +323,14 @@ struct TExpressionFragmentPrinter
     void OnReference(const TReferenceExpression* referenceExpr, size_t /*id*/)
     {
         auto columnName = referenceExpr->ColumnName;
-        if (columnName.size() > 40) {
-            columnName.resize(40);
-            columnName.Transform([] (size_t /*index*/, char c) {
-                if (c == '(' || c == ')') {
-                    return '_';
+        constexpr size_t MaxColumnNameLength = 40;
+        if (columnName.size() > MaxColumnNameLength) {
+            columnName.resize(MaxColumnNameLength);
+            for (auto& ch : columnName) {
+                if (ch == '(' || ch == ')') {
+                    ch = '_';
                 }
-                return c;
-            });
-
+            }
             Builder->AppendString(
                 Format("[%x%v]", FarmFingerprint(
                     referenceExpr->ColumnName.data(),

@@ -85,7 +85,7 @@ Value* GetTypedFunctionContext(
 ////////////////////////////////////////////////////////////////////////////////
 
 void CheckCallee(
-    const TString& functionName,
+    const std::string& functionName,
     llvm::Function* callee,
     llvm::FunctionType* functionType)
 {
@@ -144,7 +144,7 @@ TCGValue PropagateNullArguments(
     std::vector<Value*>& argumentValues,
     std::function<TCGValue(std::vector<Value*>)> codegenBody,
     EValueType type,
-    const TString& name,
+    const std::string& name,
     TCGBaseContext& builder)
 {
     if (codegenArguments.empty()) {
@@ -184,7 +184,7 @@ TCGValue TSimpleCallingConvention::MakeCodegenFunctionCall(
     std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
     EValueType type,
     bool /*aggregate*/,
-    const TString& name) const
+    const std::string& name) const
 {
     std::reverse(codegenArguments.begin(), codegenArguments.end());
     auto llvmArgs = std::vector<Value*>();
@@ -298,7 +298,7 @@ TCGValue TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
     std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
     EValueType type,
     bool aggregate,
-    const TString& /*name*/) const
+    const std::string& /*name*/) const
 {
     auto argumentValues = std::vector<Value*>();
 
@@ -499,8 +499,8 @@ ICallingConventionPtr GetCallingConvention(ECallingConvention callingConvention)
 
 void LoadLlvmBitcode(
     TCGBaseContext& builder,
-    const TString& functionName,
-    std::vector<TString> requiredSymbols,
+    const std::string& functionName,
+    const std::vector<std::string>& requiredSymbols,
     TRef implementationFile)
 {
     if (builder.Module->IsModuleLoaded(implementationFile)) {
@@ -616,8 +616,8 @@ void LoadLlvmBitcode(
 
 void LoadLlvmFunctions(
     TCGBaseContext& builder,
-    const TString& functionName,
-    std::vector<std::pair<TString, llvm::FunctionType*>> functions,
+    const std::string& functionName,
+    std::vector<std::pair<std::string, llvm::FunctionType*>> functions,
     TRef implementationFile)
 {
     if (!implementationFile) {
@@ -628,8 +628,8 @@ void LoadLlvmFunctions(
         return;
     }
 
-    auto requiredSymbols = std::vector<TString>();
-    for (auto function : functions) {
+    std::vector<std::string> requiredSymbols;
+    for (const auto& function : functions) {
         requiredSymbols.push_back(function.first);
     }
 
@@ -653,9 +653,9 @@ void LoadLlvmFunctions(
 
 void BuildPrototypesForFunctions(
     TCGBaseContext& builder,
-    const std::vector<std::pair<TString, llvm::FunctionType*>>& functions)
+    const std::vector<std::pair<std::string, llvm::FunctionType*>>& functions)
 {
-    for (auto& [name, type] : functions) {
+    for (const auto& [name, type] : functions) {
         builder.Module->GetModule()->getOrInsertFunction(ToStringRef(name), type);
     }
 }
@@ -668,7 +668,7 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
     std::unique_ptr<bool[]> literalArgs,
     std::vector<EValueType> argumentTypes,
     EValueType type,
-    const TString& name,
+    const std::string& name,
     EExecutionBackend executionBackend,
     llvm::FoldingSetNodeID* id) const
 {
@@ -750,7 +750,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
     std::vector<EValueType> argumentTypes,
     EValueType stateType,
     EValueType resultType,
-    const TString& name,
+    const std::string& name,
     EExecutionBackend executionBackend,
     llvm::FoldingSetNodeID* id) const
 {
@@ -776,7 +776,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         updateName,
         mergeName,
         finalizeName
-    ] (const TString& functionName, Value* executionContext) {
+    ] (const std::string& functionName, Value* executionContext) {
         return [
             this,
             this_,
@@ -793,7 +793,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         ] (TCGBaseContext& builder, std::vector<Value*> arguments) {
             arguments.insert(arguments.begin(), GetTypedExecutionContext(builder, executionContext));
 
-            auto aggregateFunctions = std::vector<std::pair<TString, llvm::FunctionType*>>();
+            auto aggregateFunctions = std::vector<std::pair<std::string, llvm::FunctionType*>>();
 
             auto initType = CallingConvention_->GetCalleeType(
                 builder,

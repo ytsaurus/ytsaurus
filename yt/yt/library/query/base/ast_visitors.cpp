@@ -73,7 +73,7 @@ TExpressionPtr TInTransformer::OnIn(TInExpressionPtr inExpr)
 
 TTableReferenceReplacer::TTableReferenceReplacer(
     TAstHead* head,
-    THashSet<TString> replacedColumns,
+    THashSet<std::string> replacedColumns,
     const std::optional<TString>& oldAlias,
     const std::optional<TString>& newAlias)
     : TBase(head)
@@ -95,7 +95,6 @@ TExpressionPtr TTableReferenceReplacer::OnReference(TReferenceExpressionPtr refe
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 TReferenceHarvester::TReferenceHarvester(TColumnSet* storage)
     : Storage_(storage)

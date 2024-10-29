@@ -7443,7 +7443,7 @@ void TOperationControllerBase::ParseInputQuery(
         fetchFunctions);
 
     auto getColumns = [] (const TTableSchema& desiredSchema, const TTableSchema& tableSchema) {
-        std::vector<TString> columns;
+        std::vector<std::string> columns;
         for (const auto& column : desiredSchema.Columns()) {
             auto columnName = column.Name();
             if (tableSchema.FindColumn(columnName)) {
@@ -7452,7 +7452,7 @@ void TOperationControllerBase::ParseInputQuery(
         }
 
         return std::ssize(columns) == tableSchema.GetColumnCount()
-            ? std::optional<std::vector<TString>>()
+            ? std::optional<std::vector<std::string>>()
             : std::make_optional(std::move(columns));
     };
 
@@ -8106,7 +8106,7 @@ TSortColumns TOperationControllerBase::CheckInputTablesSorted(
             return;
         }
 
-        auto columnSet = THashSet<TString>(columns->begin(), columns->end());
+        auto columnSet = THashSet<std::string>(columns->begin(), columns->end());
         for (const auto& sortColumn : sortColumns) {
             if (columnSet.find(sortColumn.Name) == columnSet.end()) {
                 THROW_ERROR_EXCEPTION("Column filter for input table %v must include key column %Qv",
@@ -10213,7 +10213,7 @@ void TOperationControllerBase::InferSchemaFromInputOrdered()
 
 void TOperationControllerBase::FilterOutputSchemaByInputColumnSelectors(const TSortColumns& sortColumns)
 {
-    THashSet<TString> selectedColumns;
+    THashSet<std::string> selectedColumns;
     for (const auto& table : InputManager->GetInputTables()) {
         if (auto selectors = table->Path.GetColumns()) {
             for (const auto& column : *selectors) {

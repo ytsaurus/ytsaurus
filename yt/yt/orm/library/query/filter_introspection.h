@@ -84,7 +84,9 @@ bool IntrospectFilterForDefinedReference(
  *
  *  Throws for an invalid #filterQuery.
  */
-void ExtractFilterAttributeReferences(const TString& filterQuery, std::function<void(TString)> inserter);
+void ExtractFilterAttributeReferences(
+    const TString& filterQuery,
+    std::function<void(const std::string&)> inserter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,8 +108,8 @@ std::optional<TString> TryCastToStringValue(
 // TODO(dgolear): Take into account that hash column may depend on several key fields and all of them must be provided.
 bool IntrospectQueryForFullScan(
     const NQueryClient::NAst::TQuery* query,
-    const TString& firstKeyFieldName,
-    const TString& firstNonEvaluatedKeyFieldName);
+    const std::string& firstKeyFieldName,
+    const std::string& firstNonEvaluatedKeyFieldName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

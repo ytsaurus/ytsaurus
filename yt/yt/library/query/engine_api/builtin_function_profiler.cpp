@@ -8,7 +8,7 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const IFunctionCodegenPtr& TFunctionProfilerMap::GetFunction(const TString& functionName) const
+const IFunctionCodegenPtr& TFunctionProfilerMap::GetFunction(const std::string& functionName) const
 {
     auto found = this->find(functionName);
     if (found == this->end()) {
@@ -18,7 +18,7 @@ const IFunctionCodegenPtr& TFunctionProfilerMap::GetFunction(const TString& func
     return found->second;
 }
 
-const IAggregateCodegenPtr& TAggregateProfilerMap::GetAggregate(const TString& functionName) const
+const IAggregateCodegenPtr& TAggregateProfilerMap::GetAggregate(const std::string& functionName) const
 {
     auto found = this->find(functionName);
     if (found == this->end()) {

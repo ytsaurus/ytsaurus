@@ -509,7 +509,7 @@ void TestAllWireTypes(bool useSchema)
                 {"opt_double_2", 7.0},
                 {"opt_boolean", false},
                 {"opt_string32", "eight"},
-                {TableIndexColumnName, 0},
+                {TString(TableIndexColumnName), 0},
             }).Get(),
         });
         if (!isWriterReady) {
@@ -532,7 +532,7 @@ void TestAllWireTypes(bool useSchema)
                 {"opt_double_2", nullptr},
                 {"opt_boolean", nullptr},
                 {"opt_string32", nullptr},
-                {TableIndexColumnName, 0},
+                {TString(TableIndexColumnName), 0},
             }).Get()
         }));
 
@@ -717,7 +717,7 @@ TEST(TSkiffWriter, TestYsonWireType)
         // Row 0 (Null)
         write({
             MakeRow(nameTable, {
-                {TableIndexColumnName, 0},
+                {TString(TableIndexColumnName), 0},
 
                 {"yson32", nullptr},
                 {"opt_yson32", nullptr},
@@ -727,7 +727,7 @@ TEST(TSkiffWriter, TestYsonWireType)
         // Row 1 (Int64)
         write({
             MakeRow(nameTable, {
-                {TableIndexColumnName, 0},
+                {TString(TableIndexColumnName), 0},
 
                 {"yson32", -5},
                 {"opt_yson32", -6},
@@ -737,7 +737,7 @@ TEST(TSkiffWriter, TestYsonWireType)
         // Row 2 (Uint64)
         write({
             MakeRow(nameTable, {
-                {TableIndexColumnName, 0},
+                {TString(TableIndexColumnName), 0},
 
                 {"yson32", 42u},
                 {"opt_yson32", 43u},
@@ -747,7 +747,7 @@ TEST(TSkiffWriter, TestYsonWireType)
         // Row 3 ((Double)
         write({
             MakeRow(nameTable, {
-                {TableIndexColumnName, 0},
+                {TString(TableIndexColumnName), 0},
 
                 {"yson32", 2.7182818},
                 {"opt_yson32", 3.1415926},
@@ -757,7 +757,7 @@ TEST(TSkiffWriter, TestYsonWireType)
         // Row 4 ((Boolean)
         write({
             MakeRow(nameTable, {
-                {TableIndexColumnName, 0},
+                {TString(TableIndexColumnName), 0},
 
                 {"yson32", true},
                 {"opt_yson32", false},
@@ -767,7 +767,7 @@ TEST(TSkiffWriter, TestYsonWireType)
         // Row 5 ((String)
         write({
             MakeRow(nameTable, {
-                {TableIndexColumnName, 0},
+                {TString(TableIndexColumnName), 0},
 
                 {"yson32", "Yin"},
                 {"opt_yson32", "Yang"},
@@ -777,7 +777,7 @@ TEST(TSkiffWriter, TestYsonWireType)
         // Row 6 ((Any)
         write({
             MakeRow(nameTable, {
-                {TableIndexColumnName, 0},
+                {TString(TableIndexColumnName), 0},
 
                 {"yson32", EValueType::Any, "{foo=bar;}"},
                 {"opt_yson32", EValueType::Any, "{bar=baz;}"},
@@ -787,7 +787,7 @@ TEST(TSkiffWriter, TestYsonWireType)
         // Row 7 ((missing optional values)
         write({
             MakeRow(nameTable, {
-                {TableIndexColumnName, 0},
+                {TString(TableIndexColumnName), 0},
             }).Get(),
         });
 
@@ -901,7 +901,7 @@ public:
                 TNamedValue::TComposite{
                     BuildYsonStringFluently()
                         .BeginList()
-                        .Item().Value(value)
+                            .Item().Value(value)
                         .EndList().ToString()
                 }
             };
@@ -1321,7 +1321,7 @@ TEST_P(TSkiffWriterSingular, TestOptionalSingular)
         // Row 0
         auto isReady = writer->Write({
             MakeRow(nameTable, {
-                {TableIndexColumnName, 0},
+                {TString(TableIndexColumnName), 0},
                 {"opt_null", nullptr},
             }).Get(),
         });
@@ -1331,7 +1331,7 @@ TEST_P(TSkiffWriterSingular, TestOptionalSingular)
         // Row 1
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
-                {TableIndexColumnName, 0},
+                {TString(TableIndexColumnName), 0},
                 {"opt_null", EValueType::Composite, "[#]"},
             }).Get(),
         }));
@@ -1379,21 +1379,21 @@ TEST(TSkiffWriter, TestRearrange)
         };
 
         write(MakeRow(nameTable, {
-            {TableIndexColumnName, 0},
+            {TString(TableIndexColumnName), 0},
             {"number", 1},
             {"eng", "one"},
             {"rus", nullptr},
         }).Get());
 
         write(MakeRow(nameTable, {
-            {TableIndexColumnName, 0},
+            {TString(TableIndexColumnName), 0},
             {"eng", nullptr},
             {"number", 2},
             {"rus", "dva"},
         }).Get());
 
         write(MakeRow(nameTable, {
-            {TableIndexColumnName, 0},
+            {TString(TableIndexColumnName), 0},
             {"rus", "tri"},
             {"eng", "three"},
             {"number", 3},
@@ -1448,7 +1448,7 @@ TEST(TSkiffWriter, TestMissingRequiredField)
 
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
-                {TableIndexColumnName, 0},
+                {TString(TableIndexColumnName), 0},
                 {"number", 1},
             }).Get()
         }));
@@ -1483,31 +1483,31 @@ TEST(TSkiffWriter, TestSparse)
     };
 
     write(MakeRow(nameTable, {
-        {TableIndexColumnName, 0},
+        {TString(TableIndexColumnName), 0},
         {"int64", -1},
         {"string32", "minus one"},
     }).Get());
 
     write(MakeRow(nameTable, {
-        {TableIndexColumnName, 0},
+        {TString(TableIndexColumnName), 0},
         {"string32", "minus five"},
         {"int64", -5},
     }).Get());
 
     write(MakeRow(nameTable, {
-        {TableIndexColumnName, 0},
+        {TString(TableIndexColumnName), 0},
         {"uint64", 42u},
     }).Get());
 
     write(MakeRow(nameTable, {
-        {TableIndexColumnName, 0},
+        {TString(TableIndexColumnName), 0},
         {"int64", -8},
         {"uint64", nullptr},
         {"string32", nullptr},
     }).Get());
 
     write(MakeRow(nameTable, {
-        {TableIndexColumnName, 0},
+        {TString(TableIndexColumnName), 0},
     }).Get());
 
     writer->Close()
@@ -1567,7 +1567,7 @@ TEST(TSkiffWriter, TestMissingFields)
 
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
-                {TableIndexColumnName, 0},
+                {TString(TableIndexColumnName), 0},
                 {"unknown_column", "four"},
             }).Get(),
         }));
@@ -1589,7 +1589,7 @@ TEST(TSkiffWriter, TestMissingFields)
 
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
-                {TableIndexColumnName, 0},
+                {TString(TableIndexColumnName), 0},
                 {"unknown_column", "four"},
             }).Get(),
         }));
@@ -1625,19 +1625,19 @@ TEST(TSkiffWriter, TestOtherColumns)
 
     // Row 0.
     write(MakeRow(nameTable, {
-        {TableIndexColumnName, 0},
+        {TString(TableIndexColumnName), 0},
         {"string_column", "foo"},
     }).Get());
 
     // Row 1.
     write(MakeRow(nameTable, {
-        {TableIndexColumnName, 0},
+        {TString(TableIndexColumnName), 0},
         {"int64_column", 42},
     }).Get());
 
     // Row 2.
     write(MakeRow(nameTable, {
-        {TableIndexColumnName, 0},
+        {TString(TableIndexColumnName), 0},
         {"other_string_column", "bar"},
     }).Get());
     writer->Close()
@@ -1693,17 +1693,17 @@ TEST(TSkiffWriter, TestKeySwitch)
     // Row 0.
     write(MakeRow(nameTable, {
         {"value", "one"},
-        {TableIndexColumnName, 0},
+        {TString(TableIndexColumnName), 0},
     }).Get());
     // Row 1.
     write(MakeRow(nameTable, {
         {"value", "one"},
-        {TableIndexColumnName, 0},
+        {TString(TableIndexColumnName), 0},
     }).Get());
     // Row 2.
     write(MakeRow(nameTable, {
         {"value", "two"},
-        {TableIndexColumnName, 0},
+        {TString(TableIndexColumnName), 0},
     }).Get());
     writer->Close()
         .Get()
@@ -1753,12 +1753,12 @@ TEST(TSkiffWriter, TestEndOfStream)
     // Row 0.
     write(MakeRow(nameTable, {
         {"value", "zero"},
-        {TableIndexColumnName, 0},
+        {TString(TableIndexColumnName), 0},
     }).Get());
     // Row 1.
     write(MakeRow(nameTable, {
         {"value", "one"},
-        {TableIndexColumnName, 0},
+        {TString(TableIndexColumnName), 0},
     }).Get());
     writer->Close()
         .Get()
@@ -1805,13 +1805,13 @@ TEST(TSkiffWriter, TestRowRangeIndex)
     };
     auto generateUnversionedRow = [] (const TRow& row, const TNameTablePtr& nameTable) {
         std::vector<TNamedValue> values = {
-            {TableIndexColumnName, row.TableIndex},
+            {TString(TableIndexColumnName), row.TableIndex},
         };
         if (row.RangeIndex) {
-            values.emplace_back(RangeIndexColumnName, *row.RangeIndex);
+            values.emplace_back(TString(RangeIndexColumnName), *row.RangeIndex);
         }
         if (row.RowIndex) {
-            values.push_back({RowIndexColumnName, *row.RowIndex});
+            values.emplace_back(TString(RowIndexColumnName), *row.RowIndex);
         }
         return MakeRow(nameTable, values);
     };
@@ -1975,7 +1975,7 @@ TEST(TSkiffWriter, TestRowRangeIndex)
 
 TEST(TSkiffWriter, TestRowIndexOnlyOrRangeIndexOnly)
 {
-    TString columnNameList[] = {
+    std::string columnNameList[] = {
         RowIndexColumnName,
         RangeIndexColumnName,
     };
@@ -1985,7 +1985,7 @@ TEST(TSkiffWriter, TestRowIndexOnlyOrRangeIndexOnly)
             CreateVariant8Schema({
                 CreateSimpleTypeSchema(EWireType::Nothing),
                 CreateSimpleTypeSchema(EWireType::Int64),
-            })->SetName(columnName),
+            })->SetName(TString(columnName)),
         });
 
         TStringStream resultStream;
@@ -1995,7 +1995,7 @@ TEST(TSkiffWriter, TestRowIndexOnlyOrRangeIndexOnly)
         // Row 0.
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
-                {columnName, 0},
+                {TString(columnName), 0},
             }).Get(),
         }));
         writer->Close()
@@ -2051,7 +2051,7 @@ TEST(TSkiffWriter, TestComplexType)
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
                 {"value", EValueType::Composite, "[foo;[[0; 1];[2;3]]]"},
-                {TableIndexColumnName, 0},
+                {TString(TableIndexColumnName), 0},
             }).Get(),
         }));
         writer->Close()
@@ -2105,7 +2105,7 @@ TEST(TSkiffWriter, TestEmptyComplexType)
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
                 {"value", nullptr},
-                {TableIndexColumnName, 0},
+                {TString(TableIndexColumnName), 0},
             }).Get(),
         }));
         writer->Close()
@@ -2151,7 +2151,7 @@ TEST(TSkiffWriter, TestSparseComplexType)
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
                 {"value", EValueType::Composite, "[foo;bar;]"},
-                {TableIndexColumnName, 0},
+                {TString(TableIndexColumnName), 0},
             }).Get(),
         }));
         writer->Close()
@@ -2203,7 +2203,7 @@ TEST(TSkiffWriter, TestSparseComplexTypeWithExtraOptional)
     Y_UNUSED(writer->Write({
         MakeRow(nameTable, {
             {"value", EValueType::Composite, "[foo;bar;]"},
-            {TableIndexColumnName, 0},
+            {TString(TableIndexColumnName), 0},
         }).Get(),
     }));
     writer->Close()
@@ -2288,11 +2288,11 @@ TEST(TSkiffWriter, TestSkippedFields)
         CreateVariant8Schema({
             CreateSimpleTypeSchema(EWireType::Nothing),
             CreateSimpleTypeSchema(EWireType::Int64),
-        })->SetName(RangeIndexColumnName),
+        })->SetName(TString(RangeIndexColumnName)),
         CreateVariant8Schema({
             CreateSimpleTypeSchema(EWireType::Nothing),
             CreateSimpleTypeSchema(EWireType::Int64),
-        })->SetName(RowIndexColumnName),
+        })->SetName(TString(RowIndexColumnName)),
         CreateSimpleTypeSchema(EWireType::Double)->SetName("double"),
     });
     auto tableSchema = New<TTableSchema>(std::vector{
@@ -2311,8 +2311,8 @@ TEST(TSkiffWriter, TestSkippedFields)
                 MakeRow(nameTable, {
                     {"number", 1},
                     {"string", "hello"},
-                    {RangeIndexColumnName, 0},
-                    {RowIndexColumnName, 0},
+                    {TString(RangeIndexColumnName), 0},
+                    {TString(RowIndexColumnName), 0},
                     {"double", 1.5},
                 }).Get()
             }))
@@ -2322,8 +2322,8 @@ TEST(TSkiffWriter, TestSkippedFields)
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
                 {"number", 1},
-                {RangeIndexColumnName, 5},
-                {RowIndexColumnName, 1},
+                {TString(RangeIndexColumnName), 5},
+                {TString(RowIndexColumnName), 1},
                 {"double", 2.5},
             }).Get()
         }));
@@ -2363,7 +2363,7 @@ TEST(TSkiffWriter, TestSkippedFieldsOutOfRange)
         CreateVariant8Schema({
             CreateSimpleTypeSchema(EWireType::Nothing),
             CreateSimpleTypeSchema(EWireType::Int64),
-        })->SetName(RangeIndexColumnName),
+        })->SetName(TString(RangeIndexColumnName)),
     });
     auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("string", EValueType::String),
@@ -2378,7 +2378,7 @@ TEST(TSkiffWriter, TestSkippedFieldsOutOfRange)
         if (!writer->Write({
                 MakeRow(nameTable, {
                     {"string", "hello"},
-                    {RangeIndexColumnName, 0},
+                    {TString(RangeIndexColumnName), 0},
                 }).Get()
             }))
         {
@@ -2386,7 +2386,7 @@ TEST(TSkiffWriter, TestSkippedFieldsOutOfRange)
         }
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
-                {RangeIndexColumnName, 5},
+                {TString(RangeIndexColumnName), 5},
             }).Get()
         }));
         writer->Close()
@@ -2432,19 +2432,19 @@ TEST(TSkiffWriter, TestSkippedFieldsAndKeySwitch)
     write(MakeRow(nameTable, {
         {"value", "one"},
         {"value1", 0},
-        {TableIndexColumnName, 0},
+        {TString(TableIndexColumnName), 0},
     }).Get());
     // Row 1.
     write(MakeRow(nameTable, {
         {"value", "one"},
         {"value1", 1},
-        {TableIndexColumnName, 0},
+        {TString(TableIndexColumnName), 0},
     }).Get());
     // Row 2.
     write(MakeRow(nameTable, {
         {"value", "two"},
         {"value1", 2},
-        {TableIndexColumnName, 0},
+        {TString(TableIndexColumnName), 0},
     }).Get());
     writer->Close()
         .Get()

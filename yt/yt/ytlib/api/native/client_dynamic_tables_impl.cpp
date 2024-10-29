@@ -179,9 +179,9 @@ TColumnFilter RemapColumnFilter(
     return TColumnFilter(std::move(remappedFilterIndexes));
 }
 
-std::vector<TString> GetLookupColumns(const TColumnFilter& columnFilter, const TTableSchema& schema)
+std::vector<std::string> GetLookupColumns(const TColumnFilter& columnFilter, const TTableSchema& schema)
 {
-    std::vector<TString> columns;
+    std::vector<std::string> columns;
     if (columnFilter.IsUniversal()) {
         columns.reserve(schema.Columns().size());
         for (const auto& columnSchema : schema.Columns()) {
@@ -394,9 +394,11 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
 
     NAst::TExpressionList indexJoinColumns;
     indexJoinColumns.reserve(tableSchema.GetKeyColumnCount());
+
     NAst::TExpressionList tableJoinColumns;
     tableJoinColumns.reserve(tableSchema.GetKeyColumnCount());
-    THashSet<TString> replacedColumns;
+
+    THashSet<std::string> replacedColumns;
 
     for (const auto& tableColumn : tableSchema.Columns()) {
         const auto* indexColumn = indexTableSchema.FindColumn(tableColumn.Name());
@@ -1062,7 +1064,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
         .Object = FromObjectId(tableInfo->TableId),
         .User = Options_.GetAuthenticatedUser(),
         .Permission = EPermission::Read,
-        .Columns = GetLookupColumns(remappedColumnFilter, *schema)
+        .Columns = GetLookupColumns(remappedColumnFilter, *schema),
     };
     const auto& permissionCache = Connection_->GetPermissionCache();
     WaitFor(permissionCache->Get(permissionKey))
@@ -1689,7 +1691,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     std::vector<NSecurityClient::TPermissionKey> permissionKeys;
 
     auto addTableForPermissionCheck = [&] (TTableId id, const TMappedSchema& schema) {
-        std::vector<TString> columns;
+        std::vector<std::string> columns;
         columns.reserve(schema.Mapping.size());
         for (const auto& columnDescriptor : schema.Mapping) {
             columns.push_back(schema.Original->Columns()[columnDescriptor.Index].Name());

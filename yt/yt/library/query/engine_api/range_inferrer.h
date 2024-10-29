@@ -14,7 +14,7 @@ namespace NYT::NQueryClient {
 
 struct TRangeExtractorMap
     : public TRefCounted
-    , public std::unordered_map<TString, TRangeExtractor>
+    , public std::unordered_map<std::string, TRangeExtractor>
 { };
 
 DEFINE_REFCOUNTED_TYPE(TRangeExtractorMap)

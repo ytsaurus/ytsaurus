@@ -122,16 +122,16 @@ using TConstraintExtractor = std::function<TConstraintRef(
 
 struct TTypeInferrerMap
     : public TRefCounted
-    , public std::unordered_map<TString, ITypeInferrerPtr>
+    , public std::unordered_map<std::string, ITypeInferrerPtr>
 {
-    const ITypeInferrerPtr& GetFunction(const TString& functionName) const;
+    const ITypeInferrerPtr& GetFunction(const std::string& functionName) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTypeInferrerMap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsUserCastFunction(const TString& name);
+bool IsUserCastFunction(const std::string& name);
 
 ////////////////////////////////////////////////////////////////////////////////
 

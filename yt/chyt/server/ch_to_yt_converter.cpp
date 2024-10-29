@@ -1,6 +1,5 @@
 #include "ch_to_yt_converter.h"
 
-#include "std_helpers.h"
 #include "config.h"
 #include "custom_data_types.h"
 #include "format.h"
@@ -430,7 +429,9 @@ class TTupleConverter
     : public IConverter
 {
 public:
-    explicit TTupleConverter(std::vector<IConverterPtr> underlyingConverters, std::optional<std::vector<TString>> elementNames)
+    TTupleConverter(
+        std::vector<IConverterPtr> underlyingConverters,
+        std::optional<std::vector<std::string>> elementNames)
         : UnderlyingConverters_(std::move(underlyingConverters))
         , ElementNames_(std::move(elementNames))
     {
@@ -491,7 +492,7 @@ public:
 
 private:
     const std::vector<IConverterPtr> UnderlyingConverters_;
-    const std::optional<std::vector<TString>> ElementNames_;
+    const std::optional<std::vector<std::string>> ElementNames_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1027,7 +1028,7 @@ private:
         auto dataTypeTuple = dynamic_pointer_cast<const DB::DataTypeTuple>(dataType);
         YT_VERIFY(dataTypeTuple);
         std::vector<IConverterPtr> underlyingConverters;
-        auto elementNames = ToVectorString(dataTypeTuple->getElementNames());
+        auto elementNames = dataTypeTuple->getElementNames();
         underlyingConverters.reserve(dataTypeTuple->getElements().size());
         for (const auto& elementDataType : dataTypeTuple->getElements()) {
             underlyingConverters.emplace_back(CreateConverter(elementDataType));

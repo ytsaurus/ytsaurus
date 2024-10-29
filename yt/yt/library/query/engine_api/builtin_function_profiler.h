@@ -14,9 +14,9 @@ DECLARE_REFCOUNTED_STRUCT(TFunctionProfilerMap)
 
 struct TFunctionProfilerMap
     : public TRefCounted
-    , public std::unordered_map<TString, IFunctionCodegenPtr>
+    , public std::unordered_map<std::string, IFunctionCodegenPtr>
 {
-    const IFunctionCodegenPtr& GetFunction(const TString& functionName) const;
+    const IFunctionCodegenPtr& GetFunction(const std::string& functionName) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFunctionProfilerMap)
@@ -27,9 +27,9 @@ DECLARE_REFCOUNTED_STRUCT(TFunctionProfilerMap)
 
 struct TAggregateProfilerMap
     : public TRefCounted
-    , public std::unordered_map<TString, IAggregateCodegenPtr>
+    , public std::unordered_map<std::string, IAggregateCodegenPtr>
 {
-    const IAggregateCodegenPtr& GetAggregate(const TString& functionName) const;
+    const IAggregateCodegenPtr& GetAggregate(const std::string& functionName) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TAggregateProfilerMap)

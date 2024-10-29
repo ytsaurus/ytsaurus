@@ -52,7 +52,7 @@ ISchemalessChunkReaderPtr CreateRemoteOrderedDynamicStoreReader(
     TNameTablePtr nameTable,
     NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    const std::optional<std::vector<TString>>& columns);
+    const std::optional<std::vector<std::string>>& columns);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,7 +64,7 @@ ISchemalessChunkReaderPtr CreateRetryingRemoteOrderedDynamicStoreReader(
     TNameTablePtr nameTable,
     NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    const std::optional<std::vector<TString>>& columns,
+    const std::optional<std::vector<std::string>>& columns,
     NChunkClient::TChunkReaderMemoryManagerHolderPtr readerMemoryManagerHolder,
     TCallback<TFuture<ISchemalessChunkReaderPtr>(
         NChunkClient::NProto::TChunkSpec,

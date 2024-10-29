@@ -59,7 +59,7 @@ void ValidateKeyColumnCount(
     bool requireUniqueKeys);
 
 TColumnFilter CreateColumnFilter(
-    const std::optional<std::vector<TString>>& columns,
+    const std::optional<std::vector<std::string>>& columns,
     const TNameTablePtr& nameTable);
 
 ////////////////////////////////////////////////////////////////////////////////

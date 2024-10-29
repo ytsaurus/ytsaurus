@@ -39,11 +39,10 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
     std::vector<bool> isAggregate(schema->GetColumnCount());
 
     for (int index = 0; index < schema->GetColumnCount(); ++index) {
-        THashSet<TString> references;
+        THashSet<std::string> references;
         auto& column = columns[index];
 
         if (schema->Columns()[index].Expression()) {
-
             column.Expression = PrepareExpression(
                 *schema->Columns()[index].Expression(),
                 *schema,

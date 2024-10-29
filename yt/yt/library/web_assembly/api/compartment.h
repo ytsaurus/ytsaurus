@@ -21,7 +21,7 @@ struct IWebAssemblyCompartment
     virtual void Strip() = 0;
 
     //! Returns an opaque pointer to the function with name |name|.
-    virtual void* GetFunction(const TString& name) = 0;
+    virtual void* GetFunction(const std::string& functionName) = 0;
     //! Returns an opaque pointer to the function with index |index|.
     virtual void* GetFunction(size_t index) = 0;
     //! Returns an opaque pointer to the execution context.

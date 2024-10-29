@@ -182,7 +182,7 @@ private:
             ? std::make_optional(rpcRequest.upper_row_index())
             : std::nullopt;
         options.Columns = rpcRequest.has_columns()
-            ? std::make_optional(FromProto<std::vector<TString>>(rpcRequest.columns().items()))
+            ? std::make_optional(FromProto<std::vector<std::string>>(rpcRequest.columns().items()))
             : std::nullopt;
 
         auto resultIndex = rpcRequest.result_index();

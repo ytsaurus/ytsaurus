@@ -51,9 +51,9 @@ using namespace NQueryClient;
 
 struct TComputedColumnEntry
 {
-    std::vector<TString> References;
+    std::vector<std::string> References;
     TConstExpressionPtr Expression;
-    TString ComputedColumn;
+    std::string ComputedColumn;
     TLogicalTypePtr LogicalType;
 };
 
@@ -65,10 +65,11 @@ struct TComputedColumnEntry
 //!   (key, computed_key) in ((2, 1234), (5, 6789), (-1, 4242)).
 struct TInclusionStatement
 {
-    std::vector<TString> ColumnNames;
-    THashMap<TString, int> ColumnPosition;
+    std::vector<std::string> ColumnNames;
+    THashMap<std::string, int> ColumnPosition;
     std::vector<DB::FieldVector> PossibleTuples;
-    TInclusionStatement(std::vector<TString> columnNames, std::vector<DB::FieldVector> possibleTuples)
+
+    TInclusionStatement(std::vector<std::string> columnNames, std::vector<DB::FieldVector> possibleTuples)
         : ColumnNames(std::move(columnNames))
         , PossibleTuples(std::move(possibleTuples))
     {
@@ -81,7 +82,7 @@ struct TInclusionStatement
         }
     }
 
-    bool ContainsReferences(const std::vector<TString>& references) const
+    bool ContainsReferences(const std::vector<std::string>& references) const
     {
         for (const auto& item : references) {
             if (!ColumnPosition.contains(item)) {
@@ -91,7 +92,7 @@ struct TInclusionStatement
         return true;
     }
 
-    TInclusionStatement Filter(const std::vector<TString>& references) const
+    TInclusionStatement Filter(const std::vector<std::string>& references) const
     {
         std::vector<DB::FieldVector> filteredTuples(PossibleTuples.size());
         for (const auto& reference : references) {
@@ -123,13 +124,13 @@ void FormatValue(TStringBuilderBase* builder, const TInclusionStatement& stateme
         statement.PossibleTuples);
 }
 
-std::optional<std::vector<TString>> IdentifierTupleToColumnNames(const DB::IAST& ast)
+std::optional<std::vector<std::string>> IdentifierTupleToColumnNames(const DB::IAST& ast)
 {
     if (auto* functionAst = ast.as<DB::ASTFunction>()) {
         if (functionAst->name != "tuple") {
             return std::nullopt;
         }
-        std::vector<TString> result;
+        std::vector<std::string> result;
         for (const auto& childAst : functionAst->arguments->children) {
             if (const auto* identifierAst = childAst->as<DB::ASTIdentifier>()) {
                 result.emplace_back(identifierAst->shortName());
@@ -392,7 +393,7 @@ struct TComputedColumnPopulationMatcher
             // Assume that lhs is an identifier or identifier tuple and rhs is a constant value.
             // If this is not the case, swap lhs and rhs and repeat the procedure.
             for (int swapAttempt = 0; swapAttempt < 2; ++swapAttempt, lhs.swap(rhs)) {
-                std::vector<TString> columnNames;
+                std::vector<std::string> columnNames;
                 bool isLhsTuple = false;
                 if (auto* identifierAst = lhs->as<DB::ASTIdentifier>()) {
                     columnNames.emplace_back(identifierAst->shortName());
@@ -450,7 +451,7 @@ struct TComputedColumnPopulationMatcher
             auto rhs = ast.arguments->children[1];
             bool isLhsTuple = false;
 
-            std::vector<TString> columnNames;
+            std::vector<std::string> columnNames;
             if (auto* identifierAst = lhs->as<DB::ASTIdentifier>()) {
                 columnNames.emplace_back(identifierAst->shortName());
             } else if (auto maybeColumnNames = IdentifierTupleToColumnNames(*lhs)) {
@@ -528,9 +529,9 @@ DB::ASTPtr PopulatePredicateWithComputedColumns(
 
     for (const auto& columnSchema : schema->Columns()) {
         if (columnSchema.Expression() && columnSchema.SortOrder()) {
-            THashSet<TString> referenceSet;
+            THashSet<std::string> referenceSet;
             auto expr = PrepareExpression(*columnSchema.Expression(), *schema, GetBuiltinTypeInferrers(), &referenceSet);
-            std::vector<TString> references(referenceSet.begin(), referenceSet.end());
+            std::vector<std::string> references(referenceSet.begin(), referenceSet.end());
             entries.emplace_back(TComputedColumnEntry{references, expr, columnSchema.Name(), columnSchema.LogicalType()});
             YT_LOG_DEBUG(
                 "Key computed column found (Column: %v, References: %v, Expression: %v)",

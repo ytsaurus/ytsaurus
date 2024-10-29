@@ -72,13 +72,13 @@ constexpr int DefaultFooterReadSize = 64_KB;
 constexpr int SizeOfMetadataSize = 4;
 constexpr int SizeOfMagicBytes = 4;
 
-const TString MetadataColumnName = "metadata";
-const TString StartMetadataOffsetColumnName = "start_metadata_offset";
-const TString PartIndexColumnName = "part_index";
-const TString FileIdColumnName = "file_id";
-const TString FileIndexColumnName = "file_index";
-const TString DataColumnName = "data";
-const TString OutputTableIndexColumnName = "output_table_index";
+const std::string MetadataColumnName = "metadata";
+const std::string StartMetadataOffsetColumnName = "start_metadata_offset";
+const std::string PartIndexColumnName = "part_index";
+const std::string FileIdColumnName = "file_id";
+const std::string FileIndexColumnName = "file_index";
+const std::string DataColumnName = "data";
+const std::string OutputTableIndexColumnName = "output_table_index";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -280,7 +280,8 @@ public:
     void Do(TReader* reader, TWriter* writer) override
     {
         TBlobTableSchema blobTableSchema;
-        blobTableSchema.BlobIdColumns({ TColumnSchema().Name(FileIndexColumnName).Type(VT_INT64) });
+        // TODO(babenko): migrate to std::string
+        blobTableSchema.BlobIdColumns({TColumnSchema().Name(TString(FileIndexColumnName)).Type(VT_INT64) });
 
         for (auto& cursor : *reader) {
             const auto& row = cursor.GetRow();
@@ -632,10 +633,12 @@ void ImportParquetFilesFromSource(
         /*path*/ TString(),
         TCreateOptions().Attributes(TNode()("schema", TTableSchema()
             .AddColumn(TColumnSchema()
-                .Name(FileIdColumnName)
+                // TODO(babenko): migrate to std::string
+                .Name(TString(FileIdColumnName))
                 .Type(VT_STRING, true))
             .AddColumn(TColumnSchema()
-                .Name(FileIndexColumnName)
+                // TODO(babenko): migrate to std::string
+                .Name(TString(FileIndexColumnName))
                 .Type(VT_INT64, true)).ToNode())));
 
     auto writer = ytClient->CreateTableWriter<TNode>(metaInformationTable.Name());
@@ -643,7 +646,8 @@ void ImportParquetFilesFromSource(
 
     for (const auto& fileName : fileIds) {
         if (re2::RE2::PartialMatch(fileName, *config->ParquetFileRegex)) {
-            writer->AddRow(TNode()(FileIdColumnName, fileName)(FileIndexColumnName, fileIndex));
+            // TODO(babenko): migrate to std::string
+            writer->AddRow(TNode()(TString(FileIdColumnName), fileName)(TString(FileIndexColumnName), fileIndex));
             ++fileIndex;
         }
     }
@@ -655,7 +659,8 @@ void ImportParquetFilesFromSource(
         fileIndex);
 
     TBlobTableSchema blobTableSchema;
-    blobTableSchema.BlobIdColumns({TColumnSchema().Name(FileIndexColumnName).Type(VT_INT64)});
+    // TODO(babenko): migrate to std::string
+    blobTableSchema.BlobIdColumns({TColumnSchema().Name(TString(FileIndexColumnName)).Type(VT_INT64)});
 
     auto createOptions = TCreateOptions().Attributes(
         TNode()("schema", blobTableSchema.CreateYtSchema().ToNode()));
@@ -672,16 +677,20 @@ void ImportParquetFilesFromSource(
         /*path*/ TString(),
         TCreateOptions().Attributes(TNode()("schema", TTableSchema()
             .AddColumn(TColumnSchema()
-                .Name(FileIndexColumnName)
+                // TODO(babenko): migrate to std::string
+                .Name(TString(FileIndexColumnName))
                 .Type(VT_INT64, true))
             .AddColumn(TColumnSchema()
-                .Name(PartIndexColumnName)
+                // TODO(babenko): migrate to std::string
+                .Name(TString(PartIndexColumnName))
                 .Type(VT_INT64, true))
             .AddColumn(TColumnSchema()
-                .Name(MetadataColumnName)
+                // TODO(babenko): migrate to std::string
+                .Name(TString(MetadataColumnName))
                 .Type(VT_STRING, true))
             .AddColumn(TColumnSchema()
-                .Name(StartMetadataOffsetColumnName)
+                // TODO(babenko): migrate to std::string
+                .Name(TString(StartMetadataOffsetColumnName))
                 .Type(VT_INT64, true)).ToNode())));
 
     const TString dataTablePath = dataTable.Name();
@@ -755,13 +764,16 @@ void ImportParquetFilesFromSource(
             /*path*/ TString(),
             TCreateOptions().Attributes(TNode()("schema", TTableSchema()
                 .AddColumn(TColumnSchema()
-                    .Name(FileIndexColumnName)
+                    // TODO(babenko): migrate to std::string
+                    .Name(TString(FileIndexColumnName))
                     .Type(VT_INT64, true))
                 .AddColumn(TColumnSchema()
-                    .Name(PartIndexColumnName)
+                    // TODO(babenko): migrate to std::string
+                    .Name(TString(PartIndexColumnName))
                     .Type(VT_INT64, true))
                 .AddColumn(TColumnSchema()
-                    .Name(OutputTableIndexColumnName)
+                    // TODO(babenko): migrate to std::string
+                    .Name(TString(OutputTableIndexColumnName))
                     .Type(VT_INT64, true)).ToNode())));
 
         auto outputParserTables = CreateOutputParserTables(

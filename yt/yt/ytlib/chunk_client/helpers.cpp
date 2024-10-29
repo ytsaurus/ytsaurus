@@ -167,7 +167,7 @@ void GetUserObjectBasicAttributes(
         if (auto optionalColumns = userObject->Path.GetColumns()) {
             auto* protoColumns = req->mutable_columns();
             for (const auto& column : *optionalColumns) {
-                protoColumns->add_items(column);
+                protoColumns->add_items(ToProto(column));
             }
         }
         req->Tag() = userObject;
@@ -197,7 +197,7 @@ void GetUserObjectBasicAttributes(
         }
 
         if (rsp->has_omitted_inaccessible_columns()) {
-            userObject->OmittedInaccessibleColumns = FromProto<std::vector<TString>>(rsp->omitted_inaccessible_columns().items());
+            userObject->OmittedInaccessibleColumns = FromProto<std::vector<std::string>>(rsp->omitted_inaccessible_columns().items());
         }
         if (rsp->has_security_tags()) {
             userObject->SecurityTags = FromProto<std::vector<TSecurityTag>>(rsp->security_tags().items());

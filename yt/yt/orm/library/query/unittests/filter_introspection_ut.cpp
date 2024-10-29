@@ -67,7 +67,7 @@ TEST(TFilterIntrospectionTest, DefinedAttributeValue)
 
 bool RunIntrospectFilterForDefinedReference(
     const TString& expressionString,
-    const NYPath::TYPath& referenceName,
+    const std::string& referenceName,
     const std::optional<TString>& tableName = std::nullopt,
     bool allowValueRange = true)
 {
@@ -200,51 +200,53 @@ TEST(TFilterIntrospectionTest, ExtractAllReferences)
             "is_substr(\"Intel\", \"Intel(R) Xeon(R) CPU E5-2660 0 @ 2.20GHz\")",
         })
     {
-        THashSet<TString> result;
+        THashSet<std::string> result;
         ExtractFilterAttributeReferences(
             nodeFilter,
-            [&result] (TString attribute) {
-                result.insert(std::move(attribute));
+            [&result] (const std::string& attribute) {
+                result.insert(attribute);
             });
-        EXPECT_EQ(result, THashSet<TString>());
+        EXPECT_EQ(result, THashSet<std::string>());
     }
 
     // Check simple expressions.
     for (const auto& opString : {"=", "!=", ">", "<", "<=", ">="})
     {
-        THashSet<TString> result;
+        THashSet<std::string> result;
         ExtractFilterAttributeReferences(
             Format("[/spec/weight] %v 152", opString),
-            [&result] (TString attribute) {
-                result.insert(std::move(attribute));
+            [&result] (const std::string& attribute) {
+                result.insert(attribute);
             });
-        EXPECT_EQ(result, THashSet<TString>{"/spec/weight"});
+        EXPECT_EQ(result, THashSet<std::string>{"/spec/weight"});
     }
 
     // Check complex expression with repetition.
     {
-        THashSet<TString> result;
+        THashSet<std::string> result;
         ExtractFilterAttributeReferences(
             "[/labels/position] = 153 OR is_substr(\"disabled\", [/status/state/raw])"
             "OR list_contains([/spec/supported_modes], \"CMP\") AND NOT ([/status/disabled] = %true"
             "OR is_substr(\"disabled\", [/status/state/raw]))",
-            [&result] (TString attribute) {
-                result.insert(std::move(attribute));
+            [&result] (const std::string& attribute) {
+                result.insert(attribute);
             });
         EXPECT_EQ(
             result,
-            THashSet<TString>({"/labels/position", "/spec/supported_modes", "/status/disabled", "/status/state/raw"}));
+            THashSet<std::string>({"/labels/position", "/spec/supported_modes", "/status/disabled", "/status/state/raw"}));
     }
 
     // Check expression with repetition, extraction to vector
     {
-        std::vector<TString> result;
+        std::vector<std::string> result;
         ExtractFilterAttributeReferences(
             "[/labels/position] > 153 OR is_substr(\"disabled\", [/status/state/raw]) or [/labels/position] < 152",
-            [&result] (TString attribute) {
-                result.push_back(std::move(attribute));
+            [&result] (const std::string& attribute) {
+                result.push_back(attribute);
             });
-        EXPECT_EQ(result, std::vector<TString>({"/labels/position", "/status/state/raw", "/labels/position"}));
+        EXPECT_EQ(
+            result,
+            std::vector<std::string>({"/labels/position", "/status/state/raw", "/labels/position"}));
     }
 }
 

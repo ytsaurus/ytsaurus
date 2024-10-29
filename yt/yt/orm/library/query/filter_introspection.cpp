@@ -259,7 +259,7 @@ class TQueryVisitorForAttributeReferences
     : public TAstVisitor<TQueryVisitorForAttributeReferences>
 {
 public:
-    explicit TQueryVisitorForAttributeReferences(std::function<void(TString)> inserter)
+    explicit TQueryVisitorForAttributeReferences(std::function<void(const std::string&)> inserter)
         : Inserter_(std::move(inserter))
     { }
 
@@ -288,7 +288,7 @@ public:
     }
 
 private:
-    std::function<void(TString)> Inserter_;
+    const std::function<void(const std::string)> Inserter_;
 
     using TAstVisitor<TQueryVisitorForAttributeReferences>::Visit;
 };
@@ -326,7 +326,7 @@ bool IntrospectFilterForDefinedReference(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExtractFilterAttributeReferences(const TString& filterQuery, std::function<void(TString)> inserter)
+void ExtractFilterAttributeReferences(const TString& filterQuery, std::function<void(const std::string&)> inserter)
 {
     if (!filterQuery) {
         return;
@@ -362,8 +362,8 @@ std::optional<TString> TryCastToStringValue(const TExpressionList& exprList) noe
 
 bool IntrospectQueryForFullScan(
     const NQueryClient::NAst::TQuery* query,
-    const TString& firstKeyFieldName,
-    const TString& firstNonEvaluatedKeyFieldName)
+    const std::string& firstKeyFieldName,
+    const std::string& firstNonEvaluatedKeyFieldName)
 {
     NQueryClient::TColumnSet keyColumnsSet;
     TReferenceHarvester(&keyColumnsSet).Visit(query->WherePredicate);

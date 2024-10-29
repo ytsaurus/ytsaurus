@@ -32,8 +32,8 @@ public:
         IInputStream* inputStream,
         std::unique_ptr<IInputStream> inputStreamHolder,
         const std::vector<Py::PythonClassObject<TSkiffSchemaPython>>& pythonSkiffschemaList,
-        const TString& rangeIndexColumnName,
-        const TString& rowIndexColumnName);
+        const std::string& rangeIndexColumnName,
+        const std::string& rowIndexColumnName);
 
     Py::Object iter() override;
     PyObject* iternext() override;

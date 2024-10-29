@@ -555,7 +555,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TSchemaData, KeysSchemaData);
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<int>, ColumnIndexToLockIndex);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TString>, LockIndexToName);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<std::string>, LockIndexToName);
 
     DEFINE_BYVAL_RO_PROPERTY(TLegacyOwningKey, PivotKey);
     DEFINE_BYVAL_RO_PROPERTY(TLegacyOwningKey, NextPivotKey);

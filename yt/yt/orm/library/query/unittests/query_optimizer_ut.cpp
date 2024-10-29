@@ -143,7 +143,7 @@ TEST(TQueryOptimizerTest, OptimizeWhenUsingSelectExpressionInOrderBy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool RunGroupByOptimization(const TString& filter, const std::vector<TString>& refs, const TString& tableName)
+bool RunGroupByOptimization(const TString& filter, const std::vector<std::string>& refs, const TString& tableName)
 {
     auto parsedQuery = ParseSource(filter, NQueryClient::EParseMode::Expression);
     auto expression = std::get<NQueryClient::NAst::TExpressionPtr>(parsedQuery->AstHead.Ast);
@@ -154,7 +154,7 @@ bool RunGroupByOptimization(const TString& filter, const std::vector<TString>& r
 TEST(TQueryOptimizerTest, OptimizeGroupBy)
 {
     TObjectsHolder objectsHolder;
-    std::vector<TString> references{"permalink_ids"};
+    std::vector<std::string> references{"permalink_ids"};
     TString tableName{"i"};
 
     EXPECT_TRUE(

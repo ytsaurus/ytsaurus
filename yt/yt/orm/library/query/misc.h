@@ -25,7 +25,7 @@ struct TRangeFilterOptions
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-concept CString = std::same_as<TString, T> || std::same_as<TStringBuf, T>;
+concept CString = std::same_as<TString, T> || std::same_as<std::string, T> || std::same_as<TStringBuf, T>;
 
 template <class T>
 concept CStringOrLiteralValue = CString<T> || std::same_as<NQueryClient::NAst::TLiteralValue, T>;

@@ -19,11 +19,12 @@ struct IFunctionCodegen
         std::unique_ptr<bool[]> literalArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
-        const TString& name,
+        const std::string& name,
         NCodegen::EExecutionBackend executionBackend,
         llvm::FoldingSetNodeID* id = nullptr) const = 0;
 
-    virtual bool IsNullable(const std::vector<bool>& /*nullableArgs*/) const {
+    virtual bool IsNullable(const std::vector<bool>& /*nullableArgs*/) const
+    {
         return true;
     }
 };
@@ -37,7 +38,7 @@ struct IAggregateCodegen
         std::vector<EValueType> argumentTypes,
         EValueType stateType,
         EValueType resultType,
-        const TString& name,
+        const std::string& name,
         NCodegen::EExecutionBackend executionBackend,
         llvm::FoldingSetNodeID* id = nullptr) const = 0;
 
@@ -57,7 +58,7 @@ struct ICallingConvention
         std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
         EValueType type,
         bool aggregate,
-        const TString& name) const = 0;
+        const std::string& name) const = 0;
 
     virtual llvm::FunctionType* GetCalleeType(
         TCGBaseContext& builder,
@@ -80,7 +81,7 @@ public:
         std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
         EValueType type,
         bool aggregate,
-        const TString& name) const override;
+        const std::string& name) const override;
 
     llvm::FunctionType* GetCalleeType(
         TCGBaseContext& builder,
@@ -102,7 +103,7 @@ public:
         std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
         EValueType type,
         bool aggregate,
-        const TString& name) const override;
+        const std::string& name) const override;
 
     llvm::FunctionType* GetCalleeType(
         TCGBaseContext& builder,
@@ -125,8 +126,8 @@ struct TExternalFunctionCodegen
 {
 public:
     TExternalFunctionCodegen(
-        const TString& functionName,
-        const TString& symbolName,
+        const std::string& functionName,
+        const std::string& symbolName,
         TSharedRef implementationFile,
         ICallingConventionPtr callingConvention,
         TSharedRef fingerprint,
@@ -140,8 +141,8 @@ public:
     { }
 
     TExternalFunctionCodegen(
-        const TString& functionName,
-        const TString& symbolName,
+        const std::string& functionName,
+        const std::string& symbolName,
         TSharedRef implementationFile,
         ECallingConvention callingConvention,
         TType repeatedArgType,
@@ -163,13 +164,13 @@ public:
         std::unique_ptr<bool[]> literalArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
-        const TString& name,
+        const std::string& name,
         NCodegen::EExecutionBackend executionBackend,
         llvm::FoldingSetNodeID* id) const override;
 
 private:
-    const TString FunctionName_;
-    const TString SymbolName_;
+    const std::string FunctionName_;
+    const std::string SymbolName_;
     const TSharedRef ImplementationFile_;
     const ICallingConventionPtr CallingConvention_;
     const TSharedRef Fingerprint_;
@@ -181,7 +182,7 @@ struct TExternalAggregateCodegen
 {
 public:
     TExternalAggregateCodegen(
-        const TString& aggregateName,
+        const std::string& aggregateName,
         TSharedRef implementationFile,
         ECallingConvention callingConvention,
         bool isFirst,
@@ -197,14 +198,14 @@ public:
         std::vector<EValueType> argumentTypes,
         EValueType stateType,
         EValueType resultType,
-        const TString& name,
+        const std::string& name,
         NCodegen::EExecutionBackend executionBackend,
         llvm::FoldingSetNodeID* id) const override;
 
     bool IsFirst() const override;
 
 private:
-    const TString AggregateName_;
+    const std::string AggregateName_;
     const TSharedRef ImplementationFile_;
     const ICallingConventionPtr CallingConvention_;
     const bool IsFirst_;

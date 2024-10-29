@@ -31,7 +31,7 @@ void FromProto(TVirtualValueDirectoryPtr* directory, const NProto::TVirtualValue
 
     *directory = New<TVirtualValueDirectory>();
 
-    (*directory)->NameTable = TNameTable::FromKeyColumns(FromProto<std::vector<TString>>(protoDirectory.names()));
+    (*directory)->NameTable = TNameTable::FromKeyColumns(FromProto<TKeyColumns>(protoDirectory.names()));
 
     TUnversionedRowsBuilder builder;
     builder.ReserveRows(protoDirectory.rows().size());

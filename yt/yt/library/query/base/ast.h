@@ -110,14 +110,14 @@ struct TCompositeTypeMemberAccessor
 
 struct TReference
 {
-    TString ColumnName;
+    std::string ColumnName;
     std::optional<TString> TableName;
     TCompositeTypeMemberAccessor CompositeTypeAccessor;
 
     TReference() = default;
 
     explicit TReference(
-        const TString& columnName,
+        const std::string& columnName,
         const std::optional<TString>& tableName = {},
         const TCompositeTypeMemberAccessor& compositeTypeAccessor = {})
         : ColumnName(columnName)
@@ -207,11 +207,11 @@ struct TReferenceExpression
 
     TReferenceExpression(
         const TSourceLocation& sourceLocation,
-        TString columnName,
+        const std::string& columnName,
         std::optional<TString> tableName = {},
         TCompositeTypeMemberAccessor compositeTypeAccessor = {})
         : TExpression(sourceLocation)
-        , Reference(std::move(columnName), std::move(tableName), std::move(compositeTypeAccessor))
+        , Reference(columnName, std::move(tableName), std::move(compositeTypeAccessor))
     { }
 
     TReferenceExpression(

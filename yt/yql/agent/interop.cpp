@@ -56,7 +56,7 @@ struct TYqlRef
     : public TYsonStruct
 {
     std::vector<TString> Reference;
-    std::optional<std::vector<TString>> Columns;
+    std::optional<std::vector<std::string>> Columns;
 
     REGISTER_YSON_STRUCT(TYqlRef);
 

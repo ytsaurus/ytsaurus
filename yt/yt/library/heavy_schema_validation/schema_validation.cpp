@@ -330,7 +330,8 @@ void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
             THROW_ERROR_EXCEPTION("Key column %v cannot be computed in non-materializable way", columnSchema.GetDiagnosticNameString());
         }
 
-        THashSet<TString> references;
+        THashSet<std::string> references;
+        // TODO(babenko): migrate to std::string
         auto expr = PrepareExpression(*columnSchema.Expression(), schema, GetBuiltinTypeInferrers(), &references);
         if (*columnSchema.LogicalType() != *expr->LogicalType) {
             THROW_ERROR_EXCEPTION(

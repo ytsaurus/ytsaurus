@@ -18,8 +18,8 @@ public:
     { }
 
     void RegisterFunction(
-        const TString& functionName,
-        const TString& /*symbolName*/,
+        const std::string& functionName,
+        const std::string& /*symbolName*/,
         std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgType,
@@ -36,7 +36,7 @@ public:
     }
 
     void RegisterFunction(
-        const TString& functionName,
+        const std::string& functionName,
         std::vector<TType> argumentTypes,
         TType resultType,
         TStringBuf /*implementationFile*/,
@@ -50,7 +50,7 @@ public:
     }
 
     void RegisterFunction(
-        const TString& functionName,
+        const std::string& functionName,
         std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgType,
@@ -65,7 +65,7 @@ public:
     }
 
     void RegisterAggregate(
-        const TString& aggregateName,
+        const std::string& aggregateName,
         std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         TType argumentType,
         TType resultType,

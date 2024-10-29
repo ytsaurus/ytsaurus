@@ -59,8 +59,8 @@ public:
     bool IsSymbolLoaded(const TString& symbol) const;
     void AddLoadedSymbol(const TString& symbol);
 
-    bool IsFunctionLoaded(const TString& function) const;
-    void AddLoadedFunction(const TString& function);
+    bool IsFunctionLoaded(const std::string& function) const;
+    void AddLoadedFunction(const std::string& function);
 
     bool IsModuleLoaded(TRef data) const;
     void AddLoadedModule(TRef data);
@@ -75,7 +75,7 @@ private:
     DECLARE_NEW_FRIEND()
 
     explicit TCGModule(std::unique_ptr<TImpl> impl);
-    uint64_t GetFunctionAddress(const TString& name);
+    uint64_t GetFunctionAddress(const std::string& name);
 
     EExecutionBackend GetBackend() const;
 };

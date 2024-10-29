@@ -27,9 +27,9 @@ TYtStorageBase::TRealAndVirtualColumnNames TYtStorageBase::DecoupleColumns(
 
     for (const auto& column : columnNames) {
         if (isVirtualColumn(column, metadataSnapshot)) {
-            result.VirtualColumnNames.emplace_back(column);
+            result.VirtualColumnNames.push_back(column);
         } else {
-            result.RealColumnNames.emplace_back(column);
+            result.RealColumnNames.push_back(column);
         }
     }
 

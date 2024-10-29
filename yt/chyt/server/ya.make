@@ -84,7 +84,6 @@ SRCS(
     secondary_query_header.cpp
     secondary_query_source.cpp
     stack_size_checker.cpp
-    std_helpers.cpp
     storage_base.cpp
     storage_distributor.cpp
     storage_subquery.cpp

@@ -117,7 +117,7 @@ std::tuple<TTableSchemaPtr, TColumnFilter, TIdMapping> CreateSortedReadParameter
 
 std::tuple<TColumnFilter, TIdMapping> CreateOrderedReadParameters(
     const TTableSchemaPtr& schema,
-    const std::optional<std::vector<TString>>& columns,
+    const std::optional<std::vector<std::string>>& columns,
     const TNameTablePtr& nameTable)
 {
     // We don't request system columns (tablet_index and row_index) from the node.
@@ -502,7 +502,7 @@ public:
         TChunkReaderHostPtr chunkReaderHost,
         const TClientChunkReadOptions& chunkReadOptions,
         TNameTablePtr nameTable,
-        const std::optional<std::vector<TString>>& columns)
+        const std::optional<std::vector<std::string>>& columns)
         : TBase(
             std::move(chunkSpec),
             std::move(config),
@@ -671,7 +671,7 @@ ISchemalessChunkReaderPtr CreateRemoteOrderedDynamicStoreReader(
     TNameTablePtr nameTable,
     TChunkReaderHostPtr chunkReaderHost,
     const TClientChunkReadOptions& chunkReadOptions,
-    const std::optional<std::vector<TString>>& columns)
+    const std::optional<std::vector<std::string>>& columns)
 {
     return New<TRemoteOrderedDynamicStoreReader>(
         std::move(chunkSpec),
@@ -1203,7 +1203,7 @@ public:
         TChunkReaderHostPtr chunkReaderHost,
         const TClientChunkReadOptions& chunkReadOptions,
         TNameTablePtr nameTable,
-        const std::optional<std::vector<TString>>& columns,
+        std::optional<std::vector<std::string>> columns,
         TChunkReaderMemoryManagerHolderPtr readerMemoryManagerHolder,
         TAsyncChunkReaderFactory<ISchemalessChunkReaderPtr> chunkReaderFactory)
         : TRetryingRemoteDynamicStoreReaderBase(
@@ -1216,7 +1216,7 @@ public:
             std::move(chunkReaderFactory))
         , ChunkReaderOptions_(std::move(chunkReaderOptions))
         , NameTable_(std::move(nameTable))
-        , Columns_(columns)
+        , Columns_(std::move(columns))
     {
         if (ChunkSpec_.has_lower_limit()) {
             const auto& lowerLimit = ChunkSpec_.lower_limit();
@@ -1265,9 +1265,9 @@ public:
     }
 
 private:
-    TChunkReaderOptionsPtr ChunkReaderOptions_;
-    TNameTablePtr NameTable_;
-    std::optional<std::vector<TString>> Columns_;
+    const TChunkReaderOptionsPtr ChunkReaderOptions_;
+    const TNameTablePtr NameTable_;
+    const std::optional<std::vector<std::string>> Columns_;
 
     // Used as continuation token.
     // If null, then limit was not provided in dynamic store spec and dynamic store
@@ -1350,7 +1350,7 @@ ISchemalessChunkReaderPtr CreateRetryingRemoteOrderedDynamicStoreReader(
     TNameTablePtr nameTable,
     TChunkReaderHostPtr chunkReaderHost,
     const TClientChunkReadOptions& chunkReadOptions,
-    const std::optional<std::vector<TString>>& columns,
+    const std::optional<std::vector<std::string>>& columns,
     TChunkReaderMemoryManagerHolderPtr readerMemoryManagerHolder,
     TAsyncChunkReaderFactory<ISchemalessChunkReaderPtr> chunkReaderFactory)
 {

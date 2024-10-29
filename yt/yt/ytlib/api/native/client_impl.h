@@ -921,7 +921,7 @@ public: \
         const NTableClient::TTableReaderConfigPtr& config) override;
     TFuture<IRowBatchWriterPtr> CreateShuffleWriter(
         const TShuffleHandlePtr& shuffleHandle,
-        const TString& partitionColumn,
+        const std::string& partitionColumn,
         const NTableClient::TTableWriterConfigPtr& config) override;
 
 #undef DROP_BRACES

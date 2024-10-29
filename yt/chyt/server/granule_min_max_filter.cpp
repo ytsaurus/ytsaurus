@@ -1,7 +1,6 @@
 #include "granule_min_max_filter.h"
 
 #include "conversion.h"
-#include "std_helpers.h"
 #include "query_context.h"
 
 #include <yt/yt/client/table_client/columnar_statistics.h>
@@ -102,14 +101,14 @@ IGranuleFilterPtr CreateGranuleMinMaxFilter(
     TCompositeSettingsPtr compositeSettings,
     const TTableSchemaPtr& schema,
     const DB::ContextPtr& context,
-    const std::vector<TString>& realColumnNames)
+    const std::vector<std::string>& realColumnNames)
 {
     auto filteredSchema = schema->Filter(realColumnNames);
 
     auto primaryKeyExpression = std::make_shared<DB::ExpressionActions>(std::make_shared<DB::ActionsDAG>(
         ToNamesAndTypesList(*filteredSchema, compositeSettings)));
 
-    DB::KeyCondition keyCondition(queryInfo, context, ToNames(realColumnNames), primaryKeyExpression);
+    DB::KeyCondition keyCondition(queryInfo, context, realColumnNames, primaryKeyExpression);
 
     auto statisticsSampleCallback = BIND([weakContext = MakeWeak(GetQueryContext(context))] (const TStatisticPath& path, i64 sample) {
         if (auto queryContext = weakContext.Lock()) {

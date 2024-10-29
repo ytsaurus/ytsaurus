@@ -25,8 +25,8 @@ TDataSource::TDataSource(
     const std::optional<TYPath>& path,
     TTableSchemaPtr schema,
     int virtualKeyPrefixLength,
-    const std::optional<std::vector<TString>>& columns,
-    const std::vector<TString>& omittedInaccessibleColumns,
+    const std::optional<std::vector<std::string>>& columns,
+    const std::vector<std::string>& omittedInaccessibleColumns,
     TTimestamp timestamp,
     TTimestamp retentionTimestamp,
     const TColumnRenameDescriptors& columnRenameDescriptors)
@@ -138,14 +138,14 @@ void FromProto(
 
     if (protoDataSource.has_column_filter()) {
         YT_VERIFY(!protoDataSource.has_column_filter_id());
-        dataSource->Columns() = FromProto<std::vector<TString>>(protoDataSource.column_filter().admitted_names());
+        dataSource->Columns() = FromProto<std::vector<std::string>>(protoDataSource.column_filter().admitted_names());
     } else if (protoDataSource.has_column_filter_id()) {
         YT_VERIFY(columnFilterDictionary);
         int id = protoDataSource.column_filter_id();
         dataSource->Columns() = columnFilterDictionary->GetAdmittedColumns(id);
     }
 
-    dataSource->OmittedInaccessibleColumns() = FromProto<std::vector<TString>>(protoDataSource.omitted_inaccessible_columns());
+    dataSource->OmittedInaccessibleColumns() = FromProto<std::vector<std::string>>(protoDataSource.omitted_inaccessible_columns());
 
     if (protoDataSource.has_path()) {
         dataSource->SetPath(protoDataSource.path());
@@ -191,8 +191,8 @@ void FromProto(
 TDataSource MakeVersionedDataSource(
     const std::optional<TYPath>& path,
     TTableSchemaPtr schema,
-    const std::optional<std::vector<TString>>& columns,
-    const std::vector<TString>& omittedInaccessibleColumns,
+    const std::optional<std::vector<std::string>>& columns,
+    const std::vector<std::string>& omittedInaccessibleColumns,
     NTransactionClient::TTimestamp timestamp,
     NTransactionClient::TTimestamp retentionTimestamp,
     const TColumnRenameDescriptors& columnRenameDescriptors)
@@ -212,8 +212,8 @@ TDataSource MakeVersionedDataSource(
 TDataSource MakeUnversionedDataSource(
     const std::optional<TYPath>& path,
     TTableSchemaPtr schema,
-    const std::optional<std::vector<TString>>& columns,
-    const std::vector<TString>& omittedInaccessibleColumns,
+    const std::optional<std::vector<std::string>>& columns,
+    const std::vector<std::string>& omittedInaccessibleColumns,
     const TColumnRenameDescriptors& columnRenameDescriptors)
 {
     return TDataSource(

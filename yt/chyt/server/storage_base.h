@@ -11,15 +11,15 @@ class TYtStorageBase
     : public DB::IStorage
 {
 public:
-    TYtStorageBase(DB::StorageID storageId);
+    explicit TYtStorageBase(DB::StorageID storageId);
 
     virtual DB::NamesAndTypesList getVirtuals() const override;
 
 protected:
     struct TRealAndVirtualColumnNames
     {
-        std::vector<TString> RealColumnNames;
-        std::vector<TString> VirtualColumnNames;
+        std::vector<std::string> RealColumnNames;
+        std::vector<std::string> VirtualColumnNames;
     };
 
     TRealAndVirtualColumnNames DecoupleColumns(

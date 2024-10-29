@@ -265,7 +265,7 @@ public:
         GlobalOffsetTableElements_.DataEntries.clear();
     }
 
-    virtual void* GetFunction(const TString& name) override
+    virtual void* GetFunction(const std::string& name) override
     {
         auto& instance = Instances_.back();
         auto* function = Runtime::asFunction(Runtime::getInstanceExport(instance, name.c_str()));

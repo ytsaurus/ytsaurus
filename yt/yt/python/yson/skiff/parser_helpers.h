@@ -24,8 +24,8 @@ template <class TConsumer>
 std::unique_ptr<NSkiffExt::TSkiffMultiTableParser<TConsumer>> CreateSkiffMultiTableParser(
     TConsumer* consumer,
     const std::vector<Py::PythonClassObject<TSkiffSchemaPython>>& pythonSkiffSchemaList,
-    const TString& rangeIndexColumnName,
-    const TString& rowIndexColumnName);
+    const std::string& rangeIndexColumnName,
+    const std::string& rowIndexColumnName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

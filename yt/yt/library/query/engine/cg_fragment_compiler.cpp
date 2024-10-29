@@ -1328,11 +1328,10 @@ TCodegenExpression MakeCodegenLiteralExpr(
 TCodegenExpression MakeCodegenReferenceExpr(
     int index,
     EValueType type,
-    TString name)
+    const std::string& name)
 {
     return [
-            =,
-            name = std::move(name)
+            =
         ] (TCGExprContext& builder) {
             return TCGValue::LoadFromRowValues(
                 builder,

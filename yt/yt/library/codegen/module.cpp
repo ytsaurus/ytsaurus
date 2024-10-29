@@ -268,7 +268,7 @@ public:
         YT_VERIFY(ExportedSymbols_.insert(name).second);
     }
 
-    uint64_t GetFunctionAddress(const TString& name)
+    uint64_t GetFunctionAddress(const std::string& name)
     {
         if (!Compiled_) {
             Finalize();
@@ -293,12 +293,12 @@ public:
         LoadedSymbols_.insert(symbol);
     }
 
-    bool IsFunctionLoaded(const TString& function) const
+    bool IsFunctionLoaded(const std::string& function) const
     {
         return LoadedFunctions_.count(function) != 0;
     }
 
-    void AddLoadedFunction(const TString& function)
+    void AddLoadedFunction(const std::string& function)
     {
         LoadedFunctions_.insert(function);
     }
@@ -612,7 +612,7 @@ private:
 
     std::set<TString> ExportedSymbols_;
 
-    std::set<TString> LoadedFunctions_;
+    std::set<std::string> LoadedFunctions_;
     std::set<TString> LoadedSymbols_;
 
     THashSet<TString> LoadedModules_;
@@ -658,7 +658,7 @@ llvm::LLVMContext& TCGModule::GetContext()
     return Impl_->GetContext();
 }
 
-uint64_t TCGModule::GetFunctionAddress(const TString& name)
+uint64_t TCGModule::GetFunctionAddress(const std::string& name)
 {
     return Impl_->GetFunctionAddress(name);
 }
@@ -679,12 +679,12 @@ void TCGModule::AddLoadedSymbol(const TString& symbol)
     Impl_->AddLoadedSymbol(symbol);
 }
 
-bool TCGModule::IsFunctionLoaded(const TString& function) const
+bool TCGModule::IsFunctionLoaded(const std::string& function) const
 {
     return Impl_->IsFunctionLoaded(function);
 }
 
-void TCGModule::AddLoadedFunction(const TString& function)
+void TCGModule::AddLoadedFunction(const std::string& function)
 {
     Impl_->AddLoadedFunction(function);
 }

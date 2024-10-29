@@ -241,7 +241,7 @@ TError TPermissionCache::ParseCheckPermissionResponse(
     };
 
     TError error;
-    auto checkError = [&] (const NApi::TCheckPermissionResult& result, const std::optional<TString>& column) {
+    auto checkError = [&] (const NApi::TCheckPermissionResult& result, const std::optional<std::string>& column) {
         if (!error.IsOK()) {
             return;
         }

@@ -386,7 +386,7 @@ void VerifyAllAccessControlObjectsExist(const std::vector<TString>& accessContro
         .ThrowOnError();
 }
 
-IUnversionedRowsetPtr FilterRowsetColumns(IUnversionedRowsetPtr rowset, std::vector<TString> columns)
+IUnversionedRowsetPtr FilterRowsetColumns(IUnversionedRowsetPtr rowset, std::vector<std::string> columns)
 {
     const auto& schema = rowset->GetSchema();
     const auto& rows = rowset->GetRows();
