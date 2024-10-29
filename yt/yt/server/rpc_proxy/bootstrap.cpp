@@ -1,9 +1,9 @@
 #include "bootstrap.h"
 
 #include "access_checker.h"
+#include "bundle_dynamic_config_manager.h"
 #include "config.h"
 #include "discovery_service.h"
-#include "bundle_dynamic_config_manager.h"
 #include "dynamic_config_manager.h"
 #include "private.h"
 
@@ -18,19 +18,10 @@
 #include <yt/yt/server/lib/admin/restart_service.h>
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
-#include <yt/yt/server/lib/misc/restart_manager.h>
 #include <yt/yt/server/lib/misc/disk_change_checker.h>
-
-#include <yt/yt/library/coredumper/coredumper.h>
-
-#include <yt/yt/library/program/build_attributes.h>
-
-#include <yt/yt/library/containers/disk_manager/config.h>
-#include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
-#include <yt/yt/library/containers/disk_manager/disk_manager_proxy.h>
+#include <yt/yt/server/lib/misc/restart_manager.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
-#include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
 
@@ -44,22 +35,31 @@
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
-#include <yt/yt/library/monitoring/http_integration.h>
-#include <yt/yt/library/monitoring/monitoring_manager.h>
-
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/ytlib/program/helpers.h>
 
-#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+#include <yt/yt/library/coredumper/coredumper.h>
+
+#include <yt/yt/library/program/build_attributes.h>
+
+#include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
+#include <yt/yt/library/containers/disk_manager/disk_manager_proxy.h>
+
+#include <yt/yt/library/monitoring/http_integration.h>
 
 #include <yt/yt/library/auth_server/authentication_manager.h>
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
 
-#include <yt/yt/core/bus/server.h>
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
+#include <yt/yt/core/rpc/grpc/config.h>
+#include <yt/yt/core/rpc/grpc/server.h>
+
+#include <yt/yt/core/http/server.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/bus/tcp/server.h>
@@ -71,22 +71,9 @@
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
-
-#include <yt/yt/core/misc/ref_counted_tracker.h>
-#include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
-
-#include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/bus/server.h>
-#include <yt/yt/core/rpc/response_keeper.h>
-#include <yt/yt/core/rpc/retrying_channel.h>
+
 #include <yt/yt/core/rpc/server.h>
-#include <yt/yt/core/rpc/authenticator.h>
-
-#include <yt/yt/core/rpc/grpc/server.h>
-#include <yt/yt/core/rpc/grpc/config.h>
-
-#include <yt/yt/core/http/server.h>
 
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_client.h>
@@ -94,19 +81,18 @@
 namespace NYT::NRpcProxy {
 
 using namespace NAdmin;
+using namespace NApi;
+using namespace NAuth;
 using namespace NBus;
+using namespace NConcurrency;
+using namespace NLogging;
 using namespace NMonitoring;
+using namespace NNet;
 using namespace NOrchid;
 using namespace NProfiling;
 using namespace NRpc;
-using namespace NYTree;
-using namespace NConcurrency;
-using namespace NApi;
-using namespace NYT::NRpcProxy;
-using namespace NAuth;
-using namespace NLogging;
 using namespace NShuffleServer;
-using namespace NNet;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
