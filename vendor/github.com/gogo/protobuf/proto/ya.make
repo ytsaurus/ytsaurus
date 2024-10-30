@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
+VERSION(v1.3.2)
+
 SRCS(
     clone.go
     custom_gogo.go
