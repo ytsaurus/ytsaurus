@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/actions/signal.h>
 
+#include <library/cpp/yt/threading/spin_lock.h>
+
 namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,7 +36,7 @@ DEFINE_REFCOUNTED_TYPE(IAvenueDirectory)
 
 //! Direct implementation of the IAvenueDirectory interface.
 /*
- *  Thread affinity: single
+ *  Thread affinity: any (though under a single spin lock).
  */
 class TSimpleAvenueDirectory
     : public IAvenueDirectory
@@ -51,6 +53,8 @@ public:
 
 private:
     THashMap<TAvenueEndpointId, TCellId> Directory_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSimpleAvenueDirectory)

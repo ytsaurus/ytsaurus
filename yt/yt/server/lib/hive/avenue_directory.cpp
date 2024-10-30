@@ -12,6 +12,8 @@ using namespace NObjectClient;
 
 TCellId TSimpleAvenueDirectory::FindCellIdByEndpointId(TAvenueEndpointId endpointId) const
 {
+    auto guard = Guard(SpinLock_);
+
     auto it = Directory_.find(endpointId);
     return it == Directory_.end() ? TCellId() : it->second;
 }
@@ -20,10 +22,14 @@ void TSimpleAvenueDirectory::UpdateEndpoint(TAvenueEndpointId endpointId, TCellI
 {
     YT_VERIFY(IsAvenueEndpointType(TypeFromId(endpointId)));
 
-    if (cellId) {
-        Directory_[endpointId] = cellId;
-    } else {
-        Directory_.erase(endpointId);
+    {
+        auto guard = Guard(SpinLock_);
+
+        if (cellId) {
+            Directory_[endpointId] = cellId;
+        } else {
+            Directory_.erase(endpointId);
+        }
     }
 
     EndpointUpdated_.Fire(endpointId, cellId);
