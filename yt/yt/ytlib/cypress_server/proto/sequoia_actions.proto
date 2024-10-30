@@ -15,6 +15,7 @@ message TReqCreateNode
     required string path = 3;
     optional NYT.NYTree.NProto.TAttributeDictionary node_attributes = 4;
     optional NYT.NProto.TGuid transaction_id = 5;
+    optional NYT.NProto.TGuid parent_id = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,6 +40,7 @@ message TReqCloneNode
     required string dst_path = 3;
     required TCloneOptions options = 4;
     optional NYT.NProto.TGuid transaction_id = 5;
+    optional NYT.NProto.TGuid dst_parent_id = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

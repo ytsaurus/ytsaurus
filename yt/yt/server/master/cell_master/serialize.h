@@ -190,6 +190,7 @@ DEFINE_ENUM(EMasterReign,
     // 25.1 starts here.
     ((SequoiaSetActionLatePrapare)                                  (2800))  // danilalexeev
     ((RemoveUseHydraPersistenceDirectoryFlag)                       (2801))  // danilalexeev
+    ((ParentIdForSequoiaNodes)                                      (2802))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

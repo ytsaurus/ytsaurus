@@ -126,6 +126,7 @@ TNodeId CreateIntermediateNodes(
 
         CreateNode(
             newNodeId,
+            /*parentId*/ currentNodeId,
             currentNodePath,
             /*explicitAttributes*/ nullptr,
             transaction);
@@ -139,52 +140,53 @@ TNodeId CopySubtree(
     const std::vector<TCypressNodeDescriptor>& sourceNodes,
     const TAbsoluteYPath& sourceRootPath,
     const TAbsoluteYPath& destinationRootPath,
+    TNodeId destinationSubtreeParentId,
     const TCopyOptions& options,
     const THashMap<TNodeId, NSequoiaClient::TAbsoluteYPath>& subtreeLinks,
     const ISequoiaTransactionPtr& transaction)
 {
-    THashMap<TAbsoluteYPath, std::vector<std::pair<TString, TNodeId>>> nodePathToChildren;
-    nodePathToChildren.reserve(sourceNodes.size());
-    TNodeId destinationNodeId;
-    for (auto it = sourceNodes.rbegin(); it != sourceNodes.rend(); ++it) {
-        TAbsoluteYPath destinationNodePath(it->Path);
-        destinationNodePath.UnsafeMutableUnderlying()->replace(
+    // Node must occur earlier then its children.
+    YT_ASSERT(IsSortedBy(sourceNodes, [] (const auto& node) {
+        return node.Path.ToMangledSequoiaPath();
+    }));
+    YT_VERIFY(!sourceNodes.empty());
+    YT_VERIFY(sourceNodes.front().Path == sourceRootPath);
+
+    THashMap<TAbsoluteYPath, TNodeId> createdNodePathToId;
+    createdNodePathToId.reserve(sourceNodes.size());
+
+    for (const auto& sourceNode : sourceNodes) {
+        TAbsoluteYPath destinationPath(sourceNode.Path);
+        destinationPath.UnsafeMutableUnderlying()->replace(
             0,
             sourceRootPath.Underlying().size(),
             destinationRootPath.Underlying());
 
-        NRecords::TNodeIdToPath record{
-            .Key = {.NodeId = it->Id},
-            .Path = it->Path.Underlying(),
+        NRecords::TNodeIdToPath sourceRecord{
+            .Key = {.NodeId = sourceNode.Id},
+            .Path = sourceNode.Path.Underlying(),
         };
 
-        if (IsLinkType(TypeFromId(it->Id))) {
-            record.TargetPath = GetOrCrash(subtreeLinks, it->Id).Underlying();
+        if (IsLinkType(TypeFromId(sourceNode.Id))) {
+            sourceRecord.TargetPath = GetOrCrash(subtreeLinks, sourceNode.Id).Underlying();
         }
 
-        // NB: due to the reverse order of subtree traversing we naturally get
-        // subtree root after the end of loop.
-        destinationNodeId = CopyNode(
-            record,
-            destinationNodePath,
+        auto destinationParentId = sourceNode.Path == sourceRootPath
+            ? destinationSubtreeParentId
+            : GetOrCrash(createdNodePathToId, destinationPath.GetDirPath());
+
+        auto clonedNodeId = CopyNode(
+            sourceRecord,
+            destinationPath,
+            destinationParentId,
             options,
             transaction);
+        createdNodePathToId.emplace(destinationPath, clonedNodeId);
 
-        auto nodeIt = nodePathToChildren.find(destinationNodePath);
-        if (nodeIt != nodePathToChildren.end()) {
-            for (const auto& [childKey, childId] : nodeIt->second) {
-                AttachChild(destinationNodeId, childId, childKey, transaction);
-            }
-            nodePathToChildren.erase(nodeIt);
-        }
-
-        TAbsoluteYPath parentPath(destinationNodePath.GetDirPath());
-        auto childKey = destinationNodePath.GetBaseName();
-        nodePathToChildren[std::move(parentPath)].emplace_back(std::move(childKey), destinationNodeId);
+        AttachChild(destinationParentId, clonedNodeId, destinationPath.GetBaseName(), transaction);
     }
 
-    YT_VERIFY(nodePathToChildren.size() == 1);
-    return destinationNodeId;
+    return GetOrCrash(createdNodePathToId, destinationRootPath);
 }
 
 void RemoveSelectedSubtree(

@@ -42,6 +42,9 @@ class TestGrafting(YTEnvSetup):
         rootstock_id = create("rootstock", "//tmp/r")
         scion_id = get("//tmp/r&/@scion_id")
 
+        assert get("//tmp/r&/@parent_id") == get("//tmp/@id")
+        assert get("//tmp/r/@parent_id") == get("//tmp/@id")
+
         assert select_paths_from_ground() == ["//tmp/r/"]
 
         assert get(f"#{rootstock_id}&/@type") == "rootstock"

@@ -64,6 +64,7 @@ NCypressClient::TNodeId CopySubtree(
     const std::vector<TCypressNodeDescriptor>& sourceNodes,
     const NSequoiaClient::TAbsoluteYPath& sourceRootPath,
     const NSequoiaClient::TAbsoluteYPath& destinationRootPath,
+    NCypressClient::TNodeId destinationSubtreeParentId,
     const TCopyOptions& options,
     const THashMap<NCypressClient::TNodeId, NSequoiaClient::TAbsoluteYPath>& subtreeLinks,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);

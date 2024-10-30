@@ -413,7 +413,9 @@ std::optional<std::string> FindNodeKey(
 
 bool NodeHasParentId(const TCypressNode* node)
 {
-    if (node->GetType() == EObjectType::PortalExit) {
+    if (node->IsSequoia() && node->ImmutableSequoiaProperties()) {
+        return true;
+    } else if (node->GetType() == EObjectType::PortalExit) {
         return true;
     } else {
         return node->GetParent() != nullptr;
@@ -422,7 +424,9 @@ bool NodeHasParentId(const TCypressNode* node)
 
 TNodeId GetNodeParentId(const TCypressNode* node)
 {
-    if (node->GetType() == EObjectType::PortalExit) {
+    if (node->IsSequoia() && node->ImmutableSequoiaProperties()) {
+        return node->ImmutableSequoiaProperties()->ParentId;
+    } if (node->GetType() == EObjectType::PortalExit) {
         return node->As<TPortalExitNode>()->GetParentId();
     } else {
         return node->GetParent()->GetId();

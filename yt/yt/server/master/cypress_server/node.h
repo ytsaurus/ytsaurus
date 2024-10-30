@@ -237,12 +237,16 @@ public:
 
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TDuration, ExpirationTimeout);
 
+    //! Used for both Sequoia nodes and Cypress link nodes. Note that link nodes
+    //! do not have |ParentId| set up properly.
     struct TImmutableSequoiaProperties
     {
         const TString Key;
         const NYPath::TYPath Path;
+        // NB: shouldn't be used for non-Sequoia (e.g. Cypress link) nodes.
+        const TNodeId ParentId;
 
-        TImmutableSequoiaProperties(NYPath::TYPath key, TString path);
+        TImmutableSequoiaProperties(TString key, NYPath::TYPath path, TNodeId parentId);
 
         bool operator==(const TImmutableSequoiaProperties& rhs) const noexcept = default;
         // Save/Load methods don't work with const fields, sadly.
