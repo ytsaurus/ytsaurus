@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
+VERSION(v1.7.0)
+
 SRCS(
     ecies_aead_hkdf_dem_helper.go
     ecies_aead_hkdf_hybrid_decrypt.go

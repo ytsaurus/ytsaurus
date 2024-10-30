@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
+VERSION(v1.18.0)
+
 SRCS(
     build_info_collector.go
     collector.go
