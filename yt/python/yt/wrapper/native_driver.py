@@ -1,5 +1,3 @@
-import inspect
-
 from .config import get_config, get_option, set_option
 from .common import require, generate_int64, update, get_value
 from .constants import RPC_PACKAGE_INSTALLATION_TEXT, ENABLE_YP_SERVICE_DISCOVERY
@@ -11,6 +9,8 @@ from .http_helpers import get_proxy_address_url, get_token
 import yt.logger as logger
 import yt.logger_config as logger_config
 import yt.yson as yson
+
+import inspect
 
 try:
     from cStringIO import StringIO as BytesIO
@@ -54,6 +54,20 @@ def lazy_import_driver_bindings():
         return
     except ImportError:
         pass
+
+
+def create_driver(config, connection_type):
+    global driver_bindings
+    global driver_bindings_type
+
+    try:
+        return driver_bindings.Driver(config, connection_type=connection_type)
+    except RuntimeError as ex:
+        if "Excessive named argument \'connection_type\'" not in str(ex):
+            raise
+        if connection_type == "native" and driver_bindings_type == "rpc":
+            raise RuntimeError("Cannot create native driver with RPC driver bindings")
+        return driver_bindings.Driver(config)
 
 
 def read_config(path):
@@ -205,7 +219,7 @@ def get_driver_instance(client):
         else:
             connection_type = config["backend"]
 
-        set_option("_driver", driver_bindings.Driver(driver_config, connection_type=connection_type), client=client)
+        set_option("_driver", create_driver(driver_config, connection_type), client=client)
         driver = get_option("_driver", client=client)
 
     return driver
@@ -235,7 +249,7 @@ def create_driver_for_cell(driver, cell_id):
 
     del config["secondary_masters"]
 
-    return driver_bindings.Driver(config, connection_type="native")
+    return create_driver(config, connection_type="native")
 
 
 def convert_to_stream(data):
