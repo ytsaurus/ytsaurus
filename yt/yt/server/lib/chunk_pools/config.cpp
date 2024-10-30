@@ -14,6 +14,9 @@ void TJobSizeAdjusterConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("exec_to_prepare_time_ratio", &TThis::ExecToPrepareTimeRatio)
         .Default(20.0);
+
+    registrar.Parameter("enable_job_shrinking", &TThis::EnableJobShrinking)
+        .Default(false);
 }
 
 DEFINE_REFCOUNTED_TYPE(TJobSizeAdjusterConfig)
