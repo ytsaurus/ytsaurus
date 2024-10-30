@@ -331,6 +331,7 @@ TNodeId TSequoiaSession::CopySubtree(
         subtree.Nodes,
         sourceRoot,
         destinationRoot,
+        destinationParentId,
         options,
         links,
         SequoiaTransaction_);
@@ -476,7 +477,7 @@ TNodeId TSequoiaSession::CreateNode(
     TNodeId parentId)
 {
     auto createdNodeId = SequoiaTransaction_->GenerateObjectId(type);
-    NCypressProxy::CreateNode(createdNodeId, path, explicitAttributes, SequoiaTransaction_);
+    NCypressProxy::CreateNode(createdNodeId, parentId, path, explicitAttributes, SequoiaTransaction_);
     AttachChild(parentId, createdNodeId, path.GetBaseName(), SequoiaTransaction_);
 
     return createdNodeId;

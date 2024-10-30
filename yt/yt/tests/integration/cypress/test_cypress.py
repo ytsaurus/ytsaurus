@@ -1247,6 +1247,15 @@ class TestCypress(YTEnvSetup):
         assert not exists("//sys/xxx")
         assert not exists("//sys/operations/xxx")
 
+    @authors("kvk1920")
+    def test_node_parent_id(self):
+        parent_id = create("map_node", "//tmp/m")
+        create("table", "//tmp/m/t")
+        tx = start_transaction()
+        lock("//tmp/m/t", mode="exclusive", tx=tx)
+        assert get("//tmp/m/t/@parent_id") == parent_id
+        assert get("//tmp/m/t/@parent_id", tx=tx) == parent_id
+
     @authors("babenko", "ignat")
     @not_implemented_in_sequoia
     def test_remove_tx1(self):
@@ -4886,6 +4895,7 @@ class TestAccessControlObjects(YTEnvSetup):
 class TestSequoia(TestCypressMulticell):
     NUM_NODES = 5
     USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
     NUM_CYPRESS_PROXIES = 1
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -4896,6 +4906,17 @@ class TestSequoia(TestCypressMulticell):
         "11": {"roles": ["sequoia_node_host"]},
         "12": {"roles": ["chunk_host"]},
         "13": {"roles": ["chunk_host"]},
+    }
+
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            }
+        }
     }
 
 

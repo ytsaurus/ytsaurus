@@ -32,6 +32,7 @@ void SetNode(
 
 void CreateNode(
     NCypressClient::TNodeId id,
+    NCypressClient::TNodeId parentId,
     NSequoiaClient::TAbsoluteYPathBuf path,
     const NYTree::IAttributeDictionary* explicitAttributes,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
@@ -39,6 +40,7 @@ void CreateNode(
 NCypressClient::TNodeId CopyNode(
     const NSequoiaClient::NRecords::TNodeIdToPath& sourceNode,
     NSequoiaClient::TAbsoluteYPathBuf destinationNodePath,
+    NCypressClient::TNodeId destinationParentId,
     const TCopyOptions& options,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 

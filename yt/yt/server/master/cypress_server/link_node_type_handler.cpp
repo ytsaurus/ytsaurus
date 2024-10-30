@@ -271,9 +271,12 @@ private:
             }
 
             YT_VERIFY(!node->ImmutableSequoiaProperties());
+            // NB: this |ParentId| shouldn't be used for non-Sequoia nodes so
+            // it's OK (I hope).
             node->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(
                 NYPath::DirNameAndBaseName(linkPath).second,
-                linkPath);
+                linkPath,
+                NullObjectId);
 
             const auto& queueManager = GetBootstrap()->GetGroundUpdateQueueManager();
             queueManager->EnqueueWrite(NRecords::TPathToNodeId{

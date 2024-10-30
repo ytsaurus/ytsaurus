@@ -232,7 +232,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
-        auto* trunkNode = rootstockNode->GetTrunkNode()->As<TScionNode>();
+        auto* trunkNode = rootstockNode->GetTrunkNode()->As<TRootstockNode>();
         auto* transaction = rootstockNode->GetTransaction();
 
         NProto::TReqCreateScion request;
@@ -267,6 +267,8 @@ private:
             request.set_effective_annotation_path(annotationPath);
         }
 
+        ToProto(request.mutable_parent_node_id(), GetNodeParentId(trunkNode));
+
         auto scionNodeId = rootstockNode->GetScionId();
         auto scionCellTag = CellTagFromId(scionNodeId);
 
@@ -297,6 +299,7 @@ private:
 
         auto rootstockNodeId = FromProto<TNodeId>(request->rootstock_node_id());
         auto scionNodeId = FromProto<TNodeId>(request->scion_node_id());
+        auto parentId = FromProto<TNodeId>(request->parent_node_id());
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto accountId = FromProto<TAccountId>(request->account_id());
@@ -359,7 +362,10 @@ private:
             scionNode->EffectiveInheritableAttributes().emplace(effectiveInheritableAttributes->Attributes().ToPersistent());
         }
 
-        scionNode->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(key, path);
+        scionNode->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(
+            key,
+            path,
+            parentId);
         scionNode->MutableSequoiaProperties() = std::make_unique<TCypressNode::TMutableSequoiaProperties>();
 
         scionNode->Acd().SetEntries(effectiveAcl);

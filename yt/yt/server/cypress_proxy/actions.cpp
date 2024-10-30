@@ -100,6 +100,7 @@ void SetNode(
 
 void CreateNode(
     TNodeId id,
+    TNodeId parentId,
     TAbsoluteYPathBuf path,
     const IAttributeDictionary* explicitAttributes,
     const ISequoiaTransactionPtr& transaction)
@@ -124,12 +125,14 @@ void CreateNode(
     ToProto(createNodeRequest.mutable_node_id(), id);
     createNodeRequest.set_path(path.ToRawYPath().Underlying());
     ToProto(createNodeRequest.mutable_node_attributes(), *explicitAttributes);
+    ToProto(createNodeRequest.mutable_parent_id(), parentId);
     transaction->AddTransactionAction(CellTagFromId(id), MakeTransactionActionData(createNodeRequest));
 }
 
 TNodeId CopyNode(
     const NRecords::TNodeIdToPath& sourceNode,
     TAbsoluteYPathBuf destinationNodePath,
+    TNodeId destinationParentId,
     const TCopyOptions& options,
     const ISequoiaTransactionPtr& transaction)
 {
@@ -159,6 +162,7 @@ TNodeId CopyNode(
     ToProto(cloneNodeRequest.mutable_dst_id(), destinationNodeId);
     cloneNodeRequest.set_dst_path(destinationNodePath.ToRawYPath().Underlying());
     ToProto(cloneNodeRequest.mutable_options(), options);
+    ToProto(cloneNodeRequest.mutable_dst_parent_id(), destinationParentId);
     // TODO(h0pless): Add cypress transaction id here.
 
     transaction->AddTransactionAction(cellTag, MakeTransactionActionData(cloneNodeRequest));

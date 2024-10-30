@@ -10,6 +10,7 @@ message TReqCreateScion
 {
     required NYT.NProto.TGuid scion_node_id = 1;
     required NYT.NProto.TGuid rootstock_node_id = 2;
+    optional NYT.NProto.TGuid parent_node_id = 14;
 
     required NYT.NProto.TGuid account_id = 3;
 

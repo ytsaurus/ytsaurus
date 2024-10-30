@@ -284,6 +284,7 @@ void TCypressNode::Save(NCellMaster::TSaveContext& context) const
     if (ImmutableSequoiaProperties_) {
         Save(context, ImmutableSequoiaProperties_->Key);
         Save(context, ImmutableSequoiaProperties_->Path);
+        Save(context, ImmutableSequoiaProperties_->ParentId);
     }
     TUniquePtrSerializer<>::Save(context, MutableSequoiaProperties_);
 }
@@ -319,9 +320,20 @@ void TCypressNode::Load(NCellMaster::TLoadContext& context)
 
     auto loadImmutableProperties = [&] {
         if (Load<bool>(context)) {
+
+            auto key = Load<TString>(context);
+            auto path = Load<TYPath>(context);
+
+            TNodeId parentId = NullObjectId;
+            // COMPAT(kvk1920)
+            if (context.GetVersion() >= EMasterReign::ParentIdForSequoiaNodes) {
+                Load(context, parentId);
+            }
+
             ImmutableSequoiaProperties_ = std::make_unique<TImmutableSequoiaProperties>(
-                Load<TString>(context),
-                Load<NYPath::TYPath>(context));
+                std::move(key),
+                std::move(path),
+                parentId);
         }
     };
 
@@ -374,9 +386,13 @@ void TCypressNode::VerifySequoia() const
     YT_VERIFY(IsSequoia() && ImmutableSequoiaProperties() && MutableSequoiaProperties());
 }
 
-TCypressNode::TImmutableSequoiaProperties::TImmutableSequoiaProperties(NYPath::TYPath key, TString path)
+TCypressNode::TImmutableSequoiaProperties::TImmutableSequoiaProperties(
+    TYPath key,
+    TString path,
+    TNodeId parentId)
     : Key(std::move(key))
     , Path(std::move(path))
+    , ParentId(parentId)
 { }
 
 void TCypressNode::TMutableSequoiaProperties::Save(NCellMaster::TSaveContext& context) const

@@ -116,6 +116,7 @@ private:
         YT_VERIFY(options.Persistent);
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
+        auto parentId = FromProto<TNodeId>(request->parent_id());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto roles = multicellManager->GetMasterCellRoles(multicellManager->GetCellTag());
@@ -151,7 +152,8 @@ private:
 
         TCypressNode::TImmutableSequoiaProperties immutableProperties(
             /*key*/ NYPath::DirNameAndBaseName(request->path()).second,
-            /*path*/ request->path());
+            /*path*/ request->path(),
+            parentId);
 
         node->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(std::move(immutableProperties));
         node->MutableSequoiaProperties() = std::make_unique<TCypressNode::TMutableSequoiaProperties>();
@@ -456,6 +458,7 @@ private:
 
         auto sourceNodeId = FromProto<TNodeId>(request->src_id());
         auto destinationNodeId = FromProto<TNodeId>(request->dst_id());
+        auto destinationParentId = FromProto<TNodeId>(request->dst_parent_id());
 
         // TODO(h0pless): Think about trowing an error if this cell is not sequoia_node_host anymore.
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -493,7 +496,8 @@ private:
 
         TCypressNode::TImmutableSequoiaProperties immutableProperties(
             /*key*/ NYPath::DirNameAndBaseName(request->dst_path()).second,
-            /*path*/ request->dst_path());
+            /*path*/ request->dst_path(),
+            destinationParentId);
 
         clonedNode->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(std::move(immutableProperties));
         clonedNode->MutableSequoiaProperties() = std::make_unique<TCypressNode::TMutableSequoiaProperties>();
