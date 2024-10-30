@@ -49,7 +49,7 @@ public:
 
         auto invoker = Bootstrap_
             ->GetHydraFacade()
-            ->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic);
+            ->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic);
 
         if (!invoker) {
             // The absence of invoker means we're between epochs now.
