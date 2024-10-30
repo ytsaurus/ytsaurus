@@ -61,6 +61,7 @@ protected:
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
     TEpochContext* const EpochContext_;
     const NLogging::TLogger Logger;
+    const NProfiling::TProfiler Profiler_;
 
     const NElection::TCellManagerPtr CellManager_;
 
