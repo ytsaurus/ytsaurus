@@ -67,13 +67,14 @@ TCommitterBase::TCommitterBase(
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext,
     TLogger logger,
-    TProfiler /*profiler*/,
+    TProfiler profiler,
     IChangelogPtr changelog)
     : Config_(std::move(config))
     , Options_(options)
     , DecoratedAutomaton_(std::move(decoratedAutomaton))
     , EpochContext_(epochContext)
     , Logger(std::move(logger))
+    , Profiler_(std::move(profiler))
     , CellManager_(EpochContext_->CellManager)
     , Changelog_(std::move(changelog))
 {
@@ -267,9 +268,9 @@ TLeaderCommitter::TLeaderCommitter(
         Config_->Get()->CheckpointCheckPeriod))
     , InitialState_(reachableState)
     , CommittedState_(std::move(reachableState))
-    , BatchSizeSummary_(profiler.Summary("/mutation_batch_size"))
-    , MutationQueueSizeSummary_(profiler.Summary("/mutation_queue_size"))
-    , MutationQueueDataSizeSummary_(profiler.Summary("/mutation_queue_data_size"))
+    , BatchSizeSummary_(Profiler_.Summary("/mutation_batch_size"))
+    , MutationQueueSizeSummary_(Profiler_.Summary("/mutation_queue_size"))
+    , MutationQueueDataSizeSummary_(Profiler_.Summary("/mutation_queue_data_size"))
 {
     PeerStates_.assign(CellManager_->GetTotalPeerCount(), {-1, -1});
 
