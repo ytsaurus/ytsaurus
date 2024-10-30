@@ -1217,22 +1217,28 @@ TSharedRef TDecoratedAutomaton::SanitizeLocalHostName() const
 {
     auto localHost = ReadLocalHostName();
 
-    auto leaderAddress = GetEpochContext()->CellManager->GetClusterPeerAddress(GetEpochContext()->LeaderId);
-    if (leaderAddress) {
-        auto sanitizedLocalHost = Format("?%v", GetServiceHostName(*leaderAddress));
-        YT_LOG_INFO(
-            "Local host name sanitized (LocalHost: %v, SanitizedLocalHost: %v)",
+    if (Options_.EnableLocalHostSanitizing) {
+        auto leaderAddress = GetEpochContext()->CellManager->GetClusterPeerAddress(GetEpochContext()->LeaderId);
+        if (leaderAddress) {
+            auto sanitizedLocalHost = Format("?%v", GetServiceHostName(*leaderAddress));
+            YT_LOG_INFO(
+                "Local host name sanitized (LocalHost: %v, SanitizedLocalHost: %v)",
+                localHost,
+                sanitizedLocalHost);
+            return TSharedRef::FromString(sanitizedLocalHost);
+        }
+
+        YT_LOG_ALERT(
+            "Failed to sanitize host name, leader address is not available; falling back to default placeholder (LocalHost: %v, SanitizedLocalHost: %v)",
             localHost,
-            sanitizedLocalHost);
-        return TSharedRef::FromString(sanitizedLocalHost);
+            UnknownHostName);
+
+        return TSharedRef::FromString(UnknownHostName);
     }
 
-    YT_LOG_ALERT(
-        "Failed to sanitize host name, leader address is not available; falling back to default placeholder (LocalHost: %v, SanitizedLocalHost: %v)",
-        localHost,
-        UnknownHostName);
+    YT_LOG_INFO("Local host name sanitization disabled, using local host name as is (LocalHost: %v)", localHost);
 
-    return TSharedRef::FromString(UnknownHostName);
+    return TSharedRef::FromString(localHost);
 }
 
 TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutation(

@@ -536,6 +536,7 @@ public:
                 .UseFork = false,
                 .EnableObserverPersistence = independent,
                 .ResponseKeeper = ResponseKeeper_,
+                .EnableLocalHostSanitizing = false,
             };
 
             IDistributedHydraManagerPtr hydraManager;
