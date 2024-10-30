@@ -125,7 +125,7 @@ public:
             return;
         }
 
-        auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic);
+        auto invoker = Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic);
         if (!invoker) {
             // The absence of invoker means we're between epochs now.
             throwNotInitialized({});
