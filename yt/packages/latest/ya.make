@@ -14,8 +14,8 @@ IF (NOT YT_RECIPE_BUILD_FROM_SOURCE)
     )
 
     FROM_SANDBOX(
-        FILE 7198890694
-        OUT yt_local RENAME result/yt_local
+        FILE 7362448149
+        OUT yt_local
         EXECUTABLE
     )
 ELSE()
