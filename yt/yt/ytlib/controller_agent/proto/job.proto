@@ -144,6 +144,7 @@ message TUserJobMonitoringConfig
     optional bool enable = 1;
     optional string job_descriptor = 2;
     repeated string sensor_names = 3;
+    optional bool request_gpu_monitoring = 4 [default = false];
 }
 
 message TJobProfilerSpec

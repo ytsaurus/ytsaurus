@@ -9819,6 +9819,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     if (jobSpecConfig->Monitoring->Enable) {
         ToProto(jobSpec->mutable_monitoring_config()->mutable_sensor_names(), jobSpecConfig->Monitoring->SensorNames);
+        jobSpec->mutable_monitoring_config()->set_request_gpu_monitoring(jobSpecConfig->Monitoring->RequestGpuMonitoring);
     }
 
     if (Config->EnableJobArchiveTtl && jobSpecConfig->ArchiveTtl) {

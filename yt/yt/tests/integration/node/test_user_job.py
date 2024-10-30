@@ -2160,6 +2160,7 @@ class TestUserJobMonitoring(YTEnvSetup):
     def test_basic(self, default_sensor_names):
         monitoring_config = {
             "enable": True,
+            "request_gpu_monitoring": default_sensor_names,
         }
         if not default_sensor_names:
             monitoring_config["sensor_names"] = ["cpu/user", "gpu/utilization_power"]
@@ -2423,8 +2424,7 @@ class TestUserJobMonitoring(YTEnvSetup):
 
         profiler = profiler_factory().at_node(node)
         memory_reserve_gauge = profiler.gauge("my_job/memory_reserve", fixed_tags={"job_descriptor": descriptor})
-        wait(lambda: memory_reserve_gauge.get() is not None)
-        assert memory_reserve_gauge.get() >= 1024 ** 3
+        wait(lambda: memory_reserve_gauge.get(default=0.0) >= 1024 ** 3)
 
     @authors("ignat")
     def test_descriptor_reusage(self):
@@ -2501,7 +2501,43 @@ class TestUserJobMonitoring(YTEnvSetup):
             task_patch={
                 "monitoring": {
                     "enable": True,
-                    "sensor_names": ["gpu/utilization_power"]
+                    "sensor_names": ["cpu/user", "gpu/utilization_power"]
+                },
+                "gpu_limit": 1,
+                "enable_gpu_layers": False,
+            },
+        )
+
+        wait(lambda: len(list_jobs(op.id)["jobs"]) > 0)
+
+        job_id = list_jobs(op.id)["jobs"][0]["id"]
+
+        wait(lambda: "monitoring_descriptor" in get_job(op.id, job_id))
+
+        job = get_job(op.id, job_id)
+        node = job["address"]
+        descriptor = job["monitoring_descriptor"]
+
+        profiler = profiler_factory().at_node(node)
+        wait(lambda: profiler.get(
+            "user_job/cpu/user",
+            {"job_descriptor": descriptor},
+            postprocessor=float) == 0)
+        wait(lambda: profiler.get(
+            "user_job/gpu/utilization_power",
+            {"job_descriptor": descriptor, "gpu_slot": "0"},
+            postprocessor=float) == 0)
+
+    @authors("eshcherbin")
+    def test_request_gpu_monitoring(self):
+        op = run_test_vanilla(
+            "for (( c=1; c>0; c++ )); do : ; done",
+            job_count=1,
+            task_patch={
+                "monitoring": {
+                    "enable": True,
+                    "sensor_names": [],
+                    "request_gpu_monitoring": True,
                 },
                 "gpu_limit": 1,
                 "enable_gpu_layers": False,
@@ -2523,6 +2559,14 @@ class TestUserJobMonitoring(YTEnvSetup):
             "user_job/gpu/utilization_power",
             {"job_descriptor": descriptor, "gpu_slot": "0"},
             postprocessor=float) == 0)
+        wait(lambda: profiler.get(
+            "user_job/gpu/utilization_gpu",
+            {"job_descriptor": descriptor, "gpu_slot": "0"},
+            postprocessor=float) == 0)
+        assert profiler.get(
+            "user_job/cpu/user",
+            {"job_descriptor": descriptor},
+            postprocessor=float) is None
 
 
 ##################################################################
