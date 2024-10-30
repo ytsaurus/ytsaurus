@@ -115,6 +115,7 @@ def _do_get_yt_binary_versions(binary_infos):
         stdout, _ = process.communicate()
         assert name not in result
         result[name] = _parse_version(to_native_str(stdout))
+        assert process.returncode == 0, f"Failed to get version of {name}, returncode={process.returncode}"
 
     return result
 
