@@ -1243,7 +1243,7 @@ void TSortedChunkStore::PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* 
             readRange.LowerLimit().MergeLowerLegacyKey(TLegacyOwningKey(key));
         }
         if (auto key = ReadRange_.Front().second) {
-            readRange.LowerLimit().MergeUpperLegacyKey(TLegacyOwningKey(key));
+            readRange.UpperLimit().MergeUpperLegacyKey(TLegacyOwningKey(key));
         }
         ToProto(chunkViewDescriptor->mutable_read_range(), readRange);
     }
