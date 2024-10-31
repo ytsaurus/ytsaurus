@@ -218,20 +218,31 @@ def build_heartbeats():
 
 def build_epoch_timings():
     return (Rowset()
-        .stack(False)
-        .all("computation_id")
         .row()
+            .cell(
+                "Epoch parts time (Computation: {{computation_id}})",
+                MonitoringExpr(
+                    FlowWorker("yt.flow.worker.computation.epoch_parts_time")
+                        .value("computation_id", "{{computation_id}}")
+                        .value("part", "!-"))
+                    .aggr("host")
+                    .unit("UNIT_SECONDS")
+                    .stack(True))
             .cell(
                 "Epoch duration max time",
                 MonitoringExpr(FlowWorker("yt.flow.worker.computation.epoch_time.max"))
                     .all("host")
+                    .all("computation_id")
                     .top()
-                    .unit("UNIT_SECONDS"))
+                    .unit("UNIT_SECONDS")
+                    .stack(False))
             .cell(
                 "Epoch count total",
                 MonitoringExpr(FlowWorker("yt.flow.worker.computation.epoch.rate"))
                     .aggr("host")
-                    .unit("UNIT_COUNT"))
+                    .all("computation_id")
+                    .unit("UNIT_COUNT")
+                    .stack(False))
     )
 
 def build_pipeline():
@@ -251,6 +262,7 @@ def build_pipeline():
     d.set_title("[YT Flow] Pipeline general")
     d.add_parameter("project", "Pipeline project", MonitoringTextDashboardParameter())
     d.add_parameter("cluster", "Cluster", MonitoringTextDashboardParameter())
+    d.add_parameter("computation_id", "Computation (only for some graphs)", MonitoringTextDashboardParameter(default_value="-"))
 
     return (d
         .value("project", TemplateTag("project"))
