@@ -113,12 +113,11 @@ def run_check(secrets, yt_client, logger, states):
         check_data = get_current_state(yt_client, yt_token, logger)
         if check_data is None:
             return states.PARTIALLY_AVAILABLE_STATE, "Failed to discover local versions"
-
         update_current_state(yt_client, logger, current_state_path, check_data)
 
+    logger.info(check_data.message)
     if check_data.state == "CRIT":
         return states.UNAVAILABLE_STATE, check_data.message
-
     return states.FULLY_AVAILABLE_STATE, "OK"
 
 
