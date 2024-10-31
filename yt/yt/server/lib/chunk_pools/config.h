@@ -17,8 +17,6 @@ public:
 
     double ExecToPrepareTimeRatio;
 
-    bool EnableJobShrinking;
-
     REGISTER_YSON_STRUCT(TJobSizeAdjusterConfig);
 
     static void Register(TRegistrar registrar);
