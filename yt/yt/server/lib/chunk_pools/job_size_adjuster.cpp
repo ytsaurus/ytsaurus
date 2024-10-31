@@ -21,6 +21,7 @@ public:
         , MinJobTime_(static_cast<double>(config->MinJobTime.MicroSeconds()))
         , MaxJobTime_(static_cast<double>(config->MaxJobTime.MicroSeconds()))
         , ExecToPrepareTimeRatio_(config->ExecToPrepareTimeRatio)
+        , EnableJobShrinking_(config->EnableJobShrinking)
     { }
 
     void UpdateStatistics(const TCompletedJobSummary& summary) override
@@ -46,9 +47,11 @@ public:
 
             YT_VERIFY(JobSizeBoostFactor >= 1.0);
 
+            auto minDataWeightPerJob = EnableJobShrinking_ ? DataWeightPerJob_ / JobSizeBoostFactor : DataWeightPerJob_;
+
             DataWeightPerJob_ = ClampVal(
                 idealDataWeight,
-                DataWeightPerJob_ / JobSizeBoostFactor,
+                minDataWeightPerJob,
                 DataWeightPerJob_ * JobSizeBoostFactor);
         }
     }
@@ -109,6 +112,8 @@ private:
 
     TStatistics Statistics_;
 
+    bool EnableJobShrinking_;
+
     PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TJobSizeAdjuster, 0xf8338721);
 };
@@ -120,6 +125,12 @@ void TJobSizeAdjuster::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(3, MaxJobTime_)();
     PHOENIX_REGISTER_FIELD(4, ExecToPrepareTimeRatio_)();
     PHOENIX_REGISTER_FIELD(5, Statistics_)();
+
+    // COMPAT(coteeq)
+    PHOENIX_REGISTER_FIELD(6, EnableJobShrinking_)
+        .WhenMissing([] (TThis* this_, auto& /*context*/) {
+            this_->EnableJobShrinking_ = false;
+        })();
 }
 
 PHOENIX_DEFINE_TYPE(TJobSizeAdjuster);
@@ -151,4 +162,3 @@ std::unique_ptr<IJobSizeAdjuster> CreateJobSizeAdjuster(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkPools
-
