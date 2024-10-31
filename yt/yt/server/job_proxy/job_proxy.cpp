@@ -120,6 +120,8 @@
 
 #include <yt/yt/library/dns_over_rpc/client/dns_over_rpc_resolver.h>
 
+#include <yt/yt/library/oom/oom.h>
+
 #include <util/system/fs.h>
 #include <util/system/execpath.h>
 
@@ -202,6 +204,18 @@ TJobProxy::TJobProxy(
         AbortOnUnrecognizedOptions(Logger(), Config_);
     } else {
         WarnForUnrecognizedOptions(Logger(), Config_);
+    }
+
+    if (Config_->HeapDumpDirectory) {
+        YT_LOG_DEBUG(
+            "Heap dump directory supplied. Enabling TCMalloc limit handler (HeapDumpDirectory: %v)",
+            Config_->HeapDumpDirectory);
+        NYT::EnableTCMallocLimitHandler(TTCMallocLimitHandlerOptions{
+            .HeapDumpDirectory = Config_->HeapDumpDirectory,
+            .FilenameSuffix = NYT::ToString(JobId_),
+        });
+    } else {
+        YT_LOG_DEBUG("No heap dump directory supplied. TCMalloc limit handler is disabled");
     }
 }
 
