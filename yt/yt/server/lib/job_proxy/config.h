@@ -474,6 +474,8 @@ public:
     //! Apply the quota to the entire RootFs instead of the sandbox and tmp folders individually.
     bool EnableRootVolumeDiskQuota;
 
+    TString HeapDumpDirectory;
+
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
 
     static void Register(TRegistrar registrar);
@@ -515,6 +517,8 @@ public:
     bool EnableCudaProfileEventStreaming;
 
     NJobProxy::TJobTraceEventProcessorConfigPtr JobTraceEventProcessor;
+
+    TString HeapDumpDirectory;
 
     REGISTER_YSON_STRUCT(TJobProxyDynamicConfig);
 
