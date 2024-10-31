@@ -220,7 +220,7 @@ jobs:
           BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --yt-dir=//home/devtools/cache --yt-proxy=${{ vars.CI_YT_PROXY }} --yt-store --yt-store-threads 8"
 
           if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
-            BUILD_FLAGS="${BUILD_FLAGS} --yt-put --yt-max-store-size=1000000000000"
+            BUILD_FLAGS="${BUILD_FLAGS} --yt-put --yt-max-store-size=1500000000000 --yt-store-ttl=6"
           fi
 
           STRIP_VALUE=no
