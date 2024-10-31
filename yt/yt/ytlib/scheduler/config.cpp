@@ -809,7 +809,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_codegen_comparator", &TThis::EnableCodegenComparator)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("disable_rename_columns_compatibility_code", &TThis::DisableRenameColumnsCompatibilityCode)
         .Default(false);
