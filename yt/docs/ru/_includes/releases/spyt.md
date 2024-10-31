@@ -6,6 +6,19 @@ Is released as a docker image.
 
 **All releases:**
 
+{% cut "**2.4.0**" %}
+
+- Support for running local files and their dependencies in direct submit mode by uploading it to YTsaurus cache
+- Support for submitting compiled python binaries as spark applications via direct submit
+- Dataframe write schema hints 
+- Bug fixes:
+- - Writing to external S3 from YTsaurus
+- - Reading float values from nested structures
+- - Columnar format reading for Spark 3.3.x
+- - Reading arbitrary files from Cypress when using Spark 3.3.x
+
+{% endcut %}
+
 {% cut "**2.3.0**" %}
 
 The major feature of SPYT 2.3.0 is support for Spark 3.3.x. Other notable features are:

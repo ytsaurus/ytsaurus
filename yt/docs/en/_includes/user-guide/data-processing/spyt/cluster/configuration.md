@@ -182,8 +182,8 @@ RUN python3.12 -m pip install -r requirements.txt
 
 ```text
 # requirements.txt
-ytsaurus-client==0.13.18
-ytsaurus-spyt==2.3.0
+ytsaurus-client==0.13.20
+ytsaurus-spyt==2.4.0
 pyspark==3.3.4
 ```
 
