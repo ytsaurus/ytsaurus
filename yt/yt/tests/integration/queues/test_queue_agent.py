@@ -118,10 +118,12 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
                 wrong_schema.pop(i)
                 break
         self._prepare_tables()
+        queues_table_attributes = init_queue_agent_state.DEFAULT_TABLE_ATTRIBUTES
+        queues_table_attributes.pop("tablet_cell_bundle", None)
         create("table", "//sys/queue_agents/queues", force=True, attributes={
             "dynamic": True,
             "schema": wrong_schema,
-            **init_queue_agent_state.DEFAULT_TABLE_ATTRIBUTES
+            **queues_table_attributes,
         })
         sync_mount_table("//sys/queue_agents/queues")
 
@@ -133,7 +135,7 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         create("table", "//sys/queue_agents/queues", force=True, attributes={
             "dynamic": True,
             "schema": init_queue_agent_state.QUEUE_TABLE_SCHEMA,
-            **init_queue_agent_state.DEFAULT_TABLE_ATTRIBUTES
+            **queues_table_attributes
         })
         sync_mount_table("//sys/queue_agents/queues")
         orchid.wait_fresh_pass()
