@@ -207,7 +207,7 @@ func TestEventPortErrors(t *testing.T) {
 	defer port.Close()
 	err = port.AssociatePath(path, stat, unix.FILE_MODIFIED, nil)
 	if err == nil {
-		t.Errorf("unexpected success associating nonexistant file")
+		t.Errorf("unexpected success associating nonexistent file")
 	}
 	err = port.DissociatePath(path)
 	if err == nil {

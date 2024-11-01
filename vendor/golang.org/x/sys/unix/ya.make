@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v0.25.0)
+VERSION(v0.26.0)
 
 BUILD_ONLY_IF(
     WARNING
@@ -12,6 +12,7 @@ BUILD_ONLY_IF(
 
 SRCS(
     endian_little.go
+    vgetrandom_unsupported.go
 )
 
 IF (OS_LINUX)
