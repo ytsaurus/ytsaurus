@@ -798,7 +798,12 @@ class TUserJobMonitoringConfig
 {
 public:
     bool Enable;
+
+    //! Requests a set of sensors.
     std::vector<TString> SensorNames;
+
+    //! Shortcut to request all GPU sensors.
+    bool RequestGpuMonitoring;
 
     REGISTER_YSON_STRUCT(TUserJobMonitoringConfig);
 

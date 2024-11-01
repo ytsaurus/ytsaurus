@@ -160,12 +160,123 @@ static constexpr TStringBuf DockerAuthEnvPrefix("YT_SECURE_VAULT_docker_auth=");
 
 namespace {
 
+////////////////////////////////////////////////////////////////////////////////
+
 TGuid MakeNbdExportId(TJobId jobId, int nbdExportIndex)
 {
     auto nbdExportId = jobId.Underlying();
     nbdExportId.Parts32[0] = nbdExportIndex;
     return nbdExportId;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const TString GpuUtilizationGpuSensorName = "gpu/utilization_gpu";
+static const TString GpuUtilizationMemorySensorName = "gpu/utilization_memory";
+static const TString GpuUtilizationPowerSensorName = "gpu/utilization_power";
+static const TString GpuSMUtilizationSensorName = "gpu/sm_utilization";
+static const TString GpuSMOccupancySensorName = "gpu/sm_occupancy";
+static const TString GpuMemorySensorName = "gpu/memory";
+static const TString GpuPowerSensorName = "gpu/power";
+static const TString GpuNvlinkRxBytesSensorName = "gpu/nvlink/rx_bytes";
+static const TString GpuNvlinkTxBytesSensorName = "gpu/nvlink/tx_bytes";
+static const TString GpuPcieRxBytesSensorName = "gpu/pcie/rx_bytes";
+static const TString GpuPcieTxBytesSensorName = "gpu/pcie/tx_bytes";
+static const TString GpuStuckSensorName = "gpu/stuck";
+static const TString GpuRdmaRxBytesSensorName = "gpu/rdma/rx_bytes";
+static const TString GpuRdmaTxBytesSensorName = "gpu/rdma/tx_bytes";
+
+const THashMap<TString, TUserJobSensorPtr>& GetSupportedGpuMonitoringSensors()
+{
+    static const auto SupportedGpuMonitoringSensors = ConvertTo<THashMap<TString, TUserJobSensorPtr>>(BuildYsonStringFluently()
+        .BeginMap()
+            .Item(GpuUtilizationGpuSensorName).BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/utilization_gpu")
+            .EndMap()
+            .Item(GpuUtilizationMemorySensorName).BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/utilization_memory")
+            .EndMap()
+            .Item(GpuUtilizationPowerSensorName).BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/utilization_power")
+            .EndMap()
+            .Item(GpuSMUtilizationSensorName).BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/sm_utilization")
+            .EndMap()
+            .Item(GpuSMOccupancySensorName).BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/sm_occupancy")
+            .EndMap()
+            .Item(GpuMemorySensorName).BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/memory")
+            .EndMap()
+            .Item(GpuPowerSensorName).BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/power")
+            .EndMap()
+            .Item(GpuNvlinkRxBytesSensorName).BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/nvlink/rx_bytes/rate")
+            .EndMap()
+            .Item(GpuNvlinkTxBytesSensorName).BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/nvlink/tx_bytes/rate")
+            .EndMap()
+            .Item(GpuPcieRxBytesSensorName).BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/pcie/rx_bytes/rate")
+            .EndMap()
+            .Item(GpuPcieTxBytesSensorName).BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/pcie/tx_bytes/rate")
+            .EndMap()
+            .Item(GpuStuckSensorName).BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/stuck")
+            .EndMap()
+            .Item(GpuRdmaRxBytesSensorName).BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/rdma/rx_bytes/rate")
+            .EndMap()
+            .Item(GpuRdmaTxBytesSensorName).BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/rdma/tx_bytes/rate")
+            .EndMap()
+
+            // COMPAT(eshcherbin): These sensors are no longer produced, however we cannot remove them
+            // because user jobs will fail otherwise.
+            .Item("gpu/utilization_clock_sm").BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/utilization_clock_sm")
+            .EndMap()
+            .Item("gpu/clock_sm").BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/clock_sm")
+            .EndMap()
+        .EndMap());
+
+    return SupportedGpuMonitoringSensors;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfileSensor(ISensorWriter* writer, const TUserJobSensorPtr& sensor, auto value)
+{
+    switch (sensor->Type) {
+        case EMetricType::Counter:
+            writer->AddCounter(sensor->ProfilingName, std::max<i64>(0, static_cast<i64>(value)));
+            return;
+        case EMetricType::Gauge:
+            writer->AddGauge(sensor->ProfilingName, static_cast<double>(value));
+            return;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 
@@ -216,8 +327,6 @@ TJob::TJob(
     YT_LOG_DEBUG("Creating job");
 
     PackBaggageFromJobSpec(TraceContext_, JobSpec_, OperationId_, Id_);
-
-    SupportedMonitoringSensors_ = CommonConfig_->UserJobMonitoring->Sensors;
 
     TrafficMeter_->Start();
 
@@ -1882,15 +1991,28 @@ void TJob::StartUserJobMonitoring()
     if (!UserJobSpec_) {
         return;
     }
+
     const auto& monitoringConfig = UserJobSpec_->monitoring_config();
     if (!monitoringConfig.enable()) {
         return;
     }
-    for (const auto& sensorName : monitoringConfig.sensor_names()) {
-        if (!SupportedMonitoringSensors_.contains(sensorName)) {
+
+    RequestedMonitoringSensors_ = FromProto<THashSet<TString>>(monitoringConfig.sensor_names());
+
+    const auto& supportedStatisticSensors = CommonConfig_->UserJobMonitoring->StatisticSensors;
+    const auto& supportedGpuSensors = GetSupportedGpuMonitoringSensors();
+    for (const auto& sensorName : RequestedMonitoringSensors_) {
+        if (!supportedStatisticSensors.contains(sensorName) && !supportedGpuSensors.contains(sensorName)) {
             THROW_ERROR_EXCEPTION("Unknown user job sensor %Qv", sensorName);
         }
     }
+
+    if (monitoringConfig.request_gpu_monitoring()) {
+        for (const auto& [sensorName, _] : supportedGpuSensors) {
+            RequestedMonitoringSensors_.insert(sensorName);
+        }
+    }
+
     UserJobSensorProducer_ = New<TBufferedProducer>();
     TProfiler("")
         .WithGlobal()
@@ -3868,25 +3990,7 @@ bool TJob::NeedGpu()
     return GetResourceUsage().Gpu > 0;
 }
 
-void TJob::ProfileSensor(const TUserJobSensorPtr& sensor, ISensorWriter* writer, double value)
-{
-    switch (sensor->Type) {
-        case EMetricType::Counter:
-            writer->AddCounter(sensor->ProfilingName, std::max<i64>(0, static_cast<i64>(value)));
-            return;
-        case EMetricType::Gauge:
-            writer->AddGauge(sensor->ProfilingName, value);
-            return;
-        default:
-            YT_ABORT();
-    }
-}
-
-void TJob::ProfileSensor(const TString& sensorName, ISensorWriter* writer, double value)
-{
-    ProfileSensor(GetOrCrash(SupportedMonitoringSensors_, sensorName), writer, value);
-}
-
+// TODO(eshcherbin, ???): Move this monitoring to job proxy and use profiling library directly instead of statistics.
 void TJob::CollectSensorsFromStatistics(ISensorWriter* writer)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -3901,21 +4005,21 @@ void TJob::CollectSensorsFromStatistics(ISensorWriter* writer)
         return;
     }
 
-    // NB(omgronny): We don't want to log any errors in case the job hasn't started yet.
-    if (statisticsNode->GetChildCount() == 0) {
-        return;
-    }
-
-    const auto& monitoringConfig = UserJobSpec_->monitoring_config();
-    for (const auto& sensorName : monitoringConfig.sensor_names()) {
-        // sensor must be present in config, the check was performed in constructor.
-        const auto& sensor = GetOrCrash(SupportedMonitoringSensors_, sensorName);
-        if (sensor->Source != EUserJobSensorSource::Statistics) {
+    const auto& supportedStatisticSensors = CommonConfig_->UserJobMonitoring->StatisticSensors;
+    for (const auto& [sensorName, sensor] : supportedStatisticSensors) {
+        if (!RequestedMonitoringSensors_.contains(sensorName)) {
             continue;
         }
+
+        // NB(omgronny): We write zeros in case the user job hasn't started yet, e.g. the job is preparing.
+        if (statisticsNode->GetChildCount() == 0) {
+            ProfileSensor(writer, sensor, 0);
+            continue;
+        }
+
         INodePtr node;
         try {
-            node = FindNodeByYPath(statisticsNode, *(sensor->Path) + "/last");
+            node = FindNodeByYPath(statisticsNode, sensor->Path + "/last");
             if (!node) {
                 YT_LOG_DEBUG("Statistics node not found (SensorName: %v, Path: %v)", sensorName, sensor->Path);
                 continue;
@@ -3926,6 +4030,7 @@ void TJob::CollectSensorsFromStatistics(ISensorWriter* writer)
                 sensor->Path);
             continue;
         }
+
         if (node->GetType() != ENodeType::Int64) {
             YT_LOG_DEBUG("Wrong type of sensor (SensorName: %v, ExpectedType: %v, ActualType: %v)",
                 sensorName,
@@ -3933,48 +4038,25 @@ void TJob::CollectSensorsFromStatistics(ISensorWriter* writer)
                 node->GetType());
             continue;
         }
-        ProfileSensor(sensor, writer, node->AsInt64()->GetValue());
+
+        ProfileSensor(writer, sensor, node->AsInt64()->GetValue());
     }
 }
 
+// NB(eshcherbin): When adding new sensors, do not forget to update |GetSupportedGpuMonitoringSensorNames| above.
 void TJob::CollectSensorsFromGpuAndRdmaDeviceInfo(ISensorWriter* writer)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     auto gpuSlots = GetGpuSlots();
-
     if (gpuSlots.empty()) {
         return;
     }
 
-    const auto& monitoringConfig = UserJobSpec_->monitoring_config();
-    auto sensorNames = THashSet<TString>(
-        std::begin(monitoringConfig.sensor_names()),
-        std::end(monitoringConfig.sensor_names()));
-
-    static const TString UtilizationGpuName = "gpu/utilization_gpu";
-    static const TString UtilizationMemoryName = "gpu/utilization_memory";
-    static const TString UtilizationPowerName = "gpu/utilization_power";
-
-    static const TString MemoryName = "gpu/memory";
-    static const TString PowerName = "gpu/power";
-
-    static const TString SMUtilizationName = "gpu/sm_utilization";
-    static const TString SMOccupancyName = "gpu/sm_occupancy";
-
-    static const TString NvlinkRxBytesName = "gpu/nvlink/rx_bytes";
-    static const TString NvlinkTxBytesName = "gpu/nvlink/tx_bytes";
-    static const TString PcieRxBytesName = "gpu/pcie/rx_bytes";
-    static const TString PcieTxBytesName = "gpu/pcie/tx_bytes";
-
-    static const TString StuckName = "gpu/stuck";
-
-    static const TString RxBytesName = "gpu/rdma/rx_bytes";
-    static const TString TxBytesName = "gpu/rdma/tx_bytes";
-
-    auto profileSensorIfNeeded = [&] (const TString& name, double value) {
-        if (sensorNames.contains(name)) {
-            ProfileSensor(name, writer, value);
+    auto profileSensorIfNeeded = [&] (const TString& name, auto value) {
+        if (RequestedMonitoringSensors_.contains(name)) {
+            const auto& sensor = GetOrCrash(GetSupportedGpuMonitoringSensors(), name);
+            ProfileSensor(writer, sensor, value);
         }
     };
 
@@ -3986,31 +4068,32 @@ void TJob::CollectSensorsFromGpuAndRdmaDeviceInfo(ISensorWriter* writer)
 
         TWithTagGuard tagGuard(writer, "gpu_slot", ToString(index));
 
-        profileSensorIfNeeded(UtilizationGpuName, gpuInfo.UtilizationGpuRate);
-        profileSensorIfNeeded(UtilizationMemoryName, gpuInfo.UtilizationMemoryRate);
-        profileSensorIfNeeded(MemoryName, gpuInfo.MemoryUsed);
+        profileSensorIfNeeded(GpuUtilizationGpuSensorName, gpuInfo.UtilizationGpuRate);
+        profileSensorIfNeeded(GpuUtilizationMemorySensorName, gpuInfo.UtilizationMemoryRate);
+        profileSensorIfNeeded(GpuMemorySensorName, gpuInfo.MemoryUsed);
         profileSensorIfNeeded(
-            UtilizationPowerName,
+            GpuUtilizationPowerSensorName,
             gpuInfo.PowerLimit == 0.0
                 ? 0.0
                 : gpuInfo.PowerDraw / gpuInfo.PowerLimit);
-        profileSensorIfNeeded(PowerName, gpuInfo.PowerDraw);
-        profileSensorIfNeeded(SMUtilizationName, gpuInfo.SMUtilizationRate);
-        profileSensorIfNeeded(SMOccupancyName, gpuInfo.SMOccupancyRate);
-        profileSensorIfNeeded(NvlinkRxBytesName, gpuInfo.NvlinkRxByteRate);
-        profileSensorIfNeeded(NvlinkTxBytesName, gpuInfo.NvlinkTxByteRate);
-        profileSensorIfNeeded(PcieRxBytesName, gpuInfo.PcieRxByteRate);
-        profileSensorIfNeeded(PcieTxBytesName, gpuInfo.PcieTxByteRate);
-        profileSensorIfNeeded(StuckName, static_cast<double>(gpuInfo.Stuck.Status));
+        profileSensorIfNeeded(GpuPowerSensorName, gpuInfo.PowerDraw);
+        profileSensorIfNeeded(GpuSMUtilizationSensorName, gpuInfo.SMUtilizationRate);
+        profileSensorIfNeeded(GpuSMOccupancySensorName, gpuInfo.SMOccupancyRate);
+        profileSensorIfNeeded(GpuNvlinkRxBytesSensorName, gpuInfo.NvlinkRxByteRate);
+        profileSensorIfNeeded(GpuNvlinkTxBytesSensorName, gpuInfo.NvlinkTxByteRate);
+        profileSensorIfNeeded(GpuPcieRxBytesSensorName, gpuInfo.PcieRxByteRate);
+        profileSensorIfNeeded(GpuPcieTxBytesSensorName, gpuInfo.PcieTxByteRate);
+        profileSensorIfNeeded(GpuStuckSensorName, static_cast<double>(gpuInfo.Stuck.Status));
     }
+
 
     if (IsFullHostGpuJob()) {
         auto rdmaDevices = Bootstrap_->GetGpuManager()->GetRdmaDevices();
         for (const auto& rdmaDevice : rdmaDevices) {
             TWithTagGuard tagGuard(writer, "rdma_device", rdmaDevice.Name);
 
-            profileSensorIfNeeded(RxBytesName, rdmaDevice.RxByteRate);
-            profileSensorIfNeeded(TxBytesName, rdmaDevice.TxByteRate);
+            profileSensorIfNeeded(GpuRdmaRxBytesSensorName, rdmaDevice.RxByteRate);
+            profileSensorIfNeeded(GpuRdmaTxBytesSensorName, rdmaDevice.TxByteRate);
         }
     }
 }

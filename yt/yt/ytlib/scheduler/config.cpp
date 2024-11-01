@@ -510,6 +510,9 @@ void TUserJobMonitoringConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("sensor_names", &TThis::SensorNames)
         .Default(GetDefaultSensorNames());
+
+    registrar.Parameter("request_gpu_monitoring", &TThis::RequestGpuMonitoring)
+        .Default(false);
 }
 
 const std::vector<TString>& TUserJobMonitoringConfig::GetDefaultSensorNames()
@@ -528,21 +531,8 @@ const std::vector<TString>& TUserJobMonitoringConfig::GetDefaultSensorNames()
         "tmpfs_size",
         "disk/usage",
         "disk/limit",
-        "gpu/utilization_gpu",
-        "gpu/utilization_memory",
-        "gpu/utilization_power",
-        "gpu/utilization_clock_sm",
-        "gpu/memory",
-        "gpu/power",
-        "gpu/clock_sm",
-        "gpu/nvlink/rx_bytes",
-        "gpu/nvlink/tx_bytes",
-        "gpu/pcie/rx_bytes",
-        "gpu/pcie/tx_bytes",
-        "gpu/stuck",
-        "gpu/rdma/rx_bytes",
-        "gpu/rdma/tx_bytes",
     };
+
     return DefaultSensorNames;
 }
 

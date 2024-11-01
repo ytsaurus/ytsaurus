@@ -215,9 +215,7 @@ class TUserJobSensor
 {
 public:
     NProfiling::EMetricType Type;
-    EUserJobSensorSource Source;
-    // Path in statistics structure.
-    std::optional<TString> Path;
+
     TString ProfilingName;
 
     REGISTER_YSON_STRUCT(TUserJobSensor);
@@ -229,13 +227,29 @@ DEFINE_REFCOUNTED_TYPE(TUserJobSensor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Description of a user job monitoring sensor which is produced from a given job statistic.
+class TUserJobStatisticSensor
+    : public TUserJobSensor
+{
+public:
+    TString Path;
+
+    REGISTER_YSON_STRUCT(TUserJobStatisticSensor);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TUserJobStatisticSensor)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TUserJobMonitoringDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    THashMap<TString, TUserJobSensorPtr> Sensors;
+    THashMap<TString, TUserJobStatisticSensorPtr> StatisticSensors;
 
-    static const THashMap<TString, TUserJobSensorPtr>& GetDefaultSensors();
+    static const THashMap<TString, TUserJobStatisticSensorPtr>& GetDefaultStatisticSensors();
 
     REGISTER_YSON_STRUCT(TUserJobMonitoringDynamicConfig);
 

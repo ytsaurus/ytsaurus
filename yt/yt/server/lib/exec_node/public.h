@@ -33,11 +33,6 @@ DEFINE_ENUM(ESandboxKind,
     (Logs)
 );
 
-DEFINE_ENUM(EUserJobSensorSource,
-    (Gpu)
-    (Statistics)
-);
-
 DEFINE_ENUM(EJobProxyLoggingMode,
     (Simple)
     (PerJobDirectory)
@@ -58,6 +53,7 @@ DECLARE_REFCOUNTED_CLASS(TSlotManagerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkCacheDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TVolumeManagerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TUserJobSensor)
+DECLARE_REFCOUNTED_CLASS(TUserJobStatisticSensor)
 DECLARE_REFCOUNTED_CLASS(TUserJobMonitoringDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TControllerAgentConnectorDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterConnectorDynamicConfig)

@@ -284,7 +284,7 @@ private:
     const bool Interruptible_;
     const bool AbortJobIfAccountLimitExceeded_;
 
-    THashMap<TString, TUserJobSensorPtr> SupportedMonitoringSensors_;
+    THashSet<TString> RequestedMonitoringSensors_;
 
     // Used to terminate artifacts downloading in case of cancelation.
     TFuture<void> ArtifactsFuture_ = VoidFuture;
@@ -563,9 +563,6 @@ private:
     bool NeedGpuLayers();
 
     bool NeedGpu();
-
-    void ProfileSensor(const TUserJobSensorPtr& sensor, NProfiling::ISensorWriter* writer, double value);
-    void ProfileSensor(const TString& sensorName, NProfiling::ISensorWriter* writer, double value);
 
     void CollectSensorsFromStatistics(NProfiling::ISensorWriter* writer);
     void CollectSensorsFromGpuAndRdmaDeviceInfo(NProfiling::ISensorWriter* writer);
