@@ -290,11 +290,10 @@ class TestCypress(YTEnvSetup):
         set("//tmp/missing/node", {}, recursive=True)
         assert get("//tmp/missing") == {"node": {}}
 
-    @authors("ignat")
-    @not_implemented_in_sequoia
+    @authors("ignat", "danilalexeev")
     def test_attributes(self):
         set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
-        set("//tmp/t", b"<attr=100;mode=rw> {nodes=[1; 2]}", is_raw=True)
+        set("//tmp/t", b"<attr=100;mode=rw> {nodes={a=1; b=2}}", is_raw=True)
         assert get("//tmp/t/@attr") == 100
         assert get("//tmp/t/@mode") == "rw"
 
@@ -315,18 +314,24 @@ class TestCypress(YTEnvSetup):
             get("//tmp/t/@mode")
 
         # changing attributes
-        set("//tmp/t/a", b"<author = ignat> []", is_raw=True)
-        assert get("//tmp/t/a") == []
+        set("//tmp/t/a", b"<author = ignat> {}", is_raw=True)
+        assert get("//tmp/t/a") == {}
         assert get("//tmp/t/a/@author") == "ignat"
 
         set("//tmp/t/a/@author", "not_ignat")
         assert get("//tmp/t/a/@author") == "not_ignat"
 
         # nested attributes (actually shows <>)
-        set("//tmp/t/b", b"<dir = <file = <>-100> #> []", is_raw=True)
+        set("//tmp/t/b", b"<dir = <file = <>-100> #> {}", is_raw=True)
         assert get("//tmp/t/b/@dir/@") == {"file": -100}
         assert get("//tmp/t/b/@dir/@file") == -100
         assert get("//tmp/t/b/@dir/@file/@") == {}
+
+        set("//tmp/t/b", b"<foo=1; bar=2> {m = {}}", is_raw=True, force=True)
+        assert get("//tmp/t/b/@dir/@") == {"file": -100}
+        assert get("//tmp/t/b/@foo") == 1
+        assert get("//tmp/t/b/@bar") == 2
+        assert get("//tmp/t/b/m") == {}
 
         # set attributes directly
         set("//tmp/t/@", {"key1": "value1", "key2": "value2"})
@@ -372,7 +377,6 @@ class TestCypress(YTEnvSetup):
             )
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_attributes_tx_read_table(self):
         set("//tmp/t", b"<attr=100> 123", is_raw=True)
         assert get("//tmp/t") == 123
@@ -492,7 +496,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/list/@count") == 0
 
     @authors("ignat")
-    @not_implemented_in_sequoia
     def test_attr_remove_all1(self):
         # remove items from attributes
         set("//tmp/attr", b"<_foo=bar;_key=value>42", is_raw=True)
@@ -3704,7 +3707,6 @@ class TestCypress(YTEnvSetup):
             copy("//tmp/m/t1/@attr", "//tmp/t2", force=True)
 
     @authors("gritukan")
-    @not_implemented_in_sequoia
     def test_multiset_attributes(self):
         multiset_attributes("//tmp/@", {"a": 1, "b": 2})
         assert get("//tmp/@a") == 1
@@ -3726,24 +3728,22 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/@m/y", 8)
 
     @authors("gritukan")
-    @not_implemented_in_sequoia
     def test_multiset_attributes_invalid(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Expected \"slash\" in YPath but found end-of-string"):
             multiset_attributes("//tmp", {"a": 1})
-        with pytest.raises(YtError):
+        with raises_yt_error("Empty attribute names are not allowed"):
             multiset_attributes("//tmp/@", {"": 2})
-        with pytest.raises(YtError):
+        with raises_yt_error("Custom attribute \"a\" is not found"):
             multiset_attributes("//tmp/@", {"a/b": 3})
-        with pytest.raises(YtError):
+        with raises_yt_error("Builtin attribute \"ref_counter\" cannot be set"):
             multiset_attributes("//tmp/@", {"ref_counter": 5})
 
     @authors("gritukan")
-    @not_implemented_in_sequoia
     def test_multiset_attributes_nonatomicity(self):
         # This test relies on subrequests execution in lexicographic sorted order.
         # It might be changed in the future.
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Custom attribute \"b\" is not found"):
             multiset_attributes("//tmp/@", {"a": 1, "b/x": 2, "c": 3})
         attributes = get("//tmp/@")
         assert attributes["a"] == 1
@@ -3751,7 +3751,6 @@ class TestCypress(YTEnvSetup):
         assert "c" not in attributes
 
     @authors("gritukan")
-    @not_implemented_in_sequoia
     def test_multiset_attributes_tricky(self):
         # Result of these commands depends on order of subrequests execution.
         # We assume that it's undefined, so check that result is consistent
@@ -3763,7 +3762,7 @@ class TestCypress(YTEnvSetup):
         except YtError:
             assert "a" not in get("//tmp/@a")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("attribute \"id\" cannot be set"):
             multiset_attributes("//tmp/@", {"a": 1, "id": 2, "z": 3})
 
         attributes = get("//tmp/@")

@@ -201,6 +201,14 @@ void FromProto(TCopyOptions* options, const TReqCopy& protoOptions)
     options->PessimisticQuotaCheck = protoOptions.pessimistic_quota_check();
 }
 
+void FromProto(
+    TMultisetAttributesSubrequest* subrequest,
+    const NYTree::NProto::TReqMultisetAttributes::TSubrequest& protoSubrequest)
+{
+    subrequest->Attribute = protoSubrequest.attribute();
+    subrequest->Value = NYson::TYsonString(protoSubrequest.value());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<NYTree::INodePtr> FetchSingleObject(

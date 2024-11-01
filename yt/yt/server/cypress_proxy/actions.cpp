@@ -86,16 +86,36 @@ void SetNode(
     TVersionedNodeId nodeId,
     TYPathBuf path,
     const TYsonString& value,
+    bool force,
     const ISequoiaTransactionPtr& transaction)
 {
     NCypressServer::NProto::TReqSetNode reqSetNode;
     ToProto(reqSetNode.mutable_node_id(), nodeId.ObjectId);
     reqSetNode.set_path(path.ToRawYPath().Underlying());
     reqSetNode.set_value(value.ToString());
+    reqSetNode.set_force(force);
     ToProto(reqSetNode.mutable_transaction_id(), nodeId.TransactionId);
     transaction->AddTransactionAction(
         CellTagFromId(nodeId.ObjectId),
         MakeTransactionActionData(reqSetNode));
+}
+
+void MultisetNodeAttributes(
+    TVersionedNodeId nodeId,
+    TYPathBuf path,
+    const std::vector<TMultisetAttributesSubrequest>& subrequests,
+    bool force,
+    const ISequoiaTransactionPtr& transaction)
+{
+    NCypressServer::NProto::TReqMultisetAttributes reqMultisetAttributes;
+    ToProto(reqMultisetAttributes.mutable_node_id(), nodeId.ObjectId);
+    reqMultisetAttributes.set_path(path.ToRawYPath().Underlying());
+    ToProto(reqMultisetAttributes.mutable_subrequests(), subrequests);
+    reqMultisetAttributes.set_force(force);
+    ToProto(reqMultisetAttributes.mutable_transaction_id(), nodeId.TransactionId);
+    transaction->AddTransactionAction(
+        CellTagFromId(nodeId.ObjectId),
+        MakeTransactionActionData(reqMultisetAttributes));
 }
 
 void CreateNode(
@@ -297,6 +317,14 @@ void UnlockNodeInMaster(TVersionedNodeId nodeId, const ISequoiaTransactionPtr &s
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(
+    NYTree::NProto::TReqMultisetAttributes::TSubrequest* protoSubrequest,
+    const TMultisetAttributesSubrequest& subrequest)
+{
+    protoSubrequest->set_attribute(ToProto<TProtobufString>(subrequest.Attribute));
+    protoSubrequest->set_value(subrequest.Value.ToString());
+}
 
 void ToProto(TReqCloneNode::TCloneOptions* protoOptions, const TCopyOptions& options)
 {

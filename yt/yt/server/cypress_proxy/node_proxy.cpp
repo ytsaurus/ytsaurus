@@ -178,6 +178,7 @@ protected:
     const TNodeId ParentId_;
     const TSequoiaResolveResult ResolveResult_;
 
+    DECLARE_YPATH_SERVICE_METHOD(NYTree::NProto, MultisetAttributes);
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Copy);
@@ -190,6 +191,7 @@ protected:
         DISPATCH_YPATH_SERVICE_METHOD(Get);
         DISPATCH_YPATH_SERVICE_METHOD(Set);
         DISPATCH_YPATH_SERVICE_METHOD(Remove);
+        DISPATCH_YPATH_SERVICE_METHOD(MultisetAttributes);
         DISPATCH_YPATH_SERVICE_METHOD(GetBasicAttributes);
         DISPATCH_YPATH_SERVICE_METHOD(Create);
         DISPATCH_YPATH_SERVICE_METHOD(Copy);
@@ -511,11 +513,18 @@ protected:
         TRspSet* /*response*/,
         const TCtxSetPtr& context) override
     {
+        bool force = request->force();
+
         context->SetRequestInfo("Recursive: %v, Force: %v",
             request->recursive(),
-            request->force());
+            force);
 
-        SequoiaSession_->SetNodeAttribute(Id_, TYPathBuf("/@" + path), TYsonString(request->value()));
+        SequoiaSession_->SetNodeAttribute(
+            Id_,
+            TYPathBuf("/@" + path),
+            TYsonString(request->value()),
+            force);
+
         FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
     }
 
@@ -535,6 +544,27 @@ protected:
         FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
     }
 };
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, MultisetAttributes)
+{
+    bool force = request->force();
+
+    context->SetRequestInfo("KeyCount: %v, Force: %v",
+        request->subrequests_size(),
+        force);
+
+    std::vector<TMultisetAttributesSubrequest> subrequests;
+    FromProto(&subrequests, request->subrequests());
+
+    auto targetPath = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
+    SequoiaSession_->MultisetNodeAttributes(
+        Id_,
+        targetPath,
+        subrequests,
+        force);
+
+    FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
+}
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetBasicAttributes)
 {
@@ -1035,9 +1065,18 @@ private:
             THROW_ERROR_EXCEPTION("List nodes cannot be created inside Sequoia");
         }
 
-        void OnBeginAttributes() override
+        void OnMyBeginAttributes() override
         {
-            THROW_ERROR_EXCEPTION("Set with attributes is not supported in Sequoia yet");
+            YT_ASSERT(!AttributeConsumer_);
+            Attributes_ = CreateEphemeralAttributes();
+            AttributeConsumer_ = std::make_unique<TAttributeConsumer>(Attributes_.Get());
+            Forward(AttributeConsumer_.get(), nullptr, NYson::EYsonType::MapFragment);
+        }
+
+        void OnMyEndAttributes() override
+        {
+            AttributeConsumer_.reset();
+            YT_ASSERT(Attributes_);
         }
 
     private:
@@ -1045,6 +1084,8 @@ private:
         TSequoiaSession* const Session_;
         std::stack<TNodeId, std::vector<TNodeId>> CurrentAncestors_;
         TAbsoluteYPath CurrentPath_;
+        std::unique_ptr<TAttributeConsumer> AttributeConsumer_;
+        IAttributeDictionaryPtr Attributes_;
 
         template <class T>
         void CreateNonCompositeNodeAndPopItsKey(EObjectType type, const T& value)
@@ -1057,11 +1098,14 @@ private:
 
         TNodeId CreateNode(EObjectType type)
         {
-            return Session_->CreateNode(
+            auto nodeId = Session_->CreateNode(
                 type,
                 CurrentPath_,
-                /*explicitAttributes*/ nullptr,
+                Attributes_.Get(),
                 CurrentAncestors_.top());
+            Attributes_.Reset();
+
+            return nodeId;
         }
     };
 
@@ -1081,9 +1125,32 @@ private:
             YT_VERIFY(TypeFromId(nodeId) == EObjectType::SequoiaMapNode);
         }
 
-        void OnBeginAttributes() override
+        void OnMyBeginAttributes() override
         {
-            THROW_ERROR_EXCEPTION("Set with attributes is not supported in Sequoia yet");
+            YT_ASSERT(!AttributeConsumer_);
+            Attributes_ = CreateEphemeralAttributes();
+            AttributeConsumer_ = std::make_unique<TAttributeConsumer>(Attributes_.Get());
+            Forward(AttributeConsumer_.get(), nullptr, NYson::EYsonType::MapFragment);
+        }
+
+        void OnMyEndAttributes() override
+        {
+            AttributeConsumer_.reset();
+
+            std::vector<TMultisetAttributesSubrequest> subrequests;
+            for (auto& [key, value] : Attributes_->ListPairs()) {
+                subrequests.push_back({
+                    .Attribute = std::move(key),
+                    .Value = std::move(value),
+                });
+            }
+            Attributes_.Reset();
+
+            Session_->MultisetNodeAttributes(
+                Id_,
+                TYPathBuf("/@"),
+                subrequests,
+                /*force*/ false);
         }
 
     private:
@@ -1091,6 +1158,8 @@ private:
         const TAbsoluteYPath Path_;
         const TNodeId Id_;
         std::optional<TTreeBuilder> SubtreeBuilderHolder_;
+        std::unique_ptr<TAttributeConsumer> AttributeConsumer_;
+        IAttributeDictionaryPtr Attributes_;
 
         void OnMyKeyedItem(TStringBuf key) override
         {

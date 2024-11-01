@@ -3,6 +3,7 @@ package NYT.NCypressServer.NProto;
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
+import "yt_proto/yt/core/ytree/proto/ypath.proto";
 
 // COMPAT(kvk1920): make |transaction_id| required in all these actions.
 
@@ -77,7 +78,19 @@ message TReqSetNode
     required NYT.NProto.TGuid node_id = 1;
     optional string path = 4;
     optional bytes value = 2;
+    optional bool force = 5;
     optional NYT.NProto.TGuid transaction_id = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqMultisetAttributes
+{
+    required string node_id = 1;
+    required string path = 2;
+    repeated NYT.NYTree.NProto.TReqMultisetAttributes.TSubrequest subrequests = 3;
+    required bool force = 4;
+    required NYT.NProto.TGuid transaction_id = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
