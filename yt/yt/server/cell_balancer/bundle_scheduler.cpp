@@ -199,6 +199,11 @@ private:
             return false;
         }
 
+        // In order to support clusters without network limits enabled we check network quotas only if they are explicitly set for bundle.
+        if (quota->NetworkBitsPerSecond() > 0 && usage->Net.value_or(0) > quota->NetworkBitsPerSecond()) {
+            return true;
+        }
+
         return usage->Vcpu > quota->Vcpu() || usage->Memory > quota->Memory;
     }
 
@@ -257,23 +262,27 @@ private:
 
         const auto& resourceUsage = GetOrCrash(input.BundleResourceTarget, bundleName);
         if (instanceCountToAllocate > 0 && IsResourceUsageExceeded(resourceUsage, bundleInfo->ResourceQuota)) {
-            YT_LOG_WARNING("Bundle resource usage exceeded quota (Bundle: %v, ResourceQuota: {Vcpu: %v, Memory: %v}, ResourceUsage: {Vcpu: %v, Memory: %v})",
+            YT_LOG_WARNING("Bundle resource usage exceeded quota (Bundle: %v, ResourceQuota: {Vcpu: %v, Memory: %v, Network: %v}, ResourceUsage: {Vcpu: %v, Memory: %v, Network: %v})",
                 bundleName,
                 bundleInfo->ResourceQuota->Vcpu(),
                 bundleInfo->ResourceQuota->Memory,
+                bundleInfo->ResourceQuota->NetworkBitsPerSecond(),
                 resourceUsage->Vcpu,
-                resourceUsage->Memory);
+                resourceUsage->Memory,
+                resourceUsage->Net);
 
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "bundle_resource_quota_exceeded",
                 .BundleName = bundleName,
-                .Description = Format("Cannot allocate new %v instance for bundle %v. ResourceQuota: {Vcpu: %v, Memory: %v}, ResourceUsage: {Vcpu: %v, Memory: %v}",
+                .Description = Format("Cannot allocate new %v instance for bundle %v. ResourceQuota: {Vcpu: %v, Memory: %v, Network: %v}, ResourceUsage: {Vcpu: %v, Memory: %v, Network: %v}",
                     adapter->GetInstanceType(),
                     bundleName,
                     bundleInfo->ResourceQuota->Vcpu(),
                     bundleInfo->ResourceQuota->Memory,
+                    bundleInfo->ResourceQuota->NetworkBitsPerSecond(),
                     resourceUsage->Vcpu,
-                    resourceUsage->Memory)
+                    resourceUsage->Memory,
+                    resourceUsage->Net)
             });
             return;
         }
@@ -1094,6 +1103,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
             auto targetResource = New<NBundleControllerClient::TInstanceResources>();
             targetResource->Vcpu = nodeGuarantee->Vcpu * targetConfig->TabletNodeCount + proxyGuarantee->Vcpu * targetConfig->RpcProxyCount;
             targetResource->Memory = nodeGuarantee->Memory * targetConfig->TabletNodeCount + proxyGuarantee->Memory * targetConfig->RpcProxyCount;
+            targetResource->Net = nodeGuarantee->Net.value_or(0) * targetConfig->TabletNodeCount + proxyGuarantee->Net.value_or(0) * targetConfig->RpcProxyCount;
 
             targetResources[bundleName] = targetResource;
         }

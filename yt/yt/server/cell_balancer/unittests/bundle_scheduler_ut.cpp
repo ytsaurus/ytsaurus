@@ -761,9 +761,28 @@ TEST_P(TBundleSchedulerTest, AllocationQuotaExceeded)
         EXPECT_EQ(mutations.AlertsToFire.front().Id, "bundle_resource_quota_exceeded");
     }
 
+    {
+        auto& bundleInfo = input.Bundles["bigd"];
+        bundleInfo->ResourceQuota = New<TResourceQuota>();
+        bundleInfo->ResourceQuota->Cpu = 1000;
+        bundleInfo->ResourceQuota->Memory = 10_TB;
+        bundleInfo->ResourceQuota->Network = 10_KB;
+
+        TSchedulerMutations mutations;
+        ScheduleBundles(input, &mutations);
+
+        EXPECT_NO_THROW(Orchid::GetBundlesInfo(input, mutations));
+
+        EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+        EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+        EXPECT_EQ(GetDataCenterCount(), std::ssize(mutations.AlertsToFire));
+        EXPECT_EQ(mutations.AlertsToFire.front().Id, "bundle_resource_quota_exceeded");
+    }
+
     auto& bundleInfo = input.Bundles["bigd"];
     bundleInfo->ResourceQuota->Cpu = 1000;
     bundleInfo->ResourceQuota->Memory = 10_TB;
+    bundleInfo->ResourceQuota->Network = 5_GB * GetDataCenterCount() / 8;
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);

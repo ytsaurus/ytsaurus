@@ -122,6 +122,7 @@ private:
         auto result = New<NBundleControllerClient::TBundleResourceQuota>();
         result->Vcpu = cypressResourceQuota->Vcpu();
         result->Memory = cypressResourceQuota->Memory;
+        result->Network = cypressResourceQuota->NetworkBitsPerSecond();
         return result;
     }
 
@@ -153,19 +154,26 @@ private:
         VerifyInstanceSize(bundleConstraints->TabletNodeSizes, bundleConfig->TabletNodeResourceGuarantee, "TabNode");
 
         // Checking for total resource usage
-        i64 currentMemory = bundleConfig->RpcProxyCount.value_or(0) * bundleConfig->RpcProxyResourceGuarantee->Memory + bundleConfig->TabletNodeCount.value_or(0) * bundleConfig->TabletNodeResourceGuarantee->Memory;
-        i64 currentVcpu = bundleConfig->RpcProxyCount.value_or(0) * bundleConfig->RpcProxyResourceGuarantee->Vcpu + bundleConfig->TabletNodeCount.value_or(0) * bundleConfig->TabletNodeResourceGuarantee->Vcpu;
+        i64 targetMemory = bundleConfig->RpcProxyCount.value_or(0) * bundleConfig->RpcProxyResourceGuarantee->Memory + bundleConfig->TabletNodeCount.value_or(0) * bundleConfig->TabletNodeResourceGuarantee->Memory;
+        i64 targetVcpu = bundleConfig->RpcProxyCount.value_or(0) * bundleConfig->RpcProxyResourceGuarantee->Vcpu + bundleConfig->TabletNodeCount.value_or(0) * bundleConfig->TabletNodeResourceGuarantee->Vcpu;
+        i64 targetNetwork = bundleConfig->RpcProxyCount.value_or(0) * bundleConfig->RpcProxyResourceGuarantee->Net.value_or(0) + bundleConfig->TabletNodeCount.value_or(0) * bundleConfig->TabletNodeResourceGuarantee->Net.value_or(0);
 
-        if (currentMemory > resourceQuota->Memory) {
-            THROW_ERROR_EXCEPTION("Cannot allocate new instance: quota memory exceed")
-                << TErrorAttribute("current_memory", currentMemory)
+        if (targetMemory > resourceQuota->Memory) {
+            THROW_ERROR_EXCEPTION("Cannot allocate new instance: memory quota is exhausted")
+                << TErrorAttribute("target_memory", targetMemory)
                 << TErrorAttribute("quota_memory", resourceQuota->Memory);
         }
 
-        if (currentVcpu > resourceQuota->Vcpu) {
-            THROW_ERROR_EXCEPTION("Cannot allocate new instance: quota vcpu exceed")
-                << TErrorAttribute("current_vcpu", currentVcpu)
+        if (targetVcpu > resourceQuota->Vcpu) {
+            THROW_ERROR_EXCEPTION("Cannot allocate new instance: vcpu quota is exhausted")
+                << TErrorAttribute("target_vcpu", targetVcpu)
                 << TErrorAttribute("quota_vcpu", resourceQuota->Vcpu);
+        }
+
+        if (targetNetwork > resourceQuota->Network) {
+            THROW_ERROR_EXCEPTION("Cannot allocate new instance: network quota is exhausted")
+                << TErrorAttribute("target_network", targetNetwork)
+                << TErrorAttribute("quota_network", resourceQuota->Network);
         }
 
         // Checking memory categories oversubscription

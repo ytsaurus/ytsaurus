@@ -119,8 +119,11 @@ struct TResourceQuota
 {
     double Cpu;
     i64 Memory;
+    // Bytes per second.
+    i64 Network;
 
     int Vcpu() const;
+    i64 NetworkBitsPerSecond() const;
 
     REGISTER_YSON_STRUCT(TResourceQuota);
 
