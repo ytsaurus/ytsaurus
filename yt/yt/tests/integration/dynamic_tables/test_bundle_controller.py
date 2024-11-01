@@ -199,6 +199,7 @@ class TestBundleController(YTEnvSetup):
 
         set("//sys/tablet_cell_bundles/default/@resource_quota", {
             "cpu": 100,
+            "network": 5*1024*1024*1024,
             "memory": 750323855360})
 
     def _create_bundle(self, bundle, enable_bundle_controller=True, zone="zone_default", enable_instance_allocation=False, bundle_controller_target_config={}, **kwargs):
@@ -505,7 +506,8 @@ class TestBundleController(YTEnvSetup):
         }
         expected_config["resource_quota"] = {
             "vcpu": 100000,
-            "memory": 750323855360
+            "memory": 750323855360,
+            "network": 0
         }
 
         # check get query

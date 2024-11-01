@@ -25,6 +25,10 @@ void TResourceQuota::Register(TRegistrar registrar)
     registrar.Parameter("memory", &TThis::Memory)
         .GreaterThanOrEqual(0)
         .Default(0);
+
+    registrar.Parameter("network", &TThis::Network)
+        .GreaterThanOrEqual(0)
+        .Default(0);
 }
 
 void TResourceLimits::Register(TRegistrar registrar)
@@ -38,6 +42,11 @@ int TResourceQuota::Vcpu() const
 {
     constexpr int VFactor = 1000;
     return static_cast<int>(Cpu * VFactor);
+}
+
+i64 TResourceQuota::NetworkBitsPerSecond() const
+{
+    return Network * 8;
 }
 
 void THulkInstanceResources::Register(TRegistrar registrar)
