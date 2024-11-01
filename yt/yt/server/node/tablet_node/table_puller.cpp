@@ -22,6 +22,8 @@
 
 #include <yt/yt/ytlib/transaction_client/action.h>
 
+#include <yt/yt/ytlib/tablet_client/config.h>
+
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
 
@@ -317,6 +319,7 @@ private:
                     LocalConnection_,
                     Logger,
                     Slot_->GetCellId(),
+                    Slot_->GetOptions()->ClockClusterTag,
                     TabletId_,
                     std::move(*newProgress),
                     /*validateStrictAdvance*/ true,
@@ -675,8 +678,12 @@ private:
         {
             TEventTimerGuard timerGuard(counters->WriteTime);
 
-            auto localClient = LocalConnection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
-            auto localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
+            TTransactionStartOptions startOptions;
+            startOptions.ClockClusterTag = Slot_->GetOptions()->ClockClusterTag;
+            auto localClient = LocalConnection_->CreateNativeClient(
+                TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
+            auto localTransaction = WaitFor(
+                localClient->StartNativeTransaction(ETransactionType::Tablet, startOptions))
                 .ValueOrThrow();
 
             // Set options to avoid nested writes to other replicas.

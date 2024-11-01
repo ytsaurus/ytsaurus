@@ -40,6 +40,7 @@ bool AdvanceTabletReplicationProgress(
     NApi::NNative::IConnectionPtr connection,
     const NLogging::TLogger& Logger,
     TTabletCellId tabletCellId,
+    NApi::TClusterTag clockClusterTag,
     TTabletId tabletId,
     const NChaosClient::TReplicationProgress& progress,
     bool validateStrictAdvance = false,

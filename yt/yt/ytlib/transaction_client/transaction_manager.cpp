@@ -700,7 +700,9 @@ private:
                 if (options.StartTimestamp != NullTimestamp || options.SuppressStartTimestampGeneration) {
                     return OnGotStartTimestamp(options, options.StartTimestamp);
                 } else {
-                    ClockClusterTag_ = Owner_->ClockManager_->GetCurrentClockTag();
+                    ClockClusterTag_ = options.ClockClusterTag == InvalidCellTag
+                        ? Owner_->ClockManager_->GetCurrentClockTag()
+                        : options.ClockClusterTag;
                     YT_LOG_DEBUG("Generating transaction start timestamp (ClockClusterTag: %v)",
                         ClockClusterTag_);
                     return connection->GetTimestampProvider()->GenerateTimestamps(1, ClockClusterTag_)
