@@ -245,6 +245,47 @@ def build_epoch_timings():
                     .stack(False))
     )
 
+def build_logging():
+    return (Rowset()
+        .row()
+            .cell(
+                "Controller top logging (warning+)",
+                MonitoringExpr(
+                    FlowController("yt.logging.written_events.rate")
+                        .value("level", "warning|error|alert|fatal|maximum")
+                        .value("category", "!-"))
+                    .aggr("host")
+                    .top()
+                    .stack(False))
+            .cell(
+                "Worker top logging (warning+)",
+                MonitoringExpr(
+                    FlowWorker("yt.logging.written_events.rate")
+                        .value("level", "warning|error|alert|fatal|maximum")
+                        .value("category", "!-"))
+                    .aggr("host")
+                    .top()
+                    .stack(False))
+            .cell(
+                "Controller top logging",
+                MonitoringExpr(
+                    FlowController("yt.logging.written_events.rate")
+                        .value("level", "!-")
+                        .value("category", "!-"))
+                    .aggr("host")
+                    .top()
+                    .stack(False))
+            .cell(
+                "Worker top logging",
+                MonitoringExpr(
+                    FlowWorker("yt.logging.written_events.rate")
+                        .value("level", "!-")
+                        .value("category", "!-"))
+                    .aggr("host")
+                    .top()
+                    .stack(False))
+    )
+
 def build_pipeline():
     d = Dashboard()
     d.add(build_versions())
@@ -258,6 +299,7 @@ def build_pipeline():
     d.add(build_partition_store_commits())
     d.add(build_heartbeats())
     d.add(build_epoch_timings())
+    d.add(build_logging())
 
     d.set_title("[YT Flow] Pipeline general")
     d.add_parameter("project", "Pipeline project", MonitoringTextDashboardParameter())
