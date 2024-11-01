@@ -100,7 +100,16 @@ public:
     void SetNodeAttribute(
         NCypressClient::TNodeId nodeId,
         NSequoiaClient::TYPathBuf path,
-        NYson::TYsonString value);
+        NYson::TYsonString value,
+        bool force);
+
+    //! Behaves like the "multiset_attributes" verb in Cypress. Acquires a shared
+    //! lock on row in "node_id_to_path" Sequoia table.
+    void MultisetNodeAttributes(
+        NCypressClient::TNodeId nodeId,
+        NSequoiaClient::TYPathBuf path,
+        const std::vector<TMultisetAttributesSubrequest>& subrequests,
+        bool force);
 
     //! Removes node attribute at a given path. Acquires a shared lock on row in
     //! "node_id_to_path" Sequoia table.
@@ -229,7 +238,8 @@ private:
     void DoSetNode(
         NCypressClient::TNodeId nodeId,
         NSequoiaClient::TYPathBuf path,
-        NYson::TYsonString value);
+        NYson::TYsonString value,
+        bool force);
 
     DECLARE_NEW_FRIEND()
 };

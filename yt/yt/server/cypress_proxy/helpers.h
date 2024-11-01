@@ -49,6 +49,10 @@ void FromProto(
     TCopyOptions* options,
     const NCypressClient::NProto::TReqCopy& protoOptions);
 
+void FromProto(
+    TMultisetAttributesSubrequest* subrequest,
+    const NYTree::NProto::TReqMultisetAttributes::TSubrequest& protoSubrequest);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Fetches single object from follower using vectorized read. Therefore, there

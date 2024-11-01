@@ -249,13 +249,29 @@ bool TSequoiaSession::JustCreated(TObjectId id)
 
 void TSequoiaSession::SetNode(TNodeId nodeId, TYsonString value)
 {
-    DoSetNode(nodeId, EmptyYPath, value);
+    // NB: Force flag is irrelevant when setting node's value.
+    DoSetNode(nodeId, EmptyYPath, value, /*force*/ false);
 }
 
-void TSequoiaSession::SetNodeAttribute(TNodeId nodeId, TYPathBuf path, TYsonString value)
+void TSequoiaSession::SetNodeAttribute(TNodeId nodeId, TYPathBuf path, TYsonString value, bool force)
 {
     YT_VERIFY(path.Underlying().StartsWith("/@"));
-    DoSetNode(nodeId, path, value);
+    DoSetNode(nodeId, path, value, force);
+}
+
+void TSequoiaSession::MultisetNodeAttributes(
+    TNodeId nodeId,
+    TYPathBuf path,
+    const std::vector<TMultisetAttributesSubrequest>& subrequests,
+    bool force)
+{
+    MaybeLockNodeInSequoiaTable(nodeId, ELockType::SharedStrong);
+    NYT::NCypressProxy::MultisetNodeAttributes(
+        {nodeId, CypressTransactionId_},
+        path,
+        subrequests,
+        force,
+        SequoiaTransaction_);
 }
 
 void TSequoiaSession::RemoveNodeAttribute(TNodeId nodeId, TYPathBuf path, bool force)
@@ -510,10 +526,10 @@ TFuture<std::vector<TCypressChildDescriptor>> TSequoiaSession::FetchChildren(TNo
         .ApplyUnique(parseRecords);
 }
 
-void TSequoiaSession::DoSetNode(TNodeId nodeId, TYPathBuf path, TYsonString value)
+void TSequoiaSession::DoSetNode(TNodeId nodeId, TYPathBuf path, TYsonString value, bool force)
 {
     MaybeLockNodeInSequoiaTable(nodeId, ELockType::SharedStrong);
-    NYT::NCypressProxy::SetNode({nodeId, CypressTransactionId_}, path, value, SequoiaTransaction_);
+    NYT::NCypressProxy::SetNode({nodeId, CypressTransactionId_}, path, value, force, SequoiaTransaction_);
 }
 
 TSequoiaSession::TSequoiaSession(

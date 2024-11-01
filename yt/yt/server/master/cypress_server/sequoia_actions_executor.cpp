@@ -65,6 +65,9 @@ public:
         transactionManager->RegisterTransactionActionHandlers<TReqSetNode>({
             .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAndCommitSetNode, Unretained(this)),
         });
+        transactionManager->RegisterTransactionActionHandlers<TReqMultisetAttributes>({
+            .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAndCommitMultisetAttributes, Unretained(this)),
+        });
         transactionManager->RegisterTransactionActionHandlers<TReqCloneNode>({
             .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareCloneNode, Unretained(this)),
             .Commit = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitCloneNode, Unretained(this)),
@@ -394,9 +397,6 @@ private:
         VerifySequoiaNode(trunkNode);
 
         if (!IsObjectAlive(trunkNode)) {
-            YT_LOG_ALERT(
-                "Attempted to set a zombie Sequoia node (NodeId: %v)",
-                nodeId);
             THROW_ERROR_EXCEPTION("Cypress node %v is not alive", nodeId);
         }
 
@@ -408,6 +408,40 @@ private:
 
         auto innerRequest = TCypressYPathProxy::Set(request->path());
         innerRequest->set_value(request->value());
+        innerRequest->set_force(request->force());
+
+        SyncExecuteVerb(
+            cypressManager->GetNodeProxy(trunkNode, cypressTransaction),
+            innerRequest);
+    }
+
+    void HydraPrepareAndCommitMultisetAttributes(
+        TTransaction* /*transaction*/,
+        NProto::TReqMultisetAttributes* request,
+        const TTransactionPrepareOptions& options)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(options.Persistent);
+
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* trunkNode = cypressManager->GetNodeOrThrow(TVersionedObjectId(nodeId));
+        VerifySequoiaNode(trunkNode);
+
+        if (!IsObjectAlive(trunkNode)) {
+            THROW_ERROR_EXCEPTION("Cypress node %v is not alive", nodeId);
+        }
+
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* cypressTransaction = cypressTransactionId
+            ? transactionManager->GetTransactionOrThrow(cypressTransactionId)
+            : nullptr;
+
+        auto innerRequest = TYPathProxy::MultisetAttributes(request->path());
+        *innerRequest->mutable_subrequests() = request->subrequests();
+        innerRequest->set_force(request->force());
+
         SyncExecuteVerb(
             cypressManager->GetNodeProxy(trunkNode, cypressTransaction),
             innerRequest);
@@ -428,9 +462,6 @@ private:
         VerifySequoiaNode(trunkNode);
 
         if (!IsObjectAlive(trunkNode)) {
-            YT_LOG_ALERT(
-                "Attempted to remove a zombie Sequoia node attribute (NodeId: %v)",
-                nodeId);
             THROW_ERROR_EXCEPTION("Cypress node %v is not alive", nodeId);
         }
 

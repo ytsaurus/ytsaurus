@@ -21,6 +21,7 @@ namespace NYT::NCypressProxy {
  *    4. CreateNode
  *    5. AttachChild (it should happen after CreateNode)
  *    6. SetNode
+ *    7. MultisetAttributes
  *  The order of dyntable requests is following:
  *    1. DatalessLock
  *    2. Lock

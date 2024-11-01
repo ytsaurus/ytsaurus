@@ -46,6 +46,7 @@ struct TSequoiaTransactionActionSequencer
         HANDLE_ACTION_TYPE(TReqCreateNode, 400)
         HANDLE_ACTION_TYPE(TReqAttachChild, 500)
         HANDLE_ACTION_TYPE(TReqSetNode, 600)
+        HANDLE_ACTION_TYPE(TReqMultisetAttributes, 700)
 
         #undef HANDLE_ACTION_TYPE
 

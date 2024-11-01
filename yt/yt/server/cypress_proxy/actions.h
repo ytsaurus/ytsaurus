@@ -28,6 +28,14 @@ void SetNode(
     NCypressClient::TVersionedNodeId nodeId,
     NSequoiaClient::TYPathBuf path,
     const NYson::TYsonString& value,
+    bool force,
+    const NSequoiaClient::ISequoiaTransactionPtr& transaction);
+
+void MultisetNodeAttributes(
+    NCypressClient::TVersionedNodeId nodeId,
+    NSequoiaClient::TYPathBuf path,
+    const std::vector<TMultisetAttributesSubrequest>& subrequests,
+    bool force,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 void CreateNode(
@@ -87,6 +95,10 @@ void UnlockNodeInMaster(
     const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(
+    NYTree::NProto::TReqMultisetAttributes::TSubrequest* protoSubrequest,
+    const TMultisetAttributesSubrequest& subrequest);
 
 void ToProto(
     NCypressServer::NProto::TReqCloneNode::TCloneOptions* protoOptions,
