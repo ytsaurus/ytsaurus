@@ -140,6 +140,7 @@ public:
         , ChangedProxyAnnotationCounter_(Profiler.Counter("/changed_proxy_annotation_counter"))
         , ChangedSystemAccountLimitCounter_(Profiler.Counter("/changed_system_account_limit_counter"))
         , ChangedResourceLimitCounter_(Profiler.Counter("/changed_resource_limits_counter"))
+        , OrchidScanBundleCounter_(New<Orchid::TScanBundleCounter>())
     { }
 
     void Start() override
@@ -196,6 +197,8 @@ private:
     Orchid::TBundlesInfo OrchidBundlesInfo_;
     Orchid::TZonesRacksInfo OrchidRacksInfo_;
 
+    Orchid::TScanBundleCounterPtr OrchidScanBundleCounter_;
+
     THashMap<TString, TBundleAlertCounters> BundleAlerts_;
     ICellDowntimeTrackerPtr CellDowntimeTracker_;
 
@@ -222,10 +225,12 @@ private:
                 LinkBundleControllerService();
                 DoScanTabletBundles();
                 SuccessfulScanBundleCounter_.Increment();
+                OrchidScanBundleCounter_->Successful += 1;
             }
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Scanning tablet cell bundles failed");
             FailedScanBundleCounter_.Increment();
+            OrchidScanBundleCounter_->Failed += 1;
         }
     }
 
@@ -1527,6 +1532,7 @@ private:
                 .Item("state").BeginMap()
                     .Item("bundles").Value(OrchidBundlesInfo_)
                     .Item("racks").Value(OrchidRacksInfo_)
+                    .Item("iteration_count").Value(OrchidScanBundleCounter_)
                 .EndMap()
             .EndMap();
     }

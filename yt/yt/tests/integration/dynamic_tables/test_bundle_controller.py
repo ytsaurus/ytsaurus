@@ -3,6 +3,8 @@ import yt.yson as yson
 import yt.packages.requests as requests
 from yt_commands import authors, ls, exists, set, get, create, create_tablet_cell_bundle
 
+import time
+from typing import Tuple
 
 ##################################################################
 
@@ -17,6 +19,15 @@ class TestBundleController(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
+
+    DELTA_CELL_BALANCER_CONFIG = {
+        "election_manager": {
+            "transaction_timeout": "5s",
+            "transaction_ping_period": "100ms",
+            "lock_acquisition_period": "100ms",
+            "leader_cache_update_period": "100ms",
+        },
+    }
 
     def _get_proxy_address(self):
         return "http://" + self.Env.get_proxy_address()
@@ -271,6 +282,39 @@ class TestBundleController(YTEnvSetup):
 
         assert expected["bundle_config"]["rpc_proxy_resource_guarantee"] == current["bundle_config"]["rpc_proxy_resource_guarantee"]
         assert expected["bundle_config"]["tablet_node_resource_guarantee"] == current["bundle_config"]["tablet_node_resource_guarantee"]
+
+    def _wait_for_bundle_controller_iterations(self, iterations=(1, 0), start: Tuple[int, int] | None = None, sleep_duration=0.1):
+        """
+        Waits for `iterations` to be observed.
+        """
+        iterations_observed = (0, 0)
+        if start is None:
+            start = self._get_bundle_controller_iteration_count()
+        while True:
+            current = self._get_bundle_controller_iteration_count()
+            diff = tuple(max(c - s, 0) for c, s in zip(current, start))
+            iterations_observed = tuple(io + d for io, d in zip(iterations_observed, diff))
+            start = current
+            if all(actual >= need for actual, need in zip(iterations_observed, iterations)):
+                break
+            time.sleep(sleep_duration)
+        pass
+
+    def _get_bundle_controller_iteration_count(self):
+        """
+        Returns (success_iterations, error_iterations)
+        """
+        orchid_path = "//sys/bundle_controller/orchid/bundle_controller"
+        iteration_count = get(f"{orchid_path}/state/iteration_count")
+        successful = iteration_count["successful"]
+        failed = iteration_count["failed"]
+        return successful, failed
+
+    @authors("grachevkirill")
+    def test_bundle_controller_just_works(self):
+        assert exists("//sys/bundle_controller/controller/zones")
+        self._fill_default_bundle()
+        self._wait_for_bundle_controller_iterations((5, 0), sleep_duration=0.5)
 
     @authors("alexmipt")
     def test_bundle_controller_api_set_default_check(self):

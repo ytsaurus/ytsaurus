@@ -11,6 +11,7 @@ DECLARE_REFCOUNTED_STRUCT(TAlert)
 DECLARE_REFCOUNTED_STRUCT(TAllocatingInstanceInfo)
 DECLARE_REFCOUNTED_STRUCT(TBundleInfo)
 DECLARE_REFCOUNTED_STRUCT(TDataCenterRacksInfo)
+DECLARE_REFCOUNTED_STRUCT(TScanBundleCounter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,6 +118,21 @@ DEFINE_REFCOUNTED_TYPE(TDataCenterRacksInfo)
 
 using TDataCenterRackInfo = THashMap<TString, TDataCenterRacksInfoPtr>;
 using TZonesRacksInfo = THashMap<TString, TDataCenterRackInfo>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TScanBundleCounter
+    : public NYTree::TYsonStruct
+{
+    int Successful;
+    int Failed;
+
+    REGISTER_YSON_STRUCT(TScanBundleCounter);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TScanBundleCounter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
