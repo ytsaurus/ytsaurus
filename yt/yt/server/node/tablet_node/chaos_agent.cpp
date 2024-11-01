@@ -15,6 +15,8 @@
 
 #include <yt/yt/ytlib/transaction_client/action.h>
 
+#include <yt/yt/ytlib/tablet_client/config.h>
+
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <yt/yt/client/chaos_client/replication_card_cache.h>
@@ -301,6 +303,7 @@ private:
                     Connection_,
                     Logger,
                     Slot_->GetCellId(),
+                    Slot_->GetOptions()->ClockClusterTag,
                     Tablet_->GetId(),
                     std::move(newProgress));
 
@@ -363,13 +366,17 @@ bool AdvanceTabletReplicationProgress(
     NNative::IConnectionPtr connection,
     const NLogging::TLogger& Logger,
     TTabletCellId tabletCellId,
+    NApi::TClusterTag clockClusterTag,
     TTabletId tabletId,
     const TReplicationProgress& progress,
     bool validateStrictAdvance,
     std::optional<ui64> replicationRound)
 {
     auto localClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
-    auto localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
+
+    TTransactionStartOptions startOptions;
+    startOptions.ClockClusterTag = clockClusterTag;
+    auto localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet, startOptions))
         .ValueOrThrow();
 
     {

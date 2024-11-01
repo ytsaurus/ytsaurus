@@ -333,6 +333,11 @@ class TestQueueAgentBase(YTEnvSetup):
     def setup_method(self, method):
         super(TestQueueAgentBase, self).setup_method(method)
 
+        primary_cell_tag = get("//sys/@primary_cell_tag")
+        for cluster_name in self.get_cluster_names():
+            driver = get_driver(cluster=cluster_name)
+            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", primary_cell_tag, driver=driver)
+
         if self.DO_PREPARE_TABLES_ON_SETUP:
             self._prepare_tables()
 
