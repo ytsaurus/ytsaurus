@@ -98,11 +98,15 @@ NApi::IClientPtr TQueueAgentClientDirectory::GetFederatedClient(const std::vecto
     std::sort(clusters.begin(), clusters.end());
 
     auto key = JoinToString(clusters);
-    if (auto* clientPtr = FederatedClients_.FindPtr(key)) {
+
+    auto guard = Guard(Lock_);
+    if (auto* clientPtr = FederatedClients_.FindPtr(key); clientPtr && !(*clientPtr)->GetConnection()->IsTerminated()) {
         return *clientPtr;
     }
+
     auto client = NClient::NFederated::CreateClient(replicaClients, FederationConfig_);
     FederatedClients_.emplace(key, client);
+
     return client;
 }
 

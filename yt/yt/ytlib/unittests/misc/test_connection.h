@@ -185,7 +185,7 @@ public:
     MOCK_METHOD(NYTree::IYPathServicePtr, GetOrchidService, (), (override));
     MOCK_METHOD(void, Terminate, (), (override));
     MOCK_METHOD(void, InitializeDiscoveryServerAddressPool, (), (override));
-    MOCK_METHOD(bool, IsTerminated, (), (override));
+    MOCK_METHOD(bool, IsTerminated, (), (const, override));
     MOCK_METHOD(TFuture<void>, SyncHiveCellWithOthers, (const std::vector<NElection::TCellId>&, NElection::TCellId), (override));
     MOCK_METHOD(const NLogging::TLogger&, GetLogger, (), (override));
     MOCK_METHOD(NRpc::IChannelPtr, CreateChannel, (bool), ());
