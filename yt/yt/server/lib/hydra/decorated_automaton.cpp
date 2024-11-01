@@ -1218,18 +1218,22 @@ TSharedRef TDecoratedAutomaton::SanitizeLocalHostName() const
     auto localHost = ReadLocalHostName();
 
     if (Options_.EnableLocalHostSanitizing) {
-        auto leaderAddress = GetEpochContext()->CellManager->GetClusterPeerAddress(GetEpochContext()->LeaderId);
-        if (leaderAddress) {
-            auto sanitizedLocalHost = Format("?%v", GetServiceHostName(*leaderAddress));
-            YT_LOG_INFO(
-                "Local host name sanitized (LocalHost: %v, SanitizedLocalHost: %v)",
+        THashSet<TString> hosts;
+        for (const auto& peer : GetEpochContext()->CellManager->GetClusterPeersAddresses()) {
+            hosts.insert(TString(GetServiceHostName(peer)));
+        }
+
+        if (auto sanitizedLocalHost = NHydra::SanitizeLocalHostName(hosts, localHost)) {
+            YT_LOG_INFO("Local host name sanitized (Hosts: %v, LocalHost: %v, SanitizedLocalHost: %v)",
+                hosts,
                 localHost,
-                sanitizedLocalHost);
-            return TSharedRef::FromString(sanitizedLocalHost);
+                *sanitizedLocalHost);
+            return *sanitizedLocalHost;
         }
 
         YT_LOG_ALERT(
-            "Failed to sanitize host name, leader address is not available; falling back to default placeholder (LocalHost: %v, SanitizedLocalHost: %v)",
+            "Failed to sanitize host name, falling back to default placeholder (Hosts: %v, LocalHost: %v, SanitizedLocalHost: %v)",
+            hosts,
             localHost,
             UnknownHostName);
 

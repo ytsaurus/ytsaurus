@@ -61,19 +61,6 @@ const TCellPeerConfigPtr& TCellManager::GetSelfConfig() const
     return GetPeerConfig(GetSelfPeerId());
 }
 
-std::optional<TString> TCellManager::GetClusterPeerAddress(int id) const
-{
-    if (id < 0 || id >= ssize(Config_->Peers)) {
-        return std::nullopt;
-    }
-
-    if (Config_->Peers[id]->Address) {
-        return TString(*Config_->Peers[id]->Address);
-    }
-
-    return std::nullopt;
-}
-
 THashSet<TString> TCellManager::GetClusterPeersAddresses() const
 {
     THashSet<TString> clusterPeers;
