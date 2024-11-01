@@ -60,6 +60,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((IntroduceGangManager)                 (301603))
     ((DropOriginalTableSchemaRevision)      (301604))
     ((AcoName)                              (301605))
+    ((DisableShrinkingJobs)                 (301606))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

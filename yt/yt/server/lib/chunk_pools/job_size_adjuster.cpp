@@ -21,7 +21,6 @@ public:
         , MinJobTime_(static_cast<double>(config->MinJobTime.MicroSeconds()))
         , MaxJobTime_(static_cast<double>(config->MaxJobTime.MicroSeconds()))
         , ExecToPrepareTimeRatio_(config->ExecToPrepareTimeRatio)
-        , EnableJobShrinking_(config->EnableJobShrinking)
     { }
 
     void UpdateStatistics(const TCompletedJobSummary& summary) override
@@ -45,13 +44,9 @@ public:
 
             double idealDataWeight = idealExecTime / Statistics_.GetMeanExecTimePerByte();
 
-            YT_VERIFY(JobSizeBoostFactor >= 1.0);
-
-            auto minDataWeightPerJob = EnableJobShrinking_ ? DataWeightPerJob_ / JobSizeBoostFactor : DataWeightPerJob_;
-
             DataWeightPerJob_ = ClampVal(
                 idealDataWeight,
-                minDataWeightPerJob,
+                DataWeightPerJob_,
                 DataWeightPerJob_ * JobSizeBoostFactor);
         }
     }
@@ -112,7 +107,8 @@ private:
 
     TStatistics Statistics_;
 
-    bool EnableJobShrinking_;
+    // COMPAT(coteeq): This field is not used, but I cannot simply drop it because of phoenix2's quirks.
+    bool EnableJobShrinking_ = false;
 
     PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TJobSizeAdjuster, 0xf8338721);
@@ -128,9 +124,7 @@ void TJobSizeAdjuster::RegisterMetadata(auto&& registrar)
 
     // COMPAT(coteeq)
     PHOENIX_REGISTER_FIELD(6, EnableJobShrinking_)
-        .WhenMissing([] (TThis* this_, auto& /*context*/) {
-            this_->EnableJobShrinking_ = false;
-        })();
+        .SinceVersion(ESnapshotVersion::DisableShrinkingJobs)();
 }
 
 PHOENIX_DEFINE_TYPE(TJobSizeAdjuster);
