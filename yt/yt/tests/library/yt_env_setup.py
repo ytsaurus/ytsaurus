@@ -955,21 +955,6 @@ class YTEnvSetup(object):
                             force=True,
                             driver=driver)
 
-        if cls.ENABLE_BUNDLE_CONTROLLER:
-            GB = 1024 ** 3
-            yt_commands.create_account("bundle_system_quotas", attributes={
-                "resource_limits": {
-                    "master_memory": {
-                        "total": 100 * GB,
-                        "chunk_host": 100 * GB,
-                    },
-                },
-            })
-            yt_commands.create("map_node", "//sys/bundle_controller/coordinator", recursive=True, force=True)
-            yt_commands.create("map_node", "//sys/bundle_controller/controller", recursive=True, force=True)
-            yt_commands.create("map_node", "//sys/bundle_controller/controller/zones", recursive=True, force=True)
-            yt_commands.create("map_node", "//sys/bundle_controller/controller/bundles_state", recursive=True, force=True)
-
         if cls.USE_CUSTOM_ROOTFS:
             yt_commands.create("map_node", "//layers")
 
@@ -1260,6 +1245,13 @@ class YTEnvSetup(object):
                 .format(cls.__name__, class_limit, class_duration, cls.NUM_TEST_PARTITIONS)
             )
 
+    def _has_bundle_controller_transaction(self):
+        for tx in yt_commands.ls("//sys/transactions", attributes=["title"]):
+            title = tx.attributes.get("title", "")
+            if "Bundle Controller bundles scan" in title:
+                return True
+        return False
+
     def setup_method(self, method):
         for cluster_index in range(self.NUM_REMOTE_CLUSTERS + 1):
             self.setup_cluster(method, cluster_index)
@@ -1457,6 +1449,24 @@ class YTEnvSetup(object):
                 driver=driver,
             )
 
+        if self.ENABLE_BUNDLE_CONTROLLER:
+            GB = 1024 ** 3
+            yt_commands.create_account("bundle_system_quotas", attributes={
+                "resource_limits": {
+                    "master_memory": {
+                        "total": 100 * GB,
+                        "chunk_host": 100 * GB,
+                    },
+                },
+            })
+            yt_commands.create("map_node", "//sys/bundle_controller/coordinator", recursive=True, force=True)
+            yt_commands.create("map_node", "//sys/bundle_controller/controller", recursive=True, force=True)
+            yt_commands.create("map_node", "//sys/bundle_controller/controller/zones", recursive=True, force=True)
+            yt_commands.create("map_node", "//sys/bundle_controller/controller/bundles_state", recursive=True, force=True)
+
+            while not self._has_bundle_controller_transaction():
+                sleep(0.1)
+
     def teardown_method(self, method, wait_for_nodes=True):
         yt_commands._zombie_responses[:] = []
 
@@ -1521,6 +1531,10 @@ class YTEnvSetup(object):
             enable_secondary_cells_cleanup=self.get_param("ENABLE_SECONDARY_CELLS_CLEANUP", cluster_index),
             driver=driver,
         )
+
+        if self.ENABLE_BUNDLE_CONTROLLER:
+            while self._has_bundle_controller_transaction():
+                sleep(0.1)
 
         yt_commands.gc_collect(driver=driver)
         yt_commands.clear_metadata_caches(driver=driver)

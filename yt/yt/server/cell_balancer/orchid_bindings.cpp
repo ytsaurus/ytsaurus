@@ -97,6 +97,16 @@ void TDataCenterRacksInfo::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TScanBundleCounter::Register(TRegistrar registrar)
+{
+    registrar.Parameter("successful", &TThis::Successful)
+        .Default(0);
+    registrar.Parameter("failed", &TThis::Failed)
+        .Default(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <typename TBundleInstancies, typename TCollection>
 void PopulateInstancies(
     const TBundleInstancies& bundleInstancies,
