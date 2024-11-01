@@ -427,7 +427,7 @@ func filterImports(fileSrc []byte) ([]byte, error) {
 }
 
 // merge extracts duplicate code from archFiles and merges it to mergeFile.
-// 1. Construct commonSet: the set of code that is idential in all archFiles.
+// 1. Construct commonSet: the set of code that is identical in all archFiles.
 // 2. Write the code in commonSet to mergedFile.
 // 3. Remove the commonSet code from all archFiles.
 func merge(mergedFile string, archFiles ...string) error {

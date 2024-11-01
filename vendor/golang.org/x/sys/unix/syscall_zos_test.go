@@ -3350,7 +3350,7 @@ func TestCreat(t *testing.T) {
 		t.Fatal("Creat error: Cannot truncate file")
 	}
 	if string(b) != string(writeContent) {
-		t.Fatal("data missmatch: expect ", string(writeContent), " actual: ", string(b))
+		t.Fatal("data mismatch: expect ", string(writeContent), " actual: ", string(b))
 	}
 
 	// testing file create function
@@ -3375,7 +3375,7 @@ func TestCreat(t *testing.T) {
 		t.Fatal("Creat error: Cannot truncate file")
 	}
 	if string(b) != string(writeContent) {
-		t.Fatal("data missmatch: expect ", string(writeContent), " actual: ", string(b))
+		t.Fatal("data mismatch: expect ", string(writeContent), " actual: ", string(b))
 	}
 
 }

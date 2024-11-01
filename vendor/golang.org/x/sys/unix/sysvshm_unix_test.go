@@ -66,7 +66,7 @@ func TestSysvSharedMemory(t *testing.T) {
 	}
 
 	if runtime.GOOS == "zos" {
-		// The returned shared memory alligns with the pagesize.
+		// The returned shared memory aligns with the pagesize.
 		// If pagesize is not 1024 bytes, the shared memory could be larger
 		if len(b2) < 1024 {
 			t.Fatalf("b1 len = %v, less than 1024", len(b2))

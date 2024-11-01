@@ -1,7 +1,7 @@
 {
-	"Version": "v0.24.0",
+	"Version": "v0.25.0",
 	"GoVersion": "1.18",
-	"Sum": "h1:Mh5cbb+Zk2hqqXNO7S1iTjEphVL+jb8ZWaqh/g+JWkM=",
+	"Sum": "h1:WtHI/ltw4NvSUig5KARz9h521QvRC8RmF/cuYqifU24=",
 	"Packages": {
 		"golang.org/x/term": {
 			"Imports": [
