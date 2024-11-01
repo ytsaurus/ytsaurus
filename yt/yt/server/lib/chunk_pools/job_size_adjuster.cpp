@@ -107,6 +107,9 @@ private:
 
     TStatistics Statistics_;
 
+    // COMPAT(coteeq): This field is not used, but I cannot simply drop it because of phoenix2's quirks.
+    bool EnableJobShrinking_ = false;
+
     PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TJobSizeAdjuster, 0xf8338721);
 };
@@ -118,6 +121,10 @@ void TJobSizeAdjuster::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(3, MaxJobTime_)();
     PHOENIX_REGISTER_FIELD(4, ExecToPrepareTimeRatio_)();
     PHOENIX_REGISTER_FIELD(5, Statistics_)();
+
+    // COMPAT(coteeq)
+    PHOENIX_REGISTER_FIELD(6, EnableJobShrinking_)
+        .SinceVersion(ESnapshotVersion::DisableShrinkingJobs)();
 }
 
 PHOENIX_DEFINE_TYPE(TJobSizeAdjuster);
@@ -149,4 +156,3 @@ std::unique_ptr<IJobSizeAdjuster> CreateJobSizeAdjuster(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkPools
-
