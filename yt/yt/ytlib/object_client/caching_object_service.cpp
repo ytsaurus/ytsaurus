@@ -24,7 +24,7 @@
 
 #include <yt/yt_proto/yt/core/ytree/proto/ypath.pb.h>
 
-#include <yt/yt/core/rpc/per_user_request_queue_provider.h>
+#include <yt/yt/core/rpc/per_key_request_queue_provider.h>
 
 namespace NYT::NObjectClient {
 

@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/distributed_throttler/public.h>
+
 #include <yt/yt/ytlib/sequoia_client/public.h>
 
 #include <yt/yt/client/api/public.h>
@@ -42,6 +44,13 @@ struct IBootstrap
     virtual const ISequoiaServicePtr& GetSequoiaService() const = 0;
 
     virtual const ISequoiaResponseKeeperPtr& GetResponseKeeper() const = 0;
+
+    virtual NDistributedThrottler::IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
+        NDistributedThrottler::TDistributedThrottlerConfigPtr config,
+        IInvokerPtr invoker,
+        const TString& groupId,
+        NLogging::TLogger logger,
+        NProfiling::TProfiler profiler) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,8 +6,6 @@
 
 #include <yt/yt/ytlib/object_client/proto/user_directory.pb.h>
 
-#include <yt/yt/core/rpc/per_user_request_queue_provider.h>
-
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NCypressProxy {
@@ -26,6 +24,10 @@ struct TUserDescriptor
 
 void FromProto(TUserDescriptor* userDescriptor, const NObjectClient::NProto::TUserDescriptor& proto);
 void ToProto(NObjectClient::NProto::TUserDescriptor* proto, const TUserDescriptor& userLimits);
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<int> GetUserRequestRateLimit(const TUserDescriptor& descriptor, EUserWorkloadType workloadType);
 
 ////////////////////////////////////////////////////////////////////////////////
 

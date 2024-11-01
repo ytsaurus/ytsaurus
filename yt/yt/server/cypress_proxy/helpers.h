@@ -60,4 +60,10 @@ TFuture<NYTree::INodePtr> FetchSingleObject(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString GetRequestQueueNameForKey(const std::pair<std::string, EUserWorkloadType>& userNameAndWorkloadType);
+
+TString GetDistributedWeightThrottlerId(const TString& prefix);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NCypressProxy

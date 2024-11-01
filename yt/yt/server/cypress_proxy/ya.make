@@ -13,6 +13,7 @@ SRCS(
     node_proxy_base.cpp
     object_service.cpp
     path_resolver.cpp
+    per_user_and_workload_request_queue_provider.cpp
     program.cpp
     rootstock_proxy.cpp
     response_keeper.cpp

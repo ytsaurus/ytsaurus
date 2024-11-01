@@ -51,7 +51,7 @@
 #include <yt/yt/core/rpc/message.h>
 #include <yt/yt/core/rpc/service_detail.h>
 #include <yt/yt/core/rpc/dispatcher.h>
-#include <yt/yt/core/rpc/per_user_request_queue_provider.h>
+#include <yt/yt/core/rpc/per_key_request_queue_provider.h>
 
 #include <yt/yt/core/ytree/request_complexity_limiter.h>
 #include <yt/yt/core/ytree/ypath_detail.h>

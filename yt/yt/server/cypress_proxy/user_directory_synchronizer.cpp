@@ -7,7 +7,6 @@
 #include <yt/yt/client/api/etc_client.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
-#include <yt/yt/core/rpc/per_user_request_queue_provider.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 

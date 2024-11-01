@@ -18,9 +18,12 @@ from yt_sequoia_helpers import (
 
 from yt.sequoia_tools import DESCRIPTORS
 
+from yt_helpers import profiler_factory
+
 import yt.yson as yson
 
 import pytest
+from flaky import flaky
 
 import builtins
 from collections import namedtuple
@@ -2082,6 +2085,74 @@ class TestSequoiaNodeVersioningOnTxFinish(YTEnvSetup):
             tx_mapping,
             select_rows_from_ground(f"* from [{DESCRIPTORS.child_forks.get_default_path()}]"),
             [])
+
+
+##################################################################
+
+
+class TestSequoiaMultipleCypressProxies(YTEnvSetup):
+    USE_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_CYPRESS_PROXIES = 2
+    NUM_SECONDARY_MASTER_CELLS = 0
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["sequoia_node_host"]},
+    }
+
+    DELTA_CYPRESS_PROXY_CONFIG = {
+        "user_directory_synchronizer": {
+            "sync_period": 100,
+        },
+    }
+
+    @authors("danilalexeev")
+    @flaky(max_runs=3)
+    def test_request_throttling(self):
+        create_user("u")
+        create("table", "//tmp/t")
+        set("//sys/users/u/@request_limits/read_request_rate/per_cell", {"10": 100})
+
+        set("//sys/cypress_proxies/@config", {
+            "object_service": {
+                "distributed_throttler": {
+                    "member_client": {
+                        "attribute_update_period": 300,
+                        "heartbeat_period": 50,
+                    },
+                    "limit_update_period": 100,
+                    "leader_update_period": 1500,
+                },
+            }
+        })
+
+        NUM_REQUESTS = 10
+
+        def measure_read_time():
+            start_time = datetime.now()
+            for _ in range(NUM_REQUESTS):
+                read_table("//tmp/t", authenticated_user="u")
+            return (datetime.now() - start_time).total_seconds()
+
+        # register user at both proxies
+        assert measure_read_time() < 2
+
+        # TODO(danilalexeev or aleksandra-zh): Change to 1 once fractional limits are fixed.
+        set("//sys/users/u/@request_limits/read_request_rate/default", self.NUM_CYPRESS_PROXIES)
+        sleep(1)
+
+        cypress_proxy_address = ls("//sys/cypress_proxies")[0]
+        profiler = profiler_factory().at_cypress_proxy(cypress_proxy_address)
+        value_counter = profiler.counter("cypress_proxy/distributed_throttler/usage", tags={"throttler_id": "u_read_weight_throttler"})
+
+        assert measure_read_time() * self.NUM_CYPRESS_PROXIES > NUM_REQUESTS * 0.8
+
+        wait(lambda: value_counter.get() > 0, ignore_exceptions=True)
+
+        set("//sys/users/u/@request_limits/read_request_rate/default", 100)
+        sleep(1)
+
+        assert measure_read_time() < 2
 
 
 ##################################################################

@@ -45,6 +45,7 @@ target_sources(yt-server-cypress_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/node_proxy_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/object_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/path_resolver.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/per_user_and_workload_request_queue_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/rootstock_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/response_keeper.cpp

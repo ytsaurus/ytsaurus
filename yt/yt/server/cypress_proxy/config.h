@@ -8,6 +8,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/distributed_throttler/config.h>
+
 #include <yt/yt/library/dynamic_config/config.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
@@ -71,6 +73,13 @@ public:
 
     // COMPAT(danilalexeev)
     bool AlertOnMixedReadWriteBatch;
+
+    NDistributedThrottler::TDistributedThrottlerConfigPtr DistributedThrottler;
+
+    bool EnablePerUserRequestWeightThrottling;
+
+    NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserReadRequestWeightThrottlerConfig;
+    NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserWriteRequestWeightThrottlerConfig;
 
     REGISTER_YSON_STRUCT(TObjectServiceDynamicConfig);
 

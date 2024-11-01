@@ -7,9 +7,14 @@
 #include "dynamic_config_manager.h"
 #include "helpers.h"
 #include "path_resolver.h"
+#include "per_user_and_workload_request_queue_provider.h"
 #include "sequoia_service.h"
 #include "sequoia_session.h"
 #include "response_keeper.h"
+#include "user_directory.h"
+#include "user_directory_synchronizer.h"
+
+#include <yt/yt/ytlib/distributed_throttler/distributed_throttler.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -27,6 +32,7 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NCypressClient::NProto;
+using namespace NDistributedThrottler;
 using namespace NObjectClient;
 using namespace NSequoiaClient;
 using namespace NRpc;
@@ -54,14 +60,34 @@ public:
         , Connection_(bootstrap->GetNativeConnection())
         , ThreadPool_(CreateThreadPool(/*threadCount*/ 1, "ObjectService"))
         , Invoker_(ThreadPool_->GetInvoker())
+        , ThrottlerFactory_(bootstrap->CreateDistributedThrottlerFactory(
+            GetDynamicConfig()->DistributedThrottler,
+            bootstrap->GetControlInvoker(),
+            "/cypress_proxy/object_service",
+            CypressProxyLogger(),
+            CypressProxyProfiler
+                .WithDefaultDisabled()
+                .WithSparse()
+                .WithPrefix("/distributed_throttler")))
+        , RequestQueueProvider_(New<TExecuteRequestQueueProvider>(
+            CreateReconfigurationCallback(bootstrap, ThrottlerFactory_),
+            /*owner*/ this))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetQueueSizeLimit(10'000)
             .SetConcurrencyLimit(10'000)
-            .SetInvoker(Invoker_));
+            .SetInvoker(Invoker_)
+            .SetRequestQueueProvider(RequestQueueProvider_));
 
         DeclareServerFeature(EMasterFeature::Portals);
         DeclareServerFeature(EMasterFeature::PortalExitSynchronization);
+
+        const auto& userDirectorySynchronizer = bootstrap->GetUserDirectorySynchronizer();
+        userDirectorySynchronizer->SubscribeUserDescriptorUpdated(
+            BIND_NO_PROPAGATE(&TObjectService::OnUserDirectoryUpdated, MakeWeak(this)));
+
+        const auto& configManager = Bootstrap_->GetDynamicConfigManager();
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void Reconfigure(const TObjectServiceDynamicConfigPtr& config) override
@@ -74,7 +100,7 @@ public:
         return MakeStrong(this);
     }
 
-    TObjectServiceDynamicConfigPtr GetDynamicConfig() const
+    const TObjectServiceDynamicConfigPtr& GetDynamicConfig() const
     {
         return Bootstrap_->GetDynamicConfigManager()->GetConfig()->ObjectService;
     }
@@ -89,8 +115,114 @@ private:
     const IThreadPoolPtr ThreadPool_;
     const IInvokerPtr Invoker_;
 
+    const IDistributedThrottlerFactoryPtr ThrottlerFactory_;
+    const TPerUserAndWorkloadRequestQueueProviderPtr RequestQueueProvider_;
+
     class TExecuteSession;
     using TExecuteSessionPtr = TIntrusivePtr<TExecuteSession>;
+
+    class TExecuteRequestQueueProvider
+        : public TPerUserAndWorkloadRequestQueueProvider
+    {
+    public:
+        TExecuteRequestQueueProvider(
+            TReconfigurationCallback reconfigurationCallback,
+            TObjectService* owner)
+            : TPerUserAndWorkloadRequestQueueProvider(std::move(reconfigurationCallback))
+            , Owner_(owner)
+        { }
+
+    private:
+        TObjectService* const Owner_;
+
+        TRequestQueuePtr CreateQueueForKey(const TKey& userNameAndWorkloadType) override
+        {
+            const auto& throttlerConfig = userNameAndWorkloadType.second == EUserWorkloadType::Read
+                ? Owner_->GetDynamicConfig()->DefaultPerUserReadRequestWeightThrottlerConfig
+                : Owner_->GetDynamicConfig()->DefaultPerUserWriteRequestWeightThrottlerConfig;
+            auto queueName = GetRequestQueueNameForKey(userNameAndWorkloadType);
+            auto throttlerId = GetDistributedWeightThrottlerId(queueName);
+
+            return NRpc::CreateRequestQueue(
+                queueName,
+                userNameAndWorkloadType,
+                // Bytes throttling is not supported.
+                CreateNamedReconfigurableThroughputThrottler(
+                    InfiniteRequestThrottlerConfig,
+                    "BytesThrottler",
+                    CypressProxyLogger()),
+                Owner_->ThrottlerFactory_->GetOrCreateThrottler(
+                    throttlerId,
+                    throttlerConfig));
+        }
+    };
+
+    static TPerUserAndWorkloadRequestQueueProvider::TReconfigurationCallback CreateReconfigurationCallback(
+        IBootstrap* bootstrap,
+        IDistributedThrottlerFactoryPtr throttlerFactory)
+    {
+        return BIND([
+            bootstrap,
+            throttlerFactory = std::move(throttlerFactory)
+        ] (const TPerUserAndWorkloadRequestQueueProvider::TKey& userNameAndWorkloadType, const TRequestQueuePtr& queue)
+        {
+            const auto& dynamicConfig = bootstrap->GetDynamicConfigManager()->GetConfig()->ObjectService;
+            if (!dynamicConfig->EnablePerUserRequestWeightThrottling) {
+                queue->ConfigureWeightThrottler(nullptr);
+                return;
+            }
+
+            // TODO(danilalexeev): Support queue size limit reconfiguration.
+            const auto& userDirectory = bootstrap->GetUserDirectory();
+            const auto descriptor = userDirectory->FindByName(userNameAndWorkloadType.first);
+            if (!descriptor) {
+                return;
+            }
+
+            auto newConfig = TThroughputThrottlerConfig::Create(GetUserRequestRateLimit(*descriptor, userNameAndWorkloadType.second));
+            queue->ConfigureWeightThrottler(newConfig);
+
+            // We utilize the fact that #GetOrCreateThrottle keeps #TWrappedThrottler pointers valid,
+            // including the one inside the request queue.
+            // TODO(danilalexeev): Implement public methods to explicitly set request queue's throttlers.
+            auto queueName = GetRequestQueueNameForKey(userNameAndWorkloadType);
+            auto throttlerId = GetDistributedWeightThrottlerId(queueName);
+            throttlerFactory->GetOrCreateThrottler(throttlerId, newConfig);
+        });
+    }
+
+    void OnUserDirectoryUpdated(const std::string& userName)
+    {
+        RequestQueueProvider_->ReconfigureQueue({userName, EUserWorkloadType::Read});
+        RequestQueueProvider_->ReconfigureQueue({userName, EUserWorkloadType::Write});
+    }
+
+    void OnDynamicConfigChanged(
+        const TCypressProxyDynamicConfigPtr& oldConfig,
+        const TCypressProxyDynamicConfigPtr& newConfig)
+    {
+        const auto& objectServiceConfig = newConfig->ObjectService;
+        const auto& oldObjectServiceConfig = oldConfig->ObjectService;
+
+        ThrottlerFactory_->Reconfigure(objectServiceConfig->DistributedThrottler);
+
+        // Request queue provider's default configs are irrelevant in case of
+        // distributed throttler, but we set it anyway here just in case.
+        RequestQueueProvider_->UpdateDefaultConfigs({
+            objectServiceConfig->DefaultPerUserWriteRequestWeightThrottlerConfig,
+            /*BytesThrottlerConfig*/ InfiniteRequestThrottlerConfig});
+
+        if (objectServiceConfig->EnablePerUserRequestWeightThrottling != oldObjectServiceConfig->EnablePerUserRequestWeightThrottling)
+        {
+            RequestQueueProvider_->UpdateThrottlingEnabledFlags(
+                objectServiceConfig->EnablePerUserRequestWeightThrottling,
+                /*enableBytesThrottling*/ false);
+            RequestQueueProvider_->ReconfigureAllQueues();
+
+            YT_LOG_DEBUG("Per user request weight throttling was %v",
+                objectServiceConfig->EnablePerUserRequestWeightThrottling ? "enabled" : "disabled");
+        }
+    }
 };
 
 using TObjectServicePtr = TIntrusivePtr<TObjectService>;

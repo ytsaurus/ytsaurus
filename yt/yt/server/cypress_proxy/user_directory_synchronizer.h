@@ -4,8 +4,6 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/yt/core/rpc/per_user_request_queue_provider.h>
-
 #include <yt/yt/core/actions/future.h>
 #include <yt/yt/core/actions/signal.h>
 
