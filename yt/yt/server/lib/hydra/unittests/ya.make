@@ -9,6 +9,7 @@ SRCS(
     file_changelog_index_ut.cpp
     hydra_janitor_helpers_ut.cpp
     changelog_ut.cpp
+    hostname_sanitization_ut.cpp
     unbuffered_file_changelog_ut.cpp
 )
 
