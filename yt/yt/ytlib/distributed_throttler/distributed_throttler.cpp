@@ -84,7 +84,11 @@ public:
 
     TFuture<void> GetAvailableFuture() override
     {
-        YT_UNIMPLEMENTED();
+        // This method is only called at Cypress Proxies. Throttler's mode is validated
+        // in the dynamic config postprocessor there.
+        YT_VERIFY(Config_.Acquire()->Mode != EDistributedThrottlerMode::Precise);
+
+        return Underlying_->GetAvailableFuture();
     }
 
     TFuture<void> Throttle(i64 amount) override

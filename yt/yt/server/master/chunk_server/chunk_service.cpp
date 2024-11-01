@@ -43,7 +43,7 @@
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/core/rpc/helpers.h>
-#include <yt/yt/core/rpc/per_user_request_queue_provider.h>
+#include <yt/yt/core/rpc/per_key_request_queue_provider.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
@@ -157,7 +157,7 @@ private:
 
     static TPerUserRequestQueueProvider::TReconfigurationCallback CreateReconfigurationCallback(TBootstrap* bootstrap)
     {
-        return [=] (TString userName, TRequestQueuePtr queue) {
+        return BIND([=] (const std::string& userName, const TRequestQueuePtr& queue) {
             auto epochAutomatonInvoker = bootstrap->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkService);
 
             // NB: Upon recovery, OnDynamicConfigChanged will be called and
@@ -166,7 +166,7 @@ private:
                 return;
             }
 
-            epochAutomatonInvoker->Invoke(BIND([bootstrap, userName = std::move(userName), queue = std::move(queue)] {
+            epochAutomatonInvoker->Invoke(BIND([=] {
                 const auto& securityManager = bootstrap->GetSecurityManager();
 
                 auto* user = securityManager->FindUserByName(userName, false);
@@ -203,7 +203,7 @@ private:
                     queue->ConfigureBytesThrottler(nullptr);
                 }
             }));
-        };
+        });
     }
 
     const TDynamicChunkServiceConfigPtr& GetDynamicConfig() const
@@ -276,7 +276,7 @@ private:
             }
 
             if (shouldReconfigureQueues) {
-                queueProvider->ReconfigureAllUsers();
+                queueProvider->ReconfigureAllQueues();
             }
         };
 
@@ -289,8 +289,8 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         // TODO(babenko): switch to std::string
-        CreateChunkRequestQueueProvider_->ReconfigureUser(TString(user->GetName()));
-        ExecuteBatchRequestQueueProvider_->ReconfigureUser(TString(user->GetName()));
+        CreateChunkRequestQueueProvider_->ReconfigureQueue(TString(user->GetName()));
+        ExecuteBatchRequestQueueProvider_->ReconfigureQueue(TString(user->GetName()));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LocateChunks)

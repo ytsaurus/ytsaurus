@@ -25,6 +25,8 @@
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
+#include <yt/yt/ytlib/distributed_throttler/distributed_throttler.h>
+
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/ytlib/program/helpers.h>
@@ -61,7 +63,9 @@ namespace NYT::NCypressProxy {
 using namespace NAdmin;
 using namespace NConcurrency;
 using namespace NCoreDump;
+using namespace NDistributedThrottler;
 using namespace NMonitoring;
+using namespace NNet;
 using namespace NOrchid;
 using namespace NSequoiaClient;
 using namespace NYTree;
@@ -177,6 +181,28 @@ public:
         return ResponseKeeper_;
     }
 
+    IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
+        TDistributedThrottlerConfigPtr config,
+        IInvokerPtr invoker,
+        const TString& groupId,
+        NLogging::TLogger logger,
+        NProfiling::TProfiler profiler) const override
+    {
+        auto selfAddress = BuildServiceAddress(GetLocalHostName(), Config_->RpcPort);
+        return NDistributedThrottler::CreateDistributedThrottlerFactory(
+            std::move(config),
+            NativeConnection_->GetChannelFactory(),
+            NativeConnection_,
+            std::move(invoker),
+            groupId,
+            selfAddress,
+            RpcServer_,
+            std::move(selfAddress),
+            std::move(logger),
+            NativeAuthenticator_,
+            profiler);
+    }
+
 private:
     const TCypressProxyConfigPtr Config_;
 
@@ -248,9 +274,9 @@ private:
 
         {
             TCypressRegistrarOptions options{
-                .RootPath = Config_->RootPath + NNet::BuildServiceAddress(
-                    NNet::GetLocalHostName(),
-                    Config_->RpcPort),
+                .RootPath = NYPath::YPathJoin(Config_->RootPath, BuildServiceAddress(
+                    GetLocalHostName(),
+                    Config_->RpcPort)),
                 .OrchidRemoteAddresses = GetLocalAddresses(/*addresses*/ {}, Config_->RpcPort),
                 .ExpireSelf = true,
             };
@@ -311,6 +337,7 @@ private:
         NativeConnection_->GetClusterDirectorySynchronizer()->Start();
         NativeConnection_->GetMasterCellDirectorySynchronizer()->Start();
 
+        CypressRegistrar_->Start();
         DynamicConfigManager_->Start();
         UserDirectorySynchronizer_->Start();
 

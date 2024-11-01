@@ -42,6 +42,23 @@ void TObjectServiceDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("alert_on_mixed_read_write_batch", &TThis::AlertOnMixedReadWriteBatch)
         .Default(false);
+
+    registrar.Parameter("distributed_throttler", &TThis::DistributedThrottler)
+        .DefaultNew();
+
+    registrar.Parameter("enable_per_user_request_weight_throttling", &TThis::EnablePerUserRequestWeightThrottling)
+        .Default(true);
+    registrar.Parameter("default_per_user_read_request_weight_throttler_config", &TThis::DefaultPerUserReadRequestWeightThrottlerConfig)
+        .DefaultNew();
+    registrar.Parameter("default_per_user_write_request_weight_throttler_config", &TThis::DefaultPerUserWriteRequestWeightThrottlerConfig)
+        .DefaultNew();
+
+    registrar.Postprocessor([] (TThis* config) {
+        THROW_ERROR_EXCEPTION_IF(
+            config->DistributedThrottler->Mode == NDistributedThrottler::EDistributedThrottlerMode::Precise,
+            "Cypress proxies distributed throttler's mode cannot be set to %Qv",
+            NDistributedThrottler::EDistributedThrottlerMode::Precise);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

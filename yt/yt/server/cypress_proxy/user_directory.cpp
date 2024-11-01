@@ -30,6 +30,20 @@ void ToProto(NObjectClient::NProto::TUserDescriptor* proto, const TUserDescripto
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<int> GetUserRequestRateLimit(const TUserDescriptor& descriptor, EUserWorkloadType workloadType)
+{
+    switch (workloadType) {
+        case EUserWorkloadType::Read:
+            return descriptor.ReadRequestRateLimit;
+        case EUserWorkloadType::Write:
+            return descriptor.WriteRequestRateLimit;
+        default:
+            YT_ABORT();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TUserDirectory::TUserDescriptorPtr TUserDirectory::FindByName(const std::string& name) const
 {
     auto guard = ReaderGuard(SpinLock_);

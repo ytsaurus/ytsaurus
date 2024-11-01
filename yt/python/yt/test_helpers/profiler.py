@@ -237,3 +237,6 @@ class ProfilerFactory(object):
 
     def at_rpc_proxy(self, proxy, *args, **kwargs):
         return Profiler(self.yt_client, "//sys/rpc_proxies/{0}/orchid/sensors".format(proxy), *args, **kwargs)
+
+    def at_cypress_proxy(self, proxy, **kwargs):
+        return Profiler(self.yt_client, "//sys/cypress_proxies/{0}/orchid/sensors".format(proxy), **kwargs)
