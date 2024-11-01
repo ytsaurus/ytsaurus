@@ -66,6 +66,8 @@ struct TGpuStatistics
     i64 PcieRxBytes = 0;
     i64 PcieTxBytes = 0;
     i64 MaxStuckDuration = 0;
+    i64 CumulativeTensorActivity = 0;
+    i64 CumulativeDramActivity = 0;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistics, TStringBuf /*format*/);

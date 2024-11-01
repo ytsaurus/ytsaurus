@@ -29,6 +29,8 @@ struct TGpuInfo
     double NvlinkTxByteRate = 0.0;
     double PcieRxByteRate = 0.0;
     double PcieTxByteRate = 0.0;
+    double TensorActivityRate = 0.0;
+    double DramActivityRate = 0.0;
 
     struct
     {

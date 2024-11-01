@@ -21,7 +21,8 @@ void FormatValue(TStringBuilderBase* builder, const TGpuInfo& gpuInfo, TStringBu
         "{UpdateTime: %v, Index: %v, Name: %v, UtilizationGpuRate: %v, UtilizationMemoryRate: %v, "
         "MemoryUsed: %v, MemoryTotal: %v, PowerDraw: %v, PowerLimit: %v, ClocksSM: %v, ClocksMaxSM: %v, "
         "SMUtilizationRate: %v, SMOccupancyRate: %v, NvlinkRxByteRate: %v, NvlinkTxByteRate: %v, "
-        "PcieRxByteRate: %v, PcieTxByteRate: %v, Stuck: {Status: %v, LastTransitionTime: %v}}",
+        "PcieRxByteRate: %v, PcieTxByteRate: %v, TensorActivityRate: %v, DramActivityRate: %v, "
+        "Stuck: {Status: %v, LastTransitionTime: %v}}",
         gpuInfo.UpdateTime,
         gpuInfo.Index,
         gpuInfo.Name,
@@ -39,6 +40,8 @@ void FormatValue(TStringBuilderBase* builder, const TGpuInfo& gpuInfo, TStringBu
         gpuInfo.NvlinkTxByteRate,
         gpuInfo.PcieRxByteRate,
         gpuInfo.PcieTxByteRate,
+        gpuInfo.TensorActivityRate,
+        gpuInfo.DramActivityRate,
         gpuInfo.Stuck.Status,
         gpuInfo.Stuck.LastTransitionTime);
 }
@@ -64,6 +67,8 @@ void Serialize(const TGpuInfo& gpuInfo, NYson::IYsonConsumer* consumer)
             .Item("nvlink_tx_byte_rate").Value(gpuInfo.NvlinkTxByteRate)
             .Item("pcie_rx_byte_rate").Value(gpuInfo.PcieRxByteRate)
             .Item("pcie_tx_byte_rate").Value(gpuInfo.PcieTxByteRate)
+            .Item("tensor_activity_rate").Value(gpuInfo.TensorActivityRate)
+            .Item("dram_activity_rate").Value(gpuInfo.DramActivityRate)
             .Item("stuck").BeginMap()
                 .Item("status").Value(gpuInfo.Stuck.Status)
                 .Item("last_transition_time").Value(gpuInfo.Stuck.LastTransitionTime)
