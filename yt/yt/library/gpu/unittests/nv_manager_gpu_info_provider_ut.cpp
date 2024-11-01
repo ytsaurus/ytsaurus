@@ -82,6 +82,8 @@ public:
             status->set_nvlink_tx_bytes_per_second(5000.0);
             status->set_pcie_rx_bytes_per_second(100.0);
             status->set_pcie_tx_bytes_per_second(500.0);
+            status->set_tensor_activity(0.2);
+            status->set_dram_activity(0.3);
             auto* stuck = status->mutable_stuck();
             stuck->set_status(false);
         }
@@ -106,6 +108,8 @@ public:
             status->set_nvlink_tx_bytes_per_second(2000.0);
             status->set_pcie_rx_bytes_per_second(0.0);
             status->set_pcie_tx_bytes_per_second(300.0);
+            status->set_tensor_activity(0.3);
+            status->set_dram_activity(0.2);
             auto* stuck = status->mutable_stuck();
             stuck->set_status(true);
         }
@@ -211,6 +215,8 @@ TEST_F(TNvManagerGpuInfoProviderTest, SimpleGpuInfo)
             EXPECT_EQ(gpuInfo.NvlinkTxByteRate, 5000.0);
             EXPECT_EQ(gpuInfo.PcieRxByteRate, 100.0);
             EXPECT_EQ(gpuInfo.PcieTxByteRate, 500.0);
+            EXPECT_EQ(gpuInfo.TensorActivityRate, 0.2);
+            EXPECT_EQ(gpuInfo.DramActivityRate, 0.3);
             EXPECT_FALSE(gpuInfo.Stuck.Status);
         }
 
@@ -230,6 +236,8 @@ TEST_F(TNvManagerGpuInfoProviderTest, SimpleGpuInfo)
             EXPECT_EQ(gpuInfo.NvlinkTxByteRate, 2000.0);
             EXPECT_EQ(gpuInfo.PcieRxByteRate, 0.0);
             EXPECT_EQ(gpuInfo.PcieTxByteRate, 300.0);
+            EXPECT_EQ(gpuInfo.TensorActivityRate, 0.3);
+            EXPECT_EQ(gpuInfo.DramActivityRate, 0.2);
             EXPECT_TRUE(gpuInfo.Stuck.Status);
         }
     }
