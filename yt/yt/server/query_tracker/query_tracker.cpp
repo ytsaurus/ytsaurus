@@ -379,19 +379,28 @@ private:
             leaseTransactionId);
 
         IQueryHandlerPtr handler;
-        try {
-            handler = Engines_[queryRecord.Engine]->StartOrAttachQuery(queryRecord);
-            handler->Start();
-        } catch (const std::exception& ex) {
-            YT_LOG_INFO(ex, "Unrecoverable error on query start, finishing query");
-            FinishQueryLoop(queryId, TError(ex), EQueryState::Failed);
-            return;
+        if (!IsPreFinishedState(optionalRecord->State)) {
+            try {
+                handler = Engines_[queryRecord.Engine]->StartOrAttachQuery(queryRecord);
+                handler->Start();
+            } catch (const std::exception& ex) {
+                YT_LOG_INFO(ex, "Unrecoverable error on query start, finishing query");
+                FinishQueryLoop(queryId, TError(ex), EQueryState::Failed);
+                return;
+            }
+            InsertOrCrash(AcquiredQueries_, std::pair{queryId, TAcquiredQuery{
+                .Handler = std::move(handler),
+                .Incarnation = newIncarnation,
+                .LeaseTransactionId = leaseTransactionId,
+            }});
+        } else {
+            InsertOrCrash(AcquiredQueries_, std::pair{queryId, TAcquiredQuery{
+                .Handler = nullptr,
+                .Incarnation = newIncarnation,
+                .LeaseTransactionId = leaseTransactionId,
+            }});
+
         }
-        InsertOrCrash(AcquiredQueries_, std::pair{queryId, TAcquiredQuery{
-            .Handler = std::move(handler),
-            .Incarnation = newIncarnation,
-            .LeaseTransactionId = leaseTransactionId,
-        }});
 
         PingLoop(queryId, newIncarnation);
     }
@@ -451,8 +460,9 @@ private:
                     case EQueryState::Aborting:
                         error = ConvertTo<TError>(*activeQueryRecord->AbortRequest);
                         finalState = EQueryState::Aborted;
-                        // XXX: is this safe? What if query was already removed from the map?
-                        AcquiredQueries_[queryId].Handler->Abort();
+                        if (AcquiredQueries_[queryId].Handler) {
+                            AcquiredQueries_[queryId].Handler->Abort();
+                        }
                         YT_LOG_INFO("Query abort was requested (Error: %v)", error);
                         break;
                     case EQueryState::Failing:
@@ -487,7 +497,9 @@ private:
         if (auto it = AcquiredQueries_.find(queryId); it != AcquiredQueries_.end()) {
             const auto& [queryId, query] = *it;
             YT_LOG_INFO("Query detached (QueryId: %v)", queryId);
-            query.Handler->Detach();
+            if (query.Handler) {
+                query.Handler->Detach();
+            }
             AcquiredQueries_.erase(it);
         }
     }

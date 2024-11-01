@@ -246,6 +246,59 @@ class TestQueryTrackerBan(YTEnvSetup):
         wait(lambda: query.get_state() == "running", ignore_exceptions=True)
 
 
+class TestQueryTrackerPreFinishedState(YTEnvSetup):
+    DELTA_DRIVER_CONFIG = {
+        "cluster_connection_dynamic_config_policy": "from_cluster_directory",
+    }
+
+    def _insert_query(self, state, error="", is_abort=False):
+        guid = generate_uuid()
+        query = {
+            "query_id": guid,
+            "engine": "mock",
+            "user": "root",
+            "query": "run_forever",
+            "incarnation": 0,
+            "start_time": 0,
+            "progress": {},
+            "annotations": {},
+            "state": state,
+            "settings": {}
+        }
+        if is_abort:
+            query["abort_request"] = {"attributes": {}, "code": 100, "message": error}
+        else:
+            query["error"] = {"attributes": {}, "code": 100, "message": error}
+
+        insert_rows("//sys/query_tracker/active_queries", [query])
+        return guid
+
+    @authors("mpereskokova")
+    def test_query_tracker_aborting_query(self, query_tracker):
+        error = "test_abort"
+        guid = self._insert_query("aborting", error, is_abort=True)
+
+        query = Query(guid)
+        with raises_yt_error("aborted"):
+            query.track()
+
+    @authors("mpereskokova")
+    def test_query_tracker_failing_query(self, query_tracker):
+        error = "test_error"
+        guid = self._insert_query("failing", error)
+
+        query = Query(guid)
+        with raises_yt_error(error):
+            query.track()
+
+    @authors("mpereskokova")
+    def test_query_tracker_compliting_query(self, query_tracker):
+        guid = self._insert_query("completing")
+
+        query = Query(guid)
+        query.track()
+
+
 class TestAccessControl(YTEnvSetup):
     NUM_TEST_PARTITIONS = 16
 
