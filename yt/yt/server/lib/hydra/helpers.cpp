@@ -27,6 +27,10 @@ std::optional<TSharedRef> SanitizeLocalHostName(
         return {};
     }
 
+    if (std::ssize(clusterPeersAddresses) == 1) {
+        return TSharedRef::FromString(TString(host));
+    }
+
     auto getChar = [] (TStringBuf str, i64 position, bool reverse) -> std::optional<char> {
         if (position < 0 || position >= std::ssize(str)) {
             return std::nullopt;

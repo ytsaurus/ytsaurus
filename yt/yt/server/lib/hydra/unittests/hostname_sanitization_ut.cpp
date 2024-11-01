@@ -80,7 +80,7 @@ TEST(TLocalHostNameSanitizer, PeerEqualToCommonPrefix)
     THashSet<TString> clusterPeers = {
         "abc.cX.cZ",
         "abc.cX",
-        "abc.cX.dZ"
+        "abc.cX.dZ",
     };
 
     for (const auto& peerAddress : clusterPeers) {
@@ -95,7 +95,7 @@ TEST(TLocalHostNameSanitizer, PeerEqualToCommonSuffix)
     THashSet<TString> clusterPeers = {
         "abc.cX.cZ",
         "cX.cZ",
-        "e.cX.cZ"
+        "e.cX.cZ",
     };
 
     for (const auto& peerAddress : clusterPeers) {
@@ -130,7 +130,7 @@ TEST(TLocalHostNameSanitizer, EqualPeers)
     for (const auto& peerAddress : clusterPeers) {
         auto sanitizedHost = SanitizeLocalHostName(clusterPeers, peerAddress);
         EXPECT_TRUE(sanitizedHost);
-        EXPECT_EQ("abc*", sanitizedHost->ToStringBuf());
+        EXPECT_EQ("abc", sanitizedHost->ToStringBuf());
     }
 }
 
