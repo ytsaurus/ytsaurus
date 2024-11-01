@@ -1938,10 +1938,13 @@ private:
                 outputChunkRows.pop();
 
                 if (!TBitwiseUnversionedRowEqual()(inputRow, outputRow)) {
+                    TStringBuilder rowDiffBuilder;
+                    TBitwiseUnversionedRowEqual::FormatDiff(&rowDiffBuilder, inputRow, outputRow);
                     return TError("Row differs in input and output chunks")
                         << TErrorAttribute("row_index", rowIndex)
                         << TErrorAttribute("input_row", inputRow)
-                        << TErrorAttribute("output_row", outputRow);
+                        << TErrorAttribute("output_row", outputRow)
+                        << TErrorAttribute("row_diff", rowDiffBuilder.Flush());
                 }
 
                 ++rowIndex;
