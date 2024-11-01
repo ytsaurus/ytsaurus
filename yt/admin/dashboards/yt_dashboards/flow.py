@@ -222,11 +222,10 @@ def build_epoch_timings():
             .cell(
                 "Epoch parts time (Computation: {{computation_id}})",
                 MonitoringExpr(
-                    FlowWorker("yt.flow.worker.computation.epoch_parts_time")
+                    FlowWorker("yt.flow.worker.computation.epoch_parts_time.rate")
                         .value("computation_id", "{{computation_id}}")
                         .value("part", "!-"))
                     .aggr("host")
-                    .unit("UNIT_SECONDS")
                     .stack(True))
             .cell(
                 "Epoch duration max time",
