@@ -97,7 +97,7 @@ type_v3=yson
 
 ```
 type_v3={
-    type_name=`decimal`
+    type_name=decimal;
     precision=10;
     scale=2;
 }
