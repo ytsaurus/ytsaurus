@@ -35,7 +35,7 @@ TCurrentEpochIdGuard::~TCurrentEpochIdGuard()
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEpochIdInjectingInvoker
-    : public TInvokerWrapper
+    : public TInvokerWrapper<false>
 {
 public:
     TEpochIdInjectingInvoker(IInvokerPtr underlying, TEpochId epochId)

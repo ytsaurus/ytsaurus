@@ -179,7 +179,7 @@ TUserLockGuard::TUserLockGuard(TDecoratedAutomatonPtr automaton)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDecoratedAutomaton::TSystemInvoker
-    : public TInvokerWrapper
+    : public TInvokerWrapper<false>
 {
 public:
     explicit TSystemInvoker(
@@ -212,7 +212,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDecoratedAutomaton::TGuardedUserInvoker
-    : public TInvokerWrapper
+    : public TInvokerWrapper<false>
 {
 public:
     TGuardedUserInvoker(
