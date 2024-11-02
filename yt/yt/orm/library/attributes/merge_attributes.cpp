@@ -203,24 +203,6 @@ bool IsOnePrefixOfAnother(const NYPath::TYPath& lhs, const NYPath::TYPath& rhs)
     return false;
 }
 
-void SortAndRemoveNestedPaths(std::vector<NYPath::TYPath>& paths)
-{
-    if (paths.empty()) {
-        return;
-    }
-
-    std::sort(paths.begin(), paths.end());
-
-    int lastRemainingPath = 0;
-    for (int i = 1; i < std::ssize(paths); ++i) {
-        if (!NYPath::HasPrefix(paths[i], paths[lastRemainingPath])) {
-            paths[++lastRemainingPath] = paths[i];
-        }
-    }
-
-    paths.resize(lastRemainingPath + 1);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TMergeAttributesHelper::TMergeAttributesHelper(NYson::IYsonConsumer* consumer)

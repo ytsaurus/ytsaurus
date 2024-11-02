@@ -38,6 +38,25 @@ void ValidateSortedPaths(const TRange& paths, TPathProj pathProj, TIsEtcProj etc
     }
 }
 
+template <typename TType, std::invocable<TType> TPathProj>
+void SortAndRemoveNestedPaths(std::vector<TType>& collection, TPathProj proj)
+{
+    if (collection.empty()) {
+        return;
+    }
+
+    std::ranges::sort(collection.begin(), collection.end(), /*comp*/ {}, proj);
+
+    int lastRemainingPath = 0;
+    for (int i = 1; i < std::ssize(collection); ++i) {
+        if (!NYPath::HasPrefix(std::invoke(proj, collection[i]), std::invoke(proj, collection[lastRemainingPath]))) {
+            collection[++lastRemainingPath] = collection[i];
+        }
+    }
+
+    collection.resize(lastRemainingPath + 1);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NOrm::NAttributes
