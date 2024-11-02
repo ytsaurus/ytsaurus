@@ -21,12 +21,11 @@ struct TAttributeValue
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SortAndRemoveNestedPaths(std::vector<NYPath::TYPath>& paths);
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <std::ranges::range TRange, class TPathProj, class TIsEtcProj>
 void ValidateSortedPaths(const TRange& paths, TPathProj pathProj, TIsEtcProj etcProj);
+
+template <typename TType, std::invocable<TType> TPathProj = std::identity>
+void SortAndRemoveNestedPaths(std::vector<TType>& collection, TPathProj proj = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
