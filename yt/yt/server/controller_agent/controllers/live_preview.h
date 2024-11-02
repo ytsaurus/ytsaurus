@@ -25,7 +25,7 @@ class TLivePreview
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IYPathServicePtr, Service);
-    DEFINE_BYREF_RW_PROPERTY(THashSet<NChunkClient::TInputChunkPtr>, Chunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<NChunkClient::TInputChunkPtr>, Chunks);
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TTableSchemaPtr, Schema, New<NTableClient::TTableSchema>());
 
 public:
@@ -37,6 +37,9 @@ public:
         NJobTrackerClient::TOperationId operationId = NJobTrackerClient::NullOperationId,
         TString name = "",
         NYTree::TYPath path = "");
+
+    TError InsertChunk(NChunkClient::TInputChunkPtr chunk);
+    TError EraseChunk(NChunkClient::TInputChunkPtr chunk);
 
     void Persist(const TPersistenceContext& context);
 

@@ -8,6 +8,7 @@
 
 namespace NYT::NControllerAgent::NControllers {
 
+using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
 using namespace NYTree;
@@ -27,6 +28,30 @@ TLivePreview::TLivePreview(
     , Path_(std::move(path))
 {
     Initialize();
+}
+
+TError TLivePreview::InsertChunk(TInputChunkPtr chunk)
+{
+    if (Schema_->IsSorted() && !chunk->BoundaryKeys()) {
+        return TError("Missing boundary keys in a chunk of a sorted live preview table")
+            << NYT::TErrorAttribute("path", Path_)
+            << NYT::TErrorAttribute("chunk_id", chunk->GetChunkId());
+    }
+
+    InsertOrCrash(Chunks_, std::move(chunk));
+
+    return {};
+}
+
+TError TLivePreview::EraseChunk(TInputChunkPtr chunk)
+{
+    if (!Chunks_.erase(std::move(chunk))) {
+        return TError("Erasing non present chunk of a live preview table")
+            << NYT::TErrorAttribute("path", Path_)
+            << NYT::TErrorAttribute("chunk_id", chunk->GetChunkId());
+    }
+
+    return {};
 }
 
 void TLivePreview::Persist(const TPersistenceContext& context)
