@@ -4,7 +4,7 @@ import time
 import yt.packages.requests as requests
 from yt_odin_checks.lib.check_runner import main
 
-TIMEOUT = 5
+TIMEOUT = 30
 
 
 class CheckData:
