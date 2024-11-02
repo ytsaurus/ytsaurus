@@ -64,6 +64,8 @@ using namespace NNet;
 static const i64 SnapshotTransferBlockSize = 1_MB;
 static const i64 LogTransferBlockSize = 1_KB;
 
+static constexpr auto UnknownHostName = "<unknown>";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TPendingMutation::TPendingMutation(
@@ -844,7 +846,7 @@ void TDecoratedAutomaton::ResetState()
             TVersion(),
             TInstant::Zero(),
             /*randomSeed*/ 0,
-            /*localHostNameOverride*/ TSharedRef::FromString("<unknown>"));
+            /*localHostNameOverride*/ TSharedRef::FromString(UnknownHostName));
         THydraContextGuard hydraContextGuard(&hydraContext);
 
         ClearState();
@@ -1214,13 +1216,11 @@ void TDecoratedAutomaton::PublishMutationApplicationResults(std::vector<TMutatio
 TSharedRef TDecoratedAutomaton::SanitizeLocalHostName() const
 {
     auto localHost = ReadLocalHostName();
+
     if (Options_.EnableLocalHostSanitizing) {
         THashSet<TString> hosts;
         for (const auto& peer : GetEpochContext()->CellManager->GetClusterPeersAddresses()) {
-            TStringBuf host;
-            int port;
-            ParseServiceAddress(peer, &host, &port);
-            hosts.insert(TString(host));
+            hosts.insert(TString(GetServiceHostName(peer)));
         }
 
         if (auto sanitizedLocalHost = NHydra::SanitizeLocalHostName(hosts, localHost)) {
@@ -1231,11 +1231,18 @@ TSharedRef TDecoratedAutomaton::SanitizeLocalHostName() const
             return *sanitizedLocalHost;
         }
 
-        YT_LOG_ALERT("Failed to sanitize local host name, perhaps the hosts have different lengths (Hosts: %v, LocalHost: %v)",
+        YT_LOG_ALERT(
+            "Failed to sanitize host name, falling back to default placeholder (Hosts: %v, LocalHost: %v, SanitizedLocalHost: %v)",
             hosts,
-            localHost);
+            localHost,
+            UnknownHostName);
+
+        return TSharedRef::FromString(UnknownHostName);
     }
-    return TSharedRef::FromString(ToString(localHost));
+
+    YT_LOG_INFO("Local host name sanitization disabled, using local host name as is (LocalHost: %v)", localHost);
+
+    return TSharedRef::FromString(localHost);
 }
 
 TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutation(
