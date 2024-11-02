@@ -361,6 +361,8 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"user_job/gpu/cumulative_memory_mb_sec", "Integral of GPU memory usage", "sec * MB"},
         {"user_job/gpu/cumulative_power", "Integral of GPU power usage", "ms * power"},
         {"user_job/gpu/cumulative_clocks_sm", "Integral of GPU frequency usage", "ms * frequency"},
+        {"user_job/gpu/cumulative_tensor_activity", "Time during which GPU tensor (HMMA) pipe was active", "ms"},
+        {"user_job/gpu/cumulative_dram_activity", "Time during which GPU memory interface was active sending or receiving data", "ms"},
         {"user_job/gpu/max_memory_used", "Maximum registered GPU memory usage", "bytes"},
         {"user_job/gpu/memory_total", "Total available GPU memory", "bytes"},
 

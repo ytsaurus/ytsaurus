@@ -185,6 +185,8 @@ static const TString GpuPcieTxBytesSensorName = "gpu/pcie/tx_bytes";
 static const TString GpuStuckSensorName = "gpu/stuck";
 static const TString GpuRdmaRxBytesSensorName = "gpu/rdma/rx_bytes";
 static const TString GpuRdmaTxBytesSensorName = "gpu/rdma/tx_bytes";
+static const TString GpuTensorActivitySensorName = "gpu/tensor_activity";
+static const TString GpuDramActivitySensorName = "gpu/dram_activity";
 
 const THashMap<TString, TUserJobSensorPtr>& GetSupportedGpuMonitoringSensors()
 {
@@ -245,6 +247,14 @@ const THashMap<TString, TUserJobSensorPtr>& GetSupportedGpuMonitoringSensors()
             .Item(GpuRdmaTxBytesSensorName).BeginMap()
                 .Item("type").Value("gauge")
                 .Item("profiling_name").Value("/user_job/gpu/rdma/tx_bytes/rate")
+            .EndMap()
+            .Item(GpuTensorActivitySensorName).BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/tensor_activity")
+            .EndMap()
+            .Item(GpuDramActivitySensorName).BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/dram_activity")
             .EndMap()
 
             // COMPAT(eshcherbin): These sensors are no longer produced, however we cannot remove them
@@ -3697,6 +3707,8 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vecto
                 slotStatistics.MaxStuckDuration,
                 static_cast<i64>((gpuInfo.UpdateTime - *gpuInfo.Stuck.LastTransitionTime).MilliSeconds()));
         }
+        slotStatistics.CumulativeTensorActivity += period.MilliSeconds() * gpuInfo.TensorActivityRate;
+        slotStatistics.CumulativeDramActivity += period.MilliSeconds() * gpuInfo.DramActivityRate;
 
         YT_LOG_DEBUG(
             "Updated job GPU slot statistics "
@@ -3723,6 +3735,8 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vecto
         aggregatedGpuStatistics.PcieTxBytes += slotStatistics.PcieTxBytes;
         aggregatedGpuStatistics.MaxMemoryUsed += slotStatistics.MaxMemoryUsed;
         aggregatedGpuStatistics.MaxStuckDuration = std::max(aggregatedGpuStatistics.MaxStuckDuration, slotStatistics.MaxStuckDuration);
+        aggregatedGpuStatistics.CumulativeTensorActivity += slotStatistics.CumulativeTensorActivity;
+        aggregatedGpuStatistics.CumulativeDramActivity += slotStatistics.CumulativeDramActivity;
         totalGpuMemory += gpuInfo.MemoryTotal;
     }
 
@@ -3744,6 +3758,8 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vecto
     statistics->AddSample("/user_job/gpu/pcie/rx_bytes", aggregatedGpuStatistics.PcieRxBytes);
     statistics->AddSample("/user_job/gpu/pcie/tx_bytes", aggregatedGpuStatistics.PcieTxBytes);
     statistics->AddSample("/user_job/gpu/max_stuck_duration", aggregatedGpuStatistics.MaxStuckDuration);
+    statistics->AddSample("/user_job/gpu/cumulative_tensor_activity", aggregatedGpuStatistics.CumulativeTensorActivity);
+    statistics->AddSample("/user_job/gpu/cumulative_dram_activity", aggregatedGpuStatistics.CumulativeDramActivity);
     statistics->AddSample("/user_job/gpu/memory_total", totalGpuMemory);
 }
 
@@ -4084,6 +4100,8 @@ void TJob::CollectSensorsFromGpuAndRdmaDeviceInfo(ISensorWriter* writer)
         profileSensorIfNeeded(GpuPcieRxBytesSensorName, gpuInfo.PcieRxByteRate);
         profileSensorIfNeeded(GpuPcieTxBytesSensorName, gpuInfo.PcieTxByteRate);
         profileSensorIfNeeded(GpuStuckSensorName, static_cast<double>(gpuInfo.Stuck.Status));
+        profileSensorIfNeeded(GpuTensorActivitySensorName, gpuInfo.TensorActivityRate);
+        profileSensorIfNeeded(GpuDramActivitySensorName, gpuInfo.DramActivityRate);
     }
 
 
