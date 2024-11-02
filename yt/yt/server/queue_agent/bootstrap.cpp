@@ -137,6 +137,12 @@ void TBootstrap::DoRun()
         Config_->ClusterConnection,
         std::move(connectionOptions));
 
+    SetupClusterConnectionDynamicConfigUpdate(
+        NativeConnection_,
+        Config_->ClusterConnectionDynamicConfigPolicy,
+        ConfigNode_->AsMap()->GetChildOrThrow("cluster_connection"),
+        Logger());
+
     NativeConnection_->GetClusterDirectorySynchronizer()->Start();
     NativeConnection_->GetMasterCellDirectorySynchronizer()->Start();
 
