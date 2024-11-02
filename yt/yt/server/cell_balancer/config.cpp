@@ -100,6 +100,9 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_network_limits", &TThis::EnableNetworkLimits)
         .Default(false);
 
+    registrar.Parameter("skip_jailed_bundles", &TThis::SkipJailedBundles)
+        .Default(true);
+
     registrar.Parameter("enable_chaos_bundle_management", &TThis::EnableChaosBundleManagement)
         .Default(false);
 
