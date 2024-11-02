@@ -8,20 +8,25 @@ from .common.sensors import *
 
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
-from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
+from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr, PlainMonitoringExpr
 from yt_dashboard_generator.backends.monitoring import MonitoringTextDashboardParameter
-from yt_dashboard_generator.sensor import (
-    MultiSensor
-)
+from yt_dashboard_generator.sensor import MultiSensor
 
 
 def build_versions():
+    spec_version_change_query_transformation = "sign(derivative({query}))"
     return (Rowset()
         .stack(True)
-        .aggr("host")
         .row()
-            .cell("Controller versions", FlowController("yt.build.version"))
-            .cell("Worker versions", FlowWorker("yt.build.version"))
+            .cell("Controller versions", FlowController("yt.build.version").aggr("host"))
+            .cell("Worker versions", FlowWorker("yt.build.version").aggr("host"))
+            .cell("Specs version change", MultiSensor(
+                MonitoringExpr(FlowController("yt.flow.controller.spec_version"))
+                    .query_transformation(spec_version_change_query_transformation)
+                    .alias("Spec change"),
+                MonitoringExpr(FlowController("yt.flow.controller.dynamic_spec_version"))
+                    .query_transformation(spec_version_change_query_transformation)
+                    .alias("Dynamic spec change")))
     ).owner
 
 def build_resource_usage():
