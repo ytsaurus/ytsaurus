@@ -13,12 +13,14 @@ IF (NOT OPENSOURCE AND NOT USE_VANILLA_PROTOC)
         crash_writer_on_exception/test_program
         error_exit
         error_exit/test_program
+        job_on_exit_function
+        logs_to_file
+        logs_to_file/test_program
         parallel_cache_upload
         parallel_cache_upload/test_program
-        remote_copy
-        job_on_exit_function
         portals
         proto_lib
+        remote_copy
         server_yt_name_conflicts
     )
 ENDIF()
