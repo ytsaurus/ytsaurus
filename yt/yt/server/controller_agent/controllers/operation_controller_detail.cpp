@@ -5486,10 +5486,16 @@ void TOperationControllerBase::AddChunksToUnstageList(std::vector<TInputChunkPtr
         auto it = LivePreviewChunks_.find(chunk);
         YT_VERIFY(it != LivePreviewChunks_.end());
         auto livePreviewDescriptor = it->second;
-        DataFlowGraph_->UnregisterLivePreviewChunk(
+        auto result = DataFlowGraph_->UnregisterLivePreviewChunk(
             livePreviewDescriptor.VertexDescriptor,
             livePreviewDescriptor.LivePreviewIndex,
             chunk);
+        if (!result.IsOK()) {
+            auto tableName = "output_" + ToString(it->second.LivePreviewIndex);
+            YT_LOG_WARNING(result, "Error unregistering a chunk from a live preview (TableName: %v, Chunk: %v)",
+                tableName,
+                chunk);
+        }
         chunkIds.push_back(chunk->GetChunkId());
         YT_LOG_DEBUG("Releasing intermediate chunk (ChunkId: %v, VertexDescriptor: %v, LivePreviewIndex: %v)",
             chunk->GetChunkId(),
@@ -8259,7 +8265,12 @@ void TOperationControllerBase::AttachToLivePreview(
     }
 
     if (LivePreviews_->contains(tableName)) {
-        InsertOrCrash((*LivePreviews_)[tableName]->Chunks(), std::move(chunk));
+        auto result = (*LivePreviews_)[tableName]->InsertChunk(chunk);
+        if (!result.IsOK()) {
+            YT_LOG_WARNING(result, "Error registering a chunk in a live preview (TableName: %v, Chunk: %v)",
+                tableName,
+                chunk);
+        }
     }
 }
 
@@ -10652,7 +10663,13 @@ void TOperationControllerBase::RegisterLivePreviewChunk(
         chunk,
         TLivePreviewChunkDescriptor{vertexDescriptor, index}).second);
 
-    DataFlowGraph_->RegisterLivePreviewChunk(vertexDescriptor, index, chunk);
+    auto result = DataFlowGraph_->RegisterLivePreviewChunk(vertexDescriptor, index, chunk);
+    if (!result.IsOK()) {
+        auto tableName = "output_" + ToString(index);
+        YT_LOG_WARNING(result, "Error registering a chunk in a live preview (TableName: %v, Chunk: %v)",
+            tableName,
+            chunk);
+    }
 
     if (vertexDescriptor == GetOutputLivePreviewVertexDescriptor()) {
         auto tableName = "output_" + ToString(index);
