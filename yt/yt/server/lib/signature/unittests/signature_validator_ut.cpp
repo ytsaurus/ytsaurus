@@ -30,15 +30,17 @@ using namespace NYTree;
 struct TSignatureValidatorTest
     : public ::testing::Test
 {
+    TKeyId KeyId;
     TKeyPair Key;
     TMockKeyStore Store;
     TSignatureValidator Validator;
     TYsonString Payload;
 
     TSignatureValidatorTest()
-        : Key(TKeyPairMetadata{
+        : KeyId(TGuid::Create())
+        , Key(TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
             .Owner = TOwnerId{"TMockKeyStore"},
-            .Id = TKeyId{TGuid::Create()},
+            .Id = KeyId,
             .CreatedAt = Now(),
             .ValidAfter = Now() - 10h,
             .ExpiresAt = Now() + 10h})
@@ -56,7 +58,7 @@ struct TSignatureValidatorTest
         auto now = Now();
         return TSignatureHeaderImpl<TSignatureVersion{0, 1}>{
             .Issuer = "TMockKeyStore",
-            .KeypairId = Key.KeyInfo().Meta().Id.Underlying(),
+            .KeypairId = KeyId.Underlying(),
             .SignatureId = TGuid::Create(),
             .IssuedAt = now + delta_created,
             .ValidAfter = now + delta_valid,
