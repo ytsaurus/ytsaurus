@@ -46,7 +46,7 @@ Y_NO_INLINE void DetachThreadStatus()
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClickHouseInvoker
-    : public TInvokerWrapper
+    : public TInvokerWrapper<true>
 {
 public:
     using TInvokerWrapper::TInvokerWrapper;
