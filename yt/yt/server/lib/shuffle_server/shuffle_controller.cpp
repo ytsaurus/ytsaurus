@@ -1,11 +1,7 @@
 #include "shuffle_controller.h"
 
-#include <yt/yt/ytlib/api/native/client.h>
-
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
-
-#include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -14,10 +10,6 @@ namespace NYT::NShuffleServer {
 using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
-using namespace NObjectClient;
-using namespace NTransactionClient;
-
-using NApi::NNative::IClientPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,12 +18,12 @@ class TShuffleController
 {
 public:
     TShuffleController(
-        ITransactionPtr transaction,
         int partitionCount,
-        IInvokerPtr invoker)
-        : Transaction_(std::move(transaction))
-        , PartitionCount_(partitionCount)
+        IInvokerPtr invoker,
+        ITransactionPtr transaction)
+        : PartitionCount_(partitionCount)
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker)))
+        , Transaction_(std::move(transaction))
     { }
 
     TFuture<void> RegisterChunks(std::vector<TInputChunkPtr> chunks) override
@@ -54,33 +46,13 @@ public:
             .Run();
     }
 
-    TTransactionId GetTransactionId() const override
-    {
-        return Transaction_->GetId();
-    }
-
-    TFuture<void> Finish() override
-    {
-        return BIND(
-            &TShuffleController::DoFinish,
-            MakeStrong(this))
-            .AsyncVia(SerializedInvoker_)
-            .Run();
-    }
-
-    ~TShuffleController()
-    {
-        YT_VERIFY(IsFinished_);
-    }
-
 private:
-    const ITransactionPtr Transaction_;
     const int PartitionCount_;
 
-    bool IsFinished_ = false;
+    IInvokerPtr SerializedInvoker_;
+    ITransactionPtr Transaction_;
 
     std::vector<TInputChunkPtr> Chunks_;
-    IInvokerPtr SerializedInvoker_;
 
     void DoRegisterChunks(std::vector<TInputChunkPtr> chunks)
     {
@@ -117,32 +89,19 @@ private:
 
         return result;
     }
-
-    void DoFinish()
-    {
-        YT_VERIFY(!IsFinished_);
-        IsFinished_ = true;
-
-        WaitFor(Transaction_->Commit().AsVoid())
-            .ThrowOnError();
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<IShuffleControllerPtr> CreateShuffleController(
-    IClientPtr client,
+IShuffleControllerPtr CreateShuffleController(
     int partitionCount,
-    IInvokerPtr invoker)
+    IInvokerPtr invoker,
+    ITransactionPtr transaction)
 {
-    return client->StartTransaction(ETransactionType::Master)
-        .ApplyUnique(BIND([partitionCount, invoker = std::move(invoker)](ITransactionPtr&& transaction) mutable {
-            return New<TShuffleController>(
-                std::move(transaction),
-                partitionCount,
-                std::move(invoker));
-        }))
-        .As<IShuffleControllerPtr>();
+    return New<TShuffleController>(
+        partitionCount,
+        std::move(invoker),
+        std::move(transaction));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

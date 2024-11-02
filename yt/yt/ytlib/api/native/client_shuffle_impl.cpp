@@ -107,6 +107,7 @@ private:
 TShuffleHandlePtr TClient::DoStartShuffle(
     const TString& account,
     int partitionCount,
+    NObjectClient::TTransactionId parentTransactionId,
     const TStartShuffleOptions& options)
 {
     auto channel = GetNativeConnection()->GetShuffleServiceChannelOrThrow();
@@ -117,26 +118,11 @@ TShuffleHandlePtr TClient::DoStartShuffle(
 
     req->set_account(account);
     req->set_partition_count(partitionCount);
+    ToProto(req->mutable_parent_transaction_id(), parentTransactionId);
 
     auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
 
     return ConvertTo<TShuffleHandlePtr>(TYsonString(rsp->shuffle_handle()));
-}
-
-void TClient::DoFinishShuffle(
-    const TShuffleHandlePtr& shuffleHandle,
-    const TFinishShuffleOptions& options)
-{
-    auto channel = GetNativeConnection()->GetShuffleServiceChannelOrThrow();
-    TShuffleServiceProxy shuffleProxy(std::move(channel));
-
-    auto req = shuffleProxy.FinishShuffle();
-    req->SetTimeout(options.Timeout);
-
-    req->set_shuffle_handle(ConvertToYsonString(shuffleHandle).ToString());
-
-    WaitFor(req->Invoke())
-        .ThrowOnError();
 }
 
 void TClient::DoRegisterShuffleChunks(

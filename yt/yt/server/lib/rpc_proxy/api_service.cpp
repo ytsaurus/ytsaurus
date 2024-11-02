@@ -808,7 +808,6 @@ public:
             .SetCancelable(true));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartShuffle));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishShuffle));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteShuffleData)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
@@ -6588,44 +6587,28 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
+        auto parentTransactionId = FromProto<TTransactionId>(request->parent_transaction_id());
+
         context->SetRequestInfo(
-            "PartitionCount: %v, Account: %v",
+            "PartitionCount: %v, Account: %v, ParentTransactionId: %v",
             request->partition_count(),
-            request->account());
+            request->account(),
+            parentTransactionId);
 
         ExecuteCall(
             context,
-            [client = std::move(client), request] () {
+            [client = std::move(client), request, parentTransactionId] () {
                 TStartShuffleOptions options;
                 return client->StartShuffle(
                     request->account(),
                     request->partition_count(),
+                    parentTransactionId,
                     std::move(options));
             },
             [] (const auto& context, const auto& shuffleHandle) {
                 auto* response = &context->Response();
                 response->set_shuffle_handle(ConvertToYsonString(shuffleHandle).ToString());
                 context->SetResponseInfo("TransactionId: %v", shuffleHandle->TransactionId);
-            });
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, FinishShuffle)
-    {
-        auto client = GetAuthenticatedClientOrThrow(context, request);
-        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
-
-        context->SetRequestInfo(
-            "TransactionId: %v, CoordinatorAddress: %v, Account: %v, PartitionCount: %v",
-            shuffleHandle->TransactionId,
-            shuffleHandle->CoordinatorAddress,
-            shuffleHandle->Account,
-            shuffleHandle->PartitionCount);
-
-        ExecuteCall(
-            context,
-            [client = std::move(client), shuffleHandle = std::move(shuffleHandle)] () {
-                TFinishShuffleOptions options;
-                return client->FinishShuffle(std::move(shuffleHandle), std::move(options));
             });
     }
 

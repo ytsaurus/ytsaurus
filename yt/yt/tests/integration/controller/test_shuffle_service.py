@@ -1,10 +1,13 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors,
-    start_shuffle, finish_shuffle, write_shuffle_data, read_shuffle_data
+    authors, start_shuffle, write_shuffle_data, read_shuffle_data, start_transaction,
+    abort_transaction, commit_transaction, wait, raises_yt_error, ls
 )
 
+from yt_helpers import profiler_factory
+
+import pytest
 
 ##################################################################
 
@@ -22,12 +25,14 @@ class TestShuffleService(YTEnvSetup):
     }
 
     @authors("apollo1321")
-    def test_simple(self):
-        shuffle_handle = start_shuffle("intermediate", partition_count=10)
+    @pytest.mark.parametrize("abort", [False, True])
+    def test_simple(self, abort):
+        proxy = ls("//sys/rpc_proxies")[0]
+        active_shuffle_count_sensor = profiler_factory().at_rpc_proxy(proxy).gauge("shuffle_manager/active")
 
-        rows = []
-        for i in range(100):
-            rows.append([{"key": i % 10, "value": i}])
+        parent_transaction = start_transaction(timeout=60000)
+
+        shuffle_handle = start_shuffle("intermediate", partition_count=11, parent_transaction_id=parent_transaction)
 
         for i in range(10):
             rows = [{"key": i, "value": i * 10 + j} for j in range(10)]
@@ -37,4 +42,17 @@ class TestShuffleService(YTEnvSetup):
             rows = [{"key": i, "value": i * 10 + j} for j in range(10)]
             assert read_shuffle_data(shuffle_handle, i) == rows
 
-        finish_shuffle(shuffle_handle)
+        assert read_shuffle_data(shuffle_handle, 10) == []
+
+        # Check that active_shuffle_count_sensor actually works
+        wait(lambda: active_shuffle_count_sensor.get() == 1, iter=300, sleep_backoff=0.1)
+
+        if abort:
+            abort_transaction(parent_transaction)
+        else:
+            commit_transaction(parent_transaction)
+
+        wait(lambda: active_shuffle_count_sensor.get() == 0, iter=300, sleep_backoff=0.1)
+
+        with raises_yt_error(f'Shuffle with id "{shuffle_handle["transaction_id"]}" does not exist'):
+            read_shuffle_data(shuffle_handle, 1)

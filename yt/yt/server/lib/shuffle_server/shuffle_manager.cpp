@@ -1,5 +1,12 @@
 #include "shuffle_manager.h"
+
+#include "private.h"
 #include "shuffle_controller.h"
+
+#include <yt/yt/ytlib/api/native/client.h>
+
+#include <yt/yt/client/api/transaction.h>
+#include <yt/yt/client/api/transaction_client.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -8,10 +15,16 @@ namespace NYT::NShuffleServer {
 using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NLogging;
 using namespace NObjectClient;
-using namespace NYPath;
+using namespace NProfiling;
+using namespace NTransactionClient;
 
 using NApi::NNative::IClientPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto& Logger = ShuffleServiceLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,12 +36,20 @@ public:
         : Client_(std::move(client))
         , Invoker_(std::move(invoker))
         , SerializedInvoker_(CreateSerializedInvoker(Invoker_))
+        , Profiler_("/shuffle_manager")
+        , ActiveShuffleCounter_(Profiler_.Gauge("/active"))
     { }
 
-    TFuture<TTransactionId> StartShuffle(int partitionCount) override
+    TFuture<TTransactionId> StartShuffle(
+        int partitionCount,
+        TTransactionId parentTransactionId) override
     {
-        return CreateShuffleController(Client_, partitionCount, Invoker_)
-            .ApplyUnique(BIND(&TShuffleManager::DoRegisterShuffle, MakeStrong(this))
+        TTransactionStartOptions options;
+        options.ParentId = parentTransactionId;
+        options.PingAncestors = false;
+
+        return Client_->StartTransaction(ETransactionType::Master, options)
+            .ApplyUnique(BIND(&TShuffleManager::DoStartShuffle, MakeStrong(this), partitionCount)
                 .AsyncVia(SerializedInvoker_));
     }
 
@@ -68,6 +89,9 @@ private:
     IInvokerPtr Invoker_;
     IInvokerPtr SerializedInvoker_;
 
+    TProfiler Profiler_;
+    TGauge ActiveShuffleCounter_;
+
     THashMap<TTransactionId, IShuffleControllerPtr> ShuffleControllers_;
 
     const IShuffleControllerPtr& FindShuffleControllerOrThrow(const TTransactionId& transactionId) const
@@ -80,19 +104,54 @@ private:
         return it->second;
     }
 
-    TTransactionId DoRegisterShuffle(IShuffleControllerPtr&& controller)
+    TTransactionId DoStartShuffle(int partitionCount, ITransactionPtr&& transaction)
     {
-        auto transactionId = controller->GetTransactionId();
-        ShuffleControllers_[transactionId] = controller;
+        auto transactionId = transaction->GetId();
+        YT_LOG_DEBUG("Shuffle transaction is created (TransactionId: %v)", transactionId);
+
+        transaction->SubscribeAborted(
+            BIND(
+                &TShuffleManager::OnTransactionAborted,
+                MakeStrong(this),
+                transactionId)
+            .Via(Invoker_));
+
+        transaction->SubscribeCommitted(
+            BIND(&TShuffleManager::OnTransactionCommitted,
+                MakeStrong(this),
+                transactionId)
+            .Via(Invoker_));
+
+        ShuffleControllers_[transactionId] = CreateShuffleController(
+            partitionCount,
+            Invoker_,
+            std::move(transaction));
+
+        ActiveShuffleCounter_.Update(ShuffleControllers_.size());
+
         return transactionId;
     }
 
-    TFuture<void> DoFinishShuffle(TTransactionId transactionId)
+    void OnTransactionAborted(TTransactionId transactionId, const TErrorOr<void>& error)
     {
-        auto shuffleController = FindShuffleControllerOrThrow(transactionId);
-        ShuffleControllers_.erase(transactionId);
+        YT_LOG_INFO(error, "Shuffle transaction is aborted (TransactionId: %v)", transactionId);
 
-        return shuffleController->Finish();
+        DoFinishShuffle(transactionId);
+    }
+
+    void OnTransactionCommitted(TTransactionId transactionId)
+    {
+        YT_LOG_INFO("Shuffle transaction is committed (TransactionId: %v)", transactionId);
+
+        DoFinishShuffle(transactionId);
+    }
+
+    void DoFinishShuffle(TTransactionId transactionId)
+    {
+        auto it = ShuffleControllers_.find(transactionId);
+        YT_VERIFY(it != ShuffleControllers_.end());
+        ShuffleControllers_.erase(it);
+        ActiveShuffleCounter_.Update(ShuffleControllers_.size());
     }
 
     TFuture<void> DoRegisterChunks(
@@ -118,7 +177,9 @@ IShuffleManagerPtr CreateShuffleManager(
     IClientPtr client,
     IInvokerPtr invoker)
 {
-    return New<TShuffleManager>(std::move(client), std::move(invoker));
+    return New<TShuffleManager>(
+        std::move(client),
+        std::move(invoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

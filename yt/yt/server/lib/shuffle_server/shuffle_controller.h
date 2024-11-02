@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/api/native/public.h>
-
 #include <yt/yt/ytlib/chunk_client/public.h>
+
+#include <yt/yt/client/api/public.h>
 
 #include <yt/yt/core/actions/future.h>
 
@@ -18,20 +18,16 @@ struct IShuffleController
     virtual TFuture<void> RegisterChunks(std::vector<NChunkClient::TInputChunkPtr> chunks) = 0;
 
     virtual TFuture<std::vector<NChunkClient::TInputChunkSlicePtr>> FetchChunks(int partitionIndex) = 0;
-
-    virtual NObjectClient::TTransactionId GetTransactionId() const = 0;
-
-    virtual TFuture<void> Finish() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IShuffleController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<IShuffleControllerPtr> CreateShuffleController(
-    NApi::NNative::IClientPtr client,
+IShuffleControllerPtr CreateShuffleController(
     int partitionCount,
-    IInvokerPtr invoker);
+    IInvokerPtr invoker,
+    NApi::ITransactionPtr transaction);
 
 ////////////////////////////////////////////////////////////////////////////////
 
