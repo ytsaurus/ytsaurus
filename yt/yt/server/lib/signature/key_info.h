@@ -4,24 +4,62 @@
 
 #include "crypto.h"
 
+#include <yt/yt/core/yson/public.h>
+
+#include <yt/yt/core/ytree/public.h>
+
 #include <span>
 
 namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TKeyPairMetadata
-{
+struct TKeyPairVersion {
+    int Major;
+    int Minor;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <TKeyPairVersion version>
+struct TKeyPairMetadataImpl;
+
+template <>
+struct TKeyPairMetadataImpl<TKeyPairVersion{0, 1}> {
     TOwnerId Owner;
     TKeyId Id;
     TInstant CreatedAt;
     TInstant ValidAfter;
     TInstant ExpiresAt;
 
-    [[nodiscard]] bool IsValid() const;
+    constexpr static bool IsDeprecated = false;
 
-    [[nodiscard]] bool operator==(const TKeyPairMetadata& other) const = default;
+    [[nodiscard]] bool operator==(const TKeyPairMetadataImpl& other) const = default;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TKeyPairMetadata = std::variant<
+    TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>
+>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+[[nodiscard]] bool IsKeyPairMetadataValid(const TKeyPairMetadata& metadata);
+
+////////////////////////////////////////////////////////////////////////////////
+
+[[nodiscard]] TKeyId GetKeyId(const TKeyPairMetadata& metadata);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TKeyPairMetadata& metadata, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Deserialize(TKeyPairMetadata& metadata, NYTree::INodePtr node);
+
+void Deserialize(TKeyPairMetadata& metadata, NYson::TYsonPullParserCursor* cursor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,11 +85,21 @@ public:
     [[nodiscard]] const TKeyPairMetadata& Meta() const;
 
 private:
-    TPublicKey const Key_;
-    TKeyPairMetadata const Meta_;
+    TPublicKey Key_;
+    TKeyPairMetadata Meta_;
+
+    friend void Deserialize(TKeyInfo& keyInfo, NYTree::INodePtr node);
 };
 
 DEFINE_REFCOUNTED_TYPE(TKeyInfo)
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TKeyInfo& keyInfo, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Deserialize(TKeyInfo& keyInfo, NYson::TYsonPullParserCursor* cursor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

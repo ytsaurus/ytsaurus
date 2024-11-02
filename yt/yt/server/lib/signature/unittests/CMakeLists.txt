@@ -53,6 +53,7 @@ target_link_options(unittester-signature-service PRIVATE
 )
 
 target_sources(unittester-signature-service PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/key_info_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/key_pair_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/signature_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/signature_header_ut.cpp

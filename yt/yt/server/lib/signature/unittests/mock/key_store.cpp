@@ -13,7 +13,9 @@ TOwnerId TMockKeyStore::GetOwner()
 
 TFuture<void> TMockKeyStore::RegisterKey(const TKeyInfo& key)
 {
-    Data[key.Meta().Owner].emplace_back(New<TKeyInfo>(key.Key(), key.Meta()));
+    auto owner = std::visit([](const auto& meta) { return meta.Owner; }, key.Meta());
+
+    Data[owner].emplace_back(New<TKeyInfo>(key.Key(), key.Meta()));
     return VoidFuture;
 }
 
@@ -29,7 +31,7 @@ TFuture<TKeyInfoPtr> TMockKeyStore::GetKey(const TOwnerId& owner, const TKeyId& 
         ownerIt->second.begin(),
         ownerIt->second.end(),
         [&keyId](TKeyInfoPtr keyInfo) {
-            return keyInfo->Meta().Id == keyId;
+            return GetKeyId(keyInfo->Meta()) == keyId;
         });
     return MakeFuture(it != ownerIt->second.end() ? *it : TKeyInfoPtr());
 }

@@ -1,15 +1,120 @@
 #include "key_info.h"
 
+#include "private.h"
+
+#include <yt/yt/core/ytree/fluent.h>
+
 namespace NYT::NSignature {
+
+using namespace NLogging;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TKeyPairMetadata::IsValid() const
-{
-    // TODO(pavook): separate timestamp provider into interface.
-    auto currentTime = Now();
+namespace {
 
-    return ValidAfter < currentTime && currentTime < ExpiresAt;
+struct ValidateVisitor {
+    template <TKeyPairVersion version>
+    bool operator()(const TKeyPairMetadataImpl<version>& meta) const
+    {
+        if (meta.IsDeprecated) {
+            YT_LOG_WARNING(
+                "Received deprecated key info (Id: %v, Version: %v.%v)",
+                meta.Id,
+                version.Major,
+                version.Minor);
+        }
+
+        // TODO(pavook): separate timestamp provider into interface.
+        TInstant currentTime = Now();
+
+        return meta.ValidAfter <= currentTime && currentTime < meta.ExpiresAt;
+    }
+};
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsKeyPairMetadataValid(const TKeyPairMetadata& meta)
+{
+    return std::visit(ValidateVisitor{}, meta);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TKeyId GetKeyId(const TKeyPairMetadata& metadata)
+{
+    return std::visit([](const auto& meta) { return meta.Id; }, metadata);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+struct SerializeVisitor {
+    IYsonConsumer* const Consumer;
+
+    template <TKeyPairVersion version>
+    void operator()(const TKeyPairMetadataImpl<version>& metadata) const
+    {
+        BuildYsonFluently(Consumer).BeginMap()
+            .Item("version").Value(Format("%v.%v", version.Major, version.Minor))
+            .Item("owner").Value(metadata.Owner)
+            .Item("id").Value(metadata.Id)
+            .Item("created_at").Value(metadata.CreatedAt)
+            .Item("valid_after").Value(metadata.ValidAfter)
+            .Item("expires_at").Value(metadata.ExpiresAt)
+        .EndMap();
+    }
+};
+
+} // namespace
+
+void Serialize(const TKeyPairMetadata& metadata, NYson::IYsonConsumer* consumer)
+{
+    std::visit(SerializeVisitor{consumer}, metadata);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+struct DeserializeVisitor {
+    NYTree::IMapNodePtr MapNode;
+
+    template <TKeyPairVersion version>
+    void operator()(TKeyPairMetadataImpl<version>& metadata) const
+    {
+        metadata.Owner = MapNode->GetChildValueOrThrow<TOwnerId>("owner");
+        metadata.Id = MapNode->GetChildValueOrThrow<TKeyId>("id");
+        metadata.CreatedAt = MapNode->GetChildValueOrThrow<TInstant>("created_at");
+        metadata.ValidAfter = MapNode->GetChildValueOrThrow<TInstant>("valid_after");
+        metadata.ExpiresAt = MapNode->GetChildValueOrThrow<TInstant>("expires_at");
+    }
+};
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Deserialize(TKeyPairMetadata& metadata, INodePtr node)
+{
+    TString version = node->AsMap()->GetChildValueOrThrow<TString>("version");
+    if (version == "0.1") {
+        metadata = TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>();
+    } else {
+        THROW_ERROR_EXCEPTION("Unknown TKeyPair version")
+            << TErrorAttribute("version", version);
+    }
+
+    std::visit(DeserializeVisitor{node->AsMap()}, metadata);
+}
+
+void Deserialize(TKeyPairMetadata& metadata, TYsonPullParserCursor* cursor)
+{
+    Deserialize(metadata, ExtractTo<INodePtr>(cursor));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,7 +123,7 @@ bool TKeyInfo::Verify(
     std::span<const std::byte> data,
     std::span<const std::byte, SignatureSize> signature) const
 {
-    return Meta().IsValid() && crypto_sign_verify_detached(
+    return IsKeyPairMetadataValid(Meta()) && crypto_sign_verify_detached(
         reinterpret_cast<const unsigned char*>(signature.data()),
         reinterpret_cast<const unsigned char*>(data.data()),
         data.size(),
@@ -51,6 +156,40 @@ const TKeyPairMetadata& TKeyInfo::Meta() const
 [[nodiscard]] bool TKeyInfo::operator==(const TKeyInfo& other) const
 {
     return Key() == other.Key() && Meta() == other.Meta();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TKeyInfo& keyInfo, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer).BeginMap()
+        .Item("metadata").Value(keyInfo.Meta())
+        .Item("public_key").Value(TStringBuf(
+            reinterpret_cast<const char*>(keyInfo.Key().data()),
+            keyInfo.Key().size()))
+    .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Deserialize(TKeyInfo& keyInfo, INodePtr node)
+{
+    IMapNodePtr mapNode = node->AsMap();
+    keyInfo.Meta_ = mapNode->GetChildValueOrThrow<TKeyPairMetadata>("metadata");
+
+    auto keyString = mapNode->GetChildValueOrThrow<std::string>("public_key");
+    auto keyBytes = std::as_bytes(std::span(keyString));
+    if (keyBytes.size() != PublicKeySize) {
+        THROW_ERROR_EXCEPTION("Received incorrect public key size")
+            << TErrorAttribute("received", keyBytes.size())
+            << TErrorAttribute("expected", PublicKeySize);
+    }
+    std::copy(keyBytes.begin(), keyBytes.end(), keyInfo.Key_.begin());
+}
+
+void Deserialize(TKeyInfo& keyInfo, TYsonPullParserCursor* cursor)
+{
+    Deserialize(keyInfo, ExtractTo<INodePtr>(cursor));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -32,10 +32,10 @@ TFuture<void> TSignatureGenerator::Rotate()
 {
     YT_LOG_INFO(
         "Rotating keypair (PreviousKeyPair: %v)",
-        (KeyPair_ ? std::optional{KeyPair_->KeyInfo().Meta().Id} : std::nullopt));
+        (KeyPair_ ? std::optional{GetKeyId(KeyPair_->KeyInfo().Meta())} : std::nullopt));
 
     auto now = Now();
-    TKeyPair newKeyPair(TKeyPairMetadata{
+    TKeyPair newKeyPair(TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
         .Owner = Owner_,
         .Id = TKeyId{TGuid::Create()},
         .CreatedAt = now,
@@ -49,7 +49,7 @@ TFuture<void> TSignatureGenerator::Rotate()
                 auto guard = WriterGuard(KeyPairLock_);
                 KeyPair_ = std::move(keyPair);
             }
-            YT_LOG_INFO("Rotated keypair (NewKeyPair: %v)", KeyPair_->KeyInfo().Meta().Id);
+            YT_LOG_INFO("Rotated keypair (NewKeyPair: %v)", GetKeyId(KeyPair_->KeyInfo().Meta()));
         }));
 }
 
@@ -79,7 +79,7 @@ TFuture<void> TSignatureGenerator::Rotate()
 
         header = TSignatureHeaderImpl<TSignatureVersion{0, 1}>{
             .Issuer = Owner_.Underlying(),
-            .KeypairId = KeyPair_->KeyInfo().Meta().Id.Underlying(),
+            .KeypairId = GetKeyId(KeyPair_->KeyInfo().Meta()).Underlying(),
             .SignatureId = signatureId,
             .IssuedAt = now,
             .ValidAfter = now - TimeSyncMargin,
@@ -91,11 +91,11 @@ TFuture<void> TSignatureGenerator::Rotate()
 
         auto toSign = PreprocessSignature(result->Header_, result->Payload_);
 
-        if (!KeyPair_->KeyInfo().Meta().IsValid()) {
+        if (!IsKeyPairMetadataValid(KeyPair_->KeyInfo().Meta())) {
             YT_LOG_WARNING(
                 "Signing with an invalid keypair (SignatureId: %v, KeyPair: %v)",
                 signatureId,
-                KeyPair_->KeyInfo().Meta().Id);
+                GetKeyId(KeyPair_->KeyInfo().Meta()));
         }
 
         KeyPair_->Sign(toSign, result->Signature_);
