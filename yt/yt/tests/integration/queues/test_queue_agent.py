@@ -2670,6 +2670,28 @@ class TestMultiClusterReplicatedTableObjects(TestMultiClusterReplicatedTableObje
         with raises_yt_error("Node /queue_agent has no child with key \"producers\""):
             get(f"{chaos_producer}/@queue_producer_partitions")
 
+    @authors("nadya73")
+    def test_change_cluster_connection(self):
+        chaos_queue, _, chaos_consumer, _ = self._create_chaos_queue_consumer_pair()
+        register_queue_consumer(chaos_queue, chaos_consumer, vital=True)
+        set(f"{chaos_queue}/@auto_trim_config", {"enable": True})
+
+        insert_rows(f"{chaos_queue}", [{"$tablet_index": 0, "data": "foo"}] * 5)
+
+        self._wait_for_component_passes()
+
+        # Update cluster connections.
+        old_refresh_time = int(get("//sys/clusters/primary/replication_card_cache/refresh_time"))
+        new_refresh_time = old_refresh_time + 1
+        for cluster in ["primary", "remote_0", "remote_1"]:
+            set(f"//sys/clusters/{cluster}/replication_card_cache/refresh_time", new_refresh_time)
+
+        self._sync_create_chaos_cell()
+        advance_consumer(chaos_consumer, chaos_queue, 0, 0, 5)
+        self._wait_for_component_passes()
+
+        assert "Chaos cell directory synchronizer is stopped" not in str(get(f"{chaos_queue}/@queue_status")["alerts"])
+
 
 class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
