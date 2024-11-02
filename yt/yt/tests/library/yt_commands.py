@@ -1273,15 +1273,11 @@ def get_supported_features(**kwargs):
     return execute_command("get_supported_features", kwargs, parse_yson=True)
 
 
-def start_shuffle(account, partition_count, **kwargs):
+def start_shuffle(account, partition_count, parent_transaction_id, **kwargs):
     kwargs["account"] = account
     kwargs["partition_count"] = partition_count
+    kwargs["parent_transaction_id"] = parent_transaction_id
     return execute_command("start_shuffle", kwargs, parse_yson=True)
-
-
-def finish_shuffle(shuffle_handle, **kwargs):
-    kwargs["shuffle_handle"] = shuffle_handle
-    execute_command("finish_shuffle", kwargs)
 
 
 def write_shuffle_data(shuffle_handle, partition_column, value, is_raw=False, **kwargs):

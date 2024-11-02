@@ -897,13 +897,9 @@ public: \
     IMPLEMENT_METHOD(TShuffleHandlePtr, StartShuffle, (
         const TString& account,
         int partitionCount,
+        NObjectClient::TTransactionId parentTransactionId,
         const TStartShuffleOptions& options),
-        (account, partitionCount, options))
-    IMPLEMENT_METHOD(void, FinishShuffle, (
-        const TShuffleHandlePtr& shuffleHandle,
-        const TFinishShuffleOptions& options),
-        (shuffleHandle, options))
-
+        (account, partitionCount, parentTransactionId, options))
     IMPLEMENT_METHOD(void, RegisterShuffleChunks, (
         const TShuffleHandlePtr& shuffleHandle,
         const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,

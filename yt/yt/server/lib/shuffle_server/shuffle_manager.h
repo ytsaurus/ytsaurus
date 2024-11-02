@@ -15,7 +15,9 @@ namespace NYT::NShuffleServer {
 struct IShuffleManager
     : public TRefCounted
 {
-    virtual TFuture<NObjectClient::TTransactionId> StartShuffle(int partitionCount) = 0;
+    virtual TFuture<NObjectClient::TTransactionId> StartShuffle(
+        int partitionCount,
+        NObjectClient::TTransactionId parentTransactionId) = 0;
 
     virtual TFuture<void> FinishShuffle(NObjectClient::TTransactionId transactionId) = 0;
 

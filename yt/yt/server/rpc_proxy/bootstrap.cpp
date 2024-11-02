@@ -311,7 +311,6 @@ void TBootstrap::DoRun()
         ShuffleService_ = CreateShuffleService(
             GetWorkerInvoker(),
             RootClient_,
-            RpcProxyLogger(),
             localServerAddress);
         RpcServer_->RegisterService(ShuffleService_);
         Connection_->RegisterShuffleService(localServerAddress);
