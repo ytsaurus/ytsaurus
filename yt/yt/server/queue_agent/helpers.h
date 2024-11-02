@@ -72,6 +72,7 @@ private:
     const NClient::NFederated::TFederationConfigPtr FederationConfig_;
 
     THashMap<std::string, NApi::IClientPtr> FederatedClients_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
 
     NApi::NNative::IConnectionPtr GetNativeConnection(const std::string& cluster) const;
 };

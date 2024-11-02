@@ -153,7 +153,6 @@ struct IConnection
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
     void Terminate() override = 0;
-    virtual bool IsTerminated() = 0;
 
     virtual void InitializeDiscoveryServerAddressPool() = 0;
 

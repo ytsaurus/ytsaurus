@@ -814,7 +814,7 @@ public:
         }
     }
 
-    bool IsTerminated() override
+    bool IsTerminated() const override
     {
         return Terminated_;
     }

@@ -329,7 +329,7 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
-    bool IsTerminated() override
+    bool IsTerminated() const override
     {
         YT_UNIMPLEMENTED();
     }
