@@ -920,10 +920,8 @@ private:
         }
 
         auto miscExt = GetProtoExtension<TMiscExt>(chunk.chunk_meta().extensions());
-        NCompression::ECodec compressionCodecId;
-        if (!TryEnumCast(miscExt.compression_codec(), &compressionCodecId) ||
-            compressionCodecId != NCompression::ECodec::None)
-        {
+        auto compressionCodecId = TryCheckedEnumCast<NCompression::ECodec>(miscExt.compression_codec());
+        if (compressionCodecId != NCompression::ECodec::None) {
             return false;
         }
 

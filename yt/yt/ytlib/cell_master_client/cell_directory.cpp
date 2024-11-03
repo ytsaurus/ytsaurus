@@ -189,15 +189,15 @@ public:
 
             auto roles = EMasterCellRoles::None;
             for (auto protoRole : item.roles()) {
-                auto role = EMasterCellRole::None;
-                if (!TryEnumCast(protoRole, &role)) {
+                auto role = TryCheckedEnumCast<EMasterCellRole>(protoRole);
+                if (!role) {
                     YT_LOG_ALERT("Skipped an unknown cell role while synchronizing master cell directory (MasterCellRole: %v, CellTag: %v)",
                         protoRole,
                         cellTag);
                     continue;
                 }
-                roles = roles | EMasterCellRoles(role);
-                roleToCellTags[role].push_back(cellTag);
+                roles |= EMasterCellRoles(*role);
+                roleToCellTags[*role].push_back(cellTag);
             }
             EmplaceOrCrash(cellTagToRoles, cellTag, roles);
             EmplaceOrCrash(cellAddresses, cellTag, *masterConnectionConfig->Addresses);

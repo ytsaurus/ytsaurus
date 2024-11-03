@@ -98,8 +98,7 @@ public:
             return;
         }
 
-        ECodec codecId;
-        YT_VERIFY(TryEnumCast<ECodec>(req.codec(), &codecId));
+        auto codecId = CheckedEnumCast<ECodec>(req.codec());
         auto* codec = GetCodec(codecId);
         auto compressedRecordData = TSharedRef::FromString(req.compressed_data());
         auto recordData = codec->Decompress(compressedRecordData);

@@ -220,13 +220,13 @@ private:
 
         auto compressedBlock = blockCache->FindBlock(blockId, EBlockType::CompressedData);
         if (compressedBlock) {
-            NCompression::ECodec codecId;
-            YT_VERIFY(TryEnumCast(chunkMeta->Misc().compression_codec(), &codecId));
-            auto* codec = NCompression::GetCodec(codecId);
+            auto codecId = TryCheckedEnumCast<NCompression::ECodec>(chunkMeta->Misc().compression_codec());
+            YT_VERIFY(codecId);
+            auto* codec = NCompression::GetCodec(*codecId);
 
             NProfiling::TFiberWallTimer timer;
             auto uncompressedBlock = codec->Decompress(compressedBlock.Data);
-            DecompressionStatistics_.Append(TCodecDuration{codecId, timer.GetElapsedTime()});
+            DecompressionStatistics_.Append(TCodecDuration{*codecId, timer.GetElapsedTime()});
 
             if (codecId != NCompression::ECodec::None) {
                 blockCache->PutBlock(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock));

@@ -75,19 +75,22 @@ protected:
 
     void GetYqlPluginAbiVersion()
     {
-        if (!TryEnumCast(BridgeGetAbiVersion(), &AbiVersion_)) {
+        auto version = TryCheckedEnumCast<EYqlPluginAbiVersion>(BridgeGetAbiVersion());
+        if (!version) {
             THROW_ERROR_EXCEPTION(
                 "YQL plugin ABI version %v is not supported",
                 BridgeGetAbiVersion());
         }
 
-        if (AbiVersion_ < MinSupportedYqlPluginAbiVersion ||
-            AbiVersion_ > MaxSupportedYqlPluginAbiVersion)
+        if (*version < MinSupportedYqlPluginAbiVersion ||
+            *version > MaxSupportedYqlPluginAbiVersion)
         {
             THROW_ERROR_EXCEPTION(
                 "YQL plugin ABI version %Qv is not supported",
-                AbiVersion_);
+                *version);
         }
+
+        AbiVersion_ = *version;
     }
 };
 
