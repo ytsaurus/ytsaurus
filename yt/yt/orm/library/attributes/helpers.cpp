@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <library/cpp/yt/misc/cast.h>
+
 #include <util/string/cast.h>
 
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
@@ -703,12 +705,13 @@ const EnumValueDescriptor* LookupEnumValue(
         static_assert(true)
 
 #define _CAST(snakeType) \
-    snakeType castValue; \
-    if (!TryIntegralCast(value, &castValue)) { \
+    auto optionalCastValue = TryCheckedIntegralCast<snakeType>(value); \
+    if (!optionalCastValue) { \
         return TError(EErrorCode::InvalidData, \
             "Value %v does not fit in " #snakeType, \
             value); \
     } \
+    const auto& castValue = *optionalCastValue; \
     static_assert(true)
 
 #define _CAST_FROM_STRING(snakeType) \
@@ -721,8 +724,8 @@ const EnumValueDescriptor* LookupEnumValue(
     static_assert(true)
 
 #define _CAST_ENUM() \
-    const EnumValueDescriptor* enumValue = LookupEnumValue(fieldDescriptor, value); \
-    if (enumValue == nullptr) { \
+    const auto* enumValue = LookupEnumValue(fieldDescriptor, value); \
+    if (!enumValue) { \
         return TError(EErrorCode::InvalidData, \
             "Failed to convert %v to a %v enum", \
             value, \

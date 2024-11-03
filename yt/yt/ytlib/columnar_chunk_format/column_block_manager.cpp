@@ -455,9 +455,8 @@ public:
         : BlockHolders_(std::move(blockHolders))
         , BlockCache_(std::move(blockCache))
         , ChunkId_(chunkId)
-    {
-        YT_VERIFY(TryEnumCast(chunkMeta->Misc().compression_codec(), &CodecId_));
-    }
+        , CodecId_(CheckedEnumCast<NCompression::ECodec>(chunkMeta->Misc().compression_codec()))
+    { }
 
     void ClearUsedBlocks() override
     {
@@ -507,11 +506,11 @@ public:
 
 private:
     std::vector<TGroupBlockHolder> BlockHolders_;
-    NChunkClient::IBlockCachePtr BlockCache_;
-    NChunkClient::TChunkId ChunkId_;
-    NCompression::ECodec CodecId_;
-    std::vector<TSharedRef> UsedBlocks_;
+    const NChunkClient::IBlockCachePtr BlockCache_;
+    const NChunkClient::TChunkId ChunkId_;
+    const NCompression::ECodec CodecId_;
 
+    std::vector<TSharedRef> UsedBlocks_;
     TDuration DecompressionDuration_;
 
     TSharedRef GetBlock(int blockIndex)
