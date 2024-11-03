@@ -31,13 +31,12 @@ TEST(TLocalHostNameSanitizer, SingleDataCenterSanitizing)
     for (const auto& peerAddress : clusterPeers) {
         auto sanitizedHost = SanitizeLocalHostName(clusterPeers, peerAddress);
         EXPECT_TRUE(sanitizedHost);
-        EXPECT_EQ("m***-cluster-vla.vla.yp-c.yandex.net", sanitizedHost->ToStringBuf());
+        EXPECT_EQ("m*-cluster-vla.vla.yp-c.yandex.net", sanitizedHost->ToStringBuf());
     }
 
     for (const auto& peerAddress : peers) {
         auto sanitizedHost = SanitizeLocalHostName(clusterPeers, peerAddress);
-        EXPECT_TRUE(sanitizedHost);
-        EXPECT_EQ(peerAddress, sanitizedHost->ToStringBuf());
+        EXPECT_FALSE(sanitizedHost);
     }
 }
 
@@ -57,7 +56,95 @@ TEST(TLocalHostNameSanitizer, CrossDataCenterSanitizing)
     for (const auto& peerAddress : clusterPeers) {
         auto sanitizedHost = SanitizeLocalHostName(clusterPeers, peerAddress);
         EXPECT_TRUE(sanitizedHost);
-        EXPECT_EQ("m***-cluster.***.yp-c.yandex.net", sanitizedHost->ToStringBuf());
+        EXPECT_EQ("m*.yp-c.yandex.net", sanitizedHost->ToStringBuf());
+    }
+}
+
+TEST(TLocalHostNameSanitizer, DifferentHostNameLengths)
+{
+    THashSet<TString> clusterPeers = {
+        "eu-north1-c-4ct13-11b.hw.company.yt",
+        "eu-north1-c-4ct14-15b.hw.company.yt",
+        "eu-north1-c-4ct4-11a.hw.company.yt",
+    };
+
+    for (const auto& peerAddress : clusterPeers) {
+        auto sanitizedHost = SanitizeLocalHostName(clusterPeers, peerAddress);
+        EXPECT_TRUE(sanitizedHost);
+        EXPECT_EQ("eu-north1-c-4ct*.hw.company.yt", sanitizedHost->ToStringBuf());
+    }
+}
+
+TEST(TLocalHostNameSanitizer, PeerEqualToCommonPrefix)
+{
+    THashSet<TString> clusterPeers = {
+        "abc.cX.cZ",
+        "abc.cX",
+        "abc.cX.dZ",
+    };
+
+    for (const auto& peerAddress : clusterPeers) {
+        auto sanitizedHost = SanitizeLocalHostName(clusterPeers, peerAddress);
+        EXPECT_TRUE(sanitizedHost);
+        EXPECT_EQ("abc.cX*", sanitizedHost->ToStringBuf());
+    }
+}
+
+TEST(TLocalHostNameSanitizer, PeerEqualToCommonSuffix)
+{
+    THashSet<TString> clusterPeers = {
+        "abc.cX.cZ",
+        "cX.cZ",
+        "e.cX.cZ",
+    };
+
+    for (const auto& peerAddress : clusterPeers) {
+        auto sanitizedHost = SanitizeLocalHostName(clusterPeers, peerAddress);
+        EXPECT_TRUE(sanitizedHost);
+        EXPECT_EQ("*cX.cZ", sanitizedHost->ToStringBuf());
+    }
+}
+
+TEST(TLocalHostNameSanitizer, NoCommonParts)
+{
+    THashSet<TString> clusterPeers = {
+        "a",
+        "b",
+        "c",
+    };
+
+    for (const auto& peerAddress : clusterPeers) {
+        auto sanitizedHost = SanitizeLocalHostName(clusterPeers, peerAddress);
+        EXPECT_TRUE(sanitizedHost);
+        EXPECT_EQ("*", sanitizedHost->ToStringBuf());
+    }
+}
+
+TEST(TLocalHostNameSanitizer, EqualPeers)
+{
+    THashSet<TString> clusterPeers = {
+        "abc",
+        "abc",
+    };
+
+    for (const auto& peerAddress : clusterPeers) {
+        auto sanitizedHost = SanitizeLocalHostName(clusterPeers, peerAddress);
+        EXPECT_TRUE(sanitizedHost);
+        EXPECT_EQ("abc", sanitizedHost->ToStringBuf());
+    }
+}
+
+TEST(TLocalHostNameSanitizer, PrefixAndSuffixOverlap)
+{
+    THashSet<TString> clusterPeers = {
+        "abc.cX.bc.cZ",
+        "abc.cZ",
+    };
+
+    for (const auto& peerAddress : clusterPeers) {
+        auto sanitizedHost = SanitizeLocalHostName(clusterPeers, peerAddress);
+        EXPECT_TRUE(sanitizedHost);
+        EXPECT_EQ("abc.c*Z", sanitizedHost->ToStringBuf());
     }
 }
 

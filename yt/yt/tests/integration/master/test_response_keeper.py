@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup
 
-from yt_commands import authors, generate_uuid, get, create
+from yt_commands import authors, generate_uuid, get, create, raises_yt_error
 
 from yt.common import YtError
 
@@ -51,6 +51,16 @@ class TestResponseKeeper(YTEnvSetup):
             create("table", "//tmp/t", mutation_id=mutation_id)
 
         assert get("//tmp/t/@id") == table_id
+
+    @authors("achulkov2")
+    def test_host_sanitization(self):
+        create("table", "//tmp/t")
+
+        with raises_yt_error() as err:
+            create("table", "//tmp/t")
+
+        # All host names are equal to "localhost", so the sanitized host name is also "localhost".
+        assert err[0].inner_errors[0]["attributes"]["host"] == "localhost"
 
 
 class TestResponseKeeperOldHydra(TestResponseKeeper):

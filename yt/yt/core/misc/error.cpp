@@ -1147,9 +1147,6 @@ void ToProto(NYT::NProto::TError* protoError, const TError& error)
     };
 
     if (error.HasOriginAttributes()) {
-        static const TString HostKey("host");
-        addAttribute(HostKey, error.GetHost());
-
         static const TString PidKey("pid");
         addAttribute(PidKey, error.GetPid());
 
@@ -1161,7 +1158,9 @@ void ToProto(NYT::NProto::TError* protoError, const TError& error)
 
         static const TString FidKey("fid");
         addAttribute(FidKey, error.GetFid());
-    } else if (ErrorSanitizerEnabled() && error.HasHost()) {
+    }
+
+    if (error.HasHost()) {
         static const TString HostKey("host");
         addAttribute(HostKey, error.GetHost());
     }
@@ -1253,7 +1252,6 @@ void Serialize(
     const std::function<void(IYsonConsumer*)>* valueProducer,
     int depth)
 {
-    auto& errorSanitizerEnabled = ErrorSanitizerEnabled();
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("code").Value(error.GetCode())
@@ -1261,12 +1259,12 @@ void Serialize(
             .Item("attributes").DoMap([&] (auto fluent) {
                 if (error.HasOriginAttributes()) {
                     fluent
-                        .Item("host").Value(error.GetHost())
                         .Item("pid").Value(error.GetPid())
                         .Item("tid").Value(error.GetTid())
                         .Item("thread").Value(error.GetThreadName())
                         .Item("fid").Value(error.GetFid());
-                } else if (errorSanitizerEnabled && error.HasHost()) {
+                }
+                if (error.HasHost()) {
                     fluent
                         .Item("host").Value(error.GetHost());
                 }
