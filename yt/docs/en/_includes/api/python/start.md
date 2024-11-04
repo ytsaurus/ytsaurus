@@ -13,8 +13,8 @@ pip install ytsaurus-client
 What becomes available after installing the package:
 
 - The Python yt library.
-- The binary yt todo file.
-- The binary yt-fuse file for connecting [Cypress](../../../user-guide/storage/cypress.md) as a file system locally.
+- The CLI binary [yt](../../../api/cli/cli.md).
+- The binary `yt-fuse` for connecting [Cypress](../../../user-guide/storage/cypress.md) as a file system locally.
 
 ### Installation { #install }
 
