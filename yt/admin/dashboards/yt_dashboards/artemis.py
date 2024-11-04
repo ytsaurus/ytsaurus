@@ -621,12 +621,10 @@ def build_changelogs():
         .row()
             .cell(
                 "Data node Multiplexed changelogs records rate",
-                changelog("multiplexed_changelogs.records.rate"),
-                unit="bytes")
+                changelog("multiplexed_changelogs.records.rate"))
             .cell(
                 "Data node Split changelogs records rate",
-                changelog("split_changelogs.records.rate"),
-                unit="bytes")
+                changelog("split_changelogs.records.rate"))
     ).owner
 
 
@@ -946,7 +944,7 @@ def build_local_artemis():
         d.add_parameter(
             "pod",
             "Pod",
-            GrafanaTextboxDashboardParameter("tnd-teapot-0"))
+            GrafanaTextboxDashboardParameter("tnd-0"))
 
         return d
 
