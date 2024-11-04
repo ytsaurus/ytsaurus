@@ -145,7 +145,10 @@ bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
         auto* protoChunk = jobSpecExt->add_input_chunks();
         ToProto(protoChunk->mutable_id(), chunk->GetId());
 
-        // This is context switch, but chunk is ephemeral pointer.
+        if (!IsObjectAlive(chunk)) {
+            return false;
+        }
+
         auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(chunk);
         if (!replicasOrError.IsOK()) {
             return false;
