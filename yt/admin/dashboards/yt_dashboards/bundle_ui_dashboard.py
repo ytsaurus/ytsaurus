@@ -33,20 +33,20 @@ def build_user_load():
             .top()
 
             .row()
-                .cell("Table write data weight rate", top_rate("write", "data_weight"))
+                .cell("Table write data weight rate", top_rate("write", "data_weight"), unit="bytes")
                 .cell("Table write row count rate", top_rate("write", "row_count"))
             .row()
-                .cell("Table commit data weight rate", top_rate("commit", "data_weight"))
+                .cell("Table commit data weight rate", top_rate("commit", "data_weight"), unit="bytes")
                 .cell("Table commit row count rate", top_rate("commit", "row_count"))
             .row()
                 .cell("Table lookup request count", top_rate("multiread", "request_count"))
                 .cell("Table select request count", top_rate("execute", "request_count"))
             .row()
-                .cell("Table lookup data weight rate", top_rate("lookup", "data_weight"))
-                .cell("Table select data weight rate", top_rate("select", "data_weight"))
+                .cell("Table lookup data weight rate", top_rate("lookup", "data_weight"), unit="bytes")
+                .cell("Table select data weight rate", top_rate("select", "data_weight"), unit="bytes")
             .row()
-                .cell("Table lookup unmerged data weight rate", top_rate("lookup", "unmerged_data_weight"))
-                .cell("Table select unmerged data weight rate", top_rate("select", "unmerged_data_weight"))
+                .cell("Table lookup unmerged data weight rate", top_rate("lookup", "unmerged_data_weight"), unit="bytes")
+                .cell("Table select unmerged data weight rate", top_rate("select", "unmerged_data_weight"), unit="bytes")
             .row()
                 .cell("Table lookup row count rate", top_rate("lookup", "row_count"))
                 .cell("Table select row count rate", top_rate("select", "row_count"))
@@ -251,14 +251,14 @@ def build_user_memory():
             .stack(False)
             .top()
             .row()
-                .cell("Tablet dynamic memory", memory_usage("tablet_dynamic"))
-                .cell("Tablet static memory", memory_usage("tablet_static"))
+                .cell("Tablet dynamic memory", memory_usage("tablet_dynamic"), unit="bytes")
+                .cell("Tablet static memory", memory_usage("tablet_static"), unit="bytes")
             .row()
-                .cell("Query memory usage", Node("yt.cluster_node.memory_usage.used").value("category", "query"))
-                .cell("Tracked memory usage", Node("yt.cluster_node.memory_usage.total_used"))
+                .cell("Query memory usage", Node("yt.cluster_node.memory_usage.used").value("category", "query"), unit="bytes")
+                .cell("Tracked memory usage", Node("yt.cluster_node.memory_usage.total_used"), unit="bytes")
             .row()
-                .cell("Process memory usage (rss)", NodeMemory("yt.resource_tracker.memory_usage.rss"))
-                .cell("Container (cgroup) memory usage", MultiSensor(NodeMemory("yt.memory.cgroup.rss"), NodeMemory("yt.memory.cgroup.memory_limit")))
+                .cell("Process memory usage (rss)", NodeMemory("yt.resource_tracker.memory_usage.rss"), unit="bytes")
+                .cell("Container (cgroup) memory usage", MultiSensor(NodeMemory("yt.memory.cgroup.rss"), NodeMemory("yt.memory.cgroup.memory_limit")), unit="bytes")
             ).owner
 
 def build_reserved_memory():
@@ -281,14 +281,15 @@ def build_reserved_memory():
     return (Rowset()
             .stack(False)
             .row()
-                .cell("Reserved memory usage",  MultiSensor(reserved_limit, reserved_usage))
+                .cell("Reserved memory usage",  MultiSensor(reserved_limit, reserved_usage), unit="bytes")
                 .cell("Footprint and Fragmentation",  MultiSensor(
                         MonitoringExpr(TabNodeMemory("used").value("category", "footprint"))
                             .alias("footprint {{container}}"),
                         MonitoringExpr(TabNodeMemory("used").value("category", "alloc_fragmentation"))
                             .alias("fragmentation {{container}}"))
                       .top(1)
-                      .stack(True))
+                      .stack(True),
+                      unit="bytes")
             ).owner
 
 
@@ -302,8 +303,8 @@ def build_tablet_network():
             .top()
             .stack(True)
             .row()
-                .cell("Table lookup bytes received", reader_stats("lookup", "data_bytes_transmitted"))
-                .cell("Table select bytes received", reader_stats("select", "data_bytes_transmitted"))
+                .cell("Table lookup bytes received", reader_stats("lookup", "data_bytes_transmitted"), unit="bytes")
+                .cell("Table select bytes received", reader_stats("select", "data_bytes_transmitted"), unit="bytes")
             ).owner
 
 def build_user_network():
@@ -311,28 +312,30 @@ def build_user_network():
             .top()
             .aggr("network", "band", "encrypted")
             .row()
-                .cell("Network received bytes (bus)", NodeInternal("yt.bus.in_bytes.rate"))
-                .cell("Network transmitted bytes (bus)", NodeInternal("yt.bus.out_bytes.rate"))
+                .cell("Network received bytes (bus)", NodeInternal("yt.bus.in_bytes.rate"), unit="bytes")
+                .cell("Network transmitted bytes (bus)", NodeInternal("yt.bus.out_bytes.rate"), unit="bytes")
             .row()
-                .cell("Pending out bytes", NodeInternal("yt.bus.pending_out_bytes"))
-                .cell("TCP retransmits rate", NodeInternal("yt.bus.retransmits.rate"))
+                .cell("Pending out bytes", NodeInternal("yt.bus.pending_out_bytes"), unit="bytes")
+                .cell("TCP retransmits rate", NodeInternal("yt.bus.retransmits.rate"), unit="bytes")
             ).owner
 
 def build_throttling():
     return (Rowset()
             .top()
             .row()
-                .cell("Receive network throttled", TabNode("yt.cluster_node.in_throttler.throttled").all("bucket"))
+                .cell("Receive network throttled", TabNode("yt.cluster_node.in_throttler.throttled").all("bucket"), unit="bytes")
                 .cell("Receive network throttler bytes rate", MultiSensor(
                     TabNode("yt.cluster_node.in_throttler.value.rate"),
                     TabNode("yt.cluster_node.in_throttler.total_limit"))
-                    .aggr("bucket"))
+                    .aggr("bucket"),
+                    unit="bytes")
             .row()
-                .cell("Transmit network throttled", TabNode("yt.cluster_node.out_throttler.throttled").all("bucket"))
+                .cell("Transmit network throttled", TabNode("yt.cluster_node.out_throttler.throttled").all("bucket"), unit="bytes")
                 .cell("Transmit network throttler bytes rate", MultiSensor(
                     TabNode("yt.cluster_node.out_throttler.value.rate"),
                     TabNode("yt.cluster_node.out_throttler.total_limit"))
-                    .aggr("bucket"))
+                    .aggr("bucket"),
+                    unit="bytes")
             ).owner
 
 
@@ -385,11 +388,11 @@ def build_rpc_message_size_stats_per_host(
         name_suffix = " " + name_suffix
     return (Rowset()
             .row()
-                .cell("{} request message body size{}".format(name_prefix, name_suffix), s("request_message_body_bytes"))
-                .cell("{} request message attachment size{}".format(name_prefix, name_suffix), s("request_message_attachment_bytes"))
+                .cell("{} request message body size{}".format(name_prefix, name_suffix), s("request_message_body_bytes"), unit="bytes")
+                .cell("{} request message attachment size{}".format(name_prefix, name_suffix), s("request_message_attachment_bytes"), unit="bytes")
             .row()
-                .cell("{} response message body size{}".format(name_prefix, name_suffix), s("response_message_body_bytes"))
-                .cell("{} response message attachment size{}".format(name_prefix, name_suffix), s("response_message_attachment_bytes"))
+                .cell("{} response message body size{}".format(name_prefix, name_suffix), s("response_message_body_bytes"), unit="bytes")
+                .cell("{} response message attachment size{}".format(name_prefix, name_suffix), s("response_message_attachment_bytes"), unit="bytes")
             ).owner
 
 def build_user_caches():
@@ -401,16 +404,16 @@ def build_user_caches():
             .top()
             .row()
                 .value("service", "node_tablet")
-                .cell("Versioned chunk meta cache hit weight rate", usage("yt.tablet_node.versioned_chunk_meta_cache"))
-                .cell("Versioned chunk meta cache miss weight rate", misses("tablet", "versioned_chunk_meta_cache"))
+                .cell("Versioned chunk meta cache hit weight rate", usage("yt.tablet_node.versioned_chunk_meta_cache"), unit="bytes")
+                .cell("Versioned chunk meta cache miss weight rate", misses("tablet", "versioned_chunk_meta_cache"), unit="bytes")
             .row()
-                .cell("Block cache hit weight rate", usage("yt.data_node.block_cache.*compressed_data"))
-                .cell("Block cache miss weight rate", misses("data", "block_cache.*compressed_data"))
+                .cell("Block cache hit weight rate", usage("yt.data_node.block_cache.*compressed_data"), unit="bytes")
+                .cell("Block cache miss weight rate", misses("data", "block_cache.*compressed_data"), unit="bytes")
             .row()
                 .cell("Block cache memory", Node("yt.cluster_node.memory_usage.used")
-                    .value("category", "block_cache"))
+                    .value("category", "block_cache"), unit="bytes")
                 .cell("Cached versioned chunk meta memory", Node("yt.cluster_node.memory_usage.used")
-                    .value("category", "versioned_chunk_meta"))
+                    .value("category", "versioned_chunk_meta"), unit="bytes")
     ).owner
 
 def build_block_cache_planning():
@@ -424,8 +427,8 @@ def build_block_cache_planning():
             .stack(False)
             .top(1)
             .row()
-                .cell("Compressed block cache size planning", miss_weight_rate("compressed"))
-                .cell("Uncompressed block cache size planning", miss_weight_rate("uncompressed"))
+                .cell("Compressed block cache size planning", miss_weight_rate("compressed"), unit="bytes")
+                .cell("Uncompressed block cache size planning", miss_weight_rate("uncompressed"), unit="bytes")
     ).owner
 
 
@@ -438,11 +441,11 @@ def build_user_disk():
             .aggr("table_tag", "table_path", "user")
             .top()
             .row()
-                .cell("Table lookup data bytes read from disk", reader_stats("lookup", "data_bytes_transmitted"))
-                .cell("Table select data bytes read from disk", reader_stats("select", "data_bytes_transmitted"))
+                .cell("Table lookup data bytes read from disk", reader_stats("lookup", "data_bytes_transmitted"), unit="bytes")
+                .cell("Table select data bytes read from disk", reader_stats("select", "data_bytes_transmitted"), unit="bytes")
             .row()
-                .cell("Table lookup chunk meta bytes read from disk", reader_stats("lookup", "meta_bytes_read_from_disk"))
-                .cell("Table select chunk meta bytes read from disk", reader_stats("select", "meta_bytes_read_from_disk"))
+                .cell("Table lookup chunk meta bytes read from disk", reader_stats("lookup", "meta_bytes_read_from_disk"), unit="bytes")
+                .cell("Table select chunk meta bytes read from disk", reader_stats("select", "meta_bytes_read_from_disk"), unit="bytes")
             .row()
                 .cell("Table lookup data wait time", reader_stats("lookup", "data_wait_time"))
                 .cell("Table select data wait time", reader_stats("select", "data_wait_time"))
@@ -466,11 +469,11 @@ def build_user_background_disk():
             .aggr("table_tag", "table_path")
             .top()
             .row()
-                .cell("Tablet background data bytes read from disk", top_disk("chunk_reader_statistics", "data_bytes_read_from_disk"))
-                .cell("Tablet background chunk meta bytes read from disk", top_disk("chunk_reader_statistics", "meta_bytes_read_from_disk"))
+                .cell("Tablet background data bytes read from disk", top_disk("chunk_reader_statistics", "data_bytes_read_from_disk"), unit="bytes")
+                .cell("Tablet background chunk meta bytes read from disk", top_disk("chunk_reader_statistics", "meta_bytes_read_from_disk"), unit="bytes")
             .row()
-                .cell("Tablet background disk bytes written (with replication)", top_disk("chunk_writer", "disk_space"))
-                .cell("Tablet background data weight written (without replication)", top_disk("chunk_writer", "data_weight"))
+                .cell("Tablet background disk bytes written (with replication)", top_disk("chunk_writer", "disk_space"), unit="bytes")
+                .cell("Tablet background data weight written (without replication)", top_disk("chunk_writer", "data_weight"), unit="bytes")
             ).owner
 
 
@@ -512,12 +515,12 @@ def build_user_resource_overview_rowset():
                                     MonitoringExpr(Node("yt.cluster_node.memory_usage.used")
                                         .sensor_stack()
                                         .aggr(MonitoringTag("host"))
-                                        .all("category")).alias("{{category}}")))
+                                        .all("category")).alias("{{category}}")), unit="bytes")
                 .cell("Memory per container", MultiSensor(
                                     MonitoringExpr(TabNodePorto("yt.porto.memory.memory_limit").value("container_category", "pod")
                                         .all(MonitoringTag("host"))).alias("Guarantee {{container}}")
                                         .top(1),
-                                    *top_max_bottom_min("yt.porto.memory.anon_usage")))
+                                    *top_max_bottom_min("yt.porto.memory.anon_usage")), unit="bytes")
             .row()
                 .cell("Net TX total", MultiSensor(
                                     MonitoringExpr(TabNodePorto("yt.porto.network.tx_limit").value("container_category", "pod")
@@ -525,11 +528,11 @@ def build_user_resource_overview_rowset():
                                     MonitoringExpr(TabNodePorto("yt.porto.network.tx_bytes").value("container_category", "pod")
                                         .aggr(MonitoringTag("host"))).alias("Container Net Tx Bytes Rate"),
                                     MonitoringExpr(NodeInternal("yt.bus.out_bytes.rate")
-                                        .aggr(MonitoringTag("host"), "band", "network")).alias("Node TX Bytes Rate")))
+                                        .aggr(MonitoringTag("host"), "band", "network")).alias("Node TX Bytes Rate")), unit="bytes")
                 .cell("Net TX per container", MultiSensor(MonitoringExpr(TabNodePorto("yt.porto.network.tx_limit").value("container_category", "pod")
                                         .all(MonitoringTag("host"))).alias("Guarantee {{container}}")
                                         .top(1),
-                                        *top_max_bottom_min("yt.porto.network.tx_bytes")))
+                                        *top_max_bottom_min("yt.porto.network.tx_bytes")), unit="bytes")
             .row()
                 .cell("Net RX Total", MultiSensor(
                                     MonitoringExpr(TabNodePorto("yt.porto.network.rx_limit").value("container_category", "pod")
@@ -537,22 +540,22 @@ def build_user_resource_overview_rowset():
                                     MonitoringExpr(TabNodePorto("yt.porto.network.rx_bytes").value("container_category", "pod")
                                         .aggr(MonitoringTag("host"))).alias("Container Net Rx Bytes Rate"),
                                     MonitoringExpr(NodeInternal("yt.bus.in_bytes.rate")
-                                        .aggr(MonitoringTag("host"), "band", "network")).alias("Node RX Bytes Rate")))
+                                        .aggr(MonitoringTag("host"), "band", "network")).alias("Node RX Bytes Rate")), unit="bytes")
                 .cell("Net RX per container", MultiSensor(MonitoringExpr(TabNodePorto("yt.porto.network.rx_limit").value("container_category", "pod")
                                         .all(MonitoringTag("host"))).alias("Guarantee {{container}}")
                                         .top(1),
-                                        *top_max_bottom_min("yt.porto.network.rx_bytes")))
+                                        *top_max_bottom_min("yt.porto.network.rx_bytes")), unit="bytes")
             .row()
                 .stack(True)
                 .cell("Disk Write Total", MultiSensor(
                                     MonitoringExpr(NodeTablet("yt.tablet_node.chunk_writer.disk_space.rate")
                                         .aggr(MonitoringTag("host"), "table_path", "table_tag", "account", "medium")
-                                        .all("method")).alias("{{method}}")))
+                                        .all("method")).alias("{{method}}")), unit="bytes")
                 .cell("Disk Write per container", MonitoringExpr(NodeTablet("yt.tablet_node.chunk_writer.disk_space.rate")
                                         .aggr("method", "table_path", "table_tag", "account", "medium"))
                                         .alias("{{container}}")
                                         .all(MonitoringTag("host")).top()
-                                        .stack(False))
+                                        .stack(False), unit="bytes")
             .row()
                 .stack(True)
                 .cell("Disk Read Total", MultiSensor(
@@ -564,7 +567,7 @@ def build_user_resource_overview_rowset():
                                         .alias("lookup"),
                                     MonitoringExpr(NodeTablet("yt.tablet_node.select.chunk_reader_statistics.data_bytes_read_from_disk.rate")
                                         .aggr(MonitoringTag("host"), "table_path", "table_tag", "user"))
-                                        .alias("select")))
+                                        .alias("select")), unit="bytes")
                 .cell("Disk Read per container", (MonitoringExpr(NodeTablet("yt.tablet_node.chunk_reader_statistics.data_bytes_read_from_disk.rate")
                                         .aggr("method", "table_path", "table_tag", "account", "medium") +
                                     MonitoringExpr(NodeTablet("yt.tablet_node.lookup.chunk_reader_statistics.data_bytes_read_from_disk.rate")
@@ -572,7 +575,7 @@ def build_user_resource_overview_rowset():
                                     MonitoringExpr(NodeTablet("yt.tablet_node.select.chunk_reader_statistics.data_bytes_read_from_disk.rate")
                                         .aggr("method", "table_path", "table_tag", "user"))).alias("{{container}}"))
                                         .all(MonitoringTag("host")).top()
-                                        .stack(False))
+                                        .stack(False), unit="bytes")
             .row()
                 .stack(True)
                 .cell("Master CPU", MonitoringExpr(Master("yt.tablet_server.update_tablet_stores.cumulative_time.rate")

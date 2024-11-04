@@ -39,26 +39,26 @@ def build_read_write_rowset():
         .top()
 
         .row()
-            .cell("Table write data weight rate", top_rate("write", "data_weight"))
+            .cell("Table write data weight rate", top_rate("write", "data_weight"), unit="bytes")
             .cell("Table write row count rate", top_rate("write", "row_count"))
         .row()
-            .cell("Table commit data weight rate", top_rate("commit", "data_weight"))
+            .cell("Table commit data weight rate", top_rate("commit", "data_weight"), unit="bytes")
             .cell("Table commit row count rate", top_rate("commit", "row_count"))
         .row()
-            .cell("Table lookup data weight rate", top_rate("lookup", "data_weight"))
-            .cell("Table select data weight rate", top_rate("select", "data_weight"))
+            .cell("Table lookup data weight rate", top_rate("lookup", "data_weight"), unit="bytes")
+            .cell("Table select data weight rate", top_rate("select", "data_weight"), unit="bytes")
         .row()
-            .cell("Table lookup unmerged data weight rate", top_rate("lookup", "unmerged_data_weight"))
-            .cell("Table select unmerged data weight rate", top_rate("select", "unmerged_data_weight"))
+            .cell("Table lookup unmerged data weight rate", top_rate("lookup", "unmerged_data_weight"), unit="bytes")
+            .cell("Table select unmerged data weight rate", top_rate("select", "unmerged_data_weight"), unit="bytes")
         .row()
-            .cell("Table lookup data bytes read from disk", reader_stats("lookup", "data"))
-            .cell("Table select data bytes read from disk", reader_stats("select", "data"))
+            .cell("Table lookup data bytes read from disk", reader_stats("lookup", "data"), unit="bytes")
+            .cell("Table select data bytes read from disk", reader_stats("select", "data"), unit="bytes")
         .row()
-            .cell("Table lookup data bytes transmitted", transmitted_stats("lookup"))
-            .cell("Table select data bytes transmitted", transmitted_stats("select"))
+            .cell("Table lookup data bytes transmitted", transmitted_stats("lookup"), unit="bytes")
+            .cell("Table select data bytes transmitted", transmitted_stats("select"), unit="bytes")
         .row()
-            .cell("Table lookup chunk meta bytes read from disk", reader_stats("lookup", "meta"))
-            .cell("Table select chunk meta bytes read from disk", reader_stats("select", "meta"))
+            .cell("Table lookup chunk meta bytes read from disk", reader_stats("lookup", "meta"), unit="bytes")
+            .cell("Table select chunk meta bytes read from disk", reader_stats("select", "meta"), unit="bytes")
         .row()
             .cell("Table lookup row count rate", top_rate("lookup", "row_count"))
             .cell("Table select row count rate", top_rate("select", "row_count"))
@@ -143,7 +143,8 @@ def build_replicator():
         .row()
             .cell(
                 "Table replicator replicated data weight",
-                NodeTablet("yt.tablet_node.replica.replication_data_weight.rate"))
+                NodeTablet("yt.tablet_node.replica.replication_data_weight.rate"),
+                unit="bytes")
     ).owner
 
 
@@ -159,17 +160,21 @@ def build_background_resource_usage():
         .row()
             .cell(
                 "Tablet background data bytes read from disk",
-                top_disk("chunk_reader_statistics", "data_bytes_read_from_disk"))
+                top_disk("chunk_reader_statistics", "data_bytes_read_from_disk"),
+                unit="bytes")
             .cell(
                 "Tablet background chunk meta bytes read from disk",
-                top_disk("chunk_reader_statistics", "meta_bytes_read_from_disk"))
+                top_disk("chunk_reader_statistics", "meta_bytes_read_from_disk"),
+                unit="bytes")
         .row()
             .cell(
                 "Tablet background data bytes read from cache",
-                top_disk("chunk_reader_statistics", "data_bytes_read_from_cache"))
+                top_disk("chunk_reader_statistics", "data_bytes_read_from_cache"),
+                unit="bytes")
             .cell(
                 "Tablet background unmerged data weight read rate",
-                top_disk("chunk_reader", "unmerged_data_weight"))
+                top_disk("chunk_reader", "unmerged_data_weight"),
+                unit="bytes")
         .row()
             .cell(
                 "Tablet background decompression cpu time",
@@ -180,10 +185,12 @@ def build_background_resource_usage():
         .row()
             .cell(
                 "Tablet background disk bytes written (with replication)",
-                top_disk("chunk_writer", "disk_space"))
+                top_disk("chunk_writer", "disk_space"),
+                unit="bytes")
             .cell(
                 "Tablet background data weight written (without replication)",
-                top_disk("chunk_writer", "data_weight"))
+                top_disk("chunk_writer", "data_weight"),
+                unit="bytes")
     ).owner
 
 
@@ -237,8 +244,8 @@ def build_data_node_disk_stuff():
     return (Rowset()
         .aggr(MonitoringTag("host"))
         .row()
-            .cell("Disk bytes written per medium", s.value("direction", "write"))
-            .cell("Disk bytes read per medium", s.value("direction", "read"))
+            .cell("Disk bytes written per medium", s.value("direction", "write"), unit="bytes")
+            .cell("Disk bytes read per medium", s.value("direction", "read"), unit="bytes")
         .row()
             .cell(
                 "Data node disk throttlers",
@@ -342,12 +349,12 @@ def build_chunk_meta_caches_base():
         .row()
             .cell(
                 "Versioned chunk meta cache usage",
-                NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.weight").aggr("segment"))
+                NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.weight").aggr("segment"), unit="bytes")
             .cell(
                 "Versioned chunk meta cache miss rate",
                 NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.missed_weight.rate"))
         .row()
-            .cell("Block cache usage", usage("yt.data_node.block_cache.*compressed_data").aggr("segment"))
+            .cell("Block cache usage", usage("yt.data_node.block_cache.*compressed_data").aggr("segment"), unit="bytes")
             .cell("Block cache miss rate", misses("data", "block_cache.*compressed_data"))
     )
 
@@ -379,16 +386,17 @@ def build_chunk_meta_caches():
     misses = TabNode("yt.{}_node.{}.missed_weight.rate")
     return (build_chunk_meta_caches_base()
         .row()
-            .cell("Chunk meta cache usage", usage("yt.data_node.chunk_meta_cache").aggr("segment"))
+            .cell("Chunk meta cache usage", usage("yt.data_node.chunk_meta_cache").aggr("segment"), unit="bytes")
             .cell("Chunk meta cache miss rate", misses("data", "chunk_meta_cache"))
         .row()
-            .cell("Block ext cache usage", usage("yt.data_node.blocks_ext_cache").aggr("segment"))
+            .cell("Block ext cache usage", usage("yt.data_node.blocks_ext_cache").aggr("segment"), unit="bytes")
             .cell("Block ext cache miss rate", misses("data", "blocks_ext_cache"))
         .row()
             .cell(
                 "Cached versioned chunk meta memory",
                 TabNode("yt.cluster_node.memory_usage.used")
-                    .value("category", "versioned_chunk_meta"))
+                    .value("category", "versioned_chunk_meta"),
+                unit="bytes")
     ).owner
 
 
@@ -406,24 +414,30 @@ def build_memory():
         .row()
             .cell(
                 "Tablet dynamic memory",
-                mem_used.value("category", "tablet_dynamic"))
+                mem_used.value("category", "tablet_dynamic"),
+                unit="bytes")
             .cell(
                 "Tablet static memory",
-                mem_used.value("category", "tablet_static"))
+                mem_used.value("category", "tablet_static"),
+                unit="bytes")
         .row()
             .cell(
                 "Query memory usage",
-                mem_used.value("category", "query"))
+                mem_used.value("category", "query"),
+                unit="bytes")
             .cell(
                 "Tracked memory usage",
-                TabNode("yt.cluster_node.memory_usage.total_used"))
+                TabNode("yt.cluster_node.memory_usage.total_used"),
+                unit="bytes")
         .row()
             .cell(
                 "Allocated memory",
-                TabNodeMemory("yt.yt_alloc.total.bytes_used"))
+                TabNodeMemory("yt.yt_alloc.total.bytes_used"),
+                unit="bytes")
             .cell(
                 "Process memory usage (rss)",
-                TabNodeMemory("yt.resource_tracker.memory_usage.rss"))
+                TabNodeMemory("yt.resource_tracker.memory_usage.rss"),
+                unit="bytes")
     ).owner
 
 
@@ -434,7 +448,8 @@ def build_memory_by_category():
                 "Node memory categories",
                 TabNode("yt.cluster_node.memory_usage.used")
                     .all("category")
-                    .stack())
+                    .stack(),
+                unit="bytes")
            .cell("", EmptyCell())
     ).owner
 
@@ -597,17 +612,21 @@ def build_changelogs():
         .row()
             .cell(
                 "Data node Multiplexed changelogs bytes rate",
-                changelog("multiplexed_changelogs.bytes.rate"))
+                changelog("multiplexed_changelogs.bytes.rate"),
+                unit="bytes")
             .cell(
                 "Data node Split changelogs bytes rate",
-                changelog("split_changelogs.bytes.rate"))
+                changelog("split_changelogs.bytes.rate"),
+                unit="bytes")
         .row()
             .cell(
                 "Data node Multiplexed changelogs records rate",
-                changelog("multiplexed_changelogs.records.rate"))
+                changelog("multiplexed_changelogs.records.rate"),
+                unit="bytes")
             .cell(
                 "Data node Split changelogs records rate",
-                changelog("split_changelogs.records.rate"))
+                changelog("split_changelogs.records.rate"),
+                unit="bytes")
     ).owner
 
 
@@ -625,17 +644,21 @@ def build_rpc_message_size_stats_per_host(
         .row()
             .cell(
                 "{} request message body size{}".format(name_prefix, name_suffix),
-                s("request_message_body_bytes"))
+                s("request_message_body_bytes"),
+                unit="bytes")
             .cell(
                 "{} request message attachment size{}".format(name_prefix, name_suffix),
-                s("request_message_attachment_bytes"))
+                s("request_message_attachment_bytes"),
+                unit="bytes")
         .row()
             .cell(
                 "{} response message body size{}".format(name_prefix, name_suffix),
-                s("response_message_body_bytes"))
+                s("response_message_body_bytes"),
+                unit="bytes")
             .cell(
                 "{} response message attachment size{}".format(name_prefix, name_suffix),
-                s("response_message_attachment_bytes"))
+                s("response_message_attachment_bytes"),
+                unit="bytes")
     ).owner
 
 
@@ -648,17 +671,21 @@ def build_server_rpc_message_size_stats_per_method(sensor_class, name_prefix):
         .row()
             .cell(
                 "{} request message body size (per method)".format(name_prefix),
-                server_per_method("request_message_body_bytes"))
+                server_per_method("request_message_body_bytes"),
+                unit="bytes")
             .cell(
                 "{} request message attachment size (per method)".format(name_prefix),
-                server_per_method("request_message_attachment_bytes"))
+                server_per_method("request_message_attachment_bytes"),
+                unit="bytes")
         .row()
             .cell(
                 "{} response message body size (per method)".format(name_prefix),
-                server_per_method("response_message_body_bytes"))
+                server_per_method("response_message_body_bytes"),
+                unit="bytes")
             .cell(
                 "{} response message attachment size (per method)".format(name_prefix),
-                server_per_method("response_message_attachment_bytes"))
+                server_per_method("response_message_attachment_bytes"),
+                unit="bytes")
     ).owner
 
 
@@ -676,10 +703,12 @@ def build_network_global():
         (r.row()
             .cell(
                 "Network received bytes (eth{})".format(i),
-                s("Rx").value("intf", "eth" + str(i)))
+                s("Rx").value("intf", "eth" + str(i)),
+                unit="bytes")
             .cell(
                 "Network transmitted bytes (eth{})".format(i),
-                s("Tx").value("intf", "eth" + str(i)))
+                s("Tx").value("intf", "eth" + str(i)),
+                unit="bytes")
         )
     return r
 
@@ -688,12 +717,13 @@ def build_network_local():
     s = _get_network_sensor().all("intf")
     return (Rowset()
         .row()
-            .cell("Network received bytes", s("Rx"))
-            .cell("Network transmitted bytes", s("Tx"))
+            .cell("Network received bytes", s("Rx"), unit="bytes")
+            .cell("Network transmitted bytes", s("Tx"), unit="bytes")
         .row()
             .cell(
                 "Pending out bytes",
-                TabNodeInternal("yt.bus.pending_out_bytes").all("network"))
+                TabNodeInternal("yt.bus.pending_out_bytes").all("network"),
+                unit="bytes")
     ).owner
 
 def build_network_local_porto():
@@ -702,12 +732,13 @@ def build_network_local_porto():
     return (Rowset()
         .min(0)
         .row()
-            .cell("Network received bytes", s("rx"))
-            .cell("Network transmitted bytes", s("tx"))
+            .cell("Network received bytes", s("rx"), unit="bytes")
+            .cell("Network transmitted bytes", s("tx"), unit="bytes")
         .row()
             .cell(
                 "Pending out bytes",
-                TabNodeInternal("yt.bus.pending_out_bytes").all("network", "band", "encrypted"))
+                TabNodeInternal("yt.bus.pending_out_bytes").all("network", "band", "encrypted"),
+                unit="bytes")
     ).owner
 
 
@@ -725,7 +756,7 @@ def build_job_reporter():
     return (Rowset()
         .row()
             .cell("Jobs committed count", s("committed.rate"))
-            .cell("Jobs committed data weight", s("committed_data_weight.rate"))
+            .cell("Jobs committed data weight", s("committed_data_weight.rate"), unit="bytes")
         .row()
             .cell("Jobs dropped", s("dropped.rate"))
             .cell("Jobs pending count", s("pending"))
@@ -915,7 +946,7 @@ def build_local_artemis():
         d.add_parameter(
             "pod",
             "Pod",
-            GrafanaTextboxDashboardParameter("tnd-0"))
+            GrafanaTextboxDashboardParameter("tnd-teapot-0"))
 
         return d
 

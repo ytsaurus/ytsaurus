@@ -354,8 +354,12 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
 
         if content["type"] == "text":
             return content
+        
+        field_defaults = content["fieldConfig"]["defaults"]
+        if cell.unit is not None:
+            field_defaults["unit"] = cell.unit
 
-        custom_settings = content["fieldConfig"]["defaults"]["custom"]
+        custom_settings = field_defaults["custom"]
         if cell.yaxis_to_label and SystemFields.LeftAxis in cell.yaxis_to_label:
             custom_settings["axisLabel"] = cell.yaxis_to_label[SystemFields.LeftAxis]
         if cell.display_legend is not None:

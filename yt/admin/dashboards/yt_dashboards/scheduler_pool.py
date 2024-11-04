@@ -49,7 +49,7 @@ def _build_quotas_usage(d, os_documentation):
             .stack(False)
             .min(0)
             .cell("CPU: usage, demand, guarantee", resource_sensors("cpu"), yaxis_label="CPU, cores", display_legend=True)
-            .cell("RAM: usage, demand, guarantee", resource_sensors("user_memory"), yaxis_label="Memory, bytes", display_legend=True)
+            .cell("RAM: usage, demand, guarantee", resource_sensors("user_memory"), yaxis_label="Memory, bytes", display_legend=True, unit="bytes")
             .cell("GPU: usage, demand, guarantee", resource_sensors("gpu"), yaxis_label="GPU, cards", display_legend=True)
     )
 

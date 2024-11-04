@@ -9,7 +9,7 @@ class Cell(Taggable):
 
     Calling |value| calls |value| of the underlying sensor.
     """
-    def __init__(self, title, sensor, yaxis_label=None, display_legend=None):
+    def __init__(self, title, sensor, yaxis_label=None, display_legend=None, unit=None):
         self.title = title
         self.sensor = sensor
         self.yaxis_to_label = {}
@@ -20,6 +20,7 @@ class Cell(Taggable):
         else:
             pass
         self.display_legend = display_legend
+        self.unit = unit
 
     def value(self, key, value):
         if self.sensor is not None:
@@ -64,8 +65,8 @@ class Row(Taggable):
         cells = [cell.serialize(begin_values, end_values, serializer) for cell in self.cells]
         return serializer.on_row(self, cells)
 
-    def cell(self, title, sensor, yaxis_label=None, display_legend=None):
-        self.cells.append(Cell(title, sensor, yaxis_label=yaxis_label, display_legend=display_legend))
+    def cell(self, title, sensor, yaxis_label=None, display_legend=None, unit=None):
+        self.cells.append(Cell(title, sensor, yaxis_label=yaxis_label, display_legend=display_legend, unit=unit))
         return self
 
     def row(self, height=None):
