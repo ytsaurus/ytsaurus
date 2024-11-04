@@ -2472,6 +2472,7 @@ private:
         auto req = proxy.GetBlockRange();
         req->SetResponseHeavy(true);
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
+        req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         req->set_first_block_index(FirstBlockIndex_);
@@ -2751,6 +2752,7 @@ private:
         auto req = proxy.GetChunkMeta();
         req->SetResponseHeavy(true);
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
+        req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
         req->set_enable_throttling(true);
         ToProto(req->mutable_chunk_id(), ChunkId_);
@@ -3584,6 +3586,7 @@ private:
         auto req = proxy.GetBlockSet();
         req->SetResponseHeavy(true);
         req->SetMultiplexingBand(queuedBatch.Session->SessionOptions_.MultiplexingBand);
+        req->SetMultiplexingParallelism(queuedBatch.Session->SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, queuedBatch.Session->SessionOptions_.WorkloadDescriptor);
         ToProto(req->mutable_chunk_id(), ChunkId_);
 
