@@ -1829,7 +1829,7 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
             spec->ReduceBy = GetColumnNames(spec->SortBy);
         }
 
-        auto generateSortColumnsFromReduceColumns = [&spec]() {
+        auto generateSortColumnsFromReduceColumns = [&] {
             TSortColumns columns;
             for (const auto& reduceColumn : spec->ReduceBy) {
                 columns.push_back(TColumnSortSchema{
@@ -1849,7 +1849,7 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
             // Postprocess, even if the user did not specify it explicitly.
             THROW_ERROR_EXCEPTION_IF(
                 spec->SortBy != generateSortColumnsFromReduceColumns(),
-                "The \"sort_by\" field cannot be specified when \"disable_sorted_input_in_reducer\" is set"
+                "\"sort_by\" cannot be specified when \"disable_sorted_input_in_reducer\" is set"
             );
         }
 
