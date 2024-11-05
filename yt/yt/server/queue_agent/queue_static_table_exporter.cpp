@@ -204,7 +204,7 @@ private:
             ExportConfig_.ExportDirectory,
             ELockMode::Shared,
             TLockNodeOptions{
-                .ChildKey = TString(ExporterAttributeName_),
+                .AttributeKey = TString(ExporterAttributeName_),
             }))
             .ThrowOnError();
 
