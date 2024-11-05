@@ -14,7 +14,9 @@ What becomes available after installing the package:
 
 - The Python yt library.
 - The CLI binary [yt](../../../api/cli/cli.md).
+{% if audience == "internal" %}
 - The binary `yt-fuse` for connecting [Cypress](../../../user-guide/storage/cypress.md) as a file system locally.
+{% endif %}
 
 ### Installation { #install }
 
