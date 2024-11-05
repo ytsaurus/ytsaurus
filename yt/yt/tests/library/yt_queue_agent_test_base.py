@@ -380,7 +380,6 @@ class TestQueueAgentBase(YTEnvSetup):
         self.client = self.Env.create_native_client()
         init_queue_agent_state.create_tables_latest_version(
             self.client,
-            override_tablet_cell_bundle="default",
             **kwargs)
 
     def _drop_tables(self):
