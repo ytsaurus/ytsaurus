@@ -290,6 +290,7 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
         try:
             stack = False
             range = (None, None)
+            unit = None
             targets = []
             for sensor in sensors:
                 query, other_tags = self._prepare_expr_query(sensor)
@@ -312,6 +313,11 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
                     value = other_tags[SystemFields.LegendFormat]
                     value = value.replace(ContainerTemplate, "{{pod}}").replace(SensorTemplate, "{{__name__}}")
                     target["legendFormat"] = value
+                
+                if SystemFields.Unit in other_tags:
+                    unit, axis = other_tags[SystemFields.Unit]
+                    if axis != SystemFields.LeftAxis:
+                        raise Exception("Grafana dashboard generator supports only left axis")
 
                 targets.append(target)
         except NotImplementedError as e:
@@ -337,6 +343,8 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
             result["fieldConfig"]["defaults"]["min"] = minValue
         if maxValue is not None:
             result["fieldConfig"]["defaults"]["max"] = maxValue
+        if unit is not None:
+            result["fieldConfig"]["defualts"]["unti"] = monitoring_to_grafana_unit(unit)
 
         if stack:
             result["fieldConfig"]["defaults"]["custom"] = {
