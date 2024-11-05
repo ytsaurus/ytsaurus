@@ -191,7 +191,7 @@ public:
         , Chunk_(chunk)
     { }
 
-    bool FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const override
+    bool FillJobSpec(TBootstrap* /*bootstrap*/, TJobSpec* jobSpec) const override
     {
         auto* jobSpecExt = jobSpec->MutableExtension(TRemoveChunkJobSpecExt::remove_chunk_job_spec_ext);
         ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(ChunkIdWithIndexes_));
@@ -203,33 +203,6 @@ public:
             jobSpecExt->set_chunk_is_dead(true);
             return true;
         }
-
-        bool isErasure = Chunk_->IsErasure();
-        const auto& chunkManager = bootstrap->GetChunkManager();
-        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
-
-        // This is context switch, but Chunk_ is ephemeral pointer.
-        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(Chunk_);
-        if (!replicasOrError.IsOK()) {
-            return false;
-        }
-        const auto& chunkReplicas = replicasOrError.Value();
-        for (auto replica : chunkReplicas) {
-            if (replica.GetPtr()->GetNode()->GetDefaultAddress() == NodeAddress_) {
-                continue;
-            }
-            if (isErasure && replica.GetReplicaIndex() != ChunkIdWithIndexes_.ReplicaIndex) {
-                continue;
-            }
-            // XXX(babenko): legacy replica?
-            jobSpecExt->add_replicas(ToProto<ui32>(replica));
-        }
-
-        const auto& configManager = bootstrap->GetConfigManager();
-        const auto& config = configManager->GetConfig()->ChunkManager;
-        auto chunkRemovalJobExpirationDeadline = TInstant::Now() + config->ChunkRemovalJobReplicasExpirationTime;
-
-        jobSpecExt->set_replicas_expiration_deadline(ToProto(chunkRemovalJobExpirationDeadline));
 
         return true;
     }

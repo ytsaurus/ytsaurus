@@ -662,10 +662,6 @@ public:
     //! The number of oldest part-missing chunks to be remembered by the replicator.
     int MaxOldestPartMissingChunks;
 
-    //! When a node executes a chunk removal job, it will keep the set of known
-    //! chunk replicas (and suggest these to others) for some time.
-    TDuration ChunkRemovalJobReplicasExpirationTime;
-
     int FinishedJobsQueueSize;
 
     bool AbortJobsOnEpochFinish;
