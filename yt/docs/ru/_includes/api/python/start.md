@@ -14,7 +14,9 @@ pip install ytsaurus-client
 
 - Python библиотека yt;
 - Бинарный файл [yt](../../../api/cli/cli.md);
+{% if audience == "internal" %}
 - Бинарный файл yt-fuse для подключения [Кипариса](../../../user-guide/storage/cypress.md) в качестве файловой системы локально.
+{% endif %}
 
 ### Установка { #install }
 
