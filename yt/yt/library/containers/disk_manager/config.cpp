@@ -38,14 +38,6 @@ void TDiskManagerProxyConfig::Register(TRegistrar registrar)
         .Default("unix:/run/yandex-diskmanager/yandex-diskmanager.sock");
     registrar.Parameter("disk_manager_service_name", &TThis::DiskManagerServiceName)
         .Default("diskman.DiskManager");
-
-    registrar.Parameter("is_mock", &TThis::IsMock)
-        .Default(false);
-    registrar.Parameter("mock_disks", &TThis::MockDisks)
-        .Default();
-    registrar.Parameter("mock_yt_paths", &TThis::MockYTPaths)
-        .Default();
-
     registrar.Parameter("request_timeout", &TThis::RequestTimeout)
         .Default(TDuration::Seconds(10));
 }

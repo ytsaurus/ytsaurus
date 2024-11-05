@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/server/lib/nbd/random_access_file_reader.h>
 
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
@@ -8,7 +10,6 @@
 
 #include <yt/yt/core/misc/blob_output.h>
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <util/generic/size_literals.h>
 #include <util/string/split.h>
@@ -67,7 +68,6 @@ private:
     std::vector<TPart> Parts_;
 };
 
-DECLARE_REFCOUNTED_CLASS(TSquashFSLayout)
 DEFINE_REFCOUNTED_TYPE(TSquashFSLayout)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,7 +96,6 @@ struct ISquashFSLayoutBuilder
     virtual TSquashFSLayoutPtr Build() = 0;
 };
 
-DECLARE_REFCOUNTED_STRUCT(ISquashFSLayoutBuilder)
 DEFINE_REFCOUNTED_TYPE(ISquashFSLayoutBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -33,10 +33,6 @@ struct TDiskManagerProxyConfig
     TString DiskManagerAddress;
     TString DiskManagerServiceName;
 
-    bool IsMock;
-    std::vector<TMockedDiskConfigPtr> MockDisks;
-    std::vector<TString> MockYTPaths;
-
     TDuration RequestTimeout;
 
     REGISTER_YSON_STRUCT(TDiskManagerProxyConfig);

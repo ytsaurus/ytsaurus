@@ -53,7 +53,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 class TCypressFileBlockDeviceConfig
     : public NYTree::TYsonStruct
 {
@@ -78,8 +77,6 @@ DECLARE_REFCOUNTED_CLASS(TCypressFileBlockDeviceConfig)
 DEFINE_REFCOUNTED_TYPE(TCypressFileBlockDeviceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_CLASS(TConfig)
 
 class TConfig
     : public NYTree::TYsonStruct
@@ -108,6 +105,7 @@ public:
     }
 };
 
+DECLARE_REFCOUNTED_CLASS(TConfig)
 DEFINE_REFCOUNTED_TYPE(TConfig)
 
 ////////////////////////////////////////////////////////////////////////////////

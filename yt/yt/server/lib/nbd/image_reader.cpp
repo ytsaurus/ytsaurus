@@ -38,11 +38,11 @@ public:
 
     void Initialize() override
     {
-        YT_LOG_INFO("Initializing cypress file image reader");
+        YT_LOG_INFO("Initializing Cypress file image reader");
 
         Reader_->Initialize();
 
-        YT_LOG_INFO("Initialized cypress file image reader");
+        YT_LOG_INFO("Initialized Cypress file image reader");
     }
 
     TFuture<TSharedRef> Read(

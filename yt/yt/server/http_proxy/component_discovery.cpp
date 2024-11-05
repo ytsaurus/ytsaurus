@@ -98,20 +98,20 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::ListClusterNodes(EC
     instances.reserve(rspList->GetChildren().size());
 
     for (const auto& node : rspList->GetChildren()) {
-        auto version = node->Attributes().Find<TString>("version");
-        auto nodeState = node->Attributes().Get<TString>("state", /*defaultValue*/ "");
-        auto startTime = node->Attributes().Find<TString>("register_time");
+        auto version = node->Attributes().Find<std::string>("version");
+        auto nodeState = node->Attributes().Get<std::string>("state", /*defaultValue*/ "");
+        auto startTime = node->Attributes().Find<std::string>("register_time");
 
         TClusterComponentInstance instance{
             .Type = component,
-            .Address = node->GetValue<TString>(),
+            .Address = node->GetValue<std::string>(),
             .Version = version.value_or(""),
             .StartTime = startTime.value_or(""),
             .Banned = node->Attributes().Get<bool>("banned", /*defaultValue*/ false),
             .Online = nodeState == "online",
             .State = nodeState,
             .Error = TError(),
-            .JobProxyVersion = node->Attributes().Find<TString>("job_proxy_build_version"),
+            .JobProxyVersion = node->Attributes().Find<std::string>("job_proxy_build_version"),
         };
 
         if (instance.Online && (!version || !startTime)) {
@@ -153,16 +153,16 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::ListProxies(ECluste
 
     auto nodeYson = WaitFor(Client_->GetNode(GetCypressDirectory(component), options))
         .ValueOrThrow();
-    auto addressToNode = ConvertTo<THashMap<TString, IMapNodePtr>>(nodeYson);
+    auto addressToNode = ConvertTo<THashMap<std::string, IMapNodePtr>>(nodeYson);
 
     std::vector<TClusterComponentInstance> instances;
     instances.reserve(addressToNode.size());
 
     auto timeNow = TInstant::Now();
     for (const auto& [address, node] : addressToNode) {
-        auto version = node->Attributes().Find<TString>("version");
+        auto version = node->Attributes().Find<std::string>("version");
         auto banned = node->Attributes().Find<bool>("banned");
-        auto startTime = node->Attributes().Find<TString>("start_time");
+        auto startTime = node->Attributes().Find<std::string>("start_time");
 
         TClusterComponentInstance instance{
             .Type = component,
@@ -199,9 +199,12 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::ListProxies(ECluste
     return instances;
 }
 
-std::vector<TString> TComponentDiscoverer::GetCypressSubpaths(NApi::IClientPtr client, const NApi::TMasterReadOptions& masterReadOptions, EClusterComponentType component)
+std::vector<TYPath> TComponentDiscoverer::GetCypressSubpaths(
+    const NApi::IClientPtr& client,
+    const NApi::TMasterReadOptions& masterReadOptions,
+    EClusterComponentType component)
 {
-    std::vector<TString> paths;
+    std::vector<TYPath> paths;
     if (component == EClusterComponentType::SecondaryMaster) {
         TGetNodeOptions options;
         FillMasterReadOptions(options, masterReadOptions);
@@ -209,7 +212,7 @@ std::vector<TString> TComponentDiscoverer::GetCypressSubpaths(NApi::IClientPtr c
             .ValueOrThrow();
         for (const auto& subdirectory : ConvertToNode(directory)->AsMap()->GetChildren()) {
             for (const auto& instance : subdirectory.second->AsMap()->GetChildren()) {
-                paths.push_back(subdirectory.first + "/" + instance.first);
+                paths.push_back(Format("/%v/%v", subdirectory.first, instance.first));
             }
         }
     } else {
@@ -219,19 +222,22 @@ std::vector<TString> TComponentDiscoverer::GetCypressSubpaths(NApi::IClientPtr c
             .ValueOrThrow();
         auto rspList = ConvertToNode(rsp)->AsList();
         for (const auto& node : rspList->GetChildren()) {
-            paths.push_back(node->GetValue<TString>());
+            paths.push_back(Format("/%v", node->GetValue<std::string>()));
         }
     }
     return paths;
 }
 
-std::vector<TString> TComponentDiscoverer::GetCypressPaths(NApi::IClientPtr client, const NApi::TMasterReadOptions& masterReadOptions, EClusterComponentType component)
+std::vector<TYPath> TComponentDiscoverer::GetCypressPaths(
+    const NApi::IClientPtr& client,
+    const NApi::TMasterReadOptions& masterReadOptions,
+    EClusterComponentType component)
 {
     auto paths = GetCypressSubpaths(client, masterReadOptions, component);
     auto cypressDirectory = GetCypressDirectory(component);
 
     for (auto& path : paths) {
-        path = Format("%v/%v", cypressDirectory, path);
+        path = cypressDirectory + path;
     }
 
     return paths;
@@ -239,7 +245,7 @@ std::vector<TString> TComponentDiscoverer::GetCypressPaths(NApi::IClientPtr clie
 
 std::vector<TClusterComponentInstance> TComponentDiscoverer::GetAttributes(
     EClusterComponentType component,
-    const std::vector<TString>& subpaths,
+    const std::vector<TYPath>& subpaths,
     EClusterComponentType instanceType,
     const TYPath& suffix) const
 {
@@ -252,7 +258,7 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::GetAttributes(
     std::vector<TFuture<TYsonString>> responses;
     responses.reserve(subpaths.size());
     for (const auto& subpath : subpaths) {
-        responses.push_back(Client_->GetNode(GetCypressDirectory(component) + "/" + subpath + suffix));
+        responses.push_back(Client_->GetNode(GetCypressDirectory(component) + subpath + suffix));
     }
 
     std::vector<TClusterComponentInstance> results;
@@ -263,7 +269,7 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::GetAttributes(
         auto& result = results.emplace_back();
         result.Type = instanceType;
 
-        result.Address = StringSplitter(subpaths[index]).Split('/').ToList<TString>().back();
+        result.Address = StringSplitter(subpaths[index]).Split('/').ToList<std::string>().back();
         if (!ysonOrError.IsOK()) {
             result.Error = ysonOrError;
             continue;
@@ -276,8 +282,8 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::GetAttributes(
             continue;
         }
 
-        auto version = ConvertTo<TString>(rspMap->GetChildOrThrow("version"));
-        auto startTime = ConvertTo<TString>(rspMap->GetChildOrThrow("start_time"));
+        auto version = ConvertTo<std::string>(rspMap->GetChildOrThrow("version"));
+        auto startTime = ConvertTo<std::string>(rspMap->GetChildOrThrow("start_time"));
 
         result.Version = version;
         result.StartTime = startTime;
@@ -292,7 +298,7 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::ListJobProxies() co
     std::vector<TClusterComponentInstance> instances;
     instances.reserve(execNodeInstances.size());
 
-    std::vector<TString> fallbackInstances;
+    std::vector<TYPath> fallbackInstances;
     for (auto& instance : execNodeInstances) {
         if (instance.Banned) {
             continue;
@@ -343,7 +349,7 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::ListJobProxies() co
     return instances;
 }
 
-TString TComponentDiscoverer::GetCypressDirectory(EClusterComponentType component)
+TYPath TComponentDiscoverer::GetCypressDirectory(EClusterComponentType component)
 {
     switch (component) {
         case EClusterComponentType::PrimaryMaster:
@@ -388,7 +394,7 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::GetInstances(EClust
         case EClusterComponentType::RpcProxy:
             return ListProxies(component);
         default:
-            THROW_ERROR_EXCEPTION("Unknown component type %Qv", component);
+            THROW_ERROR_EXCEPTION("Unknown component type %Qlv", component);
     }
 }
 
