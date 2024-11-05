@@ -7,7 +7,7 @@ namespace NYT::NContainers {
 struct TDiskManagerProxyMock
     : public IDiskManagerProxy
 {
-    virtual TFuture<THashSet<TString>> GetYtDiskDevicePaths()
+    virtual TFuture<THashSet<TString>> GetYTDiskDevicePaths()
     {
         return MakeFuture<THashSet<TString>>(TError(NRpc::EErrorCode::NoSuchService, "Disk manager library is not available under this build configuration"));
     }
