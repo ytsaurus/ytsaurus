@@ -9,7 +9,7 @@
  - clang-16
  - lld-16
  - lldb-16
- - conan 1.57.0
+ - conan 2.4.1
  - git 2.20+
  - python 3.8+
  - pip3
