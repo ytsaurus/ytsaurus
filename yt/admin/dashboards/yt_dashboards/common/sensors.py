@@ -64,48 +64,48 @@ CAInternal = ProjectSensor("controller_agent_internal", "yt-controller-agent")  
 CARpc =      ProjectSensor("controller_agent_rpc",      "yt-controller-agent", base=RpcBase)  # noqa: E222
 
 # Ye olde Nodes. Used for old pre-flavored dashboards in a compat fashion. Prefer using specific flavored node sensors.
-Node =          ProjectSensor("tab_node|exe_node|node",                                  "yt-data-node|yt-exec-node|yt-tablet-node")  # noqa: E222
-NodeMemory =    ProjectSensor("tab_node_memory|exe_node_memory|node_memory",             "yt-data-node|yt-exec-node|yt-tablet-node")  # noqa: E222
-NodeCpu =       ProjectSensor("tab_node_cpu|exe_node_cpu|node_cpu",                      "yt-data-node|yt-exec-node|yt-tablet-node")  # noqa: E222
-NodeLocation =  ProjectSensor("dat_node_location|node_location",                         "yt-data-node|yt-exec-node|yt-tablet-node")  # noqa: E222
-NodeInternal =  ProjectSensor("tab_node_internal|exe_node_internal|node_internal",       "yt-data-node|yt-exec-node|yt-tablet-node")  # noqa: E222
-NodePorto =     ProjectSensor("node_porto",                                              "yt-data-node|yt-exec-node|yt-tablet-node")  # noqa: E222
-NodeUserJob =   ProjectSensor("node_user_job",                                           "yt-data-node|yt-exec-node|yt-tablet-node")  # noqa: E222
-NodeRpc =       ProjectSensor("tab_node_rpc|exe_node_rpc|node_rpc",                      "yt-data-node|yt-exec-node|yt-tablet-node", base=RpcBase)  # noqa: E222
-NodeRpcClient = ProjectSensor("tab_node_rpc_client|exe_node_rpc_client|node_rpc_client", "yt-data-node|yt-exec-node|yt-tablet-node", base=RpcBase)  # noqa: E222
+Node =          ProjectSensor("tab_node|exe_node|node",                                  "yt-data-node.*|yt-exec-node.*|yt-tablet-node.*")  # noqa: E222
+NodeMemory =    ProjectSensor("tab_node_memory|exe_node_memory|node_memory",             "yt-data-node.*|yt-exec-node.*|yt-tablet-node.*")  # noqa: E222
+NodeCpu =       ProjectSensor("tab_node_cpu|exe_node_cpu|node_cpu",                      "yt-data-node.*|yt-exec-node.*|yt-tablet-node.*")  # noqa: E222
+NodeLocation =  ProjectSensor("dat_node_location|node_location",                         "yt-data-node.*|yt-exec-node.*|yt-tablet-node.*")  # noqa: E222
+NodeInternal =  ProjectSensor("tab_node_internal|exe_node_internal|node_internal",       "yt-data-node.*|yt-exec-node.*|yt-tablet-node.*")  # noqa: E222
+NodePorto =     ProjectSensor("node_porto",                                              "yt-data-node.*|yt-exec-node.*|yt-tablet-node.*")  # noqa: E222
+NodeUserJob =   ProjectSensor("node_user_job",                                           "yt-data-node.*|yt-exec-node.*|yt-tablet-node.*")  # noqa: E222
+NodeRpc =       ProjectSensor("tab_node_rpc|exe_node_rpc|node_rpc",                      "yt-data-node.*|yt-exec-node.*|yt-tablet-node.*", base=RpcBase)  # noqa: E222
+NodeRpcClient = ProjectSensor("tab_node_rpc_client|exe_node_rpc_client|node_rpc_client", "yt-data-node.*|yt-exec-node.*|yt-tablet-node.*", base=RpcBase)  # noqa: E222
 NodeMonitor =   ProjectSensor("node_monitor",                                            "yt-node-monitor")  # noqa: E222
 
 # Data nodes.
-DatNode =          ProjectSensor("dat_node",            "yt-data-node")  # noqa: E222
-DatNodeMemory =    ProjectSensor("dat_node_memory",     "yt-data-node")  # noqa: E222
-DatNodeCpu =       ProjectSensor("dat_node_cpu",        "yt-data-node")  # noqa: E222
-DatNodeLocation =  ProjectSensor("dat_node_location",   "yt-data-node")  # noqa: E222
-DatNodeInternal =  ProjectSensor("dat_node_internal",   "yt-data-node")  # noqa: E222
-DatNodePorto =     ProjectSensor("dat_node_porto",      "yt-data-node")  # noqa: E222
-DatNodeRpc =       ProjectSensor("dat_node_rpc",        "yt-data-node", base=RpcBase)  # noqa: E222
-DatNodeRpcClient = ProjectSensor("dat_node_rpc_client", "yt-data-node", base=RpcBase)  # noqa: E222
+DatNode =          ProjectSensor("dat_node",            "yt-data-node.*")  # noqa: E222
+DatNodeMemory =    ProjectSensor("dat_node_memory",     "yt-data-node.*")  # noqa: E222
+DatNodeCpu =       ProjectSensor("dat_node_cpu",        "yt-data-node.*")  # noqa: E222
+DatNodeLocation =  ProjectSensor("dat_node_location",   "yt-data-node.*")  # noqa: E222
+DatNodeInternal =  ProjectSensor("dat_node_internal",   "yt-data-node.*")  # noqa: E222
+DatNodePorto =     ProjectSensor("dat_node_porto",      "yt-data-node.*")  # noqa: E222
+DatNodeRpc =       ProjectSensor("dat_node_rpc",        "yt-data-node.*", base=RpcBase)  # noqa: E222
+DatNodeRpcClient = ProjectSensor("dat_node_rpc_client", "yt-data-node.*", base=RpcBase)  # noqa: E222
 
 # Exec nodes.
-ExeNode =          ProjectSensor("exe_node",            "yt-exec-node")  # noqa: E222
-ExeNodeMemory =    ProjectSensor("exe_node_memory",     "yt-exec-node")  # noqa: E222
-ExeNodeCpu =       ProjectSensor("exe_node_cpu",        "yt-exec-node")  # noqa: E222
-ExeNodeInternal =  ProjectSensor("exe_node_internal",   "yt-exec-node")  # noqa: E222
-ExeNodePorto =     ProjectSensor("exe_node_porto",      "yt-exec-node")  # noqa: E222
-ExeNodeUserJob =   ProjectSensor("exe_node_user_job",   "yt-exec-node")  # noqa: E222
-ExeNodeRpc =       ProjectSensor("exe_node_rpc",        "yt-exec-node", base=RpcBase)  # noqa: E222
-ExeNodeRpcClient = ProjectSensor("exe_node_rpc_client", "yt-exec-node", base=RpcBase)  # noqa: E222
+ExeNode =          ProjectSensor("exe_node",            "yt-exec-node.*")  # noqa: E222
+ExeNodeMemory =    ProjectSensor("exe_node_memory",     "yt-exec-node.*")  # noqa: E222
+ExeNodeCpu =       ProjectSensor("exe_node_cpu",        "yt-exec-node.*")  # noqa: E222
+ExeNodeInternal =  ProjectSensor("exe_node_internal",   "yt-exec-node.*")  # noqa: E222
+ExeNodePorto =     ProjectSensor("exe_node_porto",      "yt-exec-node.*")  # noqa: E222
+ExeNodeUserJob =   ProjectSensor("exe_node_user_job",   "yt-exec-node.*")  # noqa: E222
+ExeNodeRpc =       ProjectSensor("exe_node_rpc",        "yt-exec-node.*", base=RpcBase)  # noqa: E222
+ExeNodeRpcClient = ProjectSensor("exe_node_rpc_client", "yt-exec-node.*", base=RpcBase)  # noqa: E222
 
 # Tablet nodes.
-TabNode =          ProjectSensor("tab_node",            "yt-tablet-node")  # noqa: E222
-TabNodeMemory =    ProjectSensor("tab_node_memory",     "yt-tablet-node")  # noqa: E222
-TabNodeCpu =       ProjectSensor("tab_node_cpu",        "yt-tablet-node")  # noqa: E222
-TabNodeInternal =  ProjectSensor("tab_node_internal",   "yt-tablet-node")  # noqa: E222
-TabNodePorto =     ProjectSensor("tab_node_porto",      "yt-tablet-node")  # noqa: E222
-TabNodeRpc =       ProjectSensor("tab_node_rpc",        "yt-tablet-node", base=RpcBase)  # noqa: E222
-TabNodeRpcClient = ProjectSensor("tab_node_rpc_client", "yt-tablet-node", base=RpcBase)  # noqa: E222
+TabNode =          ProjectSensor("tab_node",            "yt-tablet-node.*")  # noqa: E222
+TabNodeMemory =    ProjectSensor("tab_node_memory",     "yt-tablet-node.*")  # noqa: E222
+TabNodeCpu =       ProjectSensor("tab_node_cpu",        "yt-tablet-node.*")  # noqa: E222
+TabNodeInternal =  ProjectSensor("tab_node_internal",   "yt-tablet-node.*")  # noqa: E222
+TabNodePorto =     ProjectSensor("tab_node_porto",      "yt-tablet-node.*")  # noqa: E222
+TabNodeRpc =       ProjectSensor("tab_node_rpc",        "yt-tablet-node.*", base=RpcBase)  # noqa: E222
+TabNodeRpcClient = ProjectSensor("tab_node_rpc_client", "yt-tablet-node.*", base=RpcBase)  # noqa: E222
 
 # Generic sensor for tablet metrics.
-NodeTablet =       ProjectSensor("node_tablet",         "yt-tablet-node")  # noqa: E222
+NodeTablet =       ProjectSensor("node_tablet",         "yt-tablet-node.*")  # noqa: E222
 
 # Master.
 Master =           ProjectSensor("master",            "yt-master")  # noqa: E222
