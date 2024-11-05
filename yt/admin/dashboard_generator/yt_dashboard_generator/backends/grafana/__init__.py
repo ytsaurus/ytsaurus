@@ -2,7 +2,7 @@ from ...serializer import SerializerBase
 from ...sensor import Sensor, MultiSensor, Text, Title
 from ...specific_tags.tags import BackendTag, Regex
 from ...taggable import SystemFields, NotEquals, ContainerTemplate, SensorTemplate
-from ...helpers import break_long_lines_in_multiline_cell, pretty_print_fixed_indent
+from ...helpers import break_long_lines_in_multiline_cell, pretty_print_fixed_indent, monitoring_to_grafana_unit
 from ...specific_sensors.monitoring import MonitoringExpr
 from ...postprocessors import DollarTemplateTagPostprocessor
 
@@ -344,7 +344,7 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
         if maxValue is not None:
             result["fieldConfig"]["defaults"]["max"] = maxValue
         if unit is not None:
-            result["fieldConfig"]["defualts"]["unti"] = monitoring_to_grafana_unit(unit)
+            result["fieldConfig"]["defaults"]["unit"] = monitoring_to_grafana_unit(unit)
 
         if stack:
             result["fieldConfig"]["defaults"]["custom"] = {

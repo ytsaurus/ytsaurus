@@ -28,9 +28,9 @@ from yt_dashboard_generator.backends.grafana import GrafanaTag, GrafanaTextboxDa
 def build_read_write_rowset():
     top_rate = NodeTablet("yt.tablet_node.{}.{}.rate")
     reader_stats = NodeTablet(
-        "yt.tablet_node.{}.chunk_reader_statistics.{}_bytes_read_from_disk.rate")
+        "yt.tablet_node.{}.chunk_reader_statistics.{}_bytes_read_from_disk.rate").unit("UNIT_BYTES_SI")
     transmitted_stats = NodeTablet(
-        "yt.tablet_node.{}.chunk_reader_statistics.data_bytes_transmitted.rate")
+        "yt.tablet_node.{}.chunk_reader_statistics.data_bytes_transmitted.rate").unit("UNIT_BYTES_SI")
 
     return (Rowset()
         .aggr(MonitoringTag("host"), "table_tag", "table_path")
@@ -39,17 +39,17 @@ def build_read_write_rowset():
         .top()
 
         .row()
-            .cell("Table write data weight rate", top_rate("write", "data_weight"))
+            .cell("Table write data weight rate", top_rate("write", "data_weight").unit("UNIT_BYTES_SI"))
             .cell("Table write row count rate", top_rate("write", "row_count"))
         .row()
-            .cell("Table commit data weight rate", top_rate("commit", "data_weight"))
+            .cell("Table commit data weight rate", top_rate("commit", "data_weight").unit("UNIT_BYTES_SI"))
             .cell("Table commit row count rate", top_rate("commit", "row_count"))
         .row()
-            .cell("Table lookup data weight rate", top_rate("lookup", "data_weight"))
-            .cell("Table select data weight rate", top_rate("select", "data_weight"))
+            .cell("Table lookup data weight rate", top_rate("lookup", "data_weight").unit("UNIT_BYTES_SI"))
+            .cell("Table select data weight rate", top_rate("select", "data_weight").unit("UNIT_BYTES_SI"))
         .row()
-            .cell("Table lookup unmerged data weight rate", top_rate("lookup", "unmerged_data_weight"))
-            .cell("Table select unmerged data weight rate", top_rate("select", "unmerged_data_weight"))
+            .cell("Table lookup unmerged data weight rate", top_rate("lookup", "unmerged_data_weight").unit("UNIT_BYTES_SI"))
+            .cell("Table select unmerged data weight rate", top_rate("select", "unmerged_data_weight").unit("UNIT_BYTES_SI"))
         .row()
             .cell("Table lookup data bytes read from disk", reader_stats("lookup", "data"))
             .cell("Table select data bytes read from disk", reader_stats("select", "data"))
@@ -143,7 +143,7 @@ def build_replicator():
         .row()
             .cell(
                 "Table replicator replicated data weight",
-                NodeTablet("yt.tablet_node.replica.replication_data_weight.rate"))
+                NodeTablet("yt.tablet_node.replica.replication_data_weight.rate").unit("UNIT_BYTES_SI"))
     ).owner
 
 
@@ -157,6 +157,7 @@ def build_background_resource_usage():
         .top()
 
         .row()
+            .unit("UNIT_BYTES_SI")
             .cell(
                 "Tablet background data bytes read from disk",
                 top_disk("chunk_reader_statistics", "data_bytes_read_from_disk"))
@@ -164,6 +165,7 @@ def build_background_resource_usage():
                 "Tablet background chunk meta bytes read from disk",
                 top_disk("chunk_reader_statistics", "meta_bytes_read_from_disk"))
         .row()
+            .unit("UNIT_BYTES_SI")
             .cell(
                 "Tablet background data bytes read from cache",
                 top_disk("chunk_reader_statistics", "data_bytes_read_from_cache"))
@@ -178,6 +180,7 @@ def build_background_resource_usage():
                 "Tablet background compression cpu time",
                 top_disk("chunk_writer", "compression_cpu_time"))
         .row()
+            .unit("UNIT_BYTES_SI")
             .cell(
                 "Tablet background disk bytes written (with replication)",
                 top_disk("chunk_writer", "disk_space"))
@@ -233,13 +236,15 @@ def build_lsm(local=False):
 def build_data_node_disk_stuff():
     s = (DatNodeLocation("yt.location.blob_block_bytes.rate")
         .value("location_type", "Store|store")
-        .all("medium", "category"))
+        .all("medium", "category")
+        .unit("UNIT_BYTES_SI"))
     return (Rowset()
         .aggr(MonitoringTag("host"))
         .row()
             .cell("Disk bytes written per medium", s.value("direction", "write"))
             .cell("Disk bytes read per medium", s.value("direction", "read"))
         .row()
+            .unit("UNIT_BYTES_SI")
             .cell(
                 "Data node disk throttlers",
                 DatNodeLocation("yt.location.*.value.rate")
@@ -259,6 +264,7 @@ def build_tablet_node_preload_throttler():
                 MultiSensor(
                     NodeTablet("yt.tablet_node.throttlers.static_store_preload_in.value.rate"),
                     TabNode("yt.cluster_node.in_throttler.value.rate").value("bucket", "static_store_preload_in")))
+                .unit("UNIT_BYTES_SI")
             .cell("", EmptyCell())
     ).owner
 
@@ -342,12 +348,12 @@ def build_chunk_meta_caches_base():
         .row()
             .cell(
                 "Versioned chunk meta cache usage",
-                NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.weight").aggr("segment"))
+                NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.weight").aggr("segment").unit("UNIT_BYTES_SI"))
             .cell(
                 "Versioned chunk meta cache miss rate",
                 NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.missed_weight.rate"))
         .row()
-            .cell("Block cache usage", usage("yt.data_node.block_cache.*compressed_data").aggr("segment"))
+            .cell("Block cache usage", usage("yt.data_node.block_cache.*compressed_data").aggr("segment").unit("UNIT_BYTES_SI"))
             .cell("Block cache miss rate", misses("data", "block_cache.*compressed_data"))
     )
 
@@ -375,7 +381,7 @@ See more information about caches at the separate dashboards.<EOLN>
 
 
 def build_chunk_meta_caches():
-    usage = TabNode("{}.weight")
+    usage = TabNode("{}.weight").unit("UNIT_BYTES_SI")
     misses = TabNode("yt.{}_node.{}.missed_weight.rate")
     return (build_chunk_meta_caches_base()
         .row()
@@ -388,7 +394,8 @@ def build_chunk_meta_caches():
             .cell(
                 "Cached versioned chunk meta memory",
                 TabNode("yt.cluster_node.memory_usage.used")
-                    .value("category", "versioned_chunk_meta"))
+                    .value("category", "versioned_chunk_meta")
+                    .unit("UNIT_BYTES_SI"))
     ).owner
 
 
@@ -402,6 +409,7 @@ def build_memory():
         .stack(False)
         .all(MonitoringTag("host"))
         .top()
+        .unit("UNIT_BYTES_SI")
 
         .row()
             .cell(
@@ -434,7 +442,8 @@ def build_memory_by_category():
                 "Node memory categories",
                 TabNode("yt.cluster_node.memory_usage.used")
                     .all("category")
-                    .stack())
+                    .stack()
+                    .unit("UNIT_BYTES_SI"))
            .cell("", EmptyCell())
     ).owner
 
@@ -597,10 +606,10 @@ def build_changelogs():
         .row()
             .cell(
                 "Data node Multiplexed changelogs bytes rate",
-                changelog("multiplexed_changelogs.bytes.rate"))
+                changelog("multiplexed_changelogs.bytes.rate").unit("UNIT_BYTES_SI"))
             .cell(
                 "Data node Split changelogs bytes rate",
-                changelog("split_changelogs.bytes.rate"))
+                changelog("split_changelogs.bytes.rate").unit("UNIT_BYTES_SI"))
         .row()
             .cell(
                 "Data node Multiplexed changelogs records rate",
@@ -618,7 +627,8 @@ def build_rpc_message_size_stats_per_host(
         .all(MonitoringTag("host"))
         .aggr("method", "yt_service", "user", "queue")
         .stack(False)
-        .top())
+        .top()
+        .unit("UNIT_BYTES_SI"))
     if name_suffix:
         name_suffix = " " + name_suffix
     return (Rowset()
@@ -643,7 +653,8 @@ def build_server_rpc_message_size_stats_per_method(sensor_class, name_prefix):
     server_per_method = (sensor_class("yt.rpc.server.{}.rate")
         .all("yt_service", "method")
         .aggr(MonitoringTag("host"), "#U", "queue")
-        .stack())
+        .stack()
+        .unit("UNIT_BYTES_SI"))
     return (Rowset()
         .row()
             .cell(
@@ -666,7 +677,8 @@ def _get_network_sensor():
     return (Sensor("/Net/Ifs/{}Bytes", sensor_tag_name="path")
         .value("service", "sys|porto_iss")
         .stack(False)
-        .top())
+        .top()
+        .unit("UNIT_BYTES_SI"))
 
 
 def build_network_global():
@@ -698,7 +710,8 @@ def build_network_local():
 
 def build_network_local_porto():
     s = (TabNodePorto("yt.porto.network.{}_bytes")
-        .value("container_category", "pod"))
+        .value("container_category", "pod")
+        .unit("UNIT_BYTES_SI"))
     return (Rowset()
         .min(0)
         .row()
@@ -707,7 +720,7 @@ def build_network_local_porto():
         .row()
             .cell(
                 "Pending out bytes",
-                TabNodeInternal("yt.bus.pending_out_bytes").all("network", "band", "encrypted"))
+                TabNodeInternal("yt.bus.pending_out_bytes").all("network", "band", "encrypted").unit("UNIT_BYTES_SI"))
     ).owner
 
 
@@ -725,7 +738,7 @@ def build_job_reporter():
     return (Rowset()
         .row()
             .cell("Jobs committed count", s("committed.rate"))
-            .cell("Jobs committed data weight", s("committed_data_weight.rate"))
+            .cell("Jobs committed data weight", s("committed_data_weight.rate").unit("UNIT_BYTES_SI"))
         .row()
             .cell("Jobs dropped", s("dropped.rate"))
             .cell("Jobs pending count", s("pending"))

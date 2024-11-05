@@ -33,18 +33,19 @@ def build_user_load():
             .top()
 
             .row()
-                .cell("Table write data weight rate", top_rate("write", "data_weight"))
+                .cell("Table write data weight rate", top_rate("write", "data_weight").unit("UNIT_BYTES_SI"))
                 .cell("Table write row count rate", top_rate("write", "row_count"))
             .row()
-                .cell("Table commit data weight rate", top_rate("commit", "data_weight"))
+                .cell("Table commit data weight rate", top_rate("commit", "data_weight").unit("UNIT_BYTES_SI"))
                 .cell("Table commit row count rate", top_rate("commit", "row_count"))
             .row()
                 .cell("Table lookup request count", top_rate("multiread", "request_count"))
                 .cell("Table select request count", top_rate("execute", "request_count"))
             .row()
-                .cell("Table lookup data weight rate", top_rate("lookup", "data_weight"))
-                .cell("Table select data weight rate", top_rate("select", "data_weight"))
+                .cell("Table lookup data weight rate", top_rate("lookup", "data_weight").unit("UNIT_BYTES_SI"))
+                .cell("Table select data weight rate", top_rate("select", "data_weight").unit("UNIT_BYTES_SI"))
             .row()
+                .unit("UNIT_BYTES_SI")
                 .cell("Table lookup unmerged data weight rate", top_rate("lookup", "unmerged_data_weight"))
                 .cell("Table select unmerged data weight rate", top_rate("select", "unmerged_data_weight"))
             .row()
@@ -259,6 +260,7 @@ def build_user_memory():
             .row()
                 .cell("Process memory usage (rss)", NodeMemory("yt.resource_tracker.memory_usage.rss"))
                 .cell("Container (cgroup) memory usage", MultiSensor(NodeMemory("yt.memory.cgroup.rss"), NodeMemory("yt.memory.cgroup.memory_limit")))
+            .unit("UNIT_BYTES_SI")
             ).owner
 
 def build_reserved_memory():
@@ -289,6 +291,7 @@ def build_reserved_memory():
                             .alias("fragmentation {{container}}"))
                       .top(1)
                       .stack(True))
+            .unit("UNIT_BYTES_SI")
             ).owner
 
 
@@ -304,6 +307,7 @@ def build_tablet_network():
             .row()
                 .cell("Table lookup bytes received", reader_stats("lookup", "data_bytes_transmitted"))
                 .cell("Table select bytes received", reader_stats("select", "data_bytes_transmitted"))
+            .unit("UNIT_BYTES_SI")
             ).owner
 
 def build_user_network():
@@ -311,10 +315,11 @@ def build_user_network():
             .top()
             .aggr("network", "band", "encrypted")
             .row()
+                .unit("UNIT_BYTES_SI")
                 .cell("Network received bytes (bus)", NodeInternal("yt.bus.in_bytes.rate"))
                 .cell("Network transmitted bytes (bus)", NodeInternal("yt.bus.out_bytes.rate"))
             .row()
-                .cell("Pending out bytes", NodeInternal("yt.bus.pending_out_bytes"))
+                .cell("Pending out bytes", NodeInternal("yt.bus.pending_out_bytes").unit("UNIT_BYTES_SI"))
                 .cell("TCP retransmits rate", NodeInternal("yt.bus.retransmits.rate"))
             ).owner
 
@@ -326,13 +331,15 @@ def build_throttling():
                 .cell("Receive network throttler bytes rate", MultiSensor(
                     TabNode("yt.cluster_node.in_throttler.value.rate"),
                     TabNode("yt.cluster_node.in_throttler.total_limit"))
-                    .aggr("bucket"))
+                    .aggr("bucket")
+                    .unit("UNIT_BYTES_SI"))
             .row()
                 .cell("Transmit network throttled", TabNode("yt.cluster_node.out_throttler.throttled").all("bucket"))
                 .cell("Transmit network throttler bytes rate", MultiSensor(
                     TabNode("yt.cluster_node.out_throttler.value.rate"),
                     TabNode("yt.cluster_node.out_throttler.total_limit"))
-                    .aggr("bucket"))
+                    .aggr("bucket")
+                    .unit("UNIT_BYTES_SI"))
             ).owner
 
 
@@ -380,7 +387,8 @@ def build_rpc_message_size_stats_per_host(
     s = (sensor_class("yt.rpc.{}.{{}}.rate".format(client_or_server))
          .aggr("method", "yt_service", "user")
          .stack(False)
-         .top())
+         .top()
+         .unit("UNIT_BYTES_SI"))
     if name_suffix:
         name_suffix = " " + name_suffix
     return (Rowset()
@@ -399,6 +407,7 @@ def build_user_caches():
             .value("service", "*node")
             .stack(False)
             .top()
+            .unit("UNIT_BYTES_SI")
             .row()
                 .value("service", "node_tablet")
                 .cell("Versioned chunk meta cache hit weight rate", usage("yt.tablet_node.versioned_chunk_meta_cache"))
@@ -423,6 +432,7 @@ def build_block_cache_planning():
             .value("tablet_cell_bundle", TemplateTag("tablet_cell_bundle"))
             .stack(False)
             .top(1)
+            .unit("UNIT_BYTES_SI")
             .row()
                 .cell("Compressed block cache size planning", miss_weight_rate("compressed"))
                 .cell("Uncompressed block cache size planning", miss_weight_rate("uncompressed"))
@@ -438,9 +448,11 @@ def build_user_disk():
             .aggr("table_tag", "table_path", "user")
             .top()
             .row()
+                .unit("UNIT_BYTES_SI")
                 .cell("Table lookup data bytes read from disk", reader_stats("lookup", "data_bytes_transmitted"))
                 .cell("Table select data bytes read from disk", reader_stats("select", "data_bytes_transmitted"))
             .row()
+                .unit("UNIT_BYTES_SI")
                 .cell("Table lookup chunk meta bytes read from disk", reader_stats("lookup", "meta_bytes_read_from_disk"))
                 .cell("Table select chunk meta bytes read from disk", reader_stats("select", "meta_bytes_read_from_disk"))
             .row()
@@ -465,6 +477,7 @@ def build_user_background_disk():
             .all("#AB", "method", "medium")
             .aggr("table_tag", "table_path")
             .top()
+            .unit("UNIT_BYTES_SI")
             .row()
                 .cell("Tablet background data bytes read from disk", top_disk("chunk_reader_statistics", "data_bytes_read_from_disk"))
                 .cell("Tablet background chunk meta bytes read from disk", top_disk("chunk_reader_statistics", "meta_bytes_read_from_disk"))
@@ -504,6 +517,7 @@ def build_user_resource_overview_rowset():
                                         .alias("Guarantee {{container}}")/100,
                                     *[x / 100 for x in top_max_bottom_min("yt.porto.vcpu.total")]))
             .row()
+                .unit("UNIT_BYTES_SI")
                 .cell("Memory Total", MultiSensor(
                                     MonitoringExpr(TabNodePorto("yt.porto.memory.memory_limit").value("container_category", "pod")
                                         .aggr(MonitoringTag("host"))).alias("Container Memory Guarantee"),
@@ -519,6 +533,7 @@ def build_user_resource_overview_rowset():
                                         .top(1),
                                     *top_max_bottom_min("yt.porto.memory.anon_usage")))
             .row()
+                .unit("UNIT_BYTES_SI")
                 .cell("Net TX total", MultiSensor(
                                     MonitoringExpr(TabNodePorto("yt.porto.network.tx_limit").value("container_category", "pod")
                                         .aggr(MonitoringTag("host"))).alias("Container Net Tx Guarantee"),
@@ -531,6 +546,7 @@ def build_user_resource_overview_rowset():
                                         .top(1),
                                         *top_max_bottom_min("yt.porto.network.tx_bytes")))
             .row()
+                .unit("UNIT_BYTES_SI")
                 .cell("Net RX Total", MultiSensor(
                                     MonitoringExpr(TabNodePorto("yt.porto.network.rx_limit").value("container_category", "pod")
                                         .aggr(MonitoringTag("host"))).alias("Container Net Rx Guarantee"),
@@ -544,6 +560,7 @@ def build_user_resource_overview_rowset():
                                         *top_max_bottom_min("yt.porto.network.rx_bytes")))
             .row()
                 .stack(True)
+                .unit("UNIT_BYTES_SI")
                 .cell("Disk Write Total", MultiSensor(
                                     MonitoringExpr(NodeTablet("yt.tablet_node.chunk_writer.disk_space.rate")
                                         .aggr(MonitoringTag("host"), "table_path", "table_tag", "account", "medium")
@@ -555,6 +572,7 @@ def build_user_resource_overview_rowset():
                                         .stack(False))
             .row()
                 .stack(True)
+                .unit("UNIT_BYTES_SI")
                 .cell("Disk Read Total", MultiSensor(
                                     MonitoringExpr(NodeTablet("yt.tablet_node.chunk_reader_statistics.data_bytes_read_from_disk.rate")
                                         .aggr(MonitoringTag("host"), "table_path", "table_tag", "account", "medium")
@@ -611,6 +629,7 @@ def build_user_rpc_resource_overview_rowset():
                                         .alias("Guarantee {{container}}")/100,
                                     *[x / 100 for x in top_max_bottom_min("yt.porto.vcpu.total")]))
             .row()
+                .unit("UNIT_BYTES_SI")
                 .cell("Memory Total", MultiSensor(
                                     MonitoringExpr(RpcProxyPorto("yt.porto.memory.memory_limit").value("container_category", "pod")
                                         .aggr(MonitoringTag("host"))).alias("Container Memory Guarantee"),
@@ -622,6 +641,7 @@ def build_user_rpc_resource_overview_rowset():
                                         .top(1),
                                     *top_max_bottom_min("yt.porto.memory.anon_usage")))
             .row()
+                .unit("UNIT_BYTES_SI")
                 .cell("Net TX total", MultiSensor(
                                     MonitoringExpr(RpcProxyPorto("yt.porto.network.tx_limit").value("container_category", "pod")
                                         .aggr(MonitoringTag("host"))).alias("Container Net Tx Guarantee"),
@@ -634,6 +654,7 @@ def build_user_rpc_resource_overview_rowset():
                                         .top(1),
                                         *top_max_bottom_min("yt.porto.network.tx_bytes")))
             .row()
+                .unit("UNIT_BYTES_SI")
                 .cell("Net RX Total", MultiSensor(
                                     MonitoringExpr(RpcProxyPorto("yt.porto.network.rx_limit").value("container_category", "pod")
                                         .aggr(MonitoringTag("host"))).alias("Container Net Rx Guarantee"),
@@ -665,7 +686,8 @@ def build_efficiency_rowset():
                                                 .aggr(MonitoringTag("host"), "table_path", "table_tag", "account", "medium", "method", "tablet_cell_bundle")) /
                                         MonitoringExpr(NodeTablet("yt.tablet_node.write.data_weight.rate")
                                                 .aggr(MonitoringTag("host"), "table_path", "table_tag", "user", "tablet_cell_bundle"))
-                                    ).alias("whole {{cluster}}")))
+                                    ).alias("whole {{cluster}}"))
+                                    .unit("UNIT_BYTES_SI"))
                 .cell("Compression CPU cores per user written gigabyte", MultiSensor(
                                     (
                                         MonitoringExpr(NodeTablet("yt.tablet_node.chunk_writer.compression_cpu_time.rate")
@@ -680,6 +702,7 @@ def build_efficiency_rowset():
                                                 .aggr(MonitoringTag("host"), "table_path", "table_tag", "user", "tablet_cell_bundle"))
                                     ).alias("whole {{cluster}}")))
             .row()
+                .unit("UNIT_BYTES_SI")
                 .cell("Disk bytes read per user lookup byte", MultiSensor(
                                     (
                                         MonitoringExpr(NodeTablet("yt.tablet_node.lookup.chunk_reader_statistics.data_bytes_read_from_disk.rate")
@@ -778,7 +801,8 @@ def build_tablet_static_planning():
             .stack(False)
             .aggr(MonitoringTag("host"))
             .row()
-                .cell("Tablet static memory", memory_usage("tablet_static")))
+                .cell("Tablet static memory", memory_usage("tablet_static"))
+            .unit("UNIT_BYTES_SI"))
 
 def build_node_resource_capacity_planning():
     per_container_limit=629145600
@@ -796,8 +820,10 @@ def build_node_resource_capacity_planning():
                                     MonitoringExpr(TabNodePorto("yt.porto.memory.anon_usage").value("container_category", "pod")
                                         .aggr(MonitoringTag("host"))),
                                     MonitoringExpr(TabNodePorto("yt.porto.memory.memory_limit").value("container_category", "pod")
-                                        .aggr(MonitoringTag("host")))))
+                                        .aggr(MonitoringTag("host"))))
+                                    .unit("UNIT_BYTES_SI"))
             .row()
+                .unit("UNIT_BYTES_SI")
                 .cell("Tablet Node Net TX total", with_trend(
                                     TabNodePorto("yt.porto.network.tx_bytes").value("container_category", "pod").aggr(MonitoringTag("host")),
                                     node_count * per_container_limit))
@@ -806,6 +832,7 @@ def build_node_resource_capacity_planning():
                                     node_count * per_container_limit))
             .row()
                 .stack(True)
+                .unit("UNIT_BYTES_SI")
                 .cell("Disk Write Total", MultiSensor(
                                     MonitoringExpr(NodeTablet("yt.tablet_node.chunk_writer.disk_space.rate")
                                         .aggr(MonitoringTag("host"), "table_path", "table_tag", "account", "medium")
@@ -838,8 +865,10 @@ def build_rpc_proxy_resource_capacity_planning():
                                     RpcProxyPorto("yt.porto.memory.anon_usage").value("container_category", "pod")
                                         .aggr(MonitoringTag("host")),
                                     RpcProxyPorto("yt.porto.memory.memory_limit").value("container_category", "pod")
-                                        .aggr(MonitoringTag("host"))))
+                                        .aggr(MonitoringTag("host")))
+                                    .unit("UNIT_BYTES_SI"))
             .row()
+                .unit("UNIT_BYTES_SI")
                 .cell("Rpc Proxy Net TX total", with_trend(
                                     RpcProxyPorto("yt.porto.network.tx_bytes").value("container_category", "pod")
                                         .value("proxy_role", TemplateTag("tablet_cell_bundle"))
@@ -876,7 +905,8 @@ def build_rpc_proxy_cpu():
                                     MonitoringExpr(RpcProxyPorto("yt.porto.memory.memory_limit").value("container_category", "pod"))
                                         .alias("Container Memory Guarantee {{container}}"),
                                     MonitoringExpr(RpcProxyPorto("yt.porto.memory.anon_usage").value("container_category", "pod"))
-                                        .alias("Container Memory Usage {{container}}")))
+                                        .alias("Container Memory Usage {{container}}"))
+                                    .unit("UNIT_BYTES_SI"))
             .row()
                 .cell("Worker thread pool CPU usage", cpu_usage("Worker"))
                 .cell("BusXfer thread pool CPU usage", cpu_usage("BusXfer"))
@@ -892,6 +922,7 @@ def build_rpc_proxy_network():
             .stack(False)
             .top()
             .row()
+                .unit("UNIT_BYTES_SI")
                 .cell("Net TX total", MultiSensor(
                                     MonitoringExpr(RpcProxyPorto("yt.porto.network.tx_limit").value("container_category", "pod"))
                                         .alias("Container Net Tx Guarantee {{container}}"),
