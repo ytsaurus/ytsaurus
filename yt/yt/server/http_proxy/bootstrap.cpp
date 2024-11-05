@@ -284,6 +284,14 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         authenticators[Config_->TvmOnlyHttpsServer->Port] = tvmOnlyAuthenticator;
     }
 
+    if (Config_->ChytHttpServer) {
+        authenticators[Config_->ChytHttpServer->Port] = httpAuthenticator;
+    }
+
+    if (Config_->ChytHttpsServer) {
+        authenticators[Config_->ChytHttpsServer->Port] = httpAuthenticator;
+    }
+
     HttpAuthenticator_ = New<TCompositeHttpAuthenticator>(authenticators);
 
     Api_ = New<TApi>(this);
