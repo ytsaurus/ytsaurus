@@ -115,7 +115,7 @@ IImageReaderPtr CreateCypressFileImageReader(
     IThroughputThrottlerPtr inThrottler,
     IThroughputThrottlerPtr outRpsThrottler,
     IInvokerPtr invoker,
-    TLogger logger)
+    const TLogger& logger)
 {
     YT_VERIFY(artifactKey.has_filesystem());
     YT_VERIFY(artifactKey.has_nbd_export_id());
@@ -143,7 +143,7 @@ IBlockDevicePtr CreateFileSystemBlockDevice(
     IImageReaderPtr reader,
     TString exportId,
     IInvokerPtr invoker,
-    TLogger Logger)
+    const TLogger& logger)
 {
     YT_LOG_INFO("Creating file system block device (Path: %v, ExportId: %v, Size: %v)",
         reader->GetPath(),
@@ -158,7 +158,7 @@ IBlockDevicePtr CreateFileSystemBlockDevice(
         std::move(config),
         std::move(reader),
         std::move(invoker),
-        Logger);
+        logger);
 
     YT_LOG_INFO("Created file system block device (Path: %v, Size: %v)",
         device->GetProfileSensorTag(),

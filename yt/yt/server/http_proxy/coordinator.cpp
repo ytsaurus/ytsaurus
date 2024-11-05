@@ -647,9 +647,9 @@ void TDiscoverVersionsHandler::HandleRequest(
 {
     auto instances = GetAllInstances();
 
-    THashMap<TString, THashMap<EClusterComponentType, TVersionCounter>> summary;
+    THashMap<std::string, THashMap<EClusterComponentType, TVersionCounter>> summary;
     for (const auto& instance : instances) {
-        auto count = [&] (const TString& key) {
+        auto count = [&] (const std::string& key) {
             summary[key][instance.Type].Total++;
 
             if (instance.Banned) {

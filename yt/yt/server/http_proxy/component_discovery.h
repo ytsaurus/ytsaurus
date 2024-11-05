@@ -36,20 +36,20 @@ DEFINE_ENUM(EClusterComponentType,
 struct TClusterComponentInstance
 {
     EClusterComponentType Type;
-    //! Instance fqdn with port.
-    TString Address;
+    //! Instance FQDN with port.
+    std::string Address;
     //! Instance build version string.
-    TString Version;
-    TString StartTime;
+    std::string Version;
+    std::string StartTime;
 
     bool Banned = false;
     bool Online = true;
-    TString State;
+    std::string State;
 
     TError Error;
 
     //! For exec nodes only.
-    std::optional<TString> JobProxyVersion;
+    std::optional<std::string> JobProxyVersion;
 };
 
 void Serialize(const TClusterComponentInstance& instance, NYson::IYsonConsumer* consumer);
@@ -78,7 +78,7 @@ public:
     std::vector<TClusterComponentInstance> GetAllInstances() const;
 
     //! Returns object node Cypress paths for instances of the specified component.
-    static std::vector<TString> GetCypressPaths(NApi::IClientPtr client, const NApi::TMasterReadOptions& masterReadOptions, EClusterComponentType component);
+    static std::vector<NYPath::TYPath> GetCypressPaths(const NApi::IClientPtr& client, const NApi::TMasterReadOptions& masterReadOptions, EClusterComponentType component);
 
 private:
     const NApi::IClientPtr Client_;
@@ -86,14 +86,14 @@ private:
     const TComponentDiscoveryOptions ComponentDiscoveryOptions_;
 
     //! Returns Cypress directory containing object nodes for the requested component.
-    static TString GetCypressDirectory(EClusterComponentType component);
+    static NYPath::TYPath GetCypressDirectory(EClusterComponentType component);
     //! Returns Cypress subpaths that can be joined with the directory returned by the function above
     //! to produce full paths to object nodes for instances of the requested component.
-    static std::vector<TString> GetCypressSubpaths(NApi::IClientPtr client, const NApi::TMasterReadOptions& masterReadOptions, EClusterComponentType component);
+    static std::vector<NYPath::TYPath> GetCypressSubpaths(const NApi::IClientPtr& client, const NApi::TMasterReadOptions& masterReadOptions, EClusterComponentType component);
 
     std::vector<TClusterComponentInstance> GetAttributes(
         EClusterComponentType component,
-        const std::vector<TString>& subpaths,
+        const std::vector<NYPath::TYPath>& subpaths,
         EClusterComponentType instanceType,
         const NYPath::TYPath& suffix = "/orchid/service") const;
 

@@ -49,52 +49,6 @@ class TestHotSwap(YTEnvSetup):
             "incremental_heartbeat_period": 100,
             "incremental_heartbeat_period_splay": 100,
             "publish_disabled_locations": True,
-            "disk_manager_proxy": {
-                "is_mock": True,
-                "mock_disks": [
-                    {
-                        "disk_id": "disk1",
-                        "device_path": "/dev/disk1",
-                        "device_name": "Disk1",
-                        "disk_model": "Test Model",
-                        "partition_fs_labels": [
-                            '/yt/disk1'
-                        ],
-                        "state": "failed"
-                    },
-                    {
-                        "disk_id": "disk2",
-                        "device_path": "/dev/disk2",
-                        "device_name": "Disk2",
-                        "disk_model": "Test Model",
-                        "partition_fs_labels": [
-                            '/yt/disk2'
-                        ],
-                        "state": "failed"
-                    },
-                    {
-                        "disk_id": "disk3",
-                        "device_path": "/dev/disk3",
-                        "device_name": "Disk3",
-                        "disk_model": "Test Model",
-                        "partition_fs_labels": [
-                            '/yt/disk3'
-                        ],
-                        "state": "failed"
-                    },
-                    {
-                        "disk_id": "UNKNOWN",
-                        "device_path": "/dev/UNKNOWN",
-                        "device_name": "UNKNOWN",
-                        "disk_model": "Test Model",
-                        "partition_fs_labels": [
-                            'UNKNOWN'
-                        ],
-                        "state": "failed"
-                    }
-                ],
-                "mock_yt_paths": ["/yt/disk1", "/yt/disk2", "/yt/disk3", "UNKNOWN"]
-            }
         }
     }
 
