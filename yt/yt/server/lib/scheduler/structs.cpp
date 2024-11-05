@@ -147,12 +147,10 @@ void FromProto(
     const NControllerAgent::NProto::TPoolTreeControllerSettingsMap& protoPoolTreeControllerSettingsMap)
 {
     for (const auto& protoTreeSettings : protoPoolTreeControllerSettingsMap.tree_settings()) {
-        TSchedulingTagFilter filter;
-        FromProto(&filter, protoTreeSettings.scheduling_tag_filter());
         poolTreeControllerSettingsMap->emplace(
             protoTreeSettings.tree_name(),
             TPoolTreeControllerSettings{
-                .SchedulingTagFilter = filter,
+                .SchedulingTagFilter = FromProto<TSchedulingTagFilter>(protoTreeSettings.scheduling_tag_filter()),
                 .Tentative = protoTreeSettings.tentative(),
                 .Probing = protoTreeSettings.probing(),
                 .Offloading = protoTreeSettings.offloading(),

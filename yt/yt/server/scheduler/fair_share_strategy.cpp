@@ -517,7 +517,7 @@ public:
             }
 
             bool hasNonHungTree = false;
-            TError operationError("Operation scheduling hung in all trees");
+            TError operationError("Operation scheduling is stuck");
 
             for (const auto& treePoolPair : operationState->TreeIdToPoolNameMap()) {
                 const auto& treeName = treePoolPair.first;
