@@ -31,7 +31,7 @@ TFuture<void> TDiskInfoProvider::UpdateDiskCache()
 TFuture<std::vector<TDiskInfo>> TDiskInfoProvider::GetYTDiskInfos()
 {
     auto diskInfosFuture = DiskManagerProxy_->GetDisks();
-    auto ytDiskPathsFuture = DiskManagerProxy_->GetYtDiskDevicePaths();
+    auto ytDiskPathsFuture = DiskManagerProxy_->GetYTDiskDevicePaths();
     auto diskYtPrefix = Config_->YtDiskPrefix;
 
     // Merge two futures and filter disks placed in /yt.

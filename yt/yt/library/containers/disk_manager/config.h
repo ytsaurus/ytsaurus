@@ -35,7 +35,7 @@ struct TDiskManagerProxyConfig
 
     bool IsMock;
     std::vector<TMockedDiskConfigPtr> MockDisks;
-    std::vector<TString> MockYtPaths;
+    std::vector<TString> MockYTPaths;
 
     TDuration RequestTimeout;
 

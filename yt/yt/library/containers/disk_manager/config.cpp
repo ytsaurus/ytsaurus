@@ -43,7 +43,7 @@ void TDiskManagerProxyConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("mock_disks", &TThis::MockDisks)
         .Default();
-    registrar.Parameter("mock_yt_paths", &TThis::MockYtPaths)
+    registrar.Parameter("mock_yt_paths", &TThis::MockYTPaths)
         .Default();
 
     registrar.Parameter("request_timeout", &TThis::RequestTimeout)
