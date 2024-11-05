@@ -3397,6 +3397,7 @@ class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):
 class TestReplicatedDynamicTablesRpcProxy(TestReplicatedDynamicTables):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
 
     @authors("akozhikhov")
     def test_sync_replicas_cache(self):
