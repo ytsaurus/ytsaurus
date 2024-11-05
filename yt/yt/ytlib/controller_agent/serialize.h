@@ -61,6 +61,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((DropOriginalTableSchemaRevision)      (301604))
     ((AcoName)                              (301605))
     ((DisableShrinkingJobs)                 (301606))
+    ((MultipleOrderedTasks)                 (301607))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
