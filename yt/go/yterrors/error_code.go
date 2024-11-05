@@ -70,7 +70,7 @@ const (
 	CodeDuplicateColumnInSchema                               ErrorCode = 322
 	CodeMissingRequiredColumnInSchema                         ErrorCode = 323
 	CodeIncomparableComplexValues                             ErrorCode = 324
-	CodeKeyCannotBeNan                                        ErrorCode = 325
+	CodeKeyCannotBeNaN                                        ErrorCode = 325
 	CodeStringLikeValueLengthLimitExceeded                    ErrorCode = 326
 	CodeNameTableUpdateFailed                                 ErrorCode = 327
 	CodeInvalidTableChunkFormat                               ErrorCode = 328
@@ -555,7 +555,7 @@ func (e ErrorCode) String() string {
 		return "MissingRequiredColumnInSchema"
 	case CodeIncomparableComplexValues:
 		return "IncomparableComplexValues"
-	case CodeKeyCannotBeNan:
+	case CodeKeyCannotBeNaN:
 		return "KeyCannotBeNan"
 	case CodeStringLikeValueLengthLimitExceeded:
 		return "StringLikeValueLengthLimitExceeded"
