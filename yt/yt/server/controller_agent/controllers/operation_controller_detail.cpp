@@ -4330,14 +4330,14 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     }
     LastAvailableExecNodesCheckTime_ = now;
 
+    TSchedulingTagFilter tagFilter(Spec_->SchedulingTagFilter);
     TString observedExecNodeAddress;
     bool foundMatching = false;
     bool foundMatchingNotBanned = false;
+    int otherTreesNodeCount = 0;
     int nonMatchingFilterNodeCount = 0;
-    THashMap<TString, TEnumIndexedArray<EJobResourceWithDiskQuotaType, i64>> matchingButInsufficientResourcesNodeCountPerTask;
-    for (const auto& nodePair : GetExecNodeDescriptors()) {
-        const auto& descriptor = nodePair.second;
-
+    THashMap<TString, TEnumIndexedArray<EJobResourceWithDiskQuotaType, i64>> insufficientResourcesNodeCountPerTask;
+    for (const auto& [_, descriptor] : GetExecNodeDescriptors()) {
         bool hasSuitableTree = false;
         for (const auto& [treeName, settings] : PoolTreeControllerSettingsMap_) {
             if (descriptor->CanSchedule(settings.SchedulingTagFilter)) {
@@ -4345,7 +4345,13 @@ void TOperationControllerBase::CheckAvailableExecNodes()
                 break;
             }
         }
+
         if (!hasSuitableTree) {
+            ++otherTreesNodeCount;
+            continue;
+        }
+
+        if (!descriptor->CanSchedule(tagFilter)) {
             ++nonMatchingFilterNodeCount;
             continue;
         }
@@ -4388,7 +4394,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
             }
 
             for (auto resourceType : TEnumTraits<EJobResourceWithDiskQuotaType>::GetDomainValues()) {
-                matchingButInsufficientResourcesNodeCountPerTask[task->GetVertexDescriptor()][resourceType] +=
+                insufficientResourcesNodeCountPerTask[task->GetVertexDescriptor()][resourceType] +=
                     !taskHasEnoughResourcesPerResource[resourceType];
             }
         }
@@ -4398,7 +4404,8 @@ void TOperationControllerBase::CheckAvailableExecNodes()
 
         observedExecNodeAddress = descriptor->Address;
         foundMatching = true;
-        if (BannedNodeIds_.find(descriptor->Id) == BannedNodeIds_.end()) {
+
+        if (!BannedNodeIds_.contains(descriptor->Id)) {
             foundMatchingNotBanned = true;
             // foundMatchingNotBanned also implies foundMatching, hence we interrupt.
             break;
@@ -4410,30 +4417,45 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     }
 
     if (!AvailableExecNodesObserved_) {
+        TStringBuilder errorMessageBuilder;
+        errorMessageBuilder.AppendFormat(
+            "Found no nodes with enough resources to schedule an allocation that are online in trees %v",
+            GetKeys(PoolTreeControllerSettingsMap_));
+        if (!tagFilter.IsEmpty()) {
+            errorMessageBuilder.AppendFormat(
+                " and match scheduling tag filter %Qv",
+                tagFilter);
+        }
+
         DoFailOperation(TError(
             EErrorCode::NoOnlineNodeToScheduleAllocation,
-            "No online nodes that match operation scheduling tag filter %Qv "
-            "and have sufficient resources to schedule an allocation found in trees %v",
-            Spec_->SchedulingTagFilter.GetFormula(),
-            GetKeys(PoolTreeControllerSettingsMap_))
+            errorMessageBuilder.Flush(),
+            TError::DisableFormat)
+            << TErrorAttribute("other_trees_node_count", otherTreesNodeCount)
             << TErrorAttribute("non_matching_filter_node_count", nonMatchingFilterNodeCount)
-            << TErrorAttribute("matching_but_insufficient_resources_node_count_per_task", matchingButInsufficientResourcesNodeCountPerTask));
+            << TErrorAttribute("insufficient_resources_node_count_per_task", insufficientResourcesNodeCountPerTask));
         return;
     }
 
     if (foundMatching && !foundMatchingNotBanned && Spec_->FailOnAllNodesBanned) {
         TStringBuilder errorMessageBuilder;
         errorMessageBuilder.AppendFormat(
-            "All online nodes that match operation scheduling tag filter %Qv were banned in trees %v",
-            Spec_->SchedulingTagFilter.GetFormula(),
+            "All suitable online nodes in trees %v",
             GetKeys(PoolTreeControllerSettingsMap_));
+        if (!tagFilter.IsEmpty()) {
+            errorMessageBuilder.AppendFormat(
+                " that match scheduling tag filter %Qv",
+                tagFilter);
+        }
+        errorMessageBuilder.AppendString(" were banned");
+
         // NB(eshcherbin): This should happen always, currently this option could be the only reason to ban a node.
         if (Spec_->BanNodesWithFailedJobs) {
             errorMessageBuilder.AppendString(
-                " (\"ban_nodes_with_failed_jobs\" spec option is set, try investigating your job failures)");
+                "; (\"ban_nodes_with_failed_jobs\" spec option is set, try investigating your job failures)");
         }
-        auto errorMessage = errorMessageBuilder.Flush();
-        DoFailOperation(TError(std::move(errorMessage), TError::DisableFormat));
+
+        DoFailOperation(TError(errorMessageBuilder.Flush(), TError::DisableFormat));
         return;
     }
 

@@ -649,7 +649,7 @@ class TestOperationControllerResourcesCheck(YTEnvSetup):
 
         wait(lambda: op.get_state() == "failed")
 
-        insufficient_resources_result = get(op.get_path() + "/@result")["error"]["attributes"]["matching_but_insufficient_resources_node_count_per_task"]
+        insufficient_resources_result = get(op.get_path() + "/@result")["error"]["attributes"]["insufficient_resources_node_count_per_task"]
 
         assert insufficient_resources_result["task_a"]["cpu"] == 3
         assert insufficient_resources_result["task_b"]["cpu"] == 0

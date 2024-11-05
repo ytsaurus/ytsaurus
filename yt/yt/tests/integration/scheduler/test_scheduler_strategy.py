@@ -1741,7 +1741,7 @@ class TestSchedulerHangingOperations(YTEnvSetup):
         wait(lambda: op.get_state() == "failed")
 
         result = str(get(op.get_path() + "/@result"))
-        assert "scheduling hung" in result
+        assert "scheduling is stuck" in result
         assert "no successful scheduled allocations" in result
 
     @authors("eshcherbin")
@@ -1804,8 +1804,10 @@ class TestSchedulerHangingOperations(YTEnvSetup):
         wait(lambda: op.get_state() == "failed")
 
         result = str(get(op.get_path() + "/@result"))
-        assert "scheduling hung" in result
-        assert "limiting_ancestor" in result and "limiting_pool" in result
+
+        # TODO(eshcherbin): Use error codes.
+        assert "scheduling is stuck" in result
+        assert "ancestor \"limiting_pool\" whose specified limits for resources [cpu] are too small" in result
 
     @authors("eshcherbin")
     def test_skip_limiting_ancestor_check_on_node_shortage(self):
