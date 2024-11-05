@@ -196,15 +196,17 @@ public:
                 if (!isCpuX86 || (llvmTriple.isArch64Bit() != isCpuX86And64Bit)) {
                     YT_LOG_INFO(
                         "Automatically detected CPU is incompatible with specified target triple, "
-                        "using generic CPU for llvm module configuration (DetectedCPU: %v, TargetTriple: %v)",
-                        std::string{cpu},
+                        "using generic CPU for llvm module configuration (DetectedCpu: %v, TargetTriple: %v)",
+                        std::string_view(cpu),
                         triple);
                     cpu = "generic";
                 }
             }
         }
 
-        YT_LOG_INFO("Initializing codegen module (CPU: %v, TargetTriple: %v)", std::string{cpu}, triple);
+        YT_LOG_INFO("Initializing codegen module (Cpu: %v, TargetTriple: %v)",
+            std::string_view(cpu),
+            triple);
 
         // Create module.
         auto cgModule = std::make_unique<llvm::Module>(moduleName.c_str(), Context_);
