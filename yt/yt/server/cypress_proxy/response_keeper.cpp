@@ -24,9 +24,9 @@ class TSequoiaResponseKeeper
 {
 public:
     TSequoiaResponseKeeper(
-        TSequoiaResponseKeeperDynamicConfigPtr& config,
+        TSequoiaResponseKeeperDynamicConfigPtr config,
         TLogger logger)
-        : Config_(config)
+        : Config_(std::move(config))
         , Logger(std::move(logger))
     { }
 
@@ -120,7 +120,7 @@ public:
     }
 
 private:
-    TSequoiaResponseKeeperDynamicConfigPtr& Config_;
+    TSequoiaResponseKeeperDynamicConfigPtr Config_;
     const TLogger Logger;
 
     void DoKeepResponse(const ISequoiaTransactionPtr& transaction, TMutationId mutationId, const TSharedRefArray& response, bool remember) const
@@ -168,7 +168,7 @@ private:
             return CreateErrorResponseMessage(rowsOrError);
         }
 
-        auto rows = rowsOrError.Value();
+        const auto& rows = rowsOrError.Value();
         YT_VERIFY(rows.size() == 1);
 
         if (!rows.front()) {
@@ -194,10 +194,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ISequoiaResponseKeeperPtr CreateSequoiaResponseKeeper(
-    TSequoiaResponseKeeperDynamicConfigPtr& config,
+    TSequoiaResponseKeeperDynamicConfigPtr config,
     TLogger logger)
 {
-    return New<TSequoiaResponseKeeper>(config, std::move(logger));
+    return New<TSequoiaResponseKeeper>(std::move(config), std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
