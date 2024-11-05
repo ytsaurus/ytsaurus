@@ -47,11 +47,13 @@ class TArraySimpleVisitor
 {
 public:
     TArraySimpleVisitor(
+        std::optional<ESimpleLogicalValueType> columnType,
         int columnId,
         std::shared_ptr<arrow::Array> array,
         std::shared_ptr<TChunkedOutputStream> bufferForStringLikeValues,
         TUnversionedRowValues* rowValues)
-        : ColumnId_(columnId)
+        : ColumnType_(columnType)
+        , ColumnId_(columnId)
         , Array_(std::move(array))
         , BufferForStringLikeValues_(std::move(bufferForStringLikeValues))
         , RowValues_(rowValues)
@@ -189,6 +191,7 @@ public:
     }
 
 private:
+    const std::optional<ESimpleLogicalValueType> ColumnType_;
     const i64 ColumnId_;
 
     std::shared_ptr<arrow::Array> Array_;
@@ -264,11 +267,15 @@ private:
     template <typename ArrayType>
     arrow::Status ParseStringLikeArray()
     {
-        // Note that MakeUnversionedStringValue actually has third argument in its signature,
+        // Note that MakeUnversionedValue actually has third argument in its signature,
         // which leads to a "too few arguments" in the point of its invocation if we try to pass
         // it directly to ParseStringLikeArray.
-        return ParseStringLikeArray<ArrayType>([] (const TStringBuf& value, i64 columnId) {
-            return MakeUnversionedStringValue(value, columnId);
+        return ParseStringLikeArray<ArrayType>([this] (const TStringBuf& value, i64 columnId) {
+            if (ColumnType_  && *ColumnType_ == ESimpleLogicalValueType::Any) {
+                return MakeUnversionedAnyValue(value, columnId);
+            } else {
+                return MakeUnversionedStringValue(value, columnId);
+            }
         });
     }
 
@@ -806,7 +813,7 @@ void PrepareArrayForSimpleLogicalType(
         auto dictionaryValuesColumn = dictionaryColumn->dictionary();
         CheckMatchingArrowTypes(columnType, dictionaryValuesColumn);
 
-        TArraySimpleVisitor visitor(columnId, dictionaryValuesColumn, bufferForStringLikeValues, &dictionaryValues);
+        TArraySimpleVisitor visitor(columnType, columnId, dictionaryValuesColumn, bufferForStringLikeValues, &dictionaryValues);
         ThrowOnError(dictionaryColumn->dictionary()->type()->Accept(&visitor));
 
         for (int offset = 0; offset < std::ssize(rowsValues[columnIndex]); offset++) {
@@ -817,7 +824,7 @@ void PrepareArrayForSimpleLogicalType(
             }
         }
     } else {
-        TArraySimpleVisitor visitor(columnId, column, bufferForStringLikeValues, &rowsValues[columnIndex]);
+        TArraySimpleVisitor visitor(columnType, columnId, column, bufferForStringLikeValues, &rowsValues[columnIndex]);
         ThrowOnError(column->type()->Accept(&visitor));
     }
 }
@@ -887,7 +894,7 @@ void PrepareArrayForComplexType(
         column->type()->id() == arrow::Type::DECIMAL256)
     {
         TUnversionedRowValues stringValues(rowsValues[columnIndex].size());
-        TArraySimpleVisitor visitor(columnId, column, bufferForStringLikeValues, &stringValues);
+        TArraySimpleVisitor visitor(/*columnType*/ std::nullopt, columnId, column, bufferForStringLikeValues, &stringValues);
         ThrowOnError(column->type()->Accept(&visitor));
         for (int offset = 0; offset < std::ssize(rowsValues[columnIndex]); offset++) {
             if (column->IsNull(offset)) {
