@@ -3072,6 +3072,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyConfig->UseRetryingChannels = proxyDynamicConfig->UseRetryingChannels;
         proxyConfig->RetryingChannel = proxyDynamicConfig->RetryingChannel;
         proxyConfig->PipeReaderTimeoutThreshold = proxyDynamicConfig->PipeReaderTimeoutThreshold;
+        proxyConfig->AdaptiveRowCountUpperBound = proxyDynamicConfig->AdaptiveRowCountUpperBound;
         proxyConfig->HeapDumpDirectory = proxyDynamicConfig->HeapDumpDirectory;
 
         proxyConfig->EnableCudaProfileEventStreaming = proxyDynamicConfig->EnableCudaProfileEventStreaming;

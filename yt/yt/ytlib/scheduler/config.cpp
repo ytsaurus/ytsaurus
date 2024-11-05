@@ -198,6 +198,9 @@ void TJobIOConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
     registrar.Parameter("use_adaptive_buffer_row_count", &TThis::UseAdaptiveRowCount)
         .Default();
+    registrar.Parameter("adaptive_row_count_upper_bound", &TThis::AdaptiveRowCountUpperBound)
+        .Default(40 * 1000)
+        .GreaterThan(0);
 
     registrar.Parameter("pipe_capacity", &TThis::PipeCapacity)
         .Default()

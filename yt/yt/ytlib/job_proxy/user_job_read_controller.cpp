@@ -59,7 +59,8 @@ public:
         TClosure onNetworkRelease,
         IUserJobIOFactoryPtr userJobIOFactory,
         std::optional<TString> udfDirectory,
-        TDuration threshold)
+        TDuration threshold,
+        i64 adaptiveRowCountUpperBound)
         : JobSpecHelper_(std::move(jobSpecHelper))
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker), "user_job_read_controller"))
         , OnNetworkRelease_(std::move(onNetworkRelease))
@@ -69,7 +70,8 @@ public:
             JobSpecHelper_->GetJobIOConfig()->UseAdaptiveRowCount.value_or(false)
                 ? threshold
                 : TDuration::Zero(),
-            JobSpecHelper_->GetJobIOConfig()->BufferRowCount)
+            JobSpecHelper_->GetJobIOConfig()->BufferRowCount,
+            std::min<i64>(adaptiveRowCountUpperBound, JobSpecHelper_->GetJobIOConfig()->AdaptiveRowCountUpperBound))
     { }
 
     //! Returns closure that launches data transfer to given async output.
@@ -226,8 +228,9 @@ private:
     class TOptimalRowCountGuesser
     {
     public:
-        TOptimalRowCountGuesser(TDuration threshold, i64 currentGuess)
+        TOptimalRowCountGuesser(TDuration threshold, i64 currentGuess, i64 upperBound)
             : Threshold_(threshold)
+            , UpperBound_(upperBound)
             , CurrentGuess_(currentGuess)
         { }
 
@@ -241,9 +244,15 @@ private:
             return CurrentGuess_;
         }
 
-        i64 NextGuess(TDuration processTime)
+        i64 NextGuess(TDuration processTime, i64 rowsActuallyRead)
         {
+            // NB(arkady-e1ppa): We could be throttled by the reader for various reasons
+            // (memory, network overload etc) causing the amount of rows read to be smaller
+            // than the suggested one. In case of memory it would be pointless or even harmful
+            // to request reading more rows than before.
+
             YT_VERIFY(IsEnabled());
+            CurrentGuess_ = rowsActuallyRead;
 
             Aggregator_.UpdateAt(TInstant::Now(), processTime.MillisecondsFloat());
 
@@ -257,13 +266,14 @@ private:
                 processTime,
                 nextGuess);
 
-            CurrentGuess_ = nextGuess;
+            CurrentGuess_ = std::min<i64>(nextGuess, UpperBound_);
 
-            return nextGuess;
+            return CurrentGuess_;
         }
 
     private:
         const TDuration Threshold_;
+        const i64 UpperBound_;
         TAdjustedExponentialMovingAverage Aggregator_;
         i64 CurrentGuess_;
     };
@@ -288,7 +298,7 @@ private:
     // NB(arkady-e1ppa): Single producer (caller) is assumed.
     void UpdateRowBatchReadOptions(NTableClient::TRowBatchReadOptions* currentOptions, TDuration processTime)
     {
-        currentOptions->MaxRowsPerRead = Guesser_.NextGuess(processTime);
+        currentOptions->MaxRowsPerRead = Guesser_.NextGuess(processTime, currentOptions->MaxRowsPerRead);
     }
 
     ISchemalessFormatWriterPtr PrepareWriterForInputActionsPassthrough(
@@ -491,7 +501,8 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     std::optional<TString> udfDirectory,
     TClientChunkReadOptions chunkReadOptions,
     TString localHostName,
-    TDuration adaptiveConfigTimeoutThreshold)
+    TDuration adaptiveConfigTimeoutThreshold,
+    i64 adaptiveRowCountUpperBound)
 {
     if (jobSpecHelper->GetJobType() != EJobType::Vanilla) {
         if (jobSpecHelper->GetJobSpecExt().has_input_query_spec()) {
@@ -514,7 +525,8 @@ IUserJobReadControllerPtr CreateUserJobReadController(
                 std::move(localHostName),
                 nullptr),
             udfDirectory,
-            adaptiveConfigTimeoutThreshold);
+            adaptiveConfigTimeoutThreshold,
+            adaptiveRowCountUpperBound);
     } else {
         return New<TVanillaUserJobReadController>();
     }

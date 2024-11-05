@@ -53,7 +53,8 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     std::optional<TString> udfDirectory,
     NChunkClient::TClientChunkReadOptions chunkReadOptions,
     TString localHostName,
-    TDuration adaptiveConfigTimeoutThreshold = TDuration::Zero());
+    TDuration adaptiveConfigTimeoutThreshold = TDuration::Zero(),
+    i64 adaptiveRowCountUpperBound = std::numeric_limits<i64>::max());
 
 ////////////////////////////////////////////////////////////////////////////////
 
