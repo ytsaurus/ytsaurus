@@ -46,6 +46,8 @@ PEERDIR(
     yt/yt/library/query/row_comparer
 
     yt/yql/plugin/bridge
+
+    yql/essentials/public/result_format
 )
 
 END()
