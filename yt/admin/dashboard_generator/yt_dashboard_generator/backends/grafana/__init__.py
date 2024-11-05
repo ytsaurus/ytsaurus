@@ -289,9 +289,9 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
 
         try:
             stack = False
-            range = (None, None)
-            unit = None
             targets = []
+            series_list = []
+            ref_id_counter = ord('A')
             for sensor in sensors:
                 query, other_tags = self._prepare_expr_query(sensor)
                 if SystemFields.QueryTransformation in other_tags:
@@ -299,27 +299,40 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
                 # TODO: Support different stacking options for different sensors.
                 if SystemFields.Stack in other_tags:
                     stack = other_tags[SystemFields.Stack]
+
+                axis = other_tags.get(SystemFields.Axis, SystemFields.LeftAxis)
+                unit = None
+                if SystemFields.Unit in other_tags:
+                    unit_value, unit_axis = other_tags[SystemFields.Unit]
+                    if unit_axis == axis:
+                        unit = unit_value
+
+                min_value, max_value = None, None
                 if SystemFields.Range in other_tags:
-                    minValue, maxValue, axis = other_tags[SystemFields.Range]
-                    if axis != SystemFields.LeftAxis:
-                        raise Exception("Grafana dashboard generator supports only left axis")
-                    range = (minValue, maxValue)
+                    min_val, max_val, range_axis = other_tags[SystemFields.Range]
+                    if range_axis == axis:
+                        min_value, max_value = min_val, max_val
 
                 target = {
                     "datasource": self.datasource,
                     "expr": query,
+                    "refId": chr(ref_id_counter),
                 }
                 if SystemFields.LegendFormat in other_tags:
                     value = other_tags[SystemFields.LegendFormat]
                     value = value.replace(ContainerTemplate, "{{pod}}").replace(SensorTemplate, "{{__name__}}")
                     target["legendFormat"] = value
-                
-                if SystemFields.Unit in other_tags:
-                    unit, axis = other_tags[SystemFields.Unit]
-                    if axis != SystemFields.LeftAxis:
-                        raise Exception("Grafana dashboard generator supports only left axis")
 
                 targets.append(target)
+                series_info = {
+                    "refId": target["refId"],
+                    "axis": axis,
+                    "unit": unit,
+                    "min": min_value,
+                    "max": max_value,
+                }
+                series_list.append(series_info)
+                ref_id_counter += 1
         except NotImplementedError as e:
             print(e)
             return {
@@ -330,30 +343,48 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
                 },
             }
 
-        result = {
-            "datasource": self.datasource,
-            "type": "timeseries",
-            "targets": targets,
-            "fieldConfig": {"defaults": {"unit": "short", "custom": {}}},
+        fieldConfig = {
+            "defaults": {
+                "unit": "short",
+                "custom": {}
+            },
+            "overrides": []
         }
 
-        minValue, maxValue = range
+        for series_info in series_list:
+            properties = []
+            if series_info["axis"] == SystemFields.RightAxis:
+                properties.append({"id": "custom.axisPlacement", "value": "right"})
 
-        if minValue is not None:
-            result["fieldConfig"]["defaults"]["min"] = minValue
-        if maxValue is not None:
-            result["fieldConfig"]["defaults"]["max"] = maxValue
-        if unit is not None:
-            result["fieldConfig"]["defaults"]["unit"] = monitoring_to_grafana_unit(unit)
+            if series_info["unit"] is not None:
+                properties.append({"id": "unit", "value": monitoring_to_grafana_unit(series_info["unit"])})
+            if series_info["min"] is not None:
+                properties.append({"id": "min", "value": series_info["min"]})
+            if series_info["max"] is not None:
+                properties.append({"id": "max", "value": series_info["max"]})
+
+            if properties:
+                override = {
+                    "matcher": {"id": "byFrameRefID", "options": series_info["refId"]},
+                    "properties": properties
+                }
+                fieldConfig["overrides"].append(override)
 
         if stack:
-            result["fieldConfig"]["defaults"]["custom"] = {
+            fieldConfig["defaults"]["custom"].update({
                 "stacking": {
                     "group": "A",
                     "mode": "normal",
                 },
                 "fillOpacity": 100,
-            }
+            })
+
+        result = {
+            "datasource": self.datasource,
+            "type": "timeseries",
+            "targets": targets,
+            "fieldConfig": fieldConfig,
+        }
 
         return result
 
@@ -364,8 +395,18 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
             return content
 
         custom_settings = content["fieldConfig"]["defaults"]["custom"]
-        if cell.yaxis_to_label and SystemFields.LeftAxis in cell.yaxis_to_label:
-            custom_settings["axisLabel"] = cell.yaxis_to_label[SystemFields.LeftAxis]
+        if cell.yaxis_to_label:
+            if SystemFields.LeftAxis in cell.yaxis_to_label:
+                custom_settings["axisLabel"] = cell.yaxis_to_label[SystemFields.LeftAxis]
+            for override in content["fieldConfig"].get("overrides", []):
+                for prop in override.get("properties", []):
+                    if prop['id'] == 'custom.axisPlacement' and prop['value'] == 'right':
+                        if SystemFields.RightAxis in cell.yaxis_to_label:
+                            override['properties'].append({
+                                'id': 'custom.axisLabel',
+                                'value': cell.yaxis_to_label[SystemFields.RightAxis]
+                            })
+
         if cell.display_legend is not None:
             if "hideFrom" not in custom_settings:
                 custom_settings["hideFrom"] = {}

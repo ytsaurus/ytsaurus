@@ -10,13 +10,29 @@ from .common.sensors import (
 )
 
 try:
-    from .constants import (
-        CLUSTER_RESOURCES_DASHBOARD_DEFAULT_CLUSTER,
-        CLUSTER_RESOURCES_DASHBOARD_DEFAULT_TREE,
-    )
+    from . import constants
 except ImportError:
-    CLUSTER_RESOURCES_DASHBOARD_DEFAULT_CLUSTER = ""
-    CLUSTER_RESOURCES_DASHBOARD_DEFAULT_TREE = ""
+    constants = None
+CLUSTER_RESOURCES_DASHBOARD_DEFAULT_CLUSTER = getattr(
+    constants,
+    "CLUSTER_RESOURCES_DASHBOARD_DEFAULT_CLUSTER",
+    ""
+)
+CLUSTER_RESOURCES_DASHBOARD_DEFAULT_TREE = getattr(
+    constants,
+    "CLUSTER_RESOURCES_DASHBOARD_DEFAULT_TREE",
+    ""
+)
+CLUSTER_RESOURCES_DASHBOARD_DEFAULT_UNDISTRIBUTED_CPU_RANGE = getattr(
+    constants,
+    "CLUSTER_RESOURCES_DASHBOARD_DEFAULT_UNDISTRIBUTED_CPU_RANGE",
+    (-200_000, 200_000)
+)
+CLUSTER_RESOURCES_DASHBOARD_DEFAULT_UNDISTRIBUTED_MEMORY_RANGE = getattr(
+    constants,
+    "CLUSTER_RESOURCES_DASHBOARD_DEFAULT_UNDISTRIBUTED_MEMORY_RANGE",
+    (-500 * 1000**4, 500 * 1000**4)
+)
 
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
 from yt_dashboard_generator.sensor import Sensor, MultiSensor
@@ -43,11 +59,12 @@ def _build_scheduler_resource_distribution(d):
             Scheduler(f"yt.scheduler.undistributed_resources.cpu")
                 .legend_format("cpu")
                 .axis(SystemFields.LeftAxis)
-                .range(-200_000, 200_000, SystemFields.LeftAxis),
+                .range(*CLUSTER_RESOURCES_DASHBOARD_DEFAULT_UNDISTRIBUTED_CPU_RANGE, SystemFields.LeftAxis),
             Scheduler(f"yt.scheduler.undistributed_resources.user_memory")
                 .legend_format("memory")
                 .axis(SystemFields.RightAxis)
-                .range(-500 * 1000**4, 500 * 1000**4, SystemFields.RightAxis),
+                .range(*CLUSTER_RESOURCES_DASHBOARD_DEFAULT_UNDISTRIBUTED_MEMORY_RANGE, SystemFields.RightAxis)
+                .unit("UNIT_BYTES_SI", SystemFields.RightAxis),
         ]
         return MultiSensor(*sensors)
 
@@ -56,7 +73,7 @@ def _build_scheduler_resource_distribution(d):
         .stack(False)
         .row()
             .cell("CPU distributed vs total", resource_sensors("cpu"), yaxis_label="CPU, cores", display_legend=True)
-            .cell("Memory distributed vs total", resource_sensors("user_memory"), yaxis_label="Memory, bytes", display_legend=True)
+            .cell("Memory distributed vs total", resource_sensors("user_memory"), yaxis_label="Memory, bytes", display_legend=True).unit("UNIT_BYTES_SI")
         .row()
             .cell(
                 "Undistributed resources",
