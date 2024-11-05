@@ -384,6 +384,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_root_volume_disk_quota", &TThis::EnableRootVolumeDiskQuota)
         .Default(false);
 
+    registrar.Parameter("adaptive_row_count_upper_bound", &TThis::AdaptiveRowCountUpperBound)
+        .Default(std::numeric_limits<i64>::max());
+
     registrar.Parameter("heap_dump_directory", &TThis::HeapDumpDirectory)
         .Default();
 
@@ -445,6 +448,9 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("pipe_reader_timeout_threshold", &TThis::PipeReaderTimeoutThreshold)
         .Default(TDuration::Seconds(30));
+
+    registrar.Parameter("adaptive_row_count_upper_bound", &TThis::AdaptiveRowCountUpperBound)
+        .Default(std::numeric_limits<i64>::max());
 
     registrar.Parameter("heap_dump_directory", &TThis::HeapDumpDirectory)
         .Default();

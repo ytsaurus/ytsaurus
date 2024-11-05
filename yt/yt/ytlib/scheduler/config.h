@@ -516,6 +516,7 @@ public:
 
     i64 BufferRowCount;
     std::optional<bool> UseAdaptiveRowCount;
+    i64 AdaptiveRowCountUpperBound;
     std::optional<int> PipeCapacity;
     bool UseDeliveryFencedPipeWriter;
 
