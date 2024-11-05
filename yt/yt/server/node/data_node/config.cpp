@@ -37,7 +37,7 @@ void TP2PConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("session_cleaup_period", &TThis::SessionCleaupPeriod)
         .Default(TDuration::Seconds(15));
-    registrar.Parameter("session_ttl", &TThis::SessionTTL)
+    registrar.Parameter("session_ttl", &TThis::SessionTtl)
         .Default(TDuration::Minutes(5));
 
     registrar.Parameter("snooper_cache", &TThis::RequestCache)
