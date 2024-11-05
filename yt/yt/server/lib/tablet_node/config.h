@@ -675,9 +675,7 @@ public:
     //! Retry delay after unsuccessful partition balancing.
     TDuration SplitRetryDelay;
 
-    TPartitionBalancerConfigPtr ApplyDynamic(
-        const TPartitionBalancerDynamicConfigPtr& dynamicConfig,
-        const NConcurrency::TAsyncSemaphorePtr& semaphore) const;
+    TPartitionBalancerConfigPtr ApplyDynamic(const TPartitionBalancerDynamicConfigPtr& dynamicConfig) const;
 
     REGISTER_YSON_STRUCT(TPartitionBalancerConfig);
 

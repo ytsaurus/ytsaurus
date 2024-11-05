@@ -735,17 +735,12 @@ void TPartitionBalancerConfig::Register(TRegistrar registrar)
 }
 
 TPartitionBalancerConfigPtr TPartitionBalancerConfig::ApplyDynamic(
-    const TPartitionBalancerDynamicConfigPtr& dynamicConfig,
-    const TAsyncSemaphorePtr& samplingSemaphore) const
+    const TPartitionBalancerDynamicConfigPtr& dynamicConfig) const
 {
     auto config = CloneYsonStruct(MakeStrong(this));
     UpdateYsonStructField(config->MinPartitioningSampleCount, dynamicConfig->MinPartitioningSampleCount);
     UpdateYsonStructField(config->MaxPartitioningSampleCount, dynamicConfig->MaxPartitioningSampleCount);
     UpdateYsonStructField(config->SplitRetryDelay, dynamicConfig->SplitRetryDelay);
-
-    if (auto maxConcurrentSamplings = dynamicConfig->MaxConcurrentSamplings) {
-        samplingSemaphore->SetTotal(*maxConcurrentSamplings);
-    }
 
     return config;
 }

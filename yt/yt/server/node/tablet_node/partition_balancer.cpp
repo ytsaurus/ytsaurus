@@ -115,7 +115,11 @@ private:
             ->GetConfig()
             ->TabletNode
             ->PartitionBalancer
-            ->ApplyDynamic(newNodeConfig->TabletNode->PartitionBalancer, Semaphore_));
+            ->ApplyDynamic(newNodeConfig->TabletNode->PartitionBalancer));
+
+        if (auto maxConcurrentSamplings = newNodeConfig->TabletNode->PartitionBalancer->MaxConcurrentSamplings) {
+            Semaphore_->SetTotal(*maxConcurrentSamplings);
+        }
     }
 
     void ProcessLsmActionBatch(

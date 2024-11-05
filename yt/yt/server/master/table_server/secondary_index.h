@@ -35,8 +35,8 @@ public:
     void SetIdsFromCompat();
 
 private:
-    TTableNode* CompatTable_;
-    TTableNode* CompatIndexTable_;
+    TTableNode* CompatTable_ = nullptr;
+    TTableNode* CompatIndexTable_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
