@@ -628,9 +628,6 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_oldest_part_missing_chunks", &TThis::MaxOldestPartMissingChunks)
         .Default(100);
 
-    registrar.Parameter("chunk_removal_job_replicas_expiration_time", &TThis::ChunkRemovalJobReplicasExpirationTime)
-        .Default(TDuration::Minutes(15));
-
     registrar.Parameter("data_node_tracker", &TThis::DataNodeTracker)
         .DefaultNew();
 

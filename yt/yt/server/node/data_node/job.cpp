@@ -439,19 +439,15 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
-        auto replicas = FromProto<TChunkReplicaList>(JobSpecExt_.replicas());
-        auto replicasExpirationDeadline = FromProto<TInstant>(JobSpecExt_.replicas_expiration_deadline());
         auto chunkIsDead = JobSpecExt_.chunk_is_dead();
 
         // COMPAT(aleksandra-zh)
         int mediumIndex = JobSpecExt_.has_medium_index() ? JobSpecExt_.medium_index() : -1;
         auto locationUuid = JobSpecExt_.has_location_uuid() ? FromProto<TChunkLocationUuid>(JobSpecExt_.location_uuid()) : InvalidChunkLocationUuid;
 
-        YT_LOG_INFO("Chunk removal job started (MediumIndex: %v, ChunkLocationUuid: %v, Replicas: %v, ReplicasExpirationDeadline: %v, ChunkIsDead: %v, DelayBeforeStartRemoveChunk: %v)",
+        YT_LOG_INFO("Chunk removal job started (MediumIndex: %v, ChunkLocationUuid: %v, ChunkIsDead: %v, DelayBeforeStartRemoveChunk: %v)",
             mediumIndex,
             locationUuid,
-            replicas,
-            replicasExpirationDeadline,
             chunkIsDead,
             DynamicConfig_->DelayBeforeStartRemoveChunk);
 

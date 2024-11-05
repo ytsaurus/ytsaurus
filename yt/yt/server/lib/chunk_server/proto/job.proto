@@ -54,17 +54,13 @@ message TRemoveChunkJobSpecExt
     // COMPAT(aleksandra-zh)
     optional int32 medium_index = 2;
 
-    // All known stored chunk replicas (excluding the one being removed).
-    repeated fixed32 replicas = 3;
-
-    // Time to keep and suggest #replicas to others.
-    optional uint64 replicas_expiration_deadline = 4;
-
     // If true and the chunk is actually missing at node, the job is considered successful
     // rather than failed.
     optional bool chunk_is_dead = 5;
 
     optional NYT.NProto.TGuid location_uuid = 6;
+
+    reserved 3, 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
