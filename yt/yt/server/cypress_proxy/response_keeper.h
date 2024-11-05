@@ -28,7 +28,7 @@ DEFINE_REFCOUNTED_TYPE(ISequoiaResponseKeeper)
 ////////////////////////////////////////////////////////////////////////////////
 
 ISequoiaResponseKeeperPtr CreateSequoiaResponseKeeper(
-    TSequoiaResponseKeeperDynamicConfigPtr& config,
+    TSequoiaResponseKeeperDynamicConfigPtr config,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
