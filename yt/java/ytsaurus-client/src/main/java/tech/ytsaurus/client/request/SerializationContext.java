@@ -1,5 +1,6 @@
 package tech.ytsaurus.client.request;
 
+import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nullable;
@@ -8,6 +9,7 @@ import com.google.protobuf.Message;
 import tech.ytsaurus.client.TableAttachmentReader;
 import tech.ytsaurus.client.rows.EntitySkiffSerializer;
 import tech.ytsaurus.client.rows.WireRowSerializer;
+import tech.ytsaurus.core.rows.Getters;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
 import tech.ytsaurus.core.rows.YTreeSerializer;
 import tech.ytsaurus.core.utils.ProtoUtils;
@@ -21,6 +23,8 @@ public class SerializationContext<T> {
     protected WireRowSerializer<T> wireSerializer;
     @Nullable
     protected YTreeSerializer<T> ytreeSerializer;
+    @Nullable
+    protected Getters<T, ?, ?> getters;
     @Nullable
     private EntitySkiffSerializer<T> skiffSerializer;
     @Nullable
@@ -69,6 +73,10 @@ public class SerializationContext<T> {
 
     public Optional<YTreeSerializer<T>> getYtreeSerializer() {
         return Optional.ofNullable(this.ytreeSerializer);
+    }
+
+    public Optional<Getters<T, ?, ?>> getGetters() {
+        return Optional.ofNullable(this.getters);
     }
 
     public Optional<EntitySkiffSerializer<T>> getSkiffSerializer() {

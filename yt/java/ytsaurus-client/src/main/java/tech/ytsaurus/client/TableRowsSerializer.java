@@ -213,6 +213,7 @@ class TableRowsProtobufSerializer<T extends Message> extends TableRowsSerializer
 @NonNullFields
 abstract class TableRowsSerializer<T> {
     private static final String YSON = "yson";
+    private static final String ARROW = "arrow";
     protected TRowsetDescriptor rowsetDescriptor;
     private final Map<String, Integer> columnToId = new HashMap<>();
     private final ERowsetFormat rowsetFormat;
@@ -255,12 +256,13 @@ abstract class TableRowsSerializer<T> {
             if (context.getYtreeSerializer().isEmpty()) {
                 throw new IllegalArgumentException("No yson serializer for RF_FORMAT");
             }
-            if (!context.getFormat().get().getType().equals(YSON)) {
-                throw new IllegalArgumentException(
-                        "Format " + context.getFormat().get().getType() + " isn't supported");
+            switch (context.getFormat().get().getType()) {
+                case YSON:
+                    return Optional.of(new TableRowsYsonSerializer<>(context.getYtreeSerializer().get()));
+                case ARROW:
+                    return Optional.of(new ArrowTableRowsSerializer<>(context.getGetters().get().getSchema()));
             }
-            YTreeSerializer<T> serializer = context.getYtreeSerializer().get();
-            return Optional.of(new TableRowsYsonSerializer<>(serializer));
+            throw new IllegalArgumentException("Format " + context.getFormat().get().getType() + " isn't supported");
         } else {
             throw new IllegalArgumentException("Unsupported rowset format");
         }
