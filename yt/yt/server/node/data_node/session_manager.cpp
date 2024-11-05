@@ -108,6 +108,7 @@ void TSessionManager::BuildOrchid(IYsonConsumer* consumer)
                 })
             .EndMap()
             .Item("session_count").Value(idToSession.size())
+            .Item("disable_write_sessions").Value(DisableWriteSessions_.load())
         .EndMap();
 }
 
