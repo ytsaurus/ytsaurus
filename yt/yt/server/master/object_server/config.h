@@ -190,7 +190,7 @@ public:
     //! into the Automaton mutation queue.
     //! It can be used as a form of mutation congestion control to limit the size of the
     //! mutation queue insofar as it is induced by users' Execute requests.
-    //! This throttler is acquired simultaneously will per-user request throttling.
+    //! This throttler is acquired simultaneously with per-user request throttling.
     NConcurrency::TThroughputThrottlerConfigPtr LocalWriteRequestThrottler;
 
     REGISTER_YSON_STRUCT(TDynamicObjectServiceConfig);
