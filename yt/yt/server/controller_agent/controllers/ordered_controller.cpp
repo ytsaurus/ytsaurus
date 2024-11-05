@@ -115,7 +115,16 @@ public:
         Persist(context, JobSpecTemplate_);
         Persist(context, JobSizeConstraints_);
         Persist(context, InputSliceDataWeight_);
-        Persist(context, OrderedTask_);
+        // COMPAT(alexelexa)
+        if (context.GetVersion() >= ESnapshotVersion::MultipleOrderedTasks) {
+            Persist(context, OrderedTasks_);
+        } else {
+            YT_VERIFY(context.IsLoad());
+            TOrderedTaskPtr task;
+            Persist(context, task);
+            OrderedTasks_.emplace_back(std::move(task));
+        }
+
         Persist(context, OrderedOutputRequired_);
         Persist(context, IsExplicitJobCount_);
     }
@@ -309,7 +318,7 @@ protected:
 
     using TOrderedTaskPtr = TIntrusivePtr<TOrderedTask>;
 
-    TOrderedTaskPtr OrderedTask_;
+    std::vector<TOrderedTaskPtr> OrderedTasks_;
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
 
@@ -342,7 +351,10 @@ protected:
 
     bool IsCompleted() const override
     {
-        return OrderedTask_ && OrderedTask_->IsCompleted();
+        return !OrderedTasks_.empty() &&
+            std::all_of(OrderedTasks_.begin(), OrderedTasks_.end(), [] (const auto& task) {
+                return task->IsCompleted();
+            });
     }
 
     void CustomPrepare() override
@@ -410,12 +422,12 @@ protected:
 
             TPeriodicYielder yielder(PrepareYieldPeriod);
 
-            OrderedTask_->SetIsInput(true);
+            GetSingleOrderedTask()->SetIsInput(true);
 
             int sliceCount = 0;
             for (auto& slice : CollectPrimaryInputDataSlices(InputSliceDataWeight_)) {
                 ValidateInputDataSlice(slice);
-                OrderedTask_->AddInput(CreateChunkStripe(std::move(slice)));
+                GetSingleOrderedTask()->AddInput(CreateChunkStripe(std::move(slice)));
                 ++sliceCount;
                 yielder.TryYield();
             }
@@ -453,7 +465,7 @@ protected:
 
     TOutputOrderPtr GetOutputOrder() const override
     {
-        return OrderedTask_->GetChunkPoolOutput()->GetOutputOrder();
+        return OrderedTasks_.back()->GetChunkPoolOutput()->GetOutputOrder();
     }
 
     void CustomMaterialize() override
@@ -472,12 +484,16 @@ protected:
             }
         }
 
-        OrderedTask_ = New<TOrderedTask>(this);
-        RegisterTask(OrderedTask_);
+        OrderedTasks_.emplace_back(New<TOrderedTask>(this));
+        for (auto& task : OrderedTasks_) {
+            RegisterTask(task);
+        }
 
         ProcessInputs();
 
-        FinishTaskInput(OrderedTask_);
+        for (auto& task : OrderedTasks_) {
+            FinishTaskInput(task);
+        }
 
         FinishPreparation();
     }
@@ -497,12 +513,18 @@ protected:
 
     TDataFlowGraph::TVertexDescriptor GetOutputLivePreviewVertexDescriptor() const override
     {
-        return OrderedTask_->GetVertexDescriptor();
+        return OrderedTasks_.back()->GetVertexDescriptor();
     }
 
     TError GetUseChunkSliceStatisticsError() const override
     {
         return TError();
+    }
+
+    const TOrderedTaskPtr& GetSingleOrderedTask() const
+    {
+        YT_VERIFY(std::ssize(OrderedTasks_) == 1);
+        return OrderedTasks_[0];
     }
 
     PHOENIX_DECLARE_FRIEND();
@@ -683,11 +705,12 @@ private:
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables() || InputHasDynamicStores();
             if (!isNontrivialInput && IsRowCountPreserved() && Spec_->ForceTransform) {
-                YT_LOG_ERROR_IF(TotalEstimatedInputRowCount != OrderedTask_->GetTotalOutputRowCount(),
+                const auto& task = GetSingleOrderedTask();
+                YT_LOG_ERROR_IF(TotalEstimatedInputRowCount != task->GetTotalOutputRowCount(),
                     "Input/output row count mismatch in ordered merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v)",
                     TotalEstimatedInputRowCount,
-                    OrderedTask_->GetTotalOutputRowCount());
-                YT_VERIFY(TotalEstimatedInputRowCount == OrderedTask_->GetTotalOutputRowCount());
+                    task->GetTotalOutputRowCount());
+                YT_VERIFY(TotalEstimatedInputRowCount == task->GetTotalOutputRowCount());
             }
         }
 
