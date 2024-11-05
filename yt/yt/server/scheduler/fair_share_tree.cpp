@@ -655,12 +655,24 @@ public:
                 if (activationTime + limitingAncestorSafeTimeout < now &&
                     firstFoundLimitingAncestorTime + limitingAncestorSafeTimeout < now)
                 {
+                    const auto& resourceLimits = limitingAncestor->MaybeSpecifiedResourceLimits();
+                    YT_VERIFY(resourceLimits);
+
+                    std::vector<EJobResourceType> violatedResourceTypes;
+                    #define XX(name, Name) \
+                        if (aggregatedMinNeededResources.Get##Name() > resourceLimits->Get##Name()) { \
+                            violatedResourceTypes.push_back(EJobResourceType::Name); \
+                        }
+                    ITERATE_JOB_RESOURCES(XX)
+                    #undef XX
+
                     return TError(
-                        "Operation has an ancestor whose specified resource limits are too small to satisfy "
-                        "operation's minimum allocation resource demand")
+                        "Operation has ancestor %Qv whose specified limits for resources %lv are too small to satisfy "
+                        "operation's minimum allocation resource demand",
+                        limitingAncestor->GetId(),
+                        violatedResourceTypes)
                         << TErrorAttribute("safe_timeout", limitingAncestorSafeTimeout)
-                        << TErrorAttribute("limiting_ancestor", limitingAncestor->GetId())
-                        << TErrorAttribute("resource_limits", limitingAncestor->MaybeSpecifiedResourceLimits())
+                        << TErrorAttribute("resource_limits", *resourceLimits)
                         << TErrorAttribute("min_needed_resources", aggregatedMinNeededResources);
                 }
             } else if (it != OperationIdToFirstFoundLimitingAncestorTime_.end()) {
