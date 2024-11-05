@@ -293,7 +293,8 @@ public:
             GetSandboxRelPath(ESandboxKind::Udf),
             ChunkReadOptions_,
             Host_->GetLocalHostName(),
-            Config_->PipeReaderTimeoutThreshold);
+            Config_->PipeReaderTimeoutThreshold,
+            Config_->AdaptiveRowCountUpperBound);
     }
 
     TJobResult Run() override
