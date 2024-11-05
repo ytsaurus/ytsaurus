@@ -276,7 +276,7 @@ void TChaosResidencyCache::RemoveReplicationCardResidency(NObjectClient::TObject
 
 void TChaosResidencyCache::PingReplicationCardResidency(NObjectClient::TObjectId objectId)
 {
-    PingEntry(objectId);
+    Ping(objectId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
