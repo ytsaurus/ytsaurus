@@ -50,7 +50,7 @@ public:
     int MaxWaitingRequests;
 
     TDuration SessionCleaupPeriod;
-    TDuration SessionTTL;
+    TDuration SessionTtl;
 
     TSlruCacheConfigPtr RequestCache;
     TSlruCacheDynamicConfigPtr RequestCacheOverride;

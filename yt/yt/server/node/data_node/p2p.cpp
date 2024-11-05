@@ -205,7 +205,7 @@ void TP2PBlockCache::OnRemoved(const TP2PBlockPtr& value)
 
 void TP2PBlockCache::CleanupOldSessions()
 {
-    auto sessionCutoff = TInstant::Now() - GetConfig()->SessionTTL;
+    auto sessionCutoff = TInstant::Now() - GetConfig()->SessionTtl;
 
     auto guard = Guard(Lock_);
 
