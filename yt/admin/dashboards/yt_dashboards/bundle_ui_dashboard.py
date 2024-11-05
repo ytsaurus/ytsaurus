@@ -251,6 +251,7 @@ def build_user_memory():
     return (Rowset()
             .stack(False)
             .top()
+            .unit("UNIT_BYTES_SI")
             .row()
                 .cell("Tablet dynamic memory", memory_usage("tablet_dynamic"))
                 .cell("Tablet static memory", memory_usage("tablet_static"))
@@ -260,7 +261,6 @@ def build_user_memory():
             .row()
                 .cell("Process memory usage (rss)", NodeMemory("yt.resource_tracker.memory_usage.rss"))
                 .cell("Container (cgroup) memory usage", MultiSensor(NodeMemory("yt.memory.cgroup.rss"), NodeMemory("yt.memory.cgroup.memory_limit")))
-            .unit("UNIT_BYTES_SI")
             ).owner
 
 def build_reserved_memory():
@@ -282,6 +282,7 @@ def build_reserved_memory():
 
     return (Rowset()
             .stack(False)
+            .unit("UNIT_BYTES_SI")
             .row()
                 .cell("Reserved memory usage",  MultiSensor(reserved_limit, reserved_usage))
                 .cell("Footprint and Fragmentation",  MultiSensor(
@@ -291,7 +292,6 @@ def build_reserved_memory():
                             .alias("fragmentation {{container}}"))
                       .top(1)
                       .stack(True))
-            .unit("UNIT_BYTES_SI")
             ).owner
 
 
@@ -304,10 +304,10 @@ def build_tablet_network():
             .all("#UB")
             .top()
             .stack(True)
+            .unit("UNIT_BYTES_SI")
             .row()
                 .cell("Table lookup bytes received", reader_stats("lookup", "data_bytes_transmitted"))
                 .cell("Table select bytes received", reader_stats("select", "data_bytes_transmitted"))
-            .unit("UNIT_BYTES_SI")
             ).owner
 
 def build_user_network():
@@ -800,9 +800,9 @@ def build_tablet_static_planning():
             .value("tablet_cell_bundle", TemplateTag("tablet_cell_bundle"))
             .stack(False)
             .aggr(MonitoringTag("host"))
+            .unit("UNIT_BYTES_SI")
             .row()
-                .cell("Tablet static memory", memory_usage("tablet_static"))
-            .unit("UNIT_BYTES_SI"))
+                .cell("Tablet static memory", memory_usage("tablet_static")))
 
 def build_node_resource_capacity_planning():
     per_container_limit=629145600

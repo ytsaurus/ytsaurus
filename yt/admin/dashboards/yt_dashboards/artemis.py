@@ -263,8 +263,8 @@ def build_tablet_node_preload_throttler():
                 "Tablet node preload throttler",
                 MultiSensor(
                     NodeTablet("yt.tablet_node.throttlers.static_store_preload_in.value.rate"),
-                    TabNode("yt.cluster_node.in_throttler.value.rate").value("bucket", "static_store_preload_in")))
-                .unit("UNIT_BYTES_SI")
+                    TabNode("yt.cluster_node.in_throttler.value.rate").value("bucket", "static_store_preload_in"))
+                .unit("UNIT_BYTES_SI"))
             .cell("", EmptyCell())
     ).owner
 
