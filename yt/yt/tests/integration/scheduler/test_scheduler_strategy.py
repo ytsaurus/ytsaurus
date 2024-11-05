@@ -1383,6 +1383,31 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
         self._check_operation_counts(2, 2, 0, 3, 0, 3)
 
     @authors("eshcherbin")
+    def test_vanilla_operation_in_fair_share_pool(self):
+        self._create_pools()
+
+        set("//sys/pool_trees/default/root/pool/@enable_lightweight_operations", True)
+        wait(lambda: get(scheduler_orchid_pool_path("pool") + "/lightweight_operations_enabled"))
+        wait(lambda: not get(scheduler_orchid_pool_path("pool") + "/effective_lightweight_operations_enabled"))
+
+        op1 = run_sleeping_vanilla(spec={"pool": "pool"})
+        self._check_operation_counts(1, 1, 0, 0, 0, 0)
+
+        op1.abort()
+        self._check_operation_counts(0, 0, 0, 0, 0, 0)
+
+        set("//sys/pool_trees/default/root/pool/@enable_lightweight_operations", False)
+
+        op2 = run_sleeping_vanilla(spec={"pool": "pool"})
+        self._check_operation_counts(1, 1, 0, 0, 0, 0)
+
+        set("//sys/pool_trees/default/root/pool/@enable_lightweight_operations", True)
+        self._check_operation_counts(1, 1, 0, 0, 0, 0)
+
+        op2.abort()
+        self._check_operation_counts(0, 0, 0, 0, 0, 0)
+
+    @authors("eshcherbin")
     def test_move_pool(self):
         self._create_pools()
 
