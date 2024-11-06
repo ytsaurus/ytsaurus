@@ -2,7 +2,8 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, start_shuffle, write_shuffle_data, read_shuffle_data, start_transaction,
-    abort_transaction, commit_transaction, wait, raises_yt_error, ls
+    abort_transaction, commit_transaction, wait, raises_yt_error, ls, create_user,
+    create_account
 )
 
 from yt_helpers import profiler_factory
@@ -56,3 +57,20 @@ class TestShuffleService(YTEnvSetup):
 
         with raises_yt_error(f'Shuffle with id "{shuffle_handle["transaction_id"]}" does not exist'):
             read_shuffle_data(shuffle_handle, 1)
+
+    @authors("apollo1321")
+    def test_account_not_exists(self):
+        parent_transaction = start_transaction(timeout=60000)
+
+        with raises_yt_error('Node has no child with key "a"'):
+            start_shuffle("a", partition_count=2, parent_transaction_id=parent_transaction)
+
+    @authors("apollo1321")
+    def test_account_access_permission_checked(self):
+        create_user("u")
+        create_account("a")
+
+        parent_transaction = start_transaction(timeout=60000)
+
+        with raises_yt_error('User "u" has been denied "Use" access to account "a"'):
+            start_shuffle("a", partition_count=2, parent_transaction_id=parent_transaction, authenticated_user="u")

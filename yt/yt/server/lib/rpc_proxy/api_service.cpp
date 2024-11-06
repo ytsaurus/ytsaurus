@@ -19,8 +19,6 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/yt/ytlib/security_client/public.h>
-
 #include <yt/yt/ytlib/transaction_client/clock_manager.h>
 
 #include <yt/yt/ytlib/query_tracker_client/query_tracker_service_proxy.h>
@@ -53,6 +51,8 @@
 #include <yt/yt/client/api/rpc_proxy/protocol_version.h>
 #include <yt/yt/client/api/rpc_proxy/row_stream.h>
 #include <yt/yt/client/api/rpc_proxy/wire_row_stream.h>
+
+#include <yt/yt/client/security_client/helpers.h>
 
 #include <yt/yt/client/chunk_client/config.h>
 
@@ -6594,6 +6594,21 @@ private:
             request->partition_count(),
             request->account(),
             parentTransactionId);
+
+        auto user = context->GetAuthenticationIdentity().User;
+
+        auto checkResult = WaitFor(client->CheckPermission(
+            user,
+            GetAccountPath(request->account()),
+            EPermission::Use))
+            .ValueOrThrow();
+
+        if (checkResult.Action == ESecurityAction::Deny) {
+            THROW_ERROR_EXCEPTION("User %Qv has been denied %Qv access to account %Qv",
+                user,
+                EPermission::Use,
+                request->account());
+        }
 
         ExecuteCall(
             context,
