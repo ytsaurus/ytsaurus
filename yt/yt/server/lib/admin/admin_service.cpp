@@ -58,7 +58,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Die)
     {
-        AbortProcess(request->exit_code());
+        AbortProcessSilently(request->exit_code());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, WriteCoreDump)

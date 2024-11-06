@@ -1776,7 +1776,7 @@ void TJobProxy::Abort(EJobProxyExitCode exitCode)
         job->Cleanup();
     }
 
-    TProgram::Abort(static_cast<int>(exitCode));
+    TProgram::Abort(exitCode);
 }
 
 bool TJobProxy::TrySetCpuGuarantee(double cpuGuarantee)

@@ -99,7 +99,7 @@ void TBootstrap::Abort(int exitCode)
     NLogging::TLogManager::Get()->Shutdown();
     MonitoringManager_->Stop();
     HttpServer_->Stop();
-    AbortProcess(exitCode);
+    AbortProcessSilently(exitCode);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

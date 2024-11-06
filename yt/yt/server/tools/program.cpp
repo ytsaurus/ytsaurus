@@ -29,19 +29,16 @@ void TToolsProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/)
     ConfigureUids();
     ConfigureIgnoreSigpipe();
     ConfigureCrashHandler();
-    try {
-        if (!ToolName_.empty()) {
-            auto result = NTools::ExecuteTool(ToolName_, NYson::TYsonString(ToolSpec_));
-            Cout << result.AsStringBuf();
-            Cout.Flush();
-            return;
-        }
-    } catch (const std::exception& ex) {
-        Cerr << ex.what();
-        Cerr.Flush();
-    }
 
-    AbortProcess(ToUnderlying(EProcessExitCode::GenericError));
+    try {
+        auto result = NTools::ExecuteTool(ToolName_, NYson::TYsonString(ToolSpec_));
+        Cout << result.AsStringBuf();
+        Cout.Flush();
+    } catch (const std::exception& ex) {
+        AbortProcessDramatically(
+            EProcessExitCode::GenericError,
+            Format("Tool failed: %v", ex.what()));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -211,7 +211,7 @@ protected:
 
         // XXX(babenko): ASAN complains about memory leak on graceful exit.
         // Must try to resolve them later.
-        AbortProcess(ToUnderlying(EProcessExitCode::OK));
+        AbortProcessSilently(EProcessExitCode::OK);
     }
 
 private:
