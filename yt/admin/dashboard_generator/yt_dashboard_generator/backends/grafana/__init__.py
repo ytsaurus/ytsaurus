@@ -400,11 +400,11 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
                 custom_settings["axisLabel"] = cell.yaxis_to_label[SystemFields.LeftAxis]
             for override in content["fieldConfig"].get("overrides", []):
                 for prop in override.get("properties", []):
-                    if prop['id'] == 'custom.axisPlacement' and prop['value'] == 'right':
+                    if prop["id"] == "custom.axisPlacement" and prop["value"] == "right":
                         if SystemFields.RightAxis in cell.yaxis_to_label:
-                            override['properties'].append({
-                                'id': 'custom.axisLabel',
-                                'value': cell.yaxis_to_label[SystemFields.RightAxis]
+                            override["properties"].append({
+                                "id": "custom.axisLabel",
+                                "value": cell.yaxis_to_label[SystemFields.RightAxis]
                             })
 
         if cell.display_legend is not None:

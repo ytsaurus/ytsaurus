@@ -13,6 +13,7 @@ try:
     from . import constants
 except ImportError:
     constants = None
+
 CLUSTER_RESOURCES_DASHBOARD_DEFAULT_CLUSTER = getattr(
     constants,
     "CLUSTER_RESOURCES_DASHBOARD_DEFAULT_CLUSTER",

@@ -35,6 +35,7 @@ def pretty_dump_fixed_indent(x, offset=""):
 def pretty_print_fixed_indent(x):
     print(pretty_dump_fixed_indent(x))
 
+
 def monitoring_to_grafana_unit(monitoring_unit):
     grafana_units = {
         "UNIT_NONE": "short",
