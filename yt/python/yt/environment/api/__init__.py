@@ -53,6 +53,9 @@ class LocalYtConfig(object):
         "sharding_key_length": 1,
         "logs_storage_period": "7d",
         "directory_traversal_concurrency": None,
+        "log_dump": {
+            "log_writer_name": "debug",
+        },
     })
     default_docker_image = "docker.io/library/python:2.7-slim"
 

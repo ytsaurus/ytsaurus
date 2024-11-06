@@ -213,9 +213,12 @@ def start(master_count=1,
     }
 
     job_proxy_log_manager = {
-        "sharding_key_length": 3,
+        "sharding_key_length": 1,
         "logs_storage_period": "7d",
         "directory_traversal_concurrency": None,
+        "log_dump": {
+            "log_writer_name": "debug",
+        },
     }
 
     yt_config = LocalYtConfig(

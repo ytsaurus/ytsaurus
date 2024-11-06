@@ -682,7 +682,7 @@ void TNbdConfig::Register(TRegistrar registrar)
 void TJobProxyLoggingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("mode", &TThis::Mode)
-        .Default();
+        .Default(EJobProxyLoggingMode::Simple);
 
     registrar.Parameter("log_manager_template", &TThis::LogManagerTemplate)
         .DefaultNew();
@@ -740,6 +740,15 @@ void TJobProxyConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TLogDumpConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("buffer_size", &TThis::BufferSize)
+        .Default(1_MB)
+        .GreaterThan(0);
+
+    registrar.Parameter("log_writer_name", &TThis::LogWriterName);
+}
+
 void TJobProxyLogManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("directory", &TThis::Directory);
@@ -750,15 +759,23 @@ void TJobProxyLogManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("logs_storage_period", &TThis::LogsStoragePeriod);
 
     registrar.Parameter("directory_traversal_concurrency", &TThis::DirectoryTraversalConcurrency)
-        .Default()
-        .GreaterThan(0);
+        .Default(0)
+        .GreaterThanOrEqual(0);
 
-    registrar.Parameter("dump_job_proxy_log_buffer_size", &TThis::DumpJobProxyLogBufferSize)
-        .Default(1_MB)
-        .GreaterThan(0);
+    registrar.Parameter("log_dump", &TThis::LogDump);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void TLogDumpDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("buffer_size", &TThis::BufferSize)
+        .Default()
+        .GreaterThan(0);
+
+    registrar.Parameter("log_writer_name", &TThis::LogWriterName)
+        .Default();
+}
 
 void TJobProxyLogManagerDynamicConfig::Register(TRegistrar registrar)
 {
@@ -766,6 +783,10 @@ void TJobProxyLogManagerDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Days(7));
 
     registrar.Parameter("directory_traversal_concurrency", &TThis::DirectoryTraversalConcurrency)
+        .Default()
+        .GreaterThanOrEqual(0);
+
+    registrar.Parameter("log_dump", &TThis::LogDump)
         .Default();
 }
 
@@ -788,16 +809,7 @@ void TExecNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_proxy", &TThis::JobProxy)
         .DefaultNew();
 
-    registrar.Parameter("job_proxy_log_manager", &TThis::JobProxyLogManager)
-        .Default();
-
-    registrar.Postprocessor([] (TExecNodeConfig* config) {
-        if (config->JobProxy->JobProxyLogging->Mode == EJobProxyLoggingMode::PerJobDirectory &&
-            !config->JobProxyLogManager)
-        {
-            THROW_ERROR_EXCEPTION("\"per_job_directory\" logging mode requires \"job_proxy_log_manager\" to be set");
-        }
-    });
+    registrar.Parameter("job_proxy_log_manager", &TThis::JobProxyLogManager);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -814,7 +826,7 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("job_proxy_log_manager", &TThis::JobProxyLogManager)
-        .Default();
+        .DefaultNew();
 
     registrar.Parameter("job_controller", &TThis::JobController)
         .DefaultNew();
