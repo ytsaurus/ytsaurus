@@ -20,6 +20,8 @@
 
 #include <yt/yt/client/api/file_writer.h>
 
+#include <yt/yt/core/logging/config.h>
+
 #include <yt/yt/core/misc/fs.h>
 
 #include <util/datetime/base.h>
@@ -29,6 +31,7 @@
 namespace NYT::NExecNode {
 
 using namespace NConcurrency;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,20 +46,19 @@ public:
     explicit TJobProxyLogManager(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , Config_(Bootstrap_->GetConfig()->ExecNode->JobProxyLogManager)
+        , DynamicConfig_(New<TJobProxyLogManagerDynamicConfig>())
         , Directory_(Config_->Directory)
         , ShardingKeyLength_(Config_->ShardingKeyLength)
-        , LogsStoragePeriod_(Config_->LogsStoragePeriod)
-        , DirectoryTraversalConcurrency_(Config_->DirectoryTraversalConcurrency)
-        , AsyncSemaphore_(New<TAsyncSemaphore>(Config_->DirectoryTraversalConcurrency.value_or(0)))
-        , DumpJobProxyLogBufferSize_(Config_->DumpJobProxyLogBufferSize)
+        , AsyncSemaphore_(New<TAsyncSemaphore>(Config_->DirectoryTraversalConcurrency))
     { }
 
-    void Initialize() override
+    void Initialize() final
     {
-        Bootstrap_->GetJobController()->SubscribeJobCompletelyRemoved(BIND_NO_PROPAGATE(&TJobProxyLogManager::OnJobCompletelyRemoved, MakeStrong(this)));
+        Bootstrap_->GetJobController()->SubscribeJobCompletelyRemoved(
+            BIND_NO_PROPAGATE(&TJobProxyLogManager::OnJobCompletelyRemoved, MakeStrong(this)));
     }
 
-    void Start() override
+    void Start() final
     {
         CreateShardingDirectories();
 
@@ -68,51 +70,54 @@ public:
 
     void OnJobCompletelyRemoved(TJobId jobId)
     {
+        auto dynamicConfig = DynamicConfig_.Acquire();
+
+        auto logsStoragePeriod = dynamicConfig->LogsStoragePeriod.value_or(Config_->LogsStoragePeriod);
+
         YT_LOG_DEBUG(
             "Job proxy log removal scheduled (JobId: %v, Delay: %v)",
             jobId,
-            LogsStoragePeriod_);
+            logsStoragePeriod);
 
         TDelayedExecutor::Submit(
             BIND(&TJobProxyLogManager::RemoveJobDirectory, MakeStrong(this), JobIdToLogsPath(jobId)),
-            LogsStoragePeriod_,
+            logsStoragePeriod,
             Bootstrap_->GetStorageHeavyInvoker());
     }
 
-    TString GetShardingKey(TJobId jobId) override
-    {
-        auto entropy = NScheduler::EntropyFromAllocationId(
-            NScheduler::AllocationIdFromJobId(jobId));
-        auto entropyHex = Format("%016lx", entropy);
-        return entropyHex.substr(0, ShardingKeyLength_);
-    }
-
     void OnDynamicConfigChanged(
-        TJobProxyLogManagerDynamicConfigPtr oldConfig,
-        TJobProxyLogManagerDynamicConfigPtr newConfig) override
+        const TJobProxyLogManagerDynamicConfigPtr& oldConfig,
+        const TJobProxyLogManagerDynamicConfigPtr& newConfig) final
     {
-        if (oldConfig && newConfig && *newConfig == *oldConfig) {
-            return;
-        }
-
         if (!oldConfig && !newConfig) {
             return;
         }
 
-        if (!newConfig) {
-            ApplyStaticConfig();
+        if (oldConfig && newConfig && *newConfig == *oldConfig) {
             return;
         }
 
-        LogsStoragePeriod_ = newConfig->LogsStoragePeriod;
-        DirectoryTraversalConcurrency_ = newConfig->DirectoryTraversalConcurrency;
-        AsyncSemaphore_->SetTotal(DirectoryTraversalConcurrency_.value_or(0));
+        const auto& logWriterName = newConfig->LogDump && newConfig->LogDump->LogWriterName
+            ? *newConfig->LogDump->LogWriterName
+            : Config_->LogDump->LogWriterName;
+
+        // GetLogFileNameToDump may throw.
+        LogFileName_.Store(GetNewLogFileNameToDump(logWriterName));
+
+        AsyncSemaphore_->SetTotal(newConfig->DirectoryTraversalConcurrency.value_or(Config_->DirectoryTraversalConcurrency));
+
+        DynamicConfig_.Store(std::move(newConfig));
+    }
+
+    TString AdjustLogPath(TJobId jobId, const TString& logFilePath) final
+    {
+        return NFS::CombinePaths(JobIdToLogsPath(jobId), NFS::GetFileName(logFilePath));
     }
 
     TFuture<void> DumpJobProxyLog(
         TJobId jobId,
         const NYPath::TYPath& path,
-        NObjectClient::TTransactionId transactionId) override
+        NObjectClient::TTransactionId transactionId) final
     {
         return BIND(&TJobProxyLogManager::DoDumpJobProxyLog, MakeStrong(this), jobId, path, transactionId)
             .AsyncVia(Bootstrap_->GetStorageHeavyInvoker())
@@ -124,14 +129,14 @@ private:
 
     const TJobProxyLogManagerConfigPtr Config_;
 
+    TAtomicIntrusivePtr<TJobProxyLogManagerDynamicConfig> DynamicConfig_;
+
     TString Directory_;
     int ShardingKeyLength_;
-    TDuration LogsStoragePeriod_;
 
-    std::optional<int> DirectoryTraversalConcurrency_;
+    TAtomicObject<TString> LogFileName_;
+
     TAsyncSemaphorePtr AsyncSemaphore_;
-
-    i64 DumpJobProxyLogBufferSize_;
 
     void CreateShardingDirectories() noexcept
     {
@@ -172,28 +177,32 @@ private:
             .WithTag("ShardingDirPath: %v", shardingDirPath);
 
         auto guard = TAsyncSemaphoreGuard();
-        if (DirectoryTraversalConcurrency_.has_value()) {
+        if (DynamicConfig_.Acquire()->DirectoryTraversalConcurrency.value_or(Config_->DirectoryTraversalConcurrency) != 0) {
             YT_LOG_INFO("Waiting semaphore to traverse job directory");
             guard = WaitForUnique(AsyncSemaphore_->AsyncAcquire()).ValueOrThrow();
         }
 
-        YT_LOG_INFO("Start traversing job directory");
+        auto logsStoragePeriod = DynamicConfig_.Acquire()->LogsStoragePeriod.value_or(Config_->LogsStoragePeriod);
+
+        YT_LOG_INFO(
+            "Start traversing job directory (LogsStoragePeriod: %v)",
+            logsStoragePeriod);
 
         for (const auto& jobDirName : NFS::EnumerateDirectories(shardingDirPath)) {
             auto jobDirPath = NFS::CombinePaths(shardingDirPath, jobDirName);
             auto jobLogsDirModificationTime = TInstant::Seconds(TFileStat(jobDirPath).MTime);
             auto removeJobDirectory = BIND(&TJobProxyLogManager::RemoveJobDirectory, MakeStrong(this), Passed(std::move(jobDirPath)));
-            if (jobLogsDirModificationTime + LogsStoragePeriod_ <= currentTime) {
+            if (jobLogsDirModificationTime + logsStoragePeriod <= currentTime) {
                 Bootstrap_->GetStorageHeavyInvoker()->Invoke(std::move(removeJobDirectory));
             } else {
                 YT_LOG_DEBUG(
                     "Job proxy log removal scheduled (DirectoryName: %v, Time: %v)",
                     jobDirName,
-                    jobLogsDirModificationTime + LogsStoragePeriod_);
+                    jobLogsDirModificationTime + logsStoragePeriod);
 
                 TDelayedExecutor::Submit(
                     std::move(removeJobDirectory),
-                    jobLogsDirModificationTime + LogsStoragePeriod_,
+                    jobLogsDirModificationTime + logsStoragePeriod,
                     Bootstrap_->GetStorageHeavyInvoker());
             }
         }
@@ -230,8 +239,30 @@ private:
                 << TErrorAttribute("path", logsPath);
         }
 
-        auto logFile = TFile(NFS::CombinePaths(logsPath, "job_proxy.log"), OpenExisting | RdOnly);
-        auto buffer = TSharedMutableRef::Allocate(DumpJobProxyLogBufferSize_);
+        auto dynamicConfig = DynamicConfig_.Acquire();
+
+        auto dumpJobProxyLogBufferSize = dynamicConfig->LogDump && dynamicConfig->LogDump->BufferSize
+            ? *dynamicConfig->LogDump->BufferSize
+            : Config_->LogDump->BufferSize;
+
+        auto logFileName = LogFileName_.Load();
+
+        YT_LOG_DEBUG(
+            "Dumping job proxy log file (JobId: %v, LogFileName: %v)",
+            jobId,
+            logFileName);
+
+        auto logFile = [&] {
+            try {
+                return TFile(AdjustLogPath(jobId, logFileName), OpenExisting | RdOnly);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Failed to open log file")
+                    << TErrorAttribute("log_file_name", logFileName)
+                    << ex;
+            }
+        }();
+
+        auto buffer = TSharedMutableRef::Allocate(dumpJobProxyLogBufferSize);
 
         NApi::TFileWriterOptions options;
         options.TransactionId = transactionId;
@@ -242,7 +273,7 @@ private:
 
         // TODO(pogorelov): Support compressed logs.
         while (true) {
-            auto bytesRead = logFile.Read((void*)buffer.Data(), DumpJobProxyLogBufferSize_);
+            auto bytesRead = logFile.Read((void*)buffer.Data(), dumpJobProxyLogBufferSize);
 
             if (bytesRead == 0) {
                 break;
@@ -256,13 +287,35 @@ private:
             .ThrowOnError();
     }
 
-    void ApplyStaticConfig()
+    TString GetNewLogFileNameToDump(TStringBuf newLogWriterName)
     {
-        LogsStoragePeriod_ = Config_->LogsStoragePeriod;
-        if (DirectoryTraversalConcurrency_ != Config_->DirectoryTraversalConcurrency) {
-            DirectoryTraversalConcurrency_ = Config_->DirectoryTraversalConcurrency;
-            AsyncSemaphore_->SetTotal(DirectoryTraversalConcurrency_.value_or(0));
+        const auto& jobProxyConfigTemplate = Bootstrap_->GetJobProxyConfigTemplate();
+        const auto& jobProxyLoggingConfig = jobProxyConfigTemplate->Logging;
+
+        auto jobProxyLogWriterConfigIt = jobProxyLoggingConfig->Writers.find(newLogWriterName);
+        if (jobProxyLogWriterConfigIt == jobProxyLoggingConfig->Writers.end()) {
+            THROW_ERROR_EXCEPTION("Log writer %qv configured for dump is missing", newLogWriterName);
         }
+
+        const auto& logWriterConfigNode = jobProxyLogWriterConfigIt->second;
+
+        auto typedWriterConfig = ConvertTo<TLogWriterConfigPtr>(logWriterConfigNode);
+
+        if (typedWriterConfig->Type != TFileLogWriterConfig::WriterType) {
+            THROW_ERROR_EXCEPTION("Log writer %qv configured for dump must have “file” type", newLogWriterName)
+                << TErrorAttribute("log_writer_type", typedWriterConfig->Type);
+        }
+
+        auto fileLogWriterConfig = ConvertTo<TFileLogWriterConfigPtr>(logWriterConfigNode);
+        return fileLogWriterConfig->FileName;
+    }
+
+    TString GetShardingKey(TJobId jobId)
+    {
+        auto entropy = NScheduler::EntropyFromAllocationId(
+            NScheduler::AllocationIdFromJobId(jobId));
+        auto entropyHex = Format("%016lx", entropy);
+        return entropyHex.substr(0, ShardingKeyLength_);
     }
 };
 
@@ -278,14 +331,14 @@ public:
     void Start() override
     { }
 
-    TString GetShardingKey(TJobId /*jobId*/) override
+    TString AdjustLogPath(TJobId /*jobId*/, const TString& /*logFilePath*/) override
     {
         THROW_ERROR_EXCEPTION("Dumping job proxy logs is not supported in simple logging mode");
     }
 
     void OnDynamicConfigChanged(
-        TJobProxyLogManagerDynamicConfigPtr /*oldConfig*/,
-        TJobProxyLogManagerDynamicConfigPtr /*newConfig*/) override
+        const TJobProxyLogManagerDynamicConfigPtr& /*oldConfig*/,
+        const TJobProxyLogManagerDynamicConfigPtr& /*newConfig*/) override
     { }
 
     TFuture<void> DumpJobProxyLog(
