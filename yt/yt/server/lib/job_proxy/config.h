@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
+#include <yt/yt/server/lib/misc/cluster_throttlers_config.h>
+
 #include <yt/yt/server/lib/rpc_proxy/config.h>
 
 #include <yt/yt/ytlib/auth/config.h>
@@ -477,6 +479,8 @@ public:
     bool EnableRootVolumeDiskQuota;
 
     TString HeapDumpDirectory;
+
+    TClusterThrottlersConfigPtr ClusterThrottlersConfig;
 
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
 

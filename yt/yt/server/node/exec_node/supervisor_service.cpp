@@ -88,14 +88,13 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
-    const IThroughputThrottlerPtr& GetJobThrottler(EJobThrottlerType throttlerType)
+    IThroughputThrottlerPtr GetJobThrottler(EJobThrottlerType throttlerType, std::optional<TString> remoteClusterName)
     {
-
         switch (throttlerType) {
             case EJobThrottlerType::InBandwidth:
-                return Bootstrap_->GetThrottler(EExecNodeThrottlerKind::JobIn);
+                return Bootstrap_->GetThrottler(EExecNodeThrottlerKind::JobIn, EExecNodeThrottlerTraffic::Bandwidth, std::move(remoteClusterName));
             case EJobThrottlerType::OutBandwidth:
-                return Bootstrap_->GetThrottler(EExecNodeThrottlerKind::JobOut);
+                return Bootstrap_->GetThrottler(EExecNodeThrottlerKind::JobOut, EExecNodeThrottlerTraffic::Bandwidth, std::move(remoteClusterName));
             case EJobThrottlerType::OutRps:
                 return Bootstrap_->GetReadRpsOutThrottler();
             case EJobThrottlerType::ContainerCreation:
@@ -332,14 +331,16 @@ private:
         auto amount = request->amount();
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         auto jobId = FromProto<TJobId>(request->job_id());
+        auto remoteClusterName = request->has_remote_cluster_name() ? std::make_optional<TString>(request->remote_cluster_name()) : std::nullopt;
 
-        context->SetRequestInfo("ThrottlerType: %v, Amount: %v, JobId: %v, WorkloadDescriptor: %v",
+        context->SetRequestInfo("ThrottlerType: %v, Amount: %v, JobId: %v, WorkloadDescriptor: %v, RemoteClusterName: %v",
             throttlerType,
             amount,
             jobId,
-            workloadDescriptor);
+            workloadDescriptor,
+            remoteClusterName);
 
-        const auto& throttler = GetJobThrottler(throttlerType);
+        const auto& throttler = GetJobThrottler(throttlerType, std::move(remoteClusterName));
         auto future = throttler->Throttle(amount);
         if (auto optionalResult = future.TryGet()) {
             optionalResult->ThrowOnError();
