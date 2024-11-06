@@ -3318,6 +3318,11 @@ class TestChaos(ChaosTestBase):
         cypress_replicas = get("//tmp/crt/@replicas")
         assert all(cypress_replicas[replica_id]["replicated_table_tracker_enabled"] for replica_id in replica_ids)
 
+        # Wait for table_puller or advance_replication_progress iteration. Then timestamp=1 will be unable to misguide RTT
+        timestamp = generate_timestamp()
+        for replica_id in replica_ids:
+            wait(lambda: get(f"//tmp/crt/@replicas/{replica_id}/replication_lag_timestamp") > timestamp)
+
         wait(lambda: get("#{0}/@mode".format(replica_ids[3])) == "sync")
         self._sync_replication_era(card_id, replicas)
 
