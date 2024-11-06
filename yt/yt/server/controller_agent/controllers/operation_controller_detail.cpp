@@ -97,6 +97,7 @@
 #include <yt/yt/library/ytprof/heap_profiler.h>
 
 #include <yt/yt/client/security_client/acl.h>
+#include <yt/yt/client/security_client/helpers.h>
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
 #include <yt/yt/client/chunk_client/helpers.h>
@@ -748,7 +749,7 @@ void TOperationControllerBase::ValidateAccountPermission(const TString& account,
     const auto& client = Host->GetClient();
     auto asyncResult = client->CheckPermission(
         user,
-        "//sys/accounts/" + account,
+        GetAccountPath(account),
         permission);
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
