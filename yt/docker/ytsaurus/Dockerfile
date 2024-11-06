@@ -5,7 +5,7 @@ ARG BASE_REPOSITORY="ghcr.io/ytsaurus/ytsaurus-nightly"
 ARG BASE_IMAGE="latest"
 
 # Args for odin.
-ARG PYTHON_RUNTIME_VERSION="3.12"
+ARG PYTHON_RUNTIME_VERSION="3.11"
 
 ARG ODIN_ROOT="/ytsaurus"
 ARG ODIN_VIRTUAL_ENV="${ODIN_ROOT}/virtualenv"
