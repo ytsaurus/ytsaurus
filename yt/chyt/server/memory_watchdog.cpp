@@ -102,13 +102,15 @@ void TMemoryWatchdog::CheckRss(size_t rss)
         rss,
         Config_->MemoryLimit,
         Config_->CodicilWatermark);
-    WriteToStderr("*** Killing self because memory usage is too high ***\n");
 
     DumpRefCountedTracker();
 
     NYT::NLogging::TLogManager::Get()->Shutdown();
     ExitCallback_.Run();
-    AbortProcess(ToUnderlying(EProcessExitCode::OutOfMemory));
+
+    AbortProcessDramatically(
+        EProcessExitCode::OutOfMemory,
+        "Memory usage it too high");
 }
 
 void TMemoryWatchdog::CheckMinimumWindowRss(size_t minimumWindowRss)

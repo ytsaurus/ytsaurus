@@ -654,7 +654,7 @@ private:
         YT_LOG_ERROR(error, "Fatal error during Porto polling");
 
         NLogging::TLogManager::Get()->Shutdown();
-        AbortProcess(ToUnderlying(EJobProxyExitCode::PortoManagementFailed));
+        AbortProcessSilently(EJobProxyExitCode::PortoManagementFailed);
     }
 };
 

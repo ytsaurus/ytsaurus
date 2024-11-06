@@ -106,12 +106,12 @@ void TForkExecutor::DoRunChild()
 {
     try {
         RunChild();
-        AbortProcess(ToUnderlying(EProcessExitCode::OK));
     } catch (const std::exception& ex) {
-        fprintf(stderr, "Child process failed:\n%s\n",
-            ex.what());
-        AbortProcess(ToUnderlying(EProcessExitCode::GenericError));
+        AbortProcessDramatically(
+            EProcessExitCode::GenericError,
+            Format("Child process failed: %v", ex.what()));
     }
+    AbortProcessSilently(EProcessExitCode::OK);
 }
 
 void TForkExecutor::DoRunParent()
