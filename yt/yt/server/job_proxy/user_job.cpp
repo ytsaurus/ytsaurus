@@ -85,7 +85,6 @@
 
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/fs.h>
-#include <yt/yt/core/misc/numeric_helpers.h>
 #include <yt/yt/core/misc/pattern_formatter.h>
 #include <yt/yt/core/misc/statistics.h>
 
@@ -96,6 +95,8 @@
 #include <yt/yt/core/ypath/tokenizer.h>
 
 #include <library/cpp/yt/system/handle_eintr.h>
+
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <util/generic/guid.h>
 

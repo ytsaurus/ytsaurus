@@ -12,11 +12,10 @@
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
-#include <yt/yt/core/misc/numeric_helpers.h>
-
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/public.h>
 
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 namespace NYT::NCellMaster {
 

@@ -12,9 +12,9 @@
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
-#include <yt/yt/core/misc/numeric_helpers.h>
-
 #include <yt/yt/core/phoenix/type_def.h>
+
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 namespace NYT::NChunkClient {
 

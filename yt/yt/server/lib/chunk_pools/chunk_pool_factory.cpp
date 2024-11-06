@@ -8,7 +8,7 @@
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/yt/core/misc/numeric_helpers.h>
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 namespace NYT::NChunkPools {
 

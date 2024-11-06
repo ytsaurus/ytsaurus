@@ -29,7 +29,7 @@ int CompareRowUsingMapping(TRow lhs, TRow rhs, TRange<int> mapping)
             continue;
         }
 
-        int result = CompareRowValuesCheckingNan(lhs.Begin()[index], rhs.Begin()[index]);
+        int result = CompareRowValuesCheckingNaN(lhs.Begin()[index], rhs.Begin()[index]);
 
         if (result != 0) {
             return result;

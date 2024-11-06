@@ -28,10 +28,11 @@
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
-#include <yt/yt/core/misc/numeric_helpers.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
+
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 namespace NYT::NChunkClient {
 

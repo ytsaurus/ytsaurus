@@ -6,9 +6,9 @@
 
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
 
-#include <yt/yt/core/misc/numeric_helpers.h>
-
 #include <yt/yt/core/profiling/timing.h>
+
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 namespace NYT::NControllerAgent::NControllers {
 

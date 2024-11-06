@@ -53,12 +53,13 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/config.h>
-#include <yt/yt/core/misc/numeric_helpers.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/logging/serializable_logger.h>
 
 #include <yt/yt/core/phoenix/type_decl.h>
+
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <algorithm>
 #include <cmath>

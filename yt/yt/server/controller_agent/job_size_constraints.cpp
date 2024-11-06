@@ -8,9 +8,9 @@
 
 #include <yt/yt/ytlib/table_client/config.h>
 
-#include <yt/yt/core/misc/numeric_helpers.h>
-
 #include <yt/yt/core/logging/serializable_logger.h>
+
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <algorithm>
 

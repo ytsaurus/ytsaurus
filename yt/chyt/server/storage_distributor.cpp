@@ -31,8 +31,6 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
-#include <yt/yt/core/misc/numeric_helpers.h>
-
 #include <Core/QueryProcessingStage.h>
 #include <QueryPipeline/RemoteQueryExecutor.h>
 #include <DataTypes/DataTypeFactory.h>
@@ -60,6 +58,8 @@
 #include <QueryPipeline/QueryPipelineBuilder.h>
 
 #include <library/cpp/iterator/functools.h>
+
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 namespace NYT::NClickHouseServer {
 

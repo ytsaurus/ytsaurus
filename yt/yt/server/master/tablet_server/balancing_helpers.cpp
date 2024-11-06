@@ -11,7 +11,7 @@
 
 #include <yt/yt/server/master/table_server/table_node.h>
 
-#include <yt/yt/core/misc/numeric_helpers.h>
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 namespace NYT::NTabletServer {
 

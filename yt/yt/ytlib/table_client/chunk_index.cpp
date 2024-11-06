@@ -5,7 +5,8 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/checksum.h>
-#include <yt/yt/core/misc/numeric_helpers.h>
+
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <library/cpp/yt/small_containers/compact_flat_map.h>
 

@@ -75,7 +75,7 @@ namespace {
 int CompareRow(TRow lhs, TRow rhs, const std::vector<size_t>& mapping)
 {
     for (auto index : mapping) {
-        int result = CompareRowValuesCheckingNan(lhs.Begin()[index], rhs.Begin()[index]);
+        int result = CompareRowValuesCheckingNaN(lhs.Begin()[index], rhs.Begin()[index]);
 
         if (result != 0) {
             return result;
@@ -575,7 +575,7 @@ std::pair<TConstExpressionPtr, TConstExpressionPtr> SplitPredicateByColumnSubset
 }
 
 // Wrapper around CompareRowValues that checks that its arguments are not nan.
-int CompareRowValuesCheckingNan(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
+int CompareRowValuesCheckingNaN(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 {
     if (lhs.Type == rhs.Type && lhs.Type == EValueType::Double &&
         (std::isnan(lhs.Data.Double) || std::isnan(rhs.Data.Double)))

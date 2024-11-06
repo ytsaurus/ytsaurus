@@ -65,7 +65,8 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/numeric_helpers.h>
+
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 namespace NYT::NTableClient {
 
