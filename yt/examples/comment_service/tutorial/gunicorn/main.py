@@ -489,10 +489,6 @@ def make_app():
     }
     yt_driver_rpc_bindings.configure_logging(logging_config)
 
-    # Требуется импортировать модуль с биндингами драйвера с помощью функции lazy_import_driver_bindings,
-    # поскольку, когда драйвер создается неявно, данная функция вызывается в коде клиента
-    yt.native_driver.lazy_import_driver_bindings(backend_type="rpc", allow_fallback_to_native_driver=True)
-
     table_path = os.environ["TABLE_PATH"]
 
     # Метод, который будет вызываться перед основной функцией каждого запроса
