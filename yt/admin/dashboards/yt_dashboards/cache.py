@@ -22,6 +22,7 @@ def build_rowset1():
         .min(0)
         .row()
             .aggr("hit_type")
+            .unit("UNIT_BYTES_SI")
             .cell(
                 "Hit Weight",
                 Sensor("{{cache}}.hit_weight.rate"))
@@ -53,6 +54,7 @@ def build_rowset1():
                 "Large Ghost Missed Count",
                 Sensor("{{cache}}.large_ghost_cache.missed_count.rate"))
         .row()
+            .unit("UNIT_BYTES_SI")
             .cell(
                 "Missed Weight",
                 Sensor("{{cache}}.missed_weight.rate"))
@@ -75,16 +77,17 @@ def build_rowset2():
         .min(0)
         .row()
             .aggr("hit_type")
-            .cell("Hit Weight (all caches)", all_ghosts("hit_weight"))
+            .cell("Hit Weight (all caches)", all_ghosts("hit_weight").unit("UNIT_BYTES_SI"))
             .cell("Hit Count (all caches)", all_ghosts("hit_count"))
         .row()
-            .cell("Missed Weight (all caches)", all_ghosts("missed_weight"))
+            .cell("Missed Weight (all caches)", all_ghosts("missed_weight").unit("UNIT_BYTES_SI"))
             .cell("Missed Count (all caches)", all_ghosts("missed_count"))
         .row()
             .aggr("segment")
             .cell(
                 "Cache Weight",
-                Sensor("{{cache}}.weight"))
+                Sensor("{{cache}}.weight")
+                .unit("UNIT_BYTES_SI"))
             .cell(
                 "Cache Size (item count)",
                 Sensor("{{cache}}.size"))
