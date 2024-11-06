@@ -21,9 +21,10 @@
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/yt/core/misc/arithmetic_formula.h>
-#include <yt/yt/core/misc/numeric_helpers.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
+
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <util/random/shuffle.h>
 

@@ -2,9 +2,9 @@
 
 #include <yt/yt/library/xor_filter/xor_filter.h>
 
-#include <yt/yt/core/misc/numeric_helpers.h>
-
 #include <yt/yt/core/profiling/timing.h>
+
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <library/cpp/yt/memory/ref.h>
 

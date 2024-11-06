@@ -69,7 +69,6 @@
 
 #include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/finally.h>
-#include <yt/yt/core/misc/numeric_helpers.h>
 #include <yt/yt/core/misc/sync_expiring_cache.h>
 
 #include <yt/yt/core/net/local_address.h>
@@ -83,6 +82,8 @@
 #include <yt/yt/core/ytree/permission.h>
 
 #include <yt/yt/build/build.h>
+
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <util/generic/size_literals.h>
 

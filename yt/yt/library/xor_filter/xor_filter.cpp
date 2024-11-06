@@ -1,10 +1,11 @@
 #include "xor_filter.h"
 
-#include <yt/yt/core/misc/numeric_helpers.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/serialize.h>
 
 #include <library/cpp/iterator/enumerate.h>
+
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <util/digest/multi.h>
 

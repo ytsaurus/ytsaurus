@@ -14,7 +14,7 @@
 
 #include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
 
-#include <mutex>
+#include <library/cpp/yt/misc/compare.h>
 
 #include <llvm/ADT/Twine.h>
 #include <llvm/IR/BasicBlock.h>
@@ -23,7 +23,7 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Type.h>
 
-////////////////////////////////////////////////////////////////////////////////
+#include <mutex>
 
 namespace NYT::NQueryClient {
 
@@ -34,29 +34,36 @@ using namespace llvm;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static int CompareYsonValues(ui32 lhsLength, const void* lhsData, ui32 rhsLength, const void* rhsData)
+namespace {
+
+int CompareYsonValues(ui32 lhsLength, const void* lhsData, ui32 rhsLength, const void* rhsData)
 {
     NYson::TYsonStringBuf lhsBuf{TStringBuf(static_cast<const char*>(lhsData), lhsLength)};
     NYson::TYsonStringBuf rhsBuf{TStringBuf(static_cast<const char*>(rhsData), rhsLength)};
     return NYT::NTableClient::CompareYsonValues(lhsBuf, rhsBuf);
 }
 
-////////////////////////////////////////////////////////////////////////////////
+int CompareDoubleValues(double lhs, double rhs)
+{
+    return NaNSafeTernaryCompare(lhs, rhs);
+}
 
-static void RegisterComparerRoutinesImpl(TRoutineRegistry* registry)
+void RegisterComparerRoutines(TRoutineRegistry* registry)
 {
     registry->RegisterRoutine("memcmp", ::memcmp);
     registry->RegisterRoutine("ysoncmp", CompareYsonValues);
-    registry->RegisterRoutine("doublecmp", NYT::NTableClient::CompareDoubleValues);
+    registry->RegisterRoutine("doublecmp", CompareDoubleValues);
 }
 
-static TRoutineRegistry* GetComparerRoutineRegistry()
+TRoutineRegistry* GetComparerRoutineRegistry()
 {
     static TRoutineRegistry registry;
     static std::once_flag onceFlag;
-    std::call_once(onceFlag, &RegisterComparerRoutinesImpl, &registry);
+    std::call_once(onceFlag, &RegisterComparerRoutines, &registry);
     return &registry;
 }
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

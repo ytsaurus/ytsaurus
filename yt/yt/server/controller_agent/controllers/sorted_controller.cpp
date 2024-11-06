@@ -38,9 +38,9 @@
 
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
-#include <yt/yt/core/misc/numeric_helpers.h>
-
 #include <yt/yt/core/phoenix/type_decl.h>
+
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <util/generic/cast.h>
 

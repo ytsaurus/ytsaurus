@@ -50,7 +50,7 @@ std::pair<TConstExpressionPtr, TConstExpressionPtr> SplitPredicateByColumnSubset
     const TTableSchema& tableSchema);
 
 // Wrapper around CompareRowValues that checks that its arguments are not nan.
-int CompareRowValuesCheckingNan(const NTableClient::TUnversionedValue& lhs, const NTableClient::TUnversionedValue& rhs);
+int CompareRowValuesCheckingNaN(const NTableClient::TUnversionedValue& lhs, const NTableClient::TUnversionedValue& rhs);
 
 ui64 GetEvaluatedColumnModulo(const TConstExpressionPtr& expr);
 

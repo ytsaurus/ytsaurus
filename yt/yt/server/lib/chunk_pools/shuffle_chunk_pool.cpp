@@ -7,9 +7,9 @@
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
-#include <yt/yt/core/misc/numeric_helpers.h>
-
 #include <library/cpp/yt/memory/ref_tracked.h>
+
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 namespace NYT::NChunkPools {
 

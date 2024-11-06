@@ -13,7 +13,7 @@
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 
-#include <yt/yt/core/misc/numeric_helpers.h>
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 namespace NYT::NCellServer {
 

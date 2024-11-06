@@ -110,7 +110,6 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
-#include <yt/yt/core/misc/numeric_helpers.h>
 #include <yt/yt/core/misc/tls_cache.h>
 
 #include <yt/yt/core/ypath/token.h>
@@ -118,6 +117,8 @@
 #include <yt/yt/core/rpc/authentication_identity.h>
 
 #include <yt/yt/core/ytree/tree_builder.h>
+
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <algorithm>
 

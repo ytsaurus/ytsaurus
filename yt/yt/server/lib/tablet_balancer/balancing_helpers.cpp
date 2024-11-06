@@ -14,9 +14,9 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/yt/core/misc/numeric_helpers.h>
-
 #include <yt/yt/library/query/base/public.h>
+
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <util/random/shuffle.h>
 

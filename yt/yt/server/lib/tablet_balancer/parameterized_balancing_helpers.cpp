@@ -15,9 +15,10 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
-#include <yt/yt/core/misc/numeric_helpers.h>
 
 #include <yt/yt/orm/library/query/expression_evaluator.h>
+
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 namespace NYT::NTabletBalancer {
 

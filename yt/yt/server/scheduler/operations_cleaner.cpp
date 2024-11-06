@@ -41,8 +41,6 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/async_semaphore.h>
 
-#include <yt/yt/core/misc/numeric_helpers.h>
-
 #include <yt/yt/core/rpc/dispatcher.h>
 
 #include <yt/yt/core/utilex/random.h>
@@ -51,6 +49,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_resolver.h>
+
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 namespace NYT::NScheduler {
 

@@ -14,7 +14,7 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
-#include <yt/yt/core/misc/numeric_helpers.h>
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <util/generic/size_literals.h>
 

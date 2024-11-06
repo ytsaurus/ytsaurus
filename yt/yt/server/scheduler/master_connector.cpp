@@ -51,9 +51,9 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/misc/numeric_helpers.h>
-
 #include <yt/yt/core/utilex/random.h>
+
+#include <library/cpp/yt/misc/numeric_helpers.h>
 
 namespace NYT::NScheduler {
 
