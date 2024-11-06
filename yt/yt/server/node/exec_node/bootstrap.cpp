@@ -108,7 +108,10 @@ public:
         // via signal.
         JobController_ = CreateJobController(this);
 
-        JobProxyLogManager_ = CreateJobProxyLogManager(this);
+        // COMPAT(pogorelov)
+        if (GetConfig()->ExecNode->JobProxy->JobProxyLogging->Mode == EJobProxyLoggingMode::PerJobDirectory) {
+            JobProxyLogManager_ = CreateJobProxyLogManager(this);
+        }
 
         ControllerAgentConnectorPool_ = New<TControllerAgentConnectorPool>(this);
 
@@ -182,7 +185,10 @@ public:
         // NB(psushin): initialize chunk cache first because slot manager (and root
         // volume manager inside it) can start using it to populate tmpfs layers cache.
         ChunkCache_->Initialize();
-        JobProxyLogManager_->Initialize();
+        // COMPAT(pogorelov)
+        if (JobProxyLogManager_) {
+            JobProxyLogManager_->Initialize();
+        }
         SlotManager_->Initialize();
         JobController_->Initialize();
         MasterConnector_->Initialize();
@@ -210,7 +216,10 @@ public:
             "/disk_monitoring",
             CreateVirtualNode(DiskChangeChecker_->GetOrchidService()));
 
-        JobProxyLogManager_->Start();
+        // COMPAT(pogorelov)
+        if (JobProxyLogManager_) {
+            JobProxyLogManager_->Start();
+        }
 
         SlotManager_->Start();
         JobController_->Start();
@@ -427,9 +436,12 @@ private:
             }
         }
 
-        JobProxyLogManager_->OnDynamicConfigChanged(
-            oldConfig->ExecNode->JobProxyLogManager,
-            newConfig->ExecNode->JobProxyLogManager);
+        // COMPAT(pogorelov)
+        if (JobProxyLogManager_) {
+            JobProxyLogManager_->OnDynamicConfigChanged(
+                oldConfig->ExecNode->JobProxyLogManager,
+                newConfig->ExecNode->JobProxyLogManager);
+        }
 
         JobInputCache_->Reconfigure(newConfig->ExecNode->JobInputCache);
         JobController_->OnDynamicConfigChanged(

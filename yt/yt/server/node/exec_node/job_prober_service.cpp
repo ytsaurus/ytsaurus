@@ -6,6 +6,8 @@
 #include "job_proxy_log_manager.h"
 #include "private.h"
 
+#include <yt/yt/server/node/cluster_node/config.h>
+
 #include <yt/yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 #include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
@@ -225,6 +227,12 @@ private:
             transactionId);
 
         const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
+        if (!jobProxyLogManager) {
+            THROW_ERROR_EXCEPTION(
+                "Job proxy log manager is disabled")
+                << TErrorAttribute("job_proxy_logging_mode", Bootstrap_->GetConfig()->ExecNode->JobProxy->JobProxyLogging->Mode);
+        }
+
         WaitFor(jobProxyLogManager->DumpJobProxyLog(jobId, path, transactionId))
             .ThrowOnError();
 

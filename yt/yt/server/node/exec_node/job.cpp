@@ -6,6 +6,7 @@
 #include "controller_agent_connector.h"
 #include "job_controller.h"
 #include "job_gpu_checker.h"
+#include "job_proxy_log_manager.h"
 #include "job_workspace_builder.h"
 #include "job_input_cache.h"
 #include "gpu_manager.h"
@@ -2941,12 +2942,6 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         }
     }
 
-    auto calculateShardingKey = [&] (int shardingKeyLength) {
-        auto entropy = EntropyFromAllocationId(GetAllocationId());
-        auto entropyHex = Format("%016lx", entropy);
-        return entropyHex.substr(0, shardingKeyLength);
-    };
-
     auto tryReplaceSlotIndex = [&] (TString& str) {
         auto index = str.find(SlotIndexPattern);
         if (index != TString::npos) {
@@ -2954,7 +2949,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         }
     };
 
-    auto execNodeConfig = Bootstrap_->GetConfig()->ExecNode;
+    const auto& jobProxyConfig = Bootstrap_->GetConfig()->ExecNode->JobProxy;
 
     // This replace logic is used for testing puproses.
     proxyConfig->Logging->UpdateWriters([&] (const IMapNodePtr& writerConfigNode) {
@@ -2965,14 +2960,13 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
         auto fileLogWriterConfig = ConvertTo<NLogging::TFileLogWriterConfigPtr>(writerConfigNode);
 
-        if (execNodeConfig->JobProxy->JobProxyLogging->Mode == EJobProxyLoggingMode::Simple) {
-            tryReplaceSlotIndex(fileLogWriterConfig->FileName);
-        } else {
-            fileLogWriterConfig->FileName = NFS::JoinPaths(
-                NFS::JoinPaths(
-                    execNodeConfig->JobProxyLogManager->Directory,
-                    calculateShardingKey(execNodeConfig->JobProxyLogManager->ShardingKeyLength)),
-                NFS::JoinPaths(ToString(GetId()), "job_proxy.log"));
+        // COMPAT(pogorelov): Remove after tests will use per_job_directory job proxy logging.
+        tryReplaceSlotIndex(fileLogWriterConfig->FileName);
+        if (jobProxyConfig->JobProxyLogging->Mode == EJobProxyLoggingMode::PerJobDirectory) {
+            const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
+            YT_VERIFY(jobProxyLogManager);
+
+            fileLogWriterConfig->FileName = jobProxyLogManager->AdjustLogPath(Id_, fileLogWriterConfig->FileName);
         }
 
         return ConvertTo<IMapNodePtr>(fileLogWriterConfig);
