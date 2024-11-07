@@ -11,6 +11,8 @@
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 
+#include <yt/yt/ytlib/controller_agent/helpers.h>
+
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/file_client/file_ypath_proxy.h>
@@ -28,6 +30,7 @@ namespace NYT::NExecNode {
 using namespace NApi;
 using namespace NClusterNode;
 using namespace NChunkClient;
+using namespace NControllerAgent;
 using namespace NDataNode;
 using namespace NConcurrency;
 using namespace NCypressClient;
@@ -135,29 +138,49 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
         EMasterChannelKind::Cache,
         userObject.ExternalCellTag);
     auto batchReq = proxy.ExecuteBatchWithRetries(client->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
-    auto req = TFileYPathProxy::Fetch(objectIdPath);
-    ToProto(req->mutable_ranges(), std::vector<TLegacyReadRange>{{}});
-    SetSuppressAccessTracking(req, true);
-    SetSuppressExpirationTimeoutRenewal(req, true);
 
-    TMasterReadOptions options;
-    options.ReadFrom = EMasterChannelKind::Cache;
-    SetCachingHeader(req, connection, options);
-    req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+    {
+        // Add file fetch request.
+        auto req = TFileYPathProxy::Fetch(objectIdPath);
+        ToProto(req->mutable_ranges(), std::vector<TLegacyReadRange>{{}});
+        SetSuppressAccessTracking(req, true);
+        SetSuppressExpirationTimeoutRenewal(req, true);
 
-    batchReq->AddRequest(req);
+        TMasterReadOptions options;
+        options.ReadFrom = EMasterChannelKind::Cache;
+        SetCachingHeader(req, connection, options);
+        req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+
+        batchReq->AddRequest(req);
+    }
+
+    {
+        // Add get_attributes request.
+        auto req = TYPathProxy::Get(objectIdPath + "/@");
+        SetSuppressAccessTracking(req, true);
+        SetSuppressExpirationTimeoutRenewal(req, true);
+
+        TMasterReadOptions options;
+        options.ReadFrom = EMasterChannelKind::Cache;
+        SetCachingHeader(req, connection, options);
+        ToProto(req->mutable_attributes()->mutable_keys(), TVector<TString>{"filesystem", "access_method"});
+
+        batchReq->AddRequest(req, "get_attributes");
+    }
+
     auto batchRspOrError = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching chunks for layer %v",
         path);
 
     const auto& batchRsp = batchRspOrError.Value();
     const auto& rspOrError = batchRsp->GetResponse<TFileYPathProxy::TRspFetch>(0);
-    const auto& rsp = rspOrError.Value();
+    const auto& fileFetchRsp = rspOrError.Value();
 
+    // Process file fetch response.
     std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
     ProcessFetchResponse(
         client,
-        rsp,
+        fileFetchRsp,
         userObject.ExternalCellTag,
         bootstrap->GetNodeDirectory(),
         MaxChunksPerLocateRequest,
@@ -165,11 +188,22 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
         Logger,
         &chunkSpecs);
 
+    // Process get_attributes response.
+    auto getAttributesRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGetKey>("get_attributes");
+    auto getAttributesRsp = getAttributesRspOrError.Value();
     TArtifactKey layerKey;
     ToProto(layerKey.mutable_chunk_specs(), chunkSpecs);
     layerKey.mutable_data_source()->set_type(ToProto(EDataSourceType::File));
     layerKey.mutable_data_source()->set_path(path);
 
+    auto attributeDictionaryPtr = ConvertToAttributes(NYson::TYsonString(getAttributesRsp->value()));
+    const auto& attributes = *attributeDictionaryPtr;
+
+    auto [accessMethod, filesystem] = GetAccessMethodAndFilesystemFromStrings(
+        attributes.Find<TString>("access_method").value_or(ToString(ELayerAccessMethod::Local)),
+        attributes.Find<TString>("filesystem").value_or(ToString(ELayerFilesystem::Archive)));
+    layerKey.set_access_method(ToProto(accessMethod));
+    layerKey.set_filesystem(ToProto(filesystem));
     result.ArtifactKey = std::move(layerKey);
     return result;
 }
