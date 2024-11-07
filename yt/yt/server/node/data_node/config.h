@@ -691,6 +691,9 @@ public:
 
     i64 ReadMemoryLimit;
 
+    // COMPAT(babenko): drop when bitwise validation proves to be just perfect
+    bool EnableBitwiseRowValidation;
+
     REGISTER_YSON_STRUCT(TMergeChunksJobDynamicConfig);
 
     static void Register(TRegistrar registrar);

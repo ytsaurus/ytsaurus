@@ -130,7 +130,6 @@ class TestChunkMerger(YTEnvSetup):
 
     @authors("cherepashka")
     def test_complex_row_values_for_shallow_merge_validation(self):
-        pytest.skip("Test is disabled untill bitwise validation is fixed")
         schema = make_schema(
             [
                 {"name": "a", "type": "any", "required": False},
