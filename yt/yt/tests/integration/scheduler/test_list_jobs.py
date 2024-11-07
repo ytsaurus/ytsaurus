@@ -933,6 +933,48 @@ class TestListJobs(TestListJobsBase):
         for job in non_monitored_jobs:
             assert "monitoring_descriptor" not in job
 
+    @authors("omgronny")
+    def test_list_jobs_sort_by_task_name(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "a": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="a"),
+                    },
+                    "b": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="b"),
+                    },
+                    "c": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="c"),
+                    },
+                },
+            },
+        )
+
+        wait_breakpoint(breakpoint_name="a", job_count=1)
+        wait_breakpoint(breakpoint_name="b", job_count=1)
+        wait_breakpoint(breakpoint_name="c", job_count=1)
+
+        def check_sorted_list_jobs():
+            jobs = list_jobs(op.id, sort_field="task_name")["jobs"]
+            assert jobs[0]["task_name"] == "a"
+            assert jobs[1]["task_name"] == "b"
+            assert jobs[2]["task_name"] == "c"
+
+        check_sorted_list_jobs()
+
+        release_breakpoint(breakpoint_name="a")
+        release_breakpoint(breakpoint_name="b")
+        release_breakpoint(breakpoint_name="c")
+
+        op.track()
+
+        check_sorted_list_jobs()
+
 
 ##################################################################
 
