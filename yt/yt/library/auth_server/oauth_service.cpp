@@ -23,6 +23,8 @@
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
+#include <yt/yt/library/re2/re2.h>
+
 namespace NYT::NAuth {
 
 using namespace NConcurrency;
@@ -123,8 +125,24 @@ private:
         }
 
         const auto& formattedResponose = jsonResponseChecker->GetFormattedResponse()->AsMap();
+        auto login = formattedResponose->GetChildValueOrThrow<TString>(Config_->UserInfoLoginField);
+        auto transformedLogin = login;
+        if (Config_->LoginTransformation) {
+            YT_VERIFY(Config_->LoginTransformation->MatchPattern);
+            auto replacementCount = RE2::GlobalReplace(
+                &transformedLogin,
+                *Config_->LoginTransformation->MatchPattern,
+                Config_->LoginTransformation->Replacement);
+            YT_LOG_DEBUG(
+                "Login transformation for OAuth user info applied (Login: %v -> %v, MatchPattern: %v, Replacement: %v, ReplacementCount: %v)",
+                login,
+                transformedLogin,
+                Config_->LoginTransformation->MatchPattern->pattern(),
+                Config_->LoginTransformation->Replacement,
+                replacementCount);
+        }
         auto userInfo = TOAuthUserInfoResult{
-            .Login = formattedResponose->GetChildValueOrThrow<TString>(Config_->UserInfoLoginField),
+            .Login = std::move(transformedLogin),
         };
 
         if (Config_->UserInfoSubjectField) {

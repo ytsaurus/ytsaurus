@@ -19,7 +19,11 @@ def auth_config(port):
             "user_info_endpoint": "user_info",
             "user_info_login_field": "login",
             "user_info_subject_field": "sub",
-            "user_info_error_field": "error"
+            "user_info_error_field": "error",
+            "login_transformation": {
+                "match_pattern": "(.*)@(.*)\\.(.*)",
+                "replacement": "\\1-\\2",
+            },
         },
         "oauth_cookie_authenticator": {},
         "oauth_token_authenticator": {},
@@ -131,3 +135,10 @@ class TestOAuth(TestOAuthBase):
     @authors("kaikash", "ignat")
     def test_http_proxy_oauth_server_error(self):
         assert self._check_deny(cookie="retry_token")
+
+    @authors("achulkov2")
+    def test_login_transformation(self):
+        rsp = self._check_allow(token="good_token", user="achulkov2@nosihvost.de")
+        data = rsp.json()
+        assert data["login"] == "achulkov2-nosihvost"
+        assert data["realm"] == "oauth:token"

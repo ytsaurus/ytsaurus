@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/https/config.h>
 
+#include <yt/yt/library/re2/re2.h>
+
 namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -136,6 +138,14 @@ void TOAuthCookieAuthenticatorConfig::Register(TRegistrar /*registrar*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TStringReplacementConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("match_pattern", &TThis::MatchPattern);
+    registrar.Parameter("replacement", &TThis::Replacement);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TOAuthServiceConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("retrying_client",  &TThis::RetryingClient)
@@ -160,6 +170,9 @@ void TOAuthServiceConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("user_info_error_field", &TThis::UserInfoErrorField)
         .Optional();
+
+    registrar.Parameter("login_transformation", &TThis::LoginTransformation)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
