@@ -709,24 +709,6 @@ DEFINE_REFCOUNTED_TYPE(TJobProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLogDumpConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    i64 BufferSize;
-
-    // Name of the log writer which is used for dump.
-    TString LogWriterName;
-
-    REGISTER_YSON_STRUCT(TLogDumpConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DECLARE_REFCOUNTED_CLASS(TLogDumpConfig)
-
-DEFINE_REFCOUNTED_TYPE(TLogDumpConfig)
-
 class TJobProxyLogManagerConfig
     : public NYTree::TYsonStruct
 {
@@ -738,9 +720,9 @@ public:
     TDuration LogsStoragePeriod;
 
     // Value std::nullopt means unlimited concurrency.
-    int DirectoryTraversalConcurrency;
+    std::optional<int> DirectoryTraversalConcurrency;
 
-    TLogDumpConfigPtr LogDump;
+    i64 DumpJobProxyLogBufferSize;
 
     REGISTER_YSON_STRUCT(TJobProxyLogManagerConfig);
 
@@ -751,32 +733,13 @@ DEFINE_REFCOUNTED_TYPE(TJobProxyLogManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLogDumpDynamicConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    std::optional<i64> BufferSize;
-
-    // Name of the log writer which is used for dump.
-    std::optional<TString> LogWriterName;
-
-    REGISTER_YSON_STRUCT(TLogDumpDynamicConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DECLARE_REFCOUNTED_CLASS(TLogDumpDynamicConfig)
-
-DEFINE_REFCOUNTED_TYPE(TLogDumpDynamicConfig)
-
 class TJobProxyLogManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    std::optional<TDuration> LogsStoragePeriod;
+    TDuration LogsStoragePeriod;
+    // Value std::nullopt means unlimited concurrency.
     std::optional<int> DirectoryTraversalConcurrency;
-
-    TLogDumpDynamicConfigPtr LogDump;
 
     REGISTER_YSON_STRUCT(TJobProxyLogManagerDynamicConfig);
 

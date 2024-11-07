@@ -16,11 +16,11 @@ struct IJobProxyLogManager
     virtual void Initialize() = 0;
     virtual void Start() = 0;
 
-    virtual TString AdjustLogPath(TJobId jobId, const TString& logFilePath) = 0;
+    virtual TString GetShardingKey(TJobId jobId) = 0;
 
     virtual void OnDynamicConfigChanged(
-        const TJobProxyLogManagerDynamicConfigPtr& oldConfig,
-        const TJobProxyLogManagerDynamicConfigPtr& newConfig) = 0;
+        TJobProxyLogManagerDynamicConfigPtr oldConfig,
+        TJobProxyLogManagerDynamicConfigPtr newConfig) = 0;
 
     virtual TFuture<void> DumpJobProxyLog(
         TJobId jobId,

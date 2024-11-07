@@ -243,7 +243,7 @@
     "address_resolver" = {
         "localhost_fqdn" = "localhost";
     };
-    "exec_node" = {
+    "exec_agent" = {
         "job_controller" = {
             "start_port" = 20000;
             "resource_limits" = {
@@ -321,14 +321,6 @@
                     "disk_usage_watermark" = 0;
                 };
             ];
-        };
-        "job_proxy_log_manager" = {
-            "directory" = "~/logs";
-            "sharding_key_length" = 1;
-            "logs_storage_period" = "7d";
-            "log_dump" = {
-                "log_writer_name" = "debug";
-            };
         };
         "job_proxy_heartbeat_period" = 100;
     };
