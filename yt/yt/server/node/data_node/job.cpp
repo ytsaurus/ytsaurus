@@ -1934,11 +1934,17 @@ private:
                 auto outputRow = outputChunkRows.front();
                 outputChunkRows.pop();
 
-                if (inputRow != outputRow) {
+                auto rowsEqual = DynamicConfig_->EnableBitwiseRowValidation
+                    ? TBitwiseUnversionedRowEqual()(inputRow, outputRow)
+                    : inputRow == outputRow;
+                if (!rowsEqual) {
+                    TStringBuilder rowDiffBuilder;
+                    TBitwiseUnversionedRowEqual::FormatDiff(&rowDiffBuilder, inputRow, outputRow);
                     return TError("Row differs in input and output chunks")
                         << TErrorAttribute("row_index", rowIndex)
                         << TErrorAttribute("input_row", inputRow)
-                        << TErrorAttribute("output_row", outputRow);
+                        << TErrorAttribute("output_row", outputRow)
+                        << TErrorAttribute("row_diff", rowDiffBuilder.Flush());
                 }
 
                 ++rowIndex;

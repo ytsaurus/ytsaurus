@@ -656,6 +656,9 @@ void TMergeChunksJobDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("read_memory_limit", &TThis::ReadMemoryLimit)
         .Default(1_GB);
 
+    registrar.Parameter("enable_bitwise_row_validation", &TThis::EnableBitwiseRowValidation)
+        .Default(true);
+
     registrar.Preprocessor([] (TThis* config) {
         // Use proper workload descriptors.
         // TODO(babenko): avoid passing workload descriptor in config
