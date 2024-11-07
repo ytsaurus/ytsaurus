@@ -66,6 +66,7 @@
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/concurrency/quantized_executor.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <library/cpp/yt/threading/recursive_spin_lock.h>
 #include <library/cpp/yt/threading/spin_lock.h>
@@ -180,6 +181,7 @@ public:
             BIND(&TObjectService::ProcessSessions, MakeWeak(this))))
         , LocalReadSessionScheduler_(CreateFairScheduler<TExecuteSessionPtr>())
         , AutomatonSessionScheduler_(CreateFairScheduler<TExecuteSessionPtr>())
+        , LocalWriteRequestThrottler_(CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>()))
         , LocalReadCallbackProvider_(New<TLocalReadCallbackProvider>(LocalReadSessionScheduler_))
         , LocalReadExecutor_(CreateQuantizedExecutor(
             "LocalRead",
@@ -261,6 +263,7 @@ private:
 
     //! Scheduler of sessions to process in automaton.
     TSessionSchedulerPtr AutomatonSessionScheduler_;
+    IReconfigurableThroughputThrottlerPtr LocalWriteRequestThrottler_;
 
     class TLocalReadCallbackProvider
         : public ICallbackProvider
@@ -1582,49 +1585,57 @@ private:
         return true;
     }
 
-    bool ThrottleRequests()
+    template <EExecutionSessionSubrequestType SubrequestType, EUserWorkloadType WorkloadType>
+    bool DoThrottleRequest(int* currentSubrequestIndex, int* throttledSubrequestIndex)
     {
-        auto doThrottle = [&] (
-            int* currentSubrequestIndex,
-            int* throttledSubrequestIndex,
-            EExecutionSessionSubrequestType subrequestType,
-            EUserWorkloadType workloadType)
-        {
-            while (*throttledSubrequestIndex < *currentSubrequestIndex && *currentSubrequestIndex < TotalSubrequestCount_) {
-                auto subrequestIndex = ++(*throttledSubrequestIndex);
-                if (Subrequests_[subrequestIndex].Type != subrequestType) {
-                    continue;
-                }
+        while (*throttledSubrequestIndex < *currentSubrequestIndex && *currentSubrequestIndex < TotalSubrequestCount_) {
+            auto subrequestIndex = ++(*throttledSubrequestIndex);
+            if (Subrequests_[subrequestIndex].Type != SubrequestType) {
+                continue;
+            }
 
-                const auto& securityManager = Bootstrap_->GetSecurityManager();
-                auto result = securityManager->ThrottleUser(User_.Get(), 1, workloadType);
-                if (!WaitForAndContinue(result)) {
-                    YT_LOG_DEBUG("Throttling subrequest (User: %v, SubrequestIndex: %v, SubrequestType: %v, WorkloadType: %v)",
-                        User_->GetName(),
-                        subrequestIndex,
-                        subrequestType,
-                        workloadType);
-                    return false;
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+
+            auto throttlerFuture = securityManager->ThrottleUser(User_.Get(), 1, WorkloadType);
+
+            if constexpr (SubrequestType == EExecutionSessionSubrequestType::LocalWrite) {
+                if (User_.Get() != securityManager->GetRootUser()) {
+                    // We chain futures like this to avoid dealing with of ownership of the underlying promise of an AllSet combiner.
+                    // Note that the strong ref to the session ends up somewhere within the user throttler object.
+                    // Also keep in mind that we must obtain the user throttler future here, and not in a an arbitrary callback thread,
+                    // because we can only dereference the user pointer from a persistent-state-read thread.
+                    throttlerFuture = throttlerFuture.Apply(
+                        BIND_NO_PROPAGATE([localWriteThrottlerFuture = Owner_->LocalWriteRequestThrottler_->Throttle(1)] {
+                            return localWriteThrottlerFuture;
+                        }));
                 }
             }
 
-            return true;
-        };
+            if (!WaitForAndContinue(throttlerFuture)) {
+                YT_LOG_DEBUG("Throttling subrequest (User: %v, SubrequestIndex: %v, SubrequestType: %v, WorkloadType: %v)",
+                    User_->GetName(),
+                    subrequestIndex,
+                    SubrequestType,
+                    WorkloadType);
+                return false;
+            }
+        }
 
-        if (!doThrottle(
+        return true;
+    }
+
+    bool ThrottleRequests()
+    {
+        if (!DoThrottleRequest<EExecutionSessionSubrequestType::LocalWrite, EUserWorkloadType::Write>(
             &CurrentAutomatonSubrequestIndex_,
-            &ThrottledAutomatonSubrequestIndex_,
-            EExecutionSessionSubrequestType::LocalWrite,
-            EUserWorkloadType::Write))
+            &ThrottledAutomatonSubrequestIndex_))
         {
             return false;
         }
 
-        if (!doThrottle(
+        if (!DoThrottleRequest<EExecutionSessionSubrequestType::LocalRead, EUserWorkloadType::Read>(
             &CurrentLocalReadSubrequestIndex_,
-            &ThrottledLocalReadSubrequestIndex_,
-            EExecutionSessionSubrequestType::LocalRead,
-            EUserWorkloadType::Read))
+            &ThrottledLocalReadSubrequestIndex_))
         {
             return false;
         }
@@ -2310,6 +2321,7 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
     LocalReadExecutor_->Reconfigure(objectServiceConfig->LocalReadWorkerCount);
     LocalReadOffloadPool_->Configure(objectServiceConfig->LocalReadOffloadThreadCount);
     ProcessSessionsExecutor_->SetPeriod(objectServiceConfig->ProcessSessionsPeriod);
+    LocalWriteRequestThrottler_->Reconfigure(objectServiceConfig->LocalWriteRequestThrottler);
 }
 
 void TObjectService::EnqueueReadySession(TExecuteSessionPtr session)
