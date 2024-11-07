@@ -526,9 +526,6 @@ func (oplet *Oplet) needsUpdateOpParameters() (needsUpdate bool, reason string) 
 	if !reflect.DeepEqual(oplet.strawberrySpeclet.Pool, oplet.persistentState.YTOpPool) {
 		return true, "pool changed"
 	}
-	if !reflect.DeepEqual(oplet.strawberrySpeclet.PoolTrees, oplet.persistentState.YTOpPoolTrees) {
-		return true, "pool_trees changed"
-	}
 	if oplet.pendingScaling && oplet.targetInstanceCount != 0 {
 		return true, "oplet must be scaled"
 	}
@@ -1022,9 +1019,6 @@ func (oplet *Oplet) updateOpParameters(ctx context.Context, reason string) error
 	params := map[string]any{
 		"acl":  opACL,
 		"pool": oplet.strawberrySpeclet.Pool,
-	}
-	if len(oplet.strawberrySpeclet.PoolTrees) > 0 {
-		params["pool_trees"] = oplet.strawberrySpeclet.PoolTrees
 	}
 
 	if oplet.pendingScaling && oplet.targetInstanceCount != 0 {
