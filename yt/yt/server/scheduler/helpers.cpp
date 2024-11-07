@@ -521,4 +521,11 @@ TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLogEventType 
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsFullHostGpuAllocation(const TJobResources& allocationResources)
+{
+    return allocationResources.GetGpu() == LargeGpuAllocationGpuDemand;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler
