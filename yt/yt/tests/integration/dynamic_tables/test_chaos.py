@@ -4191,6 +4191,45 @@ class TestChaos(ChaosTestBase):
 
         create("chaos_replicated_table", "//tmp/t1.crt", attributes={"chaos_cell_bundle": "c", "schema": data_schema})
 
+    @authors("osidorkin")
+    def test_crt_tablets_count(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        queue_schema = self._get_schemas_by_name(["ordered_simple"])[0]
+        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "c", "schema": queue_schema})
+
+        card_id = get("//tmp/crt/@replication_card_id")
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q0"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q1"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q2"},
+        ]
+
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
+        self._create_replica_tables(replicas, replica_ids, ordered=True, schema=queue_schema)
+
+        self._sync_replication_era(card_id)
+
+        assert get("//tmp/crt/@tablet_count") == 1
+
+        primary_driver, remote_driver0, remote_driver1 = self._get_drivers()
+
+        def _reshard_table(path: str, driver) -> None:
+            sync_unmount_table(path, driver=driver)
+            reshard_table(path, 5, driver=driver)
+            sync_mount_table(path, driver=driver)
+
+        _reshard_table("//tmp/q1", remote_driver0)
+        assert get("//tmp/crt/@tablet_count") == 1
+
+        _reshard_table("//tmp/q2", remote_driver1)
+        assert get("//tmp/crt/@tablet_count") == 1
+
+        _reshard_table("//tmp/q0", primary_driver)
+        assert get("//tmp/crt/@tablet_count") == 5
+
 
 ##################################################################
 

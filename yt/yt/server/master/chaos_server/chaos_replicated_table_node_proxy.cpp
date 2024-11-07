@@ -24,12 +24,16 @@
 
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+
 #include <yt/yt/library/heavy_schema_validation/schema_validation.h>
 
 #include <yt/yt/client/chaos_client/replication_card.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
 #include <yt/yt/client/tablet_client/config.h>
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/client/table_client/schema.h>
 
@@ -50,9 +54,111 @@ using namespace NObjectServer;
 using namespace NSecurityServer;
 using namespace NTableClient;
 using namespace NTableServer;
+using namespace NTabletClient;
 using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+
+// TODO(osidorkin): Remove after YT-17817
+class TChaosReplicatedTableTabletsCountGetter
+{
+public:
+
+    static TFuture<TYsonString> GetTabletsCount(TFuture<TReplicationCardPtr> replicationCardFuture, NNative::IConnectionPtr connection)
+    {
+        return replicationCardFuture
+            .ApplyUnique(BIND([connection = std::move(connection)] (TReplicationCardPtr&& card) {
+                return GetActiveQueueReplicaConnections(card->Replicas, connection, false)
+                    .ApplyUnique(BIND([] (
+                        std::vector<std::pair<TYPath, NNative::IConnectionPtr>>&& connections)
+                    {
+                        std::vector<TFuture<i64>> requests;
+                        requests.reserve(connections.size());
+                        for (auto& [replicaPath, replicaClusterConnection] : connections) {
+                            requests.push_back(GetTabletCount(
+                                replicaPath,
+                                std::move(replicaClusterConnection)));
+                        }
+
+                        return AllSet(std::move(requests))
+                            .ApplyUnique(BIND([] (std::vector<TErrorOr<i64>>&& tabletCounts) {
+                                std::remove_if(
+                                    tabletCounts.begin(),
+                                    tabletCounts.end(),
+                                    [] (const auto& tabletCount) {
+                                        return !tabletCount.IsOK();
+                                    });
+
+                                auto minElementIt = std::min_element(
+                                    tabletCounts.begin(),
+                                    tabletCounts.end(),
+                                    [] (const auto& a, const auto& b) {
+                                        return a.Value() < b.Value();
+                                    });
+
+                                if (minElementIt == tabletCounts.end()) {
+                                    return BuildYsonStringFluently()
+                                        .Entity();
+                                }
+
+                                return BuildYsonStringFluently()
+                                    .Value(minElementIt->Value());
+                        }));
+                    }));
+            }));
+    }
+
+private:
+    static TFuture<std::vector<std::pair<TYPath, NNative::IConnectionPtr>>> GetActiveQueueReplicaConnections(
+        const THashMap<TReplicaId, TReplicaInfo>& replicas,
+        NNative::IConnectionPtr nativeConnection,
+        bool skipMissing)
+    {
+        const auto& clusterDirectory = nativeConnection->GetClusterDirectory();
+        std::vector<std::pair<TYPath, NNative::IConnectionPtr>> connections;
+        for (const auto& [replicaId, replica] : replicas) {
+            if (replica.ContentType != ETableReplicaContentType::Queue ||
+                !EqualToOneOf(replica.State, ETableReplicaState::Enabled, ETableReplicaState::Enabling))
+            {
+                continue;
+            }
+
+            auto replicaClusterConnection = clusterDirectory->FindConnection(replica.ClusterName);
+            if (!replicaClusterConnection) {
+                if (skipMissing) {
+                    continue;
+                } else {
+                    return nativeConnection->GetClusterDirectorySynchronizer()->Sync(false).Apply(
+                        BIND(
+                            &TChaosReplicatedTableTabletsCountGetter::GetActiveQueueReplicaConnections,
+                            replicas,
+                            std::move(nativeConnection),
+                            true));
+                    }
+            }
+
+            connections.emplace_back(replica.ReplicaPath, std::move(replicaClusterConnection));
+        }
+
+        return MakeFuture(connections);
+    }
+
+    static TFuture<i64> GetTabletCount(const TYPath& path, NNative::IConnectionPtr connection) {
+        auto client = connection->CreateClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
+        auto tableMountInfoFuture = client->GetTableMountCache()->GetTableInfo(path);
+        return tableMountInfoFuture.Apply(BIND([] (const TTableMountInfoPtr& tableMountInfo) {
+            return (i64)tableMountInfo->Tablets.size();
+        }));
+    }
+};
+
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,6 +231,9 @@ private:
             .SetPresent(isQueueProducer)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CollocatedReplicationCardIds)
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCount)
+            .SetPresent(isQueue)
             .SetOpaque(true));
     }
 
@@ -398,6 +507,17 @@ private:
                     }));
             }
 
+            case EInternedAttributeKey::TabletCount: {
+                if (!isQueue) {
+                    break;
+                }
+
+                // TODO(osidorkin): Write better implementation after replication card progress format is changed (YT-17817)
+                return TChaosReplicatedTableTabletsCountGetter::GetTabletsCount(
+                    GetReplicationCard(),
+                    Bootstrap_->GetClusterConnection());
+            }
+
             case EInternedAttributeKey::QueueStatus:
             case EInternedAttributeKey::QueuePartitions: {
                 if (!isQueue) {
@@ -464,6 +584,7 @@ private:
                 if (!result.IsOK()) {
                     return TErrorOr<std::vector<TReplicationCardId>>(TError(result));
                 }
+
                 return TErrorOr(
                     FromProto<std::vector<TReplicationCardId>>(result.Value()->replication_card_ids()));
             }));
