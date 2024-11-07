@@ -78,6 +78,19 @@ message TOperationInfo
     optional NControllerAgent.NProto.TControllerAgentDescriptor controller_agent_descriptor = 3;
 }
 
+// TODO(arkady-e1ppa): Consider using incarnation id
+// to save up O(N) check on the node side if tags have changed.
+message TNodeProfilingTags
+{
+    message TTag
+    {
+        required string key = 1;
+        required string value = 2;
+    }
+
+    repeated TTag tags = 1;
+}
+
 message TRspHeartbeat
 {
     repeated TAllocationStartInfo allocations_to_start = 1;
@@ -92,6 +105,8 @@ message TRspHeartbeat
     repeated NControllerAgent.NProto.TControllerAgentDescriptor registered_controller_agents = 11;
 
     optional TJobResources min_spare_resources = 12;
+
+    optional TNodeProfilingTags profiling_tags = 14;
 
     reserved 6, 7, 8;
 }

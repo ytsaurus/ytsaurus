@@ -2378,6 +2378,15 @@ private:
             return static_cast<bool>(Tree_);
         }
 
+        std::optional<TString> GetMaybeTreeId() const override
+        {
+            if (!Tree_) {
+                return std::nullopt;
+            }
+
+            return {Tree_->GetId()};
+        }
+
     private:
         const TNodeId NodeId_;
         const IFairShareTreePtr Tree_;

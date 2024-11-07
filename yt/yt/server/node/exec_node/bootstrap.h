@@ -59,6 +59,8 @@ struct IBootstrap
     virtual const IJobProxyLogManagerPtr& GetJobProxyLogManager() const = 0;
 
     virtual IThrottlerManagerPtr GetThrottlerManager() const = 0;
+
+    virtual void UpdateNodeProfilingTags(std::vector<NProfiling::TTag> dynamicTags) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
