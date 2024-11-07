@@ -162,7 +162,7 @@ public:
         TConnectionDynamicConfigPtr dynamicConfig,
         const TConnectionOptions& options,
         INodeMemoryTrackerPtr memoryTracker,
-        TClusterDirectoryPtr clusterDirectoryOverride)
+        TWeakPtr<NHiveClient::TClusterDirectory> clusterDirectoryOverride)
         : StaticConfig_(std::move(staticConfig))
         , Config_(std::move(dynamicConfig))
         , Options_(options)
@@ -696,7 +696,10 @@ public:
 
     NHiveClient::TClusterDirectoryPtr GetClusterDirectory() const override
     {
-        return (ClusterDirectoryOverride_ ? ClusterDirectoryOverride_ : ClusterDirectory_);
+        if (auto strongOverride = ClusterDirectoryOverride_.Lock()) {
+            return strongOverride;
+        }
+        return ClusterDirectory_;
     }
 
     const NHiveClient::IClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer() override
@@ -923,10 +926,7 @@ private:
     INodeMemoryTrackerPtr MemoryTracker_;
 
     TClusterDirectoryPtr ClusterDirectory_;
-    // NB: This memory leak is intentional.
-    // We assume that cluster directories are allocated in a singleton-like fashion throughout the life of the process.
-    // TODO(achulkov2, max42): Make cluster directories actual singletons?
-    TClusterDirectoryPtr ClusterDirectoryOverride_;
+    TWeakPtr<TClusterDirectory> ClusterDirectoryOverride_;
     IClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
 
     TMediumDirectoryPtr MediumDirectory_;
@@ -1239,7 +1239,7 @@ IConnectionPtr CreateConnection(
     TConnectionStaticConfigPtr staticConfig,
     TConnectionDynamicConfigPtr dynamicConfig,
     TConnectionOptions options,
-    TClusterDirectoryPtr clusterDirectoryOverride,
+    TWeakPtr<NHiveClient::TClusterDirectory> clusterDirectoryOverride,
     INodeMemoryTrackerPtr memoryTracker)
 {
     NTracing::TNullTraceContextGuard nullTraceContext;
@@ -1261,7 +1261,7 @@ IConnectionPtr CreateConnection(
 IConnectionPtr CreateConnection(
     TConnectionCompoundConfigPtr compoundConfig,
     TConnectionOptions options,
-    TClusterDirectoryPtr clusterDirectoryOverride,
+    TWeakPtr<NHiveClient::TClusterDirectory> clusterDirectoryOverride,
     INodeMemoryTrackerPtr memoryTracker)
 {
     return CreateConnection(

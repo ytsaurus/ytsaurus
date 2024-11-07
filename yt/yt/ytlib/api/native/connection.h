@@ -225,7 +225,7 @@ IConnectionPtr CreateConnection(
     TConnectionStaticConfigPtr staticConfig,
     TConnectionDynamicConfigPtr dynamicConfig,
     TConnectionOptions options = {},
-    NHiveClient::TClusterDirectoryPtr clusterDirectoryOverride = nullptr,
+    TWeakPtr<NHiveClient::TClusterDirectory> clusterDirectoryOverride = nullptr,
     INodeMemoryTrackerPtr memoryTracker = nullptr);
 
 //! A method for creating a connection from a compound config which
@@ -236,7 +236,7 @@ IConnectionPtr CreateConnection(
 IConnectionPtr CreateConnection(
     TConnectionCompoundConfigPtr compoundConfig,
     TConnectionOptions options = {},
-    NHiveClient::TClusterDirectoryPtr clusterDirectoryOverride = nullptr,
+    TWeakPtr<NHiveClient::TClusterDirectory> clusterDirectoryOverride = nullptr,
     INodeMemoryTrackerPtr memoryTracker = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
