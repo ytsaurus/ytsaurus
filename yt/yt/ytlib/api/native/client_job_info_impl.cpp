@@ -1659,6 +1659,8 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
                 case EJobSortField::Progress:
                     // XXX: progress is not present in archive table.
                     return {};
+                case EJobSortField::TaskName:
+                    return {"task_name"};
             }
             YT_ABORT();
         }();
@@ -1984,6 +1986,8 @@ static TJobComparator GetJobsComparator(
                     return std::nullopt;
                 }
             });
+        case EJobSortField::TaskName:
+            return makeLessByField(&TJob::TaskName);
     }
     YT_ABORT();
 }
