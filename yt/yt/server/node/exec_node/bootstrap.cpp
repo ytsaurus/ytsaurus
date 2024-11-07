@@ -303,6 +303,23 @@ public:
         return ThrottlerManager_;
     }
 
+    void UpdateNodeProfilingTags(std::vector<NProfiling::TTag> dynamicTags) const override
+    {
+        std::ranges::sort(dynamicTags);
+
+        auto updateDynamicTags = [] (std::vector<NProfiling::TTag> dynamicTags, const TSolomonRegistryPtr& registry) {
+            auto currentTags = registry->GetDynamicTags();
+            std::ranges::sort(currentTags);
+
+            if (currentTags != dynamicTags) {
+                registry->SetDynamicTags(std::move(dynamicTags));
+            }
+        };
+
+        updateDynamicTags(dynamicTags, TSolomonRegistry::Get());
+        updateDynamicTags(std::move(dynamicTags), GetJobProxySolomonExporter()->GetRegistry());
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 

@@ -342,6 +342,8 @@ public:
 
     bool IncludeReleasingResourcesInSchedulerHeartbeat;
 
+    bool UseProfilingTagsFromScheduler;
+
     REGISTER_YSON_STRUCT(TSchedulerConnectorDynamicConfig);
 
     static void Register(TRegistrar registrar);

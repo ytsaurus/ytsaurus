@@ -388,12 +388,17 @@ void TSchedulerConnectorDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter(
         "send_heartbeat_on_resources_released",
-        &TSchedulerConnectorDynamicConfig::SendHeartbeatOnResourcesReleased)
+        &TThis::SendHeartbeatOnResourcesReleased)
         .Default(true);
 
     registrar.Parameter(
         "include_releasing_resources_in_scheduler_heartbeat",
         &TThis::IncludeReleasingResourcesInSchedulerHeartbeat)
+        .Default(false);
+
+    registrar.Parameter(
+        "use_profiling_tags_from_scheduler",
+        &TThis::UseProfilingTagsFromScheduler)
         .Default(false);
 }
 

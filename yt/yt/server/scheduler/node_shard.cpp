@@ -689,6 +689,8 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     strategyProxy->BuildSchedulingAttributesString(delimitedSchedulingAttributesBuilder);
     context->SetRawResponseInfo(schedulingAttributesBuilder.Flush(), /*incremental*/ true);
 
+    FillNodeProfilingTags(response, strategyProxy);
+
     if (!skipScheduleAllocations) {
         HeartbeatWithScheduleAllocationsCounter_.Increment();
 
@@ -1744,6 +1746,25 @@ void TNodeShard::ProcessHeartbeatAllocations(
     }
 
     ProcessAllocationsToAbort(response, node);
+}
+
+void TNodeShard::FillNodeProfilingTags(
+    TScheduler::TCtxNodeHeartbeat::TTypedResponse* response,
+    const INodeHeartbeatStrategyProxyPtr& strategyProxy)
+{
+    auto* mutableTags = response->mutable_profiling_tags();
+
+    auto addTag = [mutableTags] (const auto& key, const auto& value) {
+        auto* newTag = mutableTags->add_tags();
+
+        ToProto(newTag->mutable_key(), key);
+        ToProto(newTag->mutable_value(), value);
+    };
+
+    if (auto maybeTreeId = strategyProxy->GetMaybeTreeId()) {
+        addTag(ProfilingPoolTreeKey, *maybeTreeId);
+    }
+    // TODO(arkady-e1ppa): Something else?
 }
 
 void TNodeShard::LogOngoingAllocationsOnHeartbeat(
