@@ -1600,6 +1600,15 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/b/x")
         assert get("//tmp/b/y") == 1
 
+    @authors("danilalexeev")
+    def test_invalid_link_path_yt_23838(self):
+        # Must not crash.
+        error_message = "Expected \"literal\" in YPath but found end-of-string"
+        with raises_yt_error("Node //tmp has no child with key \"l\"" if not self.ENABLE_TMP_ROOTSTOCK else error_message):
+            link("//tmp", "//tmp/l/")
+        with raises_yt_error(error_message):
+            link("//tmp", "//tmp/l/", recursive=True)
+
     @authors("babenko", "danilalexeev")
     def test_resolve_suppress_via_object_id_yt_6694(self):
         create("map_node", "//tmp/a")
