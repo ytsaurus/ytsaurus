@@ -124,30 +124,32 @@ private:
             THROW_ERROR(error);
         }
 
-        const auto& formattedResponose = jsonResponseChecker->GetFormattedResponse()->AsMap();
-        auto login = formattedResponose->GetChildValueOrThrow<TString>(Config_->UserInfoLoginField);
-        auto transformedLogin = login;
-        if (Config_->LoginTransformation) {
-            YT_VERIFY(Config_->LoginTransformation->MatchPattern);
+        const auto& formattedResponse = jsonResponseChecker->GetFormattedResponse()->AsMap();
+        auto login = formattedResponse->GetChildValueOrThrow<TString>(Config_->UserInfoLoginField);
+        for (const auto& transformation : Config_->LoginTransformations) {
+            YT_VERIFY(transformation->MatchPattern);
+            auto loginBeforeTransformation = login;
             auto replacementCount = RE2::GlobalReplace(
-                &transformedLogin,
-                *Config_->LoginTransformation->MatchPattern,
-                Config_->LoginTransformation->Replacement);
+                &login,
+                *transformation->MatchPattern,
+                transformation->Replacement);
             YT_LOG_DEBUG(
                 "Login transformation for OAuth user info applied (Login: %v -> %v, MatchPattern: %v, Replacement: %v, ReplacementCount: %v)",
+                loginBeforeTransformation,
                 login,
-                transformedLogin,
-                Config_->LoginTransformation->MatchPattern->pattern(),
-                Config_->LoginTransformation->Replacement,
+                transformation->MatchPattern->pattern(),
+                transformation->Replacement,
                 replacementCount);
         }
         auto userInfo = TOAuthUserInfoResult{
-            .Login = std::move(transformedLogin),
+            .Login = std::move(login),
         };
 
         if (Config_->UserInfoSubjectField) {
-            userInfo.Subject = formattedResponose->GetChildValueOrThrow<TString>(*Config_->UserInfoSubjectField);
+            userInfo.Subject = formattedResponse->GetChildValueOrThrow<TString>(*Config_->UserInfoSubjectField);
         }
+
+        YT_LOG_DEBUG("OAuth user info obtained (Login: %v, Subject: %v)", userInfo.Login, userInfo.Subject);
 
         return userInfo;
     }

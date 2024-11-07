@@ -250,11 +250,14 @@ public:
     std::optional<TString> UserInfoSubjectField;
     std::optional<TString> UserInfoErrorField;
 
-    //! If specified, configures a global regex replace transformation on the
-    //! contents of the login field. It will replace all non-overlapping matching
-    //! strings with the replacement string. You can use \1-\9 for captured match
-    //! groups in the replacement string, and \0 for the whole match.
-    TStringReplacementConfigPtr LoginTransformation;
+    //! Configures a list of transformations to be applied to the contents of the login field.
+    //! Transformations are applied consecutively in order they are listed.
+    //! Each transformation will replace all non-overlapping matches of its match pattern
+    //! with the replacement string. You can use \1-\9 for captured match groups in the
+    //! replacement string, and \0 for the whole match.
+    //! Regex must follow RE2 syntax, which is a subset of that accepted by PCRE, roughly
+    //! speaking, and with various caveats.
+    std::vector<TStringReplacementConfigPtr> LoginTransformations;
 
     REGISTER_YSON_STRUCT(TOAuthServiceConfig);
 

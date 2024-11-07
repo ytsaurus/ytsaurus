@@ -171,7 +171,7 @@ void TOAuthServiceConfig::Register(TRegistrar registrar)
     registrar.Parameter("user_info_error_field", &TThis::UserInfoErrorField)
         .Optional();
 
-    registrar.Parameter("login_transformation", &TThis::LoginTransformation)
+    registrar.Parameter("login_transformations", &TThis::LoginTransformations)
         .Default();
 }
 
