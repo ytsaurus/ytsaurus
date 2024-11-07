@@ -521,6 +521,7 @@ TReincarnationJob::TReincarnationJob(
     TNodePtrWithReplicaAndMediumIndexList sourceReplicas,
     TNodePtrWithReplicaAndMediumIndexList targetReplicas,
     int mediumIndex,
+    TTransactionId transactionId,
     TChunkReincarnationOptions reincarnationOptions)
     : TJob(
         jobId,
@@ -538,6 +539,7 @@ TReincarnationJob::TReincarnationJob(
     , ErasureCodec_(NErasure::ECodec::None)
     , CompressionCodec_(NCompression::ECodec::None)
     , EnableSkynetSharing_(false)
+    , TransactionId_(transactionId)
 {
     if (auto miscExt = oldChunk->ChunkMeta()->FindExtension<TMiscExt>()) {
         ErasureCodec_ = CheckedEnumCast<NErasure::ECodec>(miscExt->erasure_codec());
@@ -582,6 +584,7 @@ bool TReincarnationJob::FillJobSpec(
     jobSpecExt->set_enable_skynet_sharing(EnableSkynetSharing_);
     ToProto(jobSpecExt->mutable_source_replicas(), SourceReplicas_);
     ToProto(jobSpecExt->mutable_legacy_source_replicas(), SourceReplicas_);
+    ToProto(jobSpecExt->mutable_transaction_id(), TransactionId_);
 
     return true;
 }
@@ -961,6 +964,7 @@ private:
         TChunkId OldChunkId;
         TChunkId NewChunkId;
         int MediumIndex;
+        TTransactionId TransactionId;
         TChunkReincarnationOptions Options;
     };
     std::queue<TJobInfo> ScheduledJobs_;
@@ -1143,6 +1147,16 @@ private:
                     oldChunk->GetId(),
                     newChunk->GetId());
                 maybeRescheduleChunk(oldChunk, request.Options);
+                continue;
+            }
+
+            if (oldChunk->Schema() && oldChunk->Schema() != newChunk->Schema()) {
+                YT_LOG_ALERT(
+                    "Reincarnated chunk has a different schema (NewChunkId: %v, NewSchema: %v, OldSchema: %v)",
+                    newChunk->GetId(),
+                    *newChunk->Schema()->AsTableSchema(),
+                    *oldChunk->Schema()->AsTableSchema());
+                OnReincarnationFinished(EReincarnationResult::GenericPermanentFailure);
                 continue;
             }
 
@@ -1444,6 +1458,7 @@ private:
             std::move(sourceReplicas),
             std::move(targetReplicas),
             mediumIndex,
+            jobInfo.TransactionId,
             jobInfo.Options);
         context->ScheduleJob(job);
 
@@ -2194,6 +2209,7 @@ private:
                     .OldChunkId = oldChunkId,
                     .NewChunkId = newChunkId,
                     .MediumIndex = mediumIndex,
+                    .TransactionId = TransactionRotator_.GetTransactionId(),
                 });
             }
         }

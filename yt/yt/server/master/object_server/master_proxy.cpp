@@ -30,6 +30,8 @@
 #include <yt/yt/server/master/security_server/acl.h>
 #include <yt/yt/server/master/security_server/user.h>
 
+#include <yt/yt/server/master/table_server/table_manager.h>
+
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/cell_master_client/protobuf_helpers.h>
@@ -85,6 +87,7 @@ private:
         DISPATCH_YPATH_SERVICE_METHOD(AddMaintenance);
         DISPATCH_YPATH_SERVICE_METHOD(RemoveMaintenance);
         DISPATCH_YPATH_SERVICE_METHOD(VectorizedRead);
+        DISPATCH_YPATH_SERVICE_METHOD(GetOrRegisterSchema);
         return TBase::DoInvoke(context);
     }
 
@@ -454,6 +457,33 @@ private:
                 }
             }
         }
+
+        context->Reply();
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetOrRegisterSchema)
+    {
+        DeclareMutating();
+        context->SetRequestInfo(
+            "Schema: %v, TransactionId: %v",
+            request->schema(),
+            request->transaction_id()
+        );
+
+        auto schema = FromProto<NTableClient::TTableSchemaPtr>(request->schema());
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
+
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        auto result = tableManager->GetOrCreateNativeMasterTableSchema(*schema, transaction);
+        ToProto(response->mutable_schema_id(), result->GetId());
+
+        context->SetResponseInfo(
+            "SchemaId: %v",
+            result->GetId()
+        );
 
         context->Reply();
     }

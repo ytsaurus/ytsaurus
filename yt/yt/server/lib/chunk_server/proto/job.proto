@@ -262,6 +262,7 @@ message TReincarnateChunkJobSpecExt
     required int32 medium_index = 7;
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 8;
     required bool enable_skynet_sharing = 9;
+    required NYT.NProto.TGuid transaction_id = 11;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

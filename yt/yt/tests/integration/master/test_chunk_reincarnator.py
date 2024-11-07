@@ -10,7 +10,7 @@ from yt_commands import (
     is_active_primary_master_leader,
     is_active_primary_master_follower,
     switch_leader,
-    make_batch_request, execute_batch, get_batch_output,
+    make_batch_request, execute_batch, get_batch_output, raises_yt_error,
     sync_mount_table, sync_create_cells, insert_rows, lookup_rows, sync_unmount_table,
     sync_flush_table)
 
@@ -209,17 +209,13 @@ class TestChunkReincarnatorBase(YTEnvSetup):
                 "chunk_replicator_address",
                 "compressed_data_size",
                 "max_block_size",
+                "schema",  # NB: schema can change only in a specific case, and we check it separately
+                "schema_id",
             ]
 
             if versioned:
                 # NB: size may be different because of uncommitted changes.
                 unimportant_attrs.append("uncompressed_data_size")
-
-            # COMPAT(h0pless): Remove this when reincarnator will learn how to set chunk schemas
-            if "schema" in attrs:
-                attrs.pop("schema")
-            if "schema_id" in attrs:
-                attrs.pop("schema_id")
 
             for attr in unimportant_attrs:
                 if attr in attrs:
@@ -270,6 +266,134 @@ class TestChunkReincarnatorBase(YTEnvSetup):
         switch_leader(cell_id, new_leader)
         wait(lambda: is_active_primary_master_follower(old_leader))
         wait(lambda: is_active_primary_master_leader(new_leader))
+
+    def _check_chunk_schema_after_reincarnation(self, path, present, schema_equality=True):
+        statistics = ReincarnatorStatistic("successful_reincarnations")
+        assert statistics.get_delta() == 0
+        self._wait_for_chunk_obsolescence(get_singular_chunk_id(path))
+        self._wait_for_reincarnation(path, datetime.utcnow())
+        wait(lambda: statistics.get_delta() == 1)
+
+        chunk_id = get_singular_chunk_id(path)
+        if not present:
+            with raises_yt_error("Attribute \"schema\" is not found"):
+                get(f"#{chunk_id}/@schema")
+        else:
+            chunk_id = get_singular_chunk_id(path)
+            chunk_schema = get(f"#{chunk_id}/@schema")
+            table_schema = get(f"{path}/@schema")
+            if schema_equality:
+                assert chunk_schema == table_schema
+            else:
+                assert chunk_schema != table_schema
+
+    @authors("kazachonok")
+    @pytest.mark.parametrize("enable_chunk_schemas", [True, False])
+    def test_chunk_schemas_1(self, enable_chunk_schemas):
+        # Check that reincarnation works fine with chunk schemas enabled/disabled.
+        set("//sys/@config/chunk_manager/enable_chunk_schemas", enable_chunk_schemas)
+
+        create("table", "//tmp/t", attributes={"schema": [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}
+        ]})
+        write_table("//tmp/t", {"key": 123, "value": "hi"})
+
+        self._check_chunk_schema_after_reincarnation(path="//tmp/t", present=enable_chunk_schemas)
+
+    @authors("kazachonok")
+    def test_chunk_schemas_2(self):
+        # Check that reincarnation brings schemas for old chunks.
+        set("//sys/@config/chunk_manager/enable_chunk_schemas", False)
+
+        create("table", "//tmp/t", attributes={"schema": [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}
+        ]})
+        write_table("//tmp/t", {"key": 123, "value": "hi"})
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        with raises_yt_error("Attribute \"schema\" is not found"):
+            get(f"#{chunk_id}/@schema")
+
+        set("//sys/@config/chunk_manager/enable_chunk_schemas", True)
+        self._check_chunk_schema_after_reincarnation(path="//tmp/t", present=True)
+
+    @authors("kazachonok")
+    def test_chunk_schemas_3(self):
+        # Check that reincarnation fails if the transaction that should hold the schema expires prematurely.
+        set("//sys/@config/chunk_manager/enable_chunk_schemas", False)
+        set("//sys/@config/chunk_manager/chunk_reincarnator/max_failed_jobs", 1)
+        set("//sys/@config/chunk_manager/chunk_reincarnator/transaction_update_period", 50)
+
+        create("table", "//tmp/t", attributes={"schema": [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}
+        ]})
+        write_table("//tmp/t", {"key": 123, "value": "hi"})
+
+        set("//sys/@config/chunk_manager/enable_chunk_schemas", True)
+        too_many_failed_jobs = ReincarnatorStatistic("permanent_failures/too_many_failed_jobs")
+
+        self._wait_for_chunk_obsolescence(get_singular_chunk_id("//tmp/t"))
+        self._set_min_allowed_creation_time(datetime.utcnow())
+        self._enable_chunk_reincarnator()
+
+        wait(lambda: too_many_failed_jobs.get_delta() == 1)
+
+    @authors("kazachonok")
+    def test_chunk_schemas_4(self):
+        # Check that reincarnation can register chunk schemas never seen before.
+        set("//sys/@config/chunk_manager/enable_chunk_schemas", False)
+
+        create("table", "//tmp/table", attributes={
+            "schema": [
+                {"name": "key", "type": "int64"},
+                {"name": "value", "type": "string"}
+            ]})
+
+        # This chunk has a schema that is not registered on master.
+        write_table(
+            "<chunk_sort_columns=[{name=key;sort_order=descending};{name=value;sort_order=descending}];append=true>//tmp/table",
+            {"key": 123, "value": "howdy"})
+
+        set("//sys/@config/chunk_manager/enable_chunk_schemas", True)
+        self._check_chunk_schema_after_reincarnation("//tmp/table", present=True, schema_equality=False)
+
+    @authors("kazachonok")
+    def test_chunk_schemas_5(self):
+        set("//sys/@config/chunk_manager/enable_chunk_schemas", False)
+
+        create("table", "//tmp/table", attributes={"schema": [
+            {"name": "key", "type": "int64"},
+            {"name": "value", "type": "string"}
+        ]})
+        old_schema = get("//tmp/table/@schema")
+        write_table("//tmp/table", {"key": 123, "value": "hello"})
+
+        alter_table("//tmp/table", schema=[
+            {"name": "key", "type": "int64"},
+            {"name": "value", "type": "string"},
+            {"name": "something_new", "type": "double"},
+        ])
+        new_schema = get("//tmp/table/@schema")
+        assert new_schema != old_schema
+
+        write_table("<append=%true>//tmp/table", {"key": 1234, "value": "hi", "something_new": 3.141})
+
+        set("//sys/@config/chunk_manager/enable_chunk_schemas", True)
+        statistics = ReincarnatorStatistic("successful_reincarnations")
+        old_chunks = get("//tmp/table/@chunk_ids")
+        assert len(old_chunks) == 2
+        for chunk_id in old_chunks:
+            self._wait_for_chunk_obsolescence(chunk_id)
+        self._wait_for_reincarnation("//tmp/table", datetime.utcnow())
+        wait(lambda: statistics.get_delta() == 2)
+
+        new_chunks = get("//tmp/table/@chunk_ids")
+        assert len(new_chunks) == 2
+        assert get(f"#{new_chunks[0]}/@schema") == old_schema
+        assert get(f"#{new_chunks[1]}/@schema") == new_schema
 
 
 ##################################################################
@@ -826,7 +950,11 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
         self._check_tables(tables)
 
     @authors("kvk1920")
-    def test_chunk_exported_to_many_cells(self):
+    @pytest.mark.parametrize("check_schema_reincarnation", [False, True])
+    def test_chunk_exported_to_many_cells(self, check_schema_reincarnation):
+        if check_schema_reincarnation:
+            set("//sys/@config/chunk_manager/enable_chunk_schemas", False)
+
         self._create_table("//tmp/native", attributes={"external": False})
         write_table("//tmp/native", {"key": "x"})
         self._create_table("//tmp/foreign1", attributes={"external_cell_tag": 11})
@@ -849,6 +977,10 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
 
         wait_for_requisitions()
         tables = self._save_tables("//tmp/native", "//tmp/foreign1", "//tmp/foreign2")
+
+        if check_schema_reincarnation:
+            set("//sys/@config/chunk_manager/enable_chunk_schemas", True)
+
         self._wait_for_reincarnation("//tmp/native", datetime.utcnow(), inject_leader_switch=True)
 
         wait_for_requisitions()

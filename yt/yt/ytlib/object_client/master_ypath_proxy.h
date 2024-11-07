@@ -35,6 +35,8 @@ struct TMasterYPathProxy
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, AddMaintenance);
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, RemoveMaintenance);
 
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, GetOrRegisterSchema);
+
     template <class TRequest, class TResponse>
     class TVectorizedRequestBatcher;
 
