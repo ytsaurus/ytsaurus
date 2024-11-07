@@ -23,7 +23,7 @@ from yt_helpers import profiler_factory
 
 from yt.test_helpers import are_almost_equal
 
-from yt.common import YtError, YtResponseError
+from yt.common import YtError, YtResponseError, update
 
 import yt.environment.init_operations_archive as init_operations_archive
 
@@ -2099,3 +2099,46 @@ class TestDiskQuotaInRegularPreemption(BaseTestDiskPreemption):
         def wait_for_preemption():
             assert self._get_op_cpu_usage(starving_op) == 2.0
             assert self._get_op_cpu_usage(blocking_op) == 2.0
+
+
+class TestDiskQuotaInRegularPreemptionMultipleMedia(BaseTestDiskPreemption):
+    DELTA_NODE_CONFIG = update(BaseTestDiskPreemption.DELTA_NODE_CONFIG, {
+        "exec_node": {
+            "gpu_manager": {
+                "testing": {
+                    "test_resource": True,
+                    "test_gpu_count": 8,
+                },
+            },
+        },
+    })
+
+    @classmethod
+    def _setup_media(cls):
+        disk_quota = 5 * 1024 * 1024
+        cls._setup_media_impl(ssd_location_disk_quota=disk_quota, non_ssd_location_disk_quota=disk_quota, default_medium_name=cls.SSD_MEDIUM)
+
+    @authors("omgronny")
+    def test_do_not_consider_disk_in_full_host_gpu_operation(self):
+        create_pool("first", attributes={"strong_guarantee_resources": {"cpu": 2.0, "gpu": 8}})
+        create_pool("second", attributes={"strong_guarantee_resources": {"cpu": 2.0 * 3, "gpu": 8 * 3}})
+
+        blocking_op = self._run_sleeping_vanilla_with_ssd(
+            disk_space=2,
+            medium_name=TestDiskQuotaInRegularPreemption.SSD_MEDIUM,
+            job_count=2,
+            task_patch={"gpu_limit": 8, "cpu_limit": 2.0, "enable_gpu_layers": False},
+            spec={"pool": "first"})
+        wait(lambda: self._get_op_cpu_usage(blocking_op) == 2.0 * 2)
+
+        starving_op = self._run_sleeping_vanilla_with_ssd(
+            disk_space=2,
+            medium_name=TestDiskQuotaInRegularPreemption.SSD_MEDIUM,
+            job_count=3,
+            task_patch={"gpu_limit": 8, "cpu_limit": 2.0, "enable_gpu_layers": False},
+            spec={"pool": "second"})
+
+        @wait_no_assert
+        def wait_for_preemption():
+            assert self._get_op_cpu_usage(starving_op) == 2.0 * 1
+            assert self._get_op_cpu_usage(blocking_op) == 2.0 * 1
