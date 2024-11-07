@@ -183,6 +183,8 @@ constexpr int UndefinedSchedulingIndex = -1;
 
 static constexpr int LargeGpuAllocationGpuDemand = 8;
 
+static constexpr int CypressNodeLimit = 1'000'000;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

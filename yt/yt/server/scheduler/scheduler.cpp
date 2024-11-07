@@ -2229,6 +2229,7 @@ private:
         YT_LOG_INFO("Requesting exec nodes information");
 
         auto req = TYPathProxy::List(GetExecNodesPath());
+        req->set_limit(CypressNodeLimit);
         ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "id",
             "tags",
@@ -2460,7 +2461,10 @@ private:
     {
         YT_LOG_DEBUG("Requesting mapping from user to default pool");
 
-        batchReq->AddRequest(TYPathProxy::Get(GetUserToDefaultPoolMapPath()), "get_user_to_default_pool");
+        auto req = TYPathProxy::Get(GetUserToDefaultPoolMapPath());
+        req->set_limit(CypressNodeLimit);
+
+        batchReq->AddRequest(std::move(req), "get_user_to_default_pool");
     }
 
     void HandleUserToDefaultPoolMap(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)

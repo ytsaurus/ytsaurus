@@ -137,6 +137,7 @@ TListOperationsResult ListOperations(
     for (int hash = 0x0; hash <= 0xFF; ++hash) {
         auto hashStr = Format("%02x", hash);
         auto req = TYPathProxy::List("//sys/operations/" + hashStr);
+        req->set_limit(CypressNodeLimit);
         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
         batchReq->AddRequest(req, "list_operations_" + hashStr);
     }
