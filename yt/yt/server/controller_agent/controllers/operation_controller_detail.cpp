@@ -7303,32 +7303,9 @@ void TOperationControllerBase::GetUserFilesAttributes()
                                     THROW_ERROR_EXCEPTION("File %v is empty", file.Path);
                                 }
 
-                                // Get access_method and filesystem attributes only for layers.
-                                auto accessMethod = attributes.Find<TString>("access_method").value_or(ToString(ELayerAccessMethod::Local));
-                                try {
-                                    file.AccessMethod = TEnumTraits<ELayerAccessMethod>::FromString(accessMethod);
-                                } catch (const std::exception& ex) {
-                                    THROW_ERROR_EXCEPTION("Attribute 'access_method' of file %v has invalid value %Qv",
-                                        file.Path,
-                                        accessMethod) << ex;
-                                }
-
-                                auto filesystem = attributes.Find<TString>("filesystem").value_or(ToString(ELayerFilesystem::Archive));
-                                try {
-                                    file.Filesystem = TEnumTraits<ELayerFilesystem>::FromString(filesystem);
-                                } catch (const std::exception& ex) {
-                                    THROW_ERROR_EXCEPTION("Attribute 'filesystem' of file %v has invalid value %Qv",
-                                        file.Path,
-                                        filesystem) << ex;
-                                }
-
-                                // Some access_method, filesystem combinations are invalid as of now.
-                                if (!AreCompatible(*file.AccessMethod, *file.Filesystem)) {
-                                    THROW_ERROR_EXCEPTION("File %v has incompatible access method %Qv and filesystem %Qv",
-                                        file.Path,
-                                        *file.AccessMethod,
-                                        *file.Filesystem);
-                                }
+                                std::tie(file.AccessMethod, file.Filesystem) = GetAccessMethodAndFilesystemFromStrings(
+                                    attributes.Find<TString>("access_method").value_or(ToString(ELayerAccessMethod::Local)),
+                                    attributes.Find<TString>("filesystem").value_or(ToString(ELayerFilesystem::Archive)));
                             }
                             break;
 
