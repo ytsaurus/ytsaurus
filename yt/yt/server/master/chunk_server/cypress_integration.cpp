@@ -717,14 +717,11 @@ public:
     using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    std::vector<std::string> GetKeys(i64 limit) const override
+    std::vector<std::string> GetKeys(i64 /*limit*/) const override
     {
         std::vector<std::string> keys;
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         for (auto [mediumId, medium] : chunkManager->Media()) {
-            if (std::ssize(keys) >= limit) {
-                break;
-            }
             keys.push_back(medium->GetName());
         }
         return keys;

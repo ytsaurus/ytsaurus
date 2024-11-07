@@ -29,9 +29,6 @@ private:
         std::vector<std::string> keys;
         keys.reserve(std::min(limit, std::ssize(shards)));
         for (auto [shardId, shard] : shards) {
-            if (std::ssize(keys) >= limit) {
-                break;
-            }
             keys.push_back(shard->GetName());
         }
 

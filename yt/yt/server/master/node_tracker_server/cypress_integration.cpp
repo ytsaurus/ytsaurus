@@ -406,9 +406,6 @@ private:
         const auto& nodes = nodeTracker->Nodes();
         keys.reserve(std::min(limit, std::ssize(nodes)));
         for (auto [nodeId, node] : nodes) {
-            if (std::ssize(keys) >= limit) {
-                break;
-            }
             if (!IsObjectAlive(node)) {
                 continue;
             }
@@ -464,9 +461,6 @@ private:
         std::vector<std::string> keys;
         keys.reserve(std::min(limit, std::ssize(nodes)));
         for (auto* node : nodes) {
-            if (std::ssize(keys) >= limit) {
-                break;
-            }
             if (!IsObjectAlive(node)) {
                 continue;
             }
@@ -515,9 +509,6 @@ private:
         std::vector<std::string> keys;
         keys.reserve(std::min(limit, hostMap.GetSize()));
         for (auto [hostId, host] : hostMap) {
-            if (std::ssize(keys) >= limit) {
-                break;
-            }
             if (!IsObjectAlive(host)) {
                 continue;
             }
@@ -568,14 +559,11 @@ public:
     using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    std::vector<std::string> GetKeys(i64 limit) const override
+    std::vector<std::string> GetKeys(i64 /*limit*/) const override
     {
         std::vector<std::string> keys;
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         for (auto [rackId, rack] : nodeTracker->Racks()) {
-            if (std::ssize(keys) >= limit) {
-                break;
-            }
             keys.push_back(rack->GetName());
         }
         return keys;
@@ -622,14 +610,11 @@ public:
     using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    std::vector<std::string> GetKeys(i64 limit) const override
+    std::vector<std::string> GetKeys(i64 /*limit*/) const override
     {
         std::vector<std::string> keys;
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         for (auto [dataCenterId, dataCenter] : nodeTracker->DataCenters()) {
-            if (std::ssize(keys) >= limit) {
-                break;
-            }
             keys.push_back(dataCenter->GetName());
         }
         return keys;
