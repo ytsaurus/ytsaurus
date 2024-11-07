@@ -11,6 +11,7 @@ SRCS(
     job_splitter_ut.cpp
     partition_keys_builder_ut.cpp
     partitions_ut.cpp
+    partitioning_parameters_ut.cpp
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)

@@ -56,6 +56,7 @@ target_sources(unittester-controller-agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/job_splitter_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/partition_keys_builder_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/partitions_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/partitioning_parameters_ut.cpp
 )
 
 
