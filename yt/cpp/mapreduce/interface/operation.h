@@ -2797,6 +2797,7 @@ enum class EJobSortField : int
     Duration   /* "duration" */,
     Progress   /* "progress" */,
     Id         /* "id" */,
+    TaskName   /* "task_name" */,
 };
 
 ///
