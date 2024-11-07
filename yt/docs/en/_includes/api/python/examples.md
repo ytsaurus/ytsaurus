@@ -101,7 +101,7 @@ home
 ...
 ```
 
-A similar example (full code at [yt/python/examples/simple_rpc](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/simple_rpc)) can be built in Python (in the Arcadia build):
+A similar example (full code at [yt/python/examples/simple_rpc](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/simple_rpc)) can be built in Python (with ya-make build):
 
 Pay attention to the additional `PEERDIR(yt/python/client_with_rpc)` in `ya.make`.
 
