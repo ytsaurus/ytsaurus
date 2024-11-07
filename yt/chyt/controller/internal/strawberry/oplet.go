@@ -1063,7 +1063,6 @@ func (oplet *Oplet) updateOpParameters(ctx context.Context, reason string) error
 
 	oplet.persistentState.YTOpACL = opACL
 	oplet.persistentState.YTOpPool = oplet.strawberrySpeclet.Pool
-	oplet.persistentState.YTOpPoolTrees = oplet.strawberrySpeclet.PoolTrees
 
 	oplet.pendingScaling = false
 
