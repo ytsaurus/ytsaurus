@@ -1605,6 +1605,10 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("use_new_sorted_pool", &TThis::UseNewSortedPool)
         .Default(false);
 
+    registrar.Parameter("samples_per_partition", &TThis::SamplesPerPartition)
+        .Default(1000)
+        .GreaterThan(1);
+
     registrar.Postprocessor([] (TSortOperationSpecBase* spec) {
         NTableClient::ValidateSortColumns(spec->SortBy);
 
@@ -1645,9 +1649,6 @@ void TSortOperationSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("output_table_path", &TThis::OutputTablePath)
         .Alias("output_path");
-    registrar.Parameter("samples_per_partition", &TThis::SamplesPerPartition)
-        .Default(1000)
-        .GreaterThan(1);
     registrar.BaseClassParameter("partition_job_io", &TSortOperationSpec::PartitionJobIO)
         .DefaultNew();
     registrar.BaseClassParameter("sort_job_io", &TSortOperationSpec::SortJobIO)
@@ -1768,6 +1769,9 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("disable_sorted_input_in_reducer", &TThis::DisableSortedInputInReducer)
+        .Default(false);
+
+    registrar.Parameter("compute_pivot_keys_from_samples", &TThis::ComputePivotKeysFromSamples)
         .Default(false);
 
     // The following settings are inherited from base but make no sense for map-reduce:
@@ -1907,6 +1911,10 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
             }
             spec->ReduceCombiner->InitEnableInputTableIndex(intermediateStreamCount, spec->SortJobIO);
             spec->ReduceCombiner->TaskTitle = "Reduce combiner";
+        }
+
+        if (spec->HasNontrivialMapper() && spec->ComputePivotKeysFromSamples) {
+            THROW_ERROR_EXCEPTION("Pivot keys computation is not allowed with nontrivial mapper");
         }
 
         spec->Reducer->InitEnableInputTableIndex(intermediateStreamCount, spec->MergeJobIO);
