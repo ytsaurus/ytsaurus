@@ -191,7 +191,7 @@ spec:
 
 Рекомендации по разметке дисков и конфигурации локаций собраны на отдельной [странице](../../admin-guide/locations.md).
 
-## Среда исполнения операций
+## Среда исполнения операций {#job-environment}
 
 `Exec Nodes` могут запускать джобы в изолированных контейнерах для обработки опции операции `docker_image`. Требуемые настройки заключены в секциях `jobResources` и `jobEnvironment` в [ExecNodeSpec](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/docs/api.md#execnodesspec). Пример [настройки кластера](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_cri.yaml).
 

@@ -103,7 +103,7 @@ list_func._yql_lazy_input = False
 SELECT $u(AsList(1,2,3));
 ```
 
-## Изменение окружения
+## Изменение окружения {#environment}
 
 ### Взаимодействие с Python из окружения
 
@@ -114,6 +114,12 @@ SELECT $u(AsList(1,2,3));
 Изменение окружения из YQL операции возможно при помощи прагм [yt.DockerImage](../../../yql/syntax/pragma.md#ytdockerimage) и [yt.LayerPaths](../../../yql/syntax/pragma.md#ytlayerpaths).
 
 Они повлияют на соответствующие параметры пользовательского скрипта, описание которых можно посмотреть в разделе [Настройки операций - Параметры пользовательского скрипта](../../../user-guide/data-processing/operations/operations-options.md#user_script_options).
+
+{% note info "Окружение по умолчанию" %}
+
+По умолчанию используется дефолтное окружение для джобов, настраиваемое администратором кластера. Оно может не содержать Python требуемой версии.
+
+{% endnote %}
 
 Пример использования библиотеки tensorflow с помощью `pragma yt.DockerImage`:
 
@@ -213,3 +219,15 @@ $infer_llama = SystemPython3_11::infer_llama(Callable<(String?)->String>, $scrip
 
 select $infer_llama("Why is the sky blue?");
 ```
+
+## FAQ
+
+### Я получаю ошибку `Module not loaded for script type: SystemPython3_8`
+
+Это означает, что функциональность не поддержана на кластере. На кластере должны присутствовать QueryTracker и YqlAgents с минимальной версией образа [YTsaurus QueryTracker 0.0.8](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fquery-tracker%2F0.0.8). Попросите администраторов кластера обновить данные компоненты.
+
+### Я получаю ошибку `libpython3.8.so.1.0: cannot open shared object file: No such file or directory`
+
+Это означает, что в окружении джоба, исполняющего функцию, нет динамической библиотеки `libpython3.8.so.1.0`. Необходимо использовать ту версию Python, которая присутствует в окружении джоба. [Подробнее](#environment).
+
+Если используется `pragma DockerImage`, то необходимо убедиться, что кластер поддерживает такой способ изменения окружения. [Подробнее](../../../admin-guide/prepare-spec.md#job-environment).
