@@ -196,6 +196,8 @@ void TExecProgram::LogToStderr(const TString& message)
 
 void TExecProgram::OpenExecutorStderr()
 {
+    NFS::MakeDirRecursive(NFS::GetDirectoryName(GetConfig()->StderrPath));
+
     ExecutorStderr_ = TFile(
         GetConfig()->StderrPath,
         EOpenModeFlag::WrOnly | EOpenModeFlag::ForAppend | EOpenModeFlag::OpenAlways);

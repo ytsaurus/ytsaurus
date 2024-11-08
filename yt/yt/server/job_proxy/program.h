@@ -12,6 +12,7 @@
 
 #include <yt/yt/server/lib/job_proxy/config.h>
 
+#include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/shutdown.h>
 
@@ -81,9 +82,9 @@ protected:
         });
 
         try {
+            NFS::MakeDirRecursive(NFS::GetDirectoryName(StderrPath_));
             SafeCreateStderrFile(StderrPath_);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Job proxy preparation (startup) failed");
             Exit(static_cast<int>(NJobProxy::EJobProxyExitCode::JobProxyPrepareFailed));
         }
 
@@ -101,8 +102,8 @@ protected:
 
         // Everything should be properly destructed.
         if (auto residualRefCount = ResetAndGetResidualRefCount(jobProxy)) {
-            YT_LOG_ERROR("Job proxy ref counter is positive at the end of job; memory leak is possible "
-                "(RefCounter: %v)",
+            YT_LOG_ERROR(
+                "Job proxy ref counter is positive at the end of job; memory leak is possible (RefCounter: %v)",
                 residualRefCount);
         }
 

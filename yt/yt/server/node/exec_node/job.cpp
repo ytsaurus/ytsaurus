@@ -566,7 +566,8 @@ void TJob::PrepareArtifact(
     GuardedAction(
         "PrepareArtifact",
         [&] {
-            YT_LOG_DEBUG("Prepare job artifact (ArtifactName: %v, PipePath: %v)",
+            YT_LOG_DEBUG(
+                "Prepare job artifact (ArtifactName: %v, PipePath: %v)",
                 artifactName,
                 pipePath);
 
@@ -596,7 +597,8 @@ void TJob::PrepareArtifact(
             traceContext->PackBaggage(std::move(baggage));
 
             if (artifact.BypassArtifactCache) {
-                YT_LOG_INFO("Download artifact with cache bypass (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
+                YT_LOG_INFO(
+                    "Download artifact with cache bypass (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
                     artifact.Name,
                     artifact.Executable,
                     artifact.SandboxKind,
@@ -616,7 +618,8 @@ void TJob::PrepareArtifact(
             } else if (artifact.CopyFile) {
                 YT_VERIFY(artifact.Chunk);
 
-                YT_LOG_INFO("Copy artifact (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
+                YT_LOG_INFO(
+                    "Copy artifact (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
                     artifact.Name,
                     artifact.Executable,
                     artifact.SandboxKind,
@@ -748,14 +751,16 @@ void TJob::Terminate(EJobState finalState, TError error)
             break;
 
         case EJobPhase::FinalizingJobProxy:
-            YT_LOG_INFO("Cannot terminate job (JobState: %v, JobPhase: %v, JobError: %v)",
+            YT_LOG_INFO(
+                "Cannot terminate job (JobState: %v, JobPhase: %v, JobError: %v)",
                 JobState_,
                 JobPhase_,
                 Error_);
             break;
 
         default:
-            YT_LOG_INFO("Cannot terminate job (JobState: %v, JobPhase: %v)",
+            YT_LOG_INFO(
+                "Cannot terminate job (JobState: %v, JobPhase: %v)",
                 JobState_,
                 JobPhase_);
 
@@ -2696,7 +2701,8 @@ void TJob::Cleanup()
                 YT_LOG_ERROR(ex, "Failed to clean sandbox (SlotIndex: %v)", slot->GetSlotIndex());
             }
         } else {
-            YT_LOG_WARNING("Sandbox cleanup is disabled by environment variable %v; should be used for testing purposes only",
+            YT_LOG_WARNING(
+                "Sandbox cleanup is disabled by environment variable %v; should be used for testing purposes only",
                 DisableSandboxCleanupEnv);
         }
     }
@@ -2735,7 +2741,8 @@ void TJob::CleanupNbdExports()
                     TNbdProfilerCounters::MakeTagSet(artifactKey.data_source().path()),
                     "/device/unregistered_unexpected").Increment(1);
 
-                YT_LOG_ERROR("NBD export is still registered, unregister it (ExportId: %v, Path: %v)",
+                YT_LOG_ERROR(
+                    "NBD export is still registered, unregister it (ExportId: %v, Path: %v)",
                     artifactKey.nbd_export_id(),
                     artifactKey.data_source().path());
                 nbdServer->TryUnregisterDevice(artifactKey.nbd_export_id());
@@ -2743,7 +2750,8 @@ void TJob::CleanupNbdExports()
         }
 
         if (VirtualSandboxData_ && nbdServer->IsDeviceRegistered(VirtualSandboxData_->NbdExportId)) {
-            YT_LOG_ERROR("NBD virtual layer is still registered, unregister it (ExportId: %v)",
+            YT_LOG_ERROR(
+                "NBD virtual layer is still registered, unregister it (ExportId: %v)",
                 VirtualSandboxData_->NbdExportId);
             nbdServer->TryUnregisterDevice(VirtualSandboxData_->NbdExportId);
         }
@@ -2829,12 +2837,14 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
         }
 
         if (attempt >= CommonConfig_->NodeDirectoryPrepareRetryCount) {
-            YT_LOG_WARNING("Some node ids were not resolved, skipping corresponding replicas (UnresolvedNodeId: %v)",
+            YT_LOG_WARNING(
+                "Some node ids were not resolved, skipping corresponding replicas (UnresolvedNodeId: %v)",
                 *unresolvedNodeId);
             break;
         }
 
-        YT_LOG_INFO("Unresolved node id found in job spec; backing off and retrying (NodeId: %v, Attempt: %v)",
+        YT_LOG_INFO(
+            "Unresolved node id found in job spec; backing off and retrying (NodeId: %v, Attempt: %v)",
             *unresolvedNodeId,
             attempt);
         TDelayedExecutor::WaitForDuration(CommonConfig_->NodeDirectoryPrepareBackoffTime);
@@ -2952,7 +2962,6 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
     const auto& jobProxyConfig = Bootstrap_->GetConfig()->ExecNode->JobProxy;
 
-    // This replace logic is used for testing puproses.
     proxyConfig->Logging->UpdateWriters([&] (const IMapNodePtr& writerConfigNode) {
         auto writerConfig = ConvertTo<NLogging::TLogWriterConfigPtr>(writerConfigNode);
         if (writerConfig->Type != NLogging::TFileLogWriterConfig::WriterType) {
@@ -2975,10 +2984,25 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
     if (proxyConfig->StderrPath) {
         tryReplaceSlotIndex(*proxyConfig->StderrPath);
+        if (jobProxyConfig->JobProxyLogging->Mode == EJobProxyLoggingMode::PerJobDirectory) {
+            const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
+            YT_VERIFY(jobProxyLogManager);
+
+            *proxyConfig->StderrPath = jobProxyLogManager->AdjustLogPath(Id_, *proxyConfig->StderrPath);
+            YT_LOG_DEBUG("Job proxy stderr path is %v", *proxyConfig->StderrPath);
+        }
     }
 
     if (proxyConfig->ExecutorStderrPath) {
         tryReplaceSlotIndex(*proxyConfig->ExecutorStderrPath);
+        if (jobProxyConfig->JobProxyLogging->Mode == EJobProxyLoggingMode::PerJobDirectory) {
+            const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
+            YT_VERIFY(jobProxyLogManager);
+
+            *proxyConfig->ExecutorStderrPath = jobProxyLogManager->AdjustLogPath(Id_, *proxyConfig->ExecutorStderrPath);
+            YT_LOG_DEBUG("Executor stderr path is %v", *proxyConfig->ExecutorStderrPath);
+
+        }
     }
 
     for (const auto& slot : GetGpuSlots()) {
@@ -3398,7 +3422,8 @@ TFuture<std::vector<NDataNode::IChunkPtr>> TJob::DownloadArtifacts()
             continue;
         }
 
-        YT_LOG_INFO("Download user file (FileName: %v, SandboxKind: %v, CompressedDataSize: %v)",
+        YT_LOG_INFO(
+            "Download user file (FileName: %v, SandboxKind: %v, CompressedDataSize: %v)",
             artifact.Name,
             artifact.SandboxKind,
             artifact.Key.GetCompressedDataSize());
@@ -3413,7 +3438,8 @@ TFuture<std::vector<NDataNode::IChunkPtr>> TJob::DownloadArtifacts()
                     fileName);
 
                 const auto& chunk = chunkOrError.Value();
-                YT_LOG_INFO("Artifact chunk ready (FileName: %v, LocationId: %v, ChunkId: %v)",
+                YT_LOG_INFO(
+                    "Artifact chunk ready (FileName: %v, LocationId: %v, ChunkId: %v)",
                     fileName,
                     chunk->GetLocation()->GetId(),
                     chunk->GetId());
@@ -3738,7 +3764,8 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vecto
         totalGpuMemory += gpuInfo.MemoryTotal;
     }
 
-    YT_LOG_DEBUG("Updated job aggregate GPU statistics (AggregateGpuStatistics: %v, TotalGpuMemory: %v)",
+    YT_LOG_DEBUG(
+        "Updated job aggregate GPU statistics (AggregateGpuStatistics: %v, TotalGpuMemory: %v)",
         aggregatedGpuStatistics,
         totalGpuMemory);
 
@@ -4013,7 +4040,9 @@ void TJob::CollectSensorsFromStatistics(ISensorWriter* writer)
     try {
         statisticsNode = ConvertTo<IMapNodePtr>(StatisticsYson_);
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(TError(ex), "Failed to convert statistics to map node (JobId: %v, OperationId: %v)",
+        YT_LOG_WARNING(
+            TError(ex),
+            "Failed to convert statistics to map node (JobId: %v, OperationId: %v)",
             GetId(),
             GetOperationId());
         return;
@@ -4039,14 +4068,17 @@ void TJob::CollectSensorsFromStatistics(ISensorWriter* writer)
                 continue;
             }
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(TError(ex), "Error looking for statistics node (SensorName: %v, Path: %v)",
+            YT_LOG_DEBUG(
+                TError(ex),
+                "Error looking for statistics node (SensorName: %v, Path: %v)",
                 sensorName,
                 sensor->Path);
             continue;
         }
 
         if (node->GetType() != ENodeType::Int64) {
-            YT_LOG_DEBUG("Wrong type of sensor (SensorName: %v, ExpectedType: %v, ActualType: %v)",
+            YT_LOG_DEBUG(
+                "Wrong type of sensor (SensorName: %v, ExpectedType: %v, ActualType: %v)",
                 sensorName,
                 ENodeType::Int64,
                 node->GetType());
