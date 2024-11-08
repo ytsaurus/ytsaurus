@@ -125,6 +125,7 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
     if (!newConfig) {
         YT_LOG_ERROR("Failed to make cluster throttlers config (Config: %v)",
             *newConfigYson);
+        DistributedThrottlerFactory_.Reset();
         return;
     }
 
