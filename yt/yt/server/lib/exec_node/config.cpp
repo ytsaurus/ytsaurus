@@ -785,7 +785,7 @@ void TLogDumpDynamicConfig::Register(TRegistrar registrar)
 void TJobProxyLogManagerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("logs_storage_period", &TThis::LogsStoragePeriod)
-        .Default(TDuration::Days(7));
+        .Default();
 
     registrar.Parameter("directory_traversal_concurrency", &TThis::DirectoryTraversalConcurrency)
         .Default()
