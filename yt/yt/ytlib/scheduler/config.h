@@ -1959,6 +1959,8 @@ public:
     //! remote master caches.
     bool UseRemoteMasterCaches;
 
+    bool AllowClusterConnection;
+
     REGISTER_YSON_STRUCT(TRemoteCopyOperationSpec);
 
     static void Register(TRegistrar registrar);
