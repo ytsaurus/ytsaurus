@@ -1172,6 +1172,16 @@ public:
         if (!Networks_ && Options_->Networks) {
             Networks_ = Options_->Networks;
         }
+
+        if (!Spec_->AllowClusterConnection) {
+            THROW_ERROR_EXCEPTION_IF(
+                Spec_->ClusterConnection,
+                "\"cluster_connection\" is not allowed in remote copy operation spec");
+
+            THROW_ERROR_EXCEPTION_UNLESS(
+                Spec_->ClusterName,
+                "\"cluster_name\" is not set in remote copy operation spec");
+        }
     }
 
     void Persist(const TPersistenceContext& context) override

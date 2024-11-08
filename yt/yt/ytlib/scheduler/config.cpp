@@ -1978,6 +1978,8 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("use_remote_master_caches", &TThis::UseRemoteMasterCaches)
         .Default(false);
+    registrar.Parameter("allow_cluster_connection", &TThis::AllowClusterConnection)
+        .Default(true);
 
     registrar.Preprocessor([] (TRemoteCopyOperationSpec* spec) {
         // NB: in remote copy operation chunks are never decompressed,
