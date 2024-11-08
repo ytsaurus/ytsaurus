@@ -12,6 +12,7 @@ type RestartRequiredOptions struct {
 	PreemptionMode   *string      `yson:"preemption_mode"`
 	LayerPaths       []ypath.Path `yson:"layer_paths"`
 	EnableCPUReclaim *bool        `yson:"enable_cpu_reclaim"`
+	PoolTrees        []string     `yson:"pool_trees"`
 }
 
 type Speclet struct {
@@ -24,8 +25,7 @@ type Speclet struct {
 	// it will be restarted despite the RestartOnSpecletChange option.
 	MinSpecletRevision yt.Revision `yson:"min_speclet_revision"`
 
-	PoolTrees []string `yson:"pool_trees"`
-	Pool      *string  `yson:"pool"`
+	Pool *string `yson:"pool"`
 
 	ResumeMarker string `yson:"resume_marker"`
 
