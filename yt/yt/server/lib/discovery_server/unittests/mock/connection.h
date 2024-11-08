@@ -11,6 +11,16 @@ class TMockDistributedThrottlerConnection
     : public NApi::NNative::IConnection
 {
 public:
+    void SubscribeReconfigured(const TCallback<TReconfiguredSignature>&) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+    void UnsubscribeReconfigured(const TCallback<TReconfiguredSignature>&) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+public:
     explicit TMockDistributedThrottlerConnection(NDiscoveryClient::TDiscoveryConnectionConfigPtr config);
 
     const NApi::NNative::TConnectionStaticConfigPtr& GetStaticConfig() const override

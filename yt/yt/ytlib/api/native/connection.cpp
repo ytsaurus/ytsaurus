@@ -157,6 +157,9 @@ class TConnection
     : public IConnection
 {
 public:
+    DEFINE_SIGNAL_OVERRIDE(TReconfiguredSignature, Reconfigured);
+
+public:
     TConnection(
         TConnectionStaticConfigPtr staticConfig,
         TConnectionDynamicConfigPtr dynamicConfig,
@@ -866,6 +869,7 @@ public:
         }
 
         Config_.Store(dynamicConfig);
+        Reconfigured_.Fire(dynamicConfig);
     }
 
     TYsonString GetConfigYson() const override
