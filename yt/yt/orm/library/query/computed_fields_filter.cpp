@@ -275,6 +275,10 @@ std::pair<TExpressionPtr, TExpressionPtr> SplitFilter(
     std::function<bool(TReferenceExpressionPtr)> detector,
     TExpressionPtr filter)
 {
+    if (!filter) {
+        return {nullptr, nullptr};
+    }
+
     auto subTrees = SplitIntoSubTrees(context, filter);
 
     TComputedFieldsChecker checker(std::move(detector));
