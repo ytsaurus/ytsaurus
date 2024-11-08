@@ -134,6 +134,10 @@ class TTestConnection
     : public IConnection
 {
 public:
+    MOCK_METHOD(void, SubscribeReconfigured, (const TCallback<TReconfiguredSignature>& newConfig), (override));
+    MOCK_METHOD(void, UnsubscribeReconfigured, (const TCallback<TReconfiguredSignature>& newConfig), (override));
+
+public:
     explicit TTestConnection(
         NRpc::IChannelFactoryPtr channelFactory,
         NNodeTrackerClient::TNetworkPreferenceList networkPreferenceList,

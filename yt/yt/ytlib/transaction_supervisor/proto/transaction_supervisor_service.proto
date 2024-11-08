@@ -1,6 +1,7 @@
 package NYT.NTransactionSupervisor.NProto.NTransactionSupervisor;
 
 import "yt_proto/yt/client/hive/proto/timestamp_map.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,6 +49,30 @@ message TReqPingTransaction
 
 message TRspPingTransaction
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPingTransactions
+{
+    message TSubrequest
+    {
+        // NB: Repeats TReqPingTransaction fields.
+        required NYT.NProto.TGuid transaction_id = 1;
+        optional bool ping_ancestors = 2 [default = false];
+    }
+
+    repeated TSubrequest subrequests = 1;
+}
+
+message TRspPingTransactions
+{ 
+    message TSubresponse
+    {
+        optional NYT.NProto.TError error = 1;
+    } 
+
+    repeated TSubresponse subresponses = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

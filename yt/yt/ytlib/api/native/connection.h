@@ -169,6 +169,9 @@ struct IConnection
     virtual NRpc::IChannelPtr GetShuffleServiceChannelOrThrow() = 0;
 
     virtual NRpc::IChannelPtr CreateChannelByAddress(const TString& address) = 0;
+
+    using TReconfiguredSignature = void(const TConnectionDynamicConfigPtr& newConfig);
+    DECLARE_INTERFACE_SIGNAL(TReconfiguredSignature, Reconfigured);
 };
 
 DEFINE_REFCOUNTED_TYPE(IConnection)
