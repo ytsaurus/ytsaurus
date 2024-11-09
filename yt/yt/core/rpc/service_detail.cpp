@@ -959,11 +959,12 @@ private:
 
         {
             const auto& authenticationIdentity = GetAuthenticationIdentity();
-            TCodicilGuard codicilGuard(Format("RequestId: %v, Method: %v.%v, AuthenticationIdentity: %v",
-                GetRequestId(),
-                GetService(),
-                GetMethod(),
-                authenticationIdentity));
+            // XXX(babenko): disable this nasty pessimization in 24.2
+            // TCodicilGuard codicilGuard(Format("RequestId: %v, Method: %v.%v, AuthenticationIdentity: %v",
+            //     GetRequestId(),
+            //     GetService(),
+            //     GetMethod(),
+            //     authenticationIdentity));
             TCurrentAuthenticationIdentityGuard identityGuard(&authenticationIdentity);
             handler(this, descriptor.Options);
         }
