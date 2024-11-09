@@ -156,8 +156,6 @@ using NCypressClient::EObjectType;
 
 static constexpr auto DisableSandboxCleanupEnv = "YT_DISABLE_SANDBOX_CLEANUP";
 
-static const TString SlotIndexPattern("\%slot_index\%");
-
 static constexpr TStringBuf DockerAuthEnvPrefix("YT_SECURE_VAULT_docker_auth=");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2953,13 +2951,6 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         }
     }
 
-    auto tryReplaceSlotIndex = [&] (TString& str) {
-        auto index = str.find(SlotIndexPattern);
-        if (index != TString::npos) {
-            str.replace(index, SlotIndexPattern.size(), ToString(GetUserSlot()->GetSlotIndex()));
-        }
-    };
-
     const auto& jobProxyConfig = Bootstrap_->GetConfig()->ExecNode->JobProxy;
 
     proxyConfig->Logging->UpdateWriters([&] (const IMapNodePtr& writerConfigNode) {
@@ -2970,8 +2961,6 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
         auto fileLogWriterConfig = ConvertTo<NLogging::TFileLogWriterConfigPtr>(writerConfigNode);
 
-        // COMPAT(pogorelov): Remove after tests will use per_job_directory job proxy logging.
-        tryReplaceSlotIndex(fileLogWriterConfig->FileName);
         if (jobProxyConfig->JobProxyLogging->Mode == EJobProxyLoggingMode::PerJobDirectory) {
             const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
             YT_VERIFY(jobProxyLogManager);
@@ -2983,7 +2972,6 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     });
 
     if (proxyConfig->StderrPath) {
-        tryReplaceSlotIndex(*proxyConfig->StderrPath);
         if (jobProxyConfig->JobProxyLogging->Mode == EJobProxyLoggingMode::PerJobDirectory) {
             const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
             YT_VERIFY(jobProxyLogManager);
@@ -2994,7 +2982,6 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     }
 
     if (proxyConfig->ExecutorStderrPath) {
-        tryReplaceSlotIndex(*proxyConfig->ExecutorStderrPath);
         if (jobProxyConfig->JobProxyLogging->Mode == EJobProxyLoggingMode::PerJobDirectory) {
             const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
             YT_VERIFY(jobProxyLogManager);
