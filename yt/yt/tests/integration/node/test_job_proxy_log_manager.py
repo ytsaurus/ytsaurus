@@ -30,6 +30,18 @@ def log_dir_from_job_id(path_to_run, job_id):
     )
 
 
+def verify_job_proxy_logs_exist(path_to_run, job_id):
+    log_dir = log_dir_from_job_id(path_to_run, job_id)
+
+    files = os.listdir(log_dir)
+
+    print_debug(f"Files in log dir {log_dir} are: ", files)
+
+    assert len(files) >= 2
+    assert "job_proxy-0.debug.log" in files
+    assert "job_proxy-0.log" in files
+
+
 class TestJobProxyLogging(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
@@ -65,11 +77,7 @@ class TestJobProxyLogging(YTEnvSetup):
         assert len(job_ids) == job_count
 
         for job_id in job_ids:
-            log_dir = log_dir_from_job_id(self.path_to_run, job_id)
-            files = os.listdir(log_dir)
-            assert len(files) > 0
-            print_debug(f"Files in log dir {log_dir} are: ", files)
-            assert all([("job_proxy" in file and "log" in file) for file in files])
+            verify_job_proxy_logs_exist(self.path_to_run, job_id)
 
 
 class TestJobProxyLogManagerBase(YTEnvSetup):
@@ -98,19 +106,10 @@ class TestJobProxyLogManagerBase(YTEnvSetup):
         },
     }
 
-    def verify_job_proxy_logs_exist(self, job_id):
-        log_dir = log_dir_from_job_id(self.path_to_run, job_id)
-
-        files = os.listdir(log_dir)
-
-        print_debug(f"Files in log dir {log_dir} are: ", files)
-
-        assert len(files) == 2
-        # COMPAT(pogorelov): Log file names currently contain slot index.
-        assert all([("job_proxy" in file and "log" in file) for file in files])
-
     def check_job_proxy_log_dir_exists(self, job_id):
         log_dir = log_dir_from_job_id(self.path_to_run, job_id)
+
+        print_debug(f"Checking job proxy log dir {log_dir} exists")
 
         return os.path.exists(log_dir)
 
@@ -136,7 +135,7 @@ class TestJobProxyLogManager(TestJobProxyLogManagerBase):
         assert len(job_ids) == job_count
 
         for job_id in job_ids:
-            self.verify_job_proxy_logs_exist(job_id)
+            verify_job_proxy_logs_exist(self.path_to_run, job_id)
 
         release_breakpoint()
 
@@ -157,7 +156,7 @@ class TestJobProxyLogManager(TestJobProxyLogManagerBase):
         op.track()
 
         for job_id in job_ids:
-            self.verify_job_proxy_logs_exist(job_id)
+            verify_job_proxy_logs_exist(self.path_to_run, job_id)
 
         with Restarter(self.Env, NODES_SERVICE):
             pass
@@ -174,7 +173,7 @@ class TestJobProxyLogManagerDynamicConfig(TestJobProxyLogManagerBase):
         release_breakpoint(job_id=job_id_1)
         op.track()
 
-        self.verify_job_proxy_logs_exist(job_id_1)
+        verify_job_proxy_logs_exist(self.path_to_run, job_id_1)
 
         update_nodes_dynamic_config({
             "exec_node": {
@@ -186,17 +185,16 @@ class TestJobProxyLogManagerDynamicConfig(TestJobProxyLogManagerBase):
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
         job_id_2 = wait_breakpoint()[0]
-        self.verify_job_proxy_logs_exist(job_id_2)
+        verify_job_proxy_logs_exist(self.path_to_run, job_id_2)
         release_breakpoint(job_id=job_id_2)
         op.track()
 
         print_debug(f"Waiting for {job_id_2} job proxy log removal")
 
         wait(lambda: not self.check_job_proxy_log_dir_exists(job_id_2))
-        self.verify_job_proxy_logs_exist(job_id_1)
+        verify_job_proxy_logs_exist(self.path_to_run, job_id_1)
 
 
-@pytest.skip("Tests are currently broken (YT-22012)")
 class TestDumpJobProxyLog(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 2

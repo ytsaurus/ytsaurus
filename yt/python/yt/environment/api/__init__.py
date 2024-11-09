@@ -46,8 +46,9 @@ class LocalYtConfig(object):
     store_location_count = attr.ib(1)
     use_slot_user_id = attr.ib(True)
     cri_endpoint = attr.ib(None)
+    # COMPAT(pogorelov)
     job_proxy_logging = attr.ib(factory=lambda: {
-        "mode": "simple",
+        "mode": "per_job_directory",
     })
     job_proxy_log_manager = attr.ib(factory=lambda: {
         "sharding_key_length": 1,
