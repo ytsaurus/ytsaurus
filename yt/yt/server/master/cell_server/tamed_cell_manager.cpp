@@ -1093,7 +1093,7 @@ public:
         if (!cellBundle) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
-                "No such %lv cell bundle %Qlv",
+                "No such %lv cell bundle %Qv",
                 cellarType,
                 name);
         }
