@@ -808,7 +808,6 @@ public:
         }
 
         NestedMerger_.UnpackKeyColumns(NestedKeyColumns_, NestedColumnsSchema_.KeyColumns);
-        NestedMerger_.BuildMergeScript();
 
         for (int index = 0; index < std::ssize(NestedColumnsSchema_.KeyColumns); ++index) {
             auto nestedKeyColumnId = NestedColumnsSchema_.KeyColumns[index].Id;
@@ -852,7 +851,7 @@ public:
             if (valueIt < endCompactValueIt) {
                 auto initialAggregateFlags = valueIt->Flags & EValueFlags::Aggregate;
 
-                auto mergedValue = NestedMerger_.ApplyMergeScript(
+                auto mergedValue = NestedMerger_.BuildMergedValueColumn(
                     {valueIt, endCompactValueIt},
                     NestedColumnsSchema_.ValueColumns[index].Type,
                     NestedColumnsSchema_.ValueColumns[index].AggregateFunction,

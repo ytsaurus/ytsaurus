@@ -42,32 +42,30 @@ public:
     void UnpackKeyColumns(TRange<TMutableRange<TVersionedValue>> keyColumns, TRange<TNestedKeyColumn> keyColumnsSchema);
     void UnpackKeyColumns(TRange<std::vector<TVersionedValue>> keyColumns, TRange<TNestedKeyColumn> keyColumnsSchema);
 
-    // Can be merged with UnpackKeyColumns.
-    void BuildMergeScript();
-
     TVersionedValue BuildMergedKeyColumns(int index, TRowBuffer* rowBuffer);
-    TVersionedValue ApplyMergeScript(
+    TVersionedValue BuildMergedValueColumn(
         TRange<TVersionedValue> values,
         EValueType elementType,
         TAggregateFunction* aggregateFunction,
         TRowBuffer* rowBuffer);
 
 private:
-    std::vector<int> Counts_;
-    std::vector<int> Ids_;
+    std::vector<int> NestedRowCounts_;
+    std::vector<int> RowIds_;
 
     std::vector<int> Offsets_;
     std::vector<TTimestamp> Timestamps_;
 
     std::vector<std::vector<TUnversionedValue>> UnpackedKeys_;
 
-    std::vector<int> Heap_;
+    std::vector<int> RowIdHeap_;
     std::vector<int> CurrentOffsets_;
-    // TODO(lukyan): Keep end offsets instead of offsets and evaluate start offsets each time.
-    std::vector<int> EndOffsets_;
 
     std::vector<TUnversionedValue> UnpackedValues_;
     std::vector<TUnversionedValue> ResultValues_;
+
+    std::vector<int> OrderingTranslationLayer_;
+
 
     void UnpackKeyColumn(
         ui16 keyColumnId,
@@ -79,13 +77,15 @@ private:
         int keyWidth,
         int mergeStreamCount);
 
+    void BuildMergeScript();
+
     TUnversionedValue BuildMergedKeyColumns(
         TRange<int> counts,
         TRange<int> ids,
         TRange<TUnversionedValue> unpackedKeys,
         TRowBuffer* rowBuffer);
 
-    TVersionedValue ApplyMergeScript(
+    TVersionedValue BuildMergedValueColumn(
         TRange<int> counts,
         TRange<int> ids,
         TRange<TTimestamp> timestamps,
@@ -93,7 +93,6 @@ private:
         EValueType elementType,
         TAggregateFunction* aggregateFunction,
         TRowBuffer* rowBuffer);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
