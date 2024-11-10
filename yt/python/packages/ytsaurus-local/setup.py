@@ -30,7 +30,15 @@ def main():
     setup(
         name=PACKAGE_NAME,
         version=version,
-        packages=["yt.local", "yt.environment", "yt.environment.api", "yt.environment.migrationlib", "yt.test_helpers"],
+        packages=[
+            "yt.local",
+            "yt.environment",
+            "yt.environment.api",
+            "yt.environment.components.query_tracker",
+            "yt.environment.components.yql_agent",
+            "yt.environment.migrationlib",
+            "yt.test_helpers",
+        ],
         scripts=scripts,
 
         author="YTsaurus",

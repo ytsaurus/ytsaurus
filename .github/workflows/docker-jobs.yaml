@@ -134,7 +134,7 @@ jobs:
           output_path=../docker-local-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           mkdir -p $output_path
 
-          ./ytsaurus/yt/docker/ytsaurus/build.sh --component local --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/
+          ./ytsaurus/yt/docker/ytsaurus/build.sh --component local --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --yql-build-path ${{ steps.vars.outputs.YQL_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/
 
           docker push ghcr.io/ytsaurus/local:${{ steps.vars.outputs.IMAGE_TAG }}
           docker tag ghcr.io/ytsaurus/local:${{ steps.vars.outputs.IMAGE_TAG }} ghcr.io/ytsaurus/local-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
