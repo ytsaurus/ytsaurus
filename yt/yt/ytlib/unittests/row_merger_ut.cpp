@@ -551,7 +551,6 @@ TEST_F(TUnversionedRowMergerTest, MergeNestedColumns1)
         GetNestedColumnsSchema(schemaPtr));
 
     {
-
         auto row = BuildUnversionedRow("<id=0>0; <id=1;>0; <id=2;aggregate=true>[]; <id=3;aggregate=true>[]");
         merger->InitPartialRow(row);
         merger->AddPartialRow(row);
@@ -563,13 +562,12 @@ TEST_F(TUnversionedRowMergerTest, MergeNestedColumns1)
     }
 
     {
-
-        auto row = BuildUnversionedRow("<id=0> 0; <id=1>0; <id=2;aggregate=true>[]; <id=3;aggregate=true>[]");
+        auto row = BuildUnversionedRow("<id=0>0; <id=1>0; <id=2;aggregate=true>[]; <id=3;aggregate=true>[]");
         merger->InitPartialRow(row);
         merger->AddPartialRow(row);
 
-        merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1>1; <id=2;aggregate=true>[1; 2]; <id=3;aggregate=true>[10; 20]; <id=4;aggregate=true>[a; b]"));
-        merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1>2; <id=2;aggregate=true>[2; 3]; <id=3;aggregate=true>[20; 30]; <id=4;aggregate=true>[c; d]"));
+        merger->AddPartialRow(BuildUnversionedRow("<id=0>0; <id=1>1; <id=2;aggregate=true>[2; 1]; <id=3;aggregate=true>[20; 10]; <id=4;aggregate=true>[b; a]"));
+        merger->AddPartialRow(BuildUnversionedRow("<id=0>0; <id=1>2; <id=2;aggregate=true>[2; 3]; <id=3;aggregate=true>[20; 30]; <id=4;aggregate=true>[c; d]"));
 
         EXPECT_EQ(
             BuildUnversionedRow(
