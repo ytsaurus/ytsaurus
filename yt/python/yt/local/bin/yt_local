@@ -160,7 +160,7 @@ def add_start_subparser(subparsers):
     parser.add_argument("--enable-bundle-controller", action="store_true", default=False, help="use bundle controller instead of cell balancer")
     parser.add_argument("--cell-balancer-count", type=int, default=0, help="number of cell balancers (bundle controllers if enabled) (default: %(default)s)")
 
-    parser.add_argument("-c", "--component", action=ParseStructuredArguments, help="additional components", required=False, dest="components", nargs="*")
+    parser.add_argument("-c", "--component", action=ParseStructuredArguments, help="additional components", required=False, dest="components")
 
     for service in SERVICE_LIST:
         config_parser = parser.add_mutually_exclusive_group(required=False)

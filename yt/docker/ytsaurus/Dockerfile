@@ -205,7 +205,21 @@ COPY ./credits/chyt-controller.CREDITS /usr/bin/strawberry-controller.CREDITS
 FROM base-exec AS local-bloated
 
 COPY ./ytserver-all /usr/bin/ytserver-all
-COPY ./credits/ytserver-all.CREDITS /usr/bin/ytserver-all.CREDITS
+COPY ./ytserver-yql-agent /usr/bin/ytserver-yql-agent
+COPY ./credits/*.CREDITS /usr/bin
+COPY ./mrjob /usr/bin/mrjob
+COPY ./dq_vanilla_job /usr/bin/dq_vanilla_job
+COPY ./dq_vanilla_job.lite /usr/bin/dq_vanilla_job.lite
+COPY ./yql/* /usr/bin
+
+# Libpython shared objects that are needed for YQL system python UDFs to work.
+# TODO(aleksandr.gaev) use stubs instead. We don't need working libpythons here.
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+  libpython3.8 \
+  libpython3.9 \
+  libpython3.10 \
+  libpython3.11 \
+  libpython3.12
 
 FROM scratch AS local
 COPY --from=local-bloated / /

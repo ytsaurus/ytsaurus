@@ -141,15 +141,38 @@ elif [[ "${component}" == "strawberry" ]]; then
 elif [[ "${component}" == "local" ]]; then
 
     ytserver_all="${ytsaurus_build_path}/yt/yt/server/all/ytserver-all"
-    ytserver_all_credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits/ytsaurus/ytserver-all.CREDITS"
+    ytserver_all_credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits/ytsaurus"
+
+    ytserver_yql_agent="${yql_build_path}/yt/yql/agent/bin/ytserver-yql-agent"
+    init_query_tracker_state="${ytsaurus_source_path}/yt/python/yt/environment/init_query_tracker_state.py"
+    mrjob="${yql_build_path}/ydb/library/yql/tools/mrjob/mrjob"
+    dq_vanilla_job="${yql_build_path}/ydb/library/yql/yt/dq_vanilla_job/dq_vanilla_job"
+    dq_vanilla_job_lite="${yql_build_path}/ydb/library/yql/yt/dq_vanilla_job.lite/dq_vanilla_job.lite"
+
+    ytsaurus_credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits/ytsaurus"
+    qt_credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits/query-tracker"
     configure_file="${ytsaurus_source_path}/yt/docker/local/configure.sh"
     start_file="${ytsaurus_source_path}/yt/docker/local/start.sh"
 
     cp ${ytserver_all} ${output_path}
     cp -r ${ytsaurus_build_path}/ytsaurus_python ${output_path}
-    cp ${ytserver_all_credits} ${output_path}/credits
+
+    # YQL/QT files.
+    cp ${ytserver_yql_agent} ${output_path}
+    cp ${mrjob} ${output_path}
+    cp ${dq_vanilla_job} ${output_path}
+    cp ${dq_vanilla_job_lite} ${output_path}
+    cp ${init_query_tracker_state} ${output_path}
+    cp -r ${yql_build_path}/yql_shared_libraries/yql ${output_path}/yql
+
+    # YT local specific files.
     cp ${configure_file} ${output_path}
     cp ${start_file} ${output_path}
+
+    # Credits.
+    mkdir -p ${output_path}/credits
+    cp -r ${ytserver_all_credits}/*.CREDITS ${output_path}/credits
+    cp -r ${qt_credits}/*.CREDITS ${output_path}/credits
 
 else
     echo "Unknown component: ${component}"
