@@ -75,7 +75,7 @@ struct IDictionaryDecompressionSession
     //! to decompress corresponding element of #compressedValues. No dictionary id can be null.
     //! NB: #compressedValues and #dictionaryIds must be of equal size.
     virtual TFuture<std::vector<TSharedRef>> DecompressValues(
-        std::vector<TUnversionedValue*> compressedValues,
+        TSharedRange<TUnversionedValue*> values,
         std::vector<NChunkClient::TChunkId> dictionaryIds,
         NChunkClient::TClientChunkReadOptions chunkReadOptions) = 0;
 
