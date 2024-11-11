@@ -235,15 +235,12 @@ private:
             , Logger(Server_->GetLogger().WithTag("ConnectionId: %v", TGuid::Create()))
             , ResponseInvoker_(CreateBoundedConcurrencyInvoker(Server_->GetInvoker(), /*maxConcurrentInvocations*/ 1))
         {
-            Connection_->SubscribePeerDisconnect(BIND([this, this_ = MakeStrong(this)]() {
-                if (!Abort_) {
-                    // Normally peer should disconnect after NBD_CMD_DISC which sets Abort_. This check could be racy.
-                    TNbdProfilerCounters::Get()->GetCounter({}, "/server/connection/unexpected_disconnect").Increment(1);
-                    YT_LOG_DEBUG("Unexpected disonnect from peer (RemoteAddress: %v)", Connection_->GetRemoteAddress());
-                } else {
+            Connection_->SubscribePeerDisconnect(BIND([this, this_ = MakeWeak(this)]() {
+                if (auto lock = this_.Lock()) {
+                    Abort_ = true;
                     YT_LOG_DEBUG("Peer disconnected (RemoteAddress: %v)", Connection_->GetRemoteAddress());
                 }
-                Abort_ = true;
+                TNbdProfilerCounters::Get()->GetCounter({}, "/server/connection/peer_disconnect").Increment(1);
             }));
         }
 
