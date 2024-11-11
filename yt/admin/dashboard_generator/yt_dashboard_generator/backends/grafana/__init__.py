@@ -116,18 +116,18 @@ class ExprFuncSerializer:
 
     @staticmethod
     def moving_avg(serializer, expression):
-        query_parts, other_tags = serializer._prepare_expr_query(expression.args[1])
+        query_parts, other_tags = serializer._prepare_expr_query(expression.args[2])
         return f"(avg_over_time({query_parts}[{expression.args[1]}]))", other_tags
 
     @staticmethod
     def series_avg(serializer, expression):
-        query_parts, other_tags = serializer._prepare_expr_query(expression.args[1])
-        return f"(avg by({expression.args[1]}) {query_parts})", other_tags
+        query_parts, other_tags = serializer._prepare_expr_query(expression.args[2])
+        return f"avg by({expression.args[1]}) ({query_parts})", other_tags
 
     @staticmethod
     def series_max(serializer, expression):
-        query_parts, other_tags = serializer._prepare_expr_query(expression.args[1])
-        return f"(max by({expression.args[1]}) {query_parts})", other_tags
+        query_parts, other_tags = serializer._prepare_expr_query(expression.args[2])
+        return f"max by({expression.args[1]}) ({query_parts})", other_tags
 
 
 ##################################################################
