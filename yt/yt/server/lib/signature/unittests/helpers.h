@@ -8,14 +8,19 @@ namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TKeyPairMetadata SimpleMetadata(auto createdDelta, auto validAfterDelta, auto expiresAtDelta)
+TKeyPairMetadata SimpleMetadata(
+    auto createdDelta,
+    auto validAfterDelta,
+    auto expiresAtDelta,
+    TKeyId keyId = TKeyId(TGuid::Create()),
+    TOwnerId ownerId = TOwnerId("test"))
 {
     // TODO(pavook) mock time provider.
 
     auto now = Now();
     return TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
-        .Owner = TOwnerId("test"),
-        .Id = TKeyId(TGuid::Create()),
+        .Owner = ownerId,
+        .Id = keyId,
         .CreatedAt = now + createdDelta,
         .ValidAfter = now + validAfterDelta,
         .ExpiresAt = now + expiresAtDelta,
