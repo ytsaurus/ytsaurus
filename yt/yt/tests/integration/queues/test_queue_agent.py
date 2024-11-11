@@ -65,7 +65,7 @@ class TestQueueAgent(TestQueueAgentBase):
         status = queue_orchid.get_queue_orchid("primary://tmp/q").get_status()
         assert status["partition_count"] == 1
 
-    @authors("cherepashka")
+    @authors("cherepashka", "nadya73")
     def test_frozen_tablets_do_not_contain_errors(self):
         queue_orchid = QueueAgentOrchid()
         self._create_queue("//tmp/q")
@@ -724,7 +724,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         # This shouldn't change, since it was already bigger than 3.
         self._wait_for_row_count("//tmp/q", 0, 7)
 
-    @authors("cherepashka")
+    @authors("cherepashka", "nadya73")
     def test_retained_lifetime_duration(self):
         queue_agent_orchid = QueueAgentOrchid()
         cypress_synchronizer_orchid = CypressSynchronizerOrchid()
@@ -791,7 +791,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         self._wait_for_row_count("//tmp/q", 1, 5)
         self._wait_for_min_row_index("//tmp/q", 1, 3)
 
-    @authors("cherepashka")
+    @authors("cherepashka", "nadya73")
     def test_retained_lifetime_duration_and_rows(self):
         queue_agent_orchid = QueueAgentOrchid()
         cypress_synchronizer_orchid = CypressSynchronizerOrchid()
@@ -860,7 +860,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         self._wait_for_row_count("//tmp/q", 1, 2)
         self._wait_for_min_row_index("//tmp/q", 1, 6)
 
-    @authors("cherepashka")
+    @authors("cherepashka", "nadya73")
     def test_trim_via_object_id(self):
         queue_agent_orchid = QueueAgentOrchid()
         cypress_synchronizer_orchid = CypressSynchronizerOrchid()
@@ -1156,7 +1156,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
 
         self._wait_for_row_count("//tmp/q", 0, 3)
 
-    @authors("cherepashka")
+    @authors("cherepashka", "nadya73")
     def test_trim_only_mounted_tablets(self):
         queue_agent_orchid = QueueAgentOrchid()
 
@@ -1939,7 +1939,7 @@ class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
 
         wait(lambda: not alert_orchid.get_alerts())
 
-    @authors("cherepashka")
+    @authors("cherepashka", "nadya73")
     @pytest.mark.parametrize("policy", ["polling", "watching"])
     def test_queue_recreation(self, policy):
         self._apply_dynamic_config_patch({
