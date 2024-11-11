@@ -97,14 +97,7 @@ DECLARE_REFCOUNTED_STRUCT(IJobEnvironment)
 
 DECLARE_REFCOUNTED_STRUCT(IJobProxyLogManager)
 
-DEFINE_ENUM(EExecNodeThrottlerKind,
-    //! Controls incoming bandwidth used by Artifact Cache downloads.
-    (ArtifactCacheIn)
-    //! Controls incoming bandwidth consumed by local jobs.
-    (JobIn)
-    //! Controls outcoming bandwidth consumed by local jobs.
-    (JobOut)
-);
+DECLARE_REFCOUNTED_CLASS(IThrottlerManager)
 
 DEFINE_ENUM(ESlotType,
     //! With cpu_policy=normal
