@@ -2377,7 +2377,7 @@ bool TSchedulerOperationElement::IsLightweightEligible() const
 
 bool TSchedulerOperationElement::IsLightweight() const
 {
-    return IsLightweightEligible() && Parent_->AreLightweightOperationsEnabled();
+    return IsLightweightEligible() && Parent_->GetEffectiveLightweightOperationsEnabled();
 }
 
 void TSchedulerOperationElement::MarkPendingBy(TSchedulerCompositeElement* violatedPool)
