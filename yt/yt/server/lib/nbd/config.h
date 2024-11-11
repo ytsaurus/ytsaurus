@@ -103,7 +103,7 @@ public:
     // For testing purposes: abort connection on read request
     bool TestAbortConnectionOnRead;
 
-    i64 ThreadCount;
+    int ThreadCount;
     i64 BlockCacheCompressedDataCapacity;
 
     REGISTER_YSON_STRUCT(TNbdServerConfig);
