@@ -101,6 +101,8 @@
 
 #include <yt/yt/core/rpc/bus/channel.h>
 
+#include <yt/yt/core/ypath/helpers.h>
+
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
 
@@ -116,6 +118,7 @@ using namespace NRpc;
 using namespace NJobProxy;
 using namespace NYTree;
 using namespace NYson;
+using namespace NYPath;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NTableClient;
@@ -4049,7 +4052,7 @@ void TJob::CollectSensorsFromStatistics(ISensorWriter* writer)
 
         INodePtr node;
         try {
-            node = FindNodeByYPath(statisticsNode, sensor->Path + "/last");
+            node = FindNodeByYPath(statisticsNode, YPathJoin(sensor->Path, "last"));
             if (!node) {
                 YT_LOG_DEBUG("Statistics node not found (SensorName: %v, Path: %v)", sensorName, sensor->Path);
                 continue;

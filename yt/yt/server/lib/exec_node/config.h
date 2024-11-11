@@ -232,7 +232,7 @@ class TUserJobStatisticSensor
     : public TUserJobSensor
 {
 public:
-    TString Path;
+    NYPath::TYPath Path;
 
     REGISTER_YSON_STRUCT(TUserJobStatisticSensor);
 
