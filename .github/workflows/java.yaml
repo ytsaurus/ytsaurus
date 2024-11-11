@@ -38,6 +38,13 @@ jobs:
           repository: ytsaurus/ytsaurus
           regex: 'java-sdk/*'
 
+      - name: Check ENABLE_JAVA_SNAPSHOT_PUBLISHING
+        run: |
+          if [ ${{ env.ENABLE_JAVA_SNAPSHOT_PUBLISHING != '1' }} ]; then
+            echo "Snapshot publishing is disabled."
+            exit 0
+          fi
+
       - name: Get snapshot release version
         id: release_version
         run: |
