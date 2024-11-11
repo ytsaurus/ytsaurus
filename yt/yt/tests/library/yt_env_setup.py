@@ -695,12 +695,6 @@ class YTEnvSetup(object):
             enable_chyt_http_proxies=cls.get_param("ENABLE_CHYT_HTTP_PROXIES", index),
             enable_chyt_https_proxies=cls.get_param("ENABLE_CHYT_HTTPS_PROXIES", index),
             delta_global_cluster_connection_config={
-                "table_mount_cache": {
-                    "expire_after_successful_update_time": 60000,
-                    "refresh_time": 60000,
-                    "expire_after_failed_update_time": 1000,
-                    "expire_after_access_time": 300000,
-                },
                 "permission_cache": {
                     "expire_after_successful_update_time": 60000,
                     "refresh_time": 60000,
@@ -989,7 +983,6 @@ class YTEnvSetup(object):
                     "in_memory_mode": "uncompressed",
                 },
                 driver=ground_driver)
-            yt_commands.mount_table(table_path, driver=ground_driver)
 
         unapproved_chunk_replicas_path = DESCRIPTORS.unapproved_chunk_replicas.get_default_path()
         yt_commands.set(f"{unapproved_chunk_replicas_path}/@mount_config/min_data_versions", 0, driver=ground_driver)
@@ -1004,7 +997,8 @@ class YTEnvSetup(object):
         yt_commands.set(f"{response_keeper_path}/@mount_config/max_data_ttl", 1000, driver=ground_driver)
 
         for descriptor in DESCRIPTORS.as_dict().values():
-            yt_commands.wait_for_tablet_state(descriptor.get_default_path(), "mounted", driver=ground_driver)
+            table_path = descriptor.get_default_path()
+            yt_commands.sync_mount_table(table_path, driver=ground_driver)
 
     @classmethod
     def apply_node_dynamic_config_patches(cls, config, ytserver_version, cluster_index):
