@@ -359,7 +359,7 @@ protected:
          */
         TNodeId AttachmentPointNodeId;
         //! The name of target node (or subtree root) to create.
-        TString TargetNodeKey;
+        std::string TargetNodeKey;
     };
 
     //! Replaces subtree with (maybe empty) chain of map-nodes and locks
@@ -387,7 +387,7 @@ protected:
      *    //a should be locked.
      */
     TSubtreeReplacementResult ReplaceSubtreeWithMapNodeChain(
-        TRange<TString> unresolvedSuffixTokens,
+        TRange<std::string> unresolvedSuffixTokens,
         bool force,
         std::vector<TCypressNodeDescriptor>* removedNodes = nullptr)
     {

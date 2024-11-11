@@ -2,6 +2,8 @@
 
 namespace NYT::NCypressProxy {
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TPerUserAndWorkloadRequestQueueProvider::TPerUserAndWorkloadRequestQueueProvider(
@@ -24,7 +26,7 @@ bool TPerUserAndWorkloadRequestQueueProvider::IsReconfigurationPermitted(const T
 TPerUserAndWorkloadRequestQueueProvider::TKeyFromRequestHeaderCallback TPerUserAndWorkloadRequestQueueProvider::CreateKeyFromRequestHeaderCallback()
 {
     return BIND([] (const NRpc::NProto::TRequestHeader& header) -> TKey {
-        auto userName = header.has_user() ? ::NYT::FromProto<TString>(header.user()) : RootUserName;
+        auto userName = header.has_user() ? FromProto<std::string>(header.user()) : RootUserName;
         const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
         auto workloadType = ypathExt.mutating() ? EUserWorkloadType::Write : EUserWorkloadType::Read;
         return {userName, workloadType};

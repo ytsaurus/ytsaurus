@@ -116,7 +116,7 @@ TNodeId LookupNodeId(
 TNodeId CreateIntermediateNodes(
     const TAbsoluteYPath& parentPath,
     TNodeId parentId,
-    TRange<TString> nodeKeys,
+    TRange<std::string> nodeKeys,
     const ISequoiaTransactionPtr& transaction)
 {
     auto currentNodePath = parentPath;

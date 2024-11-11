@@ -39,6 +39,7 @@ using namespace NRpc;
 using namespace NYTree;
 
 using NYT::FromProto;
+using NYT::ToProto;
 using NSequoiaClient::TRawYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,7 +49,7 @@ class TObjectService
     , public TServiceBase
 {
 public:
-    TObjectService(IBootstrap* bootstrap)
+    explicit TObjectService(IBootstrap* bootstrap)
         : TServiceBase(
             /*invoker*/ nullptr,
             TObjectServiceProxy::GetDescriptor(),
@@ -152,7 +153,8 @@ private:
                     "BytesThrottler",
                     CypressProxyLogger()),
                 Owner_->ThrottlerFactory_->GetOrCreateThrottler(
-                    throttlerId,
+                    // TODO(babenko): migrate to std::string
+                    TString(throttlerId),
                     throttlerConfig));
         }
     };
@@ -187,7 +189,8 @@ private:
             // TODO(danilalexeev): Implement public methods to explicitly set request queue's throttlers.
             auto queueName = GetRequestQueueNameForKey(userNameAndWorkloadType);
             auto throttlerId = GetDistributedWeightThrottlerId(queueName);
-            throttlerFactory->GetOrCreateThrottler(throttlerId, newConfig);
+            // TODO(babenko): migrate to std::string
+            throttlerFactory->GetOrCreateThrottler(TString(throttlerId), newConfig);
         });
     }
 
@@ -488,7 +491,7 @@ private:
                 ypathExt->set_original_target_path(ypathExt->target_path());
             }
 
-            ypathExt->set_target_path(TString(newPath));
+            ypathExt->set_target_path(ToProto<TProtobufString>(newPath));
         }
 
         subrequest->RequestMessage = SetRequestHeader(

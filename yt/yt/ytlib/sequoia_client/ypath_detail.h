@@ -145,7 +145,7 @@ public:
     void operator+=(const TYPathBase<false, T>& rhs);
 
     //! Appends literal to the path with introducing a directory separator.
-    void Append(TString literal);
+    void Append(TStringBuf literal);
 
     //! Allows to modify underlying string. Absolutely unsafe since there are no
     //! validations.
