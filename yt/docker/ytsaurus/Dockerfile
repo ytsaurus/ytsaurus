@@ -1,4 +1,4 @@
-# Arguments used in FROM statemensts need to be declared before the first FROM statement.
+# Arguments used in FROM statements need to be declared before the first FROM statement.
 
 # Args for ytsaurus-server-override.
 ARG BASE_REPOSITORY="ghcr.io/ytsaurus/ytsaurus-nightly"
@@ -14,6 +14,7 @@ ARG ODIN_CHECKS_DIR="${ODIN_RUNTIME_ROOT}/checks"
 ARG ODIN_CHECKS_DATA_DIR="${ODIN_RUNTIME_ROOT}/checks-data"
 
 # Flow control args.
+# copy-ytsaurus-python-binaries or build-ytsaurus-python-binaries
 ARG PYTHON_BUILD_BASE="copy-ytsaurus-python-binaries"
 ARG ROOT_IMAGE="ubuntu-base"
 
