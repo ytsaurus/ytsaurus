@@ -912,7 +912,7 @@ void TDataNodeConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default(10);
 
-    registrar.Parameter("max_session_out_of_turn", &TThis::MaxSessionOutOfTurn)
+    registrar.Parameter("max_out_of_turn_sessions", &TThis::MaxOutOfTurnSessions)
         .GreaterThanOrEqual(0)
         .LessThan(64)
         .Default(8);
@@ -1030,10 +1030,10 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("track_system_jobs_memory", &TThis::TrackSystemJobsMemory)
         .Default(true);
 
-    registrar.Parameter("enable_throttling_for_get_chunk_fragment_set", &TThis::EnableThrottlingForGetChunkFragmentSet)
+    registrar.Parameter("enable_get_chunk_fragment_set_throttling", &TThis::EnableGetChunkFragmentSetThrottling)
         .Default(false);
 
-    registrar.Parameter("enable_memory_tracking_for_get_chunk_fragment_set", &TThis::EnableMemoryTrackingForGetChunkFragmentSet)
+    registrar.Parameter("enable_get_chunk_fragment_set_memory_tracking", &TThis::EnableGetChunkFragmentSetMemoryTracking)
         .Default(false);
 
     registrar.Parameter("publish_disabled_locations", &TThis::PublishDisabledLocations)

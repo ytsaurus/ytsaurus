@@ -1014,7 +1014,7 @@ public:
     //! Number of tablet errors sent in heartbeat.
     int MaxTabletErrorsInHeartbeat;
 
-    int MaxSessionOutOfTurn;
+    int MaxOutOfTurnSessions;
 
     //! Delay between node initialization and start of background artifact validation.
     TDuration BackgroundArtifactValidationDelay;
@@ -1073,8 +1073,8 @@ public:
 
     bool TrackSystemJobsMemory;
 
-    bool EnableThrottlingForGetChunkFragmentSet;
-    bool EnableMemoryTrackingForGetChunkFragmentSet;
+    bool EnableGetChunkFragmentSetThrottling;
+    bool EnableGetChunkFragmentSetMemoryTracking;
 
     //! Publish disabled locations to master.
     std::optional<bool> PublishDisabledLocations;

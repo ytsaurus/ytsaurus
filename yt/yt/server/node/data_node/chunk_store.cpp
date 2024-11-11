@@ -88,9 +88,7 @@ public:
 
     bool CanPassSessionOutOfTurn(TSessionId sessionId) override
     {
-        auto sessionManager = Bootstrap_->GetDataNodeBootstrap()->GetSessionManager();
-
-        if (sessionManager) {
+        if (auto sessionManager = Bootstrap_->GetDataNodeBootstrap()->GetSessionManager()) {
             return sessionManager->CanPassSessionOutOfTurn(sessionId);
         } else {
             return false;

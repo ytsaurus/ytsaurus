@@ -3542,8 +3542,7 @@ private:
             rsp->GetTotalSize(),
             std::memory_order::relaxed);
 
-        auto reader = Reader_.Lock();
-        if (reader) {
+        if (auto reader = Reader_.Lock()) {
             reader->AccountTraffic(rsp->GetTotalSize(), *respondedPeer.NodeDescriptor);
         }
 
