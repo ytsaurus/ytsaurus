@@ -1858,6 +1858,10 @@ class TestOperationJobResourceLimitsRestrictions(YTEnvSetup):
         }
     }
 
+    def setup_method(self, method):
+        super(TestOperationJobResourceLimitsRestrictions, self).setup_method(method)
+        create_pool_tree("other", config={"nodes_filter": "other"})
+
     @authors("eshcherbin")
     def test_simple(self):
         update_pool_tree_config(
@@ -1875,26 +1879,31 @@ class TestOperationJobResourceLimitsRestrictions(YTEnvSetup):
 
         run_test_vanilla("echo OK >&2", track=True)
 
-        with raises_yt_error(yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
-            run_test_vanilla("echo FAIL >&2", task_patch={"cpu_limit": 0.5}, track=True)
+        def check_op(task_patch):
+            with raises_yt_error(yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
+                run_test_vanilla("echo FAIL >&2", task_patch=task_patch, track=True)
 
-        with raises_yt_error(yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
-            run_test_vanilla("echo FAIL >&2", task_patch={"cpu_limit": 1.0, "gpu_limit": 8}, track=True)
+            op = run_sleeping_vanilla(spec={"pool_trees": ["default", "other"]}, task_patch=task_patch)
+            op.wait_for_state("running")
+            wait(lambda: "default" in get(op.get_path() + "/@runtime_parameters/erased_trees", []))
+            op.abort()
 
-        with raises_yt_error(yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
-            run_test_vanilla("echo FAIL >&2", task_patch={"cpu_limit": 2.0, "gpu_limit": 8}, track=True)
+        check_op({"cpu_limit": 0.5})
+        check_op({"cpu_limit": 1.0, "gpu_limit": 8})
+        check_op({"cpu_limit": 2.0, "gpu_limit": 8})
+        check_op({"cpu_limit": 2.0, "gpu_limit": 4})
 
-        with raises_yt_error(yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
-            run_test_vanilla("echo FAIL >&2", task_patch={"cpu_limit": 2.0, "gpu_limit": 4}, track=True)
-
-        run_test_vanilla("echo OK >&2", task_patch={"gpu_limit": 4}, track=True)
+        op = run_sleeping_vanilla(spec={"pool_trees": ["default", "other"]}, task_patch={"gpu_limit": 4})
+        wait(lambda: not get(op.get_path() + "/@runtime_parameters/erased_trees", []))
 
     @authors("eshcherbin")
     def test_old_revived_operations_do_not_fail(self):
-        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
+        op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"))
+        op2 = run_test_vanilla(with_breakpoint("BREAKPOINT") + "; sleep 1000", spec={"pool_trees": ["default", "other"]})
 
-        wait_breakpoint()
-        op.wait_for_fresh_snapshot()
+        wait_breakpoint(job_count=2)
+        op1.wait_for_fresh_snapshot()
+        op2.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             # Forbid operations without gpu demand.
@@ -1905,10 +1914,13 @@ class TestOperationJobResourceLimitsRestrictions(YTEnvSetup):
                 },
             )
 
-        op.wait_for_state("running")
+        op1.wait_for_state("running")
+        op2.wait_for_state("running")
 
         release_breakpoint()
-        op.track()
+        op1.track()
+
+        wait(lambda: not get(op2.get_path() + "/@runtime_parameters/erased_trees", []))
 
         with raises_yt_error(yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
             run_test_vanilla("echo FAIL >&2", track=True)
