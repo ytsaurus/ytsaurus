@@ -86,7 +86,9 @@ class MonitoringExpr(Taggable):
     def series_avg(self, label):
         return self.func("series_avg", f'"{label}"', self)
 
-    def series_sum(self, label):
+    def series_sum(self, label=None):
+        if label is None:
+            return self.func("series_sum", None, self)
         return self.func("series_sum", f'"{label}"', self)
 
     def series_min(self, label):
