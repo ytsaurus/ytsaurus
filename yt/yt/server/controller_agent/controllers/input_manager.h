@@ -116,11 +116,9 @@ class TInputCluster
     : public TRefCounted
 {
 public:
-    NScheduler::TClusterName Name;
-    NLogging::TSerializableLogger Logger;
-
     using TPathToInputTablesMapping = THashMap<TString, std::vector<TInputTablePtr>>;
 
+    DEFINE_BYREF_RO_PROPERTY(NScheduler::TClusterName, Name);
     DEFINE_BYREF_RW_PROPERTY(NApi::NNative::IClientPtr, Client, nullptr);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::TNodeDirectoryPtr, NodeDirectory, New<NNodeTrackerClient::TNodeDirectory>());
     DEFINE_BYREF_RW_PROPERTY(std::vector<TInputTablePtr>, InputTables);
@@ -142,6 +140,11 @@ public:
     void InitializeClient(NApi::NNative::IClientPtr localClient);
 
     void Persist(const TPersistenceContext& context);
+
+    NLogging::TLogger GetLogger() const;
+
+private:
+    NLogging::TSerializableLogger Logger;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputCluster)

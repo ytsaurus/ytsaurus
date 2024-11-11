@@ -175,7 +175,7 @@ std::vector<TRichTransactionId> TInputTransactionsManager::RestoreFromNestedTran
     }
 
     std::vector<TRichTransactionId> flatTransactionIds(ParentToTransaction_.size());
-    std::map<TRichTransactionId, int> parentToIndex;
+    THashMap<TRichTransactionId, int> parentToIndex;
     for (const auto& [i, parentAndTransaction] : Enumerate(ParentToTransaction_)) {
         const auto& [parent, _] = parentAndTransaction;
         YT_VERIFY(IsLocal(parent.Cluster));
