@@ -30,6 +30,7 @@ target_link_libraries(unittester-signature-service PUBLIC
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
+  client-unittests-mock
   yt-core-test_framework
   server-lib-signature
   signature-unittests-mock
@@ -53,6 +54,7 @@ target_link_options(unittester-signature-service PRIVATE
 )
 
 target_sources(unittester-signature-service PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/cypress_key_store_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/key_info_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/key_pair_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/signature_ut.cpp

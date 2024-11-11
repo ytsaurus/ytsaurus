@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 ALLOCATOR(TCMALLOC)
 
 SRCS(
+    cypress_key_store_ut.cpp
     key_info_ut.cpp
     key_pair_ut.cpp
     signature_ut.cpp
@@ -17,6 +18,7 @@ SRCS(
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
+    yt/yt/client/unittests/mock
     yt/yt/core/test_framework
     yt/yt/server/lib/signature
     yt/yt/server/lib/signature/unittests/mock

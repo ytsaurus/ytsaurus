@@ -28,12 +28,14 @@ target_link_libraries(server-lib-signature PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
+  yt-yt-ytlib
   contrib-libs-libsodium
   cpp-string_utils-secret_string
 )
 
 target_sources(server-lib-signature PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/crypto.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/cypress_key_store.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/key_info.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/key_pair.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/signature.cpp
