@@ -156,6 +156,7 @@ class TestMigration(YTEnvSetup):
             "finished_queries_by_user_and_start_time",
             "finished_queries_by_start_time",
             "finished_queries",
+            "finished_queries_results",
             "active_queries",
         ]
 

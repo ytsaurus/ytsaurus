@@ -753,10 +753,10 @@ FINISHED_QUERIES_TABLE_BY_ACO_AND_START_TIME_V10 = TableInfo(
     ],
     optimize_for="lookup",
     attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
         "min_data_ttl": 0,
         "merge_rows_on_flush": True,
         "auto_compaction_period": 3600000,
-        "tablet_cell_bundle": SYS_BUNDLE_NAME,
     },
 )
 
@@ -801,6 +801,27 @@ FINISHED_QUERIES_TABLE_BY_START_TIME_V10 = TableInfo(
     },
 )
 
+FINISHED_QUERIES_RESULTS_V10 = TableInfo(
+    [
+        ("query_id", "string"),
+        ("result_index", "int64"),
+    ],
+    [
+        ("error", "any"),
+        ("schema", "any"),
+        ("data_statistics", "any"),
+        ("rowset", "string"),
+        ("is_truncated", "boolean"),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+        "min_data_ttl": 0,
+        "merge_rows_on_flush": True,
+        "auto_compaction_period": 3600000,
+    },
+)
+
 TRANSFORMS[10] = [
     Conversion(
         "finished_queries_by_aco_and_start_time",
@@ -817,6 +838,10 @@ TRANSFORMS[10] = [
     Conversion(
         "finished_queries",
         table_info=FINISHED_QUERIES_V10,
+    ),
+    Conversion(
+        "finished_queries_results",
+        table_info=FINISHED_QUERIES_RESULTS_V10,
     ),
     Conversion(
         "active_queries",
