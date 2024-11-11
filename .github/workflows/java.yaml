@@ -38,19 +38,13 @@ jobs:
           repository: ytsaurus/ytsaurus
           regex: 'java-sdk/*'
 
-      - name: Check ENABLE_JAVA_SNAPSHOT_PUBLISHING
-        run: |
-          if [ ${{ env.ENABLE_JAVA_SNAPSHOT_PUBLISHING != '1' }} ]; then
-            echo "Snapshot publishing is disabled."
-            exit 0
-          fi
-
       - name: Get snapshot release version
         id: release_version
         run: |
           LATEST_TAG=${{ steps.latest_tag.outputs.tag }}; echo "RELEASE_VERSION=$(echo ${LATEST_TAG#java-sdk/})" >> $GITHUB_OUTPUT
 
       - name: Publish snapshot
+        if: ${{ env.ENABLE_JAVA_SNAPSHOT_PUBLISHING == '1' }}
         run: ./gradlew publish -PossrhUsername=${{ secrets.OSSRH_USERNAME }} -PossrhPassword=${{ secrets.OSSRH_PASSWORD }} -Pversion="${{ steps.release_version.outputs.RELEASE_VERSION }}-SNAPSHOT" -PsigningPassword=${{ secrets.GPG_PASSWORD }} -PsigningKey="${{ secrets.GPG_PRIVATE_KEY }}"
 
   send-notifications:
