@@ -129,6 +129,11 @@ class ExprFuncSerializer:
         query_parts, other_tags = serializer._prepare_expr_query(expression.args[2])
         return f"max by({expression.args[1]}) ({query_parts})", other_tags
 
+    @staticmethod
+    def series_sum(serializer, expression):
+        query_parts, other_tags = serializer._prepare_expr_query(expression.args[2])
+        return f"sum by({expression.args[1]}) ({query_parts})", other_tags
+
 
 ##################################################################
 
@@ -160,8 +165,9 @@ class GrafanaSerializerBase(SerializerBase):
             "top_min": lambda expression: ExprFuncSerializer.topk_expr_builder(self, expression),
             "bottom_min": lambda expression: ExprFuncSerializer.bottomk_expr_builder(self, expression),
             "moving_avg": lambda expression: ExprFuncSerializer.moving_avg(self, expression),
-            "series_avg": lambda expression: ExprFuncSerializer.moving_avg(self, expression),
-            "series_max": lambda expression: ExprFuncSerializer.moving_avg(self, expression),
+            "series_avg": lambda expression: ExprFuncSerializer.series_avg(self, expression),
+            "series_max": lambda expression: ExprFuncSerializer.series_max(self, expression),
+            "series_sum": lambda expression: ExprFuncSerializer.series_sum(self, expression),
         }
         builder = builders.get(expression.args[0])
         if builder is None:
@@ -423,6 +429,20 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
 
         max_len = max(len(row) for row in rows)
         width = self.BOARD_WIDTH // max_len
+
+        row_header = {
+            "gridPos": {
+                "h": 1,
+                "w": self.BOARD_WIDTH,
+                "x": 0,
+                "y": self.vertical_offset
+            },
+            "type": "row"
+        }
+        if rowset.name is not None:
+            row_header["title"] = rowset.name
+        self.panels.append(row_header)
+        self.vertical_offset += 1
 
         def _get_grid_pos(i, x_shift, height):
             return dict(x=x_shift + i * width, y=self.vertical_offset, w=width, h=height)
