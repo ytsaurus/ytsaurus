@@ -366,12 +366,11 @@ void RedirectToDataProxy(const IRequestPtr& request, const IResponseWriterPtr& r
         } else {
             protocol = "http";
         }
-        auto port = url.Port ? Format(":%v", *url.Port) : "";
 
-        auto location = Format("%v://%v%v%v?%v",
+        auto location = Format("%v://%v:%v%v?%v",
             protocol,
             target->GetHost(),
-            port,
+            request->GetPort(),
             url.Path,
             url.RawQuery);
 
