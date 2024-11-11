@@ -18,7 +18,7 @@ PUSH_DISABLE_WARNINGS_FOR_LLVM_HEADERS
 #include <llvm-c/Disassembler.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/StringRef.h>
-#include <llvm/ADT/Triple.h>
+#include <llvm/TargetParser/Triple.h>
 #include <llvm/ADT/ilist_iterator.h>
 #include <llvm/CodeGen/TargetSubtargetInfo.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
@@ -29,7 +29,7 @@ PUSH_DISABLE_WARNINGS_FOR_LLVM_HEADERS
 #include <llvm/Object/SymbolSize.h>
 #include <llvm/Pass.h>
 #include <llvm/Support/FileSystem.h>
-#include <llvm/Support/Host.h>
+#include <llvm/TargetParser/Host.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/Scalar.h>
@@ -93,7 +93,9 @@ static void optimizeLLVMModule(llvm::Module& llvmModule, bool shouldLogMetrics)
 	fpm.add(llvm::createPromoteMemoryToRegisterPass());
 	fpm.add(llvm::createInstructionCombiningPass());
 	fpm.add(llvm::createCFGSimplificationPass());
+#if LLVM_VERSION_MAJOR <= 16
 	fpm.add(llvm::createJumpThreadingPass());
+#endif
 #if LLVM_VERSION_MAJOR >= 12
 	// LLVM 12 removed the constant propagation pass in favor of the instsimplify pass, which is
 	// itself marked as legacy.

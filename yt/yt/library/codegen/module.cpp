@@ -5,7 +5,10 @@
 #include "llvm_migrate_helpers.h"
 #include "msan.h"
 
-#include <llvm/ADT/Triple.h>
+// Valid for LLVM-18
+#include <llvm/TargetParser/Triple.h>
+#include <llvm/TargetParser/Host.h>
+#include <llvm/Passes/PassBuilder.h>
 
 #if !LLVM_VERSION_GE(3, 7)
 #error "LLVM 3.7 or 3.9 or 4.0 is required."
@@ -26,13 +29,13 @@
 #include <llvm/MC/MCContext.h>
 #include <llvm/Object/ObjectFile.h>
 #include <llvm/Passes/PassBuilder.h>
-#include <llvm/Support/Host.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/SmallVectorMemoryBuffer.h>
 #include <llvm/CodeGen/Passes.h>
 #include <llvm/TargetParser/X86TargetParser.h>
 #include <llvm/Transforms/IPO.h>
-#include <llvm/Transforms/IPO/PassManagerBuilder.h>
+#include <llvm/Transforms/IPO/Internalize.h>
+#include <llvm/Transforms/IPO/GlobalDCE.h>
 #include <llvm/Transforms/Instrumentation.h>
 #include <llvm/Transforms/Instrumentation/MemorySanitizer.h>
 
@@ -221,7 +224,7 @@ public:
         llvm::EngineBuilder builder(std::move(cgModule));
         builder
             .setEngineKind(llvm::EngineKind::JIT)
-            .setOptLevel(llvm::CodeGenOpt::Default)
+            .setOptLevel(llvm::CodeGenOptLevel::Default)
             .setMCJITMemoryManager(std::make_unique<TCGMemoryManager>(RoutineRegistry_))
             .setMCPU(cpu)
             .setErrorStr(&what)
@@ -364,18 +367,20 @@ private:
 
     void RunInternalizePass() const
     {
-        auto modulePassManager = llvm::legacy::PassManager();
-
-        modulePassManager.add(llvm::createInternalizePass([&] (const llvm::GlobalValue& gv) -> bool {
+        llvm::ModuleAnalysisManager moduleAnalysisManager;
+        llvm::ModulePassManager modulePassManager;
+        auto mustPreserveGV = [&] (const llvm::GlobalValue& gv) -> bool {
             auto name = TString(gv.getName().str());
             return ExportedSymbols_.count(name) > 0;
-        }));
-
-        modulePassManager.add(llvm::createGlobalDCEPass());
-        modulePassManager.run(*Module_);
+        };
+        llvm::PassBuilder passBuilder;
+        passBuilder.registerModuleAnalyses(moduleAnalysisManager);
+        modulePassManager.addPass(llvm::InternalizePass(mustPreserveGV));
+        modulePassManager.addPass(llvm::GlobalDCEPass());
+        modulePassManager.run(*Module_, moduleAnalysisManager);
     }
 
-    void OptimizeAndAddMSanViaNewPassManager() const
+    void OptimizeAndAddMSanViaNewPassManager(bool AddMSan) const
     {
         llvm::LoopAnalysisManager loopAnalysisManager;
         llvm::FunctionAnalysisManager functionalAnalysisManager;
@@ -397,53 +402,19 @@ private:
         llvm::ModulePassManager modulePassManager = passBuilder.buildO0DefaultPipeline(
             llvm::OptimizationLevel::O0);
 
-        modulePassManager.addPass(
-            llvm::MemorySanitizerPass(llvm::MemorySanitizerOptions()));
+        if (AddMSan) {
+            modulePassManager.addPass(
+                llvm::MemorySanitizerPass(llvm::MemorySanitizerOptions()));
+        }
 
         modulePassManager.run(*Module_, moduleAnalysisManager);
     }
 
-    void OptimizeViaLegacyPassManager() const
-    {
-        llvm::PassManagerBuilder passManagerBuilder;
-        passManagerBuilder.OptLevel = 0;
-        passManagerBuilder.SizeLevel = 0;
-        passManagerBuilder.SLPVectorize = true;
-        passManagerBuilder.LoopVectorize = true;
-        passManagerBuilder.Inliner = llvm::createFunctionInliningPass();
-
-        auto functionPassManager = llvm::legacy::FunctionPassManager(Module_);
-
-        passManagerBuilder.populateFunctionPassManager(functionPassManager);
-
-        functionPassManager.doInitialization();
-        for (auto it = Module_->begin(), jt = Module_->end(); it != jt; ++it) {
-            if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
-                it->removeFnAttr("target-cpu");
-                it->removeFnAttr("target-features");
-            }
-
-            if (!it->isDeclaration()) {
-                functionPassManager.run(*it);
-            }
-        }
-        functionPassManager.doFinalization();
-
-        auto modulePassManager = llvm::legacy::PassManager();
-
-        passManagerBuilder.populateModulePassManager(modulePassManager);
-        modulePassManager.run(*Module_);
-    }
-
     void OptimizeIR() const
     {
-        if (NSan::MSanIsOn() &&
-            ExecutionBackend_ == EExecutionBackend::Native) // NB(dtorilov): MSan at WebAssembly is not supported.
-        {
-            OptimizeAndAddMSanViaNewPassManager();
-        } else {
-            OptimizeViaLegacyPassManager();
-        }
+        bool addMsan = NSan::MSanIsOn() &&
+            ExecutionBackend_ == EExecutionBackend::Native; // NB(dtorilov): MSan at WebAssembly is not supported.
+        OptimizeAndAddMSanViaNewPassManager(addMsan);
     }
 
     void Compile()
