@@ -138,6 +138,7 @@ private:
         }
 
         auto responseSharedRefParts = response.ToVector();
+        // TODO(babenko): migrate to std::string
         std::vector<TString> responseStringParts;
         responseStringParts.reserve(responseSharedRefParts.size());
         std::transform(
@@ -183,9 +184,10 @@ private:
             responseStringParts.begin(),
             responseStringParts.end(),
             std::back_inserter(responseSharedRefParts),
-            [] (TString s) {
-                return TSharedRef::FromString(std::move(s));
-        });
+            // TODO(babenko): migrate to std::string
+            [] (TString str) {
+                return TSharedRef::FromString(std::move(str));
+            });
 
         return TSharedRefArray(std::move(responseSharedRefParts), TSharedRefArray::TMoveParts{});
     }

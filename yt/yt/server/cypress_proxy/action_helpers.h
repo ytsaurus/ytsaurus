@@ -53,7 +53,7 @@ NCypressClient::TNodeId LookupNodeId(
 NCypressClient::TNodeId CreateIntermediateNodes(
     const NSequoiaClient::TAbsoluteYPath& parentPath,
     NCypressClient::TNodeId parentId,
-    TRange<TString> nodeKeys,
+    TRange<std::string> nodeKeys,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 //! Copies subtree.

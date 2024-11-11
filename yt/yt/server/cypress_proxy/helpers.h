@@ -19,10 +19,10 @@ void ValidateLinkNodeCreation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TString> TokenizeUnresolvedSuffix(NSequoiaClient::TYPathBuf unresolvedSuffix);
+std::vector<std::string> TokenizeUnresolvedSuffix(NSequoiaClient::TYPathBuf unresolvedSuffix);
 NSequoiaClient::TAbsoluteYPath JoinNestedNodesToPath(
     const NSequoiaClient::TAbsoluteYPath& parentPath,
-    const std::vector<TString>& childKeys);
+    const std::vector<std::string>& childKeys);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,9 +64,9 @@ TFuture<NYTree::INodePtr> FetchSingleObject(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetRequestQueueNameForKey(const std::pair<std::string, EUserWorkloadType>& userNameAndWorkloadType);
+std::string GetRequestQueueNameForKey(const std::pair<std::string, EUserWorkloadType>& userNameAndWorkloadType);
 
-TString GetDistributedWeightThrottlerId(const TString& prefix);
+std::string GetDistributedWeightThrottlerId(const std::string& prefix);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -339,9 +339,9 @@ void TBasicYPath<Absolute>::Join(const TYPathBase<false, T>& other)
 }
 
 template <bool Absolute>
-void TBasicYPath<Absolute>::Append(TString literal)
+void TBasicYPath<Absolute>::Append(TStringBuf literal)
 {
-    TBase::Path_ = NYPath::YPathJoin(NYPath::TYPath(TBase::Path_), std::move(literal));
+    TBase::Path_ = NYPath::YPathJoin(NYPath::TYPath(TBase::Path_), literal);
 }
 
 template <bool Absolute>

@@ -95,10 +95,10 @@ void ValidateLinkNodeCreation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TString> TokenizeUnresolvedSuffix(TYPathBuf unresolvedSuffix)
+std::vector<std::string> TokenizeUnresolvedSuffix(TYPathBuf unresolvedSuffix)
 {
     constexpr auto TypicalPathTokenCount = 3;
-    std::vector<TString> pathTokens;
+    std::vector<std::string> pathTokens;
     pathTokens.reserve(TypicalPathTokenCount);
 
     TTokenizer tokenizer(unresolvedSuffix.Underlying());
@@ -235,7 +235,7 @@ TFuture<NYTree::INodePtr> FetchSingleObject(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetRequestQueueNameForKey(const std::pair<std::string, EUserWorkloadType>& userNameAndWorkloadType)
+std::string GetRequestQueueNameForKey(const std::pair<std::string, EUserWorkloadType>& userNameAndWorkloadType)
 {
     return Format(
         "%v_%v",
@@ -243,7 +243,7 @@ TString GetRequestQueueNameForKey(const std::pair<std::string, EUserWorkloadType
         CamelCaseToUnderscoreCase(TEnumTraits<EUserWorkloadType>::ToString(userNameAndWorkloadType.second)));
 }
 
-TString GetDistributedWeightThrottlerId(const TString& prefix)
+std::string GetDistributedWeightThrottlerId(const std::string& prefix)
 {
     return prefix + "_weight_throttler";
 }
