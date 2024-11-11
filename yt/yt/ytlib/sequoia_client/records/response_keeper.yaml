@@ -12,7 +12,7 @@ types:
         sort_order: Ascending
 
       - cpp_name: Response
-        cpp_type: std::vector<TString>
+        cpp_type: std::vector<std::string>
         column_name: response
         column_type: Any
     verbatim: |
