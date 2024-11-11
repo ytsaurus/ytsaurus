@@ -1,10 +1,10 @@
 #include "config.h"
 
+#include <yt/yt/library/re2/re2.h>
+
 #include <yt/yt/core/concurrency/config.h>
 
 #include <yt/yt/core/https/config.h>
-
-#include <yt/yt/library/re2/re2.h>
 
 namespace NYT::NAuth {
 
@@ -142,6 +142,12 @@ void TStringReplacementConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("match_pattern", &TThis::MatchPattern);
     registrar.Parameter("replacement", &TThis::Replacement);
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->MatchPattern) {
+            THROW_ERROR_EXCEPTION("Value of \"match_pattern\" cannot be null");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

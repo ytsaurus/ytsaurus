@@ -4,6 +4,8 @@
 #include "private.h"
 #include "helpers.h"
 
+#include <yt/yt/library/re2/re2.h>
+
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/helpers.h>
 #include <yt/yt/core/http/http.h>
@@ -22,8 +24,6 @@
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
-
-#include <yt/yt/library/re2/re2.h>
 
 namespace NYT::NAuth {
 
@@ -127,7 +127,6 @@ private:
         const auto& formattedResponse = jsonResponseChecker->GetFormattedResponse()->AsMap();
         auto login = formattedResponse->GetChildValueOrThrow<TString>(Config_->UserInfoLoginField);
         for (const auto& transformation : Config_->LoginTransformations) {
-            YT_VERIFY(transformation->MatchPattern);
             auto loginBeforeTransformation = login;
             auto replacementCount = RE2::GlobalReplace(
                 &login,
