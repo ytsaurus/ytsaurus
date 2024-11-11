@@ -2,39 +2,32 @@
 
 #include <yt/yt/client/api/client.h>
 
-namespace NYT::NStateChecker {
+namespace NYT::NComponentStateChecker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStateChecker
+class IComponentStateChecker
     : public TRefCounted
 {
 public:
-    TStateChecker(IInvokerPtr invoker, NApi::IClientPtr nativeClient, NYPath::TYPath instancePath, TDuration stateCheckPeriod);
+    virtual void Start() = 0;
+    virtual void SetPeriod(TDuration stateCheckPeriod) = 0;
 
-    void Start();
-    void SetPeriod(TDuration stateCheckPeriod);
+    virtual bool IsComponentBanned() const = 0;
 
-    bool IsComponentBanned() const;
-
-    NYTree::IYPathServicePtr GetOrchidService() const;
-
-private:
-    const NLogging::TLogger Logger;
-
-    const IInvokerPtr Invoker_;
-    const NApi::IClientPtr NativeClient_;
-    const NYPath::TYPath InstancePath_;
-
-    NConcurrency::TPeriodicExecutorPtr StateCheckerExecutor_;
-    std::atomic<bool> Banned_ = false;
-
-    void DoCheckState();
-    void DoBuildOrchid(NYson::IYsonConsumer* consumer) const;
+    virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TStateChecker)
+DEFINE_REFCOUNTED_TYPE(IComponentStateChecker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NStateChecker
+IComponentStateCheckerPtr CreateComponentStateChecker(
+    IInvokerPtr invoker,
+    NApi::IClientPtr nativeClient,
+    NYPath::TYPath instancePath,
+    TDuration stateCheckPeriod);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NComponentStateChecker

@@ -73,7 +73,7 @@ using namespace NMonitoring;
 using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NOrchid;
-using namespace NStateChecker;
+using namespace NComponentStateChecker;
 using namespace NProfiling;
 using namespace NRpc;
 using namespace NTransactionClient;
@@ -211,7 +211,7 @@ void TBootstrap::DoRun()
         Config_->Root,
         DynamicConfigManager_->GetConfig()->QueryTracker->ProxyConfig);
 
-    StateChecker_ = New<TStateChecker>(
+    ComponentStateChecker_ = CreateComponentStateChecker(
         ControlInvoker_,
         NativeClient_,
         Format("%v/instances/%v", Config_->Root, ToYPathLiteral(SelfAddress_)),
@@ -219,7 +219,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/state_checker",
-        CreateVirtualNode(StateChecker_->GetOrchidService()));
+        CreateVirtualNode(ComponentStateChecker_->GetOrchidService()));
 
     RpcServer_->RegisterService(CreateAdminService(
         ControlInvoker_,
@@ -232,7 +232,7 @@ void TBootstrap::DoRun()
     RpcServer_->RegisterService(CreateProxyService(
         ProxyInvoker_,
         QueryTrackerProxy_,
-        StateChecker_));
+        ComponentStateChecker_));
 
     QueryTracker_ = CreateQueryTracker(
         DynamicConfigManager_->GetConfig()->QueryTracker,
@@ -240,7 +240,7 @@ void TBootstrap::DoRun()
         ControlInvoker_,
         CreateAlertCollector(AlertManager_),
         NativeClient_,
-        StateChecker_,
+        ComponentStateChecker_,
         Config_->Root,
         Config_->MinRequiredStateVersion);
     SetNodeByYPath(
@@ -260,7 +260,7 @@ void TBootstrap::DoRun()
     RpcServer_->Start();
 
     UpdateCypressNode();
-    StateChecker_->Start();
+    ComponentStateChecker_->Start();
 }
 
 void TBootstrap::UpdateCypressNode()
@@ -304,7 +304,7 @@ void TBootstrap::OnDynamicConfigChanged(
     if (QueryTracker_) {
         QueryTracker_->Reconfigure(newConfig->QueryTracker);
     }
-    StateChecker_->SetPeriod(newConfig->QueryTracker->StateCheckPeriod);
+    ComponentStateChecker_->SetPeriod(newConfig->QueryTracker->StateCheckPeriod);
 
     if (QueryTrackerProxy_) {
         QueryTrackerProxy_->Reconfigure(newConfig->QueryTracker->ProxyConfig);

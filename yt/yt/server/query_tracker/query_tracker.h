@@ -38,7 +38,7 @@ IQueryTrackerPtr CreateQueryTracker(
     IInvokerPtr controlInvoker,
     NAlertManager::IAlertCollectorPtr alertCollector,
     NApi::NNative::IClientPtr stateClient,
-    NStateChecker::TStateCheckerPtr stateChecker,
+    NComponentStateChecker::IComponentStateCheckerPtr ComponentStateChecker,
     NYPath::TYPath stateRoot,
     int minRequiredStateVersion);
 

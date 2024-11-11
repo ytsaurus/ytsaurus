@@ -54,7 +54,7 @@ private:
     NHttp::IServerPtr HttpServer_;
     NCoreDump::ICoreDumperPtr CoreDumper_;
 
-    NStateChecker::TStateCheckerPtr StateChecker_;
+    NComponentStateChecker::IComponentStateCheckerPtr ComponentStateChecker_;
 
     NApi::NNative::IConnectionPtr NativeConnection_;
     NApi::NNative::IClientPtr NativeClient_;
