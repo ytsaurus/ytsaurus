@@ -18,7 +18,7 @@ Example:
 2. Building artifacts for query tracker and creating a docker image.
 
     ```bash
-    ya package --docker --docker-target query-tracker package.json
+    ya package package.json
     ```
 
     - It assumes that yql artifacts are placed in `yql_build` directory
