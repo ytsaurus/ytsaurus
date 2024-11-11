@@ -207,19 +207,19 @@ std::shared_ptr<TNodeDirectoryBuilder> TNodeDirectoryBuilderFactory::GetNodeDire
 TInputCluster::TInputCluster(
     TClusterName name,
     TLogger logger)
-    : Name(std::move(name))
-    , Logger(logger.WithTag("Cluster: %v", Name))
+    : Name_(std::move(name))
+    , Logger(logger.WithTag("Cluster: %v", Name_))
 { }
 
 void TInputCluster::InitializeClient(IClientPtr localClient)
 {
-    if (IsLocal(Name)) {
+    if (IsLocal(Name_)) {
         Client_ = localClient;
     } else {
         Client_ = localClient
             ->GetNativeConnection()
             ->GetClusterDirectory()
-            ->GetConnectionOrThrow(Name.Underlying())
+            ->GetConnectionOrThrow(Name_.Underlying())
             ->CreateNativeClient(localClient->GetOptions());
     }
 }
@@ -229,7 +229,7 @@ void TInputCluster::ReportIfHasUnavailableChunks() const
     if (!UnavailableInputChunkIds_.empty()) {
         YT_LOG_INFO(
             "Have pending unavailable input chunks (Cluster: %v, SampleChunkIds: %v)",
-            Name,
+            Name_,
             MakeShrunkFormattableView(UnavailableInputChunkIds_, TDefaultFormatter(), SampleChunkIdCount));
     }
 }
@@ -238,12 +238,17 @@ void TInputCluster::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
 
-    Persist(context, Name);
+    Persist(context, Name_);
     Persist(context, Logger);
     Persist(context, NodeDirectory_);
     Persist(context, InputTables_);
     Persist(context, UnavailableInputChunkIds_);
     Persist(context, PathToInputTables_);
+}
+
+TLogger TInputCluster::GetLogger() const
+{
+    return Logger;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -433,7 +438,7 @@ TMasterChunkSpecFetcherPtr TInputManager::CreateChunkSpecFetcher(const TInputClu
         const auto& table = InputTables_[tableIndex];
         // NB(coteeq): I could've used cluster.InputTables, but I need
         // passthrough numbering along InputTables_.
-        if (table->ClusterName != cluster->Name) {
+        if (table->ClusterName != cluster->Name()) {
             continue;
         }
         auto ranges = table->Path.GetNewRanges(table->Comparator, table->Schema->GetKeyColumnTypes());
@@ -625,7 +630,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
             fetcher->SetCancelableContext(Host_->GetCancelableContext());
 
             auto applySelectivityFactors =
-                BIND([fetcher, Logger = GetClusterOrCrash(clusterName)->Logger] {
+                BIND([fetcher, Logger = GetClusterOrCrash(clusterName)->GetLogger()] {
                     YT_LOG_INFO("Columnar statistics fetched");
                     fetcher->ApplyColumnSelectivityFactors();
                 })
@@ -644,7 +649,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
             fetcher->SetCancelableContext(Host_->GetCancelableContext());
 
             auto applySelectivityFactors =
-                BIND([fetcher, Logger = GetClusterOrCrash(clusterName)->Logger] {
+                BIND([fetcher, Logger = GetClusterOrCrash(clusterName)->GetLogger()] {
                     YT_LOG_INFO("Input chunk slice statistics fetched");
                     fetcher->ApplyBlockSelectivityFactors();
                 })

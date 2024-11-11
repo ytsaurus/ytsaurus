@@ -13,6 +13,8 @@
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <util/digest/numeric.h>
+
 namespace NYT::NScheduler {
 
 using namespace NYT::NTransactionClient;
@@ -217,3 +219,12 @@ void ToProto(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
+
+size_t THash<NYT::NScheduler::TRichTransactionId>::operator()(const NYT::NScheduler::TRichTransactionId& transactionId) const
+{
+    size_t hash = 0;
+    hash = CombineHashes(hash, THash<NYT::NTransactionClient::TTransactionId>()(transactionId.Id));
+    hash = CombineHashes(hash, THash<NYT::NTransactionClient::TTransactionId>()(transactionId.ParentId));
+    hash = CombineHashes(hash, THash<NYT::NScheduler::TClusterName>()(transactionId.Cluster));
+    return hash;
+}
