@@ -259,7 +259,7 @@ llvm::FunctionType* TSimpleCallingConvention::GetCalleeType(
 
     if (IsStringLikeType(resultType)) {
         calleeResultType = builder->getVoidTy();
-        calleeArgumentTypes.push_back(PointerType::getUnqual(builder->getInt8PtrTy()));
+        calleeArgumentTypes.push_back(PointerType::getUnqual(builder->getPtrTy()));
         calleeArgumentTypes.push_back(PointerType::getUnqual(builder->getInt32Ty()));
 
     } else {
@@ -270,7 +270,7 @@ llvm::FunctionType* TSimpleCallingConvention::GetCalleeType(
 
     for (auto type : argumentTypes) {
         if (IsStringLikeType(type)) {
-            calleeArgumentTypes.push_back(builder->getInt8PtrTy());
+            calleeArgumentTypes.push_back(builder->getPtrTy());
             calleeArgumentTypes.push_back(builder->getInt32Ty());
         } else {
             calleeArgumentTypes.push_back(GetABIType(

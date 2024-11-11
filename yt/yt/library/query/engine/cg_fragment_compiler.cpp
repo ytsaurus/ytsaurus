@@ -334,8 +334,8 @@ TValueTypeLabels CodegenHasherBody(
 
     builder->SetInsertPoint(gotoHashBB);
 
-    Value* offsetPtr = builder->CreateGEP(builder->getInt8PtrTy(), labelsArray, indexPhi);
-    Value* offset = builder->CreateLoad(builder->getInt8PtrTy(), offsetPtr);
+    Value* offsetPtr = builder->CreateGEP(builder->getPtrTy(), labelsArray, indexPhi);
+    Value* offset = builder->CreateLoad(builder->getPtrTy(), offsetPtr);
     auto* indirectBranch = builder->CreateIndirectBr(offset);
     indirectBranch->addDestination(hashInt8ScalarBB);
     indirectBranch->addDestination(hashInt64ScalarBB);
@@ -668,8 +668,8 @@ TValueTypeLabels CodegenLessComparerBody(
 
     builder->SetInsertPoint(gotoCmpBB);
 
-    Value* offsetPtr = builder->CreateGEP(builder->getInt8PtrTy(), labelsArray, indexPhi);
-    Value* offset = builder->CreateLoad(builder->getInt8PtrTy(), offsetPtr);
+    Value* offsetPtr = builder->CreateGEP(builder->getPtrTy(), labelsArray, indexPhi);
+    Value* offset = builder->CreateLoad(builder->getPtrTy(), offsetPtr);
     auto* indirectBranch = builder->CreateIndirectBr(offset);
     indirectBranch->addDestination(cmpBooleanBB);
     indirectBranch->addDestination(cmpIntBB);
@@ -3570,8 +3570,7 @@ TGroupOpSlots MakeCodegenGroupOp(
                 keyTypes,
                 0);
         } else {
-            orderOpComparer = llvm::ConstantPointerNull::get(
-                llvm::Type::getInt64PtrTy(builder->getContext()));
+            orderOpComparer = llvm::ConstantPointerNull::get(builder->getPtrTy());
         }
 
         builder->CreateCall(
