@@ -41,7 +41,7 @@ class TestIoEngine(YTEnvSetup):
             }
         },
         "data_node": {
-            "max_session_out_of_turn": 0,
+            "max_out_of_turn_sessions": 0,
             "p2p": {
                 "enabled": False,
             },
