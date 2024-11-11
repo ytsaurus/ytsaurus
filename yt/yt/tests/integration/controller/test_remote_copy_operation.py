@@ -1627,6 +1627,7 @@ class TestSchedulerRemoteCopyDynamicTablesMulticell(TestSchedulerRemoteCopyDynam
 class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyCommandsBase):
     DELTA_NODE_CONFIG = {
         "exec_node": {
+            # Enable job throttler on exe node.
             "job_throttler": {
             },
         }
@@ -1639,6 +1640,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
 
     # Setup //sys/cluster_throttlers on local cluster.
     def setup_cluster_throttlers(self):
+        remove('//sys/cluster_throttlers', force=True)
         cluster_throttlers_config = {
             "enabled": True,
             # group_id must begin with '/'
@@ -1662,6 +1664,11 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
             },
         }
         set('//sys/cluster_throttlers', cluster_throttlers_config)
+
+    # Setup empty //sys/cluster_throttlers on local cluster.
+    def setup_empty_cluster_throttlers(self):
+        remove('//sys/cluster_throttlers', force=True)
+        create('document', '//sys/cluster_throttlers')
 
     @authors("yuryalekseev")
     def test_non_empty_table(self):
@@ -1707,7 +1714,59 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
 
         remote_copy_end_time = time.time()
 
+        # Check that throttling has happened.
         assert (remote_copy_end_time - remote_copy_start_time) > (self.CHUNK_COUNT * self.DATA_WEIGHT_SIZE_PER_CHUNK * self.THROTTLER_JITTER_MULTIPLIER / self.BANDWIDTH_LIMIT)
+
+        # Check result table on local cluster.
+        assert read_table("//tmp/local_table") == [{"v": "0" * self.DATA_WEIGHT_SIZE_PER_CHUNK} for c in range(self.CHUNK_COUNT)]
+        assert not get("//tmp/local_table/@sorted")
+
+    @authors("yuryalekseev")
+    def test_empty_cluster_throttlers(self):
+        self.setup_empty_cluster_throttlers()
+
+        # Restart exe nodes to initialize cluster throttlers after //sys/cluster_throttlers setup.
+        with Restarter(self.Env, NODES_SERVICE):
+            time.sleep(1)
+
+        wait_for_nodes()
+
+        # Create table on remote cluster.
+        create(
+            "table",
+            "//tmp/remote_table",
+            attributes={"compression_codec": "none"},
+            chunk_reader={"enable_local_throttling": True},
+            driver=self.remote_driver)
+
+        # Fill up table on remote cluster.
+        for c in range(self.CHUNK_COUNT):
+            write_table("<append=%true>//tmp/remote_table", {"v": "0" * self.DATA_WEIGHT_SIZE_PER_CHUNK}, driver=self.remote_driver)
+
+        # Create table on local cluster.
+        create("table", "//tmp/local_table")
+
+        remote_copy_start_time = time.time()
+
+        # Copy table from remote cluster to local cluster.
+        remote_copy(
+            in_="//tmp/remote_table",
+            out="//tmp/local_table",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                "job_io": {
+                    "table_reader": {
+                        "enable_local_throttling": True,
+                    },
+                },
+                "job_count": 1,
+            },
+        )
+
+        remote_copy_end_time = time.time()
+
+        # Check that throttling has been disabled.
+        assert (remote_copy_end_time - remote_copy_start_time) < (self.CHUNK_COUNT * self.DATA_WEIGHT_SIZE_PER_CHUNK * self.THROTTLER_JITTER_MULTIPLIER / self.BANDWIDTH_LIMIT)
 
         # Check result table on local cluster.
         assert read_table("//tmp/local_table") == [{"v": "0" * self.DATA_WEIGHT_SIZE_PER_CHUNK} for c in range(self.CHUNK_COUNT)]
