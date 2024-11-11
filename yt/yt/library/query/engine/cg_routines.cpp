@@ -1663,8 +1663,14 @@ void GroupOpHelper(
     auto compatConsumeDelta = PrepareFunction(compatConsumeDeltaFunction);
     auto compatConsumeTotals = PrepareFunction(compatConsumeTotalsFunction);
 
+
+    auto responseFeatureFlags = MostArchaicFeatureFlags();
+    SaveAndRestoreCurrentCompartment([&] {
+        responseFeatureFlags = WaitForFast(context->ResponseFeatureFlags).ValueOrThrow();
+    });
+
     bool groupByInCompatMode = (!context->RequestFeatureFlags->WithTotalsFinalizesAggregatedOnCoordinator) ||
-        (!context->ResponseFeatureFlags.Get().ValueOrThrow().WithTotalsFinalizesAggregatedOnCoordinator);
+        (!responseFeatureFlags.WithTotalsFinalizesAggregatedOnCoordinator);
 
     auto closure = TGroupByClosure(
         context->MemoryChunkProvider,
