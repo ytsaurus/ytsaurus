@@ -144,6 +144,7 @@ resources(unittester-formats
   KEYS
   /types/good
   /types/bad
+  OPTS
 )
 
 vcs_info(unittester-formats)

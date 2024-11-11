@@ -124,6 +124,7 @@ resources(unittester-all
   /configs/scheduler.yson
   /configs/sort_spec.yson
   /configs/vanilla_spec.yson
+  OPTS
 )
 
 vcs_info(unittester-all)
