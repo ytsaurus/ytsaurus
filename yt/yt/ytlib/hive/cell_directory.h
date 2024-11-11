@@ -209,7 +209,7 @@ DEFINE_REFCOUNTED_TYPE(ICellDirectory)
 ICellDirectoryPtr CreateCellDirectory(
     TCellDirectoryConfigPtr config,
     NRpc::IChannelFactoryPtr channelFactory,
-    TClusterDirectoryPtr clusterDirectory,
+    TWeakPtr<TClusterDirectory> clusterDirectory,
     const NNodeTrackerClient::TNetworkPreferenceList& networks,
     NLogging::TLogger logger);
 

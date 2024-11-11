@@ -42,7 +42,7 @@ public:
     TAlienClusterChannelProvider(
         const std::string& address,
         const std::string& cluster,
-        TClusterDirectoryPtr clusterDirectory,
+        TWeakPtr<TClusterDirectory> clusterDirectory,
         TLogger logger)
         : Address_(address)
         , Cluster_(cluster)
@@ -74,7 +74,12 @@ public:
 
     TFuture<IChannelPtr> GetChannel() override
     {
-        auto connection = ClusterDirectory_->FindConnection(Cluster_);
+        auto strongDirectory = ClusterDirectory_.Lock();
+
+        auto connection = strongDirectory
+            ? strongDirectory->FindConnection(Cluster_)
+            : NApi::NNative::IConnectionPtr{};
+
         if (connection) {
             return MakeFuture(connection->GetChannelFactory()->CreateChannel(Address_));
         }
@@ -83,7 +88,8 @@ public:
             Cluster_);
         return MakeFuture<IChannelPtr>(
             TError(NRpc::EErrorCode::Unavailable, "Cannot find cluster in the cluster directory")
-                << TErrorAttribute("cluster", Cluster_));
+                << TErrorAttribute("cluster", Cluster_)
+                << TErrorAttribute("directory_avaliable", strongDirectory.operator bool()));
     }
 
     void Terminate(const TError& /*error*/) override
@@ -95,7 +101,7 @@ public:
 private:
     const std::string Address_;
     const std::string Cluster_;
-    const TClusterDirectoryPtr ClusterDirectory_;
+    const TWeakPtr<TClusterDirectory> ClusterDirectory_;
     const std::string EndpointDescription_;
     const TLogger Logger;
 };
@@ -112,7 +118,7 @@ public:
         THashSet<std::string> nativeClusterAddresses,
         IChannelFactoryPtr nativeChannelFactory,
         THashMap<std::string, std::string> addressToAlienCluster,
-        TClusterDirectoryPtr clusterDirectory,
+        TWeakPtr<TClusterDirectory> clusterDirectory,
         TLogger logger)
         : NativeClusterAddresses_(std::move(nativeClusterAddresses))
         , NativeChannelFactory_(std::move(nativeChannelFactory))
@@ -144,7 +150,7 @@ private:
     const THashSet<std::string> NativeClusterAddresses_;
     const IChannelFactoryPtr NativeChannelFactory_;
     const THashMap<std::string, std::string> AddressToAlienCluster_;
-    const TClusterDirectoryPtr ClusterDirectory_;
+    const TWeakPtr<TClusterDirectory> ClusterDirectory_;
     const TLogger Logger;
 };
 
@@ -322,7 +328,7 @@ public:
     TCellDirectory(
         TCellDirectoryConfigPtr config,
         IChannelFactoryPtr channelFactory,
-        TClusterDirectoryPtr clusterDirectory,
+        TWeakPtr<TClusterDirectory> clusterDirectory,
         const TNetworkPreferenceList& networks,
         TLogger logger)
         : Config_(std::move(config))
@@ -579,7 +585,7 @@ public:
 private:
     const TCellDirectoryConfigPtr Config_;
     const IChannelFactoryPtr ChannelFactory_;
-    const TClusterDirectoryPtr ClusterDirectory_;
+    const TWeakPtr<TClusterDirectory> ClusterDirectory_;
     const TNetworkPreferenceList Networks_;
     const TLogger Logger;
 
@@ -642,7 +648,7 @@ private:
 ICellDirectoryPtr CreateCellDirectory(
     TCellDirectoryConfigPtr config,
     IChannelFactoryPtr channelFactory,
-    TClusterDirectoryPtr clusterDirectory,
+    TWeakPtr<TClusterDirectory> clusterDirectory,
     const NNodeTrackerClient::TNetworkPreferenceList& networks,
     TLogger logger)
 {
