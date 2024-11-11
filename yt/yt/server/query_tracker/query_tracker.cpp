@@ -50,7 +50,7 @@ using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NRecords;
-using namespace NStateChecker;
+using namespace NComponentStateChecker;
 using namespace NTableClient;
 using namespace NLogging;
 using namespace NTransactionClient;
@@ -74,14 +74,14 @@ public:
         IInvokerPtr controlInvoker,
         IAlertCollectorPtr alertCollector,
         NApi::NNative::IClientPtr stateClient,
-        TStateCheckerPtr stateChecker,
+        IComponentStateCheckerPtr ComponentStateChecker,
         TYPath stateRoot,
         int minRequiredStateVersion)
         : SelfAddress_(std::move(selfAddress))
         , ControlInvoker_(std::move(controlInvoker))
         , AlertCollector_(std::move(alertCollector))
         , StateClient_(std::move(stateClient))
-        , StateChecker_(std::move(stateChecker))
+        , ComponentStateChecker_(std::move(ComponentStateChecker))
         , StateRoot_(std::move(stateRoot))
         , MinRequiredStateVersion_(minRequiredStateVersion)
         , AcquisitionExecutor_(New<TPeriodicExecutor>(
@@ -131,7 +131,7 @@ private:
     const IInvokerPtr ControlInvoker_;
     const IAlertCollectorPtr AlertCollector_;
     const NApi::NNative::IClientPtr StateClient_;
-    const TStateCheckerPtr StateChecker_;
+    const IComponentStateCheckerPtr ComponentStateChecker_;
     const TYPath StateRoot_;
     const int MinRequiredStateVersion_;
 
@@ -201,7 +201,7 @@ private:
             return;
         }
 
-        if (StateChecker_->IsComponentBanned()) {
+        if (ComponentStateChecker_->IsComponentBanned()) {
             YT_LOG_DEBUG("Skip active queries acquisition, since query tracker instance is banned");
             return;
         }
@@ -785,7 +785,7 @@ IQueryTrackerPtr CreateQueryTracker(
     IInvokerPtr controlInvoker,
     IAlertCollectorPtr alertCollector,
     NApi::NNative::IClientPtr stateClient,
-    TStateCheckerPtr stateChecker,
+    IComponentStateCheckerPtr ComponentStateChecker,
     TYPath stateRoot,
     int minRequiredStateVersion)
 {
@@ -795,7 +795,7 @@ IQueryTrackerPtr CreateQueryTracker(
         std::move(controlInvoker),
         std::move(alertCollector),
         std::move(stateClient),
-        std::move(stateChecker),
+        std::move(ComponentStateChecker),
         std::move(stateRoot),
         minRequiredStateVersion);
 }

@@ -10,7 +10,10 @@ namespace NYT::NYqlAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateYqlService(IInvokerPtr controlInvoker, IYqlAgentPtr yqlAgent, NStateChecker::TStateCheckerPtr stateChecker);
+NRpc::IServicePtr CreateYqlService(
+    IInvokerPtr controlInvoker,
+    IYqlAgentPtr yqlAgent,
+    NComponentStateChecker::IComponentStateCheckerPtr ComponentStateChecker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
