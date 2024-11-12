@@ -85,7 +85,7 @@ func TestChunkIntegrity_Check(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Logf(tc.q.i.String())
+			t.Log(tc.q.i.String())
 			require.Equal(t, tc.intact, tc.q.i.Check(tc.q.maxURC))
 			require.Equal(t, tc.intactUnrecoverable, tc.q.i.CheckUnrecoverable())
 		})
