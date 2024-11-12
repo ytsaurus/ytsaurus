@@ -1592,9 +1592,13 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
             auto result = MakeSharedRange(values, values, std::move(response.Fragments));
 
             if (!compressedValues.empty()) {
+                // NB: We have to make an owning holder of the values here
+                // as DecompressValues may still be accesing them after this closure is cancelled.
+                auto owningCompressedValues = MakeSharedRange(compressedValues, compressedValues, result);
+
                 YT_VERIFY(dictionaryCompressionFactory);
                 return dictionaryCompressionFactory->CreateDictionaryDecompressionSession()->DecompressValues(
-                    std::move(compressedValues),
+                    std::move(owningCompressedValues),
                     std::move(compressionDictionaryIds),
                     std::move(options))
                     .ApplyUnique(BIND([
