@@ -139,8 +139,14 @@ class MonitoringExpr(Taggable):
     def _serialize_arg(arg, default_serializer):
         if hasattr(arg, "serialize"):
             return arg.serialize(default_serializer)
-        else:
-            return default_serializer(arg)
+
+        if isinstance(arg, list):
+            serialized_elements = [
+                default_serializer(item) for item in arg
+            ]
+            return ", ".join(serialized_elements)
+
+        return default_serializer(arg)
 
     def serialize(self, default_serializer=lambda x: str(x)):
         if self.node_type == self.NodeType.Terminal:
