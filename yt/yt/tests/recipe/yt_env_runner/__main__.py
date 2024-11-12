@@ -23,6 +23,18 @@ class YTEnvRunner(YTEnvSetup):
     # To avoid "Request is missing credentials" error.
     USE_NATIVE_AUTH = False
 
+    @classmethod
+    def modify_driver_logging_config(cls, config) -> None:
+        super(YTEnvRunner, cls).modify_driver_logging_config(config)
+
+        # Since tests are launched in a separate process they should write logs
+        # to different files.
+        for writer_config in config.get("writers", {}).values():
+            old_path = writer_config["file_name"]
+            dir_path, base_name = old_path.rsplit("/", maxsplit=1)
+            new_path = dir_path + "/yt-env-" + base_name
+            writer_config["file_name"] = new_path
+
     def setup(self) -> None:
         self.setup_class()
         self.setup_method(None)
@@ -98,7 +110,9 @@ if __name__ == "__main__":
 
     # Initialize yatest if needed.
     runner_args = get_options()[1]
+
     # Since these args were passed to recipe the first arg is either "start" or
     # "stop". Skip it.
     runner_args = runner_args[1:]
+
     main(runner_args)

@@ -57,6 +57,24 @@ void TApiTestBase::SetUpTestCase()
         YT_VERIFY(configPath);
         TIFStream configStream(configPath);
         auto config = ConvertToNode(&configStream)->AsMap();
+        for (const auto& [writerName, writerNode] : config->GetChildOrThrow("writers")->AsMap()->GetChildren()) {
+            // Replace */yt_env_driver.*log.zst with */driver.*log.zst.
+            auto writerConfig = writerNode->AsMap();
+
+            auto oldPathNode = writerConfig->GetChildOrThrow("file_name");
+            auto oldPath = oldPathNode->GetValue<std::string>();
+            auto fileNameStartPos = oldPath.rfind("/");
+            YT_VERIFY(fileNameStartPos < oldPath.size());
+
+            // Directory name + "/".
+            std::string newPath(TStringBuf(oldPath).SubString(0, fileNameStartPos + 1));
+            // File name without "yt_env_" prefix.
+            newPath.append(
+                oldPath.begin() + fileNameStartPos + 1 + TStringBuf("yt-env-").size(),
+                oldPath.end());
+
+            writerConfig->ReplaceChild(oldPathNode, ConvertToNode(newPath));
+        }
         NLogging::TLogManager::Get()->Configure(ConvertTo<NLogging::TLogManagerConfigPtr>(config));
     }
 
