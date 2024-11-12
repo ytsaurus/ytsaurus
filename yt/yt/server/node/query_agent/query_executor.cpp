@@ -366,17 +366,17 @@ class TRowsetSubrangeReader
 public:
     TRowsetSubrangeReader(
         TFuture<TSharedRange<TUnversionedRow>> asyncRows,
-        std::optional<TRowRange> rowRange)
+        std::optional<std::pair<TKeyBoundRef, TKeyBoundRef>> readRange)
         : AsyncRows_(std::move(asyncRows))
-        , RowRange_(std::move(rowRange))
+        , ReadRange_(std::move(readRange))
     { }
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        if (!RowRange_) {
+        if (!ReadRange_) {
             return nullptr;
         }
-        auto rowRange = *RowRange_;
+        auto readRange = *ReadRange_;
 
         if (!AsyncRows_.IsSet() || !AsyncRows_.Get().IsOK()) {
             return CreateEmptyUnversionedRowBatch();
@@ -387,7 +387,7 @@ public:
         CurrentRowIndex_ = BinarySearch(CurrentRowIndex_, std::ssize(rows), [&] (i64 index) {
             return !TestKeyWithWidening(
                 ToKeyRef(rows[index]),
-                TKeyBoundRef(ToKeyRef(rowRange.first), /*inclusive*/ true, /*upper*/ false));
+                readRange.first);
         });
 
         auto startIndex = CurrentRowIndex_;
@@ -397,7 +397,7 @@ public:
         CurrentRowIndex_ = BinarySearch(startIndex, CurrentRowIndex_, [&] (i64 index) {
             return TestKeyWithWidening(
                 ToKeyRef(rows[index]),
-                TKeyBoundRef(ToKeyRef(rowRange.second), /*inclusive*/ true, /*upper*/ true));
+                readRange.second);
         });
 
         if (startIndex == CurrentRowIndex_) {
@@ -435,7 +435,7 @@ public:
 private:
     TFuture<TSharedRange<TUnversionedRow>> AsyncRows_;
     i64 CurrentRowIndex_ = 0;
-    std::optional<TRowRange> RowRange_;
+    std::optional<std::pair<TKeyBoundRef, TKeyBoundRef>> ReadRange_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -840,13 +840,17 @@ private:
                         auto asyncRows = writer->GetResult();
 
                         return [
-                            asyncRows
+                            asyncRows,
+                            foreignKeyPrefix = joinClause->ForeignKeyPrefix
                         ] (std::vector<TRow> keys, TRowBufferPtr /*permanentBuffer*/) {
-                            std::optional<TRowRange> keyRange;
+                            std::optional<std::pair<TKeyBoundRef, TKeyBoundRef>> readRange;
                             if (!keys.empty()) {
-                                keyRange = TRowRange{keys.front(), keys.back()};
+                                readRange = {
+                                    TKeyBoundRef(keys.front().FirstNElements(foreignKeyPrefix), /*inclusive*/ true, /*upper*/ false),
+                                    TKeyBoundRef(keys.back().FirstNElements(foreignKeyPrefix), /*inclusive*/ true, /*upper*/ true)};
                             }
-                            return New<TRowsetSubrangeReader>(asyncRows, keyRange);
+
+                            return New<TRowsetSubrangeReader>(asyncRows, readRange);
                         };
                     } else {
                         return [
