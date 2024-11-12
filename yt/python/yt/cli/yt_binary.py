@@ -42,6 +42,7 @@ except ImportError:
 import yt.wrapper as yt
 import yt.clickhouse as chyt
 
+import json
 import os
 import sys
 import inspect
@@ -2088,6 +2089,7 @@ if HAS_SKY_SHARE:
         parser.add_argument("--cluster", help="cluster name, by default it is derived from proxy url")
         parser.add_argument("--key-column", help="create a separate torrent for each unique key and print rbtorrent list in JSON format", action="append", dest="key_columns")
         parser.add_argument("--enable-fastbone", help="download over fastbone if all necessary firewall rules are present", action="store_true")
+        parser.add_argument('--share-operation-options', help="share operation options in json format", type=json.loads)
 
 
 @copy_docstring_from(get_default_config)
