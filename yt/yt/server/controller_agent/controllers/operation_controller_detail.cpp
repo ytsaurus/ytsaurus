@@ -6446,7 +6446,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             const auto& table = std::any_cast<TOutputTablePtr>(rsp->Tag());;
 
             auto objectId = FromProto<TObjectId>(rsp->node_id());
-            auto revision = rsp->revision();
+            table->Revision = FromProto<NHydra::TRevision>(rsp->revision());
 
             table->ExternalTransactionId = rsp->has_external_transaction_id()
                 ? FromProto<TTransactionId>(rsp->external_transaction_id())
@@ -6457,7 +6457,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 objectId,
                 *table->TableUploadOptions.TableSchema,
                 table->ExternalTransactionId,
-                revision);
+                table->Revision);
 
             InputManager->ValidateOutputTableLockedCorrectly(table);
         }
