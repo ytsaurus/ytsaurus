@@ -338,7 +338,7 @@ func (a *Agent) initializeFromCypress() error {
 
 	_, err := a.controller.UpdateState()
 	if err != nil {
-		a.l.Error("error occured during updating controller state", log.Error(err))
+		a.l.Error("error occurred during updating controller state", log.Error(err))
 		a.healthState.SetInitState(yterrors.Err("failed to update controller state", err))
 		return err
 	}
@@ -346,7 +346,7 @@ func (a *Agent) initializeFromCypress() error {
 	var initialAliases []string
 	err = a.ytc.ListNode(a.ctx, a.root, &initialAliases, nil)
 	if err != nil {
-		a.l.Error("error occured during initializing agent", log.Error(err))
+		a.l.Error("error occurred during initializing agent", log.Error(err))
 		a.healthState.SetInitState(yterrors.Err("failed to list aliases", err))
 		return err
 	}
