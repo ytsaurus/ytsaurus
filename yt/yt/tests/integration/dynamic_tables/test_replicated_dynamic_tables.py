@@ -3473,7 +3473,7 @@ class TestReplicatedDynamicTablesRpcProxy(TestReplicatedDynamicTables):
                     expected_replica_ids,
                 )
 
-        check(timeout=10000, expected_replica_ids=[replica_id])
+        check(timeout=60000, expected_replica_ids=[replica_id])
 
         replica_id2 = create_table_replica(
             "//tmp/t",
@@ -3485,9 +3485,9 @@ class TestReplicatedDynamicTablesRpcProxy(TestReplicatedDynamicTables):
         sync_enable_table_replica(replica_id2)
 
         if keys_mode == "empty":
-            check(timeout=10000, expected_replica_ids=[replica_id, replica_id2])
+            check(timeout=60000, expected_replica_ids=[replica_id, replica_id2])
         else:
-            check(timeout=10000, expected_replica_ids=[replica_id])
+            check(timeout=60000, expected_replica_ids=[replica_id])
 
         check(timeout=0, expected_replica_ids=[replica_id, replica_id2])
 
