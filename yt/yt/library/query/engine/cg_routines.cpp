@@ -1664,9 +1664,10 @@ void GroupOpHelper(
     auto compatConsumeTotals = PrepareFunction(compatConsumeTotalsFunction);
 
 
-    auto responseFeatureFlags = MostArchaicFeatureFlags();
+    auto responseFeatureFlags = TFeatureFlags();
     SaveAndRestoreCurrentCompartment([&] {
-        responseFeatureFlags = WaitForFast(context->ResponseFeatureFlags).ValueOrThrow();
+        responseFeatureFlags = WaitForFast(context->ResponseFeatureFlags)
+            .ValueOrThrow();
     });
 
     bool groupByInCompatMode = (!context->RequestFeatureFlags->WithTotalsFinalizesAggregatedOnCoordinator) ||
