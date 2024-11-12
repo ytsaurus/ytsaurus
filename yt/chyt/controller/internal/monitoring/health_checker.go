@@ -1,6 +1,6 @@
 package monitoring
 
-// HealthChecker incapsulates logic about health checking.
+// HealthChecker encapsulates logic about health checking.
 type HealthChecker interface {
 	CheckHealth() error
 }
