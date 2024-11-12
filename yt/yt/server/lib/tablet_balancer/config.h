@@ -23,7 +23,8 @@ public:
     std::optional<double> TableCell;
     std::optional<double> TableNode;
 
-    static TComponentFactorConfigPtr MakeIdentity();
+    static TComponentFactorConfigPtr MakeDefaultIdentity();
+    static TComponentFactorConfigPtr MakeUniformIdentity();
 
     TComponentFactorConfigPtr MergeWith(
         const TComponentFactorConfigPtr& otherConfig) const;
@@ -43,6 +44,7 @@ class TParameterizedBalancingConfig
 public:
     TString Metric;
     std::optional<bool> EnableReshard;
+    std::optional<bool> EnableUniform;
     std::optional<int> MaxActionCount;
     std::optional<int> BoundedPriorityQueueSize;
     std::optional<double> NodeDeviationThreshold;

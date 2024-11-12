@@ -60,7 +60,7 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
         .NonEmpty();
     registrar.Parameter("parameterized_factors", &TThis::ParameterizedFactors)
         .DefaultCtor([] {
-            return TComponentFactorConfig::MakeIdentity();
+            return TComponentFactorConfig::MakeDefaultIdentity();
         });
 
     registrar.Parameter("schedule", &TThis::Schedule)
