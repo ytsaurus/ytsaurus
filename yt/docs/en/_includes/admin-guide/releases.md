@@ -313,9 +313,19 @@ Publishes as docker images.
 
 Publishes as docker images.
 
-**Current release:** 2.4.0 (`ghcr.io/ytsaurus/spyt:2.4.0`)
+**Current release:** 2.4.1 (`ghcr.io/ytsaurus/spyt:2.4.1`)
 
 **All releases:**
+
+{% cut "**2.4.1**" %}
+
+Maintenance release with bug fixes:
+
+- Fix creating tables via Spark SQL without explicitly specifying ytTable schema
+- Fix serializing and deserializing nested time types
+- Fix casting NULL in nested data structures
+
+{% endcut %}
 
 {% cut "**2.4.0**" %}
 
