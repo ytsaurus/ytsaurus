@@ -37,6 +37,14 @@ class TestQueriesQL(YTEnvSetup):
             )
         create_dynamic_table(path, **attributes)
 
+    @staticmethod
+    def _assert_select_result(path, settings, rows, is_truncated):
+        q = start_query("ql", f"* from [{path}]", settings=settings)
+        q.track()
+        assert q.get()["result_count"] == 1
+        assert_items_equal(q.read_result(0), rows)
+        assert q.get_result(0)["is_truncated"] == yson.YsonBoolean(is_truncated)
+
     @authors("gudqeit")
     def test_simple_query(self, query_tracker):
         self._create_simple_dynamic_table("//tmp/t", enable_dynamic_store_read=True)
@@ -109,42 +117,35 @@ class TestQueriesQL(YTEnvSetup):
 
     @authors("aleksandr.gaev")
     @pytest.mark.timeout(300)
-    def test_big_outputs(self, query_tracker):
+    def test_big_result(self, query_tracker):
         self._create_simple_dynamic_table("//tmp/t", enable_dynamic_store_read=True)
         sync_mount_table("//tmp/t")
 
-        value_size = 1024 * 1024  # 1 MB
-        rows = [{"key": i, "value": ''.join(['a' for _ in range(value_size)])} for i in range(15)]
-        insert_rows("//tmp/t", rows)
-
+        value_size = 1024 * 1024
         settings = {"cluster": "primary"}
 
+        # 14 MB
+        rows = [{"key": i, "value": ''.join(['a' for _ in range(value_size)])} for i in range(14)]
+        insert_rows("//tmp/t", rows)
+        self._assert_select_result("//tmp/t", settings, rows, False)
+
         # 15 MB
-        q = start_query("ql", "* from [//tmp/t]", settings=settings)
-        q.track()
-        assert q.get()["result_count"] == 1
-        assert_items_equal(q.read_result(0), rows)
-        assert q.get_result(0)["is_truncated"] == yson.YsonBoolean(False)
+        new_rows = [{"key": i, "value": ''.join(['b' for _ in range(value_size)])} for i in range(14, 15)]
+        insert_rows("//tmp/t", new_rows)
+        rows += new_rows
+        self._assert_select_result("//tmp/t", settings, rows, False)
 
         # 16 MB
-        new_rows = [{"key": i, "value": ''.join(['a' for _ in range(value_size)])} for i in range(15, 16)]
+        new_rows = [{"key": i, "value": ''.join(['c' for _ in range(value_size)])} for i in range(15, 16)]
         insert_rows("//tmp/t", new_rows)
         rows += new_rows
-        q = start_query("ql", "* from [//tmp/t]", settings=settings)
-        q.track()
-        assert q.get()["result_count"] == 1
-        assert_items_equal(q.read_result(0), rows[:15])
-        assert q.get_result(0)["is_truncated"] == yson.YsonBoolean(True)
+        self._assert_select_result("//tmp/t", settings, rows[:15], True)
 
         # 17 MB
-        new_rows = [{"key": i, "value": ''.join(['a' for _ in range(value_size)])} for i in range(16, 17)]
+        new_rows = [{"key": i, "value": ''.join(['d' for _ in range(value_size)])} for i in range(16, 17)]
         insert_rows("//tmp/t", new_rows)
         rows += new_rows
-        q = start_query("ql", "* from [//tmp/t]", settings=settings)
-        q.track()
-        assert q.get()["result_count"] == 1
-        assert_items_equal(q.read_result(0), rows[:15])
-        assert q.get_result(0)["is_truncated"] == yson.YsonBoolean(True)
+        self._assert_select_result("//tmp/t", settings, rows[:15], True)
 
 
 ##################################################################

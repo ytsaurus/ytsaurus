@@ -20,6 +20,8 @@ void TEngineConfigBase::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("row_count_limit", &TThis::RowCountLimit)
         .Default(10'000);
+    registrar.Parameter("resulting_rowset_value_length_limit", &TThis::ResultingRowsetValueLengthLimit)
+        .Default(1_GB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
