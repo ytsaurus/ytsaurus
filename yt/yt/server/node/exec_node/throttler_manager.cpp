@@ -143,23 +143,23 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
 
         if (NeedDistributedThrottlerFactory(ClusterThrottlersConfig_)) {
             if (DistributedThrottlerFactory_) {
-                YT_LOG_INFO("Reconfigure distributed throttler factory");
-                DistributedThrottlerFactory_->Reconfigure(ClusterThrottlersConfig_->DistributedThrottler);
+                DistributedThrottlerFactory_.Reset();
+                YT_LOG_INFO("Recreate distributed throttler factory");
             } else {
                 YT_LOG_INFO("Create distributed throttler factory");
-                DistributedThrottlerFactory_ = CreateDistributedThrottlerFactory(
-                ClusterThrottlersConfig_->DistributedThrottler,
-                ChannelFactory_,
-                Connection_,
-                Invoker_,
-                ClusterThrottlersConfig_->GroupId,
-                LocalAddress_,
-                RpcServer_,
-                LocalAddress_,
-                Logger,
-                Authenticator_,
-                Profiler_.WithPrefix("/distributed_throttler"));
             }
+            DistributedThrottlerFactory_ = CreateDistributedThrottlerFactory(
+            ClusterThrottlersConfig_->DistributedThrottler,
+            ChannelFactory_,
+            Connection_,
+            Invoker_,
+            ClusterThrottlersConfig_->GroupId,
+            LocalAddress_,
+            RpcServer_,
+            LocalAddress_,
+            Logger,
+            Authenticator_,
+            Profiler_.WithPrefix("/distributed_throttler"));
         } else {
             YT_LOG_INFO("Disable distributed throttler factory");
             DistributedThrottlerFactory_.Reset();

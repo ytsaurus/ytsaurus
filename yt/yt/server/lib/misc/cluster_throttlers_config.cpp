@@ -100,7 +100,7 @@ bool AreClusterThrottlersConfigsEqual(TClusterThrottlersConfigPtr lhs, TClusterT
         return false;
     }
 
-    return *lhs == *rhs;
+    return NYson::ConvertToYsonString(lhs) == NYson::ConvertToYsonString(rhs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
