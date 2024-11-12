@@ -3180,12 +3180,7 @@ void TJob::BuildVirtualSandbox()
 
 bool TJob::ExtractEnableRootVolumeDiskQuotaFlag()
 {
-    if (UserJobSpec_) {
-        auto enablePorto = CheckedEnumCast<NScheduler::EEnablePorto>(UserJobSpec_->enable_porto());
-        return enablePorto != NScheduler::EEnablePorto::Isolate && JobSpecExt_->enable_root_volume_disk_quota();
-    } else {
-        return JobSpecExt_->enable_root_volume_disk_quota();
-    }
+    return JobSpecExt_->enable_root_volume_disk_quota();
 }
 
 TUserSandboxOptions TJob::BuildUserSandboxOptions()
