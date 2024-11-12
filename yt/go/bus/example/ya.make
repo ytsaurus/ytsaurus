@@ -1,5 +1,7 @@
 GO_PROGRAM()
 
-SRCS(main.go)
+SRCS(
+    main.go
+)
 
 END()
