@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import authors, create, read_table, write_table, map, merge, get
 
-from yt_type_helpers import optional_type, list_type
+from yt_type_helpers import optional_type, list_type, decimal_type
 
 import pytest
 
@@ -13,6 +13,13 @@ import pandas as pd
 
 HELLO_WORLD = b"\xd0\x9f\xd1\x80\xd0\xb8\xd0\xb2\xd0\xb5\xd1\x82, \xd0\xbc\xd0\xb8\xd1\x80!"
 GOODBYE_WORLD = b"\xd0\x9f\xd0\xbe\xd0\xba\xd0\xb0, \xd0\xbc\xd0\xb8\xd1\x80!"
+
+
+def serialize_arrow_table(table):
+    sink = pa.BufferOutputStream()
+    with pa.RecordBatchStreamWriter(sink, table.schema) as writer:
+        writer.write(table)
+    return bytes(sink.getvalue())
 
 
 def parse_list_to_arrow():
@@ -28,14 +35,7 @@ def parse_list_to_arrow():
 
     table = pa.Table.from_pandas(pd.DataFrame(data), schema=schema)
 
-    sink = pa.BufferOutputStream()
-
-    with pa.RecordBatchStreamWriter(sink, table.schema) as writer:
-        writer.write(table)
-
-    buffer = sink.getvalue()
-
-    return bytes(buffer)
+    return serialize_arrow_table(table)
 
 
 def parse_arrow_stream(data):
@@ -179,6 +179,45 @@ class TestArrowFormat(YTEnvSetup):
         write_table("//tmp/table2", arrow_dump, is_raw=True, input_format=format)
 
         assert read_table("//tmp/table1") == read_table("//tmp/table2")
+
+    @authors("max42")
+    def test_write_arrow_decimal(self, optimize_for):
+        schema = [
+            {"name": "d128", "type_v3": decimal_type(10, 3)},
+            {"name": "d256", "type_v3": decimal_type(10, 3)},
+            {"name": "ld128", "type_v3": list_type(decimal_type(10, 3))},
+            {"name": "ld256", "type_v3": list_type(decimal_type(10, 3))}
+        ]
+
+        fields = [
+            pa.field("d128", pa.decimal128(10, 3)),
+            pa.field("d256", pa.decimal256(10, 3)),
+            pa.field("ld128", pa.list_(pa.decimal128(10, 3))),
+            pa.field("ld256", pa.list_(pa.decimal256(10, 3))),
+        ]
+        arrow_schema = pa.schema(fields)
+
+        d_list = [3.141, 0.000, -2.718, 9999999.999]
+        ld_list = [[d] for d in d_list]
+
+        d_arr = pa.array(d_list)
+        ld_arr = pa.array(ld_list)
+        arrow_table = pa.Table.from_arrays([d_arr, d_arr, ld_arr, ld_arr], schema=arrow_schema)
+
+        create("table", "//tmp/table", attributes={"schema": schema, "optimize_for": optimize_for})
+
+        format = yson.YsonString(b"arrow")
+        write_table("//tmp/table", serialize_arrow_table(arrow_table), is_raw=True, input_format=format)
+
+        rows = list(yson.loads(read_table("//tmp/table", output_format=yson.loads(b"<decimal_mode=text>yson")),
+                               yson_type="list_fragment"))
+
+        assert rows == [
+            {'d128': "3.141", 'd256': "3.141", 'ld128': ["3.141"], 'ld256': ["3.141"]},
+            {'d128': "0.000", 'd256': "0.000", 'ld128': ["0.000"], 'ld256': ["0.000"]},
+            {'d128': "-2.718", 'd256': "-2.718", 'ld128': ["-2.718"], 'ld256': ["-2.718"]},
+            {'d128': "9999999.999", 'd256': "9999999.999", 'ld128': ["9999999.999"], 'ld256': ["9999999.999"]}
+        ]
 
     @authors("nadya02")
     def test_write_arrow_complex(self, optimize_for):
