@@ -6,6 +6,7 @@ try:
 
     def monotonic():
         return clock_gettime(CLOCK_MONOTONIC)
+
 except ImportError:
     from timeit import default_timer
 else:

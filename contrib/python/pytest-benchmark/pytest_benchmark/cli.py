@@ -18,7 +18,7 @@ from .utils import first_or_value
 from .utils import load_storage
 from .utils import report_noprogress
 
-COMPARE_HELP = '''examples:
+COMPARE_HELP = """examples:
 
     pytest-benchmark {0} 'Linux-CPython-3.5-64bit/*'
 
@@ -31,7 +31,7 @@ COMPARE_HELP = '''examples:
 
     pytest-benchmark {0} /foo/bar/0001_abc.json /lorem/ipsum/0001_sir_dolor.json
 
-        Loads runs from exactly those files.'''
+        Loads runs from exactly those files."""
 
 
 class HelpAction(argparse.Action):
@@ -50,53 +50,41 @@ class CommandArgumentParser(argparse.ArgumentParser):
     def __init__(self, *args, **kwargs):
         kwargs['add_help'] = False
 
-        super(CommandArgumentParser, self).__init__(*args,
-                                                    formatter_class=argparse.RawDescriptionHelpFormatter,
-                                                    **kwargs)
-        self.add_argument(
-            '-h', '--help',
-            metavar='COMMAND',
-            nargs='?', action=HelpAction, help='Display help and exit.'
-        )
-        help_command = self.add_command(
-            'help',
-            description='Display help and exit.'
-        )
+        super().__init__(*args, formatter_class=argparse.RawDescriptionHelpFormatter, **kwargs)
+        self.add_argument('-h', '--help', metavar='COMMAND', nargs='?', action=HelpAction, help='Display help and exit.')
+        help_command = self.add_command('help', description='Display help and exit.')
         help_command.add_argument('command', nargs='?', action=HelpAction)
 
     def add_command(self, name, **opts):
         if self.commands is None:
             self.commands = self.add_subparsers(
-                title='commands', dest='command', parser_class=argparse.ArgumentParser,
+                title='commands',
+                dest='command',
+                parser_class=argparse.ArgumentParser,
             )
             self.commands_dispatch = {}
         if 'description' in opts and 'help' not in opts:
             opts['help'] = opts['description']
 
-        command = self.commands.add_parser(
-            name, formatter_class=argparse.RawDescriptionHelpFormatter, **opts
-        )
+        command = self.commands.add_parser(name, formatter_class=argparse.RawDescriptionHelpFormatter, **opts)
         self.commands_dispatch[name] = command
         return command
 
 
 def add_glob_or_file(addoption):
-    addoption(
-        'glob_or_file',
-        nargs='*', help='Glob or exact path for json files. If not specified all runs are loaded.'
-    )
+    addoption('glob_or_file', nargs='*', help='Glob or exact path for json files. If not specified all runs are loaded.')
 
 
 def make_parser():
     parser = CommandArgumentParser('py.test-benchmark', description="pytest_benchmark's management commands.")
-    add_global_options(parser.add_argument, prefix="")
+    add_global_options(parser.add_argument, prefix='')
 
     parser.add_command('list', description='List saved runs.')
 
     compare_command = parser.add_command(
         'compare',
         description='Compare saved runs.',
-        epilog='''examples:
+        epilog="""examples:
 
     pytest-benchmark compare 'Linux-CPython-3.5-64bit/*'
 
@@ -109,16 +97,17 @@ def make_parser():
 
     pytest-benchmark compare /foo/bar/0001_abc.json /lorem/ipsum/0001_sir_dolor.json
 
-        Loads runs from exactly those files.''')
-    add_display_options(compare_command.add_argument, prefix="")
-    add_histogram_options(compare_command.add_argument, prefix="")
+        Loads runs from exactly those files.""",
+    )
+    add_display_options(compare_command.add_argument, prefix='')
+    add_histogram_options(compare_command.add_argument, prefix='')
     add_glob_or_file(compare_command.add_argument)
-    add_csv_options(compare_command.add_argument, prefix="")
+    add_csv_options(compare_command.add_argument, prefix='')
 
     return parser
 
 
-class HookDispatch(object):
+class HookDispatch:
     def __init__(self, **kwargs):
         conftest_file = pathlib.Path('conftest.py')
         if conftest_file.exists():
@@ -152,7 +141,7 @@ def main():
             histogram=first_or_value(args.histogram, False),
             name_format=NAME_FORMATTERS[args.name],
             logger=logger,
-            scale_unit=partial(hook.pytest_benchmark_scale_unit, config=None)
+            scale_unit=partial(hook.pytest_benchmark_scale_unit, config=None),
         )
         groups = hook.pytest_benchmark_group_stats(
             benchmarks=storage.load_benchmarks(*args.glob_or_file),
@@ -162,16 +151,16 @@ def main():
         results_table.display(TerminalReporter(), groups, progress_reporter=report_noprogress)
         if args.csv:
             results_csv = CSVResults(args.columns, args.sort, logger)
-            output_file, = args.csv
+            (output_file,) = args.csv
 
             results_csv.render(output_file, groups)
     elif args.command is None:
-        parser.error("missing command (available commands: %s)" % ', '.join(map(repr, parser.commands.choices)))
+        parser.error('missing command (available commands: {})'.format(', '.join(map(repr, parser.commands.choices))))
     else:
-        parser.error("unexpected command %r" % args.command)
+        parser.error(f'unexpected command {args.command!r}')
 
 
-class TerminalReporter(object):
+class TerminalReporter:
     def __init__(self):
         self._tw = TerminalWriter()
 
@@ -183,17 +172,17 @@ class TerminalReporter(object):
 
     def write_line(self, line, **markup):
         if not isinstance(line, str):
-            line = line.decode(errors="replace")
+            line = line.decode(errors='replace')
         self._tw.line(line, **markup)
 
     def rewrite(self, line, **markup):
         line = str(line)
-        self._tw.write("\r" + line, **markup)
+        self._tw.write('\r' + line, **markup)
 
     def write_sep(self, sep, title=None, **markup):
         self._tw.sep(sep, title, **markup)
 
-    def section(self, title, sep="=", **kw):
+    def section(self, title, sep='=', **kw):
         self._tw.sep(sep, title, **kw)
 
     def line(self, msg, **kw):

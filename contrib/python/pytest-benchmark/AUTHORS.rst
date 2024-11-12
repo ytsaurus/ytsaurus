@@ -33,3 +33,6 @@ Authors
 * Friedrich Delgado - https://github.com/TauPan
 * Sam James - https://github.com/thesamesam
 * Florian Bruhin - https://github.com/The-Compiler
+* Johnny Huang - https://github.com/jnhyperion
+* Tony Kuo - https://github.com/tony92151
+* Eugeniy - https://github.com/zcoder
