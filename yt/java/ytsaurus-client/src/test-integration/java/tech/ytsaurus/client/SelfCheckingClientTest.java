@@ -66,11 +66,12 @@ public class SelfCheckingClientTest extends YTsaurusClientTestBase {
                 // Proxy needs some time to understand that it's not banned anymore.
                 for (int i = 0; i < 100; ++i) {
                     try {
-                        yt.listNode("/").join();
+                        // We need to make sure that the proxy is discoverable and not banned.
+                        createYtFixture();
                         break;
                     } catch (CompletionException ex) {
                         try {
-                            Thread.sleep(100, 0);
+                            Thread.sleep(1000, 0);
                         } catch (InterruptedException e) {
                             break;
                         }
