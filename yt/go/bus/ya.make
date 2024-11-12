@@ -26,4 +26,5 @@ END()
 RECURSE(
     example
     gotest
+    tcptest
 )
