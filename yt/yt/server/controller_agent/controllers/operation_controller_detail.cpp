@@ -5502,10 +5502,18 @@ void TOperationControllerBase::AddChunksToUnstageList(std::vector<TInputChunkPtr
             livePreviewDescriptor.LivePreviewIndex,
             chunk);
         if (!result.IsOK()) {
+            static constexpr auto message = "Error unregistering a chunk from a live preview";
             auto tableName = "output_" + ToString(it->second.LivePreviewIndex);
-            YT_LOG_WARNING(result, "Error unregistering a chunk from a live preview (TableName: %v, Chunk: %v)",
-                tableName,
-                chunk);
+            if (Config->FailOperationOnErrorsInLivePreview) {
+                THROW_ERROR_EXCEPTION(message)
+                    << TErrorAttribute("table_name", tableName)
+                    << TErrorAttribute("chunk_id", chunk->GetChunkId());
+            } else {
+                YT_LOG_WARNING(result, "%v (TableName: %v, Chunk: %v)",
+                    message,
+                    tableName,
+                    chunk);
+            }
         }
         chunkIds.push_back(chunk->GetChunkId());
         YT_LOG_DEBUG("Releasing intermediate chunk (ChunkId: %v, VertexDescriptor: %v, LivePreviewIndex: %v)",
@@ -8255,9 +8263,17 @@ void TOperationControllerBase::AttachToLivePreview(
     if (LivePreviews_->contains(tableName)) {
         auto result = (*LivePreviews_)[tableName]->InsertChunk(chunk);
         if (!result.IsOK()) {
-            YT_LOG_WARNING(result, "Error registering a chunk in a live preview (TableName: %v, Chunk: %v)",
-                tableName,
-                chunk);
+            static constexpr auto message = "Error registering a chunk in a live preview";
+            if (Config->FailOperationOnErrorsInLivePreview) {
+                THROW_ERROR_EXCEPTION(message)
+                    << TErrorAttribute("table_name", tableName)
+                    << TErrorAttribute("chunk_id", chunk->GetChunkId());
+            } else {
+                YT_LOG_WARNING(result, "%v (TableName: %v, Chunk: %v)",
+                    message,
+                    tableName,
+                    chunk);
+            }
         }
     }
 }
@@ -10657,10 +10673,18 @@ void TOperationControllerBase::RegisterLivePreviewChunk(
 
     auto result = DataFlowGraph_->RegisterLivePreviewChunk(vertexDescriptor, index, chunk);
     if (!result.IsOK()) {
+        static constexpr auto message = "Error registering a chunk in a live preview";
         auto tableName = "output_" + ToString(index);
-        YT_LOG_WARNING(result, "Error registering a chunk in a live preview (TableName: %v, Chunk: %v)",
-            tableName,
-            chunk);
+        if (Config->FailOperationOnErrorsInLivePreview) {
+            THROW_ERROR_EXCEPTION(message)
+                << TErrorAttribute("table_name", tableName)
+                << TErrorAttribute("chunk_id", chunk->GetChunkId());
+        } else {
+            YT_LOG_WARNING(result, "%v (TableName: %v, Chunk: %v)",
+                message,
+                tableName,
+                chunk);
+        }
     }
 
     if (vertexDescriptor == GetOutputLivePreviewVertexDescriptor()) {
