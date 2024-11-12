@@ -56,7 +56,7 @@ struct TAsyncDumpParquetInputArguments
 {
     TString OutputPath;
     bool IsDirectory;
-    i64 ThreadCount;
+    int ThreadCount;
     i64 DataSizePerJob;
     std::unique_ptr<IZeroCopyInput> InputStream;
 };
@@ -81,13 +81,13 @@ std::optional<TWorkerBlock> GetNextWorkerBlock(
     const std::unique_ptr<IZeroCopyInput>& inputStream)
 {
     // Read thread ID.
-    int workerId;
+    i32 workerId;
     if (inputStream->Load(&workerId, sizeof(workerId)) != sizeof(workerId)) {
         return std::nullopt;
     }
 
     // Read size of block.
-    int32_t blockSize;
+    i32 blockSize;
     inputStream->Load(&blockSize, sizeof(blockSize));
 
     // Read block.
@@ -114,7 +114,7 @@ TAsyncDumpParquetInputArguments ExtractAsyncDumpParquetArguments(Py::Tuple& args
     return TAsyncDumpParquetInputArguments{
         .OutputPath = std::move(outputPath),
         .IsDirectory = isDirectory,
-        .ThreadCount = threadCount,
+        .ThreadCount =  static_cast<int>(threadCount),
         .DataSizePerJob = dataSizePerJob,
         .InputStream = std::move(stream),
     };
@@ -169,8 +169,9 @@ public:
     ~TParquetWriter() = default;
 
 private:
+    const TArrowStatusCallback ArrowStatusCallback_;
+
     std::unique_ptr<parquet::arrow::FileWriter> Writer_;
-    TArrowStatusCallback ArrowStatusCallback_;
 };
 
 class TOrcWriter
@@ -228,10 +229,11 @@ public:
     ~TOrcWriter() = default;
 
 private:
+    const std::unique_ptr<liborc::OutputStream> OutputStream_;
+    const TArrowStatusCallback ArrowStatusCallback_;
+
     std::unique_ptr<liborc::Type> OrcSchema_;
     std::unique_ptr<liborc::Writer> Writer_;
-    std::unique_ptr<liborc::OutputStream> OutputStream_;
-    TArrowStatusCallback ArrowStatusCallback_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -240,7 +242,7 @@ class TArrowInputStreamAdapter
     : public arrow::io::InputStream
 {
 public:
-    TArrowInputStreamAdapter(IInputStream* stream)
+    explicit TArrowInputStreamAdapter(IInputStream* stream)
         : Stream_(stream)
     {
         IsClosed_ = !Stream_->ReadChar(PreviousElement_);
@@ -424,8 +426,9 @@ std::shared_ptr<arrow::Schema> ConvertDictionarySchema(const std::shared_ptr<arr
 
 std::shared_ptr<arrow::RecordBatch> ConvertDictionaryArrays(
     const std::shared_ptr<arrow::RecordBatch>& data,
-    const TArrowStatusCallback& arrowStatusCallback) {
-    if (data == nullptr) {
+    const TArrowStatusCallback& arrowStatusCallback)
+{
+    if (!data) {
         return nullptr;
     }
     std::vector<std::shared_ptr<arrow::Field>> fields;
@@ -545,7 +548,7 @@ Py::Object AsyncDumpParquet(Py::Tuple& args, Py::Dict& kwargs)
     std::atomic<bool> isError = false;
     TString errorMessage;
 
-    auto onArrowStatusCallback = [&inputArquments, &isError, &errorMessage, &pipes] (const arrow::Status& status) {
+    auto onArrowStatusCallback = [&] (const arrow::Status& status) {
         if (!status.ok()) {
             bool expected = false;
             if (isError.compare_exchange_strong(expected, true)) {

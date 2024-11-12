@@ -27,4 +27,4 @@ NConcurrency::IAsyncZeroCopyInputStreamPtr CreateProfilingInputStream(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT::NHttpProxy
