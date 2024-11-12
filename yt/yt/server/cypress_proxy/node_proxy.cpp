@@ -271,44 +271,44 @@ protected:
         return SequoiaSession_->RemoveRootstock(rootstockId);
     }
 
-    void ForwardRequestAndAbortSequoiaSession(auto createRequest, const auto& contextPtr)
+    void ForwardRequestAndAbortSequoiaSession(auto createRequest, const auto& context)
     {
         auto newRequest = createRequest(NYPath::TYPath());
-        newRequest->CopyFrom(contextPtr->Request());
+        newRequest->CopyFrom(context->Request());
 
         // TODO(kvk1920): it could be better to deal with Cypress tx replication
         // here since we already have started Sequoia tx. This will require a
         // request flag "suppress_mirrored_tx_sync" or something similar.
 
-        auto suffix = GetRequestTargetYPath(contextPtr->GetRequestHeader());
+        auto suffix = GetRequestTargetYPath(context->GetRequestHeader());
         SetRequestTargetYPath(&newRequest->Header(), FromObjectId(Id_) + suffix);
-        auto isMutating = IsRequestMutating(contextPtr->GetRequestHeader());
+        auto isMutating = IsRequestMutating(context->GetRequestHeader());
         SetTransactionId(newRequest, SequoiaSession_->GetCypressTransactionId());
         auto proxy = isMutating ? CreateWriteProxyForObject(Id_) : CreateReadProxyForObject(Id_);
 
         // TODO(kvk1920): it always prints "0-0-0-0 -> 0-0-0-0". Investigate it.
 
         YT_LOG_DEBUG("Forwarded request to master (RequestId: %v -> %v)",
-            contextPtr->GetRequestId(),
+            context->GetRequestId(),
             newRequest->GetRequestId());
 
         SequoiaSession_->Abort();
 
         auto rsp = WaitFor(proxy.Execute(std::move(newRequest)))
             .ValueOrThrow();
-        contextPtr->Response().CopyFrom(*rsp);
-        contextPtr->Reply();
+        context->Response().CopyFrom(*rsp);
+        context->Reply();
     }
 
     // Constructs the response message, saves it into Sequoia response keeper if needed, commits sequoia session and replies with constructed message.
     void FinishSequoiaSessionAndReply(
-        const auto& contextPtr,
+        const auto& context,
         TCellId coordinatorCellId,
         bool commitSession)
     {
-        auto responseMessage = CreateResponseMessage(contextPtr->Response(), contextPtr->Response().Attachments());
+        auto responseMessage = CreateResponseMessage(context->Response(), context->Response().Attachments());
 
-        auto mutationId = contextPtr->GetMutationId();
+        auto mutationId = context->GetMutationId();
         const auto& responseKeeper = Bootstrap_->GetResponseKeeper();
         if (commitSession && mutationId) {
             responseKeeper->KeepResponse(SequoiaSession_->SequoiaTransaction(), mutationId, responseMessage);
@@ -338,7 +338,7 @@ protected:
             SequoiaSession_->Abort();
         }
 
-        contextPtr->Reply(responseMessage);
+        context->Reply(responseMessage);
     }
 
     struct TSubtreeReplacementResult

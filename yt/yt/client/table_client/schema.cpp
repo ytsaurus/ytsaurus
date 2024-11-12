@@ -357,7 +357,7 @@ void FormatValue(TStringBuilderBase* builder, const TColumnSchema& schema, TStri
     }
 
     if (const auto& materialized = schema.Materialized()) {
-        builder->AppendFormat("; materialized=%Qv", *materialized);
+        builder->AppendFormat("; materialized=%v", *materialized);
     }
 
     if (const auto& aggregate = schema.Aggregate()) {
