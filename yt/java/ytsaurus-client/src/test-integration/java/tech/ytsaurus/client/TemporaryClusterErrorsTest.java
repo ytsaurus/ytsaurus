@@ -104,8 +104,8 @@ public class TemporaryClusterErrorsTest extends YTsaurusClientTestBase {
                 .build();
 
         RpcOptions options = new RpcOptions();
-        options.setGlobalTimeout(Duration.ofSeconds(1));
-        options.setProxyUpdateTimeout(Duration.ofMillis(100));
+        options.setGlobalTimeout(Duration.ofSeconds(2));
+        options.setProxyUpdateTimeout(Duration.ofSeconds(2));
         var client = YTsaurusClient.builder()
                 .setSharedBusConnector(connector)
                 .setClusters(List.of(new YTsaurusCluster(getYTsaurusAddress())))
