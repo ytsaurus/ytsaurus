@@ -1,7 +1,7 @@
 from ...serializer import SerializerBase
 from ...sensor import Sensor, MultiSensor, Text, Title
 from ...specific_tags.tags import BackendTag, Regex
-from ...taggable import SystemFields, NotEquals, ContainerTemplate, SensorTemplate
+from ...taggable import SystemFields, NotEquals, SensorTemplate
 from ...helpers import break_long_lines_in_multiline_cell, pretty_print_fixed_indent, monitoring_to_grafana_unit
 from ...specific_sensors.monitoring import MonitoringExpr
 from ...postprocessors import DollarTemplateTagPostprocessor
@@ -93,6 +93,16 @@ class GrafanaProxy():
 
 class ExprFuncSerializer:
     @staticmethod
+    def serialize_arg(arg):
+        if isinstance(arg, list):
+            serialized_elements = [
+                ExprFuncSerializer.serialize_arg(item) for item in arg
+            ]
+            return ", ".join(serialized_elements)
+
+        return str(arg)
+
+    @staticmethod
     def alias_expr_builder(serializer, expression):
         query_parts, other_tags = serializer._prepare_expr_query(expression.args[1])
         other_tags[SystemFields.LegendFormat] = expression.args[2]
@@ -121,18 +131,35 @@ class ExprFuncSerializer:
 
     @staticmethod
     def series_avg(serializer, expression):
-        query_parts, other_tags = serializer._prepare_expr_query(expression.args[2])
-        return f"avg by({expression.args[1]}) ({query_parts})", other_tags
+        query_parts, other_tags = serializer._prepare_expr_query(expression.args[-1])
+        args = ''
+        if len(expression.args) > 2:
+            args = ExprFuncSerializer.serialize_arg(expression.args[1])
+        return f"avg by({args}) ({query_parts})", other_tags
 
     @staticmethod
     def series_max(serializer, expression):
-        query_parts, other_tags = serializer._prepare_expr_query(expression.args[2])
-        return f"max by({expression.args[1]}) ({query_parts})", other_tags
+        query_parts, other_tags = serializer._prepare_expr_query(expression.args[-1])
+        args = ''
+        if len(expression.args) > 2:
+            args = ExprFuncSerializer.serialize_arg(expression.args[1])
+        return f"max by({args}) ({query_parts})", other_tags
+
+    @staticmethod
+    def series_min(serializer, expression):
+        query_parts, other_tags = serializer._prepare_expr_query(expression.args[-1])
+        args = ''
+        if len(expression.args) > 2:
+            args = ExprFuncSerializer.serialize_arg(expression.args[1])
+        return f"min by({args}) ({query_parts})", other_tags
 
     @staticmethod
     def series_sum(serializer, expression):
-        query_parts, other_tags = serializer._prepare_expr_query(expression.args[2])
-        return f"sum by({expression.args[1]}) ({query_parts})", other_tags
+        query_parts, other_tags = serializer._prepare_expr_query(expression.args[-1])
+        args = ''
+        if len(expression.args) > 2:
+            args = ExprFuncSerializer.serialize_arg(expression.args[1])
+        return f"sum by({args}) ({query_parts})", other_tags
 
 
 ##################################################################
@@ -167,6 +194,7 @@ class GrafanaSerializerBase(SerializerBase):
             "moving_avg": lambda expression: ExprFuncSerializer.moving_avg(self, expression),
             "series_avg": lambda expression: ExprFuncSerializer.series_avg(self, expression),
             "series_max": lambda expression: ExprFuncSerializer.series_max(self, expression),
+            "series_min": lambda expression: ExprFuncSerializer.series_min(self, expression),
             "series_sum": lambda expression: ExprFuncSerializer.series_sum(self, expression),
         }
         builder = builders.get(expression.args[0])
@@ -326,7 +354,7 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
                 }
                 if SystemFields.LegendFormat in other_tags:
                     value = other_tags[SystemFields.LegendFormat]
-                    value = value.replace(ContainerTemplate, "{{pod}}").replace(SensorTemplate, "{{__name__}}")
+                    value = value.replace(SensorTemplate, "{{__name__}}")
                     target["legendFormat"] = value
 
                 targets.append(target)
