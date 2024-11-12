@@ -128,8 +128,7 @@ public:
     TColumnBasedPartitioner(int partitionCount, int partitionColumnId)
         : PartitionCount_(partitionCount)
         , PartitionColumnId_(partitionColumnId)
-    {
-    }
+    { }
 
     int GetPartitionCount() const override
     {
@@ -141,15 +140,18 @@ public:
         for (auto value : row) {
             if (value.Id == PartitionColumnId_) {
                 if (value.Type != EValueType::Uint64 &&
-                    value.Type != EValueType::Int64) [[unlikely]] {
+                    value.Type != EValueType::Int64) [[unlikely]]
+                {
                     THROW_ERROR_EXCEPTION(
                         "Invalid partition column value type: expected type \"int64\" or \"uint64\", actual type %Qlv",
                         value.Type);
                 }
 
-                if (value.Type == EValueType::Int64 && value.Data.Int64 < 0) [[unlikely]] {
+                if (value.Type == EValueType::Int64 &&
+                    value.Data.Int64 < 0) [[unlikely]]
+                {
                     THROW_ERROR_EXCEPTION(
-                        "Received negative partition index: %v",
+                        "Received negative partition index %v",
                         value.Data.Int64);
                 }
 
