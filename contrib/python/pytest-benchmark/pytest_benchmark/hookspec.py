@@ -20,7 +20,6 @@ def pytest_benchmark_scale_unit(config, unit, benchmarks, best, worst, sort):
 
             return prefix, scale
     """
-    pass
 
 
 @pytest.hookspec(firstresult=True)
@@ -33,7 +32,6 @@ def pytest_benchmark_generate_machine_info(config):
         def pytest_benchmark_generate_machine_info(config):
             return {'user': getpass.getuser()}
     """
-    pass
 
 
 def pytest_benchmark_update_machine_info(config, machine_info):
@@ -47,7 +45,6 @@ def pytest_benchmark_update_machine_info(config, machine_info):
         def pytest_benchmark_update_machine_info(config, machine_info):
             machine_info['user'] = getpass.getuser()
     """
-    pass
 
 
 @pytest.hookspec(firstresult=True)
@@ -60,7 +57,6 @@ def pytest_benchmark_generate_commit_info(config):
         def pytest_benchmark_generate_commit_info(config):
             return {'id': subprocess.check_output(['svnversion']).strip()}
     """
-    pass
 
 
 def pytest_benchmark_update_commit_info(config, commit_info):
@@ -72,7 +68,6 @@ def pytest_benchmark_update_commit_info(config, commit_info):
         def pytest_benchmark_update_commit_info(config, commit_info):
             commit_info['message'] = subprocess.check_output(['git', 'log', '-1', '--pretty=%B']).strip()
     """
-    pass
 
 
 @pytest.hookspec(firstresult=True)
@@ -94,7 +89,6 @@ def pytest_benchmark_group_stats(config, benchmarks, group_by):
                     result[bench.special].append(bench)
                 outcome.force_result(result.items())
     """
-    pass
 
 
 @pytest.hookspec(firstresult=True)
@@ -117,7 +111,6 @@ def pytest_benchmark_generate_json(config, benchmarks, include_data, machine_inf
                 bench.has_error = False
             yield
     """
-    pass
 
 
 def pytest_benchmark_update_json(config, benchmarks, output_json):
@@ -131,7 +124,6 @@ def pytest_benchmark_update_json(config, benchmarks, output_json):
         def pytest_benchmark_update_json(config, benchmarks, output_json):
             output_json['foo'] = 'bar'
     """
-    pass
 
 
 def pytest_benchmark_compare_machine_info(config, benchmarksession, machine_info, compared_benchmark):
@@ -143,11 +135,10 @@ def pytest_benchmark_compare_machine_info(config, benchmarksession, machine_info
 
         def pytest_benchmark_compare_machine_info(config, benchmarksession, machine_info, compared_benchmark):
             if compared_benchmark["machine_info"] != machine_info:
-                benchmarksession.logger.warn(
+                benchmarksession.logger.warning(
                     "Benchmark machine_info is different. Current: %s VS saved: %s." % (
                         format_dict(machine_info),
                         format_dict(compared_benchmark["machine_info"]),
                     )
             )
     """
-    pass
