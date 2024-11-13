@@ -8,7 +8,35 @@ namespace NYT::NFormats {
 
 using namespace NYTree;
 
-////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TLibYamlType, void(*Deleter)(TLibYamlType*)>
+TLibYamlTypeWrapper<TLibYamlType, Deleter>::TLibYamlTypeWrapper()
+{
+    // Just in case if we are allocated on stack and the destructor is called before
+    // the object is initialized.
+    memset(this, 0, sizeof(*this));
+}
+
+template <class TLibYamlType, void(*Deleter)(TLibYamlType*)>
+void TLibYamlTypeWrapper<TLibYamlType, Deleter>::Reset()
+{
+    Deleter(this);
+    memset(this, 0, sizeof(*this));
+}
+
+template <class TLibYamlType, void(*Deleter)(TLibYamlType*)>
+TLibYamlTypeWrapper<TLibYamlType, Deleter>::~TLibYamlTypeWrapper()
+{
+    Reset();
+}
+
+// Explicitly instantiate the wrappers for the types we use.
+template struct TLibYamlTypeWrapper<yaml_parser_t, yaml_parser_delete>;
+template struct TLibYamlTypeWrapper<yaml_emitter_t, yaml_emitter_delete>;
+template struct TLibYamlTypeWrapper<yaml_event_t, yaml_event_delete>;
+
+////////////////////////////////////////////////////////////////////////////////
 
 static THashMap<TStringBuf, EYamlScalarType> YTTypeMap = {
     {"!", EYamlScalarType::String},
@@ -149,7 +177,7 @@ std::pair<ENodeType, TNonStringScalar> ParseScalarValue(const TStringBuf& value,
     YT_ABORT();
 }
 
-////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFormats
 
@@ -161,4 +189,3 @@ void Serialize(const yaml_mark_t& mark, NYT::NYson::IYsonConsumer* consumer)
             .Item("index").Value(static_cast<i64>(mark.index))
         .EndMap();
 }
-

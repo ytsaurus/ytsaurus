@@ -204,10 +204,9 @@ public:
         , Consumer_(consumer)
         , Config_(config)
         , YsonType_(ysonType)
-        , Parser_(new yaml_parser_t, yaml_parser_delete)
     {
-        yaml_parser_initialize(Parser_.get());
-        yaml_parser_set_input(Parser_.get(), &ReadHandler, this);
+        yaml_parser_initialize(&Parser_);
+        yaml_parser_set_input(&Parser_, &ReadHandler, this);
     }
 
     void Parse()
@@ -221,32 +220,17 @@ private:
     TYamlFormatConfigPtr Config_;
     EYsonType YsonType_;
 
-    using TParserPtr = std::unique_ptr<yaml_parser_t, decltype(&yaml_parser_delete)>;
-    TParserPtr Parser_;
-
-    //! C++ wrapper around libyaml event object that takes
-    //! care of freeing the contents of the event upon destruction.
-    struct TEvent
-        : public yaml_event_t
-        , public TNonCopyable
-    {
-        TEvent()
-        {
-            // Just in case if destructor is called before
-            // the event is initialized.
-            memset(this, 0, sizeof(*this));
-        }
-        ~TEvent()
-        {
-            yaml_event_delete(this);
-        }
-        EYamlEventType Type() const
-        {
-            return static_cast<EYamlEventType>(type);
-        }
-    };
+    TLibYamlParser Parser_;
 
     TError ReadError_;
+
+    TLibYamlEvent Event_;
+
+    //! Convenience helper to get rid of the ugly casts.
+    EYamlEventType GetEventType() const
+    {
+        return static_cast<EYamlEventType>(Event_.type);
+    }
 
     static int ReadHandler(void* data, unsigned char* buffer, size_t size, size_t* size_read)
     {
@@ -284,15 +268,15 @@ private:
     {
         // Unfortunately, libyaml may sometimes YAML_NO_ERROR. This may lead
         // to unclear exceptions during parsing.
-        auto yamlErrorType = static_cast<EYamlErrorType>(Parser_->error);
-        auto error = TError("YAML parser error: %v", Parser_->problem)
+        auto yamlErrorType = static_cast<EYamlErrorType>(Parser_.error);
+        auto error = TError("YAML parser error: %v", Parser_.problem)
             << TErrorAttribute("yaml_error_type", yamlErrorType)
-            << TErrorAttribute("problem_offset", Parser_->problem_offset)
-            << TErrorAttribute("problem_value", Parser_->problem_value)
-            << TErrorAttribute("problem_mark", Parser_->problem_mark);
-        if (Parser_->context) {
-            error <<= TErrorAttribute("context", Parser_->context);
-            error <<= TErrorAttribute("context_mark", Parser_->context_mark);
+            << TErrorAttribute("problem_offset", Parser_.problem_offset)
+            << TErrorAttribute("problem_value", Parser_.problem_value)
+            << TErrorAttribute("problem_mark", Parser_.problem_mark);
+        if (Parser_.context) {
+            error <<= TErrorAttribute("context", Parser_.context);
+            error <<= TErrorAttribute("context_mark", Parser_.context_mark);
         }
         if (!ReadError_.IsOK()) {
             error <<= ReadError_;
@@ -301,33 +285,29 @@ private:
         THROW_ERROR error;
     }
 
-    void PullEvent(
-        std::initializer_list<EYamlEventType> expectedTypes,
-        TEvent* event)
+    //! Pull the next event from the parser into Event_ and check that it is one of the expected types.
+    void PullEvent(std::initializer_list<EYamlEventType> expectedTypes)
     {
-        SafeInvoke(yaml_parser_parse, Parser_.get(), event);
+        Event_.Reset();
+        SafeInvoke(yaml_parser_parse, &Parser_, &Event_);
         for (const auto expectedType : expectedTypes) {
-            if (event->Type() == expectedType) {
+            if (GetEventType() == expectedType) {
                 return;
             }
         }
         // TODO(max42): stack and position!
         THROW_ERROR_EXCEPTION(
             "Unexpected event type %Qlv, expected one of %Qlv",
-            event->Type(),
+            GetEventType(),
             std::vector(expectedTypes));
     }
 
     void VisitStream()
     {
-        {
-            TEvent event;
-            PullEvent({EYamlEventType::StreamStart}, &event);
-        }
+        PullEvent({EYamlEventType::StreamStart});
         while (true) {
-            TEvent event;
-            PullEvent({EYamlEventType::DocumentStart, EYamlEventType::StreamEnd}, &event);
-            if (event.Type() == EYamlEventType::StreamEnd) {
+            PullEvent({EYamlEventType::DocumentStart, EYamlEventType::StreamEnd});
+            if (GetEventType() == EYamlEventType::StreamEnd) {
                 break;
             }
             if (YsonType_ == EYsonType::ListFragment) {
@@ -339,55 +319,47 @@ private:
 
     void VisitDocument()
     {
-        {
-            TEvent event;
-            PullEvent(
-                {
-                    EYamlEventType::Scalar,
-                    EYamlEventType::SequenceStart,
-                    EYamlEventType::MappingStart,
-                    EYamlEventType::Alias,
-                },
-                &event);
-            VisitNode(&event);
-        }
-        {
-            TEvent event;
-            PullEvent({EYamlEventType::DocumentEnd}, &event);
-        }
+        PullEvent({
+            EYamlEventType::Scalar,
+            EYamlEventType::SequenceStart,
+            EYamlEventType::MappingStart,
+            EYamlEventType::Alias,
+        });
+        VisitNode();
+        PullEvent({EYamlEventType::DocumentEnd});
     }
 
-    void VisitNode(const TEvent* event)
+    void VisitNode()
     {
         auto maybeOnAnchor = [&] (yaml_char_t* anchor) {
             if (anchor) {
                 Consumer_.OnAnchor(reinterpret_cast<const char*>(anchor));
             }
         };
-        switch (event->Type()) {
+        switch (GetEventType()) {
             case EYamlEventType::Scalar:
-                maybeOnAnchor(event->data.scalar.anchor);
-                VisitScalar(event);
+                maybeOnAnchor(Event_.data.scalar.anchor);
+                VisitScalar();
                 break;
             case EYamlEventType::SequenceStart:
-                maybeOnAnchor(event->data.scalar.anchor);
-                VisitSequence(event);
+                maybeOnAnchor(Event_.data.scalar.anchor);
+                VisitSequence();
                 break;
             case EYamlEventType::MappingStart:
-                maybeOnAnchor(event->data.scalar.anchor);
+                maybeOnAnchor(Event_.data.scalar.anchor);
                 VisitMapping(/*isAttributes*/ false);
                 break;
             case EYamlEventType::Alias:
-                Consumer_.OnAlias(reinterpret_cast<const char*>(event->data.alias.anchor));
+                Consumer_.OnAlias(reinterpret_cast<const char*>(Event_.data.alias.anchor));
                 break;
             default:
                 YT_ABORT();
         }
     }
 
-    void VisitScalar(const TEvent* event)
+    void VisitScalar()
     {
-        auto scalar = event->data.scalar;
+        auto scalar = Event_.data.scalar;
         TStringBuf yamlValue(reinterpret_cast<const char*>(scalar.value), scalar.length);
 
         // According to YAML spec, there are two non-specific tags "!" and "?", and all other
@@ -446,99 +418,78 @@ private:
         }
     }
 
-    void VisitSequence(const TEvent* event)
+    void VisitSequence()
     {
         // NB: YSON node with attributes is represented as a yt/attrnode-tagged YAML sequence,
         // so handle it as a special case.
-        if (TStringBuf(reinterpret_cast<const char*>(event->data.mapping_start.tag)) == YTAttrNodeTag) {
+        if (TStringBuf(reinterpret_cast<const char*>(Event_.data.mapping_start.tag)) == YTAttrNodeTag) {
             VisitNodeWithAttributes();
             return;
         }
 
         Consumer_.OnBeginList();
         while (true) {
-            TEvent event;
-            PullEvent(
-                {
-                    EYamlEventType::SequenceEnd,
-                    EYamlEventType::SequenceStart,
-                    EYamlEventType::MappingStart,
-                    EYamlEventType::Scalar,
-                    EYamlEventType::Alias
-                },
-                &event);
-            if (event.Type() == EYamlEventType::SequenceEnd) {
+            PullEvent({
+                EYamlEventType::SequenceEnd,
+                EYamlEventType::SequenceStart,
+                EYamlEventType::MappingStart,
+                EYamlEventType::Scalar,
+                EYamlEventType::Alias
+            });
+            if (GetEventType() == EYamlEventType::SequenceEnd) {
                 break;
             }
             Consumer_.OnListItem();
-            VisitNode(&event);
+            VisitNode();
         }
         Consumer_.OnEndList();
     }
 
     void VisitNodeWithAttributes()
     {
-        {
-            TEvent event;
-            PullEvent({EYamlEventType::MappingStart}, &event);
-            VisitMapping(/*isAttributes*/ true);
-        }
-        {
-            TEvent event;
-            PullEvent(
-                {
-                    EYamlEventType::Scalar,
-                    EYamlEventType::SequenceStart,
-                    EYamlEventType::MappingStart,
-                    EYamlEventType::Alias,
-                },
-                &event);
-            VisitNode(&event);
-        }
-        {
-            TEvent event;
-            PullEvent({EYamlEventType::SequenceEnd}, &event);
-        }
+        PullEvent({EYamlEventType::MappingStart});
+        VisitMapping(/*isAttributes*/ true);
+
+        PullEvent({
+            EYamlEventType::Scalar,
+            EYamlEventType::SequenceStart,
+            EYamlEventType::MappingStart,
+            EYamlEventType::Alias,
+        });
+        VisitNode();
+
+        PullEvent({EYamlEventType::SequenceEnd});
     }
 
     void VisitMapping(bool isAttributes)
     {
         isAttributes ? Consumer_.OnBeginAttributes() : Consumer_.OnBeginMap();
         while (true) {
-            {
-                TEvent event;
-                PullEvent(
-                    {
-                        EYamlEventType::MappingEnd,
-                        EYamlEventType::Scalar,
-                        // Yes, YAML is weird enough to support aliases as keys!
-                        EYamlEventType::Alias,
-                    },
-                    &event);
-                if (event.Type() == EYamlEventType::MappingEnd) {
-                    break;
-                } else if (event.Type() == EYamlEventType::Alias) {
-                    THROW_ERROR_EXCEPTION("Using alias as a map key is not supported");
-                } else {
-                    if (event.data.scalar.anchor) {
-                        THROW_ERROR_EXCEPTION("Putting anchors on map keys is not supported");
-                    }
-                    TStringBuf key(reinterpret_cast<const char*>(event.data.scalar.value), event.data.scalar.length);
-                    Consumer_.OnKeyedItem(key);
+            PullEvent({
+                EYamlEventType::MappingEnd,
+                EYamlEventType::Scalar,
+                // Yes, YAML is weird enough to support aliases as keys!
+                EYamlEventType::Alias,
+            });
+            if (GetEventType() == EYamlEventType::MappingEnd) {
+                break;
+            } else if (GetEventType() == EYamlEventType::Alias) {
+                THROW_ERROR_EXCEPTION("Using alias as a map key is not supported");
+            } else {
+                if (Event_.data.scalar.anchor) {
+                    THROW_ERROR_EXCEPTION("Putting anchors on map keys is not supported");
                 }
+                TStringBuf key(reinterpret_cast<const char*>(Event_.data.scalar.value), Event_.data.scalar.length);
+                Consumer_.OnKeyedItem(key);
             }
-            {
-                TEvent event;
-                PullEvent(
-                    {
-                        EYamlEventType::Scalar,
-                        EYamlEventType::SequenceStart,
-                        EYamlEventType::MappingStart,
-                        EYamlEventType::Alias,
-                    },
-                    &event);
-                VisitNode(&event);
-            }
+
+            PullEvent({
+                EYamlEventType::Scalar,
+                EYamlEventType::SequenceStart,
+                EYamlEventType::MappingStart,
+                EYamlEventType::Alias,
+            });
+            VisitNode();
         }
         isAttributes ? Consumer_.OnEndAttributes() : Consumer_.OnEndMap();
     }

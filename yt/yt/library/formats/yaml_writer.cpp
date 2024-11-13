@@ -23,16 +23,15 @@ public:
         TYamlFormatConfigPtr config)
         : Output_(output)
         , Config_(config)
-        , Emitter_(new yaml_emitter_t, &yaml_emitter_delete)
     {
-        SafeInvoke(yaml_emitter_initialize, Emitter_.get());
-        yaml_emitter_set_output(Emitter_.get(), &WriteHandler, this);
+        SafeInvoke(yaml_emitter_initialize, &Emitter_);
+        yaml_emitter_set_output(&Emitter_, &WriteHandler, this);
         EmitEvent(yaml_stream_start_event_initialize, YAML_ANY_ENCODING);
     }
 
     void Flush() override
     {
-        SafeInvoke(yaml_emitter_flush, Emitter_.get());
+        SafeInvoke(yaml_emitter_flush, &Emitter_);
     }
 
     void OnStringScalar(TStringBuf value) override
@@ -47,8 +46,6 @@ public:
         // PyYAML and Go YAML parsers handle this issue by checking the type that would be deduced from
         // an unquoted representation and quoting the scalar if it would be interpreted as a non-string type.
         // We utilize the same approach here.
-        //
-        // Also, we handle non-unicode strings using the !!
 
         auto plainYamlType = DeduceScalarTypeFromValue(value);
         auto desiredScalarStyle = YAML_ANY_SCALAR_STYLE;
@@ -243,7 +240,7 @@ private:
 
     IOutputStream* Output_;
     TYamlFormatConfigPtr Config_;
-    TEmitterPtr Emitter_;
+    TLibYamlEmitter Emitter_;
     TError WriteError_;
 
     static int WriteHandler(void* data, unsigned char* buffer, size_t size)
@@ -279,8 +276,8 @@ private:
     {
         // Unfortunately, libyaml may sometimes YAML_NO_ERROR. This may lead
         // to unclear exceptions during parsing.
-        auto yamlErrorType = static_cast<EYamlErrorType>(Emitter_->error);
-        auto error = TError("YAML emitter error: %v", Emitter_->problem)
+        auto yamlErrorType = static_cast<EYamlErrorType>(Emitter_.error);
+        auto error = TError("YAML emitter error: %v", Emitter_.problem)
             << TErrorAttribute("yaml_error_type", yamlErrorType);
 
         if (!WriteError_.IsOK()) {
@@ -290,16 +287,12 @@ private:
         THROW_ERROR error;
     }
 
-    static TEventPtr MakeEvent()
-    {
-        return TEventPtr(new yaml_event_t, &yaml_event_delete);
-    }
-
     void EmitEvent(auto* eventInitializer, auto... args)
     {
-        auto event = MakeEvent();
-        SafeInvoke(eventInitializer, event.get(), args...);
-        SafeInvoke(yaml_emitter_emit, Emitter_.get(), event.release());
+        yaml_event_t event;
+        // Event initializer is guaranteed to release all resources in case of an error.
+        SafeInvoke(eventInitializer, &event, args...);
+        SafeInvoke(yaml_emitter_emit, &Emitter_, &event);
     }
 
     // Utilities for tracking the current depth and the stack of depths at which

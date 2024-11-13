@@ -12,6 +12,22 @@ namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TLibYamlType, void(*Deleter)(TLibYamlType*)>
+struct TLibYamlTypeWrapper
+    : public TLibYamlType
+    , public TNonCopyable
+{
+    TLibYamlTypeWrapper();
+    void Reset();
+    ~TLibYamlTypeWrapper();
+};
+
+using TLibYamlParser = TLibYamlTypeWrapper<yaml_parser_t, yaml_parser_delete>;
+using TLibYamlEmitter = TLibYamlTypeWrapper<yaml_emitter_t, yaml_emitter_delete>;
+using TLibYamlEvent = TLibYamlTypeWrapper<yaml_event_t, yaml_event_delete>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 // These enums are counterparts of the enums in the Yaml library.
 // Keep them in sync with the library.
 
@@ -40,8 +56,7 @@ DEFINE_ENUM(EYamlEventType,
     ((MappingEnd)       (YAML_MAPPING_END_EVENT))
 );
 
-//! This tag is used for denoting maps that represent a YSON node with attributes
-//! using the standard $attributes/$value convention.
+//! This tag is used for denoting 2-element sequences that represent a YSON node with attributes.
 static constexpr TStringBuf YTAttrNodeTag = "!yt/attrnode";
 
 //! Thia tag is used upon parsing to denote an integer scalar which should be

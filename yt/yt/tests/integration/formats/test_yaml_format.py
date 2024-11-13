@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (authors, create, read_table, write_table, get, set, sync_create_cells, merge,
-    sync_freeze_table, select_rows, wait)
+                         sync_freeze_table, select_rows, wait)
 import yt.environment.init_operations_archive as init_operations_archive
 
 import yaml
@@ -12,6 +12,7 @@ import yt.yson as yson
 # Here we just test that the format is correctly registered and can be used in
 # structured and tabular commands by various comparisons between the results
 # of commands in native format and in YAML format.
+
 
 @authors("max42")
 class TestYamlFormat(YTEnvSetup):
@@ -124,4 +125,3 @@ class TestYamlFormat(YTEnvSetup):
         assert len(from_native) >= 2
         write_table("//tmp/t2", yaml_content, is_raw=True, input_format="yaml")
         assert read_table("//tmp/t2") == from_native
-

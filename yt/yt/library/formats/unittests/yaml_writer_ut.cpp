@@ -311,8 +311,6 @@ owner: max
 compression_ratio: 0.3679379456925491
 )";
     EXPECT_EQ(YsonToYaml(TYsonString(yson), TYsonString(formatAttributes)), expectedYaml.substr(1));
-
-
 }
 
 //////////////////////////////////////////////////////////////////////////////
