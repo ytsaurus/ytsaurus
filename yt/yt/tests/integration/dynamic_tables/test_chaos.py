@@ -18,7 +18,7 @@ from yt_commands import (
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id,
     align_chaos_cell_tag, migrate_replication_cards, alter_replication_card,
     get_in_sync_replicas, generate_timestamp, MaxTimestamp, raises_yt_error,
-    create_table_replica, sync_enable_table_replica, get_tablet_infos, set_node_banned,
+    create_table_replica, sync_enable_table_replica, get_tablet_infos, get_table_mount_info, set_node_banned,
     suspend_chaos_cells, resume_chaos_cells, merge, add_maintenance, remove_maintenance,
     sync_freeze_table, lock, get_tablet_errors, create_tablet_cell_bundle, create_area, link)
 
@@ -4302,7 +4302,7 @@ class TestChaos(ChaosTestBase):
         self._sync_replication_era(card_id)
 
         assert get("//tmp/crt/@tablet_count") == 1
-
+        assert get_table_mount_info("//tmp/crt")["upper_cap_bound"][0] == 1
         primary_driver, remote_driver0, remote_driver1 = self._get_drivers()
 
         def _reshard_table(path: str, driver) -> None:
@@ -4312,12 +4312,15 @@ class TestChaos(ChaosTestBase):
 
         _reshard_table("//tmp/q1", remote_driver0)
         assert get("//tmp/crt/@tablet_count") == 1
+        assert get_table_mount_info("//tmp/crt")["upper_cap_bound"][0] == 1
 
         _reshard_table("//tmp/q2", remote_driver1)
         assert get("//tmp/crt/@tablet_count") == 1
+        assert get_table_mount_info("//tmp/crt")["upper_cap_bound"][0] == 1
 
         _reshard_table("//tmp/q0", primary_driver)
         assert get("//tmp/crt/@tablet_count") == 5
+        assert get_table_mount_info("//tmp/crt")["upper_cap_bound"][0] == 5
 
 
 ##################################################################
