@@ -1577,6 +1577,10 @@ private:
                     ToProto(response->add_tablets(), *tabletInfoPtr);
                 }
 
+                if (tableMountInfo->IsChaosReplicated() && tableMountInfo->UpperCapBound.GetCount() != 0) {
+                    response->set_tablet_count(tableMountInfo->UpperCapBound[0].Data.Int64);
+                }
+
                 response->set_dynamic(tableMountInfo->Dynamic);
                 ToProto(response->mutable_upstream_replica_id(), tableMountInfo->UpstreamReplicaId);
                 for (const auto& replica : tableMountInfo->Replicas) {
