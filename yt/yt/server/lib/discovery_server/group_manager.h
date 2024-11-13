@@ -21,7 +21,7 @@ class TGroupManager
     : public TRefCounted
 {
 public:
-    TGroupManager(const NLogging::TLogger& logger, TDiscoveryServerConfigPtr config);
+    TGroupManager(NLogging::TLogger logger, TDiscoveryServerConfigPtr config);
 
     void ProcessGossip(const std::vector<TGossipMemberInfo>& membersBatch);
     void ProcessHeartbeat(
