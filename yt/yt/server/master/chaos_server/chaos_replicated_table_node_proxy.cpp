@@ -69,7 +69,25 @@ class TChaosReplicatedTableTabletsCountGetter
 {
 public:
 
-    static TFuture<TYsonString> GetTabletsCount(TFuture<TReplicationCardPtr> replicationCardFuture, NNative::IConnectionPtr connection)
+    static TFuture<TYsonString> GetTabletsCountYson(TFuture<TReplicationCardPtr> replicationCardFuture, NNative::IConnectionPtr connection)
+    {
+        return GetTabletCount(
+                std::move(replicationCardFuture),
+                std::move(connection))
+            .ApplyUnique(BIND([] (TErrorOr<int>&& count) {
+                if (!count.IsOK()) {
+                    return BuildYsonStringFluently()
+                        .Entity();
+                }
+
+                return BuildYsonStringFluently()
+                    .Value(count.Value());
+            }));
+    }
+
+    static TFuture<int> GetTabletCount(
+        TFuture<TReplicationCardPtr> replicationCardFuture,
+        NNative::IConnectionPtr connection)
     {
         return replicationCardFuture
             .ApplyUnique(BIND([connection = std::move(connection)] (TReplicationCardPtr&& card) {
@@ -80,7 +98,7 @@ public:
                         std::vector<TFuture<i64>> requests;
                         requests.reserve(connections.size());
                         for (auto& [replicaPath, replicaClusterConnection] : connections) {
-                            requests.push_back(GetTabletCount(
+                            requests.push_back(GetRemoteTabletCount(
                                 replicaPath,
                                 std::move(replicaClusterConnection)));
                         }
@@ -102,12 +120,10 @@ public:
                                     });
 
                                 if (minElementIt == tabletCounts.end()) {
-                                    return BuildYsonStringFluently()
-                                        .Entity();
+                                    return MakeFuture<int>(TError("Failed to get tablet count from any replica"));
                                 }
 
-                                return BuildYsonStringFluently()
-                                    .Value(minElementIt->Value());
+                                return MakeFuture(static_cast<int>(minElementIt->Value()));
                         }));
                     }));
             }));
@@ -148,7 +164,7 @@ private:
         return MakeFuture(connections);
     }
 
-    static TFuture<i64> GetTabletCount(const TYPath& path, NNative::IConnectionPtr connection) {
+    static TFuture<i64> GetRemoteTabletCount(const TYPath& path, NNative::IConnectionPtr connection) {
         auto client = connection->CreateClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
         auto tableMountInfoFuture = client->GetTableMountCache()->GetTableInfo(path);
         return tableMountInfoFuture.Apply(BIND([] (const TTableMountInfoPtr& tableMountInfo) {
@@ -513,7 +529,7 @@ private:
                 }
 
                 // TODO(osidorkin): Write better implementation after replication card progress format is changed (YT-17817)
-                return TChaosReplicatedTableTabletsCountGetter::GetTabletsCount(
+                return TChaosReplicatedTableTabletsCountGetter::GetTabletsCountYson(
                     GetReplicationCard(),
                     Bootstrap_->GetClusterConnection());
             }
@@ -610,6 +626,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
     if (!schema || schema->AsTableSchema()->Columns().empty()) {
         THROW_ERROR_EXCEPTION("Table schema is not specified");
     }
+
     if (!trunkTable->GetReplicationCardId()) {
         THROW_ERROR_EXCEPTION("Replication card id is not specified");
     }
@@ -620,7 +637,18 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
     response->set_dynamic(true);
     ToProto(response->mutable_schema(), *trunkTable->GetSchema()->AsTableSchema());
 
-    context->Reply();
+    if (trunkTable->IsQueue()) {
+        auto tabletCountFuture = TChaosReplicatedTableTabletsCountGetter::GetTabletCount(
+            GetReplicationCard(),
+            Bootstrap_->GetClusterConnection());
+
+        context->ReplyFrom(tabletCountFuture.ApplyUnique(BIND(
+            [context, response] (TErrorOr<int>&& result) {
+                response->set_tablet_count(result.ValueOrDefault(0));
+            })));
+    } else {
+        context->Reply();
+    }
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)

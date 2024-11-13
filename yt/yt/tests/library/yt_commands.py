@@ -929,6 +929,11 @@ def get_tablet_errors(path, **kwargs):
     return execute_command("get_tablet_errors", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
+def get_table_mount_info(path, **kwargs):
+    kwargs["path"] = path
+    return execute_command("get_table_mount_info", kwargs, parse_yson=True)
+
+
 def register_queue_consumer(queue_path, consumer_path, vital, **kwargs):
     kwargs["queue_path"] = queue_path
     kwargs["consumer_path"] = consumer_path

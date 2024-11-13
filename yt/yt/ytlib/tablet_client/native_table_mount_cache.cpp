@@ -420,7 +420,11 @@ private:
                 tableInfo->UpperCapBound = MaxKey();
             } else {
                 tableInfo->LowerCapBound = MakeUnversionedOwningRow(static_cast<int>(0));
-                tableInfo->UpperCapBound = MakeUnversionedOwningRow(static_cast<int>(tableInfo->Tablets.size()));
+
+                auto tabletCount = tableInfo->IsChaosReplicated()
+                    ? rsp->tablet_count()
+                    : static_cast<int>(tableInfo->Tablets.size());
+                tableInfo->UpperCapBound = MakeUnversionedOwningRow(tabletCount);
             }
 
             for (const auto& tabletInfo : tableInfo->Tablets) {

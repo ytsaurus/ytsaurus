@@ -148,6 +148,7 @@ message TRspGetMountInfo
     optional NYT.NProto.TGuid hunk_storage_node_id = 10;
     repeated TIndexInfo indices = 11;
     // Deprecated = 12.
+    optional int32 tablet_count = 13; // Queue tablet count for chaos replicated tables
 }
 
 ////////////////////////////////////////////////////////////////////////////////
