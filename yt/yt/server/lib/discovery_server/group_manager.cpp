@@ -17,9 +17,9 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TGroupManager::TGroupManager(
-    const NLogging::TLogger& logger,
+    NLogging::TLogger logger,
     TDiscoveryServerConfigPtr config)
-    : Logger(logger)
+    : Logger(std::move(logger))
     , GroupTree_(New<TGroupTree>(Logger))
     , YPathService_(CreateDiscoveryYPathService(GroupTree_))
     , GroupManagerInfo_{std::move(config)}
