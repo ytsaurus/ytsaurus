@@ -250,6 +250,8 @@ private:
 
         job->OnResultReceived(std::move(result));
 
+        YT_VERIFY(job->GetPhase() >= EJobPhase::FinalizingJobProxy);
+
         context->Reply();
     }
 
@@ -285,12 +287,16 @@ private:
         const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
 
-        job->SetProgress(progress);
-        job->SetStatistics(statistics);
-        job->SetTotalInputDataStatistics(request->total_input_data_statistics());
-        job->SetOutputDataStatistics(FromProto<std::vector<TDataStatistics>>(request->output_data_statistics()));
-        job->SetStderrSize(stderrSize);
-        job->SetHasJobTrace(hasJobTrace);
+        if (job->GetPhase() >= EJobPhase::FinalizingJobProxy) {
+            YT_LOG_DEBUG("Job is already not running, skipping progress (JobPhase: %v)", job->GetPhase());
+        } else {
+            job->SetProgress(progress);
+            job->SetStatistics(statistics);
+            job->SetTotalInputDataStatistics(request->total_input_data_statistics());
+            job->SetOutputDataStatistics(FromProto<std::vector<TDataStatistics>>(request->output_data_statistics()));
+            job->SetStderrSize(stderrSize);
+            job->SetHasJobTrace(hasJobTrace);
+        }
 
         context->Reply();
     }
