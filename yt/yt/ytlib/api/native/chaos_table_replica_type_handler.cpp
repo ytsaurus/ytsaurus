@@ -65,7 +65,7 @@ public:
             req->set_enable_replicated_table_tracker(*options.EnableReplicatedTableTracker);
         }
 
-        if(options.ReplicaPath) {
+        if (options.ReplicaPath) {
             req->set_replica_path(*options.ReplicaPath);
         }
 
