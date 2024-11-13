@@ -36,7 +36,6 @@
 #include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/yt/ytlib/table_client/table_upload_options.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -44,6 +43,7 @@
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/table_upload_options.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/check_schema_compatibility.h>
 
