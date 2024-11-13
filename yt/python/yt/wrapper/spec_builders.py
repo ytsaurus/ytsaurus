@@ -1011,6 +1011,10 @@ class SpecBuilder(object):
     def enable_job_splitting(self, flag=True):
         return _set_spec_value(self, "enable_job_splitting", flag)
 
+    @spec_option("Enable per column statistic")
+    def use_columnar_statistics(self, flag=True):
+        return _set_spec_value(self, "use_columnar_statistics", flag)
+
     @spec_option("Description which is visible at the operation page")
     def description(self, description):
         return _set_spec_value(self, "description", description)
@@ -1582,6 +1586,10 @@ class MapReduceSpecBuilder(SpecBuilder):
         """Start building reducer section."""
         return ReducerSpecBuilder(self)
 
+    @spec_option("Enable ordered mode for job splitting")
+    def ordered(self, flag=True):
+        return _set_spec_value(self, "ordered", flag)
+
     @spec_option("The set of columns by which input tables must be sorted")
     def sort_by(self, columns):
         return _set_spec_value(self, "sort_by", columns)
@@ -1649,6 +1657,10 @@ class MapReduceSpecBuilder(SpecBuilder):
     @spec_option("The approximate amount of data at the input of one sort job")
     def data_size_per_sort_job(self, size):
         return _set_spec_value(self, "data_size_per_sort_job", size)
+
+    @spec_option("The approximate amount of data at the input of one reduce job")
+    def data_size_per_reduce_job(self, size):
+        return _set_spec_value(self, "data_size_per_reduce_job", size)
 
     @spec_option("Whether to force a startup of the reduce_combiner")
     def force_reduce_combiners(self, flag=True):
