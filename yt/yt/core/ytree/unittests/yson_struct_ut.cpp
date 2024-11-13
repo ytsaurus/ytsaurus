@@ -2946,6 +2946,7 @@ struct TComparableYsonStruct
 
     std::vector<int> Values;
     TIntrusivePtr<TSimpleYsonStruct> SimpleSubStruct;
+    THashMap<int, TIntrusivePtr<TSimpleYsonStruct>> Mapping;
 
     bool UnregisteredValue = false;
 
@@ -2961,6 +2962,13 @@ struct TComparableYsonStruct
                 ptr->IntValue = 77;
                 return ptr;
             });
+        registrar.Parameter("mapping", &TThis::Mapping)
+            .DefaultCtor([] {
+                THashMap<int, TIntrusivePtr<TSimpleYsonStruct>> mapping = {};
+                mapping[42] = New<TSimpleYsonStruct>();
+                return mapping;
+            });
+
         registrar.Parameter("values", &TThis::Values)
             .Default({1, 2, 3});
     }
