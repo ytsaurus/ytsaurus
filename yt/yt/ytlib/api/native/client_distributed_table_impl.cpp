@@ -19,9 +19,10 @@
 
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/yt/ytlib/table_client/table_upload_options.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
+
+#include <yt/yt/client/table_client/table_upload_options.h>
 
 #include <yt/yt/core/ytree/convert.h>
 

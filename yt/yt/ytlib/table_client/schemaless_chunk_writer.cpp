@@ -30,13 +30,13 @@
 
 #include <yt/yt/ytlib/transaction_client/transaction_listener.h>
 
-#include <yt/yt/ytlib/table_client/table_upload_options.h>
-
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
+
+#include <yt/yt/client/table_client/table_upload_options.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
