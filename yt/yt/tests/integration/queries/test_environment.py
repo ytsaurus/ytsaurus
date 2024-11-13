@@ -148,3 +148,19 @@ class TestMigration(YTEnvSetup):
         assert "start_time" not in queries_by_user[0]
 
         assert exists("//sys/query_tracker/finished_queries_by_start_time")
+
+    @authors("mpereskokova")
+    def test_dyntables_params_migration(self, query_tracker):
+        tables = [
+            "finished_queries_by_aco_and_start_time",
+            "finished_queries_by_user_and_start_time",
+            "finished_queries_by_start_time",
+            "finished_queries",
+            "finished_queries_results",
+            "active_queries",
+        ]
+
+        for table in tables:
+            assert get(f"//sys/query_tracker/{table}/@min_data_ttl") == 0
+            assert get(f"//sys/query_tracker/{table}/@merge_rows_on_flush")
+            assert get(f"//sys/query_tracker/{table}/@auto_compaction_period") == 3600000
