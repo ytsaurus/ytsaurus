@@ -33,6 +33,8 @@
 
 #include <yt/yt/library/monitoring/http_integration.h>
 
+#include <yt/yt/library/program/build_attributes.h>
+
 #include <yt/yt/client/node_tracker_client/public.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
@@ -201,6 +203,9 @@ private:
                 "/core_dumper",
                 CreateVirtualNode(CoreDumper_->CreateOrchidService()));
         }
+        SetBuildAttributes(
+            orchidRoot,
+            "replicated_table_tracker");
 
         RpcServer_->RegisterService(NAdmin::CreateAdminService(
             ControlInvoker_,

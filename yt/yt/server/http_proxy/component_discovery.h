@@ -11,23 +11,31 @@ namespace NYT::NHttpProxy {
 
 //! Singular (!) names of cluster components.
 DEFINE_ENUM(EClusterComponentType,
-    ((PrimaryMaster)      (0))
-    ((SecondaryMaster)    (1))
+    ((PrimaryMaster)            (0))
+    ((SecondaryMaster)          (1))
 
-    ((Scheduler)          (2))
-    ((ControllerAgent)    (3))
+    ((Scheduler)                (2))
+    ((ControllerAgent)          (3))
 
-    ((ClusterNode)        (4))
-    ((DataNode)           (5))
-    ((TabletNode)         (6))
-    ((ExecNode)           (7))
-    ((JobProxy)           (8))
+    ((ClusterNode)              (4))
+    ((DataNode)                 (5))
+    ((TabletNode)               (6))
+    ((ExecNode)                 (7))
+    ((JobProxy)                 (8))
 
-    ((HttpProxy)          (9))
-    ((RpcProxy)           (10))
+    ((HttpProxy)                (9))
+    ((RpcProxy)                (10))
+
+    ((TimestampProvider)       (11))
+    ((Discovery)               (12))
+    ((MasterCache)             (13))
+
+    ((TabletBalancer)          (14))
+    ((BundleController)        (15))
+    ((ReplicatedTableTracker)  (16))
+    ((QueueAgent)              (17))
+    ((QueryTracker)            (18))
 );
-
-// TODO(achulkov2): MasterCache, QueueAgent, QueryTracker, TabletBalancer.
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,6 +98,9 @@ private:
     //! Returns Cypress subpaths that can be joined with the directory returned by the function above
     //! to produce full paths to object nodes for instances of the requested component.
     static std::vector<NYPath::TYPath> GetCypressSubpaths(const NApi::IClientPtr& client, const NApi::TMasterReadOptions& masterReadOptions, EClusterComponentType component);
+
+    // COMPAT(koloshmet)
+    TString GetCompatBinaryVersion(const TString& path) const;
 
     std::vector<TClusterComponentInstance> GetAttributes(
         EClusterComponentType component,
