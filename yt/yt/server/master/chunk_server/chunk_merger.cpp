@@ -340,6 +340,8 @@ private:
 
     TChunkListId LastChunkListId_;
     int JobsForLastChunkList_ = 0;
+    // This is never decremented, since traverser and visitor are for one-time use.
+    int ChunkListsWithJobs_ = 0;
 
     bool OnChunk(
         TChunk* chunk,
@@ -352,6 +354,12 @@ private:
     {
         if (JobIndex_ == 0) {
             ++TraversalStatistics_.ChunkCount;
+        }
+
+        const auto& config = GetDynamicConfig();
+        if (ChunkListsWithJobs_ >= config->MaxChunkListCountPerMergeSession) {
+            YT_LOG_DEBUG("Cannot plan any more jobs as we reached max chunk list count per merge session");
+            return false;
         }
 
         if (!IsNodeMergeable()) {
@@ -461,6 +469,12 @@ private:
     bool MaybeAddChunk(TChunk* chunk, TChunkList* parent)
     {
         const auto& config = GetDynamicConfig();
+
+        // TODO(cherepashka): profile
+        if (ChunkListsWithJobs_ >= config->MaxChunkListCountPerMergeSession) {
+            YT_LOG_DEBUG("Cannot plan any more jobs as we reached max chunk list count per merge session");
+            return false;
+        }
 
         if (parent->GetId() == LastChunkListId_ && JobsForLastChunkList_ >= config->MaxJobsPerChunkList) {
             YT_LOG_DEBUG("Cannot add chunk to merge job due to job limit "
@@ -619,6 +633,7 @@ private:
         } else {
             LastChunkListId_ = ParentChunkListId_;
             JobsForLastChunkList_ = 1;
+            ++ChunkListsWithJobs_;
         }
 
         const auto& mergeJobThrottler = Account_->MergeJobThrottler();
