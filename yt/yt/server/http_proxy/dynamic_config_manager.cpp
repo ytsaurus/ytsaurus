@@ -37,7 +37,7 @@ public:
 private:
     std::vector<std::string> BaseTags_;
 
-    TAtomicObject<std::string> ProxyRole_;
+    NThreading::TAtomicObject<std::string> ProxyRole_;
 
     std::vector<std::string> GetInstanceTags() const override
     {

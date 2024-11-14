@@ -589,7 +589,7 @@ private:
     TPeriodicExecutorPtr RecentlyRemovedJobCleaner_;
     TPeriodicExecutorPtr JobProxyBuildInfoUpdater_;
 
-    TAtomicObject<TErrorOr<TBuildInfoPtr>> CachedJobProxyBuildInfo_;
+    NThreading::TAtomicObject<TErrorOr<TBuildInfoPtr>> CachedJobProxyBuildInfo_;
 
     THashMap<TGuid, TFuture<void>> OutstandingThrottlingRequests_;
 

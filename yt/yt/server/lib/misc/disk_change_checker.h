@@ -45,7 +45,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    TAtomicObject<TError> DiskIdsMismatchedAlert_;
+    NThreading::TAtomicObject<TError> DiskIdsMismatchedAlert_;
     THashSet<TString> OldDiskIds_;
 
     NConcurrency::TPeriodicExecutorPtr CheckerExecutor_;

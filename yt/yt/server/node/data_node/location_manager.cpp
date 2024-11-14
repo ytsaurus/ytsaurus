@@ -13,8 +13,9 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
 #include <yt/yt/core/misc/fs.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NDataNode {
 

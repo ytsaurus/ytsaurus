@@ -9,9 +9,9 @@
 #include <yt/yt/core/concurrency/pollable_detail.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
-
 #include <yt/yt/core/net/connection.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NZookeeperProxy {
 
@@ -101,7 +101,7 @@ public:
 
 private:
     const TConnectionId ConnectionId_;
-    TAtomicObject<TSessionId> SessionId_;
+    NThreading::TAtomicObject<TSessionId> SessionId_;
 
     const TZookeeperServerConfigPtr Config_;
 

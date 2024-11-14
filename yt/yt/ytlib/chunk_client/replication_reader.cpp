@@ -49,7 +49,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
 #include <yt/yt/core/misc/hedging_manager.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/memory_usage_tracker.h>
@@ -57,6 +56,8 @@
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/rpc/hedging_channel.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 #include <util/generic/algorithm.h>
 #include <util/generic/cast.h>

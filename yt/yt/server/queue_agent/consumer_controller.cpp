@@ -534,8 +534,8 @@ public:
 
 private:
     bool Leading_;
-    TAtomicObject<TConsumerTableRow> ConsumerRow_;
-    TAtomicObject<std::optional<TReplicatedTableMappingTableRow>> ReplicatedTableMappingRow_;
+    NThreading::TAtomicObject<TConsumerTableRow> ConsumerRow_;
+    NThreading::TAtomicObject<std::optional<TReplicatedTableMappingTableRow>> ReplicatedTableMappingRow_;
     const TCrossClusterReference ConsumerRef_;
     const IObjectStore* ObjectStore_;
     using TQueueControllerDynamicConfigAtomicPtr = TAtomicIntrusivePtr<TQueueControllerDynamicConfig>;

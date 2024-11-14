@@ -10,13 +10,13 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
-
 #include <yt/yt/core/ytree/ypath_service.h>
 
 #include <yt/yt/library/containers/public.h>
 
 #include <library/cpp/yt/containers/enum_indexed_array.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NClusterNode {
 
@@ -175,7 +175,7 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr UpdateExecutor_;
 
-    TAtomicObject<NContainers::TInstanceLimits> Limits_;
+    NThreading::TAtomicObject<NContainers::TInstanceLimits> Limits_;
 
     i64 SelfMemoryGuarantee_ = 0;
     std::atomic<double> JobsCpuLimit_ = 0;

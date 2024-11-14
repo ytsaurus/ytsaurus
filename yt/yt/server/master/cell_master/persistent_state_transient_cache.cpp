@@ -6,10 +6,11 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
 #include <yt/yt/core/misc/error.h>
 
 #include <yt/yt/core/rpc/public.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NCellMaster {
 
@@ -108,7 +109,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     std::atomic<bool> WorldInitialized_;
-    TAtomicObject<THashMap<TNodeId, TString>> NodeDefaultAddresses_;
+    NThreading::TAtomicObject<THashMap<TNodeId, TString>> NodeDefaultAddresses_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1098,13 +1098,13 @@ private:
     THashMap<NObjectClient::TCellTag, int> CellTagToRequiredOutputChunkListCount_;
     THashMap<NObjectClient::TCellTag, int> CellTagToRequiredDebugChunkListCount_;
 
-    TAtomicObject<TCompositePendingJobCount> CachedPendingJobCount = {};
+    NThreading::TAtomicObject<TCompositePendingJobCount> CachedPendingJobCount = {};
     int CachedTotalJobCount = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachedNeededResourcesLock);
     NScheduler::TCompositeNeededResources CachedNeededResources;
 
-    TAtomicObject<NScheduler::TJobResourcesWithQuotaList> CachedMinNeededAllocationResources;
+    NThreading::TAtomicObject<NScheduler::TJobResourcesWithQuotaList> CachedMinNeededAllocationResources;
 
     NScheduler::TJobResourcesWithQuotaList InitialMinNeededResources_;
 

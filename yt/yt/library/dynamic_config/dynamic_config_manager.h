@@ -4,10 +4,9 @@
 
 #include <yt/yt/core/actions/signal.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
-
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <library/cpp/yt/threading/atomic_object.h>
 #include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NDynamicConfig {

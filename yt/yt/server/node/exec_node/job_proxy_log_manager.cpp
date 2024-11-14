@@ -139,7 +139,7 @@ private:
     TString Directory_;
     int ShardingKeyLength_;
 
-    TAtomicObject<TString> LogFileName_;
+    NThreading::TAtomicObject<TString> LogFileName_;
 
     TAsyncSemaphorePtr AsyncSemaphore_;
 

@@ -4,11 +4,10 @@
 
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
-
 #include <yt/yt/library/vector_hdrf/job_resources.h>
 #include <yt/yt/library/vector_hdrf/resource_vector.h>
 
+#include <library/cpp/yt/threading/atomic_object.h>
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NScheduler {

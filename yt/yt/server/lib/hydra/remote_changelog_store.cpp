@@ -24,10 +24,11 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/ytree/helpers.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NHydra {
 
@@ -269,8 +270,8 @@ private:
     const std::optional<TElectionPriority> ElectionPriority_;
     const TJournalWriterPerformanceCounters Counters_;
 
-    TAtomicObject<std::optional<int>> Term_;
-    TAtomicObject<std::optional<int>> LatestChangelogId_;
+    NThreading::TAtomicObject<std::optional<int>> Term_;
+    NThreading::TAtomicObject<std::optional<int>> LatestChangelogId_;
 
 
     void DoSetTerm(int term)

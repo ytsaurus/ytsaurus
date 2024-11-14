@@ -166,7 +166,7 @@ private:
         std::atomic<TDuration> BatchPeriod_;
         std::atomic<i64> BatchSize_;
 
-        TAtomicObject<std::vector<TBatchedPingRequest>> PingRequests_;
+        NThreading::TAtomicObject<std::vector<TBatchedPingRequest>> PingRequests_;
 
         TFuture<void> SendPingTransaction(
             TTransactionId transactionId,
@@ -247,7 +247,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     THashSet<TTransaction::TImpl*> AliveTransactions_;
 
-    TAtomicObject<THashMap<TCellId, TPingBatcherWithChannel>> PingBatchers_;
+    NThreading::TAtomicObject<THashMap<TCellId, TPingBatcherWithChannel>> PingBatchers_;
 
     static TRetryChecker GetCommitRetryChecker()
     {

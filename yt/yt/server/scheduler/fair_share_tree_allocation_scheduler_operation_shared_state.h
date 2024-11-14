@@ -96,7 +96,7 @@ private:
     // NB(eshcherbin): We need to have the most recent fair share during scheduling for correct determination
     // of allocations' preemption statuses. This is why we use this value, which is shared between all snapshots,
     // and keep it updated, instead of using fair share from current snapshot.
-    TAtomicObject<TResourceVector> FairShare_;
+    NThreading::TAtomicObject<TResourceVector> FairShare_;
 
     std::atomic<bool> Preemptible_ = {true};
 

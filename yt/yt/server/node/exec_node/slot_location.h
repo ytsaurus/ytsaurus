@@ -15,9 +15,10 @@
 
 #include <yt/yt/core/misc/public.h>
 #include <yt/yt/core/misc/fs.h>
-#include <library/cpp/yt/threading/atomic_object.h>
 
 #include <yt/yt/core/logging/log.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NExecNode {
 
@@ -148,7 +149,7 @@ private:
     //! Absolute path to location.
     const TString LocationPath_;
 
-    TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
+    NThreading::TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SlotsLock_);
 
@@ -165,9 +166,9 @@ private:
     NNodeTrackerClient::NProto::TSlotLocationStatistics SlotLocationStatistics_;
 
     //! If location is disabled, this error contains the reason.
-    TAtomicObject<TError> Error_;
+    NThreading::TAtomicObject<TError> Error_;
 
-    TAtomicObject<TError> Alert_;
+    NThreading::TAtomicObject<TError> Alert_;
 
     NProfiling::TBufferedProducerPtr MakeCopyMetricBuffer_ = New<NProfiling::TBufferedProducer>();
 

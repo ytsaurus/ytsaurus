@@ -24,7 +24,6 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
 #include <yt/yt/core/misc/public.h>
 
 #include <yt/yt/core/rpc/grpc/public.h>
@@ -32,6 +31,8 @@
 #include <yt/yt/core/http/public.h>
 
 #include <yt/yt/core/ytree/public.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NRpcProxy {
 

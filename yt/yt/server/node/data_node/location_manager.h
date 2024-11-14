@@ -73,9 +73,9 @@ private:
     const TChunkStorePtr ChunkStore_;
     const IInvokerPtr ControlInvoker_;
 
-    TAtomicObject<std::vector<TError>> DiskFailedAlerts_;
-    TAtomicObject<std::vector<TError>> DiskWaitingReplacementAlerts_;
-    TAtomicObject<std::vector<TString>> FailedUnlinkedDiskIds_;
+    NThreading::TAtomicObject<std::vector<TError>> DiskFailedAlerts_;
+    NThreading::TAtomicObject<std::vector<TError>> DiskWaitingReplacementAlerts_;
+    NThreading::TAtomicObject<std::vector<TString>> FailedUnlinkedDiskIds_;
 
     NYTree::IYPathServicePtr CreateOrchidService();
 

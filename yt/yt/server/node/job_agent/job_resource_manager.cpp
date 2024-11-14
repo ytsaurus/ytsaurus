@@ -27,12 +27,13 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
 #include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/net/helpers.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 #include <google/protobuf/util/message_differencer.h>
 
@@ -1098,7 +1099,7 @@ private:
     const TJobResourceManagerConfigPtr StaticConfig_;
     TAtomicIntrusivePtr<TJobResourceManagerDynamicConfig> DynamicConfig_;
 
-    TAtomicObject<TNodeResourceLimitsOverrides> ResourceLimitsOverrides_;
+    NThreading::TAtomicObject<TNodeResourceLimitsOverrides> ResourceLimitsOverrides_;
 
     const INodeMemoryTrackerPtr NodeMemoryUsageTracker_;
     const IMemoryUsageTrackerPtr SystemMemoryUsageTracker_;
