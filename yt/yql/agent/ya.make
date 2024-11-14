@@ -19,6 +19,8 @@ SRCS(
     yql_agent.cpp
     yql_service.cpp
     interop.cpp
+    type_builder.cpp
+    data_builder.cpp
 )
 
 PEERDIR(

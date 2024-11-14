@@ -1,4 +1,6 @@
 #include "interop.h"
+#include "type_builder.h"
+#include "data_builder.h"
 
 #include <yt/yt/library/formats/skiff_parser.h>
 
@@ -32,7 +34,12 @@
 
 #include <library/cpp/iterator/functools.h>
 
+#include <library/cpp/type_info/type_info.h>
+
+#include <library/cpp/yson/node/node_io.h>
 #include <library/cpp/yt/memory/ref.h>
+
+#include <yql/essentials/public/result_format/yql_result_format_data.h>
 
 namespace NYT::NYqlAgent {
 
@@ -201,6 +208,41 @@ TYqlRowset BuildRowsetByRef(
     };
 }
 
+TTableSchemaPtr BuildSchema(const TLogicalType& type) {
+    std::vector<TColumnSchema> columns;
+    for (const auto& member : type.AsListTypeRef().GetElement()->AsStructTypeRef().GetFields()) {
+        columns.emplace_back(member.Name, member.Type);
+    }
+    return New<TTableSchema>(columns);
+}
+
+TYqlRowset BuildRowsetFromYson(
+    const TClientDirectoryPtr& clientDirectory,
+    const NYT::TNode& resultNode,
+    int resultIndex,
+    i64 rowCountLimit)
+{
+Y_UNUSED(clientDirectory);
+Y_UNUSED(resultIndex);
+Y_UNUSED(rowCountLimit);
+    const auto& writeNode = resultNode["Write"][0];
+    Cerr << __func__ << Endl << NYT::NodeToCanonicalYsonString(writeNode["Type"]) << Endl;
+    TTypeBuilder tb;
+    NYql::NResult::ParseType(writeNode["Type"], tb);
+    PrintTo(*BuildSchema(*tb.GetResult()), &std::cerr);
+    std::cerr << std::endl;
+    TDataBuilder db;
+    std::vector<TUnversionedRow> resultRows;
+    NYql::NResult::ParseData(writeNode["Type"], writeNode["Data"], db);
+    throw NYql::NResult::TUnsupportedException() << "TODO!!!";
+    return TYqlRowset{
+        .TargetSchema = BuildSchema(*tb.GetResult()),
+        .ResultRows = std::move(resultRows),
+      //  .RowBuffer = rowBuffer,
+        .Incomplete = false, //TODO
+    };
+}
+
 TYqlRowset BuildRowset(
     const TClientDirectoryPtr& clientDirectory,
     const INodePtr& resultNode,
@@ -270,6 +312,9 @@ TYqlRowset BuildRowset(
 
     YT_LOG_DEBUG("Result read (RowCount: %v, Incomplete: %v, ResultIndex: %v)", resultRows.size(), incomplete, resultIndex);
 
+    PrintTo(*targetSchema, &std::cerr);
+    writeNode->GetChildOrThrow("FailTest");
+
     return TYqlRowset{
         .TargetSchema = targetSchema,
         .ResultRows = resultRows,
@@ -294,8 +339,27 @@ std::vector<TWireYqlRowset> BuildRowsets(
     const TString& yqlYsonResults,
     i64 rowCountLimit)
 {
-    auto results = ConvertTo<std::vector<INodePtr>>(TYsonString(yqlYsonResults));
+    Cerr << __func__ << Endl << NYT::NodeToCanonicalYsonString(NYT::NodeFromYsonString(yqlYsonResults)) << Endl;
+    const auto& list = NYT::NodeFromYsonString(yqlYsonResults);
     std::vector<TWireYqlRowset> rowsets;
+    rowsets.reserve(list.Size());
+    try {
+        for (size_t index = 0U; index < list.Size(); ++index) {
+            YT_LOG_DEBUG("Building rowset for query result (ResultIndex: %v)", index);
+            auto rowset = BuildRowsetFromYson(clientDirectory, list[index], index, rowCountLimit);
+    //      YT_LOG_DEBUG("Rowset built (ResultBytes: %v)", rowset.WireRowset.size());
+    //       rowsets.push_back(std::move(rowset));
+        }
+    } catch (const NYql::NResult::TUnsupportedException& ex) {
+        const auto error = TError(ex);
+        YT_LOG_DEBUG("Error building rowset result from yson: %v. Try fallback to skiff.", error);
+        Cerr << "Fallback to skiff: " << ex.what() << Endl;
+    } catch (const std::exception& ex) {
+        const auto error = TError(ex);
+        YT_LOG_DEBUG("Error building rowset result from yson: %v. Try fallback to skiff.", error);
+        Cerr << "Fallback to skiff: " << ex.what() << Endl;
+    }
+    const auto results = ConvertTo<std::vector<INodePtr>>(TYsonString(yqlYsonResults));
     for (const auto& [index, result] : Enumerate(results)) {
         try {
             YT_LOG_DEBUG("Building rowset for query result (ResultIndex: %v)", index);
