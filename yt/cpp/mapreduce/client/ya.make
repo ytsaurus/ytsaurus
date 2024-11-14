@@ -43,24 +43,19 @@ PEERDIR(
     yt/cpp/mapreduce/interface
     yt/cpp/mapreduce/io
     yt/cpp/mapreduce/raw_client
-)
-
-PEERDIR(
+    
     yt/yt/core
     yt/yt/core/http
+    yt/yt/library/ytprof
 )
 
-IF (BUILD_TYPE == "PROFILE")
-    PEERDIR(
-        yt/yt/library/ytprof
-    )
-
+IF (OPENSOURCE)
     SRCS(
-        job_profiler.cpp
+        dummy_job_profiler.cpp
     )
 ELSE()
     SRCS(
-        dummy_job_profiler.cpp
+        job_profiler.cpp
     )
 ENDIF()
 
