@@ -2,6 +2,8 @@ LIBRARY()
 
 SRCS(
     cast.h
+    chunked_buffer.cpp
+    chunked_buffer.h
     debug_info.cpp
     debug_info.h
     exceptions.cpp
@@ -11,6 +13,7 @@ SRCS(
     hash.cpp
     hash.h
     limiting_allocator.cpp
+    line_split.cpp
     md5_stream.cpp
     md5_stream.h
     method_index.cpp
@@ -58,8 +61,8 @@ IF (OPENSOURCE_PROJECT != "yt")
         failure_injector
         fetch
         log
+        memory_profiling
         network
-        rope
         signals
         sys
         test_http_server

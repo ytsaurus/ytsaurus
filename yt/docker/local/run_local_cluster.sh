@@ -226,6 +226,7 @@ fi
 set +e
 cluster_container=$(
     docker run -itd \
+        --env YT_FORCE_IPV4=1 --env YT_FORCE_IPV6=0 --env YT_USE_HOSTS=0 \
         --network $network_name \
         --name $yt_container_name \
         -p ${proxy_port}:80 \
@@ -242,6 +243,7 @@ cluster_container=$(
         --queue-agent-count ${queue_agent_count} \
         --address-resolver-config "{enable_ipv4=%true;enable_ipv6=%false;}" \
         --native-client-supported \
+        -c '{name=yql-agent;config={path="/usr/bin";count=1;artifacts_path="/usr/bin"}}' -c '{name=query-tracker}' \
         ${params} \
 )
 

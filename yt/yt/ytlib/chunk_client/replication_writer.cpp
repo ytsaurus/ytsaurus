@@ -41,8 +41,9 @@
 
 #include <yt/yt/core/net/local_address.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
 #include <yt/yt/core/misc/memory_usage_tracker.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 #include <atomic>
 #include <deque>
@@ -193,7 +194,7 @@ private:
     IChannelPtr Channel_;
     TChunkLocationUuid TargetLocationUuid_;
 
-    TAtomicObject<TError> Error_;
+    NThreading::TAtomicObject<TError> Error_;
     TPeriodicExecutorPtr PingExecutor_;
 
     bool Closing_ = false;

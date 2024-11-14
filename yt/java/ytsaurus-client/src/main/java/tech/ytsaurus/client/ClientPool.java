@@ -1006,8 +1006,12 @@ class HttpProxyGetter implements ProxyGetter {
 
                 throw new RuntimeException(builder.toString());
             }
-
-            YTreeNode node = YTreeTextSerializer.deserialize(response.body());
+            YTreeNode node;
+            try (var responseBody = response.body()) {
+                node = YTreeTextSerializer.deserialize(responseBody);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
             return node
                     .mapNode()
                     .getOrThrow("proxies")

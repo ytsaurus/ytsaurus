@@ -66,7 +66,7 @@ private:
         std::deque<TOutcomingMessage> Messages;
     };
 
-    TAtomicObject<TOutcomingMessages> OutcomingMessages_;
+    NThreading::TAtomicObject<TOutcomingMessages> OutcomingMessages_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPersistentMailboxState)

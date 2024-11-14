@@ -82,7 +82,7 @@ private:
 
     const TPermissionCachePtr Cache_;
 
-    TAtomicObject<std::string> ProxyRole_;
+    NThreading::TAtomicObject<std::string> ProxyRole_;
 
     std::atomic<bool> Enabled_;
 

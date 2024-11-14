@@ -15,7 +15,7 @@ namespace NYT::NYqlAgent {
 
 using namespace NConcurrency;
 using namespace NRpc;
-using namespace NStateChecker;
+using namespace NComponentStateChecker;
 using namespace NYqlClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,13 +24,13 @@ class TYqlService
     : public TServiceBase
 {
 public:
-    TYqlService(IInvokerPtr controlInvoker, IYqlAgentPtr yqlAgent, TStateCheckerPtr stateChecker)
+    TYqlService(IInvokerPtr controlInvoker, IYqlAgentPtr yqlAgent, IComponentStateCheckerPtr ComponentStateChecker)
         : TServiceBase(
             std::move(controlInvoker),
             TYqlServiceProxy::GetDescriptor(),
             YqlAgentLogger())
         , YqlAgent_(std::move(yqlAgent))
-        , StateChecker_(std::move(stateChecker))
+        , ComponentStateChecker_(std::move(ComponentStateChecker))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartQuery)
             .SetCancelable(true));
@@ -40,7 +40,7 @@ public:
 
 private:
     const IYqlAgentPtr YqlAgent_;
-    const TStateCheckerPtr StateChecker_;
+    const IComponentStateCheckerPtr ComponentStateChecker_;
 
     DECLARE_RPC_SERVICE_METHOD(NYqlClient::NProto, StartQuery)
     {
@@ -55,7 +55,7 @@ private:
         context->SetRequestInfo("QueryId: %v, Async: %v, BuildRowsets: %v, RowCountLimit: %v", queryId, request->async(), request->build_rowsets(), request->row_count_limit());
         context->SetResponseInfo("QueryId: %v", queryId);
 
-        if (StateChecker_->IsComponentBanned()) {
+        if (ComponentStateChecker_->IsComponentBanned()) {
             YT_LOG_INFO("Yql agent is banned, failing query (QueryId: %v, User: %v)", queryId, impersonationUser);
             THROW_ERROR_EXCEPTION(NYqlClient::EErrorCode::YqlAgentBanned, "Yql agent is banned");
         }
@@ -118,15 +118,15 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return !StateChecker_->IsComponentBanned();
+        return !ComponentStateChecker_->IsComponentBanned();
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IServicePtr CreateYqlService(IInvokerPtr controlInvoker, IYqlAgentPtr yqlAgent, TStateCheckerPtr stateChecker)
+IServicePtr CreateYqlService(IInvokerPtr controlInvoker, IYqlAgentPtr yqlAgent, IComponentStateCheckerPtr ComponentStateChecker)
 {
-    return New<TYqlService>(std::move(controlInvoker), std::move(yqlAgent), std::move(stateChecker));
+    return New<TYqlService>(std::move(controlInvoker), std::move(yqlAgent), std::move(ComponentStateChecker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

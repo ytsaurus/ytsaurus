@@ -59,6 +59,7 @@
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/yt/ytlib/object_client/helpers.h>
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 
@@ -1933,11 +1934,17 @@ private:
                 auto outputRow = outputChunkRows.front();
                 outputChunkRows.pop();
 
-                if (inputRow != outputRow) {
+                auto rowsEqual = DynamicConfig_->EnableBitwiseRowValidation
+                    ? TBitwiseUnversionedRowEqual()(inputRow, outputRow)
+                    : inputRow == outputRow;
+                if (!rowsEqual) {
+                    TStringBuilder rowDiffBuilder;
+                    TBitwiseUnversionedRowEqual::FormatDiff(&rowDiffBuilder, inputRow, outputRow);
                     return TError("Row differs in input and output chunks")
                         << TErrorAttribute("row_index", rowIndex)
                         << TErrorAttribute("input_row", inputRow)
-                        << TErrorAttribute("output_row", outputRow);
+                        << TErrorAttribute("output_row", outputRow)
+                        << TErrorAttribute("row_diff", rowDiffBuilder.Flush());
                 }
 
                 ++rowIndex;
@@ -1978,6 +1985,7 @@ public:
             : std::nullopt)
         , NodeDirectory_(New<NNodeTrackerClient::TNodeDirectory>())
         , DynamicConfig_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->ReincarnateChunkJob)
+        , TransactionId_(FromProto<TTransactionId>(JobSpecExt_.transaction_id()))
     {
         NodeDirectory_->MergeFrom(JobSpecExt_.node_directory());
     }
@@ -1994,6 +2002,7 @@ private:
     const std::optional<bool> EnableSkynetSharing_;
     const TNodeDirectoryPtr NodeDirectory_;
     const TReincarnateChunkJobDynamicConfigPtr DynamicConfig_;
+    const TTransactionId TransactionId_;
 
     static void CopyMeta(const TDeferredChunkMetaPtr& src, const TDeferredChunkMetaPtr& dst)
     {
@@ -2126,12 +2135,14 @@ private:
         confirmingWriterOptions->MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
         confirmingWriterOptions->Postprocess();
 
+        auto schemaId = FetchSchemaId(oldChunkMeta);
+
         auto confirmingWriter = CreateConfirmingWriter(
             writerConfig,
             confirmingWriterOptions,
             CellTag_,
             NullTransactionId,
-            TMasterTableSchemaId(), // TODO(h0pless): Deduce chunk schemaId on master and send it here.
+            schemaId,
             NullChunkListId,
             Bootstrap_->GetClient(),
             Bootstrap_->GetLocalHostName(),
@@ -2163,6 +2174,29 @@ private:
         const TDeferredChunkMetaPtr& meta)
     {
         return FindProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
+    }
+
+    NTableClient::NProto::TTableSchemaExt GetSchemaExt(const TDeferredChunkMetaPtr& meta)
+    {
+        return GetProtoExtension<NTableClient::NProto::TTableSchemaExt>(meta->extensions());
+    }
+
+    NTableClient::TMasterTableSchemaId FetchSchemaId(const TDeferredChunkMetaPtr& meta) {
+        auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient(), CellTag_);
+        auto batchReq = proxy.ExecuteBatch();
+        auto req = TMasterYPathProxy::GetOrRegisterSchema();
+        *req->mutable_schema() = GetSchemaExt(meta);
+        ToProto(req->mutable_transaction_id(), TransactionId_);
+        batchReq->AddRequest(req);
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        auto rsp = batchRsp->GetResponse<NObjectClient::TMasterYPathProxy::TRspGetOrRegisterSchema>(0)
+            .ValueOrThrow();
+        NTableClient::TMasterTableSchemaId schemaId;
+        FromProto(&schemaId, rsp->schema_id());
+
+        return schemaId;
     }
 
     void ReincarnateVersionedChunk(

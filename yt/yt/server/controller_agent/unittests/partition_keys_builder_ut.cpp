@@ -16,7 +16,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPartitionKeysBuilder
+class TPartitionKeysBuilderTest
     : public ::testing::Test
 {
 protected:
@@ -55,7 +55,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TPartitionKeysBuilder, TestTwoPartitions)
+TEST_F(TPartitionKeysBuilderTest, TwoPartitions)
 {
     auto samples = GenerateIntSamples({2, 8, 10, 15, 15, 25});
     std::shuffle(samples.begin(), samples.end(), Generator_);
@@ -76,7 +76,7 @@ TEST_F(TPartitionKeysBuilder, TestTwoPartitions)
     EXPECT_FALSE(key.Maniac);
 }
 
-TEST_F(TPartitionKeysBuilder, TestSinglePartition)
+TEST_F(TPartitionKeysBuilderTest, SinglePartition)
 {
     auto samples = GenerateIntSamples({2, 8, 10, 15, 15, 25});
     std::shuffle(samples.begin(), samples.end(), Generator_);
@@ -93,7 +93,7 @@ TEST_F(TPartitionKeysBuilder, TestSinglePartition)
     EXPECT_TRUE(keys.empty());
 }
 
-TEST_F(TPartitionKeysBuilder, TestManiacPartition)
+TEST_F(TPartitionKeysBuilderTest, ManiacPartition)
 {
     auto samples = GenerateIntSamples({1, 8, 8, 8, 8, 9});
 
@@ -118,7 +118,7 @@ TEST_F(TPartitionKeysBuilder, TestManiacPartition)
         TKeyBound::FromRow(MakeUnversionedOwningRow(8), /*isInclusive*/ false, /*isUpper*/ false));
 }
 
-TEST_F(TPartitionKeysBuilder, TestIncompleteSample)
+TEST_F(TPartitionKeysBuilderTest, IncompleteSample)
 {
     auto samples = GenerateIntSamples({1, 8, 8, 8, 8, 9});
     for (int i = 1; i <= 4; ++i) {
@@ -138,7 +138,7 @@ TEST_F(TPartitionKeysBuilder, TestIncompleteSample)
     EXPECT_FALSE(keys[0].Maniac);
 }
 
-TEST_F(TPartitionKeysBuilder, TestShiftedRowWeights)
+TEST_F(TPartitionKeysBuilderTest, ShiftedRowWeights)
 {
     auto samples = GenerateIntSamples({1, 2, 3, 4, 5});
     samples.back().Weight = 100500;
@@ -160,7 +160,7 @@ TEST_F(TPartitionKeysBuilder, TestShiftedRowWeights)
         TKeyBound::FromRow(MakeUnversionedOwningRow(5), /*isInclusive*/ true, /*isUpper*/ false));
 }
 
-TEST_F(TPartitionKeysBuilder, TestColumnWithExpression)
+TEST_F(TPartitionKeysBuilderTest, ColumnWithExpression)
 {
     std::vector<TSample> samples;
     for (auto value : {1, 2, 3, 4, 5}) {

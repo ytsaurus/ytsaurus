@@ -191,17 +191,18 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     // Process get_attributes response.
     auto getAttributesRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGetKey>("get_attributes");
     auto getAttributesRsp = getAttributesRspOrError.Value();
-    TArtifactKey layerKey;
-    ToProto(layerKey.mutable_chunk_specs(), chunkSpecs);
-    layerKey.mutable_data_source()->set_type(ToProto(EDataSourceType::File));
-    layerKey.mutable_data_source()->set_path(path);
-
     auto attributeDictionaryPtr = ConvertToAttributes(NYson::TYsonString(getAttributesRsp->value()));
     const auto& attributes = *attributeDictionaryPtr;
 
     auto [accessMethod, filesystem] = GetAccessMethodAndFilesystemFromStrings(
         attributes.Find<TString>("access_method").value_or(ToString(ELayerAccessMethod::Local)),
         attributes.Find<TString>("filesystem").value_or(ToString(ELayerFilesystem::Archive)));
+
+    // Create artifact key.
+    TArtifactKey layerKey;
+    ToProto(layerKey.mutable_chunk_specs(), chunkSpecs);
+    layerKey.mutable_data_source()->set_type(ToProto(EDataSourceType::File));
+    layerKey.mutable_data_source()->set_path(path);
     layerKey.set_access_method(ToProto(accessMethod));
     layerKey.set_filesystem(ToProto(filesystem));
     result.ArtifactKey = std::move(layerKey);

@@ -319,6 +319,10 @@ private:
         std::vector<TAllocationPtr>* runningAllocations,
         bool* hasWaitingAllocations);
 
+    void FillNodeProfilingTags(
+        TScheduler::TCtxNodeHeartbeat::TTypedResponse* response,
+        const INodeHeartbeatStrategyProxyPtr& strategyProxy);
+
     TAllocationPtr ProcessAllocationHeartbeat(
         const TExecNodePtr& node,
         NProto::NNode::TRspHeartbeat* response,

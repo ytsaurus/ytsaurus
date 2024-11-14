@@ -26,10 +26,10 @@ public:
 
     TCypressRegistrarConfigPtr CypressRegistrar;
 
-    TString RootPath;
+    NYPath::TYPath RootPath;
 
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
-    TString DynamicConfigPath;
+    NYPath::TYPath DynamicConfigPath;
 
     TUserDirectorySynchronizerConfigPtr UserDirectorySynchronizer;
 

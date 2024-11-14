@@ -371,7 +371,7 @@ private:
     std::atomic<bool> RegisteredAtPrimary_;
 
     std::atomic<TNodeId> NodeId_ = InvalidNodeId;
-    TAtomicObject<std::string> LocalHostName_;
+    NThreading::TAtomicObject<std::string> LocalHostName_;
 
     std::atomic<TMasterEpoch> Epoch_ = 0;
 

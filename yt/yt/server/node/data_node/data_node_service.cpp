@@ -377,16 +377,16 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, CancelChunk)
     {
-        const auto& config = GetDynamicConfig()->TestingOptions;
-        if (config->ChunkCancellationDelay) {
-            NConcurrency::TDelayedExecutor::WaitForDuration(config->ChunkCancellationDelay.value());
-        }
-
         auto sessionId = FromProto<TSessionId>(request->session_id());
         bool waitForCancelation = request->wait_for_cancelation();
 
         context->SetRequestInfo("ChunkId: %v",
             sessionId);
+
+        const auto& config = GetDynamicConfig()->TestingOptions;
+        if (config->ChunkCancellationDelay) {
+            NConcurrency::TDelayedExecutor::WaitForDuration(config->ChunkCancellationDelay.value());
+        }
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->FindSession(sessionId);
@@ -1261,7 +1261,7 @@ private:
         auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
         response->set_net_throttling(netThrottling.Enabled);
 
-        auto enableThrottling = GetDynamicConfig()->EnableThrottlingForGetChunkFragmentSet;
+        auto enableThrottling = GetDynamicConfig()->EnableGetChunkFragmentSetThrottling;
         if (enableThrottling && netThrottling.Enabled) {
             context->SetResponseInfo("NetThrottling: %v", netThrottling.Enabled);
             context->Reply();
@@ -1351,7 +1351,7 @@ private:
             }
         }
 
-        auto enableMemoryTracking = GetDynamicConfig()->EnableMemoryTrackingForGetChunkFragmentSet;
+        auto enableMemoryTracking = GetDynamicConfig()->EnableGetChunkFragmentSetMemoryTracking;
         auto memoryTracker = Bootstrap_->GetReadBlockMemoryUsageTracker();
 
         auto afterReadersPrepared =
@@ -1403,7 +1403,7 @@ private:
                             ++fragmentIndex;
                         }
 
-                        TMemoryUsageTrackerGuard memoryGuard = {};
+                        TMemoryUsageTrackerGuard memoryGuard;
                         if (enableMemoryTracking) {
                             memoryGuard = TMemoryUsageTrackerGuard::TryAcquire(
                                 memoryTracker,
@@ -1433,19 +1433,17 @@ private:
 
                     struct TChunkFragmentBuffer
                     { };
-                    readFutures.push_back(ioEngine->Read(
+                    auto readFuture = ioEngine->Read(
                         std::move(locationRequests[index]),
                         workloadDescriptor.Category,
                         GetRefCountedTypeCookie<TChunkFragmentBuffer>(),
-                        readSessionId)
-                        .ApplyUnique(BIND([
+                        readSessionId);
+
+                    if (!enableMemoryTracking) {
+                        readFuture = readFuture.ApplyUnique(BIND([
                             =,
                             memoryGuard = std::move(locationMemoryGuards[index]),
                             resultIndex = index] (IIOEngine::TReadResponse&& result) mutable {
-                            if (!enableMemoryTracking) {
-                                return result;
-                            }
-
                             const auto& fragmentIndices = locationFragmentIndices[resultIndex];
                             YT_VERIFY(result.OutputBuffers.size() == fragmentIndices.size());
 
@@ -1456,7 +1454,10 @@ private:
                             memoryGuard.Release();
 
                             return result;
-                        })));
+                        }));
+                    }
+
+                    readFutures.push_back(std::move(readFuture));
                 }
 
                 AllSucceeded(std::move(readFutures))

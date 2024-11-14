@@ -63,7 +63,7 @@ using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NOrchid;
 using namespace NProfiling;
-using namespace NStateChecker;
+using namespace NComponentStateChecker;
 using namespace NRpc;
 using namespace NTransactionClient;
 using namespace NSecurityClient;
@@ -194,7 +194,7 @@ void TBootstrap::DoRun()
         orchidRoot,
         "yql_agent");
 
-    StateChecker_ = New<TStateChecker>(
+    ComponentStateChecker_ = CreateComponentStateChecker(
         ControlInvoker_,
         NativeClient_,
         Format("%v/instances/%v", Config_->Root, ToYPathLiteral(AgentId_)),
@@ -202,7 +202,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/state_checker",
-        CreateVirtualNode(StateChecker_->GetOrchidService()));
+        CreateVirtualNode(ComponentStateChecker_->GetOrchidService()));
 
     RpcServer_->RegisterService(CreateAdminService(
         ControlInvoker_,
@@ -215,7 +215,7 @@ void TBootstrap::DoRun()
     RpcServer_->RegisterService(CreateYqlService(
         ControlInvoker_,
         YqlAgent_,
-        StateChecker_));
+        ComponentStateChecker_));
 
     YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
     HttpServer_->Start();
@@ -227,7 +227,7 @@ void TBootstrap::DoRun()
     RpcServer_->Start();
 
     UpdateCypressNode();
-    StateChecker_->Start();
+    ComponentStateChecker_->Start();
 }
 
 void TBootstrap::UpdateCypressNode()
@@ -305,7 +305,7 @@ void TBootstrap::OnDynamicConfigChanged(
     WaitFor(AllSucceeded(asyncUpdateComponents))
         .ThrowOnError();
 
-    StateChecker_->SetPeriod(newConfig->YqlAgent->StateCheckPeriod);
+    ComponentStateChecker_->SetPeriod(newConfig->YqlAgent->StateCheckPeriod);
 
     YT_LOG_DEBUG(
         "Updated Yql agent server dynamic config (OldConfig: %v, NewConfig: %v)",

@@ -5,28 +5,29 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 SRCS(
     bootstrap.cpp
     chunk_list_pool.cpp
-    tentative_tree_eligibility.cpp
-    controller_agent.cpp
     config.cpp
+    controller_agent.cpp
     controller_agent_service.cpp
     counter_manager.cpp
-    master_connector.cpp
     helpers.cpp
     intermediate_chunk_scraper.cpp
-    job_size_constraints.cpp
     job_monitoring_index_manager.cpp
     job_prober_service.cpp
     job_profiler.cpp
+    job_size_constraints.cpp
     job_tracker.cpp
     job_tracker_service.cpp
+    master_connector.cpp
+    memory_watchdog.cpp
     operation.cpp
     operation_controller.cpp
     operation_controller_host.cpp
+    partitioning_parameters_evaluator.cpp
     private.cpp
     scheduling_context.cpp
     snapshot_builder.cpp
     snapshot_downloader.cpp
-    memory_watchdog.cpp
+    tentative_tree_eligibility.cpp
     virtual.cpp
 )
 

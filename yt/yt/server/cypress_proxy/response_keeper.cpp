@@ -138,14 +138,14 @@ private:
         }
 
         auto responseSharedRefParts = response.ToVector();
-        std::vector<TString> responseStringParts;
+        std::vector<std::string> responseStringParts;
         responseStringParts.reserve(responseSharedRefParts.size());
         std::transform(
             responseSharedRefParts.begin(),
             responseSharedRefParts.end(),
             std::back_inserter(responseStringParts),
             [] (const TSharedRef& ref) {
-                return TString(ref.ToStringBuf());
+                return std::string(ref.ToStringBuf());
             });
 
         transaction->WriteRow(NRecords::TSequoiaResponseKeeper{
@@ -168,7 +168,7 @@ private:
             return CreateErrorResponseMessage(rowsOrError);
         }
 
-        const auto& rows = rowsOrError.Value();
+        auto& rows = rowsOrError.Value();
         YT_VERIFY(rows.size() == 1);
 
         if (!rows.front()) {
@@ -176,16 +176,16 @@ private:
         }
         ValidateRetry(mutationId, isRetry);
 
-        const auto& responseStringParts = rows.front()->Response;
+        auto& responseStringParts = rows.front()->Response;
         std::vector<TSharedRef> responseSharedRefParts;
         responseSharedRefParts.reserve(responseStringParts.size());
         std::transform(
             responseStringParts.begin(),
             responseStringParts.end(),
             std::back_inserter(responseSharedRefParts),
-            [] (TString s) {
-                return TSharedRef::FromString(std::move(s));
-        });
+            [] (std::string& str) {
+                return TSharedRef::FromString(std::move(str));
+            });
 
         return TSharedRefArray(std::move(responseSharedRefParts), TSharedRefArray::TMoveParts{});
     }

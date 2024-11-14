@@ -12,6 +12,7 @@
 #include <yt/yt/server/controller_agent/helpers.h>
 #include <yt/yt/server/controller_agent/job_size_constraints.h>
 #include <yt/yt/server/controller_agent/operation.h>
+#include <yt/yt/server/controller_agent/partitioning_parameters_evaluator.h>
 #include <yt/yt/server/controller_agent/scheduling_context.h>
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
@@ -24,9 +25,9 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/data_sink.pb.h>
 
@@ -62,7 +63,6 @@
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <algorithm>
-#include <cmath>
 
 namespace NYT::NControllerAgent::NControllers {
 
@@ -260,6 +260,8 @@ protected:
 
     TTableSchemaPtr IntermediateChunkSchema_ = New<TTableSchema>();
     std::vector<TTableSchemaPtr> IntermediateStreamSchemas_;
+
+    TUnavailableChunksWatcherPtr UnavailableChunksWatcher_;
 
     // Forward declarations.
     class TPartitionTask;
@@ -546,6 +548,8 @@ protected:
     TJobIOConfigPtr UnorderedMergeJobIOConfig;
 
     IJobSizeConstraintsPtr RootPartitionPoolJobSizeConstraints;
+    IPartitioningParametersEvaluatorPtr PartitioningParametersEvaluator_;
+
     IPersistentChunkPoolPtr RootPartitionPool;
     IPersistentChunkPoolPtr SimpleSortPool;
 
@@ -2701,135 +2705,6 @@ protected:
             (i64) 4 * stat.RowCount;                         // SortedIndexes
     }
 
-    i64 GetMaxPartitionJobBufferSize() const
-    {
-        return Spec->PartitionJobIO->TableWriter->MaxBufferSize;
-    }
-
-    int SuggestPartitionCount() const
-    {
-        YT_VERIFY(TotalEstimatedInputDataWeight > 0);
-        i64 dataWeightAfterPartition = 1 + static_cast<i64>(TotalEstimatedInputDataWeight * Spec->MapSelectivityFactor);
-        // Use int64 during the initial stage to avoid overflow issues.
-        i64 result;
-        if (Spec->PartitionCount) {
-            result = *Spec->PartitionCount;
-        } else if (Spec->PartitionDataWeight) {
-            result = DivCeil<i64>(dataWeightAfterPartition, *Spec->PartitionDataWeight);
-        } else {
-            // Rationale and details are on the wiki.
-            // https://wiki.yandex-team.ru/yt/design/partitioncount/
-            i64 uncompressedBlockSize = static_cast<i64>(Options->CompressedBlockSize / InputCompressionRatio);
-            uncompressedBlockSize = std::min(uncompressedBlockSize, Spec->PartitionJobIO->TableWriter->BlockSize);
-
-            // Just in case compression ratio is very large.
-            uncompressedBlockSize = std::max(i64(1), uncompressedBlockSize);
-
-            // Product may not fit into i64.
-            double partitionDataWeight = sqrt(dataWeightAfterPartition) * sqrt(uncompressedBlockSize);
-            partitionDataWeight = std::max(partitionDataWeight, static_cast<double>(Options->MinPartitionWeight));
-
-            i64 maxPartitionCount = GetMaxPartitionJobBufferSize() / uncompressedBlockSize;
-            result = std::min(static_cast<i64>(dataWeightAfterPartition / partitionDataWeight), maxPartitionCount);
-
-            if (result == 1 && TotalEstimatedInputUncompressedDataSize > Spec->DataWeightPerShuffleJob) {
-                // Sometimes data size can be much larger than data weight.
-                // Let's protect from such outliers and prevent simple sort in such case.
-                result = DivCeil(TotalEstimatedInputUncompressedDataSize, Spec->DataWeightPerShuffleJob);
-            } else if (result > 1) {
-                // Calculate upper limit for partition data weight.
-                auto uncompressedSortedChunkSize = static_cast<i64>(Spec->SortJobIO->TableWriter->DesiredChunkSize /
-                    InputCompressionRatio);
-                uncompressedSortedChunkSize = std::max<i64>(1, uncompressedSortedChunkSize);
-                auto maxInputStreamsPerPartition = std::max<i64>(1,
-                    Spec->MaxDataWeightPerJob / uncompressedSortedChunkSize);
-                auto maxPartitionDataWeight = std::max<i64>(Options->MinPartitionWeight,
-                    static_cast<i64>(0.9 * maxInputStreamsPerPartition * Spec->DataWeightPerShuffleJob));
-
-                if (dataWeightAfterPartition / result > maxPartitionDataWeight) {
-                    result = dataWeightAfterPartition / maxPartitionDataWeight;
-                }
-
-                YT_LOG_DEBUG("Suggesting partition count (UncompressedBlockSize: %v, PartitionDataWeight: %v, "
-                    "MaxPartitionDataWeight: %v, PartitionCount: %v, MaxPartitionCount: %v)",
-                    uncompressedBlockSize,
-                    partitionDataWeight,
-                    maxPartitionDataWeight,
-                    result,
-                    maxPartitionCount);
-            }
-        }
-        // Cast to int32 is safe since MaxPartitionCount is int32.
-        return static_cast<int>(std::clamp<i64>(result, 1, Options->MaxPartitionCount));
-    }
-
-    void SuggestPartitionCountAndMaxPartitionFactor(std::optional<int> forcedPartitionCount)
-    {
-        YT_VERIFY(TotalEstimatedInputDataWeight > 0);
-        i64 dataWeightAfterPartition = 1 + static_cast<i64>(TotalEstimatedInputDataWeight * Spec->MapSelectivityFactor);
-
-        i64 partitionFactorLimit = std::min<i64>(Options->MaxPartitionFactor, DivCeil(GetMaxPartitionJobBufferSize(), Options->MinUncompressedBlockSize));
-
-        if (forcedPartitionCount) {
-            PartitionCount = *forcedPartitionCount;
-        } else if (Spec->PartitionCount) {
-            PartitionCount = *Spec->PartitionCount;
-        } else if (Spec->PartitionDataWeight) {
-            PartitionCount = DivCeil(dataWeightAfterPartition, *Spec->PartitionDataWeight);
-        } else {
-            i64 partitionSize = std::max<i64>(Spec->DataWeightPerShuffleJob * Spec->PartitionSizeFactor, 1);
-            PartitionCount = DivCeil(dataWeightAfterPartition, partitionSize);
-
-            if (PartitionCount == 1 && TotalEstimatedInputUncompressedDataSize > Spec->DataWeightPerShuffleJob) {
-                // Sometimes data size can be much larger than data weight.
-                // Let's protect from such outliers and prevent simple sort in such case.
-                PartitionCount = DivCeil(TotalEstimatedInputUncompressedDataSize, Spec->DataWeightPerShuffleJob);
-            } else if (PartitionCount == 1 && TotalEstimatedInputValueCount > Options->MaxValueCountPerSimpleSortJob) {
-                // In simple sort job memory usage is proportional to value count.
-                // For very sparse tables, value count may be large, while data weight and data size remain small.
-                // Multi-phase sorting doesn't materialize all row values in memory, and we should fallback to it in such corner case.
-                PartitionCount = 2;
-            } else if (PartitionCount <= partitionFactorLimit) {
-                // If partition count is small, fallback to old heuristic.
-                PartitionCount = SuggestPartitionCount();
-
-                // Keep partitioning single-phase.
-                PartitionCount = std::min<i64>(PartitionCount, partitionFactorLimit);
-            }
-        }
-
-        PartitionCount = std::clamp(PartitionCount, 1, Options->MaxNewPartitionCount);
-
-        if (Spec->MaxPartitionFactor) {
-            MaxPartitionFactor = *Spec->MaxPartitionFactor;
-        } else {
-            auto maxPartitionsWithDepth = [] (i64 depth, i64 partitionFactor) {
-                i64 partitions = 1;
-                for (i64 level = 1; level <= depth; ++level) {
-                    partitions *= partitionFactor;
-                }
-
-                return partitions;
-            };
-
-            i64 depth = 1;
-            while (maxPartitionsWithDepth(depth, partitionFactorLimit) < PartitionCount) {
-                ++depth;
-            }
-
-            MaxPartitionFactor = 2;
-            while (maxPartitionsWithDepth(depth, MaxPartitionFactor) < PartitionCount) {
-                ++MaxPartitionFactor;
-            }
-        }
-
-        MaxPartitionFactor = std::max(MaxPartitionFactor, 2);
-
-        YT_LOG_DEBUG("Suggesting partition count and max partition factor (PartitionCount: %v, MaxPartitionFactor: %v)",
-            PartitionCount,
-            MaxPartitionFactor);
-    }
-
     void SetAlertIfPartitionHeuristicsDifferSignificantly(int oldEstimation, int newEstimation)
     {
         auto [min, max] = std::minmax(newEstimation, oldEstimation);
@@ -3103,10 +2978,98 @@ protected:
             partitionKeys.emplace_back(upperBound);
         }
 
+        int maxPartitionCount = Spec->UseNewPartitionsHeuristic ?
+            Options->MaxNewPartitionCount : Options->MaxPartitionCount;
+
+        THROW_ERROR_EXCEPTION_IF(
+            std::ssize(partitionKeys) + 1 > maxPartitionCount,
+            "Pivot keys count %v exceeds maximum number of pivot keys %v",
+            std::ssize(partitionKeys),
+            maxPartitionCount - 1);
+
         return partitionKeys;
     }
 
-    void AssignPartitionKeysToPartitions(const std::vector<TPartitionKey>& partitionKeys)
+    std::pair<TRowBufferPtr, std::vector<TSample>> FetchSamples(const TTableSchemaPtr& sampleSchema, i64 sampleCount)
+    {
+        auto samplesRowBuffer = New<TRowBuffer>(
+            TRowBufferTag(),
+            Config->ControllerRowBufferChunkSize);
+
+        auto [samplesFetcher, unavailableChunksWatcher] = InputManager->CreateSamplesFetcher(
+            sampleSchema,
+            samplesRowBuffer,
+            sampleCount,
+            Options->MaxSampleSize);
+
+        UnavailableChunksWatcher_ = std::move(unavailableChunksWatcher);
+
+        WaitFor(samplesFetcher->Fetch())
+            .ThrowOnError();
+
+        UnavailableChunksWatcher_.Reset();
+
+        auto samples = samplesFetcher->GetSamples();
+
+        return {std::move(samplesRowBuffer), std::move(samples)};
+    }
+
+    std::vector<TPartitionKey> BuildPartitionKeys(
+        const TTableSchemaPtr& sampleSchema,
+        const TTableSchemaPtr& uploadSchema)
+    {
+        if (!Spec->PivotKeys.empty()) {
+            return BuildPartitionKeysByPivotKeys();
+        } else {
+            i64 suggestedSampleCount = PartitioningParametersEvaluator_->SuggestSampleCount();
+            YT_LOG_DEBUG("Suggested sample count (SuggestedSampleCount: %v)",
+                suggestedSampleCount);
+
+            auto [samplesRowBuffer, samples] = FetchSamples(sampleSchema, suggestedSampleCount);
+
+            YT_LOG_DEBUG("Fetched sample count (FetchedSampleCount: %v)",
+                samples.size());
+
+            int suggestedPartitionCount = PartitioningParametersEvaluator_->SuggestPartitionCount(static_cast<int>(samples.size()));
+
+            YT_LOG_DEBUG("Suggested partition count (SuggestedPartitionCount: %v)",
+                suggestedPartitionCount);
+
+            return BuildPartitionKeysBySamples(
+                samples,
+                sampleSchema,
+                uploadSchema,
+                Host->GetClient()->GetNativeConnection()->GetExpressionEvaluatorCache(),
+                suggestedPartitionCount,
+                RowBuffer,
+                Logger);
+        }
+
+    }
+
+    void InitPartitioningParametersEvaluator()
+    {
+        RootPartitionPoolJobSizeConstraints = CreatePartitionJobSizeConstraints(
+            Spec,
+            Options,
+            Logger,
+            TotalEstimatedInputUncompressedDataSize,
+            TotalEstimatedInputDataWeight,
+            TotalEstimatedInputRowCount,
+            InputCompressionRatio);
+
+        PartitioningParametersEvaluator_ = CreatePartitioningParametersEvaluator(
+            Spec,
+            Options,
+            TotalEstimatedInputDataWeight,
+            TotalEstimatedInputUncompressedDataSize,
+            TotalEstimatedInputValueCount,
+            InputCompressionRatio,
+            RootPartitionPoolJobSizeConstraints->GetJobCount());
+    }
+
+    // TODO(apollo1321): Enable maniac partitions for map-reduce operations.
+    void AssignPartitionKeysToPartitions(const std::vector<TPartitionKey>& partitionKeys, bool setManiac)
     {
         const auto& finalPartitions = GetFinalPartitions();
         YT_VERIFY(finalPartitions.size() == partitionKeys.size() + 1);
@@ -3118,7 +3081,7 @@ protected:
                 finalPartitionIndex,
                 partitionKey.LowerBound);
             partition->LowerBound = partitionKey.LowerBound;
-            if (partitionKey.Maniac) {
+            if (partitionKey.Maniac && setManiac) {
                 YT_LOG_DEBUG("Final partition is a maniac (FinalPartitionIndex: %v)", finalPartitionIndex);
                 partition->Maniac = true;
             }
@@ -3200,9 +3163,6 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortController, 0xbca37afe);
 
     TSortOperationSpecPtr Spec;
-
-    TUnavailableChunksWatcherPtr UnavailableChunksWatcher_;
-    TRowBufferPtr SamplesRowBuffer_;
 
     // Custom bits of preparation pipeline.
 
@@ -3300,68 +3260,14 @@ private:
 
         InitJobIOConfigs();
 
-        std::vector<TPartitionKey> partitionKeys;
+        InitPartitioningParametersEvaluator();
 
-        if (Spec->PivotKeys.empty()) {
-            auto sampleSchema = GetSampleSchema();
-            auto samples = FetchSamples(sampleSchema);
+        auto partitionKeys = BuildPartitionKeys(
+            GetSampleSchema(),
+            OutputTables_[0]->TableUploadOptions.GetUploadSchema());
 
-            YT_LOG_INFO("Suggested partition count (PartitionCount: %v, SampleCount: %v)", PartitionCount, samples.size());
-
-            // Don't create more partitions than we have samples (plus one).
-            PartitionCount = std::min(PartitionCount, static_cast<int>(samples.size()) + 1);
-
-            auto partitionJobSizeConstraints = CreatePartitionJobSizeConstraints(
-                Spec,
-                Options,
-                Logger,
-                TotalEstimatedInputUncompressedDataSize,
-                TotalEstimatedInputDataWeight,
-                TotalEstimatedInputRowCount,
-                InputCompressionRatio);
-
-            YT_VERIFY(partitionJobSizeConstraints->GetJobCount() > 0);
-
-            if (!Spec->UseNewPartitionsHeuristic) {
-                // Finally adjust partition count wrt block size constraints.
-                PartitionCount = AdjustPartitionCountToWriterBufferSize(
-                    PartitionCount,
-                    partitionJobSizeConstraints->GetJobCount(),
-                    PartitionJobIOConfig->TableWriter);
-
-            }
-
-            YT_LOG_INFO("Building partition keys (PartitionCount: %v)", PartitionCount);
-
-            YT_PROFILE_TIMING("/operations/sort/samples_processing_time") {
-                partitionKeys = BuildPartitionKeysBySamples(
-                    samples,
-                    sampleSchema,
-                    OutputTables_[0]->TableUploadOptions.GetUploadSchema(),
-                    Host->GetClient()->GetNativeConnection()->GetExpressionEvaluatorCache(),
-                    PartitionCount,
-                    RowBuffer,
-                    Logger);
-            }
-            // After partition keys are built, row buffer used by samples fetcher can be disposed.
-            SamplesRowBuffer_.Reset();
-        } else {
-            partitionKeys = BuildPartitionKeysByPivotKeys();
-        }
-
-        const auto legacyPartitionCount = partitionKeys.size() + 1;
-        if (Spec->UseNewPartitionsHeuristic) {
-            SuggestPartitionCountAndMaxPartitionFactor(partitionKeys.size() + 1);
-            SetAlertIfPartitionHeuristicsDifferSignificantly(legacyPartitionCount, PartitionCount);
-        } else {
-            PartitionCount = legacyPartitionCount;
-            if (Spec->MaxPartitionFactor) {
-                MaxPartitionFactor = *Spec->MaxPartitionFactor;
-            } else {
-                // Build a flat tree by default.
-                MaxPartitionFactor = PartitionCount;
-            }
-        }
+        PartitionCount = partitionKeys.size() + 1;
+        MaxPartitionFactor = PartitioningParametersEvaluator_->SuggestMaxPartitionFactor(PartitionCount);
 
         SimpleSort = (PartitionCount == 1);
 
@@ -3370,9 +3276,17 @@ private:
             MaxPartitionFactor,
             SimpleSort);
 
+        if (Spec->UseNewPartitionsHeuristic) {
+            SetAlertIfPartitionHeuristicsDifferSignificantly(
+                PartitioningParametersEvaluator_->SuggestPartitionCount(
+                    /*fetchedSamplesCount*/ std::nullopt,
+                    /*forceLegacy*/ true),
+                PartitionCount);
+        }
+
         BuildPartitionTree(PartitionCount, MaxPartitionFactor);
 
-        AssignPartitionKeysToPartitions(partitionKeys);
+        AssignPartitionKeysToPartitions(partitionKeys, /*setManiac*/ true);
 
         CreateShufflePools();
 
@@ -3400,14 +3314,6 @@ private:
             return;
         }
 
-        RootPartitionPoolJobSizeConstraints = CreatePartitionJobSizeConstraints(
-            Spec,
-            Options,
-            Logger,
-            TotalEstimatedInputUncompressedDataSize,
-            TotalEstimatedInputDataWeight,
-            TotalEstimatedInputRowCount,
-            InputCompressionRatio);
         InitPartitionPool(RootPartitionPoolJobSizeConstraints, nullptr, false /*ordered*/);
 
         PartitionTasks.resize(PartitionTreeDepth);
@@ -3533,42 +3439,6 @@ private:
         }
 
         return New<TTableSchema>(std::move(columns));
-    }
-
-    std::vector<TSample> FetchSamples(const TTableSchemaPtr& sampleSchema)
-    {
-        TFuture<void> asyncSamplesResult;
-        TCombiningSamplesFetcherPtr samplesFetcher;
-        YT_PROFILE_TIMING("/operations/sort/input_processing_time") {
-            // TODO(gritukan): Should we do it here?
-            if (Spec->UseNewPartitionsHeuristic) {
-                SuggestPartitionCountAndMaxPartitionFactor(std::nullopt);
-            } else {
-                PartitionCount = SuggestPartitionCount();
-            }
-            i64 sampleCount = static_cast<i64>(PartitionCount) * Spec->SamplesPerPartition;
-
-            SamplesRowBuffer_ = New<TRowBuffer>(
-                TRowBufferTag(),
-                Config->ControllerRowBufferChunkSize);
-
-            std::tie(samplesFetcher, UnavailableChunksWatcher_) = InputManager->CreateSamplesFetcher(
-                sampleSchema,
-                SamplesRowBuffer_,
-                sampleCount,
-                Options->MaxSampleSize);
-
-            asyncSamplesResult = samplesFetcher->Fetch();
-        }
-
-        WaitFor(asyncSamplesResult)
-            .ThrowOnError();
-
-        UnavailableChunksWatcher_.Reset();
-
-        YT_PROFILE_TIMING("/operations/sort/samples_processing_time") {
-            return samplesFetcher->GetSamples();
-        }
     }
 
     void InitJobIOConfigs()
@@ -4251,6 +4121,17 @@ private:
         IntermediateChunkSchema_ = New<TTableSchema>(std::move(chunkSchemaColumns), /*strict*/ false);
     }
 
+    TTableSchemaPtr GetSampleSchema() const
+    {
+        std::vector<TColumnSchema> columns;
+        columns.reserve(Spec->ReduceBy.size());
+        for (const auto& reduceColumn : Spec->ReduceBy) {
+            const auto& column = IntermediateChunkSchema_->GetColumn(reduceColumn);
+            columns.push_back(column);
+        }
+        return New<TTableSchema>(std::move(columns));
+    }
+
     void CustomMaterialize() override
     {
         TSortControllerBase::CustomMaterialize();
@@ -4266,33 +4147,9 @@ private:
         InitJobIOConfigs();
         InitStreamDescriptors();
 
-        std::vector<TPartitionKey> partitionKeys;
-        bool usePivotKeys = !Spec->PivotKeys.empty();
-        if (usePivotKeys) {
-            partitionKeys = BuildPartitionKeysByPivotKeys();
-        }
-
-        auto legacyPartitionCount = SuggestPartitionCount();
-        if (Spec->UseNewPartitionsHeuristic) {
-            std::optional<int> forcedPartitionCount;
-            if (usePivotKeys) {
-                forcedPartitionCount = partitionKeys.size() + 1;
-            }
-            SuggestPartitionCountAndMaxPartitionFactor(forcedPartitionCount);
-        } else {
-            YT_LOG_INFO("Suggested partition count (PartitionCount: %v)", legacyPartitionCount);
-        }
-
         Spec->Sampling->MaxTotalSliceCount = Spec->Sampling->MaxTotalSliceCount.value_or(Config->MaxTotalSliceCount);
 
-        RootPartitionPoolJobSizeConstraints = CreatePartitionJobSizeConstraints(
-            Spec,
-            Options,
-            Logger,
-            TotalEstimatedInputUncompressedDataSize,
-            TotalEstimatedInputDataWeight,
-            TotalEstimatedInputRowCount,
-            InputCompressionRatio);
+        InitPartitioningParametersEvaluator();
 
         // Due to the sampling it is possible that TotalEstimatedInputDataWeight > 0
         // but according to job size constraints there is nothing to do.
@@ -4301,37 +4158,33 @@ private:
             return;
         }
 
-        legacyPartitionCount = AdjustPartitionCountToWriterBufferSize(
-            legacyPartitionCount,
-            RootPartitionPoolJobSizeConstraints->GetJobCount(),
-            PartitionJobIOConfig->TableWriter);
-        if (usePivotKeys) {
-            legacyPartitionCount = partitionKeys.size() + 1;
-        }
+        std::vector<TPartitionKey> partitionKeys;
+        if (!Spec->PivotKeys.empty() || Spec->ComputePivotKeysFromSamples) {
+            auto sampleSchema = GetSampleSchema();
+            partitionKeys = BuildPartitionKeys(sampleSchema, sampleSchema);
 
-        if (!Spec->UseNewPartitionsHeuristic) {
-            if (Spec->MaxPartitionFactor) {
-                MaxPartitionFactor = *Spec->MaxPartitionFactor;
-            } else {
-                // Build a flat tree by default.
-                MaxPartitionFactor = legacyPartitionCount;
-            }
-        }
-
-        if (Spec->UseNewPartitionsHeuristic) {
-            SetAlertIfPartitionHeuristicsDifferSignificantly(legacyPartitionCount, PartitionCount);
+            PartitionCount = partitionKeys.size() + 1;
         } else {
-            PartitionCount = legacyPartitionCount;
+            PartitionCount = PartitioningParametersEvaluator_->SuggestPartitionCount();
         }
 
-        YT_LOG_INFO("Adjusted partition count (PartitionCount: %v)", PartitionCount);
-
+        MaxPartitionFactor = PartitioningParametersEvaluator_->SuggestMaxPartitionFactor(PartitionCount);
         BuildPartitionTree(PartitionCount, MaxPartitionFactor);
 
-        YT_PROFILE_TIMING("/operations/sort/input_processing_time") {
-            if (usePivotKeys) {
-                AssignPartitionKeysToPartitions(partitionKeys);
-            }
+        if (!partitionKeys.empty()) {
+            AssignPartitionKeysToPartitions(partitionKeys, /*setManiac*/ false);
+        }
+
+        YT_LOG_DEBUG("Final partitioning parameters (PartitionCount: %v, MaxPartitionFactor: %v)",
+            PartitionCount,
+            MaxPartitionFactor);
+
+        if (Spec->UseNewPartitionsHeuristic) {
+            SetAlertIfPartitionHeuristicsDifferSignificantly(
+                PartitioningParametersEvaluator_->SuggestPartitionCount(
+                    /*fetchedSamplesCount*/ std::nullopt,
+                    /*forceLegacy*/ true),
+                PartitionCount);
         }
 
         CreateShufflePools();

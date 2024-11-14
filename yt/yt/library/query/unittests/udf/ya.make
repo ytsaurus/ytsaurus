@@ -6,7 +6,7 @@ ADDINCL(
     yt
 )
 
-USE_LLVM_BC16()
+USE_LLVM_BC18()
 
 LLVM_BC(
     malloc_udf.c

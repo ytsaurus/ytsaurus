@@ -114,8 +114,7 @@ private:
         auto address = GetParent()->AsMap()->GetChildKeyOrThrow(this);
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        // TODO(babenko): migrate to std::string
-        auto* node = nodeTracker->GetNodeByAddressOrThrow(TString(address));
+        auto* node = nodeTracker->GetNodeByAddressOrThrow(address);
         const auto& objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(node, nullptr);
     }
@@ -176,7 +175,7 @@ private:
     IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        auto* node = nodeTracker->FindNodeByAddress(TString(key));
+        auto* node = nodeTracker->FindNodeByAddress(key);
         if (!IsObjectAlive(node)) {
             return nullptr;
         }
@@ -536,7 +535,7 @@ private:
     IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        auto* host = nodeTracker->FindHostByName(TString(key));
+        auto* host = nodeTracker->FindHostByName(key);
         if (!IsObjectAlive(host)) {
             return nullptr;
         }
@@ -590,7 +589,7 @@ private:
     IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        auto* rack = nodeTracker->FindRackByName(TString(key));
+        auto* rack = nodeTracker->FindRackByName(key);
         if (!IsObjectAlive(rack)) {
             return nullptr;
         }
@@ -644,7 +643,7 @@ private:
     IYPathServicePtr FindItemService(const std::string& key) const override
     {
         auto nodeTracker = Bootstrap_->GetNodeTracker();
-        auto* dc = nodeTracker->FindDataCenterByName(TString(key));
+        auto* dc = nodeTracker->FindDataCenterByName(key);
         if (!IsObjectAlive(dc)) {
             return nullptr;
         }

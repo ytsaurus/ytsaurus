@@ -232,7 +232,7 @@ class TUserJobStatisticSensor
     : public TUserJobSensor
 {
 public:
-    TString Path;
+    NYPath::TYPath Path;
 
     REGISTER_YSON_STRUCT(TUserJobStatisticSensor);
 
@@ -341,6 +341,8 @@ public:
     bool SendHeartbeatOnResourcesReleased;
 
     bool IncludeReleasingResourcesInSchedulerHeartbeat;
+
+    bool UseProfilingTagsFromScheduler;
 
     REGISTER_YSON_STRUCT(TSchedulerConnectorDynamicConfig);
 

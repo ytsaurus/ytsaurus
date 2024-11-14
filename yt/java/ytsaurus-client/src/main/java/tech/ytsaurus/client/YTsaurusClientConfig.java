@@ -1,7 +1,7 @@
 package tech.ytsaurus.client;
 
 import java.time.Duration;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,6 +34,7 @@ public class YTsaurusClientConfig {
     private final JarsProcessor jarsProcessor;
     private final boolean isLocalMode;
     private final String javaBinary;
+    private final List<YPath> layerPaths;
     private final JavaOptions javaOptions;
     private final String version;
     private final Duration operationPingPeriod;
@@ -57,6 +58,7 @@ public class YTsaurusClientConfig {
         this.tmpDir = builder.tmpDir;
         this.isLocalMode = builder.isLocalMode;
         this.javaBinary = builder.javaBinary;
+        this.layerPaths = builder.layerPaths;
         this.javaOptions = builder.javaOptions;
         this.version = builder.version;
         this.specPatch = builder.specPatch;
@@ -81,6 +83,7 @@ public class YTsaurusClientConfig {
                 .setJarsProcessor(jarsProcessor)
                 .setIsLocalMode(isLocalMode)
                 .setJavaBinary(javaBinary)
+                .setLayerPaths(layerPaths)
                 .setJavaOptions(javaOptions)
                 .setVersion(version)
                 .setOperationPingPeriod(operationPingPeriod)
@@ -116,6 +119,10 @@ public class YTsaurusClientConfig {
 
     public String getJavaBinary() {
         return javaBinary;
+    }
+
+    public List<YPath> getLayerPaths() {
+        return layerPaths;
     }
 
     public List<String> getJavaOptions() {
@@ -187,6 +194,7 @@ public class YTsaurusClientConfig {
         private JarsProcessor jarsProcessor;
         private boolean isLocalMode = false;
         private String javaBinary = "/usr/bin/java";
+        private List<YPath> layerPaths = Collections.emptyList();
         private JavaOptions javaOptions = JavaOptions.empty();
         private Duration jarsUploadTimeout = Duration.ofMinutes(10);
         private int fileCacheReplicationFactor = 10;
@@ -226,6 +234,11 @@ public class YTsaurusClientConfig {
 
         public Builder setJavaBinary(String javaBinary) {
             this.javaBinary = javaBinary;
+            return this;
+        }
+
+        public Builder setLayerPaths(List<YPath> layerPaths) {
+            this.layerPaths = layerPaths;
             return this;
         }
 
@@ -313,14 +326,10 @@ public class YTsaurusClientConfig {
                 javaBinary = "/opt/jdk11/bin/java";
             }
 
-            this.jobSpecPatch = YTree.builder()
-                    .beginMap()
-                    .key("layer_paths").value(Arrays.asList(
-                            "//porto_layers/delta/jdk/layer_with_jdk_lastest.tar.gz",
-                            "//porto_layers/base/focal/porto_layer_search_ubuntu_focal_app_lastest.tar.gz"
-                    ))
-                    .endMap()
-                    .build();
+            this.layerPaths = List.of(
+                    YPath.simple("//porto_layers/delta/jdk/layer_with_jdk_lastest.tar.gz"),
+                    YPath.simple("//porto_layers/base/focal/porto_layer_search_ubuntu_focal_app_lastest.tar.gz")
+            );
 
             this.specPatch = YTree.builder()
                     .beginMap()

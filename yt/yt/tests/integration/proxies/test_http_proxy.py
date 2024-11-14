@@ -114,6 +114,15 @@ class HttpProxyTestBase(YTEnvSetup):
 
 
 class TestHttpProxy(HttpProxyTestBase):
+    NUM_DISCOVERY_SERVERS = 1
+    NUM_TIMESTAMP_PROVIDERS = 1
+    NUM_MASTER_CACHES = 1
+    NUM_CELL_BALANCERS = 1
+    ENABLE_BUNDLE_CONTROLLER = True
+    NUM_QUEUE_AGENTS = 1
+    NUM_TABLET_BALANCERS = 1
+    NUM_REPLICATED_TABLE_TRACKERS = 1
+
     def teardown_method(self, method):
         for proxy in ls("//sys/http_proxies"):
             set("//sys/http_proxies/{}/@role".format(proxy), "data")
@@ -336,6 +345,68 @@ class TestHttpProxy(HttpProxyTestBase):
             wait(lambda: not requests.get(self._get_proxy_address() + "/ping").ok)
 
         wait(lambda: requests.get(self._get_proxy_address() + "/ping").ok)
+
+
+class TestFullDiscoverVersions(HttpProxyTestBase):
+    NUM_DISCOVERY_SERVERS = 1
+    NUM_TIMESTAMP_PROVIDERS = 1
+    NUM_MASTER_CACHES = 1
+    NUM_CELL_BALANCERS = 1
+    ENABLE_BUNDLE_CONTROLLER = True
+    NUM_QUEUE_AGENTS = 1
+    NUM_TABLET_BALANCERS = 1
+    NUM_REPLICATED_TABLE_TRACKERS = 1
+
+    @authors("koloshmet")
+    def test_discover_versions_v2(self):
+        # Give all components some time to be considered online.
+        time.sleep(5)
+
+        rsp = requests.get(self._get_proxy_address() + "/internal/discover_versions/v2")
+        rsp.raise_for_status()
+
+        versions = rsp.json()
+        assert "details" in versions
+        assert "summary" in versions
+
+        print_debug(f"Collected component versions: {versions}")
+
+        counts = collections.Counter()
+
+        for instance in versions["details"]:
+            assert "address" in instance
+            assert "start_time" in instance
+            assert "type" in instance
+            assert "version" in instance
+
+            if "state" in instance:
+                assert instance["state"] == "online"
+
+            counts[instance["type"]] += 1
+
+        summary = versions["summary"]
+        # All components run on the same version + there is a total summary.
+        assert len(summary) == 2
+        for version_summary in summary.values():
+            for type, component_summary in version_summary.items():
+                assert component_summary["total"] == counts[type]
+                assert component_summary["banned"] == 0
+                assert component_summary["offline"] == 0
+
+        assert counts["primary_master"] == 1
+        assert counts["secondary_master"] == 2
+        assert counts["cluster_node"] == 5
+        assert counts["scheduler"] == 1
+        assert counts["controller_agent"] == 1
+        assert counts["http_proxy"] == 1
+        assert counts["rpc_proxy"] == 2
+        assert counts["discovery"] == 1
+        assert counts["timestamp_provider"] == 1
+        assert counts["master_cache"] == 1
+        assert counts["bundle_controller"] == 1
+        assert counts["queue_agent"] == 1
+        assert counts["tablet_balancer"] == 1
+        assert counts["replicated_table_tracker"] == 1
 
 
 class TestSolomonProxy(HttpProxyTestBase):

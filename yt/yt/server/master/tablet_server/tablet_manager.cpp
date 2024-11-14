@@ -755,6 +755,7 @@ public:
         // Validate that table is not in process of mount/unmount/etc.
         table->ValidateNoCurrentMountTransaction("Cannot create tablet action");
 
+        THashSet<TTabletId> tabletIds;
         for (const auto* tablet : tablets) {
             if (tablet->GetOwner() != table) {
                 THROW_ERROR_EXCEPTION("Tablets %v and %v belong to different tables",
@@ -773,6 +774,10 @@ public:
             }
             if (tablet->GetTabletwiseAvenueEndpointId()) {
                 THROW_ERROR_EXCEPTION("Tablet %v is recovering from smooth movement",
+                    tablet->GetId());
+            }
+            if (auto [it, inserted] = tabletIds.emplace(tablet->GetId()); !inserted) {
+                THROW_ERROR_EXCEPTION("Tablet %v cannot participate in one action twice",
                     tablet->GetId());
             }
         }

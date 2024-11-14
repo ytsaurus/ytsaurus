@@ -628,7 +628,7 @@ private:
     const TDistributedHydraManagerOptions Options_;
     const TStateHashCheckerPtr StateHashChecker_;
 
-    TAtomicObject<TDistributedHydraManagerDynamicOptions> DynamicOptions_;
+    NThreading::TAtomicObject<TDistributedHydraManagerDynamicOptions> DynamicOptions_;
 
     const IElectionCallbacksPtr ElectionCallbacks_;
 
@@ -663,7 +663,7 @@ private:
     TEpochContextPtr AutomatonEpochContext_;
     TAtomicIntrusivePtr<TEpochContext> AtomicEpochContext_;
 
-    TAtomicObject<TPeerIdSet> AlivePeerIds_;
+    NThreading::TAtomicObject<TPeerIdSet> AlivePeerIds_;
 
     class TOwnedHydraServiceBase
         : public THydraServiceBase

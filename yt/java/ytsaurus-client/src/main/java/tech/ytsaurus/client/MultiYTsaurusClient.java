@@ -4,15 +4,10 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -54,22 +49,62 @@ import tech.ytsaurus.lang.NonNullFields;
 @NonNullFields
 @NonNullApi
 public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closeable {
-    final MultiExecutor executor;
+    private final List<YTsaurusClientOptions> clients = new ArrayList<>();
+    private final MultiExecutor executor;
 
     private MultiYTsaurusClient(Builder builder) {
-        executor = new MultiExecutor(builder);
-    }
 
-    @Override
-    public void close() {
-        try {
-            for (MultiExecutor.YTsaurusClientEntry entry : executor.clients) {
-                entry.client.close();
-            }
-            executor.close();
-        } catch (IOException ex) {
-            throw new RuntimeException(ex);
+        clients.addAll(builder.clientsOptions);
+
+        builder.clients.stream()
+                .map(client -> YTsaurusClientOptions.builder(client)
+                        .setInitialPenalty(builder.preferredAllowance)
+                        .build())
+                .forEach(clients::add);
+
+        builder.preferredClusters.stream().map((cluster) -> builder.clientBuilderSupplier.get()
+                        .setClusters(cluster)
+                        .setConfig(builder.config)
+                        .setRpcCompression(builder.compression)
+                        .setAuth(builder.auth)
+                        .build()
+                )
+                .map(client -> YTsaurusClientOptions.builder(client).build())
+                .forEach(clients::add);
+
+        builder.clusters.stream().map((cluster) -> builder.clientBuilderSupplier.get()
+                        .setClusters(cluster)
+                        .setConfig(builder.config)
+                        .setRpcCompression(builder.compression)
+                        .setAuth(builder.auth)
+                        .build())
+                .map(client -> YTsaurusClientOptions.builder(client)
+                        .setInitialPenalty(builder.preferredAllowance)
+                        .build())
+                .forEach(clients::add);
+
+        if (this.clients.size() < 2) {
+            throw new IllegalArgumentException("Count of clients is less than 2");
         }
+
+        List<String> clusterNames = this.clients.stream()
+                .map(YTsaurusClientOptions::getClusterName)
+                .collect(Collectors.toUnmodifiableList());
+        if (clusterNames.stream().distinct().count() != clusterNames.size()) {
+            var duplicatesHint = clusterNames.stream()
+                    .filter(clusterName -> Collections.frequency(clusterNames, clusterName) > 1)
+                    .collect(Collectors.joining(", "));
+            throw new IllegalArgumentException("Duplicate clusters are not permitted: " + duplicatesHint);
+        }
+
+        executor = new MultiExecutor(
+                clients,
+                builder.banPenalty,
+                builder.banDuration,
+                builder.penaltyProvider,
+                builder.executorMonitoring
+        );
+
     }
 
     /**
@@ -79,6 +114,18 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
      */
     public static Builder builder() {
         return new Builder();
+    }
+
+    @Override
+    public void close() {
+        try {
+            for (YTsaurusClientOptions entry : clients) {
+                entry.client.close();
+            }
+            executor.close();
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     @Override
@@ -149,6 +196,14 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
             this.initialPenalty = builder.initialPenalty;
         }
 
+        public String getClusterName() {
+            return client.getClusters().get(0).getName();
+        }
+
+        public String getShortClusterName() {
+            return getClusterName().split("\\.")[0];
+        }
+
         public static Builder builder(BaseYTsaurusClient client) {
             return new Builder(client);
         }
@@ -188,6 +243,7 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
         Duration banPenalty = Duration.ofMillis(1);
         Duration banDuration = Duration.ofMillis(50);
         PenaltyProvider penaltyProvider = PenaltyProvider.dummyPenaltyProviderBuilder().build();
+        MultiExecutorMonitoring executorMonitoring = new NoopMultiExecutorMonitoring();
         Duration preferredAllowance = Duration.ofMillis(100);
         Supplier<YTsaurusClient.ClientBuilder<? extends YTsaurusClient, ?>> clientBuilderSupplier =
                 YTsaurusClient::builder;
@@ -306,6 +362,16 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
             return this;
         }
 
+        /**
+         * Set executor callback to monitor hedging request execution.
+         *
+         * @return self
+         */
+        public Builder setExecutorMonitoring(MultiExecutorMonitoring executorMonitoring) {
+            this.executorMonitoring = executorMonitoring;
+            return this;
+        }
+
         @Override
         protected Builder self() {
             return this;
@@ -313,203 +379,56 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
     }
 }
 
-@NonNullApi
-@NonNullFields
 class MultiExecutor implements Closeable {
-    final Duration banPenalty;
-    final Duration banDuration;
-    final PenaltyProvider penaltyProvider;
-    final List<YTsaurusClientEntry> clients;
 
-    static final CancellationException CANCELLATION_EXCEPTION = new CancellationException();
-    static final Duration MAX_DURATION = ChronoUnit.FOREVER.getDuration();
+    private final List<ClientEntry> clients;
+    private final Duration banPenalty;
+    private final Duration banDuration;
+    private final PenaltyProvider penaltyProvider;
+    private final MultiExecutorMonitoring executorMonitoring;
 
-    MultiExecutor(MultiYTsaurusClient.Builder builder) {
-        if (builder.clientsOptions.isEmpty() &&
-                builder.clusters.isEmpty() &&
-                builder.clients.isEmpty() &&
-                builder.preferredClusters.isEmpty()
-        ) {
-            throw new IllegalArgumentException("No clients and no clusters in MultiYTsaurusClient's constructor");
-        }
-
-        this.banPenalty = builder.banPenalty;
-        this.banDuration = builder.banDuration;
-        this.penaltyProvider = builder.penaltyProvider;
-
-        this.clients = new ArrayList<>();
-
-        if (!builder.clientsOptions.isEmpty()) {
-            addClients(builder.clientsOptions);
-        }
-
-        if (!builder.clients.isEmpty()) {
-            List<MultiYTsaurusClient.YTsaurusClientOptions> clientOptions =
-                    builder.clients.stream()
-                            .map(client -> MultiYTsaurusClient.YTsaurusClientOptions.builder(client)
-                                    .setInitialPenalty(builder.preferredAllowance)
-                                    .build())
-                            .collect(Collectors.toList());
-            addClients(clientOptions);
-        }
-
-        if (!builder.preferredClusters.isEmpty()) {
-            List<YTsaurusClient> clientsFromClusters = createClientsFromClusters(builder.preferredClusters, builder);
-            List<MultiYTsaurusClient.YTsaurusClientOptions> clientOptions =
-                    clientsFromClusters.stream()
-                            .map(client -> MultiYTsaurusClient.YTsaurusClientOptions.builder(client).build())
-                            .collect(Collectors.toList());
-            addClients(clientOptions);
-        }
-
-        if (!builder.clusters.isEmpty()) {
-            List<YTsaurusClient> clientsFromClusters = createClientsFromClusters(builder.clusters, builder);
-            List<MultiYTsaurusClient.YTsaurusClientOptions> clientOptions = clientsFromClusters.stream()
-                    .map(client -> MultiYTsaurusClient.YTsaurusClientOptions.builder(client)
-                            .setInitialPenalty(builder.preferredAllowance)
-                            .build())
-                    .collect(Collectors.toList());
-            addClients(clientOptions);
-        }
-
-        if (this.clients.size() < 2) {
-            throw new IllegalArgumentException("Count of clients is less than 2");
-        }
-
-        HashSet<String> clusters = new HashSet<>();
-        for (YTsaurusClientEntry client : this.clients) {
-            String clusterName = client.getClusterName();
-            if (clusters.contains(clusterName)) {
-                throw new IllegalArgumentException("Got more than one clients for cluster: '" + clusterName + "'");
-            }
-            clusters.add(clusterName);
-        }
-    }
-
-    private void addClients(List<MultiYTsaurusClient.YTsaurusClientOptions> clientOptions) {
-        for (MultiYTsaurusClient.YTsaurusClientOptions options : clientOptions) {
-            this.clients.add(new YTsaurusClientEntry(options));
-        }
-    }
-
-    private static List<YTsaurusClient> createClientsFromClusters(
-            List<String> clusters, MultiYTsaurusClient.Builder builder) {
-        List<YTsaurusClient> result = new ArrayList<>();
-        for (String cluster : clusters) {
-            var clientBuilder = builder.clientBuilderSupplier.get()
-                    .setClusters(cluster)
-                    .setConfig(builder.config)
-                    .setRpcCompression(builder.compression);
-            if (builder.auth != null) {
-                clientBuilder.setAuth(builder.auth);
-            }
-            result.add(clientBuilder.build());
-        }
-        return result;
-    }
-
-    private List<YTsaurusClientEntry> updateAdaptivePenalty(Instant now) {
-        List<YTsaurusClientEntry> currentClients = new ArrayList<>(clients.size());
-
-        synchronized (this) {
-            for (YTsaurusClientEntry client : clients) {
-                if (client.banUntil != null && client.banUntil.compareTo(now) < 0) {
-                    client.adaptivePenalty = Duration.ZERO;
-                }
-                currentClients.add(new YTsaurusClientEntry(client));
-            }
-
-            return currentClients;
-        }
-    }
-
-    private Duration getMinPenalty(List<YTsaurusClientEntry> clients) {
-        Duration minPenalty = MAX_DURATION;
-        for (YTsaurusClientEntry client : clients) {
-            String shortClusterName = client.getClusterName().split("\\.")[0];
-            client.externalPenalty = penaltyProvider.getPenalty(shortClusterName);
-            Duration currentPenalty = client.getPenalty();
-            if (currentPenalty.compareTo(minPenalty) < 0) {
-                minPenalty = currentPenalty;
-            }
-        }
-        return minPenalty;
-    }
-
-    private void onFinishRequest(
-            int clientId,
-            Duration effectivePenalty,
-            Duration adaptivePenalty,
-            @Nullable Throwable error
+    MultiExecutor(
+            List<MultiYTsaurusClient.YTsaurusClientOptions> clientOptions,
+            Duration banPenalty,
+            Duration banDuration,
+            PenaltyProvider penaltyProvider,
+            MultiExecutorMonitoring executorMonitoring
     ) {
-        YTsaurusClientEntry client = clients.get(clientId);
-        boolean isCancel = (effectivePenalty.compareTo(Duration.ZERO) > 0 && (error instanceof CancellationException));
-
-        if (error == null) {
-            if (adaptivePenalty.compareTo(Duration.ZERO) > 0) {
-                synchronized (this) {
-                    client.banUntil = null;
-                    client.adaptivePenalty = Duration.ZERO;
-                }
-            }
-        } else if (!isCancel) {
-            synchronized (this) {
-                client.banUntil = Instant.now().plus(banDuration);
-                client.adaptivePenalty = client.adaptivePenalty.plus(banPenalty);
-            }
-        }
+        this.clients = clientOptions.stream().map(ClientEntry::new).collect(Collectors.toUnmodifiableList());
+        this.banPenalty = banPenalty;
+        this.banDuration = banDuration;
+        this.penaltyProvider = penaltyProvider;
+        this.executorMonitoring = executorMonitoring;
     }
 
     <R> CompletableFuture<R> execute(Function<BaseYTsaurusClient, CompletableFuture<R>> callback) {
-        Instant now = Instant.now();
-        List<YTsaurusClientEntry> currentClients = updateAdaptivePenalty(now);
-        Duration minPenalty = getMinPenalty(currentClients);
-        List<DelayedTask<R>> delayedTasks = new ArrayList<>();
-        CompletableFuture<R> result = new CompletableFuture<>();
+        return new MultiExecutorRequestTask<>(
+                getEffectiveClientOptions(Instant.now()),
+                callback,
+                executorMonitoring
+        ).getFuture();
+    }
 
-        AtomicInteger finishedClientsCount = new AtomicInteger(0);
-
-        for (int clientId = 0; clientId < currentClients.size(); ++clientId) {
-            YTsaurusClientEntry client = currentClients.get(clientId);
-            Duration effectivePenalty = client.getPenalty().minus(minPenalty);
-
-            CompletableFuture<R> future;
-            if (effectivePenalty.isZero()) {
-                future = callback.apply(client.client);
-            } else {
-                future = new CompletableFuture<>();
-                ScheduledFuture<?> task = client.client.getExecutor().schedule(
-                        () -> callback.apply(client.client)
-                                .handle((value, ex) -> {
-                                    if (ex == null) {
-                                        future.complete(value);
-                                    } else {
-                                        future.completeExceptionally(ex);
-                                    }
-                                    return null;
-                                }),
-                        effectivePenalty.toMillis(),
-                        TimeUnit.MILLISECONDS);
-                delayedTasks.add(new DelayedTask<>(task, future, clientId, effectivePenalty, client, now));
+    private synchronized List<MultiExecutorRequestTask.ClientEntry> getEffectiveClientOptions(Instant now) {
+        // Update penalties.
+        for (ClientEntry client : clients) {
+            if (client.banUntil != null && client.banUntil.compareTo(now) < 0) {
+                client.adaptivePenalty = Duration.ZERO;
             }
-
-            int copyClientId = clientId;
-            future.whenComplete((value, error) -> {
-                if (error == null) {
-                    result.complete(value);
-                } else if (finishedClientsCount.incrementAndGet() == currentClients.size()) {
-                    result.completeExceptionally(error);
-                }
-
-                onFinishRequest(copyClientId, effectivePenalty, client.adaptivePenalty, error);
-            });
+            client.externalPenalty = penaltyProvider.getPenalty(client.clientOptions.getShortClusterName());
         }
 
-        return result.whenComplete((unused, ex) -> {
-            for (DelayedTask<R> delayedTask : delayedTasks) {
-                delayedTask.cancel();
-            }
-        });
+        // Calculate min penalty to subtract.
+        final Duration minPenalty = Collections.min(
+                clients.stream().map(ClientEntry::getPenalty).collect(Collectors.toUnmodifiableList())
+        );
+
+        // Create immutable client entries with right effective penalties.
+        return clients.stream().map((client) -> new MultiExecutorRequestTask.ClientEntry(
+                client.clientOptions,
+                client.getPenalty().minus(minPenalty),
+                client::onFinishRequest
+        )).collect(Collectors.toUnmodifiableList());
     }
 
     @Override
@@ -517,65 +436,51 @@ class MultiExecutor implements Closeable {
         penaltyProvider.close();
     }
 
-    class DelayedTask<R> {
-        final ScheduledFuture<?> task;
-        final CompletableFuture<R> result;
-        final int clientId;
-        final Duration effectivePenalty;
-        final YTsaurusClientEntry client;
+    public class ClientEntry {
 
-        DelayedTask(ScheduledFuture<?> task, CompletableFuture<R> result,
-                    int clientId, Duration effectivePenalty, YTsaurusClientEntry client, Instant start) {
-            this.task = task;
-            this.result = result;
-            this.clientId = clientId;
-            this.effectivePenalty = effectivePenalty;
-            this.client = client;
-        }
-
-        void cancel() {
-            if (task.cancel(false)) {
-                onFinishRequest(clientId, effectivePenalty, client.adaptivePenalty, CANCELLATION_EXCEPTION);
-            }
-        }
-    }
-
-    @NonNullApi
-    @NonNullFields
-    static class YTsaurusClientEntry {
-        BaseYTsaurusClient client;
-        Duration initialPenalty;
-        Duration adaptivePenalty = Duration.ZERO;
-        Duration externalPenalty = Duration.ZERO;
+        private final MultiYTsaurusClient.YTsaurusClientOptions clientOptions;
+        private Duration adaptivePenalty;
+        private Duration externalPenalty;
         @Nullable
-        Instant banUntil = null;
+        private Instant banUntil;
 
-        YTsaurusClientEntry(
+        ClientEntry(
                 MultiYTsaurusClient.YTsaurusClientOptions clientOptions
+        ) {
+            this(clientOptions, Duration.ZERO, Duration.ZERO, null);
+        }
+
+        ClientEntry(
+                MultiYTsaurusClient.YTsaurusClientOptions clientOptions,
+                Duration adaptivePenalty,
+                Duration externalPenalty,
+                @Nullable Instant banUntil
         ) {
             if (clientOptions.client.getClusters().size() != 1) {
                 throw new IllegalArgumentException("Got YTsaurusClient with more than 1 cluster");
             }
-            this.client = clientOptions.client;
-            this.initialPenalty = clientOptions.initialPenalty;
-        }
-
-        YTsaurusClientEntry(YTsaurusClientEntry other) {
-            this.client = other.client;
-            this.initialPenalty = Duration.ofMillis(other.initialPenalty.toMillis());
-            this.adaptivePenalty = Duration.ofMillis(other.adaptivePenalty.toMillis());
-            this.externalPenalty = Duration.ofMillis(other.externalPenalty.toMillis());
-            if (other.banUntil != null) {
-                this.banUntil = Instant.ofEpochMilli(other.banUntil.toEpochMilli());
-            }
+            this.clientOptions = clientOptions;
+            this.adaptivePenalty = adaptivePenalty;
+            this.externalPenalty = externalPenalty;
+            this.banUntil = banUntil;
         }
 
         Duration getPenalty() {
-            return initialPenalty.plus(adaptivePenalty).plus(externalPenalty);
+            return clientOptions.initialPenalty.plus(adaptivePenalty).plus(externalPenalty);
         }
 
-        String getClusterName() {
-            return client.getClusters().get(0).getName();
+        public synchronized void onFinishRequest(Boolean success) {
+            if (success) {
+                if (this.adaptivePenalty.compareTo(Duration.ZERO) > 0) {
+                    this.banUntil = null;
+                    this.adaptivePenalty = Duration.ZERO;
+                }
+            } else {
+                this.banUntil = Instant.now().plus(banDuration);
+                this.adaptivePenalty = this.adaptivePenalty.plus(banPenalty);
+            }
         }
+
     }
+
 }

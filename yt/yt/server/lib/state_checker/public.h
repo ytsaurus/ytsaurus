@@ -2,12 +2,12 @@
 
 #include <yt/yt/core/misc/common.h>
 
-namespace NYT::NStateChecker {
+namespace NYT::NComponentStateChecker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TStateChecker)
+DECLARE_REFCOUNTED_CLASS(IComponentStateChecker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NStateChecker
+} // namespace NYT::NComponentStateChecker

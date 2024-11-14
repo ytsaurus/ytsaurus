@@ -367,6 +367,15 @@ func (h *streamHandler) handleCreate() {
 }
 
 func (h *streamHandler) handleStagedPath(stagedPath string) {
+	removeStagedPath := func(removeReason string) {
+		err := os.Remove(stagedPath)
+		if err != nil {
+			h.logger.Error("Failed to remove task file", "removeReason", removeReason, "stagedpath", stagedPath, "error", err)
+		} else {
+			h.logger.Info("Removed task file", "removeReason", removeReason, "stagedPath", stagedPath)
+		}
+	}
+
 	var err error
 	var stat syscall.Stat_t
 	logger := h.logger.With("path", path.Base(stagedPath))
@@ -396,12 +405,7 @@ func (h *streamHandler) handleStagedPath(stagedPath string) {
 	task, err := h.timberTruck.datastore.ActiveTaskByIno(ino, h.config.Name)
 	if err == nil && task.CompletionTime.IsZero() { // NO ERROR, we already have this task
 		if task.StagedPath != stagedPath {
-			err = os.Remove(stagedPath)
-			if err != nil {
-				h.logger.Error("Failed to remove duplicating task file", "stagedpath", stagedPath, "error", err)
-			} else {
-				h.logger.Info("Removed duplicating task file", "stagedPath", stagedPath)
-			}
+			removeStagedPath("duplicate task")
 		}
 		h.logger.Info("Task already exists", "stagedpath", stagedPath, "originalPath", task.StagedPath)
 		return
@@ -412,12 +416,7 @@ func (h *streamHandler) handleStagedPath(stagedPath string) {
 	task, err = h.timberTruck.datastore.TaskByPath(stagedPath)
 	if err == nil { // NO ERROR, we already have this task
 		if !task.CompletionTime.IsZero() {
-			err = os.Remove(stagedPath)
-			if err != nil {
-				h.logger.Error("Failed to remove completed task file", "stagedpath", stagedPath, "error", err)
-			} else {
-				h.logger.Info("Removed completed task file", "stagedpath", stagedPath)
-			}
+			removeStagedPath("completed task")
 		}
 		h.logger.Info("Task already exists", "stagedpath", stagedPath, "originalpath", task.StagedPath)
 		return
@@ -433,7 +432,9 @@ func (h *streamHandler) handleStagedPath(stagedPath string) {
 	}
 	warns, err := h.timberTruck.datastore.AddTask(&task, *h.config.MaxActiveTaskCount)
 	if errors.Is(err, ErrTaskLimitExceeded) {
+		removeStagedPath("task limit exceeded")
 		h.logger.Error("Task was not added", "error", err)
+		return
 	} else if err != nil {
 		panic(fmt.Sprintf("unexpected error AddTask(%v): %v", task, err))
 	}

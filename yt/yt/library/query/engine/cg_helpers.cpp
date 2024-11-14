@@ -137,7 +137,7 @@ TCGExprContext TCGExprContext::Make(
                 expressionClosurePtr,
                 0,
                 TClosureTypeBuilder::Fields::FragmentResults),
-            builder->getInt8PtrTy()),
+            builder->getPtrTy()),
         builder->getInt8(static_cast<int>(EValueType::TheBottom)),
         sizeof(TValue) * fragmentInfos.Functions.size(),
         llvm::Align(8));

@@ -5,11 +5,12 @@
 #include <yt/yt/server/lib/chunk_pools/public.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
-#include <yt/yt/ytlib/table_client/table_upload_options.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
+
+#include <yt/yt/client/table_client/table_upload_options.h>
 
 #include <yt/yt/core/misc/topological_ordering.h>
 

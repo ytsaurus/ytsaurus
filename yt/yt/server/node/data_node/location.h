@@ -16,11 +16,12 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
 #include <yt/yt/core/misc/atomic_ptr.h>
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 #include <atomic>
 #include <map>
@@ -492,8 +493,8 @@ protected:
 
     NProfiling::TProfiler Profiler_;
 
-    TAtomicObject<TError> LocationDisabledAlert_;
-    TAtomicObject<TError> LocationDiskFailedAlert_;
+    NThreading::TAtomicObject<TError> LocationDisabledAlert_;
+    NThreading::TAtomicObject<TError> LocationDiskFailedAlert_;
 
     TDiskHealthCheckerPtr HealthChecker_;
 
@@ -540,7 +541,7 @@ private:
 
     TChunkLocationUuid Uuid_;
 
-    TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
+    NThreading::TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
     NProfiling::TDynamicTagPtr MediumTag_;
     NProfiling::TGauge MediumFlag_;
 

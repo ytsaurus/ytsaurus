@@ -19,7 +19,7 @@ using namespace NConcurrency;
 using namespace NQueryTrackerClient;
 using namespace NRpc;
 using namespace NRpcProxy;
-using namespace NStateChecker;
+using namespace NComponentStateChecker;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
@@ -32,13 +32,13 @@ class TProxyService
     : public TServiceBase
 {
 public:
-    TProxyService(IInvokerPtr proxyInvoker, TQueryTrackerProxyPtr queryTracker, TStateCheckerPtr stateChecker)
+    TProxyService(IInvokerPtr proxyInvoker, TQueryTrackerProxyPtr queryTracker, IComponentStateCheckerPtr ComponentStateChecker)
         : TServiceBase(
             std::move(proxyInvoker),
             TQueryTrackerServiceProxy::GetDescriptor(),
             QueryTrackerLogger())
         , QueryTracker_(std::move(queryTracker))
-        , StateChecker_(std::move(stateChecker))
+        , ComponentStateChecker_(std::move(ComponentStateChecker))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartQuery));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortQuery));
@@ -52,7 +52,7 @@ public:
 
 private:
     const TQueryTrackerProxyPtr QueryTracker_;
-    const TStateCheckerPtr StateChecker_;
+    const IComponentStateCheckerPtr ComponentStateChecker_;
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, StartQuery)
     {
@@ -362,15 +362,15 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return !StateChecker_->IsComponentBanned();
+        return !ComponentStateChecker_->IsComponentBanned();
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IServicePtr CreateProxyService(IInvokerPtr proxyInvoker, TQueryTrackerProxyPtr queryTracker, TStateCheckerPtr stateChecker)
+IServicePtr CreateProxyService(IInvokerPtr proxyInvoker, TQueryTrackerProxyPtr queryTracker, IComponentStateCheckerPtr ComponentStateChecker)
 {
-    return New<TProxyService>(std::move(proxyInvoker), std::move(queryTracker), std::move(stateChecker));
+    return New<TProxyService>(std::move(proxyInvoker), std::move(queryTracker), std::move(ComponentStateChecker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

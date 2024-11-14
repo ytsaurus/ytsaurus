@@ -98,7 +98,7 @@ struct TCypressChildDescriptor
 {
     NCypressClient::TNodeId ParentId;
     NCypressClient::TNodeId ChildId;
-    TString ChildKey;
+    std::string ChildKey;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

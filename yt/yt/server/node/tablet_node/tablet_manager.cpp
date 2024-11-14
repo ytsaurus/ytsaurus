@@ -5395,69 +5395,54 @@ private:
 
     void ValidateTrimmedRowCountPrecedeReplication(TTablet* tablet, i64 trimmedRowCount)
     {
-        auto replicationTimestamp = tablet->GetOrderedChaosReplicationMinTimestamp();
         const auto& storeRowIndexMap = tablet->StoreRowIndexMap();
+        if (storeRowIndexMap.empty()) {
+            // No stores
+            return;
+        }
+
+        auto replicationTimestamp = tablet->GetOrderedChaosReplicationMinTimestamp();
 
         auto it = storeRowIndexMap.lower_bound(trimmedRowCount);
         if (it == storeRowIndexMap.end()) {
-            if (storeRowIndexMap.empty()) {
-                // No stores
-                return;
-            }
+            // trimmedRowCount is beyond the last store start row index, so check the last store
+            --it;
 
-            const auto& lastStore = storeRowIndexMap.rbegin()->second;
-            if (trimmedRowCount != lastStore->GetStartingRowIndex() + lastStore->GetRowCount()) {
+            // Check that we are not trimmig more than the table size
+            if (trimmedRowCount > it->second->GetStartingRowIndex() + it->second->GetRowCount()) {
                 THROW_ERROR_EXCEPTION("Could not trim tablet since trimmed row count is greater than current row count")
                     << TErrorAttribute("tablet_id", tablet->GetId())
                     << TErrorAttribute("trimmed_row_count", trimmedRowCount)
                     << TErrorAttribute("replication_timestamp", replicationTimestamp)
-                    << TErrorAttribute("last_store_starting_row_index", lastStore->GetStartingRowIndex())
-                    << TErrorAttribute("last_store_row_count", lastStore->GetRowCount());
+                    << TErrorAttribute("last_store_starting_row_index", it->second->GetStartingRowIndex())
+                    << TErrorAttribute("last_store_row_count", it->second->GetRowCount());
+            }
+        }
+
+        // Last store could be empty and have min_timestamp == MaxTimestamp, so check the last non-empty one
+        // it should have valid timestamp
+        if (it->second->GetMinTimestamp() == MaxTimestamp) {
+            if (it == storeRowIndexMap.begin()) {
+                // Check for trim row count mismatch
+                THROW_ERROR_EXCEPTION_IF(trimmedRowCount != it->second->GetStartingRowIndex(),
+                    "Could not fully trim tablet since trimmed row count is greater than current row count: "
+                    "trimmed_row_count: %v, starting row index: %v",
+                    trimmedRowCount,
+                    it->second->GetStartingRowIndex());
+
+                // The only store is empty and it's a full trim
+                return;
             }
 
-            if (replicationTimestamp < lastStore->GetMaxTimestamp()) {
-                THROW_ERROR_EXCEPTION("Could not fully trim tablet since some replicas may not be replicated up to this point")
-                    << TErrorAttribute("tablet_id", tablet->GetId())
-                    << TErrorAttribute("trimmed_row_count", trimmedRowCount)
-                    << TErrorAttribute("replication_timestamp", replicationTimestamp)
-                    << TErrorAttribute("max_timestamp", lastStore->GetMaxTimestamp());
-            }
-        } else {
-            if (it->second->GetMinTimestamp() == MaxTimestamp) {
-                while (it != storeRowIndexMap.begin() && it->second->GetMinTimestamp() == MaxTimestamp) {
-                    --it;
-                }
+            --it;
+        }
 
-                auto maxTimestamp = it->second->GetMaxTimestamp();
-                if (maxTimestamp != MinTimestamp && replicationTimestamp < maxTimestamp) {
-                    THROW_ERROR_EXCEPTION(
-                        "Could not trim tablet since some replicas may not be replicated up to this point")
-                        << TErrorAttribute("tablet_id", tablet->GetId())
-                        << TErrorAttribute("trimmed_row_count", trimmedRowCount)
-                        << TErrorAttribute("replication_timestamp", replicationTimestamp)
-                        << TErrorAttribute("max_timestamp", maxTimestamp);
-                }
-            } else {
-                if (replicationTimestamp < it->second->GetMinTimestamp()) {
-                    THROW_ERROR_EXCEPTION("Could not trim tablet since some replicas may not be replicated up to this point")
-                        << TErrorAttribute("tablet_id", tablet->GetId())
-                        << TErrorAttribute("trimmed_row_count", trimmedRowCount)
-                        << TErrorAttribute("replication_timestamp", replicationTimestamp);
-                }
-
-                // store->MinTimestamp could be MaxTimestamp so check previous store also
-                if (it != storeRowIndexMap.begin()) {
-                    --it;
-                    auto maxTimestamp = it->second->GetMaxTimestamp();
-                    if (replicationTimestamp < maxTimestamp) {
-                        THROW_ERROR_EXCEPTION("Could not trim tablet since some replicas may not be replicated up to this point")
-                            << TErrorAttribute("tablet_id", tablet->GetId())
-                            << TErrorAttribute("trimmed_row_count", trimmedRowCount)
-                            << TErrorAttribute("replication_timestamp", replicationTimestamp)
-                            << TErrorAttribute("max_timestamp", maxTimestamp);;
-                    }
-                }
-            }
+        if (replicationTimestamp < it->second->GetMaxTimestamp()) {
+            THROW_ERROR_EXCEPTION("Could not trim tablet since some replicas may not be replicated up to this point")
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("trimmed_row_count", trimmedRowCount)
+                << TErrorAttribute("replication_timestamp", replicationTimestamp)
+                << TErrorAttribute("max_timestamp", it->second->GetMaxTimestamp());
         }
     }
 

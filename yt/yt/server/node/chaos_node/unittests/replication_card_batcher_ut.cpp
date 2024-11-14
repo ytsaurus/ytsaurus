@@ -22,9 +22,6 @@ class TReplcationCardBatcherTest
     : public ::testing::Test
 {
 public:
-    TReplcationCardBatcherTest()
-    { }
-
     static TReplicationCard* AddReplicationCard(
         EReplicationCardState state,
         TEntityMap<TReplicationCard>* replicationCardMap)
@@ -65,7 +62,7 @@ public:
     }
 };
 
-TEST_F(TReplcationCardBatcherTest, TestNoCollocations)
+TEST_F(TReplcationCardBatcherTest, NoCollocations)
 {
     TEntityMap<TReplicationCard> replicationCardMap;
     AddReplicationCards(10, EReplicationCardState::Normal, &replicationCardMap);
@@ -84,7 +81,7 @@ TEST_F(TReplcationCardBatcherTest, TestNoCollocations)
     }
 }
 
-TEST_F(TReplcationCardBatcherTest, TestSmallCollocations)
+TEST_F(TReplcationCardBatcherTest, SmallCollocations)
 {
     TEntityMap<TReplicationCard> replicationCardMap;
     TEntityMap<TReplicationCardCollocation> collocationMap;

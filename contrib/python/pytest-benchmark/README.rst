@@ -10,13 +10,11 @@ Overview
     * - docs
       - |docs| |gitter|
     * - tests
-      - | |github-actions| |requires|
-        | |coveralls| |codecov|
+      - |github-actions| |coveralls| |codecov|
     * - package
-      - | |version| |wheel| |supported-versions| |supported-implementations|
-        | |commits-since|
+      - |version| |wheel| |supported-versions| |supported-implementations| |commits-since|
 .. |docs| image:: https://readthedocs.org/projects/pytest-benchmark/badge/?style=flat
-    :target: https://pytest-benchmark.readthedocs.io/
+    :target: https://readthedocs.org/projects/pytest-benchmark/
     :alt: Documentation Status
 
 .. |github-actions| image:: https://github.com/ionelmc/pytest-benchmark/actions/workflows/github-actions.yml/badge.svg
@@ -26,17 +24,13 @@ Overview
     :alt: Join the chat at https://gitter.im/ionelmc/pytest-benchmark
     :target: https://gitter.im/ionelmc/pytest-benchmark
 
-.. |requires| image:: https://requires.io/github/ionelmc/pytest-benchmark/requirements.svg?branch=main
-    :alt: Requirements Status
-    :target: https://requires.io/github/ionelmc/pytest-benchmark/requirements/?branch=main
-
-.. |coveralls| image:: https://coveralls.io/repos/ionelmc/pytest-benchmark/badge.svg?branch=main&service=github
+.. |coveralls| image:: https://coveralls.io/repos/github/ionelmc/pytest-benchmark/badge.svg?branch=main
     :alt: Coverage Status
-    :target: https://coveralls.io/r/ionelmc/pytest-benchmark
+    :target: https://coveralls.io/github/ionelmc/pytest-benchmark?branch=main
 
 .. |codecov| image:: https://codecov.io/gh/ionelmc/pytest-benchmark/branch/main/graphs/badge.svg?branch=main
     :alt: Coverage Status
-    :target: https://codecov.io/github/ionelmc/pytest-benchmark
+    :target: https://app.codecov.io/github/ionelmc/pytest-benchmark
 
 .. |version| image:: https://img.shields.io/pypi/v/pytest-benchmark.svg
     :alt: PyPI Package latest release
@@ -54,9 +48,9 @@ Overview
     :alt: Supported implementations
     :target: https://pypi.org/project/pytest-benchmark
 
-.. |commits-since| image:: https://img.shields.io/github/commits-since/ionelmc/pytest-benchmark/v4.0.0.svg
+.. |commits-since| image:: https://img.shields.io/github/commits-since/ionelmc/pytest-benchmark/v5.1.0.svg
     :alt: Commits since latest release
-    :target: https://github.com/ionelmc/pytest-benchmark/compare/v4.0.0...main
+    :target: https://github.com/ionelmc/pytest-benchmark/compare/v5.1.0...main
 
 
 

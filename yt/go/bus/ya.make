@@ -12,12 +12,19 @@ SRCS(
 
 GO_TEST_SRCS(
     bus_test.go
+    client_test.go
+    test_service_test.go
 )
 
+IF (OPENSOURCE)
+    SRCS(
+        test_service_binary.go
+    )
+ENDIF()
+
 IF (NOT OPENSOURCE)
-    GO_TEST_SRCS(
-        client_test.go
-        test_service_test.go
+    SRCS(
+        test_service_binary_internal.go
     )
 ENDIF()
 
@@ -26,4 +33,5 @@ END()
 RECURSE(
     example
     gotest
+    tcptest
 )

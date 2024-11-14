@@ -4,4 +4,3 @@ pytest-benchmark = pytest_benchmark.cli:main
 
 [pytest11]
 benchmark = pytest_benchmark.plugin
-

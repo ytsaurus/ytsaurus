@@ -669,7 +669,7 @@ private:
         THashSet<std::pair<IChunkPtr, int>> ReportedChangedMedium;
 
         //! Set when another incremental heartbeat is successfully reported to the corresponding master.
-        TAtomicObject<TPromise<void>> NextHeartbeatBarrier = NewPromise<void>();
+        NThreading::TAtomicObject<TPromise<void>> NextHeartbeatBarrier = NewPromise<void>();
 
         //! Set when current heartbeat is successfully reported.
         TPromise<void> CurrentHeartbeatBarrier;

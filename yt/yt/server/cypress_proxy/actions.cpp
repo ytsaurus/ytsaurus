@@ -224,7 +224,7 @@ void RemoveNodeAttribute(
 void AttachChild(
     TNodeId parentId,
     TNodeId childId,
-    const TString& childKey,
+    const std::string& childKey,
     const ISequoiaTransactionPtr& transaction)
 {
     transaction->WriteRow(NRecords::TChildNode{
@@ -244,7 +244,7 @@ void AttachChild(
 
 void DetachChild(
     TNodeId parentId,
-    const TString& childKey,
+    const std::string& childKey,
     const ISequoiaTransactionPtr& transaction)
 {
     transaction->DeleteRow(NRecords::TChildNodeKey{
@@ -271,8 +271,8 @@ void LockRowInNodeIdToPathTable(
 TLockId LockNodeInMaster(
     TVersionedNodeId nodeId,
     ELockMode lockMode,
-    const std::optional<TString>& childKey,
-    const std::optional<TString>& attributeKey,
+    const std::optional<std::string>& childKey,
+    const std::optional<std::string>& attributeKey,
     TTimestamp timestamp,
     bool waitable,
     const ISequoiaTransactionPtr& sequoiaTransaction)

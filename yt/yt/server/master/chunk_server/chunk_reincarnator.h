@@ -49,6 +49,7 @@ public:
         TNodePtrWithReplicaAndMediumIndexList sourceReplicas,
         TNodePtrWithReplicaAndMediumIndexList targetReplicas,
         int mediumIndex,
+        TTransactionId transactionId,
         TChunkReincarnationOptions reincarnationOptions);
 
     bool FillJobSpec(
@@ -62,6 +63,7 @@ private:
     NErasure::ECodec ErasureCodec_;
     NCompression::ECodec CompressionCodec_;
     bool EnableSkynetSharing_;
+    TTransactionId TransactionId_;
 
     static NNodeTrackerClient::NProto::TNodeResources GetJobResourceUsage();
 };

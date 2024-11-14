@@ -179,7 +179,7 @@ struct IFairShareTree
     virtual TPersistentTreeStatePtr BuildPersistentState() const = 0;
     virtual void InitPersistentState(const TPersistentTreeStatePtr& persistentState) = 0;
 
-    virtual TError OnOperationMaterialized(TOperationId operationId, bool revivedFromSnapshot) = 0;
+    virtual TError CheckOperationJobResourceLimitsRestrictions(TOperationId operationId, bool revivedFromSnapshot) = 0;
     virtual TError CheckOperationSchedulingInSeveralTreesAllowed(TOperationId operationId) const = 0;
 
     virtual void BuildOperationAttributes(TOperationId operationId, NYTree::TFluentMap fluent) const = 0;

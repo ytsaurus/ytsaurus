@@ -6,6 +6,16 @@ Is released as a docker image.
 
 **All releases:**
 
+{% cut "**2.4.1**" %}
+
+Maintenance release with bug fixes:
+
+- Fix creating tables via Spark SQL without explicitly specifying ytTable schema
+- Fix serializing and deserializing nested time types
+- Fix casting NULL in nested data structures
+
+{% endcut %}
+
 {% cut "**2.4.0**" %}
 
 - Support for running local files and their dependencies in direct submit mode by uploading it to YTsaurus cache

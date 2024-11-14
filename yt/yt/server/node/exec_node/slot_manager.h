@@ -215,7 +215,7 @@ private:
 
     std::atomic<bool> JobProxyReady_ = false;
 
-    TAtomicObject<TError> TestContainerCreationError_;
+    NThreading::TAtomicObject<TError> TestContainerCreationError_;
 
     TAtomicIntrusivePtr<IVolumeManager> RootVolumeManager_;
 

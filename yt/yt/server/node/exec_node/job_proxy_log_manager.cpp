@@ -54,6 +54,11 @@ public:
 
     void Initialize() final
     {
+        const auto& logWriterName = Config_->LogDump->LogWriterName;
+
+        // GetLogFileNameToDump may throw.
+        LogFileName_.Store(GetNewLogFileNameToDump(logWriterName));
+
         Bootstrap_->GetJobController()->SubscribeJobCompletelyRemoved(
             BIND_NO_PROPAGATE(&TJobProxyLogManager::OnJobCompletelyRemoved, MakeStrong(this)));
     }
@@ -134,7 +139,7 @@ private:
     TString Directory_;
     int ShardingKeyLength_;
 
-    TAtomicObject<TString> LogFileName_;
+    NThreading::TAtomicObject<TString> LogFileName_;
 
     TAsyncSemaphorePtr AsyncSemaphore_;
 
@@ -144,10 +149,12 @@ private:
 
         try {
             auto formatString = Format("%%0%dx", ShardingKeyLength_);
-            for (int i = 0; i < Power(16, ShardingKeyLength_); i++) {
+            for (int i = 0; i < Power(16, ShardingKeyLength_); ++i) {
                 auto dirName = Format(TRuntimeFormat{formatString}, i);
 
                 auto dirPath = NFS::CombinePaths(Directory_, dirName);
+
+                YT_LOG_INFO("Creating job proxy logs sharding key directory (DirPath: %v)", dirPath);
                 NFS::MakeDirRecursive(dirPath);
             }
 

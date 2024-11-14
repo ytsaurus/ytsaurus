@@ -1,14 +1,14 @@
 #include "transaction_manager.h"
-#include "private.h"
-#include "config.h"
 #include "action.h"
+#include "config.h"
 #include "helpers.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/cypress_transaction_client/cypress_transaction_service_proxy.h>
 #include <yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
@@ -40,6 +40,8 @@
 
 #include <yt/yt/core/ytree/public.h>
 
+#include <library/cpp/yt/threading/atomic_object.h>
+
 #include <util/generic/algorithm.h>
 
 #include <atomic>
@@ -63,6 +65,11 @@ using NYT::FromProto;
 
 using NNative::IConnection;
 using NNative::IConnectionPtr;
+using NNative::TConnectionDynamicConfigPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto& Logger = TransactionClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,8 +92,147 @@ public:
 private:
     friend class TTransaction;
 
+    class TPingBatcher
+        : public TRefCounted
+    {
+    public:
+        TPingBatcher(
+            const TPingBatcherConfigPtr& config,
+            std::string user,
+            TTransactionSupervisorServiceProxy proxy)
+            : User_(std::move(user))
+            , Proxy_(std::move(proxy))
+            , BatchPeriod_(config->BatchPeriod)
+            , BatchSize_(config->BatchSize)
+        { }
+
+        void Reconfigure(const TPingBatcherConfigPtr& newConfig)
+        {
+            BatchPeriod_.store(newConfig->BatchPeriod);
+            BatchSize_.store(newConfig->BatchSize);
+        }
+
+        TFuture<void> Ping(
+            TTransactionId transactionId,
+            bool pingAncestors,
+            TDuration timeout)
+        {
+            if (timeout < BatchPeriod_.load()) {
+                YT_LOG_DEBUG("Sending single ping as transaction timeout is lower than batch period (TransactionId: %v)",
+                    transactionId);
+                return SendPingTransaction(transactionId, pingAncestors);
+            }
+
+            YT_LOG_DEBUG("Adding transaction to ping batch (TransactionId: %v)",
+                transactionId);
+
+            auto promise = NewPromise<void>();
+            auto future = promise.ToFuture();
+
+            PingRequests_.Transform([&](auto& pingRequests) {
+                pingRequests.push_back(TBatchedPingRequest{
+                    .TransactionId = transactionId,
+                    .PingAncestors = pingAncestors,
+                    .Promise = std::move(promise),
+                });
+
+                if (auto batchSize = BatchSize_.load(); std::ssize(pingRequests) >= batchSize) {
+                    YT_LOG_DEBUG("Sending ping batch as it has reached maximum size (BatchSize: %v)",
+                        batchSize);
+                    TDelayedExecutor::Submit(BIND(&TPingBatcher::DoSendPingTransactions, MakeStrong(this), std::exchange(pingRequests, {})), TDuration::Zero());
+                } else if (std::ssize(pingRequests) == 1) {
+                    auto batchPeriod = BatchPeriod_.load();
+                    YT_LOG_DEBUG("Scheduled new ping batch (BatchPeriod: %v)",
+                        batchPeriod);
+                    TDelayedExecutor::Submit(BIND(&TPingBatcher::SendPingTransactions, MakeStrong(this)), batchPeriod);
+                }
+            });
+
+            return future;
+        }
+
+    private:
+        struct TBatchedPingRequest
+        {
+            TTransactionId TransactionId;
+            bool PingAncestors;
+            TPromise<void> Promise;
+        };
+
+        const std::string User_;
+
+        TTransactionSupervisorServiceProxy Proxy_;
+
+        std::atomic<TDuration> BatchPeriod_;
+        std::atomic<i64> BatchSize_;
+
+        NThreading::TAtomicObject<std::vector<TBatchedPingRequest>> PingRequests_;
+
+        TFuture<void> SendPingTransaction(
+            TTransactionId transactionId,
+            bool pingAncestors)
+        {
+            auto req = Proxy_.PingTransaction();
+            req->SetUser(User_);
+            ToProto(req->mutable_transaction_id(), transactionId);
+            req->set_ping_ancestors(pingAncestors);
+
+            return req->Invoke().As<void>();
+        }
+
+        void SendPingTransactions()
+        {
+            auto pingRequests = PingRequests_.Exchange(std::vector<TBatchedPingRequest>{});
+
+            if (pingRequests.empty()) {
+                return;
+            }
+
+            DoSendPingTransactions(std::move(pingRequests));
+        }
+
+        void DoSendPingTransactions(const std::vector<TBatchedPingRequest>& pingRequests)
+        {
+            auto req = Proxy_.PingTransactions();
+            req->SetUser(User_);
+            for (const auto& pingRequest : pingRequests) {
+                auto subrequest = req->add_subrequests();
+                ToProto(subrequest->mutable_transaction_id(), pingRequest.TransactionId);
+                subrequest->set_ping_ancestors(pingRequest.PingAncestors);
+            }
+
+            Y_UNUSED(req->Invoke().Apply(
+                BIND([pingRequests](const TErrorOr<TTransactionSupervisorServiceProxy::TRspPingTransactionsPtr>& rspOrError) {
+                    if (!rspOrError.IsOK()) {
+                        YT_LOG_ERROR(rspOrError, "Failed to ping transactions");
+                        for (const auto& pingRequest : pingRequests) {
+                            pingRequest.Promise.Set(TError(rspOrError));
+                        }
+                        return;
+                    }
+
+                    const auto& rsp = rspOrError.Value();
+                    for (int index = 0; index < rsp->subresponses_size(); ++index) {
+                        const auto& pingRequest = pingRequests[index];
+                        const auto& subresponse = rsp->subresponses(index);
+
+                        auto error = FromProto<TError>(subresponse.error());
+                        pingRequest.Promise.Set(std::move(error));
+                    }
+            })));
+        }
+    };
+
+    //! Cell channel is retrieved from CellDirectory, so it is necessary to reinitialize batcher
+    //! in case of the channel change. Raw pointer is used to detect such change.
+    struct TPingBatcherWithChannel
+    {
+        TIntrusivePtr<TPingBatcher> PingBatcher;
+        //! This pointer is used only for address comparison.
+        IChannel* ChannelAddress;
+    };
+
     const TWeakPtr<IConnection> Connection_;
-    const TTransactionManagerConfigPtr Config_;
     const TCellId PrimaryCellId_;
     const TCellTag PrimaryCellTag_;
     const TCellTagList SecondaryCellTags_;
@@ -96,8 +242,12 @@ private:
     const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
     const TCellTrackerPtr DownedCellTracker_;
 
+    TAtomicIntrusivePtr<TTransactionManagerConfig> Config_;
+
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     THashSet<TTransaction::TImpl*> AliveTransactions_;
+
+    NThreading::TAtomicObject<THashMap<TCellId, TPingBatcherWithChannel>> PingBatchers_;
 
     static TRetryChecker GetCommitRetryChecker()
     {
@@ -134,12 +284,49 @@ private:
 
     TTransactionSupervisorServiceProxy MakeSupervisorProxy(IChannelPtr channel, TRetryChecker retryChecker)
     {
+        auto config = Config_.Acquire();
         if (retryChecker) {
-            channel = CreateRetryingChannel(Config_, std::move(channel), std::move(retryChecker));
+            channel = CreateRetryingChannel(config, std::move(channel), std::move(retryChecker));
         }
         TTransactionSupervisorServiceProxy proxy(std::move(channel));
-        proxy.SetDefaultTimeout(Config_->RpcTimeout);
+        proxy.SetDefaultTimeout(config->RpcTimeout);
         return proxy;
+    }
+
+    TIntrusivePtr<TPingBatcher> GetOrCreatePingBatcher(TCellId cellId, IChannelPtr channel)
+    {
+        return PingBatchers_.Transform([&] (auto& pingBatchers) -> TIntrusivePtr<TPingBatcher> {
+            if (auto it = pingBatchers.find(cellId); it != pingBatchers.end()) {
+                const auto& [batcher, oldChannelAddress] = it->second;
+                if (oldChannelAddress == channel.Get()) {
+                    return batcher;
+                }
+            }
+
+            auto* channelAddress = channel.Get();
+            // NB: Ping batcher is used only for pings with EnableRetry set to 'false'.
+            auto transactionSupervisorProxy = MakeSupervisorProxy(std::move(channel), TRetryChecker());
+            auto batcher = New<TPingBatcher>(Config_.Acquire()->PingBatcher, User_, std::move(transactionSupervisorProxy));
+
+            pingBatchers.emplace(cellId, TPingBatcherWithChannel{
+                .PingBatcher = batcher,
+                .ChannelAddress = channelAddress,
+            });
+            return batcher;
+        });
+
+    }
+
+    void OnConnectionReconfigured(const TConnectionDynamicConfigPtr& newConfig)
+    {
+        Config_.Store(newConfig->TransactionManager);
+
+        PingBatchers_.Transform([&] (auto& pingBatchers) {
+            for (const auto& [cellId, item] : pingBatchers) {
+                const auto& pingBatcher = item.PingBatcher;
+                pingBatcher->Reconfigure(newConfig->TransactionManager->PingBatcher);
+            }
+        });
     }
 };
 
@@ -371,7 +558,7 @@ public:
 
     TDuration GetTimeout() const
     {
-        return Timeout_.value_or(Owner_->Config_->DefaultTransactionTimeout);
+        return Timeout_.value_or(Owner_->Config_.Acquire()->DefaultTransactionTimeout);
     }
 
     const std::vector<TTransactionId>& GetPrerequisiteTransactionIds() const
@@ -792,7 +979,7 @@ private:
         auto connection = connectionOrError.Value();
         auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CoordinatorMasterCellTag_);
 
-        if (options.StartCypressTransaction && Owner_->Config_->UseCypressTransactionService) {
+        if (options.StartCypressTransaction && Owner_->Config_.Acquire()->UseCypressTransactionService) {
             TCypressTransactionServiceProxy proxy(channel);
             auto req = proxy.StartTransaction();
 
@@ -933,7 +1120,7 @@ private:
             YT_VERIFY(CoordinatorCellId_);
 
             auto isCypressTransaction = IsCypressTransactionType(TypeFromId(Id_));
-            if (isCypressTransaction && Owner_->Config_->UseCypressTransactionService) {
+            if (isCypressTransaction && Owner_->Config_.Acquire()->UseCypressTransactionService) {
                 return DoCommitCypressTransaction(options);
             }
 
@@ -1142,7 +1329,7 @@ private:
     TFuture<void> SendPing(const TTransactionPingOptions& options = {})
     {
         auto isCypressTransaction = IsCypressTransactionType(TypeFromId(Id_));
-        if (isCypressTransaction && Owner_->Config_->UseCypressTransactionService) {
+        if (isCypressTransaction && Owner_->Config_.Acquire()->UseCypressTransactionService) {
             auto participantIds = GetRegisteredParticipantIds();
             YT_VERIFY(participantIds.size() == 1);
 
@@ -1165,13 +1352,14 @@ private:
 
         auto connection = connectionOrError.Value();
         auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CoordinatorMasterCellTag_);
+        auto config = Owner_->Config_.Acquire();
 
         if (options.EnableRetries) {
-            channel = CreateRetryingChannel(Owner_->Config_, std::move(channel), Owner_->GetPingRetryChecker());
+            channel = CreateRetryingChannel(config, std::move(channel), Owner_->GetPingRetryChecker());
         }
 
         TCypressTransactionServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Owner_->Config_->RpcTimeout);
+        proxy.SetDefaultTimeout(config->RpcTimeout);
 
         auto req = proxy.PingTransaction();
 
@@ -1237,22 +1425,30 @@ private:
                 continue;
             }
 
-            auto proxy = Owner_->MakeSupervisorProxy(
-                std::move(channel),
-                options.EnableRetries ? Owner_->GetPingRetryChecker() : TRetryChecker());
-            auto req = proxy.PingTransaction();
-            req->SetUser(Owner_->User_);
-            ToProto(req->mutable_transaction_id(), Id_);
-            if (cellId == CoordinatorMasterCellId_) {
-                req->set_ping_ancestors(PingAncestors_);
+            TFuture<void> pingRspFuture;
+            bool useBatcher = Owner_->Config_.Acquire()->PingBatcher->Enable && options.EnableRetries == false;
+            if (useBatcher && cellId == CoordinatorMasterCellId_) {
+                auto pingBatcher = Owner_->GetOrCreatePingBatcher(cellId, std::move(channel));
+                pingRspFuture = pingBatcher->Ping(Id_, PingAncestors_, GetTimeout());
+            } else {
+                auto proxy = Owner_->MakeSupervisorProxy(
+                    std::move(channel),
+                    options.EnableRetries ? Owner_->GetPingRetryChecker() : TRetryChecker());
+                auto req = proxy.PingTransaction();
+                req->SetUser(Owner_->User_);
+                ToProto(req->mutable_transaction_id(), Id_);
+                if (cellId == CoordinatorMasterCellId_) {
+                    req->set_ping_ancestors(PingAncestors_);
+                }
+
+                pingRspFuture = req->Invoke().As<void>();
             }
 
-            auto asyncRspOrError = req->Invoke();
-            asyncResults.push_back(asyncRspOrError.Apply(
-                BIND(
-                    &TImpl::OnTransactionPinged<TTransactionSupervisorServiceProxy::TErrorOrRspPingTransactionPtr>,
-                    MakeStrong(this),
-                    cellId)));
+            asyncResults.push_back(pingRspFuture.Apply(
+                    BIND(
+                        &TImpl::OnTransactionPinged<TError>,
+                        MakeStrong(this),
+                        cellId)));
         }
 
         return AllSucceeded(asyncResults);
@@ -1327,7 +1523,7 @@ private:
                 return;
             }
 
-            auto pingPeriod = std::min(PingPeriod_.value_or(Owner_->Config_->DefaultPingPeriod), GetTimeout() / 2);
+            auto pingPeriod = std::min(PingPeriod_.value_or(Owner_->Config_.Acquire()->DefaultPingPeriod), GetTimeout() / 2);
             auto pingDeadline = startTime + pingPeriod;
             TDelayedExecutor::Submit(BIND(&TImpl::RunPeriodicPings, MakeWeak(this)), pingDeadline);
         }));
@@ -1364,7 +1560,7 @@ private:
     TFuture<void> SendAbortToCell(TCellId cellId, const TTransactionAbortOptions& options = {})
     {
         auto isCypressTransaction = IsCypressTransactionType(TypeFromId(Id_));
-        if (isCypressTransaction && Owner_->Config_->UseCypressTransactionService) {
+        if (isCypressTransaction && Owner_->Config_.Acquire()->UseCypressTransactionService) {
             return DoAbortCypressTransaction(cellId, options);
         }
 
@@ -1560,7 +1756,6 @@ TTransactionManager::TImpl::TImpl(
     IConnectionPtr connection,
     const std::string& user)
     : Connection_(connection)
-    , Config_(connection->GetConfig()->TransactionManager)
     , PrimaryCellId_(connection->GetPrimaryMasterCellId())
     , PrimaryCellTag_(connection->GetPrimaryMasterCellTag())
     , SecondaryCellTags_(connection->GetSecondaryMasterCellTags())
@@ -1569,7 +1764,10 @@ TTransactionManager::TImpl::TImpl(
     , CellDirectory_(connection->GetCellDirectory())
     , ClusterDirectory_(connection->GetClusterDirectory())
     , DownedCellTracker_(connection->GetDownedCellTracker())
-{ }
+    , Config_(connection->GetConfig()->TransactionManager)
+{
+    connection->SubscribeReconfigured(BIND(&TImpl::OnConnectionReconfigured, MakeWeak(this)));
+}
 
 TFuture<TTransactionPtr> TTransactionManager::TImpl::Start(
     ETransactionType type,

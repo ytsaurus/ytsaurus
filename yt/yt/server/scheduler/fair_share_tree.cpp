@@ -1009,7 +1009,7 @@ public:
         TreeScheduler_->InitPersistentState(persistentState->AllocationSchedulerState);
     }
 
-    TError OnOperationMaterialized(TOperationId operationId, bool revivedFromSnapshot) override
+    TError CheckOperationJobResourceLimitsRestrictions(TOperationId operationId, bool revivedFromSnapshot) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 

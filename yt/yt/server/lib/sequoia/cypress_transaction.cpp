@@ -161,8 +161,8 @@ concept CResolveRecordType =
 bool IsTombstone(const NRecords::TNodeFork& record)
 {
     // Every ID can occur in "node_forks" table at most twice: one creation
-    // and on removal. This allows us to derive fork kind from "topmost_tx"
-    // field.
+    // and on removal. This allows us to derive fork kind from
+    // "topmost_transaction_id" field.
 
     // NB: the alternative solution could be to mark such tombstone records
     // with null path.

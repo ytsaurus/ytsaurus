@@ -159,6 +159,8 @@ struct INodeHeartbeatStrategyProxy
     virtual TMatchingTreeCookie GetMatchingTreeCookie() const = 0;
 
     virtual bool HasMatchingTree() const = 0;
+
+    virtual std::optional<TString> GetMaybeTreeId() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INodeHeartbeatStrategyProxy)
@@ -257,7 +259,10 @@ struct ISchedulerStrategy
         bool considerGuaranteesForSingleTree) = 0;
 
     //! Error results in operation's failure.
-    virtual TError OnOperationMaterialized(TOperationId operationId, bool revivedFromSnapshot) = 0;
+    virtual TError OnOperationMaterialized(
+        TOperationId operationId,
+        bool revivedFromSnapshot,
+        std::vector<TString>* treeIdsToUnregister) = 0;
 
     virtual void ApplyJobMetricsDelta(TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics) = 0;
 

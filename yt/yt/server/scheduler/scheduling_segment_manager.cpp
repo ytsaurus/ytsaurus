@@ -18,10 +18,6 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int LargeGpuSegmentAllocationGpuDemand = 8;
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace {
 
 double GetNodeResourceLimit(const TFairShareTreeAllocationSchedulerNodeState& node, EJobResourceType resourceType)
@@ -177,7 +173,7 @@ void TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
             case ESegmentedSchedulingMode::LargeGpu: {
                 bool meetsGangCriterion = operationState->IsGang || !Config_->AllowOnlyGangOperationsInLargeSegment;
                 auto allocationGpuDemand = operationState->AggregatedInitialMinNeededResources->GetGpu();
-                bool meetsAllocationGpuDemandCriterion = (allocationGpuDemand == LargeGpuSegmentAllocationGpuDemand);
+                bool meetsAllocationGpuDemandCriterion = (allocationGpuDemand == LargeGpuAllocationGpuDemand);
                 return meetsGangCriterion && meetsAllocationGpuDemandCriterion
                     ? ESchedulingSegment::LargeGpu
                     : ESchedulingSegment::Default;

@@ -38,6 +38,7 @@ target_link_options(driver_lib PRIVATE
   -fPIC
   -undefined
   dynamic_lookup
+  -flat_namespace
   -fPIC
   -framework
   CoreFoundation

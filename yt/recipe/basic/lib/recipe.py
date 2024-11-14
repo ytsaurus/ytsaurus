@@ -59,7 +59,7 @@ def start(yt_cluster_factory, args, work_dir=None):
     parser.add_argument("--cluster-config-patches", action=cli_helpers.ParseStructuredArgument, default=None,
                         help="config patch for YT cluster in yson format {id={name=value;...};}")
     parser.add_argument("--config-patch", action=cli_helpers.ParseStructuredArguments,
-                        help="the patches in yson format {name=value;...} which will be applied to all of clusters", dest="config_patches", nargs="*", required=False)
+                        help="the patches in yson format {name=value;...} which will be applied to all of clusters", dest="config_patches", required=False)
 
     parser.add_argument("--cleanup-working-directory", action="store_true", default=False,
                         help="clean working directory before recipe start")

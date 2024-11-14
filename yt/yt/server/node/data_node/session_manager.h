@@ -15,16 +15,6 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSessionCreatedAtIndex
-{
-    TSessionId SessionId;
-    TInstant StartedAt;
-
-    bool operator < (const TSessionCreatedAtIndex& other) const;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Manages chunk uploads.
 /*!
  *  Thread affinity: any
@@ -68,6 +58,14 @@ public:
     NYTree::IYPathServicePtr GetOrchidService();
 
 private:
+    struct TSessionCreatedAtSortIndex
+    {
+        TSessionId SessionId;
+        TInstant StartedAt;
+
+        bool operator < (const TSessionCreatedAtSortIndex& other) const;
+    };
+
     const TDataNodeConfigPtr Config_;
     IBootstrap* const Bootstrap_;
     const NYTree::IYPathServicePtr OrchidService_;
@@ -78,7 +76,7 @@ private:
 
     std::atomic<bool> DisableWriteSessions_ = false;
 
-    std::set<TSessionCreatedAtIndex> SessionToCreatedAt_;
+    std::set<TSessionCreatedAtSortIndex> SessionToCreatedAt_;
 
     ISessionPtr CreateSession(TSessionId sessionId, const TSessionOptions& options);
 

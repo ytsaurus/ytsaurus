@@ -594,11 +594,11 @@ public:
     {
         Value* opaqueValues = GetOpaqueValues();
         auto opaqueValuePtr = Builder_->CreateConstGEP1_32(
-            Builder_->getInt8PtrTy(),
+            Builder_->getPtrTy(),
             opaqueValues,
             index);
         return Builder_->CreateLoad(
-            Builder_->getInt8PtrTy(),
+            Builder_->getPtrTy(),
             opaqueValuePtr,
             "opaqueValues." + Twine(index));
     }

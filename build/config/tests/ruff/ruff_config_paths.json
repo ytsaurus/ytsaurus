@@ -18,5 +18,6 @@
     "games/backend": "games/admin/pyproject.toml",
     "yandex360/backend/b2b_platform": "yandex360/backend/b2b_platform/pyproject.toml",
     "quality/antifraud/security": "quality/antifraud/security/pyproject.toml",
-    "dj/services/inspire": "dj/services/inspire/pyproject.toml"
+    "dj/services/inspire": "dj/services/inspire/pyproject.toml",
+    "hrtech/backend/events_crm": "hrtech/backend/events_crm/pyproject.toml"
 }

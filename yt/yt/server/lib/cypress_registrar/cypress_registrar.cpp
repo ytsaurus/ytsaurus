@@ -60,6 +60,9 @@ public:
 
     void Start(TCallback<IAttributeDictionaryPtr()> attributeFactory) override
     {
+        YT_LOG_INFO("Starting cypress registrar (UpdatePeriod: %v)",
+            Config_->UpdatePeriod);
+
         YT_VERIFY(!Started_);
         Started_ = true;
         AttributeFactory_ = std::move(attributeFactory);

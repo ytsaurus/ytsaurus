@@ -749,9 +749,9 @@ TEST_F(TProducerApiTest, TestProducerClient)
         Client_,
         producerPath);
 
-    std::vector<NQueueClient::TQueueProducerSequenceNumber> acknoledgements;
-    auto ackCallback = BIND([&acknoledgements] (NQueueClient::TQueueProducerSequenceNumber sequenceNumber) -> void {
-        acknoledgements.push_back(sequenceNumber);
+    std::vector<NQueueClient::TQueueProducerSequenceNumber> acks;
+    auto ackCallback = BIND([&acks] (NQueueClient::TQueueProducerSequenceNumber sequenceNumber) -> void {
+        acks.push_back(sequenceNumber);
     });
 
     auto pushBatch = [&] (const IProducerSessionPtr& producerSession, std::optional<i64> startSequenceNumber = std::nullopt) {
@@ -797,7 +797,7 @@ TEST_F(TProducerApiTest, TestProducerClient)
             return actualSessionRow == expectedSessionRow;
         }, Format("Producer session with %v last sequence number and %v epoch was expected", expectedLastSequenceNumber, expectedEpoch));
 
-        EXPECT_EQ(acknoledgements.back(), NQueueClient::TQueueProducerSequenceNumber{expectedLastSequenceNumber});
+        EXPECT_EQ(acks.back(), NQueueClient::TQueueProducerSequenceNumber{expectedLastSequenceNumber});
     };
 
     {
@@ -810,7 +810,7 @@ TEST_F(TProducerApiTest, TestProducerClient)
                 .BatchOptions = TProducerSessionBatchOptions{
                     .RowCount = 100,
                 },
-                .AcknowledgmentCallback = ackCallback,
+                .AckCallback = ackCallback,
             }))
             .ValueOrThrow();
 
@@ -838,7 +838,7 @@ TEST_F(TProducerApiTest, TestProducerClient)
         checkQueue(50);
         checkProducer(49, 0);
 
-        acknoledgements.clear();
+        acks.clear();
     }
 
     {
@@ -851,7 +851,7 @@ TEST_F(TProducerApiTest, TestProducerClient)
                 .BatchOptions = TProducerSessionBatchOptions{
                     .RowCount = 100,
                 },
-                .AcknowledgmentCallback = ackCallback,
+                .AckCallback = ackCallback,
             }))
             .ValueOrThrow();
 
@@ -864,7 +864,7 @@ TEST_F(TProducerApiTest, TestProducerClient)
         checkQueue(70);
         checkProducer(69, 1);
 
-        acknoledgements.clear();
+        acks.clear();
     }
 
     {
@@ -878,7 +878,7 @@ TEST_F(TProducerApiTest, TestProducerClient)
                 .BatchOptions = TProducerSessionBatchOptions{
                     .ByteSize = 15,
                 },
-                .AcknowledgmentCallback = ackCallback,
+                .AckCallback = ackCallback,
             }))
             .ValueOrThrow();
 
@@ -894,7 +894,7 @@ TEST_F(TProducerApiTest, TestProducerClient)
         checkQueue(100);
         checkProducer(99, 2);
 
-        acknoledgements.clear();
+        acks.clear();
     }
 
     auto nameTableWithSequenceNumber = TNameTable::FromSchema(
@@ -913,7 +913,7 @@ TEST_F(TProducerApiTest, TestProducerClient)
                 .BatchOptions = TProducerSessionBatchOptions{
                     .RowCount = 100,
                 },
-                .AcknowledgmentCallback = ackCallback,
+                .AckCallback = ackCallback,
             }))
             .ValueOrThrow();
     };
@@ -932,7 +932,7 @@ TEST_F(TProducerApiTest, TestProducerClient)
         checkQueue(115);
         checkProducer(114, 3);
 
-        acknoledgements.clear();
+        acks.clear();
     }
 
     {
@@ -947,7 +947,7 @@ TEST_F(TProducerApiTest, TestProducerClient)
         checkQueue(115);
         checkProducer(114, 4);
 
-        acknoledgements.clear();
+        acks.clear();
     }
 
     {
@@ -962,7 +962,7 @@ TEST_F(TProducerApiTest, TestProducerClient)
         checkQueue(124);
         checkProducer(123, 5);
 
-        acknoledgements.clear();
+        acks.clear();
     }
 
     // Flush in background.
@@ -976,7 +976,7 @@ TEST_F(TProducerApiTest, TestProducerClient)
             TProducerSessionOptions{
                 .AutoSequenceNumber = true,
                 .BackgroundFlushPeriod = backgroundFlushPeriod,
-                .AcknowledgmentCallback = ackCallback,
+                .AckCallback = ackCallback,
             },
             threadPool->GetInvoker()
         )).ValueOrThrow();
@@ -1008,7 +1008,7 @@ TEST_F(TProducerApiTest, TestProducerClient)
         WaitFor(producerSession->Close())
             .ThrowOnError();
 
-        acknoledgements.clear();
+        acks.clear();
     }
 }
 

@@ -136,10 +136,10 @@ def _build_cluster_share(d, os_documentation):
             .cell(
                 "Dominant fair share: strong, integral, weight proportional",
                 MultiSensor(
-                    SchedulerPools("yt.scheduler.pools.dominant_fair_share.integral_guarantee")
-                        .legend_format("integral guarantee"),
                     SchedulerPools("yt.scheduler.pools.dominant_fair_share.strong_guarantee")
                         .legend_format("strong guarantee"),
+                    SchedulerPools("yt.scheduler.pools.dominant_fair_share.integral_guarantee")
+                        .legend_format("integral guarantee"),
                     SchedulerPools("yt.scheduler.pools.dominant_fair_share.weight_proportional")
                         .legend_format("weight proportional"),
                 ).stack(True),

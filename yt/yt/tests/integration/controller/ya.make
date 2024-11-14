@@ -4,6 +4,7 @@ TEST_SRCS(
     test_auto_merge.py
     test_columnar_statistics.py
     test_controller_agent.py
+    test_controller_transactions.py
     test_erase_operation.py
     test_features.py
     test_intermediate_medium_switch.py

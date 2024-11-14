@@ -48,7 +48,7 @@ struct IBootstrap
     virtual NDistributedThrottler::IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         NDistributedThrottler::TDistributedThrottlerConfigPtr config,
         IInvokerPtr invoker,
-        const TString& groupId,
+        const std::string& groupId,
         NLogging::TLogger logger,
         NProfiling::TProfiler profiler) const = 0;
 };

@@ -22,7 +22,6 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/ring_queue.h>
-#include <library/cpp/yt/threading/atomic_object.h>
 #include <yt/yt/core/misc/atomic_ptr.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -31,6 +30,8 @@
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 #include <library/cpp/yt/memory/ref.h>
@@ -109,7 +110,7 @@ struct TEpochContext
 
     int LeaderId = InvalidPeerId;
     TEpochId EpochId;
-    TAtomicObject<NElection::TPeerIdSet> AlivePeerIds;
+    NThreading::TAtomicObject<NElection::TPeerIdSet> AlivePeerIds;
 
     TCancelableContextPtr CancelableContext;
 };

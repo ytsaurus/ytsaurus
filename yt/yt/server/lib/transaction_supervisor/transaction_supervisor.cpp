@@ -828,6 +828,8 @@ private:
                 .SetHeavy(true));
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PingTransaction)
                 .SetInvoker(GetSyncInvoker()));
+            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PingTransactions)
+                .SetInvoker(GetSyncInvoker()));
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(GetDownedParticipants)
                 .SetHeavy(true));
         }
@@ -993,6 +995,38 @@ private:
 
             auto owner = GetOwnerOrThrow();
             context->ReplyFrom(owner->TransactionManager_->PingTransaction(transactionId, pingAncestors));
+        }
+
+        DECLARE_RPC_SERVICE_METHOD(NProto::NTransactionSupervisor, PingTransactions)
+        {
+            context->SetRequestInfo("TransactionCount: %v",
+                request->subrequests_size());
+
+            auto owner = GetOwnerOrThrow();
+
+            std::vector<TFuture<void>> resultFutures;
+            resultFutures.reserve(request->subrequests_size());
+            for (const auto& subrequest : request->subrequests()) {
+                auto transactionId = FromProto<TTransactionId>(subrequest.transaction_id());
+                bool pingAncestors = subrequest.ping_ancestors();
+                resultFutures.push_back(owner->TransactionManager_->PingTransaction(transactionId, pingAncestors));
+            }
+
+            auto handlePingResults = [=, this, this_ = MakeStrong(this)] (const std::vector<TErrorOr<void>>& results) {
+                response->mutable_subresponses()->Reserve(results.size());
+                for (int i = 0; i < std::ssize(results); ++i) {
+                    const auto& result = results[i];
+                    auto* subresponse = response->add_subresponses();
+                    if (!result.IsOK()) {
+                        auto transactionId = FromProto<TTransactionId>(request->subrequests(i).transaction_id());
+                        YT_LOG_DEBUG(result, "Failed to ping transaction (TransactionId: %v)",
+                            transactionId);
+                        ToProto(subresponse->mutable_error(), TError(result));
+                    }
+                }
+            };
+
+            context->ReplyFrom(AllSet(std::move(resultFutures)).Apply(BIND(handlePingResults)));
         }
 
         DECLARE_RPC_SERVICE_METHOD(NProto::NTransactionSupervisor, GetDownedParticipants)

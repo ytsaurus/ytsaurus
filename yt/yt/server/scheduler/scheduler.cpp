@@ -976,7 +976,7 @@ public:
     {
         const auto& schedulingOptionsPerPoolTree = operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree;
         if (schedulingOptionsPerPoolTree.find(treeId) != schedulingOptionsPerPoolTree.end()) {
-            UnregisterOperationFromTree(operation, treeId);
+            UnregisterOperationFromTrees(operation, {treeId});
         } else {
             YT_LOG_INFO("Operation was already unregistered from tree (OperationId: %v, TreeId: %v)",
                 operation->GetId(),
@@ -984,15 +984,17 @@ public:
         }
     }
 
-    void UnregisterOperationFromTree(const TOperationPtr& operation, const TString& treeId)
+    void UnregisterOperationFromTrees(const TOperationPtr& operation, const std::vector<TString>& treeIds)
     {
-        YT_LOG_INFO("Unregistering operation from tree (OperationId: %v, TreeId: %v)",
-            operation->GetId(),
-            treeId);
+        for (const auto& treeId : treeIds) {
+            YT_LOG_INFO("Unregistering operation from tree (OperationId: %v, TreeId: %v)",
+                operation->GetId(),
+                treeId);
 
-        Strategy_->UnregisterOperationFromTree(operation->GetId(), treeId);
+            Strategy_->UnregisterOperationFromTree(operation->GetId(), treeId);
+        }
 
-        operation->EraseTrees({treeId});
+        operation->EraseTrees(treeIds);
     }
 
     void ValidateOperationRuntimeParametersUpdate(
@@ -1246,6 +1248,42 @@ public:
         // This option must have the same value as at materialization start.
         bool scheduleOperationInSingleTree)
     {
+        MaybeDelay(operation->Spec()->TestingOperationOptions->DelayInsideMaterializeScheduler);
+
+        //! Returns false if something changed during persisting operation node and we need to return from current method.
+        auto unregisterOperationFromTrees = [&] (const std::vector<TString>& treeIds) -> bool {
+            if (treeIds.empty()) {
+                return true;
+            }
+
+            UnregisterOperationFromTrees(operation, treeIds);
+
+            // NB(eshcherbin): Persist info about erased trees and min needed resources to master. This flush is safe because nothing should
+            // happen to |operation| until its state is set to EOperationState::Running. The only possible exception would be the case when
+            // materialization fails and the operation is terminated, but we've already checked for any fail beforehand.
+            // Result is ignored since failure causes scheduler disconnection.
+            auto expectedState = operation->GetState();
+            Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
+            return operation->GetState() == expectedState;
+        };
+
+        {
+            std::vector<TString> treeIdsToUnregister;
+            auto error = Strategy_->OnOperationMaterialized(
+                operation->GetId(),
+                operation->GetRevivedFromSnapshot(),
+                &treeIdsToUnregister);
+
+            if (!error.IsOK()) {
+                OnOperationFailed(operation, error);
+                return;
+            }
+
+            if (!unregisterOperationFromTrees(treeIdsToUnregister)) {
+                return;
+            }
+        }
+
         if (scheduleOperationInSingleTree) {
             auto neededResources = operation->GetController()->GetNeededResources();
             TString chosenTree;
@@ -1270,34 +1308,7 @@ public:
                 }
             }
 
-            // TODO(eshcherbin): Fix the outdated comment.
-            // If any tree was erased, we should:
-            // (1) Unregister operation from each tree.
-            // (2) Remove each tree from operation's runtime parameters.
-            // (3) Flush all these changes to master.
-            if (!treeIdsToUnregister.empty()) {
-                for (const auto& treeId : treeIdsToUnregister) {
-                    UnregisterOperationFromTree(operation, treeId);
-                }
-
-                // NB(eshcherbin): Persist info about erased trees and min needed resources to master. This flush is safe because nothing should
-                // happen to |operation| until its state is set to EOperationState::Running. The only possible exception would be the case when
-                // materialization fails and the operation is terminated, but we've already checked for any fail beforehand.
-                // Result is ignored since failure causes scheduler disconnection.
-                auto expectedState = operation->GetState();
-                Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
-                if (operation->GetState() != expectedState) {
-                    return;
-                }
-            }
-        }
-
-        MaybeDelay(operation->Spec()->TestingOperationOptions->DelayInsideMaterializeScheduler);
-
-        {
-            auto error = Strategy_->OnOperationMaterialized(operation->GetId(), operation->GetRevivedFromSnapshot());
-            if (!error.IsOK()) {
-                OnOperationFailed(operation, error);
+            if (!unregisterOperationFromTrees(treeIdsToUnregister)) {
                 return;
             }
         }
@@ -2229,6 +2240,7 @@ private:
         YT_LOG_INFO("Requesting exec nodes information");
 
         auto req = TYPathProxy::List(GetExecNodesPath());
+        req->set_limit(CypressNodeLimit);
         ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "id",
             "tags",
@@ -2460,7 +2472,10 @@ private:
     {
         YT_LOG_DEBUG("Requesting mapping from user to default pool");
 
-        batchReq->AddRequest(TYPathProxy::Get(GetUserToDefaultPoolMapPath()), "get_user_to_default_pool");
+        auto req = TYPathProxy::Get(GetUserToDefaultPoolMapPath());
+        req->set_limit(CypressNodeLimit);
+
+        batchReq->AddRequest(std::move(req), "get_user_to_default_pool");
     }
 
     void HandleUserToDefaultPoolMap(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
@@ -2855,13 +2870,13 @@ private:
                 operation->SetRevivedFromSnapshot(result.RevivedFromSnapshot);
                 operation->RevivedAllocations() = std::move(result.RevivedAllocations);
                 for (const auto& bannedTreeId : result.RevivedBannedTreeIds) {
-                    // If operation is already erased from the tree, UnregisterOperationFromTree() will produce unnecessary log messages.
+                    // If operation is already erased from the tree, |UnregisterOperationFromTrees| will produce unnecessary log messages.
                     // However, I believe that this way the code is simpler and more concise.
                     // NB(eshcherbin): this procedure won't abort allocations that are running in banned tentative trees.
                     // So in case of an unfortunate scheduler failure, these allocations will continue running.
                     const auto& schedulingOptionsPerPoolTree = operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree;
                     if (schedulingOptionsPerPoolTree.find(bannedTreeId) != schedulingOptionsPerPoolTree.end()) {
-                        UnregisterOperationFromTree(operation, bannedTreeId);
+                        UnregisterOperationFromTrees(operation, {bannedTreeId});
                     }
                 }
             }
@@ -4096,9 +4111,8 @@ private:
                 offloadingTrees.push_back(treeName);
             }
         }
-        for (const auto& tree : offloadingTrees) {
-            UnregisterOperationFromTree(operation, tree);
-        }
+
+        UnregisterOperationFromTrees(operation, offloadingTrees);
     }
 
     struct TOperationFinishedLogEvent

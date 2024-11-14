@@ -846,6 +846,6 @@ type SystemMaintenanceRequestMap map[string]*SystemMaintenanceRequest
 type SystemMaintenanceRequest struct {
 	User      string             `yson:"user"`
 	Comment   string             `yson:"comment"`
-	Timestamp yson.Time          `yson:"timeout"`
+	Timestamp yson.Time          `yson:"timestamp"`
 	Type      yt.MaintenanceType `yson:"type"`
 }

@@ -68,12 +68,12 @@ void RemoveNodeAttribute(
 void AttachChild(
     NCypressClient::TNodeId parentId,
     NCypressClient::TNodeId childId,
-    const TString& childKey,
+    const std::string& childKey,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 void DetachChild(
     NCypressClient::TNodeId parentId,
-    const TString& childKey,
+    const std::string& childKey,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 void LockRowInNodeIdToPathTable(
@@ -84,8 +84,8 @@ void LockRowInNodeIdToPathTable(
 NCypressClient::TLockId LockNodeInMaster(
     NCypressClient::TVersionedNodeId nodeId,
     NCypressClient::ELockMode lockMode,
-    const std::optional<TString>& childKey,
-    const std::optional<TString>& attributeKey,
+    const std::optional<std::string>& childKey,
+    const std::optional<std::string>& attributeKey,
     NTransactionClient::TTimestamp timestamp,
     bool waitable,
     const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);

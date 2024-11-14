@@ -445,6 +445,19 @@ void TSchedulerConnector::DoProcessHeartbeatResponse(
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
+    if (DynamicConfig_.Acquire()->UseProfilingTagsFromScheduler && response->has_profiling_tags()) {
+        std::vector<NProfiling::TTag> tags;
+        tags.reserve(response->profiling_tags().tags_size());
+        for (const auto& tag : response->profiling_tags().tags()) {
+            tags.push_back(NProfiling::TTag{
+                tag.key(),
+                tag.value(),
+            });
+        }
+
+        Bootstrap_->UpdateNodeProfilingTags(std::move(tags));
+    }
+
     if (response->has_operations_archive_version()) {
         Bootstrap_->GetJobReporter()->SetOperationsArchiveVersion(response->operations_archive_version());
     }

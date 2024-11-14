@@ -31,6 +31,8 @@ constexpr auto OperationIdTag = "operation_id";
 DECLARE_REFCOUNTED_STRUCT(IOperationController)
 using IOperationControllerWeakPtr = TWeakPtr<IOperationController>;
 
+DECLARE_REFCOUNTED_STRUCT(IPartitioningParametersEvaluator)
+
 DECLARE_REFCOUNTED_STRUCT(TSnapshotJob)
 
 DECLARE_REFCOUNTED_CLASS(TSnapshotBuilder)

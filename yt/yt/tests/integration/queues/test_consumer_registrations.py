@@ -521,7 +521,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
 
         wait(lambda: self.listed_registrations_are_equal(list_queue_consumer_registrations(), []))
 
-    @authors("cherepashka")
+    @authors("cherepashka", "nadya73")
     @pytest.mark.parametrize("create_registration_table", [
         TestQueueConsumerApiBase._create_simple_registration_table,
     ])
@@ -697,7 +697,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
                     (queue_cluster, "//tmp/q", consumer_cluster, "//tmp/c", True),
                 }), ignore_exceptions=True)
 
-    @authors("cherepashka")
+    @authors("cherepashka", "nadya73")
     @pytest.mark.parametrize("create_registration_table", [
         TestQueueConsumerApiBase._create_simple_registration_table,
     ])
@@ -782,7 +782,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
             ]
         ))
 
-    @authors("cherepashka")
+    @authors("cherepashka", "nadya73")
     @pytest.mark.parametrize("create_registration_table", [
         TestQueueConsumerApiBase._create_simple_registration_table,
     ])

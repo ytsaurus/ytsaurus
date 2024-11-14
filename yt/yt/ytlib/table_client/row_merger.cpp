@@ -262,7 +262,6 @@ TMutableUnversionedRow TSchemafulRowMerger::BuildMergedRow()
     }
 
     NestedMerger_.UnpackKeyColumns(NestedKeyColumns_, NestedColumnsSchema_.KeyColumns);
-    NestedMerger_.BuildMergeScript();
 
     for (int index = 0; index < std::ssize(NestedColumnsSchema_.KeyColumns); ++index) {
         if (NestedKeyColumns_[index].Empty()) {
@@ -291,7 +290,7 @@ TMutableUnversionedRow TSchemafulRowMerger::BuildMergedRow()
 
         auto columnId = NestedColumnsSchema_.ValueColumns[index].Id;
 
-        auto state = NestedMerger_.ApplyMergeScript(
+        auto state = NestedMerger_.BuildMergedValueColumn(
             {valueIt, endCompactValueIt},
             NestedColumnsSchema_.ValueColumns[index].Type,
             NestedColumnsSchema_.ValueColumns[index].AggregateFunction,
@@ -547,7 +546,6 @@ TMutableUnversionedRow TUnversionedRowMerger::BuildDeleteRow()
 TMutableUnversionedRow TUnversionedRowMerger::BuildMergedRow()
 {
     NestedMerger_.UnpackKeyColumns(NestedKeyColumns_, NestedColumnsSchema_.KeyColumns);
-    NestedMerger_.BuildMergeScript();
 
     for (int index = 0; index < std::ssize(NestedColumnsSchema_.KeyColumns); ++index) {
         if (NestedKeyColumns_[index].empty()) {
@@ -575,7 +573,7 @@ TMutableUnversionedRow TUnversionedRowMerger::BuildMergedRow()
 
         auto columnId = NestedColumnsSchema_.ValueColumns[index].Id;
 
-        auto state = NestedMerger_.ApplyMergeScript(
+        auto state = NestedMerger_.BuildMergedValueColumn(
             NestedValueColumns_[index],
             NestedColumnsSchema_.ValueColumns[index].Type,
             NestedColumnsSchema_.ValueColumns[index].AggregateFunction,

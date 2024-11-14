@@ -5,6 +5,7 @@ import "yt_proto/yt/core/ytree/proto/attributes.proto";
 import "yt_proto/yt/client/cell_master/proto/cell_directory.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
 import "yt_proto/yt/client/hive/proto/cluster_directory.proto";
+import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt/ytlib/chunk_client/proto/medium_directory.proto";
 import "yt/ytlib/object_client/proto/user_directory.proto";
 
@@ -156,6 +157,19 @@ message TRspVectorizedRead
     }
 
     repeated TSubresponse subresponses = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetOrRegisterSchema
+{
+    required NYT.NTableClient.NProto.TTableSchemaExt schema = 1;
+    required NYT.NProto.TGuid transaction_id = 2;
+}
+
+message TRspGetOrRegisterSchema
+{
+    required NYT.NProto.TGuid schema_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

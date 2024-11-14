@@ -2,12 +2,12 @@
 
 #include <yt/yt/core/logging/log.h>
 
-namespace NYT::NStateChecker {
+namespace NYT::NComponentStateChecker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, StateCheckerLogger, "StateChecker");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, ComponentStateCheckerLogger, "ComponentStateChecker");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NStateChecker
+} // namespace NYT::NComponentStateChecker

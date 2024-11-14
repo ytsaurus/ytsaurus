@@ -8,6 +8,15 @@
             timeout_backoff_lead_time = 100;
         };
     };
+    DELTA_DRIVER_CONFIG = {
+        transaction_manager = {
+            ping_batcher = {
+                enable = %true;
+                batch_size = 2;
+                batch_period = 1000;
+            };
+        };
+    };
     DRIVER_BACKEND = native;
     NUM_RPC_PROXIES = 1;
 }

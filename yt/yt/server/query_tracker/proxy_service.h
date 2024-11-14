@@ -10,7 +10,10 @@ namespace NYT::NQueryTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateProxyService(IInvokerPtr proxyInvoker, TQueryTrackerProxyPtr proxy, NStateChecker::TStateCheckerPtr stateChecker);
+NRpc::IServicePtr CreateProxyService(
+    IInvokerPtr proxyInvoker,
+    TQueryTrackerProxyPtr proxy,
+    NComponentStateChecker::IComponentStateCheckerPtr ComponentStateChecker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

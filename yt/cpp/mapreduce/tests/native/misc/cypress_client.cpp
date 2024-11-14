@@ -45,7 +45,6 @@ TEST(CypressClient, TestCreateAllTypes)
         NT_DOUBLE,
         NT_BOOLEAN,
         NT_MAP,
-        NT_LIST,
         NT_FILE,
         NT_TABLE,
         NT_DOCUMENT,
@@ -195,7 +194,6 @@ TEST(CypressClient, TestSetGet)
         TNode(3.14),
         TNode(true),
         TNode(false),
-        TNode().Add("gg").Add("lol").Add(100500),
         TNode()("key1", "value1")("key2", "value2"),
     };
 

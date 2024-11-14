@@ -26,11 +26,13 @@ target_link_libraries(yql-essentials-utils PUBLIC
 )
 
 target_sources(yql-essentials-utils PRIVATE
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/chunked_buffer.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/debug_info.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/exceptions.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/future_action.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/hash.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/limiting_allocator.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/line_split.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/md5_stream.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/method_index.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/multi_resource_lock.cpp
@@ -45,6 +47,7 @@ target_sources(yql-essentials-utils PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/yql_panic.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/yql_paths.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/cast.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/chunked_buffer.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/debug_info.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/exceptions.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/future_action.h

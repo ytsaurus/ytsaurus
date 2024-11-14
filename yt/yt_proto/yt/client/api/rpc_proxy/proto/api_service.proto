@@ -197,6 +197,7 @@ enum EJobSortField
     JSF_DURATION = 6;
     JSF_PROGRESS = 7;
     JSF_ID = 8;
+    JSF_TASK_NAME = 9;
 }
 
 enum EJobSortDirection
@@ -1464,6 +1465,7 @@ message TRspGetTableMountInfo
     repeated TReplicaInfo replicas = 6;
     optional string physical_path = 7;
     repeated TIndexInfo indices = 8;
+    optional int32 tablet_count = 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

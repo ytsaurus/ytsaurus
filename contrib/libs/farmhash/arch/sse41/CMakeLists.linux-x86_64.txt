@@ -18,7 +18,6 @@ add_library(farmhash-arch-sse41)
 
 
 target_compile_options(farmhash-arch-sse41 PRIVATE
-  -msse4.1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 

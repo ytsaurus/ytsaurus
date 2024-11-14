@@ -38,7 +38,6 @@
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/misc/property.h>
-#include <library/cpp/yt/threading/atomic_object.h>
 
 #include <yt/yt/core/concurrency/async_barrier.h>
 
@@ -50,6 +49,8 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 #include <library/cpp/yt/memory/ref_tracked.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 #include <atomic>
 
@@ -69,7 +70,7 @@ struct TRuntimeTableReplicaData
     std::atomic<i64> PreparedReplicationRowIndex = -1;
     std::atomic<bool> PreserveTimestamps = true;
     std::atomic<NTransactionClient::EAtomicity> Atomicity = NTransactionClient::EAtomicity::Full;
-    TAtomicObject<TError> Error;
+    NThreading::TAtomicObject<TError> Error;
     std::atomic<NTabletClient::ETableReplicaStatus> Status = NTabletClient::ETableReplicaStatus::Unknown;
 
     void Populate(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
@@ -96,7 +97,7 @@ struct TChaosTabletData
     : public TRefCounted
 {
     std::atomic<ui64> ReplicationRound = 0;
-    TAtomicObject<THashMap<TTabletId, i64>> CurrentReplicationRowIndexes;
+    NThreading::TAtomicObject<THashMap<TTabletId, i64>> CurrentReplicationRowIndexes;
     TTransactionId PreparedWritePulledRowsTransactionId;
     TTransactionId PreparedAdvanceReplicationProgressTransactionId;
 };
@@ -128,8 +129,8 @@ DEFINE_REFCOUNTED_TYPE(TRefCountedReplicationProgress)
 
 struct TTabletErrors
 {
-    TEnumIndexedArray<NTabletClient::ETabletBackgroundActivity, TAtomicObject<TError>> BackgroundErrors;
-    TAtomicObject<TError> ConfigError;
+    TEnumIndexedArray<NTabletClient::ETabletBackgroundActivity, NThreading::TAtomicObject<TError>> BackgroundErrors;
+    NThreading::TAtomicObject<TError> ConfigError;
 
     template <class TCallback>
     void ForEachError(TCallback&& callback) const;
@@ -144,7 +145,7 @@ struct TRuntimeSmoothMovementData
     // The following fields are filled only at the source servant when it becomes non-active.
     // They are needed to redirect clients to the target servant. Note that target->source
     // redirection never happens.
-    TAtomicObject<TCellId> SiblingServantCellId;
+    NThreading::TAtomicObject<TCellId> SiblingServantCellId;
     std::atomic<NHydra::TRevision> SiblingServantMountRevision;
 
     // Will be set when the target servant becomes active.

@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: pytest-benchmark
-Version: 4.0.0
+Version: 5.1.0
 Summary: A ``pytest`` fixture for benchmarking code. It will group the tests into rounds that are calibrated to the chosen timer.
 Home-page: https://github.com/ionelmc/pytest-benchmark
 Author: Ionel Cristian Mărieș
@@ -10,7 +10,6 @@ Project-URL: Documentation, https://pytest-benchmark.readthedocs.io/
 Project-URL: Changelog, https://pytest-benchmark.readthedocs.io/en/latest/changelog.html
 Project-URL: Issue Tracker, https://github.com/ionelmc/pytest-benchmark/issues
 Keywords: pytest,benchmark
-Platform: UNKNOWN
 Classifier: Development Status :: 5 - Production/Stable
 Classifier: Framework :: Pytest
 Classifier: Intended Audience :: Developers
@@ -21,19 +20,20 @@ Classifier: Operating System :: Microsoft :: Windows
 Classifier: Programming Language :: Python
 Classifier: Programming Language :: Python :: 3
 Classifier: Programming Language :: Python :: 3 :: Only
-Classifier: Programming Language :: Python :: 3.7
 Classifier: Programming Language :: Python :: 3.8
 Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
 Classifier: Programming Language :: Python :: Implementation :: CPython
 Classifier: Programming Language :: Python :: Implementation :: PyPy
 Classifier: Topic :: Software Development :: Testing
 Classifier: Topic :: System :: Benchmark
 Classifier: Topic :: Utilities
-Requires-Python: >=3.7
+Requires-Python: >=3.9
 License-File: LICENSE
 License-File: AUTHORS.rst
-Requires-Dist: pytest (>=3.8)
+Requires-Dist: pytest >=8.1
 Requires-Dist: py-cpuinfo
 Requires-Dist: statistics ; python_version < "3.4"
 Requires-Dist: pathlib2 ; python_version < "3.4"
@@ -44,6 +44,7 @@ Requires-Dist: elasticsearch ; extra == 'elasticsearch'
 Provides-Extra: histogram
 Requires-Dist: pygal ; extra == 'histogram'
 Requires-Dist: pygaljs ; extra == 'histogram'
+Requires-Dist: setuptools ; extra == 'histogram'
 
 ========
 Overview
@@ -197,6 +198,34 @@ Credits
 Changelog
 =========
 
+5.1.0 (2024-10-30)
+------------------
+
+* Fixed broken hooks handling on pytest 8.1 or later (the ``TypeError: import_path() missing 1 required keyword-only argument: 'consider_namespace_packages'`` issue).
+  Unfortunately this sets the minimum supported pytest version to 8.1.
+
+5.0.1 (2024-10-30)
+------------------
+
+* Fixed bad fixture check that broke down then `nbmake <https://pypi.org/project/nbmake/>`_ was enabled.
+
+5.0.0 (2024-10-29)
+------------------
+
+* Dropped support for now EOL Python 3.8. Also moved tests suite to only test the latest pytest versions (8.3.x).
+* Fix generate parametrize tests benchmark csv report errors (issue `#268 <https://github.com/ionelmc/pytest-benchmark/issues/268>`_).
+  Contributed by Johnny Huang in `#269 <https://github.com/ionelmc/pytest-benchmark/pull/269>`_.
+* Added the ``--benchmark-time-unit`` cli option for overriding the measurement unit used for display.
+  Contributed by Tony Kuo in `#257 <https://github.com/ionelmc/pytest-benchmark/pull/257>`_.
+* Fixes spelling in some help texts.
+  Contributed by Eugeniy in `#267 <https://github.com/ionelmc/pytest-benchmark/pull/267>`_.
+* Added new cprofile options:
+
+  - ``--benchmark-cprofile-loops=LOOPS`` - previously profiling only ran the function once, this allow customization.
+  - ``--benchmark-cprofile-top=COUNT`` - allows showing more rows.
+  - ``--benchmark-cprofile-dump=[FILENAME-PREFIX]`` - allows saving to a file (that you can load in `snakeviz <https://pypi.org/project/snakeviz/>`_, `RunSnakeRun <https://pypi.org/project/RunSnakeRun/>`_ or other tools).
+* Removed hidden dependency on `py.path <https://pypi.org/project/py/>`_ (replaced with pathlib).
+
 4.0.0 (2022-10-26)
 ------------------
 
@@ -347,7 +376,7 @@ Changelog
 3.1.0a1 (2016-10-29)
 --------------------
 
-* Added ``--benchmark-colums`` command line option. It selects what columns are displayed in the result table. Contributed by
+* Added ``--benchmark-columns`` command line option. It selects what columns are displayed in the result table. Contributed by
   Antonio Cuni in `#34 <https://github.com/ionelmc/pytest-benchmark/pull/34>`_.
 * Added support for grouping by specific test parametrization (``--benchmark-group-by=param:NAME`` where ``NAME`` is your
   param name). Contributed by Antonio Cuni in `#37 <https://github.com/ionelmc/pytest-benchmark/pull/37>`__.
@@ -529,5 +558,3 @@ Changelog
 
 * README and styling fixes. Contributed by Marc Abramowitz in `#4 <https://github.com/ionelmc/pytest-benchmark/pull/4>`_.
 * Lots of wild changes.
-
-

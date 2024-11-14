@@ -7,6 +7,7 @@
     },
     "params": {
         "format": "docker",
+        "docker_target": "base-exec",
         "docker_build_arg": {
             "PYTHON_BUILD_BASE": "build-ytsaurus-python-binaries",
         },

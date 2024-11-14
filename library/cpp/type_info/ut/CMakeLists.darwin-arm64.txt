@@ -107,6 +107,7 @@ resources(library-cpp-type_info-ut
   KEYS
   /good
   /bad
+  OPTS
 )
 
 vcs_info(library-cpp-type_info-ut)

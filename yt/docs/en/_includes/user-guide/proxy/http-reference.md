@@ -100,7 +100,7 @@ You can use compression when transmitting data via an HTTP proxy. The proxy sele
 | identity | Missing |                              |
 | gzip, deflate | Standard zlib |                              |
 | br | Standard brotli | [source code]({{source-root}}/library/cpp/streams/brotli) |
-| y-snappy, y-lzo, y-lzf | Snappy, LZO, LZF with the Arcadia framing | [source code]({{source-root}}/library/cpp/streams/lz) |
+| y-snappy, y-lzo, y-lzf | Snappy, LZO, LZF with the custom framing | [source code]({{source-root}}/library/cpp/streams/lz) |
 | x-lzop | Standard lzop | [source code]({{source-root}}/library/cpp/streams/lzop) |
 | z-* | Codecs from library/cpp/blockcodecs | Since no better alternative is available, see the [test list]({{source-root}}/library/cpp/blockcodecs/codecs_ut.cpp?rev=r6975957#L295-323) |
 

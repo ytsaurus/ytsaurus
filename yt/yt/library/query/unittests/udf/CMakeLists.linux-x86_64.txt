@@ -236,6 +236,7 @@ resources(query-unittests-udf.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf_optimized.bc
   KEYS
   /llvm_bc/malloc_udf
+  OPTS
 )
 
 resources(query-unittests-udf.global
@@ -244,6 +245,7 @@ resources(query-unittests-udf.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_optimized.bc
   KEYS
   /llvm_bc/test_udfs
+  OPTS
 )
 
 resources(query-unittests-udf.global
@@ -252,6 +254,7 @@ resources(query-unittests-udf.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_optimized.bc
   KEYS
   /llvm_bc/test_udfs_fc
+  OPTS
 )
 
 resources(query-unittests-udf.global
@@ -260,6 +263,7 @@ resources(query-unittests-udf.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate_optimized.bc
   KEYS
   /llvm_bc/xor_aggregate
+  OPTS
 )
 
 resources(query-unittests-udf.global
@@ -268,6 +272,7 @@ resources(query-unittests-udf.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all_optimized.bc
   KEYS
   /llvm_bc/concat_all
+  OPTS
 )
 
 llvm_compile_cxx(query-unittests-udf.global

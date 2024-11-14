@@ -19,6 +19,8 @@
 
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
+#include <yt/yt/ytlib/transaction_client/config.h>
+
 #include <yt/yt/client/api/internal_client.h>
 
 #include <yt/yt/client/table_client/helpers.h>
@@ -1192,6 +1194,104 @@ TEST_F(TFetchHunkChunkSpecsTest, Simple)
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TPingTransactionsTest
+    : public TApiTestBase
+{
+public:
+    static void ReconfigurePingBatcher(std::optional<TDuration> batchPeriod = {}, std::optional<int> batchSize = {})
+    {
+        auto nativeConnection = dynamic_cast<NNative::IConnection*>(Connection_.Get());
+        auto config = CloneYsonStruct(nativeConnection->GetConfig());
+        if (batchPeriod) {
+            config->TransactionManager->PingBatcher->BatchPeriod = *batchPeriod;
+        }
+        if (batchSize) {
+            config->TransactionManager->PingBatcher->BatchSize = *batchSize;
+        }
+        nativeConnection->Reconfigure(config);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TPingTransactionsTest, Basic)
+{
+    auto startOptions = TTransactionStartOptions{
+        .Ping = false,
+    };
+    auto tx1 = WaitFor(Client_->StartTransaction(ETransactionType::Master, startOptions))
+        .ValueOrThrow();
+
+    auto cellId = CellTagFromId(tx1->GetId());
+    auto unknownTransactionId = MakeId(EObjectType::Transaction, cellId, RandomNumber<ui32>(), RandomNumber<ui32>());
+    auto unknownTx = Client_->AttachTransaction(unknownTransactionId, TTransactionAttachOptions{.Ping = false});
+
+    auto pingResult1 = WaitFor(tx1->Ping());
+    auto unknownPingResult = WaitFor(unknownTx->Ping());
+    auto pingResult2 = WaitFor(tx1->Ping());
+    EXPECT_FALSE(unknownPingResult.IsOK());
+    EXPECT_TRUE(pingResult1.IsOK());
+    EXPECT_TRUE(pingResult2.IsOK());
+}
+
+TEST_F(TPingTransactionsTest, MaxBatchSize)
+{
+    ReconfigurePingBatcher(TDuration::Days(1));
+
+    auto startOptions = TTransactionStartOptions{
+        .Timeout = TDuration::Days(365),
+        .Ping = false,
+    };
+    auto tx1 = WaitFor(Client_->StartTransaction(ETransactionType::Master, startOptions))
+        .ValueOrThrow();
+    auto tx2 = WaitFor(Client_->StartTransaction(ETransactionType::Master, startOptions))
+        .ValueOrThrow();
+    auto tx3 = WaitFor(Client_->StartTransaction(ETransactionType::Master, startOptions))
+        .ValueOrThrow();
+
+    auto future1 = tx1->Ping();
+    auto future2 = tx2->Ping();
+    auto future3 = tx3->Ping();
+
+    WaitFor(AllSet(std::vector{future1, future2}))
+        .ThrowOnError();
+
+    // Batch size is set to 2 in yt/yt/tests/cpp/test_native_api/config.yson, so last ping should go into another batch.
+    ASSERT_FALSE(future3.IsSet());
+
+    auto future4 = tx1->Ping();
+    WaitFor(future3)
+        .ThrowOnError();
+
+    ReconfigurePingBatcher(TDuration::Seconds(1));
+}
+
+TEST_F(TPingTransactionsTest, Reconfigure)
+{
+    auto startOptions = TTransactionStartOptions{
+        .Timeout = TDuration::Days(365),
+        .Ping = false,
+    };
+    auto tx = WaitFor(Client_->StartTransaction(ETransactionType::Master, startOptions))
+        .ValueOrThrow();
+
+    NProfiling::TWallTimer timer;
+    auto future = tx->Ping();
+    WaitFor(future)
+        .ThrowOnError();
+    auto batchPeriod = timer.GetElapsedTime();
+
+    ReconfigurePingBatcher(2 * batchPeriod);;
+
+    timer.Start();
+    future = tx->Ping();
+    WaitFor(future)
+        .ThrowOnError();
+
+    EXPECT_GE(timer.GetElapsedTime(), 2 * batchPeriod);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

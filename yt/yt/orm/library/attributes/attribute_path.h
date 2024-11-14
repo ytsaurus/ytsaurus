@@ -8,6 +8,8 @@ namespace NYT::NOrm::NAttributes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsAttributePath(const NYPath::TYPath& path);
+
 void ValidateAttributePath(const NYPath::TYPath& path);
 
 //! One of them is an ancestor of the another.

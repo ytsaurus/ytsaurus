@@ -146,8 +146,11 @@ bool TSchedulingContextBase::CanStartAllocationForOperation(
     TOperationIndex operationIndex,
     TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const
 {
+    // NB(omgronny): We ignore disk usage in case of full host GPU allocation.
+    auto considerUsage = !IsFullHostGpuAllocation(allocationResourcesWithQuota.ToJobResources());
+
     auto diskRequest = allocationResourcesWithQuota.DiskQuota();
-    if (DiscountMediumIndex_) {
+    if (DiscountMediumIndex_ && considerUsage) {
         if (DiskResources_.DefaultMediumIndex == *DiscountMediumIndex_ && diskRequest.DiskSpaceWithoutMedium) {
             diskRequest.DiskSpacePerMedium[*DiscountMediumIndex_] += *diskRequest.DiskSpaceWithoutMedium;
             diskRequest.DiskSpaceWithoutMedium.reset();
@@ -164,7 +167,12 @@ bool TSchedulingContextBase::CanStartAllocationForOperation(
         allocationResourcesWithQuota.ToJobResources(),
         ConditionalDiscountForOperation(operationIndex).JobResources,
         unsatisfiedResources);
-    bool canSatisfyDiskQuotaRequests = CanSatisfyDiskQuotaRequests(DiskResources_, diskRequests);
+
+    bool canSatisfyDiskQuotaRequests = CanSatisfyDiskQuotaRequests(
+        DiskResources_,
+        diskRequests,
+        considerUsage);
+
     (*unsatisfiedResources)[EJobResourceWithDiskQuotaType::DiskQuota] |= !canSatisfyDiskQuotaRequests;
 
     return canSatisfyResourceRequest && canSatisfyDiskQuotaRequests;

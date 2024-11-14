@@ -1,7 +1,6 @@
 #include "group.h"
 #include "group_tree.h"
 
-#include <library/cpp/yt/logging/logger.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/ypath/tokenizer.h>
 
@@ -14,6 +13,7 @@
 #include <yt/yt/ytlib/discovery_client/helpers.h>
 #include <yt/yt/ytlib/discovery_client/public.h>
 
+#include <library/cpp/yt/logging/logger.h>
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <stack>

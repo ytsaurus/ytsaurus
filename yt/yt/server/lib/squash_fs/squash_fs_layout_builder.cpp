@@ -643,7 +643,7 @@ TDirectoryPtr TDirectory::CreateDirectory(const TString& name)
     auto entry = GetEntry(name);
     if (entry) {
         if (entry->GetType() != EInodeType::BasicDirectory) {
-            THROW_ERROR_EXCEPTION("Cannot open directory; file with the same name already exists")
+            THROW_ERROR_EXCEPTION("Cannot open directory: file with the same name already exists")
                 << TErrorAttribute("name", name);
         }
 
@@ -672,7 +672,7 @@ void TDirectory::CreateFile(
             THROW_ERROR_EXCEPTION("The file was already created")
                 << TErrorAttribute("name", name);
         }
-        THROW_ERROR_EXCEPTION("Cannot create file; directory with the same name already exists")
+        THROW_ERROR_EXCEPTION("Cannot create file: directory with the same name already exists")
             << TErrorAttribute("name", name);
     }
 
@@ -768,7 +768,7 @@ TSquashFSLayoutBuilder::TSquashFSLayoutBuilder(TSquashFSLayoutBuilderOptions opt
         // Checks it's not a power of 2
         std::popcount(BlockSize_) != 1)
     {
-        THROW_ERROR_EXCEPTION("Incorrect squashfs block size; it must be a power of two between %v and %v bytes",
+        THROW_ERROR_EXCEPTION("Incorrect squashfs block size: it must be a power of two between %v and %v bytes",
             MinDataBlockSize,
             MaxDataBlockSize)
             << TErrorAttribute("block_size", BlockSize_);
@@ -798,7 +798,7 @@ void TSquashFSLayoutBuilder::AddFile(
         if (name.empty() ||
             name.size() > MaxEntryNameLength)
         {
-            THROW_ERROR_EXCEPTION("The directory/file name has incorrect number of symbols; it must be between 1 and %v characters",
+            THROW_ERROR_EXCEPTION("The directory/file name has incorrect number of symbols: it must be between 1 and %v characters",
                 MaxEntryNameLength)
                 << TErrorAttribute("name", name)
                 << TErrorAttribute("name_size", std::ssize(name));

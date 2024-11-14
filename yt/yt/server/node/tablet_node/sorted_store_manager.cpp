@@ -1209,6 +1209,8 @@ void TSortedStoreManager::StartEpoch(ITabletSlotPtr slot)
             sortedDynamicStore->SetRowBlockedHandler(CreateRowBlockedHandler(store));
         }
     }
+
+    SchedulePartitionsSampling(0, Tablet_->PartitionList().size());
 }
 
 void TSortedStoreManager::StopEpoch()

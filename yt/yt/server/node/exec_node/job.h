@@ -256,6 +256,9 @@ public:
 
     const TAllocationPtr& GetAllocation() const noexcept;
 
+    i64 GetJobProxyHeartbeatEpoch() const;
+    bool UpdateJobProxyHearbeatEpoch(i64 epoch);
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
@@ -346,7 +349,7 @@ private:
 
     std::atomic<bool> UseJobInputCache_ = false;
 
-    TAtomicObject<THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr>> ProxiableChunks_;
+    NThreading::TAtomicObject<THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr>> ProxiableChunks_;
 
     std::vector<TArtifact> Artifacts_;
     std::vector<NDataNode::TArtifactKey> LayerArtifactKeys_;
@@ -365,6 +368,8 @@ private:
     EJobPhase JobPhase_ = EJobPhase::Created;
 
     TJobEvents JobEvents_;
+
+    i64 JobProxyHearbeatEpoch_ = -1;
 
     NScheduler::EInterruptReason InterruptionReason_ = NScheduler::EInterruptReason::None;
     std::optional<NScheduler::TPreemptedFor> PreemptedFor_;

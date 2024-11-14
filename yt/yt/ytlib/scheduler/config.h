@@ -1828,6 +1828,9 @@ public:
 
     bool UseNewSortedPool;
 
+    // Desired number of samples per partition.
+    int SamplesPerPartition;
+
     REGISTER_YSON_STRUCT(TSortOperationSpecBase);
 
     static void Register(TRegistrar registrar);
@@ -1846,9 +1849,6 @@ class TSortOperationSpec
 {
 public:
     NYPath::TRichYPath OutputTablePath;
-
-    // Desired number of samples per partition.
-    int SamplesPerPartition;
 
     ESchemaInferenceMode SchemaInferenceMode;
 
@@ -1897,6 +1897,12 @@ public:
     bool EnableTableIndexIfHasTrivialMapper;
 
     bool DisableSortedInputInReducer;
+
+    // When the mapper is trivial, this option enables key sampling to compute pivot keys.
+    // The input table's data is divided into continuous parts that are then
+    // distributed across jobs. This approach provides a guarantee similar to
+    // that of the reduce operation.
+    bool ComputePivotKeysFromSamples;
 
 public:
     bool HasNontrivialMapper() const;
@@ -1952,6 +1958,8 @@ public:
     //! If true, jobs will never open a channel to masters and will always use
     //! remote master caches.
     bool UseRemoteMasterCaches;
+
+    bool AllowClusterConnection;
 
     REGISTER_YSON_STRUCT(TRemoteCopyOperationSpec);
 

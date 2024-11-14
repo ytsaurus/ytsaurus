@@ -4,9 +4,9 @@
 
 #include <yt/yt/library/containers/disk_manager/config.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
-
 #include <yt/yt/core/rpc/client.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NContainers {
 

@@ -118,7 +118,7 @@ private:
 
     TInstant StatisticsUpdatedAt_;
     std::optional<TNetworkStatistics> LastStatistics_;
-    TAtomicObject<TInstant> AvailableAt_;
+    NThreading::TAtomicObject<TInstant> AvailableAt_;
 
     // TODO(aleksandra-zh): replace with the time read-only mode was entered.
     bool MastersInReadOnly_ = false;

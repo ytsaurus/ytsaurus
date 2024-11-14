@@ -42,7 +42,7 @@ public:
     { }
 
     TFuture<std::vector<TSharedRef>> DecompressValues(
-        std::vector<TUnversionedValue*> values,
+        TSharedRange<TUnversionedValue*> values,
         std::vector<TChunkId> dictionaryIds,
         TClientChunkReadOptions chunkReadOptions) override
     {
@@ -116,7 +116,7 @@ private:
 
     void DoDecompressValues(
         int decompressedValueCount,
-        std::vector<TUnversionedValue*> values,
+        TSharedRange<TUnversionedValue*> values,
         std::vector<TChunkId> dictionaryIds,
         TClientChunkReadOptions chunkReadOptions,
         TErrorOr<THashMap<TChunkId, TRowDictionaryDecompressor>>&& decompressorsOrError)

@@ -413,6 +413,7 @@ public:
         auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
 
         auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()) + "/@");
+        req->set_limit(CypressNodeLimit);
         ToProto(req->mutable_attributes()->mutable_keys(), TArchiveOperationRequest::GetProgressAttributeKeys());
         batchReq->AddRequest(req);
 

@@ -27,6 +27,33 @@ void FillMasterReadOptions(TMasterReadOptions& options, const TMasterReadOptions
     options = value;
 }
 
+[[nodiscard]] bool IsComponentOptional(EClusterComponentType component)
+{
+    switch (component) {
+        case EClusterComponentType::MasterCache:
+        case EClusterComponentType::Discovery:
+        case EClusterComponentType::TabletBalancer:
+        case EClusterComponentType::ReplicatedTableTracker:
+        case EClusterComponentType::QueueAgent:
+        case EClusterComponentType::QueryTracker:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// COMPAT(koloshmet)
+[[nodiscard]] bool IsComponentCompat(EClusterComponentType component)
+{
+    switch (component) {
+        case EClusterComponentType::TabletBalancer:
+        case EClusterComponentType::ReplicatedTableTracker:
+            return true;
+        default:
+            return false;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
@@ -210,16 +237,19 @@ std::vector<TYPath> TComponentDiscoverer::GetCypressSubpaths(
         FillMasterReadOptions(options, masterReadOptions);
         auto directory = WaitFor(client->GetNode(GetCypressDirectory(component), options))
             .ValueOrThrow();
-        for (const auto& subdirectory : ConvertToNode(directory)->AsMap()->GetChildren()) {
-            for (const auto& instance : subdirectory.second->AsMap()->GetChildren()) {
-                paths.push_back(Format("/%v/%v", subdirectory.first, instance.first));
+        for (const auto& [subdirectory, instances] : ConvertToNode(directory)->AsMap()->GetChildren()) {
+            for (const auto& [instance, _] : instances->AsMap()->GetChildren()) {
+                paths.push_back(Format("/%v/%v", subdirectory, instance));
             }
         }
     } else {
         TListNodeOptions options;
         FillMasterReadOptions(options, masterReadOptions);
-        auto rsp = WaitFor(client->ListNode(GetCypressDirectory(component)))
-            .ValueOrThrow();
+        auto rspOrError = WaitFor(client->ListNode(GetCypressDirectory(component)));
+        if (!rspOrError.IsOK() && IsComponentOptional(component)) {
+            return paths;
+        }
+        auto rsp = std::move(rspOrError).ValueOrThrow();
         auto rspList = ConvertToNode(rsp)->AsList();
         for (const auto& node : rspList->GetChildren()) {
             paths.push_back(Format("/%v", node->GetValue<std::string>()));
@@ -241,6 +271,12 @@ std::vector<TYPath> TComponentDiscoverer::GetCypressPaths(
     }
 
     return paths;
+}
+
+TString TComponentDiscoverer::GetCompatBinaryVersion(const TString& path) const
+{
+    auto response = WaitFor(Client_->GetNode(path + "/orchid/build_info/binary_version")).ValueOrThrow();
+    return ConvertTo<TString>(response);
 }
 
 std::vector<TClusterComponentInstance> TComponentDiscoverer::GetAttributes(
@@ -271,7 +307,11 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::GetAttributes(
 
         result.Address = StringSplitter(subpaths[index]).Split('/').ToList<std::string>().back();
         if (!ysonOrError.IsOK()) {
-            result.Error = ysonOrError;
+            if (IsComponentCompat(component)) {
+                result.Version = GetCompatBinaryVersion(GetCypressDirectory(component) + "/" + subpaths[index]);
+            } else {
+                result.Error = ysonOrError;
+            }
             continue;
         }
 
@@ -358,11 +398,25 @@ TYPath TComponentDiscoverer::GetCypressDirectory(EClusterComponentType component
         case EClusterComponentType::DataNode:
         case EClusterComponentType::TabletNode:
         case EClusterComponentType::ExecNode:
+        case EClusterComponentType::TimestampProvider:
+        case EClusterComponentType::MasterCache:
             return Format("//sys/%lvs", component);
         case EClusterComponentType::Scheduler:
             return "//sys/scheduler/instances";
         case EClusterComponentType::ControllerAgent:
             return "//sys/controller_agents/instances";
+        case EClusterComponentType::Discovery:
+            return "//sys/discovery_servers";
+         case EClusterComponentType::TabletBalancer:
+            return "//sys/tablet_balancer/instances";
+        case EClusterComponentType::BundleController:
+            return "//sys/cell_balancers/instances";
+        case EClusterComponentType::ReplicatedTableTracker:
+            return "//sys/replicated_table_tracker/instances";
+        case EClusterComponentType::QueueAgent:
+            return "//sys/queue_agents/instances";
+        case EClusterComponentType::QueryTracker:
+            return "//sys/query_tracker/instances";
         case EClusterComponentType::RpcProxy:
             return RpcProxiesPath;
         case EClusterComponentType::HttpProxy:
@@ -379,6 +433,14 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::GetInstances(EClust
         case EClusterComponentType::SecondaryMaster:
         case EClusterComponentType::Scheduler:
         case EClusterComponentType::ControllerAgent:
+        case EClusterComponentType::TimestampProvider:
+        case EClusterComponentType::Discovery:
+        case EClusterComponentType::MasterCache:
+        case EClusterComponentType::TabletBalancer:
+        case EClusterComponentType::BundleController:
+        case EClusterComponentType::ReplicatedTableTracker:
+        case EClusterComponentType::QueueAgent:
+        case EClusterComponentType::QueryTracker:
             return GetAttributes(
                 component,
                 GetCypressSubpaths(Client_, MasterReadOptions_, component),

@@ -5,8 +5,10 @@ import java.io.File;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -32,6 +34,7 @@ import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
+import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;
 
@@ -64,6 +67,8 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
     protected final Map<String, String> environment;
     protected final List<YPath> layerPaths;
     protected final @Nullable
+    String operationBaseLayer;
+    protected final @Nullable
     Integer customStatisticsCountLimit;
     protected final @Nullable
     Double memoryReserveFactor;
@@ -89,6 +94,7 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
         jobCount = builder.jobCount;
         environment = builder.environment;
         layerPaths = builder.layerPaths;
+        operationBaseLayer = builder.operationBaseLayer;
         customStatisticsCountLimit = builder.customStatisticsCountLimit;
         memoryReserveFactor = builder.memoryReserveFactor;
         networkProject = builder.networkProject;
@@ -249,7 +255,10 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
             resultJavaOptions = resultJavaOptions.withOption(option);
         }
 
-        return builder.beginMap()
+        var specBuilder = builder.beginMap();
+        setLayerPaths(specBuilder, specPreparationContext);
+
+        return specBuilder
                 .key("command").value(
                         JavaYtRunner.command(javaBinary, classPath, libraryPath, resultJavaOptions,
                                 mainClazz.getName(), args)
@@ -267,7 +276,6 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
                 .when(jobTimeLimit != null, b -> b.key("job_time_limit").value(jobTimeLimit))
                 .when(jobCount != null, b -> b.key("job_count").value(jobCount))
                 .key("environment").value(environment)
-                .key("layer_paths").value(layerPaths.stream().map(YPath::toTree).collect(Collectors.toList()))
                 .when(customStatisticsCountLimit != null, b -> b.key("custom_statistics_count_limit")
                         .value(customStatisticsCountLimit))
                 .when(networkProject != null, b -> b.key("network_project").value(networkProject))
@@ -276,6 +284,62 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
                 .when(formatContext.getOutputStreams().isPresent(),
                         b -> b.key("output_streams").value(formatContext.getOutputStreams().get()))
                 .endMap();
+    }
+
+    private void setLayerPaths(YTreeBuilder specBuilder, SpecPreparationContext specPreparationContext) {
+        List<YPath> resultLayerPaths;
+        if (!specPreparationContext.getConfiguration().getLayerPaths().isEmpty()) {
+            resultLayerPaths = specPreparationContext.getConfiguration().getLayerPaths();
+        } else {
+            resultLayerPaths = layerPaths;
+        }
+
+        var isLayersSpecified = false;
+        if (!resultLayerPaths.isEmpty()) {
+            isLayersSpecified = true;
+            specBuilder.key("layer_paths")
+                    .value(resultLayerPaths.stream().map(YPath::toTree).collect(Collectors.toList()));
+        }
+        guessBaseLayers(specBuilder, isLayersSpecified);
+    }
+
+    // Copied from python sdk `BaseLayerDetector.guess_base_layers`.
+    private void guessBaseLayers(YTreeBuilder specBuilder, boolean isLayersSpecified) {
+        var userLayer = operationBaseLayer;
+        var userLayerEnv = System.getenv("YT_BASE_LAYER");
+        if (userLayerEnv != null) {
+            userLayer = userLayerEnv;
+        }
+        if (userLayer == null) {
+            return;
+        }
+        userLayer = userLayer.toLowerCase().strip();
+        if (isLayersSpecified) {
+            // Do not change user spec.
+            if (Arrays.asList("auto", "porto:auto", "docker:auto").contains(userLayer)) {
+                logger.debug("Operation has layer spec. Do not guess base layer");
+            }
+            return;
+        }
+        if (List.of("auto", "docker:auto", "porto:auto").contains(userLayer)) {
+            // TODO(tinarsky): implement later.
+            logger.warn("User layer '{}' is currently not supported", userLayer);
+            return;
+        }
+        if (userLayer.startsWith("//")) {
+            var layerPathsBuilder = YTree.listBuilder();
+            for (var path : userLayer.split(",")) {
+                layerPathsBuilder.value(path.strip());
+            }
+            specBuilder.key("layer_paths").value(layerPathsBuilder.buildList());
+        } else if (userLayer.startsWith("registry.")) {
+            var path = URI.create("//" + userLayer).getPath();
+            if (path != null) {
+                specBuilder.key("docker_image").value(YTree.stringNode(path.substring(1)));
+            }
+        } else {
+            specBuilder.key("docker_image").value(YTree.stringNode(userLayer));
+        }
     }
 
     /**
@@ -300,6 +364,8 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
         Integer jobCount = null;
         Map<String, String> environment = new HashMap<>();
         List<YPath> layerPaths = new ArrayList<>();
+        @Nullable
+        String operationBaseLayer;
         @Nullable
         Integer customStatisticsCountLimit = null;
         @Nullable
@@ -400,6 +466,15 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
          */
         public T setLayerPaths(List<YPath> layerPaths) {
             this.layerPaths = layerPaths;
+            return self();
+        }
+
+        /**
+         * Set operation base layer.
+         * Can also be set using the YT_BASE_LAYER environment variable.
+         */
+        public T setOperationBaseLayer(String baseLayer) {
+            this.operationBaseLayer = baseLayer;
             return self();
         }
 

@@ -1738,13 +1738,14 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     context->SetRequestInfo(
         "SchemaMode: %v, UpdateMode: %v, LockMode: %v, Title: %v, "
-        "Timeout: %v, ReplicatedToCellTags: %v, TableSchemaId: %v, ChunkSchemaId: %v",
+        "Timeout: %v, ReplicatedToCellTags: %v, IsTableSchemaPresent: %v, TableSchemaId: %v, ChunkSchemaId: %v",
         uploadContext.SchemaMode,
         uploadContext.Mode,
         lockMode,
         uploadTransactionTitle,
         uploadTransactionTimeout,
         replicatedToCellTags,
+        tableSchema || tableSchemaId,
         tableSchemaId,
         chunkSchemaId);
 
@@ -2098,13 +2099,14 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         uploadContext.ErasureCodec = CheckedEnumCast<NErasure::ECodec>(request->erasure_codec());
     }
 
-    context->SetRequestInfo("Statistics: %v, CompressionCodec: %v, ErasureCodec: %v, ChunkFormat: %v, MD5Hasher: %v, OptimizeFor: %v",
+    context->SetRequestInfo("Statistics: %v, CompressionCodec: %v, ErasureCodec: %v, ChunkFormat: %v, MD5Hasher: %v, OptimizeFor: %v, IsTableSchemaPresent: %v",
         uploadContext.Statistics,
         uploadContext.CompressionCodec,
         uploadContext.ErasureCodec,
         uploadContext.ChunkFormat,
         uploadContext.MD5Hasher.has_value(),
-        uploadContext.OptimizeFor);
+        uploadContext.OptimizeFor,
+        tableSchema || tableSchemaId);
 
     ValidateTransaction();
     ValidateInUpdate();

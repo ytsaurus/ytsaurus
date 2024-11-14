@@ -3720,6 +3720,68 @@ for key, count in counts.items():
                 },
             )
 
+    @authors("apollo1321")
+    def test_compute_pivot_keys_from_samples(self):
+        self.skip_if_compat()
+
+        create("table", "//tmp/t_in")
+        create(
+            "table",
+            "//tmp/t_out",
+            attributes={
+                "schema": [
+                    {"name": "x", "type": "int64", "sort_order": "ascending"},
+                    {"name": "y", "type": "int64"},
+                ]
+            },
+        )
+
+        rows = []
+        for i in range(20):
+            for j in range(10):
+                rows += [{"x": (i + 1), "y": (i + 1) * (j + 1)}]
+
+        # Write 20 chunks of randomly shuffled data
+        shuffle(rows)
+        for i in range(20):
+            write_table("<append=%true>//tmp/t_in", rows[i * 10: (i + 1) * 10])
+
+        assert len(get("//tmp/t_in/@chunk_ids")) == 20
+
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            reduce_by=["x"],
+            sort_by=["x", "y"],
+            reducer_command="cat",
+            spec={
+                "map_job_io": {"table_writer": {"desired_chunk_size": 1, "block_size": 1}},
+                "sort_job_io": {
+                    "table_writer": {
+                        "desired_chunk_size": 1,
+                        "desired_chunk_weight": 1,
+                        "block_size": 1
+                    },
+                    "buffer_row_count": 15,
+                },
+                "partition_count": 6,
+                "compute_pivot_keys_from_samples": True,
+                "max_partition_factor": 2,
+                "data_size_per_reduce_job": 1,
+                "data_size_per_sort_job": 340,
+            },
+        )
+
+        tasks = get(op.get_path() + "/@progress/tasks")
+        expected_tasks = {
+            "partition",
+            "partition",
+            "partition",
+            "intermediate_sort",
+            "partition_reduce",
+            "sorted_reduce",
+        }
+        assert {task["job_type"] for task in tasks} == expected_tasks
 
 ##################################################################
 
@@ -4330,3 +4392,41 @@ fi
         # NB: There is a race condition between the completion of the sorted_reduce task
         # and node unregistering. The number of aborted jobs can be either 1 or 2.
         assert get(op.get_path() + "/@progress/sorted_reduce/aborted/total") >= 1
+
+
+##################################################################
+
+
+class TestMaxParititonCount(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "sort_operation_options": {
+                "max_new_partition_count": 5,
+                "max_partition_count": 5,
+            }
+        }
+    }
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("use_new_partitions_heuristic", [False, True])
+    def test_pivot_keys_count_exceeds_limits(self, use_new_partitions_heuristic):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+
+        rows = [{"key": "%02d" % key} for key in range(50)]
+        write_table("//tmp/t1", rows)
+
+        with raises_yt_error("Pivot keys count 5 exceeds maximum number of pivot keys 4"):
+            sort(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                sort_by=["key"],
+                spec={
+                    "pivot_keys": [["01"], ["05"], ["10"], ["15"], ["20"]],
+                    "use_new_partitions_heuristic": use_new_partitions_heuristic,
+                },
+            )

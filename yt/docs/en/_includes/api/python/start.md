@@ -126,7 +126,6 @@ python
 
 ### Examples { #examples }
 
-* [About compiling Python programs in Arcadia](../../../api/python/examples.md#arcadia)
 * [Basic level](../../../api/python/examples.md#base)
    - [Reading and writing tables](../../../api/python/examples.md#read_write)
    - [Table schemas](../../../api/python/examples.md#table_schema)

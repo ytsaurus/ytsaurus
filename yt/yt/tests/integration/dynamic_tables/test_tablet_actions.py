@@ -685,6 +685,64 @@ class TestTabletActions(TabletActionsBase):
         action = _create_action()
         wait(lambda: get(f"#{action}/@state") == "completed")
 
+    @authors("alexelexa")
+    def test_action_with_two_same_tablets(self):
+        cell_id = sync_create_cells(1)[0]
+        self._create_sorted_table("//tmp/t")
+        set(
+            "//tmp/t/@tablet_balancer_config",
+            {
+                "enable_auto_reshard": False,
+                "enable_auto_tablet_move": False,
+            },
+        )
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": "A" * 100} for i in range(10)])
+        sync_flush_table("//tmp/t")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        def _create_reshard_action(tablet_ids):
+            return create(
+                "tablet_action",
+                "",
+                attributes={
+                    "kind": "reshard",
+                    "keep_finished": True,
+                    "tablet_ids": tablet_ids,
+                    "pivot_keys": [[], [5]],
+                },
+            )
+
+        def _create_move_action(tablet_ids):
+            return create(
+                "tablet_action",
+                "",
+                attributes={
+                    "kind": "move",
+                    "keep_finished": True,
+                    "tablet_ids": tablet_ids,
+                    "cell_ids": [cell_id] * len(tablet_ids),
+                },
+            )
+
+        error_text = "cannot participate in one action twice"
+        with pytest.raises(YtError, match=error_text):
+            _create_move_action([tablet_id, tablet_id])
+        with pytest.raises(YtError, match=error_text):
+            _create_reshard_action([tablet_id, tablet_id])
+
+        action = _create_reshard_action([tablet_id])
+        wait(lambda: get(f"#{action}/@state") == "completed")
+
+        tablet_ids = [get("//tmp/t/@tablets/0/tablet_id"), get("//tmp/t/@tablets/1/tablet_id")]
+        with pytest.raises(YtError, match=error_text):
+            _create_move_action(tablet_ids + tablet_ids)
+        with pytest.raises(YtError, match=error_text):
+            _create_reshard_action(tablet_ids + tablet_ids)
+
+        _create_move_action(tablet_ids)
+
 
 ##################################################################
 

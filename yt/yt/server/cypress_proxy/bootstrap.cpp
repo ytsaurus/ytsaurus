@@ -184,7 +184,7 @@ public:
     IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         TDistributedThrottlerConfigPtr config,
         IInvokerPtr invoker,
-        const TString& groupId,
+        const std::string& groupId,
         NLogging::TLogger logger,
         NProfiling::TProfiler profiler) const override
     {
@@ -194,7 +194,8 @@ public:
             NativeConnection_->GetChannelFactory(),
             NativeConnection_,
             std::move(invoker),
-            groupId,
+            // TODO(babenko): migrate to std::string
+            TString(groupId),
             selfAddress,
             RpcServer_,
             std::move(selfAddress),

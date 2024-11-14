@@ -4820,19 +4820,19 @@ class TestAccountsProfiling(YTEnvSetup):
 
         gauge_name = "accounts/chunk_count"
 
-        wait(lambda: self._check_profiling_totality(accounts, profilers, gauge_name), timeout=3)
+        wait(lambda: self._check_profiling_totality(accounts, profilers, gauge_name))
 
         for i in range(10):
             create_new_account()
-        wait(lambda: self._check_profiling_totality(accounts, profilers, gauge_name), timeout=3)
+        wait(lambda: self._check_profiling_totality(accounts, profilers, gauge_name))
 
         for i in range(5):
             remove_account(accounts[-1])
             del accounts[-1]
 
         set("//sys/@config/incumbent_manager/scheduler/incumbents/security_manager/use_followers", False)
-        wait(lambda: self._check_profiling_totality(accounts, profilers, gauge_name), timeout=10)
+        wait(lambda: self._check_profiling_totality(accounts, profilers, gauge_name))
 
         for i in range(10):
             create_new_account()
-        wait(lambda: self._check_profiling_totality(accounts, profilers, gauge_name), timeout=3)
+        wait(lambda: self._check_profiling_totality(accounts, profilers, gauge_name))

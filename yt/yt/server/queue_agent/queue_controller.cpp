@@ -477,8 +477,8 @@ public:
 
 private:
     bool Leading_;
-    TAtomicObject<TQueueTableRow> QueueRow_;
-    TAtomicObject<std::optional<TReplicatedTableMappingTableRow>> ReplicatedTableMappingRow_;
+    NThreading::TAtomicObject<TQueueTableRow> QueueRow_;
+    NThreading::TAtomicObject<std::optional<TReplicatedTableMappingTableRow>> ReplicatedTableMappingRow_;
     const TCrossClusterReference QueueRef_;
     const IObjectStore* ObjectStore_;
 

@@ -202,8 +202,8 @@ TCellTag TSequoiaSession::RemoveRootstock(TNodeId rootstockId)
 TLockId TSequoiaSession::LockNode(
     TNodeId nodeId,
     ELockMode lockMode,
-    const std::optional<TString>& childKey,
-    const std::optional<TString>& attributeKey,
+    const std::optional<std::string>& childKey,
+    const std::optional<std::string>& attributeKey,
     TTimestamp timestamp,
     bool waitable)
 {
@@ -480,7 +480,7 @@ std::vector<TNodeId> TSequoiaSession::FindNodeIds(TRange<TAbsoluteYPathBuf> path
 TNodeId TSequoiaSession::CreateMapNodeChain(
     TAbsoluteYPathBuf startPath,
     TNodeId startId,
-    TRange<TString> names)
+    TRange<std::string> names)
 {
     MaybeLockNodeInSequoiaTable(startId, ELockType::SharedStrong);
     return CreateIntermediateNodes(startPath, startId, names, SequoiaTransaction_);

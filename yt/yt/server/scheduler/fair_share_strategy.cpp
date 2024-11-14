@@ -25,12 +25,13 @@
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/misc/finally.h>
-#include <library/cpp/yt/threading/atomic_object.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NScheduler {
 
@@ -1295,18 +1296,22 @@ public:
         return bestTree;
     }
 
-    TError OnOperationMaterialized(TOperationId operationId, bool revivedFromSnapshot) override
+    TError OnOperationMaterialized(
+        TOperationId operationId,
+        bool revivedFromSnapshot,
+        std::vector<TString>* treeIdsToUnregister) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto state = GetOperationState(operationId);
+        std::vector<std::pair<TString, TError>> jobResourceLimitsRestrictionsErrors;
         std::vector<TError> multiTreeSchedulingErrors;
         for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
             auto tree = GetTree(treeId);
-            if (auto error = tree->OnOperationMaterialized(operationId, revivedFromSnapshot);
+            if (auto error = tree->CheckOperationJobResourceLimitsRestrictions(operationId, revivedFromSnapshot);
                 !error.IsOK())
             {
-                return error;
+                jobResourceLimitsRestrictionsErrors.emplace_back(treeId, std::move(error));
             }
 
             if (auto error = tree->CheckOperationSchedulingInSeveralTreesAllowed(operationId); !error.IsOK()) {
@@ -1315,7 +1320,25 @@ public:
             }
         }
 
-        if (!multiTreeSchedulingErrors.empty() && state->TreeIdToPoolNameMap().size() > 1) {
+        if (size(jobResourceLimitsRestrictionsErrors) == size(state->TreeIdToPoolNameMap())) {
+            return TError("Job resource demand restriction violated in all pool trees")
+                << GetIths<1>(jobResourceLimitsRestrictionsErrors);
+        } else {
+            auto treeIds = GetIths<0>(jobResourceLimitsRestrictionsErrors);
+
+            YT_LOG_DEBUG(
+                "Requesting to unregister operation from trees due to job resource limits restrictions violations "
+                "(OperationId: %v, Trees: %v)",
+                operationId,
+                treeIds);
+
+            treeIdsToUnregister->reserve(size(treeIds));
+            for (auto&& treeId : treeIds) {
+                treeIdsToUnregister->push_back(std::move(treeId));
+            }
+        }
+
+        if (!multiTreeSchedulingErrors.empty() && size(state->TreeIdToPoolNameMap()) > 1) {
             std::vector<TString> treeIds;
             for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
                 treeIds.push_back(treeId);
@@ -2376,6 +2399,15 @@ private:
         bool HasMatchingTree() const override
         {
             return static_cast<bool>(Tree_);
+        }
+
+        std::optional<TString> GetMaybeTreeId() const override
+        {
+            if (!Tree_) {
+                return std::nullopt;
+            }
+
+            return {Tree_->GetId()};
         }
 
     private:

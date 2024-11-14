@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: tqdm
-Version: 4.66.5
+Version: 4.66.6
 Summary: Fast, Extensible Progress Meter
 Maintainer-email: tqdm developers <devs@tqdm.ml>
 License: MPL-2.0 AND MIT
@@ -67,18 +67,18 @@ Classifier: Topic :: Utilities
 Requires-Python: >=3.7
 Description-Content-Type: text/x-rst
 License-File: LICENCE
-Requires-Dist: colorama ; platform_system == "Windows"
+Requires-Dist: colorama; platform_system == "Windows"
 Provides-Extra: dev
-Requires-Dist: pytest >=6 ; extra == 'dev'
-Requires-Dist: pytest-cov ; extra == 'dev'
-Requires-Dist: pytest-timeout ; extra == 'dev'
-Requires-Dist: pytest-xdist ; extra == 'dev'
+Requires-Dist: pytest>=6; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Requires-Dist: pytest-timeout; extra == "dev"
+Requires-Dist: pytest-xdist; extra == "dev"
 Provides-Extra: notebook
-Requires-Dist: ipywidgets >=6 ; extra == 'notebook'
+Requires-Dist: ipywidgets>=6; extra == "notebook"
 Provides-Extra: slack
-Requires-Dist: slack-sdk ; extra == 'slack'
+Requires-Dist: slack-sdk; extra == "slack"
 Provides-Extra: telegram
-Requires-Dist: requests ; extra == 'telegram'
+Requires-Dist: requests; extra == "telegram"
 
 |Logo|
 
@@ -1587,5 +1587,5 @@ Citation information: |DOI|
 .. |Screenshot-Jupyter1| image:: https://tqdm.github.io/img/jupyter-1.gif
 .. |Screenshot-Jupyter2| image:: https://tqdm.github.io/img/jupyter-2.gif
 .. |Screenshot-Jupyter3| image:: https://tqdm.github.io/img/jupyter-3.gif
-.. |README-Hits| image:: https://caspersci.uk.to/cgi-bin/hits.cgi?q=tqdm&style=social&r=https://github.com/tqdm/tqdm&l=https://tqdm.github.io/img/favicon.png&f=https://tqdm.github.io/img/logo.gif
-   :target: https://caspersci.uk.to/cgi-bin/hits.cgi?q=tqdm&a=plot&r=https://github.com/tqdm/tqdm&l=https://tqdm.github.io/img/favicon.png&f=https://tqdm.github.io/img/logo.gif&style=social
+.. |README-Hits| image:: https://cgi.cdcl.ml/hits?q=tqdm&style=social&r=https://github.com/tqdm/tqdm&l=https://tqdm.github.io/img/favicon.png&f=https://tqdm.github.io/img/logo.gif
+   :target: https://cgi.cdcl.ml/hits?q=tqdm&a=plot&r=https://github.com/tqdm/tqdm&l=https://tqdm.github.io/img/favicon.png&f=https://tqdm.github.io/img/logo.gif&style=social

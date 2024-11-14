@@ -103,7 +103,7 @@ ITransactionLeaseTrackerPtr CreateTransactionLeaseTracker(
     ITransactionLeaseTrackerThreadPoolPtr threadPool,
     NLogging::TLogger logger);
 
-//! An no-op implmemntation. Useful for testing.
+//! An no-op implementation. Useful for testing.
 ITransactionLeaseTrackerPtr CreateNullTransactionLeaseTracker();
 
 ////////////////////////////////////////////////////////////////////////////////

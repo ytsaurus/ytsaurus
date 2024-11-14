@@ -77,8 +77,6 @@ class TestSchedulerAcls(YTEnvSetup):
                 "enable": False,
                 # Analyze all operations each 100ms
                 "analysis_period": 100,
-                # Wait each batch to remove not more than 100ms
-                "remove_batch_timeout": 100,
                 # Wait each batch to archive not more than 100ms
                 "archive_batch_timeout": 100,
                 # Retry sleeps

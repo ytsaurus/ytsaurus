@@ -1235,6 +1235,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/hyperloglog_optimized.bc
   KEYS
   /llvm_bc/hyperloglog
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1243,6 +1244,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/farm_hash_optimized.bc
   KEYS
   /llvm_bc/farm_hash
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1251,6 +1253,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/bigb_hash_optimized.bc
   KEYS
   /llvm_bc/bigb_hash
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1259,6 +1262,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/make_map_optimized.bc
   KEYS
   /llvm_bc/make_map
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1267,6 +1271,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/make_list_optimized.bc
   KEYS
   /llvm_bc/make_list
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1275,6 +1280,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/make_entity_optimized.bc
   KEYS
   /llvm_bc/make_entity
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1283,6 +1289,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/str_conv_optimized.bc
   KEYS
   /llvm_bc/str_conv
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1291,6 +1298,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/regex_optimized.bc
   KEYS
   /llvm_bc/regex
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1299,6 +1307,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/avg_optimized.bc
   KEYS
   /llvm_bc/avg
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1307,6 +1316,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/concat_optimized.bc
   KEYS
   /llvm_bc/concat
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1315,6 +1325,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/stored_replica_set_optimized.bc
   KEYS
   /llvm_bc/stored_replica_set
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1323,6 +1334,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/last_seen_replica_set_optimized.bc
   KEYS
   /llvm_bc/last_seen_replica_set
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1331,6 +1343,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/first_optimized.bc
   KEYS
   /llvm_bc/first
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1339,6 +1352,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/is_prefix_optimized.bc
   KEYS
   /llvm_bc/is_prefix
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1347,6 +1361,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/is_substr_optimized.bc
   KEYS
   /llvm_bc/is_substr
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1355,6 +1370,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/is_finite_optimized.bc
   KEYS
   /llvm_bc/is_finite
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1363,6 +1379,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/to_any_optimized.bc
   KEYS
   /llvm_bc/to_any
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1371,6 +1388,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/max_optimized.bc
   KEYS
   /llvm_bc/max
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1379,6 +1397,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/min_optimized.bc
   KEYS
   /llvm_bc/min
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1387,6 +1406,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/sleep_optimized.bc
   KEYS
   /llvm_bc/sleep
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1395,6 +1415,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/sum_optimized.bc
   KEYS
   /llvm_bc/sum
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1403,6 +1424,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/ypath_get_optimized.bc
   KEYS
   /llvm_bc/ypath_get
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1411,6 +1433,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/lower_optimized.bc
   KEYS
   /llvm_bc/lower
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1419,6 +1442,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/length_optimized.bc
   KEYS
   /llvm_bc/length
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1427,6 +1451,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/yson_length_optimized.bc
   KEYS
   /llvm_bc/yson_length
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1435,6 +1460,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/dates_optimized.bc
   KEYS
   /llvm_bc/dates
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1443,6 +1469,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/format_guid_optimized.bc
   KEYS
   /llvm_bc/format_guid
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1451,6 +1478,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/list_contains_optimized.bc
   KEYS
   /llvm_bc/list_contains
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1459,6 +1487,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/list_has_intersection_optimized.bc
   KEYS
   /llvm_bc/list_has_intersection
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1467,6 +1496,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/any_to_yson_string_optimized.bc
   KEYS
   /llvm_bc/any_to_yson_string
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1475,6 +1505,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/has_permissions_optimized.bc
   KEYS
   /llvm_bc/has_permissions
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1483,6 +1514,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/xdelta_optimized.bc
   KEYS
   /llvm_bc/xdelta
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1491,6 +1523,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/greatest_optimized.bc
   KEYS
   /llvm_bc/greatest
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1499,6 +1532,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/dict_sum_optimized.bc
   KEYS
   /llvm_bc/dict_sum
+  OPTS
 )
 
 resources(library-query-engine.global
@@ -1507,6 +1541,7 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/yson_string_to_any_optimized.bc
   KEYS
   /llvm_bc/yson_string_to_any
+  OPTS
 )
 
 llvm_compile_c(library-query-engine.global

@@ -772,6 +772,64 @@ class TestQuery(DynamicTablesBase):
         assert sorted_dicts(expected) == sorted_dicts(actual)
 
     @authors("lukyan")
+    def test_join_common_prefix3(self):
+        sync_create_cells(1)
+
+        self._create_table(
+            "//tmp/jl",
+            [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "c", "type": "int64", "sort_order": "ascending"},
+                {"name": "d", "type": "int64"},
+            ],
+            [
+                {"a": 1, "c": 1},
+                {"a": 1, "c": 2},
+                {"a": 1, "c": 3},
+                {"a": 1, "c": 4},
+                {"a": 1, "c": 5},
+                {"a": 1, "c": 6},
+                {"a": 1, "c": 7},
+                {"a": 1, "c": 8},
+            ],
+            "scan",
+        )
+
+        self._create_table(
+            "//tmp/jr",
+            [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64", "sort_order": "ascending"},
+                {"name": "c", "type": "int64"},
+            ],
+            [
+                {"a": 1, "b": 1, "c": 2},
+                {"a": 1, "b": 2, "c": 4},
+                {"a": 1, "b": 3, "c": 3},
+                {"a": 1, "b": 4, "c": 1},
+                {"a": 1, "b": 5, "c": 5},
+                {"a": 1, "b": 6, "c": 8},
+                {"a": 1, "b": 7, "c": 7},
+                {"a": 1, "b": 8, "c": 6},
+            ],
+            "scan",
+        )
+
+        expected = [
+            {"l.a": 1, "l.c": 1, "r.a": 1, "r.b": 4, "r.c": 1},
+            {"l.a": 1, "l.c": 2, "r.a": 1, "r.b": 1, "r.c": 2},
+            {"l.a": 1, "l.c": 3, "r.a": 1, "r.b": 3, "r.c": 3},
+            {"l.a": 1, "l.c": 4, "r.a": 1, "r.b": 2, "r.c": 4},
+            {"l.a": 1, "l.c": 5, "r.a": 1, "r.b": 5, "r.c": 5},
+            {"l.a": 1, "l.c": 6, "r.a": 1, "r.b": 8, "r.c": 6},
+            {"l.a": 1, "l.c": 7, "r.a": 1, "r.b": 7, "r.c": 7},
+            {"l.a": 1, "l.c": 8, "r.a": 1, "r.b": 6, "r.c": 8},
+        ]
+
+        actual = select_rows("l.a, l.c, r.a, r.b, r.c from [//tmp/jl] as l left join [//tmp/jr] as r on (l.a, l.c) = (r.a, r.c) where l.a = 1")
+        assert sorted_dicts(expected) == sorted_dicts(actual)
+
+    @authors("lukyan")
     def test_join_common_prefix_limit(self):
         sync_create_cells(1)
 

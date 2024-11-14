@@ -122,6 +122,7 @@ resources(unittester-client
   KEYS
   /types/good
   /types/bad
+  OPTS
 )
 
 vcs_info(unittester-client)

@@ -7,6 +7,7 @@
 #include <yt/yt/server/lib/admin/admin_service.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
+#include <yt/yt/library/program/build_attributes.h>
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
@@ -213,6 +214,9 @@ void TBootstrap::DoRun()
             "/dynamic_config_manager",
             CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
     }
+    SetBuildAttributes(
+        orchidRoot,
+        "tablet_balancer");
 
     RpcServer_->RegisterService(NAdmin::CreateAdminService(
         ControlInvoker_,

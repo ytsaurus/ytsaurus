@@ -10,6 +10,25 @@ namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPingBatcherConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    // COMPAT(gryzlov-ad): Remove when all masters support PingTransactions RPC.
+    bool Enable;
+
+    TDuration BatchPeriod;
+    i64 BatchSize;
+
+    REGISTER_YSON_STRUCT(TPingBatcherConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPingBatcherConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTransactionManagerConfig
     : public NRpc::TRetryingChannelConfig
 {
@@ -25,6 +44,8 @@ public:
     TDuration DefaultTransactionTimeout;
 
     bool UseCypressTransactionService;
+
+    TPingBatcherConfigPtr PingBatcher;
 
     REGISTER_YSON_STRUCT(TTransactionManagerConfig);
 

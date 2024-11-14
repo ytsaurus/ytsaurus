@@ -59,7 +59,9 @@ std::optional<NYT::NYson::TYsonString> GetClusterThrottlersYson(NApi::NNative::I
 {
     static constexpr auto ClusterThrottlersConfigPath = "//sys/cluster_throttlers";
 
-    auto errorOrYson = NConcurrency::WaitFor(client->GetNode(ClusterThrottlersConfigPath));
+    NApi::TGetNodeOptions options;
+    options.ReadFrom = NApi::EMasterChannelKind::MasterCache;
+    auto errorOrYson = NConcurrency::WaitFor(client->GetNode(ClusterThrottlersConfigPath, std::move(options)));
     if (!errorOrYson.IsOK()) {
         return std::nullopt;
     }
@@ -69,9 +71,13 @@ std::optional<NYT::NYson::TYsonString> GetClusterThrottlersYson(NApi::NNative::I
 
 TClusterThrottlersConfigPtr MakeClusterThrottlersConfig(const NYT::NYson::TYsonString& yson)
 {
-    auto config = New<TClusterThrottlersConfig>();
-    config->Load(NYTree::ConvertTo<NYTree::INodePtr>(yson));
-    return config;
+    try {
+        auto config = New<TClusterThrottlersConfig>();
+        config->Load(NYTree::ConvertTo<NYTree::INodePtr>(yson));
+        return config;
+    } catch (const std::exception& ex) {
+        return nullptr;
+    }
 }
 
 TClusterThrottlersConfigPtr GetClusterThrottlersConfig(NApi::NNative::IClientPtr client)
@@ -94,7 +100,7 @@ bool AreClusterThrottlersConfigsEqual(TClusterThrottlersConfigPtr lhs, TClusterT
         return false;
     }
 
-    return *lhs == *rhs;
+    return NYson::ConvertToYsonString(lhs) == NYson::ConvertToYsonString(rhs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

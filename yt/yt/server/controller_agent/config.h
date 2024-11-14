@@ -1253,6 +1253,8 @@ public:
 
     bool EnableJobArchiveTtl;
 
+    bool FailOperationOnErrorsInLivePreview;
+
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 
     static void Register(TRegistrar registrar);

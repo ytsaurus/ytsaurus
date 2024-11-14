@@ -986,6 +986,11 @@ void TScheduleAllocationsContext::PrescheduleAllocation(
 
     StageState_->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
     StageState_->PrescheduleExecuted = true;
+
+    // We increment stage attempt index after preschedule to only track meaningful attempts.
+    if (StageState_->StageAttemptIndex < std::ssize(StageState_->ProfilingCounters->StageAttemptCount)) {
+        StageState_->ProfilingCounters->StageAttemptCount[StageState_->StageAttemptIndex].Increment();
+    }
 }
 
 bool TScheduleAllocationsContext::ShouldContinueScheduling(const std::optional<TJobResources>& customMinSpareAllocationResources) const
@@ -1362,10 +1367,6 @@ void TScheduleAllocationsContext::StartStage(
         .ProfilingCounters = profilingCounters,
         .StageAttemptIndex = stageAttemptIndex,
     });
-
-    if (stageAttemptIndex < std::ssize(profilingCounters->StageAttemptCount)) {
-        profilingCounters->StageAttemptCount[stageAttemptIndex].Increment();
-    }
 }
 
 void TScheduleAllocationsContext::FinishStage()

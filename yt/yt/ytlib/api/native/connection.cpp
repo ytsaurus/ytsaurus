@@ -104,10 +104,11 @@
 #include <yt/yt/core/rpc/retrying_channel.h>
 #include <yt/yt/core/rpc/helpers.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/lazy_ptr.h>
 #include <yt/yt/core/misc/memory_usage_tracker.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NApi::NNative {
 
@@ -157,12 +158,15 @@ class TConnection
     : public IConnection
 {
 public:
+    DEFINE_SIGNAL_OVERRIDE(TReconfiguredSignature, Reconfigured);
+
+public:
     TConnection(
         TConnectionStaticConfigPtr staticConfig,
         TConnectionDynamicConfigPtr dynamicConfig,
         const TConnectionOptions& options,
         INodeMemoryTrackerPtr memoryTracker,
-        TClusterDirectoryPtr clusterDirectoryOverride)
+        TWeakPtr<NHiveClient::TClusterDirectory> clusterDirectoryOverride)
         : StaticConfig_(std::move(staticConfig))
         , Config_(std::move(dynamicConfig))
         , Options_(options)
@@ -696,7 +700,10 @@ public:
 
     NHiveClient::TClusterDirectoryPtr GetClusterDirectory() const override
     {
-        return (ClusterDirectoryOverride_ ? ClusterDirectoryOverride_ : ClusterDirectory_);
+        if (auto strongOverride = ClusterDirectoryOverride_.Lock()) {
+            return strongOverride;
+        }
+        return ClusterDirectory_;
     }
 
     const NHiveClient::IClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer() override
@@ -863,6 +870,7 @@ public:
         }
 
         Config_.Store(dynamicConfig);
+        Reconfigured_.Fire(dynamicConfig);
     }
 
     TYsonString GetConfigYson() const override
@@ -923,10 +931,7 @@ private:
     INodeMemoryTrackerPtr MemoryTracker_;
 
     TClusterDirectoryPtr ClusterDirectory_;
-    // NB: This memory leak is intentional.
-    // We assume that cluster directories are allocated in a singleton-like fashion throughout the life of the process.
-    // TODO(achulkov2, max42): Make cluster directories actual singletons?
-    TClusterDirectoryPtr ClusterDirectoryOverride_;
+    TWeakPtr<TClusterDirectory> ClusterDirectoryOverride_;
     IClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
 
     TMediumDirectoryPtr MediumDirectory_;
@@ -1239,7 +1244,7 @@ IConnectionPtr CreateConnection(
     TConnectionStaticConfigPtr staticConfig,
     TConnectionDynamicConfigPtr dynamicConfig,
     TConnectionOptions options,
-    TClusterDirectoryPtr clusterDirectoryOverride,
+    TWeakPtr<NHiveClient::TClusterDirectory> clusterDirectoryOverride,
     INodeMemoryTrackerPtr memoryTracker)
 {
     NTracing::TNullTraceContextGuard nullTraceContext;
@@ -1261,7 +1266,7 @@ IConnectionPtr CreateConnection(
 IConnectionPtr CreateConnection(
     TConnectionCompoundConfigPtr compoundConfig,
     TConnectionOptions options,
-    TClusterDirectoryPtr clusterDirectoryOverride,
+    TWeakPtr<NHiveClient::TClusterDirectory> clusterDirectoryOverride,
     INodeMemoryTrackerPtr memoryTracker)
 {
     return CreateConnection(

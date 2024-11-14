@@ -1,5 +1,7 @@
 from .configs_provider import init_singletons, init_jaeger_collector, _init_logging
 
+from yt.common import update_inplace
+
 from abc import abstractmethod
 
 import logging
@@ -94,6 +96,9 @@ class YTServerComponentBase:
                                               self.DASHED_NAME + "-" + str(index),
                                               yt_config,
                                               has_structured_logs=False)
+
+            if yt_config.address_resolver_config:
+                update_inplace(config, {"address_resolver": yt_config.address_resolver_config})
 
             configs.append(config)
             addresses.append("{}:{}".format(yt_config.fqdn, config["rpc_port"]))

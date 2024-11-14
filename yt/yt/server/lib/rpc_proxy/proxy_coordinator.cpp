@@ -1,9 +1,10 @@
 #include "proxy_coordinator.h"
 
-#include <library/cpp/yt/threading/atomic_object.h>
 #include <yt/yt/core/misc/error.h>
 
 #include <yt/yt/core/rpc/public.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 #include <atomic>
 
@@ -36,9 +37,9 @@ private:
     std::atomic<bool> Banned_ = false;
     std::atomic<bool> Available_ = false;
 
-    TAtomicObject<TString> BanMessage_;
+    NThreading::TAtomicObject<TString> BanMessage_;
 
-    TAtomicObject<std::optional<std::string>> ProxyRole_;
+    NThreading::TAtomicObject<std::optional<std::string>> ProxyRole_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

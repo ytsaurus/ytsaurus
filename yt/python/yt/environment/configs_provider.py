@@ -970,7 +970,7 @@ def _build_node_configs(node_dirs,
 
         config["logging"] = _init_logging(logs_dir, "node-{0}".format(index), yt_config, has_structured_logs=True)
 
-        log_name = "job_proxy-{0}-slot-%slot_index%".format(index)
+        log_name = "job_proxy-{0}".format(index)
 
         set_at(
             config,
@@ -984,6 +984,7 @@ def _build_node_configs(node_dirs,
                 logs_dir,
                 log_name,
                 yt_config,
+                # TODO(pogorelov): Support compression in DumpJobProxyLog.
                 enable_log_compression=(yt_config.job_proxy_logging["mode"] == "simple"),
             ),
         )
@@ -995,12 +996,12 @@ def _build_node_configs(node_dirs,
         set_at(
             config,
             "exec_node/job_proxy/job_proxy_logging/job_proxy_stderr_path",
-            os.path.join(logs_dir, "job_proxy-{0}-stderr-slot-%slot_index%".format(index)),
+            os.path.join(logs_dir, "job_proxy-{0}-stderr".format(index)),
         )
         set_at(
             config,
             "exec_node/job_proxy/job_proxy_logging/executor_stderr_path",
-            os.path.join(logs_dir, "ytserver_exec-{0}-stderr-slot-%slot_index%".format(index))
+            os.path.join(logs_dir, "ytserver_exec-{0}-stderr".format(index))
         )
 
         set_at(

@@ -8,8 +8,9 @@
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 #include <util/system/file.h>
 
@@ -92,7 +93,7 @@ private:
 
     using EState = EFileWriterState;
     std::atomic<EState> State_ = EFileWriterState::Created;
-    TAtomicObject<TError> Error_;
+    NThreading::TAtomicObject<TError> Error_;
 
     TFuture<void> ReadyEvent_ = VoidFuture;
 

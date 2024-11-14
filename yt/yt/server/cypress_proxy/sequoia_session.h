@@ -133,7 +133,7 @@ public:
     NCypressClient::TNodeId CreateMapNodeChain(
         NSequoiaClient::TAbsoluteYPathBuf startPath,
         NCypressClient::TNodeId startId,
-        TRange<TString> names);
+        TRange<std::string> names);
 
     //! Generates ID, registers tx action and modifies "path_to_node_id",
     //! "node_id_to_path" Sequoia tables. Attaches created node to its parent.
@@ -193,8 +193,8 @@ public:
     NCypressClient::TLockId LockNode(
         NCypressClient::TNodeId nodeId,
         NCypressClient::ELockMode lockMode,
-        const std::optional<TString>& childKey,
-        const std::optional<TString>& attributeKey,
+        const std::optional<std::string>& childKey,
+        const std::optional<std::string>& attributeKey,
         NTransactionClient::TTimestamp timestamp,
         bool waitable);
 

@@ -67,6 +67,11 @@ TParameterizedReassignSolverConfig TParameterizedReassignSolverConfig::MergeWith
         maxMoveActionCount = std::min(maxMoveActionCount, *maxMoveActionHardLimit);
     }
 
+    // Temporary. Verify that if uniform is enable then factors was changed properly.
+    auto factors = Factors->MergeWith(groupConfig->Factors);
+    YT_VERIFY(!groupConfig->EnableUniform.value_or(false) ||
+        factors->TableCell > 0.0 && factors->TableNode > 0.0);
+
     return TParameterizedReassignSolverConfig{
         .MaxMoveActionCount = maxMoveActionCount,
         .BoundedPriorityQueueSize = groupConfig->BoundedPriorityQueueSize.value_or(BoundedPriorityQueueSize),
@@ -77,7 +82,7 @@ TParameterizedReassignSolverConfig TParameterizedReassignSolverConfig::MergeWith
         .Metric = groupConfig->Metric.empty()
             ? Metric
             : groupConfig->Metric,
-        .Factors = Factors->MergeWith(groupConfig->Factors),
+        .Factors = std::move(factors),
     };
 }
 

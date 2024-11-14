@@ -1,42 +1,79 @@
-# Arguments used in FROM statemensts need to be declared before the first FROM statement.
+# Arguments used in FROM statements need to be declared before the first FROM statement.
 
 # Args for ytsaurus-server-override.
 ARG BASE_REPOSITORY="ghcr.io/ytsaurus/ytsaurus-nightly"
 ARG BASE_IMAGE="latest"
 
+# Args for odin.
+ARG PYTHON_RUNTIME_VERSION="3.11"
+
+ARG ODIN_ROOT="/ytsaurus"
+ARG ODIN_VIRTUAL_ENV="${ODIN_ROOT}/virtualenv"
+ARG ODIN_RUNTIME_ROOT="/var/odin"
+ARG ODIN_CHECKS_DIR="${ODIN_RUNTIME_ROOT}/checks"
+ARG ODIN_CHECKS_DATA_DIR="${ODIN_RUNTIME_ROOT}/checks-data"
+
+# Flow control args.
+# copy-ytsaurus-python-binaries or build-ytsaurus-python-binaries
 ARG PYTHON_BUILD_BASE="copy-ytsaurus-python-binaries"
+ARG ROOT_IMAGE="ubuntu-base"
 
 ##########################################################################################
 
-FROM mirror.gcr.io/ubuntu:focal AS base
+FROM mirror.gcr.io/ubuntu:focal AS ubuntu-base
+
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+      python3-pip \
+      python3.8  \
+      python3.8-distutils \
+      linux-tools-generic
+
+##########################################################################################
+
+FROM python:${PYTHON_RUNTIME_VERSION}-slim as python-base
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+  linux-perf
+
+##########################################################################################
+
+FROM ${ROOT_IMAGE} AS base
 
 USER root
 
 WORKDIR /tmp
 
-RUN apt-get update && apt-get install -y software-properties-common
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+      software-properties-common \
+      python3-launchpadlib
 RUN add-apt-repository ppa:deadsnakes/ppa
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
-  curl \
-  dnsutils \
-  gdb \
-  iproute2 \
-  iputils-ping \
-  less \
-  libidn11-dev \
-  lsb-release \
-  lsof \
-  python3-pip \
-  python3.8  \
-  python3.8-distutils \
-  python3.11 \
-  python3.11-venv \
-  strace \
-  telnet \
-  tini \
-  unzip \
-  zstd
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+      curl \
+      dnsutils \
+      gdb \
+      iproute2 \
+      iputils-ping \
+      less \
+      libidn11-dev \
+      lsb-release \
+      lsof \
+      python3.11 \
+      python3.11-venv \
+      strace \
+      telnet \
+      tini \
+      unzip \
+      zstd \
+      google-perftools \
+      procps \
+      jq \
+      htop \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 ##########################################################################################
 
@@ -205,7 +242,21 @@ COPY ./credits/chyt-controller.CREDITS /usr/bin/strawberry-controller.CREDITS
 FROM base-exec AS local-bloated
 
 COPY ./ytserver-all /usr/bin/ytserver-all
-COPY ./credits/ytserver-all.CREDITS /usr/bin/ytserver-all.CREDITS
+COPY ./ytserver-yql-agent /usr/bin/ytserver-yql-agent
+COPY ./credits/*.CREDITS /usr/bin
+COPY ./mrjob /usr/bin/mrjob
+COPY ./dq_vanilla_job /usr/bin/dq_vanilla_job
+COPY ./dq_vanilla_job.lite /usr/bin/dq_vanilla_job.lite
+COPY ./yql/* /usr/bin
+
+# Libpython shared objects that are needed for YQL system python UDFs to work.
+# TODO(aleksandr.gaev) use stubs instead. We don't need working libpythons here.
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+  libpython3.8 \
+  libpython3.9 \
+  libpython3.10 \
+  libpython3.11 \
+  libpython3.12
 
 FROM scratch AS local
 COPY --from=local-bloated / /
@@ -236,5 +287,77 @@ COPY ./init_operations_archive.py /usr/bin/init_operations_archive
 
 FROM scratch AS ytsaurus-server-override
 COPY --from=ytsaurus-server-override-bloated / /
+
+##########################################################################################
+
+FROM python-base as odin-installer
+
+ARG ODIN_ROOT
+ARG ODIN_VIRTUAL_ENV
+ARG ODIN_CHECKS_DIR
+ARG ODIN_CHECKS_DATA_DIR
+
+ARG SOURCE_ROOT="${ODIN_ROOT}/ytsaurus"
+ARG ODIN_SOURCE_ROOT="${SOURCE_ROOT}/yt/odin"
+ARG BUILD_ROOT="${ODIN_ROOT}/build"
+ARG PYTHON_ROOT="${ODIN_ROOT}/python"
+
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y --no-install-recommends \
+      ca-certificates \
+      curl \
+      build-essential \
+      libcap-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --link ./ ${SOURCE_ROOT}/
+
+WORKDIR ${ODIN_ROOT}
+
+RUN pip install virtualenv \
+    && virtualenv ${ODIN_VIRTUAL_ENV}
+
+RUN . ${ODIN_VIRTUAL_ENV}/bin/activate \
+    && mkdir ${PYTHON_ROOT} \
+    && cd ${SOURCE_ROOT} && pip install -e yt/python/packages \
+    && cd ${PYTHON_ROOT} \
+    && python ${ODIN_SOURCE_ROOT}/packages/prepare_python_modules.py --source-root "$SOURCE_ROOT" --output-path "$PYTHON_ROOT" \
+    && cp "${ODIN_SOURCE_ROOT}/packages/setup.py" ./ && python setup.py bdist_wheel --universal
+
+RUN . ${ODIN_VIRTUAL_ENV}/bin/activate \
+    && pip install -r ${ODIN_SOURCE_ROOT}/requirements.txt \
+    && pip install ytsaurus-client ytsaurus-yson ytsaurus-rpc-driver \
+    && pip install $PYTHON_ROOT/dist/*
+
+RUN mkdir -p ${ODIN_CHECKS_DIR} \
+    && mkdir -p ${ODIN_CHECKS_DATA_DIR} \
+    && for CHECK in $(find ${ODIN_SOURCE_ROOT}/checks/bin -mindepth 1 -maxdepth 1 -type d); do \
+      CHECK=$(basename ${CHECK}); \
+      mkdir -p ${ODIN_CHECKS_DIR}/${CHECK}; \
+      ln -sf ${ODIN_VIRTUAL_ENV}/bin/${CHECK} ${ODIN_CHECKS_DIR}/${CHECK}/${CHECK}; \
+    done
+
+##########################################################################################
+
+FROM base as odin
+
+ARG ODIN_VIRTUAL_ENV
+ENV ODIN_VIRTUAL_ENV $ODIN_VIRTUAL_ENV
+
+ARG ODIN_RUNTIME_ROOT
+ENV ODIN_RUNTIME_ROOT $ODIN_RUNTIME_ROOT
+
+COPY --from=odin-installer ${ODIN_VIRTUAL_ENV}/ ${ODIN_VIRTUAL_ENV}/
+COPY --from=odin-installer ${ODIN_RUNTIME_ROOT}/ ${ODIN_RUNTIME_ROOT}/
+
+RUN mkdir -p ${ODIN_RUNTIME_ROOT}/log \
+    && ln -sf /dev/stdout ${ODIN_RUNTIME_ROOT}/log/odin.log \
+    && ln -sf /dev/stdout ${ODIN_RUNTIME_ROOT}/log/webservice.log
+
+ENV PATH "${ODIN_VIRTUAL_ENV}/bin:${PATH}"
+# This is important for some checks to work correctly and find odin modules.
+ENV VIRTUAL_ENV ${ODIN_VIRTUAL_ENV}
+
+WORKDIR ${ODIN_RUNTIME_ROOT}
 
 ##########################################################################################

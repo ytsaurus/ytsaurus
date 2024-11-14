@@ -518,11 +518,11 @@ private:
         THashMap<TEndpointId, TAvenueMailboxRuntimeDataPtr> EndpointIdToAvenueRuntimeData;
     };
 
-    TAtomicObject<THiveRuntimeData> RuntimeData_;
+    NThreading::TAtomicObject<THiveRuntimeData> RuntimeData_;
 
     THashSet<TCellId> RemovedCellIds_;
 
-    TAtomicObject<std::vector<THiveEdge>> FrozenEdges_;
+    NThreading::TAtomicObject<std::vector<THiveEdge>> FrozenEdges_;
 
     TPeriodicExecutorPtr ReadOnlyCheckExecutor_;
 
