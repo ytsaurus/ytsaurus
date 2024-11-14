@@ -2,6 +2,7 @@ package tryt
 
 import (
 	"context"
+	"fmt"
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"go.ytsaurus.tech/yt/go/ypath"
@@ -31,6 +32,32 @@ func (c *Controller) Prepare(
 	annotation map[string]any,
 	err error,
 ) {
+	speclet := oplet.ControllerSpeclet().(Speclet)
+	alias := oplet.Alias()
+	var filePaths []ypath.Rich
+
+	spec = map[string]any{
+		"tasks": map[string]any{
+			"tryt": map[string]any{
+				"command":                       "replicate --transfer /usr/local/bin/transfer.yaml --log-level info --log-config minimal",
+				"job_count":                     1,
+				"cpu_limit":                     speclet.CPUOrDefault(),
+				"memory_limit":                  speclet.MemoryOrDefault(),
+				"environment":                   map[string]string{"YT_BASE_LAYER": speclet.DockerImage},
+				"docker_image":                  speclet.DockerImage,
+				"file_paths":                    filePaths,
+				"restart_completed_jobs":        true,
+				"memory_reserve_factor":         1.0,
+				"enable_rpc_proxy_in_job_proxy": true,
+			},
+		},
+		"max_failed_job_count": 100,
+		"title":                fmt.Sprintf("Transfer %s -> %s: %s", speclet.SourceType, speclet.DestinationType, alias),
+	}
+	annotation = map[string]any{
+		"is_spark": true,
+	}
+
 	return
 }
 
