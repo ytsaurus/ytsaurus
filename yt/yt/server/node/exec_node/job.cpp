@@ -4148,6 +4148,25 @@ bool TJob::NeedsGpuCheck() const
     return UserJobSpec_ && UserJobSpec_->has_gpu_check_binary_path();
 }
 
+i64 TJob::GetJobProxyHeartbeatEpoch() const
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return JobProxyHearbeatEpoch_;
+}
+
+bool TJob::UpdateJobProxyHearbeatEpoch(i64 epoch)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    YT_VERIFY(epoch >= 0);
+    if (JobProxyHearbeatEpoch_ >= epoch) {
+        return false;
+    }
+    JobProxyHearbeatEpoch_ = epoch;
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobPtr CreateJob(

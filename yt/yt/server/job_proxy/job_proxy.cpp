@@ -323,12 +323,19 @@ IThroughputThrottlerPtr TJobProxy::GetUserJobContainerCreationThrottler() const
 
 void TJobProxy::SendHeartbeat()
 {
+    VERIFY_THREAD_AFFINITY(JobThread);
+
     auto job = FindJob();
     if (!job) {
         return;
     }
 
-    YT_LOG_DEBUG("Reporting heartbeat to supervisor");
+    // Despite the fact that the heartbeat is sent from a single thread,
+    // it is possible that messages are reordered while being sent over
+    // the network for various reasons, e.g., retrying. To handle this,
+    // use epoch numbers to discard outdated messages.
+    i64 epoch = HeartbeatEpoch_++;
+    YT_LOG_DEBUG("Reporting heartbeat to supervisor (HeartbeatEpoch: %v)", epoch);
 
     auto req = SupervisorProxy_->OnJobProgress();
     ToProto(req->mutable_job_id(), JobId_);
@@ -336,6 +343,7 @@ void TJobProxy::SendHeartbeat()
     FillStatistics(req, job, GetEnrichedStatistics());
     req->set_stderr_size(job->GetStderrSize());
     req->set_has_job_trace(job->HasJobTrace());
+    req->set_epoch(epoch);
 
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 }

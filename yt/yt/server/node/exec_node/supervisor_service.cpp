@@ -277,18 +277,24 @@ private:
         auto stderrSize = request->stderr_size();
         auto hasJobTrace = request->has_job_trace();
 
-        context->SetRequestInfo("JobId: %v, Progress: %lf, Statistics: %v, StderrSize: %v, HasJobTrace: %v",
+        context->SetRequestInfo("JobId: %v, Progress: %lf, Statistics: %v, StderrSize: %v, HasJobTrace: %v, HeartbeatEpoch: %v",
             jobId,
             progress,
             NYson::ConvertToYsonString(statistics, EYsonFormat::Text).AsStringBuf(),
             stderrSize,
-            hasJobTrace);
+            hasJobTrace,
+            request->epoch());
 
         const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
 
         if (job->GetPhase() >= EJobPhase::FinalizingJobProxy) {
             YT_LOG_DEBUG("Job is already not running, skipping progress (JobPhase: %v)", job->GetPhase());
+        } else if (!job->UpdateJobProxyHearbeatEpoch(request->epoch())) {
+            YT_LOG_DEBUG(
+                "Received message with outdated epoch, skipping progress (ReceivedEpoch: %v, StoredEpoch: %v)",
+                request->epoch(),
+                job->GetJobProxyHeartbeatEpoch());
         } else {
             job->SetProgress(progress);
             job->SetStatistics(statistics);
