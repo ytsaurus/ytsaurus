@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/misc/cache_config.h>
 
+#include <yt/yt/library/re2/public.h>
+
 #include <yt/yt/library/tvm/service/config.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
@@ -215,6 +217,22 @@ DEFINE_REFCOUNTED_TYPE(TOAuthCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStringReplacementConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    NRe2::TRe2Ptr MatchPattern;
+    TString Replacement;
+
+    REGISTER_YSON_STRUCT(TStringReplacementConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TStringReplacementConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOAuthServiceConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -231,6 +249,15 @@ public:
     TString UserInfoLoginField;
     std::optional<TString> UserInfoSubjectField;
     std::optional<TString> UserInfoErrorField;
+
+    //! Configures a list of transformations to be applied to the contents of the login field.
+    //! Transformations are applied consecutively in order they are listed.
+    //! Each transformation will replace all non-overlapping matches of its match pattern
+    //! with the replacement string. You can use \1-\9 for captured match groups in the
+    //! replacement string, and \0 for the whole match.
+    //! Regex must follow RE2 syntax, which is a subset of that accepted by PCRE, roughly
+    //! speaking, and with various caveats.
+    std::vector<TStringReplacementConfigPtr> LoginTransformations;
 
     REGISTER_YSON_STRUCT(TOAuthServiceConfig);
 

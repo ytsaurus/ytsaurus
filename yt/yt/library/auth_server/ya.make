@@ -36,6 +36,7 @@ PEERDIR(
     yt/yt/core/https
     yt/yt/library/auth
     yt/yt/library/tvm/service
+    yt/yt/library/re2
     library/cpp/string_utils/quote
     library/cpp/string_utils/url
 )
