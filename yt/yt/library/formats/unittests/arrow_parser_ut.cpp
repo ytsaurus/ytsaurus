@@ -306,6 +306,26 @@ std::string MakeDecimalArrows(std::vector<TString> values, std::vector<std::tupl
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
+std::string MakeDecimalListArrow(std::vector<TString> values)
+{
+    // Create a single column with one value, which is a list containing all the #values.
+    // Type of the list is Decimal128(10, 3).
+    auto* pool = arrow::default_memory_pool();
+    auto decimalBuilder = std::make_shared<arrow::Decimal128Builder>(std::make_shared<arrow::Decimal128Type>(10, 3), pool);
+    auto listBuilder = std::make_unique<arrow::ListBuilder>(pool, decimalBuilder);
+
+    Verify(listBuilder->Append());
+    for (const auto& value : values) {
+        Verify(decimalBuilder->Append(arrow::Decimal128(std::string(value))));
+    }
+    std::shared_ptr<arrow::Array> listArray;
+    Verify(listBuilder->Finish(&listArray));
+    auto arrowSchema = arrow::schema({arrow::field("list", listArray->type())});
+    std::vector<std::shared_ptr<arrow::Array>> columns = {listArray};
+    auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+    return MakeOutputFromRecordBatch(recordBatch);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TArrowParserTest, Simple)
@@ -550,6 +570,9 @@ TEST(TArrowParserTest, DecimalVariousPrecisions)
         TColumnSchema("decimal128_10_3", DecimalLogicalType(10, 3)),
         TColumnSchema("decimal128_35_3", DecimalLogicalType(35, 3)),
         TColumnSchema("decimal128_38_3", DecimalLogicalType(38, 3)),
+        TColumnSchema("decimal256_10_3", DecimalLogicalType(10, 3)),
+        TColumnSchema("decimal256_35_3", DecimalLogicalType(35, 3)),
+        TColumnSchema("decimal256_38_3", DecimalLogicalType(38, 3)),
         TColumnSchema("decimal256_76_3", DecimalLogicalType(76, 3)),
     });
 
@@ -559,7 +582,7 @@ TEST(TArrowParserTest, DecimalVariousPrecisions)
 
     auto parser = CreateParserForArrow(&collectedRows);
 
-    parser->Read(MakeDecimalArrows(values, {{128, 10, 3}, {128, 35, 3}, {128, 38, 3}, {256, 76, 3}}));
+    parser->Read(MakeDecimalArrows(values, {{128, 10, 3}, {128, 35, 3}, {128, 38, 3}, {256, 10, 3}, {256, 35, 3}, {256, 38, 3}, {256, 76, 3}}));
     parser->Finish();
 
     auto collectStrings = [&] (TStringBuf columnName) {
@@ -570,29 +593,55 @@ TEST(TArrowParserTest, DecimalVariousPrecisions)
         return result;
     };
 
-    std::vector<TString> expectedValues128_10_3 =
+    std::vector<TString> expectedValues_10_3 =
         {"\x80\x00\x00\x00\x00\x00\x0c\x45"s, "\x80\x00\x00\x00\x00\x00\x00\x00"s, "\x7f\xff\xff\xff\xff\xff\xf5\x62"s, "\x80\x00\x00\x02\x54\x0b\xe3\xff"s};
-    std::vector<TString> expectedValues128_35_3 =
+    std::vector<TString> expectedValues_35_3 =
         {
             "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0c\x45"s, "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"s,
             "\x7f\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xf5\x62"s, "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x54\x0b\xe3\xff"s,
         };
-    std::vector<TString> expectedValues128_38_3 =
+    std::vector<TString> expectedValues_38_3 =
         {
             "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0c\x45"s, "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"s,
             "\x7f\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xf5\x62"s, "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x54\x0b\xe3\xff"s
         };
-    std::vector<TString> expectedValues256_76_3 =
+    std::vector<TString> expectedValues_76_3 =
         {
             "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0c\x45"s,
             "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"s,
             "\x7f\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xf5\x62"s,
             "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x54\x0b\xe3\xff"s,
         };
-    ASSERT_EQ(expectedValues128_10_3, collectStrings("decimal128_10_3"));
-    ASSERT_EQ(expectedValues128_35_3, collectStrings("decimal128_35_3"));
-    ASSERT_EQ(expectedValues128_38_3, collectStrings("decimal128_38_3"));
-    ASSERT_EQ(expectedValues256_76_3, collectStrings("decimal256_76_3"));
+    ASSERT_EQ(expectedValues_10_3, collectStrings("decimal128_10_3"));
+    ASSERT_EQ(expectedValues_35_3, collectStrings("decimal128_35_3"));
+    ASSERT_EQ(expectedValues_38_3, collectStrings("decimal128_38_3"));
+    ASSERT_EQ(expectedValues_10_3, collectStrings("decimal256_10_3"));
+    ASSERT_EQ(expectedValues_35_3, collectStrings("decimal256_35_3"));
+    ASSERT_EQ(expectedValues_38_3, collectStrings("decimal256_38_3"));
+    ASSERT_EQ(expectedValues_76_3, collectStrings("decimal256_76_3"));
+}
+
+TEST(TArrowParserTest, ListOfDecimals)
+{
+    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+        TColumnSchema("list", ListLogicalType(DecimalLogicalType(10, 3))),
+    });
+
+    TCollectingValueConsumer collectedRows(tableSchema);
+
+    std::vector<TString> values = {"3.141", "0.000", "-2.718", "9999999.999"};
+
+    auto parser = CreateParserForArrow(&collectedRows);
+
+    parser->Read(MakeDecimalListArrow(values));
+    parser->Finish();
+
+    auto firstList = ConvertTo<std::vector<TString>>(GetComposite(collectedRows.GetRowValue(0, "list")));
+    std::vector<TString> secondList = {
+        "\x80\x00\x00\x00\x00\x00\x0c\x45"s, "\x80\x00\x00\x00\x00\x00\x00\x00"s,
+        "\x7f\xff\xff\xff\xff\xff\xf5\x62"s, "\x80\x00\x00\x02\x54\x0b\xe3\xff"s
+    };
+    ASSERT_EQ(firstList, secondList);
 }
 
 TEST(TArrowParserTest, BlockingInput)
