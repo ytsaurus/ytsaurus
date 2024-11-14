@@ -256,6 +256,9 @@ public:
 
     const TAllocationPtr& GetAllocation() const noexcept;
 
+    i64 GetJobProxyHeartbeatEpoch() const;
+    bool UpdateJobProxyHearbeatEpoch(i64 epoch);
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
@@ -365,6 +368,8 @@ private:
     EJobPhase JobPhase_ = EJobPhase::Created;
 
     TJobEvents JobEvents_;
+
+    i64 JobProxyHearbeatEpoch_ = -1;
 
     NScheduler::EInterruptReason InterruptionReason_ = NScheduler::EInterruptReason::None;
     std::optional<NScheduler::TPreemptedFor> PreemptedFor_;

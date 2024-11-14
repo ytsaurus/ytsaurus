@@ -89,6 +89,8 @@ public:
     bool TrySetCpuGuarantee(double cpuShare);
 
 private:
+    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+
     const TJobProxyInternalConfigPtr Config_;
     const NJobTrackerClient::TOperationId OperationId_;
     const NJobTrackerClient::TJobId JobId_;
@@ -170,6 +172,8 @@ private:
     NAuth::ITvmBridgePtr TvmBridge_;
 
     NYTree::IMapNodePtr OrchidRoot_;
+
+    i64 HeartbeatEpoch_ = 0;
 
     NYTree::IYPathServicePtr CreateOrchidService();
     void InitializeOrchid();
