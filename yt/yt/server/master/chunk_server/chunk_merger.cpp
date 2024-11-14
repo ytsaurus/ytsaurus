@@ -2070,6 +2070,9 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto chunkReplacementsSucceeded = 0;
+    const auto& config = GetDynamicConfig();
+
+    std::vector<TChunk*> chunksToReqUpdate;
     for (int index = 0; index < replacementCount; ++index) {
         const auto& replacement = request->replacements()[index];
         auto newChunkId = FromProto<TChunkId>(replacement.new_chunk_id());
@@ -2102,6 +2105,21 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
                 accountId);
 
             ++chunkReplacementsSucceeded;
+            if (config->EnableCarefulRequisitionUpdate) {
+                chunksToReqUpdate.push_back(newChunk);
+                for (auto chunkId : chunkIds) {
+                    auto* inputChunk = chunkManager->FindChunk(newChunkId);
+                    if (!IsObjectAlive(inputChunk)) {
+                        YT_LOG_ALERT("Chunk merge input chunk is dead after replace (NodeId: %v, ChunkId: %v, AccountId: %v)",
+                            nodeId,
+                            chunkId,
+                            accountId);
+                        continue;
+                    }
+                    chunksToReqUpdate.push_back(inputChunk);
+                }
+            }
+
             if (IsLeader()) {
                 auto chunkCountDiff = std::ssize(chunkIds) - 1;
 
@@ -2146,8 +2164,14 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     newRootChunkList->AddOwningNode(chunkOwner);
     rootChunkList->RemoveOwningNode(chunkOwner);
 
-    chunkManager->ScheduleChunkRequisitionUpdate(rootChunkList);
-    chunkManager->ScheduleChunkRequisitionUpdate(newRootChunkList);
+    if (config->EnableCarefulRequisitionUpdate) {
+        for (auto* chunk : chunksToReqUpdate) {
+            chunkManager->ScheduleChunkRequisitionUpdate(chunk);
+        }
+    } else {
+        chunkManager->ScheduleChunkRequisitionUpdate(rootChunkList);
+        chunkManager->ScheduleChunkRequisitionUpdate(newRootChunkList);
+    }
 
     YT_LOG_DEBUG(
         "Chunk list replaced after merge (NodeId: %v, OldChunkListId: %v, NewChunkListId: %v, AccountId: %v)",
