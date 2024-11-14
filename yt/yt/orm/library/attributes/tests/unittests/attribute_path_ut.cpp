@@ -7,6 +7,20 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TAttributePathTest, IsAttributePath)
+{
+    EXPECT_TRUE(IsAttributePath("/test/obj"));
+    EXPECT_TRUE(IsAttributePath(""));
+    EXPECT_TRUE(IsAttributePath("/test/a/b"));
+    EXPECT_TRUE(IsAttributePath("/test/a/b/c/d"));
+
+    EXPECT_FALSE(IsAttributePath("/test/"));
+    EXPECT_FALSE(IsAttributePath("/test/aa////"));
+    EXPECT_FALSE(IsAttributePath("test/aa////"));
+    EXPECT_FALSE(IsAttributePath("token"));
+    EXPECT_FALSE(IsAttributePath("[/meta/id] == \"foo\""));
+}
+
 TEST(TAttributePathTest, AreAttributesRelated)
 {
     EXPECT_TRUE(AreAttributesRelated("", "/a/b"));
