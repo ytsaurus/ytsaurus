@@ -1,7 +1,5 @@
 package tryt
 
-import "time"
-
 type Speclet struct {
 	CPU    *uint64 `yson:"cpu"`
 	Memory *uint64 `yson:"memory"`
@@ -16,11 +14,9 @@ type Speclet struct {
 }
 
 const (
-	gib                = 1024 * 1024 * 1024
-	DefaultCPU         = 2
-	DefaultMemory      = 8 * gib
-	DefaultGPU         = 0
-	DefaultIdleTimeout = 24 * time.Hour
+	gib           = 1024 * 1024 * 1024
+	DefaultCPU    = 2
+	DefaultMemory = 8 * gib
 )
 
 func (s *Speclet) CPUOrDefault() uint64 {

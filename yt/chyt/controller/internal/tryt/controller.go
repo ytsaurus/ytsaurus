@@ -67,11 +67,11 @@ dst:
 	spec = map[string]any{
 		"tasks": map[string]any{
 			"tryt": map[string]any{
-				"command":                       "replicate --transfer /usr/local/bin/transfer.yaml --log-level info --log-config minimal",
+				"command":                       c.config.CommandOrDefault(speclet),
 				"job_count":                     1,
 				"cpu_limit":                     speclet.CPUOrDefault(),
 				"memory_limit":                  speclet.MemoryOrDefault(),
-				"environment":                   map[string]string{"YT_BASE_LAYER": speclet.DockerImage},
+				"environment":                   c.config.EnvVars(speclet),
 				"docker_image":                  speclet.DockerImage,
 				"file_paths":                    filePaths,
 				"restart_completed_jobs":        true,
