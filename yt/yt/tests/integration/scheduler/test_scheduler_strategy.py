@@ -4575,6 +4575,25 @@ class TestFifoPools(YTEnvSetup):
 
         run_sleeping_vanilla(spec={"is_gang": True, "pool": "fair_share"})
 
+    @authors("eshcherbin")
+    def test_allow_gang_operations_only_in_fifo_ephemeral_subpools(self):
+        update_pool_tree_config("default", {"allow_gang_operations_only_in_fifo_pools": True})
+        create_pool("ephemeral_root", attributes={"create_ephemeral_subpools": True})
+
+        wait(lambda: not get(scheduler_orchid_pool_path("ephemeral_root") + "/gang_operations_allowed"))
+
+        with raises_yt_error(yt_error_codes.Scheduler.GangOperationsAllowedOnlyInFifoPools):
+            run_sleeping_vanilla(spec={"is_gang": True, "pool": "ephemeral_root"})
+
+        set("//sys/pools/ephemeral_root/@ephemeral_subpool_config", {"mode": "fifo"})
+
+        wait(lambda: get(scheduler_orchid_pool_path("ephemeral_root") + "/gang_operations_allowed"))
+
+        op = run_sleeping_vanilla(spec={"is_gang": True, "pool": "ephemeral_root"})
+
+        op.wait_for_state("running")
+        print_debug(get(scheduler_orchid_operation_path(op.id) + "/pool"))
+
 
 ##################################################################
 
