@@ -35,7 +35,35 @@ func (c *Controller) Prepare(
 	speclet := oplet.ControllerSpeclet().(Speclet)
 	alias := oplet.Alias()
 	var filePaths []ypath.Rich
+	filePaths = append(filePaths, *c.root.Child("config.yaml").Attr("file_name").Child("/usr/local/bin/transfer.yaml").Rich())
 
+	w, err := c.ytc.WriteFile(ctx, c.root.Child("config.yaml"), nil)
+	if err != nil {
+		return
+	}
+	_, err = w.Write([]byte(fmt.Sprintf(
+		`
+id: %s
+type: %s
+src:
+  type: %s
+  params: |
+    %s
+dst:
+  type: %s
+  params: |
+    %s
+`,
+		alias,
+		speclet.TransferType,
+		speclet.SourceType,
+		speclet.SourceParams,
+		speclet.DestinationType,
+		speclet.DestinationParams,
+	)))
+	if err != nil {
+		return
+	}
 	spec = map[string]any{
 		"tasks": map[string]any{
 			"tryt": map[string]any{
