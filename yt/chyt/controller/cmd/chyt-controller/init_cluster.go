@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/spf13/cobra"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/tryt"
 	"golang.org/x/exp/slices"
 
 	"go.ytsaurus.tech/yt/chyt/controller/internal/app"
@@ -33,6 +34,9 @@ func doInitCluster() error {
 	}
 	if slices.Contains(config.Families, "livy") {
 		familyToInitializerFactory["livy"] = livy.NewClusterInitializer
+	}
+	if slices.Contains(config.Families, "tryt") {
+		familyToInitializerFactory["tryt"] = tryt.NewClusterInitializer
 	}
 
 	clusterInitializer := app.NewClusterInitializer(&config, familyToInitializerFactory)

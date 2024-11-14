@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/spf13/cobra"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/tryt"
 
 	"go.ytsaurus.tech/yt/chyt/controller/internal/api"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/app"
@@ -67,6 +68,16 @@ func doRun() error {
 			ExtraCommands: []api.CmdDescriptor{},
 		}
 		cfs["livy"] = livyFactory
+	}
+
+	// TRYR Transfer controller is optional
+
+	if trytConfig, ok := config.Controllers["tryt"]; ok {
+		cfs["tryt"] = strawberry.ControllerFactory{
+			Ctor:          tryt.NewController,
+			Config:        trytConfig,
+			ExtraCommands: tryt.AllCommands,
+		}
 	}
 
 	a := app.New(&config, &options, cfs)
