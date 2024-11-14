@@ -26,7 +26,7 @@ public:
 
     TDuration Period;
 
-    i64 WorkerThreadPoolSize;
+    int WorkerThreadPoolSize;
     i64 PivotPickerThreadPoolSize;
 
     TDuration ParameterizedTimeoutOnStart;
