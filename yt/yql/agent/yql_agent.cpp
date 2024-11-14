@@ -30,7 +30,7 @@ using namespace NHiveClient;
 using namespace NSecurityClient;
 using namespace NLogging;
 
-const auto& Logger = YqlAgentLogger;
+static constexpr auto& Logger = YqlAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +39,7 @@ class TActiveQueriesGuard
 public:
     TActiveQueriesGuard() = delete;
 
-    TActiveQueriesGuard(const int maxSimultaneousQueries, std::atomic<int>* activeQueries)
+    TActiveQueriesGuard(int maxSimultaneousQueries, std::atomic<int>* activeQueries)
         : ActiveQueries_(activeQueries)
     {
         IsTaken_ = true;
@@ -65,7 +65,7 @@ public:
     }
 
 private:
-    std::atomic<int>* ActiveQueries_;
+    std::atomic<int>* const ActiveQueries_;
     bool IsTaken_;
 };
 
