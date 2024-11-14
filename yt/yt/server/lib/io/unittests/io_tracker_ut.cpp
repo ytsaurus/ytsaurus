@@ -3,10 +3,10 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
-
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 #include <util/string/cast.h>
 
@@ -253,8 +253,8 @@ TEST(TIOTrackerTest, Baggage)
     config->AggregationPeriod = TDuration::MilliSeconds(100);
     auto ioTracker = CreateIOTracker(std::move(config));
 
-    TAtomicObject<TIOTagList> rawTagList;
-    TAtomicObject<TIOTagList> aggregateTagList;
+    NThreading::TAtomicObject<TIOTagList> rawTagList;
+    NThreading::TAtomicObject<TIOTagList> aggregateTagList;
 
     ioTracker->SubscribeOnRawEventLogged(BIND([&] (const TIOCounters& /*counters*/, const TIOTagList& list) {
         rawTagList.Store(std::move(list));

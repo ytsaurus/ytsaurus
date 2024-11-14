@@ -89,7 +89,7 @@ private:
 
     std::atomic<bool> Enabled_;
 
-    TAtomicObject<std::optional<std::string>> ProxyRole_;
+    NThreading::TAtomicObject<std::optional<std::string>> ProxyRole_;
 
     void OnDynamicConfigChanged(
         const TProxyDynamicConfigPtr& /*oldConfig*/,

@@ -25,12 +25,13 @@
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/misc/finally.h>
-#include <library/cpp/yt/threading/atomic_object.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NScheduler {
 

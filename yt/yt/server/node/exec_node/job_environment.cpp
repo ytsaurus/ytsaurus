@@ -252,7 +252,7 @@ protected:
 
     std::atomic<bool> Enabled_ = true;
 
-    TAtomicObject<TError> Alert_;
+    NThreading::TAtomicObject<TError> Alert_;
 
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);

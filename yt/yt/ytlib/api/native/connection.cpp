@@ -104,10 +104,11 @@
 #include <yt/yt/core/rpc/retrying_channel.h>
 #include <yt/yt/core/rpc/helpers.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/lazy_ptr.h>
 #include <yt/yt/core/misc/memory_usage_tracker.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NApi::NNative {
 

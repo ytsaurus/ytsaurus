@@ -324,7 +324,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    TAtomicObject<TChunkReplicaWithMediumList> InitialReplicas_;
+    NThreading::TAtomicObject<TChunkReplicaWithMediumList> InitialReplicas_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TErasureChunkReader)

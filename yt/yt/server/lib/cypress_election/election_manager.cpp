@@ -132,7 +132,7 @@ private:
 
     TObjectId LockNodeId_;
 
-    TAtomicObject<TTransactionId> PrerequisiteTransactionId_;
+    NThreading::TAtomicObject<TTransactionId> PrerequisiteTransactionId_;
 
     ITransactionPtr Transaction_;
     TObjectId LockId_;

@@ -12,7 +12,6 @@
 #include <yt/yt/client/chaos_client/helpers.h>
 
 #include <yt/yt/core/misc/public.h>
-#include <library/cpp/yt/threading/atomic_object.h>
 
 #include <yt/yt/core/rpc/helpers.h>
 #include <yt/yt/core/rpc/public.h>
@@ -23,6 +22,8 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NChaosClient {
 
@@ -111,7 +112,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    TAtomicObject<TFuture<IChannelPtr>> ChannelFuture_;
+    NThreading::TAtomicObject<TFuture<IChannelPtr>> ChannelFuture_;
 
     IChannelPtr Channel_;
     TCellTag CellTag_ = InvalidCellTag;

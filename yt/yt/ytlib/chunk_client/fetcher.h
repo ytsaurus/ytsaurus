@@ -8,13 +8,14 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/guid.h>
 
 #include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/actions/public.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NChunkClient {
 
@@ -142,7 +143,7 @@ private:
 
     TCancelableContextPtr CancelableContext_;
 
-    TAtomicObject<TFuture<void>> ActiveTaskFuture_;
+    NThreading::TAtomicObject<TFuture<void>> ActiveTaskFuture_;
 
     TPromise<void> Promise_ = NewPromise<void>();
 

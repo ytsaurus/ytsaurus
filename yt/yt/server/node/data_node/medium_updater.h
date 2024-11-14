@@ -6,9 +6,9 @@
 
 #include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
-
 #include <yt/yt/core/ytree/public.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NDataNode {
 
@@ -30,7 +30,7 @@ private:
     IBootstrap* const Bootstrap_;
     const TMediumDirectoryManagerPtr MediumDirectoryManager_;
 
-    TAtomicObject<std::vector<TError>> MediumMisconfigurationAlerts_;
+    NThreading::TAtomicObject<std::vector<TError>> MediumMisconfigurationAlerts_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 

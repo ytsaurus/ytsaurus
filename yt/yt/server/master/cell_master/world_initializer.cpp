@@ -49,12 +49,13 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
 #include <yt/yt/core/misc/collection_helpers.h>
 
 #include <yt/yt/core/ypath/token.h>
 
 #include <yt/yt/core/ytree/ypath_client.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NCellMaster {
 
@@ -136,8 +137,8 @@ private:
 
     std::vector<TFuture<void>> ScheduledMutations_;
 
-    TAtomicObject<std::vector<TYPath>> OrchidAddresses_;
-    TAtomicObject<THashMap<TYPath, TYsonString>> OrchidAddressToAnnotations_;
+    NThreading::TAtomicObject<std::vector<TYPath>> OrchidAddresses_;
+    NThreading::TAtomicObject<THashMap<TYPath, TYsonString>> OrchidAddressToAnnotations_;
 
     void OnLeaderActive()
     {
