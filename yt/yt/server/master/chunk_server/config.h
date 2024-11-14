@@ -193,6 +193,9 @@ public:
     // COMPAT(aleksandra-zh)
     bool RespectAccountSpecificToggle;
 
+    // COMPAT(aleksandra-zh)
+    bool EnableCarefulRequisitionUpdate;
+
     int MaxNodesBeingMerged;
 
     int MaxChunkListsWithChunksBeingReplaced;
