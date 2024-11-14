@@ -6,8 +6,30 @@
 #include <yt/yt/core/yson/public.h>
 #include <yt/yt/core/ytree/public.h>
 
-#include <google/protobuf/descriptor.h>
-#include <google/protobuf/message.h>
+// Forward declarations for google::protobuf and NProtoBuf.
+namespace google {
+namespace protobuf {
+
+////////////////////////////////////////////////////////////////////////////////
+
+    class Message;
+    class FieldDescriptor;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace protobuf
+} // namespace google
+
+namespace NProtoBuf {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using Message = ::google::protobuf::Message;
+using FieldDescriptor = ::google::protobuf::FieldDescriptor;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NProtoBuf
 
 namespace NYT::NOrm::NAttributes {
 
@@ -216,5 +238,20 @@ TError AddScalarRepeatedFieldEntryFromString(
 TError AddDefaultScalarFieldEntryValue(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBooleanOrCollector
+{
+public:
+    void operator() ();
+    bool operator() (bool value);
+    bool Result() &&;
+
+private:
+    bool Value_ = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NOrm::NAttributes
