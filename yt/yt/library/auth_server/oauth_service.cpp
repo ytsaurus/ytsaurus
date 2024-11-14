@@ -4,6 +4,8 @@
 #include "private.h"
 #include "helpers.h"
 
+#include <yt/yt/library/re2/re2.h>
+
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/helpers.h>
 #include <yt/yt/core/http/http.h>
@@ -122,14 +124,31 @@ private:
             THROW_ERROR(error);
         }
 
-        const auto& formattedResponose = jsonResponseChecker->GetFormattedResponse()->AsMap();
+        const auto& formattedResponse = jsonResponseChecker->GetFormattedResponse()->AsMap();
+        auto login = formattedResponse->GetChildValueOrThrow<TString>(Config_->UserInfoLoginField);
+        for (const auto& transformation : Config_->LoginTransformations) {
+            auto loginBeforeTransformation = login;
+            auto replacementCount = RE2::GlobalReplace(
+                &login,
+                *transformation->MatchPattern,
+                transformation->Replacement);
+            YT_LOG_DEBUG(
+                "Login transformation for OAuth user info applied (Login: %v -> %v, MatchPattern: %v, Replacement: %v, ReplacementCount: %v)",
+                loginBeforeTransformation,
+                login,
+                transformation->MatchPattern->pattern(),
+                transformation->Replacement,
+                replacementCount);
+        }
         auto userInfo = TOAuthUserInfoResult{
-            .Login = formattedResponose->GetChildValueOrThrow<TString>(Config_->UserInfoLoginField),
+            .Login = std::move(login),
         };
 
         if (Config_->UserInfoSubjectField) {
-            userInfo.Subject = formattedResponose->GetChildValueOrThrow<TString>(*Config_->UserInfoSubjectField);
+            userInfo.Subject = formattedResponse->GetChildValueOrThrow<TString>(*Config_->UserInfoSubjectField);
         }
+
+        YT_LOG_DEBUG("OAuth user info obtained (Login: %v, Subject: %v)", userInfo.Login, userInfo.Subject);
 
         return userInfo;
     }
