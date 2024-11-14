@@ -3,6 +3,7 @@ from functools import partial
 
 from _pytest import pathlib
 from _pytest._io import TerminalWriter
+from _pytest.config.findpaths import locate_config
 
 from pytest_benchmark.csv import CSVResults
 
@@ -108,10 +109,16 @@ def make_parser():
 
 
 class HookDispatch:
-    def __init__(self, **kwargs):
+    def __init__(self, *, root, **kwargs):
+        _, _, config = locate_config(invocation_dir=root, args=())
         conftest_file = pathlib.Path('conftest.py')
         if conftest_file.exists():
-            self.conftest = pathlib.import_path(conftest_file, **kwargs)
+            self.conftest = pathlib.import_path(
+                conftest_file,
+                **kwargs,
+                root=root,
+                consider_namespace_packages=bool(config.get('consider_namespace_packages')),
+            )
         else:
             self.conftest = None
 
