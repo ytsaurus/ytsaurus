@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: pytest-benchmark
-Version: 5.0.0
+Version: 5.1.0
 Summary: A ``pytest`` fixture for benchmarking code. It will group the tests into rounds that are calibrated to the chosen timer.
 Home-page: https://github.com/ionelmc/pytest-benchmark
 Author: Ionel Cristian Mărieș
@@ -33,7 +33,7 @@ Classifier: Topic :: Utilities
 Requires-Python: >=3.9
 License-File: LICENSE
 License-File: AUTHORS.rst
-Requires-Dist: pytest >=3.8
+Requires-Dist: pytest >=8.1
 Requires-Dist: py-cpuinfo
 Requires-Dist: statistics ; python_version < "3.4"
 Requires-Dist: pathlib2 ; python_version < "3.4"
@@ -198,6 +198,17 @@ Credits
 Changelog
 =========
 
+5.1.0 (2024-10-30)
+------------------
+
+* Fixed broken hooks handling on pytest 8.1 or later (the ``TypeError: import_path() missing 1 required keyword-only argument: 'consider_namespace_packages'`` issue).
+  Unfortunately this sets the minimum supported pytest version to 8.1.
+
+5.0.1 (2024-10-30)
+------------------
+
+* Fixed bad fixture check that broke down then `nbmake <https://pypi.org/project/nbmake/>`_ was enabled.
+
 5.0.0 (2024-10-29)
 ------------------
 
@@ -213,7 +224,7 @@ Changelog
   - ``--benchmark-cprofile-loops=LOOPS`` - previously profiling only ran the function once, this allow customization.
   - ``--benchmark-cprofile-top=COUNT`` - allows showing more rows.
   - ``--benchmark-cprofile-dump=[FILENAME-PREFIX]`` - allows saving to a file (that you can load in `snakeviz <https://pypi.org/project/snakeviz/>`_, `RunSnakeRun <https://pypi.org/project/RunSnakeRun/>`_ or other tools).
-
+* Removed hidden dependency on `py.path <https://pypi.org/project/py/>`_ (replaced with pathlib).
 
 4.0.0 (2022-10-26)
 ------------------
