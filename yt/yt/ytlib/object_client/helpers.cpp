@@ -1,8 +1,10 @@
 #include "helpers.h"
 
-#include <yt/yt/core/rpc/client.h>
-
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
+
+#include <yt/yt/ytlib/sequoia_client/public.h>
+
+#include <yt/yt/core/rpc/client.h>
 
 #include <yt/yt/client/chunk_client/public.h>
 
@@ -56,9 +58,16 @@ void SetSuppressTransactionCoordinatorSync(NRpc::NProto::TRequestHeader* request
 
 bool IsRetriableObjectServiceError(int /*attempt*/, const TError& error)
 {
+    // COMPAT(kvk1920): drop it when SequoiaRetriableError will be used
+    // everywhere.
+    if (error.FindMatching(NRpc::EErrorCode::TransientFailure)) {
+        return true;
+    }
+
     return
         error.FindMatching(NTabletClient::EErrorCode::InvalidTabletState) ||
-        error.FindMatching(NChunkClient::EErrorCode::OptimisticLockFailure);
+        error.FindMatching(NChunkClient::EErrorCode::OptimisticLockFailure) ||
+        error.FindMatching(NSequoiaClient::EErrorCode::SequoiaRetriableError);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
