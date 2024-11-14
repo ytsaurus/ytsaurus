@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/spf13/cobra"
-	"go.ytsaurus.tech/yt/chyt/controller/internal/tryt"
 	"golang.org/x/exp/slices"
 
 	"go.ytsaurus.tech/yt/chyt/controller/internal/app"
@@ -10,6 +9,7 @@ import (
 	"go.ytsaurus.tech/yt/chyt/controller/internal/jupyt"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/livy"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/tryt"
 )
 
 var initClusterCmd = &cobra.Command{
