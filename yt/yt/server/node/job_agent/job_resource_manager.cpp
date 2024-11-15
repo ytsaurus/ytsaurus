@@ -817,7 +817,7 @@ public:
 
             YT_LOG_FATAL_IF(
                 slotManagerCount > jobResourceManagerCount,
-                "Used slot count in slot manager must be lesser or equal JobResourceManager count (SlotManagerCount: %v/%v, JobResourceManagerCount: %v)",
+                "Used slot count in slot manager must be less or equal JobResourceManager count (SlotManagerCount: %v/%v, JobResourceManagerCount: %v)",
                 slotManagerCount,
                 slotManagerLimit,
                 jobResourceManagerCount);
