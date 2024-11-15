@@ -280,20 +280,22 @@ class TestHttpProxy(HttpProxyTestBase):
 
     @authors("greatkorn")
     def test_kill_nodes(self):
-        create("map_node", "//sys/http_proxies/test_http_proxy")
+        http_proxy_name = "test_http_proxy.ytsaurus.tech"
+        rpc_proxy_name = "test_rpc_proxy.ytsaurus.tech"
+        create("map_node", f"//sys/http_proxies/{http_proxy_name}")
         set(
-            "//sys/http_proxies/test_http_proxy/@liveness",
+            f"//sys/http_proxies/{http_proxy_name}/@liveness",
             {"updated_at": "2010-06-24T11:23:30.156098Z"},
         )
-        set("//sys/http_proxies/test_http_proxy/@start_time", "2009-06-19T16:39:02.171721Z")
-        set("//sys/http_proxies/test_http_proxy/@version", "19.5.30948-master-ya~c9facaeaca")
-        create("map_node", "//sys/rpc_proxies/test_rpc_proxy")
+        set(f"//sys/http_proxies/{http_proxy_name}/@start_time", "2009-06-19T16:39:02.171721Z")
+        set(f"//sys/http_proxies/{http_proxy_name}/@version", "19.5.30948-master-ya~c9facaeaca")
+        create("map_node", f"//sys/rpc_proxies/{rpc_proxy_name}")
         set(
-            "//sys/rpc_proxies/test_rpc_proxy/@start_time",
+            f"//sys/rpc_proxies/{rpc_proxy_name}/@start_time",
             "2009-06-19T16:39:02.171721Z",
         )
         set(
-            "//sys/rpc_proxies/test_rpc_proxy/@version",
+            f"//sys/rpc_proxies/{rpc_proxy_name}/@version",
             "19.5.30948-master-ya~c9facaeaca",
         )
 
@@ -302,11 +304,11 @@ class TestHttpProxy(HttpProxyTestBase):
 
         status = rsp.json()
         for proxy in status["details"]:
-            if proxy["address"] in ("test_http_proxy", "test_rpc_proxy"):
+            if proxy["address"] in (http_proxy_name, rpc_proxy_name):
                 assert proxy.get("state") == "offline"
 
-        remove("//sys/http_proxies/test_http_proxy")
-        remove("//sys/rpc_proxies/test_rpc_proxy")
+        remove(f"//sys/http_proxies/{http_proxy_name}")
+        remove(f"//sys/rpc_proxies/{rpc_proxy_name}")
 
     @authors("greatkorn")
     def test_structured_logs(self):
