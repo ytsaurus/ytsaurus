@@ -349,7 +349,7 @@ public:
 
     TDuration FlowPipelineControllerRpcTimeout;
 
-    EMasterChannelKind ReadArchiveStateFrom;
+    EMasterChannelKind ReadOperationsArchiveStateFrom;
 
     bool EnableDistributedReplicationCollocationAttachment;
 
