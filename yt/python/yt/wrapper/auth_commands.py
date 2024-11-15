@@ -11,7 +11,7 @@ def set_user_password(user, new_password, current_password=None,
                       client=None):
     """Updates user password."""
     params = {"user": user, "new_password_sha256": encode_sha256(new_password)}
-    if current_password:
+    if current_password is not None:
         params["current_password_sha256"] = encode_sha256(current_password)
     return make_request(
         "set_user_password",
@@ -36,6 +36,8 @@ def revoke_token(user, password=None, token=None, token_sha256=None,
                  client=None):
     """Revokes user token."""
     params = {"user": user}
+    if not token_sha256 and not token:
+        raise ValueError("Either token or token_sha256 must be provided")
     if not token_sha256:
         token_sha256 = encode_sha256(token)
     params["token_sha256"] = token_sha256
