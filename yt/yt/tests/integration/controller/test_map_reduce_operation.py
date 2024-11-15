@@ -3721,7 +3721,10 @@ for key, count in counts.items():
             )
 
     @authors("apollo1321")
-    def test_compute_pivot_keys_from_samples(self):
+    @pytest.mark.parametrize(
+        "with_intermediate_sort", [True, False],
+    )
+    def test_compute_pivot_keys_from_samples(self, with_intermediate_sort):
         self.skip_if_compat()
 
         create("table", "//tmp/t_in")
@@ -3741,13 +3744,17 @@ for key, count in counts.items():
             for j in range(10):
                 rows += [{"x": (i + 1), "y": (i + 1) * (j + 1)}]
 
-        # Write 20 chunks of randomly shuffled data
+        # Write 20 chunks of randomly shuffled data.
         shuffle(rows)
         for i in range(20):
             write_table("<append=%true>//tmp/t_in", rows[i * 10: (i + 1) * 10])
 
         assert len(get("//tmp/t_in/@chunk_ids")) == 20
 
+        # It's crucial that the the output table is sorted. This test verifies that
+        # partitioning was done by ranges, as improper partitioning could result in
+        # overlapping key ranges in the job outputs. This property is checked by
+        # internal validation.
         op = map_reduce(
             in_="//tmp/t_in",
             out="//tmp/t_out",
@@ -3768,20 +3775,35 @@ for key, count in counts.items():
                 "compute_pivot_keys_from_samples": True,
                 "max_partition_factor": 2,
                 "data_size_per_reduce_job": 1,
-                "data_size_per_sort_job": 340,
+                "data_size_per_sort_job": 50 if with_intermediate_sort else 1000,
             },
         )
 
         tasks = get(op.get_path() + "/@progress/tasks")
-        expected_tasks = {
-            "partition",
-            "partition",
-            "partition",
-            "intermediate_sort",
-            "partition_reduce",
-            "sorted_reduce",
+        tasks_count = {
+            task["job_type"]: task["job_counter"]["total"]
+            for task in tasks
         }
-        assert {task["job_type"] for task in tasks} == expected_tasks
+
+        assert tasks_count["partition"] >= 2
+
+        if with_intermediate_sort:
+            assert {name for name in tasks_count} == {
+                "partition",
+                "intermediate_sort",
+                "sorted_reduce"
+            }
+
+            assert tasks_count["intermediate_sort"] >= 1
+            assert tasks_count["sorted_reduce"] >= 1
+        else:
+            assert {name for name in tasks_count} == {
+                "partition",
+                "partition_reduce",
+            }
+
+            assert tasks_count["partition_reduce"] >= 1
+
 
 ##################################################################
 
