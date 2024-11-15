@@ -745,7 +745,7 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
             }
 
             if (owner->IsUser()) {
-                owner->AsUser()->AlertIfPendingRemoval(
+                owner->AsUser()->LogIfPendingRemoval(
                     Format("User pending for removal is being set as %Qv attribute for object (User: %v, ObjectId: %v)",
                     EInternedAttributeKey::Owner.Unintern(),
                     owner->GetName(),

@@ -1547,7 +1547,7 @@ private:
             }
         }
 
-        User_->AlertIfPendingRemoval(
+        User_->LogIfPendingRemoval(
             Format("User pending for removal has accessed object service (User: %v)",
             User_->GetName()));
 

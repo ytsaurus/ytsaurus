@@ -96,7 +96,7 @@ private:
         auto* group = GetThisImpl();
 
         if (member->IsUser()) {
-            member->AsUser()->AlertIfPendingRemoval(
+            member->AsUser()->LogIfPendingRemoval(
                 Format("User pending for removal joined group (User: %v, Group: %v)",
                 member->GetName(),
                 group->GetName()));

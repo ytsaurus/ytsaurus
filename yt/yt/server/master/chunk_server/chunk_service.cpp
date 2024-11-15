@@ -174,7 +174,7 @@ private:
                     return;
                 }
 
-                user->AlertIfPendingRemoval(
+                user->LogIfPendingRemoval(
                     Format("User pending for removal has accessed chunk service (User: %v)",
                     user->GetName()));
 

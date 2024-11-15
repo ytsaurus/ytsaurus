@@ -2175,7 +2175,7 @@ public:
     {
         TWallTimer checkPermissionTimer;
 
-        user->AlertIfPendingRemoval(
+        user->LogIfPendingRemoval(
             Format("User pending for removal was mentioned in permission check for object (User: %v, ObjectId: %v)",
             user->GetName(),
             object->GetId()));
@@ -2317,7 +2317,7 @@ public:
         EPermission permission,
         TPermissionCheckOptions options = {}) override
     {
-        user->AlertIfPendingRemoval(
+        user->LogIfPendingRemoval(
             Format("User pending for removal was mentioned in validating permission for object (User: %v, ObjectId: %v)",
             user->GetName(),
             object->GetId()));
@@ -2651,7 +2651,7 @@ public:
 
     TError CheckUserAccess(TUser* user) override
     {
-        user->AlertIfPendingRemoval(
+        user->LogIfPendingRemoval(
             Format("User pending for removal was mentioned in check user access (User: %v)",
             user->GetName()));
 
