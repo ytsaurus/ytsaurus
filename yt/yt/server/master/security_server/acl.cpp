@@ -161,7 +161,7 @@ static void DoDeserializeAclOrThrow(
                 continue;
             }
             if (subject->IsUser()) {
-                subject->AsUser()->AlertIfPendingRemoval(
+                subject->AsUser()->LogIfPendingRemoval(
                     Format("User pending for removal was mentioned in ACL (User: %v)",
                     subject->GetName()));
             }
