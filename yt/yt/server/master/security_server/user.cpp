@@ -446,9 +446,9 @@ void TUser::UpdateCounters(const TUserWorkload& workload)
     }
 }
 
-void TUser::AlertIfPendingRemoval(const TString& message) const
+void TUser::LogIfPendingRemoval(const TString& message) const
 {
-    YT_LOG_ALERT_IF(
+    YT_LOG_ERROR_IF(
         GetPendingRemoval(),
         message);
 }
