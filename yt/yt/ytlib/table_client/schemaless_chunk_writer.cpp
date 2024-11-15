@@ -625,9 +625,13 @@ public:
             std::move(nameTable),
             chunkTimestamps,
             dataSink)
-        , DataToBlockFlush_(Config_->BlockSize)
+        , DataToBlockFlush_(std::min(Config_->BlockSize, Config_->MaxBufferSize))
     {
         TCurrentTraceContextGuard traceGuard(TraceContext_);
+
+        if (Options_->ConsiderMinRowRangeDataWeight) {
+            DataToBlockFlush_ = std::max(MinRowRangeDataWeight, DataToBlockFlush_);
+        }
 
         // Only scan-optimized version for now.
         THashMap<TString, TDataBlockWriter*> groupBlockWriters;
@@ -758,15 +762,16 @@ private:
 
             YT_VERIFY(maxWriterIndex >= 0);
 
-            if (totalSize > Config_->MaxBufferSize ||
-                maxWriterSize > Config_->BlockSize ||
-                DataWeightSinceLastBlockFlush_ > Config_->MaxDataWeightBetweenBlocks)
+            if (totalSize >= Config_->MaxBufferSize ||
+                maxWriterSize >= Config_->BlockSize ||
+                DataWeightSinceLastBlockFlush_ >= Config_->MaxDataWeightBetweenBlocks)
             {
                 FinishBlock(maxWriterIndex, lastRow);
             } else {
                 DataToBlockFlush_ = std::min(Config_->MaxBufferSize - totalSize, Config_->BlockSize - maxWriterSize);
-                DataToBlockFlush_ = std::max(MinRowRangeDataWeight, DataToBlockFlush_);
-
+                if (Options_->ConsiderMinRowRangeDataWeight) {
+                    DataToBlockFlush_ = std::max(MinRowRangeDataWeight, DataToBlockFlush_);
+                }
                 break;
             }
         }

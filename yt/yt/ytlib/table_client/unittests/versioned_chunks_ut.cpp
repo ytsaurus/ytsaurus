@@ -1577,6 +1577,48 @@ protected:
             SyncLastCommittedTimestamp,
             /*produceAllVersions*/ false);
     }
+
+    void DoSmallBlocks()
+    {
+        auto testOptions = GetTestOptions();
+
+        if (testOptions.ChunkFormat == EChunkFormat::TableVersionedIndexed) {
+            return;
+        }
+
+        auto writeSchema = New<TTableSchema>(ColumnSchemas_);
+        auto memoryWriter = New<TMemoryWriter>();
+
+        // Writers do not respect block size limit perfectly, nor are they required to.
+        i64 overhead = testOptions.OptimizeFor == EOptimizeFor::Scan
+            ? 256_B
+            : 1_KB;
+
+        auto config = New<TChunkWriterConfig>();
+        config->BlockSize = 1_KB;
+        config->Postprocess();
+
+        auto options = New<TChunkWriterOptions>();
+        options->OptimizeFor = testOptions.OptimizeFor;
+        options->ChunkFormat = testOptions.ChunkFormat;
+        options->EnableSegmentMetaInBlocks = true;
+        options->EnableColumnMetaInChunkMeta = false;
+        options->ConsiderMinRowRangeDataWeight = false;
+        options->Postprocess();
+
+        auto chunkWriter = CreateVersionedChunkWriter(
+            config,
+            options,
+            writeSchema,
+            memoryWriter);
+
+        Y_UNUSED(chunkWriter->Write(InitialRows_));
+        EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
+
+        for (auto& block : memoryWriter->GetBlocks()) {
+            EXPECT_LE(block.Size(), static_cast<size_t>(config->BlockSize + overhead));
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1646,6 +1688,11 @@ TEST_P(TVersionedChunksHeavyTest, EmptyReadWideSchemaScan)
 TEST_P(TVersionedChunksHeavyTest, SingleGroup)
 {
     DoSingleGroup();
+}
+
+TEST_P(TVersionedChunksHeavyTest, SmallBlocks)
+{
+    DoSmallBlocks();
 }
 
 INSTANTIATE_TEST_SUITE_P(

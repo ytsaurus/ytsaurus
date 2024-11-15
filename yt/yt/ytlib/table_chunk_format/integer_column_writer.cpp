@@ -40,7 +40,7 @@ protected:
 
     ui64 MaxValue_;
     ui64 MinValue_;
-    THashMap<ui64, int>     DistinctValues_;
+    THashMap<ui64, int> DistinctValues_;
 
     void Reset()
     {
@@ -141,6 +141,7 @@ public:
                 ui64 data = 0;
                 if (value.Type != EValueType::Null) {
                     data = EncodeValue(GetValue<TValue>(value));
+                    UpdateStatistics(data);
                 }
                 Values_.push_back(data);
                 return std::ssize(Values_) >= MaxValueCount_;
@@ -199,14 +200,6 @@ private:
 
     void DumpSegment()
     {
-        for (i64 index = 0; index < std::ssize(Values_); ++index) {
-            if (NullBitmap_[index]) {
-                YT_ASSERT(Values_[index] == 0);
-            } else {
-                UpdateStatistics(Values_[index]);
-            }
-        }
-
         TSegmentInfo segmentInfo;
         segmentInfo.SegmentMeta.set_version(0);
 
@@ -493,14 +486,6 @@ private:
 
     void DumpSegment()
     {
-        for (i64 index = 0; index < std::ssize(Values_); ++index) {
-            if (NullBitmap_[index]) {
-                YT_ASSERT(Values_[index] == 0);
-            } else {
-                UpdateStatistics(Values_[index]);
-            }
-        }
-
         auto sizes = GetSegmentSizeVector();
 
         auto minElement = std::min_element(sizes.begin(), sizes.end());
@@ -568,6 +553,7 @@ private:
             ui64 data = 0;
             if (!isNull) {
                 data = EncodeValue(GetValue<TValue>(value));
+                UpdateStatistics(data);
             }
 
             if (Values_.empty() ||
