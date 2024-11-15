@@ -210,6 +210,12 @@ func (p *Pinger) TryCommit(committer func() error) error {
 	return nil
 }
 
+func (p *Pinger) PingTx(ctx context.Context) error {
+	pingCtx, cancel := context.WithTimeout(ctx, p.config.GetTxPingPeriod())
+	defer cancel()
+	return p.yc.PingTx(pingCtx, p.txID, p.options)
+}
+
 // OnTxError may be optionally invoked to snoop transaction state from failure of other commands.
 func (p *Pinger) OnTxError(err error) {
 	if !yterrors.ContainsErrorCode(err, yterrors.CodeNoSuchTransaction) {
@@ -276,7 +282,7 @@ func (p *Pinger) Run() {
 			return
 
 		case <-ticker.C:
-			err := p.yc.PingTx(leaseCtx, p.txID, p.options)
+			err := p.PingTx(leaseCtx)
 			if err != nil {
 				p.OnTxError(err)
 			} else {
