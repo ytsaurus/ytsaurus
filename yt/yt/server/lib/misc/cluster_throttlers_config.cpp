@@ -14,17 +14,10 @@ void TClusterThrottlersConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("cluster_limits", &TThis::ClusterLimits)
         .Default();
-    registrar.Parameter("group_id", &TThis::GroupId)
-        .Default("/group");
     registrar.Parameter("enabled", &TThis::Enabled)
         .Default(false);
 
     registrar.Postprocessor([] (TClusterThrottlersConfig* config) {
-        if (std::ssize(config->GroupId) < 2 || config->GroupId[0] != '/') {
-            THROW_ERROR_EXCEPTION("Invalid \"group_id\"")
-                << TErrorAttribute("group_id", config->GroupId);
-        }
-
         for (const auto& [clusterName, _] : config->ClusterLimits) {
             if (clusterName.empty()) {
                 THROW_ERROR_EXCEPTION("Invalid cluster name %Qv in \"cluster_limist\"",
