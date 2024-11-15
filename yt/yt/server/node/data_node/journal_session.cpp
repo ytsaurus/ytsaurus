@@ -141,7 +141,7 @@ TFuture<NIO::TIOCounters> TJournalSession::DoPutBlocks(
             recordCount - 1);
     }
 
-    int payloadSize = 0;
+    i64 payloadSize = 0;
     std::vector<TSharedRef> records;
     records.reserve(blocks.size() - recordCount + startBlockIndex);
     for (int index = recordCount - startBlockIndex;
@@ -150,6 +150,12 @@ TFuture<NIO::TIOCounters> TJournalSession::DoPutBlocks(
     {
         records.push_back(blocks[index].Data);
         payloadSize += records.back().Size();
+    }
+
+    if (!Location_->HasEnoughSpace(payloadSize)) {
+        THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::NoLocationAvailable,
+            "No enough space left on location");
     }
 
     if (!records.empty()) {
