@@ -13,6 +13,7 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/serialize.h>
 #include <yt/yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/ypath_resolver.h>
 
 #include <library/cpp/iterator/functools.h>
 #include <library/cpp/yt/misc/cast.h>
@@ -967,6 +968,21 @@ void SetProtobufFieldByPath(
 {
     TSetVisitor visitor(value, options, recursive);
     visitor.Visit(&message, path);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+bool AreScalarAttributesEqualByPath(
+    const NYson::TYsonString& lhs,
+    const NYson::TYsonString& rhs,
+    const NYPath::TYPath& path)
+{
+    if (path.empty()) {
+        return lhs == rhs;
+    } else {
+        return NYTree::TryGetAny(lhs.AsStringBuf(), path) == NYTree::TryGetAny(rhs.AsStringBuf(), path);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

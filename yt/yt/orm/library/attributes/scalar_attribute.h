@@ -53,6 +53,12 @@ bool AreScalarAttributesEqualByPath(
     const T& rhs,
     const NYPath::TYPath& path);
 
+template <>
+bool AreScalarAttributesEqualByPath(
+    const NYson::TYsonString& lhs,
+    const NYson::TYsonString& rhs,
+    const NYPath::TYPath& path);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NOrm::NAttributes
