@@ -1643,8 +1643,6 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         remove('//sys/cluster_throttlers', force=True)
         cluster_throttlers_config = {
             "enabled": True,
-            # group_id must begin with '/'
-            "group_id": "/remote_cluster_throttlers",
             "cluster_limits": {
                 # Limit bandwidth from remote cluster to local cluster.
                 self.REMOTE_CLUSTER_NAME: {
