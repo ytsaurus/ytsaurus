@@ -484,7 +484,7 @@ int TSlotManager::GetUsedSlotCount() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return SlotCount_ - std::ssize(FreeSlots_);
+    return InitializedSlotCount_.load() - std::ssize(FreeSlots_);
 }
 
 int TSlotManager::GetInitializedSlotCount() const
