@@ -390,7 +390,7 @@ TUnversionedOwningRow BuildOrderedByIdTableRow(
         record.BriefProgress = request.BriefProgress;
     }
 
-    if (version >= 51) {
+    if (version >= 52 && request.SchedulingAttributesPerPoolTree) {
         record.SchedulingAttributesPerPoolTree = request.SchedulingAttributesPerPoolTree;
     }
 
