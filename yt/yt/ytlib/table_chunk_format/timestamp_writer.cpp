@@ -229,16 +229,10 @@ private:
 
         rawMeta.BaseTimestamp = MinSegmentTimestamp_;
 
-        ui32 expectedWritesPerRow ;
-        ui32 maxWriteIndex;
-        PrepareDiffFromExpected(&WriteTimestampCounts_, &expectedWritesPerRow, &maxWriteIndex);
-
+        auto [expectedWritesPerRow, maxWriteIndex] = PrepareDiffFromExpected(&WriteTimestampCounts_);
         rawMeta.ExpectedWritesPerRow = expectedWritesPerRow;
 
-        ui32 expectedDeletesPerRow;
-        ui32 maxDeleteIndex;
-        PrepareDiffFromExpected(&DeleteTimestampCounts_, &expectedDeletesPerRow, &maxDeleteIndex);
-
+        auto [expectedDeletesPerRow, maxDeleteIndex] = PrepareDiffFromExpected(&DeleteTimestampCounts_);
         rawMeta.ExpectedDeletesPerRow = expectedDeletesPerRow;
 
         i64 size = 0;

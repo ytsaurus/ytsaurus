@@ -675,11 +675,15 @@ public:
             std::move(chunkWriter),
             std::move(blockCache),
             dataSink)
-        , DataToBlockFlush_(Config_->BlockSize)
+        , DataToBlockFlush_(std::min(Config_->BlockSize, Config_->MaxBufferSize))
     {
         THROW_ERROR_EXCEPTION_IF(!Options_->EnableColumnMetaInChunkMeta && !Options_->EnableSegmentMetaInBlocks,
             "Bad chunk writer options. At least one of \"enable_column_meta_in_chunk_meta\" or "
             "\"enable_segment_meta_in_blocks\" must be true");
+
+        if (Options_->ConsiderMinRowRangeDataWeight) {
+            DataToBlockFlush_ = std::max(MinRowRangeDataWeight, DataToBlockFlush_);
+        }
 
         auto createBlockWriter = [&] {
             int blockWriterIndex = std::ssize(BlockWriters_);
@@ -845,11 +849,13 @@ private:
 
             YT_VERIFY(maxWriterIndex >= 0);
 
-            if (totalSize > Config_->MaxBufferSize || maxWriterSize > Config_->BlockSize) {
+            if (totalSize >= Config_->MaxBufferSize || maxWriterSize >= Config_->BlockSize) {
                 FinishBlock(maxWriterIndex, lastRow.Keys());
             } else {
                 DataToBlockFlush_ = std::min(Config_->MaxBufferSize - totalSize, Config_->BlockSize - maxWriterSize);
-                DataToBlockFlush_ = std::max(MinRowRangeDataWeight, DataToBlockFlush_);
+                if (Options_->ConsiderMinRowRangeDataWeight) {
+                    DataToBlockFlush_ = std::max(MinRowRangeDataWeight, DataToBlockFlush_);
+                }
                 break;
             }
         }

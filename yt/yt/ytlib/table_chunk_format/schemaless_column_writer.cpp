@@ -101,9 +101,7 @@ private:
         segmentInfo.SegmentMeta.set_version(0);
         segmentInfo.SegmentMeta.set_row_count(Offsets_.size());
 
-        ui32 expectedBytesPerRow;
-        ui32 maxOffsetDelta;
-        PrepareDiffFromExpected(&Offsets_, &expectedBytesPerRow, &maxOffsetDelta);
+        auto [expectedBytesPerRow, maxOffsetDelta] = PrepareDiffFromExpected(&Offsets_);
 
         segmentInfo.Data.push_back(BitPackUnsignedVector(TRange(Offsets_), maxOffsetDelta));
         segmentInfo.Data.push_back(BitPackUnsignedVector(TRange(ValueCounts_), MaxValueCount_));
