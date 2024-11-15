@@ -158,6 +158,10 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter("enable_careful_requisition_update", &TThis::EnableCarefulRequisitionUpdate)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Parameter("max_nodes_being_merged", &TThis::MaxNodesBeingMerged)
         .Default(1'000'000)
         .DontSerializeDefault();
