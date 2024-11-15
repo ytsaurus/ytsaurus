@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/client/chaos_client/config.h>
+
 #include <yt/yt/core/misc/cache_config.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
@@ -37,10 +39,11 @@ class TChaosResidencyCacheConfig
     : public TAsyncExpiringCacheConfig
 {
 public:
+    bool IsClientModeActive;
+
     REGISTER_YSON_STRUCT(TChaosResidencyCacheConfig);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChaosResidencyCacheConfig)

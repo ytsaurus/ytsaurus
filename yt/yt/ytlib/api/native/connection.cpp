@@ -305,7 +305,9 @@ public:
 
         ChaosResidencyCache_ = CreateChaosResidencyCache(
             config->ReplicationCardResidencyCache,
+            StaticConfig_->ReplicationCardCache, // Nullptr is ok
             this,
+            Options_.ChaosResidencyCacheMode,
             Logger);
 
         ReplicationCardChannelFactory_ = CreateReplicationCardChannelFactory(
@@ -865,6 +867,7 @@ public:
         TableMountCache_->Reconfigure(StaticConfig_->TableMountCache->ApplyDynamic(dynamicConfig->TableMountCache));
         ClockManager_->Reconfigure(StaticConfig_->ClockManager->ApplyDynamic(dynamicConfig->ClockManager));
         ChunkReplicaCache_->Reconfigure(dynamicConfig->ChunkReplicaCache);
+        ChaosResidencyCache_->Reconfigure(dynamicConfig->ReplicationCardResidencyCache);
         if (ReplicationCardCache_ && dynamicConfig->ReplicationCardCache) {
             ReplicationCardCache_->Reconfigure(dynamicConfig->ReplicationCardCache);
         }

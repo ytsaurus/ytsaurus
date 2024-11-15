@@ -6,6 +6,7 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
+#include <yt/yt/ytlib/chaos_client/master_cache_channel.h>
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 #include <yt/yt/client/transaction_client/public.h>
@@ -29,7 +30,6 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto& Logger = ReplicationCardWatcherClientLogger;
-static constexpr int StickyGroupSize = 3;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,10 +108,9 @@ private:
         ToProto(req->mutable_replication_card_id(), replicationCardId);
         req->set_replication_card_cache_timestamp(timestamp);
 
-        auto* balancingHeaderExt = req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
-        balancingHeaderExt->set_enable_stickiness(true);
-        balancingHeaderExt->set_sticky_group_size(StickyGroupSize);
-        balancingHeaderExt->set_balancing_hint(THash<TReplicationCardId>()(replicationCardId));
+        SetChaosCacheStickyGroupBalancingHint(
+            replicationCardId,
+            req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext));
 
         return req->Invoke().ApplyUnique(
             BIND(

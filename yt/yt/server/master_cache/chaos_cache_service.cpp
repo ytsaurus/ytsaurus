@@ -9,6 +9,8 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
 #include <yt/yt/ytlib/chaos_client/public.h>
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/replication_cards_watcher.h>
@@ -28,6 +30,7 @@ using namespace NApi::NNative;
 using namespace NChaosClient;
 using namespace NChaosCache;
 using namespace NChaosNode;
+using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NLogging;
 
@@ -178,6 +181,7 @@ public:
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WatchReplicationCard));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCardResidency));
     }
 
     ~TChaosCacheService()
@@ -194,6 +198,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetReplicationCard);
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, WatchReplicationCard);
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetReplicationCardResidency);
 };
 
 DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
@@ -299,6 +304,50 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, WatchReplicationCard)
     if (state != EReplicationCardWatherState::Deleted) {
         ReplicationCardsWatcherClient_->WatchReplicationCard(replicationCardId);
     }
+}
+
+DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCardResidency)
+{
+    auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
+    auto cellTagToForceRefresh =
+        request->has_force_refresh_replication_card_cell_tag()
+            ? std::make_optional(FromProto<NObjectClient::TCellTag>(
+                request->force_refresh_replication_card_cell_tag()))
+            : std::optional<NObjectClient::TCellTag>();
+
+    context->SetRequestInfo("ReplicationCardId: %v, CellTagToForceRefresh: %v",
+        replicationCardId,
+        cellTagToForceRefresh);
+
+    auto replier = BIND([context, response] (const TCellTag& cellTag) {
+        response->set_replication_card_cell_tag(ToProto<ui32>(cellTag));
+    });
+
+    auto chaosResidencyCache = Client_->GetNativeConnection()->GetChaosResidencyCache();
+    auto residencyFuture = chaosResidencyCache->GetChaosResidency(replicationCardId);
+    if (!cellTagToForceRefresh) {
+        context->ReplyFrom(residencyFuture
+            .Apply(replier));
+        return;
+    }
+
+    auto refreshedFuture = residencyFuture
+        .Apply(BIND([
+            chaosResidencyCache = std::move(chaosResidencyCache),
+            replicationCardId,
+            cellTagToForceRefresh = *cellTagToForceRefresh
+        ] (const TCellTag& cellTag)
+        {
+            if (cellTagToForceRefresh == cellTag) {
+                chaosResidencyCache->ForceRefresh(replicationCardId, cellTag);
+                return chaosResidencyCache->GetChaosResidency(replicationCardId);
+            } else {
+                return MakeFuture(cellTag);
+            }
+        }));
+
+    context->ReplyFrom(refreshedFuture
+        .Apply(replier));
 }
 
 IServicePtr CreateChaosCacheService(

@@ -218,6 +218,8 @@ struct TConnectionOptions
     //! If non-null, provides a TVM service for authentication.
     NAuth::IDynamicTvmServicePtr TvmService;
 
+    EChaosResidencyCacheType ChaosResidencyCacheMode = EChaosResidencyCacheType::Client;
+
     explicit TConnectionOptions(IInvokerPtr connectionInvoker);
     TConnectionOptions() = default;
 };

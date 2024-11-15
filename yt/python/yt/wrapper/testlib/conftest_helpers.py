@@ -159,7 +159,10 @@ def test_environment_chaos(request):
     environment = init_environment_for_test_session(
         request,
         request.param,
-        env_options={"chaos_node_count": 1}
+        env_options={
+            "chaos_node_count": 1,
+            "master_cache_count": 1,
+        }
     )
     return environment
 
