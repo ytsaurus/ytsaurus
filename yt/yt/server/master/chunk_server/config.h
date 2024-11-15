@@ -168,6 +168,7 @@ public:
 
     i64 MaxBlockCount;
     i64 MaxJobsPerChunkList;
+    int MaxChunkListCountPerMergeSession;
 
     TDuration SchedulePeriod;
     TDuration CreateChunksPeriod;
