@@ -402,7 +402,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("object_life_stage_check_timeout", &TThis::ObjectLifeStageCheckTimeout)
         .Default(TDuration::Seconds(60));
 
-    registrar.Parameter("read_archive_state_from", &TThis::ReadArchiveStateFrom)
+    registrar.Parameter("read_operations_archive_state_from", &TThis::ReadOperationsArchiveStateFrom)
+        .Alias("read_archive_state_from")
         .Default(EMasterChannelKind::Follower);
 
     registrar.Preprocessor([] (TThis* config) {
