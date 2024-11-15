@@ -114,15 +114,6 @@ class HttpProxyTestBase(YTEnvSetup):
 
 
 class TestHttpProxy(HttpProxyTestBase):
-    NUM_DISCOVERY_SERVERS = 1
-    NUM_TIMESTAMP_PROVIDERS = 1
-    NUM_MASTER_CACHES = 1
-    NUM_CELL_BALANCERS = 1
-    ENABLE_BUNDLE_CONTROLLER = True
-    NUM_QUEUE_AGENTS = 1
-    NUM_TABLET_BALANCERS = 1
-    NUM_REPLICATED_TABLE_TRACKERS = 1
-
     def teardown_method(self, method):
         for proxy in ls("//sys/http_proxies"):
             set("//sys/http_proxies/{}/@role".format(proxy), "data")

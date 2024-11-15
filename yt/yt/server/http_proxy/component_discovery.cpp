@@ -273,10 +273,14 @@ std::vector<TYPath> TComponentDiscoverer::GetCypressPaths(
     return paths;
 }
 
-TString TComponentDiscoverer::GetCompatBinaryVersion(const TString& path) const
+TErrorOr<std::string> TComponentDiscoverer::GetCompatBinaryVersion(const TYPath& path) const
 {
-    auto response = WaitFor(Client_->GetNode(path + "/orchid/build_info/binary_version")).ValueOrThrow();
-    return ConvertTo<TString>(response);
+    auto rspOrError = WaitFor(Client_->GetNode(path + "/orchid/build_info/binary_version"));
+    if (!rspOrError.IsOK()) {
+        return std::move(static_cast<TError&>(rspOrError));
+    }
+
+    return ConvertTo<std::string>(rspOrError.Value());
 }
 
 std::vector<TClusterComponentInstance> TComponentDiscoverer::GetAttributes(
@@ -308,9 +312,14 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::GetAttributes(
         result.Address = StringSplitter(subpaths[index]).Split('/').ToList<std::string>().back();
         if (!ysonOrError.IsOK()) {
             if (IsComponentCompat(component)) {
-                result.Version = GetCompatBinaryVersion(GetCypressDirectory(component) + "/" + subpaths[index]);
+                auto versionOrError = GetCompatBinaryVersion(GetCypressDirectory(component) + "/" + subpaths[index]);
+                if (versionOrError.IsOK()) {
+                    result.Version = std::move(versionOrError).Value();
+                } else {
+                    result.Error = std::move(versionOrError);
+                }
             } else {
-                result.Error = ysonOrError;
+                result.Error = std::move(ysonOrError);
             }
             continue;
         }
@@ -325,8 +334,8 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::GetAttributes(
         auto version = ConvertTo<std::string>(rspMap->GetChildOrThrow("version"));
         auto startTime = ConvertTo<std::string>(rspMap->GetChildOrThrow("start_time"));
 
-        result.Version = version;
-        result.StartTime = startTime;
+        result.Version = std::move(version);
+        result.StartTime = std::move(startTime);
     }
     return results;
 }
