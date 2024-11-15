@@ -189,7 +189,9 @@ private:
             &MonitoringManager_,
             &OrchidRoot_);
 
-        Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
+        TConnectionOptions connectionOptions;
+        connectionOptions.ChaosResidencyCacheMode = EChaosResidencyCacheType::MasterCache;
+        Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
         Connection_->GetClusterDirectorySynchronizer()->Start();
         Connection_->GetMasterCellDirectorySynchronizer()->Start();
 

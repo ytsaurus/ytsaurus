@@ -2,6 +2,7 @@
 
 #include "chaos_cell_directory_synchronizer.h"
 #include "chaos_node_service_proxy.h"
+#include "master_cache_channel.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -136,8 +137,6 @@ protected:
     const IReplicationCardsWatcherClientPtr WatcherClient_;
     const NLogging::TLogger Logger;
 
-    IChannelPtr CreateChaosCacheChannel(const NNative::IConnectionPtr& connection);
-
     void OnRemoved(const TReplicationCardCacheKey& key) noexcept override;
 
 private:
@@ -174,6 +173,9 @@ public:
         if (Key_.RefreshEra != InvalidReplicationEra) {
             req->set_refresh_era(Key_.RefreshEra);
         }
+
+        SetChaosCacheStickyGroupBalancingHint(Key_.CardId,
+            req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext));
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
@@ -230,7 +232,7 @@ TReplicationCardCache::TReplicationCardCache(
     : TAsyncExpiringCache(config)
     , Config_(std::move(config))
     , Connection_(connection)
-    , ChaosCacheChannel_(CreateChaosCacheChannel(std::move(connection)))
+    , ChaosCacheChannel_(CreateChaosCacheChannel(std::move(connection), Config_))
     , WatcherClient_(CreateReplicationCardsWatcherClient(
         std::make_unique<TReplicationCacheCallbacks>(
             MakeWeak(this),
@@ -317,25 +319,6 @@ void TReplicationCardCache::Reconfigure(const TReplicationCardCacheDynamicConfig
     if (config->EnableWatching) {
         EnableWatching_.store(*config->EnableWatching);
     }
-}
-
-IChannelPtr TReplicationCardCache::CreateChaosCacheChannel(const NNative::IConnectionPtr& connection)
-{
-    auto channelFactory = connection->GetChannelFactory();
-    auto endpointDescription = TString("ChaosCache");
-    auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
-        .BeginMap()
-            .Item("chaos_cache").Value(true)
-        .EndMap());
-    auto channel = CreateBalancingChannel(
-        Config_,
-        std::move(channelFactory),
-        endpointDescription,
-        std::move(endpointAttributes));
-    channel = CreateRetryingChannel(
-        Config_,
-        std::move(channel));
-    return channel;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
