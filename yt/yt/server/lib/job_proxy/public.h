@@ -16,7 +16,6 @@ DEFINE_ENUM(EJobEnvironmentType,
     (Cri)
 );
 
-// XXX
 DEFINE_ENUM(EJobProxyExitCode,
     ((SupervisorCommunicationFailed) (20))
     ((ResultReportFailed)            (21))
