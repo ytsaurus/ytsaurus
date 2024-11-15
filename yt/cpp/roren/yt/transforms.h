@@ -61,9 +61,9 @@ class TYtSortedWriteTransform
     : public NPrivate::TAttributes
 {
 public:
-    TYtSortedWriteTransform(const NYT::TRichYPath& path, const NYT::TTableSchema& schema)
-        : Path_(path)
-        , Schema_(schema)
+    TYtSortedWriteTransform(NYT::TRichYPath path, NYT::TTableSchema schema)
+        : Path_(std::move(path))
+        , Schema_(std::move(schema))
     { }
 
     TString GetName() const
@@ -98,6 +98,62 @@ private:
 private:
     const NYT::TRichYPath Path_;
     const NYT::TTableSchema Schema_;
+};
+
+class TYtAutoSchemaWriteTransform
+    : public NPrivate::TAttributes
+{
+public:
+    TYtAutoSchemaWriteTransform(NYT::TRichYPath path)
+        : Path_(path)
+    { }
+
+    TString GetName() const
+    {
+        return "AutoSchemaWrite";
+    }
+
+    template <typename TInputRow>
+        requires std::is_base_of_v<::google::protobuf::Message, TInputRow>
+    void ApplyTo(const TPCollection<TInputRow>& pCollection) const
+    {
+        auto schema = NYT::CreateTableSchema<TInputRow>();
+        auto transform = TYtWriteTransform(Path_, schema);
+        NPrivate::MergeAttributes(transform, *this);
+        pCollection | transform;
+    }
+
+private:
+    const NYT::TRichYPath Path_;
+};
+
+class TYtAutoSchemaSortedWriteTransform
+    : public NPrivate::TAttributes
+{
+public:
+    TYtAutoSchemaSortedWriteTransform(NYT::TRichYPath path, NYT::TSortColumns sortColumns)
+        : Path_(std::move(path))
+        , SortColumns_(std::move(sortColumns))
+    { }
+
+    TString GetName() const
+    {
+        return "AutoSchemaWrite";
+    }
+
+    template <typename TInputRow>
+        requires std::is_base_of_v<::google::protobuf::Message, TInputRow>
+    void ApplyTo(const TPCollection<TInputRow>& pCollection) const
+    {
+        auto schema = NYT::CreateTableSchema<TInputRow>(SortColumns_);
+        auto transform = TYtSortedWriteTransform(Path_, schema);
+        NPrivate::MergeAttributes(transform, *this);
+        pCollection | transform;
+    }
+
+private:
+    const NYT::TRichYPath Path_;
+    const NYT::TSortColumns SortColumns_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
