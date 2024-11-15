@@ -412,10 +412,6 @@ TEST_F(TQueryPrepareJoinTreeTest, IndexJoinEvaluatedColumns)
     EXPECT_EQ(alphaProjections[1].Name, "a3");
     EXPECT_TRUE(HasProjection(alphaProjections, "a1"));
     EXPECT_TRUE(HasProjection(alphaProjections, "a2"));
-
-    for (const auto& [_, evaluated] : betaQuery->JoinClauses.front()->SelfEquations) {
-        EXPECT_FALSE(evaluated);
-    }
 }
 
 TEST_F(TQueryPrepareJoinTreeTest, PredicatePushDown)

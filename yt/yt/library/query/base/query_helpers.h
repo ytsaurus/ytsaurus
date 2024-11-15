@@ -82,7 +82,17 @@ TIter MergeOverlappingRanges(TIter begin, TIter end)
 struct TSelfifyRewriter
     : public TRewriter<TSelfifyRewriter>
 {
-    const TConstJoinClausePtr& JoinClause;
+    const std::vector<TSelfEquation>& SelfEquations;
+    const THashMap<std::string, int>& ForeignReferenceToIndexMap;
+    bool Success = true;
+
+    TConstExpressionPtr OnReference(const TReferenceExpression* reference);
+};
+
+struct TAddAliasRewriter
+    : public TRewriter<TAddAliasRewriter>
+{
+    const std::optional<TString>& Alias;
 
     TConstExpressionPtr OnReference(const TReferenceExpression* reference);
 };

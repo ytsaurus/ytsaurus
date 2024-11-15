@@ -498,12 +498,6 @@ IJoinTreePtr MakeIndexJoinTree(const TConstQueryPtr& query, const TDataSource& p
 
         newJoin->ForeignEquations = joinClause->ForeignEquations;
         newJoin->SelfEquations = joinClause->SelfEquations;
-        for (auto& [expr, evaluated] : newJoin->SelfEquations) {
-            if (evaluated) {
-                evaluated = false;
-                expr = TSelfifyRewriter{.JoinClause = joinClause}.Visit(expr);
-            }
-        }
 
         root = New<TJoinTreeNode>(
             std::move(root),
