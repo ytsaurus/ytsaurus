@@ -587,6 +587,9 @@ std::vector<TSharedRef> CompressAttachments(
     TRange<TSharedRef> attachments,
     NCompression::ECodec codecId)
 {
+    if (attachments.empty()) {
+        return {};
+    }
     if (codecId == NCompression::ECodec::None) {
         return attachments.ToVector();
     }
@@ -598,6 +601,9 @@ std::vector<TSharedRef> DecompressAttachments(
     TRange<TSharedRef> attachments,
     NCompression::ECodec codecId)
 {
+    if (attachments.empty()) {
+        return {};
+    }
     if (codecId == NCompression::ECodec::None) {
         return attachments.ToVector();
     }
