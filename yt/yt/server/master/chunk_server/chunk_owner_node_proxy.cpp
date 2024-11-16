@@ -102,9 +102,9 @@ static constexpr auto& Logger = ChunkServerLogger;
 
 namespace {
 
-bool IsAccessLoggedMethod(const TString& method)
+bool IsAccessLoggedMethod(const std::string& method)
 {
-    static const THashSet<TString> methodsForAccessLog = {
+    static const THashSet<std::string> methodsForAccessLog = {
         "Fetch",
         "EndUpload"
     };

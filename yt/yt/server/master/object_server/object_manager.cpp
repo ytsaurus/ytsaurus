@@ -263,7 +263,9 @@ public:
         TObject* object,
         TCellTag cellTag) override;
 
-    NProfiling::TTimeCounter* GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method) override;
+    NProfiling::TTimeCounter* GetMethodCumulativeExecuteTimeCounter(
+        EObjectType type,
+        const std::string& method) override;
 
     const TGarbageCollectorPtr& GetGarbageCollector() const override;
 
@@ -2371,7 +2373,7 @@ void TObjectManager::CheckObjectLifeStageVoteCount(TObject* object)
 
 NProfiling::TTimeCounter* TObjectManager::GetMethodCumulativeExecuteTimeCounter(
     EObjectType type,
-    const TString& method)
+    const std::string& method)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

@@ -301,7 +301,7 @@ protected:
     void SetAccessed() override;
     void SuppressAccessTracking();
 
-    void ValidateMethodWhitelistedForTransaction(const TString& method) const;
+    void ValidateMethodWhitelistedForTransaction(const std::string& method) const;
 
     void SetTouched() override;
     void SuppressExpirationTimeoutRenewal();

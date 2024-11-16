@@ -900,7 +900,8 @@ private:
         if (bytesReadFromDisk > 0 && ioTracker->IsEnabled()) {
             ioTracker->Enqueue(
                 TIOCounters{.Bytes = bytesReadFromDisk, .IORequests = 1},
-                MakeReadIOTags(context->GetMethod(), chunk->GetLocation(), context, chunk->GetId()));
+                // TODO(babenko): migrate to std::string
+                MakeReadIOTags(TString(context->GetMethod()), chunk->GetLocation(), context, chunk->GetId()));
         }
 
         ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
