@@ -157,6 +157,8 @@ IChunkReaderPtr CreateRemoteReaderThrottlingAdapter(
 
 struct TUserObject
 {
+    static const i64 UndefinedChunkCount = -1;
+
     TUserObject() = default;
     explicit TUserObject(
         NYPath::TRichYPath path,
@@ -179,7 +181,8 @@ struct TUserObject
     NHydra::TRevision AttributeRevision = NHydra::NullRevision;
     std::vector<std::string> OmittedInaccessibleColumns;
     std::vector<NSecurityClient::TSecurityTag> SecurityTags;
-    i64 ChunkCount = -1;
+    // TODO(ignat): migrate to optional.
+    i64 ChunkCount = UndefinedChunkCount;
 
     std::optional<TString> Account;
 
