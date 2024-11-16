@@ -447,7 +447,7 @@ private:
             }
 
             case EInternedAttributeKey::FolderId: {
-                TString newFolderId = ConvertTo<TString>(value);
+                auto newFolderId = ConvertTo<std::string>(value);
                 ValidateFolderId(newFolderId);
                 account->SetFolderId(std::move(newFolderId));
                 return true;
