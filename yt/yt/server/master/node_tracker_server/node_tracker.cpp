@@ -1082,7 +1082,7 @@ private:
     }
 
     void FillResponseNodeTags(
-        ::google::protobuf::RepeatedPtrField<TProtoStringType>* rspTags,
+        ::google::protobuf::RepeatedPtrField<TProtobufString>* rspTags,
         const THashSet<std::string>& tags)
     {
         TCompactVector<std::string, 16> sortedTags(tags.begin(), tags.end());

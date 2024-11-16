@@ -5,6 +5,7 @@
 #include <yt/yt/ytlib/controller_agent/public.h>
 
 #include <yt/yt/core/misc/arithmetic_formula.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt_proto/yt/core/misc/proto/guid.pb.h>
 
@@ -40,8 +41,8 @@ TSchedulingTagFilter operator&(const TSchedulingTagFilter& lhs, const TSchedulin
 TSchedulingTagFilter operator|(const TSchedulingTagFilter& lhs, const TSchedulingTagFilter& rhs);
 TSchedulingTagFilter operator!(const TSchedulingTagFilter& filter);
 
-void ToProto(TProtoStringType* protoFilter, const TSchedulingTagFilter& filter);
-void FromProto(TSchedulingTagFilter* filter, const TProtoStringType& protoFilter);
+void ToProto(TProtobufString* protoFilter, const TSchedulingTagFilter& filter);
+void FromProto(TSchedulingTagFilter* filter, const TProtobufString& protoFilter);
 
 void Serialize(const TSchedulingTagFilter& filter, NYson::IYsonConsumer* consumer);
 void Deserialize(TSchedulingTagFilter& filter, NYTree::INodePtr node);
