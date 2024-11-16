@@ -10,16 +10,16 @@ class YtCli:
         self.replace = replace
         self.processes_to_kill: list[subprocess.Popen] = []
 
-    def check_output(self, args: list[str], stdin: str | int = subprocess.PIPE) -> bytes:
-        completed_process = self.run(args, stdin)
+    def check_output(self, args: list[str], stdin: str | int = subprocess.PIPE, timeout: float | None = 90.0) -> bytes:
+        completed_process = self.run(args, stdin, timeout=timeout)
         if completed_process.returncode != 0:
             self._write_stderr(args, stdin, completed_process.stdout, completed_process.stderr)
             raise subprocess.CalledProcessError(completed_process.returncode, completed_process.args, completed_process.stdout, completed_process.stderr)
         return completed_process.stdout
 
-    def run(self, args: list[str], stdin: str | int = subprocess.PIPE) -> subprocess.CompletedProcess:
+    def run(self, args: list[str], stdin: str | int = subprocess.PIPE, timeout: float | None = 90.0) -> subprocess.CompletedProcess:
         args = self._patch_first_arg(args)
-        completed_process = self._execute_command(args, stdin)
+        completed_process = self._execute_command(args, stdin, timeout=timeout)
         return completed_process
 
     def run_in_background(self, args: list[str], stdin: int | IO | None = subprocess.PIPE) -> subprocess.Popen:
@@ -40,7 +40,7 @@ class YtCli:
             args = self.replace[args[0]] + args[1:]
         return args
 
-    def _execute_command(self, args: list[str], stdin: str | int = subprocess.PIPE) -> subprocess.CompletedProcess:
+    def _execute_command(self, args: list[str], stdin: str | int = subprocess.PIPE, timeout: float | None = 90.0) -> subprocess.CompletedProcess:
         if isinstance(stdin, str):
             popen_stdin = subprocess.PIPE
         else:
@@ -55,9 +55,9 @@ class YtCli:
         )
         try:
             if isinstance(stdin, str):
-                stdout, stderr = process.communicate(input=stdin.encode("utf-8"))
+                stdout, stderr = process.communicate(input=stdin.encode("utf-8"), timeout=timeout)
             else:
-                stdout, stderr = process.communicate()
+                stdout, stderr = process.communicate(timeout=timeout)
         except subprocess.CalledProcessError:
             return subprocess.CompletedProcess(process.args, process.returncode, process.stdout, process.stderr)
         except Exception as ex:
