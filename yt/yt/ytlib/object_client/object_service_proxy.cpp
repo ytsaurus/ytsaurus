@@ -96,7 +96,7 @@ TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(
     , CellTag_(cellTag)
     , ChannelKind_(channelKind)
 {
-    YT_ASSERT(SubbatchSize_ > 0);
+    YT_VERIFY(SubbatchSize_ > 0);
     SetResponseHeavy(true);
 }
 
@@ -270,7 +270,7 @@ void TObjectServiceProxy::TReqExecuteBatchBase::AddRequest(
         innerRequest->Tag(),
         innerRequest->Serialize(),
         hash,
-        ypathExt.mutating()
+        ypathExt.mutating(),
     });
 }
 
@@ -387,7 +387,7 @@ TObjectServiceProxy::TReqExecuteSubbatchPtr TObjectServiceProxy::TReqExecuteBatc
 
         auto& descriptor = InnerRequestDescriptors_[i];
 
-        if (!mutating) {
+        if (!mutating.has_value()) {
             mutating = descriptor.Mutating;
         }
 

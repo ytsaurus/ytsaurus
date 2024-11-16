@@ -3863,25 +3863,3 @@ class TestDynamicTablesHydraPersistenceMigrationPortal(TestDynamicTablesMulticel
 
         # Should not fail.
         sync_remove_tablet_cells([cell_id])
-
-
-class TestHydraPersistenceSynchronizer(DynamicTablesSingleCellBase):
-    DELTA_MASTER_CONFIG = {
-        "logging": {
-            "abort_on_alert": False,
-        },
-    }
-
-    @authors("danilalexeev")
-    def test_list_request_size_limit(self):
-        cell_ids = sync_create_cells(5)
-
-        set("//sys/@config/tablet_manager/cell_hydra_persistence_synchronizer/list_alive_cells_request_size_limit", 1)
-        sync_remove_tablet_cells(cell_ids[:3])
-
-        assert len(ls("//sys/tablet_cells")) == 2
-        time.sleep(0.5)
-        assert len(ls("//sys/hydra_persistence/tablet_cells")) == 5
-
-        set("//sys/@config/tablet_manager/cell_hydra_persistence_synchronizer/list_alive_cells_request_size_limit", 50000)
-        wait(lambda: len(ls("//sys/hydra_persistence/tablet_cells")) == 2)

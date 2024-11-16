@@ -333,7 +333,7 @@ private:
             const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
             auto mutatingSubrequest = ypathExt.mutating();
 
-            if (!mutating) {
+            if (!mutating.has_value()) {
                 mutating = mutatingSubrequest;
             }
 
