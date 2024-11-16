@@ -77,6 +77,7 @@ protected:
         NHydra::TRevision Revision = NHydra::NullRevision;
         NHydra::TRevision AttributeRevision = NHydra::NullRevision;
         NHydra::TRevision ContentRevision = NHydra::NullRevision;
+        std::optional<i64> ChunkCount;
     };
 
     virtual void SetModified(EModificationType modificationType);

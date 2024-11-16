@@ -75,8 +75,10 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, GetBasicAttributes)
         ValidatePermission(EPermissionCheckScope::This, *permission);
     }
 
-    ToProto(response->mutable_object_id(), TGuid());
+    ToProto(response->mutable_object_id(), TObjectId());
+    response->set_type(ToProto(EObjectType::Table));
     response->set_external_cell_tag(ToProto(PrimaryMasterCellTagSentinel));
+    response->set_chunk_count(std::ssize(Chunks_));
 
     context->Reply();
 }
