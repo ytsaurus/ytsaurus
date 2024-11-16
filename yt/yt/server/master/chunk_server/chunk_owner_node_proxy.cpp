@@ -1498,6 +1498,8 @@ void TChunkOwnerNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* contex
         context->SecurityTags = node->ComputeSecurityTags();
     }
 
+    context->ChunkCount = node->ComputeTotalStatistics().ChunkCount;
+
     auto* transaction = GetTransaction();
     if (node->IsExternal()) {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();

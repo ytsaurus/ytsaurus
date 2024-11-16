@@ -29,6 +29,7 @@ using namespace NNodeTrackerClient;
 using namespace NScheduler;
 
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,8 +66,9 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, GetBasicAttributes)
         ValidatePermission(EPermissionCheckScope::This, permission);
     }
 
-    ToProto(response->mutable_object_id(), TGuid());
+    response->set_type(ToProto<int>(EObjectType::Table));
     response->set_external_cell_tag(ToProto<int>(PrimaryMasterCellTagSentinel));
+    response->set_chunk_count(std::ssize(Chunks_));
 
     context->SetResponseInfo();
     context->Reply();

@@ -167,6 +167,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
     GetBasicAttributes(&getBasicAttributesContext);
 
     ToProto(response->mutable_object_id(), GetId());
+    response->set_type(ToProto<int>(TypeFromId(GetId())));
     response->set_external_cell_tag(ToProto<int>(getBasicAttributesContext.ExternalCellTag));
     if (getBasicAttributesContext.OmittedInaccessibleColumns) {
         ToProto(response->mutable_omitted_inaccessible_columns()->mutable_items(), *getBasicAttributesContext.OmittedInaccessibleColumns);
@@ -180,6 +181,10 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
     response->set_revision(getBasicAttributesContext.Revision);
     response->set_attribute_revision(getBasicAttributesContext.AttributeRevision);
     response->set_content_revision(getBasicAttributesContext.ContentRevision);
+
+    if (getBasicAttributesContext.ChunkCount) {
+        response->set_chunk_count(*getBasicAttributesContext.ChunkCount);
+    }
 
     context->SetResponseInfo("ExternalCellTag: %v, ExternalTransactionId: %v",
         getBasicAttributesContext.ExternalCellTag,

@@ -33,6 +33,20 @@ public:
         TString name,
         NYTree::TYPath path);
 
+private:
+    const THashSet<NChunkClient::TInputChunkPtr>& Chunks_;
+    const NTableClient::TTableSchemaPtr Schema_;
+    const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
+    const TOperationId OperationId_;
+    const TString Name_;
+    const NYTree::TYPath Path_;
+
+    NYTree::TSystemBuiltinAttributeKeysCache BuiltinAttributeKeysCache_;
+
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch);
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CheckPermission);
+
     bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
 
     // TSupportsAttributes overrides
@@ -52,23 +66,6 @@ public:
         NYT::NYson::IAsyncYsonConsumer* consumer,
         const NYTree::TAttributeFilter& attributeFilter,
         bool stable) override;
-
-private:
-    NYTree::TSystemBuiltinAttributeKeysCache BuiltinAttributeKeysCache_;
-
-    const THashSet<NChunkClient::TInputChunkPtr>& Chunks_;
-
-    NTableClient::TTableSchemaPtr Schema_;
-
-    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
-
-    TOperationId OperationId_;
-    TString Name_;
-    NYTree::TYPath Path_;
-
-    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
-    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch);
-    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CheckPermission);
 };
 
 DEFINE_REFCOUNTED_TYPE(TVirtualStaticTable)
