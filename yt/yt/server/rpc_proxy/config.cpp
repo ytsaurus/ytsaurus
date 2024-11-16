@@ -154,8 +154,6 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("tracing", &TThis::Tracing)
         .DefaultNew();
-    registrar.Parameter("formats", &TThis::Formats)
-        .Default();
 
     registrar.Parameter("access_checker", &TThis::AccessChecker)
         .DefaultNew();
@@ -168,13 +166,6 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("memory_limits", &TThis::MemoryLimits)
         .DefaultNew();
-
-    // COMPAT(gritukan, levysotsky)
-    registrar.Postprocessor([] (TThis* config) {
-        if (config->Api->Formats.empty()) {
-            config->Api->Formats = config->Formats;
-        }
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

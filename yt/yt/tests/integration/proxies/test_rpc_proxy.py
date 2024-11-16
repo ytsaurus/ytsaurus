@@ -1151,11 +1151,12 @@ class TestRpcProxyFormatConfig(TestRpcProxyBase, _TestProxyFormatConfigBase):
         super(TestRpcProxyFormatConfig, self).setup_method(method)
         proxy_name = ls("//sys/rpc_proxies")[0]
 
-        set("//sys/rpc_proxies/@config", {"formats": self.FORMAT_CONFIG})
+        set("//sys/rpc_proxies/@config", {"api": {"formats": self.FORMAT_CONFIG}})
 
         def config_updated():
             config = get("//sys/rpc_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
             return config \
+                .get("api", {}) \
                 .get("formats", {}) \
                 .get("yamred_dsv", {}) \
                 .get("user_overrides", {}) \
@@ -1261,7 +1262,7 @@ class TestRpcProxyHeapUsageStatistics(TestRpcProxyHeapUsageStatisticsBase):
             "testing": {
                 "heap_profiler": {
                     "allocation_size": 5 * 1024 ** 2,
-                    "allocation_release_delay" : 30 * 1000,
+                    "allocation_release_delay": 30 * 1000,
                 },
             },
         },

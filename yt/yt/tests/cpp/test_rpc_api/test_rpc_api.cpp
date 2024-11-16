@@ -658,7 +658,7 @@ TEST_F(TRpcProxyFormatTest, FordiddenFormat_YT_20098)
     auto clientOptions = TClientOptions::FromUser(userName);
     auto client_ = Connection_->CreateClient(clientOptions);
 
-    WaitFor(Client_->SetNode("//sys/rpc_proxies/@config", TYsonString(TString("{formats = {arrow = {enable = false}}}"))))
+    WaitFor(Client_->SetNode("//sys/rpc_proxies/@config", TYsonString(TString("{api = {formats = {arrow = {enable = false}}}}"))))
         .ThrowOnError();
 
     Sleep(TDuration::Seconds(0.5));

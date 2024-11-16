@@ -11,7 +11,7 @@ from yt.environment.tls_helpers import (
 )
 
 from yt_commands import (
-    authors, wait, create, ls, get, set, remove, map,
+    authors, wait, wait_no_assert, create, ls, get, set, remove, map,
     create_user, create_proxy_role, issue_token, make_ace,
     create_access_control_object_namespace, create_access_control_object,
     with_breakpoint, wait_breakpoint, print_debug, raises_yt_error,
@@ -789,9 +789,17 @@ class TestHttpProxyFraming(HttpProxyTestBase):
         config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
         set(
             "//sys/http_proxies/@config",
-            {"framing": {"keep_alive_period": self.KEEP_ALIVE_PERIOD}},
+            {"api": {"framing": {"keep_alive_period": self.KEEP_ALIVE_PERIOD}}},
         )
-        wait(lambda: requests.get(config_url).json()["framing"]["keep_alive_period"] == self.KEEP_ALIVE_PERIOD)
+
+        @wait_no_assert
+        def config_updated():
+            config = requests.get(config_url).json()
+            value = config \
+                .get("api", {}) \
+                .get("framing", {}) \
+                .get("keep_alive_period", 0.0)
+            assert value == self.KEEP_ALIVE_PERIOD
 
     def _execute_command(self, http_method, command_name, params, extra_headers={}):
         headers = {
@@ -1000,11 +1008,12 @@ class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
         super(TestHttpProxyFormatConfig, self).setup_method(method)
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
         config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
-        set("//sys/http_proxies/@config", {"formats": self.FORMAT_CONFIG})
+        set("//sys/http_proxies/@config", {"api": {"formats": self.FORMAT_CONFIG}})
 
         def config_updated():
             config = requests.get(config_url).json()
             return config \
+                .get("api", {}) \
                 .get("formats", {}) \
                 .get("yamred_dsv", {}) \
                 .get("user_overrides", {}) \
