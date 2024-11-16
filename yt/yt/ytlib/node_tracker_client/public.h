@@ -72,8 +72,6 @@ DEFINE_ENUM(ENodeRole,
 );
 
 DEFINE_ENUM(ENodeFlavor,
-    // COMPAT(gritukan)
-    ((Cluster)      (0))
     // Node that is used to store chunks.
     ((Data)         (1))
     // Node that is used to execute jobs.
