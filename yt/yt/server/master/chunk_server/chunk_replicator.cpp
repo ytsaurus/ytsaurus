@@ -3235,7 +3235,7 @@ void TChunkReplicator::OnScheduleChunkRequisitionUpdatesFlush()
         YT_LOG_WARNING(rspOrError,
             "Failed to schedule chunk requisition update flush");
 
-        for (auto protoChunkId : request.chunk_ids()) {
+        for (const auto& protoChunkId : request.chunk_ids()) {
             auto* chunk = chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId));
             if (!IsObjectAlive(chunk)) {
                 continue;

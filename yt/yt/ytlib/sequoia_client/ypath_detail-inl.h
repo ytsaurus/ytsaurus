@@ -123,7 +123,7 @@ void TYPathBase<Absolute, TUnderlying>::Validate() const
             Path_.StartsWith(NObjectClient::ObjectIdPathPrefix) ||
             Path_ == "/"))
         {
-            THROW_ERROR_EXCEPTION("Path %Qv does not start with a valid root-designator", Path_);
+            THROW_ERROR_EXCEPTION("Path %v does not start with a valid root-designator", Path_);
         }
     } else if (!Path_.empty()) {
         NYPath::TTokenizer tokenizer(Path_);

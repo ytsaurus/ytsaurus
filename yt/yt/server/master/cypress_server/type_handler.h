@@ -98,7 +98,6 @@ struct INodeTypeHandler
         NYTree::IAttributeDictionary* explicitAttributes) = 0;
 
     virtual void SetReachable(TCypressNode* node) = 0;
-
     virtual void SetUnreachable(TCypressNode* node) = 0;
 
     virtual void Zombify(TCypressNode* node) = 0;

@@ -178,8 +178,6 @@ public:
 
     int MaxCellAclUpdatesPerIteration;
 
-    int ListAliveCellsRequestSizeLimit;
-
     TDuration HydraPersistenceFileIdUpdatePeriod;
 
     int MaxHydraPersistenceFileIdUpdatesPerIteration;
