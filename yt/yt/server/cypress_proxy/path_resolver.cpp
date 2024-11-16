@@ -113,6 +113,8 @@ bool ShouldFollowLink(TYPathBuf unresolvedSuffix, TStringBuf method)
         return true;
     }
 
+    tokenizer.Expect(NYPath::ETokenType::EndOfStream);
+
     // NB: when link is last component of request's path we try to avoid
     // actions leading to data loss. E.g., it's better to remove link instead
     // of table pointed by link.

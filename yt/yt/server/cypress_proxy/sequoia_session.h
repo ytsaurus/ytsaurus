@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
 
+#include <yt/yt/client/api/client_common.h>
+
 #include <yt/yt/client/table_client/schema.h>
 
 namespace NYT::NCypressProxy {
@@ -79,7 +81,9 @@ public:
 
     //! The same as SelectSubtree() + ClearSubtree(). Prefer using another
     //! override of this method to avoid fetching the same subtree twice.
-    void ClearSubtree(NSequoiaClient::TAbsoluteYPathBuf path);
+    void ClearSubtree(
+        NSequoiaClient::TAbsoluteYPathBuf path,
+        const NApi::TSuppressableAccessTrackingOptions& options);
 
     // Miscelanous.
 
@@ -93,7 +97,10 @@ public:
      *  subtree removal. So it's sufficient to conflict with removal: we can do
      *  it with shared lock because node removal takes an exclusive lock.
      */
-    void SetNode(NCypressClient::TNodeId nodeId, NYson::TYsonString value);
+    void SetNode(
+        NCypressClient::TNodeId nodeId,
+        NYson::TYsonString value,
+        const NApi::TSuppressableAccessTrackingOptions& options);
 
     //! Behaves the same as |TSequoiaSession::SetNode|, but used specifically
     //! for setting node attributes.
@@ -101,7 +108,8 @@ public:
         NCypressClient::TNodeId nodeId,
         NSequoiaClient::TYPathBuf path,
         NYson::TYsonString value,
-        bool force);
+        bool force,
+        const NApi::TSuppressableAccessTrackingOptions& options);
 
     //! Behaves like the "multiset_attributes" verb in Cypress. Acquires a shared
     //! lock on row in "node_id_to_path" Sequoia table.
@@ -109,7 +117,8 @@ public:
         NCypressClient::TNodeId nodeId,
         NSequoiaClient::TYPathBuf path,
         const std::vector<TMultisetAttributesSubrequest>& subrequests,
-        bool force);
+        bool force,
+        const NApi::TSuppressableAccessTrackingOptions& options);
 
     //! Removes node attribute at a given path. Acquires a shared lock on row in
     //! "node_id_to_path" Sequoia table.
@@ -133,7 +142,8 @@ public:
     NCypressClient::TNodeId CreateMapNodeChain(
         NSequoiaClient::TAbsoluteYPathBuf startPath,
         NCypressClient::TNodeId startId,
-        TRange<std::string> names);
+        TRange<std::string> names,
+        const NApi::TSuppressableAccessTrackingOptions& options);
 
     //! Generates ID, registers tx action and modifies "path_to_node_id",
     //! "node_id_to_path" Sequoia tables. Attaches created node to its parent.
@@ -144,7 +154,8 @@ public:
         NObjectClient::EObjectType type,
         NSequoiaClient::TAbsoluteYPathBuf path,
         const NYTree::IAttributeDictionary* explicitAttributes,
-        NCypressClient::TNodeId parentId);
+        NCypressClient::TNodeId parentId,
+        const NApi::TSuppressableAccessTrackingOptions& options);
 
     // Map-node's children accessors.
 
@@ -239,7 +250,8 @@ private:
         NCypressClient::TNodeId nodeId,
         NSequoiaClient::TYPathBuf path,
         NYson::TYsonString value,
-        bool force);
+        bool force,
+        const NApi::TSuppressableAccessTrackingOptions& options);
 
     DECLARE_NEW_FRIEND()
 };

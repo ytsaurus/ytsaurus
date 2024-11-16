@@ -60,6 +60,8 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
         .Default(1000);
     registrar.Parameter("expiration_backoff_time", &TThis::ExpirationBackoffTime)
         .Default(TDuration::Seconds(10));
+    registrar.Parameter("remove_expired_master_nodes_using_client", &TThis::RemoveExpiredMasterNodesViaClient)
+        .Default(false);
 
     registrar.Parameter("tree_serialization_codec", &TThis::TreeSerializationCodec)
         .Default(NCompression::ECodec::Lz4);

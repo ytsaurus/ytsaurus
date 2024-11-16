@@ -9,6 +9,7 @@
 #include <yt/yt/server/lib/sequoia/helpers.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
@@ -263,6 +264,9 @@ private:
 
         VerifySequoiaNode(parent);
         AttachChildToSequoiaNodeOrThrow(parent, key, childId);
+
+        auto proxy = cypressManager->GetNodeProxy(parent);
+        MaybeTouchNode(proxy, request->access_tracking_options());
     }
 
     void HydraCommitDetachChild(
@@ -288,6 +292,9 @@ private:
         }
 
         children.Remove(request->key(), childIt->second);
+
+        auto proxy = cypressManager->GetNodeProxy(parent);
+        MaybeTouchNode(proxy, request->access_tracking_options());
     }
 
     void HydraPrepareRemoveNode(
@@ -409,6 +416,10 @@ private:
         auto innerRequest = TCypressYPathProxy::Set(request->path());
         innerRequest->set_value(request->value());
         innerRequest->set_force(request->force());
+
+        const auto& accessTrackingOptions = request->access_tracking_options();
+        SetSuppressAccessTracking(innerRequest, accessTrackingOptions.suppress_access_tracking());
+        SetSuppressExpirationTimeoutRenewal(innerRequest, accessTrackingOptions.suppress_expiration_timeout_renewal());
 
         SyncExecuteVerb(
             cypressManager->GetNodeProxy(trunkNode, cypressTransaction),
@@ -537,6 +548,8 @@ private:
         clonedNode->VerifySequoia();
         clonedNode->RefObject();
         nodeFactory->Commit();
+
+        Bootstrap_->GetObjectManager()->WeakRefObject(sourceNode);
     }
 
     void HydraCommitCloneNode(
@@ -546,19 +559,38 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto nodeId = FromProto<TNodeId>(request->dst_id());
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* node = cypressManager->GetNode(TVersionedNodeId(nodeId));
+        auto sourceNodeId = FromProto<TNodeId>(request->src_id());
+        auto destinationNodeId = FromProto<TNodeId>(request->dst_id());
 
-        if (!IsObjectAlive(node)) {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* sourceNode = cypressManager->GetNode(TVersionedNodeId(sourceNodeId));
+        auto* destinationNode = cypressManager->GetNode(TVersionedNodeId(destinationNodeId));
+
+        if (!IsObjectAlive(destinationNode)) {
             YT_LOG_ALERT("An attempt to clone a zombie Sequoia node was made (NodeId: %v)",
-                nodeId);
+                destinationNodeId);
+            return;
         }
 
-        VerifySequoiaNode(node);
-
-        auto beingCreated = std::exchange(node->MutableSequoiaProperties()->BeingCreated, false);
+        auto beingCreated = std::exchange(destinationNode->MutableSequoiaProperties()->BeingCreated, false);
         YT_VERIFY(beingCreated);
+
+        auto finally = Finally([&] {
+            if (sourceNode) {
+                Bootstrap_->GetObjectManager()->WeakUnrefObject(sourceNode);
+            }
+        });
+
+        if (!IsObjectAlive(sourceNode)) {
+            YT_LOG_ALERT("Source node is no longer alive (NodeId: %v)",
+                sourceNodeId);
+            return;
+        }
+
+        // TODO(danilalexeev): Sequoia transaction has to lock |sourceNodeId| to conflict
+        // with an expired nodes removal.
+        auto proxy = cypressManager->GetNodeProxy(sourceNode);
+        MaybeTouchNode(proxy);
     }
 
     void HydraAbortCloneNode(
@@ -568,12 +600,16 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto nodeId = FromProto<TNodeId>(request->dst_id());
+        auto sourceNodeId = FromProto<TNodeId>(request->src_id());
+        auto destinationNodeId = FromProto<TNodeId>(request->dst_id());
         // XXX(kvk1920): Add cypress transaction id here.
-        auto versionedNodeId = TVersionedObjectId(nodeId, NullObjectId);
 
-        if (auto* node = Bootstrap_->GetCypressManager()->GetNode(versionedNodeId)) {
-            Bootstrap_->GetObjectManager()->UnrefObject(node);
+        if (auto* destinationNode = Bootstrap_->GetCypressManager()->GetNode(TVersionedObjectId{destinationNodeId})) {
+            Bootstrap_->GetObjectManager()->UnrefObject(destinationNode);
+        }
+
+        if (auto* sourceNode = Bootstrap_->GetCypressManager()->GetNode(TVersionedObjectId{sourceNodeId})) {
+            Bootstrap_->GetObjectManager()->WeakUnrefObject(sourceNode);
         }
     }
 
@@ -617,6 +653,8 @@ private:
         auto lockId = FromProto<TLockId>(request->lock_id());
         auto lockRequest = CreateLockRequest(mode, childKey, attributeKey, timestamp);
         proxy->Lock(lockRequest, waitable, lockId);
+
+        MaybeTouchNode(proxy);
     }
 
     void HydraPrepareAndCommitUnlockNode(
@@ -641,6 +679,8 @@ private:
 
         auto proxy = cypressManager->GetNodeProxy(trunkNode, cypressTransaction);
         proxy->Unlock();
+
+        MaybeTouchNode(proxy);
     }
 };
 

@@ -4409,6 +4409,12 @@ private:
         for (const auto& protoId : request->node_ids()) {
             auto nodeId = FromProto<TNodeId>(protoId);
 
+            if (IsSequoiaId(nodeId)) {
+                YT_LOG_ALERT("Removal of an expired Sequoia node in a master way; skipping (NodeId: %v)",
+                    nodeId);
+                continue;
+            }
+
             auto* trunkNode = NodeMap_.Find(TVersionedNodeId(nodeId, NullTransactionId));
             if (!trunkNode) {
                 continue;

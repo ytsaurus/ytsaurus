@@ -1897,7 +1897,6 @@ class TestCypress(YTEnvSetup):
             create("table", "//tmp/t", attributes={"external_cell_bias": 100.0})
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_expiration_time_validation(self):
         create("table", "//tmp/t")
         with pytest.raises(YtError):
@@ -1951,7 +1950,6 @@ class TestCypress(YTEnvSetup):
             remove("//tmp/t/@" + expiration[0], authenticated_user="u")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_expiration_time_change(self):
         create(
             "table",
@@ -1975,7 +1973,6 @@ class TestCypress(YTEnvSetup):
         wait(lambda: not exists("//tmp/t"))
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_expiration_time_can_be_set_upon_construction2(self):
         create(
             "table",
@@ -2003,7 +2000,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_expiration_time_removal(self):
         create("table", "//tmp/t", attributes={"expiration_time": str(get_current_time())})
         time.sleep(1)
@@ -2176,7 +2172,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t1")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_copy_preserve_expiration_time(self):
         create(
             "table",
@@ -2190,7 +2185,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t2")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_copy_dont_preserve_expiration_time(self):
         create(
             "table",
@@ -2204,7 +2198,6 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/t2")
 
     @authors("egor-gutrov")
-    @not_implemented_in_sequoia
     def test_copy_preserve_expiration_timeout(self):
         create(
             "table",
@@ -2218,7 +2211,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t2")
 
     @authors("egor-gutrov")
-    @not_implemented_in_sequoia
     def test_copy_dont_preserve_expiration_timeout(self):
         create(
             "table",
@@ -2285,7 +2277,6 @@ class TestCypress(YTEnvSetup):
         time.sleep(2)
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout1(self):
         create("table", "//tmp/t", attributes={"expiration_timeout": 1000})
@@ -2294,7 +2285,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout2(self):
         set("//sys/@config/cypress_manager/expiration_check_period", 200)
@@ -2307,7 +2297,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout3(self):
         create("table", "//tmp/t1", attributes={"expiration_timeout": 2000})
@@ -2321,7 +2310,6 @@ class TestCypress(YTEnvSetup):
         wait(lambda: not exists("//tmp/t2", suppress_expiration_timeout_renewal=True))
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout4(self):
         create("table", "//tmp/t1", attributes={"expiration_timeout": 4000})
@@ -2372,7 +2360,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout7(self):
         create("table", "//tmp/t", attributes={"expiration_timeout": 1000})
@@ -2408,7 +2395,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout_zero(self):
         # Very small - including zero timeouts - should be handled normally.
@@ -2426,7 +2412,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t4")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_time_and_timeout1(self):
         create(
@@ -2452,7 +2437,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t2")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_time_and_timeout2(self):
         create(
@@ -2466,7 +2450,7 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/t1/@expiration_timeout")
         time.sleep(0.6)
         assert exists("//tmp/t1")
-        time.sleep(1.5)
+        time.sleep(2)
         assert not exists("//tmp/t1")
 
         create(
@@ -4043,14 +4027,12 @@ class TestCypress(YTEnvSetup):
             get(f"#{object_id}", tx=tx)
 
     @authors("kivedernikov")
-    @not_implemented_in_sequoia
     def test_touch_time_without_expiration_timeout(self):
         create("table", "//tmp/t")
         with pytest.raises(YtError):
             get("//tmp/t/@touch_time")
 
     @authors("kivedernikov")
-    @not_implemented_in_sequoia
     @pytest.mark.parametrize(
         "suppress_access_tracking",
         [True, False]

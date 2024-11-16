@@ -598,6 +598,18 @@ void ValidateAccessControlObjectName(const std::string& name)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void MaybeTouchNode(
+    const ICypressNodeProxyPtr& nodeProxy,
+    const NCypressServer::NProto::TAccessTrackingOptions& protoOptions)
+{
+    if (!protoOptions.suppress_access_tracking()) {
+        nodeProxy->SetTouched();
+    }
+    if (!protoOptions.suppress_expiration_timeout_renewal()) {
+        nodeProxy->SetAccessed();
+    }
+}
+
 TLockRequest CreateLockRequest(
     ELockMode mode,
     const std::optional<TString>& childKey,

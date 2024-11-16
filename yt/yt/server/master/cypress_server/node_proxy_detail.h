@@ -595,7 +595,6 @@ class TSequoiaMapNodeProxy
         TNontemplateCompositeCypressNodeProxyBase,
         NYTree::IEntityNode,
         TSequoiaMapNode>
-    , public virtual NYTree::TSupportsList
 {
 public:
     using TBase = TCypressNodeProxyBase<
@@ -612,6 +611,7 @@ public:
     bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
 
     void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
+    void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override;
 
     //! Returns the number of child nodes.
     int GetChildCount() const override;

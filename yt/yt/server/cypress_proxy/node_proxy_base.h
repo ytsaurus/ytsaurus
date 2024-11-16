@@ -22,7 +22,9 @@ protected:
 
     explicit TNodeProxyBase(IBootstrap* bootstrap, TSequoiaSessionPtr sequoiaSession);
 
-    virtual bool DoInvoke(const ISequoiaServiceContextPtr& context) = 0;
+    virtual void BeforeInvoke(const ISequoiaServiceContextPtr& context);
+    virtual bool DoInvoke(const ISequoiaServiceContextPtr& context);
+    virtual void AfterInvoke(const ISequoiaServiceContextPtr& context);
 
     DEFINE_YPATH_CONTEXT_IMPL(ISequoiaServiceContext, TTypedSequoiaServiceContext);
 };
