@@ -1182,10 +1182,10 @@ public:
         Append_ = dstPath.GetAppend();
 
         try {
-            CreateObjects(srcPaths, dstPath);
+            InitializeObjects(srcPaths, dstPath);
             StartNestedInputTransactions();
             GetObjectAttributes();
-            GetCommonType();
+            InferCommonType();
             GetSrcObjectChunkCounts();
             if (CommonType_ == EObjectType::Table) {
                 InferOutputTableSchema();
@@ -1193,10 +1193,10 @@ public:
             FetchChunkSpecs();
             if (Sorted_) {
                 ValidateChunkSchemas();
-                OrderChunks();
+                SortChunks();
                 ValidateChunkRanges();
                 if (Append_) {
-                    ValidateBoundaryKeys();
+                    FetchAndValidateBoundaryKeys();
                 }
             }
             BeginUpload();
@@ -1242,7 +1242,7 @@ private:
 
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
-    void CreateObjects(
+    void InitializeObjects(
         const std::vector<TRichYPath>& srcPaths,
         TRichYPath dstPath)
     {
@@ -1366,7 +1366,7 @@ private:
         }
     }
 
-    void GetCommonType()
+    void InferCommonType()
     {
         auto isValidType = [&] (EObjectType type) {
             return type == EObjectType::Table || type == EObjectType::File;
@@ -1449,6 +1449,8 @@ private:
 
     void GetSrcObjectChunkCounts()
     {
+        YT_LOG_DEBUG("Fetch chunk counts of source objects");
+
         auto proxy = Client_->CreateObjectServiceReadProxy(TMasterReadOptions());
         auto batchReq = proxy.ExecuteBatch();
 
@@ -1473,6 +1475,8 @@ private:
             auto chunkCount = attributes->Get<i64>("chunk_count");
             srcObject->ChunkCount = chunkCount;
         }
+
+        YT_LOG_DEBUG("Source objects chunk counts received");
     }
 
     void InferOutputTableSchema()
@@ -1744,7 +1748,7 @@ private:
         }
     }
 
-    void OrderChunks()
+    void SortChunks()
     {
         YT_LOG_DEBUG("Sorting chunks");
 
@@ -1798,8 +1802,10 @@ private:
         }
     }
 
-    void ValidateBoundaryKeys()
+    void FetchAndValidateBoundaryKeys()
     {
+        YT_LOG_DEBUG("Fetch and validate boundary keys of destination table");
+
         auto proxy = Client_->CreateObjectServiceReadProxy(TMasterReadOptions());
 
         auto request = TTableYPathProxy::Get(DstObject_.GetObjectIdPath() + "/@boundary_keys");
@@ -1809,6 +1815,8 @@ private:
         auto rspOrError = WaitFor(proxy.Execute(request));
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to fetch boundary keys of destination table %v",
             DstObject_.GetPath());
+
+        YT_LOG_DEBUG("Boundary keys of destination table received");
 
         auto boundaryKeysMap = ConvertToNode(TYsonString(rspOrError.Value()->value()))->AsMap();
         auto tableMaxKeyNode = boundaryKeysMap->FindChild("max_key");
