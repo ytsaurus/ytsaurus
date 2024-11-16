@@ -64,7 +64,7 @@ TDuration ComputeForwardingTimeout(
         config);
 }
 
-void ValidateFolderId(const TString& folderId)
+void ValidateFolderId(const std::string& folderId)
 {
     static constexpr size_t MaxFolderIdLength = 256;
     if (folderId.size() > MaxFolderIdLength) {

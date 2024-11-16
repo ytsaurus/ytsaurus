@@ -35,7 +35,7 @@ TDuration ComputeForwardingTimeout(
     const NRpc::IServiceContextPtr& context,
     const TObjectServiceConfigPtr& config);
 
-void ValidateFolderId(const TString& folderId);
+void ValidateFolderId(const std::string& folderId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
