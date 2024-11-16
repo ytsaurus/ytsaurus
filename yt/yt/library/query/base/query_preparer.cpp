@@ -3071,21 +3071,65 @@ std::unique_ptr<TParsedSource> ParseSource(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THashMap<std::string, int> BuildReferenceToIndexMap(const std::vector<TConstExpressionPtr>& equations)
+{
+    THashMap<std::string, int> map;
+
+    for (int index = 0; index < std::ssize(equations); ++index) {
+        auto& expression = equations[index];
+        if (auto* ref = expression->As<TReferenceExpression>()) {
+            auto [_, inserted] = map.insert(std::make_pair(ref->ColumnName, index));
+            THROW_ERROR_EXCEPTION_IF(!inserted, "Foreign key column %Qv occurs more than once in a join clause",
+                ref->ColumnName);
+        }
+    }
+
+    return map;
+}
+
+std::vector<std::pair<TConstExpressionPtr, int>> MakeExpressionsFromComputedColumns(
+    const TTableSchemaPtr& schema,
+    const TConstTypeInferrerMapPtr& functions,
+    const std::optional<TString>& alias)
+{
+    std::vector<std::pair<TConstExpressionPtr, int>> expressionsAndColumnIndices;
+
+    for (int index = 0; index < schema->GetColumnCount(); ++index) {
+        const auto& column = schema->Columns()[index];
+        if (!column.Expression()) {
+            continue;
+        }
+
+        auto evaluatedColumnExpression = PrepareExpression(
+            *column.Expression(),
+            *schema,
+            functions);
+
+        if (alias) {
+            TAddAliasRewriter addAliasRewriter{.Alias=alias};
+            evaluatedColumnExpression = addAliasRewriter.Visit(evaluatedColumnExpression);
+        }
+
+        expressionsAndColumnIndices.push_back({std::move(evaluatedColumnExpression), index});
+    }
+
+    return expressionsAndColumnIndices;
+}
+
 TJoinClausePtr BuildJoinClause(
     const TDataSplit& foreignDataSplit,
     const NAst::TJoin& tableJoin,
     const TParsedSource& parsedSource,
     const TConstTypeInferrerMapPtr& functions,
-    size_t* commonKeyPrefix,
+    size_t* globalCommonKeyPrefix,
     const TTableSchemaPtr& tableSchema,
-    const TQueryPtr& query,
+    const std::optional<TString>& tableAlias,
     TBuilderCtx& builder,
     const NLogging::TLogger& Logger)
 {
     const auto& aliasMap = parsedSource.AstHead.AliasMap;
 
     auto foreignTableSchema = foreignDataSplit.TableSchema;
-    auto foreignKeyColumnsCount = foreignTableSchema->GetKeyColumns().size();
 
     auto joinClause = New<TJoinClause>();
     joinClause->Schema.Original = foreignTableSchema;
@@ -3143,10 +3187,8 @@ TJoinClausePtr BuildJoinClause(
             .Evaluated=false,
         });
     }
-
     for (const auto& argument : tableJoin.Rhs) {
-        foreignEquations.push_back(
-            foreignBuilder.BuildTypedExpression(argument, ComparableTypes));
+        foreignEquations.push_back(foreignBuilder.BuildTypedExpression(argument, ComparableTypes));
     }
 
     if (selfEquations.size() != foreignEquations.size()) {
@@ -3167,134 +3209,113 @@ TJoinClausePtr BuildJoinClause(
         }
     }
 
-    // If can use ranges, rearrange equations according to key columns and enrich with evaluated columns
+    // If possible, use ranges, rearrange equations according to foreign key columns, enriching with evaluated columns
+    size_t commonKeyPrefix = 0;
+    size_t foreignKeyPrefix = 0;
+    std::vector<TSelfEquation> keySelfEquations;
+    std::vector<TConstExpressionPtr> keyForeignEquations;
+    THashSet<int> usedForKeyPrefixEquations;
 
-    std::vector<TSelfEquation> keySelfEquations(foreignKeyColumnsCount);
-    std::vector<TConstExpressionPtr> keyForeignEquations(foreignKeyColumnsCount);
+    auto foreignReferenceToIndexMap = BuildReferenceToIndexMap(foreignEquations);
+    auto selfComputedColumnsExpressions = MakeExpressionsFromComputedColumns(tableSchema, functions, tableAlias);
 
-    for (size_t equationIndex = 0; equationIndex < foreignEquations.size(); ++equationIndex) {
-        const auto& expr = foreignEquations[equationIndex];
-
-        if (const auto* referenceExpr = expr->As<TReferenceExpression>()) {
-            int index = ColumnNameToKeyPartIndex(joinClause->GetKeyColumns(), referenceExpr->ColumnName);
-
-            if (index >= 0) {
-                THROW_ERROR_EXCEPTION_IF(keyForeignEquations[index], "Foreign key column occurs more than once in a join clause");
-                keySelfEquations[index] = selfEquations[equationIndex];
-                keyForeignEquations[index] = foreignEquations[equationIndex];
-                continue;
-            }
-        }
-
-        keySelfEquations.push_back(selfEquations[equationIndex]);
-        keyForeignEquations.push_back(foreignEquations[equationIndex]);
-    }
-
-    size_t keyPrefix = 0;
-    for (; keyPrefix < foreignKeyColumnsCount; ++keyPrefix) {
-        if (keyForeignEquations[keyPrefix]) {
-            YT_VERIFY(keySelfEquations[keyPrefix].Expression);
-
-            if (const auto* referenceExpr = keySelfEquations[keyPrefix].Expression->As<TReferenceExpression>()) {
-                if (ColumnNameToKeyPartIndex(query->GetKeyColumns(), referenceExpr->ColumnName) != static_cast<ssize_t>(keyPrefix)) {
-                    *commonKeyPrefix = std::min(*commonKeyPrefix, keyPrefix);
-                }
-            } else {
-                *commonKeyPrefix = std::min(*commonKeyPrefix, keyPrefix);
-            }
-
-            continue;
-        }
-
-        const auto& foreignColumnExpression = foreignTableSchema->Columns()[keyPrefix].Expression();
-
-        if (!foreignColumnExpression) {
+    for (const auto& foreignKeyColumn : foreignTableSchema->Columns()) {
+        if (!foreignKeyColumn.SortOrder()) {
             break;
         }
 
-        THashSet<TString> references;
-        auto evaluatedColumnExpression = PrepareExpression(
-            *foreignColumnExpression,
-            *foreignTableSchema,
-            functions,
-            &references);
+        auto foreignKeyColumnReference = NAst::TReference(foreignKeyColumn.Name(), tableJoin.Table.Alias);
+        auto aliasedForeignKeyColumnName = NAst::InferColumnName(foreignKeyColumnReference);
+        auto it = foreignReferenceToIndexMap.find(aliasedForeignKeyColumnName);
 
-        auto canEvaluate = true;
-        for (const auto& reference : references) {
-            int referenceIndex = foreignTableSchema->GetColumnIndexOrThrow(reference);
-            if (!keySelfEquations[referenceIndex].Expression) {
-                YT_VERIFY(!keyForeignEquations[referenceIndex]);
-                canEvaluate = false;
+        if (it != foreignReferenceToIndexMap.end()) {
+            keySelfEquations.push_back(selfEquations[it->second]);
+            keyForeignEquations.push_back(foreignEquations[it->second]);
+            usedForKeyPrefixEquations.insert(it->second);
+        } else if (foreignKeyColumn.Expression()) {
+            auto evaluatedColumnExpression = PrepareExpression(
+                *foreignKeyColumn.Expression(),
+                *foreignTableSchema,
+                functions);
+
+            if (auto& alias = tableJoin.Table.Alias) {
+                TAddAliasRewriter addAliasRewriter{.Alias=*alias};
+                evaluatedColumnExpression = addAliasRewriter.Visit(evaluatedColumnExpression);
             }
-        }
+            TSelfifyRewriter selfifyRewriter{
+                .SelfEquations=selfEquations,
+                .ForeignReferenceToIndexMap=foreignReferenceToIndexMap,
+            };
 
-        if (!canEvaluate) {
+            auto matchingSelfExpression = selfifyRewriter.Visit(evaluatedColumnExpression);
+            if (!selfifyRewriter.Success) {
+                break;
+            }
+
+            // The computedSelfEquation might already be among the computed key columns of the self schema.
+            // e.g. JOIN equation (A.a, A.b, B.f) = (C.c, C.e, C.q) and table schemas are as follows:
+            // A: [hash(a, b), a, b] and C: [hash(c, e), c, d, e]
+            // In this case
+            for (const auto& [expr, columnIndex] : selfComputedColumnsExpressions) {
+                if (Compare(expr, matchingSelfExpression)) {
+                    const auto& column = tableSchema->Columns()[columnIndex];
+                    auto aliasedReference = NAst::TReference(column.Name(), tableAlias);
+
+                    // Register self evaluated column in the effective schema.
+                    builder.GetColumnPtr(aliasedReference);
+
+                    matchingSelfExpression = New<TReferenceExpression>(
+                        column.LogicalType(),
+                        NAst::InferColumnName(aliasedReference));
+                    break;
+                }
+            }
+
+            // Register foreign evaluated column in the effective schema.
+            foreignBuilder.GetColumnPtr(foreignKeyColumnReference);
+
+            keySelfEquations.push_back({
+                .Expression=std::move(matchingSelfExpression),
+                .Evaluated=false,
+            });
+            keyForeignEquations.push_back(New<TReferenceExpression>(
+                foreignKeyColumn.LogicalType(),
+                aliasedForeignKeyColumnName));
+        } else {
             break;
         }
 
-        keySelfEquations[keyPrefix] = {.Expression=evaluatedColumnExpression, .Evaluated=true};
-
-        auto reference = NAst::TReference(
-            foreignTableSchema->Columns()[keyPrefix].Name(),
-            tableJoin.Table.Alias);
-
-        auto foreignColumn = foreignBuilder.GetColumnPtr(reference);
-
-        keyForeignEquations[keyPrefix] = New<TReferenceExpression>(
-            foreignColumn->LogicalType,
-            foreignColumn->Name);
-    }
-
-    *commonKeyPrefix = std::min(*commonKeyPrefix, keyPrefix);
-
-    for (size_t index = 0; index < keyPrefix; ++index) {
-        if (keySelfEquations[index].Evaluated) {
-            const auto& evaluatedColumnExpression = keySelfEquations[index].Expression;
-
-            if (const auto& selfColumnExpression = tableSchema->Columns()[index].Expression()) {
-                auto evaluatedSelfColumnExpression = PrepareExpression(
-                    *selfColumnExpression,
-                    *tableSchema,
-                    functions);
-
-                if (!Compare(
-                    evaluatedColumnExpression,
-                    *foreignTableSchema,
-                    evaluatedSelfColumnExpression,
-                    *tableSchema,
-                    *commonKeyPrefix))
-                {
-                    *commonKeyPrefix = std::min(*commonKeyPrefix, index);
+        if (commonKeyPrefix == foreignKeyPrefix &&
+            static_cast<int>(commonKeyPrefix) < tableSchema->GetKeyColumnCount())
+        {
+            if (auto* reference = keySelfEquations.back().Expression->As<TReferenceExpression>()) {
+                auto aliasedName = NAst::InferColumnName(NAst::TReference(
+                    tableSchema->Columns()[commonKeyPrefix].Name(),
+                    tableAlias));
+                if (reference->ColumnName == aliasedName) {
+                    commonKeyPrefix++;
                 }
-            } else {
-                *commonKeyPrefix = std::min(*commonKeyPrefix, index);
             }
         }
+
+        foreignKeyPrefix++;
     }
-
-    YT_VERIFY(keyForeignEquations.size() == keySelfEquations.size());
-
-    size_t lastEmptyIndex = keyPrefix;
-    for (int index = keyPrefix; index < std::ssize(keyForeignEquations); ++index) {
-        if (keyForeignEquations[index]) {
-            YT_VERIFY(keySelfEquations[index].Expression);
-            keyForeignEquations[lastEmptyIndex] = std::move(keyForeignEquations[index]);
-            keySelfEquations[lastEmptyIndex] = std::move(keySelfEquations[index]);
-            ++lastEmptyIndex;
-        }
-    }
-
-    keyForeignEquations.resize(lastEmptyIndex);
-    keySelfEquations.resize(lastEmptyIndex);
 
     joinClause->SelfEquations = std::move(keySelfEquations);
     joinClause->ForeignEquations = std::move(keyForeignEquations);
-    joinClause->ForeignKeyPrefix = keyPrefix;
-    joinClause->CommonKeyPrefix = *commonKeyPrefix;
+    for (int index = 0; index < std::ssize(selfEquations); ++index) {
+        if (!usedForKeyPrefixEquations.contains(index)) {
+            joinClause->SelfEquations.push_back(selfEquations[index]);
+            joinClause->ForeignEquations.push_back(foreignEquations[index]);
+        }
+    }
+    *globalCommonKeyPrefix = std::min(*globalCommonKeyPrefix, commonKeyPrefix);
+    joinClause->ForeignKeyPrefix = foreignKeyPrefix;
+    joinClause->CommonKeyPrefix = *globalCommonKeyPrefix;
 
     YT_LOG_DEBUG("Creating join (CommonKeyPrefix: %v, ForeignKeyPrefix: %v)",
-        *commonKeyPrefix,
-        keyPrefix);
+        joinClause->CommonKeyPrefix,
+        joinClause->ForeignKeyPrefix);
 
     if (tableJoin.Predicate) {
         joinClause->Predicate = BuildPredicate(
@@ -3455,9 +3476,8 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         table.Alias,
         &query->Schema.Mapping};
 
-    size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
-
     std::vector<TJoinClausePtr> joinClauses;
+    size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
     for (size_t joinIndex = 0; joinIndex < ast.Joins.size(); ++joinIndex) {
         const auto& join = ast.Joins[joinIndex];
         Visit(join,
@@ -3469,7 +3489,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
                     functions,
                     &commonKeyPrefix,
                     tableSchema,
-                    query,
+                    table.Alias,
                     builder,
                     Logger));
             },

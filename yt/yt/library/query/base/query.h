@@ -1268,12 +1268,28 @@ struct TInferNameOptions
 TString InferName(TConstExpressionPtr expr, bool omitValues = false);
 TString InferName(TConstBaseQueryPtr query, TInferNameOptions options = {});
 
+class TSchemaAwareReferenceComparer
+{
+public:
+    TSchemaAwareReferenceComparer(const TTableSchema& lhsSchema, const TTableSchema& rhsSchema, int maxIndex);
+
+    bool operator()(const std::string& lhs, const std::string& rhs);
+
+private:
+    const TTableSchema& LhsSchema_;
+    const TTableSchema& RhsSchema_;
+    const int MaxIndex_;
+};
+
+struct TReferenceComparer
+{
+    bool operator()(const std::string& lhs, const std::string& rhs);
+};
+
 bool Compare(
     TConstExpressionPtr lhs,
-    const TTableSchema& lhsSchema,
     TConstExpressionPtr rhs,
-    const TTableSchema& rhsSchema,
-    size_t maxIndex = std::numeric_limits<size_t>::max());
+    std::function<bool(const std::string&, const std::string&)> comparer = TReferenceComparer());
 
 std::vector<size_t> GetJoinGroups(
     const std::vector<TConstJoinClausePtr>& joinClauses,

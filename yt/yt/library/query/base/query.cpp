@@ -563,8 +563,6 @@ TString InferName(TConstBaseQueryPtr query, TInferNameOptions options)
         clauses.push_back(TString("ORDER BY ") + JoinToString(query->OrderClause->OrderItems, orderItemFormatter));
     }
 
-
-
     if (query->Limit < std::numeric_limits<i64>::max()) {
         clauses.push_back(TString("OFFSET ") + (options.OmitValues ? "?" : ToString(query->Offset)));
         clauses.push_back(TString("LIMIT ") + (options.OmitValues ? "?" : ToString(query->Limit)));
@@ -575,12 +573,28 @@ TString InferName(TConstBaseQueryPtr query, TInferNameOptions options)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSchemaAwareReferenceComparer::TSchemaAwareReferenceComparer(const TTableSchema& lhsSchema, const TTableSchema& rhsSchema, int maxIndex)
+    : LhsSchema_(lhsSchema)
+    , RhsSchema_(rhsSchema)
+    , MaxIndex_(maxIndex)
+{ }
+
+bool TSchemaAwareReferenceComparer::operator()(const std::string& lhs, const std::string& rhs)
+{
+    auto lhsIndex = LhsSchema_.GetColumnIndexOrThrow(lhs);
+    auto rhsIndex = RhsSchema_.GetColumnIndexOrThrow(rhs);
+    return lhsIndex == rhsIndex && lhsIndex < MaxIndex_;
+}
+
+bool TReferenceComparer::operator()(const std::string& lhs, const std::string& rhs)
+{
+    return lhs == rhs;
+}
+
 bool Compare(
     TConstExpressionPtr lhs,
-    const TTableSchema& lhsSchema,
     TConstExpressionPtr rhs,
-    const TTableSchema& rhsSchema,
-    size_t maxIndex)
+    std::function<bool(const std::string&, const std::string&)> referenceComparer)
 {
 #define CHECK(condition)    \
     do {                    \
@@ -598,10 +612,7 @@ bool Compare(
     } else if (auto referenceLhs = lhs->As<TReferenceExpression>()) {
         auto referenceRhs = rhs->As<TReferenceExpression>();
         CHECK(referenceRhs);
-        auto lhsIndex = lhsSchema.GetColumnIndexOrThrow(referenceLhs->ColumnName);
-        auto rhsIndex = rhsSchema.GetColumnIndexOrThrow(referenceRhs->ColumnName);
-        CHECK(lhsIndex == rhsIndex);
-        CHECK(static_cast<size_t>(lhsIndex) < maxIndex);
+        CHECK(referenceComparer(referenceLhs->ColumnName, referenceRhs->ColumnName));
     } else if (auto functionLhs = lhs->As<TFunctionExpression>()) {
         auto functionRhs = rhs->As<TFunctionExpression>();
         CHECK(functionRhs);
@@ -609,25 +620,25 @@ bool Compare(
         CHECK(functionLhs->Arguments.size() == functionRhs->Arguments.size());
 
         for (size_t index = 0; index < functionLhs->Arguments.size(); ++index) {
-            CHECK(Compare(functionLhs->Arguments[index], lhsSchema, functionRhs->Arguments[index], rhsSchema, maxIndex));
+            CHECK(Compare(functionLhs->Arguments[index], functionRhs->Arguments[index], referenceComparer));
         }
     } else if (auto unaryLhs = lhs->As<TUnaryOpExpression>()) {
         auto unaryRhs = rhs->As<TUnaryOpExpression>();
         CHECK(unaryRhs);
         CHECK(unaryLhs->Opcode == unaryRhs->Opcode);
-        CHECK(Compare(unaryLhs->Operand, lhsSchema, unaryRhs->Operand, rhsSchema, maxIndex));
+        CHECK(Compare(unaryLhs->Operand, unaryRhs->Operand, referenceComparer));
     } else if (auto binaryLhs = lhs->As<TBinaryOpExpression>()) {
         auto binaryRhs = rhs->As<TBinaryOpExpression>();
         CHECK(binaryRhs);
         CHECK(binaryLhs->Opcode == binaryRhs->Opcode);
-        CHECK(Compare(binaryLhs->Lhs, lhsSchema, binaryRhs->Lhs, rhsSchema, maxIndex));
-        CHECK(Compare(binaryLhs->Rhs, lhsSchema, binaryRhs->Rhs, rhsSchema, maxIndex));
+        CHECK(Compare(binaryLhs->Lhs, binaryRhs->Lhs, referenceComparer));
+        CHECK(Compare(binaryLhs->Rhs, binaryRhs->Rhs, referenceComparer));
     } else if (auto inLhs = lhs->As<TInExpression>()) {
         auto inRhs = rhs->As<TInExpression>();
         CHECK(inRhs);
         CHECK(inLhs->Arguments.size() == inRhs->Arguments.size());
         for (size_t index = 0; index < inLhs->Arguments.size(); ++index) {
-            CHECK(Compare(inLhs->Arguments[index], lhsSchema, inRhs->Arguments[index], rhsSchema, maxIndex));
+            CHECK(Compare(inLhs->Arguments[index], inRhs->Arguments[index], referenceComparer));
         }
 
         CHECK(inLhs->Values.Size() == inRhs->Values.Size());
@@ -639,7 +650,7 @@ bool Compare(
         CHECK(betweenRhs);
         CHECK(betweenLhs->Arguments.size() == betweenRhs->Arguments.size());
         for (size_t index = 0; index < betweenLhs->Arguments.size(); ++index) {
-            CHECK(Compare(betweenLhs->Arguments[index], lhsSchema, betweenRhs->Arguments[index], rhsSchema, maxIndex));
+            CHECK(Compare(betweenLhs->Arguments[index], betweenRhs->Arguments[index], referenceComparer));
         }
 
         CHECK(betweenLhs->Ranges.Size() == betweenRhs->Ranges.Size());
@@ -651,43 +662,43 @@ bool Compare(
         CHECK(transformRhs);
         CHECK(transformLhs->Arguments.size() == transformRhs->Arguments.size());
         for (size_t index = 0; index < transformLhs->Arguments.size(); ++index) {
-            CHECK(Compare(transformLhs->Arguments[index], lhsSchema, transformRhs->Arguments[index], rhsSchema, maxIndex));
+            CHECK(Compare(transformLhs->Arguments[index], transformRhs->Arguments[index], referenceComparer));
         }
 
         CHECK(transformLhs->Values.Size() == transformRhs->Values.Size());
         for (size_t index = 0; index < transformLhs->Values.Size(); ++index) {
             CHECK(transformLhs->Values[index] == transformRhs->Values[index]);
         }
-        CHECK(Compare(transformLhs->DefaultExpression, lhsSchema, transformRhs->DefaultExpression, rhsSchema, maxIndex));
+        CHECK(Compare(transformLhs->DefaultExpression, transformRhs->DefaultExpression, referenceComparer));
     } else if (auto caseLhs = lhs->As<TCaseExpression>()) {
         auto caseRhs = rhs->As<TCaseExpression>();
         CHECK(caseRhs);
 
-        CHECK(Compare(caseLhs->OptionalOperand, lhsSchema, caseRhs->OptionalOperand, rhsSchema, maxIndex));
+        CHECK(Compare(caseLhs->OptionalOperand, caseRhs->OptionalOperand, referenceComparer));
 
         CHECK(caseLhs->WhenThenExpressions.size() == caseRhs->WhenThenExpressions.size());
 
         for (size_t index = 0; index < caseLhs->WhenThenExpressions.size(); ++index) {
-            CHECK(Compare(caseLhs->WhenThenExpressions[index]->Condition, lhsSchema, caseRhs->WhenThenExpressions[index]->Condition, rhsSchema, maxIndex));
-            CHECK(Compare(caseLhs->WhenThenExpressions[index]->Result, lhsSchema, caseRhs->WhenThenExpressions[index]->Result, rhsSchema, maxIndex));
+            CHECK(Compare(caseLhs->WhenThenExpressions[index]->Condition, caseRhs->WhenThenExpressions[index]->Condition, referenceComparer));
+            CHECK(Compare(caseLhs->WhenThenExpressions[index]->Result, caseRhs->WhenThenExpressions[index]->Result, referenceComparer));
         }
 
-        CHECK(Compare(caseLhs->DefaultExpression, lhsSchema, caseRhs->DefaultExpression, rhsSchema, maxIndex));
+        CHECK(Compare(caseLhs->DefaultExpression, caseRhs->DefaultExpression, referenceComparer));
     } else if (auto likeLhs = lhs->As<TLikeExpression>()) {
         auto likeRhs = rhs->As<TLikeExpression>();
         CHECK(likeRhs);
 
-        CHECK(Compare(likeLhs->Text, lhsSchema, likeRhs->Text, rhsSchema, maxIndex));
+        CHECK(Compare(likeLhs->Text, likeRhs->Text, referenceComparer));
         CHECK(likeLhs->Opcode == likeRhs->Opcode);
-        CHECK(Compare(likeLhs->Pattern, lhsSchema, likeRhs->Pattern, rhsSchema, maxIndex));
-        CHECK(Compare(likeLhs->EscapeCharacter, lhsSchema, likeRhs->EscapeCharacter, rhsSchema, maxIndex));
+        CHECK(Compare(likeLhs->Pattern, likeRhs->Pattern, referenceComparer));
+        CHECK(Compare(likeLhs->EscapeCharacter, likeRhs->EscapeCharacter, referenceComparer));
     } else if (auto memberAccessorLhs = lhs->As<TCompositeMemberAccessorExpression>()) {
         auto memberAccessorRhs = rhs->As<TCompositeMemberAccessorExpression>();
         CHECK(memberAccessorRhs);
 
-        CHECK(Compare(memberAccessorLhs->CompositeExpression, lhsSchema, memberAccessorRhs->CompositeExpression, rhsSchema, maxIndex));
+        CHECK(Compare(memberAccessorLhs->CompositeExpression, memberAccessorRhs->CompositeExpression, referenceComparer));
         CHECK(memberAccessorLhs->NestedStructOrTupleItemAccessor == memberAccessorRhs->NestedStructOrTupleItemAccessor);
-        CHECK(Compare(memberAccessorLhs->DictOrListItemAccessor, lhsSchema, memberAccessorRhs->DictOrListItemAccessor, rhsSchema, maxIndex));
+        CHECK(Compare(memberAccessorLhs->DictOrListItemAccessor, memberAccessorRhs->DictOrListItemAccessor, referenceComparer));
     } else {
         YT_ABORT();
     }
