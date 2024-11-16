@@ -249,6 +249,7 @@ private:
             ? std::nullopt
             : std::make_optional(FromProto<std::vector<int>>(request->extension_tags()));
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
+        auto supportedChunkFeatures = FromProto<NChunkClient::EChunkFeatures>(request->supported_chunk_features());
 
         context->SetRequestInfo(
             "ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v",
@@ -274,13 +275,18 @@ private:
                     return;
                 }
 
-                {
-                    // Although it it highly unlikely that job proxy doesn't support some
-                    // of the features supported by exec node, we keep this check for consistency.
-                    NChunkClient::EChunkFeatures chunkFeatures = FromProto<NChunkClient::EChunkFeatures>(meta->features());
-                    NChunkClient::EChunkFeatures supportedChunkFeatures = FromProto<NChunkClient::EChunkFeatures>(request->supported_chunk_features());
-                    ValidateChunkFeatures(chunkId, chunkFeatures, supportedChunkFeatures);
+                auto chunkFeatures = FromProto<NChunkClient::EChunkFeatures>(meta->features());
+                if (Any(chunkFeatures & EChunkFeatures::Unknown)) {
+                    THROW_ERROR_EXCEPTION(
+                        NChunkClient::EErrorCode::UnsupportedChunkFeature,
+                        "Chunk %v has unknown features",
+                        chunkId)
+                        << TErrorAttribute("chunk_features", meta->features());
                 }
+
+                // Although it it highly unlikely that job proxy doesn't support some
+                // of the features supported by exec node, we keep this check for consistency.
+                ValidateChunkFeatures(chunkId, chunkFeatures, supportedChunkFeatures);
 
                 *response->mutable_chunk_meta() = static_cast<NChunkClient::NProto::TChunkMeta>(*meta);
 
