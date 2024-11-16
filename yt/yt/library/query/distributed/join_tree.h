@@ -32,7 +32,7 @@ DEFINE_REFCOUNTED_TYPE(IJoinTree)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJoinTreePtr MakeIndexJoinTree(const TConstQueryPtr &query, const TDataSource& primaryTable);
+IJoinTreePtr MakeIndexJoinTree(const TConstQueryPtr& query, const TDataSource& primaryTable);
 
 ////////////////////////////////////////////////////////////////////////////////
 

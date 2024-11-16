@@ -303,7 +303,7 @@ TLockId LockNodeInMaster(
     return lockId;
 }
 
-void UnlockNodeInMaster(TVersionedNodeId nodeId, const ISequoiaTransactionPtr &sequoiaTransaction)
+void UnlockNodeInMaster(TVersionedNodeId nodeId, const ISequoiaTransactionPtr& sequoiaTransaction)
 {
     YT_VERIFY(nodeId.IsBranched());
 
