@@ -2624,10 +2624,6 @@ private:
         }
 
         for (auto flavor : TEnumTraits<ENodeFlavor>::GetDomainValues()) {
-            if (flavor == ENodeFlavor::Cluster) {
-                continue;
-            }
-
             TWithTagGuard tagGuard(&buffer, "flavor", FormatEnum(flavor));
 
             profileStatistics(GetFlavoredNodeStatistics(flavor));
