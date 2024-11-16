@@ -292,7 +292,7 @@ void TProxyConfig::Register(TRegistrar registrar)
 void TProxyDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("api", &TThis::Api)
-        .Default();
+        .DefaultNew();
 
     registrar.Parameter("tracing", &TThis::Tracing)
         .DefaultNew();
@@ -313,12 +313,6 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("clickhouse", &TThis::ClickHouse)
         .DefaultNew();
 
-    registrar.Parameter("formats", &TThis::Formats)
-        .Default();
-
-    registrar.Parameter("framing", &TThis::Framing)
-        .DefaultNew();
-
     registrar.Parameter("access_checker", &TThis::AccessChecker)
         .DefaultNew();
 
@@ -327,15 +321,6 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("memory_limits", &TThis::MemoryLimits)
         .DefaultNew();
-
-    // COMPAT(gritukan, levysotsky)
-    registrar.Postprocessor([] (TThis* config) {
-        if (!config->Api) {
-            config->Api = New<TApiDynamicConfig>();
-            config->Api->Formats = config->Formats;
-            config->Api->Framing = config->Framing;
-        }
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
