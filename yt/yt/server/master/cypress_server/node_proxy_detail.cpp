@@ -97,8 +97,9 @@ static constexpr auto& Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsAccessLoggedMethod(const TString& method) {
-    static const THashSet<TString> methodsForAccessLog = {
+bool IsAccessLoggedMethod(const std::string& method)
+{
+    static const THashSet<std::string> methodsForAccessLog = {
         "Lock",
         "Unlock",
         "GetKey",
@@ -1036,7 +1037,7 @@ void TNontemplateCypressNodeProxyBase::GetBasicAttributes(TGetBasicAttributesCon
     context->ContentRevision = node->GetContentRevision();
 }
 
-void TNontemplateCypressNodeProxyBase::ValidateMethodWhitelistedForTransaction(const TString& method) const
+void TNontemplateCypressNodeProxyBase::ValidateMethodWhitelistedForTransaction(const std::string& method) const
 {
     const auto& transactionManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager;
     if (!Transaction_ || !transactionManagerConfig->CheckTransactionIsCompatibleWithMethod) {
