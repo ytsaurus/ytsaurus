@@ -52,15 +52,17 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, GenerateTimestamps)
     {
         int count = request->count();
-        context->SetRequestInfo("Count: %v", count);
+        auto clockClusterTag = request->has_clock_cluster_tag()
+            ? FromProto<TCellTag>(request->clock_cluster_tag())
+            : InvalidCellTag;
+
+        context->SetRequestInfo("Count: %v, ClockClusterTag: %v",
+            count,
+            clockClusterTag);
 
         auto provider = Provider_;
-        auto clockClusterTag = InvalidCellTag;
-        if (request->has_clock_cluster_tag()) {
-            clockClusterTag = FromProto<TCellTag>(request->clock_cluster_tag());
 
-            context->SetRequestInfo("ClockClusterTag: %v", clockClusterTag);
-
+        if (clockClusterTag != InvalidCellTag) {
             auto foreignProviderPtr = AlienProviders_.find(clockClusterTag);
             if (foreignProviderPtr == AlienProviders_.end()) {
                 context->Reply(TError(
