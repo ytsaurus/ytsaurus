@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/ytree/public.h>
 
+#include <yt/yt/client/api/client_common.h>
+
 #include <yt/yt/client/table_client/schema.h>
 
 #include <library/cpp/yt/yson_string/string.h>
@@ -29,6 +31,7 @@ void SetNode(
     NSequoiaClient::TYPathBuf path,
     const NYson::TYsonString& value,
     bool force,
+    const NApi::TSuppressableAccessTrackingOptions& options,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 void MultisetNodeAttributes(
@@ -36,6 +39,7 @@ void MultisetNodeAttributes(
     NSequoiaClient::TYPathBuf path,
     const std::vector<TMultisetAttributesSubrequest>& subrequests,
     bool force,
+    const NApi::TSuppressableAccessTrackingOptions& options,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 void CreateNode(
@@ -69,11 +73,13 @@ void AttachChild(
     NCypressClient::TNodeId parentId,
     NCypressClient::TNodeId childId,
     const std::string& childKey,
+    const NApi::TSuppressableAccessTrackingOptions& options,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 void DetachChild(
     NCypressClient::TNodeId parentId,
     const std::string& childKey,
+    const NApi::TSuppressableAccessTrackingOptions& options,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 void LockRowInNodeIdToPathTable(
@@ -99,6 +105,10 @@ void UnlockNodeInMaster(
 void ToProto(
     NYTree::NProto::TReqMultisetAttributes::TSubrequest* protoSubrequest,
     const TMultisetAttributesSubrequest& subrequest);
+
+void ToProto(
+    NCypressServer::NProto::TAccessTrackingOptions* protoOptions,
+    const NApi::TSuppressableAccessTrackingOptions& options);
 
 void ToProto(
     NCypressServer::NProto::TReqCloneNode::TCloneOptions* protoOptions,

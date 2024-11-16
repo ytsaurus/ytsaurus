@@ -18,6 +18,7 @@
 
 namespace NYT::NCypressProxy {
 
+using namespace NApi;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NSequoiaClient;
@@ -87,6 +88,7 @@ void SetNode(
     TYPathBuf path,
     const TYsonString& value,
     bool force,
+    const TSuppressableAccessTrackingOptions& options,
     const ISequoiaTransactionPtr& transaction)
 {
     NCypressServer::NProto::TReqSetNode reqSetNode;
@@ -95,6 +97,7 @@ void SetNode(
     reqSetNode.set_value(value.ToString());
     reqSetNode.set_force(force);
     ToProto(reqSetNode.mutable_transaction_id(), nodeId.TransactionId);
+    ToProto(reqSetNode.mutable_access_tracking_options(), options);
     transaction->AddTransactionAction(
         CellTagFromId(nodeId.ObjectId),
         MakeTransactionActionData(reqSetNode));
@@ -105,6 +108,7 @@ void MultisetNodeAttributes(
     TYPathBuf path,
     const std::vector<TMultisetAttributesSubrequest>& subrequests,
     bool force,
+    const TSuppressableAccessTrackingOptions& options,
     const ISequoiaTransactionPtr& transaction)
 {
     NCypressServer::NProto::TReqMultisetAttributes reqMultisetAttributes;
@@ -113,6 +117,7 @@ void MultisetNodeAttributes(
     ToProto(reqMultisetAttributes.mutable_subrequests(), subrequests);
     reqMultisetAttributes.set_force(force);
     ToProto(reqMultisetAttributes.mutable_transaction_id(), nodeId.TransactionId);
+    ToProto(reqMultisetAttributes.mutable_access_tracking_options(), options);
     transaction->AddTransactionAction(
         CellTagFromId(nodeId.ObjectId),
         MakeTransactionActionData(reqMultisetAttributes));
@@ -225,6 +230,7 @@ void AttachChild(
     TNodeId parentId,
     TNodeId childId,
     const std::string& childKey,
+    const TSuppressableAccessTrackingOptions& options,
     const ISequoiaTransactionPtr& transaction)
 {
     transaction->WriteRow(NRecords::TChildNode{
@@ -239,12 +245,14 @@ void AttachChild(
     ToProto(attachChildRequest.mutable_parent_id(), parentId);
     ToProto(attachChildRequest.mutable_child_id(), childId);
     attachChildRequest.set_key(childKey);
+    ToProto(attachChildRequest.mutable_access_tracking_options(), options);
     transaction->AddTransactionAction(CellTagFromId(parentId), MakeTransactionActionData(attachChildRequest));
 }
 
 void DetachChild(
     TNodeId parentId,
     const std::string& childKey,
+    const TSuppressableAccessTrackingOptions& options,
     const ISequoiaTransactionPtr& transaction)
 {
     transaction->DeleteRow(NRecords::TChildNodeKey{
@@ -255,6 +263,7 @@ void DetachChild(
     NCypressServer::NProto::TReqDetachChild reqDetachChild;
     ToProto(reqDetachChild.mutable_parent_id(), parentId);
     reqDetachChild.set_key(childKey);
+    ToProto(reqDetachChild.mutable_access_tracking_options(), options);
     transaction->AddTransactionAction(
         CellTagFromId(parentId),
         MakeTransactionActionData(reqDetachChild));
@@ -324,6 +333,13 @@ void ToProto(
 {
     protoSubrequest->set_attribute(ToProto<TProtobufString>(subrequest.Attribute));
     protoSubrequest->set_value(subrequest.Value.ToString());
+}
+
+void ToProto(NCypressServer::NProto::TAccessTrackingOptions* protoOptions, const TSuppressableAccessTrackingOptions& options)
+{
+    protoOptions->set_suppress_access_tracking(options.SuppressAccessTracking);
+    protoOptions->set_suppress_modification_tracking(options.SuppressModificationTracking);
+    protoOptions->set_suppress_expiration_timeout_renewal(options.SuppressExpirationTimeoutRenewal);
 }
 
 void ToProto(TReqCloneNode::TCloneOptions* protoOptions, const TCopyOptions& options)

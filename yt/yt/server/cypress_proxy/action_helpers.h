@@ -54,6 +54,7 @@ NCypressClient::TNodeId CreateIntermediateNodes(
     const NSequoiaClient::TAbsoluteYPath& parentPath,
     NCypressClient::TNodeId parentId,
     TRange<std::string> nodeKeys,
+    const NApi::TSuppressableAccessTrackingOptions& options,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 //! Copies subtree.
@@ -78,7 +79,8 @@ void RemoveSelectedSubtree(
     const NSequoiaClient::ISequoiaTransactionPtr& transaction,
     NCypressClient::TTransactionId cypressTransactionId,
     bool removeRoot = true,
-    NCypressClient::TNodeId subtreeParentId = {});
+    NCypressClient::TNodeId subtreeParentId = {},
+    const NApi::TSuppressableAccessTrackingOptions& options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

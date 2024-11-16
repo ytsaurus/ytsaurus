@@ -89,23 +89,19 @@ DEFINE_YPATH_CONTEXT_IMPL(ISequoiaServiceContext, TTypedSequoiaServiceContext);
 DECLARE_SUPPORTS_METHOD(Get);
 DECLARE_SUPPORTS_METHOD(Set);
 DECLARE_SUPPORTS_METHOD(Remove);
+DECLARE_SUPPORTS_METHOD(List);
 DECLARE_SUPPORTS_METHOD(Exists, TSupportsExistsBase);
 
 IMPLEMENT_SUPPORTS_METHOD(Get)
 IMPLEMENT_SUPPORTS_METHOD(Set)
 IMPLEMENT_SUPPORTS_METHOD(Remove)
+IMPLEMENT_SUPPORTS_METHOD(List)
 
 IMPLEMENT_SUPPORTS_METHOD_RESOLVE(
     Exists,
     {
         context->SetRequestInfo();
-        // An empty stream indicates that the object exists. Paths that end up
-        // being resolved here and must return a positive response are usually
-        // those with a trailing '&'. Note that "&" is already skipped somewhere
-        // inside these macros.
-        // NB: ExistsAttribute() case is already handled somewhere in these
-        // macros.
-        Reply(context, /*exists*/ tokenizer.GetType() == NYPath::ETokenType::EndOfStream);
+        Reply(context, /*exists*/ false);
     })
 
 void TSupportsExists::ExistsAttribute(
@@ -152,6 +148,7 @@ class TNodeProxy
     , public TSupportsGet
     , public TSupportsSet
     , public TSupportsRemove
+    , public TSupportsList
 {
 public:
     TNodeProxy(
@@ -178,6 +175,8 @@ protected:
     const TNodeId ParentId_;
     const TSequoiaResolveResult ResolveResult_;
 
+    TSuppressableAccessTrackingOptions AccessTrackingOptions_ = {};
+
     DECLARE_YPATH_SERVICE_METHOD(NYTree::NProto, MultisetAttributes);
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
@@ -185,12 +184,22 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Lock);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Unlock);
 
+    void BeforeInvoke(const ISequoiaServiceContextPtr& context) override
+    {
+        AccessTrackingOptions_ = {
+            .SuppressAccessTracking = GetSuppressAccessTracking(context->RequestHeader()),
+            .SuppressModificationTracking = GetSuppressModificationTracking(context->RequestHeader()),
+            .SuppressExpirationTimeoutRenewal = GetSuppressExpirationTimeoutRenewal(context->RequestHeader()),
+        };
+    }
+
     bool DoInvoke(const ISequoiaServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Exists);
         DISPATCH_YPATH_SERVICE_METHOD(Get);
         DISPATCH_YPATH_SERVICE_METHOD(Set);
         DISPATCH_YPATH_SERVICE_METHOD(Remove);
+        DISPATCH_YPATH_SERVICE_METHOD(List);
         DISPATCH_YPATH_SERVICE_METHOD(MultisetAttributes);
         DISPATCH_YPATH_SERVICE_METHOD(GetBasicAttributes);
         DISPATCH_YPATH_SERVICE_METHOD(Create);
@@ -254,6 +263,30 @@ protected:
         }
     }
 
+    void MaybeTouchCurrentNode(auto requestFactory, const auto& context)
+    {
+        // For mutable requests access tracking is conducted in transaction actions.
+        YT_VERIFY(!IsRequestMutating(context->GetRequestHeader()));
+
+        auto suppressAccessTracking = GetSuppressAccessTracking(context->RequestHeader());
+        auto suppressExpirationTimeoutRenewal = GetSuppressExpirationTimeoutRenewal(context->RequestHeader());
+        if (suppressAccessTracking && suppressExpirationTimeoutRenewal) {
+            return;
+        }
+
+        auto req = requestFactory(FromObjectId(Id_));
+        SetTransactionId(req, SequoiaSession_->GetCypressTransactionId());
+        SetSuppressAccessTracking(req, suppressAccessTracking);
+        SetSuppressExpirationTimeoutRenewal(req, suppressExpirationTimeoutRenewal);
+        SetAllowResolveFromSequoiaObject(req, true);
+
+        auto rspOrError = WaitFor(CreateReadProxyForObject(Id_).Execute(std::move(req)));
+        if (!rspOrError.IsOK()) {
+            YT_LOG_DEBUG(rspOrError, "Node touch failed");
+        }
+        rspOrError.ThrowOnError();
+    }
+
     TCellTag RemoveRootstock()
     {
         YT_VERIFY(TypeFromId(Id_) == EObjectType::Scion);
@@ -275,9 +308,9 @@ protected:
         return SequoiaSession_->RemoveRootstock(rootstockId);
     }
 
-    void ForwardRequestAndAbortSequoiaSession(auto createRequest, const auto& context)
+    void ForwardRequestAndAbortSequoiaSession(auto requestFactory, const auto& context)
     {
-        auto newRequest = createRequest(NYPath::TYPath());
+        auto newRequest = requestFactory(NYPath::TYPath());
         newRequest->CopyFrom(context->Request());
 
         // TODO(kvk1920): it could be better to deal with Cypress tx replication
@@ -286,10 +319,12 @@ protected:
 
         auto suffix = GetRequestTargetYPath(context->GetRequestHeader());
         SetRequestTargetYPath(&newRequest->Header(), FromObjectId(Id_) + suffix);
-        auto isMutating = IsRequestMutating(context->GetRequestHeader());
         SetTransactionId(newRequest, SequoiaSession_->GetCypressTransactionId());
+        SetAccessTrackingOptions(newRequest, AccessTrackingOptions_);
         SetAllowResolveFromSequoiaObject(newRequest, true);
-        auto proxy = isMutating ? CreateWriteProxyForObject(Id_) : CreateReadProxyForObject(Id_);
+        auto proxy = IsRequestMutating(context->GetRequestHeader())
+            ? CreateWriteProxyForObject(Id_)
+            : CreateReadProxyForObject(Id_);
 
         // TODO(kvk1920): it always prints "0-0-0-0 -> 0-0-0-0". Investigate it.
 
@@ -419,7 +454,8 @@ protected:
             .TargetParentId = SequoiaSession_->CreateMapNodeChain(
                 Path_,
                 Id_,
-                unresolvedSuffixTokens.Slice(0, unresolvedSuffixTokens.Size() - 1)),
+                unresolvedSuffixTokens.Slice(0, unresolvedSuffixTokens.Size() - 1),
+                /*options*/ {}),
             .AttachmentPointNodeId = Id_,
             .TargetNodeKey = unresolvedSuffixTokens.Back(),
         };
@@ -447,7 +483,7 @@ protected:
             request->recursive(),
             force);
 
-        SequoiaSession_->SetNode(Id_, NYson::TYsonString(request->value()));
+        SequoiaSession_->SetNode(Id_, NYson::TYsonString(request->value()), AccessTrackingOptions_);
 
         FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
     }
@@ -487,6 +523,15 @@ protected:
         FinishSequoiaSessionAndReply(context, CellIdFromCellTag(subtreeRootCell), /*commitSession*/ true);
     }
 
+    void ExistsSelf(
+        TReqExists* /*request*/,
+        TRspExists* /*response*/,
+        const TCtxExistsPtr& context) override
+    {
+        context->SetRequestInfo();
+        ForwardRequestAndAbortSequoiaSession(TYPathProxy::Exists, context);
+    }
+
     void ExistsAttribute(
         const NYPath::TYPath& /*path*/,
         TReqExists* /*request*/,
@@ -523,7 +568,8 @@ protected:
             Id_,
             TYPathBuf("/@" + path),
             TYsonString(request->value()),
-            force);
+            force,
+            AccessTrackingOptions_);
 
         FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
     }
@@ -541,7 +587,18 @@ protected:
             force);
 
         SequoiaSession_->RemoveNodeAttribute(Id_, TYPathBuf("/@" + path), force);
+
         FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
+    }
+
+    void ListAttribute(
+        const NYPath::TYPath& /*path*/,
+        TReqList* /*request*/,
+        TRspList* /*response*/,
+        const TCtxListPtr& context) override
+    {
+        context->SetRequestInfo();
+        ForwardRequestAndAbortSequoiaSession(TYPathProxy::List, context);
     }
 };
 
@@ -561,7 +618,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, MultisetAttributes)
         Id_,
         targetPath,
         subrequests,
-        force);
+        force,
+        AccessTrackingOptions_);
 
     FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
 }
@@ -669,7 +727,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
         type,
         Path_ + unresolvedSuffix,
         explicitAttributes.Get(),
-        targetParentNodeId);
+        targetParentNodeId,
+        /*options*/ {});
 
     ToProto(response->mutable_node_id(), createdNodeId);
     response->set_cell_tag(ToProto(CellTagFromId(createdNodeId)));
@@ -786,6 +845,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
 
         context->SetResponseInfo("ExistingNodeId: %v", Id_);
 
+        // TODO(danilalexeev): Lock the source node's row in Sequoia tables to ensure correct access tracking.
         // TODO(h0pless): If lockExisting - lock the node.
         FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ false);
         return;
@@ -976,14 +1036,6 @@ public:
     using TNodeProxy::TNodeProxy;
 
 private:
-    DECLARE_YPATH_SERVICE_METHOD(NYTree::NProto, List);
-
-    bool DoInvoke(const ISequoiaServiceContextPtr& context) override
-    {
-        DISPATCH_YPATH_SERVICE_METHOD(List);
-        return TNodeProxy::DoInvoke(context);
-    }
-
     // TODO(h0pless): This class can be moved to helpers.
     // It only uses Owner_->SequoiaSession_, it's safe to change owner's type from proxy to transaction.
     //! This class consumes YSON, builds tree and attaches it to its parent.
@@ -995,9 +1047,11 @@ private:
         explicit TTreeBuilder(
             TSequoiaSession* session,
             TAbsoluteYPath subtreePath,
-            TNodeId parentId)
+            TNodeId parentId,
+            TSuppressableAccessTrackingOptions options)
             : UncaughtExceptions_(std::uncaught_exceptions())
             , Session_(session)
+            , AccessTrackingOptions_(std::move(options))
             , CurrentPath_(std::move(subtreePath))
         {
             YT_VERIFY(Session_);
@@ -1082,6 +1136,8 @@ private:
     private:
         const int UncaughtExceptions_;
         TSequoiaSession* const Session_;
+        const TSuppressableAccessTrackingOptions AccessTrackingOptions_;
+
         std::stack<TNodeId, std::vector<TNodeId>> CurrentAncestors_;
         TAbsoluteYPath CurrentPath_;
         std::unique_ptr<TAttributeConsumer> AttributeConsumer_;
@@ -1091,7 +1147,7 @@ private:
         void CreateNonCompositeNodeAndPopItsKey(EObjectType type, const T& value)
         {
             auto nodeId = CreateNode(type);
-            Session_->SetNode(nodeId, NYson::ConvertToYsonString(value));
+            Session_->SetNode(nodeId, NYson::ConvertToYsonString(value), AccessTrackingOptions_);
 
             CurrentPath_ = CurrentPath_.GetDirPath();
         }
@@ -1102,7 +1158,8 @@ private:
                 type,
                 CurrentPath_,
                 Attributes_.Get(),
-                CurrentAncestors_.top());
+                CurrentAncestors_.top(),
+                AccessTrackingOptions_);
             Attributes_.Reset();
 
             return nodeId;
@@ -1116,10 +1173,12 @@ private:
         TMapNodeSetter(
             TSequoiaSession* session,
             TAbsoluteYPath path,
-            TNodeId nodeId)
+            TNodeId nodeId,
+            TSuppressableAccessTrackingOptions options)
             : Session_(session)
             , Path_(std::move(path))
             , Id_(nodeId)
+            , AccessTrackingOptions_(std::move(options))
         {
             YT_VERIFY(Session_);
             YT_VERIFY(TypeFromId(nodeId) == EObjectType::SequoiaMapNode);
@@ -1150,13 +1209,16 @@ private:
                 Id_,
                 TYPathBuf("/@"),
                 subrequests,
-                /*force*/ false);
+                /*force*/ false,
+                AccessTrackingOptions_);
         }
 
     private:
         TSequoiaSession* const Session_;
         const TAbsoluteYPath Path_;
         const TNodeId Id_;
+        const TSuppressableAccessTrackingOptions AccessTrackingOptions_;
+
         std::optional<TTreeBuilder> SubtreeBuilderHolder_;
         std::unique_ptr<TAttributeConsumer> AttributeConsumer_;
         IAttributeDictionaryPtr Attributes_;
@@ -1166,7 +1228,11 @@ private:
             YT_ASSERT(!SubtreeBuilderHolder_.has_value());
 
             auto subtreeRootPath = YPathJoin(Path_, ToStringLiteral(key));
-            auto& builder = SubtreeBuilderHolder_.emplace(Session_, subtreeRootPath, Id_);
+            auto& builder = SubtreeBuilderHolder_.emplace(
+                Session_,
+                subtreeRootPath,
+                Id_,
+                AccessTrackingOptions_);
             Forward(&builder, [this] {
                 SubtreeBuilderHolder_.reset();
             });
@@ -1198,9 +1264,9 @@ private:
         }
 
         // NB: locks |Id_|.
-        SequoiaSession_->ClearSubtree(Path_);
+        SequoiaSession_->ClearSubtree(Path_, AccessTrackingOptions_);
 
-        auto setter = TMapNodeSetter(SequoiaSession_.Get(), Path_, Id_);
+        auto setter = TMapNodeSetter(SequoiaSession_.Get(), Path_, Id_, AccessTrackingOptions_);
         auto producer = ConvertToProducer(NYson::TYsonString(request->value()));
         producer.Run(&setter);
 
@@ -1277,6 +1343,8 @@ private:
         if (attributeFilter) {
             ToProto(requestTemplate->mutable_attributes(), attributeFilter);
         }
+        SetSuppressAccessTracking(requestTemplate, true);
+        SetSuppressExpirationTimeoutRenewal(requestTemplate, true);
 
         // Find all nodes that need to be requested from master cells.
         std::vector<TNodeId> nodesToFetchFromMaster;
@@ -1322,6 +1390,9 @@ private:
 
         writer.Flush();
 
+        MaybeTouchCurrentNode(TYPathProxy::Get, context);
+        // Should not throw after this point.
+
         response->set_value(stream.Str());
 
         context->Reply();
@@ -1352,6 +1423,30 @@ private:
         ThrowNoSuchChild(Path_, tokenizer.GetLiteralValue());
     }
 
+    void ListRecursive(
+        const NYPath::TYPath& path,
+        TReqList* request,
+        TRspList* /*response*/,
+        const TCtxListPtr& context) override
+    {
+        auto attributeFilter = request->has_attributes()
+            ? FromProto<TAttributeFilter>(request->attributes())
+            : TAttributeFilter();
+
+        auto limit = YT_PROTO_OPTIONAL(*request, limit);
+
+        context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
+            limit,
+            attributeFilter);
+
+        NYPath::TTokenizer tokenizer(path);
+        tokenizer.Advance();
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+
+        // See |TMapLikeNodeProxy::GetRecursive|.
+        ThrowNoSuchChild(Path_, tokenizer.GetLiteralValue());
+    }
+
     void SetRecursive(
         const NYPath::TYPath& path,
         TReqSet* request,
@@ -1379,9 +1474,10 @@ private:
         auto targetParentId = SequoiaSession_->CreateMapNodeChain(
             Path_,
             Id_,
-            unresolvedSuffixTokens);
+            unresolvedSuffixTokens,
+            AccessTrackingOptions_);
 
-        auto builder = TTreeBuilder(SequoiaSession_.Get(), destinationPath, targetParentId);
+        auto builder = TTreeBuilder(SequoiaSession_.Get(), destinationPath, targetParentId, AccessTrackingOptions_);
         auto producer = ConvertToProducer(NYson::TYsonString(request->value()));
         producer.Run(&builder);
 
@@ -1414,40 +1510,36 @@ private:
 
         context->Reply();
     }
-};
 
-DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
-{
-    auto attributeFilter = request->has_attributes()
-        ? FromProto<TAttributeFilter>(request->attributes())
-        : TAttributeFilter();
-
-    auto limit = YT_PROTO_OPTIONAL(*request, limit);
-
-    context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
-        limit,
-        attributeFilter);
-
-    auto unresolvedSuffix = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
-    if (auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
-        !unresolvedSuffixTokens.empty())
+    void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override
     {
-        ThrowNoSuchChild(Path_, unresolvedSuffixTokens[0]);
+        auto attributeFilter = request->has_attributes()
+            ? FromProto<TAttributeFilter>(request->attributes())
+            : TAttributeFilter();
+
+        auto limit = YT_PROTO_OPTIONAL(*request, limit);
+
+        context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
+            limit,
+            attributeFilter);
+
+        auto children = WaitFor(SequoiaSession_->FetchChildren(Id_))
+            .ValueOrThrow();
+
+        MaybeTouchCurrentNode(TYPathProxy::List, context);
+        // Should not throw after this point.
+
+        response->set_value(BuildYsonStringFluently()
+            .BeginList()
+                .DoFor(children, [&] (TFluentList fluent, const auto& child) {
+                    fluent
+                        .Item().Value(child.ChildKey);
+                })
+            .EndList().ToString());
+
+        FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ false);
     }
-
-    auto children = WaitFor(SequoiaSession_->FetchChildren(Id_))
-        .ValueOrThrow();
-
-    response->set_value(BuildYsonStringFluently()
-        .BeginList()
-            .DoFor(children, [&] (TFluentList fluent, const auto& child) {
-                fluent
-                    .Item().Value(child.ChildKey);
-            })
-        .EndList().ToString());
-
-    FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ false);
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

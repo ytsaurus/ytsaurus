@@ -9,6 +9,15 @@ import "yt_proto/yt/core/ytree/proto/ypath.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TAccessTrackingOptions
+{
+    required bool suppress_access_tracking = 1;
+    required bool suppress_modification_tracking = 2;
+    required bool suppress_expiration_timeout_renewal = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqCreateNode
 {
     required int32 type = 1;
@@ -52,6 +61,7 @@ message TReqAttachChild
     required NYT.NProto.TGuid child_id = 2;
     required string key = 3;
     optional NYT.NProto.TGuid transaction_id = 4;
+    optional TAccessTrackingOptions access_tracking_options = 100;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,6 +79,7 @@ message TReqDetachChild
     required NYT.NProto.TGuid parent_id = 1;
     required string key = 2;
     optional NYT.NProto.TGuid transaction_id = 3;
+    optional TAccessTrackingOptions access_tracking_options = 100;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,6 +91,7 @@ message TReqSetNode
     optional bytes value = 2;
     optional bool force = 5;
     optional NYT.NProto.TGuid transaction_id = 3;
+    optional TAccessTrackingOptions access_tracking_options = 100;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,6 +103,7 @@ message TReqMultisetAttributes
     repeated NYT.NYTree.NProto.TReqMultisetAttributes.TSubrequest subrequests = 3;
     required bool force = 4;
     required NYT.NProto.TGuid transaction_id = 5;
+    optional TAccessTrackingOptions access_tracking_options = 100;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

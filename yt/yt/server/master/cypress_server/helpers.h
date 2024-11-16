@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/master/security_server/cluster_resources.h>
 
+#include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
+
 #include <yt/yt/core/yson/string.h>
 
 namespace NYT::NCypressServer {
@@ -163,6 +165,10 @@ void ValidateAccessControlObjectNamespaceName(const std::string& name);
 void ValidateAccessControlObjectName(const std::string& name);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void MaybeTouchNode(
+    const ICypressNodeProxyPtr& nodeProxy,
+    const NCypressServer::NProto::TAccessTrackingOptions& protoOptions = {});
 
 TLockRequest CreateLockRequest(
     ELockMode mode,

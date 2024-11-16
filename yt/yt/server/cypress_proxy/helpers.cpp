@@ -17,7 +17,7 @@
 
 namespace NYT::NCypressProxy {
 
-using namespace NApi::NNative;
+using namespace NApi;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NCypressClient::NProto;
@@ -29,6 +29,23 @@ using namespace NYTree;
 
 using TYPath = NSequoiaClient::TYPath;
 using TYPathBuf = NSequoiaClient::TYPathBuf;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void SetAccessTrackingOptions(
+    const IClientRequestPtr& request,
+    const TSuppressableAccessTrackingOptions& commandOptions)
+{
+    if (commandOptions.SuppressAccessTracking) {
+        NCypressClient::SetSuppressAccessTracking(request, true);
+    }
+    if (commandOptions.SuppressModificationTracking) {
+        NCypressClient::SetSuppressModificationTracking(request, true);
+    }
+    if (commandOptions.SuppressExpirationTimeoutRenewal) {
+        NCypressClient::SetSuppressExpirationTimeoutRenewal(request, true);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -212,7 +229,7 @@ void FromProto(
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<NYTree::INodePtr> FetchSingleObject(
-    const IClientPtr& client,
+    const NNative::IClientPtr& client,
     TVersionedObjectId objectId,
     const TAttributeFilter& attributeFilter)
 {

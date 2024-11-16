@@ -3417,6 +3417,16 @@ void TSequoiaMapNodeProxy::GetSelf(
     }));
 }
 
+void TSequoiaMapNodeProxy::ListSelf(
+    TReqList* /*request*/,
+    TRspList* /*response*/,
+    const TCtxListPtr& context)
+{
+    // TODO(danilalexeev): Support list with attributes.
+    context->SetRequestInfo();
+    context->Reply();
+}
+
 int TSequoiaMapNodeProxy::GetChildCount() const
 {
     const auto* node = GetThisImpl();
