@@ -2055,8 +2055,7 @@ private:
             NRpc::NProto::TResponseHeader subresponseHeader;
             YT_VERIFY(TryParseResponseHeader(subresponseMessage, &subresponseHeader));
 
-            auto subresponseErrorCode = FromProto<NObjectClient::EErrorCode>(subresponseHeader.error().code());
-            if (subresponseErrorCode == NObjectClient::EErrorCode::ForwardedRequestFailed) {
+            if (subresponseHeader.error().code() == ToUnderlying(NObjectClient::EErrorCode::ForwardedRequestFailed)) {
                 auto wrapperError = FromProto<TError>(subresponseHeader.error());
                 YT_VERIFY(wrapperError.InnerErrors().size() == 1);
 

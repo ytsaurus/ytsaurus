@@ -966,12 +966,7 @@ TDataSliceSourcePair JoinDataSliceSourcePairs(std::vector<TDataSliceSourcePair> 
 
 EChunkFeatures GetSupportedChunkFeatures()
 {
-    EChunkFeatures features = EChunkFeatures::None;
-    for (auto chunkFeature : TEnumTraits<EChunkFeatures>::GetDomainValues()) {
-        features |= chunkFeature;
-    }
-
-    return features;
+    return TEnumTraits<EChunkFeatures>::GetAllSetValue() & ~EChunkFeatures::Unknown;
 }
 
 void ValidateChunkFeatures(
@@ -984,7 +979,7 @@ void ValidateChunkFeatures(
             EChunkFeatures chunkFeatureMask = chunkFeature;
             if ((chunkFeatures & chunkFeatureMask) != EChunkFeatures::None && (supportedChunkFeatures & chunkFeatureMask) == EChunkFeatures::None) {
                 THROW_ERROR_EXCEPTION(EErrorCode::UnsupportedChunkFeature,
-                    "Processing chunk %v requires feature %Qv that is not supported by cluster yet",
+                    "Chunk %v requires feature %Qlv that is not supported yet",
                     chunkId,
                     TEnumTraits<EChunkFeatures>::FindLiteralByValue(chunkFeature))
                     << TErrorAttribute("chunk_features", chunkFeatures)

@@ -1664,6 +1664,7 @@ private:
             : std::make_optional(FromProto<std::vector<int>>(request->extension_tags()));
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         bool enableThrottling = request->enable_throttling();
+        auto supportedChunkFeatures = FromProto<NChunkClient::EChunkFeatures>(request->supported_chunk_features());
 
         context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v, EnableThrottling: %v",
             chunkId,
@@ -1720,14 +1721,18 @@ private:
             }
 
             const auto& meta = readMetaResult.Meta;
-
             YT_VERIFY(meta);
 
-            {
-                NChunkClient::EChunkFeatures chunkFeatures = FromProto<NChunkClient::EChunkFeatures>(meta->features());
-                NChunkClient::EChunkFeatures supportedChunkFeatures = FromProto<NChunkClient::EChunkFeatures>(request->supported_chunk_features());
-                ValidateChunkFeatures(chunkId, chunkFeatures, supportedChunkFeatures);
+            auto chunkFeatures = FromProto<NChunkClient::EChunkFeatures>(meta->features());
+            if (Any(chunkFeatures & EChunkFeatures::Unknown)) {
+                THROW_ERROR_EXCEPTION(
+                    NChunkClient::EErrorCode::UnsupportedChunkFeature,
+                    "Chunk %v has unknown features",
+                    chunkId)
+                    << TErrorAttribute("chunk_features", meta->features());
             }
+
+            ValidateChunkFeatures(chunkId, chunkFeatures, supportedChunkFeatures);
 
             if (partitionTag) {
                 const auto& blockMetaCache = Bootstrap_->GetChunkMetaManager()->GetBlockMetaCache();
