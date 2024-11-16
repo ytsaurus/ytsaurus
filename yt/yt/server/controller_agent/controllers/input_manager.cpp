@@ -466,7 +466,7 @@ TMasterChunkSpecFetcherPtr TInputManager::CreateChunkSpecFetcher(const TInputClu
         chunkSpecFetcher->Add(
             table->ObjectId,
             table->ExternalCellTag,
-            table->Dynamic && !table->Schema->IsSorted() ? -1 : table->ChunkCount,
+            table->Dynamic && !table->Schema->IsSorted() ? TUserObject::UndefinedChunkCount : table->ChunkCount,
             tableIndex,
             ranges);
     }

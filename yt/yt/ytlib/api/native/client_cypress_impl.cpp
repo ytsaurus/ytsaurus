@@ -1186,6 +1186,7 @@ public:
             StartNestedInputTransactions();
             GetObjectAttributes();
             InferCommonType();
+            // COMPAT(ignat): drop in 25.1; chunk counts must be available in GetBasicAttributes response.
             GetSrcObjectChunkCounts();
             if (CommonType_ == EObjectType::Table) {
                 InferOutputTableSchema();
@@ -1336,18 +1337,27 @@ private:
                 auto* srcObject = std::any_cast<TUserObject*>(rsp->Tag());
 
                 srcObject->ObjectId = FromProto<TObjectId>(rsp->object_id());
+                // COMPAT(ignat): write the following in 25.1
+                // srcObject->Type = FromProto<EObjectType>(rsp->type());
                 srcObject->ExternalCellTag = FromProto<TCellTag>(rsp->external_cell_tag());
                 srcObject->ExternalTransactionId = rsp->has_external_transaction_id()
                     ? FromProto<TTransactionId>(rsp->external_transaction_id())
                     : *srcObject->TransactionId;
                 srcObject->SecurityTags = FromProto<std::vector<TSecurityTag>>(rsp->security_tags().items());
+                if (rsp->has_chunk_count()) {
+                    srcObject->ChunkCount = rsp->chunk_count();
+                }
 
-                YT_LOG_DEBUG("Source object attributes received (Path: %v, ObjectId: %v, ExternalCellTag: %v, SecurityTags: %v, ExternalTransactionId: %v)",
+                // COMPAT(ignat): log object type in 25.1
+                YT_LOG_DEBUG(
+                    "Source object attributes received "
+                    "(Path: %v, ObjectId: %v, ExternalCellTag: %v, SecurityTags: %v, ExternalTransactionId: %v, ChunkCount: %v)",
                     srcObject->GetPath(),
                     srcObject->ObjectId,
                     srcObject->ExternalCellTag,
                     srcObject->SecurityTags,
-                    srcObject->ExternalTransactionId);
+                    srcObject->ExternalTransactionId,
+                    srcObject->ChunkCount);
             }
         }
         {
@@ -1374,6 +1384,7 @@ private:
 
         DstObject_.Type = TypeFromId(DstObject_.ObjectId);
 
+        // COMPAT(ignat): drop this logic in 25.1 since type is fully supported in GetBasicAttributes.
         // For virtual tables object types cannot be inferred from object ids.
         bool needToFetchSourceObjectTypes = false;
         for (auto& srcObject : SrcObjects_) {
@@ -1449,6 +1460,19 @@ private:
 
     void GetSrcObjectChunkCounts()
     {
+        bool hasMissingChunkCounts = false;
+        for (auto& srcObject : SrcObjects_) {
+            if (srcObject.ChunkCount == TUserObject::UndefinedChunkCount) {
+                hasMissingChunkCounts = true;
+                break;
+            }
+        }
+
+        if (!hasMissingChunkCounts) {
+            YT_LOG_DEBUG("Skip fetching chunk counts of source objects");
+            return;
+        }
+
         YT_LOG_DEBUG("Fetch chunk counts of source objects");
 
         auto proxy = Client_->CreateObjectServiceReadProxy(TMasterReadOptions());
