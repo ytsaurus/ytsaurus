@@ -2474,8 +2474,9 @@ private:
         if (operation->GetStrategySpec()->IsGang && !pool->AreGangOperationsAllowed()) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::GangOperationsAllowedOnlyInFifoPools,
-                "Starting gang operations in pool %Qv is forbidden since it is not configured in FIFO mode",
-                pool->GetId());
+                "Starting gang operations in pool %Qv in tree %Qv is forbidden since it is not configured in FIFO mode",
+                pool->GetId(),
+                TreeId_);
         }
 
         StrategyHost_->ValidatePoolPermission(
