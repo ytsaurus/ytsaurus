@@ -62,7 +62,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, StartOperation)
     {
-        auto type = CheckedEnumCast<EOperationType>(request->type());
+        auto type = FromProto<EOperationType>(request->type());
         auto transactionId = GetTransactionId(context);
         auto mutationId = context->GetMutationId();
 

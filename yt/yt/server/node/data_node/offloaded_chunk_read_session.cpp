@@ -170,7 +170,7 @@ private:
     {
         auto chunkMeta = WaitFor(Chunk_->ReadMeta(Options_))
             .ValueOrThrow();
-        auto type = CheckedEnumCast<EChunkType>(chunkMeta->type());
+        auto type = FromProto<EChunkType>(chunkMeta->type());
         if (type != EChunkType::Table) {
             THROW_ERROR_EXCEPTION("Chunk %v is of invalid type", ChunkId_)
                 << TErrorAttribute("expected_chunk_type", EChunkType::Table)

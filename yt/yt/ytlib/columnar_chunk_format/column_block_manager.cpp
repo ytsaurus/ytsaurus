@@ -420,7 +420,7 @@ TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(
                 memoryManagerHolder,
                 std::vector{underlyingReader},
                 blockCache,
-                CheckedEnumCast<NCompression::ECodec>(chunkMeta->Misc().compression_codec()),
+                FromProto<NCompression::ECodec>(chunkMeta->Misc().compression_codec()),
                 static_cast<double>(compressedSize) / uncompressedSize,
                 chunkReadOptions,
                 sessionInvoker);
@@ -455,7 +455,7 @@ public:
         : BlockHolders_(std::move(blockHolders))
         , BlockCache_(std::move(blockCache))
         , ChunkId_(chunkId)
-        , CodecId_(CheckedEnumCast<NCompression::ECodec>(chunkMeta->Misc().compression_codec()))
+        , CodecId_(FromProto<NCompression::ECodec>(chunkMeta->Misc().compression_codec()))
     { }
 
     void ClearUsedBlocks() override

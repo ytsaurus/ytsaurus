@@ -148,7 +148,7 @@ TMasterJobBase::TMasterJobBase(
     , Logger(DataNodeLogger().WithTag(
         "JobId: %v, JobType: %v",
         jobId,
-        CheckedEnumCast<EJobType>(jobSpec.type())))
+        FromProto<EJobType>(jobSpec.type())))
     , ResourceHolder_(TResourceHolder::CreateResourceHolder(
         jobId.Underlying(),
         bootstrap->GetJobResourceManager().Get(),
@@ -230,7 +230,7 @@ EJobType TMasterJobBase::GetType() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return CheckedEnumCast<EJobType>(JobSpec_.type());
+    return FromProto<EJobType>(JobSpec_.type());
 }
 
 bool TMasterJobBase::IsUrgent() const
@@ -931,7 +931,7 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
-        auto codecId = CheckedEnumCast<NErasure::ECodec>(JobSpecExt_.erasure_codec());
+        auto codecId = FromProto<NErasure::ECodec>(JobSpecExt_.erasure_codec());
         auto* codec = NErasure::GetCodec(codecId);
         auto decommission = JobSpecExt_.decommission();
         auto rowCount = JobSpecExt_.has_row_count() ? std::make_optional<i64>(JobSpecExt_.row_count()) : std::nullopt;
@@ -1076,7 +1076,7 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
-        auto codecId = CheckedEnumCast<NErasure::ECodec>(JobSpecExt_.codec_id());
+        auto codecId = FromProto<NErasure::ECodec>(JobSpecExt_.codec_id());
         int mediumIndex = JobSpecExt_.medium_index();
         auto sourceReplicas = ParseSourceReplicas(JobSpecExt_);
         i64 sealRowCount = JobSpecExt_.row_count();
@@ -1436,13 +1436,13 @@ private:
         const auto& chunkMergerWriterOptions = JobSpecExt_.chunk_merger_writer_options();
         Schema_ = New<TTableSchema>(FromProto<TTableSchema>(chunkMergerWriterOptions.schema()));
         SchemaId_ = FromProto<TMasterTableSchemaId>(chunkMergerWriterOptions.schema_id());
-        CompressionCodec_ = CheckedEnumCast<NCompression::ECodec>(chunkMergerWriterOptions.compression_codec());
-        ErasureCodec_ = CheckedEnumCast<NErasure::ECodec>(chunkMergerWriterOptions.erasure_codec());
+        CompressionCodec_ = FromProto<NCompression::ECodec>(chunkMergerWriterOptions.compression_codec());
+        ErasureCodec_ = FromProto<NErasure::ECodec>(chunkMergerWriterOptions.erasure_codec());
         if (chunkMergerWriterOptions.has_optimize_for()) {
-            OptimizeFor_ = CheckedEnumCast<EOptimizeFor>(chunkMergerWriterOptions.optimize_for());
+            OptimizeFor_ = FromProto<EOptimizeFor>(chunkMergerWriterOptions.optimize_for());
         }
         if (chunkMergerWriterOptions.has_chunk_format()) {
-            ChunkFormat_ = CheckedEnumCast<EChunkFormat>(chunkMergerWriterOptions.chunk_format());
+            ChunkFormat_ = FromProto<EChunkFormat>(chunkMergerWriterOptions.chunk_format());
         }
         if (chunkMergerWriterOptions.has_enable_skynet_sharing()) {
             EnableSkynetSharing_ = chunkMergerWriterOptions.enable_skynet_sharing();
@@ -1452,7 +1452,7 @@ private:
             MaxBlockCount_ = chunkMergerWriterOptions.max_block_count();
         }
 
-        MergeMode_ = CheckedEnumCast<EChunkMergerMode>(chunkMergerWriterOptions.merge_mode());
+        MergeMode_ = FromProto<EChunkMergerMode>(chunkMergerWriterOptions.merge_mode());
         YT_LOG_INFO("Chunk merge job started (Mode: %v)", MergeMode_);
 
         PrepareInputChunkReadContexts();
@@ -1977,8 +1977,8 @@ public:
         , NewChunkId_(FromProto<TChunkId>(JobSpecExt_.new_chunk_id()))
         , CellTag_(CellTagFromId(OldChunkId_))
         , TargetReplicas_(FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas()))
-        , ErasureCodec_(CheckedEnumCast<NErasure::ECodec>(JobSpecExt_.erasure_codec()))
-        , CompressionCodec_(CheckedEnumCast<NCompression::ECodec>(JobSpecExt_.compression_codec()))
+        , ErasureCodec_(FromProto<NErasure::ECodec>(JobSpecExt_.erasure_codec()))
+        , CompressionCodec_(FromProto<NCompression::ECodec>(JobSpecExt_.compression_codec()))
         , MediumIndex_(JobSpecExt_.medium_index())
         , EnableSkynetSharing_(JobSpecExt_.has_enable_skynet_sharing()
             ? std::optional(JobSpecExt_.enable_skynet_sharing())
@@ -2102,7 +2102,7 @@ private:
             oldChunkMeta->CopyFrom(*result.Value());
         }
 
-        auto oldChunkFormat = CheckedEnumCast<EChunkFormat>(oldChunkMeta->format());
+        auto oldChunkFormat = FromProto<EChunkFormat>(oldChunkMeta->format());
         YT_VERIFY(
             IsValidTableChunkFormat(oldChunkFormat) ||
             oldChunkFormat == EChunkFormat::FileDefault);
@@ -2320,7 +2320,7 @@ private:
         chunkWriterOptions->CompressionCodec = CompressionCodec_;
         chunkWriterOptions->EnableSkynetSharing = EnableSkynetSharing_.value_or(false);
         chunkWriterOptions->OptimizeFor = OptimizeForFromFormat(
-            CheckedEnumCast<EChunkFormat>(oldChunkMeta->format()));
+            FromProto<EChunkFormat>(oldChunkMeta->format()));
         if (auto miscExt = GetChunkMiscExt(oldChunkMeta); miscExt && miscExt->has_eden()) {
             chunkWriterOptions->ChunksEden = miscExt->eden();
         }
@@ -2366,7 +2366,7 @@ public:
         , ReadQuorum_(JobSpecExt_.read_quorum())
         , WriteQuorum_(JobSpecExt_.write_quorum())
         , MediumIndex_(JobSpecExt_.medium_index())
-        , ErasureCodecId_(CheckedEnumCast<NErasure::ECodec>(JobSpecExt_.erasure_codec()))
+        , ErasureCodecId_(FromProto<NErasure::ECodec>(JobSpecExt_.erasure_codec()))
         , DynamicConfig_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->AutotomizeChunkJob)
     {
         NodeDirectory_->MergeFrom(JobSpecExt_.node_directory());
@@ -2970,7 +2970,7 @@ TMasterJobBasePtr CreateJob(
     IBootstrap* bootstrap,
     const TMasterJobSensors& sensors)
 {
-    auto type = CheckedEnumCast<EJobType>(jobSpec.type());
+    auto type = FromProto<EJobType>(jobSpec.type());
     switch (type) {
         case EJobType::ReplicateChunk:
             return NewWithOffloadedDtor<TChunkReplicationJob>(

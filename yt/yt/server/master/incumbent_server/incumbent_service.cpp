@@ -42,7 +42,7 @@ private:
 
         TIncumbentMap descriptors;
         for (const auto& protoDescriptor : request->descriptors()) {
-            auto incumbentType = CheckedEnumCast<EIncumbentType>(protoDescriptor.type());
+            auto incumbentType = FromProto<EIncumbentType>(protoDescriptor.type());
             auto& descriptor = descriptors[incumbentType];
             for (const auto& address : protoDescriptor.addresses()) {
                 if (address) {

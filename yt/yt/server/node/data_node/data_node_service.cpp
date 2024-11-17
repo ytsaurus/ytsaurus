@@ -1601,7 +1601,7 @@ private:
 
         auto timestamp = request->timestamp();
         auto columnFilter = FromProto<NTableClient::TColumnFilter>(request->column_filter());
-        auto codecId = CheckedEnumCast<NCompression::ECodec>(request->compression_codec());
+        auto codecId = FromProto<NCompression::ECodec>(request->compression_codec());
         auto produceAllVersions = FromProto<bool>(request->produce_all_versions());
         auto overrideTimestamp = request->has_override_timestamp() ? request->override_timestamp() : NullTimestamp;
         auto useDirectIO = request->use_direct_io();
@@ -1845,7 +1845,7 @@ private:
                 chunkId);
 
             const auto& chunkMeta = metaOrError.Value();
-            auto type = CheckedEnumCast<EChunkType>(chunkMeta->type());
+            auto type = FromProto<EChunkType>(chunkMeta->type());
             if (type != EChunkType::Table) {
                 THROW_ERROR_EXCEPTION("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
                     chunkId,
@@ -1929,7 +1929,7 @@ private:
                 chunkId);
 
             const auto& chunkMeta = metaOrError.Value();
-            auto type = CheckedEnumCast<EChunkType>(chunkMeta->type());
+            auto type = FromProto<EChunkType>(chunkMeta->type());
             if (type != EChunkType::Table) {
                 THROW_ERROR_EXCEPTION("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
                     chunkId,
@@ -2020,7 +2020,7 @@ private:
                 chunkId);
             const auto& meta = *metaOrError.Value();
 
-            auto type = CheckedEnumCast<EChunkType>(meta.type());
+            auto type = FromProto<EChunkType>(meta.type());
             if (type != EChunkType::Table) {
                 THROW_ERROR_EXCEPTION("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
                     chunkId,

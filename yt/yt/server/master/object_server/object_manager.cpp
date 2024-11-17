@@ -2218,7 +2218,7 @@ void TObjectManager::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeSt
     }
 
     auto oldLifeStage = object->GetLifeStage();
-    auto newLifeStage = CheckedEnumCast<EObjectLifeStage>(request->new_life_stage());
+    auto newLifeStage = FromProto<EObjectLifeStage>(request->new_life_stage());
     object->SetLifeStage(newLifeStage);
 
     YT_LOG_DEBUG(

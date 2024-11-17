@@ -870,7 +870,7 @@ TMaintenanceCountsPerTarget TClient::DoRemoveMaintenance(
 
     auto extractRemovedCounts = [] (TMaintenanceCounts* counts, const auto& proto) {
         for (const auto& entry : proto) {
-            counts->operator[](CheckedEnumCast<EMaintenanceType>(entry.type())) = entry.count();
+            counts->operator[](FromProto<EMaintenanceType>(entry.type())) = entry.count();
         }
     };
 

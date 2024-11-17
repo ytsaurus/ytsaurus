@@ -128,7 +128,7 @@ private:
             THROW_ERROR_EXCEPTION("This cell cannot host Sequoia nodes");
         }
 
-        auto type = CheckedEnumCast<EObjectType>(request->type());
+        auto type = FromProto<EObjectType>(request->type());
         if (!CanCreateSequoiaType(type)) {
             THROW_ERROR_EXCEPTION("Type %Qlv is not supported in Sequoia", type);
         }
@@ -512,8 +512,8 @@ private:
             THROW_ERROR_EXCEPTION("Type %Qlv is not supported in Sequoia", type);
         }
 
-        auto requestOptions = request->mutable_options();
-        auto mode = CheckedEnumCast<ENodeCloneMode>(requestOptions->mode());
+        auto* requestOptions = request->mutable_options();
+        auto mode = FromProto<ENodeCloneMode>(requestOptions->mode());
         TNodeFactoryOptions factoryOptions{
             .PreserveAccount = requestOptions->preserve_account(),
             .PreserveCreationTime = requestOptions->preserve_creation_time(),
@@ -640,7 +640,7 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* cypressTransaction = transactionManager->GetTransactionOrThrow(cypressTransactionId);
 
-        auto mode = CheckedEnumCast<ELockMode>(request->mode());
+        auto mode = FromProto<ELockMode>(request->mode());
         auto childKey = YT_PROTO_OPTIONAL(*request, child_key);
         auto attributeKey = YT_PROTO_OPTIONAL(*request, attribute_key);
         auto timestamp = request->timestamp();

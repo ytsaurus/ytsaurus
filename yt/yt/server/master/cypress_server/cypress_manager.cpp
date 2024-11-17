@@ -4296,7 +4296,7 @@ private:
         auto sourceTransactionId = FromProto<TTransactionId>(request->source_transaction_id());
         auto clonedNodeId = FromProto<TNodeId>(request->cloned_node_id());
         auto clonedTransactionId = FromProto<TTransactionId>(request->cloned_transaction_id());
-        auto mode = CheckedEnumCast<ENodeCloneMode>(request->mode());
+        auto mode = FromProto<ENodeCloneMode>(request->mode());
         auto accountId = FromProto<TAccountId>(request->account_id());
         auto nativeContentRevision = FromProto<NHydra::TRevision>(request->native_content_revision());
         auto schemaId = FromProto<TMasterTableSchemaId>(request->schema_id_hint());

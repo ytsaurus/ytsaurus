@@ -154,7 +154,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
 
     TGetBasicAttributesContext getBasicAttributesContext;
     if (request->has_permission()) {
-        getBasicAttributesContext.Permission = CheckedEnumCast<EPermission>(request->permission());
+        getBasicAttributesContext.Permission = FromProto<EPermission>(request->permission());
     }
     if (request->has_columns()) {
         getBasicAttributesContext.Columns = FromProto<std::vector<std::string>>(request->columns().items());

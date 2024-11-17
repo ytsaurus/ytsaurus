@@ -339,7 +339,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, ThrottleJob)
     {
-        auto throttlerType = CheckedEnumCast<EJobThrottlerType>(request->throttler_type());
+        auto throttlerType = FromProto<EJobThrottlerType>(request->throttler_type());
         auto amount = request->amount();
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         auto jobId = FromProto<TJobId>(request->job_id());

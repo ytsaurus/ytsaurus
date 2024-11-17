@@ -146,7 +146,7 @@ TCheckPermissionResponse TClient::DoCheckPermission(
         .ValueOrThrow();
 
     auto fillResult = [] (auto* result, const auto& protoResult) {
-        result->Action = CheckedEnumCast<ESecurityAction>(protoResult.action());
+        result->Action = FromProto<ESecurityAction>(protoResult.action());
         result->ObjectId = FromProto<TObjectId>(protoResult.object_id());
         result->ObjectName = protoResult.has_object_name() ? std::make_optional(protoResult.object_name()) : std::nullopt;
         result->SubjectId = FromProto<TSubjectId>(protoResult.subject_id());

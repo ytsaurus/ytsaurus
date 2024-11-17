@@ -255,7 +255,7 @@ protected:
             THROW_ERROR_EXCEPTION("Create with transaction is not supported in Sequoia yet");
         }
 
-        auto type = CheckedEnumCast<EObjectType>(request->type());
+        auto type = FromProto<EObjectType>(request->type());
         if (type == EObjectType::SequoiaMapNode) {
             THROW_ERROR_EXCEPTION("%Qlv is internal type and should not be used directly; use %Qlv instead",
                 EObjectType::SequoiaMapNode,
@@ -632,7 +632,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetBasicAttributes)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
 {
-    auto type = CheckedEnumCast<EObjectType>(request->type());
+    auto type = FromProto<EObjectType>(request->type());
     auto ignoreExisting = request->ignore_existing();
     auto lockExisting = request->lock_existing();
     auto recursive = request->recursive();
@@ -939,7 +939,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
         }
     }
 
-    auto mode = CheckedEnumCast<ELockMode>(request->mode());
+    auto mode = FromProto<ELockMode>(request->mode());
     auto childKey = YT_PROTO_OPTIONAL(*request, child_key);
     auto attributeKey = YT_PROTO_OPTIONAL(*request, attribute_key);
     auto timestamp = request->timestamp();

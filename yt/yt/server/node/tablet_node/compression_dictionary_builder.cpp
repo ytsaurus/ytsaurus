@@ -1039,7 +1039,7 @@ private:
             for (const auto& store : partition->Stores()) {
                 if (store->GetType() == EStoreType::SortedChunk && TypeFromId(store->GetId()) != EObjectType::ChunkView) {
                     auto chunkStore = store->AsChunk();
-                    auto chunkFormat = CheckedEnumCast<EChunkFormat>(chunkStore->GetChunkMeta().format());
+                    auto chunkFormat = FromProto<EChunkFormat>(chunkStore->GetChunkMeta().format());
                     if (OptimizeForFromFormat(chunkFormat) == EOptimizeFor::Lookup) {
                         request.StoreIds.push_back(chunkStore->GetId());
                         request.StoreWeights.push_back(computeWeight(chunkStore));

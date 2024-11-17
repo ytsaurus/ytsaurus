@@ -308,7 +308,7 @@ private:
         const auto& chunkReplicator = chunkManager->GetChunkReplicator();
 
         auto addressType = request->has_address_type()
-            ? CheckedEnumCast<NNodeTrackerClient::EAddressType>(request->address_type())
+            ? FromProto<NNodeTrackerClient::EAddressType>(request->address_type())
             : NNodeTrackerClient::EAddressType::InternalRpc;
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory(), addressType);
 
@@ -392,7 +392,7 @@ private:
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
         auto addressType = request->has_address_type()
-            ? CheckedEnumCast<NNodeTrackerClient::EAddressType>(request->address_type())
+            ? FromProto<NNodeTrackerClient::EAddressType>(request->address_type())
             : NNodeTrackerClient::EAddressType::InternalRpc;
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory(), addressType);
 

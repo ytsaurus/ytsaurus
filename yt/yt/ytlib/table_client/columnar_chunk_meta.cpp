@@ -57,8 +57,8 @@ int GetCommonKeyPrefix(const TKeyColumns& lhs, const TKeyColumns& rhs)
 
 TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
 {
-    ChunkType_ = CheckedEnumCast<EChunkType>(chunkMeta.type());
-    ChunkFormat_ = CheckedEnumCast<EChunkFormat>(chunkMeta.format());
+    ChunkType_ = FromProto<EChunkType>(chunkMeta.type());
+    ChunkFormat_ = FromProto<EChunkFormat>(chunkMeta.format());
     ChunkFeatures_ = FromProto<EChunkFeatures>(chunkMeta.features());
 
     Misc_ = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
