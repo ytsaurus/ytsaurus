@@ -126,7 +126,7 @@ TOperation::TOperation(
     , TrimmedAnnotations_(std::move(trimmedAnnotations))
     , VanillaTaskNames_(std::move(vanillaTaskNames))
     , CustomSpecPerTree_(std::move(customSpecPerTree))
-    , CodicilData_(MakeOperationCodicilString(Id_))
+    , Codicil_(MakeOperationCodicil(Id_))
     , ControlInvoker_(std::move(controlInvoker))
     , State_(state)
     , RuntimeParameters_(std::move(runtimeParameters))
@@ -278,7 +278,7 @@ IOperationControllerStrategyHostPtr TOperation::GetControllerStrategyHost() cons
 
 TCodicilGuard TOperation::MakeCodicilGuard() const
 {
-    return TCodicilGuard(CodicilData_);
+    return TCodicilGuard(MakeOwningCodicilBuilder(Codicil_));
 }
 
 EOperationState TOperation::GetState() const

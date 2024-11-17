@@ -13,6 +13,7 @@
 
 #include <yt/yt/core/actions/callback.h>
 
+#include <yt/yt/core/misc/codicil.h>
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/phoenix.h>
 
@@ -100,8 +101,6 @@ public:
     //! Logger for this allocation.
     DEFINE_BYREF_RO_PROPERTY(NLogging::TLogger, Logger);
 
-    DEFINE_BYREF_RO_PROPERTY(TString, CodicilString);
-
     DEFINE_BYVAL_RW_PROPERTY(TInstant, PreemptibleProgressStartTime);
 
 public:
@@ -128,7 +127,11 @@ public:
     //! Duration of progress that will be wasted if allocation is preempted.
     TDuration GetPreemptibleProgressDuration() const;
 
+    TCodicilGuard MakeCodicilGuard() const;
+
 private:
+    const std::string Codicil_;
+
     NLogging::TLogger CreateLogger();
 };
 

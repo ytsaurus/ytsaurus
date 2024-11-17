@@ -42,7 +42,9 @@ TAllocation::TAllocation(
     , SchedulingIndex_(schedulingIndex)
     , SchedulingStage_(schedulingStage)
     , Logger_(CreateLogger())
-    , CodicilString_(Format("AllocationId: %v, OperationId: %v", Id_, OperationId_))
+    , Codicil_(Format("AllocationId: %v, OperationId: %v",
+        Id_,
+        OperationId_))
 { }
 
 void TAllocation::SetNode(const TExecNodePtr& node)
@@ -71,6 +73,12 @@ TDuration TAllocation::GetPreemptibleProgressDuration() const
     }
 
     return TDuration::Zero();
+}
+
+TCodicilGuard TAllocation::MakeCodicilGuard() const
+{
+    return TCodicilGuard(MakeOwningCodicilBuilder(Codicil_));
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

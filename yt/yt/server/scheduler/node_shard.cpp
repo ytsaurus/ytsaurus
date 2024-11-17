@@ -1855,7 +1855,7 @@ TAllocationPtr TNodeShard::ProcessAllocationHeartbeat(
         return nullptr;
     }
 
-    auto guard = TCodicilGuard{allocation->CodicilString()};
+    auto guard = allocation->MakeCodicilGuard();
 
     const auto& Logger = allocation->Logger();
 

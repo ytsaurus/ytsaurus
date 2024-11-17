@@ -111,14 +111,14 @@ void BuildMutableOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString MakeOperationCodicilString(TOperationId operationId)
+std::string MakeOperationCodicil(TOperationId operationId)
 {
     return Format("OperationId: %v", operationId);
 }
 
 TCodicilGuard MakeOperationCodicilGuard(TOperationId operationId)
 {
-    return TCodicilGuard(MakeOperationCodicilString(operationId));
+    return TCodicilGuard(MakeOwningCodicilBuilder(MakeOperationCodicil(operationId)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

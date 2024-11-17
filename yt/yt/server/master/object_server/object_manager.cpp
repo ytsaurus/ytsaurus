@@ -78,7 +78,7 @@
 
 #include <yt/yt/core/ypath/tokenizer.h>
 
-#include <yt/yt/core/misc/crash_handler.h>
+#include <yt/yt/core/misc/codicil.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -337,12 +337,10 @@ private:
 
     void CheckInvariants() override;
 
-    static TString MakeCodicilData(const TAuthenticationIdentity& identity);
     void HydraExecuteLeader(
         const TAuthenticationIdentity& identity,
-        const TString& codicilData,
         const IYPathServiceContextPtr& rpcContext,
-        TMutationContext*);
+        TMutationContext* mutationContext);
     void HydraExecuteFollower(NProto::TReqExecute* request);
     void HydraDestroyObjects(NProto::TReqDestroyObjects* request);
     void HydraCreateForeignObject(NProto::TReqCreateForeignObject* request) noexcept;
@@ -1397,7 +1395,6 @@ std::unique_ptr<TMutation> TObjectManager::CreateExecuteMutation(
         &TObjectManager::HydraExecuteLeader,
         MakeStrong(this),
         identity,
-        MakeCodicilData(identity),
         context));
     return mutation;
 }
@@ -1848,20 +1845,54 @@ void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
     DoReplicateObjectAttributesToSecondaryMaster(object, cellTag, /*mandatory*/ false);
 }
 
-TString TObjectManager::MakeCodicilData(const TAuthenticationIdentity& identity)
-{
-    return ToString(identity);
-}
-
 void TObjectManager::HydraExecuteLeader(
     const TAuthenticationIdentity& identity,
-    const TString& codicilData,
     const IYPathServiceContextPtr& rpcContext,
     TMutationContext* mutationContext)
 {
     TWallTimer timer;
 
-    TCodicilGuard codicilGuard(codicilData);
+    TCodicilGuard codicilGuard([&] (TCodicilFormatter* formatter) {
+        formatter->AppendString("User: ");
+        formatter->AppendString(identity.User);
+        if (!identity.UserTag.empty() && identity.UserTag != identity.User) {
+            formatter->AppendString(", UserTag: ");
+            formatter->AppendString(identity.UserTag);
+        }
+
+        formatter->AppendString(", Method: ");
+        formatter->AppendString(rpcContext->GetService());
+        formatter->AppendString(".");
+        formatter->AppendString(rpcContext->GetMethod());
+
+        {
+            const auto& ypathExt = rpcContext->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+            formatter->AppendString(", TargetPath: ");
+            formatter->AppendString(ypathExt.target_path());
+
+            if (ypathExt.has_original_target_path()) {
+                formatter->AppendString(", OriginalTargetPath: ");
+                formatter->AppendString(ypathExt.original_target_path());
+            }
+
+            if (ypathExt.additional_paths_size() > 0) {
+                formatter->AppendString(", AdditionalPaths: [");
+                for (int index = 0; index < ypathExt.additional_paths_size(); ++index) {
+                    if (index > 0) {
+                        formatter->AppendString(", ");
+                    }
+                    formatter->AppendString(ypathExt.additional_paths(index));
+                }
+                formatter->AppendString("]");
+            }
+        }
+
+        if (auto transactionId = GetTransactionId(rpcContext)) {
+            formatter->AppendString(", TransactionId: ");
+            formatter->AppendGuid(transactionId);
+        }
+    });
+
     auto mutationId = rpcContext->GetMutationId();
     if (mutationId && MutationIdempotizer_->IsMutationApplied(mutationId)) {
         // Usually, the response keeper protects us from duplicate mutations,
@@ -1945,9 +1976,7 @@ void TObjectManager::HydraExecuteFollower(NProto::TReqExecute* request)
 
     auto identity = ParseAuthenticationIdentityFromProto(*request);
 
-    auto codicilData = MakeCodicilData(identity);
-
-    HydraExecuteLeader(identity, codicilData, context, GetCurrentMutationContext());
+    HydraExecuteLeader(identity, context, GetCurrentMutationContext());
 }
 
 TFuture<void> TObjectManager::DestroyObjects(std::vector<TObjectId> objectIds)

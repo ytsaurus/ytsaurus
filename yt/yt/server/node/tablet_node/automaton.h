@@ -23,11 +23,7 @@ class TTabletAutomaton
 public:
     explicit TTabletAutomaton(ITabletAutomatonHostPtr host);
 
-    void ApplyMutation(NHydra::TMutationContext* context) override;
-
 private:
-    const TString CodicilData_;
-
     const TWeakPtr<ITabletAutomatonHost> Host_;
 
     std::unique_ptr<NHydra::TSaveContext> CreateSaveContext(

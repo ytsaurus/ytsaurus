@@ -126,6 +126,7 @@
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/codicil_guarded_invoker.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/fair_share_invoker_pool.h>
