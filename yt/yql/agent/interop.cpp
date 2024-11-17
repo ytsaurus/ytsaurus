@@ -94,7 +94,7 @@ void ReorderAndSaveRows(
             continue;
         }
 
-        std::vector<TUnversionedValue> values(targetNameTable->GetSize());
+    //    std::vector<TUnversionedValue> values(targetNameTable->GetSize());
         auto reorderedRow = rowBuffer->AllocateUnversioned(targetNameTable->GetSize());
         for (int index = 0; index < static_cast<int>(reorderedRow.GetCount()); ++index) {
             reorderedRow[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
@@ -229,18 +229,28 @@ Y_UNUSED(rowCountLimit);
     Cerr << __func__ << Endl << NYT::NodeToCanonicalYsonString(writeNode["Type"]) << Endl;
     TTypeBuilder tb;
     NYql::NResult::ParseType(writeNode["Type"], tb);
-    PrintTo(*BuildSchema(*tb.GetResult()), &std::cerr);
-    std::cerr << std::endl;
-    TDataBuilder db;
-    std::vector<TUnversionedRow> resultRows;
-    NYql::NResult::ParseData(writeNode["Type"], writeNode["Data"], db);
-    throw NYql::NResult::TUnsupportedException() << "TODO!!!";
-    return TYqlRowset{
+    TYqlRowset rowset {
         .TargetSchema = BuildSchema(*tb.GetResult()),
-        .ResultRows = std::move(resultRows),
-      //  .RowBuffer = rowBuffer,
+        .RowBuffer = New<TRowBuffer>(),
         .Incomplete = false, //TODO
     };
+
+    auto targetNameTable = TNameTable::FromSchema(*rowset.TargetSchema);
+    TBuildingValueConsumer consumer(rowset.TargetSchema, YqlAgentLogger(), true);
+    PrintTo(*rowset.TargetSchema, &std::cerr);
+    std::cerr << std::endl << "size: " << targetNameTable->GetSize() << std::endl;
+    TDataBuilder db(&consumer);
+    NYql::NResult::ParseData(writeNode["Type"], writeNode["Data"], db);
+    rowset.ResultRows = consumer.GetRows();
+
+    Cerr << Endl << "rows: " << rowset.ResultRows.size() << Endl;
+    for (const auto& row : rowset.ResultRows) {
+        PrintTo(row, &std::cerr);
+    }
+    Cerr << Endl;
+
+    throw NYql::NResult::TUnsupportedException() << "TODO !!!";
+    return rowset;
 }
 
 TYqlRowset BuildRowset(
@@ -313,6 +323,14 @@ TYqlRowset BuildRowset(
     YT_LOG_DEBUG("Result read (RowCount: %v, Incomplete: %v, ResultIndex: %v)", resultRows.size(), incomplete, resultIndex);
 
     PrintTo(*targetSchema, &std::cerr);
+
+    Cerr << Endl << "rows: " << resultRows.size() << Endl;
+    for (const auto& row : resultRows) {
+        PrintTo(row, &std::cerr);
+    }
+    Cerr << Endl;
+
+
     writeNode->GetChildOrThrow("FailTest");
 
     return TYqlRowset{

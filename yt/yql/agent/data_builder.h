@@ -1,12 +1,13 @@
 #pragma once
 
 #include <yql/essentials/public/result_format/yql_result_format_data.h>
+#include <yt/yt/client/table_client/value_consumer.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
 namespace NYT::NYqlAgent {
 class TDataBuilder : public NYql::NResult::IDataVisitor {
 public:
-    TDataBuilder() = default;
-
+    TDataBuilder(NTableClient::IValueConsumer* consumer);
 private:
     void OnVoid() final;
     void OnNull() final;
@@ -73,6 +74,15 @@ private:
     void OnBeginVariant(ui32 index) final;
     void OnEndVariant() final;
     void OnPg(TMaybe<TStringBuf> value, bool isUtf8) final;
+
+    void FlushCurrentValueIfCompleted();
+
+    NTableClient::IValueConsumer *const ValueConsumer_;
+    TBlobOutput ValueBuffer_;
+    NYson::TBufferedBinaryYsonWriter ValueWriter_;
+
+    int Depth_ = -2;
+    int ColumnIndex_ = 0;
 };
 
 }

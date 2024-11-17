@@ -25,6 +25,7 @@ T TTypeBuilder::Pop() {
 
 void TTypeBuilder::OnVoid() {
     Cerr << __func__ << Endl;
+   THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
 }
 void TTypeBuilder::OnNull() {
     Cerr << __func__ << Endl;
@@ -90,6 +91,7 @@ void TTypeBuilder::OnUtf8() {
 }
 void TTypeBuilder::OnYson() {
     Cerr << __func__ << Endl;
+   THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
 }
 void TTypeBuilder::OnJson() {
     Cerr << __func__ << Endl;
@@ -97,6 +99,7 @@ void TTypeBuilder::OnJson() {
 }
 void TTypeBuilder::OnJsonDocument() {
     Cerr << __func__ << Endl;
+   THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
 }
 void TTypeBuilder::OnUuid() {
     Cerr << __func__ << Endl;
@@ -104,6 +107,7 @@ void TTypeBuilder::OnUuid() {
 }
 void TTypeBuilder::OnDyNumber() {
     Cerr << __func__ << Endl;
+   THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
 }
 void TTypeBuilder::OnDate() {
     Cerr << __func__ << Endl;
@@ -119,12 +123,15 @@ void TTypeBuilder::OnTimestamp() {
 }
 void TTypeBuilder::OnTzDate() {
     Cerr << __func__ << Endl;
+   THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
 }
 void TTypeBuilder::OnTzDatetime() {
     Cerr << __func__ << Endl;
+   THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
 }
 void TTypeBuilder::OnTzTimestamp() {
     Cerr << __func__ << Endl;
+   THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
 }
 void TTypeBuilder::OnInterval() {
     Cerr << __func__ << Endl;
@@ -144,12 +151,15 @@ void TTypeBuilder::OnTimestamp64() {
 }
 void TTypeBuilder::OnTzDate32() {
     Cerr << __func__ << Endl;
+   THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
 }
 void TTypeBuilder::OnTzDatetime64() {
     Cerr << __func__ << Endl;
+   THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
 }
 void TTypeBuilder::OnTzTimestamp64() {
     Cerr << __func__ << Endl;
+   THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
 }
 void TTypeBuilder::OnInterval64() {
     Cerr << __func__ << Endl;
@@ -169,7 +179,7 @@ void TTypeBuilder::OnEndOptional() {
 }
 void TTypeBuilder::OnBeginList() {
     Cerr << __func__ << Endl;
-    Stack.push(EKind::Optional);
+    Stack.push(EKind::List);
 }
 void TTypeBuilder::OnEndList() {
     Cerr << __func__ << Endl;
@@ -237,8 +247,8 @@ void TTypeBuilder::OnEndTagged() {
 }
 void TTypeBuilder::OnPg(TStringBuf name, TStringBuf category) {
     Cerr << __func__ << '(' << name << ',' << category << ')' << Endl;
+    THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
 }
-
 
 void TTypeBuilder::Push(TLogicalTypePtr type) {
     if (Stack.empty()) {
