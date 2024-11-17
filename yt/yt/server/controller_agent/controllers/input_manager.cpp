@@ -963,6 +963,13 @@ void TInputManager::InitInputChunkScrapers()
 
 bool TInputManager::CanInterruptJobs() const
 {
+    // TODO(galtsev): hot fix for YT-23460, see also YT-17003
+    for (auto& table : InputTables_) {
+        if (table->Path.GetForeign() && table->Path.GetNewRanges(table->Comparator).size() > 1) {
+            return false;
+        }
+    }
+
     return !InputHasOrderedDynamicStores_ && !InputHasStaticTableWithHunks_;
 }
 
