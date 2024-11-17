@@ -43,6 +43,8 @@ public:
         , EpochId_(epochId)
     { }
 
+    using TInvokerWrapper::Invoke;
+
     void Invoke(TClosure callback) override
     {
         UnderlyingInvoker_->Invoke(BIND([callback = std::move(callback), epochId = EpochId_] {
