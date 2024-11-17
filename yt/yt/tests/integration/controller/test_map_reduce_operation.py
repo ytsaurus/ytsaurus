@@ -3775,7 +3775,7 @@ for key, count in counts.items():
                 "compute_pivot_keys_from_samples": True,
                 "max_partition_factor": 2,
                 "data_size_per_reduce_job": 1,
-                "data_size_per_sort_job": 50 if with_intermediate_sort else 1000,
+                "data_size_per_sort_job": 50 if with_intermediate_sort else 50000,
             },
         )
 
