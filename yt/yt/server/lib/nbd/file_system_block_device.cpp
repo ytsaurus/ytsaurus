@@ -84,22 +84,22 @@ public:
             statistics.MetaBytesReadFromDisk);
     }
 
-    virtual i64 GetTotalSize() const override
+    i64 GetTotalSize() const override
     {
         return Reader_->GetSize();
     }
 
-    virtual bool IsReadOnly() const override
+    bool IsReadOnly() const override
     {
         return true;
     }
 
-    virtual TString DebugString() const override
+    TString DebugString() const override
     {
         return Format("{CypressPath: %v}", Reader_->GetPath());
     }
 
-    virtual TString GetProfileSensorTag() const override
+    TString GetProfileSensorTag() const override
     {
         return Reader_->GetPath();
     }
@@ -141,12 +141,12 @@ public:
         return MakeFuture(TError("Writes are not supported"));
     }
 
-    virtual TFuture<void> Flush() override
+    TFuture<void> Flush() override
     {
         return VoidFuture;
     }
 
-    virtual TFuture<void> Initialize() override
+    TFuture<void> Initialize() override
     {
         return BIND(&TFileSystemBlockDevice::DoInitialize, MakeStrong(this))
             .AsyncVia(Invoker_)

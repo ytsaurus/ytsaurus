@@ -381,7 +381,7 @@ public:
         ActionQueue_->Shutdown();
     }
 
-    virtual void Reconfigure(TFileChangelogDispatcherConfigPtr config) override
+    void Reconfigure(TFileChangelogDispatcherConfigPtr config) override
     {
         PeriodicExecutor_->SetPeriod(config->FlushQuantum);
     }

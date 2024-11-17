@@ -296,22 +296,22 @@ public:
         , BlockCache_(New<TBlockCache>(DeviceId_, DeviceConfig_, Client_, Logger))
     { }
 
-    virtual i64 GetTotalSize() const override
+    i64 GetTotalSize() const override
     {
         return DeviceConfig_->Size;
     }
 
-    virtual bool IsReadOnly() const override
+    bool IsReadOnly() const override
     {
         return false;
     }
 
-    virtual TString DebugString() const override
+    TString DebugString() const override
     {
         return TString();
     }
 
-    virtual TString GetProfileSensorTag() const override
+    TString GetProfileSensorTag() const override
     {
         return TString();
     }

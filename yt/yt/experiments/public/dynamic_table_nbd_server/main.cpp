@@ -73,7 +73,7 @@ public:
     }
 
 protected:
-    virtual void DoRun(const NLastGetopt::TOptsParseResult&) override
+    void DoRun(const NLastGetopt::TOptsParseResult&) override
     {
         ConfigureCrashHandler();
 

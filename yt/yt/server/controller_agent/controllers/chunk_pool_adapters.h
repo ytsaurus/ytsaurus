@@ -19,19 +19,19 @@ public:
 
     explicit TChunkPoolInputAdapterBase(NChunkPools::IPersistentChunkPoolInputPtr underlyingInput);
 
-    virtual TCookie AddWithKey(NChunkPools::TChunkStripePtr stripe, NChunkPools::TChunkStripeKey key) override;
+    TCookie AddWithKey(NChunkPools::TChunkStripePtr stripe, NChunkPools::TChunkStripeKey key) override;
 
-    virtual TCookie Add(NChunkPools::TChunkStripePtr stripe) override;
+    TCookie Add(NChunkPools::TChunkStripePtr stripe) override;
 
-    virtual void Suspend(TCookie cookie) override;
+    void Suspend(TCookie cookie) override;
 
-    virtual void Resume(TCookie cookie) override;
+    void Resume(TCookie cookie) override;
 
-    virtual void Reset(TCookie cookie, NChunkPools::TChunkStripePtr stripe, NChunkPools::TInputChunkMappingPtr mapping) override;
+    void Reset(TCookie cookie, NChunkPools::TChunkStripePtr stripe, NChunkPools::TInputChunkMappingPtr mapping) override;
 
-    virtual void Finish() override;
+    void Finish() override;
 
-    virtual bool IsFinished() const override;
+    bool IsFinished() const override;
 
     void Persist(const TPersistenceContext& context) override;
 
@@ -52,31 +52,31 @@ public:
 
     explicit TChunkPoolOutputAdapterBase(NChunkPools::IPersistentChunkPoolOutputPtr underlyingOutput);
 
-    virtual const TProgressCounterPtr& GetJobCounter() const override;
-    virtual const TProgressCounterPtr& GetDataWeightCounter() const override;
-    virtual const TProgressCounterPtr& GetRowCounter() const override;
-    virtual const TProgressCounterPtr& GetDataSliceCounter() const override;
+    const TProgressCounterPtr& GetJobCounter() const override;
+    const TProgressCounterPtr& GetDataWeightCounter() const override;
+    const TProgressCounterPtr& GetRowCounter() const override;
+    const TProgressCounterPtr& GetDataSliceCounter() const override;
 
-    virtual NChunkPools::TOutputOrderPtr GetOutputOrder() const override;
+    NChunkPools::TOutputOrderPtr GetOutputOrder() const override;
 
-    virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const override;
+    i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const override;
 
-    virtual NTableClient::TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override;
+    NTableClient::TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override;
 
-    virtual TCookie Extract(NNodeTrackerClient::TNodeId nodeId) override;
+    TCookie Extract(NNodeTrackerClient::TNodeId nodeId) override;
 
-    virtual NChunkPools::TChunkStripeListPtr GetStripeList(TCookie cookie) override;
+    NChunkPools::TChunkStripeListPtr GetStripeList(TCookie cookie) override;
 
-    virtual bool IsCompleted() const override;
+    bool IsCompleted() const override;
 
-    virtual int GetStripeListSliceCount(TCookie cookie) const override;
+    int GetStripeListSliceCount(TCookie cookie) const override;
 
-    virtual void Completed(TCookie cookie, const TCompletedJobSummary& jobSummary) override;
-    virtual void Failed(TCookie cookie) override;
-    virtual void Aborted(TCookie cookie, NScheduler::EAbortReason reason) override;
-    virtual void Lost(TCookie cookie) override;
+    void Completed(TCookie cookie, const TCompletedJobSummary& jobSummary) override;
+    void Failed(TCookie cookie) override;
+    void Aborted(TCookie cookie, NScheduler::EAbortReason reason) override;
+    void Lost(TCookie cookie) override;
 
-    virtual bool IsSplittable(NChunkPools::TOutputCookie cookie) const override;
+    bool IsSplittable(NChunkPools::TOutputCookie cookie) const override;
 
     void Persist(const TPersistenceContext& context) override;
 

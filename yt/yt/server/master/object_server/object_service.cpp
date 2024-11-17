@@ -271,7 +271,7 @@ private:
     public:
         explicit TLocalReadCallbackProvider(TSessionSchedulerPtr sessionScheduler);
 
-        virtual TCallback<void()> ExtractCallback() override;
+        TCallback<void()> ExtractCallback() override;
 
     private:
         const TSessionSchedulerPtr SessionScheduler_;

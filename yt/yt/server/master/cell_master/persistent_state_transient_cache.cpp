@@ -90,7 +90,7 @@ public:
         });
     }
 
-    virtual std::string GetNodeDefaultAddress(TNodeId nodeId) override
+    std::string GetNodeDefaultAddress(TNodeId nodeId) override
     {
         return NodeDefaultAddresses_.Read([&] (const auto& nodeAddresses) {
             auto it = nodeAddresses.find(nodeId);

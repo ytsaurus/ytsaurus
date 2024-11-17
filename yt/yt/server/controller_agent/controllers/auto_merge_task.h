@@ -31,11 +31,11 @@ public:
     virtual NChunkPools::IChunkPoolInput::TCookie Add(
         NChunkPools::TChunkStripePtr stripe) override;
 
-    virtual void Suspend(IChunkPoolInput::TCookie cookie) override;
+    void Suspend(IChunkPoolInput::TCookie cookie) override;
 
-    virtual const TProgressCounterPtr& GetJobCounter() const override;
+    const TProgressCounterPtr& GetJobCounter() const override;
 
-    virtual IChunkPoolOutput::TCookie Extract(NNodeTrackerClient::TNodeId nodeId) override;
+    IChunkPoolOutput::TCookie Extract(NNodeTrackerClient::TNodeId nodeId) override;
 
     void SetShouldScheduleJob(bool shouldScheduleJob);
 
@@ -78,30 +78,30 @@ public:
         std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
         std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors);
 
-    virtual TString GetTitle() const override;
-    virtual TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override;
-    virtual TDataFlowGraph::TVertexDescriptor GetVertexDescriptorForJoblet(const TJobletPtr& joblet) const override;
-    virtual TVertexDescriptorList GetAllVertexDescriptors() const override;
+    TString GetTitle() const override;
+    TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override;
+    TDataFlowGraph::TVertexDescriptor GetVertexDescriptorForJoblet(const TJobletPtr& joblet) const override;
+    TVertexDescriptorList GetAllVertexDescriptors() const override;
 
-    virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override;
+    TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override;
 
-    virtual NChunkPools::IPersistentChunkPoolInputPtr GetChunkPoolInput() const override;
+    NChunkPools::IPersistentChunkPoolInputPtr GetChunkPoolInput() const override;
 
-    virtual NChunkPools::IPersistentChunkPoolOutputPtr GetChunkPoolOutput() const override;
+    NChunkPools::IPersistentChunkPoolOutputPtr GetChunkPoolOutput() const override;
 
-    virtual EJobType GetJobType() const override;
+    EJobType GetJobType() const override;
     void AddJobTypeToJoblet(const TJobletPtr& joblet) const override;
 
-    virtual void OnJobStarted(TJobletPtr joblet) override;
-    virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override;
-    virtual TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override;
-    virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override;
+    void OnJobStarted(TJobletPtr joblet) override;
+    TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override;
+    TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override;
+    TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override;
 
     void RegisterNewTeleportChunks();
 
-    virtual void SetupCallbacks() override;
+    void SetupCallbacks() override;
 
-    virtual bool IsCompleted() const override;
+    bool IsCompleted() const override;
 
     void Persist(const TPersistenceContext& context) override;
 
@@ -111,11 +111,11 @@ protected:
     void BuildJobSpec(TJobletPtr joblet, NControllerAgent::NProto::TJobSpec* jobSpec) override;
     bool IsJobInterruptible() const override;
 
-    virtual void OnChunkTeleported(NChunkClient::TInputChunkPtr teleportChunk, std::any tag) override;
+    void OnChunkTeleported(NChunkClient::TInputChunkPtr teleportChunk, std::any tag) override;
 
-    virtual void SetStreamDescriptors(TJobletPtr joblet) const override;
+    void SetStreamDescriptors(TJobletPtr joblet) const override;
 
-    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override;
+    TJobSplitterConfigPtr GetJobSplitterConfig() const override;
 
     void DoRegisterInGraph() override;
 

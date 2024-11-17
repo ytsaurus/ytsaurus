@@ -1734,7 +1734,7 @@ public:
             .IsOK();
     }
 
-    virtual TError CheckExclusiveLock(TCypressNode* trunkNode, TTransaction* transaction) override
+    TError CheckExclusiveLock(TCypressNode* trunkNode, TTransaction* transaction) override
     {
         return CheckLock(trunkNode, transaction, ELockMode::Exclusive, /*recursive*/ false);
     }

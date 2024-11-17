@@ -76,7 +76,7 @@ public:
         Batcher_->SubmitUnversionedRow(command, row, lockMask);
     }
 
-    virtual void SubmitVersionedRow(TTypeErasedRow row) override
+    void SubmitVersionedRow(TTypeErasedRow row) override
     {
         YT_VERIFY(!Prepared_);
 
@@ -85,7 +85,7 @@ public:
         Batcher_->SubmitVersionedRow(row);
     }
 
-    virtual TSharedRange<TUnversionedSubmittedRow> PrepareRequests() override
+    TSharedRange<TUnversionedSubmittedRow> PrepareRequests() override
     {
         if (Prepared_) {
             return {};
@@ -107,7 +107,7 @@ public:
     }
 
     // NB: Concurrent #Invoke calls with different retry indices are possible.
-    virtual TFuture<void> Invoke(int retryIndex) override
+    TFuture<void> Invoke(int retryIndex) override
     {
         if (retryIndex == 0) {
             YT_VERIFY(!Batches_.empty());
@@ -149,7 +149,7 @@ public:
         }
     }
 
-    virtual NTabletClient::TTableMountInfoPtr GetTableMountInfo() const override
+    NTabletClient::TTableMountInfoPtr GetTableMountInfo() const override
     {
         return TableInfo_;
     }

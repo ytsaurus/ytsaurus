@@ -137,7 +137,7 @@ public:
         }
     }
 
-    virtual IYPathServicePtr GetOrchidService() override
+    IYPathServicePtr GetOrchidService() override
     {
         return OrchidService_;
     }

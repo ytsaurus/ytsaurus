@@ -168,9 +168,9 @@ public:
 
     TFuture<void> Allocate(TAllocateRequest request, EWorkloadCategory category) override;
 
-    virtual TFuture<void> Lock(TLockRequest request, EWorkloadCategory category) override;
+    TFuture<void> Lock(TLockRequest request, EWorkloadCategory category) override;
 
-    virtual TFuture<void> Resize(TResizeRequest request, EWorkloadCategory category) override;
+    TFuture<void> Resize(TResizeRequest request, EWorkloadCategory category) override;
 
     bool IsSick() const override;
 
