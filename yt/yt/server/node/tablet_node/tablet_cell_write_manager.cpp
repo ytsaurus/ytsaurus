@@ -25,7 +25,7 @@
 
 #include <yt/yt/core/compression/codec.h>
 
-#include <yt/yt/core/misc/crash_handler.h>
+#include <yt/yt/core/misc/codicil.h>
 
 #include <library/cpp/yt/small_containers/compact_flat_map.h>
 
@@ -801,7 +801,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext() == persistent);
 
-        TCodicilGuard guard(Format("TransactionId: %v", transaction->GetId()));
+        auto codicilGuard = MakeCodicilGuard(transaction);
 
         auto tablets = persistent
             ? GetPersistentAffectedTablets(transaction)
@@ -818,7 +818,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
-        TCodicilGuard guard(Format("TransactionId: %v", transaction->GetId()));
+        auto codicilGuard = MakeCodicilGuard(transaction);
 
         for (auto* tablet : GetPersistentAffectedTablets(transaction)) {
             const auto& tabletWriteManager = tablet->GetTabletWriteManager();
@@ -835,7 +835,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
-        TCodicilGuard guard(Format("TransactionId: %v", transaction->GetId()));
+        auto codicilGuard = MakeCodicilGuard(transaction);
 
         auto serializingTabletIds = transaction->SerializingTabletIds();
         for (auto tabletId : serializingTabletIds) {
@@ -869,7 +869,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
-        TCodicilGuard guard(Format("TransactionId: %v", transaction->GetId()));
+        auto codicilGuard = MakeCodicilGuard(transaction);
 
         for (auto* tablet : GetAffectedTablets(transaction)) {
             const auto& tabletWriteManager = tablet->GetTabletWriteManager();
@@ -1257,6 +1257,14 @@ private:
     TTabletCellWriteManagerDynamicConfigPtr GetDynamicConfig() const
     {
         return Host_->GetDynamicConfig()->TabletCellWriteManager;
+    }
+
+    TCodicilGuard MakeCodicilGuard(TTransaction* transaction)
+    {
+        return TCodicilGuard([transaction] (TCodicilFormatter* formatter) {
+            formatter->AppendString("TransactionId: ");
+            formatter->AppendGuid(transaction->GetId());
+        });
     }
 };
 

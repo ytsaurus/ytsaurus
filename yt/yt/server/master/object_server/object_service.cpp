@@ -58,7 +58,7 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
-#include <yt/yt/core/misc/crash_handler.h>
+#include <yt/yt/core/misc/codicil.h>
 #include <yt/yt/core/misc/fair_scheduler.h>
 #include <yt/yt/core/misc/heap.h>
 #include <yt/yt/core/misc/mpsc_stack.h>
@@ -363,7 +363,7 @@ public:
         , TotalSubrequestCount_(RpcContext_->Request().part_counts_size())
         , Identity_(RpcContext_->GetAuthenticationIdentity())
         , RequestId_(RpcContext_->GetRequestId())
-        , CodicilData_(Format("RequestId: %v, %v",
+        , Codicil_(Format("RequestId: %v, %v",
             RequestId_,
             Identity_))
         , Logger(ObjectServerLogger().WithTag("RequestId: %v", RequestId_))
@@ -464,7 +464,7 @@ private:
     const int TotalSubrequestCount_;
     const NRpc::TAuthenticationIdentity& Identity_;
     const TRequestId RequestId_;
-    const TString CodicilData_;
+    const std::string Codicil_;
     const NLogging::TLogger Logger;
     const EPeerState TentativePeerState_;
     const TMultiPhaseCellSyncSessionPtr CellSyncSession_;
@@ -2256,7 +2256,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return TCodicilGuard(CodicilData_);
+        return TCodicilGuard(MakeNonOwningCodicilBuilder(Codicil_));
     }
 
     static bool GetSuppressUpstreamSync(const TCtxExecutePtr& rpcContext)

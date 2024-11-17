@@ -6,7 +6,7 @@
 
 #include "mutation_forwarder.h"
 
-#include <yt/yt/core/misc/crash_handler.h>
+#include <yt/yt/core/misc/codicil.h>
 
 namespace NYT::NTabletNode {
 
@@ -38,11 +38,25 @@ void TTabletAutomatonPart::RegisterForwardedMethod(TCallback<void(TRequest*)> ca
 template <class TRequest>
 void TTabletAutomatonPart::MethodHandlerWithCodicilsImpl(TCallback<void(TRequest*)> callback, TRequest* request)
 {
-    std::optional<TCodicilGuard> codicilGuard;
+    TCodicilGuard guard([&] (TCodicilFormatter* formatter) {
+        bool firstField = true;
+        #define DUMP_GUID_FIELD(snakeCaseName, camelCaseName)                      \
+            if constexpr (requires { request->snakeCaseName(); }) {                \
+                if (!firstField) {                                                 \
+                    formatter->AppendString(", ");                                 \
+                }                                                                  \
+                firstField = false;                                                \
+                formatter->AppendString(#camelCaseName ": ");                      \
+                formatter->AppendGuid(FromProto<TGuid>(request->snakeCaseName())); \
+            }
 
-    if constexpr (requires { request->tablet_id(); }) {
-        codicilGuard.emplace(Format("TabletId: %v", FromProto<TTabletId>(request->tablet_id())));
-    }
+        DUMP_GUID_FIELD(tablet_id, TabletId)
+        DUMP_GUID_FIELD(table_id, TableId)
+        DUMP_GUID_FIELD(transaction_id, TransactionId)
+        DUMP_GUID_FIELD(replica_id, ReplicaId)
+
+        #undef DUMP_GUID_FIELD
+    });
 
     callback(request);
 }

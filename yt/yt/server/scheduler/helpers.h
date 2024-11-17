@@ -27,7 +27,7 @@ void BuildMutableOperationAttributes(TOperationPtr operation, NYTree::TFluentMap
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString MakeOperationCodicilString(TOperationId operationId);
+std::string MakeOperationCodicil(TOperationId operationId);
 TCodicilGuard MakeOperationCodicilGuard(TOperationId operationId);
 
 ////////////////////////////////////////////////////////////////////////////////
