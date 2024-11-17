@@ -117,7 +117,7 @@ private:
     TActionQueuePtr RttHostQueue_;
     IInvokerPtr RttHostIvoker_;
 
-    TString LocalAddress_;
+    std::string LocalAddress_;
 
     IConnectionPtr NativeConnection_;
     NApi::NNative::IClientPtr NativeClient_;

@@ -122,7 +122,7 @@ TReaderData::TReaderData(const IIOEnginePtr& ioEngine, TTableSchemaPtr /*schema*
 
     Cout << Format("Decompressing blocks") << Endl;
 
-    auto codecId = CheckedEnumCast<NCompression::ECodec>(miscExt.compression_codec());
+    auto codecId = FromProto<NCompression::ECodec>(miscExt.compression_codec());
     auto* codec = NCompression::GetCodec(codecId);
 
     size_t uncompressedChunkSize = 0;

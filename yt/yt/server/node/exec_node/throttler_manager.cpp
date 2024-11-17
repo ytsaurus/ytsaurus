@@ -43,7 +43,7 @@ public:
     TClusterThrottlersConfigPtr GetClusterThrottlersConfig() const override;
 
 private:
-    static constexpr auto UpdateClusterThrottlersConfigPeriod = TDuration::Minutes(5);
+    static constexpr auto UpdateClusterThrottlersConfigPeriod = TDuration::Seconds(30);
 
     NClusterNode::IBootstrap* const Bootstrap_ = nullptr;
     // Fields from bootstrap.
@@ -55,7 +55,7 @@ private:
     const IInvokerPtr Invoker_;
     const NRpc::IServerPtr RpcServer_;
     // Fields from manager options.
-    const TString LocalAddress_;
+    const std::string LocalAddress_;
     const NProfiling::TProfiler Profiler_;
     NLogging::TLogger Logger;
 
@@ -64,7 +64,12 @@ private:
     // The following members are protected by Lock_.
     TClusterThrottlersConfigPtr ClusterThrottlersConfig_;
     IDistributedThrottlerFactoryPtr DistributedThrottlerFactory_;
-    THashMap<TString, IThroughputThrottlerPtr> DistributedThrottlersHolder_;
+    struct TThroughputThrottlerData
+    {
+        IThroughputThrottlerPtr Throttler;
+        TThroughputThrottlerConfigPtr ThrottlerConfig;
+    };
+    THashMap<TString, TThroughputThrottlerData> DistributedThrottlersHolder_;
     TEnumIndexedArray<EExecNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> RawThrottlers_;
     TEnumIndexedArray<EExecNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
@@ -143,23 +148,24 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
 
         if (NeedDistributedThrottlerFactory(ClusterThrottlersConfig_)) {
             if (DistributedThrottlerFactory_) {
-                DistributedThrottlerFactory_.Reset();
-                YT_LOG_INFO("Recreate distributed throttler factory");
+                YT_LOG_INFO("Reconfigure distributed throttler factory");
+                DistributedThrottlerFactory_->Reconfigure(ClusterThrottlersConfig_->DistributedThrottler);
             } else {
                 YT_LOG_INFO("Create distributed throttler factory");
+                DistributedThrottlerFactory_ = CreateDistributedThrottlerFactory(
+                    ClusterThrottlersConfig_->DistributedThrottler,
+                    ChannelFactory_,
+                    Connection_,
+                    Invoker_,
+                    "/remote_cluster_throttlers_group",
+                    TMemberId(LocalAddress_),
+                    RpcServer_,
+                    // TODO(babenko(): switch to std::string
+                    TString(LocalAddress_),
+                    this->Logger,
+                    Authenticator_,
+                    Profiler_.WithPrefix("/distributed_throttler"));
             }
-            DistributedThrottlerFactory_ = CreateDistributedThrottlerFactory(
-            ClusterThrottlersConfig_->DistributedThrottler,
-            ChannelFactory_,
-            Connection_,
-            Invoker_,
-            ClusterThrottlersConfig_->GroupId,
-            LocalAddress_,
-            RpcServer_,
-            LocalAddress_,
-            Logger,
-            Authenticator_,
-            Profiler_.WithPrefix("/distributed_throttler"));
         } else {
             YT_LOG_INFO("Disable distributed throttler factory");
             DistributedThrottlerFactory_.Reset();
@@ -209,19 +215,33 @@ IThroughputThrottlerPtr TThrottlerManager::GetOrCreateDistributedThrottler(EExec
     auto throttlerConfig = New<NConcurrency::TThroughputThrottlerConfig>();
     throttlerConfig->Limit = limit;
 
-    YT_LOG_DEBUG("Getting distributed throttler (ThrottledId: %v, ThrottlerLimit: %v)",
-        throttlerId,
-        throttlerConfig->Limit);
-
     auto distributedThrottlerIt = DistributedThrottlersHolder_.find(throttlerId);
     if (distributedThrottlerIt == DistributedThrottlersHolder_.end()) {
+        YT_LOG_DEBUG("Creating new distributed throttler (ThrottlerId: %v, ThrottlerLimit: %v)",
+            throttlerId,
+            throttlerConfig->Limit);
+
         auto throttler = DistributedThrottlerFactory_->GetOrCreateThrottler(
             throttlerId,
-            std::move(throttlerConfig));
-        distributedThrottlerIt = DistributedThrottlersHolder_.insert({std::move(throttlerId), std::move(throttler)}).first;
+            throttlerConfig);
+        distributedThrottlerIt = DistributedThrottlersHolder_.insert({std::move(throttlerId), {std::move(throttler), std::move(throttlerConfig)}}).first;
+    } else if (NYson::ConvertToYsonString(distributedThrottlerIt->second.ThrottlerConfig) != NYson::ConvertToYsonString(throttlerConfig)) {
+        YT_LOG_DEBUG("Updating distributed throttler (ThrottlerId: %v, OldThrottlerLimit: %v, NewThrottlerLimit: %v)",
+            throttlerId,
+            distributedThrottlerIt->second.ThrottlerConfig->Limit,
+            throttlerConfig->Limit);
+
+        auto throttler = DistributedThrottlerFactory_->GetOrCreateThrottler(
+            throttlerId,
+            throttlerConfig);
+        distributedThrottlerIt->second = {std::move(throttler), std::move(throttlerConfig)};
+    } else {
+        YT_LOG_DEBUG("Getting distributed throttler (ThrottlerId: %v, ThrottlerLimit: %v)",
+            throttlerId,
+            throttlerConfig->Limit);
     }
 
-    return distributedThrottlerIt->second;
+    return distributedThrottlerIt->second.Throttler;
 }
 
 TThrottlerManager::TThrottlerManager(
@@ -268,6 +288,7 @@ TThrottlerManager::TThrottlerManager(
         }
     }
 
+    TryUpdateClusterThrottlersConfig();
     ClusterThrottlersConfigUpdater_->Start();
 }
 

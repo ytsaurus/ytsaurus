@@ -66,7 +66,7 @@ DEFINE_REFCOUNTED_TYPE(TTableHolder)
 struct TNodeHolder
     : public NYTree::TYsonStruct
 {
-    TString NodeAddress;
+    std::string NodeAddress;
     int TabletSlotCount;
     i64 MemoryUsed;
     std::optional<i64> MemoryLimit;
@@ -86,7 +86,7 @@ struct TTabletCellHolder
     : public NYTree::TYsonStruct
 {
     i64 MemorySize;
-    std::optional<TString> NodeAddress;
+    std::optional<std::string> NodeAddress;
 
     TTabletCellId CellId;
 

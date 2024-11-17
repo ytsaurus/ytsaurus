@@ -50,6 +50,7 @@ class TClickHouseInvoker
 {
 public:
     using TInvokerWrapper::TInvokerWrapper;
+    using TInvokerWrapper::Invoke;
 
     void Invoke(TClosure callback) override
     {

@@ -237,7 +237,7 @@ struct IObjectManager
 
     virtual NProfiling::TTimeCounter* GetMethodCumulativeExecuteTimeCounter(
         EObjectType type,
-        const TString& method) = 0;
+        const std::string& method) = 0;
 
     virtual const TGarbageCollectorPtr& GetGarbageCollector() const = 0;
 };

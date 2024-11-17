@@ -11,7 +11,7 @@ from yt.environment.tls_helpers import (
 )
 
 from yt_commands import (
-    authors, wait, create, ls, get, set, remove, map,
+    authors, wait, wait_no_assert, create, ls, get, set, remove, map,
     create_user, create_proxy_role, issue_token, make_ace,
     create_access_control_object_namespace, create_access_control_object,
     with_breakpoint, wait_breakpoint, print_debug, raises_yt_error,
@@ -114,15 +114,6 @@ class HttpProxyTestBase(YTEnvSetup):
 
 
 class TestHttpProxy(HttpProxyTestBase):
-    NUM_DISCOVERY_SERVERS = 1
-    NUM_TIMESTAMP_PROVIDERS = 1
-    NUM_MASTER_CACHES = 1
-    NUM_CELL_BALANCERS = 1
-    ENABLE_BUNDLE_CONTROLLER = True
-    NUM_QUEUE_AGENTS = 1
-    NUM_TABLET_BALANCERS = 1
-    NUM_REPLICATED_TABLE_TRACKERS = 1
-
     def teardown_method(self, method):
         for proxy in ls("//sys/http_proxies"):
             set("//sys/http_proxies/{}/@role".format(proxy), "data")
@@ -280,20 +271,22 @@ class TestHttpProxy(HttpProxyTestBase):
 
     @authors("greatkorn")
     def test_kill_nodes(self):
-        create("map_node", "//sys/http_proxies/test_http_proxy")
+        http_proxy_name = "test_http_proxy.ytsaurus.tech"
+        rpc_proxy_name = "test_rpc_proxy.ytsaurus.tech"
+        create("map_node", f"//sys/http_proxies/{http_proxy_name}")
         set(
-            "//sys/http_proxies/test_http_proxy/@liveness",
+            f"//sys/http_proxies/{http_proxy_name}/@liveness",
             {"updated_at": "2010-06-24T11:23:30.156098Z"},
         )
-        set("//sys/http_proxies/test_http_proxy/@start_time", "2009-06-19T16:39:02.171721Z")
-        set("//sys/http_proxies/test_http_proxy/@version", "19.5.30948-master-ya~c9facaeaca")
-        create("map_node", "//sys/rpc_proxies/test_rpc_proxy")
+        set(f"//sys/http_proxies/{http_proxy_name}/@start_time", "2009-06-19T16:39:02.171721Z")
+        set(f"//sys/http_proxies/{http_proxy_name}/@version", "19.5.30948-master-ya~c9facaeaca")
+        create("map_node", f"//sys/rpc_proxies/{rpc_proxy_name}")
         set(
-            "//sys/rpc_proxies/test_rpc_proxy/@start_time",
+            f"//sys/rpc_proxies/{rpc_proxy_name}/@start_time",
             "2009-06-19T16:39:02.171721Z",
         )
         set(
-            "//sys/rpc_proxies/test_rpc_proxy/@version",
+            f"//sys/rpc_proxies/{rpc_proxy_name}/@version",
             "19.5.30948-master-ya~c9facaeaca",
         )
 
@@ -302,11 +295,11 @@ class TestHttpProxy(HttpProxyTestBase):
 
         status = rsp.json()
         for proxy in status["details"]:
-            if proxy["address"] in ("test_http_proxy", "test_rpc_proxy"):
+            if proxy["address"] in (http_proxy_name, rpc_proxy_name):
                 assert proxy.get("state") == "offline"
 
-        remove("//sys/http_proxies/test_http_proxy")
-        remove("//sys/rpc_proxies/test_rpc_proxy")
+        remove(f"//sys/http_proxies/{http_proxy_name}")
+        remove(f"//sys/rpc_proxies/{rpc_proxy_name}")
 
     @authors("greatkorn")
     def test_structured_logs(self):
@@ -796,9 +789,17 @@ class TestHttpProxyFraming(HttpProxyTestBase):
         config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
         set(
             "//sys/http_proxies/@config",
-            {"framing": {"keep_alive_period": self.KEEP_ALIVE_PERIOD}},
+            {"api": {"framing": {"keep_alive_period": self.KEEP_ALIVE_PERIOD}}},
         )
-        wait(lambda: requests.get(config_url).json()["framing"]["keep_alive_period"] == self.KEEP_ALIVE_PERIOD)
+
+        @wait_no_assert
+        def config_updated():
+            config = requests.get(config_url).json()
+            value = config \
+                .get("api", {}) \
+                .get("framing", {}) \
+                .get("keep_alive_period", 0.0)
+            assert value == self.KEEP_ALIVE_PERIOD
 
     def _execute_command(self, http_method, command_name, params, extra_headers={}):
         headers = {
@@ -1007,11 +1008,12 @@ class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
         super(TestHttpProxyFormatConfig, self).setup_method(method)
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
         config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
-        set("//sys/http_proxies/@config", {"formats": self.FORMAT_CONFIG})
+        set("//sys/http_proxies/@config", {"api": {"formats": self.FORMAT_CONFIG}})
 
         def config_updated():
             config = requests.get(config_url).json()
             return config \
+                .get("api", {}) \
                 .get("formats", {}) \
                 .get("yamred_dsv", {}) \
                 .get("user_overrides", {}) \

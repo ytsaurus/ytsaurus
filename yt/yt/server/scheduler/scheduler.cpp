@@ -1811,7 +1811,7 @@ private:
     TPeriodicExecutorPtr TransientOperationQueueScanPeriodExecutor_;
     TPeriodicExecutorPtr PendingByPoolOperationScanPeriodExecutor_;
 
-    TString ServiceAddress_;
+    std::string ServiceAddress_;
 
     struct TOperationProgress
     {

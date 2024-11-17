@@ -112,6 +112,11 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default(50);
 
+    registrar.Parameter("max_chunk_list_count_per_merge_session", &TThis::MaxChunkListCountPerMergeSession)
+        .GreaterThan(0)
+        .Default(100)
+        .DontSerializeDefault();
+
     registrar.Parameter("schedule_period", &TThis::SchedulePeriod)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("create_chunks_period", &TThis::CreateChunksPeriod)
@@ -150,6 +155,10 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
         .DontSerializeDefault();
 
     registrar.Parameter("respect_account_specific_toggle", &TThis::RespectAccountSpecificToggle)
+        .Default(false)
+        .DontSerializeDefault();
+
+    registrar.Parameter("enable_careful_requisition_update", &TThis::EnableCarefulRequisitionUpdate)
         .Default(false)
         .DontSerializeDefault();
 

@@ -24,7 +24,7 @@ void ProfileGpuInfo(NProfiling::ISensorWriter* writer, const NGpu::TGpuInfo& gpu
 
 struct TGpuDriverVersion
 {
-    // NB(omgronny): empty vector is a dummy gpu driver version.
+    // NB(omgronny): empty vector is a dummy GPU driver version.
     std::vector<int> Components;
 
     static TGpuDriverVersion FromString(TStringBuf driverVersionString);

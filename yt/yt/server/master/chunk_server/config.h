@@ -168,6 +168,7 @@ public:
 
     i64 MaxBlockCount;
     i64 MaxJobsPerChunkList;
+    int MaxChunkListCountPerMergeSession;
 
     TDuration SchedulePeriod;
     TDuration CreateChunksPeriod;
@@ -192,6 +193,9 @@ public:
 
     // COMPAT(aleksandra-zh)
     bool RespectAccountSpecificToggle;
+
+    // COMPAT(aleksandra-zh)
+    bool EnableCarefulRequisitionUpdate;
 
     int MaxNodesBeingMerged;
 

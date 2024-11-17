@@ -241,3 +241,16 @@ message TReqAttachReplicationCardToRemoteCollocation
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetReplicationCardResidency
+{
+    required NYT.NProto.TGuid replication_card_id = 1;
+    optional uint32 force_refresh_replication_card_cell_tag = 2;
+}
+
+message TRspGetReplicationCardResidency
+{
+    required uint32 replication_card_cell_tag = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

@@ -18,6 +18,7 @@ add_library(orm-library-query)
 target_compile_options(orm-library-query PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wunused-parameter
 )
 
 target_link_libraries(orm-library-query PUBLIC

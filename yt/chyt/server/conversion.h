@@ -34,7 +34,7 @@ DB::NamesAndTypesList ToNamesAndTypesList(const std::vector<NTableClient::TColum
 
 DB::NamesAndTypesList ToNamesAndTypesList(const NTableClient::TTableSchema& schema, const TCompositeSettingsPtr& settings);
 
-DB::Block ToHeaderBlock(const std::vector<NTableClient::TColumnSchema>& schemas, const TCompositeSettingsPtr &settings);
+DB::Block ToHeaderBlock(const std::vector<NTableClient::TColumnSchema>& schemas, const TCompositeSettingsPtr& settings);
 
 DB::Block ToHeaderBlock(const NTableClient::TTableSchema& schema, const TCompositeSettingsPtr& settings);
 

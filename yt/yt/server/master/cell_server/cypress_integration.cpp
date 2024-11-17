@@ -397,7 +397,7 @@ private:
         return true;
     }
 
-    TString GetLeaderAddressOrThrow(TCellId cellId) const
+    std::string GetLeaderAddressOrThrow(TCellId cellId) const
     {
         try {
             if (!IsCellType(TypeFromId(cellId))) {
@@ -422,7 +422,7 @@ private:
                 const auto& peer = item->AsMap();
                 auto state = peer->GetChildValueOrDefault("state", NHydra::EPeerState::None);
                 if (state == EPeerState::Leading) {
-                    auto address = peer->GetChildValueOrThrow<TString>("address");
+                    auto address = peer->GetChildValueOrThrow<std::string>("address");
                     return address;
                 }
             }

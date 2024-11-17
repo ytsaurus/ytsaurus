@@ -13,6 +13,13 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TBlockWithFilter::TBlockWithFilter(i64 rowCount)
+    : RowCount(rowCount)
+    , RowCountAfterFilter(rowCount)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 DB::DataTypesWithConstInfo GetDataTypesWithConstInfo(const DB::ActionsDAG::NodeRawConstPtrs& nodes)
@@ -69,7 +76,7 @@ void TFilterInfo::Execute(TBlockWithFilter& blockWithFilter) const
     }
 
     auto throwIllegalType = [&] {
-        THROW_ERROR_EXCEPTION("Illegal type for filter in PREWHERE: %Qv", filterColumn->getName());
+        THROW_ERROR_EXCEPTION("Illegal column type %Qv for filter in PREWHERE", filterColumn->getName());
     };
 
     // Combine current filter and filter column.

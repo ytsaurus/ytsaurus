@@ -15,8 +15,8 @@ bool IsPersistenceEnabled(
     const TDistributedHydraManagerOptions& options);
 
 std::optional<TSharedRef> SanitizeLocalHostName(
-    const THashSet<TString>& clusterPeersAddresses,
-    TStringBuf host);
+    const THashSet<std::string>& clusterPeersAddresses,
+    const std::string& host);
 
 ////////////////////////////////////////////////////////////////////////////////
 

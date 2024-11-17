@@ -1550,7 +1550,7 @@ private:
             }
         }
 
-        User_->AlertIfPendingRemoval(
+        User_->LogIfPendingRemoval(
             Format("User pending for removal has accessed object service (User: %v)",
             User_->GetName()));
 
@@ -2055,8 +2055,7 @@ private:
             NRpc::NProto::TResponseHeader subresponseHeader;
             YT_VERIFY(TryParseResponseHeader(subresponseMessage, &subresponseHeader));
 
-            auto subresponseErrorCode = FromProto<NObjectClient::EErrorCode>(subresponseHeader.error().code());
-            if (subresponseErrorCode == NObjectClient::EErrorCode::ForwardedRequestFailed) {
+            if (subresponseHeader.error().code() == ToUnderlying(NObjectClient::EErrorCode::ForwardedRequestFailed)) {
                 auto wrapperError = FromProto<TError>(subresponseHeader.error());
                 YT_VERIFY(wrapperError.InnerErrors().size() == 1);
 

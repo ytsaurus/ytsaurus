@@ -174,7 +174,7 @@ private:
                     return;
                 }
 
-                user->AlertIfPendingRemoval(
+                user->LogIfPendingRemoval(
                     Format("User pending for removal has accessed chunk service (User: %v)",
                     user->GetName()));
 
@@ -308,7 +308,7 @@ private:
         const auto& chunkReplicator = chunkManager->GetChunkReplicator();
 
         auto addressType = request->has_address_type()
-            ? CheckedEnumCast<NNodeTrackerClient::EAddressType>(request->address_type())
+            ? FromProto<NNodeTrackerClient::EAddressType>(request->address_type())
             : NNodeTrackerClient::EAddressType::InternalRpc;
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory(), addressType);
 
@@ -392,7 +392,7 @@ private:
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
         auto addressType = request->has_address_type()
-            ? CheckedEnumCast<NNodeTrackerClient::EAddressType>(request->address_type())
+            ? FromProto<NNodeTrackerClient::EAddressType>(request->address_type())
             : NNodeTrackerClient::EAddressType::InternalRpc;
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory(), addressType);
 
@@ -536,8 +536,8 @@ private:
             auto preferredHostName = subrequest.has_preferred_host_name()
                 ? std::make_optional(subrequest.preferred_host_name())
                 : std::nullopt;
-            auto forbiddenAddresses = FromProto<std::vector<TString>>(subrequest.forbidden_addresses());
-            auto allocatedAddresses = FromProto<std::vector<TString>>(subrequest.allocated_addresses());
+            auto forbiddenAddresses = FromProto<std::vector<std::string>>(subrequest.forbidden_addresses());
+            auto allocatedAddresses = FromProto<std::vector<std::string>>(subrequest.allocated_addresses());
 
             auto* subresponse = response->add_subresponses();
             try {

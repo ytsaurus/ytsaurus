@@ -148,7 +148,6 @@ private:
     NYTree::INodePtr Root_;
 };
 
-
 inline std::string_view TYsonParserAdapter::Element::getString() const
 {
     // GetValue() returns const TString&, so it's ok to provide std::string_view outside.

@@ -164,11 +164,11 @@ struct IConnection
 
     virtual void Reconfigure(const TConnectionDynamicConfigPtr& dynamicConfig) = 0;
 
-    virtual void RegisterShuffleService(const TString& address) = 0;
+    virtual void RegisterShuffleService(const std::string& address) = 0;
 
     virtual NRpc::IChannelPtr GetShuffleServiceChannelOrThrow() = 0;
 
-    virtual NRpc::IChannelPtr CreateChannelByAddress(const TString& address) = 0;
+    virtual NRpc::IChannelPtr CreateChannelByAddress(const std::string& address) = 0;
 
     using TReconfiguredSignature = void(const TConnectionDynamicConfigPtr& newConfig);
     DECLARE_INTERFACE_SIGNAL(TReconfiguredSignature, Reconfigured);
@@ -217,6 +217,8 @@ struct TConnectionOptions
 
     //! If non-null, provides a TVM service for authentication.
     NAuth::IDynamicTvmServicePtr TvmService;
+
+    EChaosResidencyCacheType ChaosResidencyCacheMode = EChaosResidencyCacheType::Client;
 
     explicit TConnectionOptions(IInvokerPtr connectionInvoker);
     TConnectionOptions() = default;

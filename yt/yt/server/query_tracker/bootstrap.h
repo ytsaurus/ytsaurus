@@ -44,7 +44,7 @@ private:
     const TQueryTrackerServerConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
 
-    TString SelfAddress_;
+    std::string SelfAddress_;
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NConcurrency::TActionQueuePtr ControlQueue_;

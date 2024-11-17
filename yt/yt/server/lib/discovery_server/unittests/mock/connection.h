@@ -376,7 +376,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void RegisterShuffleService(const TString& /*address*/) override
+    void RegisterShuffleService(const std::string& /*address*/) override
     {
         YT_UNIMPLEMENTED();
     }
@@ -386,7 +386,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    NRpc::IChannelPtr CreateChannelByAddress(const TString& /*address*/) override
+    NRpc::IChannelPtr CreateChannelByAddress(const std::string& /*address*/) override
     {
         YT_UNIMPLEMENTED();
     }

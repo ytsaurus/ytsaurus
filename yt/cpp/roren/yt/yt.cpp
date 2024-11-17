@@ -92,6 +92,11 @@ TYtWriteTransform YtWrite(const NYT::TRichYPath& path, const NYT::TTableSchema& 
     return TYtWriteTransform{path, schema};
 }
 
+TYtAutoSchemaWriteTransform YtWrite(const NYT::TRichYPath& path)
+{
+    return TYtAutoSchemaWriteTransform(path);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TYtSortedWriteTransform YtSortedWrite(
@@ -110,6 +115,11 @@ TYtSortedWriteTransform YtSortedWrite(
     const NYT::TTableSchema& sortedSchema)
 {
     return TYtSortedWriteTransform(path, sortedSchema);
+}
+
+TYtAutoSchemaSortedWriteTransform YtSortedWrite(const NYT::TRichYPath& path, const NYT::TSortColumns& columnsToSort)
+{
+    return TYtAutoSchemaSortedWriteTransform(path, columnsToSort);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

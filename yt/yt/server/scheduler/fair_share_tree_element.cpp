@@ -1483,7 +1483,16 @@ bool TSchedulerPoolElement::AreImmediateOperationsForbidden() const
 
 bool TSchedulerPoolElement::AreGangOperationsAllowed() const
 {
-    return Mode_ == ESchedulingMode::Fifo || !TreeConfig_->AllowGangOperationsOnlyInFifoPools || Config_->AlwaysAllowGangOperations;
+    auto mode = [&] {
+        if (Config_->CreateEphemeralSubpools) {
+            return Config_->EphemeralSubpoolConfig
+                ? (*Config_->EphemeralSubpoolConfig)->Mode
+                : ESchedulingMode::FairShare;
+        }
+
+        return Mode_;
+    }();
+    return mode == ESchedulingMode::Fifo || !TreeConfig_->AllowGangOperationsOnlyInFifoPools || Config_->AlwaysAllowGangOperations;
 }
 
 bool TSchedulerPoolElement::IsEphemeralHub() const

@@ -415,14 +415,14 @@ void TUser::ResetRequestQueueSize()
     RequestQueueSize_ = 0;
 }
 
-void TUser::SetHashedPassword(std::optional<TString> hashedPassword)
+void TUser::SetHashedPassword(std::optional<std::string> hashedPassword)
 {
     HashedPassword_ = std::move(hashedPassword);
 
     UpdatePasswordRevision();
 }
 
-void TUser::SetPasswordSalt(std::optional<TString> passwordSalt)
+void TUser::SetPasswordSalt(std::optional<std::string> passwordSalt)
 {
     PasswordSalt_ = std::move(passwordSalt);
 
@@ -446,9 +446,9 @@ void TUser::UpdateCounters(const TUserWorkload& workload)
     }
 }
 
-void TUser::AlertIfPendingRemoval(const TString& message) const
+void TUser::LogIfPendingRemoval(const TString& message) const
 {
-    YT_LOG_ALERT_IF(
+    YT_LOG_ERROR_IF(
         GetPendingRemoval(),
         message);
 }

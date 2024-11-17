@@ -77,7 +77,7 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
             FromProto<EChunkType>(chunkMeta.type()) == EChunkType::Table ||
             FromProto<EChunkType>(chunkMeta.type()) == EChunkType::Hunk ||
             FromProto<EChunkType>(chunkMeta.type()) == EChunkType::File);
-        ChunkFormat_ = CheckedEnumCast<EChunkFormat>(chunkMeta.format());
+        ChunkFormat_ = FromProto<EChunkFormat>(chunkMeta.format());
     }
 }
 

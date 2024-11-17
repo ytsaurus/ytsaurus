@@ -347,10 +347,6 @@ public:
 
     TAccessCheckerDynamicConfigPtr AccessChecker;
 
-    // COMPAT(gritukan, levysotsky)
-    TFramingConfigPtr Framing;
-    THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
-
     NApi::NNative::TConnectionDynamicConfigPtr ClusterConnection;
 
     TProxyMemoryLimitsConfigPtr MemoryLimits;

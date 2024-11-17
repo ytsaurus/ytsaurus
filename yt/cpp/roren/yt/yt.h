@@ -68,22 +68,38 @@ TReadTransform<T> YtRead(NYT::TRichYPath path)
 /// @param schema schema of output table
 TYtWriteTransform YtWrite(const NYT::TRichYPath& path, const NYT::TTableSchema& schema);
 
+///
+/// @brief Write YT table
+///
+/// Table schema is derived automatically from input type. Input type must be a protobuf message.
+TYtAutoSchemaWriteTransform YtWrite(const NYT::TRichYPath& path);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ///
-/// @brief Write sorte YT table
+/// @brief Write sorted YT table
 ///
-/// PCollection will be saved to specified table and sort operation invoked if required
+/// PCollection will be saved to specified table and sort operation invoked if required.
 TYtSortedWriteTransform YtSortedWrite(
     const NYT::TRichYPath& path,
     const NYT::TTableSchema& schema,
     const NYT::TSortColumns& columnsToSort);
 
+///
+/// @brief Write sorted YT table
+///
+/// Similar to @ref NRoren::YtSortedWrite(const NYT::TRichYPath&, const NYT::TTableSchema&, const NYT::TSortColumns&)
+/// but columns to sort are derived from table schema.
 TYtSortedWriteTransform YtSortedWrite(
     const NYT::TRichYPath& path,
     const NYT::TTableSchema& sortedSchema);
 
-////////////////////////////////////////////////////////////////////////////////
+///
+/// @brief Write sorted YT table
+///
+/// Schema is derived automatically from input type. Input type must be a protobuf message.
+TYtAutoSchemaSortedWriteTransform YtSortedWrite(const NYT::TRichYPath& path, const NYT::TSortColumns& sortColumns);
 
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRoren

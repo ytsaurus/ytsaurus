@@ -402,7 +402,6 @@ public:
             std::move(logger),
             incomingRequest.RuntimeInfo->LogLevel.load(std::memory_order::relaxed))
         , Service_(std::move(service))
-        , RequestId_(incomingRequest.RequestId)
         , ReplyBus_(std::move(incomingRequest.ReplyBus))
         , RuntimeInfo_(incomingRequest.RuntimeInfo)
         , TraceContext_(std::move(incomingRequest.TraceContext))
@@ -561,8 +560,7 @@ public:
             RequestId_);
 
         if (RuntimeInfo_->Descriptor.StreamingEnabled) {
-            static const auto CanceledError = TError(NYT::EErrorCode::Canceled, "Request canceled");
-            AbortStreamsUnlessClosed(CanceledError);
+            AbortStreamsUnlessClosed(TError(NYT::EErrorCode::Canceled, "Request canceled"));
         }
 
         CancelInstant_ = NProfiling::GetInstant();
@@ -586,8 +584,7 @@ public:
             stage);
 
         if (RuntimeInfo_->Descriptor.StreamingEnabled) {
-            static const auto TimedOutError = TError(NYT::EErrorCode::Timeout, "Request timed out");
-            AbortStreamsUnlessClosed(TimedOutError);
+            AbortStreamsUnlessClosed(TError(NYT::EErrorCode::Timeout, "Request timed out"));
         }
 
         CanceledList_.Fire(GetCanceledError());
@@ -744,7 +741,6 @@ public:
 
 private:
     const TServiceBasePtr Service_;
-    const TRequestId RequestId_;
     const IBusPtr ReplyBus_;
     TRuntimeMethodInfo* const RuntimeInfo_;
     const TTraceContextPtr TraceContext_;
@@ -800,10 +796,10 @@ private:
     {
         // COMPAT(danilalexeev): legacy RPC codecs
         RequestCodec_ = RequestHeader_->has_request_codec()
-            ? CheckedEnumCast<NCompression::ECodec>(RequestHeader_->request_codec())
+            ? FromProto<NCompression::ECodec>(RequestHeader_->request_codec())
             : NCompression::ECodec::None;
         ResponseCodec_ = RequestHeader_->has_response_codec()
-            ? CheckedEnumCast<NCompression::ECodec>(RequestHeader_->response_codec())
+            ? FromProto<NCompression::ECodec>(RequestHeader_->response_codec())
             : NCompression::ECodec::None;
 
         Service_->IncrementActiveRequestCount();
@@ -895,8 +891,7 @@ private:
         }
 
         if (RuntimeInfo_->Descriptor.StreamingEnabled) {
-            static const auto FinishedError = TError("Request finished");
-            AbortStreamsUnlessClosed(Error_.IsOK() ? Error_ : FinishedError);
+            AbortStreamsUnlessClosed(Error_.IsOK() ? Error_ : TError("Request finished"));
         }
 
         DoSetComplete();
@@ -1110,9 +1105,9 @@ private:
 
         {
             TNullTraceContextGuard nullGuard;
-            YT_LOG_DEBUG("Request logging suppressed (RequestId: %v)", GetRequestId());
+            YT_LOG_DEBUG("Request logging suppressed (RequestId: %v)", RequestId_);
         }
-        NLogging::TLogManager::Get()->SuppressRequest(GetRequestId());
+        NLogging::TLogManager::Get()->SuppressRequest(RequestId_);
     }
 
     void DoSetComplete()
@@ -1275,10 +1270,10 @@ private:
 
         NProto::TStreamingPayloadHeader header;
         ToProto(header.mutable_request_id(), RequestId_);
-        ToProto(header.mutable_service(), GetService());
-        ToProto(header.mutable_method(), GetMethod());
-        if (GetRealmId()) {
-            ToProto(header.mutable_realm_id(), GetRealmId());
+        ToProto(header.mutable_service(), ServiceName_);
+        ToProto(header.mutable_method(), MethodName_);
+        if (RealmId_) {
+            ToProto(header.mutable_realm_id(), RealmId_);
         }
         header.set_sequence_number(payload->SequenceNumber);
         header.set_codec(ToProto(payload->Codec));
@@ -1317,10 +1312,10 @@ private:
 
         NProto::TStreamingFeedbackHeader header;
         ToProto(header.mutable_request_id(), RequestId_);
-        header.set_service(GetService());
-        header.set_method(GetMethod());
-        if (GetRealmId()) {
-            ToProto(header.mutable_realm_id(), GetRealmId());
+        header.set_service(ToProto(ServiceName_));
+        header.set_method(ToProto(MethodName_));
+        if (RealmId_) {
+            ToProto(header.mutable_realm_id(), RealmId_);
         }
         header.set_read_position(feedback.ReadPosition);
 

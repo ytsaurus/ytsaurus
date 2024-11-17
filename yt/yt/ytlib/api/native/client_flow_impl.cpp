@@ -172,7 +172,7 @@ TPipelineState TClient::DoGetPipelineState(
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
     return {
-        .State = CheckedEnumCast<EPipelineState>(rsp->state()),
+        .State = FromProto<EPipelineState>(rsp->state()),
     };
 }
 

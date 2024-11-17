@@ -624,7 +624,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
         TString queryString = "* from [//bids] D\n"
             "left join [//campaigns] C on D.cid = C.cid\n"
             "left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)\n"
-            "left join [//phrases] P on (D.pid,D.__shard__) = (P.pid,P.__shard__)";
+            "left join [//phrases] P on (D.pid, D.__shard__) = (P.pid, P.__shard__)";
 
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
@@ -643,9 +643,9 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
 
     {
         TString queryString = "* from [//bids] D\n"
-            "left join [//campaigns] C on (D.cid,D.__shard__) = (C.cid,C.__shard__)\n"
+            "left join [//campaigns] C on (D.cid, D.__shard__) = (C.cid, C.__shard__)\n"
             "left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)\n"
-            "left join [//phrases] P on (D.pid,D.__shard__) = (P.pid,P.__shard__)";
+            "left join [//phrases] P on (D.pid, D.__shard__) = (P.pid, P.__shard__)";
 
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
@@ -665,8 +665,8 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     {
         TString queryString = "* from [//bids] D\n"
             "left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)\n"
-            "left join [//campaigns] C on (D.cid,D.__shard__) = (C.cid,C.__shard__)\n"
-            "left join [//phrases] P on (D.pid,D.__shard__) = (P.pid,P.__shard__)";
+            "left join [//campaigns] C on (D.cid, D.__shard__) = (C.cid, C.__shard__)\n"
+            "left join [//phrases] P on (D.pid, D.__shard__) = (P.pid, P.__shard__)";
 
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
@@ -5653,6 +5653,52 @@ TEST_F(TQueryEvaluateTest, JoinSimple5)
     Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result));
 
     SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, JoinWithComplexEvaluatedColumn)
+{
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
+
+    splits["//A"] = MakeSplit({
+        TColumnSchema("ak1", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("ak2", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("av0", EValueType::Int64),
+    }, 0);
+    sources.push_back({
+        "ak1=1; ak2=1; av0=-1",
+        "ak1=1; ak2=2; av0=-2",
+        "ak1=2; ak2=1; av0=-3",
+        "ak1=2; ak2=2; av0=-4",
+    });
+
+    splits["//B"] = MakeSplit({
+        TColumnSchema("bk0", EValueType::Int64, ESortOrder::Ascending)
+            .SetExpression(TString("bk1 + bk3")),
+        TColumnSchema("bk1", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("bk2", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("bk3", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("bv0", EValueType::Int64),
+    }, 1);
+    sources.push_back({
+        "bk0=2; bk1=1; bk2=1; bk3=1; bv0=-1",
+        "bk0=2; bk1=1; bk2=2; bk3=1; bv0=-3",
+        "bk0=3; bk1=1; bk2=1; bk3=2; bv0=-2",
+        "bk0=3; bk1=1; bk2=2; bk3=2; bv0=-4",
+    });
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "x=-2",
+        "x=-4",
+        "x=-4",
+        "x=-6",
+    }, resultSplit);
+
+    Evaluate("(av0 + bv0) as x FROM [//A] join [//B] on (ak1, ak2) = (bk1, bk3)", splits, sources, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, JoinRowLimit)

@@ -135,7 +135,7 @@ protected:
     IElectionManagerPtr ElectionManager;
     std::vector<TIntrusivePtr<TElectionServiceMock>> PeerMocks;
 
-    static TString GetPeerAddress(int id)
+    static std::string GetPeerAddress(int id)
     {
         return "peer" + ToString(id);
     }

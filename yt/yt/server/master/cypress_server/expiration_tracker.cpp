@@ -12,9 +12,13 @@
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 
+#include <yt/yt/server/master/security_server/access_log.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/profiling/timing.h>
+
+#include <library/cpp/iterator/zip.h>
 
 namespace NYT::NCypressServer {
 
@@ -22,6 +26,9 @@ using namespace NConcurrency;
 using namespace NHydra;
 using namespace NCellMaster;
 using namespace NObjectClient;
+using namespace NObjectServer;
+using namespace NSecurityServer;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -211,8 +218,9 @@ void TExpirationTracker::OnNodeRemovalFailed(TCypressNode* trunkNode)
         // NB: Typically missing at followers.
         shard->ExpiredNodes.erase(trunkNode);
 
-        auto* mutationContext = GetCurrentMutationContext();
-        RegisterNodeExpirationTime(trunkNode, mutationContext->GetTimestamp() + GetDynamicConfig()->ExpirationBackoffTime);
+        // NB: time(out) iterators differ on the leader and followers. Avoid relying
+        // on them when updating persistent state. The use of |TInstant::Now()| is ok.
+        RegisterNodeExpirationTime(trunkNode, TInstant::Now() + GetDynamicConfig()->ExpirationBackoffTime);
     }
 
     if (trunkNode->TryGetExpirationTimeout() && !trunkNode->GetExpirationTimeoutIterator()) {
@@ -221,16 +229,17 @@ void TExpirationTracker::OnNodeRemovalFailed(TCypressNode* trunkNode)
 
         // This happens when removing a map node fails due to a lock on a nested node.
         if (!IsNodeLocked(trunkNode)) {
-            RegisterNodeExpirationTimeout(trunkNode);
+            // This is transient, |TInstant::Now()| is ok.
+            RegisterNodeExpirationTimeout(trunkNode, TInstant::Now());
         } // Else expiration will be rescheduled on lock release.
     }
 
     // Prolong expiration in case of removal failure. This is debatable but seems safer.
-    // NB: time(out) iterators differ on the leader and followers. Avoid relying
-    // on them when updating persistent state.
     if (trunkNode->TryGetExpirationTimeout() && !IsNodeLocked(trunkNode)) {
-        auto* mutationContext = GetCurrentMutationContext();
-        trunkNode->SetTouchTime(mutationContext->GetTimestamp());
+        // When removing via client, failure is processed outside of a mutation.
+        if (auto* mutationContext = TryGetCurrentMutationContext()) {
+            trunkNode->SetTouchTime(mutationContext->GetTimestamp());
+        }
     }
 }
 
@@ -255,14 +264,16 @@ void TExpirationTracker::RegisterNodeExpirationTime(TCypressNode* trunkNode, TIn
     }
 }
 
-void TExpirationTracker::RegisterNodeExpirationTimeout(TCypressNode* trunkNode)
+void TExpirationTracker::RegisterNodeExpirationTimeout(
+    TCypressNode* trunkNode,
+    std::optional<TInstant> touchTimeOverride)
 {
     YT_ASSERT(!trunkNode->GetExpirationTimeoutIterator());
 
     auto* shard = GetShard(trunkNode);
     auto& expiredNodes = shard->ExpiredNodes;
     if (expiredNodes.find(trunkNode) == expiredNodes.end()) {
-        auto touchTime = trunkNode->GetTouchTime();
+        auto touchTime = touchTimeOverride.value_or(trunkNode->GetTouchTime());
         YT_VERIFY(touchTime);
         auto expirationTimeout = trunkNode->GetExpirationTimeout();
         auto it = shard->ExpirationMap.emplace(touchTime + expirationTimeout, trunkNode);
@@ -298,12 +309,13 @@ void TExpirationTracker::OnCheck()
         return;
     }
 
-    NProto::TReqRemoveExpiredNodes request;
+    std::vector<TCypressNode*> trunkNodesToRemove;
 
     auto canRemoveMoreExpiredNodes = [&] {
-        return request.node_ids_size() < GetDynamicConfig()->MaxExpiredNodesRemovalsPerCommit;
+        return std::ssize(trunkNodesToRemove) < GetDynamicConfig()->MaxExpiredNodesRemovalsPerCommit;
     };
 
+    std::optional<bool> isSequoia;
     auto now = NProfiling::GetInstant();
     for (auto& shard : Shards_) {
         auto& expirationMap = shard.ExpirationMap;
@@ -316,8 +328,19 @@ void TExpirationTracker::OnCheck()
             }
 
             // See comment for TShard::ExpirationMap.
-            if (shard.ExpiredNodes.insert(trunkNode).second) {
-                ToProto(request.add_node_ids(), trunkNode->GetId());
+            if (!shard.ExpiredNodes.contains(trunkNode)) {
+                if (!isSequoia.has_value()) {
+                    isSequoia = trunkNode->IsSequoia();
+                }
+
+                // Sequoia and Cypress nodes are not expected to be living at
+                // the same cell, so this check is just a precaution.
+                if (isSequoia != trunkNode->IsSequoia()) {
+                    break;
+                }
+
+                InsertOrCrash(shard.ExpiredNodes, trunkNode);
+                trunkNodesToRemove.push_back(trunkNode);
             }
 
             if (trunkNode->GetExpirationTimeIterator() && *trunkNode->GetExpirationTimeIterator() == it) {
@@ -328,19 +351,92 @@ void TExpirationTracker::OnCheck()
                 YT_ABORT();
             }
         }
-
-        if (!canRemoveMoreExpiredNodes()) {
-            break;
-        }
     }
 
-    if (request.node_ids_size() == 0) {
+    if (trunkNodesToRemove.empty()) {
         return;
     }
 
-    YT_LOG_DEBUG("Starting removal commit for expired nodes (Count: %v)",
-        request.node_ids_size());
+    YT_LOG_DEBUG("Starting removal of expired %v nodes (Count: %v)",
+        *isSequoia ? "Sequoia" : "Cypress",
+        std::ssize(trunkNodesToRemove));
 
+    if (*isSequoia || GetDynamicConfig()->RemoveExpiredMasterNodesViaClient) {
+        std::vector<TEphemeralObjectPtr<TCypressNode>> trunkNodes;
+        trunkNodes.reserve(trunkNodesToRemove.size());
+        for (auto* trunkNode : trunkNodesToRemove) {
+            trunkNodes.emplace_back(trunkNode);
+        }
+
+        RemoveExpiredNodesViaClient(trunkNodes);
+    } else {
+        RemoveExpiredNodesViaMutation(trunkNodesToRemove);
+    }
+}
+
+void TExpirationTracker::RemoveExpiredNodesViaClient(const std::vector<TEphemeralObjectPtr<TCypressNode>>& trunkNodes)
+{
+    auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetRootClient());
+    auto batchReq = proxy.ExecuteBatch();
+
+    using TTag = std::pair<TNodeId, TYPath>;
+
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    for (const auto& trunkNode : trunkNodes) {
+        auto targetPath = FromObjectId(trunkNode->GetId()) + "&";
+        auto req = TYPathProxy::Remove(targetPath);
+
+        auto* prerequisitesExt = req->Header().MutableExtension(
+            NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+        auto* prerequisiteRevision = prerequisitesExt->add_revisions();
+        prerequisiteRevision->set_path(targetPath);
+        prerequisiteRevision->set_revision(trunkNode->GetRevision().Underlying());
+
+        // For access logging.
+        req->Tag() = TTag(
+            trunkNode->GetId(),
+            cypressManager->GetNodePath(trunkNode.Get(), nullptr));
+
+        batchReq->AddRequest(req);
+    }
+
+    auto batchRspOrError = WaitFor(batchReq->Invoke());
+    if (!batchRspOrError.IsOK()) {
+        for (const auto& trunkNode : trunkNodes) {
+            if (IsObjectAlive(trunkNode)) {
+                OnNodeRemovalFailed(trunkNode.Get());
+            }
+        }
+        return;
+    }
+
+    auto rsps = batchRspOrError.Value()->GetResponses<TYPathProxy::TRspRemove>();
+    YT_VERIFY(std::ssize(rsps) == std::ssize(trunkNodes));
+    for (const auto& [rspOrError, trunkNode] : Zip(rsps, trunkNodes)) {
+        if (!rspOrError.IsOK()) {
+            if (IsObjectAlive(trunkNode)) {
+                OnNodeRemovalFailed(trunkNode.Get());
+            }
+            continue;
+        }
+
+        auto [nodeId, path] = std::any_cast<TTag>(rspOrError.Value()->Tag());
+        YT_LOG_ACCESS(
+            nodeId,
+            path,
+            nullptr,
+            "TtlRemove");
+    }
+}
+
+void TExpirationTracker::RemoveExpiredNodesViaMutation(const std::vector<TCypressNode*>& trunkNodes)
+{
+    NProto::TReqRemoveExpiredNodes request;
+    for (auto* trunkNode : trunkNodes) {
+        ToProto(request.add_node_ids(), trunkNode->GetId());
+    }
+
+    const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
         ->CommitAndLog(Logger()));
 }

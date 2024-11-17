@@ -463,8 +463,7 @@ void DoDeserializeClusterResources(
         const auto& chunkManager = bootstrap->GetChunkManager();
         auto mediumToNode = child->AsMap()->GetChildren();
         for (const auto& [mediumName, diskSpaceNode] : mediumToNode) {
-            // TODO(babenko): migrate to std::string
-            const auto* medium = chunkManager->GetMediumByNameOrThrow(TString(mediumName));
+            const auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
             auto mediumDiskSpace = diskSpaceNode->AsInt64()->GetValue();
             ValidateDiskSpace(mediumDiskSpace);
             result.SetMediumDiskSpace(medium->GetIndex(), mediumDiskSpace);

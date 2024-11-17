@@ -95,7 +95,7 @@ private:
     {
         DeclareMutating();
 
-        auto type = CheckedEnumCast<EObjectType>(request->type());
+        auto type = FromProto<EObjectType>(request->type());
         auto ignoreExisting = request->ignore_existing();
 
         context->SetRequestInfo("Type: %v, IgnoreExisting: %v",
@@ -312,8 +312,8 @@ private:
     {
         DeclareMutating();
 
-        auto component = CheckedEnumCast<EMaintenanceComponent>(request->component());
-        auto type = CheckedEnumCast<EMaintenanceType>(request->type());
+        auto component = FromProto<EMaintenanceComponent>(request->component());
+        auto type = FromProto<EMaintenanceType>(request->type());
 
         context->SetRequestInfo(
             "Component: %v, "
@@ -372,7 +372,7 @@ private:
     {
         DeclareMutating();
 
-        auto component = CheckedEnumCast<EMaintenanceComponent>(request->component());
+        auto component = FromProto<EMaintenanceComponent>(request->component());
 
         std::optional<TCompactSet<TMaintenanceId, TypicalMaintenanceRequestCount>> ids;
         if (!request->ids().empty()) {
@@ -392,7 +392,7 @@ private:
 
         std::optional<EMaintenanceType> type;
         if (request->has_type()) {
-            type = CheckedEnumCast<EMaintenanceType>(request->type());
+            type = FromProto<EMaintenanceType>(request->type());
         }
 
         context->SetRequestInfo(

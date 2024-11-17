@@ -23,7 +23,6 @@ class TClusterThrottlersConfig
 public:
     NDistributedThrottler::TDistributedThrottlerConfigPtr DistributedThrottler;
     THashMap<TString, TClusterLimitsConfigPtr> ClusterLimits;
-    TString GroupId;
     bool Enabled;
 
     REGISTER_YSON_STRUCT(TClusterThrottlersConfig);

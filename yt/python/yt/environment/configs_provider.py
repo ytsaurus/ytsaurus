@@ -1485,6 +1485,13 @@ def _build_cluster_connection_config(yt_config,
             "expire_after_successful_update_time": 500,
             "expire_after_failed_update_time": 500,
         },
+        "replication_card_residency_cache": {
+            "expire_after_access_time": 72000000,  # 20h
+            "expire_after_successful_update_time": 72000000,  # 20h
+            "expire_after_failed_update_time": 100,
+            "refresh_time": 0,
+            "is_client_mode_active" : True,
+        },
         "upload_transaction_timeout": 5000,
     }
 

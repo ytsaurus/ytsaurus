@@ -99,7 +99,7 @@ bool TClient::DoesOperationsArchiveExist(bool useOperationsArchiveClient)
 {
     // NB: we suppose that archive should exist and work correctly if this map node is presented.
     TNodeExistsOptions nodeExistsOptions;
-    nodeExistsOptions.ReadFrom = Connection_->GetConfig()->ReadArchiveStateFrom;;
+    nodeExistsOptions.ReadFrom = Connection_->GetConfig()->ReadOperationsArchiveStateFrom;;
 
     IClient* client = this;
     if (useOperationsArchiveClient) {
@@ -113,7 +113,7 @@ bool TClient::DoesOperationsArchiveExist(bool useOperationsArchiveClient)
 std::optional<int> TClient::TryGetOperationsArchiveVersion(bool useOperationsArchiveClient)
 {
     TGetNodeOptions getNodeOptions;
-    getNodeOptions.ReadFrom = Connection_->GetConfig()->ReadArchiveStateFrom;;
+    getNodeOptions.ReadFrom = Connection_->GetConfig()->ReadOperationsArchiveStateFrom;;
 
     IClient* client = this;
     if (useOperationsArchiveClient) {

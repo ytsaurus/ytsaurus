@@ -1182,10 +1182,11 @@ public:
         Append_ = dstPath.GetAppend();
 
         try {
-            CreateObjects(srcPaths, dstPath);
+            InitializeObjects(srcPaths, dstPath);
             StartNestedInputTransactions();
             GetObjectAttributes();
-            GetCommonType();
+            InferCommonType();
+            // COMPAT(ignat): drop in 25.1; chunk counts must be available in GetBasicAttributes response.
             GetSrcObjectChunkCounts();
             if (CommonType_ == EObjectType::Table) {
                 InferOutputTableSchema();
@@ -1193,10 +1194,10 @@ public:
             FetchChunkSpecs();
             if (Sorted_) {
                 ValidateChunkSchemas();
-                OrderChunks();
+                SortChunks();
                 ValidateChunkRanges();
                 if (Append_) {
-                    ValidateBoundaryKeys();
+                    FetchAndValidateBoundaryKeys();
                 }
             }
             BeginUpload();
@@ -1242,7 +1243,7 @@ private:
 
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
-    void CreateObjects(
+    void InitializeObjects(
         const std::vector<TRichYPath>& srcPaths,
         TRichYPath dstPath)
     {
@@ -1336,18 +1337,27 @@ private:
                 auto* srcObject = std::any_cast<TUserObject*>(rsp->Tag());
 
                 srcObject->ObjectId = FromProto<TObjectId>(rsp->object_id());
+                // COMPAT(ignat): write the following in 25.1
+                // srcObject->Type = FromProto<EObjectType>(rsp->type());
                 srcObject->ExternalCellTag = FromProto<TCellTag>(rsp->external_cell_tag());
                 srcObject->ExternalTransactionId = rsp->has_external_transaction_id()
                     ? FromProto<TTransactionId>(rsp->external_transaction_id())
                     : *srcObject->TransactionId;
                 srcObject->SecurityTags = FromProto<std::vector<TSecurityTag>>(rsp->security_tags().items());
+                if (rsp->has_chunk_count()) {
+                    srcObject->ChunkCount = rsp->chunk_count();
+                }
 
-                YT_LOG_DEBUG("Source object attributes received (Path: %v, ObjectId: %v, ExternalCellTag: %v, SecurityTags: %v, ExternalTransactionId: %v)",
+                // COMPAT(ignat): log object type in 25.1
+                YT_LOG_DEBUG(
+                    "Source object attributes received "
+                    "(Path: %v, ObjectId: %v, ExternalCellTag: %v, SecurityTags: %v, ExternalTransactionId: %v, ChunkCount: %v)",
                     srcObject->GetPath(),
                     srcObject->ObjectId,
                     srcObject->ExternalCellTag,
                     srcObject->SecurityTags,
-                    srcObject->ExternalTransactionId);
+                    srcObject->ExternalTransactionId,
+                    srcObject->ChunkCount);
             }
         }
         {
@@ -1366,7 +1376,7 @@ private:
         }
     }
 
-    void GetCommonType()
+    void InferCommonType()
     {
         auto isValidType = [&] (EObjectType type) {
             return type == EObjectType::Table || type == EObjectType::File;
@@ -1374,6 +1384,7 @@ private:
 
         DstObject_.Type = TypeFromId(DstObject_.ObjectId);
 
+        // COMPAT(ignat): drop this logic in 25.1 since type is fully supported in GetBasicAttributes.
         // For virtual tables object types cannot be inferred from object ids.
         bool needToFetchSourceObjectTypes = false;
         for (auto& srcObject : SrcObjects_) {
@@ -1449,6 +1460,21 @@ private:
 
     void GetSrcObjectChunkCounts()
     {
+        bool hasMissingChunkCounts = false;
+        for (auto& srcObject : SrcObjects_) {
+            if (srcObject.ChunkCount == TUserObject::UndefinedChunkCount) {
+                hasMissingChunkCounts = true;
+                break;
+            }
+        }
+
+        if (!hasMissingChunkCounts) {
+            YT_LOG_DEBUG("Skip fetching chunk counts of source objects");
+            return;
+        }
+
+        YT_LOG_DEBUG("Fetch chunk counts of source objects");
+
         auto proxy = Client_->CreateObjectServiceReadProxy(TMasterReadOptions());
         auto batchReq = proxy.ExecuteBatch();
 
@@ -1473,6 +1499,8 @@ private:
             auto chunkCount = attributes->Get<i64>("chunk_count");
             srcObject->ChunkCount = chunkCount;
         }
+
+        YT_LOG_DEBUG("Source objects chunk counts received");
     }
 
     void InferOutputTableSchema()
@@ -1744,7 +1772,7 @@ private:
         }
     }
 
-    void OrderChunks()
+    void SortChunks()
     {
         YT_LOG_DEBUG("Sorting chunks");
 
@@ -1798,8 +1826,10 @@ private:
         }
     }
 
-    void ValidateBoundaryKeys()
+    void FetchAndValidateBoundaryKeys()
     {
+        YT_LOG_DEBUG("Fetch and validate boundary keys of destination table");
+
         auto proxy = Client_->CreateObjectServiceReadProxy(TMasterReadOptions());
 
         auto request = TTableYPathProxy::Get(DstObject_.GetObjectIdPath() + "/@boundary_keys");
@@ -1809,6 +1839,8 @@ private:
         auto rspOrError = WaitFor(proxy.Execute(request));
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to fetch boundary keys of destination table %v",
             DstObject_.GetPath());
+
+        YT_LOG_DEBUG("Boundary keys of destination table received");
 
         auto boundaryKeysMap = ConvertToNode(TYsonString(rspOrError.Value()->value()))->AsMap();
         auto tableMaxKeyNode = boundaryKeysMap->FindChild("max_key");

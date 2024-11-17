@@ -900,7 +900,8 @@ private:
         if (bytesReadFromDisk > 0 && ioTracker->IsEnabled()) {
             ioTracker->Enqueue(
                 TIOCounters{.Bytes = bytesReadFromDisk, .IORequests = 1},
-                MakeReadIOTags(context->GetMethod(), chunk->GetLocation(), context, chunk->GetId()));
+                // TODO(babenko): migrate to std::string
+                MakeReadIOTags(TString(context->GetMethod()), chunk->GetLocation(), context, chunk->GetId()));
         }
 
         ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
@@ -1600,7 +1601,7 @@ private:
 
         auto timestamp = request->timestamp();
         auto columnFilter = FromProto<NTableClient::TColumnFilter>(request->column_filter());
-        auto codecId = CheckedEnumCast<NCompression::ECodec>(request->compression_codec());
+        auto codecId = FromProto<NCompression::ECodec>(request->compression_codec());
         auto produceAllVersions = FromProto<bool>(request->produce_all_versions());
         auto overrideTimestamp = request->has_override_timestamp() ? request->override_timestamp() : NullTimestamp;
         auto useDirectIO = request->use_direct_io();
@@ -1663,6 +1664,7 @@ private:
             : std::make_optional(FromProto<std::vector<int>>(request->extension_tags()));
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         bool enableThrottling = request->enable_throttling();
+        auto supportedChunkFeatures = FromProto<NChunkClient::EChunkFeatures>(request->supported_chunk_features());
 
         context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v, EnableThrottling: %v",
             chunkId,
@@ -1719,14 +1721,18 @@ private:
             }
 
             const auto& meta = readMetaResult.Meta;
-
             YT_VERIFY(meta);
 
-            {
-                NChunkClient::EChunkFeatures chunkFeatures = FromProto<NChunkClient::EChunkFeatures>(meta->features());
-                NChunkClient::EChunkFeatures supportedChunkFeatures = FromProto<NChunkClient::EChunkFeatures>(request->supported_chunk_features());
-                ValidateChunkFeatures(chunkId, chunkFeatures, supportedChunkFeatures);
+            auto chunkFeatures = FromProto<NChunkClient::EChunkFeatures>(meta->features());
+            if (Any(chunkFeatures & EChunkFeatures::Unknown)) {
+                THROW_ERROR_EXCEPTION(
+                    NChunkClient::EErrorCode::UnsupportedChunkFeature,
+                    "Chunk %v has unknown features",
+                    chunkId)
+                    << TErrorAttribute("chunk_features", meta->features());
             }
+
+            ValidateChunkFeatures(chunkId, chunkFeatures, supportedChunkFeatures);
 
             if (partitionTag) {
                 const auto& blockMetaCache = Bootstrap_->GetChunkMetaManager()->GetBlockMetaCache();
@@ -1839,7 +1845,7 @@ private:
                 chunkId);
 
             const auto& chunkMeta = metaOrError.Value();
-            auto type = CheckedEnumCast<EChunkType>(chunkMeta->type());
+            auto type = FromProto<EChunkType>(chunkMeta->type());
             if (type != EChunkType::Table) {
                 THROW_ERROR_EXCEPTION("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
                     chunkId,
@@ -1923,7 +1929,7 @@ private:
                 chunkId);
 
             const auto& chunkMeta = metaOrError.Value();
-            auto type = CheckedEnumCast<EChunkType>(chunkMeta->type());
+            auto type = FromProto<EChunkType>(chunkMeta->type());
             if (type != EChunkType::Table) {
                 THROW_ERROR_EXCEPTION("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
                     chunkId,
@@ -2014,7 +2020,7 @@ private:
                 chunkId);
             const auto& meta = *metaOrError.Value();
 
-            auto type = CheckedEnumCast<EChunkType>(meta.type());
+            auto type = FromProto<EChunkType>(meta.type());
             if (type != EChunkType::Table) {
                 THROW_ERROR_EXCEPTION("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
                     chunkId,

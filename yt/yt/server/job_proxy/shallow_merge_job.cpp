@@ -322,7 +322,7 @@ private:
             auto chunkMeta = GetChunkMeta(reader);
             auto blockMetaExt = GetProtoExtension<TDataBlockMetaExt>(chunkMeta->extensions());
             auto blockCount = blockMetaExt.data_blocks_size();
-            auto erasureCodec = CheckedEnumCast<NErasure::ECodec>(chunkSpec.erasure_codec());
+            auto erasureCodec = FromProto<NErasure::ECodec>(chunkSpec.erasure_codec());
             auto chunkId = reader->GetChunkId();
             bool isErasureChunk = erasureCodec != NErasure::ECodec::None;
             auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());

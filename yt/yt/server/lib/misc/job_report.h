@@ -138,7 +138,7 @@ struct TExecAttributes
     //! Job container IP addresses.
     //! If job is not using network isolation its IPs
     //! coincide with node's IPs.
-    std::vector<TString> IPAddresses;
+    std::vector<std::string> IPAddresses;
 
     //! Absolute path to job sandbox directory.
     TString SandboxPath;

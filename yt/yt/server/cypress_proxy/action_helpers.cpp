@@ -117,6 +117,7 @@ TNodeId CreateIntermediateNodes(
     const TAbsoluteYPath& parentPath,
     TNodeId parentId,
     TRange<std::string> nodeKeys,
+    const TSuppressableAccessTrackingOptions& options,
     const ISequoiaTransactionPtr& transaction)
 {
     auto currentNodePath = parentPath;
@@ -131,7 +132,7 @@ TNodeId CreateIntermediateNodes(
             currentNodePath,
             /*explicitAttributes*/ nullptr,
             transaction);
-        AttachChild(currentNodeId, newNodeId, key, transaction);
+        AttachChild(currentNodeId, newNodeId, key, options, transaction);
         currentNodeId = newNodeId;
     }
     return currentNodeId;
@@ -184,7 +185,7 @@ TNodeId CopySubtree(
             transaction);
         createdNodePathToId.emplace(destinationPath, clonedNodeId);
 
-        AttachChild(destinationParentId, clonedNodeId, destinationPath.GetBaseName(), transaction);
+        AttachChild(destinationParentId, clonedNodeId, destinationPath.GetBaseName(), /*options*/ {}, transaction);
     }
 
     return GetOrCrash(createdNodePathToId, destinationRootPath);
@@ -195,7 +196,8 @@ void RemoveSelectedSubtree(
     const ISequoiaTransactionPtr& transaction,
     TTransactionId cypressTransactionId,
     bool removeRoot,
-    TNodeId subtreeParentId)
+    TNodeId subtreeParentId,
+    const TSuppressableAccessTrackingOptions& options)
 {
     YT_VERIFY(!subtreeNodes.empty());
     // For root removal we need to know its parent (excluding scion removal).
@@ -216,7 +218,7 @@ void RemoveSelectedSubtree(
 
     for (auto it = subtreeNodes.rbegin(); it < subtreeNodes.rend(); ++it) {
         if (auto parentIt = pathToNodeId.find(it->Path.GetDirPath())) {
-            DetachChild(parentIt->second, it->Path.GetBaseName(), transaction);
+            DetachChild(parentIt->second, it->Path.GetBaseName(), options, transaction);
         }
     }
 
@@ -226,7 +228,7 @@ void RemoveSelectedSubtree(
     }
 
     TAbsoluteYPath subtreeRootPath(subtreeNodes.front().Path);
-    DetachChild(subtreeParentId, subtreeRootPath.GetBaseName(), transaction);
+    DetachChild(subtreeParentId, subtreeRootPath.GetBaseName(), options, transaction);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

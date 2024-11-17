@@ -305,7 +305,9 @@ public:
 
         ChaosResidencyCache_ = CreateChaosResidencyCache(
             config->ReplicationCardResidencyCache,
+            StaticConfig_->ReplicationCardCache, // Nullptr is ok
             this,
+            Options_.ChaosResidencyCacheMode,
             Logger);
 
         ReplicationCardChannelFactory_ = CreateReplicationCardChannelFactory(
@@ -865,6 +867,7 @@ public:
         TableMountCache_->Reconfigure(StaticConfig_->TableMountCache->ApplyDynamic(dynamicConfig->TableMountCache));
         ClockManager_->Reconfigure(StaticConfig_->ClockManager->ApplyDynamic(dynamicConfig->ClockManager));
         ChunkReplicaCache_->Reconfigure(dynamicConfig->ChunkReplicaCache);
+        ChaosResidencyCache_->Reconfigure(dynamicConfig->ReplicationCardResidencyCache);
         if (ReplicationCardCache_ && dynamicConfig->ReplicationCardCache) {
             ReplicationCardCache_->Reconfigure(dynamicConfig->ReplicationCardCache);
         }
@@ -952,7 +955,7 @@ private:
 
     std::atomic<bool> Terminated_ = false;
 
-    TString ShuffleServiceAddress_;
+    std::string ShuffleServiceAddress_;
 
     void ConfigureMasterCells()
     {
@@ -1215,7 +1218,7 @@ private:
             }));
     }
 
-    void RegisterShuffleService(const TString& address) override
+    void RegisterShuffleService(const std::string& address) override
     {
         ShuffleServiceAddress_ = address;
     }
@@ -1229,7 +1232,7 @@ private:
         return CreateChannelByAddress(ShuffleServiceAddress_);
     }
 
-    IChannelPtr CreateChannelByAddress(const TString& address) override
+    IChannelPtr CreateChannelByAddress(const std::string& address) override
     {
         return ChannelFactory_->CreateChannel(address);
     }

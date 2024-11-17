@@ -366,8 +366,8 @@ void TChunk::Confirm(const TChunkInfo& chunkInfo, const TChunkMeta& chunkMeta)
         THROW_ERROR_EXCEPTION("Missing TMiscExt in chunk meta");
     }
 
-    Y_UNUSED(CheckedEnumCast<EChunkType>(chunkMeta.type()));
-    Y_UNUSED(CheckedEnumCast<EChunkFormat>(chunkMeta.format()));
+    Y_UNUSED(FromProto<EChunkType>(chunkMeta.type()));
+    Y_UNUSED(FromProto<EChunkFormat>(chunkMeta.format()));
 
     ChunkMeta_ = FromProto<TImmutableChunkMetaPtr>(chunkMeta);
 

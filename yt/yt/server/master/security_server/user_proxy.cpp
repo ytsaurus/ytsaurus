@@ -400,13 +400,13 @@ private:
             }
 
             case EInternedAttributeKey::HashedPassword: {
-                auto hashedPassword = ConvertTo<TString>(value);
+                auto hashedPassword = ConvertTo<std::string>(value);
                 user->SetHashedPassword(std::move(hashedPassword));
                 return true;
             }
 
             case EInternedAttributeKey::PasswordSalt: {
-                auto passwordSalt = ConvertTo<TString>(value);
+                auto passwordSalt = ConvertTo<std::string>(value);
                 user->SetPasswordSalt(std::move(passwordSalt));
                 return true;
             }

@@ -57,6 +57,11 @@ DEFINE_ENUM(EClusterConnectionDynamicConfigPolicy,
     (FromClusterDirectory)
 );
 
+DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(EChaosResidencyCacheType, i8,
+    (MasterCache)
+    (Client)
+);
+
 // TODO(omgronny): Do we really two separate vectors for finished and running jobs?
 struct TListJobsFromControllerAgentResult
 {

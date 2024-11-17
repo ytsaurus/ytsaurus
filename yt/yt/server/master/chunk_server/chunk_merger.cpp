@@ -340,6 +340,8 @@ private:
 
     TChunkListId LastChunkListId_;
     int JobsForLastChunkList_ = 0;
+    // This is never decremented, since traverser and visitor are for one-time use.
+    int ChunkListsWithJobs_ = 0;
 
     bool OnChunk(
         TChunk* chunk,
@@ -352,6 +354,12 @@ private:
     {
         if (JobIndex_ == 0) {
             ++TraversalStatistics_.ChunkCount;
+        }
+
+        const auto& config = GetDynamicConfig();
+        if (ChunkListsWithJobs_ >= config->MaxChunkListCountPerMergeSession) {
+            YT_LOG_DEBUG("Cannot plan any more jobs as we reached max chunk list count per merge session");
+            return false;
         }
 
         if (!IsNodeMergeable()) {
@@ -461,6 +469,12 @@ private:
     bool MaybeAddChunk(TChunk* chunk, TChunkList* parent)
     {
         const auto& config = GetDynamicConfig();
+
+        // TODO(cherepashka): profile
+        if (ChunkListsWithJobs_ >= config->MaxChunkListCountPerMergeSession) {
+            YT_LOG_DEBUG("Cannot plan any more jobs as we reached max chunk list count per merge session");
+            return false;
+        }
 
         if (parent->GetId() == LastChunkListId_ && JobsForLastChunkList_ >= config->MaxJobsPerChunkList) {
             YT_LOG_DEBUG("Cannot add chunk to merge job due to job limit "
@@ -619,6 +633,7 @@ private:
         } else {
             LastChunkListId_ = ParentChunkListId_;
             JobsForLastChunkList_ = 1;
+            ++ChunkListsWithJobs_;
         }
 
         const auto& mergeJobThrottler = Account_->MergeJobThrottler();
@@ -2070,6 +2085,9 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto chunkReplacementsSucceeded = 0;
+    const auto& config = GetDynamicConfig();
+
+    std::vector<TChunk*> chunksToReqUpdate;
     for (int index = 0; index < replacementCount; ++index) {
         const auto& replacement = request->replacements()[index];
         auto newChunkId = FromProto<TChunkId>(replacement.new_chunk_id());
@@ -2102,6 +2120,21 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
                 accountId);
 
             ++chunkReplacementsSucceeded;
+            if (config->EnableCarefulRequisitionUpdate) {
+                chunksToReqUpdate.push_back(newChunk);
+                for (auto chunkId : chunkIds) {
+                    auto* inputChunk = chunkManager->FindChunk(newChunkId);
+                    if (!IsObjectAlive(inputChunk)) {
+                        YT_LOG_ALERT("Chunk merge input chunk is dead after replace (NodeId: %v, ChunkId: %v, AccountId: %v)",
+                            nodeId,
+                            chunkId,
+                            accountId);
+                        continue;
+                    }
+                    chunksToReqUpdate.push_back(inputChunk);
+                }
+            }
+
             if (IsLeader()) {
                 auto chunkCountDiff = std::ssize(chunkIds) - 1;
 
@@ -2146,8 +2179,14 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     newRootChunkList->AddOwningNode(chunkOwner);
     rootChunkList->RemoveOwningNode(chunkOwner);
 
-    chunkManager->ScheduleChunkRequisitionUpdate(rootChunkList);
-    chunkManager->ScheduleChunkRequisitionUpdate(newRootChunkList);
+    if (config->EnableCarefulRequisitionUpdate) {
+        for (auto* chunk : chunksToReqUpdate) {
+            chunkManager->ScheduleChunkRequisitionUpdate(chunk);
+        }
+    } else {
+        chunkManager->ScheduleChunkRequisitionUpdate(rootChunkList);
+        chunkManager->ScheduleChunkRequisitionUpdate(newRootChunkList);
+    }
 
     YT_LOG_DEBUG(
         "Chunk list replaced after merge (NodeId: %v, OldChunkListId: %v, NewChunkListId: %v, AccountId: %v)",

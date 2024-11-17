@@ -179,9 +179,7 @@ protected:
         // 1. Value ids.
         segmentInfo->Data.push_back(BitpackVector(TRange(ids), dictionarySize + 1, &rawBlobMeta->IdsSize, &rawBlobMeta->IdsWidth));
 
-        ui32 expectedLength;
-        ui32 maxDiff;
-        PrepareDiffFromExpected(&dictionaryOffsets, &expectedLength, &maxDiff);
+        auto [expectedLength, maxDiff] = PrepareDiffFromExpected(&dictionaryOffsets);
 
         // 2. Dictionary offsets.
         segmentInfo->Data.push_back(BitpackVector(TRange(dictionaryOffsets), maxDiff, &rawBlobMeta->OffsetsSize, &rawBlobMeta->OffsetsWidth));
@@ -199,9 +197,7 @@ protected:
         auto offsets = GetDirectDenseOffsets();
 
         // Save offsets as diff from expected.
-        ui32 expectedLength;
-        ui32 maxDiff;
-        PrepareDiffFromExpected(&offsets, &expectedLength, &maxDiff);
+        auto [expectedLength, maxDiff] = PrepareDiffFromExpected(&offsets);
 
         rawBlobMeta->Direct = true;
 
@@ -290,8 +286,7 @@ public:
         if (ValuesPerRow_.empty()) {
             return 0;
         } else {
-            return
-                std::min(this->GetDirectByteSize(), this->GetDictionaryByteSize()) +
+            return std::min(this->GetDirectByteSize(), this->GetDictionaryByteSize()) +
                 TVersionedColumnWriterBase::GetCurrentSegmentSize();
         }
     }
@@ -520,9 +515,7 @@ private:
         segmentInfo->Data.push_back(BitpackVector(TRange(RleRowIndexes_), RleRowIndexes_.back(), &rawIndexMeta->RowIndexesSize, &rawIndexMeta->RowIndexesWidth));
 
         // 2. Value offsets.
-        ui32 expectedLength;
-        ui32 maxDiff;
-        PrepareDiffFromExpected(&offsets, &expectedLength, &maxDiff);
+        auto [expectedLength, maxDiff] = PrepareDiffFromExpected(&offsets);
         segmentInfo->Data.push_back(BitpackVector(TRange(offsets), maxDiff, &rawBlobMeta->OffsetsSize, &rawBlobMeta->OffsetsWidth));
 
         // 3. Null bitmap.
@@ -578,9 +571,7 @@ private:
         segmentInfo->Data.push_back(BitpackVector(TRange(ids), Dictionary_.size(), &rawBlobMeta->IdsSize, &rawBlobMeta->IdsWidth));
 
         // 3. Dictionary offsets.
-        ui32 expectedLength;
-        ui32 maxDiff;
-        PrepareDiffFromExpected(&offsets, &expectedLength, &maxDiff);
+        auto [expectedLength, maxDiff] = PrepareDiffFromExpected(&offsets);
         segmentInfo->Data.push_back(BitpackVector(TRange(offsets), maxDiff, &rawBlobMeta->OffsetsSize, &rawBlobMeta->OffsetsWidth));
 
         // 4. Dictionary data.

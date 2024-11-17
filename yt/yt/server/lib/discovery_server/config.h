@@ -12,7 +12,7 @@ class TDiscoveryServerConfig
     : public NYTree::TYsonStruct
 {
 public:
-    std::vector<TString> ServerAddresses;
+    std::vector<std::string> ServerAddresses;
     TDuration GossipPeriod;
     TDuration AttributesUpdatePeriod;
     int MaxMembersPerGossip;

@@ -76,6 +76,10 @@ message TRspGetBasicAttributes
     }
 
     required NYT.NProto.TGuid object_id = 1;
+    // This is typically deducible from |object_id| but for virtual tables
+    // this is not the case.
+    // COMPAT(babenko): make required in 25.1
+    optional int32 type = 9; // EObjectType
     optional uint32 external_cell_tag = 2;
     optional NYT.NProto.TGuid external_transaction_id = 5;
     optional TColumns omitted_inaccessible_columns = 3;
@@ -83,6 +87,7 @@ message TRspGetBasicAttributes
     optional uint64 revision = 6;
     optional uint64 content_revision = 7;
     optional uint64 attribute_revision = 8;
+    optional int64 chunk_count = 10;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

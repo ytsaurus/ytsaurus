@@ -79,7 +79,7 @@ bool THydraServiceBase::IsUp(const TCtxDiscoverPtr& context)
     EPeerKind kind;
     if (request.HasExtension(NProto::TPeerKindExt::peer_kind_ext)) {
         const auto& ext = request.GetExtension(NProto::TPeerKindExt::peer_kind_ext);
-        kind = CheckedEnumCast<EPeerKind>(ext.peer_kind());
+        kind = FromProto<EPeerKind>(ext.peer_kind());
     } else {
         kind = EPeerKind::Leader;
     }

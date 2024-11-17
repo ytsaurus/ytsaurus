@@ -58,8 +58,8 @@ TJobSummary::TJobSummary(TJobId id, EJobState state)
 
 TJobSummary::TJobSummary(NProto::TJobStatus* status)
     : Id(FromProto<TJobId>(status->job_id()))
-    , State(CheckedEnumCast<EJobState>(status->state()))
-    , InterruptionReason(CheckedEnumCast<EInterruptReason>(status->interruption_reason()))
+    , State(FromProto<EJobState>(status->state()))
+    , InterruptionReason(FromProto<EInterruptReason>(status->interruption_reason()))
     , FinishedOnNode(true)
 {
     Result = std::move(*status->mutable_result());
@@ -89,7 +89,7 @@ TJobSummary::TJobSummary(NProto::TJobStatus* status)
     }
 
     if (status->has_phase()) {
-        Phase = CheckedEnumCast<EJobPhase>(status->phase());
+        Phase = FromProto<EJobPhase>(status->phase());
     }
 
     StatusTimestamp = FromProto<TInstant>(status->status_timestamp());
@@ -337,7 +337,7 @@ void FromProto(
     abortedAllocationSummary->Id = FromProto<TAllocationId>(protoEvent->allocation_id());
 
     abortedAllocationSummary->FinishTime = FromProto<TInstant>(protoEvent->finish_time());
-    abortedAllocationSummary->AbortReason = CheckedEnumCast<EAbortReason>(protoEvent->abort_reason());
+    abortedAllocationSummary->AbortReason = FromProto<EAbortReason>(protoEvent->abort_reason());
 
     abortedAllocationSummary->Error = FromProto<TError>(protoEvent->error());
     abortedAllocationSummary->Scheduled = protoEvent->scheduled();

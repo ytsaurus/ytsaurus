@@ -263,7 +263,9 @@ public:
         TObject* object,
         TCellTag cellTag) override;
 
-    NProfiling::TTimeCounter* GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method) override;
+    NProfiling::TTimeCounter* GetMethodCumulativeExecuteTimeCounter(
+        EObjectType type,
+        const std::string& method) override;
 
     const TGarbageCollectorPtr& GetGarbageCollector() const override;
 
@@ -2216,7 +2218,7 @@ void TObjectManager::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeSt
     }
 
     auto oldLifeStage = object->GetLifeStage();
-    auto newLifeStage = CheckedEnumCast<EObjectLifeStage>(request->new_life_stage());
+    auto newLifeStage = FromProto<EObjectLifeStage>(request->new_life_stage());
     object->SetLifeStage(newLifeStage);
 
     YT_LOG_DEBUG(
@@ -2371,7 +2373,7 @@ void TObjectManager::CheckObjectLifeStageVoteCount(TObject* object)
 
 NProfiling::TTimeCounter* TObjectManager::GetMethodCumulativeExecuteTimeCounter(
     EObjectType type,
-    const TString& method)
+    const std::string& method)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

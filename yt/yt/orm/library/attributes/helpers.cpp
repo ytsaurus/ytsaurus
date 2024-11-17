@@ -697,7 +697,11 @@ const EnumValueDescriptor* LookupEnumValue(
     return nullptr;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
 
 #define BEGIN_SWITCH(snakeType) \
     const auto* reflection = message->GetReflection(); \
@@ -1155,5 +1159,25 @@ TError AddDefaultScalarFieldEntryValue(
         CASE_ADD_DEFAULT(enum, Enum, ENUM);
     END_SWITCH(default);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TBooleanOrCollector::operator() ()
+{
+    Value_ = true;
+}
+
+bool TBooleanOrCollector::operator() (bool value)
+{
+    Value_ |= value;
+    return value;
+}
+
+bool TBooleanOrCollector::Result() &&
+{
+    return Value_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NOrm::NAttributes

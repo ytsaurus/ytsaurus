@@ -100,7 +100,7 @@ private:
     static std::vector<NYPath::TYPath> GetCypressSubpaths(const NApi::IClientPtr& client, const NApi::TMasterReadOptions& masterReadOptions, EClusterComponentType component);
 
     // COMPAT(koloshmet)
-    TString GetCompatBinaryVersion(const TString& path) const;
+    TErrorOr<std::string> GetCompatBinaryVersion(const NYPath::TYPath& path) const;
 
     std::vector<TClusterComponentInstance> GetAttributes(
         EClusterComponentType component,

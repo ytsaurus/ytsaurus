@@ -277,7 +277,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        auto jobType = CheckedEnumCast<EJobType>(jobSpec.type());
+        auto jobType = FromProto<EJobType>(jobSpec.type());
         YT_LOG_FATAL_IF(
             jobType < FirstMasterJobType || jobType > LastMasterJobType,
             "Trying to create job with unexpected type (JobId: %v, JobType: %v)",

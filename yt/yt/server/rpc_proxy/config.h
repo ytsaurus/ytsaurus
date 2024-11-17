@@ -170,7 +170,6 @@ public:
     TApiServiceDynamicConfigPtr Api;
 
     NTracing::TSamplerConfigPtr Tracing;
-    THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
 
     TAccessCheckerDynamicConfigPtr AccessChecker;
 

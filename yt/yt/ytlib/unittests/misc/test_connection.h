@@ -204,12 +204,12 @@ public:
     MOCK_METHOD(NApi::IClientPtr, CreateClient, (const NApi::TClientOptions&), (override));
     MOCK_METHOD(void, Reconfigure, (const TConnectionDynamicConfigPtr&), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetShuffleServiceChannelOrThrow, (), (override));
-    MOCK_METHOD(void, RegisterShuffleService, (const TString&), (override));
+    MOCK_METHOD(void, RegisterShuffleService, (const std::string&), (override));
 
     const TConnectionStaticConfigPtr& GetStaticConfig() const override;
     const NNodeTrackerClient::TNetworkPreferenceList& GetNetworks() const override;
     TConnectionDynamicConfigPtr GetConfig() const override;
-    NRpc::IChannelPtr CreateChannelByAddress(const TString& address) override;
+    NRpc::IChannelPtr CreateChannelByAddress(const std::string& address) override;
     IClientPtr CreateNativeClient(const TClientOptions& options) override;
     const NRpc::IChannelFactoryPtr& GetChannelFactory() override;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() override;

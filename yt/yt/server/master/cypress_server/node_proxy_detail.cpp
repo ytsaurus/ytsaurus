@@ -97,8 +97,9 @@ static constexpr auto& Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsAccessLoggedMethod(const TString& method) {
-    static const THashSet<TString> methodsForAccessLog = {
+bool IsAccessLoggedMethod(const std::string& method)
+{
+    static const THashSet<std::string> methodsForAccessLog = {
         "Lock",
         "Unlock",
         "GetKey",
@@ -1036,7 +1037,7 @@ void TNontemplateCypressNodeProxyBase::GetBasicAttributes(TGetBasicAttributesCon
     context->ContentRevision = node->GetContentRevision();
 }
 
-void TNontemplateCypressNodeProxyBase::ValidateMethodWhitelistedForTransaction(const TString& method) const
+void TNontemplateCypressNodeProxyBase::ValidateMethodWhitelistedForTransaction(const std::string& method) const
 {
     const auto& transactionManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager;
     if (!Transaction_ || !transactionManagerConfig->CheckTransactionIsCompatibleWithMethod) {
@@ -1622,7 +1623,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
 {
     DeclareMutating();
 
-    auto mode = CheckedEnumCast<ELockMode>(request->mode());
+    auto mode = FromProto<ELockMode>(request->mode());
     auto childKey = YT_PROTO_OPTIONAL(*request, child_key);
     auto attributeKey = YT_PROTO_OPTIONAL(*request, attribute_key);
     auto timestamp = request->timestamp();
@@ -1887,7 +1888,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 
     auto ignoreExisting = request->ignore_existing();
     auto lockExisting = request->lock_existing();
-    auto mode = CheckedEnumCast<ENodeCloneMode>(request->mode());
+    auto mode = FromProto<ENodeCloneMode>(request->mode());
 
     if (!ignoreExisting && lockExisting) {
         THROW_ERROR_EXCEPTION("Cannot specify \"lock_existing\" without \"ignore_existing\"");
@@ -1963,7 +1964,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, BeginCopy)
     DeclareMutating();
     ValidateTransaction();
 
-    auto mode = CheckedEnumCast<ENodeCloneMode>(request->mode());
+    auto mode = FromProto<ENodeCloneMode>(request->mode());
 
     context->SetRequestInfo("Mode: %v",
         mode);
@@ -2027,7 +2028,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, EndCopy)
             return size + std::ssize(value.data());
         });
 
-    auto mode = CheckedEnumCast<ENodeCloneMode>(request->mode());
+    auto mode = FromProto<ENodeCloneMode>(request->mode());
     bool inplace = request->inplace();
     context->SetIncrementalRequestInfo("DataSize: %v, Mode: %v, Inplace: %v",
         dataSize,
@@ -3414,6 +3415,16 @@ void TSequoiaMapNodeProxy::GetSelf(
             context->Reply(resultOrError);
         }
     }));
+}
+
+void TSequoiaMapNodeProxy::ListSelf(
+    TReqList* /*request*/,
+    TRspList* /*response*/,
+    const TCtxListPtr& context)
+{
+    // TODO(danilalexeev): Support list with attributes.
+    context->SetRequestInfo();
+    context->Reply();
 }
 
 int TSequoiaMapNodeProxy::GetChildCount() const

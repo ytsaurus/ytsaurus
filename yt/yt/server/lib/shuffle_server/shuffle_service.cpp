@@ -36,7 +36,7 @@ public:
     TShuffleService(
         IInvokerPtr invoker,
         IClientPtr client,
-        TString localServerAddress)
+        std::string localServerAddress)
         : TServiceBase(
             invoker,
             TShuffleServiceProxy::GetDescriptor(),
@@ -126,7 +126,7 @@ public:
     }
 
 private:
-    const TString LocalServerAddress_;
+    const std::string LocalServerAddress_;
     const IShuffleManagerPtr ShuffleManager_;
 };
 
@@ -135,7 +135,7 @@ private:
 IServicePtr CreateShuffleService(
     IInvokerPtr invoker,
     IClientPtr client,
-    TString localServerAddress)
+    std::string localServerAddress)
 {
     return New<TShuffleService>(
         std::move(invoker),

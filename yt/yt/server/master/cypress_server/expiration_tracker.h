@@ -58,13 +58,16 @@ private:
     TShard* GetShard(TCypressNode* node);
 
     void RegisterNodeExpirationTime(TCypressNode* trunkNode, TInstant expirationTime);
-    void RegisterNodeExpirationTimeout(TCypressNode* trunkNode);
+    void RegisterNodeExpirationTimeout(TCypressNode* trunkNode, std::optional<TInstant> touchTimeOverride = {});
     void UnregisterNodeExpirationTime(TCypressNode* trunkNode);
     void UnregisterNodeExpirationTimeout(TCypressNode* trunkNode);
 
     bool IsNodeLocked(TCypressNode* trunkNode) const;
 
     void OnCheck();
+
+    void RemoveExpiredNodesViaClient(const std::vector<NObjectServer::TEphemeralObjectPtr<TCypressNode>>& trunkNodes);
+    void RemoveExpiredNodesViaMutation(const std::vector<TCypressNode*>& trunkNodes);
 
     bool IsRecovery() const;
 

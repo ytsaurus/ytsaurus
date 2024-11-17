@@ -14,10 +14,7 @@ namespace NYT::NClickHouseServer {
 
 struct TBlockWithFilter
 {
-    explicit TBlockWithFilter(i64 rowCount)
-        : RowCount(rowCount)
-        , RowCountAfterFilter(rowCount)
-    { }
+    explicit TBlockWithFilter(i64 rowCount);
 
     DB::Block Block;
     i64 RowCount;

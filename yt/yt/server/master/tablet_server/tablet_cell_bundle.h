@@ -55,7 +55,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TGossipTabletResources, ResourceUsage);
 
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TAbcConfigPtr, AbcConfig);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, FolderId);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<std::string>, FolderId);
 
     DEFINE_BYVAL_RW_PROPERTY(std::optional<NYson::TYsonString>, BundleControllerTargetConfig);
 

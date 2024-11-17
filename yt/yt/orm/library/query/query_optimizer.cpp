@@ -2,6 +2,8 @@
 
 #include "misc.h"
 
+#include <yt/yt/orm/library/attributes/helpers.h>
+
 #include <yt/yt/library/query/base/ast_visitors.h>
 #include <yt/yt/library/query/base/helpers.h>
 
@@ -21,32 +23,13 @@ using namespace NYT::NQueryClient::NAst;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOptimizeResultCollector
-{
-public:
-    void operator() (bool optimizeResult)
-    {
-        OptimizedAnything_ = OptimizedAnything_ || optimizeResult;
-    }
-
-    bool OptimizedAnything() &&
-    {
-        return OptimizedAnything_;
-    }
-
-private:
-    bool OptimizedAnything_ = false;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TBaseOptimizer
     : public TBaseAstVisitor<bool, TBaseOptimizer>
 {
 public:
     bool OptimizeQuery(TQuery* query)
     {
-        TOptimizeResultCollector collector;
+        NAttributes::TBooleanOrCollector collector;
         if (query->GroupExprs) {
             collector(Visit(*query->GroupExprs));
         }
@@ -55,7 +38,7 @@ public:
         collector(Visit(query->WherePredicate));
         collector(Visit(query->HavingPredicate));
         collector(Visit(query->OrderExpressions));
-        return std::move(collector).OptimizedAnything();
+        return std::move(collector).Result();
     }
 
     virtual bool OnLiteral(TLiteralExpressionPtr /*literalExpr*/)
@@ -80,10 +63,10 @@ public:
 
     virtual bool OnBinary(TBinaryOpExpressionPtr binaryExpr)
     {
-        TOptimizeResultCollector collector;
+        NAttributes::TBooleanOrCollector collector;
         collector(Visit(binaryExpr->Lhs));
         collector(Visit(binaryExpr->Rhs));
-        return std::move(collector).OptimizedAnything();
+        return std::move(collector).Result();
     }
 
     virtual bool OnFunction(TFunctionExpressionPtr functionExpr)
@@ -103,28 +86,28 @@ public:
 
     virtual bool OnTransform(TTransformExpressionPtr transformExpr)
     {
-        TOptimizeResultCollector collector;
+        NAttributes::TBooleanOrCollector collector;
         collector(Visit(transformExpr->Expr));
         collector(Visit(transformExpr->DefaultExpr));
-        return std::move(collector).OptimizedAnything();
+        return std::move(collector).Result();
     }
 
     virtual bool OnCase(TCaseExpressionPtr caseExpr)
     {
-        TOptimizeResultCollector collector;
+        NAttributes::TBooleanOrCollector collector;
         collector(Visit(caseExpr->DefaultExpression));
         collector(Visit(caseExpr->OptionalOperand));
         collector(Visit(caseExpr->WhenThenExpressions));
-        return std::move(collector).OptimizedAnything();
+        return std::move(collector).Result();
     }
 
     virtual bool OnLike(TLikeExpressionPtr likeExpr)
     {
-        TOptimizeResultCollector collector;
+        NAttributes::TBooleanOrCollector collector;
         collector(Visit(likeExpr->Pattern));
         collector(Visit(likeExpr->Text));
         collector(Visit(likeExpr->EscapeCharacter));
-        return std::move(collector).OptimizedAnything();
+        return std::move(collector).Result();
     }
 
 protected:
@@ -132,12 +115,12 @@ protected:
 
     bool Visit(TExpressionList& list)
     {
-        TOptimizeResultCollector collector;
+        NAttributes::TBooleanOrCollector collector;
         for (auto& expr : list) {
             collector(Visit(expr));
         }
 
-        return std::move(collector).OptimizedAnything();
+        return std::move(collector).Result();
     }
 
     bool Visit(TNullableExpressionList& list)
@@ -147,23 +130,23 @@ protected:
 
     bool Visit(TOrderExpressionList& list)
     {
-        TOptimizeResultCollector collector;
+        NAttributes::TBooleanOrCollector collector;
         for (auto& expr : list) {
             collector(Visit(expr.Expressions));
         }
 
-        return std::move(collector).OptimizedAnything();
+        return std::move(collector).Result();
     }
 
     bool Visit(TWhenThenExpressionList& list)
     {
-        TOptimizeResultCollector collector;
+        NAttributes::TBooleanOrCollector collector;
         for (auto& expr : list) {
             collector(Visit(expr.Condition));
             collector(Visit(expr.Result));
         }
 
-        return std::move(collector).OptimizedAnything();
+        return std::move(collector).Result();
     }
 };
 

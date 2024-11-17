@@ -4334,7 +4334,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     LastAvailableExecNodesCheckTime_ = now;
 
     TSchedulingTagFilter tagFilter(Spec_->SchedulingTagFilter);
-    TString observedExecNodeAddress;
+    std::string observedExecNodeAddress;
     bool foundMatching = false;
     bool foundMatchingNotBanned = false;
     int otherTreesNodeCount = 0;
@@ -8322,7 +8322,8 @@ void TOperationControllerBase::RegisterStderr(const TJobletPtr& joblet, const TJ
         auto chunk = New<TInputChunk>(chunkSpec);
         chunk->BoundaryKeys() = std::make_unique<TOwningBoundaryKeys>(TOwningBoundaryKeys{
             .MinKey = FromProto<TLegacyOwningKey>(stderrResult.min()),
-            .MaxKey = FromProto<TLegacyOwningKey>(stderrResult.max())});
+            .MaxKey = FromProto<TLegacyOwningKey>(stderrResult.max()),
+        });
         AttachToLivePreview(StderrTable_->LivePreviewTableName, chunk);
         RegisterLivePreviewChunk(TDataFlowGraph::StderrDescriptor, /*index*/ 0, std::move(chunk));
     }
@@ -8384,7 +8385,8 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
         auto chunk = New<TInputChunk>(chunkSpec);
         chunk->BoundaryKeys() = std::make_unique<TOwningBoundaryKeys>(TOwningBoundaryKeys{
             .MinKey = FromProto<TLegacyOwningKey>(coreResult.min()),
-            .MaxKey = FromProto<TLegacyOwningKey>(coreResult.max())});
+            .MaxKey = FromProto<TLegacyOwningKey>(coreResult.max()),
+        });
         AttachToLivePreview(CoreTable_->LivePreviewTableName, chunk);
         RegisterLivePreviewChunk(TDataFlowGraph::CoreDescriptor, /*index*/ 0, std::move(chunk));
     }

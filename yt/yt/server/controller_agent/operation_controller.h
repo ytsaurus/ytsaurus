@@ -92,7 +92,7 @@ struct TOperationControllerReviveResult
         NScheduler::TDiskQuota DiskQuota;
         TString TreeId;
         NNodeTrackerClient::TNodeId NodeId;
-        TString NodeAddress;
+        std::string NodeAddress;
     };
 
     bool RevivedFromSnapshot = false;

@@ -12,6 +12,12 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void SetAccessTrackingOptions(
+    const NRpc::IClientRequestPtr& request,
+    const NApi::TSuppressableAccessTrackingOptions& commandOptions);
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ValidateLinkNodeCreation(
     const TSequoiaSessionPtr& session,
     NSequoiaClient::TRawYPath targetPath,

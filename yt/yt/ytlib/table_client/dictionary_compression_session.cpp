@@ -24,6 +24,8 @@ using namespace NChunkClient;
 using namespace NCompression;
 using namespace NProfiling;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TDictionaryDecompressionSession)
@@ -384,8 +386,8 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
         columnIdMapping.push_back(nameTable->GetIdOrThrow(columnInfo.stable_name()));
     }
 
-    auto erasureCodec = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions()).erasure_codec();
-    YT_VERIFY(CheckedEnumCast<NErasure::ECodec>(erasureCodec) == NErasure::ECodec::None);
+    const auto& miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
+    YT_VERIFY(FromProto<NErasure::ECodec>(miscExt.erasure_codec()) == NErasure::ECodec::None);
 
     std::vector<IChunkFragmentReader::TChunkFragmentRequest> requests;
     requests.reserve(compressionDictionaryExt.column_infos_size());

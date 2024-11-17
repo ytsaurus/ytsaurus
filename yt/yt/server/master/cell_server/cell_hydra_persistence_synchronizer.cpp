@@ -394,15 +394,18 @@ private:
             auto batchReq = proxy.ExecuteBatch();
             for (auto cellId : cellIds) {
                 auto req = TYPathProxy::Exists(FromObjectId(cellId));
+                req->Tag() = cellId;
                 batchReq->AddRequest(req);
             }
 
             auto batchRsp = WaitFor(batchReq->Invoke())
                 .ValueOrThrow();
 
-            for (const auto& rspOrError : batchRsp->GetResponses<TYPathProxy::TRspExists>()) {
+            for (const auto& [tag, rspOrError] : batchRsp->GetTaggedResponses<TYPathProxy::TRspExists>()) {
+                auto cellId = std::any_cast<TCellId>(tag);
                 if (rspOrError.ValueOrThrow()->value()) {
-                    YT_LOG_ALERT("Synchronizer attempted to delete an existing cell");
+                    YT_LOG_ALERT("Synchronizer attempted to delete an existing cell (CellId: %v)",
+                        cellId);
                     return;
                 }
             }
@@ -561,7 +564,7 @@ private:
                     "registered_in_cypress",
                     "pending_acls_update",
                 });
-                req->set_limit(dynamicConfig->ListAliveCellsRequestSizeLimit);
+                req->set_limit(std::numeric_limits<int>::max());
                 batchReq->AddRequest(req);
             };
             listAliveCells(TabletCellCypressPrefix);

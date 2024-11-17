@@ -471,7 +471,7 @@ TMasterChunkSpecFetcherPtr TInputManager::CreateChunkSpecFetcher(const TInputClu
         chunkSpecFetcher->Add(
             table->ObjectId,
             table->ExternalCellTag,
-            table->Dynamic && !table->Schema->IsSorted() ? -1 : table->ChunkCount,
+            table->Dynamic && !table->Schema->IsSorted() ? TUserObject::UndefinedChunkCount : table->ChunkCount,
             tableIndex,
             ranges);
     }
@@ -968,6 +968,13 @@ void TInputManager::InitInputChunkScrapers()
 
 bool TInputManager::CanInterruptJobs() const
 {
+    // TODO(galtsev): hot fix for YT-23460, see also YT-17003
+    for (auto& table : InputTables_) {
+        if (table->Path.GetForeign() && table->Path.GetNewRanges(table->Comparator).size() > 1) {
+            return false;
+        }
+    }
+
     return !InputHasOrderedDynamicStores_ && !InputHasStaticTableWithHunks_;
 }
 

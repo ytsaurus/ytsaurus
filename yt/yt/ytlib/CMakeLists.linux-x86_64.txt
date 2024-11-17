@@ -314,6 +314,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/chaos_residency_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/master_cache_channel.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_card_channel_factory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_cards_watcher.cpp

@@ -635,7 +635,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
                 "Expected a sorted table when not merging versioned rows");
 
             if (type == EStoreType::SortedChunk) {
-                auto format = CheckedEnumCast<EChunkFormat>(store->AsSortedChunk()->GetChunkMeta().format());
+                auto format = FromProto<EChunkFormat>(store->AsSortedChunk()->GetChunkMeta().format());
                 THROW_ERROR_EXCEPTION_IF(format != EChunkFormat::TableVersionedColumnar,
                     "Expected chunks with %Qlv format when not merging versioned rows",
                     EChunkFormat::TableVersionedColumnar);

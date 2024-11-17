@@ -272,7 +272,7 @@ class YTEnvSetup(object):
     ENABLE_ALLOW_SECONDARY_INDICES = True
     ENABLE_TLS = False
 
-    JOB_PROXY_LOGGING = {"mode": "simple"}
+    JOB_PROXY_LOGGING = {"mode": "per_job_directory"}
 
     DELTA_NODE_FLAVORS = []
 

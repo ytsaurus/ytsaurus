@@ -74,10 +74,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        NodeDefaultAddresses_.Store(THashMap<TNodeId, TString>{});
+        NodeDefaultAddresses_.Store(THashMap<TNodeId, std::string>{});
     }
 
-    void UpdateNodeDefaultAddress(TNodeId nodeId, std::optional<TString> defaultAddress) override
+    void UpdateNodeDefaultAddress(TNodeId nodeId, std::optional<std::string> defaultAddress) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -90,7 +90,7 @@ public:
         });
     }
 
-    virtual TString GetNodeDefaultAddress(TNodeId nodeId) override
+    virtual std::string GetNodeDefaultAddress(TNodeId nodeId) override
     {
         return NodeDefaultAddresses_.Read([&] (const auto& nodeAddresses) {
             auto it = nodeAddresses.find(nodeId);
@@ -109,7 +109,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     std::atomic<bool> WorldInitialized_;
-    NThreading::TAtomicObject<THashMap<TNodeId, TString>> NodeDefaultAddresses_;
+    NThreading::TAtomicObject<THashMap<TNodeId, std::string>> NodeDefaultAddresses_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

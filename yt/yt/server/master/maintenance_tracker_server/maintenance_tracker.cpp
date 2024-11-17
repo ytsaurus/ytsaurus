@@ -179,7 +179,7 @@ private:
 
     void HydraReplicateMaintenanceRequestCreation(TReqReplicateMaintenanceRequestCreation* request)
     {
-        auto component = CheckedEnumCast<EMaintenanceComponent>(request->component());
+        auto component = FromProto<EMaintenanceComponent>(request->component());
         VerifyMaintenanceReplication(component);
 
         DoAddMaintenance(
@@ -187,21 +187,21 @@ private:
             request->address(),
             FromProto<TMaintenanceId>(request->id()),
             request->user(),
-            CheckedEnumCast<EMaintenanceType>(request->type()),
+            FromProto<EMaintenanceType>(request->type()),
             request->comment(),
             /*componentRegistryId*/ std::nullopt);
     }
 
     void HydraReplicateMaintenanceRequestRemoval(TReqReplicateMaintenanceRequestRemoval* request)
     {
-        auto component = CheckedEnumCast<EMaintenanceComponent>(request->component());
+        auto component = FromProto<EMaintenanceComponent>(request->component());
         VerifyMaintenanceReplication(component);
 
         auto ids = FromProto<TMaintenanceIdList>(request->ids());
         YT_ASSERT(std::is_sorted(ids.begin(), ids.end()));
 
         DoRemoveMaintenances(
-            CheckedEnumCast<EMaintenanceComponent>(request->component()),
+            FromProto<EMaintenanceComponent>(request->component()),
             request->address(),
             ids,
             /*componentRegistryId*/ std::nullopt);

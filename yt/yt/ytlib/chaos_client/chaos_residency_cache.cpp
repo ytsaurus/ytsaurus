@@ -3,6 +3,7 @@
 #include "chaos_node_service_proxy.h"
 #include "chaos_cell_directory_synchronizer.h"
 #include "config.h"
+#include "master_cache_channel.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -32,17 +33,18 @@ using namespace NProto;
 
 using NNative::IClientPtr;
 using NNative::IConnectionPtr;
+using NNative::EChaosResidencyCacheType;
 
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChaosResidencyCache
+class TChaosResidencyCacheBase
     : public IChaosResidencyCache
     , public TAsyncExpiringCache<TObjectId, TCellTag>
 {
 public:
-    TChaosResidencyCache(
+    TChaosResidencyCacheBase(
         TChaosResidencyCacheConfigPtr config,
         IConnectionPtr connection,
         const NLogging::TLogger& logger);
@@ -53,11 +55,11 @@ public:
     void UpdateReplicationCardResidency(NObjectClient::TObjectId objectId, NObjectClient::TCellTag cellTag) override;
     void RemoveReplicationCardResidency(NObjectClient::TObjectId objectId) override;
     void PingReplicationCardResidency(NObjectClient::TObjectId objectId) override;
+    void Reconfigure(TChaosResidencyCacheConfigPtr config) override;
 
 protected:
-    class TGetSession;
+    class TGetSessionBase;
 
-    const TChaosResidencyCacheConfigPtr Config_;
     const TWeakPtr<NNative::IConnection> Connection_;
     const NLogging::TLogger Logger;
 
@@ -72,22 +74,92 @@ protected:
 
     TFuture<TCellTag> DoGet(
         const TObjectId& objectId,
-        const TErrorOr<TCellTag>* oldValue);
+        const TErrorOr<TCellTag>* oldValue,
+        bool forceRefresh);
+
+    virtual TIntrusivePtr<TGetSessionBase> CreateGetSession(
+        const TObjectId& objectId,
+        const TCellTag& oldValue,
+        bool forceRefresh) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChaosResidencyCache::TGetSession
+class TChaosResidencyMasterCache
+    : public TChaosResidencyCacheBase
+{
+public:
+    using TChaosResidencyCacheBase::TChaosResidencyCacheBase;
+
+protected:
+    class TGetSession;
+
+    TIntrusivePtr<TGetSessionBase> CreateGetSession(
+        const TObjectId& objectId,
+        const TCellTag& oldValue,
+        bool forceRefresh) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChaosResidencyClientCache
+    : public TChaosResidencyCacheBase
+{
+public:
+    TChaosResidencyClientCache(
+        TChaosResidencyCacheConfigPtr config,
+        IConnectionPtr connection,
+        IChannelPtr chaosCacheChannel,
+        const NLogging::TLogger& logger);
+
+protected:
+    class TGetSession;
+
+    const IChannelPtr ChaosCacheChannel_;
+
+    TIntrusivePtr<TGetSessionBase> CreateGetSession(
+        const TObjectId& objectId,
+        const TCellTag& oldValue,
+        bool forceRefresh) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChaosResidencyCompoundCache
+    : public IChaosResidencyCache
+{
+public:
+    TChaosResidencyCompoundCache(
+        IChaosResidencyCachePtr masterCache,
+        IChaosResidencyCachePtr clientCache,
+        TChaosResidencyCacheConfigPtr config);
+
+    TFuture<TCellTag> GetChaosResidency(TObjectId objectId) override;
+    void ForceRefresh(TObjectId objectId, TCellTag cellTag) override;
+    void Clear() override;
+    void UpdateReplicationCardResidency(NObjectClient::TObjectId objectId, NObjectClient::TCellTag cellTag) override;
+    void RemoveReplicationCardResidency(NObjectClient::TObjectId objectId) override;
+    void PingReplicationCardResidency(NObjectClient::TObjectId objectId) override;
+    void Reconfigure(TChaosResidencyCacheConfigPtr config) override;
+
+private:
+    const IChaosResidencyCachePtr MasterCache_;
+    const IChaosResidencyCachePtr ClientCache_;
+
+    std::atomic<bool> ActiveCacheIsClient_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChaosResidencyCacheBase::TGetSessionBase
     : public TRefCounted
 {
 public:
-    TGetSession(
-        TChaosResidencyCache* owner,
+    TGetSessionBase(
         TObjectId objectId,
         TCellTag cellTag,
         const NLogging::TLogger& logger)
-        : Owner_(owner)
-        , ObjectId_(objectId)
+        : ObjectId_(objectId)
         , Type_(ToString(TypeFromId(objectId)))
         , CellTag_(cellTag)
         , Logger(logger
@@ -95,6 +167,119 @@ public:
                 ObjectId_,
                 Type_,
                 TGuid::Create()))
+    { }
+
+    virtual TCellTag Run() = 0;
+
+protected:
+    const TObjectId ObjectId_;
+    const TString Type_;
+    const TCellTag CellTag_;
+
+    const NLogging::TLogger Logger;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChaosResidencyCacheBase::TChaosResidencyCacheBase(
+    TChaosResidencyCacheConfigPtr config,
+    NNative::IConnectionPtr connection,
+    const NLogging::TLogger& logger)
+    : TAsyncExpiringCache(config)
+    , Connection_(connection)
+    , Logger(logger)
+{ }
+
+TFuture<TCellTag> TChaosResidencyCacheBase::GetChaosResidency(TObjectId key)
+{
+    return TAsyncExpiringCache::Get(key);
+}
+
+void TChaosResidencyCacheBase::ForceRefresh(TObjectId objectId, TCellTag cellTag)
+{
+    TAsyncExpiringCache::ForceRefresh(objectId, cellTag);
+}
+
+void TChaosResidencyCacheBase::Clear()
+{
+    TAsyncExpiringCache::Clear();
+}
+
+void TChaosResidencyCacheBase::UpdateReplicationCardResidency(
+    NObjectClient::TObjectId objectId,
+    NObjectClient::TCellTag cellTag)
+{
+    TAsyncExpiringCache::Set(objectId, cellTag);
+}
+
+void TChaosResidencyCacheBase::RemoveReplicationCardResidency(NObjectClient::TObjectId objectId)
+{
+    TAsyncExpiringCache::InvalidateActive(objectId);
+}
+
+void TChaosResidencyCacheBase::PingReplicationCardResidency(NObjectClient::TObjectId objectId)
+{
+    TAsyncExpiringCache::Ping(objectId);
+}
+
+void TChaosResidencyCacheBase::Reconfigure(TChaosResidencyCacheConfigPtr config)
+{
+    TAsyncExpiringCache::Reconfigure(std::move(config));
+}
+
+TFuture<TCellTag> TChaosResidencyCacheBase::DoGet(
+    const TObjectId& objectId,
+    const TErrorOr<TCellTag>* oldValue,
+    EUpdateReason updateReason) noexcept
+{
+    return DoGet(objectId, oldValue, updateReason == EUpdateReason::ForcedUpdate);
+}
+
+TFuture<TCellTag> TChaosResidencyCacheBase::DoGet(
+    const TObjectId& objectId,
+    bool /*isPeriodicUpdate*/) noexcept
+{
+    return DoGet(objectId, nullptr, false);
+}
+
+TFuture<TCellTag> TChaosResidencyCacheBase::DoGet(
+    const TObjectId& objectId,
+    const TErrorOr<TCellTag>* oldValue,
+    bool forceRefresh)
+{
+    auto cellTag = oldValue && oldValue->IsOK()
+        ? oldValue->Value()
+        : CellTagFromId(objectId);
+
+    auto connection = Connection_.Lock();
+    if (!connection) {
+        return MakeFuture<TCellTag>(
+            TError("Unable to locate %v: connection terminated",
+                TypeFromId(objectId))
+                << TErrorAttribute("object_id", objectId));
+    }
+
+    auto invoker = connection->GetInvoker();
+    auto session = CreateGetSession(objectId, cellTag, forceRefresh);
+
+    return BIND(&TGetSessionBase::Run, std::move(session))
+        .AsyncVia(std::move(invoker))
+        .Run();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChaosResidencyMasterCache::TGetSession
+    : public TGetSessionBase
+{
+public:
+    TGetSession(
+        TChaosResidencyMasterCache* owner,
+        TObjectId objectId,
+        TCellTag cellTag,
+        const NLogging::TLogger& logger)
+        : TGetSessionBase(objectId, cellTag, logger)
+        , Owner_(owner)
     { }
 
     TCellTag Run()
@@ -175,13 +360,7 @@ public:
     }
 
 private:
-    const TIntrusivePtr<TChaosResidencyCache> Owner_;
-    const TObjectId ObjectId_;
-    const TString Type_;
-    const TCellTag CellTag_;
-
-    const NLogging::TLogger Logger;
-
+    const TIntrusivePtr<TChaosResidencyMasterCache> Owner_;
 
     std::vector<TCellTag> GetChaosCellTags(const ICellDirectoryPtr& cellDirectory)
     {
@@ -200,96 +379,204 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChaosResidencyCache::TChaosResidencyCache(
-    TChaosResidencyCacheConfigPtr config,
-    NNative::IConnectionPtr connection,
-    const NLogging::TLogger& logger)
-    : TAsyncExpiringCache(config)
-    , Config_(std::move(config))
-    , Connection_(connection)
-    , Logger(logger)
-{ }
-
-TFuture<TCellTag> TChaosResidencyCache::GetChaosResidency(TObjectId key)
-{
-    return TAsyncExpiringCache::Get(key);
-}
-
-TFuture<TCellTag> TChaosResidencyCache::DoGet(
+TIntrusivePtr<TChaosResidencyCacheBase::TGetSessionBase> TChaosResidencyMasterCache::CreateGetSession(
     const TObjectId& objectId,
-    const TErrorOr<TCellTag>* oldValue,
-    EUpdateReason /*updateReason*/) noexcept
+    const TCellTag& oldValue,
+    bool /*forceRefresh*/)
 {
-    return DoGet(objectId, oldValue);
-}
-
-TFuture<TCellTag> TChaosResidencyCache::DoGet(
-    const TObjectId& objectId,
-    bool /*isPeriodicUpdate*/) noexcept
-{
-    return DoGet(objectId, nullptr);
-}
-
-TFuture<TCellTag> TChaosResidencyCache::DoGet(
-    const TObjectId& objectId,
-    const TErrorOr<TCellTag>* oldValue)
-{
-    auto cellTag = oldValue && oldValue->IsOK()
-        ? oldValue->Value()
-        : CellTagFromId(objectId);
-
-    auto connection = Connection_.Lock();
-    if (!connection) {
-        return MakeFuture<TCellTag>(
-            TError("Unable to locate %v: connection terminated",
-                TypeFromId(objectId))
-                << TErrorAttribute("object_id", objectId));
-    }
-
-    auto invoker = connection->GetInvoker();
-    auto session = New<TGetSession>(this, objectId, cellTag, Logger);
-
-    return BIND(&TGetSession::Run, std::move(session))
-        .AsyncVia(std::move(invoker))
-        .Run();
-}
-
-void TChaosResidencyCache::ForceRefresh(TObjectId objectId, TCellTag cellTag)
-{
-    TAsyncExpiringCache::ForceRefresh(objectId, cellTag);
-}
-
-void TChaosResidencyCache::Clear()
-{
-    TAsyncExpiringCache::Clear();
-}
-
-void TChaosResidencyCache::UpdateReplicationCardResidency(NObjectClient::TObjectId objectId, NObjectClient::TCellTag cellTag)
-{
-    TAsyncExpiringCache::Set(objectId, cellTag);
-}
-
-void TChaosResidencyCache::RemoveReplicationCardResidency(NObjectClient::TObjectId objectId)
-{
-    TAsyncExpiringCache::InvalidateActive(objectId);
-}
-
-void TChaosResidencyCache::PingReplicationCardResidency(NObjectClient::TObjectId objectId)
-{
-    Ping(objectId);
+    return New<TGetSession>(this, objectId, oldValue, Logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChaosResidencyCachePtr CreateChaosResidencyCache(
+class TChaosResidencyClientCache::TGetSession
+    : public TGetSessionBase
+{
+public:
+    TGetSession(
+        TChaosResidencyClientCache* owner,
+        TObjectId objectId,
+        TCellTag cellTag,
+        bool forceRefresh,
+        const NLogging::TLogger& logger)
+        : TGetSessionBase(objectId, cellTag, logger)
+        , Owner_(owner)
+        , ForceRefresh_(forceRefresh)
+    { }
+
+    TCellTag Run()
+    {
+        auto proxy = TChaosNodeServiceProxy(Owner_->ChaosCacheChannel_);
+        auto req = proxy.GetReplicationCardResidency();
+        ToProto(req->mutable_replication_card_id(), ObjectId_);
+        if (ForceRefresh_) {
+            req->set_force_refresh_replication_card_cell_tag(ToProto<ui32>(CellTag_));
+        }
+
+        SetChaosCacheStickyGroupBalancingHint(
+            ObjectId_,
+            req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext));
+
+        YT_LOG_DEBUG("Requesting master cache");
+
+        auto resultOrError = WaitFor(req->Invoke());
+        if (!resultOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %v %v",
+                Type_,
+                ObjectId_)
+                << resultOrError;
+        }
+
+        return FromProto<TCellTag>(resultOrError.Value()->replication_card_cell_tag());
+    }
+
+private:
+    const TIntrusivePtr<TChaosResidencyClientCache> Owner_;
+    const bool ForceRefresh_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChaosResidencyClientCache::TChaosResidencyClientCache(
+    TChaosResidencyCacheConfigPtr config,
+    NNative::IConnectionPtr connection,
+    IChannelPtr chaosCacheChannel,
+    const NLogging::TLogger& logger)
+    : TChaosResidencyCacheBase(
+        std::move(config),
+        connection,
+        std::move(logger))
+    , ChaosCacheChannel_(std::move(chaosCacheChannel))
+{ }
+
+
+TIntrusivePtr<TChaosResidencyCacheBase::TGetSessionBase> TChaosResidencyClientCache::CreateGetSession(
+    const TObjectId& objectId,
+    const TCellTag& oldValue,
+    bool forceRefresh)
+{
+    return New<TGetSession>(this, objectId, oldValue, forceRefresh, Logger);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChaosResidencyCompoundCache::TChaosResidencyCompoundCache(
+    IChaosResidencyCachePtr masterCache,
+    IChaosResidencyCachePtr clientCache,
+    TChaosResidencyCacheConfigPtr config)
+    : MasterCache_(std::move(masterCache))
+    , ClientCache_(std::move(clientCache))
+    , ActiveCacheIsClient_(config->IsClientModeActive)
+{ }
+
+TFuture<TCellTag> TChaosResidencyCompoundCache::GetChaosResidency(TObjectId objectId)
+{
+    return ActiveCacheIsClient_
+        ? ClientCache_->GetChaosResidency(objectId)
+        : MasterCache_->GetChaosResidency(objectId);
+}
+
+void TChaosResidencyCompoundCache::ForceRefresh(TObjectId objectId, TCellTag cellTag)
+{
+    if (ActiveCacheIsClient_) {
+        ClientCache_->ForceRefresh(objectId, cellTag);
+    } else {
+        MasterCache_->ForceRefresh(objectId, cellTag);
+    }
+}
+
+void TChaosResidencyCompoundCache::Clear()
+{
+    ClientCache_->Clear();
+    MasterCache_->Clear();
+}
+
+void TChaosResidencyCompoundCache::UpdateReplicationCardResidency(
+    NObjectClient::TObjectId objectId,
+    NObjectClient::TCellTag cellTag)
+{
+    return ActiveCacheIsClient_
+        ? ClientCache_->UpdateReplicationCardResidency(objectId, cellTag)
+        : MasterCache_->UpdateReplicationCardResidency(objectId, cellTag);
+}
+
+void TChaosResidencyCompoundCache::RemoveReplicationCardResidency(NObjectClient::TObjectId objectId)
+{
+    if (ActiveCacheIsClient_) {
+        ClientCache_->RemoveReplicationCardResidency(objectId);
+    } else {
+        MasterCache_->RemoveReplicationCardResidency(objectId);
+    }
+}
+
+void TChaosResidencyCompoundCache::PingReplicationCardResidency(NObjectClient::TObjectId objectId)
+{
+    if (ActiveCacheIsClient_) {
+        ClientCache_->PingReplicationCardResidency(objectId);
+    } else {
+        MasterCache_->PingReplicationCardResidency(objectId);
+    }
+}
+
+void TChaosResidencyCompoundCache::Reconfigure(TChaosResidencyCacheConfigPtr config)
+{
+    ActiveCacheIsClient_ = config->IsClientModeActive;
+    ClientCache_->Reconfigure(config);
+    MasterCache_->Reconfigure(std::move(config));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IChaosResidencyCachePtr CreateChaosResidencyMasterCache(
     TChaosResidencyCacheConfigPtr config,
     IConnectionPtr connection,
     const NLogging::TLogger& logger)
 {
-    return New<TChaosResidencyCache>(
+    return New<TChaosResidencyMasterCache>(
         std::move(config),
         std::move(connection),
         logger);
+}
+
+IChaosResidencyCachePtr CreateChaosResidencyClientCache(
+    TChaosResidencyCacheConfigPtr config,
+    TChaosCacheChannelConfigPtr chaosCacheChannelConfig,
+    IConnectionPtr connection,
+    const NLogging::TLogger& logger)
+{
+    auto chaosCacheChannel = CreateChaosCacheChannel(connection, std::move(chaosCacheChannelConfig));
+    return New<TChaosResidencyClientCache>(
+        std::move(config),
+        std::move(connection),
+        std::move(chaosCacheChannel),
+        logger);
+}
+
+IChaosResidencyCachePtr CreateChaosResidencyCache(
+    TChaosResidencyCacheConfigPtr config,
+    TChaosCacheChannelConfigPtr chaosCacheChannelConfig,
+    IConnectionPtr connection,
+    EChaosResidencyCacheType mode,
+    const NLogging::TLogger& logger)
+{
+    if (mode == EChaosResidencyCacheType::MasterCache || !chaosCacheChannelConfig) {
+        return CreateChaosResidencyMasterCache(
+            std::move(config),
+            std::move(connection),
+            logger);
+    }
+
+    return New<TChaosResidencyCompoundCache>(
+        CreateChaosResidencyMasterCache(
+            config,
+            connection,
+            logger),
+        CreateChaosResidencyClientCache(
+            config,
+            std::move(chaosCacheChannelConfig),
+            std::move(connection),
+            logger),
+        std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

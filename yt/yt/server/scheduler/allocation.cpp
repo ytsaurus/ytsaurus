@@ -24,7 +24,7 @@ TAllocation::TAllocation(
     int schedulingIndex,
     std::optional<EAllocationSchedulingStage> schedulingStage,
     NNodeTrackerClient::TNodeId revivalNodeId,
-    TString revivalNodeAddress)
+    std::string revivalNodeAddress)
     : Id_(id)
     , OperationId_(operationId)
     , IncarnationId_(incarnationId)

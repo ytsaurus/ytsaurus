@@ -20,8 +20,8 @@ bool IsPersistenceEnabled(
 }
 
 std::optional<TSharedRef> SanitizeLocalHostName(
-    const THashSet<TString>& clusterPeersAddresses,
-    TStringBuf host)
+    const THashSet<std::string>& clusterPeersAddresses,
+    const std::string& host)
 {
     if (!clusterPeersAddresses.contains(host)) {
         return {};

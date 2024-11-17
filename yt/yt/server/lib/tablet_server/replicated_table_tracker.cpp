@@ -93,12 +93,12 @@ void FromProto(
 {
     replicaData->TableId = FromProto<TTableId>(protoReplicaData.table_id());
     replicaData->Id = FromProto<TTableReplicaId>(protoReplicaData.replica_id());
-    replicaData->Mode = CheckedEnumCast<ETableReplicaMode>(protoReplicaData.mode());
+    replicaData->Mode = FromProto<ETableReplicaMode>(protoReplicaData.mode());
     replicaData->Enabled = protoReplicaData.enabled();
     replicaData->ClusterName = protoReplicaData.cluster_name();
     replicaData->TablePath = protoReplicaData.table_path();
     replicaData->TrackingEnabled = protoReplicaData.tracking_enabled();
-    replicaData->ContentType = CheckedEnumCast<ETableReplicaContentType>(protoReplicaData.content_type());
+    replicaData->ContentType = FromProto<ETableReplicaContentType>(protoReplicaData.content_type());
 }
 
 void ToProto(
@@ -182,7 +182,7 @@ void FromProto(
     const NReplicatedTableTrackerClient::NProto::TChangeReplicaModeCommand& protoCommand)
 {
     command->ReplicaId = FromProto<TTableReplicaId>(protoCommand.replica_id());
-    command->TargetMode = CheckedEnumCast<ETableReplicaMode>(protoCommand.target_mode());
+    command->TargetMode = FromProto<ETableReplicaMode>(protoCommand.target_mode());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

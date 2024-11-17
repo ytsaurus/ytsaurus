@@ -203,7 +203,7 @@ public:
                 .EnablePortoMemoryTracking = UserJobSpec_.use_porto_memory_tracking(),
                 .EnableCoreDumps = UserJobSpec_.has_core_table_spec(),
                 .EnableGpuCoreDumps = UserJobSpec_.enable_cuda_gpu_core_dump(),
-                .EnablePorto = TranslateEnablePorto(CheckedEnumCast<NScheduler::EEnablePorto>(UserJobSpec_.enable_porto())),
+                .EnablePorto = TranslateEnablePorto(FromProto<NScheduler::EEnablePorto>(UserJobSpec_.enable_porto())),
                 .ThreadLimit = UserJobSpec_.thread_limit()
             }))
         , Ports_(ports)

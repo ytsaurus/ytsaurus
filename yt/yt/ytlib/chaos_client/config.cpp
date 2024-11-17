@@ -4,6 +4,14 @@ namespace NYT::NChaosClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TChaosResidencyCacheConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("is_client_mode_active", &TThis::IsClientModeActive)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TChaosCellDirectorySynchronizerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("sync_period", &TThis::SyncPeriod)

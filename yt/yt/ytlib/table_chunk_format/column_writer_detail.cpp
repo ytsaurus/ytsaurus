@@ -120,9 +120,14 @@ i64 TVersionedColumnWriterBase::GetMemoryUsage() const
 
 i32 TVersionedColumnWriterBase::GetCurrentSegmentSize() const
 {
-    return
-        // Estimate dense size assuming max diff from expected to be 7.
-        CompressedUnsignedVectorSizeInBytes(7, ValuesPerRow_.size()) +
+    ui32 maxDiffEstimate = 0;
+    if (!ValuesPerRow_.empty()) {
+        i64 expected = DivRound<int>(ValuesPerRow_.back(), ValuesPerRow_.size());
+        expected *= std::ssize(ValuesPerRow_);
+        maxDiffEstimate = ZigZagEncode32(ValuesPerRow_.back() - expected);
+    }
+
+    return CompressedUnsignedVectorSizeInBytes(maxDiffEstimate, ValuesPerRow_.size()) +
         CompressedUnsignedVectorSizeInBytes(MaxTimestampIndex_, TimestampIndexes_.size()) +
         AggregateBitmap_.GetByteSize();
 }
@@ -187,10 +192,7 @@ void TVersionedColumnWriterBase::AddValues(
 
 void TVersionedColumnWriterBase::DumpVersionedData(TSegmentInfo* segmentInfo, NColumnarChunkFormat::TMultiValueIndexMeta* rawIndexMeta)
 {
-    ui32 expectedValuesPerRow;
-    ui32 maxDiffFromExpected;
-
-    PrepareDiffFromExpected(&ValuesPerRow_, &expectedValuesPerRow, &maxDiffFromExpected);
+    auto [expectedValuesPerRow, maxDiffFromExpected] = PrepareDiffFromExpected(&ValuesPerRow_);
 
     auto denseSize = CompressedUnsignedVectorSizeInBytes(
         maxDiffFromExpected,

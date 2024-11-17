@@ -247,23 +247,32 @@ bool TSequoiaSession::JustCreated(TObjectId id)
     return SequoiaTransaction_->CouldGenerateId(id);
 }
 
-void TSequoiaSession::SetNode(TNodeId nodeId, TYsonString value)
+void TSequoiaSession::SetNode(
+    TNodeId nodeId,
+    TYsonString value,
+    const TSuppressableAccessTrackingOptions& options)
 {
     // NB: Force flag is irrelevant when setting node's value.
-    DoSetNode(nodeId, EmptyYPath, value, /*force*/ false);
+    DoSetNode(nodeId, EmptyYPath, value, /*force*/ false, options);
 }
 
-void TSequoiaSession::SetNodeAttribute(TNodeId nodeId, TYPathBuf path, TYsonString value, bool force)
+void TSequoiaSession::SetNodeAttribute(
+    TNodeId nodeId,
+    TYPathBuf path,
+    TYsonString value,
+    bool force,
+    const TSuppressableAccessTrackingOptions& options)
 {
     YT_VERIFY(path.Underlying().StartsWith("/@"));
-    DoSetNode(nodeId, path, value, force);
+    DoSetNode(nodeId, path, value, force, options);
 }
 
 void TSequoiaSession::MultisetNodeAttributes(
     TNodeId nodeId,
     TYPathBuf path,
     const std::vector<TMultisetAttributesSubrequest>& subrequests,
-    bool force)
+    bool force,
+    const NApi::TSuppressableAccessTrackingOptions& options)
 {
     MaybeLockNodeInSequoiaTable(nodeId, ELockType::SharedStrong);
     NYT::NCypressProxy::MultisetNodeAttributes(
@@ -271,6 +280,7 @@ void TSequoiaSession::MultisetNodeAttributes(
         path,
         subrequests,
         force,
+        options,
         SequoiaTransaction_);
 }
 
@@ -300,7 +310,7 @@ void TSequoiaSession::DetachAndRemoveSingleNode(
     RemoveNode({nodeId, CypressTransactionId_}, path.ToMangledSequoiaPath(),  SequoiaTransaction_);
     if (TypeFromId(nodeId) != EObjectType::Scion) {
         MaybeLockNodeInSequoiaTable(parentId, ELockType::Exclusive);
-        DetachChild(parentId, path.GetBaseName(), SequoiaTransaction_);
+        DetachChild(parentId, path.GetBaseName(), /*options*/ {}, SequoiaTransaction_);
     }
 }
 
@@ -356,6 +366,7 @@ TNodeId TSequoiaSession::CopySubtree(
         destinationParentId,
         createdSubtreeRootId,
         destinationRoot.GetBaseName(),
+        /*options*/ {},
         SequoiaTransaction_);
 
     return createdSubtreeRootId;
@@ -371,10 +382,12 @@ void TSequoiaSession::ClearSubtree(const TSubtree& subtree)
         /*removeRoot*/ false);
 }
 
-void TSequoiaSession::ClearSubtree(TAbsoluteYPathBuf path)
+void TSequoiaSession::ClearSubtree(
+    TAbsoluteYPathBuf path,
+    const TSuppressableAccessTrackingOptions& options)
 {
     auto future = NCypressProxy::SelectSubtree(path, SequoiaTransaction_)
-        .Apply(BIND([this, this_ = MakeStrong(this)] (
+        .Apply(BIND([this, this_ = MakeStrong(this), options] (
             const std::vector<NRecords::TPathToNodeId>& records
         ) {
             MaybeLockNodeInSequoiaTable(records.front().NodeId, ELockType::SharedStrong);
@@ -382,7 +395,9 @@ void TSequoiaSession::ClearSubtree(TAbsoluteYPathBuf path)
                 ParseSubtree(records),
                 SequoiaTransaction_,
                 CypressTransactionId_,
-                /*removeRoot*/ false);
+                /*removeRoot*/ false,
+                /*subtreeParentId*/ {},
+                options);
         }));
 
     AdditionalFutures_.push_back(std::move(future));
@@ -480,21 +495,23 @@ std::vector<TNodeId> TSequoiaSession::FindNodeIds(TRange<TAbsoluteYPathBuf> path
 TNodeId TSequoiaSession::CreateMapNodeChain(
     TAbsoluteYPathBuf startPath,
     TNodeId startId,
-    TRange<std::string> names)
+    TRange<std::string> names,
+    const TSuppressableAccessTrackingOptions& options)
 {
     MaybeLockNodeInSequoiaTable(startId, ELockType::SharedStrong);
-    return CreateIntermediateNodes(startPath, startId, names, SequoiaTransaction_);
+    return CreateIntermediateNodes(startPath, startId, names, options, SequoiaTransaction_);
 }
 
 TNodeId TSequoiaSession::CreateNode(
     EObjectType type,
     TAbsoluteYPathBuf path,
     const IAttributeDictionary* explicitAttributes,
-    TNodeId parentId)
+    TNodeId parentId,
+    const TSuppressableAccessTrackingOptions& options)
 {
     auto createdNodeId = SequoiaTransaction_->GenerateObjectId(type);
     NCypressProxy::CreateNode(createdNodeId, parentId, path, explicitAttributes, SequoiaTransaction_);
-    AttachChild(parentId, createdNodeId, path.GetBaseName(), SequoiaTransaction_);
+    AttachChild(parentId, createdNodeId, path.GetBaseName(), options, SequoiaTransaction_);
 
     return createdNodeId;
 }
@@ -526,10 +543,21 @@ TFuture<std::vector<TCypressChildDescriptor>> TSequoiaSession::FetchChildren(TNo
         .ApplyUnique(parseRecords);
 }
 
-void TSequoiaSession::DoSetNode(TNodeId nodeId, TYPathBuf path, TYsonString value, bool force)
+void TSequoiaSession::DoSetNode(
+    TNodeId nodeId,
+    TYPathBuf path,
+    TYsonString value,
+    bool force,
+    const TSuppressableAccessTrackingOptions& options)
 {
     MaybeLockNodeInSequoiaTable(nodeId, ELockType::SharedStrong);
-    NYT::NCypressProxy::SetNode({nodeId, CypressTransactionId_}, path, value, force, SequoiaTransaction_);
+    NYT::NCypressProxy::SetNode(
+        {nodeId, CypressTransactionId_},
+        path,
+        value,
+        force,
+        options,
+        SequoiaTransaction_);
 }
 
 TSequoiaSession::TSequoiaSession(

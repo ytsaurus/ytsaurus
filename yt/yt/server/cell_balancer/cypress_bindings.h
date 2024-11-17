@@ -212,7 +212,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletCellStatus)
 struct TTabletCellPeer
     : public NYTree::TYsonStruct
 {
-    TString Address;
+    std::string Address;
     TString State;
     TString LastSeenState;
     TInstant LastSeenTime;

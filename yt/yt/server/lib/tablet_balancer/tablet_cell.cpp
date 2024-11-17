@@ -30,7 +30,7 @@ TTabletCell::TTabletCell(
     TTabletCellId cellId,
     const TTabletCellStatistics& statistics,
     const TTabletCellStatus& status,
-    std::optional<TString> address,
+    std::optional<std::string> address,
     ETabletCellLifeStage lifeStage)
     : Id(cellId)
     , Statistics(statistics)

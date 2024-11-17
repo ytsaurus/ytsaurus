@@ -233,7 +233,7 @@ class TDiscoveryServer
 public:
     TDiscoveryServer(
         IServerPtr rpcServer,
-        TString selfAddress,
+        std::string selfAddress,
         TDiscoveryServerConfigPtr config,
         IChannelFactoryPtr channelFactory,
         IInvokerPtr serverInvoker,
@@ -289,7 +289,7 @@ public:
 
 private:
     const IServerPtr RpcServer_;
-    const TString SelfAddress_;
+    const std::string SelfAddress_;
     const TDiscoveryServerConfigPtr Config_;
     const IChannelFactoryPtr ChannelFactory_;
     const NLogging::TLogger Logger;
@@ -354,7 +354,7 @@ private:
 
 IDiscoveryServerPtr CreateDiscoveryServer(
     IServerPtr rpcServer,
-    TString selfAddress,
+    std::string selfAddress,
     TDiscoveryServerConfigPtr config,
     IChannelFactoryPtr channelFactory,
     IInvokerPtr serverInvoker,

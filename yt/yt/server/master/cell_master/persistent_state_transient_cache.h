@@ -27,9 +27,9 @@ struct IPersistentStateTransientCache
     // Thread affinity: automaton.
     virtual void UpdateNodeDefaultAddress(
         NNodeTrackerClient::TNodeId nodeId,
-        std::optional<TString> defaultAddress) = 0;
+        std::optional<std::string> defaultAddress) = 0;
     // Thread affinity: any.
-    virtual TString GetNodeDefaultAddress(NNodeTrackerClient::TNodeId nodeId) = 0;
+    virtual std::string GetNodeDefaultAddress(NNodeTrackerClient::TNodeId nodeId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IPersistentStateTransientCache)

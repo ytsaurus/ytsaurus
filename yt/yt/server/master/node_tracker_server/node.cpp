@@ -380,7 +380,7 @@ const TAddressMap& TNode::GetAddressesOrThrow(EAddressType addressType) const
     return NNodeTrackerClient::GetAddressesOrThrow(NodeAddresses_, addressType);
 }
 
-const TString& TNode::GetDefaultAddress() const
+const std::string& TNode::GetDefaultAddress() const
 {
     return DefaultAddress_;
 }
@@ -1185,7 +1185,7 @@ void TNode::RebuildTags()
     Tags_.clear();
     Tags_.insert(UserTags_.begin(), UserTags_.end());
     Tags_.insert(NodeTags_.begin(), NodeTags_.end());
-    Tags_.insert(TString(GetServiceHostName(GetDefaultAddress())));
+    Tags_.insert(std::string(GetServiceHostName(GetDefaultAddress())));
     if (auto* rack = GetRack()) {
         Tags_.insert(rack->GetName());
     }

@@ -130,16 +130,20 @@ DEFINE_ENUM(ESessionType,
     ((Repair)                   (2))
 );
 
-DEFINE_BIT_ENUM(EChunkFeatures,
-    ((None)                     (0x0000))
-    ((DescendingSortOrder)      (0x0001))
-    ((StripedErasure)           (0x0002))
-    ((IndexedBlockFormat)       (0x0004))
-    ((SlimBlockFormat)          (0x0008))
-    ((UnversionedHunks)         (0x0010))
-    ((CompressedHunkValues)     (0x0020))
-    ((NoColumnMetaInChunkMeta)  (0x0040))
+DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(EChunkFeatures, ui64,
+    ((None)                     (0x00000000))
+    ((DescendingSortOrder)      (0x00000001))
+    ((StripedErasure)           (0x00000002))
+    ((IndexedBlockFormat)       (0x00000004))
+    ((SlimBlockFormat)          (0x00000008))
+    ((UnversionedHunks)         (0x00000010))
+    ((CompressedHunkValues)     (0x00000020))
+    ((NoColumnMetaInChunkMeta)  (0x00000040))
+    // Sentinel
+    ((Unknown)                   (0x80000000))
 );
+
+DEFINE_ENUM_UNKNOWN_VALUE(EChunkFeatures, Unknown);
 
 DEFINE_ENUM(EChunkClientFeature,
     // COMPAT(akozhikhov).
