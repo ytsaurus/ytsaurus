@@ -284,7 +284,7 @@ public:
     const TNodeAddressMap& GetNodeAddresses() const;
     void SetNodeAddresses(const TNodeAddressMap& nodeAddresses);
     const TAddressMap& GetAddressesOrThrow(NNodeTrackerClient::EAddressType addressType) const;
-    const TString& GetDefaultAddress() const;
+    const std::string& GetDefaultAddress() const;
 
     //! Get rack to which this node belongs.
     /*!
@@ -429,7 +429,7 @@ public:
 
 private:
     NNodeTrackerClient::TNodeAddressMap NodeAddresses_;
-    TString DefaultAddress_;
+    std::string DefaultAddress_;
 
     TMediumMap<int> HintedUserSessionCount_;
     TMediumMap<int> HintedReplicationSessionCount_;

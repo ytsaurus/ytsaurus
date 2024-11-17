@@ -14,7 +14,7 @@ namespace NYT {
 //! If address does not contain :, '.yt.yandex.net:80' will be appended automatically,
 //! i.e. "hahn" -> "hahn.yt.yandex.net:80".
 NYTree::INodePtr DownloadClusterConnection(
-    TString remoteClusterProxyAddress,
+    std::string remoteClusterProxyAddress,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////

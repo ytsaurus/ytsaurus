@@ -129,9 +129,9 @@ private:
 
     THashMap<TTableId, TTablePtr> FetchBasicTableAttributes(
         const THashSet<TTableId>& tableIds) const;
-    THashMap<TString, TTabletCellBundle::TNodeStatistics> GetNodeStatistics(
+    THashMap<TNodeAddress, TTabletCellBundle::TNodeStatistics> GetNodeStatistics(
         const NYTree::IListNodePtr& nodeStatistics,
-        const THashSet<TString>& addresses) const;
+        const THashSet<std::string>& addresses) const;
 
     TTabletCellInfo TabletCellInfoFromAttributes(
         TTabletCellId cellId,

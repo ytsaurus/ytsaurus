@@ -767,7 +767,7 @@ class TDockerRegistryConfig
 {
 public:
     //! FQDN of internal docker registry for docker images stored in Cypress.
-    TString InternalRegistryAddress;
+    std::string InternalRegistryAddress;
 
     REGISTER_YSON_STRUCT(TDockerRegistryConfig);
 

@@ -84,8 +84,7 @@ public:
 
         auto server = NDiscoveryServer::CreateDiscoveryServer(
             RpcServers_[index],
-            // TODO(babenko): switch to std::string
-            TString(Addresses_[index]),
+            Addresses_[index],
             serverConfig,
             ChannelFactory_,
             serverActionQueue->GetInvoker(),

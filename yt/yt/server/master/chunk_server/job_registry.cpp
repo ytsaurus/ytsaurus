@@ -52,7 +52,7 @@ public:
     void RegisterJob(TJobPtr job) override
     {
         YT_VERIFY(ActiveEpochs_.contains(job->GetJobEpoch()));
-        YT_VERIFY(job->NodeAddress());
+        YT_VERIFY(!job->NodeAddress().empty());
 
         EmplaceOrCrash(IdToJob_, job->GetJobId(), job);
         InsertOrCrash(NodeAddressToJobs_[job->NodeAddress()], job);
@@ -240,7 +240,7 @@ private:
     TBootstrap* const Bootstrap_;
 
     THashMap<TJobId, TJobPtr> IdToJob_;
-    THashMap<TString, THashSet<TJobPtr>> NodeAddressToJobs_;
+    THashMap<std::string, THashSet<TJobPtr>> NodeAddressToJobs_;
     THashMap<TJobEpoch, THashSet<TJobPtr>> EpochToJobs_;
 
     TEnumIndexedArray<EJobType, TEnumIndexedArray<EJobState, TRingQueue<TJobPtr>>> FinishedJobQueues_;

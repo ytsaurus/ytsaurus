@@ -122,7 +122,7 @@ private:
 
     ITabletBalancerPtr TabletBalancer_;
 
-    TString LocalAddress_;
+    std::string LocalAddress_;
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     TActionQueuePtr ControlQueue_;

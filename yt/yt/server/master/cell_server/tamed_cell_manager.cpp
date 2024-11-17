@@ -1249,7 +1249,7 @@ private:
     THashMap<ECellarType, THashMap<TString, TCellBundle*>> NameToCellBundleMap_;
 
     THashMap<TCellTag, TCellBase*> CellTagToCell_;
-    THashMap<TString, TCellSet> AddressToCell_;
+    THashMap<std::string, TCellSet> AddressToCell_;
     THashMap<TTransaction*, std::pair<TCellBase*, std::optional<int>>> TransactionToCellMap_;
 
     TPeriodicExecutorPtr CellStatusIncrementalGossipExecutor_;

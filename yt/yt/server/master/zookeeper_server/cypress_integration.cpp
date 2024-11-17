@@ -47,7 +47,7 @@ private:
     IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& zookeeperManager = Bootstrap_->GetZookeeperManager();
-        auto* shard = zookeeperManager->FindZookeeperShardByName(TString(key));
+        auto* shard = zookeeperManager->FindZookeeperShardByName(key);
         if (!IsObjectAlive(shard)) {
             return nullptr;
         }

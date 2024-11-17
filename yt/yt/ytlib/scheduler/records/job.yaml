@@ -58,7 +58,7 @@ types:
         column_type: Int64
 
       - cpp_name: Address
-        cpp_type: TString
+        cpp_type: std::string
         column_name: address
         column_type: String
 

@@ -79,7 +79,7 @@ private:
 
     struct TCellInfo
     {
-        TString LeaderAddress = {};
+        std::string LeaderAddress = {};
         NReplicatedTableTrackerClient::TTrackerStateRevision Revision;
     };
 

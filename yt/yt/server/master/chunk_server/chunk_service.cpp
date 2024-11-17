@@ -536,8 +536,8 @@ private:
             auto preferredHostName = subrequest.has_preferred_host_name()
                 ? std::make_optional(subrequest.preferred_host_name())
                 : std::nullopt;
-            auto forbiddenAddresses = FromProto<std::vector<TString>>(subrequest.forbidden_addresses());
-            auto allocatedAddresses = FromProto<std::vector<TString>>(subrequest.allocated_addresses());
+            auto forbiddenAddresses = FromProto<std::vector<std::string>>(subrequest.forbidden_addresses());
+            auto allocatedAddresses = FromProto<std::vector<std::string>>(subrequest.allocated_addresses());
 
             auto* subresponse = response->add_subresponses();
             try {

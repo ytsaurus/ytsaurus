@@ -11,7 +11,7 @@ namespace NYT::NShuffleServer {
 NRpc::IServicePtr CreateShuffleService(
     IInvokerPtr invoker,
     NApi::NNative::IClientPtr client,
-    TString localServerAddress);
+    std::string localServerAddress);
 
 ////////////////////////////////////////////////////////////////////////////////
 

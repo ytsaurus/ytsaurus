@@ -73,7 +73,7 @@ struct TAllocationDescription
     bool Running = false;
     NNodeTrackerClient::TNodeId NodeId;
 
-    std::optional<TString> NodeAddress;
+    std::optional<std::string> NodeAddress;
 
     struct TAllocationProperties
     {

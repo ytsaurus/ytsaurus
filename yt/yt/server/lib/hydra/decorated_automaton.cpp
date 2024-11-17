@@ -1222,7 +1222,7 @@ TSharedRef TDecoratedAutomaton::SanitizeLocalHostName() const
     auto localHost = ReadLocalHostName();
 
     if (Options_.EnableLocalHostSanitizing) {
-        THashSet<TString> hosts;
+        THashSet<std::string> hosts;
         for (const auto& peer : GetEpochContext()->CellManager->GetClusterPeersAddresses()) {
             hosts.insert(TString(GetServiceHostName(peer)));
         }

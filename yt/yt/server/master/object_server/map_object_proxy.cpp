@@ -178,13 +178,7 @@ template <class TObject>
 std::vector<std::string> TNonversionedMapObjectProxyBase<TObject>::GetKeys() const
 {
     const auto& keyToChild = TBase::GetThisImpl()->KeyToChild();
-    // TODO(babenko): migrate to std::string
-    // Must be just ```return NYT::GetKeys(keyToChild);'''
-    std::vector<std::string> result;
-    for (const auto& [key, _] : keyToChild) {
-        result.push_back(key);
-    }
-    return result;
+    return NYT::GetKeys(keyToChild);
 }
 
 template <class TObject>

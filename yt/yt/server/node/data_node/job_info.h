@@ -23,7 +23,7 @@ private:
     NJobAgent::EJobState JobState_;
     NJobAgent::EJobType JobType_;
 
-    TString JobTrackerAddress_;
+    std::string JobTrackerAddress_;
 
     TInstant JobStartTime_;
     TDuration JobDuration_;

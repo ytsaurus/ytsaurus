@@ -70,7 +70,7 @@ class TQueryTracker
 public:
     TQueryTracker(
         TQueryTrackerDynamicConfigPtr config,
-        TString selfAddress,
+        std::string selfAddress,
         IInvokerPtr controlInvoker,
         IAlertCollectorPtr alertCollector,
         NApi::NNative::IClientPtr stateClient,
@@ -127,7 +127,7 @@ public:
     }
 
 private:
-    const TString SelfAddress_;
+    const std::string SelfAddress_;
     const IInvokerPtr ControlInvoker_;
     const IAlertCollectorPtr AlertCollector_;
     const NApi::NNative::IClientPtr StateClient_;
@@ -781,7 +781,7 @@ DEFINE_REFCOUNTED_TYPE(TQueryTracker)
 
 IQueryTrackerPtr CreateQueryTracker(
     TQueryTrackerDynamicConfigPtr config,
-    TString selfAddress,
+    std::string selfAddress,
     IInvokerPtr controlInvoker,
     IAlertCollectorPtr alertCollector,
     NApi::NNative::IClientPtr stateClient,

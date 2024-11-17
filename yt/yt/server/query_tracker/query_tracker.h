@@ -34,7 +34,7 @@ DEFINE_REFCOUNTED_TYPE(IQueryTracker)
 
 IQueryTrackerPtr CreateQueryTracker(
     TQueryTrackerDynamicConfigPtr config,
-    TString selfAddress,
+    std::string selfAddress,
     IInvokerPtr controlInvoker,
     NAlertManager::IAlertCollectorPtr alertCollector,
     NApi::NNative::IClientPtr stateClient,

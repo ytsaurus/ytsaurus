@@ -67,7 +67,7 @@ TApi::TApi(TBootstrap* bootstrap)
     dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TApi::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
-TString TApi::GetNetworkNameForAddress(const TNetworkAddress& address) const
+std::string TApi::GetNetworkNameForAddress(const TNetworkAddress& address) const
 {
     if (!address.IsIP6()) {
         return DefaultNetworkName_;
@@ -210,7 +210,7 @@ void TApi::IncrementHttpCode(EStatusCode httpStatusCode)
 void TApi::IncrementUserCounter(
     TUserCounterMap* counterMap,
     const std::string& user,
-    const TString& networkName,
+    const std::string& networkName,
     const TString& counterName,
     const TString& tagName,
     const TString& tagValue,
@@ -233,7 +233,8 @@ void TApi::IncrementBytesOutProfilingCounters(
 {
     auto networkName = GetNetworkNameForAddress(clientAddress);
 
-    IncrementUserCounter(&BytesOut_, user, networkName, "/bytes_out", "network", networkName, bytesOut);
+    // TODO(babenko): migrate to std::string
+    IncrementUserCounter(&BytesOut_, user, networkName, "/bytes_out", "network", TString(networkName), bytesOut);
 
     if (outputFormat) {
         IncrementUserCounter(
@@ -267,7 +268,8 @@ void TApi::IncrementBytesInProfilingCounters(
 {
     auto networkName = GetNetworkNameForAddress(clientAddress);
 
-    IncrementUserCounter(&BytesIn_, user, networkName, "/bytes_in", "network", networkName, bytesIn);
+    // TODO(babenko): migrate to std::string
+    IncrementUserCounter(&BytesIn_, user, networkName, "/bytes_in", "network", TString(networkName), bytesIn);
 
     if (inputFormat) {
         IncrementUserCounter(

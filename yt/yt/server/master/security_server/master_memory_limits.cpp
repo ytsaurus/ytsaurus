@@ -313,8 +313,7 @@ void DeserializeMasterMemoryLimits(
 
     if (auto perCell = map->FindChild("per_cell")) {
         for (const auto& [cellName, cellLimitNode] : perCell->AsMap()->GetChildren()) {
-            // TODO(babenko): migrate to std::string
-            auto optionalCellTag = multicellManager->FindMasterCellTagByName(TString(cellName));
+            auto optionalCellTag = multicellManager->FindMasterCellTagByName(cellName);
             if (!optionalCellTag) {
                 THROW_ERROR_EXCEPTION("Invalid cell name %v", cellName);
             }
