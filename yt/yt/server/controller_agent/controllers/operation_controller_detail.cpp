@@ -4334,7 +4334,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     LastAvailableExecNodesCheckTime_ = now;
 
     TSchedulingTagFilter tagFilter(Spec_->SchedulingTagFilter);
-    TString observedExecNodeAddress;
+    std::string observedExecNodeAddress;
     bool foundMatching = false;
     bool foundMatchingNotBanned = false;
     int otherTreesNodeCount = 0;

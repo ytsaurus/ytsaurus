@@ -66,7 +66,7 @@ struct TStartedJobInfo
 struct TStartedAllocationInfo
 {
     TAllocationId AllocationId;
-    TString NodeAddress;
+    std::string NodeAddress;
     std::optional<TStartedJobInfo> StartedJobInfo;
 };
 

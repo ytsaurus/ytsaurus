@@ -31,7 +31,7 @@ struct TJobNodeDescriptor
     TJobNodeDescriptor(const NScheduler::TExecNodeDescriptorPtr& other);
 
     NNodeTrackerClient::TNodeId Id = NNodeTrackerClient::InvalidNodeId;
-    TString Address;
+    std::string Address;
     double IOWeight = 0.0;
 
     void Persist(const TPersistenceContext& context);

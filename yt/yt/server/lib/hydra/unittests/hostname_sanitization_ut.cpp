@@ -7,9 +7,9 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TLocalHostNameSanitizer, SingleDataCenterSanitizing)
+TEST(TLocalHostNameSanitizerTest, SingleDataCenterSanitizing)
 {
-    THashSet<TString> clusterPeers = {
+    THashSet<std::string> clusterPeers = {
         "m001-cluster-vla.vla.yp-c.yandex.net",
         "m002-cluster-vla.vla.yp-c.yandex.net",
         "m010-cluster-vla.vla.yp-c.yandex.net",
@@ -19,7 +19,7 @@ TEST(TLocalHostNameSanitizer, SingleDataCenterSanitizing)
         "m991-cluster-vla.vla.yp-c.yandex.net",
     };
 
-    THashSet<TString> peers = {
+    THashSet<std::string> peers = {
         "mc091-cluster-vla.vla.yp-c.yandex.net",
         "clock01-cluster.vla.yp-c.yandex.net",
         "sas7-4539-proxy-cluster.sas.yp-c.yandex.net",
@@ -40,9 +40,9 @@ TEST(TLocalHostNameSanitizer, SingleDataCenterSanitizing)
     }
 }
 
-TEST(TLocalHostNameSanitizer, CrossDataCenterSanitizing)
+TEST(TLocalHostNameSanitizerTest, CrossDataCenterSanitizing)
 {
-    THashSet<TString> clusterPeers = {
+    THashSet<std::string> clusterPeers = {
         "m001-cluster.vla.yp-c.yandex.net",
         "m002-cluster.vlx.yp-c.yandex.net",
         "m010-cluster.man.yp-c.yandex.net",
@@ -60,9 +60,9 @@ TEST(TLocalHostNameSanitizer, CrossDataCenterSanitizing)
     }
 }
 
-TEST(TLocalHostNameSanitizer, DifferentHostNameLengths)
+TEST(TLocalHostNameSanitizerTest, DifferentHostNameLengths)
 {
-    THashSet<TString> clusterPeers = {
+    THashSet<std::string> clusterPeers = {
         "eu-north1-c-4ct13-11b.hw.company.yt",
         "eu-north1-c-4ct14-15b.hw.company.yt",
         "eu-north1-c-4ct4-11a.hw.company.yt",
@@ -75,9 +75,9 @@ TEST(TLocalHostNameSanitizer, DifferentHostNameLengths)
     }
 }
 
-TEST(TLocalHostNameSanitizer, PeerEqualToCommonPrefix)
+TEST(TLocalHostNameSanitizerTest, PeerEqualToCommonPrefix)
 {
-    THashSet<TString> clusterPeers = {
+    THashSet<std::string> clusterPeers = {
         "abc.cX.cZ",
         "abc.cX",
         "abc.cX.dZ",
@@ -90,9 +90,9 @@ TEST(TLocalHostNameSanitizer, PeerEqualToCommonPrefix)
     }
 }
 
-TEST(TLocalHostNameSanitizer, PeerEqualToCommonSuffix)
+TEST(TLocalHostNameSanitizerTest, PeerEqualToCommonSuffix)
 {
-    THashSet<TString> clusterPeers = {
+    THashSet<std::string> clusterPeers = {
         "abc.cX.cZ",
         "cX.cZ",
         "e.cX.cZ",
@@ -105,9 +105,9 @@ TEST(TLocalHostNameSanitizer, PeerEqualToCommonSuffix)
     }
 }
 
-TEST(TLocalHostNameSanitizer, NoCommonParts)
+TEST(TLocalHostNameSanitizerTest, NoCommonParts)
 {
-    THashSet<TString> clusterPeers = {
+    THashSet<std::string> clusterPeers = {
         "a",
         "b",
         "c",
@@ -120,9 +120,9 @@ TEST(TLocalHostNameSanitizer, NoCommonParts)
     }
 }
 
-TEST(TLocalHostNameSanitizer, EqualPeers)
+TEST(TLocalHostNameSanitizerTest, EqualPeers)
 {
-    THashSet<TString> clusterPeers = {
+    THashSet<std::string> clusterPeers = {
         "abc",
         "abc",
     };
@@ -134,9 +134,9 @@ TEST(TLocalHostNameSanitizer, EqualPeers)
     }
 }
 
-TEST(TLocalHostNameSanitizer, PrefixAndSuffixOverlap)
+TEST(TLocalHostNameSanitizerTest, PrefixAndSuffixOverlap)
 {
-    THashSet<TString> clusterPeers = {
+    THashSet<std::string> clusterPeers = {
         "abc.cX.bc.cZ",
         "abc.cZ",
     };

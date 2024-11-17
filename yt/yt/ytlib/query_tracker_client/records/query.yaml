@@ -91,7 +91,7 @@ types:
         lock: query_tracker
 
       - cpp_name: AssignedTracker
-        cpp_type: std::optional<TString>
+        cpp_type: std::optional<std::string>
         column_name: assigned_tracker
         column_type: String
         lock: query_tracker
@@ -322,7 +322,7 @@ types:
       - cpp_name: MinusStartTime
         cpp_type: i64
         column_name: minus_start_time
-        column_type: Int64 
+        column_type: Int64
         sort_order: Ascending
 
       - cpp_name: QueryId

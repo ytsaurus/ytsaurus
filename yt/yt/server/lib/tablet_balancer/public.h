@@ -50,7 +50,7 @@ struct TReshardDescriptor;
 struct TMoveDescriptor;
 using TActionDescriptor = std::variant<TMoveDescriptor, TReshardDescriptor>;
 
-using TNodeAddress = TString;
+using TNodeAddress = std::string;
 using TGroupName = TString;
 
 struct TParameterizedReassignSolverConfig;

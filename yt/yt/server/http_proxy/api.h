@@ -22,7 +22,7 @@ namespace NYT::NHttpProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 using TUserCommandPair = std::pair<std::string, TString>;
-using TUserCounterMap = NConcurrency::TSyncMap<std::pair<TString, TString>, NProfiling::TCounter>;
+using TUserCounterMap = NConcurrency::TSyncMap<std::pair<std::string, std::string>, NProfiling::TCounter>;
 
 class TSemaphoreGuard
 {
@@ -126,7 +126,7 @@ private:
     std::vector<std::pair<NNet::TIP6Network, TString>> Networks_;
     TString DefaultNetworkName_;
 
-    TString GetNetworkNameForAddress(const NNet::TNetworkAddress& address) const;
+    std::string GetNetworkNameForAddress(const NNet::TNetworkAddress& address) const;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, BanCacheLock_);
     THashMap<TString, TInstant> BanCache_;
@@ -176,7 +176,7 @@ private:
     void IncrementUserCounter(
         TUserCounterMap* counterMap,
         const std::string& user,
-        const TString& networkName,
+        const std::string& networkName,
         const TString& counterName,
         const TString& tagName,
         const TString& tagValue,

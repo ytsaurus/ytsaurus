@@ -55,7 +55,7 @@ private:
     const IInvokerPtr Invoker_;
     const NRpc::IServerPtr RpcServer_;
     // Fields from manager options.
-    const TString LocalAddress_;
+    const std::string LocalAddress_;
     const NProfiling::TProfiler Profiler_;
     NLogging::TLogger Logger;
 
@@ -153,17 +153,18 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
             } else {
                 YT_LOG_INFO("Create distributed throttler factory");
                 DistributedThrottlerFactory_ = CreateDistributedThrottlerFactory(
-                ClusterThrottlersConfig_->DistributedThrottler,
-                ChannelFactory_,
-                Connection_,
-                Invoker_,
-                "/remote_cluster_throttlers_group",
-                LocalAddress_,
-                RpcServer_,
-                LocalAddress_,
-                this->Logger,
-                Authenticator_,
-                Profiler_.WithPrefix("/distributed_throttler"));
+                    ClusterThrottlersConfig_->DistributedThrottler,
+                    ChannelFactory_,
+                    Connection_,
+                    Invoker_,
+                    "/remote_cluster_throttlers_group",
+                    TMemberId(LocalAddress_),
+                    RpcServer_,
+                    // TODO(babenko(): switch to std::string
+                    TString(LocalAddress_),
+                    this->Logger,
+                    Authenticator_,
+                    Profiler_.WithPrefix("/distributed_throttler"));
             }
         } else {
             YT_LOG_INFO("Disable distributed throttler factory");

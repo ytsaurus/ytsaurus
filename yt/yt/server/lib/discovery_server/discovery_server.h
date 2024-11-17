@@ -21,7 +21,7 @@ DEFINE_REFCOUNTED_TYPE(IDiscoveryServer)
 
 IDiscoveryServerPtr CreateDiscoveryServer(
     NRpc::IServerPtr rpcServer,
-    TString selfAddress,
+    std::string selfAddress,
     TDiscoveryServerConfigPtr config,
     NRpc::IChannelFactoryPtr channelFactory,
     IInvokerPtr serverInvoker,

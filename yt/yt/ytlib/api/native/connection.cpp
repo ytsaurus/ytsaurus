@@ -955,7 +955,7 @@ private:
 
     std::atomic<bool> Terminated_ = false;
 
-    TString ShuffleServiceAddress_;
+    std::string ShuffleServiceAddress_;
 
     void ConfigureMasterCells()
     {
@@ -1218,7 +1218,7 @@ private:
             }));
     }
 
-    void RegisterShuffleService(const TString& address) override
+    void RegisterShuffleService(const std::string& address) override
     {
         ShuffleServiceAddress_ = address;
     }
@@ -1232,7 +1232,7 @@ private:
         return CreateChannelByAddress(ShuffleServiceAddress_);
     }
 
-    IChannelPtr CreateChannelByAddress(const TString& address) override
+    IChannelPtr CreateChannelByAddress(const std::string& address) override
     {
         return ChannelFactory_->CreateChannel(address);
     }

@@ -243,7 +243,7 @@ private:
     };
 
     THashMap<TNodeId, TNodeInfo> RegisteredNodes_;
-    THashMap<TString, TNodeId> NodeAddressToNodeId_;
+    THashMap<std::string, TNodeId> NodeAddressToNodeId_;
 
     THashMap<TOperationId, TOperationInfo> RegisteredOperations_;
 

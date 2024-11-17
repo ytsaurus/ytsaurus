@@ -711,8 +711,7 @@ public:
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto* thisImpl = GetThisImpl();
-        // TODO(babenko): migrate to std::string
-        auto* child = thisImpl->FindMember(TString(key));
+        auto* child = thisImpl->FindMember(key);
 
         if (!child) {
             return nullptr;

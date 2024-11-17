@@ -28,7 +28,7 @@ using namespace NYson;
 //! If address does not contain :, '.yt.yandex.net:80' will be appended automatically,
 //! i.e. "hahn" -> "hahn.yt.yandex.net:80".
 INodePtr DownloadClusterConnection(
-    TString remoteClusterProxyAddress,
+    std::string remoteClusterProxyAddress,
     TLogger logger)
 {
     const auto& Logger = logger;
@@ -39,8 +39,8 @@ INodePtr DownloadClusterConnection(
     if (remoteClusterProxyAddress.find(':') == TString::npos) {
         remoteClusterProxyAddress.append(".yt.yandex.net:80");
     }
-    if (!remoteClusterProxyAddress.StartsWith("http://")) {
-        remoteClusterProxyAddress.prepend("http://");
+    if (!remoteClusterProxyAddress.starts_with("http://")) {
+        remoteClusterProxyAddress = "http://" + remoteClusterProxyAddress;
     }
 
     YT_LOG_INFO("Downloading cluster connection (RemoteClusterProxyAddress: %v)", remoteClusterProxyAddress);
@@ -64,8 +64,9 @@ INodePtr DownloadClusterConnection(
             .EndMap()
             .ToString());
 
-    auto path = remoteClusterProxyAddress + "/api/v4/get?path=//sys/@cluster_connection";
-    auto rsp = WaitFor(client->Get(path, headers))
+    auto url = remoteClusterProxyAddress + "/api/v4/get?path=//sys/@cluster_connection";
+    // TODO(babenko): migrate to std::string
+    auto rsp = WaitFor(client->Get(TString(url), headers))
         .ValueOrThrow();
     if (rsp->GetStatusCode() != EStatusCode::OK) {
         THROW_ERROR_EXCEPTION("Error downloading cluster connection")

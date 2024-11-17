@@ -2518,7 +2518,7 @@ private:
             metaFutures.push_back(req->Invoke());
         }
 
-        THashMap<TChunkLocationUuid, TString> locationUuidToAddress;
+        THashMap<TChunkLocationUuid, std::string> locationUuidToAddress;
 
         auto rspOrErrors = WaitFor(AllSet(metaFutures))
             .ValueOrThrow();

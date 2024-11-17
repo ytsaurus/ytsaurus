@@ -488,8 +488,7 @@ void DeserializeClusterResourceLimits(
     const auto& chunkManager = bootstrap->GetChunkManager();
     if (auto diskSpacePerMediumNode = map->FindChild("disk_space_per_medium")) {
         for (const auto& [mediumName, mediumDiskSpaceNode] : diskSpacePerMediumNode->AsMap()->GetChildren()) {
-            // TODO(babenko): migrate to std::string
-            auto* medium = chunkManager->GetMediumByNameOrThrow(TString(mediumName));
+            auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
             auto mediumDiskSpace = mediumDiskSpaceNode->AsInt64()->GetValue();
             ValidateDiskSpace(mediumDiskSpace);
             result.SetMediumDiskSpace(medium->GetIndex(), TLimit64(mediumDiskSpace));

@@ -118,7 +118,7 @@ public:
         int schedulingIndex,
         std::optional<EAllocationSchedulingStage> schedulingStage = std::nullopt,
         NNodeTrackerClient::TNodeId revivalNodeId = NNodeTrackerClient::InvalidNodeId,
-        TString revivalNodeAddress = TString());
+        std::string revivalNodeAddress = {});
 
     //! Returns true if the job was revived.
     bool IsRevived() const;

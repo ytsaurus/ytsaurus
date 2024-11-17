@@ -36,7 +36,7 @@ struct TThrottlerManagerOptions
 {
     NDiscoveryClient::TGroupId GroupId;
     NDiscoveryClient::TMemberId MemberId;
-    TString LocalAddress;
+    std::string LocalAddress;
     NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;
 };

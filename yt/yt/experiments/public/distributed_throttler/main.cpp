@@ -69,7 +69,7 @@ public:
         }
     }
 
-    const std::vector<TString>& GetDiscoveryServersAddresses()
+    const std::vector<std::string>& GetDiscoveryServersAddresses()
     {
         return Addresses_;
     }
@@ -80,7 +80,7 @@ public:
     }
 
 private:
-    std::vector<TString> Addresses_ = {"peer1", "peer2", "peer3", "peer4", "peer5"};
+    std::vector<std::string> Addresses_ = {"peer1", "peer2", "peer3", "peer4", "peer5"};
     std::vector<IDiscoveryServerPtr> DiscoveryServers_;
     std::vector<IServerPtr> RpcServers_;
 
@@ -151,7 +151,8 @@ public:
             "/group",
             Format("Factory %v", ThrottlerFactoryIndex_),
             RpcServer_,
-            Address_,
+            // TODO(babenko): switch to std::string
+            TString(Address_),
             DiscoveryServerLogger(),
             /*authenticator*/ nullptr);
 
@@ -243,7 +244,7 @@ public:
 private:
     const TIntrusivePtr<TDiscoveryServersHolder> DiscoveryServers_;
     const TDistributedThrottlerConfigPtr Config_;
-    const TString Address_;
+    const std::string Address_;
     const IServerPtr RpcServer_;
 
     NNative::IConnectionPtr Connection_;
