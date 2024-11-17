@@ -509,10 +509,10 @@ class TNullTransactionLeaseTracker
     : public ITransactionLeaseTracker
 {
 public:
-    virtual void Start() override
+    void Start() override
     { }
 
-    virtual void Stop() override
+    void Stop() override
     { }
 
     virtual void RegisterTransaction(
@@ -523,18 +523,18 @@ public:
         TTransactionLeaseExpirationHandler /*expirationHandler*/) override
     { }
 
-    virtual void UnregisterTransaction(TTransactionId /*transactionId*/) override
+    void UnregisterTransaction(TTransactionId /*transactionId*/) override
     { }
 
-    virtual void SetTimeout(TTransactionId /*transactionId*/, TDuration /*timeout*/) override
+    void SetTimeout(TTransactionId /*transactionId*/, TDuration /*timeout*/) override
     { }
 
-    virtual TFuture<void> PingTransaction(TTransactionId /*transactionId*/, bool /*pingAncestors*/) override
+    TFuture<void> PingTransaction(TTransactionId /*transactionId*/, bool /*pingAncestors*/) override
     {
         return VoidFuture;
     }
 
-    virtual TFuture<TInstant> GetLastPingTime(TTransactionId /*transactionId*/) override
+    TFuture<TInstant> GetLastPingTime(TTransactionId /*transactionId*/) override
     {
         return MakeFuture(TInstant::Zero());
     }

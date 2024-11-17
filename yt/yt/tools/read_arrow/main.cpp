@@ -37,7 +37,7 @@ public:
     }
 
 protected:
-    virtual void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
+    void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
     {
         auto connectionConfig = New<NApi::NRpcProxy::TConnectionConfig>();
         if (!Cluster_.empty()) {

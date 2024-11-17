@@ -2142,7 +2142,7 @@ public:
         return this->Underlying_->GetTotalRowCount();
     }
 
-    virtual void Interrupt() override
+    void Interrupt() override
     {
         this->Underlying_->Interrupt();
     }

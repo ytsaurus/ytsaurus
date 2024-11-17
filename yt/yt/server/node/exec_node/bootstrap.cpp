@@ -263,7 +263,7 @@ public:
         return MasterConnector_;
     }
 
-    virtual const TSchedulerConnectorPtr& GetSchedulerConnector() const override
+    const TSchedulerConnectorPtr& GetSchedulerConnector() const override
     {
         return SchedulerConnector_;
     }
@@ -298,7 +298,7 @@ public:
         return JobProxyLogManager_;
     }
 
-    virtual IThrottlerManagerPtr GetThrottlerManager() const override
+    IThrottlerManagerPtr GetThrottlerManager() const override
     {
         return ThrottlerManager_;
     }

@@ -1465,27 +1465,27 @@ public:
         StopThreads();
     }
 
-    virtual const TString& Name() const override
+    const TString& Name() const override
     {
         return ThreadNamePrefix_;
     }
 
-    virtual void PrepareDequeue(int threadIndex) override
+    void PrepareDequeue(int threadIndex) override
     {
         return RequestQueue_->PrepareDequeue(threadIndex);
     }
 
-    virtual TUringRequestPtr TryDequeue(int threadIndex) override
+    TUringRequestPtr TryDequeue(int threadIndex) override
     {
         return RequestQueue_->TryDequeue(threadIndex);
     }
 
-    virtual void MarkFinished(int threadIndex, TUringRequestPtr request) override
+    void MarkFinished(int threadIndex, TUringRequestPtr request) override
     {
         return RequestQueue_->MarkFinished(threadIndex, std::move(request));
     }
 
-    virtual const TNotificationHandle& GetNotificationHandle(int threadIndex) const override
+    const TNotificationHandle& GetNotificationHandle(int threadIndex) const override
     {
         return RequestQueue_->GetNotificationHandle(threadIndex);
     }

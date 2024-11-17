@@ -728,7 +728,7 @@ public:
         YT_LOG_DEBUG("Retrying remote dynamic store reader created");
     }
 
-    virtual ~TRetryingRemoteDynamicStoreReaderBase() override
+    ~TRetryingRemoteDynamicStoreReaderBase() override
     {
         YT_LOG_DEBUG("Retrying remote dynamic store reader destroyed");
     }

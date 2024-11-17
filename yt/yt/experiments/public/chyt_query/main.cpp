@@ -42,7 +42,7 @@ public:
     }
 
 protected:
-    virtual void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
+    void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
     {
         if (!Query_ && !QueryPath_) {
             THROW_ERROR_EXCEPTION("Either \"query\" or \"query_path\" must be specified");

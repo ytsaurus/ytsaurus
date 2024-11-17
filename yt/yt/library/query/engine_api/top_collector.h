@@ -129,8 +129,8 @@ public:
         size_t rowSize,
         IMemoryChunkProviderPtr memoryChunkProvider);
 
-    virtual void OnInsert(const TPIValue* /*insertedRow*/) override;
-    virtual void OnEvict(const TPIValue* /*evictedRow*/) override;
+    void OnInsert(const TPIValue* /*insertedRow*/) override;
+    void OnEvict(const TPIValue* /*evictedRow*/) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -146,8 +146,8 @@ public:
         IMemoryChunkProviderPtr memoryChunkProvider,
         TLookupRows* const hashMap);
 
-    virtual void OnInsert(const TPIValue* insertedRow) override;
-    virtual void OnEvict(const TPIValue* evictedRow) override;
+    void OnInsert(const TPIValue* insertedRow) override;
+    void OnEvict(const TPIValue* evictedRow) override;
 
 private:
     TLookupRows* const HashMap_;

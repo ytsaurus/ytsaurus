@@ -203,9 +203,9 @@ private:
     const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& entityNamePlural() const
 
 #define DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE_IMPL(entityName, entityNamePlural, entityType) \
-    virtual entityType* Find ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const override; \
-    virtual entityType* Get ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const override; \
-    virtual const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& entityNamePlural() const override
+    entityType* Find ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const override; \
+    entityType* Get ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const override; \
+    const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& entityNamePlural() const override
 
 #define DECLARE_ENTITY_MAP_ACCESSORS(entityName, entityType) \
     DECLARE_ENTITY_MAP_ACCESSORS_IMPL(entityName, entityName ## s, entityType)

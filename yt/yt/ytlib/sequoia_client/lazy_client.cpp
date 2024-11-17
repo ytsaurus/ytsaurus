@@ -58,12 +58,12 @@ public:
 
     #undef FORWARD_METHOD
 
-    virtual const NLogging::TLogger& GetLogger() const override
+    const NLogging::TLogger& GetLogger() const override
     {
         return Logger;
     }
 
-    virtual void SetGroundClient(const NApi::NNative::IClientPtr& groundClient) override
+    void SetGroundClient(const NApi::NNative::IClientPtr& groundClient) override
     {
         auto underlyingClient = CreateSequoiaClient(
             NativeClient_,
