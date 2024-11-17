@@ -935,7 +935,7 @@ i64 TChunkStoreBase::GetRowCount() const
 
 NErasure::ECodec TChunkStoreBase::GetErasureCodecId() const
 {
-    return CheckedEnumCast<NErasure::ECodec>(MiscExt_.erasure_codec());
+    return FromProto<NErasure::ECodec>(MiscExt_.erasure_codec());
 }
 
 TTimestamp TChunkStoreBase::GetMinTimestamp() const

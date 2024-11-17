@@ -518,7 +518,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         .ValueOrThrow();
 
     auto miscExt = GetProtoExtension<TMiscExt>(meta->extensions());
-    auto format = CheckedEnumCast<EChunkFormat>(meta->format());
+    auto format = FromProto<EChunkFormat>(meta->format());
 
     if (format == EChunkFormat::TableUnversionedSchemalessHorizontal ||
         format == EChunkFormat::TableUnversionedColumnar)
@@ -535,7 +535,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         }
     }
 
-    auto compressionCodecId = CheckedEnumCast<NCompression::ECodec>(miscExt.compression_codec());
+    auto compressionCodecId = FromProto<NCompression::ECodec>(miscExt.compression_codec());
     auto* compressionCodec = NCompression::GetCodec(compressionCodecId);
     auto erasureCodecId = FromProto<NErasure::ECodec>(miscExt.erasure_codec());
 

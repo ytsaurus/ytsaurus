@@ -1440,7 +1440,7 @@ private:
             dataNodeTracker->ReplicateChunkLocations(node, chunkLocationUuids);
         }
 
-        SetNodeLocalState(node, CheckedEnumCast<ENodeState>(request->node_state()));
+        SetNodeLocalState(node, FromProto<ENodeState>(request->node_state()));
         if (node->GetLocalState() == ENodeState::Registered) {
             if (isDataNode) {
                 dataNodeTracker->MakeLocationsOnline(node);
@@ -1547,7 +1547,7 @@ private:
         }
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
-        auto reliability = CheckedEnumCast<ECellAggregatedStateReliability>(request->cell_reliability());
+        auto reliability = FromProto<ECellAggregatedStateReliability>(request->cell_reliability());
         YT_LOG_ALERT_UNLESS(
             reliability == ECellAggregatedStateReliability::DynamicallyDiscovered,
             "Received unexpected cell aggregated state reliability (NodeId: %v, Reliability: %v, CellTag: %v)",
@@ -1664,7 +1664,7 @@ private:
         }
 
         auto id = FromProto<TMaintenanceId>(request->id());
-        auto type = CheckedEnumCast<EMaintenanceType>(request->type());
+        auto type = FromProto<EMaintenanceType>(request->type());
         if (node->AddMaintenance(
             id,
             {request->user_name(), type, request->comment(), GetCurrentHydraContext()->GetTimestamp()}))

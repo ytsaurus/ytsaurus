@@ -1358,7 +1358,7 @@ TFuture<TSortedChunkStore::TKeyFilteringResult> TSortedChunkStore::PerformXorKey
     TSharedRange<TLegacyKey> keys) const
 {
     int chunkKeyColumnCount = chunkMeta->GetChunkKeyColumnCount();
-    auto codecId = CheckedEnumCast<NCompression::ECodec>(chunkMeta->Misc().compression_codec());
+    auto codecId = FromProto<NCompression::ECodec>(chunkMeta->Misc().compression_codec());
 
     int currentBlockIndex = 0;
     int currentKeyIndex = 0;

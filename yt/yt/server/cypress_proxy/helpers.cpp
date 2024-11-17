@@ -30,6 +30,8 @@ using namespace NYTree;
 using TYPath = NSequoiaClient::TYPath;
 using TYPathBuf = NSequoiaClient::TYPathBuf;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void SetAccessTrackingOptions(
@@ -192,7 +194,7 @@ std::optional<TParsedReqCreate> TryParseReqCreate(ISequoiaServiceContextPtr cont
 
     try {
         return TParsedReqCreate{
-            .Type = CheckedEnumCast<EObjectType>(request.type()),
+            .Type = FromProto<EObjectType>(request.type()),
             .ExplicitAttributes = request.has_node_attributes()
                 ? NYTree::FromProto(request.node_attributes())
                 : CreateEphemeralAttributes(),
@@ -207,7 +209,7 @@ std::optional<TParsedReqCreate> TryParseReqCreate(ISequoiaServiceContextPtr cont
 
 void FromProto(TCopyOptions* options, const TReqCopy& protoOptions)
 {
-    options->Mode = CheckedEnumCast<ENodeCloneMode>(protoOptions.mode());
+    options->Mode = FromProto<ENodeCloneMode>(protoOptions.mode());
     options->PreserveAcl = protoOptions.preserve_acl();
     options->PreserveAccount = protoOptions.preserve_account();
     options->PreserveOwner = protoOptions.preserve_owner();

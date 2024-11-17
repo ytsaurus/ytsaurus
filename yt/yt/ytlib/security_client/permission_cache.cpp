@@ -232,7 +232,7 @@ TError TPermissionCache::ParseCheckPermissionResponse(
     // TODO(dakovalkov): Remove this copy-paste code from native client.
     auto parseResult = [] (const auto& protoResult) {
         NApi::TCheckPermissionResult result;
-        result.Action = CheckedEnumCast<ESecurityAction>(protoResult.action());
+        result.Action = FromProto<ESecurityAction>(protoResult.action());
         result.ObjectId = FromProto<TObjectId>(protoResult.object_id());
         result.ObjectName = protoResult.has_object_name() ? std::make_optional(protoResult.object_name()) : std::nullopt;
         result.SubjectId = FromProto<TSubjectId>(protoResult.subject_id());
@@ -268,7 +268,7 @@ TError TPermissionCache::ParseCheckPermissionByAclResponse(
     const auto& rsp = rspOrError.Value();
 
     NApi::TCheckPermissionByAclResult result;
-    result.Action = CheckedEnumCast<ESecurityAction>(rsp->action());
+    result.Action = FromProto<ESecurityAction>(rsp->action());
     result.SubjectId = FromProto<TSubjectId>(rsp->subject_id());
     result.SubjectName = rsp->has_subject_name() ? std::make_optional(rsp->subject_name()) : std::nullopt;
     result.MissingSubjects = FromProto<std::vector<TString>>(rsp->missing_subjects());

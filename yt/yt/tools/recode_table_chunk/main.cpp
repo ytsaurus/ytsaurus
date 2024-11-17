@@ -87,12 +87,12 @@ private:
 
     void DumpStatistics(const TRefCountedChunkMetaPtr& chunkMeta)
     {
-        auto chunkType = CheckedEnumCast<EChunkType>(chunkMeta->type());
+        auto chunkType = FromProto<EChunkType>(chunkMeta->type());
         if (chunkType != EChunkType::Table) {
             THROW_ERROR_EXCEPTION("Unsupported chunk type %Qlv", chunkType);
         }
 
-        auto chunkFormat = CheckedEnumCast<EChunkFormat>(chunkMeta->format());
+        auto chunkFormat = FromProto<EChunkFormat>(chunkMeta->format());
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkMeta->extensions());
 
         Cout << "  Chunk format: " << ToString(chunkFormat) << Endl;
@@ -100,7 +100,7 @@ private:
         Cout << "  Data weight: " << miscExt.data_weight() << Endl;
         Cout << "  Compressed data size: " << miscExt.compressed_data_size() << Endl;
         Cout << "  Uncompressed data size: " << miscExt.uncompressed_data_size() << Endl;
-        Cout << "  Compression codec: " << ToString(CheckedEnumCast<NCompression::ECodec>(miscExt.compression_codec())) << Endl;
+        Cout << "  Compression codec: " << ToString(FromProto<NCompression::ECodec>(miscExt.compression_codec())) << Endl;
     }
 
     void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
@@ -140,7 +140,7 @@ private:
             ? ConvertTo<TChunkWriterConfigPtr>(TYsonString(WriterConfig_))
             : New<TChunkWriterConfig>();
 
-        auto format = CheckedEnumCast<EChunkFormat>(InputChunkMeta_->format());
+        auto format = FromProto<EChunkFormat>(InputChunkMeta_->format());
         if (IsTableChunkFormatVersioned(format)) {
             DoRunVersioned();
         } else {

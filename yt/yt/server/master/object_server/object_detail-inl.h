@@ -119,7 +119,7 @@ template <class T>
     auto* response = &context->Response();
 
     const auto& userName = request->user();
-    auto permission = CheckedEnumCast<NSecurityServer::EPermission>(request->permission());
+    auto permission = FromProto<NSecurityServer::EPermission>(request->permission());
     bool ignoreSafeMode = request->ignore_safe_mode();
 
     NSecurityServer::TPermissionCheckOptions checkOptions;

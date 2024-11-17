@@ -98,7 +98,7 @@ public:
             return;
         }
 
-        auto codecId = CheckedEnumCast<ECodec>(req.codec());
+        auto codecId = FromProto<ECodec>(req.codec());
         auto* codec = GetCodec(codecId);
         auto compressedRecordData = TSharedRef::FromString(req.compressed_data());
         auto recordData = codec->Decompress(compressedRecordData);

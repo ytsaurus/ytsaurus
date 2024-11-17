@@ -58,7 +58,7 @@ public:
         : SliceReq_(sliceReq)
         , Meta_(meta)
     {
-        auto chunkFormat = CheckedEnumCast<EChunkFormat>(Meta_.format());
+        auto chunkFormat = FromProto<EChunkFormat>(Meta_.format());
         switch (chunkFormat) {
             case EChunkFormat::TableUnversionedSchemalessHorizontal:
             case EChunkFormat::TableUnversionedColumnar:
@@ -466,7 +466,7 @@ i64 GetChunkSliceDataWeight(
     i64 chunkUncompressedSize = miscExt.uncompressed_data_size();
     i64 chunkRowCount = miscExt.row_count();
 
-    auto chunkFormat = CheckedEnumCast<EChunkFormat>(chunkMeta.format());
+    auto chunkFormat = FromProto<EChunkFormat>(chunkMeta.format());
     switch (chunkFormat) {
         case EChunkFormat::TableUnversionedSchemalessHorizontal:
         case EChunkFormat::TableUnversionedColumnar:

@@ -1218,7 +1218,7 @@ private:
 
         for (const auto& protoJobToInterrupt : response->jobs_to_interrupt()) {
             auto jobId = FromProto<TJobId>(protoJobToInterrupt.job_id());
-            auto interruptionReason = CheckedEnumCast<EInterruptReason>(protoJobToInterrupt.reason());
+            auto interruptionReason = FromProto<EInterruptReason>(protoJobToInterrupt.reason());
             auto timeout = FromProto<TDuration>(protoJobToInterrupt.timeout());
 
             if (auto job = FindJob(jobId)) {

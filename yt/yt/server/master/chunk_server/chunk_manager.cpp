@@ -1672,7 +1672,7 @@ public:
         // Process job events and find missing jobs.
         for (const auto& jobStatus : request->jobs()) {
             auto jobId = FromProto<NChunkServer::TJobId>(jobStatus.job_id());
-            auto state = CheckedEnumCast<EJobState>(jobStatus.state());
+            auto state = FromProto<EJobState>(jobStatus.state());
             auto jobError = FromProto<TError>(jobStatus.result().error());
             if (auto job = JobRegistry_->FindJob(jobId)) {
                 YT_VERIFY(processedJobs.emplace(job).second);
@@ -4346,10 +4346,10 @@ private:
     {
         YT_VERIFY(HasMutationContext());
 
-        auto chunkType = CheckedEnumCast<EObjectType>(subrequest->type());
+        auto chunkType = FromProto<EObjectType>(subrequest->type());
         bool isErasure = IsErasureChunkType(chunkType);
         bool isJournal = IsJournalChunkType(chunkType);
-        auto erasureCodecId = isErasure ? CheckedEnumCast<NErasure::ECodec>(subrequest->erasure_codec()) : NErasure::ECodec::None;
+        auto erasureCodecId = isErasure ? FromProto<NErasure::ECodec>(subrequest->erasure_codec()) : NErasure::ECodec::None;
         int readQuorum = isJournal ? subrequest->read_quorum() : 0;
         int writeQuorum = isJournal ? subrequest->write_quorum() : 0;
 

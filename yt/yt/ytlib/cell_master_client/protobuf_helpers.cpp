@@ -142,7 +142,7 @@ void FromProto(
         FromProto(&config->HashesPerPeer, protoCellDirectoryItem.hashes_per_peer());
     }
     if (protoCellDirectoryItem.has_peer_priority_strategy()) {
-        config->PeerPriorityStrategy = CheckedEnumCast<EPeerPriorityStrategy>(protoCellDirectoryItem.peer_priority_strategy());
+        config->PeerPriorityStrategy = FromProto<EPeerPriorityStrategy>(protoCellDirectoryItem.peer_priority_strategy());
     }
     if (protoCellDirectoryItem.has_min_peer_count_for_priority_awareness()) {
         FromProto(&config->MinPeerCountForPriorityAwareness, protoCellDirectoryItem.min_peer_count_for_priority_awareness());

@@ -1800,7 +1800,7 @@ TAllocationPtr TNodeShard::ProcessAllocationHeartbeat(
     auto allocationId = FromProto<TAllocationId>(allocationStatus->allocation_id());
     auto operationId = FromProto<TOperationId>(allocationStatus->operation_id());
 
-    auto allocationState = CheckedEnumCast<EAllocationState>(allocationStatus->state());
+    auto allocationState = FromProto<EAllocationState>(allocationStatus->state());
 
     const auto& address = node->GetDefaultAddress();
 

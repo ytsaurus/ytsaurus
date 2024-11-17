@@ -439,7 +439,7 @@ public:
             /*bypassArtifactCache*/ true);
 
         decltype(&TImpl::MakeFileProducer) producerBuilder;
-        switch (CheckedEnumCast<EDataSourceType>(key.data_source().type())) {
+        switch (FromProto<EDataSourceType>(key.data_source().type())) {
             case EDataSourceType::File:
                 producerBuilder = &TImpl::MakeFileProducer;
                 break;
@@ -588,7 +588,7 @@ private:
         if (canPrepareSingleChunk) {
             downloader = &TImpl::DownloadChunk;
         } else {
-            switch (CheckedEnumCast<EDataSourceType>(key.data_source().type())) {
+            switch (FromProto<EDataSourceType>(key.data_source().type())) {
                 case EDataSourceType::File:
                     downloader = &TImpl::DownloadFile;
                     break;
@@ -901,7 +901,7 @@ private:
 
     static bool CanPrepareSingleChunk(const TArtifactKey& key)
     {
-        if (CheckedEnumCast<EDataSourceType>(key.data_source().type()) != EDataSourceType::File) {
+        if (FromProto<EDataSourceType>(key.data_source().type()) != EDataSourceType::File) {
             return false;
         }
         if (key.chunk_specs_size() != 1) {

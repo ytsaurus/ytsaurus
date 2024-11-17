@@ -66,7 +66,7 @@ private:
 
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create)
     {
-        auto type = CheckedEnumCast<EObjectType>(request->type());
+        auto type = FromProto<EObjectType>(request->type());
         auto ignoreExisting = request->ignore_existing();
         auto lockExisting = request->lock_existing();
         auto recursive = request->recursive();

@@ -26,6 +26,7 @@ using namespace NTableChunkFormat::NProto;
 using namespace NTracing;
 
 using NChunkClient::TLegacyReadLimit;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -444,7 +445,7 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher(IInvokerPtr sessionInvoker)
             MemoryManagerHolder_,
             std::vector{UnderlyingReader_},
             BlockCache_,
-            CheckedEnumCast<NCompression::ECodec>(ChunkMeta_->Misc().compression_codec()),
+            FromProto<NCompression::ECodec>(ChunkMeta_->Misc().compression_codec()),
             static_cast<double>(ChunkMeta_->Misc().compressed_data_size()) / ChunkMeta_->Misc().uncompressed_data_size(),
             ChunkReadOptions_,
             std::move(sessionInvoker));
@@ -635,7 +636,7 @@ void TColumnarLookupChunkReaderBase::InitBlockFetcher()
         MemoryManagerHolder_,
         std::vector{UnderlyingReader_},
         BlockCache_,
-        CheckedEnumCast<NCompression::ECodec>(ChunkMeta_->Misc().compression_codec()),
+        FromProto<NCompression::ECodec>(ChunkMeta_->Misc().compression_codec()),
         static_cast<double>(ChunkMeta_->Misc().compressed_data_size()) / ChunkMeta_->Misc().uncompressed_data_size(),
         ChunkReadOptions_);
     BlockFetcher_->Start();

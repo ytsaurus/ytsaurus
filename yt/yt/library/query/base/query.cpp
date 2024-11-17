@@ -988,11 +988,11 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
     if (serialized.has_logical_type()) {
         FromProto(&type, serialized.logical_type());
     } else {
-        auto wireType = CheckedEnumCast<EValueType>(serialized.type());
+        auto wireType = FromProto<EValueType>(serialized.type());
         type = MakeLogicalType(GetLogicalType(wireType), /*required*/ false);
     }
 
-    auto kind = CheckedEnumCast<EExpressionKind>(serialized.kind());
+    auto kind = FromProto<EExpressionKind>(serialized.kind());
     switch (kind) {
         case EExpressionKind::None: {
             *original = nullptr;

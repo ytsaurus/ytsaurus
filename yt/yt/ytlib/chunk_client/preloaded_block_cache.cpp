@@ -16,6 +16,8 @@
 
 namespace NYT::NChunkClient {
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPreloadedBlockCache
@@ -79,7 +81,7 @@ IBlockCachePtr GetPreloadedBlockCache(IChunkReaderPtr chunkReader)
         blockMetaExt.data_blocks_size()))
         .ValueOrThrow();
 
-    auto codecId = CheckedEnumCast<NCompression::ECodec>(miscExt.compression_codec());
+    auto codecId = FromProto<NCompression::ECodec>(miscExt.compression_codec());
     auto* codec = NCompression::GetCodec(codecId);
 
     std::vector<TBlock> cachedBlocks;

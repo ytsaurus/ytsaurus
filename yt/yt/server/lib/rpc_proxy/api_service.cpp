@@ -161,8 +161,9 @@ void FromProto(
     TMasterReadOptions* options,
     const NApi::NRpcProxy::NProto::TMasterReadOptions& proto)
 {
+    using NYT::FromProto;
     if (proto.has_read_from()) {
-        options->ReadFrom = CheckedEnumCast<EMasterChannelKind>(proto.read_from());
+        FromProto(&options->ReadFrom, proto.read_from());
     }
     if (proto.has_expire_after_successful_update_time()) {
         FromProto(&options->ExpireAfterSuccessfulUpdateTime, proto.expire_after_successful_update_time());
@@ -222,7 +223,7 @@ void FromProto(
     const NApi::NRpcProxy::NProto::TTabletReadOptions& proto)
 {
     if (proto.has_read_from()) {
-        options->ReadFrom = CheckedEnumCast<NHydra::EPeerKind>(proto.read_from());
+        options->ReadFrom = FromProto<NHydra::EPeerKind>(proto.read_from());
     }
     if (proto.has_cached_sync_replicas_timeout()) {
         options->CachedSyncReplicasTimeout = FromProto<TDuration>(proto.cached_sync_replicas_timeout());
@@ -1302,8 +1303,8 @@ private:
         options.Sticky = request->sticky();
         options.Ping = request->ping();
         options.PingAncestors = request->ping_ancestors();
-        options.Atomicity = CheckedEnumCast<NTransactionClient::EAtomicity>(request->atomicity());
-        options.Durability = CheckedEnumCast<NTransactionClient::EDurability>(request->durability());
+        options.Atomicity = FromProto<NTransactionClient::EAtomicity>(request->atomicity());
+        options.Durability = FromProto<NTransactionClient::EDurability>(request->durability());
         if (request->has_attributes()) {
             options.Attributes = NYTree::FromProto(request->attributes());
         }
@@ -1778,7 +1779,7 @@ private:
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
-        auto type = CheckedEnumCast<NObjectClient::EObjectType>(request->type());
+        auto type = FromProto<NObjectClient::EObjectType>(request->type());
 
         TCreateNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
@@ -1939,7 +1940,7 @@ private:
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
-        auto mode = CheckedEnumCast<NCypressClient::ELockMode>(request->mode());
+        auto mode = FromProto<NCypressClient::ELockMode>(request->mode());
 
         TLockNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
@@ -2543,7 +2544,7 @@ private:
             FromProto(&options, request->transactional_options());
         }
         if (request->has_schema_modification()) {
-            options.SchemaModification = CheckedEnumCast<ETableSchemaModification>(request->schema_modification());
+            options.SchemaModification = FromProto<ETableSchemaModification>(request->schema_modification());
         }
         if (request->has_replication_progress()) {
             options.ReplicationProgress = FromProto<TReplicationProgress>(request->replication_progress());
@@ -2573,7 +2574,7 @@ private:
         }
 
         if (request->has_mode()) {
-            options.Mode = CheckedEnumCast<ETableReplicaMode>(request->mode());
+            options.Mode = FromProto<ETableReplicaMode>(request->mode());
         }
 
         if (request->has_preserve_timestamps()) {
@@ -2581,7 +2582,7 @@ private:
         }
 
         if (request->has_atomicity()) {
-            options.Atomicity = CheckedEnumCast<EAtomicity>(request->atomicity());
+            options.Atomicity = FromProto<EAtomicity>(request->atomicity());
         }
 
         if (request->has_enable_replicated_table_tracker()) {
@@ -3143,7 +3144,7 @@ private:
         TGetJobInputOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        options.JobSpecSource = CheckedEnumCast<EJobSpecSource>(request->job_spec_source());
+        options.JobSpecSource = FromProto<EJobSpecSource>(request->job_spec_source());
 
         context->SetRequestInfo("JobId: %v", jobId);
 
@@ -3161,7 +3162,7 @@ private:
         TGetJobInputPathsOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        options.JobSpecSource = CheckedEnumCast<EJobSpecSource>(request->job_spec_source());
+        options.JobSpecSource = FromProto<EJobSpecSource>(request->job_spec_source());
 
         context->SetRequestInfo("JobId: %v", jobId);
 
@@ -3188,7 +3189,7 @@ private:
         options.OmitNodeDirectory = request->omit_node_directory();
         options.OmitInputTableSpecs = request->omit_input_table_specs();
         options.OmitOutputTableSpecs = request->omit_output_table_specs();
-        options.JobSpecSource = CheckedEnumCast<EJobSpecSource>(request->job_spec_source());
+        options.JobSpecSource = FromProto<EJobSpecSource>(request->job_spec_source());
 
         context->SetRequestInfo("JobId: %v, OmitNodeDirectory: %v, OmitInputTableSpecs: %v, OmitOutputTableSpecs: %v",
             jobId,
@@ -3453,7 +3454,7 @@ private:
         }
 
         if (request->has_multiplexing_band()) {
-            options->MultiplexingBand = CheckedEnumCast<EMultiplexingBand>(request->multiplexing_band());
+            options->MultiplexingBand = FromProto<EMultiplexingBand>(request->multiplexing_band());
         }
     }
 
@@ -4634,9 +4635,9 @@ private:
             }
 
             modifications.push_back({
-                CheckedEnumCast<ERowModificationType>(request.row_modification_types(index)),
+                FromProto<ERowModificationType>(request.row_modification_types(index)),
                 rowsetRows[index].ToTypeErasedRow(),
-                lockMask
+                lockMask,
             });
         }
 
@@ -5330,7 +5331,7 @@ private:
 
         const auto& user = request->user();
         const auto& path = request->path();
-        auto permission = CheckedEnumCast<EPermission>(request->permission());
+        auto permission = FromProto<EPermission>(request->permission());
 
         TCheckPermissionOptions options;
         if (request->has_columns()) {
@@ -5901,7 +5902,7 @@ private:
             FromProto(options.FetcherConfig, request->fetcher_config());
         }
 
-        options.FetcherMode = CheckedEnumCast<NTableClient::EColumnarStatisticsFetcherMode>(request->fetcher_mode());
+        options.FetcherMode = FromProto<NTableClient::EColumnarStatisticsFetcherMode>(request->fetcher_mode());
 
         options.EnableEarlyFinish = request->enable_early_finish();
 
@@ -5951,7 +5952,7 @@ private:
             options.ChunkSliceFetcherConfig->MaxSlicesPerFetch = request->chunk_slice_fetcher_config().max_slices_per_fetch();
         }
 
-        options.PartitionMode = CheckedEnumCast<NTableClient::ETablePartitionMode>(request->partition_mode());
+        options.PartitionMode = FromProto<NTableClient::ETablePartitionMode>(request->partition_mode());
 
         options.DataWeightPerPartition = request->data_weight_per_partition();
 

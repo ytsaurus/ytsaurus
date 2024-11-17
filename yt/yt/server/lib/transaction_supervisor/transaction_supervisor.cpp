@@ -846,8 +846,8 @@ private:
             auto force2PC = request->force_2pc();
             auto generatePrepareTimestamp = request->generate_prepare_timestamp();
             auto inheritCommitTimestamp = request->inherit_commit_timestamp();
-            auto coordinatorCommitMode = CheckedEnumCast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
-            auto coordinatorPrepareMode = CheckedEnumCast<ETransactionCoordinatorPrepareMode>(request->coordinator_prepare_mode());
+            auto coordinatorCommitMode = FromProto<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
+            auto coordinatorPrepareMode = FromProto<ETransactionCoordinatorPrepareMode>(request->coordinator_prepare_mode());
             auto clockClusterTag = request->has_clock_cluster_tag()
                 ? FromProto<TCellTag>(request->clock_cluster_tag())
                 : InvalidCellTag;
@@ -1582,8 +1582,8 @@ private:
         auto cellIdsToSyncWithBeforePrepare = FromProto<std::vector<TCellId>>(request->cell_ids_to_sync_with_before_prepare());
         auto generatePrepareTimestamp = request->generate_prepare_timestamp();
         auto inheritCommitTimestamp = request->inherit_commit_timestamp();
-        auto coordinatorCommitMode = CheckedEnumCast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
-        auto coordinatorPrepareMode = CheckedEnumCast<ETransactionCoordinatorPrepareMode>(request->coordinator_prepare_mode());
+        auto coordinatorCommitMode = FromProto<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
+        auto coordinatorPrepareMode = FromProto<ETransactionCoordinatorPrepareMode>(request->coordinator_prepare_mode());
         auto prepareTimestamp = request->prepare_timestamp();
         auto prepareTimestampClusterTag = FromProto<TClusterTag>(request->prepare_timestamp_cluster_tag());
         auto maxAllowedCommitTimestamp = request->max_allowed_commit_timestamp();

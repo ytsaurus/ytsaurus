@@ -542,8 +542,8 @@ TReincarnationJob::TReincarnationJob(
     , TransactionId_(transactionId)
 {
     if (auto miscExt = oldChunk->ChunkMeta()->FindExtension<TMiscExt>()) {
-        ErasureCodec_ = CheckedEnumCast<NErasure::ECodec>(miscExt->erasure_codec());
-        CompressionCodec_ = CheckedEnumCast<NCompression::ECodec>(miscExt->compression_codec());
+        ErasureCodec_ = FromProto<NErasure::ECodec>(miscExt->erasure_codec());
+        CompressionCodec_ = FromProto<NCompression::ECodec>(miscExt->compression_codec());
         EnableSkynetSharing_ = miscExt->shared_to_skynet();
     }
 }
@@ -2026,7 +2026,7 @@ private:
 
         for (const auto& subresponse : response->subresponses()) {
             auto chunkId = FromProto<TChunkId>(subresponse.chunk_id());
-            auto result = CheckedEnumCast<EReincarnationResult>(subresponse.result());
+            auto result = FromProto<EReincarnationResult>(subresponse.result());
 
             auto* chunk = chunkManager->FindChunk(chunkId);
             if (!IsObjectAlive(chunk)) {

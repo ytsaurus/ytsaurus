@@ -385,7 +385,7 @@ private:
             Config_->MaxQueryRetries,
             Logger,
             [&] {
-                auto codecId = CheckedEnumCast<ECodec>(request->response_codec());
+                auto codecId = FromProto<ECodec>(request->response_codec());
                 // TODO(lukyan): Use memoryChunkProvider in WireProtocolWriter.
                 auto writer = CreateWireProtocolRowsetWriter(
                     codecId,
@@ -427,8 +427,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Multiread)
     {
-        auto requestCodecId = CheckedEnumCast<NCompression::ECodec>(request->request_codec());
-        auto responseCodecId = CheckedEnumCast<NCompression::ECodec>(request->response_codec());
+        auto requestCodecId = FromProto<NCompression::ECodec>(request->request_codec());
+        auto responseCodecId = FromProto<NCompression::ECodec>(request->response_codec());
         auto timestamp = FromProto<TTimestamp>(request->timestamp());
         auto retentionTimestamp = FromProto<TTimestamp>(request->retention_timestamp());
 
@@ -557,7 +557,7 @@ private:
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto cellId = FromProto<TTabletCellId>(request->cell_id());
         auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
-        auto responseCodecId = CheckedEnumCast<NCompression::ECodec>(request->response_codec());
+        auto responseCodecId = FromProto<NCompression::ECodec>(request->response_codec());
         auto progress = FromProto<NChaosClient::TReplicationProgress>(request->start_replication_progress());
         auto startReplicationRowIndex = request->has_start_replication_row_index()
             ? std::make_optional(request->start_replication_row_index())
@@ -1699,7 +1699,7 @@ private:
     {
         auto sessionId = FromProto<TDistributedSessionId>(request->session_id());
         auto retentionTime = FromProto<TDuration>(request->retention_time());
-        auto codecId = CheckedEnumCast<ECodec>(request->codec());
+        auto codecId = FromProto<ECodec>(request->codec());
 
         context->SetRequestInfo("DistributedSessionId: %v, CodecId: %v",
             sessionId,

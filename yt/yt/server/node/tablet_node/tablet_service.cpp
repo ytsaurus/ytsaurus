@@ -152,7 +152,7 @@ private:
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
-        auto requestCodecId = CheckedEnumCast<NCompression::ECodec>(request->request_codec());
+        auto requestCodecId = FromProto<NCompression::ECodec>(request->request_codec());
         auto upstreamReplicaId = FromProto<TTableReplicaId>(request->upstream_replica_id());
         auto replicationEra = request->has_replication_era()
             ? std::make_optional(FromProto<TReplicationEra>(request->replication_era()))
@@ -179,7 +179,7 @@ private:
         ValidateTabletTransactionId(params.TransactionId);
 
         auto atomicity = AtomicityFromTransactionId(params.TransactionId);
-        auto durability = CheckedEnumCast<EDurability>(request->durability());
+        auto durability = FromProto<EDurability>(request->durability());
 
         context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %v, "
             "TransactionTimeout: %v, Atomicity: %v, Durability: %v, PrepareSignature: %x, CommitSignature: %x, "

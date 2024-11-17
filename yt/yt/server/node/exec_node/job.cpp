@@ -312,7 +312,7 @@ TJob::TJob(
         "JobId: %v, OperationId: %v, JobType: %v",
         jobId,
         operationId,
-        CheckedEnumCast<EJobType>(jobSpec.type())))
+        FromProto<EJobType>(jobSpec.type())))
     , Allocation_(std::move(allocation))
     , ResourceHolder_(Allocation_->GetResourceHolder())
     , ControllerAgentDescriptor_(std::move(agentDescriptor))
@@ -1004,7 +1004,7 @@ EJobType TJob::GetType() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return CheckedEnumCast<EJobType>(JobSpec_.type());
+    return FromProto<EJobType>(JobSpec_.type());
 }
 
 const TJobSpec& TJob::GetSpec() const

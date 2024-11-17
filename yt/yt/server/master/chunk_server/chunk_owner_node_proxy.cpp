@@ -1651,7 +1651,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
     fetchContext.ThrowOnChunkViews = request->throw_on_chunk_views();
     fetchContext.SupportedChunkFeatures = FromProto<NChunkClient::EChunkFeatures>(request->supported_chunk_features());
     fetchContext.AddressType = request->has_address_type()
-        ? CheckedEnumCast<EAddressType>(request->address_type())
+        ? FromProto<EAddressType>(request->address_type())
         : EAddressType::InternalRpc;
 
     const auto* node = GetThisImpl<TChunkOwnerBase>();
@@ -1681,7 +1681,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     DeclareMutating();
 
     TChunkOwnerBase::TBeginUploadContext uploadContext(Bootstrap_);
-    uploadContext.Mode = CheckedEnumCast<EUpdateMode>(request->update_mode());
+    uploadContext.Mode = FromProto<EUpdateMode>(request->update_mode());
     if (uploadContext.Mode != EUpdateMode::Append && uploadContext.Mode != EUpdateMode::Overwrite) {
         THROW_ERROR_EXCEPTION("Invalid update mode %Qlv for a chunk owner node",
             uploadContext.Mode);
@@ -1694,7 +1694,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         Transaction_,
         {{"mode", FormatEnum(uploadContext.Mode)}});
 
-    auto lockMode = CheckedEnumCast<ELockMode>(request->lock_mode());
+    auto lockMode = FromProto<ELockMode>(request->lock_mode());
 
     auto uploadTransactionTitle = request->has_upload_transaction_title()
         ? std::make_optional(request->upload_transaction_title())
@@ -1716,7 +1716,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     auto chunkSchemaId = FromProto<TMasterTableSchemaId>(request->chunk_schema_id());
 
-    uploadContext.SchemaMode = CheckedEnumCast<ETableSchemaMode>(request->schema_mode());
+    uploadContext.SchemaMode = FromProto<ETableSchemaMode>(request->schema_mode());
 
     auto uploadTransactionIdHint = FromProto<TTransactionId>(request->upload_transaction_id());
 
@@ -2063,18 +2063,18 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         ? FromProto<TTableSchemaPtr>(request->table_schema())
         : nullptr;
     auto tableSchemaId = FromProto<TMasterTableSchemaId>(request->table_schema_id());
-    uploadContext.SchemaMode = CheckedEnumCast<ETableSchemaMode>(request->schema_mode());
+    uploadContext.SchemaMode = FromProto<ETableSchemaMode>(request->schema_mode());
 
     if (request->has_statistics()) {
         uploadContext.Statistics = FromProto<TChunkOwnerDataStatistics>(request->statistics());
     }
 
     if (request->has_optimize_for()) {
-        uploadContext.OptimizeFor = CheckedEnumCast<EOptimizeFor>(request->optimize_for());
+        uploadContext.OptimizeFor = FromProto<EOptimizeFor>(request->optimize_for());
     }
 
     if (request->has_chunk_format()) {
-        uploadContext.ChunkFormat = CheckedEnumCast<EChunkFormat>(request->chunk_format());
+        uploadContext.ChunkFormat = FromProto<EChunkFormat>(request->chunk_format());
     }
 
     if (request->has_md5_hasher()) {
@@ -2094,11 +2094,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     }
 
     if (request->has_compression_codec()) {
-        uploadContext.CompressionCodec = CheckedEnumCast<NCompression::ECodec>(request->compression_codec());
+        uploadContext.CompressionCodec = FromProto<NCompression::ECodec>(request->compression_codec());
     }
 
     if (request->has_erasure_codec()) {
-        uploadContext.ErasureCodec = CheckedEnumCast<NErasure::ECodec>(request->erasure_codec());
+        uploadContext.ErasureCodec = FromProto<NErasure::ECodec>(request->erasure_codec());
     }
 
     context->SetRequestInfo("Statistics: %v, CompressionCodec: %v, ErasureCodec: %v, ChunkFormat: %v, MD5Hasher: %v, OptimizeFor: %v, IsTableSchemaPresent: %v",

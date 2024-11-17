@@ -439,7 +439,7 @@ private:
 
         auto roleFilter = request->has_role() ? request->role() : DefaultRpcProxyRole;
         auto addressType = request->has_address_type()
-            ? CheckedEnumCast<EAddressType>(request->address_type())
+            ? FromProto<EAddressType>(request->address_type())
             : DefaultAddressType;
         auto networkName = request->has_network_name() ? request->network_name() : DefaultNetworkName;
 

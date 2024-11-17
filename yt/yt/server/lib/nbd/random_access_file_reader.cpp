@@ -307,10 +307,10 @@ private:
 
             auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
 
-            if (CheckedEnumCast<NCompression::ECodec>(miscExt.compression_codec()) != NCompression::ECodec::None) {
+            if (FromProto<NCompression::ECodec>(miscExt.compression_codec()) != NCompression::ECodec::None) {
                 THROW_ERROR_EXCEPTION(
                     "Compression codec %Qlv for filesystem image %v is not supported",
-                    CheckedEnumCast<NCompression::ECodec>(miscExt.compression_codec()),
+                    FromProto<NCompression::ECodec>(miscExt.compression_codec()),
                     Path_);
             }
 

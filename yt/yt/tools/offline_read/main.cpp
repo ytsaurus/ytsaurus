@@ -789,7 +789,7 @@ void ExtractErasureBlocks(
         auto meta = chunkReader->GetMeta(/*chunkReadOptions*/ {}).Get()
             .ValueOrThrow();
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
-        auto codecId = CheckedEnumCast<NYT::NErasure::ECodec>(miscExt.erasure_codec());
+        auto codecId = FromProto<NYT::NErasure::ECodec>(miscExt.erasure_codec());
         codec = NYT::NErasure::GetCodec(codecId);
     }
     YT_VERIFY(std::ssize(chunkFileNames) == codec->GetTotalPartCount());

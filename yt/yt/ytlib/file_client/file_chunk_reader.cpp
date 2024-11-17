@@ -239,7 +239,7 @@ private:
                 type);
         }
 
-        auto format = CheckedEnumCast<EChunkFormat>(meta->format());
+        auto format = FromProto<EChunkFormat>(meta->format());
         if (format != EChunkFormat::FileDefault) {
             THROW_ERROR_EXCEPTION("Unsupported file chunk format %Qlv",
                 format);
@@ -496,7 +496,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
                 config,
                 std::move(remoteReader),
                 chunkReaderHost->BlockCache,
-                CheckedEnumCast<NCompression::ECodec>(miscExt.compression_codec()),
+                FromProto<NCompression::ECodec>(miscExt.compression_codec()),
                 chunkReadOptions,
                 startOffset,
                 endOffset,

@@ -10,6 +10,8 @@ using namespace NTableClient;
 
 void ToProto(NProto::TWriteSet* protoWriteSet, const TWriteSet& writeSet)
 {
+    using NYT::ToProto;
+
     protoWriteSet->clear_table_to_write_set();
 
     for (auto table : TEnumTraits<ESequoiaTable>::GetDomainValues()) {
@@ -38,12 +40,14 @@ void ToProto(NProto::TWriteSet* protoWriteSet, const TWriteSet& writeSet)
 
 void FromProto(TWriteSet* writeSet, const NProto::TWriteSet& protoWriteSet, const TRowBufferPtr& rowBuffer)
 {
+    using NYT::FromProto;
+
     for (auto table : TEnumTraits<ESequoiaTable>::GetDomainValues()) {
         (*writeSet)[table].clear();
     }
 
     for (const auto& [tableIndex, protoTableWriteSet] : protoWriteSet.table_to_write_set()) {
-        auto table = CheckedEnumCast<ESequoiaTable>(tableIndex);
+        auto table = FromProto<ESequoiaTable>(tableIndex);
         auto& tableWriteSet = (*writeSet)[table];
 
         int rowCount = protoTableWriteSet.tablet_ids_size();
