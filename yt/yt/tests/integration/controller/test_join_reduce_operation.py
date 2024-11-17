@@ -1501,6 +1501,68 @@ echo {v = 2} >&7
             assertion=lambda row_count: row_count == len(result) - 2,
             job_type="join_reduce"))
 
+    @authors("galtsev")
+    @pytest.mark.parametrize("range_count", [0, 1, 2])
+    def test_join_reduce_with_multiple_ranges_is_uninterruptible(self, range_count):
+        if self.Env.get_component_version("ytserver-controller-agent").abi < (24, 2):
+            pytest.skip()
+
+        key = [{"name": "key", "sort_order": "ascending"}]
+
+        create("table", "//tmp/input1")
+        rows = [
+            {
+                "key": "%02d" % (i * 2 + 1),
+                "value": "a" * (2 * 1024 * 1024),
+            }
+            for i in range(3)
+        ]
+        write_table("//tmp/input1", rows, sorted_by=key)
+
+        create("table", "//tmp/input2")
+        rows = [
+            {
+                "key": "%02d" % (i / 2)
+            }
+            for i in range(14)
+        ]
+        write_table("//tmp/input2", rows, sorted_by=key)
+
+        create("table", "//tmp/output")
+
+        ranges = ""
+        if range_count > 0:
+            ranges += '{lower_limit={key=["(0)"]}; upper_limit={key=["(5)"]}};'
+        if range_count > 1:
+            ranges += '{lower_limit={key=["(5)"]}; upper_limit={key=["(10)"]}};'
+        if ranges:
+            ranges = f"ranges=[{ranges}];"
+        foreign_table = f"<foreign=true; {ranges}>//tmp/input2"
+
+        def run_join_reduce():
+            op = join_reduce(
+                track=False,
+                in_=["//tmp/input1", foreign_table],
+                out="//tmp/output",
+                command=with_breakpoint("read ROW; echo $ROW; BREAKPOINT; cat"),
+                join_by=key,
+                spec={
+                    "reducer": {"format": "dsv"},
+                    "job_io": {"buffer_row_count": 1},
+                },
+            )
+
+            jobs = wait_breakpoint()
+            op.interrupt_job(jobs[0])
+            release_breakpoint()
+            op.track()
+
+        if range_count > 1:
+            with pytest.raises(YtError, match="Error interrupting job"):
+                run_join_reduce()
+        else:
+            run_join_reduce()
+
     @authors("psushin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_join_reduce_job_splitter(self, sort_order):
