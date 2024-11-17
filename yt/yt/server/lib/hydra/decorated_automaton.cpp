@@ -188,6 +188,8 @@ public:
         , Owner_(decoratedAutomaton)
     { }
 
+    using TInvokerWrapper::Invoke;
+
     void Invoke(TClosure callback) override
     {
         auto owner = Owner_.Lock();
@@ -221,6 +223,8 @@ public:
         : TInvokerWrapper(std::move(underlyingInvoker))
         , Owner_(decoratedAutomaton)
     { }
+
+    using TInvokerWrapper::Invoke;
 
     void Invoke(TClosure callback) override
     {
