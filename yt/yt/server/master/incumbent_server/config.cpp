@@ -2,6 +2,8 @@
 
 namespace NYT::NIncumbentServer {
 
+using namespace NIncumbentClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TIncumbentSchedulingConfig::Register(TRegistrar registrar)
@@ -18,15 +20,39 @@ void TIncumbentSchedulingConfig::Register(TRegistrar registrar)
 void TIncumbentSchedulerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("incumbents", &TThis::Incumbents)
-        .Default();
+        .DefaultCtor([] {
+            static const THashSet<EIncumbentType> UseFollowersIncumbents = {
+                EIncumbentType::ChunkReplicator,
+                EIncumbentType::CellJanitor
+            };
+            TEnumIndexedArray<EIncumbentType, TIncumbentSchedulingConfigPtr> incumbents;
+
+            for (auto incumbentType : TEnumTraits<EIncumbentType>::GetDomainValues()) {
+                incumbents[incumbentType] = New<TIncumbentSchedulingConfig>();
+                incumbents[incumbentType]->Weight = 1;
+                incumbents[incumbentType]->UseFollowers = UseFollowersIncumbents.contains(incumbentType);
+            }
+
+            return incumbents;
+        })
+        .ResetOnLoad();
 
     registrar.Parameter("min_alive_followers", &TThis::MinAliveFollowers)
         .Default(0);
+
+    registrar.Postprocessor([] (TThis* config) {
+        for (auto incumbentType : TEnumTraits<EIncumbentType>::GetDomainValues()) {
+            auto& incumbent = config->Incumbents[incumbentType];
+            if (!incumbent) {
+                incumbent = New<TIncumbentSchedulingConfig>();
+            }
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TIncumbentManagerConfig::Register(TRegistrar registrar)
+void TDynamicIncumbentManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("scheduler", &TThis::Scheduler)
         .DefaultNew();
