@@ -216,79 +216,8 @@ TTableSchemaPtr BuildSchema(const TLogicalType& type) {
     return New<TTableSchema>(columns);
 }
 
-TYqlRowset BuildRowsetFromYson(
-    const TClientDirectoryPtr& clientDirectory,
-    const NYT::TNode& resultNode,
-    int resultIndex,
-    i64 rowCountLimit)
+TYqlRowset BuildRowset(const TBuildingValueConsumer& consumer,THashMap<TString, ui32> columns, int resultIndex, bool incomplete)
 {
-Y_UNUSED(clientDirectory);
-Y_UNUSED(resultIndex);
-Y_UNUSED(rowCountLimit);
-    const auto& writeNode = resultNode["Write"][0];
-    Cerr << __func__ << Endl << NYT::NodeToCanonicalYsonString(writeNode["Type"]) << Endl;
-    TTypeBuilder tb;
-    NYql::NResult::ParseType(writeNode["Type"], tb);
-    TYqlRowset rowset {
-        .TargetSchema = BuildSchema(*tb.GetResult()),
-        .RowBuffer = New<TRowBuffer>(),
-        .Incomplete = false, //TODO
-    };
-
-    auto targetNameTable = TNameTable::FromSchema(*rowset.TargetSchema);
-    TBuildingValueConsumer consumer(rowset.TargetSchema, YqlAgentLogger(), true);
-    PrintTo(*rowset.TargetSchema, &std::cerr);
-    std::cerr << std::endl << "size: " << targetNameTable->GetSize() << std::endl;
-    TDataBuilder db(&consumer);
-    NYql::NResult::ParseData(writeNode["Type"], writeNode["Data"], db);
-    rowset.ResultRows = consumer.GetRows();
-
-    Cerr << Endl << "rows: " << rowset.ResultRows.size() << Endl;
-    for (const auto& row : rowset.ResultRows) {
-        PrintTo(row, &std::cerr);
-    }
-    Cerr << Endl;
-
-    throw NYql::NResult::TUnsupportedException() << "TODO !!!";
-    return rowset;
-}
-
-TYqlRowset BuildRowset(
-    const TClientDirectoryPtr& clientDirectory,
-    const INodePtr& resultNode,
-    int resultIndex,
-    i64 rowCountLimit)
-{
-    const auto& mapNode = resultNode->AsMap();
-    const auto& writeNode = mapNode->GetChildOrThrow("Write")->AsList()->GetChildOrThrow(0)->AsMap();
-
-    if (writeNode->FindChild("Ref")) {
-        return BuildRowsetByRef(clientDirectory, writeNode, resultIndex, rowCountLimit);
-    }
-
-    const auto& skiffTypeNode = writeNode->GetChildOrThrow("SkiffType");
-    auto config = ConvertTo<NFormats::TSkiffFormatConfigPtr>(&skiffTypeNode->Attributes());
-    auto skiffSchemas = NSkiffExt::ParseSkiffSchemas(config->SkiffSchemaRegistry, config->TableSkiffSchemas);
-
-    const auto& typeNode = writeNode->GetChildOrThrow("Type");
-    auto schema = NYT::NYTree::ConvertTo<NYT::NTableClient::TTableSchemaPtr>(typeNode);
-    TBuildingValueConsumer consumer(schema, YqlAgentLogger(), true);
-
-    const auto& columnsPtr = writeNode->FindChild("Columns");
-    THashMap<TString, ui32> columns;
-    if (columnsPtr) {
-        ui32 index = 0;
-        for (const auto& column : ConvertTo<std::vector<TString>>(columnsPtr)) {
-            columns[column] = index;
-            index++;
-        }
-    }
-
-    auto data = writeNode->GetChildOrThrow("Data")->AsString()->GetValue();
-    auto parser = CreateParserForSkiff(&consumer, skiffSchemas, config, 0);
-    parser->Read(data);
-    parser->Finish();
-
     std::vector<TUnversionedRow> resultRows;
     auto sourceSchema = consumer.GetSchema();
     auto sourceNameTable = consumer.GetNameTable();
@@ -317,9 +246,6 @@ TYqlRowset BuildRowset(
 
     ReorderAndSaveRows(rowBuffer, sourceNameTable, targetNameTable, consumer.GetRows(), resultRows);
 
-    auto incompleteNode = writeNode->FindChild("Incomplete");
-    bool incomplete = incompleteNode ? incompleteNode->AsBoolean()->GetValue() : false;
-
     YT_LOG_DEBUG("Result read (RowCount: %v, Incomplete: %v, ResultIndex: %v)", resultRows.size(), incomplete, resultIndex);
 
     PrintTo(*targetSchema, &std::cerr);
@@ -330,15 +256,89 @@ TYqlRowset BuildRowset(
     }
     Cerr << Endl;
 
-
-    writeNode->GetChildOrThrow("FailTest");
-
     return TYqlRowset{
         .TargetSchema = targetSchema,
         .ResultRows = resultRows,
         .RowBuffer = rowBuffer,
         .Incomplete = incomplete,
     };
+}
+
+TYqlRowset BuildRowsetFromYson(
+    const TClientDirectoryPtr& clientDirectory,
+    const NYT::TNode& resultNode,
+    int resultIndex,
+    i64 rowCountLimit)
+{
+Y_UNUSED(clientDirectory);
+Y_UNUSED(rowCountLimit);
+    const auto& writeNode = resultNode["Write"][0];
+    if (writeNode.HasKey("Ref")) {
+        return BuildRowsetByRef(clientDirectory, ConvertTo<IMapNodePtr>(NYT::NodeToYsonString(writeNode)), resultIndex, rowCountLimit);
+    }
+
+    Cerr << __func__ << Endl << NYT::NodeToCanonicalYsonString(writeNode["Type"]) << Endl;
+    TTypeBuilder typeBuilder;
+    NYql::NResult::ParseType(writeNode["Type"], typeBuilder);
+    const auto schema = BuildSchema(*typeBuilder.GetResult());
+    TBuildingValueConsumer consumer(schema, YqlAgentLogger(), true);
+    PrintTo(*schema, &std::cerr);
+    std::cerr << std::endl;
+    TDataBuilder dataBuilder(&consumer);
+    NYql::NResult::ParseData(writeNode["Type"], writeNode["Data"], dataBuilder);
+
+    THashMap<TString, ui32> columns;
+    if (writeNode.HasKey("Columns")) {
+        const auto& columnsNode = writeNode["Columns"];
+        columns.reserve(columnsNode.Size());
+        for (ui32 index = 0U; index < columnsNode.Size(); ++index) {
+            columns[columnsNode.ChildAsString(index)] = index;
+        }
+    }
+
+    const auto incomplete = writeNode.HasKey("Incomplete") && writeNode.ChildAsBool("Incomplete");
+    return BuildRowset(consumer, std::move(columns), resultIndex, incomplete);
+}
+
+TYqlRowset BuildRowsetFromSkiff(
+    const TClientDirectoryPtr& clientDirectory,
+    const INodePtr& resultNode,
+    int resultIndex,
+    i64 rowCountLimit)
+{
+    const auto& mapNode = resultNode->AsMap();
+    const auto& writeNode = mapNode->GetChildOrThrow("Write")->AsList()->GetChildOrThrow(0)->AsMap();
+
+    if (writeNode->FindChild("Ref")) {
+        return BuildRowsetByRef(clientDirectory, writeNode, resultIndex, rowCountLimit);
+    }
+
+    const auto& skiffTypeNode = writeNode->GetChildOrThrow("SkiffType");
+    auto config = ConvertTo<NFormats::TSkiffFormatConfigPtr>(&skiffTypeNode->Attributes());
+    auto skiffSchemas = NSkiffExt::ParseSkiffSchemas(config->SkiffSchemaRegistry, config->TableSkiffSchemas);
+
+    const auto& typeNode = writeNode->GetChildOrThrow("Type");
+    auto schema = NYT::NYTree::ConvertTo<NYT::NTableClient::TTableSchemaPtr>(typeNode);
+    TBuildingValueConsumer consumer(schema, YqlAgentLogger(), true);
+
+    THashMap<TString, ui32> columns;
+    if (const auto& columnsPtr = writeNode->FindChild("Columns")) {
+        ui32 index = 0;
+        for (const auto& column : ConvertTo<std::vector<TString>>(columnsPtr)) {
+            columns[column] = index;
+            index++;
+        }
+    }
+
+    const auto data = writeNode->GetChildOrThrow("Data")->AsString()->GetValue();
+    const auto parser = CreateParserForSkiff(&consumer, skiffSchemas, config, 0);
+    parser->Read(data);
+    parser->Finish();
+
+    const auto incompleteNode = writeNode->FindChild("Incomplete");
+    const bool incomplete = incompleteNode ? incompleteNode->AsBoolean()->GetValue() : false;
+
+    return BuildRowset(consumer, std::move(columns), resultIndex, incomplete);
 }
 
 TWireYqlRowset MakeWireYqlRowset(const TYqlRowset& rowset)
@@ -364,24 +364,25 @@ std::vector<TWireYqlRowset> BuildRowsets(
     try {
         for (size_t index = 0U; index < list.Size(); ++index) {
             YT_LOG_DEBUG("Building rowset for query result (ResultIndex: %v)", index);
-            auto rowset = BuildRowsetFromYson(clientDirectory, list[index], index, rowCountLimit);
-    //      YT_LOG_DEBUG("Rowset built (ResultBytes: %v)", rowset.WireRowset.size());
-    //       rowsets.push_back(std::move(rowset));
+            auto rowset = MakeWireYqlRowset(BuildRowsetFromYson(clientDirectory, list[index], index, rowCountLimit));
+            YT_LOG_DEBUG("Rowset built (ResultBytes: %v)", rowset.WireRowset.size());
+            rowsets.push_back(std::move(rowset));
         }
+        return rowsets;
     } catch (const NYql::NResult::TUnsupportedException& ex) {
         const auto error = TError(ex);
         YT_LOG_DEBUG("Error building rowset result from yson: %v. Try fallback to skiff.", error);
-        Cerr << "Fallback to skiff: " << ex.what() << Endl;
     } catch (const std::exception& ex) {
         const auto error = TError(ex);
         YT_LOG_DEBUG("Error building rowset result from yson: %v. Try fallback to skiff.", error);
-        Cerr << "Fallback to skiff: " << ex.what() << Endl;
     }
+
+    // TODO: Remove the code below after switch on Yson in the plugin.
     const auto results = ConvertTo<std::vector<INodePtr>>(TYsonString(yqlYsonResults));
     for (const auto& [index, result] : Enumerate(results)) {
         try {
             YT_LOG_DEBUG("Building rowset for query result (ResultIndex: %v)", index);
-            auto rowset = MakeWireYqlRowset(BuildRowset(clientDirectory, result, index, rowCountLimit));
+            auto rowset = MakeWireYqlRowset(BuildRowsetFromSkiff(clientDirectory, result, index, rowCountLimit));
             YT_LOG_DEBUG("Rowset built (ResultBytes: %v)", rowset.WireRowset.size());
             rowsets.push_back(std::move(rowset));
         } catch (const std::exception& ex) {
