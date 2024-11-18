@@ -208,15 +208,15 @@ TJobProxy::TJobProxy(
     }
 
     if (Config_->HeapDumpDirectory) {
-        YT_LOG_DEBUG(
+        YT_LOG_INFO(
             "Heap dump directory supplied. Enabling TCMalloc limit handler (HeapDumpDirectory: %v)",
             Config_->HeapDumpDirectory);
-        NYT::EnableTCMallocLimitHandler(TTCMallocLimitHandlerOptions{
+        EnableTCMallocLimitHandler(TTCMallocLimitHandlerOptions{
             .HeapDumpDirectory = Config_->HeapDumpDirectory,
             .FilenameSuffix = NYT::ToString(JobId_),
         });
     } else {
-        YT_LOG_DEBUG("No heap dump directory supplied. TCMalloc limit handler is disabled");
+        YT_LOG_INFO("No heap dump directory supplied. TCMalloc limit handler is disabled");
     }
 }
 
