@@ -53,6 +53,11 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
     private final MultiExecutor executor;
 
     private MultiYTsaurusClient(Builder builder) {
+        if (builder.clientsOptions.isEmpty() && builder.clusters.isEmpty() &&
+                builder.clients.isEmpty() && builder.preferredClusters.isEmpty()
+        ) {
+            throw new IllegalArgumentException("No clients and no clusters in MultiYTsaurusClient's constructor");
+        }
 
         clients.addAll(builder.clientsOptions);
 
@@ -104,7 +109,6 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
                 builder.penaltyProvider,
                 builder.executorMonitoring
         );
-
     }
 
     /**
@@ -380,7 +384,6 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
 }
 
 class MultiExecutor implements Closeable {
-
     private final List<ClientEntry> clients;
     private final Duration banPenalty;
     private final Duration banDuration;
@@ -436,17 +439,14 @@ class MultiExecutor implements Closeable {
         penaltyProvider.close();
     }
 
-    public class ClientEntry {
-
+    class ClientEntry {
         private final MultiYTsaurusClient.YTsaurusClientOptions clientOptions;
         private Duration adaptivePenalty;
         private Duration externalPenalty;
         @Nullable
         private Instant banUntil;
 
-        ClientEntry(
-                MultiYTsaurusClient.YTsaurusClientOptions clientOptions
-        ) {
+        ClientEntry(MultiYTsaurusClient.YTsaurusClientOptions clientOptions) {
             this(clientOptions, Duration.ZERO, Duration.ZERO, null);
         }
 

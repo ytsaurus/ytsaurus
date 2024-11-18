@@ -102,6 +102,14 @@ public abstract class AbstractLookupRequest<
         return Collections.unmodifiableList(lookupColumns);
     }
 
+    @Override
+    protected void writeArgumentsLogString(StringBuilder sb) {
+        sb.append("Path: ").append(path).append("; ");
+        sb.append("Schema: ").append(schema).append("; ");
+        sb.append("LookupColumns: ").append(lookupColumns).append("; ");
+        super.writeArgumentsLogString(sb);
+    }
+
     /**
      * Base class for builders of LookupRows and MultiLookupRows requests.
      */

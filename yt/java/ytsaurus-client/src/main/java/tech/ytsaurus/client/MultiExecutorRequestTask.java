@@ -16,10 +16,11 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 
-public class MultiExecutorRequestTask<R> {
+class MultiExecutorRequestTask<R> {
 
     private final AtomicReference<Status> status = new AtomicReference<>(Status.IN_PROGRESS);
     private final AtomicInteger finishedClientsCount = new AtomicInteger(0);
+    private final int clientsCount;
     private final Function<BaseYTsaurusClient, CompletableFuture<R>> callback;
     private final MultiExecutorMonitoring executorMonitoring;
     private final CompletableFuture<R> requestFuture = new CompletableFuture<>();
@@ -27,13 +28,14 @@ public class MultiExecutorRequestTask<R> {
     private final Instant requestStartTime = Instant.now();
     private final AtomicBoolean terminateFlag = new AtomicBoolean(false);
 
-    public MultiExecutorRequestTask(
+    MultiExecutorRequestTask(
             List<ClientEntry> clients,
             Function<BaseYTsaurusClient, CompletableFuture<R>> callback,
             MultiExecutorMonitoring executorMonitoring
     ) {
         this.callback = callback;
         this.executorMonitoring = executorMonitoring;
+        this.clientsCount = clients.size();
         this.delayedSubrequestTasks = clients.stream().map((clientEntry) -> new DelayedSubrequestTask(
                 clientEntry
         )).collect(Collectors.toUnmodifiableList());
@@ -61,6 +63,10 @@ public class MultiExecutorRequestTask<R> {
         return requestFuture;
     }
 
+    private synchronized CompletableFuture<R> executeRequest(BaseYTsaurusClient client) {
+        return callback.apply(client);
+    }
+
     /**
      * IN_PROGRESS -> COMPLETED or CANCELED
      */
@@ -70,12 +76,12 @@ public class MultiExecutorRequestTask<R> {
         CANCELED // When the whole task is canceled.
     }
 
-    public static class ClientEntry {
+    static class ClientEntry {
         private final MultiYTsaurusClient.YTsaurusClientOptions clientOptions;
         private final Duration effectivePenalty;
         private final Consumer<Boolean> finishRequestConsumer;
 
-        public ClientEntry(
+        ClientEntry(
                 MultiYTsaurusClient.YTsaurusClientOptions clientOptions,
                 Duration effectivePenalty,
                 Consumer<Boolean> finishRequestConsumer
@@ -106,7 +112,7 @@ public class MultiExecutorRequestTask<R> {
 
                         SubrequestDescriptor localSubrequestDescriptor = new SubrequestDescriptor(
                                 Instant.now(),
-                                callback.apply(clientEntry.clientOptions.client)
+                                executeRequest(clientEntry.clientOptions.client)
                         );
 
                         this.subrequestDescriptor = localSubrequestDescriptor;
@@ -119,8 +125,7 @@ public class MultiExecutorRequestTask<R> {
                                     localSubrequestDescriptor.startTime, now
                             );
 
-                            boolean isLastTask =
-                                    finishedClientsCount.incrementAndGet() == delayedSubrequestTasks.size();
+                            boolean isLastTask = finishedClientsCount.incrementAndGet() == clientsCount;
 
                             if (terminateFlag.get()) {
                                 return null;
