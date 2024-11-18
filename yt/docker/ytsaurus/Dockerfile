@@ -117,6 +117,7 @@ RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-master && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-exec && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-proxy && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-http-proxy && \
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-kafka-proxy && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-tools && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-scheduler && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-controller-agent && \
