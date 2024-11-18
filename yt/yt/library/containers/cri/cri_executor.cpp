@@ -653,7 +653,7 @@ private:
             (*unified)["memory.low"] = ToString(*spec.MemoryRequest);
         }
 
-        if (spec.MemoryOOMGroup.value_or(Config_->MemoryOOMGroup)) {
+        if (spec.MemoryOomGroup.value_or(Config_->MemoryOOMGroup)) {
             (*unified)["memory.oom.group"] = "1";
         }
 

@@ -489,7 +489,7 @@ public:
         return GetUserJobInstance()->GetMajorPageFaultCount();
     }
 
-    std::optional<i64> GetJobOOMKillCount() const noexcept override
+    std::optional<i64> GetJobOomKillCount() const noexcept override
     {
         return std::nullopt;
     }
@@ -599,7 +599,7 @@ public:
         return std::nullopt;
     }
 
-    std::optional<i64> GetJobOOMKillCount() const noexcept override
+    std::optional<i64> GetJobOomKillCount() const noexcept override
     {
         return std::nullopt;
     }
@@ -771,7 +771,7 @@ public:
         return 0;
     }
 
-    std::optional<i64> GetJobOOMKillCount() const noexcept override
+    std::optional<i64> GetJobOomKillCount() const noexcept override
     {
         return std::nullopt;
     }
@@ -834,7 +834,7 @@ public:
         return std::nullopt;
     }
 
-    std::optional<i64> GetJobOOMKillCount() const noexcept override
+    std::optional<i64> GetJobOomKillCount() const noexcept override
     {
         return std::nullopt;
     }
@@ -1049,9 +1049,9 @@ public:
         return 0;
     }
 
-    std::optional<i64> GetJobOOMKillCount() const noexcept override
+    std::optional<i64> GetJobOomKillCount() const noexcept override
     {
-        return JobProxyEnvironment_->GetJobOOMKillCount();
+        return JobProxyEnvironment_->GetJobOomKillCount();
     }
 
     bool HasRootFS() const override
@@ -1134,7 +1134,7 @@ public:
         };
     }
 
-    std::optional<i64> GetJobOOMKillCount() const noexcept override
+    std::optional<i64> GetJobOomKillCount() const noexcept override
     {
         try {
             return StatisticsFetcher_.GetOOMKillCount();
