@@ -52,7 +52,7 @@ public:
         return &CommitSignatureGenerator_;
     }
 
-    virtual void RegisterAction(NTransactionClient::TTransactionActionData data) override
+    void RegisterAction(NTransactionClient::TTransactionActionData data) override
     {
         if (Actions_.empty()) {
             PrepareSignatureGenerator_.RegisterRequest();
@@ -61,7 +61,7 @@ public:
         Actions_.push_back(data);
     }
 
-    virtual TFuture<void> Invoke() override
+    TFuture<void> Invoke() override
     {
         if (Actions_.empty()) {
             return VoidFuture;

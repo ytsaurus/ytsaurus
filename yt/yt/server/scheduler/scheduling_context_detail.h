@@ -75,8 +75,8 @@ public:
     TScheduleAllocationsStatistics GetSchedulingStatistics() const override;
     void SetSchedulingStatistics(TScheduleAllocationsStatistics statistics) override;
 
-    virtual void StoreScheduleAllocationExecDurationEstimate(TDuration duration) override;
-    virtual TDuration ExtractScheduleAllocationExecDurationEstimate() override;
+    void StoreScheduleAllocationExecDurationEstimate(TDuration duration) override;
+    TDuration ExtractScheduleAllocationExecDurationEstimate() override;
 
     ESchedulingStopReason GetSchedulingStopReason() const override;
     void SetSchedulingStopReason(ESchedulingStopReason result) override;

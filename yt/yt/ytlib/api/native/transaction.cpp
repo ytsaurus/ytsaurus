@@ -434,13 +434,13 @@ public:
 
 
 #define DELEGATE_METHOD(returnType, method, signature, args) \
-    virtual returnType method signature override \
+    returnType method signature override \
     { \
         return Client_->method args; \
     }
 
 #define DELEGATE_TRANSACTIONAL_METHOD(returnType, method, signature, args) \
-    virtual returnType method signature override \
+    returnType method signature override \
     { \
         auto& originalOptions = options; \
         { \
@@ -451,7 +451,7 @@ public:
     }
 
 #define DELEGATE_TIMESTAMPED_METHOD(returnType, method, signature, args) \
-    virtual returnType method signature override \
+    returnType method signature override \
     { \
         auto& originalOptions = options; \
         { \

@@ -199,7 +199,7 @@ public:
 
     std::vector<std::optional<i64>> GetMaximumUsedTmpfsSizes() const;
 
-    virtual void Persist(const TPersistenceContext& context) override;
+    void Persist(const TPersistenceContext& context) override;
 
     virtual NScheduler::TUserJobSpecPtr GetUserJobSpec() const;
     bool HasUserJob() const;

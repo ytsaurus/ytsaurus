@@ -18,7 +18,7 @@
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
-#include <yt/yt/core/misc/crash_handler.h>
+#include <yt/yt/core/misc/codicil.h>
 
 namespace NYT::NTabletNode {
 
@@ -250,7 +250,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext() == persistent);
 
-        TCodicilGuard codicilGuard(Tablet_->GetLoggingTag());
+        auto codicilGuard = MakeCodicilGuard();
 
         // Fast path.
         if (!HasWriteState(transaction->GetId())) {
@@ -303,7 +303,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        TCodicilGuard codicilGuard(Tablet_->GetLoggingTag());
+        auto codicilGuard = MakeCodicilGuard();
 
         // Fast path.
         if (!HasWriteState(transaction->GetId())) {
@@ -385,7 +385,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        TCodicilGuard codicilGuard(Tablet_->GetLoggingTag());
+        auto codicilGuard = MakeCodicilGuard();
 
         AbortLocklessRows(transaction);
         AbortLockedRows(transaction);
@@ -399,7 +399,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        TCodicilGuard codicilGuard(Tablet_->GetLoggingTag());
+        auto codicilGuard = MakeCodicilGuard();
 
         auto transientWriteState = GetOrCreateTransactionTransientWriteState(transaction->GetId());
         YT_VERIFY(transientWriteState->PrelockedRows.empty());
@@ -1556,6 +1556,11 @@ private:
             .PrelockedRows = &transientWriteState->PrelockedRows,
             .LockedRows = &transientWriteState->LockedRows,
         };
+    }
+
+    TCodicilGuard MakeCodicilGuard()
+    {
+        return TCodicilGuard(MakeNonOwningCodicilBuilder(Tablet_->GetLoggingTag()));
     }
 };
 

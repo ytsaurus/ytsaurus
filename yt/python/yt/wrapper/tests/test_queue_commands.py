@@ -92,6 +92,10 @@ class TestQueueCommands(object):
     def _create_consumer(path, **kwargs):
         yt.create("queue_consumer", path=path, attributes=kwargs)
 
+    @staticmethod
+    def _create_producer(path, **kwargs):
+        yt.create("queue_producer", path=path, attributes=kwargs)
+
     @authors("achulkov2")
     # This is a very basic test, just to check that there are no bugs in the client api implementation.
     # Tests for actual logic can be found in tests/integration/queues.
@@ -176,3 +180,72 @@ class TestQueueCommands(object):
 
         yt.advance_consumer(consumer, queue, partition_index=0, old_offset=0, new_offset=3)
         assert get_offset(queue) == 3
+
+    @authors("nadya73")
+    def test_queue_producer_commands(self):
+        if get_api_version() != "v4":
+            pytest.skip()
+
+        producer = TEST_DIR + "/p"
+        queue = TEST_DIR + "/q"
+        session_id = "session_1"
+
+        self._create_queue(queue)
+        self._create_producer(producer)
+
+        session_info = yt.create_queue_producer_session(producer, queue, session_id)
+        assert session_info["epoch"] == 0
+        assert session_info["sequence_number"] == -1
+
+        push_result = yt.push_queue_producer(producer, queue, session_id, 0, [{"data": "foo", "$sequence_number": 0}])
+        assert push_result["last_sequence_number"] == 0
+        assert push_result["skipped_row_count"] == 0
+
+        push_result = yt.push_queue_producer(producer, queue, session_id, 0, [{"data": "foobar", "$sequence_number": 0}, {"data": "bar", "$sequence_number": 2}])
+        assert push_result["last_sequence_number"] == 2
+        assert push_result["skipped_row_count"] == 1
+
+        assert list(yt.select_rows(f"data from [{queue}]")) == [{"data": "foo"}, {"data": "bar"}]
+
+        with yt.Transaction(type="tablet"):
+            push_result = yt.push_queue_producer(producer, queue, session_id, 0, [{"data": "foo", "$sequence_number": 2}, {"data": "baz", "$sequence_number": 3}])
+            assert push_result["last_sequence_number"] == 3
+            assert push_result["skipped_row_count"] == 1
+
+            # It's not committed yet.
+            assert list(yt.select_rows(f"data from [{queue}]")) == [{"data": "foo"}, {"data": "bar"}]
+
+        assert list(yt.select_rows(f"data from [{queue}]")) == [
+            {"data": "foo"},
+            {"data": "bar"},
+            {"data": "baz"},
+        ]
+
+        session_info = yt.create_queue_producer_session(producer, queue, session_id)
+        assert session_info["epoch"] == 1
+        assert session_info["sequence_number"] == 3
+
+        with pytest.raises(yt.YtResponseError):
+            yt.push_queue_producer(producer, queue, session_id, 0, [{"data": "abc", "$sequence_number": 4}])
+
+        assert list(yt.select_rows(f"data from [{queue}]")) == [
+            {"data": "foo"},
+            {"data": "bar"},
+            {"data": "baz"},
+        ]
+
+        push_result = yt.push_queue_producer(producer, queue, session_id, 1, [{"data": "abc", "$sequence_number": 4}])
+        assert push_result["last_sequence_number"] == 4
+        assert push_result["skipped_row_count"] == 0
+
+        assert list(yt.select_rows(f"data from [{queue}]")) == [
+            {"data": "foo"},
+            {"data": "bar"},
+            {"data": "baz"},
+            {"data": "abc"},
+        ]
+
+        yt.remove_queue_producer_session(producer, queue, session_id)
+
+        with pytest.raises(yt.YtResponseError, match="Unknown queue producer session"):
+            yt.push_queue_producer(producer, queue, session_id, 1, [{"data": "abc", "$sequence_number": 4}])

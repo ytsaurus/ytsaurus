@@ -219,14 +219,14 @@ public:
         return cellBundle->As<TChaosCellBundle>();
     }
 
-    virtual TChaosCell* FindChaosCellByTag(TCellTag cellTag) const override
+    TChaosCell* FindChaosCellByTag(TCellTag cellTag) const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         auto* cell = cellManager->FindCellByCellTag(cellTag);
         return IsObjectAlive(cell) && cell->GetType() == EObjectType::ChaosCell ? cell->As<TChaosCell>() : nullptr;
     }
 
-    virtual TChaosCell* GetChaosCellByTagOrThrow(TCellTag cellTag) const override
+    TChaosCell* GetChaosCellByTagOrThrow(TCellTag cellTag) const override
     {
         auto* cell = FindChaosCellByTag(cellTag);
         if (!IsObjectAlive(cell)) {

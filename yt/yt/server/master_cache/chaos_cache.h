@@ -94,11 +94,11 @@ private:
 
     TCacheProfilingCountersPtr GetProfilingCounters(const std::string& user);
 
-    virtual bool IsResurrectionSupported() const override;
+    bool IsResurrectionSupported() const override;
 
-    virtual void OnAdded(const TChaosCacheEntryPtr& entry) override;
-    virtual void OnRemoved(const TChaosCacheEntryPtr& entry) override;
-    virtual i64 GetWeight(const TChaosCacheEntryPtr& entry) const override;
+    void OnAdded(const TChaosCacheEntryPtr& entry) override;
+    void OnRemoved(const TChaosCacheEntryPtr& entry) override;
+    i64 GetWeight(const TChaosCacheEntryPtr& entry) const override;
 
     static bool IsExpired(
         const TChaosCacheEntryPtr& entry,

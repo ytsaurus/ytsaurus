@@ -140,7 +140,7 @@ public:
         , ChangedProxyAnnotationCounter_(Profiler.Counter("/changed_proxy_annotation_counter"))
         , ChangedSystemAccountLimitCounter_(Profiler.Counter("/changed_system_account_limit_counter"))
         , ChangedResourceLimitCounter_(Profiler.Counter("/changed_resource_limits_counter"))
-        , OrchidScanBundleCounter_(New<Orchid::TScanBundleCounter>())
+        , OrchidScanBundleCounter_(New<NOrchid::TScanBundleCounter>())
     { }
 
     void Start() override
@@ -194,10 +194,10 @@ private:
     THashMap<TString, TBundleSensorsPtr> BundleSensors_;
     THashMap<TString, TZoneSensorsPtr> ZoneSensors_;
 
-    Orchid::TBundlesInfo OrchidBundlesInfo_;
-    Orchid::TZonesRacksInfo OrchidRacksInfo_;
+    NOrchid::TBundlesInfo OrchidBundlesInfo_;
+    NOrchid::TZonesRacksInfo OrchidRacksInfo_;
 
-    Orchid::TScanBundleCounterPtr OrchidScanBundleCounter_;
+    NOrchid::TScanBundleCounterPtr OrchidScanBundleCounter_;
 
     THashMap<TString, TBundleAlertCounters> BundleAlerts_;
     ICellDowntimeTrackerPtr CellDowntimeTracker_;
@@ -404,8 +404,8 @@ private:
         ReportResourceUsage(inputState);
 
         // Update input state for serving orchid requests.
-        OrchidBundlesInfo_ = Orchid::GetBundlesInfo(inputState, mutations);
-        OrchidRacksInfo_ = Orchid::GetZonesRacksInfo(inputState);
+        OrchidBundlesInfo_ = NOrchid::GetBundlesInfo(inputState, mutations);
+        OrchidRacksInfo_ = NOrchid::GetZonesRacksInfo(inputState);
 
         if (!CellDowntimeTracker_) {
             CellDowntimeTracker_ = CreateCellDowntimeTracker();

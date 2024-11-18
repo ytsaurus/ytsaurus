@@ -2,7 +2,7 @@
 
 #include "bundle_scheduler.h"
 
-namespace NYT::NCellBalancer::Orchid {
+namespace NYT::NCellBalancer::NOrchid {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -142,4 +142,4 @@ TZonesRacksInfo GetZonesRacksInfo(const TSchedulerInputState& state);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCellBalancer::Orchid
+} // namespace NYT::NCellBalancer::NOrchid

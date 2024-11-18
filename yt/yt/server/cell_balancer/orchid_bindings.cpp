@@ -5,7 +5,7 @@
 #include <yt/yt/core/ytree/yson_struct.h>
 
 
-namespace NYT::NCellBalancer::Orchid {
+namespace NYT::NCellBalancer::NOrchid {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -307,4 +307,4 @@ TZonesRacksInfo GetZonesRacksInfo(const TSchedulerInputState& state)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCellBalancer::Orchid
+} // namespace NYT::NCellBalancer::NOrchid

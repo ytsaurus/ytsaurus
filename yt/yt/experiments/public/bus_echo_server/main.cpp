@@ -63,7 +63,7 @@ public:
     }
 
 protected:
-    virtual void DoRun(const NLastGetopt::TOptsParseResult&) override
+    void DoRun(const NLastGetopt::TOptsParseResult&) override
     {
         if (Port_ <= 0 || Port_ > 65535) {
             OnError("Invalid port (must be > 0 and <= 65535)");

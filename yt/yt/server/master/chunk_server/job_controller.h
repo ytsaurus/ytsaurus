@@ -54,19 +54,19 @@ template <typename TJobType>
 struct ITypedJobController
     : public virtual IJobController
 {
-    virtual void OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
+    void OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
     virtual void OnJobWaiting(const TIntrusivePtr<TJobType>& job, IJobControllerCallbacks* callbacks) = 0;
 
-    virtual void OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
+    void OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
     virtual void OnJobRunning(const TIntrusivePtr<TJobType>& job, IJobControllerCallbacks* callbacks) = 0;
 
-    virtual void OnJobCompleted(const TJobPtr& job) override;
+    void OnJobCompleted(const TJobPtr& job) override;
     virtual void OnJobCompleted(const TIntrusivePtr<TJobType>& job) = 0;
 
-    virtual void OnJobAborted(const TJobPtr& job) override;
+    void OnJobAborted(const TJobPtr& job) override;
     virtual void OnJobAborted(const TIntrusivePtr<TJobType>& job) = 0;
 
-    virtual void OnJobFailed(const TJobPtr& job) override;
+    void OnJobFailed(const TJobPtr& job) override;
     virtual void OnJobFailed(const TIntrusivePtr<TJobType>& job) = 0;
 };
 

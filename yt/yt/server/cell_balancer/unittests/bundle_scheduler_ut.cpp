@@ -643,7 +643,7 @@ TEST_P(TBundleSchedulerTest, AllocationCreated)
     VerifyMultiDCNodeAllocationRequests(mutations, ForEachDataCenter(input, 3));
 
     EXPECT_EQ(GetDataCenterCount() * 4, std::ssize(mutations.ChangedStates["bigd"]->NodeAllocations));
-    auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "bigd");
+    auto orchidInfo = GetOrCrash(NOrchid::GetBundlesInfo(input, mutations), "bigd");
 
     THashMap<TString, THashSet<TString>> templates;
     for (auto& [allocId, request] : mutations.NewAllocations) {
@@ -716,11 +716,11 @@ TEST_P(TBundleSchedulerTest, InitializeTargetConfig)
 
     bundleInfo->TargetConfig = {};
     mutations = TSchedulerMutations{};
-    EXPECT_NO_THROW(Orchid::GetBundlesInfo(input, mutations));
+    EXPECT_NO_THROW(NOrchid::GetBundlesInfo(input, mutations));
 
     ScheduleBundles(input, &mutations);
 
-    EXPECT_NO_THROW(Orchid::GetBundlesInfo(input, mutations));
+    EXPECT_NO_THROW(NOrchid::GetBundlesInfo(input, mutations));
     EXPECT_EQ(1, std::ssize(mutations.InitializedBundleTargetConfig));
 }
 
@@ -737,7 +737,7 @@ TEST_P(TBundleSchedulerTest, AllocationQuotaExceeded)
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
-        EXPECT_NO_THROW(Orchid::GetBundlesInfo(input, mutations));
+        EXPECT_NO_THROW(NOrchid::GetBundlesInfo(input, mutations));
 
         EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
         EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
@@ -753,7 +753,7 @@ TEST_P(TBundleSchedulerTest, AllocationQuotaExceeded)
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
-        EXPECT_NO_THROW(Orchid::GetBundlesInfo(input, mutations));
+        EXPECT_NO_THROW(NOrchid::GetBundlesInfo(input, mutations));
 
         EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
         EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
@@ -771,7 +771,7 @@ TEST_P(TBundleSchedulerTest, AllocationQuotaExceeded)
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
-        EXPECT_NO_THROW(Orchid::GetBundlesInfo(input, mutations));
+        EXPECT_NO_THROW(NOrchid::GetBundlesInfo(input, mutations));
 
         EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
         EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
@@ -786,7 +786,7 @@ TEST_P(TBundleSchedulerTest, AllocationQuotaExceeded)
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
-    EXPECT_NO_THROW(Orchid::GetBundlesInfo(input, mutations));
+    EXPECT_NO_THROW(NOrchid::GetBundlesInfo(input, mutations));
 
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
@@ -853,7 +853,7 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackCompleted)
         EXPECT_TRUE(annotations->Allocated);
         EXPECT_FALSE(annotations->DeallocatedAt);
 
-        auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "bigd");
+        auto orchidInfo = GetOrCrash(NOrchid::GetBundlesInfo(input, mutations), "bigd");
         for (auto& [allocId, allocState] : input.BundleStates["bigd"]->NodeAllocations) {
             auto orchidAllocatingInfo = GetOrCrash(orchidInfo->AllocatingTabletNodes, allocId);
             EXPECT_FALSE(orchidAllocatingInfo->HulkRequestLink.empty());
@@ -877,7 +877,7 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackCompleted)
     EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->NodeAllocations));
     EXPECT_EQ(0, std::ssize(mutations.ChangeNodeAnnotations));
     VerifyNodeAllocationRequests(mutations, 0);
-    EXPECT_NO_THROW(Orchid::GetBundlesInfo(input, mutations));
+    EXPECT_NO_THROW(NOrchid::GetBundlesInfo(input, mutations));
     EXPECT_EQ(0, std::ssize(mutations.NodesToCleanup));
 }
 
@@ -1101,7 +1101,7 @@ TEST_P(TBundleSchedulerTest, CreateNewDeallocations)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(3 * GetDataCenterCount(), std::ssize(mutations.ChangedStates[bundleName]->NodeDeallocations));
 
-    auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), bundleName);
+    auto orchidInfo = GetOrCrash(NOrchid::GetBundlesInfo(input, mutations), bundleName);
 
     for (auto& [nodeName, state] : mutations.ChangedStates[bundleName]->NodeDeallocations) {
         EXPECT_FALSE(state->HulkRequestCreated);
@@ -1663,7 +1663,7 @@ TEST_P(TBundleSchedulerTest, ProxyAllocationProgressTrackCompleted)
         EXPECT_TRUE(annotations->Allocated);
         EXPECT_FALSE(annotations->DeallocatedAt);
 
-        auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "bigd");
+        auto orchidInfo = GetOrCrash(NOrchid::GetBundlesInfo(input, mutations), "bigd");
         for (auto& [allocId, allocState] : input.BundleStates["bigd"]->ProxyAllocations) {
             auto orchidAllocatingInfo = GetOrCrash(orchidInfo->AllocatingRpcProxies, allocId);
             EXPECT_FALSE(orchidAllocatingInfo->HulkRequestLink.empty());
@@ -1795,7 +1795,7 @@ TEST_P(TBundleSchedulerTest, ProxyCreateNewDeallocations)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(3 * GetDataCenterCount(), std::ssize(mutations.ChangedStates["bigd"]->ProxyDeallocations));
 
-    auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "bigd");
+    auto orchidInfo = GetOrCrash(NOrchid::GetBundlesInfo(input, mutations), "bigd");
 
     for (auto& [_, state] : mutations.ChangedStates["bigd"]->ProxyDeallocations) {
         EXPECT_FALSE(state->HulkRequestCreated);
@@ -1811,7 +1811,7 @@ TEST_P(TBundleSchedulerTest, ProxyCreateNewDeallocations)
     // Hulk deallocation requests are created.
     auto& bundleState = mutations.ChangedStates["bigd"];
     VerifyMultiDCProxyDeallocationRequests(mutations, bundleState, ForEachDataCenter(input, 3));
-    orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "bigd");
+    orchidInfo = GetOrCrash(NOrchid::GetBundlesInfo(input, mutations), "bigd");
 
     for (auto& [_, state] : mutations.ChangedStates["bigd"]->ProxyDeallocations) {
         EXPECT_TRUE(state->HulkRequestCreated);
@@ -1842,7 +1842,7 @@ TEST_P(TBundleSchedulerTest, ProxyCreateNewDeallocationsLegacyInstancies)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(3 * GetDataCenterCount(), std::ssize(mutations.ChangedStates["bigd"]->ProxyDeallocations));
 
-    auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "bigd");
+    auto orchidInfo = GetOrCrash(NOrchid::GetBundlesInfo(input, mutations), "bigd");
 
     for (auto& [_, state] : mutations.ChangedStates["bigd"]->ProxyDeallocations) {
         EXPECT_FALSE(state->HulkRequestCreated);
@@ -1858,7 +1858,7 @@ TEST_P(TBundleSchedulerTest, ProxyCreateNewDeallocationsLegacyInstancies)
     // Hulk deallocation requests are created.
     auto& bundleState = mutations.ChangedStates["bigd"];
     VerifyMultiDCProxyDeallocationRequests(mutations, bundleState, ForEachDataCenter(input, 3));
-    orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "bigd");
+    orchidInfo = GetOrCrash(NOrchid::GetBundlesInfo(input, mutations), "bigd");
 
     for (auto& [_, state] : mutations.ChangedStates["bigd"]->ProxyDeallocations) {
         EXPECT_TRUE(state->HulkRequestCreated);

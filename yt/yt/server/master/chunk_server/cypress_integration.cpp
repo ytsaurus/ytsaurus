@@ -428,7 +428,7 @@ private:
         }
     }
 
-    virtual TFuture<std::vector<std::pair<NObjectClient::TCellTag, i64>>> FetchSizes() override
+    TFuture<std::vector<std::pair<NObjectClient::TCellTag, i64>>> FetchSizes() override
     {
         if (!IsMulticell()) {
             return GetSize()

@@ -749,12 +749,12 @@ public:
         LastTotalWrittenBytes_ = IOEngine_->GetTotalWrittenBytes();
     }
 
-    virtual double GetReadProbability() const override
+    double GetReadProbability() const override
     {
         return SkipReadProbability_;
     }
 
-    virtual double GetWriteProbability() const override
+    double GetWriteProbability() const override
     {
         return SkipWriteProbability_;
     }
@@ -852,7 +852,7 @@ public:
         , Started_(false)
     { }
 
-    virtual void Start(const TRequestSizes& workloadModel) override
+    void Start(const TRequestSizes& workloadModel) override
     {
         YT_VERIFY(!Started_);
         Started_ = true;
@@ -861,7 +861,7 @@ public:
             .Run());
     }
 
-    virtual void Stop() override
+    void Stop() override
     {
         YT_VERIFY(Started_);
         Started_ = false;

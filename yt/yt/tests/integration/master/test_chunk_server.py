@@ -164,7 +164,7 @@ class TestChunkServer(YTEnvSetup):
     @authors("babenko")
     def test_decommission_journal(self):
         create("journal", "//tmp/j")
-        write_journal("//tmp/j", [{"payload": "payload" + str(i)} for i in range(0, 10)])
+        write_journal("//tmp/j", [{"payload": "payload" + str(i)} for i in range(0, 10)], enable_chunk_preallocation=False)
         self._test_decommission("//tmp/j", 3)
 
     @authors("babenko")

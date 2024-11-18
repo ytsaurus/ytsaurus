@@ -76,7 +76,7 @@ public:
         ++Delta_[bucketIndex];
     }
 
-    virtual bool ScanNeeded() const noexcept override
+    bool ScanNeeded() const noexcept override
     {
         const auto& newBounds = GetDynamicConfig()->CreationTimeHistogramBucketBounds;
 

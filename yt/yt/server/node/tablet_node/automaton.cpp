@@ -6,8 +6,6 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/yt/core/misc/crash_handler.h>
-
 #include <library/cpp/yt/memory/chunked_memory_pool.h>
 
 namespace NYT::NTabletNode {
@@ -22,7 +20,6 @@ TTabletAutomaton::TTabletAutomaton(ITabletAutomatonHostPtr host)
     : NHydra::TCompositeAutomaton(
         host->GetAsyncSnapshotInvoker(),
         host->GetCellId())
-    , CodicilData_(Format("CellId: %v", host->GetCellId()))
     , Host_(std::move(host))
 { }
 
@@ -53,13 +50,6 @@ TReign TTabletAutomaton::GetCurrentReign()
 EFinalRecoveryAction TTabletAutomaton::GetActionToRecoverFromReign(TReign reign)
 {
     return NTabletNode::GetActionToRecoverFromReign(reign);
-}
-
-void TTabletAutomaton::ApplyMutation(TMutationContext* context)
-{
-    TCodicilGuard guard(CodicilData_);
-
-    TCompositeAutomaton::ApplyMutation(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

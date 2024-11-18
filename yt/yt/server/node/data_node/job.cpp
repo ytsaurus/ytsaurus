@@ -2399,7 +2399,7 @@ private:
         const int Index;
     };
 
-    virtual TFuture<void> DoRun() override
+    TFuture<void> DoRun() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 

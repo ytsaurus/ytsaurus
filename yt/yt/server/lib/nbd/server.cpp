@@ -126,7 +126,7 @@ public:
         YT_LOG_INFO("Registered device (Name: %v, Info: %v)", name, device->DebugString());
     }
 
-    virtual bool TryUnregisterDevice(const TString& name) override
+    bool TryUnregisterDevice(const TString& name) override
     {
         YT_LOG_INFO("Unregistering device (Name: %v)", name);
 
@@ -145,33 +145,33 @@ public:
         return true;
     }
 
-    virtual bool IsDeviceRegistered(const TString& name) const override
+    bool IsDeviceRegistered(const TString& name) const override
     {
         auto guard = ReaderGuard(NameToDeviceLock_);
         return NameToDevice_.contains(name);
     }
 
-    virtual const NLogging::TLogger& GetLogger() const override
+    const NLogging::TLogger& GetLogger() const override
     {
         return Logger;
     }
 
-    virtual NApi::NNative::IConnectionPtr GetConnection() const override
+    NApi::NNative::IConnectionPtr GetConnection() const override
     {
         return Connection_;
     }
 
-    virtual IInvokerPtr GetInvoker() const override
+    IInvokerPtr GetInvoker() const override
     {
         return Invoker_;
     }
 
-    virtual TChunkReaderHostPtr GetLayerReaderHost() const override
+    TChunkReaderHostPtr GetLayerReaderHost() const override
     {
         return LayerReaderHost_;
     }
 
-    virtual TChunkReaderHostPtr GetFileReaderHost() const override
+    TChunkReaderHostPtr GetFileReaderHost() const override
     {
         return FileReaderHost_;
     }

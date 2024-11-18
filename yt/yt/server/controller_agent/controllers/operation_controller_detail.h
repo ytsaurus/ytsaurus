@@ -892,7 +892,7 @@ protected:
      *  See also YT-19936.
      *  #interrupted flag indicates premature completion and disables standard validations.
      */
-    virtual void OnOperationCompleted(bool interrupted) override;
+    void OnOperationCompleted(bool interrupted) override;
 
     virtual void OnOperationTimeLimitExceeded();
 

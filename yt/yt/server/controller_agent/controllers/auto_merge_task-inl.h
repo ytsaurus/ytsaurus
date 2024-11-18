@@ -17,7 +17,7 @@ class TAutoMergeableOutputMixin
 public:
     using TUnderlyingTask::TUnderlyingTask;
 
-    virtual TCompositePendingJobCount GetPendingJobCount() const override
+    TCompositePendingJobCount GetPendingJobCount() const override
     {
         if (!CanScheduleJob_) {
             return TCompositePendingJobCount{};
@@ -31,12 +31,12 @@ public:
         return result;
     }
 
-    virtual std::optional<EScheduleFailReason> GetScheduleFailReason(const TSchedulingContext& /*context*/) override
+    std::optional<EScheduleFailReason> GetScheduleFailReason(const TSchedulingContext& /*context*/) override
     {
         return CanScheduleJob_ ? std::nullopt : std::make_optional(EScheduleFailReason::TaskRefusal);
     }
 
-    virtual void OnTaskCompleted() override
+    void OnTaskCompleted() override
     {
         TUnderlyingTask::OnTaskCompleted();
 
@@ -47,7 +47,7 @@ public:
         }
     }
 
-    virtual void OnJobStarted(TJobletPtr joblet) override
+    void OnJobStarted(TJobletPtr joblet) override
     {
         TUnderlyingTask::OnJobStarted(joblet);
 
@@ -57,14 +57,14 @@ public:
         this->TaskHost_->GetAutoMergeDirector()->OnTaskJobStarted(joblet->InputStripeList->TotalChunkCount);
     }
 
-    virtual bool ValidateChunkCount(int chunkCount) override
+    bool ValidateChunkCount(int chunkCount) override
     {
         CanScheduleJob_ = this->TaskHost_->GetAutoMergeDirector()->CanScheduleTaskJob(chunkCount);
         LastChunkCount_ = chunkCount;
         return CanScheduleJob_;
     }
 
-    virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
+    TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
     {
         auto result = TUnderlyingTask::OnJobAborted(joblet, jobSummary);
 
@@ -73,7 +73,7 @@ public:
         return result;
     }
 
-    virtual TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
+    TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
     {
         auto result = TUnderlyingTask::OnJobFailed(joblet, jobSummary);
 
@@ -82,7 +82,7 @@ public:
         return result;
     }
 
-    virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+    TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
     {
         auto result = TUnderlyingTask::OnJobCompleted(joblet, jobSummary);
 
@@ -91,25 +91,25 @@ public:
         return result;
     }
 
-    virtual void SetupCallbacks() override
+    void SetupCallbacks() override
     {
         TUnderlyingTask::SetupCallbacks();
 
         this->TaskHost_->GetAutoMergeDirector()->SubscribeStateChanged(BIND(&TAutoMergeableOutputMixin::UpdateSelf, MakeWeak(this)));
     }
 
-    virtual TString GetTitle() const override
+    TString GetTitle() const override
     {
         return TUnderlyingTask::GetTitle() + " + AutoMergeableOutputMixin";
     }
 
-    virtual bool CanLoseJobs() const override
+    bool CanLoseJobs() const override
     {
         // If user code is deterministic, it is safe to restart it arbitrarily.
         return this->GetUserJobSpec()->Deterministic;
     }
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         TUnderlyingTask::Persist(context);
 

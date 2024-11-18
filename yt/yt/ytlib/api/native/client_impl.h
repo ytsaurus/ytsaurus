@@ -127,7 +127,7 @@ private: \
     returnType doMethod signature; \
 \
 public: \
-    virtual TFuture<returnType> method signature override \
+    TFuture<returnType> method signature override \
     { \
         return Execute( \
             TStringBuf(#method), \

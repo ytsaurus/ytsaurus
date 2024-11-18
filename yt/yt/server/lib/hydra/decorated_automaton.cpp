@@ -23,6 +23,7 @@
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <yt/yt/core/misc/blob.h>
+#include <yt/yt/core/misc/codicil.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/finally.h>
 
@@ -1314,6 +1315,23 @@ void TDecoratedAutomaton::DoApplyMutation(
 
     {
         TMutationContextGuard mutationContextGuard(mutationContext);
+
+        TCodicilGuard codicilGuard([&] (TCodicilFormatter* formatter) {
+            formatter->AppendString(Logger.GetTag());
+            formatter->AppendString(", Version: ");
+            formatter->AppendNumber(mutationContext->GetVersion().SegmentId);
+            formatter->AppendString(":");
+            formatter->AppendNumber(mutationContext->GetVersion().RecordId);
+            formatter->AppendString(", SequenceNumber: ");
+            formatter->AppendNumber(mutationContext->GetSequenceNumber());
+            formatter->AppendString(", MutationType: ");
+            formatter->AppendString(mutationContext->Request().Type);
+            if (mutationId) {
+                formatter->AppendString(", MutationId: ");
+                formatter->AppendGuid(mutationContext->Request().MutationId);
+            }
+        });
+
         if (request.Type == EnterReadOnlyMutationType || request.Type == ExitReadOnlyMutationType) {
             ReadOnly_ = request.Type == EnterReadOnlyMutationType;
 

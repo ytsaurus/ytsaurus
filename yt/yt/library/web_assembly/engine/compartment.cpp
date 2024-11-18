@@ -214,7 +214,7 @@ public:
         YT_ASSERT(collected);
     }
 
-    virtual void AddModule(TRef bytecode, TStringBuf name = "") override
+    void AddModule(TRef bytecode, TStringBuf name = "") override
     {
         auto wavmModule = LoadModuleFromBytecode(bytecode);
         const auto& irModule = Runtime::getModuleIR(wavmModule);
@@ -223,7 +223,7 @@ public:
         InstantiateModule(wavmModule, linkResult, name);
     }
 
-    virtual void AddModule(const TString& wast, TStringBuf name = "") override
+    void AddModule(const TString& wast, TStringBuf name = "") override
     {
         auto irModule = ParseWast(wast);
         auto wavmModule = Runtime::compileModule(irModule);
@@ -234,7 +234,7 @@ public:
 
     // Strip erases the linking metadata. This can speed up the clone operation.
     // After stripping, the compartment can execute loaded functions, but further linking is no longer possible.
-    virtual void Strip() override
+    void Strip() override
     {
         YT_ASSERT(!Stripped_);
         Stripped_ = true;
@@ -265,25 +265,25 @@ public:
         GlobalOffsetTableElements_.DataEntries.clear();
     }
 
-    virtual void* GetFunction(const std::string& name) override
+    void* GetFunction(const std::string& name) override
     {
         auto& instance = Instances_.back();
         auto* function = Runtime::asFunction(Runtime::getInstanceExport(instance, name.c_str()));
         return static_cast<void*>(function);
     }
 
-    virtual void* GetFunction(size_t index) override
+    void* GetFunction(size_t index) override
     {
         auto* tableElement = Runtime::getTableElement(GetGlobalOffsetTable(), std::bit_cast<Uptr>(index));
         return static_cast<void*>(Runtime::asFunction(tableElement));
     }
 
-    virtual void* GetContext() override
+    void* GetContext() override
     {
         return static_cast<void*>(Context_);
     }
 
-    virtual uintptr_t AllocateBytes(size_t length) override
+    uintptr_t AllocateBytes(size_t length) override
     {
         static const auto signature = IR::FunctionType(/*inResults*/ {IR::ValueType::i64}, /*inParams*/ {IR::ValueType::i64});
         auto* mallocFunction = Runtime::getTypedInstanceExport(RuntimeLibraryInstance_, "malloc", signature);
@@ -293,7 +293,7 @@ public:
         return result.u64;
     }
 
-    virtual void FreeBytes(uintptr_t offset) override
+    void FreeBytes(uintptr_t offset) override
     {
         static const auto signature = IR::FunctionType(/*inResults*/ {}, /*inParams*/ {IR::ValueType::i64});
         auto* freeFunction = getTypedInstanceExport(RuntimeLibraryInstance_, "free", signature);
@@ -301,13 +301,13 @@ public:
         Runtime::invokeFunction(Context_, freeFunction, signature, arguments.data(), {});
     }
 
-    virtual void* GetHostPointer(uintptr_t offset, size_t length) override
+    void* GetHostPointer(uintptr_t offset, size_t length) override
     {
         char* bytes = Runtime::memoryArrayPtr<char>(MemoryLayoutData_.LinearMemory, std::bit_cast<ui64>(offset), length);
         return static_cast<void*>(bytes);
     }
 
-    virtual uintptr_t GetCompartmentOffset(void* hostAddress) override
+    uintptr_t GetCompartmentOffset(void* hostAddress) override
     {
         ui64 hostAddressAsUint = std::bit_cast<ui64>(hostAddress);
         ui64 baseAddress = std::bit_cast<ui64>(Runtime::getMemoryBaseAddress(MemoryLayoutData_.LinearMemory));
@@ -315,7 +315,7 @@ public:
         return offset;
     }
 
-    virtual std::unique_ptr<IWebAssemblyCompartment> Clone() const override
+    std::unique_ptr<IWebAssemblyCompartment> Clone() const override
     {
         auto result = std::unique_ptr<TWebAssemblyCompartment>(new TWebAssemblyCompartment());
         Clone(*this, result.get());

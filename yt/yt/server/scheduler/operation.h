@@ -18,9 +18,9 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/core/misc/codicil.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/crash_handler.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
@@ -432,7 +432,7 @@ private:
     const NYson::TYsonString TrimmedAnnotations_;
     const std::vector<TString> VanillaTaskNames_;
     const THashMap<TString, TStrategyOperationSpecPtr> CustomSpecPerTree_;
-    const TString CodicilData_;
+    const std::string Codicil_;
     const IInvokerPtr ControlInvoker_;
 
     bool RunningInStrategy_ = false;

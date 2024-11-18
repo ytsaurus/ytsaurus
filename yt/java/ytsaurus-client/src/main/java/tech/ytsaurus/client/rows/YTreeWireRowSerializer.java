@@ -20,13 +20,17 @@ import tech.ytsaurus.yson.ClosableYsonConsumer;
 import tech.ytsaurus.yson.YsonConsumer;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 
+/**
+ * YTreeWireRowSerializer is not thread safe.
+ */
 public class YTreeWireRowSerializer<T> implements WireRowSerializer<T> {
-    // Маленький размер буфера для кодирования заголовков и размеров
+    // Small buffer size for encoding headers and sizes.
     private static final int BUFFER_SIZE = 64;
     private static final int OUTPUT_SIZE = 256;
 
     protected final YTreeRowSerializer<T> objectSerializer;
     protected TableSchema tableSchema;
+    // The delegate state is mutable during serialization.
     protected YTreeConsumerProxy delegate;
 
     protected YTreeWireRowSerializer(YTreeRowSerializer<T> objectSerializer) {
