@@ -921,7 +921,7 @@ void TSchedulerCompositeElement::AddChild(TSchedulerElement* child, bool enabled
 
     if (child->IsOperation()) {
         auto* childOperation = static_cast<TSchedulerOperationElement*>(child);
-        childOperation->SetRunningInEphemeralPool(IsDefaultConfigured());
+        childOperation->UpdatePoolAttributes(IsDefaultConfigured());
     }
 
     auto& map = enabled ? EnabledChildToIndex_ : DisabledChildToIndex_;
@@ -1274,7 +1274,7 @@ void TSchedulerPoolElement::SetConfig(TPoolConfigPtr config)
     DoSetConfig(std::move(config));
     DefaultConfigured_ = false;
 
-    PropagateIsEphemeral();
+    PropagatePoolAttributesToOperations();
 }
 
 void TSchedulerPoolElement::SetDefaultConfig()
@@ -1284,7 +1284,7 @@ void TSchedulerPoolElement::SetDefaultConfig()
     DoSetConfig(New<TPoolConfig>());
     DefaultConfigured_ = true;
 
-    PropagateIsEphemeral();
+    PropagatePoolAttributesToOperations();
 }
 
 void TSchedulerPoolElement::SetObjectId(NObjectClient::TObjectId objectId)
@@ -1764,10 +1764,10 @@ std::optional<TString> TSchedulerPoolElement::GetRedirectToCluster() const
         : Parent_->GetRedirectToCluster();
 }
 
-void TSchedulerPoolElement::PropagateIsEphemeral()
+void TSchedulerPoolElement::PropagatePoolAttributesToOperations()
 {
     for (auto* child : GetChildOperations()) {
-        child->SetRunningInEphemeralPool(DefaultConfigured_);
+        child->UpdatePoolAttributes(DefaultConfigured_);
     }
 }
 
@@ -1988,9 +1988,13 @@ TOperationFairShareTreeRuntimeParametersPtr TSchedulerOperationElement::GetRunti
     return RuntimeParameters_;
 }
 
-void TSchedulerOperationElement::SetRunningInEphemeralPool(bool runningInEphemeralPool)
+void TSchedulerOperationElement::UpdatePoolAttributes(bool runningInEphemeralPool)
 {
-    OperationHost_->SetRunningInEphemeralPool(TreeId_, runningInEphemeralPool);
+    TOperationPoolTreeAttributes attributes;
+    attributes.RunningInEphemeralPool = runningInEphemeralPool;
+    attributes.RunningInLightweightPool = Parent_->GetEffectiveLightweightOperationsEnabled();
+
+    OperationHost_->UpdatePoolAttributes(TreeId_, std::move(attributes));
 }
 
 TJobResourcesConfigPtr TSchedulerOperationElement::GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const

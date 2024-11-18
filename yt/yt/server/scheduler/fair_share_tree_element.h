@@ -739,7 +739,7 @@ private:
 
     void DoSetConfig(TPoolConfigPtr newConfig);
 
-    void PropagateIsEphemeral();
+    void PropagatePoolAttributesToOperations();
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerPoolElement)
@@ -829,7 +829,7 @@ public:
     void SetRuntimeParameters(TOperationFairShareTreeRuntimeParametersPtr runtimeParameters);
     TOperationFairShareTreeRuntimeParametersPtr GetRuntimeParameters() const;
 
-    void SetRunningInEphemeralPool(bool runningInEphemeralPool);
+    void UpdatePoolAttributes(bool runningInEphemeralPool);
 
     void BuildLoggingStringAttributes(TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
     bool AreDetailedLogsEnabled() const final;

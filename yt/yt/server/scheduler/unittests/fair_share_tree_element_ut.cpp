@@ -410,7 +410,7 @@ public:
         return *Controller_.Get();
     }
 
-    void SetRunningInEphemeralPool(const TString& /*treeId*/, bool /*runningInEphemeralPool*/) override
+    void UpdatePoolAttributes(const TString& /*treeId*/, const TOperationPoolTreeAttributes& /*operationPoolTreeAttributes*/) override
     { }
 
     bool IsTreeErased(const TString& /*treeId*/) const override
