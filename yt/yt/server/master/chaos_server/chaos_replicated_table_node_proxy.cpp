@@ -63,12 +63,10 @@ using namespace NYTree;
 
 namespace {
 
-
 // TODO(osidorkin): Remove after YT-17817
 class TChaosReplicatedTableTabletsCountGetter
 {
 public:
-
     static TFuture<TYsonString> GetTabletsCountYson(TFuture<TReplicationCardPtr> replicationCardFuture, NNative::IConnectionPtr connection)
     {
         return GetTabletCount(
@@ -95,7 +93,7 @@ public:
                     .ApplyUnique(BIND([] (
                         std::vector<std::pair<TYPath, NNative::IConnectionPtr>>&& connections)
                     {
-                        std::vector<TFuture<i64>> requests;
+                        std::vector<TFuture<int>> requests;
                         requests.reserve(connections.size());
                         for (auto& [replicaPath, replicaClusterConnection] : connections) {
                             requests.push_back(GetRemoteTabletCount(
@@ -104,7 +102,7 @@ public:
                         }
 
                         return AllSet(std::move(requests))
-                            .ApplyUnique(BIND([] (std::vector<TErrorOr<i64>>&& tabletCounts) {
+                            .ApplyUnique(BIND([] (std::vector<TErrorOr<int>>&& tabletCounts) {
                                 std::remove_if(
                                     tabletCounts.begin(),
                                     tabletCounts.end(),
@@ -123,7 +121,7 @@ public:
                                     return MakeFuture<int>(TError("Failed to get tablet count from any replica"));
                                 }
 
-                                return MakeFuture(static_cast<int>(minElementIt->Value()));
+                                return MakeFuture(minElementIt->Value());
                         }));
                     }));
             }));
@@ -164,11 +162,12 @@ private:
         return MakeFuture(connections);
     }
 
-    static TFuture<i64> GetRemoteTabletCount(const TYPath& path, NNative::IConnectionPtr connection) {
+    static TFuture<int> GetRemoteTabletCount(const TYPath& path, const NNative::IConnectionPtr& connection)
+    {
         auto client = connection->CreateClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
         auto tableMountInfoFuture = client->GetTableMountCache()->GetTableInfo(path);
         return tableMountInfoFuture.Apply(BIND([] (const TTableMountInfoPtr& tableMountInfo) {
-            return (i64)tableMountInfo->Tablets.size();
+            return static_cast<int>(tableMountInfo->Tablets.size());
         }));
     }
 };
