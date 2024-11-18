@@ -2144,7 +2144,8 @@ void TJob::ValidateJobPhase(EJobPhase expectedPhase) const
 
         THROW_ERROR_EXCEPTION("Unexpected job phase")
             << TErrorAttribute("expected_phase", expectedPhase)
-            << TErrorAttribute("actual_phase", JobPhase_);
+            << TErrorAttribute("actual_phase", JobPhase_)
+            << TErrorAttribute("abort_reason", EAbortReason::UnexpectedNodeJobPhase);
     }
 }
 
