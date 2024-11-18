@@ -732,6 +732,8 @@ yt dirtable upload [-h] --directory DIRECTORY [--part-size PART_SIZE] [--recursi
 
 > `--directory`
 
+> `--store-full-path`     Store full path to uploaded files
+
 > `--part-size`    Default: `4194304`
 
 > `--recursive`
@@ -745,6 +747,12 @@ yt dirtable upload [-h] --directory DIRECTORY [--part-size PART_SIZE] [--recursi
 > `--force`
 
 > `--prepare-for-sky-share`
+
+> `--exact-filenames`    Files to upload (separated by comma)
+
+> `--filter-by-regexp`    Files with name matching that regexp will be uploaded
+
+> `--exclude-by-regexp`    Files with name matching that regexp will not be uploaded
 
 ##### download
 
@@ -774,8 +782,12 @@ yt dirtable download [-h] --directory DIRECTORY --yt-table YT_TABLE [--process-c
 List files from {{product-name}}
 
 ```bash
-yt dirtable list-files [-h] --yt-table YT_TABLE
+yt dirtable list-files [-h] --yt-table YT_TABLE [--raw]
 ```
+###### Named Arguments
+
+> `--raw`    Displays only file names list. If omitted, prints filenames and sizes in human-readable format
+
 
 ###### Named Arguments
 
@@ -796,6 +808,8 @@ yt dirtable append-single-file [-h] --yt-table YT_TABLE --yt-name YT_NAME --fs-p
 > `--yt-name`
 
 > `--fs-path`
+
+> `--store-full-path`     Store full path to the uploaded file. Makes `--yt-name` equal to the `--fs-path` value
 
 > `--process-count`    Default: `4`
 
