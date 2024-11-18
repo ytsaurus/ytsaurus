@@ -78,10 +78,6 @@ void TPartition::Save(TSaveContext& context) const
 {
     using NYT::Save;
 
-    // COMPAT(babenko): drop these
-    Save(context, TInstant::Zero());
-    Save(context, TInstant::Zero());
-
     TSizeSerializer::Save(context, Stores_.size());
 
     auto storeIterators = GetSortedIterators(
@@ -96,9 +92,10 @@ void TPartition::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    // COMPAT(babenko): drop these
-    Load(context, SamplingTime_);
-    Load(context, SamplingRequestTime_);
+    if (context.GetVersion() < ETabletReign::DropSamplingTimeCompats) {
+        Load(context, SamplingTime_);
+        Load(context, SamplingRequestTime_);
+    }
 
     int storeCount = TSizeSerializer::LoadSuspended(context);
     SERIALIZATION_DUMP_WRITE(context, "stores[%v]", storeCount);
