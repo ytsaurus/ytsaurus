@@ -87,43 +87,46 @@ public:
         TFuture<TReplicationCardPtr> replicationCardFuture,
         NNative::IConnectionPtr connection)
     {
-        return replicationCardFuture
-            .ApplyUnique(BIND([connection = std::move(connection)] (TReplicationCardPtr&& card) {
-                return GetActiveQueueReplicaConnections(card->Replicas, connection, false)
-                    .ApplyUnique(BIND([] (
-                        std::vector<std::pair<TYPath, NNative::IConnectionPtr>>&& connections)
-                    {
-                        std::vector<TFuture<int>> requests;
-                        requests.reserve(connections.size());
-                        for (auto& [replicaPath, replicaClusterConnection] : connections) {
-                            requests.push_back(GetRemoteTabletCount(
-                                replicaPath,
-                                std::move(replicaClusterConnection)));
-                        }
+        auto activeQueueConnectionsFuture = replicationCardFuture.ApplyUnique(BIND(
+            [connection = std::move(connection)] (TReplicationCardPtr&& card) {
+                return GetActiveQueueReplicaConnections(card->Replicas, connection, false);
+            }));
 
-                        return AllSet(std::move(requests))
-                            .ApplyUnique(BIND([] (std::vector<TErrorOr<int>>&& tabletCounts) {
-                                std::remove_if(
-                                    tabletCounts.begin(),
-                                    tabletCounts.end(),
-                                    [] (const auto& tabletCount) {
-                                        return !tabletCount.IsOK();
-                                    });
+        auto replicaTabletCountRequestsFuture = activeQueueConnectionsFuture.ApplyUnique(BIND(
+            [] (std::vector<std::pair<TYPath, NNative::IConnectionPtr>>&& connections)
+            {
+                std::vector<TFuture<int>> requests;
+                requests.reserve(connections.size());
+                for (auto& [replicaPath, replicaClusterConnection] : connections) {
+                    requests.push_back(GetRemoteTabletCount(
+                        replicaPath,
+                        std::move(replicaClusterConnection)));
+                }
 
-                                auto minElementIt = std::min_element(
-                                    tabletCounts.begin(),
-                                    tabletCounts.end(),
-                                    [] (const auto& a, const auto& b) {
-                                        return a.Value() < b.Value();
-                                    });
+                return AllSet(std::move(requests));
+            }));
 
-                                if (minElementIt == tabletCounts.end()) {
-                                    return MakeFuture<int>(TError("Failed to get tablet count from any replica"));
-                                }
+        return replicaTabletCountRequestsFuture
+            .ApplyUnique(BIND([] (std::vector<TErrorOr<int>>&& tabletCounts) {
+                std::remove_if(
+                    tabletCounts.begin(),
+                    tabletCounts.end(),
+                    [] (const auto& tabletCount) {
+                        return !tabletCount.IsOK();
+                    });
 
-                                return MakeFuture(minElementIt->Value());
-                        }));
-                    }));
+                auto minElementIt = std::min_element(
+                    tabletCounts.begin(),
+                    tabletCounts.end(),
+                    [] (const auto& a, const auto& b) {
+                        return a.Value() < b.Value();
+                    });
+
+                if (minElementIt == tabletCounts.end()) {
+                    return MakeFuture<int>(TError("Failed to get tablet count from any replica"));
+                }
+
+                return MakeFuture(minElementIt->Value());
             }));
     }
 
@@ -153,7 +156,7 @@ private:
                             replicas,
                             std::move(nativeConnection),
                             true));
-                    }
+                }
             }
 
             connections.emplace_back(replica.ReplicaPath, std::move(replicaClusterConnection));
@@ -171,7 +174,6 @@ private:
         }));
     }
 };
-
 
 } // namespace
 
@@ -474,7 +476,6 @@ private:
                                         .Item("replication_lag_time").Value(replicaLag)
                                         .Item("replicated_table_tracker_enabled").Value(replica.EnableReplicatedTableTracker)
                                     .EndMap();
-
                             });
                     }));
             }
