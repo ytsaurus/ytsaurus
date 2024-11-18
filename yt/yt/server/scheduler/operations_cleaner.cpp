@@ -1690,7 +1690,7 @@ private:
 
         struct TOperationDataToParse
         {
-            TYsonString AttrbutesYson;
+            TYsonString AttributesYson;
             TOperationId OperationId;
         };
 
@@ -1731,7 +1731,7 @@ private:
                     IAttributeDictionaryPtr attributes;
                     TOperationId operationId;
                     try {
-                        attributes = ConvertToAttributes(operationDataToParse.AttrbutesYson);
+                        attributes = ConvertToAttributes(operationDataToParse.AttributesYson);
                         operationId = TOperationId(TGuid::FromString(attributes->Get<TString>("key")));
                         YT_VERIFY(operationId == operationDataToParse.OperationId);
                     } catch (const std::exception& ex) {
