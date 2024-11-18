@@ -466,7 +466,6 @@ private:
         // Compute an upper bound for total size.
         i64 totalChunkSize = GetProtoExtension<TMiscExt>(chunkMeta->extensions()).compressed_data_size() +
             parityPartBlockCount * erasurePlacementExt.parity_block_size() * erasurePlacementExt.parity_part_count();
-        ReadBlocksOptions_.EstimatedSize = totalChunkSize;
 
         TotalSize_ += totalChunkSize;
 
@@ -803,7 +802,6 @@ private:
         }
 
         i64 totalChunkSize = GetProtoExtension<TMiscExt>(chunkMeta->extensions()).compressed_data_size();
-        ReadBlocksOptions_.EstimatedSize = totalChunkSize;
 
         auto result = BIND(&TRemoteCopyJob::DoCopy, MakeStrong(this))
             .AsyncVia(GetRemoteCopyInvoker())
