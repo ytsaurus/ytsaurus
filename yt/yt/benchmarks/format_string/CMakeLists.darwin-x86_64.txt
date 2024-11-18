@@ -12,23 +12,31 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(action_queue)
-add_subdirectory(bus)
-add_subdirectory(context_switch)
-add_subdirectory(exceptions)
-add_subdirectory(fair_share_action_queue)
-add_subdirectory(format_string)
-add_subdirectory(formats)
-add_subdirectory(insert)
-add_subdirectory(io)
-add_subdirectory(io_engine)
-add_subdirectory(joining_reader)
-add_subdirectory(logging)
-add_subdirectory(mpsc_sharded_queue)
-add_subdirectory(proto)
-add_subdirectory(rng)
-add_subdirectory(rpc)
-add_subdirectory(sendfile)
-add_subdirectory(skiff)
-add_subdirectory(versioned_block_format)
-add_subdirectory(queues)
+add_executable(benchmark_format_string)
+
+
+target_link_libraries(benchmark_format_string PUBLIC
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  yt-yt-core
+)
+
+target_allocator(benchmark_format_string
+  system_allocator
+)
+
+target_link_options(benchmark_format_string PRIVATE
+  -Wl,-platform_version,macos,11.0,11.0
+  -fPIC
+  -fPIC
+  -framework
+  CoreFoundation
+)
+
+target_sources(benchmark_format_string PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/format_string/main.cpp
+)
+
+
+vcs_info(benchmark_format_string)
