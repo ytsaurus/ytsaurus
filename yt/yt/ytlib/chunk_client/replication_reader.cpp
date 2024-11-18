@@ -167,7 +167,7 @@ struct IRequestBatcher
 
     virtual TFuture<TPeerResponsePtr> ProbeBlockSet(const TRequest& request) = 0;
 
-    virtual TFuture<TGetBlocksResult> GetBlockSet(const TRequest& request) = 0;
+    virtual TFuture<TGetBlocksResult> GetBlockSet(const TRequest& request, bool hedgingEnabled) = 0;
 };
 
 DECLARE_REFCOUNTED_STRUCT(IRequestBatcher)
@@ -2053,7 +2053,9 @@ private:
                 .Session = MakeStrong(this),
                 .Barriers = FillP2PBarriers(peers, blockIndexes),
                 .Peers = peers,
-            });
+            },
+            // If hedging is enabled, then get block batching is not allowed.
+            hedgingOptions.has_value());
 
         SetSessionFuture(getBlockSetResponseFuture.As<void>());
         auto result = WaitFor(getBlockSetResponseFuture);
@@ -3430,13 +3432,13 @@ public:
         }
     }
 
-    TFuture<TGetBlocksResult> GetBlockSet(const TRequest& request) override
+    TFuture<TGetBlocksResult> GetBlockSet(const TRequest& request, bool hedgingEnabled) override
     {
-        if (!ReaderConfig_->UseReadBlocksBatcher) {
+        if (!hedgingEnabled && ReaderConfig_->UseReadBlocksBatcher) {
+            return ExecuteRequest<TGetBlocksResult>(request);
+        } else {
             auto batch = BuildRequestBatch<TGetBlocksResult>(request);
             return ExecuteBatchRequest<TGetBlocksResult>(batch);
-        } else {
-            return ExecuteRequest<TGetBlocksResult>(request);
         }
     }
 
