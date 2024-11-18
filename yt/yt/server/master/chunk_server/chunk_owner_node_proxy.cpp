@@ -1965,7 +1965,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
     bool fetchLastKey = request->fetch_last_key();
     bool fetchHunkChunkListIds = request->fetch_hunk_chunk_list_ids();
 
-    context->SetRequestInfo("FetchLastKey: %v, FetchHunkChunkListIds: %v", fetchLastKey, fetchHunkChunkListIds);
+    context->SetRequestInfo("FetchLastKey: %v, FetchHunkChunkListIds: %v",
+        fetchLastKey,
+        fetchHunkChunkListIds);
 
     ValidateNotExternal();
     ValidateInUpdate();
