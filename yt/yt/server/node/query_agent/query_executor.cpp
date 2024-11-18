@@ -756,13 +756,11 @@ private:
 
         auto [frontQuery, bottomQueryPattern] = GetDistributedQueryPattern(Query_);
 
-        bool ordered = Query_->IsOrdered();
-        bool prefetch = Query_->Limit == std::numeric_limits<i64>::max() - 1;
         int splitCount = std::ssize(groupedDataSplits);
 
         return CoordinateAndExecute(
-            ordered,
-            prefetch,
+            Query_->IsOrdered(),
+            Query_->IsPrefetching(),
             splitCount,
             [
                 &,
@@ -811,7 +809,7 @@ private:
                         subquery->InferRanges = false;
 
                         // COMPAT(lukyan): Use ordered read without modification of protocol
-                        subquery->Limit = std::numeric_limits<i64>::max() - 1;
+                        subquery->Limit = OrderedReadWithPrefetchHint;
 
                         YT_LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
 
