@@ -2,6 +2,7 @@ package tryt
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
@@ -32,12 +33,19 @@ func (c *Controller) Prepare(
 	annotation map[string]any,
 	err error,
 ) {
+	description = map[string]any{}
+	annotation = map[string]any{}
+	spec = map[string]any{}
 	speclet := oplet.ControllerSpeclet().(Speclet)
 	alias := oplet.Alias()
 	var filePaths []ypath.Rich
-	filePaths = append(filePaths, *c.root.Child("config.yaml").Attr("file_name").Child("/usr/local/bin/transfer.yaml").Rich())
-
-	w, err := c.ytc.WriteFile(ctx, c.root.Child("config.yaml"), nil)
+	configP := c.root.Child(alias).Child("config.yaml")
+	filePaths = append(filePaths, *configP.Rich())
+	_, err = c.ytc.CreateNode(ctx, configP, yt.NodeFile, nil)
+	if err != nil {
+		return
+	}
+	w, err := c.ytc.WriteFile(ctx, configP, nil)
 	if err != nil {
 		return
 	}
@@ -57,11 +65,14 @@ dst:
 		alias,
 		speclet.TransferType,
 		speclet.SourceType,
-		speclet.SourceParams,
+		asJson(speclet.SourceParams),
 		speclet.DestinationType,
-		speclet.DestinationParams,
+		asJson(speclet.DestinationParams),
 	)))
 	if err != nil {
+		return
+	}
+	if err = w.Close(); err != nil {
 		return
 	}
 	spec = map[string]any{
@@ -87,6 +98,11 @@ dst:
 	}
 
 	return
+}
+
+func asJson(params any) string {
+	data, _ := json.Marshal(params)
+	return string(data)
 }
 
 func (c *Controller) Family() string {

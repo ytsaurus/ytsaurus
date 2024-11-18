@@ -1,25 +1,25 @@
 package tryt
 
 type Speclet struct {
-	CPU    *uint64 `yson:"cpu"`
-	Memory *uint64 `yson:"memory"`
+	CPU    *float64 `yson:"cpu"`
+	Memory *uint64  `yson:"memory"`
 
 	DockerImage string `yson:"docker_image"`
 
 	TransferType      string `yson:"transfer_type"`
 	SourceType        string `yson:"src_type"`
-	SourceParams      string `yson:"src_params"`
+	SourceParams      any    `yson:"src_params"`
 	DestinationType   string `yson:"dst_type"`
-	DestinationParams string `yson:"dst_params"`
+	DestinationParams any    `yson:"dst_params"`
 }
 
 const (
 	gib           = 1024 * 1024 * 1024
-	DefaultCPU    = 2
-	DefaultMemory = 8 * gib
+	DefaultCPU    = 0.1
+	DefaultMemory = 2 * gib
 )
 
-func (s *Speclet) CPUOrDefault() uint64 {
+func (s *Speclet) CPUOrDefault() float64 {
 	if s.CPU != nil {
 		return *s.CPU
 	}

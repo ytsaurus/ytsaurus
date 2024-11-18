@@ -6,7 +6,7 @@ type Config struct {
 }
 
 const (
-	DefaultCommand = "replicate --transfer /usr/local/bin/transfer.yaml --log-level info --log-config minimal"
+	DefaultCommand = "/usr/local/bin/trcli replicate --transfer /usr/local/bin/transfer.yaml --log-level info --log-config minimal"
 )
 
 func (c *Config) CommandOrDefault(Speclet) string {
@@ -18,6 +18,9 @@ func (c *Config) CommandOrDefault(Speclet) string {
 
 func (c *Config) EnvVars(speclet Speclet) map[string]string {
 	res := map[string]string{
+		"NB_GID":        "0",
+		"NB_UID":        "0",
+		"NB_USER":       "root",
 		"YT_BASE_LAYER": speclet.DockerImage,
 	}
 	for k, v := range c.ExtraEnvVars {
