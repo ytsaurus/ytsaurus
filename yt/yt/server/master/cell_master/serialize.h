@@ -193,6 +193,7 @@ DEFINE_ENUM(EMasterReign,
     ((SequoiaThrottlers)                                            (2803))  // danilalexeev
     ((SequoiaMultisetAttributesAction)                              (2804))  // danilalexeev
     ((SequoiaNodeExpiration)                                        (2805))  // danilalexeev
+    ((IncumbentSchedulerConfigDefaults)                             (2806))  // cherepashka
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

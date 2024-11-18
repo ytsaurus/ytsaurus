@@ -101,7 +101,7 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    TIncumbentManagerConfigPtr Config_;
+    TDynamicIncumbentManagerConfigPtr Config_;
 
     // Leader state.
     struct TPeerState
@@ -154,14 +154,6 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         Config_ = Bootstrap_->GetConfigManager()->GetConfig()->IncumbentManager;
-
-        // Postprocessor + DefaultNew = fail.
-        for (auto incumbentType : TEnumTraits<EIncumbentType>::GetDomainValues()) {
-            auto& config = Config_->Scheduler->Incumbents[incumbentType];
-            if (!config) {
-                config = New<TIncumbentSchedulingConfig>();
-            }
-        }
 
         if (AssignExecutor_) {
             AssignExecutor_->SetPeriod(Config_->AssignPeriod);

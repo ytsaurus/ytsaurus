@@ -51,7 +51,7 @@ DEFINE_REFCOUNTED_TYPE(TIncumbentSchedulerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIncumbentManagerConfig
+class TDynamicIncumbentManagerConfig
     : public NYTree::TYsonStruct
 {
 public:
@@ -73,12 +73,12 @@ public:
     //! Timeout for heartbeat RPC request.
     TDuration HeartbeatTimeout;
 
-    REGISTER_YSON_STRUCT(TIncumbentManagerConfig);
+    REGISTER_YSON_STRUCT(TDynamicIncumbentManagerConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TIncumbentManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TDynamicIncumbentManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
