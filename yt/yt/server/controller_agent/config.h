@@ -24,13 +24,13 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
-#include <yt/yt/core/concurrency/public.h>
-
-#include <yt/yt/core/ytree/yson_struct.h>
-
 #include <yt/yt/library/re2/public.h>
 
 #include <yt/yt/library/program/config.h>
+
+#include <yt/yt/core/concurrency/public.h>
+
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/misc/phoenix.h>
 
@@ -411,8 +411,7 @@ class TUnorderedMergeOperationOptions
 public:
     REGISTER_YSON_STRUCT(TUnorderedMergeOperationOptions);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationOptions, 0x28332598);
@@ -428,8 +427,7 @@ class TOrderedMergeOperationOptions
 public:
     REGISTER_YSON_STRUCT(TOrderedMergeOperationOptions);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeOperationOptions, 0xc71863e6);
@@ -445,8 +443,7 @@ class TSortedMergeOperationOptions
 public:
     REGISTER_YSON_STRUCT(TSortedMergeOperationOptions);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeOperationOptions, 0x9089b24a);
@@ -479,8 +476,7 @@ class TEraseOperationOptions
 public:
     REGISTER_YSON_STRUCT(TEraseOperationOptions);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TEraseOperationOptions, 0x73cb9f3b);
@@ -525,8 +521,7 @@ class TSortOperationOptions
 public:
     REGISTER_YSON_STRUCT(TSortOperationOptions);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortOperationOptions, 0xc11251c0);
@@ -542,8 +537,7 @@ class TMapReduceOperationOptions
 public:
     REGISTER_YSON_STRUCT(TMapReduceOperationOptions);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationOptions, 0x91e3968d);
