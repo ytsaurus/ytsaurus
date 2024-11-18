@@ -423,12 +423,24 @@ void TMapOperationOptions::Register(TRegistrar registrar)
     });
 }
 
+void TUnorderedMergeOperationOptions::Register(TRegistrar /*registrar*/)
+{ }
+
+void TOrderedMergeOperationOptions::Register(TRegistrar /*registrar*/)
+{ }
+
+void TSortedMergeOperationOptions::Register(TRegistrar /*registrar*/)
+{ }
+
 void TReduceOperationOptions::Register(TRegistrar registrar)
 {
     registrar.Preprocessor([&] (TReduceOperationOptions* options) {
         options->DataWeightPerJob = 128_MB;
     });
 }
+
+void TEraseOperationOptions::Register(TRegistrar /*registrar*/)
+{ }
 
 void TSortOperationOptionsBase::Register(TRegistrar registrar)
 {
@@ -482,6 +494,12 @@ void TSortOperationOptionsBase::Register(TRegistrar registrar)
         .Default(10.0)
         .GreaterThan(0.0);
 }
+
+void TSortOperationOptions::Register(TRegistrar /*registrar*/)
+{ }
+
+void TMapReduceOperationOptions::Register(TRegistrar /*registrar*/)
+{ }
 
 void TRemoteCopyOperationOptions::Register(TRegistrar registrar)
 {
