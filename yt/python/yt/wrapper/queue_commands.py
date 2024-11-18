@@ -1,10 +1,12 @@
 from .driver import make_request, make_formatted_request
+from .table_helpers import _prepare_command_format, _to_chunk_stream
 from .common import set_param
 from .config import get_config, get_command_param
+from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .transaction import null_transaction_id
 from .ypath import TablePath
 
-from .dynamic_table_commands import DynamicTableRequestRetrier, _check_transaction_type, _prepare_command_format
+from .dynamic_table_commands import DynamicTableRequestRetrier, _check_transaction_type
 
 from copy import deepcopy
 
@@ -270,3 +272,99 @@ def advance_queue_consumer(consumer_path, queue_path, partition_index, old_offse
     :type client_side: bool
     """
     _advance_queue_consumer_impl(consumer_path, queue_path, partition_index, old_offset, new_offset, client_side=client_side, client=client, method_name="advance_queue_consumer")
+
+
+def create_queue_producer_session(producer_path, queue_path, session_id, user_meta=None, format=None, client=None):
+    """Creates queue producer session.
+    :param producer_path: path to queue producer table.
+    :type producer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param queue_path: path to queue table.
+    :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param session_id: identificator of session.
+    :type session_id: str
+    :param user_meta: arbitrary user meta information.
+    """
+
+    params = {}
+    set_param(params, "producer_path", producer_path, lambda path: TablePath(path, client=client))
+    set_param(params, "queue_path", queue_path, lambda path: TablePath(path, client=client))
+    set_param(params, "session_id", session_id)
+    set_param(params, "user_meta", user_meta)
+
+    return make_formatted_request("create_queue_producer_session", params, format, client=client)
+
+
+def remove_queue_producer_session(producer_path, queue_path, session_id, format=None, client=None):
+    """Removes queue producer session.
+    :param producer_path: path to queue producer table.
+    :type producer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param queue_path: path to queue table.
+    :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param session_id: identificator of session.
+    :type session_id: str
+    """
+
+    params = {}
+    set_param(params, "producer_path", producer_path, lambda path: TablePath(path, client=client))
+    set_param(params, "queue_path", queue_path, lambda path: TablePath(path, client=client))
+    set_param(params, "session_id", session_id)
+
+    return make_formatted_request("remove_queue_producer_session", params, format, client=client)
+
+
+def push_queue_producer(producer_path, queue_path, session_id, epoch, input_stream, user_meta=None, input_format=None, raw=None, output_format=None, client=None):
+    """Push rows to queue via queue producer.
+    :param producer_path: path to queue producer table.
+    :type producer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param queue_path: path to queue table.
+    :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param session_id: identificator of session.
+    :type session_id: str
+    :param epoch: epoch number.
+    :type epoch: int
+    :param input_stream: python file-like object, string, list of strings.
+    :param user_meta: arbitrary user meta information.
+    :param input_format: format of input data, ``yt.wrapper.config["tabular_data_format"]`` by default.
+    :type input_format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param output_format: format of result, ``yt.wrapper.config["structured_data_format"]`` by default.
+    :type output_format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param bool raw: if `raw` is specified stream with unparsed records (strings)
+        in specified `format` is expected. Otherwise dicts or :class:`Record <yt.wrapper.yamr_record.Record>`
+        are expected.
+    """
+
+    input_format = _prepare_command_format(input_format, raw, client)
+
+    params = {}
+    params["input_format"] = input_format.to_yson_type()
+    set_param(params, "producer_path", producer_path, lambda path: TablePath(path, client=client))
+    set_param(params, "queue_path", queue_path, lambda path: TablePath(path, client=client))
+    set_param(params, "session_id", session_id)
+    set_param(params, "epoch", epoch)
+    set_param(params, "user_meta", user_meta)
+
+    chunk_size = get_config(client)["write_retries"]["chunk_size"]
+    if chunk_size is None:
+        chunk_size = DEFAULT_WRITE_CHUNK_SIZE
+
+    input_data = b"".join(_to_chunk_stream(
+        input_stream,
+        input_format,
+        raw,
+        split_rows=False,
+        chunk_size=chunk_size,
+        rows_chunk_size=get_config(client)["write_retries"]["rows_chunk_size"]))
+
+    retry_config = deepcopy(get_config(client)["dynamic_table_retries"])
+    retry_config["enable"] = retry_config["enable"] and get_command_param("transaction_id", client) == null_transaction_id
+
+    _check_transaction_type(client)
+
+    return DynamicTableRequestRetrier(
+        retry_config,
+        "push_queue_producer",
+        params,
+        data=input_data,
+        client=client,
+        is_formatted_request=True,
+        output_format=output_format).run()

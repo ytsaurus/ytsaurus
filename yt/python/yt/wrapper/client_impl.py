@@ -534,6 +534,26 @@ class YtClient(ClientState):
             client=self,
             raise_errors=raise_errors, max_batch_size=max_batch_size, concurrency=concurrency)
 
+    def create_queue_producer_session(
+            self,
+            producer_path, queue_path, session_id,
+            user_meta=None, format=None):
+        """
+        Creates queue producer session.
+        :param producer_path: path to queue producer table.
+        :type producer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param queue_path: path to queue table.
+        :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param session_id: identificator of session.
+        :type session_id: str
+        :param user_meta: arbitrary user meta information.
+
+        """
+        return client_api.create_queue_producer_session(
+            producer_path, queue_path, session_id,
+            client=self,
+            user_meta=user_meta, format=format)
+
     def create_revision_parameter(
             self,
             path,
@@ -1808,6 +1828,36 @@ class YtClient(ClientState):
             max_row_count=max_row_count, max_data_weight=max_data_weight, replica_consistency=replica_consistency,
             format=format, raw=raw)
 
+    def push_queue_producer(
+            self,
+            producer_path, queue_path, session_id, epoch, input_stream,
+            user_meta=None, input_format=None, raw=None, output_format=None):
+        """
+        Push rows to queue via queue producer.
+        :param producer_path: path to queue producer table.
+        :type producer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param queue_path: path to queue table.
+        :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param session_id: identificator of session.
+        :type session_id: str
+        :param epoch: epoch number.
+        :type epoch: int
+        :param input_stream: python file-like object, string, list of strings.
+        :param user_meta: arbitrary user meta information.
+        :param input_format: format of input data, ``yt.wrapper.config["tabular_data_format"]`` by default.
+        :type input_format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+        :param output_format: format of result, ``yt.wrapper.config["structured_data_format"]`` by default.
+        :type output_format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+        :param bool raw: if `raw` is specified stream with unparsed records (strings)
+        in specified `format` is expected. Otherwise dicts or :class:`Record <yt.wrapper.yamr_record.Record>`
+        are expected.
+
+        """
+        return client_api.push_queue_producer(
+            producer_path, queue_path, session_id, epoch, input_stream,
+            client=self,
+            user_meta=user_meta, input_format=input_format, raw=raw, output_format=output_format)
+
     def put_file_to_cache(
             self,
             path, md5,
@@ -2080,6 +2130,25 @@ class YtClient(ClientState):
             pipeline_path,
             client=self,
             spec_path=spec_path, expected_version=expected_version, force=force)
+
+    def remove_queue_producer_session(
+            self,
+            producer_path, queue_path, session_id,
+            format=None):
+        """
+        Removes queue producer session.
+        :param producer_path: path to queue producer table.
+        :type producer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param queue_path: path to queue table.
+        :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param session_id: identificator of session.
+        :type session_id: str
+
+        """
+        return client_api.remove_queue_producer_session(
+            producer_path, queue_path, session_id,
+            client=self,
+            format=format)
 
     def reshard_table(
             self,
