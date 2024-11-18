@@ -4,6 +4,7 @@ import itertools
 import multiprocessing as mp
 import os
 import re
+import time
 
 from .client import YtClient
 from .config import get_config
@@ -75,15 +76,20 @@ class ChunkToUpload:
         return res
 
 
-def get_files_to_upload(directory, recursive):
+def get_files_to_upload(directory, recursive, store_full_path, exact_filenames, filter_by_regexp, exclude_by_regexp):
+    files_to_upload = []
     for root, dirs, files in os.walk(directory):
-        for file in files:
-            full_path = os.path.join(root, file)
-            yt_name = os.path.relpath(full_path, directory)
-            yield (full_path, yt_name)
+        for filename in files:
+            full_path = os.path.join(root, filename)
+            if not check_file_name(full_path, exact_filenames, filter_by_regexp, exclude_by_regexp):
+                continue
+            yt_name = full_path if store_full_path else os.path.relpath(full_path, directory)
+            files_to_upload.append((full_path, yt_name))
 
         if not recursive:
             break
+
+    return files_to_upload
 
 
 def get_chunks(full_path, yt_name, part_size):
@@ -97,9 +103,9 @@ def get_chunks(full_path, yt_name, part_size):
         part_index += 1
 
 
-def get_chunks_to_upload(directory, recursive, part_size):
+def get_chunks_to_upload(files_to_upload, part_size):
     res = []
-    for full_path, yt_name in get_files_to_upload(directory, recursive):
+    for full_path, yt_name in files_to_upload:
         res.extend(get_chunks(full_path, yt_name, part_size))
     return res
 
@@ -185,12 +191,20 @@ def download_table(table_path, directory, client_config, transaction_id):
                 f.close()
 
 
-def upload_directory_to_yt(directory, recursive, yt_table, part_size, process_count, force, prepare_for_sky_share,
+def upload_directory_to_yt(directory, store_full_path, recursive, yt_table, part_size, process_count, exact_filenames,
+                           filter_by_regexp, exclude_by_regexp, force, prepare_for_sky_share,
                            chunk_count=None, process_pool_class=mp.Pool, client=None):
+    start_time = time.time()
     if not chunk_count:
         chunk_count = process_count
 
-    chunks = get_chunks_to_upload(directory, recursive, part_size)
+    files_to_upload = get_files_to_upload(directory, recursive, store_full_path, exact_filenames, filter_by_regexp, exclude_by_regexp)
+    if not files_to_upload:
+        print("Warning: there is no matching files to upload")
+        return
+
+    chunks = get_chunks_to_upload(files_to_upload, part_size)
+
     chunks.sort(key=lambda c: (c.yt_name, c.part_index))
     file_sizes = {}
     for c in chunks:
@@ -232,6 +246,10 @@ def upload_directory_to_yt(directory, recursive, yt_table, part_size, process_co
         set_attribute(yt_table, "part_size", part_size, client=client)
         write_meta_file(client, yt_table, file_sizes, force)
 
+    data_size_mb = sum(file_sizes.values()) / 2 ** 20
+    speed_mb_s = data_size_mb / (time.time() - start_time)
+    print(f"Uploaded {data_size_mb:.1f} MB in {len(files_to_upload)} files to `{yt_table}`. Speed={speed_mb_s:.2f} MB/s")
+
 
 def check_file_name(file_name, exact_filenames, filter_by_regexp, exclude_by_regexp):
     if exact_filenames and (file_name not in exact_filenames):
@@ -245,6 +263,7 @@ def check_file_name(file_name, exact_filenames, filter_by_regexp, exclude_by_reg
 
 def download_directory_from_yt(directory, yt_table, process_count, exact_filenames, filter_by_regexp,
                                exclude_by_regexp, process_pool_class=mp.Pool, client=None):
+    start_time = time.time()
     if not os.path.exists(directory):
         os.makedirs(directory)
 
@@ -288,15 +307,33 @@ def download_directory_from_yt(directory, yt_table, process_count, exact_filenam
                     pass
             raise
 
+    data_size_mb = sum(file_sizes.values()) / 2 ** 20
+    speed_mb_s = data_size_mb / (time.time() - start_time)
+    print(f"Downloaded {data_size_mb:.1f} MB in {len(file_sizes)} files from `{yt_table}`. Speed={speed_mb_s:.2f} MB/s")
 
-def list_files_from_yt(yt_table, client=None):
+
+def list_files_from_yt(yt_table, raw=False, client=None):
     file_sizes = get_file_sizes(client, yt_table)
-    for filename in file_sizes:
-        print(filename)
+    max_filename_length = max(len(filename) for filename in file_sizes)
+    max_size_length = max(*(len(f"{size:,}") for size in file_sizes.values()), len("File Size"))
+
+    if raw:
+        for filename, _ in file_sizes.items():
+            print(filename)
+    else:
+        print(f"{'Filename'.ljust(max_filename_length)} | {'File Size'.rjust(max_size_length)}")
+        print('-' * (max_filename_length + max_size_length + 3))  # Adjust the line length for better formatting
+        for filename, size in file_sizes.items():
+            print(f"{filename:<{max_filename_length}} | {size:>{max_size_length},}")
 
 
-def append_single_file(yt_table, fs_path, yt_name, process_count, process_pool_class=mp.Pool, client=None):
+def append_single_file(yt_table, fs_path, yt_name, store_full_path, process_count, process_pool_class=mp.Pool, client=None):
+    start_time = time.time()
     assert os.path.isfile(fs_path), "{} must be existing file".format(fs_path)
+    assert store_full_path or yt_name is not None, "`yt_name` must be specified if `store-full-path` is `False`"
+    if store_full_path:
+        yt_name = os.path.normpath(fs_path)
+
     with Transaction(attributes={"title": "dirtable append"}, ping=True, client=client) as tx:
         file_sizes = get_file_sizes(client, yt_table)
 
@@ -339,11 +376,16 @@ def append_single_file(yt_table, fs_path, yt_name, process_count, process_pool_c
         set_attribute(yt_table, "part_size", part_size, client=client)
         write_meta_file(client, yt_table, file_sizes, force=True)
 
+    data_size_mb = file_sizes[yt_name] / 2 ** 20
+    speed_mb_s = data_size_mb / (time.time() - start_time)
+    print(f"Uploaded {data_size_mb:.1f} MB in 1 file to `{yt_table}`. Speed={speed_mb_s:.2f} MB/s")
+
 
 def add_upload_parser(parsers):
     parser = parsers.add_parser("upload", help="Upload directory to YT")
     parser.set_defaults(func=upload_directory_to_yt)
     parser.add_argument("--directory", required=True)
+    parser.add_argument("--store-full-path", action="store_true", help="Storing files' full path as provided in --directory")
     parser.add_argument("--part-size", type=int, default=4 * 1024 * 1024)
 
     parser.set_defaults(recursive=True)
@@ -351,6 +393,9 @@ def add_upload_parser(parsers):
     parser.add_argument("--no-recursive", dest="recursive", action="store_false")
     parser.add_argument("--yt-table", required=True)
     parser.add_argument("--process-count", type=int, default=4)
+    parser.add_argument("--exact-filenames", type=lambda s: [x.strip() for x in s.split(",")], help="Files to upload (separated by comma)")
+    parser.add_argument("--filter-by-regexp", type=lambda s: re.compile(s), help="Files with name matching that regexp will be uploaded")
+    parser.add_argument("--exclude-by-regexp", type=lambda s: re.compile(s), help="Files with name matching that regexp will not be uploaded")
 
     parser.set_defaults(force=False)
     parser.add_argument("--force", action="store_true")
@@ -365,7 +410,7 @@ def add_download_parser(parsers):
     parser.add_argument("--directory", required=True)
     parser.add_argument("--yt-table", required=True)
     parser.add_argument("--process-count", type=int, default=4)
-    parser.add_argument("--exact-filenames", type=lambda s: s.split(","), help="Files to extract (separated by comma)")
+    parser.add_argument("--exact-filenames", type=lambda s: [x.strip() for x in s.split(",")], help="Files to extract (separated by comma)")
     parser.add_argument("--filter-by-regexp", type=lambda s: re.compile(s), help="Files with name matching that regexp will be extracted")
     parser.add_argument("--exclude-by-regexp", type=lambda s: re.compile(s), help="Files with name matching that regexp will not be extracted")
 
@@ -374,14 +419,16 @@ def add_list_files_parser(parsers):
     parser = parsers.add_parser("list-files", help="List files from YT")
     parser.set_defaults(func=list_files_from_yt)
     parser.add_argument("--yt-table", required=True)
+    parser.add_argument("--raw", action="store_true", help="Raw output with file list only")
 
 
 def add_append_single_file(parsers):
     parser = parsers.add_parser("append-single-file", help="Append single file to table")
     parser.set_defaults(func=append_single_file)
     parser.add_argument("--yt-table", required=True)
-    parser.add_argument("--yt-name", required=True)
+    parser.add_argument("--yt-name")
     parser.add_argument("--fs-path", required=True)
+    parser.add_argument("--store-full-path", action="store_true", help="Storing file's full path as provided in --directory")
     parser.add_argument("--process-count", type=int, default=4)
 
 
