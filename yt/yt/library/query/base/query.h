@@ -434,6 +434,9 @@ DEFINE_REFCOUNTED_TYPE(TWhenThenExpression)
 // Front Query is not Coordinatable
 // IsMerge is always true for front Query and false for Bottom Query
 
+constexpr i64 UnorderedReadHint = std::numeric_limits<i64>::max();
+constexpr i64 OrderedReadWithPrefetchHint = std::numeric_limits<i64>::max() - 1;
+
 struct TBaseQuery
     : public TRefCounted
 {
@@ -451,8 +454,7 @@ struct TBaseQuery
     i64 Offset = 0;
 
     // TODO: Update protocol and fix it
-    // If Limit == std::numeric_limits<i64>::max() - 1, then do ordered read with prefetch
-    i64 Limit = std::numeric_limits<i64>::max();
+    i64 Limit = UnorderedReadHint;
 
     // True if the grouping key uses each column of primary key.
     // In this case, some additional optimizations can be applied.
@@ -465,6 +467,8 @@ struct TBaseQuery
     TBaseQuery(const TBaseQuery& other);
 
     bool IsOrdered() const;
+
+    bool IsPrefetching() const;
 
     virtual TTableSchemaPtr GetReadSchema() const = 0;
     virtual TTableSchemaPtr GetTableSchema() const = 0;

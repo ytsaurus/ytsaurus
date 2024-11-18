@@ -1652,9 +1652,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto readSessionId = TReadSessionId::Create();
 
     auto memoryChunkProvider = MemoryProvider_->GetProvider(
-            ToString(readSessionId),
-            options.MemoryLimitPerNode,
-            QueryMemoryTracker_);
+        ToString(readSessionId),
+        options.MemoryLimitPerNode,
+        QueryMemoryTracker_);
 
     auto queryExecutor = CreateQueryExecutor(
         memoryChunkProvider,
@@ -1714,7 +1714,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         permissionKeys.push_back(NSecurityClient::TPermissionKey{
             .Object = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(*options.ExecutionPool),
             .User = Options_.GetAuthenticatedUser(),
-            .Permission = EPermission::Use
+            .Permission = EPermission::Use,
         });
     }
 

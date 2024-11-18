@@ -2070,9 +2070,9 @@ void TQueryProfiler::Profile(
 
     int rowSchemaInformationIndex = Variables_->AddOpaque<TRowSchemaInformation>(
         TRowSchemaInformation{
-            /*RowWeightWithNoStrings*/ InferRowWeightWithNoStrings(query->GetReadSchema()),
-            /*StringLikeIndices*/ stringLikeColumnIndices,
-            /*Length*/ query->GetReadSchema()->GetColumnCount() + 0, // NB: This query has no incoming stream tag.
+            .RowWeightWithNoStrings = InferRowWeightWithNoStrings(query->GetReadSchema()),
+            .StringLikeIndices = stringLikeColumnIndices,
+            .Length = query->GetReadSchema()->GetColumnCount() + 0, // NB: This query has no incoming stream tag.
         });
 
     size_t currentSlot = MakeCodegenScanOp(
@@ -2164,10 +2164,10 @@ void TQueryProfiler::Profile(
             }
 
             TArrayJoinParameters arrayJoinParameters{
-                .IsLeft=arrayJoinClause->IsLeft,
-                .FlattenedTypes=std::move(rowTypes),
-                .SelfJoinedColumns=std::move(selfJoinedColumns),
-                .ArrayJoinedColumns=std::move(arrayJoinedColumns),
+                .IsLeft = arrayJoinClause->IsLeft,
+                .FlattenedTypes = std::move(rowTypes),
+                .SelfJoinedColumns = std::move(selfJoinedColumns),
+                .ArrayJoinedColumns = std::move(arrayJoinedColumns),
             };
 
             int parametersIndex = Variables_->AddOpaque<TArrayJoinParameters>(std::move(arrayJoinParameters));
@@ -2359,9 +2359,9 @@ void TQueryProfiler::Profile(
 
     int rowSchemaInformationIndex = Variables_->AddOpaque<TRowSchemaInformation>(
         TRowSchemaInformation{
-            /*RowWeightWithNoStrings*/ InferRowWeightWithNoStrings(query->GetReadSchema()),
-            /*StringLikeIndices*/ stringLikeColumnIndices,
-            /*Length*/ query->GetReadSchema()->GetColumnCount() + 1, // NB: We use +1 for stream tag.
+            .RowWeightWithNoStrings = InferRowWeightWithNoStrings(query->GetReadSchema()),
+            .StringLikeIndices = stringLikeColumnIndices,
+            .Length = query->GetReadSchema()->GetColumnCount() + 1, // NB: We use +1 for stream tag.
         });
 
     size_t currentSlot = MakeCodegenScanOp(
