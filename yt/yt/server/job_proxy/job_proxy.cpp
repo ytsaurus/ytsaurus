@@ -157,7 +157,6 @@ using namespace NTracing;
 using namespace NTransactionClient;
 using namespace NStatisticPath;
 using namespace NUserJob;
-using namespace NLogging;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -293,17 +292,9 @@ TTrafficMeterPtr TJobProxy::GetTrafficMeter() const
     return TrafficMeter_;
 }
 
-const THashMap<TString, IThroughputThrottlerPtr>& TJobProxy::GetInBandwidthThrottlers() const
+IThroughputThrottlerPtr TJobProxy::GetInBandwidthThrottler() const
 {
-    return InBandwidthThrottlers_;
-}
-
-IThroughputThrottlerPtr TJobProxy::GetInBandwidthThrottler(const TString& clusterName) const
-{
-    if (auto it = InBandwidthThrottlers_.find(clusterName); it != InBandwidthThrottlers_.end()) {
-        return it->second;
-    }
-    return IThroughputThrottlerPtr();
+    return InBandwidthThrottler_;
 }
 
 IThroughputThrottlerPtr TJobProxy::GetOutBandwidthThrottler() const
@@ -883,23 +874,11 @@ TJobResult TJobProxy::RunJob()
         if (Config_->JobThrottler) {
             YT_LOG_INFO("Job throttling enabled");
 
-            // Empty cluster name stands for absent cluster.
-            THashSet<TString> clusterNames({""});
-            if (Config_->ClusterThrottlersConfig) {
-                YT_LOG_INFO("Received cluster throttlers config (Config: %v)",
-                     NYson::ConvertToYsonString(*Config_->ClusterThrottlersConfig, NYson::EYsonFormat::Text));
-
-                for (const auto& [clusterName, _] : Config_->ClusterThrottlersConfig->ClusterLimits) {
-                    YT_VERIFY(clusterNames.insert(clusterName).second);
-                }
-            }
-
-            InBandwidthThrottlers_ = CreateInJobBandwidthThrottlers(
+            InBandwidthThrottler_ = CreateInJobBandwidthThrottler(
                 Config_->JobThrottler,
                 supervisorChannel,
-                GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
+                GetJobSpecHelper()->GetJobIOConfig()->TableReader->WorkloadDescriptor,
                 JobId_,
-                std::move(clusterNames),
                 Logger);
 
             OutBandwidthThrottler_ = CreateOutJobBandwidthThrottler(
@@ -924,8 +903,7 @@ TJobResult TJobProxy::RunJob()
         } else {
             YT_LOG_INFO("Job throttling disabled");
 
-            // Empty cluster name stands for absent cluster.
-            InBandwidthThrottlers_[""] = GetUnlimitedThrottler();
+            InBandwidthThrottler_ = GetUnlimitedThrottler();
             OutBandwidthThrottler_ = GetUnlimitedThrottler();
             OutRpsThrottler_ = GetUnlimitedThrottler();
             UserJobContainerCreationThrottler_ = GetUnlimitedThrottler();
@@ -1544,8 +1522,7 @@ TChunkReaderHostPtr TJobProxy::GetChunkReaderHost() const
         GetInBandwidthThrottler(),
         GetOutRpsThrottler(),
         /*mediumThrottler*/ GetUnlimitedThrottler(),
-        GetTrafficMeter(),
-        GetInBandwidthThrottlers());
+        GetTrafficMeter());
 }
 
 IBlockCachePtr TJobProxy::GetReaderBlockCache() const

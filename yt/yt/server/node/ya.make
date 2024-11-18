@@ -84,7 +84,6 @@ SRCS(
     exec_node/slot_location.cpp
     exec_node/slot_manager.cpp
     exec_node/supervisor_service.cpp
-    exec_node/throttler_manager.cpp
     exec_node/volume.proto
     exec_node/volume_manager.cpp
 
@@ -214,7 +213,6 @@ PEERDIR(
     yt/yt/server/lib/hydra
     yt/yt/server/lib/hydra/dry_run
     yt/yt/server/lib/lsm
-    yt/yt/server/lib/misc
     yt/yt/server/lib/nbd
     yt/yt/server/lib/rpc
 

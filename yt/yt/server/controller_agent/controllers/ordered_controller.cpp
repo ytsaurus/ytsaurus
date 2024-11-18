@@ -1499,11 +1499,6 @@ private:
             ToProto(protoMapping->mutable_input_hunk_chunk_id(), mapping.first);
             ToProto(protoMapping->mutable_output_hunk_chunk_id(), mapping.second);
         }
-
-        // TODO(yuryalekseev): Prohibit ClusterConnection in Spec_.
-        if (Spec_->ClusterName) {
-            remoteCopyJobSpecExt->set_remote_cluster_name(*Spec_->ClusterName);
-        }
     }
 
     NNative::IConnectionPtr GetRemoteConnection() const

@@ -390,9 +390,6 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("heap_dump_directory", &TThis::HeapDumpDirectory)
         .Default();
 
-    registrar.Parameter("cluster_throttlers_config", &TThis::ClusterThrottlersConfig)
-        .Default();
-
     registrar.Preprocessor([] (TThis* config) {
         config->SolomonExporter->EnableSelfProfiling = false;
         config->SolomonExporter->WindowSize = 1;

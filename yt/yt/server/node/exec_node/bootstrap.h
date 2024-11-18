@@ -46,7 +46,7 @@ struct IBootstrap
 
     virtual const TSchedulerConnectorPtr& GetSchedulerConnector() const = 0;
 
-    virtual NConcurrency::IThroughputThrottlerPtr GetThrottler(EExecNodeThrottlerKind kind, EExecNodeThrottlerTraffic traffic = EExecNodeThrottlerTraffic::Bandwidth, std::optional<TString> remoteClusterName = std::nullopt) const = 0;
+    virtual const NConcurrency::IThroughputThrottlerPtr& GetThrottler(EExecNodeThrottlerKind kind) const = 0;
 
     virtual const NProfiling::TSolomonExporterPtr& GetJobProxySolomonExporter() const = 0;
 
@@ -57,8 +57,6 @@ struct IBootstrap
     virtual NYT::NNbd::INbdServerPtr GetNbdServer() const = 0;
 
     virtual const IJobProxyLogManagerPtr& GetJobProxyLogManager() const = 0;
-
-    virtual IThrottlerManagerPtr GetThrottlerManager() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

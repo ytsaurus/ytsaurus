@@ -6,7 +6,6 @@ SRCS(
     address_helpers.cpp
     archive_reporter.cpp
     cluster_connection.cpp
-    cluster_throttlers_config.cpp
     config.cpp
     disk_health_checker.cpp
     disk_change_checker.cpp

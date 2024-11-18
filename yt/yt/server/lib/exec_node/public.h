@@ -38,20 +38,6 @@ DEFINE_ENUM(EJobProxyLoggingMode,
     (PerJobDirectory)
 );
 
-DEFINE_ENUM(EExecNodeThrottlerKind,
-    //! Controls incoming bandwidth used by Artifact Cache downloads.
-    (ArtifactCacheIn)
-    //! Controls incoming bandwidth consumed by local jobs.
-    (JobIn)
-    //! Controls outcoming bandwidth consumed by local jobs.
-    (JobOut)
-);
-
-DEFINE_ENUM(EExecNodeThrottlerTraffic,
-    (Bandwidth)
-    (Rps)
-);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const TEnumIndexedArray<ESandboxKind, TString> SandboxDirectoryNames;

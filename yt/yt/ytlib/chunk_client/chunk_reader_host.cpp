@@ -22,8 +22,7 @@ TChunkReaderHost::TChunkReaderHost(
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
     NConcurrency::IThroughputThrottlerPtr rpsThrottler,
     NConcurrency::IThroughputThrottlerPtr mediumThrottler,
-    TTrafficMeterPtr trafficMeter,
-    std::optional<THashMap<TString, NConcurrency::IThroughputThrottlerPtr>> perClusterInBandwidthThrottlers)
+    TTrafficMeterPtr trafficMeter)
     : Client(std::move(client))
     , LocalDescriptor(std::move(localDescriptor))
     , BlockCache(std::move(blockCache))
@@ -33,7 +32,6 @@ TChunkReaderHost::TChunkReaderHost(
     , RpsThrottler(std::move(rpsThrottler))
     , MediumThrottler(std::move(mediumThrottler))
     , TrafficMeter(std::move(trafficMeter))
-    , PerClusterInBandwidthThrottlers(std::move(perClusterInBandwidthThrottlers))
 { }
 
 TChunkReaderHostPtr TChunkReaderHost::FromClient(
@@ -52,43 +50,27 @@ TChunkReaderHostPtr TChunkReaderHost::FromClient(
         bandwidthThrottler,
         rpsThrottler,
         mediumThrottler,
-        /*trafficMeter*/ nullptr,
-        /*perClusterInBandwidthThrottlers*/ std::nullopt);
+        /*trafficMeter*/ nullptr);
 }
 
 TChunkReaderHostPtr TChunkReaderHost::CreateHostForCluster(const TClusterName& clusterName) const
 {
-    auto client = Client;
-    auto bandwidthThrottler = BandwidthThrottler;
-
-    std::optional<TString> remoteClusterName;
-    if (!IsLocal(clusterName)) {
-        client = Client
+    return New<TChunkReaderHost>(
+        IsLocal(clusterName)
+            ? Client
+            : Client
                 ->GetNativeConnection()
                 ->GetClusterDirectory()
                 ->GetConnectionOrThrow(clusterName.Underlying())
-                ->CreateNativeClient(Client->GetOptions());
-
-        remoteClusterName = clusterName.Underlying();
-    }
-
-    if (remoteClusterName && PerClusterInBandwidthThrottlers) {
-        if (auto it = PerClusterInBandwidthThrottlers->find(*remoteClusterName); it != PerClusterInBandwidthThrottlers->end()) {
-            bandwidthThrottler = it->second;
-        }
-    }
-
-    return New<TChunkReaderHost>(
-        std::move(client),
+                ->CreateNativeClient(Client->GetOptions()),
         LocalDescriptor,
         BlockCache,
         ChunkMetaCache,
         NodeStatusDirectory,
-        std::move(bandwidthThrottler),
+        BandwidthThrottler,
         RpsThrottler,
         MediumThrottler,
-        TrafficMeter,
-        PerClusterInBandwidthThrottlers);
+        TrafficMeter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

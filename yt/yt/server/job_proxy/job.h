@@ -100,8 +100,7 @@ struct IJobHost
 
     virtual NChunkClient::TTrafficMeterPtr GetTrafficMeter() const = 0;
 
-    virtual const THashMap<TString, NConcurrency::IThroughputThrottlerPtr>& GetInBandwidthThrottlers() const = 0;
-    virtual NConcurrency::IThroughputThrottlerPtr GetInBandwidthThrottler(const TString& clusterName = "") const = 0;
+    virtual NConcurrency::IThroughputThrottlerPtr GetInBandwidthThrottler() const = 0;
     virtual NConcurrency::IThroughputThrottlerPtr GetOutBandwidthThrottler() const = 0;
     virtual NConcurrency::IThroughputThrottlerPtr GetOutRpsThrottler() const = 0;
     virtual NConcurrency::IThroughputThrottlerPtr GetUserJobContainerCreationThrottler() const = 0;

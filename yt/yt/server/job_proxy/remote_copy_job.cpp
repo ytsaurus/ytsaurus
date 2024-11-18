@@ -466,6 +466,7 @@ private:
         // Compute an upper bound for total size.
         i64 totalChunkSize = GetProtoExtension<TMiscExt>(chunkMeta->extensions()).compressed_data_size() +
             parityPartBlockCount * erasurePlacementExt.parity_block_size() * erasurePlacementExt.parity_part_count();
+        ReadBlocksOptions_.EstimatedSize = totalChunkSize;
 
         TotalSize_ += totalChunkSize;
 
@@ -802,6 +803,7 @@ private:
         }
 
         i64 totalChunkSize = GetProtoExtension<TMiscExt>(chunkMeta->extensions()).compressed_data_size();
+        ReadBlocksOptions_.EstimatedSize = totalChunkSize;
 
         auto result = BIND(&TRemoteCopyJob::DoCopy, MakeStrong(this))
             .AsyncVia(GetRemoteCopyInvoker())
@@ -1013,28 +1015,16 @@ private:
 
     TChunkReaderHostPtr MakeChunkReaderHost()
     {
-        auto bandwidthThrottler = Host_->GetInBandwidthThrottler();
-        if (RemoteCopyJobSpecExt_.has_remote_cluster_name()) {
-            auto throttler = Host_->GetInBandwidthThrottler(RemoteCopyJobSpecExt_.remote_cluster_name());
-            if (throttler) {
-                bandwidthThrottler = throttler;
-            }
-        }
-
-        YT_LOG_DEBUG("MakeChunkReaderHost (RemoteClusterName: %v)",
-            RemoteCopyJobSpecExt_.remote_cluster_name());
-
         return New<TChunkReaderHost>(
             RemoteClient_,
             Host_->LocalDescriptor(),
             Host_->GetReaderBlockCache(),
             /*chunkMetaCache*/ nullptr,
             /*nodeStatusDirectory*/ nullptr,
-            std::move(bandwidthThrottler),
+            Host_->GetInBandwidthThrottler(),
             Host_->GetOutRpsThrottler(),
             /*mediumThrottler*/ GetUnlimitedThrottler(),
-            Host_->GetTrafficMeter(),
-            Host_->GetInBandwidthThrottlers());
+            Host_->GetTrafficMeter());
     }
 
     // TODO(alexelex): For the future, does nothing for now: YT-20044

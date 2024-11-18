@@ -75,7 +75,6 @@ target_link_libraries(yt-server-node PUBLIC
   server-lib-hydra
   lib-hydra-dry_run
   server-lib-lsm
-  server-lib-misc
   server-lib-nbd
   server-lib-rpc
   server-lib-controller_agent
@@ -158,7 +157,6 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/slot_location.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/slot_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/supervisor_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/throttler_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/job_agent/job_resource_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/query_agent/config.cpp

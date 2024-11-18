@@ -13,7 +13,6 @@
 #include "scheduler_connector.h"
 #include "slot_manager.h"
 #include "supervisor_service.h"
-#include "throttler_manager.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -123,14 +122,30 @@ public:
             GetConfig()->ExecNode->JobProxySolomonExporter,
             New<TSolomonRegistry>());
 
-        ThrottlerManager_ = CreateThrottlerManager(
-            ClusterNodeBootstrap_,
-            {
-                .LocalAddress = NNet::BuildServiceAddress(GetLocalHostName(), GetConfig()->RpcPort),
-                .Logger = ExecNodeLogger().WithTag("throttler_manager"),
-                .Profiler = ExecNodeProfiler().WithPrefix("/throttler_manager")
+        if (GetConfig()->EnableFairThrottler) {
+            Throttlers_[EExecNodeThrottlerKind::JobIn] = ClusterNodeBootstrap_->GetInThrottler("job_in");
+            Throttlers_[EExecNodeThrottlerKind::ArtifactCacheIn] = ClusterNodeBootstrap_->GetInThrottler("artifact_cache_in");
+            Throttlers_[EExecNodeThrottlerKind::JobOut] = ClusterNodeBootstrap_->GetOutThrottler("job_out");
+        } else {
+            for (auto kind : TEnumTraits<EExecNodeThrottlerKind>::GetDomainValues()) {
+                auto config = GetConfig()->DataNode->Throttlers[GetDataNodeThrottlerKind(kind)];
+                config = ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(config);
+
+                RawThrottlers_[kind] = CreateNamedReconfigurableThroughputThrottler(
+                    std::move(config),
+                    ToString(kind),
+                    ExecNodeLogger(),
+                    ExecNodeProfiler().WithPrefix("/throttlers"));
+
+                auto throttler = IThroughputThrottlerPtr(RawThrottlers_[kind]);
+                if (kind == EExecNodeThrottlerKind::ArtifactCacheIn || kind == EExecNodeThrottlerKind::JobIn) {
+                    throttler = CreateCombinedThrottler({GetDefaultInThrottler(), throttler});
+                } else if (kind == EExecNodeThrottlerKind::JobOut) {
+                    throttler = CreateCombinedThrottler({GetDefaultOutThrottler(), throttler});
+                }
+                Throttlers_[kind] = throttler;
             }
-        );
+        }
 
         JobInputCache_ = CreateJobInputCache(this);
 
@@ -259,9 +274,9 @@ public:
         return SchedulerConnector_;
     }
 
-    IThroughputThrottlerPtr GetThrottler(EExecNodeThrottlerKind kind, EExecNodeThrottlerTraffic traffic, std::optional<TString> remoteClusterName) const override
+    const IThroughputThrottlerPtr& GetThrottler(EExecNodeThrottlerKind kind) const override
     {
-        return ThrottlerManager_->GetOrCreateThrottler(kind, traffic, std::move(remoteClusterName));
+        return Throttlers_[kind];
     }
 
     const TSolomonExporterPtr& GetJobProxySolomonExporter() const override
@@ -289,11 +304,6 @@ public:
         return JobProxyLogManager_;
     }
 
-    virtual IThrottlerManagerPtr GetThrottlerManager() const override
-    {
-        return ThrottlerManager_;
-    }
-
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -319,7 +329,8 @@ private:
 
     TSolomonExporterPtr JobProxySolomonExporter_;
 
-    IThrottlerManagerPtr ThrottlerManager_;
+    TEnumIndexedArray<EExecNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> RawThrottlers_;
+    TEnumIndexedArray<EExecNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
 
     TControllerAgentConnectorPoolPtr ControllerAgentConnectorPool_;
 
@@ -405,7 +416,16 @@ private:
             return;
         }
 
-        ThrottlerManager_->Reconfigure(newConfig);
+        if (!GetConfig()->EnableFairThrottler) {
+            for (auto kind : TEnumTraits<EExecNodeThrottlerKind>::GetDomainValues()) {
+                auto dataNodeThrottlerKind = GetDataNodeThrottlerKind(kind);
+                auto config = newConfig->DataNode->Throttlers[dataNodeThrottlerKind]
+                    ? newConfig->DataNode->Throttlers[dataNodeThrottlerKind]
+                    : GetConfig()->DataNode->Throttlers[dataNodeThrottlerKind];
+                config = ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(config);
+                RawThrottlers_[kind]->Reconfigure(std::move(config));
+            }
+        }
 
         JobProxyLogManager_->OnDynamicConfigChanged(
             oldConfig->ExecNode->JobProxyLogManager,
@@ -440,6 +460,20 @@ private:
 
         if (NbdThreadPool_ && newConfig->ExecNode->Nbd) {
             NbdThreadPool_->Configure(newConfig->ExecNode->Nbd->Server->ThreadCount);
+        }
+    }
+
+    static EDataNodeThrottlerKind GetDataNodeThrottlerKind(EExecNodeThrottlerKind kind)
+    {
+        switch (kind) {
+            case EExecNodeThrottlerKind::ArtifactCacheIn:
+                return EDataNodeThrottlerKind::ArtifactCacheIn;
+            case EExecNodeThrottlerKind::JobIn:
+                return EDataNodeThrottlerKind::JobIn;
+            case EExecNodeThrottlerKind::JobOut:
+                return EDataNodeThrottlerKind::JobOut;
+            default:
+                YT_ABORT();
         }
     }
 

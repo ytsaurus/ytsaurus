@@ -146,7 +146,6 @@ message TReqThrottleJob
     required int64 amount = 2;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 3;
     required NYT.NProto.TGuid job_id = 4;
-    optional string remote_cluster_name = 5;
 }
 
 message TRspThrottleJob

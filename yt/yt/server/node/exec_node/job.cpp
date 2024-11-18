@@ -12,7 +12,6 @@
 #include "private.h"
 #include "slot.h"
 #include "slot_manager.h"
-#include "throttler_manager.h"
 #include "volume_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -35,8 +34,6 @@
 
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/helpers.h>
-
-#include <yt/yt/server/lib/misc/cluster_throttlers_config.h>
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
@@ -3098,8 +3095,6 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     proxyConfig->OperationsArchiveVersion = Bootstrap_->GetJobController()->GetOperationsArchiveVersion();
 
     proxyConfig->EnableRootVolumeDiskQuota = ExtractEnableRootVolumeDiskQuotaFlag();
-
-    proxyConfig->ClusterThrottlersConfig = Bootstrap_->GetThrottlerManager()->GetClusterThrottlersConfig();
 
     return proxyConfig;
 }

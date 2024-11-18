@@ -37,7 +37,6 @@ target_link_libraries(server-lib-exec_node PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
-  yt-ytlib-distributed_throttler
   server-lib-job_agent
   server-lib-job_proxy
   server-lib-nbd
