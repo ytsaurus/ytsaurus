@@ -908,6 +908,15 @@ private:
                         .EndList()
                     .EndMap());
 
+            ScheduleCreateNode(
+                "//sys/public_keys",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("inherit_acl").Value(false)
+                    .EndMap());
+
             FlushScheduled();
 
             // Level 3
@@ -1020,6 +1029,11 @@ private:
                 }
             }
             OrchidAddresses_.Store(orchidAddresses);
+
+            ScheduleCreateNode(
+                "//sys/public_keys/by_owner",
+                transactionId,
+                EObjectType::MapNode);
 
             FlushScheduled();
 
