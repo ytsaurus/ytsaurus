@@ -545,6 +545,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         [
             "group",
             "global",
+            "flag"
         ],
     )
     def test_uniform_tables_distribution(self, config_source):
@@ -581,10 +582,15 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
                 "//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/default/parameterized/factors",
                 factors
             )
-        else:
+        elif config_source == "global":
             set(
                 "//sys/tablet_balancer/config/parameterized_factors",
                 factors
+            )
+        else:
+            set(
+                "//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/default/parameterized/enable_uniform",
+                True
             )
 
         for table in tables:

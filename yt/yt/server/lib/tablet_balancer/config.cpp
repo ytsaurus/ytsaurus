@@ -22,8 +22,7 @@ void TComponentFactorConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0);
 }
 
-
-TComponentFactorConfigPtr TComponentFactorConfig::MakeIdentity()
+TComponentFactorConfigPtr TComponentFactorConfig::MakeDefaultIdentity()
 {
     auto config = New<TComponentFactorConfig>();
 
@@ -31,6 +30,18 @@ TComponentFactorConfigPtr TComponentFactorConfig::MakeIdentity()
     config->Node = 1;
     config->TableCell = 0;
     config->TableNode = 0;
+
+    return config;
+}
+
+TComponentFactorConfigPtr TComponentFactorConfig::MakeUniformIdentity()
+{
+    auto config = New<TComponentFactorConfig>();
+
+    config->Cell = 1;
+    config->Node = 1;
+    config->TableCell = 1;
+    config->TableNode = 1;
 
     return config;
 }
@@ -58,6 +69,8 @@ void TParameterizedBalancingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_reshard", &TThis::EnableReshard)
         .Default();
+    registrar.Parameter("enable_uniform", &TThis::EnableUniform)
+        .Default();
     registrar.Parameter("metric", &TThis::Metric)
         .Default();
     registrar.Parameter("max_action_count", &TThis::MaxActionCount)
@@ -76,7 +89,15 @@ void TParameterizedBalancingConfig::Register(TRegistrar registrar)
         .Default()
         .GreaterThanOrEqual(0);
     registrar.Parameter("factors", &TThis::Factors)
-        .DefaultNew();
+        .Default();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->EnableUniform.value_or(false) && !config->Factors) {
+            config->Factors = TComponentFactorConfig::MakeUniformIdentity();
+        } else if (!config->Factors) {
+            config->Factors = New<TComponentFactorConfig>();
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
