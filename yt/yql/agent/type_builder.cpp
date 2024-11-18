@@ -12,6 +12,7 @@ TLogicalTypePtr TTypeBuilder::GetResult() const {
 
 template<>
 TLogicalTypePtr TTypeBuilder::Pop<TLogicalTypePtr>() {
+    Stack.pop();
     return std::move(Last);
 }
 

@@ -94,7 +94,6 @@ void ReorderAndSaveRows(
             continue;
         }
 
-    //    std::vector<TUnversionedValue> values(targetNameTable->GetSize());
         auto reorderedRow = rowBuffer->AllocateUnversioned(targetNameTable->GetSize());
         for (int index = 0; index < static_cast<int>(reorderedRow.GetCount()); ++index) {
             reorderedRow[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
@@ -219,11 +218,11 @@ TTableSchemaPtr BuildSchema(const TLogicalType& type) {
 TYqlRowset BuildRowset(const TBuildingValueConsumer& consumer,THashMap<TString, ui32> columns, int resultIndex, bool incomplete)
 {
     std::vector<TUnversionedRow> resultRows;
-    auto sourceSchema = consumer.GetSchema();
-    auto sourceNameTable = consumer.GetNameTable();
+    const auto sourceSchema = consumer.GetSchema();
+    const auto sourceNameTable = consumer.GetNameTable();
     auto rowBuffer = New<TRowBuffer>();
 
-    auto reorderSchema = [&] (TTableSchemaPtr schema) {
+    const auto reorderSchema = [&] (TTableSchemaPtr schema) {
         if (columns.empty()) {
             return schema;
         }
@@ -242,12 +241,13 @@ TYqlRowset BuildRowset(const TBuildingValueConsumer& consumer,THashMap<TString, 
             schema->DeletedColumns());
     };
     auto targetSchema = reorderSchema(sourceSchema);
-    auto targetNameTable = TNameTable::FromSchema(*targetSchema);
+    const auto targetNameTable = TNameTable::FromSchema(*targetSchema);
 
     ReorderAndSaveRows(rowBuffer, sourceNameTable, targetNameTable, consumer.GetRows(), resultRows);
 
     YT_LOG_DEBUG("Result read (RowCount: %v, Incomplete: %v, ResultIndex: %v)", resultRows.size(), incomplete, resultIndex);
 
+    std::cerr << __func__ << std::endl;
     PrintTo(*targetSchema, &std::cerr);
 
     Cerr << Endl << "rows: " << resultRows.size() << Endl;
@@ -257,9 +257,9 @@ TYqlRowset BuildRowset(const TBuildingValueConsumer& consumer,THashMap<TString, 
     Cerr << Endl;
 
     return TYqlRowset{
-        .TargetSchema = targetSchema,
-        .ResultRows = resultRows,
-        .RowBuffer = rowBuffer,
+        .TargetSchema = std::move(targetSchema),
+        .ResultRows = std::move(resultRows),
+        .RowBuffer = std::move(rowBuffer),
         .Incomplete = incomplete,
     };
 }
@@ -270,20 +270,15 @@ TYqlRowset BuildRowsetFromYson(
     int resultIndex,
     i64 rowCountLimit)
 {
-Y_UNUSED(clientDirectory);
-Y_UNUSED(rowCountLimit);
     const auto& writeNode = resultNode["Write"][0];
     if (writeNode.HasKey("Ref")) {
         return BuildRowsetByRef(clientDirectory, ConvertTo<IMapNodePtr>(NYT::NodeToYsonString(writeNode)), resultIndex, rowCountLimit);
     }
 
-    Cerr << __func__ << Endl << NYT::NodeToCanonicalYsonString(writeNode["Type"]) << Endl;
     TTypeBuilder typeBuilder;
     NYql::NResult::ParseType(writeNode["Type"], typeBuilder);
     const auto schema = BuildSchema(*typeBuilder.GetResult());
     TBuildingValueConsumer consumer(schema, YqlAgentLogger(), true);
-    PrintTo(*schema, &std::cerr);
-    std::cerr << std::endl;
     TDataBuilder dataBuilder(&consumer);
     NYql::NResult::ParseData(writeNode["Type"], writeNode["Data"], dataBuilder);
 
@@ -306,9 +301,7 @@ TYqlRowset BuildRowsetFromSkiff(
     int resultIndex,
     i64 rowCountLimit)
 {
-    const auto& mapNode = resultNode->AsMap();
-    const auto& writeNode = mapNode->GetChildOrThrow("Write")->AsList()->GetChildOrThrow(0)->AsMap();
-
+    const auto& writeNode = resultNode->AsMap()->GetChildOrThrow("Write")->AsList()->GetChildOrThrow(0)->AsMap();
     if (writeNode->FindChild("Ref")) {
         return BuildRowsetByRef(clientDirectory, writeNode, resultIndex, rowCountLimit);
     }
@@ -385,6 +378,7 @@ std::vector<TWireYqlRowset> BuildRowsets(
             auto rowset = MakeWireYqlRowset(BuildRowsetFromSkiff(clientDirectory, result, index, rowCountLimit));
             YT_LOG_DEBUG("Rowset built (ResultBytes: %v)", rowset.WireRowset.size());
             rowsets.push_back(std::move(rowset));
+//            result->AsMap()->GetChildOrThrow("InstantFail");
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             YT_LOG_DEBUG("Error building rowset result (ResultIndex: %v, Error: %v)", index, error);
