@@ -67,7 +67,8 @@ void SkipCommonTokensWithPattern(TTokenizer& patternTokenizer, TTokenizer& pathT
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsAttributePath(const NYPath::TYPath& path) {
+bool IsAttributePath(const NYPath::TYPath& path)
+{
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
     while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
