@@ -48,6 +48,9 @@ void TOperationPoolTreeAttributes::Register(TRegistrar registrar)
 
     registrar.Parameter("running_in_ephemeral_pool", &TThis::RunningInEphemeralPool)
         .Default();
+
+    registrar.Parameter("running_in_lightweight_pool", &TThis::RunningInLightweightPool)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -344,14 +347,19 @@ TOperationRuntimeParametersPtr TOperation::GetRuntimeParameters() const
     return RuntimeParameters_;
 }
 
-void TOperation::SetRunningInEphemeralPool(const TString& treeId, bool runningInEphemeralPool)
+void TOperation::UpdatePoolAttributes(
+    const TString& treeId,
+    const TOperationPoolTreeAttributes& operationPoolTreeAttributes)
 {
     auto& schedulingAttributes = GetOrCrash(SchedulingAttributesPerPoolTree_, treeId);
 
-    if (schedulingAttributes.RunningInEphemeralPool != runningInEphemeralPool) {
+    if (schedulingAttributes.RunningInEphemeralPool != operationPoolTreeAttributes.RunningInEphemeralPool ||
+        schedulingAttributes.RunningInLightweightPool != operationPoolTreeAttributes.RunningInLightweightPool)
+    {
         SetShouldFlush(true);
     }
-    schedulingAttributes.RunningInEphemeralPool = runningInEphemeralPool;
+    schedulingAttributes.RunningInEphemeralPool = operationPoolTreeAttributes.RunningInEphemeralPool;
+    schedulingAttributes.RunningInLightweightPool = operationPoolTreeAttributes.RunningInLightweightPool;
 }
 
 bool TOperation::IsRunningInStrategy() const
