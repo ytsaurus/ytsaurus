@@ -574,6 +574,11 @@ def get_http_api_commands(client=None):
         _request_api(
             version=get_http_api_version(client),
             client=client))
+
+    # TODO(nadya73): remove me in YT-23538.
+    if "push_queue_producer" in commands:
+        commands["push_queue_producer"].input_type = "tabular"
+
     set_option("_commands", commands, client)
 
     return commands

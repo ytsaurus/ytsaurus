@@ -145,7 +145,7 @@ def get_dynamic_table_retriable_errors():
 
 
 class DynamicTableRequestRetrier(Retrier):
-    def __init__(self, retry_config, command, params, return_content=True, data=None, client=None):
+    def __init__(self, retry_config, command, params, return_content=True, is_formatted_request=False, output_format=None, data=None, client=None):
         request_timeout = get_config(client)["proxy"]["heavy_request_timeout"]
         chaos_monkey_enable = get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client)
         super(DynamicTableRequestRetrier, self).__init__(
@@ -160,23 +160,36 @@ class DynamicTableRequestRetrier(Retrier):
         self.client = client
         self.data = data
         self.return_content = return_content
+        self.is_formatted_request = is_formatted_request
+        self.output_format = output_format
 
     def action(self):
         kwargs = {}
         if self.data is not None:
             kwargs["data"] = self.data
 
-        response = make_request(
-            self.command,
-            self.params,
-            return_content=self.return_content,
-            use_heavy_proxy=True,
-            timeout=self.request_timeout,
-            client=self.client,
-            **kwargs)
+        if not self.is_formatted_request:
+            response = make_request(
+                self.command,
+                self.params,
+                return_content=self.return_content,
+                use_heavy_proxy=True,
+                timeout=self.request_timeout,
+                client=self.client,
+                **kwargs)
 
-        if response is not None:
-            return BytesIO(response) if self.return_content else response
+            if response is not None:
+                return BytesIO(response) if self.return_content else response
+        else:
+            return make_formatted_request(
+                self.command,
+                self.params,
+                self.output_format,
+                return_content=self.return_content,
+                use_heavy_proxy=True,
+                timeout=self.request_timeout,
+                client=self.client,
+                **kwargs)
 
     def except_action(self, error, attempt):
         logger.warning('Request %s failed with error %s',
