@@ -38,6 +38,8 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <library/cpp/iterator/concatenate.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
 using namespace NApi;
@@ -61,6 +63,7 @@ using NYT::FromProto;
 using NLogging::TLogger;
 using NTableClient::NProto::TBoundaryKeysExt;
 using NTableClient::NProto::THeavyColumnStatisticsExt;
+using NTableClient::NProto::THunkChunkRefsExt;
 
 using NApi::NNative::IClientPtr;
 
@@ -394,7 +397,9 @@ IFetcherChunkScraperPtr TInputManager::CreateFetcherChunkScraper(const TClusterN
     return CreateFetcherChunkScraper(GetOrCrash(Clusters_, clusterName));
 }
 
-TMasterChunkSpecFetcherPtr TInputManager::CreateChunkSpecFetcher(const TInputClusterPtr& cluster) const
+TMasterChunkSpecFetcherPtr TInputManager::CreateChunkSpecFetcher(
+    const TInputClusterPtr& cluster,
+    bool fetchHunkChunks) const
 {
     TPeriodicYielder yielder(PrepareYieldPeriod);
 
@@ -423,6 +428,7 @@ TMasterChunkSpecFetcherPtr TInputManager::CreateChunkSpecFetcher(const TInputClu
                 if (Host_->GetOperationType() == EOperationType::RemoteCopy) {
                     req->set_throw_on_chunk_views(true);
                 }
+                req->add_extension_tags(TProtoExtensionTag<THunkChunkRefsExt>::Value);
             }
             // NB: we always fetch parity replicas since
             // erasure reader can repair data on flight.
@@ -430,7 +436,9 @@ TMasterChunkSpecFetcherPtr TInputManager::CreateChunkSpecFetcher(const TInputClu
             AddCellTagToSyncWith(req, table->ObjectId);
             SetTransactionId(req, table->ExternalTransactionId);
         },
-        Logger);
+        Logger,
+        /*skipUnavailableChunks*/ false,
+        /*fetchHunkChunks*/ fetchHunkChunks);
 
     for (int tableIndex = 0; tableIndex < std::ssize(InputTables_); ++tableIndex) {
         yielder.TryYield();
@@ -528,6 +536,26 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
         fetchChunkSpecFutures.push_back(fetcher->Fetch());
     }
 
+    auto hasHunkColumns = [&] () {
+        return std::find_if(InputTables_.begin(), InputTables_.end(), [] (const auto& table) {
+            return table->Schema->HasHunkColumns();
+        }) != InputTables_.end();
+    };
+
+    THashMap<TClusterName, TMasterChunkSpecFetcherPtr> hunkChunkSpecFetchers;
+    std::vector<THashSet<TChunkId>> tableHunkChunks;
+    if (Host_->GetConfig()->EnableHunksRemoteCopy &&
+        Host_->GetOperationType() == EOperationType::RemoteCopy &&
+        hasHunkColumns())
+    {
+        tableHunkChunks.resize(InputTables_.size());
+        for (const auto& [clusterName, cluster] : Clusters_) {
+            auto fetcher = CreateChunkSpecFetcher(cluster, /*fetchHunkChunks*/ true);
+            hunkChunkSpecFetchers.emplace(clusterName, fetcher);
+            fetchChunkSpecFutures.push_back(fetcher->Fetch());
+        }
+    }
+
     // TODO(coteeq): This is a barrier and probably deserves to be removed.
     WaitFor(AllSucceeded(fetchChunkSpecFutures))
         .ThrowOnError();
@@ -558,15 +586,31 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
             }
         }
 
-        if (inputChunk->GetRowCount() > 0 || inputChunk->IsFile()) {
+        YT_VERIFY(
+            !inputChunk->HunkChunkRefsExt() ||
+            table->Dynamic && table->Schema->IsSorted() && table->Schema->HasHunkColumns());
+
+        if (inputChunk->GetRowCount() > 0 || inputChunk->IsFile() || inputChunk->IsHunk()) {
             // Input chunks may have zero row count in case of unsensible read range with coinciding
             // lower and upper row index. We skip such chunks.
             // NB(coteeq): File chunks have zero rows as well, but we want to be able to remote_copy them.
-            table->Chunks.emplace_back(inputChunk);
+            // NB(alexelexa): As well as hunk chunks.
+
+            if (inputChunk->IsHunk()) {
+                YT_VERIFY(std::ssize(tableHunkChunks) > tableIndex);
+                auto [it, inserted] = tableHunkChunks[tableIndex].insert(inputChunk->GetChunkId());
+                if (inserted) {
+                    table->HunkChunks.emplace_back(inputChunk);
+                    RegisterInputChunk(inputChunk);
+                }
+            } else {
+                table->Chunks.emplace_back(inputChunk);
+                RegisterInputChunk(inputChunk);
+            }
+
             for (const auto& extension : chunkSpec.chunk_meta().extensions().extensions()) {
                 fetchStatistics.ExtensionSize += extension.data().size();
             }
-            RegisterInputChunk(table->Chunks.back());
 
             bool shouldSkipChunkInFetchers = IsUnavailable(inputChunk, Host_->GetChunkAvailabilityPolicy()) && Host_->GetSpec()->UnavailableChunkStrategy == EUnavailableChunkAction::Skip;
 
@@ -613,12 +657,11 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
         }
     };
 
-    for (const auto& [_, chunkSpecFetcher] : chunkSpecFetchers) {
+    for (const auto& [_, chunkSpecFetcher] : Concatenate(chunkSpecFetchers, hunkChunkSpecFetchers)) {
         for (const auto& chunkSpec : chunkSpecFetcher->ChunkSpecs()) {
             processChunk(chunkSpec);
         }
     }
-
 
     std::vector<TFuture<void>> statisticsFutures;
     for (const auto& [clusterName, fetcher] : columnarStatisticsFetchers) {
@@ -787,6 +830,7 @@ void TInputManager::FetchInputTablesAttributes()
                 "enable_dynamic_store_read",
                 "tablet_state",
                 "account",
+                "mount_config"
             });
             AddCellTagToSyncWith(req, table->ObjectId);
             SetTransactionId(req, table->ExternalTransactionId);
@@ -913,10 +957,13 @@ void TInputManager::FetchInputTablesAttributes()
             }
         }
 
-        // TODO(ifsmirnov): YT-20044
         if (table->Schema->HasHunkColumns() && Host_->GetOperationType() == EOperationType::RemoteCopy) {
-            if (!Host_->GetSpec()->BypassHunkRemoteCopyProhibition.value_or(false)) {
-                THROW_ERROR_EXCEPTION("Table with hunk columns cannot be copied to another cluster")
+            if (!Host_->GetConfig()->EnableHunksRemoteCopy && !Host_->GetSpec()->BypassHunkRemoteCopyProhibition.value_or(false)) {
+                THROW_ERROR_EXCEPTION("Remote copy for dynamic tables with hunks is disabled");
+            }
+
+            if (HasCompressionDictionaries(attributes)) {
+                THROW_ERROR_EXCEPTION("Table with compression dictionaries cannot be copied to another cluster")
                     << TErrorAttribute("table_path", table->Path);
             }
         }
@@ -1279,7 +1326,7 @@ std::vector<TInputChunkPtr> TInputManager::CollectPrimaryChunks(bool versioned, 
     const auto& tables = clusterName ? GetClusterOrCrash(*clusterName)->InputTables() : InputTables_;
     for (const auto& table : tables) {
         if (!table->IsForeign() && ((table->Dynamic && table->Schema->IsSorted()) == versioned)) {
-            for (const auto& chunk : table->Chunks) {
+            for (const auto& chunk : Concatenate(table->Chunks, table->HunkChunks)) {
                 if (IsUnavailable(chunk, Host_->GetChunkAvailabilityPolicy())) {
                     switch (Host_->GetSpec()->UnavailableChunkStrategy) {
                         case EUnavailableChunkAction::Skip:
@@ -1386,6 +1433,21 @@ std::pair<TCombiningSamplesFetcherPtr, TUnavailableChunksWatcherPtr> TInputManag
     return std::pair(
         New<TCombiningSamplesFetcher>(std::move(samplesFetchers)),
         New<TUnavailableChunksWatcher>(std::move(fetcherChunkScrapers)));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TInputManager::HasDynamicTableWithHunkChunks() const
+{
+    for (const auto& table : InputTables_) {
+        if (table->Dynamic &&
+            table->Schema->HasHunkColumns() &&
+            !table->HunkChunks.empty())
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

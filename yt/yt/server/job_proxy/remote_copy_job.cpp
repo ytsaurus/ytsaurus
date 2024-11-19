@@ -117,8 +117,7 @@ public:
         // We are not ready for reordering here.
         WriterConfig_->EnableBlockReordering = false;
 
-        // TODO(alexelex): For the future, now it is always empty: YT-20044
-        for (auto mapping : RemoteCopyJobSpecExt_.hunk_chunk_id_mapping()) {
+        for (const auto& mapping : RemoteCopyJobSpecExt_.hunk_chunk_id_mapping()) {
             EmplaceOrCrash(
                 HunkChunkIdMapping_,
                 FromProto<TChunkId>(mapping.input_hunk_chunk_id()),
@@ -250,6 +249,12 @@ public:
         if (IsTableDynamic()) {
             auto* jobResultExt = result.MutableExtension(TJobResultExt::job_result_ext);
             ToProto(jobResultExt->mutable_output_chunk_specs(), WrittenChunks_);
+
+            for (const auto& mapping : ResultHunkChunkIdMapping_) {
+                auto* protoMapping = jobResultExt->add_hunk_chunk_id_mapping();
+                ToProto(protoMapping->mutable_input_hunk_chunk_id(), mapping.first);
+                ToProto(protoMapping->mutable_output_hunk_chunk_id(), mapping.second);
+            }
         }
 
         return result;
@@ -334,6 +339,7 @@ private:
     std::vector<TChunkSpec> WrittenChunks_;
 
     THashMap<TChunkId, TChunkId> HunkChunkIdMapping_;
+    THashMap<TChunkId, TChunkId> ResultHunkChunkIdMapping_;
 
     TTraceContextPtr InputTraceContext_;
     TTraceContextFinishGuard InputFinishGuard_;
@@ -428,6 +434,7 @@ private:
 
         auto chunkMeta = GetChunkMeta(inputChunkId, readers);
         ReplaceHunkChunkIds(chunkMeta);
+        CheckNoCompressionDictionaries(chunkMeta, inputChunkId);
 
         // We do not support node reallocation for erasure chunks.
         auto options = New<TRemoteWriterOptions>();
@@ -620,7 +627,7 @@ private:
 
         ChunkFinalizationResults_.push_back(BIND(&TRemoteCopyJob::FinalizeErasureChunk, MakeStrong(this))
             .AsyncVia(GetRemoteCopyInvoker())
-            .Run(writers, chunkMeta, outputSessionId));
+            .Run(writers, chunkMeta, outputSessionId, inputChunkId));
 
         DoFinishCopyChunk(chunkMeta, totalChunkSize);
     }
@@ -744,7 +751,8 @@ private:
     void FinalizeErasureChunk(
         const std::vector<IChunkWriterPtr>& writers,
         const TDeferredChunkMetaPtr& chunkMeta,
-        NChunkClient::TSessionId outputSessionId)
+        NChunkClient::TSessionId outputSessionId,
+        TChunkId inputChunkId)
     {
         TChunkInfo chunkInfo;
         TChunkReplicaWithLocationList writtenReplicas;
@@ -763,7 +771,7 @@ private:
 
         chunkInfo.set_disk_space(diskSpace);
 
-        ConfirmChunkReplicas(outputSessionId, chunkInfo, writtenReplicas, chunkMeta);
+        ConfirmChunkReplicas(outputSessionId, chunkInfo, writtenReplicas, chunkMeta, inputChunkId);
     }
 
     void CopyRegularChunk(const TChunkSpec& inputChunkSpec, NChunkClient::TSessionId outputSessionId)
@@ -784,6 +792,7 @@ private:
 
         chunkMeta = GetChunkMeta(inputChunkId, {reader});
         ReplaceHunkChunkIds(chunkMeta);
+        CheckNoCompressionDictionaries(chunkMeta, inputChunkId);
 
         auto writer = CreateReplicationWriter(
             WriterConfig_,
@@ -817,7 +826,7 @@ private:
 
         ChunkFinalizationResults_.push_back(BIND(&TRemoteCopyJob::FinalizeRegularChunk, MakeStrong(this))
             .AsyncVia(GetRemoteCopyInvoker())
-            .Run(writer, chunkMeta, outputSessionId));
+            .Run(writer, chunkMeta, outputSessionId, inputChunkId));
 
         DoFinishCopyChunk(chunkMeta, totalChunkSize);
     }
@@ -825,7 +834,8 @@ private:
     void FinalizeRegularChunk(
         const IChunkWriterPtr& writer,
         const TDeferredChunkMetaPtr& chunkMeta,
-        NChunkClient::TSessionId outputSessionId)
+        NChunkClient::TSessionId outputSessionId,
+        TChunkId inputChunkId)
     {
         TCurrentTraceContextGuard guard(OutputTraceContext_);
 
@@ -833,14 +843,15 @@ private:
             .ThrowOnError();
         TChunkInfo chunkInfo = writer->GetChunkInfo();
         auto writtenReplicas = writer->GetWrittenChunkReplicasInfo().Replicas;
-        ConfirmChunkReplicas(outputSessionId, chunkInfo, writtenReplicas, chunkMeta);
+        ConfirmChunkReplicas(outputSessionId, chunkInfo, writtenReplicas, chunkMeta, inputChunkId);
     }
 
     void ConfirmChunkReplicas(
         NChunkClient::TSessionId outputSessionId,
         const TChunkInfo& chunkInfo,
         const TChunkReplicaWithLocationList& writtenReplicas,
-        const TRefCountedChunkMetaPtr& inputChunkMeta)
+        const TRefCountedChunkMetaPtr& inputChunkMeta,
+        TChunkId inputChunkId)
     {
         YT_LOG_INFO("Confirming output chunk (ChunkId: %v)",
             outputSessionId.ChunkId);
@@ -848,7 +859,9 @@ private:
         static const THashSet<int> masterMetaTags {
             TProtoExtensionTag<TMiscExt>::Value,
             TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value,
-            TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value
+            TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value,
+            TProtoExtensionTag<NTableClient::NProto::THunkChunkRefsExt>::Value,
+            TProtoExtensionTag<NTableClient::NProto::THunkChunkMiscExt>::Value,
         };
 
         YT_VERIFY(!writtenReplicas.empty());
@@ -898,6 +911,9 @@ private:
             *chunkSpec.mutable_chunk_meta() = masterChunkMeta;
             ToProto(chunkSpec.mutable_chunk_id(), outputSessionId.ChunkId);
             WrittenChunks_.push_back(chunkSpec);
+            if (FromProto<EChunkFormat>(masterChunkMeta.format()) == EChunkFormat::HunkDefault) {
+                EmplaceOrCrash(ResultHunkChunkIdMapping_, inputChunkId, outputSessionId.ChunkId);
+            }
         }
     }
 
@@ -1040,7 +1056,6 @@ private:
             Host_->GetInBandwidthThrottlers());
     }
 
-    // TODO(alexelex): For the future, does nothing for now: YT-20044
     void ReplaceHunkChunkIds(const TDeferredChunkMetaPtr& chunkMeta)
     {
         if (HunkChunkIdMapping_.empty()) {
@@ -1049,6 +1064,10 @@ private:
 
         auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(
             chunkMeta->extensions());
+        auto optionalHunkChunkMetasExt = FindProtoExtension<NTableClient::NProto::THunkChunkMetasExt>(
+            chunkMeta->extensions());
+
+        YT_VERIFY(optionalHunkChunkRefsExt.has_value() == optionalHunkChunkMetasExt.has_value());
         if (!optionalHunkChunkRefsExt) {
             return;
         }
@@ -1058,9 +1077,27 @@ private:
             ToProto(ref.mutable_chunk_id(), GetOrCrash(HunkChunkIdMapping_, chunkId));
         }
 
+        for (auto& ref : *optionalHunkChunkMetasExt->mutable_metas()) {
+            auto chunkId = FromProto<TChunkId>(ref.chunk_id());
+            ToProto(ref.mutable_chunk_id(), GetOrCrash(HunkChunkIdMapping_, chunkId));
+        }
+
         SetProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(
             chunkMeta->mutable_extensions(),
             *optionalHunkChunkRefsExt);
+        SetProtoExtension<NTableClient::NProto::THunkChunkMetasExt>(
+            chunkMeta->mutable_extensions(),
+            *optionalHunkChunkMetasExt);
+    }
+
+    void CheckNoCompressionDictionaries(const TDeferredChunkMetaPtr& chunkMeta, TChunkId chunkId)
+    {
+        auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
+        if (miscExt.has_compression_dictionary_id()) {
+            THROW_ERROR_EXCEPTION("Compression dictionaries are not supported for this type of jobs")
+                << TErrorAttribute("chunk_id", chunkId)
+                << TErrorAttribute("job_type", EJobType::RemoteCopy);
+        }
     }
 };
 
