@@ -281,13 +281,25 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TWireProtocolOptions
+{
+    i64 MaxStringValueLength = NTableClient::MaxStringValueLength;
+    i64 MaxAnyValueLength = NTableClient::MaxAnyValueLength;
+    i64 MaxCompositeValueLength = NTableClient::MaxCompositeValueLength;
+    i64 MaxTimestampCountPerRow = NTableClient::MaxTimestampCountPerRow;
+    i64 MaxVersionedRowDataWeight = NTableClient::MaxServerVersionedRowDataWeight;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Creates wire protocol reader.
 /*!
  *  If #rowBuffer is null, a default one is created.
  */
 std::unique_ptr<IWireProtocolReader> CreateWireProtocolReader(
     TSharedRef data,
-    TRowBufferPtr rowBuffer = TRowBufferPtr());
+    TRowBufferPtr rowBuffer = TRowBufferPtr(),
+    TWireProtocolOptions options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -302,7 +314,8 @@ IWireProtocolRowsetReaderPtr CreateWireProtocolRowsetReader(
     NCompression::ECodec codecId,
     NTableClient::TTableSchemaPtr schema,
     bool schemaful,
-    const NLogging::TLogger& logger);
+    const NLogging::TLogger& logger,
+    TWireProtocolOptions options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
