@@ -1583,6 +1583,10 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
             }
         }
 
+        for (auto& tableReplicaCandidates : replicaCandidates) {
+            std::random_shuffle(tableReplicaCandidates.begin(), tableReplicaCandidates.end());
+        }
+
         TErrorOr<TSelectRowsResult> resultOrError;
         for (int retryCount = 0; retryCount <= retryCountLimit; ++retryCount) {
             YT_LOG_DEBUG("Picking cluster for replica fallback (Tables: %v, Attempt: %v)",
