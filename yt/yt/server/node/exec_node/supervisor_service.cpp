@@ -65,7 +65,7 @@ public:
         RegisterMethod(
             RPC_SERVICE_METHOD_DESC(GetJobSpec)
                 .SetResponseCodec(NCompression::ECodec::Lz4)
-                .SetHeavy(true));
+                .SetInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobProxySpawned));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PrepareArtifact));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(OnArtifactPreparationFailed));
@@ -108,8 +108,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
-        return StaticPointerCast<TJob>(std::move(job));
+        return Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetJobSpec)
@@ -117,24 +116,48 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         context->SetRequestInfo("JobId: %v", jobId);
 
-        auto job = GetSchedulerJobOrThrow(jobId);
+        auto validateJobPhase = [] (EJobPhase jobPhase) {
+            if (jobPhase != EJobPhase::SpawningJobProxy) {
+                THROW_ERROR_EXCEPTION("Cannot fetch job spec; job is in wrong phase")
+                    << TErrorAttribute("expected_phase", EJobPhase::SpawningJobProxy)
+                    << TErrorAttribute("actual_phase", jobPhase);
+            }
+        };
 
-        auto jobPhase = job->GetPhase();
-        if (jobPhase != EJobPhase::SpawningJobProxy) {
-            THROW_ERROR_EXCEPTION("Cannot fetch job spec; job is in wrong phase")
-                << TErrorAttribute("expected_phase", EJobPhase::SpawningJobProxy)
-                << TErrorAttribute("actual_phase", jobPhase);
-        }
+        auto [job, jobPhase, resourceUsage, ports] = WaitFor(BIND([bootstrap = Bootstrap_, jobId] {
+                auto job = bootstrap->GetJobController()->GetJobOrThrow(jobId);
+
+                auto jobPhase = job->GetPhase();
+
+                auto resourceUsage = job->GetResourceUsage();
+                auto ports = job->GetPorts();
+
+                return std::make_tuple(job, jobPhase, resourceUsage, ports);
+            })
+            .AsyncVia(Bootstrap_->GetJobInvoker())
+            .Run())
+            .ValueOrThrow();
+
+        validateJobPhase(jobPhase);
 
         *response->mutable_job_spec() = job->GetSpec();
-        auto resourceUsage = job->GetResourceUsage();
+
+        // Job spec may become empty, we don't want to send empty spec to job proxy.
+        auto newJobPhase = WaitFor(BIND([job] {
+                return job->GetPhase();
+            })
+            .AsyncVia(Bootstrap_->GetJobInvoker())
+            .Run())
+            .ValueOrThrow();
+
+        validateJobPhase(newJobPhase);
 
         auto* resourceUsageProto = response->mutable_resource_usage();
         resourceUsageProto->set_cpu(resourceUsage.Cpu);
         resourceUsageProto->set_memory(resourceUsage.UserMemory);
         resourceUsageProto->set_network(resourceUsage.Network);
 
-        ToProto(response->mutable_ports(), job->GetPorts());
+        ToProto(response->mutable_ports(), ports);
 
         context->Reply();
     }
