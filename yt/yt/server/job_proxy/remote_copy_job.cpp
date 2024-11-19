@@ -473,7 +473,6 @@ private:
         // Compute an upper bound for total size.
         i64 totalChunkSize = GetProtoExtension<TMiscExt>(chunkMeta->extensions()).compressed_data_size() +
             parityPartBlockCount * erasurePlacementExt.parity_block_size() * erasurePlacementExt.parity_part_count();
-        ReadBlocksOptions_.EstimatedSize = totalChunkSize;
 
         TotalSize_ += totalChunkSize;
 
@@ -735,6 +734,9 @@ private:
             erasedTargetReplicas);
         YT_VERIFY(erasedPartWriters.size() == erasedPartIndices.size());
 
+        // TODO(yuryalekseev): Calculate estimated size
+        ReadBlocksOptions_.EstimatedSize = std::nullopt;
+
         WaitFor(RepairErasedParts(
             erasureCodec,
             erasedPartIndices,
@@ -813,7 +815,6 @@ private:
         }
 
         i64 totalChunkSize = GetProtoExtension<TMiscExt>(chunkMeta->extensions()).compressed_data_size();
-        ReadBlocksOptions_.EstimatedSize = totalChunkSize;
 
         auto result = BIND(&TRemoteCopyJob::DoCopy, MakeStrong(this))
             .AsyncVia(GetRemoteCopyInvoker())
@@ -963,6 +964,10 @@ private:
             // into account in operation controller).
             if (endBlockIndex == beginBlockIndex) {
                 endBlockIndex += 1;
+            }
+
+            if (RemoteCopyJobSpecExt_.use_local_throttler()) {
+                ReadBlocksOptions_.EstimatedSize = sizeToRead;
             }
 
             std::vector<int> blockIndices(endBlockIndex - beginBlockIndex);

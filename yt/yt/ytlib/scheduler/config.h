@@ -1961,6 +1961,8 @@ public:
 
     bool AllowClusterConnection;
 
+    bool UseLocalThrottler;
+
     REGISTER_YSON_STRUCT(TRemoteCopyOperationSpec);
 
     static void Register(TRegistrar registrar);
