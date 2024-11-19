@@ -287,6 +287,8 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("job_resource_manager", &TThis::JobResourceManager)
         .DefaultNew();
+    registrar.Parameter("porto_environment", &TThis::PortoEnvironment)
+        .Default();
     registrar.Parameter("caching_object_service", &TThis::CachingObjectService)
         .Alias("master_cache_service")
         .DefaultNew();
@@ -484,6 +486,8 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("out_throttlers", &TThis::OutThrottlers)
         .Default();
+    registrar.Parameter("porto_environment", &TThis::PortoEnvironment)
+        .Default();
     registrar.Parameter("io_tracker", &TThis::IOTracker)
         .DefaultNew();
     registrar.Parameter("rpc_server", &TThis::RpcServer)
@@ -514,5 +518,17 @@ void TChunkReplicaCacheDynamicConfig::Register(TRegistrar registrar)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+
+void TTopLevelPortoEnvironmentConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("porto_executor", &TThis::PortoExecutor)
+        .DefaultNew();
+    registrar.Parameter("use_daemon_subcontainer", &TThis::UseDaemonSubcontainer)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace NYT::NClusterNode

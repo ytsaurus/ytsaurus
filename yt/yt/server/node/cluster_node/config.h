@@ -150,6 +150,23 @@ DEFINE_REFCOUNTED_TYPE(TChunkReplicaCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTopLevelPortoEnvironmentConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    NContainers::TPortoExecutorDynamicConfigPtr PortoExecutor;
+
+    bool UseDaemonSubcontainer;
+
+    REGISTER_YSON_STRUCT(TTopLevelPortoEnvironmentConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTopLevelPortoEnvironmentConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TResourceLimitsDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -310,6 +327,9 @@ public:
     //! Job resource manager configuration part.
     NJobAgent::TJobResourceManagerConfigPtr JobResourceManager;
 
+    //! Cluster node porto environment config.
+    TTopLevelPortoEnvironmentConfigPtr PortoEnvironment;
+
     //! Metadata cache service configuration.
     NObjectClient::TCachingObjectServiceConfigPtr CachingObjectService;
 
@@ -433,6 +453,9 @@ public:
 
     //! Bucket configuration for out network throttlers.
     THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> OutThrottlers;
+
+    //! Cluster node porto environment config.
+    TTopLevelPortoEnvironmentConfigPtr PortoEnvironment;
 
     //! IO tracker config.
     NIO::TIOTrackerConfigPtr IOTracker;
