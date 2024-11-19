@@ -523,7 +523,7 @@ def build_user_resource_overview_rowset():
                                         .aggr(MonitoringTag("host"))).alias("Container Memory Guarantee"),
                                     MonitoringExpr(TabNodePorto("yt.porto.memory.anon_usage").value("container_category", "pod")
                                         .aggr(MonitoringTag("host"))).alias("Container Memory Usage"),
-                                    MonitoringExpr(Node("yt.cluster_node.memory_usage.used")
+                                    MonitoringExpr(TabNode("yt.cluster_node.memory_usage.used")
                                         .sensor_stack()
                                         .aggr(MonitoringTag("host"))
                                         .all("category")).alias("{{category}}")))
