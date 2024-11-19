@@ -126,7 +126,7 @@ public:
 
     EJobType GetType() const;
 
-    const NControllerAgent::NProto::TJobSpec& GetSpec() const;
+    NControllerAgent::NProto::TJobSpec GetSpec() const;
 
     const std::vector<int>& GetPorts() const;
 
@@ -256,12 +256,18 @@ public:
 
     const TAllocationPtr& GetAllocation() const noexcept;
 
+    const std::vector<NScheduler::TTmpfsVolumeConfigPtr>& GetTmpfsVolumeInfos() const noexcept;
+
+    bool HasUserJobSpec() const noexcept;
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     const TJobId Id_;
     const TOperationId OperationId_;
     IBootstrap* const Bootstrap_;
+
+    const EJobType JobType_;
 
     const NLogging::TLogger Logger;
 
@@ -276,13 +282,23 @@ private:
     const TInstant CreationTime_;
     const NChunkClient::TTrafficMeterPtr TrafficMeter_;
 
-    NControllerAgent::NProto::TJobSpec JobSpec_;
-    const NControllerAgent::NProto::TJobSpecExt* const JobSpecExt_;
+    // NB(pogorelov): GuardedJobSpec_ is mutated only from job thread, so we can store reference to an object and
+    // read it from job thread without lock.
+    TAtomicObject<NControllerAgent::NProto::TJobSpec> GuardedJobSpec_;
+    // Thread affinity: JobThread
+    const NControllerAgent::NProto::TJobSpec& JobSpec_;
+    const NControllerAgent::NProto::TJobSpecExt& JobSpecExt_;
     const NControllerAgent::NProto::TUserJobSpec* const UserJobSpec_;
+
     const NJobProxy::TJobTestingOptionsPtr JobTestingOptions_;
 
     const bool Interruptible_;
     const bool AbortJobIfAccountLimitExceeded_;
+    const bool RootVolumeDiskQuotaEnabled_;
+
+    const bool HasUserJobSpec_;
+
+    const std::vector<NScheduler::TTmpfsVolumeConfigPtr> TmpfsVolumeInfos_;
 
     THashSet<TString> RequestedMonitoringSensors_;
 
@@ -528,7 +544,6 @@ private:
 
     void BuildVirtualSandbox();
 
-    bool ExtractEnableRootVolumeDiskQuotaFlag();
     TUserSandboxOptions BuildUserSandboxOptions();
 
     std::optional<NScheduler::EAbortReason> DeduceAbortReason();
@@ -584,6 +599,9 @@ private:
     void DeduceAndSetFinishedJobState();
 
     bool NeedsGpuCheck() const;
+
+    static std::vector<NScheduler::TTmpfsVolumeConfigPtr> ParseTmpfsVolumeInfos(
+        const NControllerAgent::NProto::TUserJobSpec* maybeUserJobSpec);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)

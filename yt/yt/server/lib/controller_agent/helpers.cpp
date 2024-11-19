@@ -189,7 +189,8 @@ void PackBaggageFromJobSpec(
     const NTracing::TTraceContextPtr& traceContext,
     const NControllerAgent::NProto::TJobSpec& jobSpec,
     TOperationId operationId,
-    TJobId jobId)
+    TJobId jobId,
+    EJobType jobType)
 {
     auto baggage = traceContext->UnpackOrCreateBaggage();
     const auto& jobSpecExt = jobSpec.GetExtension(NControllerAgent::NProto::TJobSpecExt::job_spec_ext);
@@ -197,7 +198,7 @@ void PackBaggageFromJobSpec(
     baggage->MergeFrom(*ioTags);
     AddTagToBaggage(baggage, ERawIOTag::OperationId, ToString(operationId));
     AddTagToBaggage(baggage, ERawIOTag::JobId, ToString(jobId));
-    AddTagToBaggage(baggage, EAggregateIOTag::JobType, FormatEnum(static_cast<EJobType>(jobSpec.type())));
+    AddTagToBaggage(baggage, EAggregateIOTag::JobType, FormatEnum(jobType));
     traceContext->PackBaggage(baggage);
 }
 

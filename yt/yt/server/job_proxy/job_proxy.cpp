@@ -866,7 +866,7 @@ TJobResult TJobProxy::RunJob()
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
 
-        PackBaggageFromJobSpec(RootSpan_, JobSpecHelper_->GetJobSpec(), OperationId_, JobId_);
+        PackBaggageFromJobSpec(RootSpan_, JobSpecHelper_->GetJobSpec(), OperationId_, JobId_, GetJobSpecHelper()->GetJobType());
 
         auto cpuMonitorConfig = ConvertTo<TJobCpuMonitorConfigPtr>(TYsonString(JobSpecHelper_->GetJobSpecExt().job_cpu_monitor_config()));
         CpuMonitor_ = New<TCpuMonitor>(std::move(cpuMonitorConfig), JobThread_->GetInvoker(), this, CpuGuarantee_);
