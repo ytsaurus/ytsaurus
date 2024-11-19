@@ -12,9 +12,15 @@ TKeyPair::TKeyPair(const TKeyPairMetadata& metadata)
 {
     std::array<std::byte, PrivateKeySize> privateKey;
     TPublicKey publicKey;
-    if (crypto_sign_keypair(
+
+    // NB(pavook): until GLIBC 2.35 msan does not consider getrandom calls as initialization.
+    // This is why we initialize the seed on our own and then provide it to libsodium.
+    std::array<unsigned char, crypto_sign_ed25519_SEEDBYTES> seed{};
+    randombytes_buf(seed.data(), seed.size());
+    if (crypto_sign_ed25519_seed_keypair(
             reinterpret_cast<unsigned char*>(publicKey.data()),
-            reinterpret_cast<unsigned char*>(privateKey.data())) != 0) {
+            reinterpret_cast<unsigned char*>(privateKey.data()),
+            seed.data()) != 0) {
         THROW_ERROR_EXCEPTION("Failed to generate keypair");
     }
     PrivateKey_ = Format(
