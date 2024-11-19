@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <contrib/libs/libsodium/include/sodium/randombytes.h>
+
 namespace NYT::NSignature {
 namespace {
 
@@ -119,10 +121,13 @@ TEST(TKeyInfoTest, Verify)
     }
 
     std::array<std::byte, PrivateKeySize> privateKey;
+    std::array<unsigned char, crypto_sign_ed25519_SEEDBYTES> seed{};
+    randombytes_buf(seed.data(), seed.size());
     EXPECT_EQ(
-        crypto_sign_keypair(
+        crypto_sign_ed25519_seed_keypair(
             reinterpret_cast<unsigned char*>(publicKey.data()),
-            reinterpret_cast<unsigned char*>(privateKey.data())),
+            reinterpret_cast<unsigned char*>(privateKey.data()),
+            seed.data()),
         0);
 
     // Valid key, random signature, valid meta.
