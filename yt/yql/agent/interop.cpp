@@ -39,7 +39,7 @@
 #include <library/cpp/yson/node/node_io.h>
 #include <library/cpp/yt/memory/ref.h>
 
-#include <yql/essentials/public/result_format/yql_result_format_data.h>
+#include <yql/essentials/public/result_format/yql_result_format_response.h>
 
 namespace NYT::NYqlAgent {
 
@@ -118,18 +118,14 @@ void ReorderAndSaveRows(
     }
 };
 
-
 TYqlRowset BuildRowsetByRef(
     const TClientDirectoryPtr& clientDirectory,
-    const IMapNodePtr& writeNode,
+    TYqlRefPtr references,
     int resultIndex,
     i64 rowCountLimit)
 {
-    const auto& refsNode = writeNode->GetChildOrThrow("Ref")->AsList();
-    if (refsNode->GetChildCount() != 1) {
-        THROW_ERROR_EXCEPTION("YQL returned non-singular ref, such response is not supported yet ");
-    }
-    const auto& references = ConvertTo<TYqlRefPtr>(refsNode->GetChildOrThrow(0));
+    Cerr << __func__ << ' ' << references->Reference.size() << ' ' << references->Reference.front() << ",...," << references->Reference.back() << ' ' << references->Columns->size() << Endl;
+
     if (references->Reference.size() != 3 || references->Reference[0] != "yt") {
         THROW_ERROR_EXCEPTION("Malformed YQL reference %v", references->Reference);
     }
@@ -266,33 +262,40 @@ TYqlRowset BuildRowset(const TBuildingValueConsumer& consumer,THashMap<TString, 
 
 TYqlRowset BuildRowsetFromYson(
     const TClientDirectoryPtr& clientDirectory,
-    const NYT::TNode& resultNode,
+    const NYql::NResult::TWrite& write,
     int resultIndex,
     i64 rowCountLimit)
 {
-    const auto& writeNode = resultNode["Write"][0];
-    if (writeNode.HasKey("Ref")) {
-        return BuildRowsetByRef(clientDirectory, ConvertTo<IMapNodePtr>(NYT::NodeToYsonString(writeNode)), resultIndex, rowCountLimit);
+    if (!write.Refs.empty()) {
+        if (write.Refs.size() != 1) {
+            THROW_ERROR_EXCEPTION("YQL returned non-singular ref, such response is not supported yet.");
+        }
+        auto ref = New<TYqlRef>();
+        ref->Reference = write.Refs.front().Reference;
+        if (const auto& columns = write.Refs.front().Columns) {
+            ref->Columns.emplace(columns->size());
+            std::copy(columns->cbegin(), columns->cend(), ref->Columns->begin());
+        }
+        return BuildRowsetByRef(clientDirectory, std::move(ref), resultIndex, rowCountLimit);
     }
 
     TTypeBuilder typeBuilder;
-    NYql::NResult::ParseType(writeNode["Type"], typeBuilder);
+    NYql::NResult::ParseType(*write.Type, typeBuilder);
     const auto schema = BuildSchema(*typeBuilder.GetResult());
     TBuildingValueConsumer consumer(schema, YqlAgentLogger(), true);
     TDataBuilder dataBuilder(&consumer);
-    NYql::NResult::ParseData(writeNode["Type"], writeNode["Data"], dataBuilder);
+    NYql::NResult::ParseData(*write.Type, *write.Data, dataBuilder);
 
     THashMap<TString, ui32> columns;
-    if (writeNode.HasKey("Columns")) {
+/*  if (writeNode.HasKey("Columns")) {
         const auto& columnsNode = writeNode["Columns"];
         columns.reserve(columnsNode.Size());
         for (ui32 index = 0U; index < columnsNode.Size(); ++index) {
             columns[columnsNode.ChildAsString(index)] = index;
         }
     }
-
-    const auto incomplete = writeNode.HasKey("Incomplete") && writeNode.ChildAsBool("Incomplete");
-    return BuildRowset(consumer, std::move(columns), resultIndex, incomplete);
+*/
+    return BuildRowset(consumer, std::move(columns), resultIndex, write.IsTruncated);
 }
 
 TYqlRowset BuildRowsetFromSkiff(
@@ -303,7 +306,11 @@ TYqlRowset BuildRowsetFromSkiff(
 {
     const auto& writeNode = resultNode->AsMap()->GetChildOrThrow("Write")->AsList()->GetChildOrThrow(0)->AsMap();
     if (writeNode->FindChild("Ref")) {
-        return BuildRowsetByRef(clientDirectory, writeNode, resultIndex, rowCountLimit);
+        const auto& refsNode = writeNode->GetChildOrThrow("Ref")->AsList();
+        if (refsNode->GetChildCount() != 1) {
+            THROW_ERROR_EXCEPTION("YQL returned non-singular ref, such response is not supported yet.");
+        }
+        return BuildRowsetByRef(clientDirectory, ConvertTo<TYqlRefPtr>(refsNode->GetChildOrThrow(0)), resultIndex, rowCountLimit);
     }
 
     const auto& skiffTypeNode = writeNode->GetChildOrThrow("SkiffType");
@@ -351,13 +358,14 @@ std::vector<TWireYqlRowset> BuildRowsets(
     i64 rowCountLimit)
 {
     Cerr << __func__ << Endl << NYT::NodeToCanonicalYsonString(NYT::NodeFromYsonString(yqlYsonResults)) << Endl;
-    const auto& list = NYT::NodeFromYsonString(yqlYsonResults);
     std::vector<TWireYqlRowset> rowsets;
-    rowsets.reserve(list.Size());
     try {
-        for (size_t index = 0U; index < list.Size(); ++index) {
+        const auto& responseNode = NYT::NodeFromYsonString(yqlYsonResults);
+        const auto& response = NYql::NResult::ParseResponse(responseNode);
+        rowsets.reserve(response.size());
+        for (size_t index = 0U; index < response.size(); ++index) {
             YT_LOG_DEBUG("Building rowset for query result (ResultIndex: %v)", index);
-            auto rowset = MakeWireYqlRowset(BuildRowsetFromYson(clientDirectory, list[index], index, rowCountLimit));
+            auto rowset = MakeWireYqlRowset(BuildRowsetFromYson(clientDirectory, response[index].Writes.front(), index, rowCountLimit));
             YT_LOG_DEBUG("Rowset built (ResultBytes: %v)", rowset.WireRowset.size());
             rowsets.push_back(std::move(rowset));
         }
@@ -378,7 +386,6 @@ std::vector<TWireYqlRowset> BuildRowsets(
             auto rowset = MakeWireYqlRowset(BuildRowsetFromSkiff(clientDirectory, result, index, rowCountLimit));
             YT_LOG_DEBUG("Rowset built (ResultBytes: %v)", rowset.WireRowset.size());
             rowsets.push_back(std::move(rowset));
-//            result->AsMap()->GetChildOrThrow("InstantFail");
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             YT_LOG_DEBUG("Error building rowset result (ResultIndex: %v, Error: %v)", index, error);
