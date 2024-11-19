@@ -2006,6 +2006,8 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("allow_cluster_connection", &TThis::AllowClusterConnection)
         .Default(true);
+    registrar.Parameter("use_local_throttler", &TThis::UseLocalThrottler)
+        .Default(false);
 
     registrar.Preprocessor([] (TRemoteCopyOperationSpec* spec) {
         // NB: in remote copy operation chunks are never decompressed,

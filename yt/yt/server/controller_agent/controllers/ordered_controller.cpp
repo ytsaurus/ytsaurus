@@ -1753,6 +1753,8 @@ private:
         if (Spec_->ClusterName) {
             remoteCopyJobSpecExt->set_remote_cluster_name(*Spec_->ClusterName);
         }
+
+        remoteCopyJobSpecExt->set_use_local_throttler(Spec_->UseLocalThrottler);
     }
 
     NNative::IConnectionPtr GetRemoteConnection() const

@@ -743,6 +743,8 @@ message TRemoteCopyJobSpecExt
     repeated THunkChunkIdMapping hunk_chunk_id_mapping = 7;
 
     optional string remote_cluster_name = 8;
+
+    optional bool use_local_throttler = 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
