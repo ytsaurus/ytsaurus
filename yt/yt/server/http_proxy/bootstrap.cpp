@@ -145,7 +145,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
 
     MemoryUsageTracker_ = CreateNodeMemoryTracker(
-        *Config_->MemoryLimits->Total,
+        Config_->MemoryLimits->Total.value_or(std::numeric_limits<i64>::max()),
         /*limits*/ {},
         Logger(),
         HttpProxyProfiler.WithPrefix("/memory_usage"));
