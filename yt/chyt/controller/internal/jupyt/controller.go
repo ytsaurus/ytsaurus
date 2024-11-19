@@ -171,7 +171,7 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 				},
 				{
 					Title:        "Enable idle timeout suspension",
-					Name:         "enable_idle_timeout_suspension",
+					Name:         "enable_idle_suspension",
 					Type:         strawberry.TypeBool,
 					CurrentValue: speclet.EnableIdleSuspension,
 					DefaultValue: false,
