@@ -1,0 +1,31 @@
+{
+    NUM_MASTERS = 3;
+    NUM_SECONDARY_MASTER_CELLS = 3;
+    MASTER_CELL_DESCRIPTORS = {
+        "10" = {roles = ["cypress_node_host"]};
+        "11" = {roles = ["sequoia_node_host"; "cypress_node_host"; "chunk_host"]};
+        "12" = {roles = ["transaction_coordinator"; "cypress_node_host"]};
+        "13" = {roles = ["chunk_host"; "cypress_node_host"]};
+    };
+
+    NUM_NODES = 3;
+
+    DRIVER_BACKEND = rpc;
+
+    NUM_RPC_PROXIES = 2;
+    ENABLE_RPC_PROXY = %true;
+    DELTA_RPC_PROXY_CONFIG = {
+        cluster_connection = {
+            transaction_manager = {
+                use_cypress_transaction_service = %true;
+            };
+        };
+    };
+
+    NUM_HTTP_PROXIES = 0;
+    ENABLE_HTTP_PROXY = %false;
+
+    USE_SEQUOIA = %true;
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = %true;
+    NUM_CYPRESS_PROXIES = 2;
+}

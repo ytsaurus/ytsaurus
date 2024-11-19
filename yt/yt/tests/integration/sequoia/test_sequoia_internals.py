@@ -1069,7 +1069,7 @@ class TestSequoiaNodeVersioning(YTEnvSetup):
         "10": {"roles": ["cypress_node_host"]},
         "11": {"roles": ["sequoia_node_host", "cypress_node_host", "chunk_host"]},
         "12": {"roles": ["transaction_coordinator", "cypress_node_host"]},
-        "13": {"roles": ["chunk_host", "cypress_node_host"]}
+        "13": {"roles": ["chunk_host", "cypress_node_host"]},
     }
 
     # COMPAT(kvk1920): Remove when `use_cypress_transaction_service` become `true` by default.

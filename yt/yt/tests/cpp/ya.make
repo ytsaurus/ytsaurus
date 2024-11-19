@@ -4,4 +4,5 @@ RECURSE(
     test_hydra
     test_native_api
     test_rpc_api
+    test_sequoia
 )

@@ -197,7 +197,7 @@ private:
         // TODO(h0pless): Add cypress transaction id here.
         auto versionedNodeId = TVersionedObjectId(nodeId, NullObjectId);
 
-        if (auto* node = Bootstrap_->GetCypressManager()->GetNode(versionedNodeId)) {
+        if (auto* node = Bootstrap_->GetCypressManager()->FindNode(versionedNodeId)) {
             Bootstrap_->GetObjectManager()->UnrefObject(node);
         }
     }
@@ -604,11 +604,11 @@ private:
         auto destinationNodeId = FromProto<TNodeId>(request->dst_id());
         // XXX(kvk1920): Add cypress transaction id here.
 
-        if (auto* destinationNode = Bootstrap_->GetCypressManager()->GetNode(TVersionedObjectId{destinationNodeId})) {
+        if (auto* destinationNode = Bootstrap_->GetCypressManager()->FindNode(TVersionedObjectId{destinationNodeId})) {
             Bootstrap_->GetObjectManager()->UnrefObject(destinationNode);
         }
 
-        if (auto* sourceNode = Bootstrap_->GetCypressManager()->GetNode(TVersionedObjectId{sourceNodeId})) {
+        if (auto* sourceNode = Bootstrap_->GetCypressManager()->FindNode(TVersionedObjectId{sourceNodeId})) {
             Bootstrap_->GetObjectManager()->WeakUnrefObject(sourceNode);
         }
     }
