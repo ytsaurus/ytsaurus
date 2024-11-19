@@ -1015,9 +1015,14 @@ private:
         RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_, NativeAuthenticator_));
 
     #ifdef __linux__
-        if (auto portoConfig = Config_->ExecNode->SlotManager->JobEnvironment.TryGetConcrete<EJobEnvironmentType::Porto>()) {
-            auto portoExecutor = CreatePortoExecutor(
-                portoConfig->PortoExecutor,
+        auto topLevelPortoConfig = Config_->PortoEnvironment;
+        // COMPAT(ponasenko-rs): Remove after migration to top-level porto_environment.
+        auto execNodePortoConfig = Config_->ExecNode->SlotManager->JobEnvironment.TryGetConcrete<EJobEnvironmentType::Porto>();
+
+        if (topLevelPortoConfig || execNodePortoConfig) {
+            auto portoExecutor = CreatePortoExecutor(topLevelPortoConfig
+                    ? topLevelPortoConfig->PortoExecutor
+                    : execNodePortoConfig->PortoExecutor,
                 "limits_tracker");
 
             portoExecutor->SubscribeFailed(BIND([=, this] (const TError& error) {
@@ -1025,10 +1030,14 @@ private:
                 ExecNodeBootstrap_->GetSlotManager()->OnPortoExecutorFailed(error);
             }));
 
+            auto useDaemonSubcontainer = topLevelPortoConfig
+                ? topLevelPortoConfig->UseDaemonSubcontainer
+                : execNodePortoConfig->UseDaemonSubcontainer;
+
             auto self = GetSelfPortoInstance(portoExecutor);
             if (Config_->InstanceLimitsUpdatePeriod) {
                 auto root = GetRootPortoInstance(portoExecutor);
-                auto instance = portoConfig->UseDaemonSubcontainer
+                auto instance = useDaemonSubcontainer
                     ? GetPortoInstance(portoExecutor, *self->GetParentName())
                     : self;
 
@@ -1047,7 +1056,7 @@ private:
                 .Via(GetControlInvoker()));
             }
 
-            if (portoConfig->UseDaemonSubcontainer) {
+            if (useDaemonSubcontainer) {
                 self->SetCpuWeight(Config_->ResourceLimits->NodeCpuWeight);
 
                 if (Config_->ResourceLimits->NodeDedicatedCpu) {
@@ -1437,8 +1446,16 @@ private:
         if (ContainerDevicesChecker_ && newConfig->ExecNode->SlotManager) {
             const auto& environmentConfig = newConfig->ExecNode->SlotManager->JobEnvironment;
 
-            if (auto portoConfig = environmentConfig.TryGetConcrete<EJobEnvironmentType::Porto>()) {
-                ContainerDevicesChecker_->OnDynamicConfigChanged(portoConfig->PortoExecutor);
+            TPortoExecutorDynamicConfigPtr portoExecutor = nullptr;
+            if (auto portoConfig = newConfig->PortoEnvironment) {
+                portoExecutor = portoConfig->PortoExecutor;
+            } else if (auto portoConfig = environmentConfig.TryGetConcrete<EJobEnvironmentType::Porto>()) {
+                // COMPAT(ponasenko-rs): Remove after migration to top-level porto_environment.
+                portoExecutor = portoConfig->PortoExecutor;
+            }
+
+            if (portoExecutor) {
+                ContainerDevicesChecker_->OnDynamicConfigChanged(portoExecutor);
             }
         }
     #endif
