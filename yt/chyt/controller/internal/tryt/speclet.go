@@ -32,3 +32,12 @@ func (s *Speclet) MemoryOrDefault() uint64 {
 	}
 	return DefaultMemory
 }
+
+func (s *Speclet) Command() string {
+	switch s.TransferType {
+	case "INCREMENT_ONLY", "SNAPSHOT_AND_INCREMENT":
+		return "replicate"
+	default:
+		return "activate"
+	}
+}

@@ -79,7 +79,7 @@ dst:
 		"tasks": map[string]any{
 			"tryt": map[string]any{
 				"command":                       c.config.CommandOrDefault(speclet),
-				"job_count":                     1,
+				"job_count":                     c.config.JobCountOrDefault(),
 				"cpu_limit":                     speclet.CPUOrDefault(),
 				"memory_limit":                  speclet.MemoryOrDefault(),
 				"environment":                   c.config.EnvVars(speclet),

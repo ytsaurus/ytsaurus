@@ -1,19 +1,20 @@
 package tryt
 
+import "fmt"
+
 type Config struct {
 	ExtraEnvVars map[string]string `yson:"extra_env_vars"`
 	Command      *string           `yson:"command"`
+	LogLevel     *string           `yson:"log_level"`
+	LogConfig    *string           `yson:"log_config"`
+	JobCount     *int              `yson:"job_count"`
 }
 
-const (
-	DefaultCommand = "/usr/local/bin/trcli replicate --transfer /usr/local/bin/transfer.yaml --log-level info --log-config minimal"
-)
-
-func (c *Config) CommandOrDefault(Speclet) string {
+func (c *Config) CommandOrDefault(spec Speclet) string {
 	if c.Command != nil {
 		return *c.Command
 	}
-	return DefaultCommand
+	return fmt.Sprintf("/usr/local/bin/trcli %s --transfer /usr/local/bin/transfer.yaml --log-level %s --log-config %s", spec.Command(), c.LogLevelOrDefault(), c.LogConfigOrDefault())
 }
 
 func (c *Config) EnvVars(speclet Speclet) map[string]string {
@@ -27,4 +28,25 @@ func (c *Config) EnvVars(speclet Speclet) map[string]string {
 		res[k] = v
 	}
 	return res
+}
+
+func (c *Config) LogLevelOrDefault() string {
+	if c.LogLevel != nil {
+		return *c.LogLevel
+	}
+	return "info"
+}
+
+func (c *Config) LogConfigOrDefault() string {
+	if c.LogConfig != nil {
+		return *c.LogConfig
+	}
+	return "console"
+}
+
+func (c *Config) JobCountOrDefault() int {
+	if c.JobCount != nil {
+		return *c.JobCount
+	}
+	return 1
 }
