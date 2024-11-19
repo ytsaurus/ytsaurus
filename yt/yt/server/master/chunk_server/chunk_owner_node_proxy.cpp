@@ -392,6 +392,7 @@ private:
         auto context = CreateAsyncChunkTraverserContext(
             Bootstrap_,
             NCellMaster::EAutomatonThreadQueue::ChunkFetchingTraverser);
+
         if (ContentType_ == EChunkListContentType::Hunk) {
             TraverseHunkChunkTree(
                 std::move(context),

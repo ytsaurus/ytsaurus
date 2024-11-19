@@ -1,5 +1,7 @@
 #include "sink.h"
 
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
 using namespace NChunkPools;
@@ -31,7 +33,6 @@ IChunkPoolInput::TCookie TSink::AddWithKey(TChunkStripePtr stripe, TChunkStripeK
         Controller_->AttachToLivePreview(table->LivePreviewTableName, stripe);
     }
 
-    table->OutputChunkTreeIds.emplace_back(key, chunkListId);
     table->ChunkCount += stripe->GetStatistics().ChunkCount;
 
     const auto& Logger = Controller_->Logger;
@@ -41,11 +42,26 @@ IChunkPoolInput::TCookie TSink::AddWithKey(TChunkStripePtr stripe, TChunkStripeK
         key,
         stripe->GetStatistics().ChunkCount);
 
+    bool isHunk = false;
     if (table->Dynamic) {
         for (auto& slice : stripe->DataSlices) {
             YT_VERIFY(slice->ChunkSlices.size() == 1);
-            table->OutputChunks.push_back(slice->ChunkSlices[0]->GetInputChunk());
+            const auto& chunk = slice->ChunkSlices[0]->GetInputChunk();
+            isHunk |= chunk->IsHunk();
+
+            if (isHunk) {
+                YT_VERIFY(table->Schema->HasHunkColumns());
+                table->OutputHunkChunks.push_back(chunk);
+            } else {
+                table->OutputChunks.push_back(chunk);
+            }
         }
+    }
+
+    if (isHunk) {
+        table->OutputHunkChunkTreeIds.emplace_back(key, chunkListId);
+    } else {
+        table->OutputChunkTreeIds.emplace_back(key, chunkListId);
     }
 
     return IChunkPoolInput::NullCookie;
