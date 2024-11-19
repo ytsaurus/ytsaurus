@@ -212,6 +212,7 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
         set_nodes_banned(nodes_to_ban, banned_flag)
 
     def _enable_hash_chunk_index(self, path):
+        set("{}/@optimize_for".format(path), "lookup")
         set("{}/@compression_codec".format(path), "none")
         set("{}/@mount_config/enable_hash_chunk_index_for_lookup".format(path), True)
         set("{}/@chunk_format".format(path), "table_versioned_indexed")
@@ -1388,7 +1389,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         set("//tmp/t/@compression_codec", "none")
         sync_mount_table("//tmp/t")
 
-        insert_rows("//tmp/t", [{"key": i, "value": "A" * 1024} for i in range(10)])
+        insert_rows("//tmp/t", [{"key": i, "value": ascii_lowercase[i:i + 1] * 1024} for i in range(10)])
         sync_unmount_table("//tmp/t")
 
         chunk_id = get_singular_chunk_id("//tmp/t")
@@ -2821,7 +2822,7 @@ class TestSortedDynamicTablesChunkFormat(TestSortedDynamicTablesBase):
     @authors("babenko")
     def test_validate_chunk_format_on_mount(self):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
+        self._create_simple_table("//tmp/t", optimize_for="lookup")
         assert get("//tmp/t/@optimize_for") == "lookup"
 
         set("//tmp/t/@chunk_format", "table_unversioned_schemaful")

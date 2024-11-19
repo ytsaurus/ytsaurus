@@ -58,10 +58,6 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr i64 MinRowRangeDataWeight = 64_KB;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TVersionedChunkWriterBase
     : public IVersionedChunkWriter
 {
@@ -681,10 +677,6 @@ public:
             "Bad chunk writer options. At least one of \"enable_column_meta_in_chunk_meta\" or "
             "\"enable_segment_meta_in_blocks\" must be true");
 
-        if (Options_->ConsiderMinRowRangeDataWeight) {
-            DataToBlockFlush_ = std::max(MinRowRangeDataWeight, DataToBlockFlush_);
-        }
-
         auto createBlockWriter = [&] {
             int blockWriterIndex = std::ssize(BlockWriters_);
             BlockWriters_.emplace_back(std::make_unique<TDataBlockWriter>(Options_->EnableSegmentMetaInBlocks));
@@ -853,9 +845,6 @@ private:
                 FinishBlock(maxWriterIndex, lastRow.Keys());
             } else {
                 DataToBlockFlush_ = std::min(Config_->MaxBufferSize - totalSize, Config_->BlockSize - maxWriterSize);
-                if (Options_->ConsiderMinRowRangeDataWeight) {
-                    DataToBlockFlush_ = std::max(MinRowRangeDataWeight, DataToBlockFlush_);
-                }
                 break;
             }
         }
