@@ -373,6 +373,11 @@ bool TBaseQuery::IsOrdered() const
     }
 }
 
+bool TBaseQuery::IsPrefetching() const
+{
+    return Limit == OrderedReadWithPrefetchHint;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TQuery::TQuery(TGuid id)

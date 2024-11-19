@@ -238,14 +238,15 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         assert lookup_rows("//tmp/t", [{"key": 1}]) == [{"key": 1, "time": 3, "value": 10}]
 
     @authors("savrus")
-    def test_aggregate_alter(self):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_aggregate_alter(self, optimize_for):
         sync_create_cells(1)
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "time", "type": "int64"},
             {"name": "value", "type": "int64"},
         ]
-        create("table", "//tmp/t", attributes={"dynamic": True, "schema": schema})
+        create("table", "//tmp/t", attributes={"dynamic": True, "schema": schema, "optimize_for": optimize_for})
         sync_mount_table("//tmp/t")
 
         def verify_row(key, expected):

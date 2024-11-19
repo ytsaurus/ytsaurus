@@ -53,6 +53,7 @@ DEFINE_ENUM(ETabletReign,
     ((SmoothMovementDynamicStoreRead)              (101002)) // ifsmirnov
     // 25.1 starts here.
     ((Start_25_1)                                  (101100)) // ponasenko-rs
+    ((DropSamplingTimeCompats)                     (101101)) // sabdenovch
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");

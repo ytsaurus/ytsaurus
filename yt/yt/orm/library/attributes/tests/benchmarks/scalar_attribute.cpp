@@ -17,7 +17,7 @@ using namespace NTests;
 
 namespace {
 
-static void InitNestedMessage(NProto::TNestedMessage& message)
+void InitNestedMessage(NProto::TNestedMessage& message)
 {
     for (int i = 0; i < 3; ++i) {
         message.add_repeated_int32_field(i);
@@ -29,7 +29,7 @@ static void InitNestedMessage(NProto::TNestedMessage& message)
     }
 }
 
-static void InitSimpleFields(NProto::TMessage& message)
+void InitSimpleFields(NProto::TMessage& message)
 {
     message.set_int32_field(42);
     message.set_bool_field(true);
@@ -37,7 +37,7 @@ static void InitSimpleFields(NProto::TMessage& message)
     message.set_string_field("Hello, world!");
 }
 
-static void InitRepeatedSimpleFields(NProto::TMessage& message)
+void InitRepeatedSimpleFields(NProto::TMessage& message)
 {
     TString s{"abc_"};
 
@@ -49,7 +49,7 @@ static void InitRepeatedSimpleFields(NProto::TMessage& message)
     }
 }
 
-static void InitRepeatedNestedFields(NProto::TMessage& message)
+void InitRepeatedNestedFields(NProto::TMessage& message)
 {
     for (int i = 0; i < 10; ++i) {
         auto& nested = *message.add_repeated_nested_message();
@@ -57,7 +57,7 @@ static void InitRepeatedNestedFields(NProto::TMessage& message)
     }
 }
 
-static void InitMapSimpleFields(NProto::TMessage& message)
+void InitMapSimpleFields(NProto::TMessage& message)
 {
     NYT::TRandomGenerator rng(42);
 
@@ -68,7 +68,7 @@ static void InitMapSimpleFields(NProto::TMessage& message)
     }
 }
 
-static void InitMapNestedFields(NProto::TMessage& message)
+void InitMapNestedFields(NProto::TMessage& message)
 {
     NYT::TRandomGenerator rng(42);
 
@@ -80,13 +80,13 @@ static void InitMapNestedFields(NProto::TMessage& message)
     }
 }
 
-static void InitMessageFields(NProto::TMessage& message)
+void InitMessageFields(NProto::TMessage& message)
 {
     auto& nested = *message.mutable_nested_message();
     InitNestedMessage(nested);
 }
 
-static void Compare(
+void Compare(
     benchmark::State& state,
     const NProto::TMessage& m1,
     const NProto::TMessage& m2,
@@ -102,7 +102,7 @@ static void Compare(
 ////////////////////////////////////////////////////////////////////////////////
 
 #define BM_COMPARE_FIELD(test_name)               \
-static void BM_Compare ## test_name(              \
+void BM_Compare ## test_name(              \
     benchmark::State& state,                      \
     const TString& fieldName)                     \
 {                                                 \

@@ -893,7 +893,7 @@ void TBootstrap::DoInitialize()
     addresses.reserve(localCellConfig->Peers.size());
     for (const auto& peer : localCellConfig->Peers) {
         if (peer->Address) {
-            // TOOD(babenko): switch to std::string
+            // TODO(babenko): switch to std::string
             addresses.push_back(std::string(*peer->Address));
         }
     }

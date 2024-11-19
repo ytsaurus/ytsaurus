@@ -875,7 +875,8 @@ class TestBulkInsert(DynamicTablesBase):
     def test_table_writer_config(self, config_source):
         sync_create_cells(1)
         create("table", "//tmp/t_input")
-        self._create_simple_dynamic_table("//tmp/t_output")
+        # TODO(sabdenovch): remove optimize_for spec once MinRowRangeDataWeight is disposed of.
+        self._create_simple_dynamic_table("//tmp/t_output", optimize_for="lookup")
         sync_mount_table("//tmp/t_output")
 
         rows = [{"key": i, "value": str(i)} for i in range(100000)]

@@ -1583,6 +1583,10 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
             }
         }
 
+        for (auto& tableReplicaCandidates : replicaCandidates) {
+            std::random_shuffle(tableReplicaCandidates.begin(), tableReplicaCandidates.end());
+        }
+
         TErrorOr<TSelectRowsResult> resultOrError;
         for (int retryCount = 0; retryCount <= retryCountLimit; ++retryCount) {
             YT_LOG_DEBUG("Picking cluster for replica fallback (Tables: %v, Attempt: %v)",
@@ -1652,9 +1656,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto readSessionId = TReadSessionId::Create();
 
     auto memoryChunkProvider = MemoryProvider_->GetProvider(
-            ToString(readSessionId),
-            options.MemoryLimitPerNode,
-            QueryMemoryTracker_);
+        ToString(readSessionId),
+        options.MemoryLimitPerNode,
+        QueryMemoryTracker_);
 
     auto queryExecutor = CreateQueryExecutor(
         memoryChunkProvider,
@@ -1714,7 +1718,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         permissionKeys.push_back(NSecurityClient::TPermissionKey{
             .Object = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(*options.ExecutionPool),
             .User = Options_.GetAuthenticatedUser(),
-            .Permission = EPermission::Use
+            .Permission = EPermission::Use,
         });
     }
 
@@ -1748,7 +1752,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         ? false
         : options.NewRangeInference;
     queryOptions.ExecutionBackend = GetNativeConnection()->GetConfig()->UseWebAssembly
-        ? static_cast<NCodegen::EExecutionBackend>(options.ExecutionBackend.value_or(NApi::EExecutionBackend::WebAssembly))
+        ? static_cast<NCodegen::EExecutionBackend>(options.ExecutionBackend.value_or(NApi::EExecutionBackend::Native))
         : NCodegen::EExecutionBackend::Native;
     queryOptions.EnableCodeCache = options.EnableCodeCache;
     queryOptions.MaxSubqueries = options.MaxSubqueries;

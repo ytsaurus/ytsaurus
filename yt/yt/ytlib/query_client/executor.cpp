@@ -592,13 +592,11 @@ private:
 
         auto [frontQuery, bottomQueryPattern] = GetDistributedQueryPattern(query);
 
-        bool ordered = query->IsOrdered();
-        bool prefetch = query->Limit == std::numeric_limits<i64>::max() - 1;
         int splitCount = std::ssize(groupedDataSplits);
 
         return CoordinateAndExecute(
-            ordered,
-            prefetch,
+            query->IsOrdered(),
+            query->IsPrefetching(),
             splitCount,
             [
                 &,

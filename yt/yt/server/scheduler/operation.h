@@ -41,6 +41,7 @@ struct TOperationPoolTreeAttributes
 {
     std::optional<int> SlotIndex;
     bool RunningInEphemeralPool;
+    bool RunningInLightweightPool;
 
     REGISTER_YSON_STRUCT_LITE(TOperationPoolTreeAttributes);
 
@@ -138,7 +139,9 @@ struct IOperationStrategyHost
 
     virtual TOperationRuntimeParametersPtr GetRuntimeParameters() const = 0;
 
-    virtual void SetRunningInEphemeralPool(const TString& treeId, bool runningInEphemeralPool) = 0;
+    virtual void UpdatePoolAttributes(
+        const TString& treeId,
+        const TOperationPoolTreeAttributes& operationPoolTreeAttributes) = 0;
 
     virtual bool IsTreeErased(const TString& treeId) const = 0;
 
@@ -350,7 +353,9 @@ public:
 
     TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
     void SetRuntimeParameters(TOperationRuntimeParametersPtr parameters);
-    void SetRunningInEphemeralPool(const TString& treeId, bool runningInEphemeralPool) override;
+    void UpdatePoolAttributes(
+        const TString& treeId,
+        const TOperationPoolTreeAttributes& operationPoolTreeAttributes) override;
 
     std::optional<TJobResources> GetAggregatedInitialMinNeededResources() const override;
 

@@ -13,7 +13,7 @@ from yt_commands import (
     map, map_reduce, merge,
     vanilla, sort, run_test_vanilla,
     run_sleeping_vanilla, abort_op,
-    get_first_chunk_id, get_singular_chunk_id, update_op_parameters,
+    get_operation, get_first_chunk_id, get_singular_chunk_id, update_op_parameters,
     update_pool_tree_config, update_user_to_default_pool_map,
     enable_op_detailed_logs, set_node_banned, set_all_nodes_banned,
     create_test_tables, PrepareTables, raises_yt_error,
@@ -1316,7 +1316,7 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
         for op in ops:
             wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/lightweight"))
 
-    @authors("eshcherbin")
+    @authors("eshcherbin, omgronny")
     def test_change_operation_pool(self):
         self._create_pools()
 
@@ -1324,12 +1324,15 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
 
         for op in ops:
             self._wait_for_operation(op)
+            wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/lightweight"))
+            wait(lambda: get_operation(op.id)["scheduling_attributes_per_pool_tree"]["default"]["running_in_lightweight_pool"])
 
         for op in ops[:2]:
             update_op_parameters(op.id, parameters={"pool": "pool"})
 
         for op in ops[:2]:
             wait(lambda: not get(scheduler_orchid_operation_path(op.id) + "/lightweight"))
+            wait(lambda: not get_operation(op.id)["scheduling_attributes_per_pool_tree"]["default"]["running_in_lightweight_pool"])
 
         self._check_operation_counts(2, 2, 0, 1, 0, 1)
 
@@ -1341,12 +1344,13 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
 
         for op in ops:
             wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/lightweight"))
+            wait(lambda: get_operation(op.id)["scheduling_attributes_per_pool_tree"]["default"]["running_in_lightweight_pool"])
 
         self._run_operations(2, "pool")
 
         self._check_operation_counts(2, 2, 0, 3, 0, 3)
 
-    @authors("eshcherbin")
+    @authors("eshcherbin, omgronny")
     def test_change_pool_config(self):
         self._create_pools()
 
@@ -1356,6 +1360,13 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
         for op in ops:
             self._wait_for_operation(op)
 
+        for op in ops[:3]:
+            wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/lightweight"))
+            wait(lambda: get_operation(op.id)["scheduling_attributes_per_pool_tree"]["default"]["running_in_lightweight_pool"])
+        for op in ops[3:]:
+            wait(lambda: not get(scheduler_orchid_operation_path(op.id) + "/lightweight"))
+            wait(lambda: not get_operation(op.id)["scheduling_attributes_per_pool_tree"]["default"]["running_in_lightweight_pool"])
+
         self._check_operation_counts(2, 2, 0, 3, 0, 3)
 
         set("//sys/pool_trees/default/root/lightweight_pool/@enable_lightweight_operations", False)
@@ -1363,12 +1374,18 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
         wait(lambda: not get(scheduler_orchid_pool_path("lightweight_pool") + "/lightweight_operations_enabled"))
         wait(lambda: not get(scheduler_orchid_pool_path("lightweight_pool") + "/effective_lightweight_operations_enabled"))
         self._check_operation_counts(2, 2, 0, 3, 3, 0)
+        for op in ops:
+            wait(lambda: not get(scheduler_orchid_operation_path(op.id) + "/lightweight"))
+            wait(lambda: not get_operation(op.id)["scheduling_attributes_per_pool_tree"]["default"]["running_in_lightweight_pool"])
 
         set("//sys/pool_trees/default/root/lightweight_pool/@mode", "fair_share")
 
         wait(lambda: not get(scheduler_orchid_pool_path("lightweight_pool") + "/lightweight_operations_enabled"))
         wait(lambda: not get(scheduler_orchid_pool_path("lightweight_pool") + "/effective_lightweight_operations_enabled"))
         self._check_operation_counts(2, 2, 0, 3, 3, 0)
+        for op in ops:
+            wait(lambda: not get(scheduler_orchid_operation_path(op.id) + "/lightweight"))
+            wait(lambda: not get_operation(op.id)["scheduling_attributes_per_pool_tree"]["default"]["running_in_lightweight_pool"])
 
         set("//sys/pool_trees/default/root/lightweight_pool/@enable_lightweight_operations", True)
 
@@ -1381,6 +1398,10 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
         wait(lambda: get(scheduler_orchid_pool_path("lightweight_pool") + "/lightweight_operations_enabled"))
         wait(lambda: get(scheduler_orchid_pool_path("lightweight_pool") + "/effective_lightweight_operations_enabled"))
         self._check_operation_counts(2, 2, 0, 3, 0, 3)
+
+        for op in ops[:3]:
+            wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/lightweight"))
+            wait(lambda: get_operation(op.id)["scheduling_attributes_per_pool_tree"]["default"]["running_in_lightweight_pool"])
 
     @authors("eshcherbin")
     def test_vanilla_operation_in_fair_share_pool(self):

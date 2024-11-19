@@ -931,10 +931,10 @@ public:
                 TreeSetTopology_ = treeSetTopology;
             }
 
-            auto treeSetSnaphot = New<TFairShareTreeSetSnapshot>(
+            auto treeSetSnapshot = New<TFairShareTreeSetSnapshot>(
                 std::move(snapshottedTrees),
                 TreeSetTopologyVersion_);
-            TreeSetSnapshot_.Store(treeSetSnaphot);
+            TreeSetSnapshot_.Store(treeSetSnapshot);
 
             YT_LOG_DEBUG("Stored updated fair share tree snapshots");
         }

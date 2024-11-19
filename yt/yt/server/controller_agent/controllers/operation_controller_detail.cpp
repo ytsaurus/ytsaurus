@@ -5498,7 +5498,7 @@ void TOperationControllerBase::AddChunksToUnstageList(std::vector<TInputChunkPtr
         auto it = LivePreviewChunks_.find(chunk);
         YT_VERIFY(it != LivePreviewChunks_.end());
         auto livePreviewDescriptor = it->second;
-        auto result = DataFlowGraph_->UnregisterLivePreviewChunk(
+        auto result = DataFlowGraph_->TryUnregisterLivePreviewChunk(
             livePreviewDescriptor.VertexDescriptor,
             livePreviewDescriptor.LivePreviewIndex,
             chunk);
@@ -8262,7 +8262,7 @@ void TOperationControllerBase::AttachToLivePreview(
     }
 
     if (LivePreviews_->contains(tableName)) {
-        auto result = (*LivePreviews_)[tableName]->InsertChunk(chunk);
+        auto result = (*LivePreviews_)[tableName]->TryInsertChunk(chunk);
         if (!result.IsOK()) {
             static constexpr auto message = "Error registering a chunk in a live preview";
             if (Config->FailOperationOnErrorsInLivePreview) {
@@ -10674,7 +10674,7 @@ void TOperationControllerBase::RegisterLivePreviewChunk(
         chunk,
         TLivePreviewChunkDescriptor{vertexDescriptor, index}).second);
 
-    auto result = DataFlowGraph_->RegisterLivePreviewChunk(vertexDescriptor, index, chunk);
+    auto result = DataFlowGraph_->TryRegisterLivePreviewChunk(vertexDescriptor, index, chunk);
     if (!result.IsOK()) {
         static constexpr auto message = "Error registering a chunk in a live preview";
         auto tableName = "output_" + ToString(index);

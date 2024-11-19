@@ -166,7 +166,7 @@ struct TQueryOptions
     // COMPAT(lukyan)
     bool NewRangeInference = true;
     int MaxSubqueries = std::numeric_limits<int>::max();
-    int MinRowCountPerSubquery = 100'000;
+    i64 MinRowCountPerSubquery = 100'000;
     std::optional<bool> UseLookupCache;
     ui64 RangeExpansionLimit = 0;
     TWorkloadDescriptor WorkloadDescriptor;

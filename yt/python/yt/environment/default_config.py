@@ -173,20 +173,6 @@ def get_dynamic_master_config():
 
     sequoia_manager = {};
 
-    incumbent_manager = {
-        scheduler = {
-            incumbents = {
-                cell_janitor = {
-                    use_followers = %true;
-                };
-                chunk_replicator = {
-                    use_followers = %true;
-                    weight = 1000000;
-                };
-            };
-        };
-    };
-
     cell_master = {
         alert_update_period = 500;
     };

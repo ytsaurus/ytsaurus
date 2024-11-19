@@ -4,6 +4,7 @@ RECURSE(
     context_switch
     exceptions
     fair_share_action_queue
+    format_string
     formats
     insert
     io
