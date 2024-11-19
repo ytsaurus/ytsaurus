@@ -36,6 +36,7 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
+#include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/library/process/process.h>
@@ -807,19 +808,12 @@ private:
                 continue;
             }
 
-            const auto& jobSpec = job->GetSpec();
-            auto jobSpecExtId = TJobSpecExt::job_spec_ext;
-            if (!jobSpec.HasExtension(jobSpecExtId)) {
+            if (!job->HasUserJobSpec()) {
                 continue;
             }
 
-            const auto& jobSpecExt = jobSpec.GetExtension(jobSpecExtId);
-            if (!jobSpecExt.has_user_job_spec()) {
-                continue;
-            }
-
-            for (const auto& tmpfsVolumeProto : jobSpecExt.user_job_spec().tmpfs_volumes()) {
-                tmpfsLimit += tmpfsVolumeProto.size();
+            for (const auto& tmpfsVolume : job->GetTmpfsVolumeInfos()) {
+                tmpfsLimit += tmpfsVolume->Size;
             }
 
             auto statisticsYson = job->GetStatistics();

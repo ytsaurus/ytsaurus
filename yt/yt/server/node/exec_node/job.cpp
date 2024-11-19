@@ -308,11 +308,12 @@ TJob::TJob(
     : Id_(jobId)
     , OperationId_(operationId)
     , Bootstrap_(bootstrap)
+    , JobType_(FromProto<EJobType>(jobSpec.type()))
     , Logger(ExecNodeLogger().WithTag(
         "JobId: %v, OperationId: %v, JobType: %v",
         jobId,
         operationId,
-        FromProto<EJobType>(jobSpec.type())))
+        JobType_))
     , Allocation_(std::move(allocation))
     , ResourceHolder_(Allocation_->GetResourceHolder())
     , ControllerAgentDescriptor_(std::move(agentDescriptor))
@@ -323,14 +324,20 @@ TJob::TJob(
     , CreationTime_(TInstant::Now())
     , TrafficMeter_(New<TTrafficMeter>(
         Bootstrap_->GetLocalDescriptor().GetDataCenter()))
-    , JobSpec_(std::move(jobSpec))
-    , JobSpecExt_(&JobSpec_.GetExtension(TJobSpecExt::job_spec_ext))
-    , UserJobSpec_(JobSpecExt_ && JobSpecExt_->has_user_job_spec() ? &JobSpecExt_->user_job_spec() : nullptr)
-    , JobTestingOptions_(JobSpecExt_ && JobSpecExt_->has_testing_options()
-        ? ConvertTo<TJobTestingOptionsPtr>(TYsonString(JobSpecExt_->testing_options()))
+    , GuardedJobSpec_(std::move(jobSpec))
+    , JobSpec_(GuardedJobSpec_.Read([] (const TJobSpec& spec) -> const TJobSpec& {
+        return spec;
+    }))
+    , JobSpecExt_(JobSpec_.GetExtension(TJobSpecExt::job_spec_ext))
+    , UserJobSpec_(JobSpecExt_.has_user_job_spec() ? &JobSpecExt_.user_job_spec() : nullptr)
+    , JobTestingOptions_(JobSpecExt_.has_testing_options()
+        ? ConvertTo<TJobTestingOptionsPtr>(TYsonString(JobSpecExt_.testing_options()))
         : New<TJobTestingOptions>())
-    , Interruptible_(JobSpecExt_->interruptible())
-    , AbortJobIfAccountLimitExceeded_(JobSpecExt_->abort_job_if_account_limit_exceeded())
+    , Interruptible_(JobSpecExt_.interruptible())
+    , AbortJobIfAccountLimitExceeded_(JobSpecExt_.abort_job_if_account_limit_exceeded())
+    , RootVolumeDiskQuotaEnabled_(JobSpecExt_.enable_root_volume_disk_quota())
+    , HasUserJobSpec_(UserJobSpec_ != nullptr)
+    , TmpfsVolumeInfos_(ParseTmpfsVolumeInfos(UserJobSpec_))
     , IsGpuRequested_(Allocation_->GetRequestedGpu() > 0)
     , TraceContext_(TTraceContext::NewRoot("Job"))
     , FinishGuard_(TraceContext_)
@@ -341,22 +348,28 @@ TJob::TJob(
 
     YT_LOG_DEBUG("Creating job");
 
-    PackBaggageFromJobSpec(TraceContext_, JobSpec_, OperationId_, Id_);
+    PackBaggageFromJobSpec(TraceContext_, JobSpec_, OperationId_, Id_, JobType_);
 
     TrafficMeter_->Start();
 
     AddJobEvent(JobState_, JobPhase_);
 
     HandleJobReport(MakeDefaultJobReport()
-        .TreeId(JobSpecExt_->tree_id()));
+        .TreeId(JobSpecExt_.tree_id()));
 }
 
 TJob::~TJob()
 {
     YT_LOG_DEBUG("Destroying job");
+
+    auto jobSpec = GuardedJobSpec_.Transform(
+        [] (TJobSpec& spec) -> TJobSpec {
+            return std::move(spec);
+        });
+
     // Offload job spec destruction to a large thread pool.
     NRpc::TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(
-        BIND_NO_PROPAGATE([jobSpec = std::move(JobSpec_)]{ }));
+        BIND_NO_PROPAGATE([jobSpec = std::move(jobSpec)]{ }));
 }
 
 TYsonString TJob::BuildArchiveFeatures() const
@@ -1004,14 +1017,14 @@ EJobType TJob::GetType() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return FromProto<EJobType>(JobSpec_.type());
+    return JobType_;
 }
 
-const TJobSpec& TJob::GetSpec() const
+TJobSpec TJob::GetSpec() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return JobSpec_;
+    return GuardedJobSpec_.Load();
 }
 
 EJobState TJob::GetState() const
@@ -2178,8 +2191,11 @@ void TJob::OnNodeDirectoryPrepared(TErrorOr<std::unique_ptr<NNodeTrackerClient::
                 "Failed to prepare job node directory");
 
             if (auto& protoNodeDirectory = protoNodeDirectoryOrError.Value()) {
-                auto* jobSpecExt = JobSpec_.MutableExtension(TJobSpecExt::job_spec_ext);
-                jobSpecExt->mutable_input_node_directory()->Swap(protoNodeDirectory.get());
+                GuardedJobSpec_.Transform([&](TJobSpec& jobSpec) {
+                    jobSpec.MutableExtension(TJobSpecExt::job_spec_ext)
+                        ->mutable_input_node_directory()
+                        ->Swap(protoNodeDirectory.get());
+                });
             }
 
             SetJobPhase(EJobPhase::DownloadingArtifacts);
@@ -2418,11 +2434,13 @@ void TJob::RunJobProxy()
     auto eligibleChunks = GetKeys(ProxiableChunks_.Load());
     auto hotChunks = JobInputCache_->FilterHotChunkIds(eligibleChunks);
 
-    PrepareProxiedChunkReading(
-        Bootstrap_->GetNodeId(),
-        hotChunks,
-        THashSet<TChunkId>(eligibleChunks.begin(), eligibleChunks.end()),
-        JobSpec_.MutableExtension(TJobSpecExt::job_spec_ext));
+    GuardedJobSpec_.Transform([&] (TJobSpec& jobSpec) {
+        PrepareProxiedChunkReading(
+            Bootstrap_->GetNodeId(),
+            hotChunks,
+            THashSet<TChunkId>(eligibleChunks.begin(), eligibleChunks.end()),
+            jobSpec.MutableExtension(TJobSpecExt::job_spec_ext));
+    });
 
     BIND(
         &IUserSlot::RunJobProxy,
@@ -2430,12 +2448,12 @@ void TJob::RunJobProxy()
         CreateConfig(),
         Id_,
         OperationId_)
-    .AsyncVia(Invoker_)
-    .Run()
-    .Subscribe(BIND(
-        &TJob::OnJobProxyFinished,
-        MakeWeak(this))
-    .Via(Invoker_));
+        .AsyncVia(Invoker_)
+        .Run()
+        .Subscribe(BIND(
+            &TJob::OnJobProxyFinished,
+            MakeWeak(this))
+        .Via(Invoker_));
 
     TDelayedExecutor::Submit(
         BIND(
@@ -2665,8 +2683,10 @@ void TJob::Cleanup()
     // NodeDirectory can be really huge, we better offload its cleanup.
     // NB: do this after slot cleanup.
     {
-        auto* inputNodeDirectory = JobSpec_.MutableExtension(TJobSpecExt::job_spec_ext)
-            ->release_input_node_directory();
+        auto* inputNodeDirectory = GuardedJobSpec_.Transform([] (TJobSpec& jobSpec) {
+            return jobSpec.MutableExtension(TJobSpecExt::job_spec_ext)
+                ->release_input_node_directory();
+        });
         NRpc::TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(BIND([inputNodeDirectory] {
             delete inputNodeDirectory;
         }));
@@ -3090,21 +3110,21 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     }
 
     proxyConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);
-    if (!JobSpecExt_->enable_prefetching_job_throttler()) {
+    if (!JobSpecExt_.enable_prefetching_job_throttler()) {
         proxyConfig->JobThrottler->BandwidthPrefetch->Enable = false;
         proxyConfig->JobThrottler->RpsPrefetch->Enable = false;
     }
     YT_LOG_DEBUG(
         "Initialize prefetching job throttler (DynamicConfigEnable: %v, JobSpecEnable: %v, PrefetchEnable: %v)",
         CommonConfig_->JobThrottler->BandwidthPrefetch->Enable,
-        JobSpecExt_->enable_prefetching_job_throttler(),
+        JobSpecExt_.enable_prefetching_job_throttler(),
         proxyConfig->JobThrottler->BandwidthPrefetch->Enable);
 
     proxyConfig->StatisticsOutputTableCountLimit = CommonConfig_->StatisticsOutputTableCountLimit;
 
     proxyConfig->OperationsArchiveVersion = Bootstrap_->GetJobController()->GetOperationsArchiveVersion();
 
-    proxyConfig->EnableRootVolumeDiskQuota = ExtractEnableRootVolumeDiskQuotaFlag();
+    proxyConfig->EnableRootVolumeDiskQuota = RootVolumeDiskQuotaEnabled_;
 
     proxyConfig->ClusterThrottlersConfig = Bootstrap_->GetThrottlerManager()->GetClusterThrottlersConfig();
 
@@ -3179,11 +3199,6 @@ void TJob::BuildVirtualSandbox()
         std::move(logger));
 }
 
-bool TJob::ExtractEnableRootVolumeDiskQuotaFlag()
-{
-    return JobSpecExt_->enable_root_volume_disk_quota();
-}
-
 TUserSandboxOptions TJob::BuildUserSandboxOptions()
 {
     TUserSandboxOptions options;
@@ -3191,7 +3206,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     options.DiskOverdraftCallback = BIND(&TJob::Fail, MakeWeak(this))
         .Via(Invoker_);
     // TODO(khlebnikov): Move into volume manager.
-    options.EnableRootVolumeDiskQuota = ExtractEnableRootVolumeDiskQuotaFlag();
+    options.EnableRootVolumeDiskQuota = RootVolumeDiskQuotaEnabled_;
     options.UserId = GetUserSlot()->GetUserId();
 
     if (UserJobSpec_) {
@@ -3308,8 +3323,8 @@ void TJob::InitializeArtifacts()
         }
     }
 
-    if (JobSpecExt_->has_input_query_spec()) {
-        const auto& querySpec = JobSpecExt_->input_query_spec();
+    if (JobSpecExt_.has_input_query_spec()) {
+        const auto& querySpec = JobSpecExt_.input_query_spec();
         for (const auto& function : querySpec.external_functions()) {
             TArtifactKey key;
             key.mutable_data_source()->set_type(ToProto(EDataSourceType::File));
@@ -3342,8 +3357,8 @@ void TJob::InitializeArtifacts()
 
     if (!LayerArtifactKeys_.empty() &&
         Bootstrap_->GetNbdServer() &&
-        ExtractEnableRootVolumeDiskQuotaFlag() &&
-        JobSpecExt_->enable_virtual_sandbox())
+        RootVolumeDiskQuotaEnabled_ &&
+        JobSpecExt_.enable_virtual_sandbox())
     {
         // Mark artifacts that will be accessed via virtual layer.
         int virtualSandboxArtifactCount = 0;
@@ -3377,7 +3392,7 @@ TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions() const
     std::vector<TString> workloadDescriptorAnnotations = {
         Format("OperationId: %v", OperationId_),
         Format("JobId: %v", Id_),
-        Format("AuthenticatedUser: %v", JobSpecExt_->authenticated_user()),
+        Format("AuthenticatedUser: %v", JobSpecExt_.authenticated_user()),
     };
 
     auto options = TArtifactDownloadOptions{
@@ -3926,14 +3941,14 @@ TNodeJobReport TJob::MakeDefaultJobReport()
     if (FinishTime_) {
         report.SetFinishTime(*FinishTime_);
     }
-    if (JobSpecExt_->has_job_competition_id()) {
-        report.SetJobCompetitionId(FromProto<TJobId>(JobSpecExt_->job_competition_id()));
+    if (JobSpecExt_.has_job_competition_id()) {
+        report.SetJobCompetitionId(FromProto<TJobId>(JobSpecExt_.job_competition_id()));
     }
-    if (JobSpecExt_->has_probing_job_competition_id()) {
-        report.SetProbingJobCompetitionId(FromProto<TJobId>(JobSpecExt_->probing_job_competition_id()));
+    if (JobSpecExt_.has_probing_job_competition_id()) {
+        report.SetProbingJobCompetitionId(FromProto<TJobId>(JobSpecExt_.probing_job_competition_id()));
     }
-    if (JobSpecExt_->has_task_name()) {
-        report.SetTaskName(JobSpecExt_->task_name());
+    if (JobSpecExt_.has_task_name()) {
+        report.SetTaskName(JobSpecExt_.task_name());
     }
     if (UserJobSpec_ &&
         UserJobSpec_->has_archive_ttl())
@@ -4002,8 +4017,8 @@ bool TJob::NeedGpuLayers()
         return false;
     }
 
-    if (JobSpecExt_->has_user_job_spec()) {
-        const auto& userJobSpec = JobSpecExt_->user_job_spec();
+    if (JobSpecExt_.has_user_job_spec()) {
+        const auto& userJobSpec = JobSpecExt_.user_job_spec();
         if (userJobSpec.has_cuda_toolkit_version()) {
             return true;
         }
@@ -4146,6 +4161,8 @@ TFuture<TSharedRef> TJob::DumpSensors()
 
 bool TJob::NeedsGpuCheck() const
 {
+    VERIFY_THREAD_AFFINITY(JobThread);
+
     return UserJobSpec_ && UserJobSpec_->has_gpu_check_binary_path();
 }
 
@@ -4166,6 +4183,42 @@ bool TJob::UpdateJobProxyHearbeatEpoch(i64 epoch)
     }
     JobProxyHearbeatEpoch_ = epoch;
     return true;
+}
+
+const std::vector<NScheduler::TTmpfsVolumeConfigPtr>& TJob::GetTmpfsVolumeInfos() const noexcept
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return TmpfsVolumeInfos_;
+}
+
+bool TJob::HasUserJobSpec() const noexcept
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return HasUserJobSpec_;
+}
+
+std::vector<NScheduler::TTmpfsVolumeConfigPtr> TJob::ParseTmpfsVolumeInfos(
+    const NControllerAgent::NProto::TUserJobSpec* maybeUserJobSpec)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    if (!maybeUserJobSpec) {
+        return {};
+    }
+
+    std::vector<TTmpfsVolumeConfigPtr> result;
+    using std::size;
+    result.reserve(size(maybeUserJobSpec->tmpfs_volumes()));
+
+    for (const auto& volume : maybeUserJobSpec->tmpfs_volumes()) {
+        result.push_back(New<TTmpfsVolumeConfig>());
+
+        FromProto(result.back().Get(), volume);
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
