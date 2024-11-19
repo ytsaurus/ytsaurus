@@ -38,8 +38,8 @@ public:
         TString name = "",
         NYTree::TYPath path = "");
 
-    TError InsertChunk(NChunkClient::TInputChunkPtr chunk);
-    TError EraseChunk(NChunkClient::TInputChunkPtr chunk);
+    TError TryInsertChunk(NChunkClient::TInputChunkPtr chunk);
+    TError TryEraseChunk(const NChunkClient::TInputChunkPtr& chunk);
 
     void Persist(const TPersistenceContext& context);
 

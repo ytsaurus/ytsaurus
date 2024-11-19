@@ -265,7 +265,7 @@ public:
         }
     }
 
-    TError RegisterLivePreviewChunk(int index, TInputChunkPtr chunk)
+    TError TryRegisterLivePreviewChunk(int index, TInputChunkPtr chunk)
     {
         if (index >= std::ssize(*LivePreviews_)) {
             LivePreviews_->resize(index + 1);
@@ -282,15 +282,15 @@ public:
             (*LivePreviews_)[index] = New<TLivePreview>(std::move(schema), NodeDirectory_);
         }
 
-        return (*LivePreviews_)[index]->InsertChunk(std::move(chunk));
+        return (*LivePreviews_)[index]->TryInsertChunk(std::move(chunk));
     }
 
-    TError UnregisterLivePreviewChunk(int index, TInputChunkPtr chunk)
+    TError TryUnregisterLivePreviewChunk(int index, TInputChunkPtr chunk)
     {
         YT_VERIFY(0 <= index && index < std::ssize(*LivePreviews_));
         YT_VERIFY((*LivePreviews_)[index]);
 
-        return (*LivePreviews_)[index]->EraseChunk(std::move(chunk));
+        return (*LivePreviews_)[index]->TryEraseChunk(std::move(chunk));
     }
 
 private:
@@ -407,16 +407,16 @@ public:
         counter->AddParent(vertex->JobCounter());
     }
 
-    TError RegisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, TInputChunkPtr chunk)
+    TError TryRegisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, TInputChunkPtr chunk)
     {
         const auto& vertex = GetOrRegisterVertex(descriptor);
-        return vertex->RegisterLivePreviewChunk(index, std::move(chunk));
+        return vertex->TryRegisterLivePreviewChunk(index, std::move(chunk));
     }
 
-    TError UnregisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, TInputChunkPtr chunk)
+    TError TryUnregisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, TInputChunkPtr chunk)
     {
         const auto& vertex = GetOrRegisterVertex(descriptor);
-        return vertex->UnregisterLivePreviewChunk(index, std::move(chunk));
+        return vertex->TryUnregisterLivePreviewChunk(index, std::move(chunk));
     }
 
     void BuildDataFlowYson(TFluentList fluent) const
@@ -570,14 +570,14 @@ void TDataFlowGraph::RegisterCounter(
     Impl_->RegisterCounter(vertex, counter, jobType);
 }
 
-TError TDataFlowGraph::RegisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, TInputChunkPtr chunk)
+TError TDataFlowGraph::TryRegisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, TInputChunkPtr chunk)
 {
-    return Impl_->RegisterLivePreviewChunk(descriptor, index, std::move(chunk));
+    return Impl_->TryRegisterLivePreviewChunk(descriptor, index, std::move(chunk));
 }
 
-TError TDataFlowGraph::UnregisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, TInputChunkPtr chunk)
+TError TDataFlowGraph::TryUnregisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, TInputChunkPtr chunk)
 {
-    return Impl_->UnregisterLivePreviewChunk(descriptor, index, std::move(chunk));
+    return Impl_->TryUnregisterLivePreviewChunk(descriptor, index, std::move(chunk));
 }
 
 void TDataFlowGraph::BuildDataFlowYson(TFluentList fluent) const
