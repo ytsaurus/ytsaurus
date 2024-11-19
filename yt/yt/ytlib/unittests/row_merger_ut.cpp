@@ -567,6 +567,43 @@ TEST_F(TUnversionedRowMergerTest, MergeNestedColumns1)
     }
 }
 
+TEST_F(TUnversionedRowMergerTest, MergeNestedColumns2)
+{
+
+    TTableSchema schema({
+        TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("nk1", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))
+            .SetAggregate("nested_key(n)"),
+        TColumnSchema("nk2", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))
+            .SetAggregate("nested_key(n)"),
+        TColumnSchema("nv1", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))
+            .SetAggregate("nested_value(n, sum)"),
+    });
+
+    auto schemaPtr = New<TTableSchema>(schema);
+    auto evaluator = ColumnEvaluatorCache_->Find(schemaPtr);
+
+    auto merger = std::make_unique<TUnversionedRowMerger>(
+        MergedRowBuffer_,
+        schema.Columns().size(),
+        schema.GetKeyColumnCount(),
+        evaluator,
+        GetNestedColumnsSchema(schemaPtr));
+
+    {
+        auto row = BuildUnversionedRow("<id=0>0; <id=1;aggregate=true>[1;1;1]; <id=2;aggregate=true>[1;2;3]");
+        merger->InitPartialRow(row);
+        merger->AddPartialRow(row);
+
+        merger->AddPartialRow(BuildUnversionedRow(
+            "<id=0>0; <id=1;aggregate=true>[1;1;1]; <id=2;aggregate=true>[1;2;4]; <id=3;aggregate=true>[4;5;6]"));
+        EXPECT_EQ(
+            BuildUnversionedRow(
+                "<id=0>0; <id=1>[1;1;1;1]; <id=2;aggregate=true>[1;2;3;4]; <id=3;aggregate=true>[4;5;#;6]"),
+            merger->BuildMergedRow());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVersionedRowMergerTest
