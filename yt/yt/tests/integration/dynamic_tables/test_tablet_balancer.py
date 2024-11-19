@@ -372,7 +372,8 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
 
         self._create_sorted_table(
             "//tmp/t",
-            in_memory_mode=in_memory_mode)
+            in_memory_mode=in_memory_mode,
+            optimize_for="lookup")
         self._set_default_metric(parameterized_balancing_metric)
 
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_verbose_logging", True)

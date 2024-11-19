@@ -39,9 +39,9 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         set("//tmp/t/@min_partition_data_size", 256)
         sync_mount_table("//tmp/t")
 
-        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(20)])
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(40)])
         sync_unmount_table("//tmp/t")
-        sync_reshard_table("//tmp/t", [[], [1], [18]])
+        sync_reshard_table("//tmp/t", [[], [1], [38]])
         sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/1/tablet_id")
@@ -76,7 +76,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         orchid = self._find_tablet_orchid(address, tablet_id)
         assert len(orchid["partitions"]) == 1
 
-        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(16)])
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(32)])
         sync_flush_table("//tmp/t")
         wait(lambda: len(self._find_tablet_orchid(address, tablet_id)["partitions"]) > 1)
 

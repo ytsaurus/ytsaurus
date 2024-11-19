@@ -115,9 +115,10 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     }
 
     auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
+    bool dynamic = combinedAttributes->GetAndRemove<bool>("dynamic", false);
     auto optionalTabletCellBundleName = combinedAttributes->FindAndRemove<std::string>("tablet_cell_bundle");
     bool optimizeForIsExplicit = context.ExplicitAttributes->Contains("optimize_for");
-    auto optimizeFor = combinedAttributes->GetAndRemove<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
+    auto optimizeFor = combinedAttributes->GetAndRemove<EOptimizeFor>("optimize_for", dynamic ? EOptimizeFor::Scan : EOptimizeFor::Lookup);
     auto optionalChunkFormat = combinedAttributes->FindAndRemove<EChunkFormat>("chunk_format");
     auto hunkErasureCodec = combinedAttributes->GetAndRemove<NErasure::ECodec>("hunk_erasure_codec", NErasure::ECodec::None);
     auto replicationFactor = combinedAttributes->GetAndRemove("replication_factor", cypressManagerConfig->DefaultTableReplicationFactor);
@@ -138,7 +139,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         optimizeFor = OptimizeForFromFormat(*optionalChunkFormat);
     }
 
-    bool dynamic = combinedAttributes->GetAndRemove<bool>("dynamic", false);
     auto type = TypeFromId(id.ObjectId);
     bool replicated = type == EObjectType::ReplicatedTable;
     bool log = IsLogTableType(type);
