@@ -551,7 +551,7 @@ TMutableUnversionedRow TUnversionedRowMerger::BuildMergedRow()
         if (NestedKeyColumns_[index].empty()) {
             continue;
         }
-        auto initialAggregateFlags = NestedValueColumns_[index].front().Flags & EValueFlags::Aggregate;
+        auto initialAggregateFlags = NestedKeyColumns_[index].front().Flags & EValueFlags::Aggregate;
 
         auto columnId = NestedColumnsSchema_.KeyColumns[index].Id;
         auto state = NestedMerger_.BuildMergedKeyColumns(index, RowBuffer_.Get());
