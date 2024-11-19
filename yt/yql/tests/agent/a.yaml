@@ -1,0 +1,13 @@
+service: yt
+title: YT YQL agent
+
+ci:
+  secret: sec-01ezwk99a9d1symtp2eg6a93hh
+  runtime:
+    sandbox-owner: YT_ROBOT
+
+  autocheck:
+    strong: true
+    large-autostart:
+      - target: yt/yql/tests/agent
+
