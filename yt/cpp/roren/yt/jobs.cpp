@@ -1,5 +1,7 @@
 #include "jobs.h"
 
+#include "table_stream_registry.h"
+
 #include <yt/cpp/roren/interface/roren.h>
 
 #include <yt/cpp/mapreduce/interface/client.h>
@@ -507,9 +509,9 @@ public:
                 outputs.emplace_back(std::move(output));
             }
 
-            auto stateStream = std::make_unique<TFileOutput>(Duplicate(GetOutputFD(0)));
+            auto stateStream = GetTableStream(0);
             auto stateYsonWriter = std::make_unique<::NYson::TYsonWriter>(
-                stateStream.get(),
+                stateStream,
                 ::NYson::EYsonFormat::Binary,
                 ::NYson::EYsonType::ListFragment
             );
@@ -566,8 +568,7 @@ public:
             statefulParDo->Finish();
 
             stateYsonWriter.reset();
-            stateStream->Finish();
-            stateStream.reset();
+            stateStream->Flush();
         } catch (...) {
             Cerr << "Error in TStatefulKvReduce" << Endl;
             Cerr << TBackTrace::FromCurrentException().PrintToString() << Endl;
@@ -846,9 +847,9 @@ public:
         }
 
         // TODO(whatsername): Something more elegant?
-        StateStream_ = std::make_unique<TFileOutput>(Duplicate(GetOutputFD(0)));
+        StateStream_ = GetTableStream(0);
         StateYsonWriter_ = std::make_unique<::NYson::TYsonWriter>(
-            StateStream_.get(),
+            StateStream_,
             ::NYson::EYsonFormat::Binary,
             ::NYson::EYsonType::ListFragment
         );
@@ -876,7 +877,6 @@ public:
 
         StateYsonWriter_.reset();
         StateStream_->Finish();
-        StateStream_.reset();
     }
 
     const TFnAttributes& GetFnAttributes() const override
@@ -917,7 +917,7 @@ private:
 
     std::vector<TRowVtable> InVtables_;
 
-    std::unique_ptr<TFileOutput> StateStream_;
+    IOutputStream* StateStream_ = nullptr;
     std::unique_ptr<::NYson::TYsonWriter> StateYsonWriter_;
 };
 
