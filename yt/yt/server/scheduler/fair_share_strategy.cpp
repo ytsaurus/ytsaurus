@@ -1308,6 +1308,9 @@ public:
         std::vector<TError> multiTreeSchedulingErrors;
         for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
             auto tree = GetTree(treeId);
+
+            tree->OnOperationMaterialized(operationId);
+
             if (auto error = tree->CheckOperationJobResourceLimitsRestrictions(operationId, revivedFromSnapshot);
                 !error.IsOK())
             {
