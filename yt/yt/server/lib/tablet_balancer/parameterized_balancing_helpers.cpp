@@ -199,9 +199,10 @@ private:
     struct TNodeInfo
     {
         const TNodeAddress Address;
-        int Index;
         double Metric = 0;
         i64 FreeNodeMemory = 0;
+        int Index;
+        bool Overloaded = false;
     };
 
     struct TTabletCellInfo
@@ -498,16 +499,14 @@ void TParameterizedReassignSolver::CalculateMemory(const THashMap<TTabletCellId,
                 actualUsage,
                 statistics.MemoryLimit);
             if (statistics.MemoryLimit < actualUsage) {
-                THROW_ERROR_EXCEPTION(
-                    "Node memory usage exceeds memory limit")
-                    << TErrorAttribute("memory_limit", statistics.MemoryLimit)
-                    << TErrorAttribute("memory_usage", statistics.MemoryUsed)
-                    << TErrorAttribute("actual_memory_usage", actualUsage)
-                    << TErrorAttribute("node", address)
-                    << TErrorAttribute("cell_count", count)
-                    << TErrorAttribute("tablet_slot_count", statistics.TabletSlotCount)
-                    << TErrorAttribute("group", GroupName_)
-                    << TErrorAttribute("bundle", Bundle_->Name);
+                YT_LOG_WARNING("Node memory usage exceeds memory limit (MemoryLimit: %v, MemoryUsage: %v, "
+                    "ActualMemoryUsage: %v, Node: %v, CellCount: %v, TabletSlotCount: %v)",
+                    statistics.MemoryLimit,
+                    statistics.MemoryUsed,
+                    actualUsage,
+                    address,
+                    count,
+                    statistics.TabletSlotCount);
             }
             free = statistics.MemoryLimit - actualUsage;
         } else {
@@ -517,7 +516,10 @@ void TParameterizedReassignSolver::CalculateMemory(const THashMap<TTabletCellId,
         auto tabletSlotCount = std::max(statistics.TabletSlotCount, count);
         auto cellLimit = (statistics.MemoryLimit - unaccountedUsage) / tabletSlotCount;
 
-        GetOrCrash(Nodes_, address).FreeNodeMemory = free;
+        auto& node = GetOrCrash(Nodes_, address);
+        node.FreeNodeMemory = free;
+        node.Overloaded = free < 0;
+
         EmplaceOrCrash(cellMemoryLimit, address, cellLimit);
     }
 
@@ -691,7 +693,8 @@ bool TParameterizedReassignSolver::CheckMoveFollowsMemoryLimits(
         return false;
     }
 
-    return destinationCell->Node == sourceCell->Node || destinationCell->Node->FreeNodeMemory >= size;
+    return destinationCell->Node == sourceCell->Node ||
+        destinationCell->Node->FreeNodeMemory >= size && !destinationCell->Node->Overloaded;
 }
 
 //! Generates an action moving |tablet| to |cell|. Returns |false| if it can be proven that all further actions will be pruned and the iteration can be stopped.
