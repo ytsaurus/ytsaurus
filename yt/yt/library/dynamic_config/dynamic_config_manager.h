@@ -93,6 +93,7 @@ private:
     NYTree::IMapNodePtr AppliedConfigNode_;
     TConfigPtr AppliedConfig_;
     TConfigPtr InitialConfig_;
+    NYTree::IMapNodePtr LastAppliedConfigPatchNode_;
 
     std::vector<std::string> InstanceTags_;
 
