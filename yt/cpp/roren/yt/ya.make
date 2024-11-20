@@ -11,6 +11,7 @@ SRCS(
     kv_state.cpp
     operations.cpp
     profile_state.cpp
+    table_stream_registry.cpp
     tables.cpp
     transforms.cpp
     visitors.cpp

@@ -42,6 +42,7 @@ target_sources(cpp-roren-yt PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/kv_state.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/operations.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/profile_state.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/table_stream_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/tables.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/transforms.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/visitors.cpp
