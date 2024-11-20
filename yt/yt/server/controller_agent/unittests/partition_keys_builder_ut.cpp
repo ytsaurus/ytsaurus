@@ -60,7 +60,7 @@ TEST_F(TPartitionKeysBuilderTest, TwoPartitions)
     auto samples = GenerateIntSamples({2, 8, 10, 15, 15, 25});
     std::shuffle(samples.begin(), samples.end(), Generator_);
 
-    auto keys = BuildPartitionKeysBySamples(
+    auto keys = BuildPartitionKeysFromSamples(
         samples,
         SampleSchema_,
         UploadSchema_,
@@ -81,7 +81,7 @@ TEST_F(TPartitionKeysBuilderTest, SinglePartition)
     auto samples = GenerateIntSamples({2, 8, 10, 15, 15, 25});
     std::shuffle(samples.begin(), samples.end(), Generator_);
 
-    auto keys = BuildPartitionKeysBySamples(
+    auto keys = BuildPartitionKeysFromSamples(
         samples,
         SampleSchema_,
         UploadSchema_,
@@ -97,7 +97,7 @@ TEST_F(TPartitionKeysBuilderTest, ManiacPartition)
 {
     auto samples = GenerateIntSamples({1, 8, 8, 8, 8, 9});
 
-    auto keys = BuildPartitionKeysBySamples(
+    auto keys = BuildPartitionKeysFromSamples(
         samples,
         SampleSchema_,
         UploadSchema_,
@@ -125,7 +125,7 @@ TEST_F(TPartitionKeysBuilderTest, IncompleteSample)
         samples[i].Incomplete = true;
     }
 
-    auto keys = BuildPartitionKeysBySamples(
+    auto keys = BuildPartitionKeysFromSamples(
         samples,
         SampleSchema_,
         UploadSchema_,
@@ -143,7 +143,7 @@ TEST_F(TPartitionKeysBuilderTest, ShiftedRowWeights)
     auto samples = GenerateIntSamples({1, 2, 3, 4, 5});
     samples.back().Weight = 100500;
 
-    auto keys = BuildPartitionKeysBySamples(
+    auto keys = BuildPartitionKeysFromSamples(
         samples,
         SampleSchema_,
         UploadSchema_,
@@ -181,7 +181,7 @@ TEST_F(TPartitionKeysBuilderTest, ColumnWithExpression)
             TColumnSchema("x", ESimpleLogicalValueType::Int64),
             TColumnSchema("y", ESimpleLogicalValueType::Int64)});
 
-    auto keys = BuildPartitionKeysBySamples(
+    auto keys = BuildPartitionKeysFromSamples(
         samples,
         SampleSchema_,
         UploadSchema_,
