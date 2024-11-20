@@ -265,6 +265,7 @@ IRowStreamEncoderPtr CreateRowStreamEncoder(
     NApi::NRpcProxy::NProto::ERowsetFormat rowsetFormat,
     NApi::NRpcProxy::NProto::ERowsetFormat arrowFallbackRowsetFormat,
     TTableSchemaPtr schema,
+    std::optional<std::vector<std::string>> columns,
     TNameTablePtr nameTable,
     NFormats::TControlAttributesConfigPtr controlAttributesConfig,
     std::optional<NFormats::TFormat> format)
@@ -281,6 +282,7 @@ IRowStreamEncoderPtr CreateRowStreamEncoder(
                     nameTable,
                     *format,
                     schema,
+                    std::move(columns),
                     controlAttributesConfig);
             case NApi::NRpcProxy::NProto::RF_ARROW:
                 YT_ABORT();
@@ -5726,6 +5728,7 @@ private:
             desiredRowsetFormat,
             arrowFallbackRowsetFormat,
             tableReader->GetTableSchema(),
+            path.GetColumns(),
             tableReader->GetNameTable(),
             controlAttributesConfig,
             std::move(format));

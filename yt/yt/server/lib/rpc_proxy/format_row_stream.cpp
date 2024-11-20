@@ -33,6 +33,7 @@ public:
         TNameTablePtr nameTable,
         TFormat format,
         TTableSchemaPtr tableSchema,
+        std::optional<std::vector<std::string>> columns,
         TControlAttributesConfigPtr controlAttributesConfig)
         : NameTable_(std::move(nameTable))
         , OutputStream_(Data_)
@@ -41,6 +42,7 @@ public:
             format,
             NameTable_,
             {tableSchema},
+            {std::move(columns)},
             AsyncOutputStream_,
             /*enableContextSaving*/ false,
             controlAttributesConfig,
@@ -99,12 +101,14 @@ IRowStreamEncoderPtr CreateFormatRowStreamEncoder(
     TNameTablePtr nameTable,
     TFormat format,
     TTableSchemaPtr tableSchema,
+    std::optional<std::vector<std::string>> columns,
     TControlAttributesConfigPtr controlAttributesConfig)
 {
     return New<TFormatStreamEncoder>(
         std::move(nameTable),
         std::move(format),
         std::move(tableSchema),
+        columns,
         std::move(controlAttributesConfig));
 }
 
