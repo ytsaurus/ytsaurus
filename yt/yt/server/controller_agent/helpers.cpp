@@ -244,7 +244,7 @@ ELegacyLivePreviewMode ToLegacyLivePreviewMode(std::optional<bool> enableLegacyL
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TPartitionKey> BuildPartitionKeysBySamples(
+std::vector<TPartitionKey> BuildPartitionKeysFromSamples(
     const std::vector<TSample>& samples,
     const TTableSchemaPtr& sampleSchema,
     const TTableSchemaPtr& uploadSchema,

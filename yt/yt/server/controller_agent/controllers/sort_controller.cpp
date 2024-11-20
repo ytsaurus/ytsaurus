@@ -66,24 +66,25 @@
 
 namespace NYT::NControllerAgent::NControllers {
 
+using namespace NChunkClient::NProto;
+using namespace NChunkClient;
+using namespace NChunkPools;
+using namespace NComplexTypes;
+using namespace NConcurrency;
+using namespace NControllerAgent::NProto;
+using namespace NCrypto;
+using namespace NCypressClient;
+using namespace NJobTrackerClient;
+using namespace NLogging;
+using namespace NNodeTrackerClient;
+using namespace NObjectClient;
+using namespace NQueryClient;
+using namespace NScheduler;
+using namespace NSecurityClient;
+using namespace NTableClient;
+using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
-using namespace NYPath;
-using namespace NChunkPools;
-using namespace NTableClient;
-using namespace NComplexTypes;
-using namespace NLogging;
-using namespace NObjectClient;
-using namespace NCypressClient;
-using namespace NSecurityClient;
-using namespace NNodeTrackerClient;
-using namespace NChunkClient::NProto;
-using namespace NJobTrackerClient;
-using namespace NControllerAgent::NProto;
-using namespace NConcurrency;
-using namespace NChunkClient;
-using namespace NScheduler;
-using namespace NCrypto;
 
 using NYT::ToProto;
 
@@ -397,7 +398,7 @@ protected:
             return AssignedNodeId != InvalidNodeId;
         }
 
-        void AddLocality(TNodeId nodeId, i64 delta)
+        void AddLocality(TNodeId nodeId, i64 delta) const
         {
             // Locality is defined for final partitions only.
             YT_VERIFY(IsFinal());
@@ -800,7 +801,7 @@ protected:
             return Controller_->PartitionsByLevels[Level_ + 1];
         }
 
-        int GetPartitionIndex(const TChunkStripeListPtr& chunkStripeList)
+        int GetPartitionIndex(const TChunkStripeListPtr& chunkStripeList) const
         {
             if (IsRoot()) {
                 return 0;
@@ -1248,7 +1249,7 @@ protected:
                     stripe,
                     OutputStreamDescriptors_[0],
                     joblet,
-                    NChunkPools::TChunkStripeKey(),
+                    TChunkStripeKey(),
                     /*processEmptyStripes*/ false,
                     outputDigest);
             }
@@ -1388,7 +1389,7 @@ protected:
             Controller_->UpdateTask(this);
         }
 
-        void Finalize()
+        void Finalize() const
         {
             MultiChunkPoolOutput_->Finalize();
         }
@@ -1761,7 +1762,7 @@ protected:
             return TError();
         }
 
-        void Finalize()
+        void Finalize() const
         {
             MultiChunkPool_->Finalize();
         }
@@ -2844,7 +2845,7 @@ protected:
 
         for (const auto& table : InputManager->GetInputTables()) {
             for (const auto& sortColumn : Spec->SortBy) {
-                if (auto column = table->Schema->FindColumn(sortColumn.Name)) {
+                if (const auto* column = table->Schema->FindColumn(sortColumn.Name)) {
                     if (column->Aggregate()) {
                         THROW_ERROR_EXCEPTION("Sort by aggregate column is not allowed")
                             << TErrorAttribute("table_path", table->Path)
@@ -2964,7 +2965,7 @@ protected:
         buildPartitionTree(partitionTreeSkeleton.get(), 0, buildPartitionTree);
     }
 
-    std::vector<TPartitionKey> BuildPartitionKeysByPivotKeys()
+    std::vector<TPartitionKey> BuildPartitionKeysFromPivotKeys()
     {
         std::vector<TPartitionKey> partitionKeys;
         partitionKeys.reserve(Spec->PivotKeys.size());
@@ -3002,12 +3003,16 @@ protected:
             sampleCount,
             Options->MaxSampleSize);
 
-        UnavailableChunksWatcher_ = std::move(unavailableChunksWatcher);
+        {
+            UnavailableChunksWatcher_ = std::move(unavailableChunksWatcher);
 
-        WaitFor(samplesFetcher->Fetch())
-            .ThrowOnError();
+            auto resetChunkWatcherGuard = Finally([&] {
+                UnavailableChunksWatcher_.Reset();
+            });
 
-        UnavailableChunksWatcher_.Reset();
+            WaitFor(samplesFetcher->Fetch())
+                .ThrowOnError();
+        }
 
         auto samples = samplesFetcher->GetSamples();
 
@@ -3019,32 +3024,33 @@ protected:
         const TTableSchemaPtr& uploadSchema)
     {
         if (!Spec->PivotKeys.empty()) {
-            return BuildPartitionKeysByPivotKeys();
-        } else {
-            i64 suggestedSampleCount = PartitioningParametersEvaluator_->SuggestSampleCount();
-            YT_LOG_DEBUG("Suggested sample count (SuggestedSampleCount: %v)",
-                suggestedSampleCount);
-
-            auto [samplesRowBuffer, samples] = FetchSamples(sampleSchema, suggestedSampleCount);
-
-            YT_LOG_DEBUG("Fetched sample count (FetchedSampleCount: %v)",
-                samples.size());
-
-            int suggestedPartitionCount = PartitioningParametersEvaluator_->SuggestPartitionCount(static_cast<int>(samples.size()));
-
-            YT_LOG_DEBUG("Suggested partition count (SuggestedPartitionCount: %v)",
-                suggestedPartitionCount);
-
-            return BuildPartitionKeysBySamples(
-                samples,
-                sampleSchema,
-                uploadSchema,
-                Host->GetClient()->GetNativeConnection()->GetExpressionEvaluatorCache(),
-                suggestedPartitionCount,
-                RowBuffer,
-                Logger);
+            return BuildPartitionKeysFromPivotKeys();
         }
 
+        YT_VERIFY(PartitioningParametersEvaluator_);
+
+        i64 suggestedSampleCount = PartitioningParametersEvaluator_->SuggestSampleCount();
+        YT_LOG_DEBUG("Suggested sample count (SuggestedSampleCount: %v)",
+            suggestedSampleCount);
+
+        auto [samplesRowBuffer, samples] = FetchSamples(sampleSchema, suggestedSampleCount);
+
+        YT_LOG_DEBUG("Fetched sample count (FetchedSampleCount: %v)",
+            samples.size());
+
+        int suggestedPartitionCount = PartitioningParametersEvaluator_->SuggestPartitionCount(std::ssize(samples));
+
+        YT_LOG_DEBUG("Suggested partition count (SuggestedPartitionCount: %v)",
+            suggestedPartitionCount);
+
+        return BuildPartitionKeysFromSamples(
+            samples,
+            sampleSchema,
+            uploadSchema,
+            Host->GetClient()->GetNativeConnection()->GetExpressionEvaluatorCache(),
+            suggestedPartitionCount,
+            RowBuffer,
+            Logger);
     }
 
     void InitPartitioningParametersEvaluator()
@@ -3263,7 +3269,7 @@ private:
         InitPartitioningParametersEvaluator();
 
         auto partitionKeys = BuildPartitionKeys(
-            GetSampleSchema(),
+            BuildSampleSchema(),
             OutputTables_[0]->TableUploadOptions.GetUploadSchema());
 
         PartitionCount = partitionKeys.size() + 1;
@@ -3360,7 +3366,7 @@ private:
             return;
         }
 
-        auto& partition = GetFinalPartition(0);
+        const auto& partition = GetFinalPartition(0);
 
         // Choose sort job count and initialize the pool.
         auto jobSizeConstraints = CreateSimpleSortJobSizeConstraints(
@@ -3414,7 +3420,7 @@ private:
         UnorderedMergeTask->RegisterInGraph();
     }
 
-    TTableSchemaPtr GetSampleSchema() const
+    TTableSchemaPtr BuildSampleSchema() const
     {
         THashSet<std::string> uniqueColumns;
         auto schema = OutputTables_[0]->TableUploadOptions.GetUploadSchema();
@@ -3424,7 +3430,7 @@ private:
 
             if (const auto& expression = column.Expression()) {
                 THashSet<std::string> references;
-                NQueryClient::PrepareExpression(*expression, *schema, NQueryClient::GetBuiltinTypeInferrers(), &references);
+                PrepareExpression(*expression, *schema, GetBuiltinTypeInferrers(), &references);
 
                 uniqueColumns.insert(references.begin(), references.end());
             } else {
@@ -3498,10 +3504,10 @@ private:
             auto* jobSpecExt = RootPartitionJobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
             jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(RootPartitionJobIOConfig)).ToString());
             jobSpecExt->set_io_config(ConvertToYsonString(RootPartitionJobIOConfig).ToString());
-            SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+            SetProtoExtension<TDataSourceDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
-            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+            SetProtoExtension<TDataSinkDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildIntermediateDataSinkDirectory(GetSpec()->IntermediateDataAccount));
             auto* partitionJobSpecExt = RootPartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
@@ -3516,10 +3522,10 @@ private:
             auto* jobSpecExt = PartitionJobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
             jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(PartitionJobIOConfig)).ToString());
             jobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).ToString());
-            SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+            SetProtoExtension<TDataSourceDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
-            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+            SetProtoExtension<TDataSinkDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildIntermediateDataSinkDirectory(GetSpec()->IntermediateDataAccount));
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
@@ -3535,12 +3541,12 @@ private:
 
             if (SimpleSort) {
                 jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->PartitionJobIO)).ToString());
-                SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+                SetProtoExtension<TDataSourceDirectoryExt>(
                     jobSpecExt->mutable_extensions(),
                     BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
             } else {
                 jobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
-                SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+                SetProtoExtension<TDataSourceDirectoryExt>(
                     jobSpecExt->mutable_extensions(),
                     BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
             }
@@ -3553,7 +3559,7 @@ private:
             IntermediateSortJobSpecTemplate = sortJobSpecTemplate;
             IntermediateSortJobSpecTemplate.set_type(ToProto(GetIntermediateSortJobType()));
             auto* jobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
-            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+            SetProtoExtension<TDataSinkDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildIntermediateDataSinkDirectory(GetSpec()->IntermediateDataAccount));
             jobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).ToString());
@@ -3563,7 +3569,7 @@ private:
             FinalSortJobSpecTemplate = sortJobSpecTemplate;
             FinalSortJobSpecTemplate.set_type(ToProto(GetFinalSortJobType()));
             auto* jobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
-            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+            SetProtoExtension<TDataSinkDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildDataSinkDirectoryFromOutputTables(OutputTables_));
             jobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).ToString());
@@ -3575,12 +3581,12 @@ private:
             auto* mergeJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
             jobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
-            SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+            SetProtoExtension<TDataSourceDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildIntermediateDataSourceDirectory(
                     GetSpec()->IntermediateDataAccount,
                     {IntermediateChunkSchema_}));
-            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+            SetProtoExtension<TDataSinkDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildDataSinkDirectoryFromOutputTables(OutputTables_));
 
@@ -3596,10 +3602,10 @@ private:
             auto* mergeJobSpecExt = UnorderedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
             jobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
-            SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+            SetProtoExtension<TDataSourceDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
-            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+            SetProtoExtension<TDataSinkDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildDataSinkDirectoryFromOutputTables(OutputTables_));
 
@@ -4036,7 +4042,7 @@ private:
         TLogicalTypePtr mostGenericType;
         bool missingInSomeSchema = false;
         for (const auto& table : tables) {
-            auto column = table->Schema->FindColumn(keyColumn);
+            const auto* column = table->Schema->FindColumn(keyColumn);
             if (!column) {
                 missingInSomeSchema = true;
                 continue;
@@ -4087,7 +4093,7 @@ private:
                     if (columnFilter) {
                         std::vector<TColumnSchema> newColumns;
                         for (const auto& name : *columnFilter) {
-                            if (auto* foundColumn = schema->FindColumn(name)) {
+                            if (const auto* foundColumn = schema->FindColumn(name)) {
                                 newColumns.push_back(*foundColumn);
                             }
                         }
@@ -4121,7 +4127,7 @@ private:
         IntermediateChunkSchema_ = New<TTableSchema>(std::move(chunkSchemaColumns), /*strict*/ false);
     }
 
-    TTableSchemaPtr GetSampleSchema() const
+    TTableSchemaPtr BuildSampleSchema() const
     {
         std::vector<TColumnSchema> columns;
         columns.reserve(Spec->ReduceBy.size());
@@ -4160,7 +4166,7 @@ private:
 
         std::vector<TPartitionKey> partitionKeys;
         if (!Spec->PivotKeys.empty() || Spec->ComputePivotKeysFromSamples) {
-            auto sampleSchema = GetSampleSchema();
+            auto sampleSchema = BuildSampleSchema();
             partitionKeys = BuildPartitionKeys(sampleSchema, sampleSchema);
 
             PartitionCount = partitionKeys.size() + 1;
@@ -4343,10 +4349,10 @@ private:
             auto* jobSpecExt = RootPartitionJobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
 
             jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(RootPartitionJobIOConfig)).ToString());
-            SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+            SetProtoExtension<TDataSourceDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
-            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+            SetProtoExtension<TDataSinkDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildDataSinkDirectoryForMapper());
 
@@ -4376,10 +4382,10 @@ private:
             auto* jobSpecExt = PartitionJobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
             jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(PartitionJobIOConfig)).ToString());
 
-            SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+            SetProtoExtension<TDataSourceDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
-            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+            SetProtoExtension<TDataSinkDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildIntermediateDataSinkDirectory(GetSpec()->IntermediateDataAccount));
 
@@ -4402,10 +4408,10 @@ private:
             auto* jobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
             jobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).ToString());
             jobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
-            SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+            SetProtoExtension<TDataSourceDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 intermediateDataSourceDirectory);
-            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+            SetProtoExtension<TDataSinkDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildIntermediateDataSinkDirectory(GetSpec()->IntermediateDataAccount));
 
@@ -4437,10 +4443,10 @@ private:
             auto* reduceJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
             jobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
-            SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+            SetProtoExtension<TDataSourceDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 intermediateDataSourceDirectory);
-            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+            SetProtoExtension<TDataSinkDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildDataSinkDirectoryForReducer());
 
@@ -4469,10 +4475,10 @@ private:
                 std::vector<TTableSchemaPtr>(IntermediateStreamSchemas_.size(), IntermediateChunkSchema_));
 
             jobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
-            SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+            SetProtoExtension<TDataSourceDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 intermediateDataSourceDirectory);
-            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+            SetProtoExtension<TDataSinkDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildDataSinkDirectoryForReducer());
 
