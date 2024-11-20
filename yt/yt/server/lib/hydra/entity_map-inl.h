@@ -60,6 +60,11 @@ inline T* TEntityBase::GetTypedDynamicData() const
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TValue>
+TReadOnlyEntityMap<TValue>::TIterator::TIterator()
+    : Iterator_(nullptr)
+{ }
+
+template <class TValue>
 auto TReadOnlyEntityMap<TValue>::TIterator::operator*() const -> const std::pair<const TKey, TValue*>&
 {
     return *Iterator_;
