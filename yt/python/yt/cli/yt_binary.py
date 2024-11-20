@@ -17,7 +17,7 @@ from yt.wrapper.constants import GETTINGSTARTED_DOC_URL, TUTORIAL_DOC_URL
 from yt.wrapper.default_config import get_default_config, RemotePatchableValueBase
 from yt.wrapper.admin_commands import add_switch_leader_parser
 from yt.wrapper.dirtable_commands import add_dirtable_parsers
-from yt.wrapper.flow_commands import get_controller_logs
+from yt.wrapper.flow_commands import get_controller_logs, wait_pipeline_state
 from yt.wrapper.spec_builders import (
     MapSpecBuilder, ReduceSpecBuilder, MapReduceSpecBuilder, EraseSpecBuilder,
     MergeSpecBuilder, SortSpecBuilder, JoinReduceSpecBuilder, RemoteCopySpecBuilder,
@@ -2453,22 +2453,41 @@ def add_flow_parser(root_subparsers):
     add_flow_show_logs_parser(add_flow_subparser)
 
 
+def wait_pipeline_change(operation, state):
+    @copy_docstring_from(get_controller_logs)
+    def wrapper(**kwargs):
+        sync = kwargs.pop("sync")
+
+        operation(**kwargs)
+
+        if sync:
+            wait_pipeline_state(target_state=state, **kwargs)
+
+    return wrapper
+
+
 def add_flow_start_pipeline_parser(add_parser):
-    parser = add_parser("start-pipeline", yt.start_pipeline,
+    parser = add_parser("start-pipeline", wait_pipeline_change(yt.start_pipeline, "working"),
                         help="Start YT Flow pipeline")
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    parser.add_argument("--sync", action="store_true",
+                        help="Wait for the pipeline to start")
 
 
 def add_flow_stop_pipeline_parser(add_parser):
-    parser = add_parser("stop-pipeline", yt.stop_pipeline,
+    parser = add_parser("stop-pipeline", wait_pipeline_change(yt.stop_pipeline, "stopped"),
                         help="Stop YT Flow pipeline")
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    parser.add_argument("--sync", action="store_true",
+                        help="Wait for the pipeline to stop")
 
 
 def add_flow_pause_pipeline_parser(add_parser):
-    parser = add_parser("pause-pipeline", yt.pause_pipeline,
+    parser = add_parser("pause-pipeline", wait_pipeline_change(yt.pause_pipeline, "paused"),
                         help="Pause YT Flow pipeline")
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    parser.add_argument("--sync", action="store_true",
+                        help="Wait for the pipeline to pause")
 
 
 def add_flow_get_pipeline_spec_parser(add_parser):
