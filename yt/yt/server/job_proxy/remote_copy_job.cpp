@@ -963,6 +963,7 @@ private:
             // In this case at least one block should be read (this memory overhead is taken
             // into account in operation controller).
             if (endBlockIndex == beginBlockIndex) {
+                sizeToRead += blockSizes[endBlockIndex];
                 endBlockIndex += 1;
             }
 
