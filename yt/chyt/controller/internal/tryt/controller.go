@@ -40,7 +40,9 @@ func (c *Controller) Prepare(
 	alias := oplet.Alias()
 	var filePaths []ypath.Rich
 	configP := c.root.Child(alias).Child("config.yaml")
-	filePaths = append(filePaths, *configP.Rich())
+	configRich := configP.Rich()
+	configRich.FileName = "/usr/local/bin/transfer.yaml"
+	filePaths = append(filePaths, *configRich)
 	_, err = c.ytc.CreateNode(ctx, configP, yt.NodeFile, nil)
 	if err != nil {
 		return
