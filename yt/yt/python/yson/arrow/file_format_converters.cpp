@@ -654,13 +654,14 @@ Py::Object DumpORC(Py::Tuple& args, Py::Dict& kwargs)
 Py::Object UploadParquet(Py::Tuple& args, Py::Dict& kwargs)
 {
     auto inputFilePath = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "input_file"));
+    auto arrowBatchSize = Py::ConvertToLongLong(ExtractArgument(args, kwargs, "arrow_batch_size"));
 
     ValidateArgumentsEmpty(args, kwargs);
 
     Py::Callable classType(TArrowRawIterator::type());
     Py::PythonClassObject<TArrowRawIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
     auto* iter = pythonIter.getCxxObject();
-    iter->Initialize(inputFilePath, EFileFormat::Parquet);
+    iter->Initialize(inputFilePath, EFileFormat::Parquet, arrowBatchSize);
 
     return pythonIter;
 }
@@ -668,13 +669,14 @@ Py::Object UploadParquet(Py::Tuple& args, Py::Dict& kwargs)
 Py::Object UploadORC(Py::Tuple& args, Py::Dict& kwargs)
 {
     auto inputFilePath = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "input_file"));
+    auto arrowBatchSize = Py::ConvertToLongLong(ExtractArgument(args, kwargs, "arrow_batch_size"));
 
     ValidateArgumentsEmpty(args, kwargs);
 
     Py::Callable classType(TArrowRawIterator::type());
     Py::PythonClassObject<TArrowRawIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
     auto* iter = pythonIter.getCxxObject();
-    iter->Initialize(inputFilePath, EFileFormat::ORC);
+    iter->Initialize(inputFilePath, EFileFormat::ORC, arrowBatchSize);
 
     return pythonIter;
 }

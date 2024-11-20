@@ -180,7 +180,7 @@ class ItemStream(Stream):
 
 
 class _ChunkStream(Stream):
-    def __init__(self, input, chunk_size, allow_resplit=False):
+    def __init__(self, input, chunk_size, allow_resplit=False, merge_items_into_chunks=_merge_items_into_chunks):
         isatty = _stream_isatty(input)
 
         # NB: if stream is empty, we still want to make an empty write, e.g. for `write_table(name, [])`.
@@ -189,7 +189,7 @@ class _ChunkStream(Stream):
         if allow_resplit:
             input = _resplit_chunks(input, chunk_size)
         else:
-            input = _merge_items_into_chunks(input, chunk_size)
+            input = merge_items_into_chunks(input, chunk_size)
         self.chunk_size = chunk_size
 
         super(_ChunkStream, self).__init__(input, isatty)
