@@ -18,7 +18,7 @@ using namespace std::chrono_literals;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSignatureGenerator::TSignatureGenerator(IKeyStoreWriter* keyStore)
+TSignatureGenerator::TSignatureGenerator(const IKeyStoreWriterPtr& keyStore)
     : Store_(keyStore)
     , Owner_(Store_->GetOwner())
 {
@@ -44,7 +44,7 @@ TFuture<void> TSignatureGenerator::Rotate()
     });
 
     return Store_->RegisterKey(newKeyPair.KeyInfo()).Apply(
-        BIND([this, keyPair = std::move(newKeyPair)] () mutable {
+        BIND([this, keyPair = std::move(newKeyPair), this_ = MakeStrong(this)] () mutable {
             {
                 auto guard = WriterGuard(KeyPairLock_);
                 KeyPair_ = std::move(keyPair);

@@ -14,8 +14,7 @@ namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSignature
-    : public TRefCounted
+class TSignature final
 {
 public:
     [[nodiscard]] const NYson::TYsonString& Payload() const;
