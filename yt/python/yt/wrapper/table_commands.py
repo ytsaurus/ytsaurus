@@ -19,6 +19,7 @@ from .table_helpers import (_prepare_source_tables, _are_default_empty_table, _p
 from .file_commands import _get_remote_temp_files_directory, _enrich_with_attributes
 from .parallel_reader import make_read_parallel_request
 from .schema import _SchemaRuntimeCtx, TableSchema
+from .stream import ItemStream, _ChunkStream
 from .ypath import YPath, TablePath, ypath_join
 
 import yt.json_wrapper as json
@@ -230,13 +231,14 @@ def write_table(
     if enable_parallel_write and get_config(client)["proxy"]["content_encoding"] == "gzip":
         enable_parallel_write = try_enable_parallel_write_gzip(config_enable_parallel_write)
 
-    input_stream = _to_chunk_stream(
-        input_stream,
-        format,
-        raw,
-        split_rows=(enable_retries or enable_parallel_write),
-        chunk_size=chunk_size,
-        rows_chunk_size=get_config(client)["write_retries"]["rows_chunk_size"])
+    if not isinstance(input_stream, ItemStream):
+        input_stream = _to_chunk_stream(
+            input_stream,
+            format,
+            raw,
+            split_rows=(enable_retries or enable_parallel_write),
+            chunk_size=chunk_size,
+            rows_chunk_size=get_config(client)["write_retries"]["rows_chunk_size"])
 
     if enable_parallel_write:
         force_create = True
@@ -1253,6 +1255,38 @@ def dump_parquet(table, output_file=None, output_path=None, enable_several_files
         yson.dump_parquet(output_path, stream)
 
 
+def _merge_items_into_chunks(items, chunk_size, next_chunk):
+    length = 0
+    chunk_items = []
+    for item in items:
+        assert isinstance(item, (str, bytes))
+        chunk_items.append(item)
+        length += len(chunk_items[-1])
+        if length >= chunk_size:
+            yield b"".join(chunk_items)
+            length = 0
+            chunk_items = []
+            next_chunk()
+    if chunk_items:
+        yield b"".join(chunk_items)
+
+
+class ItemStreamForArrowFormat(ItemStream):
+    def __init__(self, input):
+        self._stream = input
+        super().__init__(input)
+
+    def next_chunk(self):
+        self._stream.next_chunk()
+
+    def into_chunks(self, chunk_size):
+        return _ChunkStream(
+            self,
+            chunk_size,
+            allow_resplit=False,
+            merge_items_into_chunks=lambda items, chunk_size, next_chunk=self.next_chunk: _merge_items_into_chunks(items, chunk_size, next_chunk))
+
+
 def upload_parquet(table, input_file, client=None):
     """Upload `Parquet <https://parquet.apache.org/docs>` file as a table
 
@@ -1267,11 +1301,11 @@ def upload_parquet(table, input_file, client=None):
             'Bindings are shipped as additional package and '
             'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
 
-    stream = yson.upload_parquet(input_file)
+    stream = yson.upload_parquet(input_file, get_config(client)["arrow_options"]["write_arrow_batch_size"])
     schema = stream.get_schema()
     table = TablePath(table, client=client)
     table.attributes["schema"] = TableSchema.from_yson_type(yson.loads(schema))
-    write_table(table, stream, raw=True, format="arrow", client=client)
+    write_table(table,  ItemStreamForArrowFormat(stream), raw=True, format="arrow", client=client)
 
 
 def dump_orc(table, output_file, client=None):
@@ -1307,8 +1341,8 @@ def upload_orc(table, input_file, client=None):
             'Bindings are shipped as additional package and '
             'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
 
-    stream = yson.upload_orc(input_file)
+    stream = yson.upload_orc(input_file, get_config(client)["arrow_options"]["write_arrow_batch_size"])
     schema = stream.get_schema()
     table = TablePath(table, client=client)
     table.attributes["schema"] = TableSchema.from_yson_type(yson.loads(schema))
-    write_table(table, stream, raw=True, format="arrow", client=client)
+    write_table(table, ItemStreamForArrowFormat(stream), raw=True, format="arrow", client=client)
