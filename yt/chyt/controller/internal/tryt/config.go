@@ -8,13 +8,18 @@ type Config struct {
 	LogLevel     *string           `yson:"log_level"`
 	LogConfig    *string           `yson:"log_config"`
 	JobCount     *int              `yson:"job_count"`
+	Binary       *string           `yson:"binary_path"`
 }
 
 func (c *Config) CommandOrDefault(spec Speclet) string {
 	if c.Command != nil {
 		return *c.Command
 	}
-	return fmt.Sprintf("/usr/local/bin/trcli %s --transfer transfer.yaml --log-level %s --log-config %s", spec.Command(), c.LogLevelOrDefault(), c.LogConfigOrDefault())
+	cliPath := "/usr/local/bin/trcli"
+	if c.Binary != nil {
+		cliPath = "trcli"
+	}
+	return fmt.Sprintf("%s %s --transfer transfer.yaml --log-level %s --log-config %s", cliPath, spec.Command(), c.LogLevelOrDefault(), c.LogConfigOrDefault())
 }
 
 func (c *Config) EnvVars(speclet Speclet) map[string]string {

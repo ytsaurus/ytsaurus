@@ -43,6 +43,14 @@ func (c *Controller) Prepare(
 	configRich := configP.Rich()
 	configRich.FileName = "transfer.yaml"
 	filePaths = append(filePaths, *configRich)
+	if c.config.Binary != nil {
+		binaryPath, err := ypath.Parse(*c.config.Binary)
+		if err != nil {
+			return
+		}
+		binaryPath.FileName = "trcli"
+		filePaths = append(filePaths, *binaryPath)
+	}
 	_, err = c.ytc.CreateNode(ctx, configP, yt.NodeFile, nil)
 	if err != nil {
 		return
