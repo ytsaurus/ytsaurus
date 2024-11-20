@@ -15,13 +15,14 @@ namespace NYT::NSignature {
 constexpr auto KeyExpirationTime = TDuration::Hours(24);
 constexpr auto SignatureExpirationTime = TDuration::Hours(1);
 constexpr auto TimeSyncMargin = TDuration::Hours(1);
+constexpr auto KeyRotationInterval = TDuration::Hours(2);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSignatureGenerator
+class TSignatureGenerator final
 {
 public:
-    explicit TSignatureGenerator(IKeyStoreWriter* keyStore);
+    explicit TSignatureGenerator(const IKeyStoreWriterPtr& keyStore);
 
     // TODO(pavook) futurize?
     [[nodiscard]] TSignaturePtr Sign(NYson::TYsonString&& payload) const;
@@ -31,12 +32,14 @@ public:
     TFuture<void> Rotate();
 
 private:
-    IKeyStoreWriter* const Store_;
+    const IKeyStoreWriterPtr Store_;
     const TOwnerId Owner_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, KeyPairLock_);
     std::optional<TKeyPair> KeyPair_;
 };
+
+DEFINE_REFCOUNTED_TYPE(TSignatureGenerator)
 
 ////////////////////////////////////////////////////////////////////////////////
 

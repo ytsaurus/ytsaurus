@@ -91,9 +91,15 @@ TFuture<void> TCypressKeyWriter::RegisterKey(const TKeyInfo& key)
         EObjectType::Document,
         std::move(options));
 
-    return node.Apply(BIND([this, keyNodePath = std::move(keyNodePath), &key] (NCypressClient::TNodeId /*nodeId*/) {
-        return Client_->SetNode(keyNodePath, ConvertToYsonString(key));
-    }));
+    return node.Apply(
+        BIND([
+                this,
+                keyNodePath = std::move(keyNodePath),
+                &key,
+                this_ = MakeStrong(this)
+            ] (NCypressClient::TNodeId /*nodeId*/) {
+                return Client_->SetNode(keyNodePath, ConvertToYsonString(key));
+            }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

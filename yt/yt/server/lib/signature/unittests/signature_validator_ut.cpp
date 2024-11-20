@@ -32,7 +32,7 @@ struct TSignatureValidatorTest
 {
     TKeyId KeyId;
     TKeyPair Key;
-    TMockKeyStore Store;
+    TMockKeyStorePtr Store;
     TSignatureValidator Validator;
     TYsonString Payload;
 
@@ -44,8 +44,8 @@ struct TSignatureValidatorTest
             .CreatedAt = Now(),
             .ValidAfter = Now() - 10h,
             .ExpiresAt = Now() + 10h})
-        , Store()
-        , Validator(&Store)
+        , Store(New<TMockKeyStore>())
+        , Validator(Store)
         , Payload("MyImportantData"_sb)
     {
     }
@@ -105,7 +105,7 @@ TEST_F(TSignatureValidatorTest, ValidateGoodSignature)
 
         EXPECT_FALSE(RunValidate(signature));
 
-        WaitFor(Store.RegisterKey(Key.KeyInfo())).ThrowOnError();
+        WaitFor(Store->RegisterKey(Key.KeyInfo())).ThrowOnError();
         validateResults.push_back(RunValidate(signature));
     }
 
@@ -134,7 +134,7 @@ TEST_F(TSignatureValidatorTest, ValidateBadSignature)
     EXPECT_NO_THROW(signature = ConvertTo<TSignaturePtr>(signatureString));
 
     EXPECT_FALSE(RunValidate(signature));
-    WaitFor(Store.RegisterKey(Key.KeyInfo())).ThrowOnError();
+    WaitFor(Store->RegisterKey(Key.KeyInfo())).ThrowOnError();
     EXPECT_FALSE(RunValidate(signature));
 }
 

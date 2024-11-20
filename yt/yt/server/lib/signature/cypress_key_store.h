@@ -25,6 +25,8 @@ private:
     NApi::IClientPtr Client_;
 };
 
+DEFINE_REFCOUNTED_TYPE(TCypressKeyReader)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressKeyWriter
@@ -43,6 +45,8 @@ private:
     TOwnerId Owner_;
     NApi::IClientPtr Client_;
 };
+
+DEFINE_REFCOUNTED_TYPE(TCypressKeyWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
