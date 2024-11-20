@@ -124,7 +124,8 @@ void FetchTableSchemas(
     const NApi::NNative::IClientPtr& client,
     const std::vector<TTablePtr>& tables,
     TCallback<NTransactionClient::TTransactionId(const TTablePtr&)> tableToTransactionId,
-    bool fetchFromExternalCells);
+    bool fetchFromExternalCells,
+    bool fetchSchemasById);
 
 ////////////////////////////////////////////////////////////////////////////////
 
