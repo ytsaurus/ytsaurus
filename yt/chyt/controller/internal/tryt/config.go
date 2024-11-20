@@ -14,7 +14,7 @@ func (c *Config) CommandOrDefault(spec Speclet) string {
 	if c.Command != nil {
 		return *c.Command
 	}
-	return fmt.Sprintf("/usr/local/bin/trcli %s --transfer /usr/local/bin/transfer.yaml --log-level %s --log-config %s", spec.Command(), c.LogLevelOrDefault(), c.LogConfigOrDefault())
+	return fmt.Sprintf("/usr/local/bin/trcli %s --transfer transfer.yaml --log-level %s --log-config %s", spec.Command(), c.LogLevelOrDefault(), c.LogConfigOrDefault())
 }
 
 func (c *Config) EnvVars(speclet Speclet) map[string]string {

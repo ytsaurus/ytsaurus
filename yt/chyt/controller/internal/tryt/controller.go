@@ -41,7 +41,7 @@ func (c *Controller) Prepare(
 	var filePaths []ypath.Rich
 	configP := c.root.Child(alias).Child("config.yaml")
 	configRich := configP.Rich()
-	configRich.FileName = "/usr/local/bin/transfer.yaml"
+	configRich.FileName = "transfer.yaml"
 	filePaths = append(filePaths, *configRich)
 	_, err = c.ytc.CreateNode(ctx, configP, yt.NodeFile, nil)
 	if err != nil {
