@@ -212,11 +212,13 @@ def get_controller_logs(pipeline_path, count, offset=None, client=None):
     assert count > 0, "'count' must be positive"
 
     if offset is None:
-        last_offset = list(select_rows(
+        last_offsets = list(select_rows(
             f"MAX([$row_index]) AS value FROM [{pipeline_path}/controller_logs] GROUP BY [$tablet_index]",
             raw=False,
-            client=client))[0]
-        offset = max(last_offset["value"] - count + 1, 0)
+            client=client))
+        if not last_offsets:
+            return [], None
+        offset = max(last_offsets[0]["value"] - count + 1, 0)
 
     end = offset + count - 1
     result = list(select_rows(
