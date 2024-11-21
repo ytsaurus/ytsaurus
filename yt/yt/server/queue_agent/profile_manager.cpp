@@ -398,7 +398,7 @@ private:
     {
         auto& subConsumerPartitionProfilingCounters = ConsumerPartitionProfilingCounters_[queueRef];
         auto consumerPartitionProfiler = ConsumerPartitionProfiler_
-            .WithRequiredTag("queue_path", queueRef.Path)
+            .WithRequiredTag("queue_path", TrimProfilingTagValue(queueRef.Path))
             .WithRequiredTag("queue_cluster", queueRef.Cluster);
         ResizePartitionCounters(
             subConsumerPartitionProfilingCounters,
