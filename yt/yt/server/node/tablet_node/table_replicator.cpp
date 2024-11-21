@@ -261,8 +261,9 @@ private:
                     YT_LOG_DEBUG("Started waiting for relative replication throttling");
                     WaitFor(throttleFuture)
                         .ThrowOnError();
-                    YT_LOG_DEBUG("Finished waiting for relative replication throttling");
                     RelativeThrottleTime = timerGuard.GetElapsedTime();
+                    YT_LOG_DEBUG("Finished waiting for relative replication throttling (ElapsedTime: %v)",
+                        RelativeThrottleTime);
                 }
             }
 
