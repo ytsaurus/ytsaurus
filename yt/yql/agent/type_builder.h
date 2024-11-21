@@ -97,7 +97,7 @@ private:
     using TItem = std::variant<TElements, TMembers, TKeyAndPayload, TTag>;
 
     std::stack<TItem> ItemsStack;
-    TString Name;
+    std::stack<TString> MemberNames;
 };
 
 }

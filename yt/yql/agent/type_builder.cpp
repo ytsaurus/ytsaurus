@@ -26,17 +26,19 @@ T TTypeBuilder::Pop() {
 
 void TTypeBuilder::OnVoid() {
     Cerr << __func__ << Endl;
-   THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
+    Push(SimpleLogicalType(ESimpleLogicalValueType::Void));
 }
 void TTypeBuilder::OnNull() {
     Cerr << __func__ << Endl;
-    Push(NullLogicalType());
+    Push(SimpleLogicalType(ESimpleLogicalValueType::Null));
 }
 void TTypeBuilder::OnEmptyList() {
     Cerr << __func__ << Endl;
+    Push(TaggedLogicalType("_EmptyList", NullLogicalType()));
 }
 void TTypeBuilder::OnEmptyDict() {
     Cerr << __func__ << Endl;
+    Push(TaggedLogicalType("_EmptyDict", NullLogicalType()));
 }
 void TTypeBuilder::OnBool() {
     Cerr << __func__ << Endl;
@@ -92,7 +94,7 @@ void TTypeBuilder::OnUtf8() {
 }
 void TTypeBuilder::OnYson() {
     Cerr << __func__ << Endl;
-   THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
+    Push(SimpleLogicalType(ESimpleLogicalValueType::Any));
 }
 void TTypeBuilder::OnJson() {
     Cerr << __func__ << Endl;
@@ -124,15 +126,15 @@ void TTypeBuilder::OnTimestamp() {
 }
 void TTypeBuilder::OnTzDate() {
     Cerr << __func__ << Endl;
-   THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
+    Push(SimpleLogicalType(ESimpleLogicalValueType::String));
 }
 void TTypeBuilder::OnTzDatetime() {
     Cerr << __func__ << Endl;
-   THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
+    Push(SimpleLogicalType(ESimpleLogicalValueType::String));
 }
 void TTypeBuilder::OnTzTimestamp() {
     Cerr << __func__ << Endl;
-   THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
+    Push(SimpleLogicalType(ESimpleLogicalValueType::String));
 }
 void TTypeBuilder::OnInterval() {
     Cerr << __func__ << Endl;
@@ -152,15 +154,15 @@ void TTypeBuilder::OnTimestamp64() {
 }
 void TTypeBuilder::OnTzDate32() {
     Cerr << __func__ << Endl;
-   THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
+    Push(SimpleLogicalType(ESimpleLogicalValueType::String));
 }
 void TTypeBuilder::OnTzDatetime64() {
     Cerr << __func__ << Endl;
-   THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
+    Push(SimpleLogicalType(ESimpleLogicalValueType::String));
 }
 void TTypeBuilder::OnTzTimestamp64() {
     Cerr << __func__ << Endl;
-   THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
+    Push(SimpleLogicalType(ESimpleLogicalValueType::String));
 }
 void TTypeBuilder::OnInterval64() {
     Cerr << __func__ << Endl;
@@ -205,7 +207,7 @@ void TTypeBuilder::OnBeginStruct() {
 }
 void TTypeBuilder::OnStructItem(TStringBuf member) {
     Cerr << __func__ << '(' << member << ')' << Endl;
-    Name = member;
+    MemberNames.emplace(member);
 }
 void TTypeBuilder::OnEndStruct() {
     Cerr << __func__ << Endl;
@@ -262,7 +264,8 @@ void TTypeBuilder::Push(TLogicalTypePtr type) {
             std::get<TElements>(ItemsStack.top()).emplace_back(std::move(type));
             return;
         case EKind::Struct:
-            std::get<TMembers>(ItemsStack.top()).emplace_back(std::move(Name), std::move(type));
+            std::get<TMembers>(ItemsStack.top()).emplace_back(MemberNames.top(), std::move(type));
+            MemberNames.pop();
             break;
         case EKind::Dict:
             std::get<TKeyAndPayload>(ItemsStack.top()).Set(std::move(type));

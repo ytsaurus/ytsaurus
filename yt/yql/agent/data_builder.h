@@ -75,6 +75,12 @@ private:
     void OnEndVariant() final;
     void OnPg(TMaybe<TStringBuf> value, bool isUtf8) final;
 
+    void AddNull();
+    void AddSigned(i64 value);
+    void AddUnsigned(ui64 value);
+    void AddReal(double value);
+    void AddString(TStringBuf value);
+
     void FlushCurrentValueIfCompleted();
 
     NTableClient::IValueConsumer *const ValueConsumer_;
