@@ -39,6 +39,7 @@ dependencies {
     testImplementation(project(":yt:java:ytsaurus-testlib"))
     testImplementation("com.google.protobuf:protobuf-java:3.25.3")
     testImplementation("junit:junit:4.13")
+    testImplementation("org.apache.arrow:arrow-memory-netty:7.0.0")
     testImplementation("org.apache.logging.log4j:log4j-core:2.13.1")
     testImplementation("org.apache.logging.log4j:log4j-slf4j-impl:2.13.1")
     testImplementation("javax.persistence:persistence-api:1.0")

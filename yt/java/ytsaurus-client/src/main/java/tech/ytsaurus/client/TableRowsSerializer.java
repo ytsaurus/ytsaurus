@@ -260,7 +260,7 @@ abstract class TableRowsSerializer<T> {
                 case YSON:
                     return Optional.of(new TableRowsYsonSerializer<>(context.getYtreeSerializer().get()));
                 case ARROW:
-                    return Optional.of(new ArrowTableRowsSerializer<>(context.getGetters().get().getSchema()));
+                    return Optional.of(new ArrowTableRowsSerializer<>(context.getGetters().get()));
             }
             throw new IllegalArgumentException("Format " + context.getFormat().get().getType() + " isn't supported");
         } else {
