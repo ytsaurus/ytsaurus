@@ -49,8 +49,8 @@ public:
 private:
     const int PartitionCount_;
 
-    IInvokerPtr SerializedInvoker_;
-    ITransactionPtr Transaction_;
+    const IInvokerPtr SerializedInvoker_;
+    const ITransactionPtr Transaction_;
 
     std::vector<TInputChunkPtr> Chunks_;
 

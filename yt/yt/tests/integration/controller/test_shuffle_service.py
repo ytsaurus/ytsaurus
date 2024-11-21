@@ -59,18 +59,20 @@ class TestShuffleService(YTEnvSetup):
             read_shuffle_data(shuffle_handle, 1)
 
     @authors("apollo1321")
-    def test_account_not_exists(self):
+    def test_invalid_arguments(self):
+        with raises_yt_error('Parent transaction id is null'):
+            start_shuffle("root", partition_count=2, parent_transaction_id="0-0-0-0")
+
+        with raises_yt_error('Unknown master cell tag'):
+            start_shuffle("root", partition_count=2, parent_transaction_id="1-2-3-4")
+
         parent_transaction = start_transaction(timeout=60000)
 
         with raises_yt_error('Node has no child with key "a"'):
             start_shuffle("a", partition_count=2, parent_transaction_id=parent_transaction)
 
-    @authors("apollo1321")
-    def test_account_access_permission_checked(self):
         create_user("u")
         create_account("a")
-
-        parent_transaction = start_transaction(timeout=60000)
 
         with raises_yt_error('User "u" has been denied "Use" access to account "a"'):
             start_shuffle("a", partition_count=2, parent_transaction_id=parent_transaction, authenticated_user="u")

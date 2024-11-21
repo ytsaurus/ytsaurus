@@ -61,7 +61,7 @@ public:
 
         THROW_ERROR_EXCEPTION_IF(
             parentTransactionId.IsEmpty(),
-            "Parent transaction id is empty");
+            "Parent transaction id is null");
 
         auto transactionId = WaitFor(
             ShuffleManager_->StartShuffle(request->partition_count(), parentTransactionId))
