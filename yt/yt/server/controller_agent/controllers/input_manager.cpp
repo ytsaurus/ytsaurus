@@ -827,7 +827,8 @@ void TInputManager::FetchInputTablesAttributes()
                         client,
                         tables,
                         BIND([] (const TInputTablePtr& table) { return table->ExternalTransactionId; }),
-                        /*fetchFromExternalCells*/ true);
+                        /*fetchFromExternalCells*/ true,
+                        /*fetchSchemasById*/ false);
                 })
                     .AsyncVia(GetCurrentInvoker())
                     .Run());

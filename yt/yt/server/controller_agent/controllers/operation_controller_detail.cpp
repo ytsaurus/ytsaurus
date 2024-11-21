@@ -6326,13 +6326,12 @@ void TOperationControllerBase::GetOutputTablesSchema()
             table->SchemaId = attributes->Get<TGuid>("schema_id");
         }
 
-        // TODO(h0pless): Try fetching schema from external cells.
-        // With schemas being externalized it became possible to do so.
         FetchTableSchemas(
             OutputClient,
             UpdatingTables_,
             BIND([this] (const TOutputTablePtr& table) { return GetTransactionForOutputTable(table)->GetId(); }),
-            /*fetchFromExternalCells*/ false);
+            /*fetchFromExternalCells*/ false,
+            /*fetchSchemasById*/ GetConfig()->FetchSchemasFromExternalCellTags);
     }
 
     for (const auto& [table, attributes] : tableAttributes) {

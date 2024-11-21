@@ -1258,6 +1258,9 @@ public:
 
     bool FailOperationOnErrorsInLivePreview;
 
+    // COMPAT(h0pless): This is a panic button to facilitate the rollout of 24.2
+    bool FetchSchemasFromExternalCellTags;
+
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 
     static void Register(TRegistrar registrar);

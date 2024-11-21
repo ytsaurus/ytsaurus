@@ -1197,6 +1197,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("fail_operation_on_errors_in_live_preview", &TThis::FailOperationOnErrorsInLivePreview)
         .Default(false);
 
+    registrar.Parameter("fetch_schemas_from_external_cell_tags", &TThis::FetchSchemasFromExternalCellTags)
+        .Default(false);
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->ChunkLocationThrottler->Limit = 10'000;
 

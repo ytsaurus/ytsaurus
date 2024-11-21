@@ -422,16 +422,12 @@ void FetchTableSchemas(
     const NApi::NNative::IClientPtr& client,
     const std::vector<TTablePtr>& tables,
     TCallback<TTransactionId(const TTablePtr&)> tableToTransactionId,
-    bool fetchFromExternalCells)
+    bool fetchFromExternalCells,
+    bool fetchSchemasById)
 {
-    // The fetchFromExternalCells parameter allows us to choose whether to fetch the schema from native or external cell.
-    // Ideally, we want to fetch schemas only from external cells, but it is not possible now. For output
-    // tables, lock is acquired after the schema is fetched. This behavior is bad as it may lead to races.
-    // Once locking output tables is fixed, we will always fetch the schemas from external cells, and the
-    // fetchFromExternalCells parameter will be removed. See also YT-15269.
-    // TODO(gepardo): always fetch schemas from external cells.
+    // COMPAT(h0pless): Remove this once fetchSchemasById is true by default.
     auto tableToCellTag = [&] (const TTablePtr& table) {
-        return fetchFromExternalCells
+        return fetchFromExternalCells || fetchSchemasById
             ? table->ExternalCellTag
             : CellTagFromId(table->ObjectId);
     };
@@ -454,12 +450,18 @@ void FetchTableSchemas(
         auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower, cellTag);
         auto batchReq = proxy.ExecuteBatch();
 
+        // NB: Schemas can be accessed by ID without the use of transactions, thus no need to specify one here.
         for (const auto& schemaId : schemaIds) {
-            // TODO(gepardo): fetch schema by schema ID directly, without using Get for the corresponding table.
             auto table = schemaIdToTables[schemaId][0];
-            auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@schema");
+            auto req = fetchSchemasById
+                ? TTableYPathProxy::Get(FromObjectId(schemaId))
+                : TTableYPathProxy::Get(table->GetObjectIdPath() + "/@schema");
             AddCellTagToSyncWith(req, table->ObjectId);
-            SetTransactionId(req, tableToTransactionId(table));
+
+            if (!fetchSchemasById) {
+                SetTransactionId(req, tableToTransactionId(table));
+            }
+
             req->Tag() = schemaId;
             batchReq->AddRequest(req);
         }
@@ -493,13 +495,15 @@ template void FetchTableSchemas(
     const NNative::IClientPtr& client,
     const std::vector<TInputTablePtr>& tables,
     TCallback<TTransactionId(const TInputTablePtr&)> tableToTransactionId,
-    bool fetchFromExternalCells);
+    bool fetchFromExternalCells,
+    bool fetchSchemasById);
 
 template void FetchTableSchemas(
     const NNative::IClientPtr& client,
     const std::vector<TOutputTablePtr>& tables,
     TCallback<TTransactionId(const TOutputTablePtr&)> tableToTransactionId,
-    bool fetchFromExternalCells);
+    bool fetchFromExternalCells,
+    bool fetchSchemasById);
 
 ////////////////////////////////////////////////////////////////////////////////
 
