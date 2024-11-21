@@ -380,13 +380,13 @@ public:
             }))
         , ProfileManager_(CreateQueueProfileManager(
             QueueAgentProfilerGlobal
-                .WithRequiredTag("queue_path", QueueRef_.Path)
+                .WithRequiredTag("queue_path", TrimProfilingTagValue(QueueRef_.Path))
                 .WithRequiredTag("queue_cluster", QueueRef_.Cluster),
             Logger))
         , AlertManager_(CreateAlertManager(
             Logger,
             QueueAgentProfilerGlobal
-                .WithTag("queue_path", QueueRef_.Path)
+                .WithTag("queue_path", TrimProfilingTagValue(QueueRef_.Path))
                 .WithTag("queue_cluster", QueueRef_.Cluster)
                 .WithPrefix("/queue"),
             Invoker_))

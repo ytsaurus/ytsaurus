@@ -228,4 +228,20 @@ TFuture<THashMap<TString, TQueueExportProgressPtr>> GetQueueExportProgressFromOb
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString TrimProfilingTagValue(const TString& value)
+{
+    static constexpr int MaxProfilingTagValueLength = 200;
+
+    if (value.size() <= MaxProfilingTagValueLength) {
+        return value;
+    }
+
+    auto result = value;
+    result.resize(MaxProfilingTagValueLength);
+
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueueAgent
