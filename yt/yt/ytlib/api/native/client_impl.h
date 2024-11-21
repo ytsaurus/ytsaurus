@@ -895,7 +895,7 @@ public: \
         (pipelinePath, viewPath, options))
 
     IMPLEMENT_METHOD(TShuffleHandlePtr, StartShuffle, (
-        const TString& account,
+        const std::string& account,
         int partitionCount,
         NObjectClient::TTransactionId parentTransactionId,
         const TStartShuffleOptions& options),
