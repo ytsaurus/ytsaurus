@@ -80,6 +80,32 @@ class TestLookup(TestSortedDynamicTablesBase):
             assert "%s" % row["value"][0] == "b:" + str(key["key"])
             assert "%s" % row["value"][1] == "a:" + str(key["key"])
 
+    @authors("lukyan")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_lookup_versioned_composite(self, optimize_for):
+        sync_create_cells(1)
+
+        int64_list = {"type_name": "list", "item": "int64"}
+        optional_int64_list = {"type_name": "optional", "item": int64_list}
+
+        create_dynamic_table("//tmp/t", schema=[
+            {"name": "k1", "type": "int64", "sort_order": "ascending"},
+            {"name": "k2", "type_v3": int64_list, "sort_order": "ascending"},
+            {"name": "v1", "type_v3": int64_list},
+            {"name": "v2", "type_v3": optional_int64_list},
+        ])
+
+        sync_mount_table("//tmp/t")
+
+        insert_rows(
+            "//tmp/t",
+            [
+                {"k1": 1, "k2": [1, 2], "v1": [1, 2], "v2": [1, 2]},
+            ]
+        )
+
+        lookup_rows("//tmp/t", [{"k1": 1, "k2": [1, 2]}], versioned=True)
+
     @authors("ifsmirnov")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_lookup_versioned_YT_6800(self, optimize_for):
