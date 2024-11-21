@@ -73,11 +73,10 @@ void ValidateAttributePaths(const std::vector<TTypedAttributePath>& typedAttribu
             if (i == j) {
                 continue;
             }
-            if (NYPath::HasPrefix(typedAttributePaths[i].Path, typedAttributePaths[j].Path)) {
+            if (typedAttributePaths[i].Path == typedAttributePaths[j].Path) {
                 THROW_ERROR_EXCEPTION(
-                    "Attribute paths must be independent, but %Qv is a prefix of %Qv",
-                    typedAttributePaths[i].Path,
-                    typedAttributePaths[j].Path);
+                    "Attribute paths must be unique, but %Qv is found more than once",
+                    typedAttributePaths[i].Path);
             }
         }
     }
@@ -235,13 +234,17 @@ TTypedAttributePath GetMatchingAttributePath(
     const TYPath& queryAttributePath,
     const std::vector<TTypedAttributePath>& typedAttributePaths)
 {
+    std::optional<TTypedAttributePath> result = std::nullopt;
     for (const auto& dataAttributePath : typedAttributePaths) {
         if (NYPath::HasPrefix(queryAttributePath, dataAttributePath.Path)) {
-            return dataAttributePath;
+            if (!result || dataAttributePath.Path.size() > result->Path.size()) {
+                result = dataAttributePath;
+            }
         }
     }
-    THROW_ERROR_EXCEPTION("Attribute path %Qv refers to a forbidden attribute",
+    THROW_ERROR_EXCEPTION_UNLESS(result, "Attribute path %Qv refers to a forbidden attribute",
         queryAttributePath);
+    return *result;
 }
 
 TExpressionPtr CreateFakeTableAttributeSelector(

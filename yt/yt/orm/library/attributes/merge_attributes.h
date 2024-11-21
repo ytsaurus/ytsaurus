@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/yson/consumer.h>
 
+#include <yt/yt/orm/library/mpl/projection.h>
+
 #include <library/cpp/yt/yson_string/string.h>
 
 #include <ranges>
@@ -24,8 +26,11 @@ struct TAttributeValue
 template <std::ranges::range TRange, class TPathProj, class TIsEtcProj>
 void ValidateSortedPaths(const TRange& paths, TPathProj pathProj, TIsEtcProj etcProj);
 
-template <typename TType, std::invocable<TType> TPathProj = std::identity>
-void SortAndRemoveNestedPaths(std::vector<TType>& collection, TPathProj proj = {});
+template <
+    typename TType,
+    std::invocable<TType> TPathProj = std::identity,
+    std::predicate<TType> TKeepFixedProj = NMpl::TConstantProjection<bool, false>>
+void SortAndRemoveNestedPaths(std::vector<TType>& collection, TPathProj pathProj = {}, TKeepFixedProj opaqueProj = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
