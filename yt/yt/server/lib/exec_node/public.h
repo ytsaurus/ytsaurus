@@ -48,8 +48,8 @@ DEFINE_ENUM(EExecNodeThrottlerKind,
 );
 
 DEFINE_ENUM(EExecNodeThrottlerTraffic,
-    (Bandwidth)
-    (Rps)
+    ((Bandwidth)    (0) ("bandwidth"))
+    ((Rps)          (1) ("rps"))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
