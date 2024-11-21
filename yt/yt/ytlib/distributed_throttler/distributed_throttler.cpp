@@ -34,6 +34,7 @@ using namespace NProfiling;
 static const TString AddressAttributeKey = "address";
 static const TString RealmIdAttributeKey = "realm_id";
 static const TString LeaderIdAttributeKey = "leader_id";
+static const TString LocalThrottlersAttributeKey = "local_throttlers";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -183,6 +184,11 @@ public:
         if (Initialized_) {
             Limit_.Update(limit.value_or(-1));
         }
+    }
+
+    std::optional<double> GetLimit() const override
+    {
+        return Underlying_->GetLimit();
     }
 
     TDuration GetEstimatedOverdraftDuration() const override
@@ -819,6 +825,10 @@ public:
             invoker,
             BIND(&TDistributedThrottlerFactory::UpdateLeader, MakeWeak(this)),
             config->LeaderUpdatePeriod))
+        , UpdateLocalThrottlersAttributeExecutor_(New<TPeriodicExecutor>(
+            invoker,
+            BIND(&TDistributedThrottlerFactory::UpdateLocalThrottlersAttribute, MakeWeak(this)),
+            config->LocalThrottlersAttributeUpdatePeriod))
         , RealmId_(TGuid::Create())
         , Logger(logger.WithTag("SelfMemberId: %v, GroupId: %v, RealmId: %v",
             MemberId_,
@@ -844,6 +854,7 @@ public:
         MemberClient_->SetPriority(TInstant::Now().Seconds());
         UpdateLimitsExecutor_->Start();
         UpdateLeaderExecutor_->Start();
+        UpdateLocalThrottlersAttributeExecutor_->Start();
     }
 
     ~TDistributedThrottlerFactory()
@@ -948,6 +959,9 @@ public:
         if (oldConfig->LeaderUpdatePeriod != config->LeaderUpdatePeriod) {
             UpdateLeaderExecutor_->SetPeriod(config->LeaderUpdatePeriod);
         }
+        if (oldConfig->LocalThrottlersAttributeUpdatePeriod != config->LocalThrottlersAttributeUpdatePeriod) {
+            UpdateLocalThrottlersAttributeExecutor_->SetPeriod(config->LocalThrottlersAttributeUpdatePeriod);
+        }
 
         DistributedThrottlerService_->Reconfigure(config);
 
@@ -974,6 +988,7 @@ private:
     const IDiscoveryClientPtr DiscoveryClient_;
     const TPeriodicExecutorPtr UpdateLimitsExecutor_;
     const TPeriodicExecutorPtr UpdateLeaderExecutor_;
+    const TPeriodicExecutorPtr UpdateLocalThrottlersAttributeExecutor_;
     const TRealmId RealmId_;
 
     const NLogging::TLogger Logger;
@@ -1258,6 +1273,38 @@ private:
         if (leaderId == MemberId_) {
             DistributedThrottlerService_->Initialize();
         }
+    }
+
+    void UpdateLocalThrottlersAttribute()
+    {
+        auto mode = Config_.Acquire()->Mode;
+
+        auto guard = ReaderGuard(Throttlers_->Lock);
+        auto yson = NYTree::BuildYsonStringFluently()
+            .DoMapFor(Throttlers_->Throttlers, [&] (NYTree::TFluentMap fluent, const auto& item) {
+                auto strongPtr = item.second.Lock();
+                if (strongPtr) {
+                    auto rate = std::round(strongPtr->GetUsageRate() * 10.0) / 10.0;
+                    auto limit = std::round(strongPtr->GetLimit().value_or(0.0) * 10.0) / 10.0;
+                    bool isPreciseMode = mode == EDistributedThrottlerMode::Precise;
+
+                    fluent
+                        .Item(item.first).BeginMap()
+                            .Item("rate").Value(rate)
+                            .Item("limit").Value(limit)
+                            .DoIf(!isPreciseMode, [&] (auto fluent) {
+                                // The following calls fail with verify in Precise mode.
+                                fluent
+                                    .Item("queue_byte_size").Value(strongPtr->GetQueueTotalAmount())
+                                    .Item("quota_exceeded").Value(strongPtr->IsOverdraft());
+                            })
+                            .Item("period").Value(strongPtr->GetConfig()->Period)
+                        .EndMap();
+                }
+            });
+
+        auto* attributes = MemberClient_->GetAttributes();
+        attributes->SetYson(LocalThrottlersAttributeKey, yson);
     }
 };
 
