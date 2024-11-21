@@ -19,11 +19,25 @@ def auth_config(port):
             "user_info_endpoint": "user_info",
             "user_info_login_field": "login",
             "user_info_subject_field": "sub",
-            "user_info_error_field": "error"
+            "user_info_error_field": "error",
+            "login_transformations": [
+                {
+                    "match_pattern": r"(.*)@one-company\.(.*)",
+                    "replacement": r"\1"
+                },
+                {
+                    "match_pattern": r"(.*)@second-company\.(.*)",
+                    "replacement": r"\2-nosokhvost-\1"
+                },
+                {
+                    "match_pattern": r"(.*)@@(.*)\.(.*)",
+                    "replacement": r"\2-\1"
+                },
+            ],
         },
         "oauth_cookie_authenticator": {},
         "oauth_token_authenticator": {},
-        "cypress_user_manager": {}
+        "cypress_user_manager": {},
     }
 
 
@@ -39,6 +53,16 @@ class TestOAuthBase(YTEnvSetup):
 
         cls.DELTA_PROXY_CONFIG["auth"] = auth_config(cls.mock_server_port)
         super(TestOAuthBase, cls).setup_class()
+
+    # This is annoying, but we set blackbox_token_authenticator in default_config for
+    # some reason. This way we avoid 10 second timeouts in each authentication call.
+    @classmethod
+    def modify_proxy_config(cls, config):
+        super(TestOAuthBase, cls).modify_proxy_config(config)
+
+        for proxy_config in config:
+            if proxy_config.get("auth", {}).get("blackbox_token_authenticator"):
+                del proxy_config["auth"]["blackbox_token_authenticator"]
 
     @classmethod
     def teardown_class(cls):
@@ -131,3 +155,17 @@ class TestOAuth(TestOAuthBase):
     @authors("kaikash", "ignat")
     def test_http_proxy_oauth_server_error(self):
         assert self._check_deny(cookie="retry_token")
+
+    @authors("achulkov2")
+    def test_login_transformation(self):
+        def check_user(user, expected_login):
+            rsp = self._check_allow(token="good_token", user=user)
+            data = rsp.json()
+            assert data["login"] == expected_login
+            assert data["realm"] == "oauth:token"
+
+        check_user("achulkov2@one-company.de", "achulkov2")
+        check_user("max42@second-company.be", "be-nosokhvost-max42")
+        check_user("john@@third-company.fr", "third-company-john")
+        check_user("fourth@fourth-company.com", "fourth@fourth-company.com")
+        check_user("fifth", "fifth")
