@@ -320,7 +320,7 @@ private:
 
 using TStickyTableMountInfoCachePtr = TIntrusivePtr<TStickyTableMountInfoCache>;
 
-void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCachePtr cache)
+void TransformWithIndexStatement(NAst::TAstHead* head, TMutableRange<TTableMountInfoPtr> mountInfos)
 {
     auto& query = std::get<NAst::TQuery>(head->Ast);
     if (!query.WithIndex) {
@@ -329,10 +329,10 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
 
     auto& index = *(query.WithIndex);
 
-    auto indexTableInfo = WaitForFast(cache->GetTableInfo(index.Path))
-        .ValueOrThrow();
-    auto tableInfo = WaitForFast(cache->GetTableInfo(query.Table.Path))
-        .ValueOrThrow();
+    YT_VERIFY(mountInfos.Size() >= 2);
+
+    auto& tableInfo = mountInfos[0];
+    auto& indexTableInfo = mountInfos[1];
 
     indexTableInfo->ValidateDynamic();
     indexTableInfo->ValidateSorted();
@@ -435,6 +435,7 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
         .Visit(query.WherePredicate);
 
     std::swap(query.Table, index);
+    std::swap(tableInfo, indexTableInfo);
     query.Joins.insert(
         query.Joins.begin(),
         NAst::TJoin(
@@ -1529,6 +1530,57 @@ TSelectRowsResult TClient::DoSelectRows(
         });
 }
 
+TDuration TClient::CheckPermissionsForQuery(
+    const TQueryPtr& query,
+    const NQueryClient::TDataSource& dataSource,
+    const TSelectRowsOptions& options)
+{
+    NProfiling::TWallTimer timer;
+
+    std::vector<NSecurityClient::TPermissionKey> permissionKeys;
+
+    auto addTableForPermissionCheck = [&] (TTableId id, const TMappedSchema& schema) {
+        std::vector<std::string> columns;
+        columns.reserve(schema.Mapping.size());
+        for (const auto& columnDescriptor : schema.Mapping) {
+            columns.push_back(schema.Original->Columns()[columnDescriptor.Index].Name());
+        }
+        permissionKeys.push_back(NSecurityClient::TPermissionKey{
+            .Object = FromObjectId(id),
+            .User = Options_.GetAuthenticatedUser(),
+            .Permission = EPermission::Read,
+            .Columns = std::move(columns)
+        });
+    };
+    addTableForPermissionCheck(dataSource.ObjectId, query->Schema);
+    for (const auto& joinClause : query->JoinClauses) {
+        if (joinClause->ArrayExpressions.empty()) {
+            addTableForPermissionCheck(joinClause->ForeignObjectId, joinClause->Schema);
+        }
+    }
+
+    if (options.ExecutionPool) {
+        permissionKeys.push_back(NSecurityClient::TPermissionKey{
+            .Object = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(*options.ExecutionPool),
+            .User = Options_.GetAuthenticatedUser(),
+            .Permission = EPermission::Use,
+        });
+    }
+
+    timer.Restart();
+    const auto& permissionCache = Connection_->GetPermissionCache();
+    auto permissionCheckErrors = WaitFor(permissionCache->GetMany(permissionKeys))
+        .ValueOrThrow();
+    for (const auto& error : permissionCheckErrors) {
+        if (error.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            continue;
+        }
+        error.ThrowOnError();
+    }
+
+    return timer.GetElapsedTime();
+}
+
 TSelectRowsResult TClient::DoSelectRowsOnce(
     const TString& queryString,
     const TSelectRowsOptions& options)
@@ -1549,12 +1601,12 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto cache = New<TStickyTableMountInfoCache>(Connection_->GetTableMountCache());
 
     NProfiling::TWallTimer timer;
-    auto mainTableMountInfo = GetQueryTableInfos(astQuery, cache)[0];
+    auto tableInfos = GetQueryTableInfos(astQuery, cache);
+    auto mainTableMountInfo = tableInfos[0];
     auto getMountInfoTime = timer.GetElapsedTime();
 
-    TransformWithIndexStatement(&parsedQuery->AstHead, cache);
+    TransformWithIndexStatement(&parsedQuery->AstHead, tableInfos);
 
-    auto tableInfos = GetQueryTableInfos(astQuery, cache);
     auto replicaCandidates = PrepareInSyncReplicaCandidates(options, tableInfos);
     if (!replicaCandidates.empty()) {
         std::vector<TYPath> paths;
@@ -1692,47 +1744,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         }
     }
 
-    std::vector<NSecurityClient::TPermissionKey> permissionKeys;
-
-    auto addTableForPermissionCheck = [&] (TTableId id, const TMappedSchema& schema) {
-        std::vector<std::string> columns;
-        columns.reserve(schema.Mapping.size());
-        for (const auto& columnDescriptor : schema.Mapping) {
-            columns.push_back(schema.Original->Columns()[columnDescriptor.Index].Name());
-        }
-        permissionKeys.push_back(NSecurityClient::TPermissionKey{
-            .Object = FromObjectId(id),
-            .User = Options_.GetAuthenticatedUser(),
-            .Permission = EPermission::Read,
-            .Columns = std::move(columns)
-        });
-    };
-    addTableForPermissionCheck(dataSource.ObjectId, query->Schema);
-    for (const auto& joinClause : query->JoinClauses) {
-        if (joinClause->ArrayExpressions.empty()) {
-            addTableForPermissionCheck(joinClause->ForeignObjectId, joinClause->Schema);
-        }
-    }
-
-    if (options.ExecutionPool) {
-        permissionKeys.push_back(NSecurityClient::TPermissionKey{
-            .Object = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(*options.ExecutionPool),
-            .User = Options_.GetAuthenticatedUser(),
-            .Permission = EPermission::Use,
-        });
-    }
-
-    timer.Restart();
-    const auto& permissionCache = Connection_->GetPermissionCache();
-    auto permissionCheckErrors = WaitFor(permissionCache->GetMany(permissionKeys))
-        .ValueOrThrow();
-    for (const auto& error : permissionCheckErrors) {
-        if (error.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            continue;
-        }
-        error.ThrowOnError();
-    }
-    auto permissionCacheWaitTime = timer.GetElapsedTime();
+    auto permissionCacheWaitTime = CheckPermissionsForQuery(query, dataSource, options);
 
     if (options.DetailedProfilingInfo) {
         if (mainTableMountInfo->EnableDetailedProfiling) {
@@ -1816,7 +1828,9 @@ NYson::TYsonString TClient::DoExplainQuery(
         options.SyntaxVersion);
 
     auto cache = New<TStickyTableMountInfoCache>(Connection_->GetTableMountCache());
-    TransformWithIndexStatement(&parsedQuery->AstHead, cache);
+
+    auto tableInfos = GetQueryTableInfos(&std::get<NAst::TQuery>(parsedQuery->AstHead.Ast), cache);
+    TransformWithIndexStatement(&parsedQuery->AstHead, tableInfos);
 
     auto udfRegistryPath = options.UdfRegistryPath
         ? *options.UdfRegistryPath
