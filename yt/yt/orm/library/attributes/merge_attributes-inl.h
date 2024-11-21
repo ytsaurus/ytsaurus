@@ -38,23 +38,27 @@ void ValidateSortedPaths(const TRange& paths, TPathProj pathProj, TIsEtcProj etc
     }
 }
 
-template <typename TType, std::invocable<TType> TPathProj>
-void SortAndRemoveNestedPaths(std::vector<TType>& collection, TPathProj proj)
+template <typename TType, std::invocable<TType> TPathProj, std::predicate<TType> TForceKeep>
+void SortAndRemoveNestedPaths(std::vector<TType>& collection, TPathProj pathProj, TForceKeep forceKeepProj)
 {
     if (collection.empty()) {
         return;
     }
 
-    std::ranges::sort(collection.begin(), collection.end(), /*comp*/ {}, proj);
+    std::ranges::sort(collection.begin(), collection.end(), /*comp*/ {}, pathProj);
 
     int lastRemainingPath = 0;
+    int lastPath = 0;
     for (int i = 1; i < std::ssize(collection); ++i) {
-        if (!NYPath::HasPrefix(std::invoke(proj, collection[i]), std::invoke(proj, collection[lastRemainingPath]))) {
-            collection[++lastRemainingPath] = collection[i];
+        if (!NYPath::HasPrefix(std::invoke(pathProj, collection[i]), std::invoke(pathProj, collection[lastRemainingPath]))) {
+            collection[++lastPath] = collection[i];
+            lastRemainingPath = lastPath;
+        } else if (std::invoke(forceKeepProj, collection[i]) && collection[lastPath] != collection[i]) {
+            collection[++lastPath] = collection[i];
         }
     }
 
-    collection.resize(lastRemainingPath + 1);
+    collection.resize(lastPath + 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

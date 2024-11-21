@@ -12,6 +12,26 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TForcePath
+{
+    NYPath::TYPath Path;
+    bool Force;
+
+    bool operator==(const TForcePath& other) const = default;
+};
+
+void FormatValue(::NYT::TStringBuilderBase* builder, const TForcePath& path, TStringBuf /*spec*/)
+{
+    Format(builder,"{Path: %v, Force: %v}", path.Path, path.Force);
+}
+
+void PrintTo(const TForcePath& path, std::ostream* os)
+{
+    *os << ToString(path);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 NYson::TYsonString ConsumingMergeAttributes(std::vector<TAttributeValue> values)
 {
     std::ranges::sort(values, /*comparator*/ {}, /*projection*/ &TAttributeValue::Path);
@@ -181,6 +201,78 @@ TEST(TSortAndRemoveNestedPathsTest, Intersecting)
     SortAndRemoveNestedPaths(paths);
 
     std::vector<NYPath::TYPath> expectedResult = {"/bar", "/foo"};
+    ASSERT_EQ(paths, expectedResult);
+}
+
+TEST(TSortAndRemoveNestedPathsTest, Fixed)
+{
+    std::vector<TForcePath> paths = {
+        {.Path = "/foo", .Force = false},
+        {.Path = "/foo/bar", .Force = true},
+        {.Path = "/bar", .Force = false},
+        {.Path = "/foo/bar/boo", .Force = false}
+    };
+    SortAndRemoveNestedPaths(paths, &TForcePath::Path, &TForcePath::Force);
+
+    std::vector<TForcePath> expectedResult = {
+        {.Path = "/bar", .Force = false},
+        {.Path = "/foo", .Force = false},
+        {.Path = "/foo/bar", .Force = true}
+    };
+    ASSERT_EQ(paths, expectedResult);
+}
+
+TEST(TSortAndRemoveNestedPathsTest, FixedFlat)
+{
+    std::vector<TForcePath> paths = {
+        {.Path = "", .Force = false},
+        {.Path = "/foo", .Force = true},
+        {.Path = "/bar", .Force = true},
+        {.Path = "/foobar", .Force = false}
+    };
+    SortAndRemoveNestedPaths(paths, &TForcePath::Path, &TForcePath::Force);
+
+    std::vector<TForcePath> expectedResult = {
+        {.Path = "", .Force = false},
+        {.Path = "/bar", .Force = true},
+        {.Path = "/foo", .Force = true},
+    };
+    ASSERT_EQ(paths, expectedResult);
+}
+
+TEST(TSortAndRemoveNestedPathsTest, FixedChild)
+{
+    std::vector<TForcePath> paths = {
+        {.Path = "", .Force = false},
+        {.Path = "/bar", .Force = true},
+        {.Path = "/foo", .Force = true},
+        {.Path = "/foo/bar", .Force = false},
+        {.Path = "/foo/bar/k", .Force = true}
+    };
+    SortAndRemoveNestedPaths(paths, &TForcePath::Path, &TForcePath::Force);
+
+    std::vector<TForcePath> expectedResult = {
+        {.Path = "", .Force = false},
+        {.Path = "/bar", .Force = true},
+        {.Path = "/foo", .Force = true},
+        {.Path = "/foo/bar/k", .Force = true}
+    };
+    ASSERT_EQ(paths, expectedResult);
+}
+
+TEST(TSortAndRemoveNestedPathsTest, RepeatedOpaque)
+{
+    std::vector<TForcePath> paths = {
+        {.Path = "", .Force = false},
+        {.Path = "/bar", .Force = true},
+        {.Path = "/bar", .Force = true},
+    };
+    SortAndRemoveNestedPaths(paths, &TForcePath::Path, &TForcePath::Force);
+
+    std::vector<TForcePath> expectedResult = {
+        {.Path = "", .Force = false},
+        {.Path = "/bar", .Force = true}
+    };
     ASSERT_EQ(paths, expectedResult);
 }
 
