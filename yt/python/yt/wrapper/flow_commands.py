@@ -3,6 +3,15 @@ from .driver import make_request, make_formatted_request, get_structured_format
 from .dynamic_table_commands import select_rows
 from .ypath import YPath
 
+from yt.wrapper.common import YtError
+
+from datetime import datetime, timedelta
+
+import yt.logger as logger
+
+import enum
+import time
+
 
 def start_pipeline(pipeline_path, client=None):
     """Start YT Flow pipeline.
@@ -183,6 +192,61 @@ def get_pipeline_state(pipeline_path, client=None):
         client=client)
 
 
+class PipelineState(str, enum.Enum):
+    Unknown = "unknown"
+    Stopped = "stopped"
+    Paused = "paused"
+    Working = "working"
+    Draining = "draining"
+    Pausing = "pausing"
+    Completed = "completed"
+
+
+def wait_pipeline_state(target_state, pipeline_path, client=None, timeout=600):
+    if target_state == PipelineState.Completed:
+        target_states = {PipelineState.Completed, }
+    elif target_state == PipelineState.Working:
+        target_states = {PipelineState.Completed, PipelineState.Working}
+    elif target_state == PipelineState.Stopped:
+        target_states = {PipelineState.Completed, PipelineState.Stopped}
+    elif target_state == PipelineState.Draining:
+        target_states = {PipelineState.Completed, PipelineState.Stopped, PipelineState.Draining}
+    elif target_state == PipelineState.Paused:
+        target_states = {PipelineState.Completed, PipelineState.Stopped, PipelineState.Paused}
+    elif target_state == PipelineState.Pausing:
+        target_states = {PipelineState.Completed, PipelineState.Stopped, PipelineState.Paused, PipelineState.Pausing}
+    else:
+        logger.warning("Unknown pipeline state %s", target_state)
+        return
+
+    invalid_state_transitions = {
+        PipelineState.Stopped: {PipelineState.Paused, },
+    }
+
+    deadline = datetime.now() + timedelta(seconds=timeout)
+
+    while True:
+        if datetime.now() > deadline:
+            raise YtError("Wait time out", attributes={"timeout": timeout})
+
+        current_state = get_pipeline_state(pipeline_path=pipeline_path, client=client)
+
+        if current_state in target_states:
+            logger.info("Waiting finished (current state: %s, target state: %s)",
+                        current_state, target_state)
+            return
+
+        if current_state in invalid_state_transitions.get(target_state, []):
+            raise YtError("Invalid state transition", attributes={
+                "current_state": current_state,
+                "target_state": target_state})
+
+        logger.info("Still waiting (current state: %s, target state: %s)",
+                    current_state, target_state)
+
+        time.sleep(1)
+
+
 def get_flow_view(pipeline_path, view_path=None, format=None, client=None):
     """Get YT Flow flow view
 
@@ -212,11 +276,13 @@ def get_controller_logs(pipeline_path, count, offset=None, client=None):
     assert count > 0, "'count' must be positive"
 
     if offset is None:
-        last_offset = list(select_rows(
+        last_offsets = list(select_rows(
             f"MAX([$row_index]) AS value FROM [{pipeline_path}/controller_logs] GROUP BY [$tablet_index]",
             raw=False,
-            client=client))[0]
-        offset = max(last_offset["value"] - count + 1, 0)
+            client=client))
+        if not last_offsets:
+            return [], None
+        offset = max(last_offsets[0]["value"] - count + 1, 0)
 
     end = offset + count - 1
     result = list(select_rows(

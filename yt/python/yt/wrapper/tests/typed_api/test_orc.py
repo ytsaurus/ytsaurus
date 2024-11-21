@@ -1,7 +1,7 @@
 from __future__ import with_statement, print_function
 
 from yt.testlib import authors
-from yt.wrapper.testlib.helpers import TEST_DIR
+from yt.wrapper.testlib.helpers import TEST_DIR, inject_http_error
 
 import yt.wrapper as yt
 
@@ -22,7 +22,7 @@ def generate_random_string(length):
     return rand_string
 
 
-@pytest.mark.usefixtures("yt_env")
+@pytest.mark.usefixtures("yt_env_v4")
 class TestOrc(object):
     @authors("nadya02")
     def test_simple_orc(self):
@@ -77,3 +77,40 @@ class TestOrc(object):
             assert schema == schema_from_attr
 
             assert list(yt.read_table(output_table)) == list(yt.read_table(input_table))
+
+    @authors("nadya02")
+    def test_upload_orc_retry(self):
+        with tempfile.NamedTemporaryFile() as temp_file:
+            client = yt.YtClient(config=yt.config.config)
+
+            client.config["write_retries"]["chunk_size"] = 500
+            client.config["arrow_options"]["write_arrow_batch_size"] = 10
+
+            filename = temp_file.name
+            input_table = "//tmp/dump_orc"
+
+            schema = TableSchema() \
+                .add_column("key", type_info.Optional[type_info.Int64]) \
+                .add_column("value", type_info.Optional[type_info.String])
+
+            client.create("table", input_table, attributes={"schema": schema})
+            rows_in_chunk = 20
+
+            for i in range(5):
+                rows = []
+                for j in range(rows_in_chunk):
+                    rows.append({"key": i * rows_in_chunk + j, "value": generate_random_string(5)})
+                client.write_table(yt.TablePath(input_table, append=True), rows)
+
+            client.dump_orc(input_table, filename)
+
+            output_table = "//tmp/upload_orc"
+
+            with inject_http_error(client, filter_url='/write_table', interrupt_from=0, interrupt_till=999, interrupt_every=2, raise_connection_reset=True) as cnt:
+                client.upload_orc(output_table, filename)
+
+            assert list(yt.read_table(output_table)) == list(yt.read_table(input_table))
+            assert client.get(output_table + "/@row_count") == 100
+            assert client.get(output_table + "/@chunk_count") == 10
+            assert cnt.filtered_total_calls == 20
+            assert cnt.filtered_raises == 10

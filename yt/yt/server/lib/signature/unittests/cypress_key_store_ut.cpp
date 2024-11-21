@@ -68,9 +68,9 @@ TEST_F(TCypressKeyReaderTest, GetKey)
     EXPECT_CALL(*Client, GetNode("//sys/public_keys/by_owner/test/4-3-2-1", _))
         .WillOnce(Return(MakeFuture(ConvertToYsonString(simpleKeyInfo))));
 
-    TCypressKeyReader reader(Client);
+    auto reader = New<TCypressKeyReader>(Client);
 
-    auto keyInfo = WaitFor(reader.GetKey(Owner, KeyId));
+    auto keyInfo = WaitFor(reader->GetKey(Owner, KeyId));
     EXPECT_THAT(keyInfo.ValueOrThrow(), Pointee(*simpleKeyInfo));
 }
 
@@ -81,9 +81,9 @@ TEST_F(TCypressKeyReaderTest, GetKeyNotFound)
     EXPECT_CALL(*Client, GetNode(_, _))
         .WillOnce(Return(MakeFuture<TYsonString>(TError("Key not found"))));
 
-    TCypressKeyReader reader(Client);
+    auto reader = New<TCypressKeyReader>(Client);
 
-    auto keyInfo = WaitFor(reader.GetKey(Owner, KeyId));
+    auto keyInfo = WaitFor(reader->GetKey(Owner, KeyId));
     EXPECT_FALSE(keyInfo.IsOK());
     EXPECT_THAT(keyInfo.GetMessage(), HasSubstr("Key not found"));
 }
@@ -95,9 +95,9 @@ TEST_F(TCypressKeyReaderTest, GetKeyInvalidString)
     EXPECT_CALL(*Client, GetNode(_, _))
         .WillOnce(Return(MakeFuture<TYsonString>(ConvertToYsonString("abacaba"))));
 
-    TCypressKeyReader reader(Client);
+    auto reader = New<TCypressKeyReader>(Client);
 
-    auto keyInfo = WaitFor(reader.GetKey(Owner, KeyId));
+    auto keyInfo = WaitFor(reader->GetKey(Owner, KeyId));
     EXPECT_FALSE(keyInfo.IsOK());
     EXPECT_THAT(keyInfo.GetMessage(), HasSubstr("node has invalid type"));
 }
@@ -140,7 +140,7 @@ struct TCypressKeyWriterTest
 
 TEST_F(TCypressKeyWriterTest, Init)
 {
-    TCypressKeyWriter writer(TOwnerId("test"), Client);
+    auto writer = New<TCypressKeyWriter>(TOwnerId("test"), Client);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -150,16 +150,16 @@ TEST_F(TCypressKeyWriterNoInitTest, InitFailed)
     EXPECT_CALL(*Client, CreateNode("//sys/public_keys/by_owner/test", _, _))
         .WillOnce(Return(MakeFuture<TNodeId>(TError("failure"))));
 
-    EXPECT_THROW_WITH_SUBSTRING(TCypressKeyWriter(TOwnerId("test"), Client), "Failed to initialize");
+    EXPECT_THROW_WITH_SUBSTRING(New<TCypressKeyWriter>(TOwnerId("test"), Client), "Failed to initialize");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TCypressKeyWriterTest, GetOwner)
 {
-    TCypressKeyWriter writer(Owner, Client);
+    auto writer = New<TCypressKeyWriter>(Owner, Client);
 
-    EXPECT_EQ(writer.GetOwner(), Owner);
+    EXPECT_EQ(writer->GetOwner(), Owner);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -180,9 +180,9 @@ TEST_F(TCypressKeyWriterTest, RegisterKey)
     EXPECT_CALL(*Client, SetNode("//sys/public_keys/by_owner/test/4-3-2-1", ConvertToYsonString(keyInfo), _))
         .WillOnce(Return(VoidFuture));
 
-    TCypressKeyWriter writer(Owner, Client);
+    auto writer = New<TCypressKeyWriter>(Owner, Client);
 
-    EXPECT_TRUE(WaitFor(writer.RegisterKey(*keyInfo)).IsOK());
+    EXPECT_TRUE(WaitFor(writer->RegisterKey(*keyInfo)).IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -192,11 +192,11 @@ TEST_F(TCypressKeyWriterTest, RegisterKeyFailed)
     EXPECT_CALL(*Client, CreateNode("//sys/public_keys/by_owner/test/4-3-2-1", _, _))
         .WillOnce(Return(MakeFuture<TNodeId>(TError("some error"))));
 
-    TCypressKeyWriter writer(Owner, Client);
+    auto writer = New<TCypressKeyWriter>(Owner, Client);
 
     auto keyInfo = New<TKeyInfo>(TPublicKey{}, Meta);
 
-    auto error = WaitFor(writer.RegisterKey(*keyInfo));
+    auto error = WaitFor(writer->RegisterKey(*keyInfo));
     EXPECT_FALSE(error.IsOK());
     EXPECT_THAT(error.GetMessage(), HasSubstr("some error"));
 }
@@ -205,7 +205,7 @@ TEST_F(TCypressKeyWriterTest, RegisterKeyFailed)
 
 TEST_F(TCypressKeyWriterTest, RegisterKeyWrongOwner)
 {
-    TCypressKeyWriter writer(Owner, Client);
+    auto writer = New<TCypressKeyWriter>(Owner, Client);
 
     // TODO(pavook): enable this test when we can replace YT_VERIFY with exceptions.
     if (false) {
@@ -216,7 +216,7 @@ TEST_F(TCypressKeyWriterTest, RegisterKeyWrongOwner)
         }, Meta);
         auto notMineKeyInfo = New<TKeyInfo>(TPublicKey{}, metaNotMine);
 
-        EXPECT_THROW(std::ignore = WaitFor(writer.RegisterKey(*notMineKeyInfo)), TAssertionFailedException);
+        EXPECT_THROW(std::ignore = WaitFor(writer->RegisterKey(*notMineKeyInfo)), TAssertionFailedException);
     }
 }
 

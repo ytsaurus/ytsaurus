@@ -94,13 +94,22 @@ private:
             auto value = abortFutures[transactionIndex].TryGet();
             YT_VERIFY(value.has_value());
 
-            value->ThrowOnError();
+            auto transactionId = transactions->FindChild(transactionIndex)->GetValue<std::string>();
 
-            Cerr
-                << Format(
-                    "Cypress transaction aborted (TransactionId: %v)",
-                    transactions->FindChild(transactionIndex)->GetValue<std::string>())
-                << Endl;
+            if (value->IsOK()) {
+                Cerr
+                    << Format(
+                        "Cypress transaction aborted (TransactionId: %v)",
+                        transactionId)
+                    << Endl;
+            } else {
+                Cerr <<
+                    Format(
+                        "Failed to abort Cypress transaction (TransactionId: %v, Error: %v)",
+                        transactionId,
+                        value->GetMessage())
+                    << Endl;
+            }
         }
 
         Cerr

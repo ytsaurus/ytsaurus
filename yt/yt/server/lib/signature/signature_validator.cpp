@@ -16,7 +16,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSignatureValidator::TSignatureValidator(IKeyStoreReader* store)
+TSignatureValidator::TSignatureValidator(const IKeyStoreReaderPtr& store)
     : Store_(store)
 {
     InitializeCryptography();

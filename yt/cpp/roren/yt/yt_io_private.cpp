@@ -1,5 +1,6 @@
 #include "yt_io_private.h"
 #include "jobs.h"
+#include "table_stream_registry.h"
 
 #include <yt/cpp/roren/interface/private/raw_data_flow.h>
 #include <yt/cpp/mapreduce/interface/format.h>
@@ -136,10 +137,9 @@ public:
     void AddRaw(const void* rows, ssize_t count) override
     {
         if (Writer_ == nullptr) {
-            auto fd = GetOutputFD(GetSinkIndices()[0]);
-            Stream_ = std::make_unique<TFileOutput>(Duplicate(fd));
+            Stream_ = GetTableStream(GetSinkIndices()[0]);
             Writer_ = std::make_unique<::NYson::TYsonWriter>(
-                Stream_.get(),
+                Stream_,
                 NYson::EYsonFormat::Binary,
                 ::NYson::EYsonType::ListFragment);
         }
@@ -153,7 +153,9 @@ public:
     }
 
     void Close() override
-    { }
+    {
+        Stream_->Flush();
+    }
 
     [[nodiscard]] TDefaultFactoryFunc GetDefaultFactory() const override
     {
@@ -164,7 +166,7 @@ public:
 
 private:
     std::unique_ptr<NYT::NYson::IYsonConsumer> Writer_ = nullptr;
-    std::unique_ptr<IOutputStream> Stream_;
+    IOutputStream* Stream_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -424,10 +426,9 @@ public:
         auto* current = static_cast<const std::byte*>(rows);
         for (ssize_t i = 0; i < count; ++i, current += DataSize_) {
             if (!Writer_) {
-                auto fd = GetOutputFD(GetSinkIndices()[0]);
-                Stream_ = std::make_unique<TFileOutput>(Duplicate(fd));
+                Stream_ = GetTableStream(GetSinkIndices()[0]);
                 Writer_ = std::make_unique<::NYson::TYsonWriter>(
-                    Stream_.get(),
+                    Stream_,
                     NYT::NYson::EYsonFormat::Binary,
                     ::NYson::EYsonType::ListFragment
                 );
@@ -446,7 +447,9 @@ public:
     }
 
     void Close() override
-    { }
+    {
+        Stream_->Flush();
+    }
 
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
@@ -471,7 +474,7 @@ public:
 
 private:
     std::unique_ptr<NYT::NYson::IYsonConsumer> Writer_;
-    std::unique_ptr<IOutputStream> Stream_;
+    IOutputStream* Stream_ = nullptr;
     IRawCoderPtr Encoder_;
     size_t DataSize_ = 0;
     TString Value_;
@@ -529,10 +532,9 @@ public:
     void AddKvToTable(const void* key, const void* value, ui64 tableIndex) override
     {
         if (!Writer_) {
-            auto fd = GetOutputFD(GetSinkIndices()[0]);
-            Stream_ = std::make_unique<TFileOutput>(Duplicate(fd));
+            Stream_ = GetTableStream(GetSinkIndices()[0]);
             Writer_ = std::make_unique<::NYson::TYsonWriter>(
-                Stream_.get(),
+                Stream_,
                 NYT::NYson::EYsonFormat::Binary,
                 ::NYson::EYsonType::ListFragment
             );
@@ -565,7 +567,9 @@ public:
     }
 
     void Close() override
-    { }
+    {
+        Stream_->Flush();
+    }
 
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
@@ -613,7 +617,7 @@ public:
     }
 
 private:
-    std::unique_ptr<IOutputStream> Stream_;
+    IOutputStream* Stream_ = nullptr;
     std::unique_ptr<NYT::NYson::IYsonConsumer> Writer_;
     std::vector<TRowVtable> RowVtables_;
     std::vector<IRawCoderPtr> KeyEncoders_;
@@ -1349,10 +1353,9 @@ public:
         Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
         Y_ABORT_UNLESS(outputs.empty());
 
-        auto fd = GetOutputFD(TableIndex_);
-        Stream_ = std::make_unique<TFileOutput>(Duplicate(fd));
+        Stream_ = GetTableStream(TableIndex_);
         YsonWriter_ = std::make_unique<::NYson::TYsonWriter>(
-            Stream_.get(),
+            Stream_,
             NYson::EYsonFormat::Binary,
             ::NYson::EYsonType::ListFragment);
     }
@@ -1370,8 +1373,7 @@ public:
     void Finish() override
     {
         YsonWriter_.reset();
-        Stream_->Finish();
-        Stream_.reset();
+        Stream_->Flush();
     }
 
     const TFnAttributes& GetFnAttributes() const override
@@ -1391,7 +1393,7 @@ private:
     ssize_t TableIndex_ = 0;
 
     std::unique_ptr<NYT::NYson::IYsonConsumer> YsonWriter_;
-    std::unique_ptr<IOutputStream> Stream_;
+    IOutputStream* Stream_ = nullptr;
 
     Y_SAVELOAD_DEFINE_OVERRIDE(TableIndex_);
 };

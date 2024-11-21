@@ -210,7 +210,10 @@ void TBundleTabletBalancerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Postprocessor([] (TThis* config) {
-        config->Groups.emplace(DefaultGroupName, New<TTabletBalancingGroupConfig>());
+        auto [it, inserted] = config->Groups.emplace(DefaultGroupName, New<TTabletBalancingGroupConfig>());
+        if (inserted) {
+            it->second->Postprocess();
+        }
 
         if (auto it = config->Groups.emplace(LegacyGroupName, New<TTabletBalancingGroupConfig>()); it.second) {
             it.first->second->Type = EBalancingType::Legacy;

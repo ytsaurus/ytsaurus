@@ -124,13 +124,19 @@ void FetchTableSchemas(
     const NApi::NNative::IClientPtr& client,
     const std::vector<TTablePtr>& tables,
     TCallback<NTransactionClient::TTransactionId(const TTablePtr&)> tableToTransactionId,
-    bool fetchFromExternalCells);
+    bool fetchFromExternalCells,
+    bool fetchSchemasById);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsBulkInsertAllowedForUser(
     TStringBuf authenticatedUser,
     const NApi::IClientPtr& client);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool HasCompressionDictionaries(
+    const NYTree::IAttributeDictionaryPtr& tableAttributes);
 
 ////////////////////////////////////////////////////////////////////////////////
 

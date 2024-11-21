@@ -66,7 +66,7 @@ class TArrowRawIterator
 public:
     TArrowRawIterator(Py::PythonClassInstance* self, Py::Tuple& args, Py::Dict& kwargs);
 
-    void Initialize(const TString& inputFilePath, EFileFormat format);
+    void Initialize(const TString& inputFilePath, EFileFormat format, int arrowBatchSize);
 
     Py::Object iter() override;
     PyObject* iternext() override;
@@ -74,8 +74,10 @@ public:
     static void InitType();
 
     Py::Object GetSchema(Py::Tuple& args, Py::Dict& kwargs);
-
     PYCXX_KEYWORDS_METHOD_DECL(TArrowRawIterator, GetSchema)
+
+    Py::Object NextChunk(Py::Tuple& args, Py::Dict& kwargs);
+    PYCXX_KEYWORDS_METHOD_DECL(TArrowRawIterator, NextChunk)
 
 private:
     std::shared_ptr<arrow::ipc::RecordBatchWriter> RecordBatchWriter_;

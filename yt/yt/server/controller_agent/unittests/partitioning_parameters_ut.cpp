@@ -14,7 +14,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPartitioningParametersLegacy
+class TPartitioningParametersLegacyTest
     : public ::testing::Test
 {
 protected:
@@ -44,20 +44,20 @@ protected:
     }
 };
 
-class TPartitioningParametersNew
-    : public TPartitioningParametersLegacy
+class TPartitioningParametersNewTest
+    : public TPartitioningParametersLegacyTest
 {
 protected:
     void SetUp()
     {
-        TPartitioningParametersLegacy::SetUp();
+        TPartitioningParametersLegacyTest::SetUp();
         Spec_->UseNewPartitionsHeuristic = true;
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TPartitioningParametersLegacy, PartitionCountIsSet)
+TEST_F(TPartitioningParametersLegacyTest, PartitionCountIsSet)
 {
     Spec_->SamplesPerPartition = 10;
     Spec_->PartitionCount = 16;
@@ -78,7 +78,7 @@ TEST_F(TPartitioningParametersLegacy, PartitionCountIsSet)
     EXPECT_EQ(evaluator->SuggestMaxPartitionFactor(16), 16);
 }
 
-TEST_F(TPartitioningParametersLegacy, PartitionDataWeightIsSet)
+TEST_F(TPartitioningParametersLegacyTest, PartitionDataWeightIsSet)
 {
     Spec_->PartitionDataWeight = 1_GB;
 
@@ -97,7 +97,7 @@ TEST_F(TPartitioningParametersLegacy, PartitionDataWeightIsSet)
 }
 
 // Example from https://wiki.yandex-team.ru/yt/design/partitioncount/
-TEST_F(TPartitioningParametersLegacy, PartitionCountIsComputedByBlockSize)
+TEST_F(TPartitioningParametersLegacyTest, PartitionCountIsComputedByBlockSize)
 {
     Options_->CompressedBlockSize = 10_MB;
 
@@ -113,7 +113,7 @@ TEST_F(TPartitioningParametersLegacy, PartitionCountIsComputedByBlockSize)
     EXPECT_NEAR(evaluator->SuggestPartitionCount(), 142, 10);
 }
 
-TEST_F(TPartitioningParametersLegacy, PartitionCountIsAdjustedWrtBufferSize)
+TEST_F(TPartitioningParametersLegacyTest, PartitionCountIsAdjustedWrtBufferSize)
 {
     Spec_->PartitionCount = 1'000'000;
 
@@ -133,7 +133,7 @@ TEST_F(TPartitioningParametersLegacy, PartitionCountIsAdjustedWrtBufferSize)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TPartitioningParametersNew, MaxPartitionFactorIsSmall)
+TEST_F(TPartitioningParametersNewTest, MaxPartitionFactorIsSmall)
 {
     Spec_->SamplesPerPartition = 10;
     Spec_->PartitionCount = 19;
@@ -156,7 +156,7 @@ TEST_F(TPartitioningParametersNew, MaxPartitionFactorIsSmall)
     EXPECT_EQ(evaluator->SuggestMaxPartitionFactor(19), 5);
 }
 
-TEST_F(TPartitioningParametersNew, PartitionDataWeightIsSet)
+TEST_F(TPartitioningParametersNewTest, PartitionDataWeightIsSet)
 {
     Spec_->PartitionDataWeight = 16_MB;
     Spec_->PartitionJobIO->TableWriter->MaxBufferSize = 16_MB;
@@ -176,7 +176,7 @@ TEST_F(TPartitioningParametersNew, PartitionDataWeightIsSet)
     EXPECT_NEAR(evaluator->SuggestMaxPartitionFactor(evaluator->SuggestPartitionCount()), 14, 5);
 }
 
-TEST_F(TPartitioningParametersNew, PartitionCountIsComputedBySortJobSize)
+TEST_F(TPartitioningParametersNewTest, PartitionCountIsComputedBySortJobSize)
 {
     Spec_->DataWeightPerShuffleJob = 1_GB;
 
@@ -196,7 +196,7 @@ TEST_F(TPartitioningParametersNew, PartitionCountIsComputedBySortJobSize)
     EXPECT_NEAR(evaluator->SuggestPartitionCount(), expected, expected / 100);
 }
 
-TEST_F(TPartitioningParametersNew, InputDataWeightIsVeryLarge)
+TEST_F(TPartitioningParametersNewTest, InputDataWeightIsVeryLarge)
 {
     Spec_->DataWeightPerShuffleJob = 16_MB;
 

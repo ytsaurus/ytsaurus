@@ -492,6 +492,12 @@ message TJobResultExt
         optional TJobResultExt job_result_ext = 100;
     }
 
+    message THunkChunkIdMapping
+    {
+        required NYT.NProto.TGuid input_hunk_chunk_id = 1;
+        required NYT.NProto.TGuid output_hunk_chunk_id = 2;
+    }
+
     // List of output chunks produced by the job.
     // NB: Only filled when necessary.
     repeated NYT.NChunkClient.NProto.TChunkSpec output_chunk_specs = 3;
@@ -531,6 +537,8 @@ message TJobResultExt
     // MD5 digest for each output table.
     // May be empty for some tables, e.g. if the table is not intermediate.
     repeated NYT.NCrypto.NProto.TMD5Hash output_digests = 23;
+
+    repeated THunkChunkIdMapping hunk_chunk_id_mapping = 24;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -735,6 +743,8 @@ message TRemoteCopyJobSpecExt
     repeated THunkChunkIdMapping hunk_chunk_id_mapping = 7;
 
     optional string remote_cluster_name = 8;
+
+    optional bool use_local_throttler = 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

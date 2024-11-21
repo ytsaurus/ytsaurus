@@ -800,7 +800,29 @@ INSTANTIATE_TEST_SUITE_P(
             /*moveDescriptors*/ "[]",
             /*moveActionLimit*/ 3,
             /*distribution*/ std::vector<int>{2, 0},
-            /*cellSizes*/ std::vector<i64>{100, 0})));
+            /*cellSizes*/ std::vector<i64>{100, 0}),
+        std::tuple( // NODE OVERLOAD
+            "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
+            "tables=[{in_memory_mode=uncompressed; tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=20; memory_size=20; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=3; cell_index=2;"
+                "statistics={uncompressed_data_size=10; memory_size=10; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=4; cell_index=3;"
+                "statistics={uncompressed_data_size=10; memory_size=10; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=5; cell_index=2;"
+                "statistics={uncompressed_data_size=40; memory_size=40; compressed_data_size=0; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=70; node_address=home};"
+                   "{cell_index=2; memory_size=50; node_address=home};"
+                   "{cell_index=3; memory_size=10; node_address=another}];"
+            "nodes=[{node_address=home; memory_used=0; memory_limit=100};"
+                   "{node_address=another; memory_used=0; memory_limit=100}]}",
+                        /*moveDescriptors*/ "[]",
+            /*moveActionLimit*/ 3,
+            /*distribution*/ std::vector<int>{1, 2, 2},
+            /*cellSizes*/ std::vector<i64>{10, 50, 70})));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -835,25 +857,7 @@ TEST_P(TTestReassignTabletsParameterizedErrors, BalancingError)
         ToString(std::get<1>(params)));
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    TTestReassignTabletsParameterizedErrors,
-    TTestReassignTabletsParameterizedErrors,
-    ::testing::Values(
-        std::tuple(
-            "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
-            "tables=[{in_memory_mode=uncompressed; tablets=["
-            "{tablet_index=1; cell_index=1;"
-                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=0; partition_count=1}};"
-            "{tablet_index=2; cell_index=1;"
-                "statistics={uncompressed_data_size=20; memory_size=20; compressed_data_size=0; partition_count=1}};"
-            "{tablet_index=3; cell_index=2;"
-                "statistics={uncompressed_data_size=10; memory_size=10; compressed_data_size=0; partition_count=1}};"
-            "{tablet_index=4; cell_index=2;"
-                "statistics={uncompressed_data_size=40; memory_size=40; compressed_data_size=0; partition_count=1}}]}];"
-            "cells=[{cell_index=1; memory_size=70; node_address=home};"
-                   "{cell_index=2; memory_size=50; node_address=home}];"
-            "nodes=[{node_address=home; memory_used=0; memory_limit=100}]}",
-            /*errorText*/ "Node memory usage exceeds memory limit")));
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(TTestReassignTabletsParameterizedErrors);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -82,10 +82,11 @@ public:
             prepareColumnarMeta
         };
 
+        TFuture<TVersionedChunkMetaCacheEntryPtr> future;
         auto cookie = BeginInsert(key);
         if (cookie.IsActive()) {
             // TODO(savrus,psushin) Move call to dispatcher?
-            return chunkReader->GetMeta(chunkReadOptions)
+            future = chunkReader->GetMeta(chunkReadOptions)
                 .Apply(BIND(
                     &TCachedVersionedChunkMeta::Create,
                     prepareColumnarMeta,
@@ -105,8 +106,12 @@ public:
                     return result;
                 }));
         } else {
-            return cookie.GetValue();
+            future = cookie.GetValue();
         }
+
+        return future
+            .ToUncancelable()
+            .ToImmediatelyCancelable();
     }
 
     void Touch(const TVersionedChunkMetaCacheEntryPtr& entry) override

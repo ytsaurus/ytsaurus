@@ -688,6 +688,10 @@ default_config = {
     # If |None|, the proxy url is used.
     # NB: this option can be overridden with settings from cluster.
     "strawberry_cluster_name": RemotePatchableString(None, "strawberry_cluster_name"),
+
+    "arrow_options": {
+        "write_arrow_batch_size": 64 * 1024,
+    },
 }
 
 # pydoc :: default_config :: end

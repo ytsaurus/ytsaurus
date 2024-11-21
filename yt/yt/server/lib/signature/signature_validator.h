@@ -8,16 +8,18 @@ namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSignatureValidator
+class TSignatureValidator final
 {
 public:
-    explicit TSignatureValidator(IKeyStoreReader* store);
+    explicit TSignatureValidator(const IKeyStoreReaderPtr& store);
 
     TFuture<bool> Validate(TSignaturePtr signature);
 
 private:
-    IKeyStoreReader* const Store_;
+    const IKeyStoreReaderPtr Store_;
 };
+
+DEFINE_REFCOUNTED_TYPE(TSignatureValidator)
 
 ////////////////////////////////////////////////////////////////////////////////
 

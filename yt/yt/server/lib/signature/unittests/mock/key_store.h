@@ -6,6 +6,8 @@ namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(TMockKeyStore)
+
 struct TMockKeyStore
     : public IKeyStoreReader
     , public IKeyStoreWriter
@@ -18,6 +20,8 @@ struct TMockKeyStore
 
     TFuture<void> RegisterKey(const TKeyInfo& keyInfo) override;
 };
+
+DEFINE_REFCOUNTED_TYPE(TMockKeyStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 

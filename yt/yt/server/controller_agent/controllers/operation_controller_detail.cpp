@@ -147,6 +147,7 @@
 
 #include <library/cpp/yt/memory/chunked_input_stream.h>
 
+#include <library/cpp/iterator/concatenate.h>
 #include <library/cpp/iterator/zip.h>
 
 #include <util/generic/algorithm.h>
@@ -2772,7 +2773,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
 
         i64 currentRequestSize = 0;
 
-        auto addChunkTree = [&] (TChunkTreeId chunkTreeId) {
+        auto addChunkTree = [&] (TChunkTreeId chunkTreeId, bool isHunk = false) {
             if (batchReq && currentRequestSize >= Config->MaxChildrenPerAttachRequest) {
                 // NB: Static tables do not need statistics for intermediate requests.
                 // Dynamic tables need them for each subrequest, so we ensure that
@@ -2794,7 +2795,9 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                     batchReq->set_suppress_upstream_sync(true);
                 }
                 req = batchReq->add_attach_chunk_trees_subrequests();
-                ToProto(req->mutable_parent_id(), table->OutputChunkListId);
+                ToProto(
+                    req->mutable_parent_id(),
+                    isHunk ? table->OutputHunkChunkListId : table->OutputChunkListId);
                 if (table->Dynamic && OperationType != EOperationType::RemoteCopy && !table->Path.GetOutputTimestamp()) {
                     ToProto(req->mutable_transaction_id(), table->ExternalTransactionId);
                 }
@@ -2818,6 +2821,8 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                 }
             } else {
                 std::vector<std::vector<TChunkTreeId>> tabletChunks(table->PivotKeys.size());
+                std::vector<THashSet<TChunkId>> tabletHunkChunks(table->PivotKeys.size());
+
                 for (const auto& chunk : table->OutputChunks) {
                     auto chunkId  = chunk->GetChunkId();
                     auto& minKey = chunk->BoundaryKeys()->MinKey;
@@ -2838,8 +2843,18 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                         ++end;
                     }
 
+                    std::vector<TChunkId> hunkChunkIds;
+                    if (chunk->HunkChunkRefsExt()) {
+                        YT_VERIFY(table->Schema->HasHunkColumns());
+                        YT_VERIFY(!table->OutputHunkChunks.empty());
+                        for (const auto& hunkChunkRef : chunk->HunkChunkRefsExt()->refs()) {
+                            hunkChunkIds.push_back(FromProto<TChunkId>(hunkChunkRef.chunk_id()));
+                        }
+                    }
+
                     for (auto index = start; index < end; ++index) {
                         tabletChunks[index].push_back(chunkId);
+                        tabletHunkChunks[index].insert(hunkChunkIds.begin(), hunkChunkIds.end());
                     }
                 }
 
@@ -2849,6 +2864,17 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                         addChunkTree(chunkTree);
                     }
                     flushSubrequest(true);
+                }
+
+                if (!table->OutputHunkChunks.empty()) {
+                    YT_VERIFY(table->TabletHunkChunkListIds.size() == table->TabletChunkListIds.size());
+                    for (int index = 0; index < std::ssize(tabletHunkChunks); ++index) {
+                        table->OutputHunkChunkListId = table->TabletHunkChunkListIds[index];
+                        for (auto& chunkTree : tabletHunkChunks[index]) {
+                            addChunkTree(chunkTree, /*isHunk*/ true);
+                        }
+                        flushSubrequest(true);
+                    }
                 }
             }
         } else if (auto outputOrder = GetOutputOrder()) {
@@ -6316,13 +6342,12 @@ void TOperationControllerBase::GetOutputTablesSchema()
             table->SchemaId = attributes->Get<TGuid>("schema_id");
         }
 
-        // TODO(h0pless): Try fetching schema from external cells.
-        // With schemas being externalized it became possible to do so.
         FetchTableSchemas(
             OutputClient,
             UpdatingTables_,
             BIND([this] (const TOutputTablePtr& table) { return GetTransactionForOutputTable(table)->GetId(); }),
-            /*fetchFromExternalCells*/ false);
+            /*fetchFromExternalCells*/ false,
+            /*fetchSchemasById*/ GetConfig()->FetchSchemasFromExternalCellTags);
     }
 
     for (const auto& [table, attributes] : tableAttributes) {
@@ -6782,6 +6807,12 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
                 {
                     req->set_fetch_last_key(true);
                 }
+                if (table->Dynamic &&
+                    OperationType == EOperationType::RemoteCopy &&
+                    table->TableUploadOptions.TableSchema->HasHunkColumns())
+                {
+                    req->set_fetch_hunk_chunk_list_ids(true);
+                }
                 batchReq->AddRequest(req);
             }
 
@@ -6804,6 +6835,7 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
                 if (table->Dynamic) {
                     table->PivotKeys = FromProto<std::vector<TLegacyOwningKey>>(rsp->pivot_keys());
                     table->TabletChunkListIds = FromProto<std::vector<TChunkListId>>(rsp->tablet_chunk_list_ids());
+                    table->TabletHunkChunkListIds = FromProto<std::vector<TChunkListId>>(rsp->tablet_hunk_chunk_list_ids());
                 } else {
                     const auto& schema = table->TableUploadOptions.TableSchema;
                     table->OutputChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
@@ -7512,7 +7544,7 @@ void TOperationControllerBase::CollectTotals()
     // Used to calculate compression ratio.
     i64 totalInputDataWeight = 0;
     for (const auto& table : InputManager->GetInputTables()) {
-        for (const auto& inputChunk : table->Chunks) {
+        for (const auto& inputChunk : Concatenate(table->Chunks, table->HunkChunks)) {
             if (IsUnavailable(inputChunk, GetChunkAvailabilityPolicy())) {
                 auto chunkId = inputChunk->GetChunkId();
 

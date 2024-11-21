@@ -62,8 +62,14 @@ public:
         const TProgressCounterPtr& counter,
         EJobType jobType);
 
-    TError TryRegisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, NChunkClient::TInputChunkPtr chunk);
-    TError TryUnregisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, NChunkClient::TInputChunkPtr chunk);
+    TError TryRegisterLivePreviewChunk(
+        const TVertexDescriptor& descriptor,
+        int index,
+        NChunkClient::TInputChunkPtr chunk);
+    TError TryUnregisterLivePreviewChunk(
+        const TVertexDescriptor& descriptor,
+        int index,
+        const NChunkClient::TInputChunkPtr& chunk);
 
     void BuildDataFlowYson(NYTree::TFluentList fluent) const;
 

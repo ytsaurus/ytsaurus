@@ -130,7 +130,7 @@ struct TPartitionKey
 //! The sample schema must include all columns referenced in the key columns of the upload schema.
 //! The upload schema is used to compare the sample rows.
 //! It is guaranteed that the number of returned partition keys is less than partitionCount.
-std::vector<TPartitionKey> BuildPartitionKeysBySamples(
+std::vector<TPartitionKey> BuildPartitionKeysFromSamples(
     const std::vector<NTableClient::TSample>& samples,
     const NTableClient::TTableSchemaPtr& sampleSchema,
     const NTableClient::TTableSchemaPtr& uploadSchema,

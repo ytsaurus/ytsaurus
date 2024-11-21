@@ -1,7 +1,7 @@
 from __future__ import with_statement, print_function
 
 from yt.testlib import authors
-from yt.wrapper.testlib.helpers import TEST_DIR, set_config_option
+from yt.wrapper.testlib.helpers import TEST_DIR, set_config_option, inject_http_error
 
 import yt.wrapper as yt
 
@@ -64,7 +64,7 @@ def check_table(table, chunks):
                 assert chunks[chunk_index][index][column_name] == elem
 
 
-@pytest.mark.usefixtures("yt_env")
+@pytest.mark.usefixtures("yt_env_v4")
 class TestParquet(object):
     @authors("nadya02")
     @pytest.mark.parametrize("enable_parallel", [True, False])
@@ -508,3 +508,40 @@ class TestParquet(object):
                 {"x": 2, "y": 3.14, "z": struct_data[1]},
                 {"x": 3, "y": 2.5, "z": struct_data[2]}
             ]
+
+    @authors("nadya02")
+    def test_upload_parquet_retry(self):
+        with tempfile.NamedTemporaryFile() as temp_file:
+            client = yt.YtClient(config=yt.config.config)
+
+            client.config["write_retries"]["chunk_size"] = 500
+            client.config["arrow_options"]["write_arrow_batch_size"] = 10
+
+            filename = temp_file.name
+            input_table = "//tmp/dump_parquet"
+
+            schema = TableSchema() \
+                .add_column("key", type_info.Optional[type_info.Int64]) \
+                .add_column("value", type_info.Optional[type_info.String])
+
+            client.create("table", input_table, attributes={"schema": schema})
+            rows_in_chunk = 20
+
+            for i in range(5):
+                rows = []
+                for j in range(rows_in_chunk):
+                    rows.append({"key": i * rows_in_chunk + j, "value": generate_random_string(5)})
+                client.write_table(yt.TablePath(input_table, append=True), rows)
+
+            client.dump_parquet(input_table, filename)
+
+            output_table = "//tmp/upload_parquet"
+
+            with inject_http_error(client, filter_url='/write_table', interrupt_from=0, interrupt_till=999, interrupt_every=2, raise_connection_reset=True) as cnt:
+                client.upload_parquet(output_table, filename)
+
+            assert list(yt.read_table(output_table)) == list(yt.read_table(input_table))
+            assert client.get(output_table + "/@row_count") == 100
+            assert client.get(output_table + "/@chunk_count") == 10
+            assert cnt.filtered_total_calls == 20
+            assert cnt.filtered_raises == 10

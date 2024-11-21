@@ -33,7 +33,8 @@ class TRecordBatchReaderOrcAdapter
     : public arrow::RecordBatchReader
 {
 public:
-    TRecordBatchReaderOrcAdapter(const TString& inputFilePath, MemoryPool* pool)
+    TRecordBatchReaderOrcAdapter(const TString& inputFilePath, MemoryPool* pool, int arrowBatchSize)
+        : ArrowBatchSize_(arrowBatchSize)
     {
         auto fileReaderOrError = arrow::io::MemoryMappedFile::Open(inputFilePath, arrow::io::FileMode::READ);
         ThrowOnError(fileReaderOrError.status());
@@ -41,7 +42,7 @@ public:
             fileReaderOrError.ValueOrDie(),
             pool,
             &Reader_));
-        ThrowOnError(Reader_->NextStripeReader(parquet::kDefaultBufferSize, &BatchReader_));
+        ThrowOnError(Reader_->NextStripeReader(ArrowBatchSize_, &BatchReader_));
     }
 
     std::shared_ptr<arrow::Schema> schema() const override
@@ -52,9 +53,9 @@ public:
     arrow::Status ReadNext(std::shared_ptr<arrow::RecordBatch>* batch) override
     {
         ThrowOnError(BatchReader_->ReadNext(batch));
-        if (batch == nullptr) {
-            ThrowOnError(Reader_->NextStripeReader(parquet::kDefaultBufferSize, &BatchReader_));
-            if (BatchReader_ != nullptr) {
+        if (!(*batch)) {
+            ThrowOnError(Reader_->NextStripeReader(ArrowBatchSize_, &BatchReader_));
+            if (BatchReader_) {
                 ThrowOnError(BatchReader_->ReadNext(batch));
             }
         }
@@ -62,6 +63,8 @@ public:
     }
 
 private:
+    const int ArrowBatchSize_;
+
     std::unique_ptr<arrow::adapters::orc::ORCFileReader> Reader_;
     std::shared_ptr<RecordBatchReader> BatchReader_;
 };
@@ -127,13 +130,13 @@ TArrowRawIterator::TArrowRawIterator(Py::PythonClassInstance* self, Py::Tuple& a
     : Py::PythonClass<TArrowRawIterator>::PythonClass(self, args, kwargs)
 { }
 
-void TArrowRawIterator::Initialize(const TString& inputFilePath, EFileFormat format)
+void TArrowRawIterator::Initialize(const TString& inputFilePath, EFileFormat format, int arrowBatchSize)
 {
     auto* pool = arrow::default_memory_pool();
 
     switch (format) {
         case EFileFormat::ORC: {
-            RecordBatchReader_ = std::make_shared<TRecordBatchReaderOrcAdapter>(inputFilePath, pool);
+            RecordBatchReader_ = std::make_shared<TRecordBatchReaderOrcAdapter>(inputFilePath, pool, arrowBatchSize);
             break;
         }
         case EFileFormat::Parquet: {
@@ -142,10 +145,13 @@ void TArrowRawIterator::Initialize(const TString& inputFilePath, EFileFormat for
 
             auto parquetFileReader = parquet::ParquetFileReader::OpenFile(inputFilePath, /*memory_map*/ true, readerProperties);
 
+            parquet::ArrowReaderProperties arrowProperties;
+            arrowProperties.set_batch_size(arrowBatchSize);
+
             ThrowOnError(parquet::arrow::FileReader::Make(
                 pool,
                 std::move(parquetFileReader),
-                parquet::ArrowReaderProperties(),
+                std::move(arrowProperties),
                 &ArrowFileReader_));
 
             std::vector<int> rowGroups(ArrowFileReader_->num_row_groups());
@@ -190,6 +196,14 @@ Py::Object TArrowRawIterator::GetSchema(Py::Tuple& /*args*/, Py::Dict& /*kwargs*
     return Py::Bytes(bytesSchema);
 }
 
+Py::Object TArrowRawIterator::NextChunk(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
+{
+    auto recordBatchWriterOrError = arrow::ipc::MakeStreamWriter(&Pipe_, RecordBatchReader_->schema());
+    ThrowOnError(recordBatchWriterOrError.status());
+    RecordBatchWriter_ = recordBatchWriterOrError.ValueOrDie();
+    return Py::None();
+}
+
 void TArrowRawIterator::InitType()
 {
     behaviors().name("yt_yson_bindings.yson_lib.ArrowIterator");
@@ -199,6 +213,7 @@ void TArrowRawIterator::InitType()
     behaviors().supportIter();
 
     PYCXX_ADD_KEYWORDS_METHOD(get_schema, GetSchema, "Get schema in yson type");
+    PYCXX_ADD_KEYWORDS_METHOD(next_chunk, NextChunk, "Switch to next chunk");
 
     behaviors().readyType();
 }

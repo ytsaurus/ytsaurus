@@ -14,6 +14,7 @@ IRowStreamEncoderPtr CreateFormatRowStreamEncoder(
     NTableClient::TNameTablePtr nameTable,
     NFormats::TFormat format,
     NTableClient::TTableSchemaPtr tableSchema,
+    std::optional<std::vector<std::string>> columns,
     NFormats::TControlAttributesConfigPtr controlAttributesConfig);
 
 IRowStreamDecoderPtr CreateFormatRowStreamDecoder(

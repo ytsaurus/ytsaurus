@@ -455,7 +455,7 @@ public:
             dynamicConfig->PassPeriod))
         , ProfileManager_(CreateConsumerProfileManager(
             QueueAgentProfilerGlobal
-                .WithRequiredTag("consumer_path", ConsumerRef_.Path)
+                .WithRequiredTag("consumer_path", TrimProfilingTagValue(ConsumerRef_.Path))
                 .WithRequiredTag("consumer_cluster", ConsumerRef_.Cluster),
             Logger))
     {

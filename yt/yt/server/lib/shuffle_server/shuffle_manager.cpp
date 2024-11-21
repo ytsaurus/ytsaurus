@@ -86,8 +86,8 @@ public:
 
 private:
     const IClientPtr Client_;
-    IInvokerPtr Invoker_;
-    IInvokerPtr SerializedInvoker_;
+    const IInvokerPtr Invoker_;
+    const IInvokerPtr SerializedInvoker_;
 
     TProfiler Profiler_;
     TGauge ActiveShuffleCounter_;
@@ -148,9 +148,7 @@ private:
 
     void DoFinishShuffle(TTransactionId transactionId)
     {
-        auto it = ShuffleControllers_.find(transactionId);
-        YT_VERIFY(it != ShuffleControllers_.end());
-        ShuffleControllers_.erase(it);
+        EraseOrCrash(ShuffleControllers_, transactionId);
         ActiveShuffleCounter_.Update(ShuffleControllers_.size());
     }
 

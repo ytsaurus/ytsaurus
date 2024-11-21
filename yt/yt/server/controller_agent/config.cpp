@@ -1100,6 +1100,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("enable_versioned_remote_copy", &TThis::EnableVersionedRemoteCopy)
         .Default(false);
+    registrar.Parameter("enable_hunks_remote_copy", &TThis::EnableHunksRemoteCopy)
+        .Default(false);
 
     registrar.Parameter("default_enable_porto", &TThis::DefaultEnablePorto)
         .Default(NScheduler::EEnablePorto::None);
@@ -1209,6 +1211,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("fail_operation_on_errors_in_live_preview", &TThis::FailOperationOnErrorsInLivePreview)
+        .Default(false);
+
+    registrar.Parameter("fetch_schemas_from_external_cell_tags", &TThis::FetchSchemasFromExternalCellTags)
         .Default(false);
 
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {

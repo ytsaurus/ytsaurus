@@ -898,8 +898,12 @@ private:
         const auto& ioTracker = Bootstrap_->GetIOTracker();
 
         if (bytesReadFromDisk > 0 && ioTracker->IsEnabled()) {
+            auto ioRequests =
+                chunkReaderStatistics->DataIORequests.load(std::memory_order::relaxed) +
+                chunkReaderStatistics->MetaIORequests.load(std::memory_order::relaxed);
+
             ioTracker->Enqueue(
-                TIOCounters{.Bytes = bytesReadFromDisk, .IORequests = 1},
+                TIOCounters{.Bytes = bytesReadFromDisk, .IORequests = ioRequests},
                 // TODO(babenko): migrate to std::string
                 MakeReadIOTags(TString(context->GetMethod()), chunk->GetLocation(), context, chunk->GetId()));
         }

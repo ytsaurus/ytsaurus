@@ -91,7 +91,8 @@ void PackBaggageFromJobSpec(
     const NTracing::TTraceContextPtr& traceContext,
     const NProto::TJobSpec& jobSpec,
     TOperationId operationId,
-    TJobId jobId);
+    TJobId jobId,
+    EJobType jobType);
 
 ////////////////////////////////////////////////////////////////////////////////
 

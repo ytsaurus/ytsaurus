@@ -78,6 +78,11 @@ public:
     class TIterator
     {
     public:
+        using value_type = TMapType::const_iterator::value_type;
+        using difference_type = TMapType::const_iterator::difference_type;
+
+        TIterator();
+
         const std::pair<const TKey, TValue*>& operator*() const;
         const std::pair<const TKey, TValue*>* operator->() const;
 

@@ -29,6 +29,7 @@ public:
 
     TDuration LimitUpdatePeriod;
     TDuration LeaderUpdatePeriod;
+    TDuration LocalThrottlersAttributeUpdatePeriod;
 
     TDuration ThrottlerExpirationTime;
 

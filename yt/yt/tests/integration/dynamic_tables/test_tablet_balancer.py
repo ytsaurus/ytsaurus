@@ -329,6 +329,35 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         wait(lambda: not all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")))
 
     @authors("alexelexa")
+    def test_parameterized_by_default(self):
+        cells = sync_create_cells(2)
+
+        self._create_sorted_table("//tmp/t")
+        config = {
+            "enable_auto_reshard": False,
+            "enable_auto_tablet_move": False,
+        }
+        set("//tmp/t/@tablet_balancer_config", config)
+
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_parameterized_by_default", True)
+
+        sync_reshard_table("//tmp/t", [[], [10]])
+        sync_mount_table("//tmp/t", cell_id=cells[0])
+
+        rows = [{"key": i, "value": str(i)} for i in range(3)]  # 3 rows
+        rows.extend([{"key": i, "value": str(i)} for i in range(10, 11)])  # 1 row
+
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        sleep(5)
+        assert all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets"))
+
+        set("//tmp/t/@tablet_balancer_config/enable_auto_tablet_move", True)
+
+        wait(lambda: not all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")))
+
+    @authors("alexelexa")
     def test_config(self):
         cells = sync_create_cells(2)
 

@@ -16,17 +16,15 @@ YT_DEFINE_STRONG_TYPEDEF(TOwnerId, std::string)
 
 DECLARE_REFCOUNTED_CLASS(TKeyInfo)
 DECLARE_REFCOUNTED_CLASS(TSignature)
+DECLARE_REFCOUNTED_CLASS(TSignatureGenerator)
+DECLARE_REFCOUNTED_CLASS(TSignatureValidator)
+DECLARE_REFCOUNTED_CLASS(TCypressKeyReader)
+DECLARE_REFCOUNTED_CLASS(TCypressKeyWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSignature;
-class TSignatureGenerator;
-class TSignatureValidator;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IKeyStoreReader;
-struct IKeyStoreWriter;
+DECLARE_REFCOUNTED_STRUCT(IKeyStoreReader)
+DECLARE_REFCOUNTED_STRUCT(IKeyStoreWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

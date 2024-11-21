@@ -84,6 +84,7 @@ public:
     bool IsSortedDynamicStore() const;
     bool IsOrderedDynamicStore() const;
     bool IsFile() const;
+    bool IsHunk() const;
 
 private:
     void CheckOffsets();
@@ -113,6 +114,9 @@ public:
 
     using TInputChunkHeavyColumnarStatisticsExt = std::unique_ptr<NTableClient::NProto::THeavyColumnStatisticsExt>;
     DEFINE_BYREF_RO_PROPERTY(TInputChunkHeavyColumnarStatisticsExt, HeavyColumnarStatisticsExt);
+
+    using TInputChunkHunkChunkRefsExt = std::unique_ptr<NTableClient::NProto::THunkChunkRefsExt>;
+    DEFINE_BYREF_RO_PROPERTY(TInputChunkHunkChunkRefsExt, HunkChunkRefsExt);
 
     //! Factor providing a ratio of data weight inferred from limits to the total data weight.
     //! It is used to propagate the reduction of a chunk total weight to chunk and data slices that are formed from it.

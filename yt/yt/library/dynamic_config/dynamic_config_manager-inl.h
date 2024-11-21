@@ -193,8 +193,9 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
     auto configOrError = NConcurrency::WaitFor(Client_->GetNode(Options_.ConfigPath, getOptions));
 
     NYTree::IMapNodePtr matchedConfigNode;
+    NYTree::IMapNodePtr configNode;
     if (configOrError.IsOK()) {
-        auto configNode = NYTree::ConvertTo<NYTree::IMapNodePtr>(configOrError.Value());
+        configNode = NYTree::ConvertTo<NYTree::IMapNodePtr>(configOrError.Value());
 
         if (Options_.ConfigIsTagged) {
             auto instanceTags = GetInstanceTags();
@@ -268,6 +269,8 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
 
     matchedConfigNode = PatchNode(BaseConfigNode_, matchedConfigNode)->AsMap();
     if (AreNodesEqual(matchedConfigNode, AppliedConfigNode_)) {
+        auto guard = Guard(SpinLock_);
+        std::swap(LastAppliedConfigPatchNode_, configNode);
         return false;
     }
 
@@ -308,6 +311,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
         auto guard = Guard(SpinLock_);
         std::swap(AppliedConfigNode_, matchedConfigNode);
         std::swap(AppliedConfig_, newConfig);
+        std::swap(LastAppliedConfigPatchNode_, configNode);
         LastConfigChangeTime_ = TInstant::Now();
     }
 
@@ -321,6 +325,7 @@ void TDynamicConfigManagerBase<TConfig>::DoBuildOrchid(NYson::IYsonConsumer* con
 
     NYTree::INodePtr configNode;
     TConfigPtr config;
+    NYTree::IMapNodePtr cypressConfig;
     TInstant lastConfigUpdateTime;
     TInstant lastConfigChangeTime;
     std::vector<TError> errors;
@@ -330,6 +335,7 @@ void TDynamicConfigManagerBase<TConfig>::DoBuildOrchid(NYson::IYsonConsumer* con
         auto guard = Guard(SpinLock_);
         configNode = AppliedConfigNode_;
         config = AppliedConfig_;
+        cypressConfig = LastAppliedConfigPatchNode_;
         lastConfigUpdateTime = LastConfigUpdateTime_;
         lastConfigChangeTime = LastConfigChangeTime_;
         unrecognizedOptions = UnrecognizedOptions_;
@@ -343,6 +349,9 @@ void TDynamicConfigManagerBase<TConfig>::DoBuildOrchid(NYson::IYsonConsumer* con
             })
             .DoIf(static_cast<bool>(config), [&] (auto fluent) {
                 fluent.Item("effective_config").Value(config);
+            })
+            .DoIf(static_cast<bool>(cypressConfig), [&] (auto fluent) {
+                fluent.Item("raw_config_patch").Value(cypressConfig);
             })
             .Item("last_config_update_time").Value(lastConfigUpdateTime)
             .Item("last_config_change_time").Value(lastConfigChangeTime)

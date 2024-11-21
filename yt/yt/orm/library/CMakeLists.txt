@@ -14,3 +14,4 @@
 
 add_subdirectory(query)
 add_subdirectory(attributes)
+add_subdirectory(mpl)
