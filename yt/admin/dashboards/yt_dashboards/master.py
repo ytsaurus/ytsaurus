@@ -10,11 +10,13 @@ try:
     from .constants import (
         MASTER_LOCAL_DASHBOARD_DEFAULT_CLUSTER,
         MASTER_LOCAL_DASHBOARD_DEFAULT_CONTAINER,
+        MASTER_GLOBAL_DASHBOARD_DEFAULT_CLUSTER,
         MASTER_MERGE_JOBS_DASHBOARD_DEFAULT_CLUSTER,
     )
 except ImportError:
     MASTER_LOCAL_DASHBOARD_DEFAULT_CLUSTER = ""
     MASTER_LOCAL_DASHBOARD_DEFAULT_CONTAINER = ""
+    MASTER_GLOBAL_DASHBOARD_DEFAULT_CLUSTER = ""
     MASTER_MERGE_JOBS_DASHBOARD_DEFAULT_CLUSTER = ""
 
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
@@ -82,6 +84,14 @@ def common_sensors():
         .stack(False)
         .all(MonitoringTag("host"))
         .aggr("cell_tag"))
+    unsafely_placed_chunk_count = (Master("yt.chunk_server.unsafely_placed_chunk_count")
+        .stack(False)
+        .all(MonitoringTag("host"))
+        .aggr("cell_tag"))
+    lost_vital_chunk_count = (Master("yt.chunk_server.lost_vital_chunk_count")
+        .stack(False)
+        .all(MonitoringTag("host"))
+        .aggr("cell_tag"))
     leader_sync_time = (Master("yt.hydra.leader_sync_time.max")
         .stack(False)
         .all(MonitoringTag("host"))
@@ -116,6 +126,8 @@ def common_sensors():
         ("ORC Count", overreplicated_chunk_count),
         ("DMC Count", data_missing_chunk_count),
         ("PMC Count", parity_missing_chunk_count),
+        ("Unsafely Placed Count", unsafely_placed_chunk_count),
+        ("LVC Count", lost_vital_chunk_count),
         ("Leader Sync Time", leader_sync_time),
         ("Chunks Created", chunks_created),
         ("Chunks Destroyed", chunks_destroyed),
@@ -150,6 +162,14 @@ def build_global_rowset():
         .aggr(MonitoringTag("host"))
         .aggr("cell_tag")
         .all("job_type"))
+    data_nodes_being_disposed = (Master("yt.node_tracker.data_nodes_being_disposed")
+        .stack(False)
+        .all(MonitoringTag("host"))
+        .all("cell_tag"))
+    data_nodes_awaiting_for_being_disposed = (Master("yt.node_tracker.data_nodes_awaiting_for_being_disposed")
+        .stack(False)
+        .all(MonitoringTag("host"))
+        .all("cell_tag"))
 
     rowset = Rowset()
 
@@ -179,10 +199,12 @@ def build_global_rowset():
             .cell("Banned Node Count", banned_node_count)
             .cell("Offline Node Count", offline_node_count)
         .row()
+            .cell("Data Nodes Being Disposed", data_nodes_being_disposed)
+            .cell("Data Nodes Awaiting For Being Disposed", data_nodes_awaiting_for_being_disposed)
             .cell("Full Node Count", full_node_count)
+        .row()
             .cell("With Alerts Node Count", with_alerts_node_count)
             .cell("Job Rates", job_rates)
-        .row()
             .cell("Running Jobs", running_jobs)
     )
 
@@ -198,7 +220,7 @@ def build_master_global():
         d.add(r)
 
     d.set_title("Master Global")
-    d.add_parameter("cluster", "YT cluster", MonitoringLabelDashboardParameter("yt", "cluster", "hahn"))
+    d.add_parameter("cluster", "YT cluster", MonitoringLabelDashboardParameter("yt", "cluster", MASTER_GLOBAL_DASHBOARD_DEFAULT_CLUSTER))
 
     return d
 
@@ -209,7 +231,8 @@ def build_local_rowset():
         .stack(True)
         .all(MonitoringTag("host"))
         .value("thread", "Automaton")
-        .all("bucket"))
+        .all("bucket")
+        .all("queue"))
     hydra_cumulative_mutation_time = (Master("yt.hydra.cumulative_mutation_time.rate")
         .stack(True)
         .all(MonitoringTag("host"))
