@@ -1744,7 +1744,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         ? false
         : options.NewRangeInference;
     queryOptions.ExecutionBackend = GetNativeConnection()->GetConfig()->UseWebAssembly
-        ? static_cast<NCodegen::EExecutionBackend>(options.ExecutionBackend.value_or(NApi::EExecutionBackend::WebAssembly))
+        ? static_cast<NCodegen::EExecutionBackend>(options.ExecutionBackend.value_or(NApi::EExecutionBackend::Native))
         : NCodegen::EExecutionBackend::Native;
     queryOptions.EnableCodeCache = options.EnableCodeCache;
     queryOptions.MaxSubqueries = options.MaxSubqueries;
