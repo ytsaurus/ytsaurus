@@ -291,7 +291,7 @@ class TestQueryTrackerQueryRestart(YTEnvSetup):
             query.track()
 
     @authors("mpereskokova")
-    def test_query_tracker_compliting_query(self, query_tracker):
+    def test_query_tracker_completing_query(self, query_tracker):
         guid = self._insert_query("completing")
 
         query = Query(guid)
