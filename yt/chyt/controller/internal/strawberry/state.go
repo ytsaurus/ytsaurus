@@ -81,6 +81,7 @@ func GetOpBriefAttributes(briefInfo OpletBriefInfo) map[string]any {
 		"yt_operation_id":                    briefInfo.YTOperation.ID,
 		"yt_operation_start_time":            briefInfo.YTOperation.StartTime,
 		"yt_operation_finish_time":           briefInfo.YTOperation.FinishTime,
+		"yt_operation_suspended":             briefInfo.YTOperation.Suspended,
 		"stage":                              briefInfo.Stage,
 		"strawberry_state_modification_time": briefInfo.StrawberryStateModificationTime,
 		"speclet_modification_time":          briefInfo.SpecletModificationTime,
