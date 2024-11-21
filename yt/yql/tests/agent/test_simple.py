@@ -116,6 +116,55 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
             select core::IndexOf([3,7,1], 7) as idx, test::my_sqr(3) as sqr;
         """, [{"idx": 1, "sqr": 9}])
 
+    @authors("a-romanov")
+    def test_datetime_types(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            select
+                Date("2024-11-24") as `Date`,
+                Datetime("2024-11-24T11:20:59Z") as `Datetime`,
+                Timestamp("2024-11-24T13:42:11.666Z") as `Timestamp`,
+                -Interval("P2W") as `Interval`,
+                Date32("1960-11-24") as `Date32`,
+                Datetime64("1950-11-24T11:20:59Z") as `Datetime64`,
+                Timestamp64("1940-11-24T13:42:11.666Z") as `Timestamp64`,
+                -Interval64("PT42M") as `Interval64`,
+        """,
+        [{
+            "Date": 20051,
+            "Datetime": 1732447259,
+            "Timestamp": 1732455731666000,
+            "Interval":  -1209600000000,
+            "Date32": -3325,
+            "Datetime64": -602858341,
+            "Timestamp64": -918382668334000,
+            "Interval64":  -2520000000,
+
+        }])
+
+    @authors("a-romanov")
+    def test_exotic_types(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            select
+                {} as `EmptyDict`,
+                [] as `EmptyList`,
+                Null as `Null`,
+                <| Signed : -13, Unsigned : 42U |> as Struct,
+                ((-13, 42U, false), "foo", true, "bar"u) as Tuple,
+                [-2.5f, 3.f] as `List`,
+                {"one"u: 1, "two"u: 2} as `Dict`,
+                {("One"u, 1UL), ("Two"u, 2UL)} as `Set`,
+        """,
+        [{
+            "EmptyDict": None,
+            "EmptyList": None,
+            "Null": None,
+            "Struct": {"Signed": -13, "Unsigned": 42},
+            "Tuple": [[-13, 42, False], "foo", True, "bar"],
+            "List": [-2.5, 3.],
+            "Dict": [["two", 2], ["one", 1]],
+            "Set": [[["Two", 2], None], [["One", 1], None]],
+        }])
+
 
 class TestYqlAgentBan(TestQueriesYqlBase):
     NUM_YQL_AGENTS = 1
