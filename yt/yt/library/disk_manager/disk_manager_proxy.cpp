@@ -1,6 +1,10 @@
 #include "disk_manager_proxy.h"
 
-namespace NYT::NContainers {
+#include <yt/yt/core/actions/future.h>
+
+#include <yt/yt/core/rpc/client.h>
+
+namespace NYT::NDiskManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,4 +60,4 @@ Y_WEAK IDiskManagerProxyPtr CreateDiskManagerProxy(TDiskManagerProxyConfigPtr /*
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NContainers
+} // namespace NYT::NDiskManager

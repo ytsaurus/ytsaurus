@@ -7,7 +7,7 @@
 #include <yt/yt/ytlib/chunk_client/config.h>
 
 #include <yt/yt/library/containers/public.h>
-#include <yt/yt/library/containers/disk_manager/public.h>
+#include <yt/yt/library/disk_manager/public.h>
 
 namespace NYT {
 
@@ -25,9 +25,9 @@ public:
     NContainers::TPodSpecConfigPtr PodSpec;
 
     //! Configuration of the interaction with the host disk manager.
-    NContainers::TDiskManagerProxyConfigPtr DiskManagerProxy;
+    NDiskManager::TDiskManagerProxyConfigPtr DiskManagerProxy;
 
-    NContainers::TDiskInfoProviderConfigPtr DiskInfoProvider;
+    NDiskManager::TDiskInfoProviderConfigPtr DiskInfoProvider;
 
     REGISTER_YSON_STRUCT(TNativeSingletonsConfig);
 
@@ -47,7 +47,7 @@ public:
     NAuth::TNativeAuthenticationManagerDynamicConfigPtr NativeAuthenticationManager;
 
     //! Configuration of the interaction with the host disk manager.
-    NContainers::TDiskManagerProxyDynamicConfigPtr DiskManagerProxy;
+    NDiskManager::TDiskManagerProxyDynamicConfigPtr DiskManagerProxy;
 
     REGISTER_YSON_STRUCT(TNativeSingletonsDynamicConfig);
 

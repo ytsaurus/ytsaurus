@@ -9,6 +9,7 @@ RECURSE(
     containers
     coredumper
     decimal
+    disk_manager
     dns_over_rpc
     dynamic_config
     undumpable

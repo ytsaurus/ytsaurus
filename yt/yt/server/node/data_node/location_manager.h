@@ -4,7 +4,7 @@
 
 #include "disk_location.h"
 
-#include <yt/yt/library/containers/disk_manager/public.h>
+#include <yt/yt/library/disk_manager/public.h>
 
 #include <yt/yt/library/profiling/producer.h>
 
@@ -21,7 +21,7 @@ struct TLocationLivenessInfo
     TString DiskId;
     ELocationState LocationState;
     bool IsDiskAlive;
-    NContainers::EDiskState DiskState;
+    NDiskManager::EDiskState DiskState;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,7 +34,7 @@ public:
         IBootstrap* bootstrap,
         TChunkStorePtr chunkStore,
         IInvokerPtr controlInvoker,
-        NContainers::TDiskInfoProviderPtr diskInfoProvider);
+        NDiskManager::TDiskInfoProviderPtr diskInfoProvider);
 
     void SetFailedDiskAlerts(std::vector<TError> alerts);
 
@@ -42,7 +42,7 @@ public:
 
     void SetFailedUnlinkedDiskIds(std::vector<TString> diskIds);
 
-    TFuture<std::vector<NContainers::TDiskInfo>> GetDiskInfos();
+    TFuture<std::vector<NDiskManager::TDiskInfo>> GetDiskInfos();
 
     TFuture<bool> GetHotSwapEnabledFuture();
 
@@ -65,10 +65,10 @@ public:
     NYTree::IYPathServicePtr GetOrchidService();
 
     std::vector<TLocationLivenessInfo> MapLocationToLivenessInfo(
-        const std::vector<NContainers::TDiskInfo>& diskInfos);
+        const std::vector<NDiskManager::TDiskInfo>& diskInfos);
 
 private:
-    const NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
+    const NDiskManager::TDiskInfoProviderPtr DiskInfoProvider_;
 
     const TChunkStorePtr ChunkStore_;
     const IInvokerPtr ControlInvoker_;
@@ -124,17 +124,17 @@ private:
     NConcurrency::TPeriodicExecutorPtr HealthCheckerExecutor_;
     const NProfiling::TProfiler Profiler_;
 
-    TEnumIndexedArray<NContainers::EDiskState, TEnumIndexedArray<NContainers::EStorageClass, NProfiling::TGauge>> Gauges_;
+    TEnumIndexedArray<NDiskManager::EDiskState, TEnumIndexedArray<NDiskManager::EStorageClass, NProfiling::TGauge>> Gauges_;
 
     void OnHealthCheck();
 
-    void OnDiskHealthCheck(const std::vector<NContainers::TDiskInfo>& diskInfos);
+    void OnDiskHealthCheck(const std::vector<NDiskManager::TDiskInfo>& diskInfos);
 
     void OnLocationsHealthCheck();
 
-    void PushCounters(std::vector<NContainers::TDiskInfo> diskInfos);
+    void PushCounters(std::vector<NDiskManager::TDiskInfo> diskInfos);
 
-    void HandleHotSwap(std::vector<NContainers::TDiskInfo> disks);
+    void HandleHotSwap(std::vector<NDiskManager::TDiskInfo> disks);
 
     void OnDiskHealthCheckFailed(
         const TStoreLocationPtr& location,

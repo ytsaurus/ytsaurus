@@ -6,7 +6,7 @@
 
 #include <yt/yt/server/lib/misc/restart_manager.h>
 
-#include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
+#include <yt/yt/library/disk_manager/disk_info_provider.h>
 
 #include <yt/yt/core/actions/future.h>
 
@@ -21,7 +21,7 @@ namespace NYT::NDataNode {
 
 using namespace NClusterNode;
 using namespace NConcurrency;
-using namespace NContainers;
+using namespace NDiskManager;
 using namespace NFS;
 using namespace NProfiling;
 using namespace NYTree;
@@ -54,7 +54,7 @@ TFuture<void> TLocationManager::FailDiskByName(
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TDiskInfo>& diskInfos) {
             for (const auto& diskInfo : diskInfos) {
                 if (diskInfo.DeviceName == diskName &&
-                    diskInfo.State == NContainers::EDiskState::OK)
+                    diskInfo.State == NDiskManager::EDiskState::OK)
                 {
                     // Try to fail not accessible disk.
                     return DiskInfoProvider_->FailDisk(
@@ -114,7 +114,7 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
 
     for (const auto& disk : disks) {
         diskNameToDisk.emplace(disk.DeviceName, disk);
-        if (disk.State == NContainers::EDiskState::Failed) {
+        if (disk.State == NDiskManager::EDiskState::Failed) {
             failedDisks.insert(disk.DeviceName);
         }
     }
@@ -375,7 +375,7 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
 
 void TLocationHealthChecker::PushCounters(std::vector<TDiskInfo> diskInfos)
 {
-    TEnumIndexedArray<NContainers::EDiskState, TEnumIndexedArray<NContainers::EStorageClass, i64>> counters;
+    TEnumIndexedArray<NDiskManager::EDiskState, TEnumIndexedArray<NDiskManager::EStorageClass, i64>> counters;
 
     for (auto diskState : TEnumTraits<EDiskState>::GetDomainValues()) {
         for (auto storageClass : TEnumTraits<EStorageClass>::GetDomainValues()) {
@@ -403,7 +403,7 @@ void TLocationHealthChecker::HandleHotSwap(std::vector<TDiskInfo> diskInfos)
     std::vector<TString> unlinkedDiskIds;
 
     for (const auto& diskInfo : diskInfos) {
-        if (diskInfo.State == NContainers::EDiskState::Failed) {
+        if (diskInfo.State == NDiskManager::EDiskState::Failed) {
             diskFailedAlertsMap[diskInfo.DiskId] = TError(
                 NChunkClient::EErrorCode::DiskFailed,
                 "Disk failed, need hot swap")
@@ -412,7 +412,7 @@ void TLocationHealthChecker::HandleHotSwap(std::vector<TDiskInfo> diskInfos)
                 << TErrorAttribute("disk_state", diskInfo.State)
                 << TErrorAttribute("disk_path", diskInfo.DevicePath)
                 << TErrorAttribute("disk_name", diskInfo.DeviceName);
-        } else if (diskInfo.State == NContainers::EDiskState::RecoverWait) {
+        } else if (diskInfo.State == NDiskManager::EDiskState::RecoverWait) {
             diskWaitingReplacementAlertsMap[diskInfo.DiskId] = TError(
                 NChunkClient::EErrorCode::DiskWaitingReplacement,
                 "Disk is waiting replacement")
@@ -454,9 +454,9 @@ void TLocationHealthChecker::HandleHotSwap(std::vector<TDiskInfo> diskInfos)
             diskWithLivenessLocations.insert(livenessInfo.DiskId);
         }
 
-        if (livenessInfo.DiskState == NContainers::EDiskState::Failed) {
+        if (livenessInfo.DiskState == NDiskManager::EDiskState::Failed) {
             location->MarkLocationDiskFailed();
-        } else if (livenessInfo.DiskState == NContainers::EDiskState::RecoverWait) {
+        } else if (livenessInfo.DiskState == NDiskManager::EDiskState::RecoverWait) {
             location->MarkLocationDiskWaitingReplacement();
         }
 
@@ -490,7 +490,7 @@ void TLocationHealthChecker::HandleHotSwap(std::vector<TDiskInfo> diskInfos)
 
     for (const auto& livenessInfo : livenessInfos) {
         if (livenessInfo.IsDiskAlive &&
-            livenessInfo.DiskState == NContainers::EDiskState::OK &&
+            livenessInfo.DiskState == NDiskManager::EDiskState::OK &&
             livenessInfo.LocationState == ELocationState::Destroyed)
         {
             livenessInfo.Location->OnDiskRepaired();

@@ -1,13 +1,14 @@
 #include "disk_info_provider.h"
 
-#include <yt/yt/library/containers/disk_manager/disk_manager_proxy.h>
+#include "config.h"
+#include "disk_manager_proxy.h"
 
 #include <yt/yt/core/actions/future.h>
 #include <yt/yt/core/actions/invoker_util.h>
 
 #include <yt/yt/core/concurrency/public.h>
 
-namespace NYT::NContainers {
+namespace NYT::NDiskManager  {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,4 +85,4 @@ TFuture<bool> TDiskInfoProvider::GetHotSwapEnabledFuture()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NContainers
+} // namespace NYT::NDiskManager

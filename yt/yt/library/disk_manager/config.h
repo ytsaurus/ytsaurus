@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
-namespace NYT::NContainers {
+namespace NYT::NDiskManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,4 +73,4 @@ DEFINE_REFCOUNTED_TYPE(TDiskManagerProxyDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NContainers
+} // namespace NYT::NDiskManager

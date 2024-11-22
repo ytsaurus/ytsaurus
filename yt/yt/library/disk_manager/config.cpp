@@ -1,24 +1,6 @@
 #include "config.h"
 
-namespace NYT::NContainers {
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TMockedDiskConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("disk_id", &TThis::DiskId)
-        .Default();
-    registrar.Parameter("device_path", &TThis::DevicePath)
-        .Default();
-    registrar.Parameter("device_name", &TThis::DeviceName)
-        .Default();
-    registrar.Parameter("disk_model", &TThis::DiskModel)
-        .Default();
-    registrar.Parameter("partition_fs_labels", &TThis::PartitionFsLabels)
-        .Default();
-    registrar.Parameter("state", &TThis::State)
-        .Default(EDiskState::OK);
-}
+namespace NYT::NDiskManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,4 +34,4 @@ void TDiskManagerProxyDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NContainers
+} // namespace NYT::NDiskManager
