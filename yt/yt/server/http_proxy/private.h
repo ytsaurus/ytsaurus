@@ -17,7 +17,7 @@ constexpr auto HttpProxyCommandAllocationTagKey = "command";
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, HttpProxyLogger, "HttpProxy");
-inline const NProfiling::TProfiler HttpProxyProfiler("/http_proxy");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, HttpProxyProfiler, "/http_proxy");
 
 extern const NLogging::TLogger HttpStructuredProxyLogger;
 

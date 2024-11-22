@@ -79,7 +79,7 @@ public:
             DynamicConfig_.Acquire()->ProfilingPeriod);
         ProfilingExecutor_->Start();
 
-        auto jobsProfiler = DataNodeProfiler.WithPrefix("/master_jobs");
+        auto jobsProfiler = DataNodeProfiler().WithPrefix("/master_jobs");
 
         MasterJobSensors_.AdaptivelyRepairedChunksCounter = jobsProfiler.Counter("/adaptively_repaired_chunks");
         MasterJobSensors_.TotalRepairedChunksCounter = jobsProfiler.Counter("/total_repaired_chunks");

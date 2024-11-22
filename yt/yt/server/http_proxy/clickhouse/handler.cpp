@@ -65,13 +65,11 @@ using namespace NDiscoveryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogger ClickHouseUnstructuredLogger("ClickHouseProxy");
-TLogger ClickHouseStructuredLogger("ClickHouseProxyStructured");
-TProfiler ClickHouseProfiler("/clickhouse_proxy");
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace {
+
+YT_DEFINE_GLOBAL(const TLogger, ClickHouseUnstructuredLogger, "ClickHouseProxy");
+YT_DEFINE_GLOBAL(const TLogger, ClickHouseStructuredLogger, "ClickHouseProxyStructured");
+YT_DEFINE_GLOBAL(const TProfiler, ClickHouseProxyProfiler, "/clickhouse_proxy");
 
 DEFINE_ENUM(ERetryState,
     (Retrying)
@@ -150,7 +148,7 @@ public:
 
     void LogStructuredRequest()
     {
-        LogStructuredEventFluently(ClickHouseStructuredLogger, ELogLevel::Info)
+        LogStructuredEventFluently(ClickHouseStructuredLogger(), ELogLevel::Info)
             .Item("request_id").Value(Request_->GetRequestId())
             .OptionalItem("authenticated_user", !User_.empty() ? std::make_optional(User_) : std::nullopt)
             .OptionalItem("token_hash", !Token_.empty() ? std::make_optional(NAuth::GetCryptoHash(Token_)) : std::nullopt)
@@ -1266,9 +1264,9 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
     , Config_(Bootstrap_->GetConfig()->ClickHouse)
     , Client_(Bootstrap_->GetRootClient()->GetConnection()->CreateClient(NApi::TClientOptions::FromUser(ClickHouseUserName)))
     , ControlInvoker_(Bootstrap_->GetControlInvoker())
-    , QueryCount_(ClickHouseProfiler.Counter("/query_count"))
-    , ForceUpdateCount_(ClickHouseProfiler.Counter("/force_update_count"))
-    , BannedCount_(ClickHouseProfiler.Counter("/banned_count"))
+    , QueryCount_(ClickHouseProxyProfiler().Counter("/query_count"))
+    , ForceUpdateCount_(ClickHouseProxyProfiler().Counter("/force_update_count"))
+    , BannedCount_(ClickHouseProxyProfiler().Counter("/banned_count"))
     , OperationIdUpdateExecutor_(New<TPeriodicExecutor>(
         ControlInvoker_,
         BIND(&TClickHouseHandler::UpdateOperationIds, MakeWeak(this)),
@@ -1278,13 +1276,13 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
         Config_->OperationCache,
         THashSet<TString>{"id", "runtime_parameters", "state", "suspended"},
         Client_,
-        ClickHouseProfiler.WithPrefix("/operation_cache"));
+        ClickHouseProxyProfiler().WithPrefix("/operation_cache"));
     PermissionCache_ = New<TPermissionCache>(
         Config_->PermissionCache,
         Bootstrap_->GetNativeConnection(),
-        ClickHouseProfiler.WithPrefix("/permission_cache"));
+        ClickHouseProxyProfiler().WithPrefix("/permission_cache"));
 
-    DiscoveryCache_ = New<TDiscoveryCache>(Config_->DiscoveryCache, ClickHouseProfiler.WithPrefix("/discovery_cache"));
+    DiscoveryCache_ = New<TDiscoveryCache>(Config_->DiscoveryCache, ClickHouseProxyProfiler().WithPrefix("/discovery_cache"));
 }
 
 void TClickHouseHandler::Start()
@@ -1296,7 +1294,7 @@ void TClickHouseHandler::HandleRequest(
     const IRequestPtr& request,
     const IResponseWriterPtr& response)
 {
-    auto Logger = ClickHouseUnstructuredLogger
+    auto Logger = ClickHouseUnstructuredLogger()
         .WithTag("RequestId: %v", request->GetRequestId());
 
     if (!Coordinator_->CanHandleHeavyRequests()) {
@@ -1353,7 +1351,7 @@ void TClickHouseHandler::AdjustQueryCount(const std::string& user, int delta)
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
     auto entry = UserToRunningQueryCount_.FindOrInsert(user, [&] {
-        auto gauge = ClickHouseProfiler
+        auto gauge = ClickHouseProxyProfiler()
             .WithSparse()
             .WithTag("user", user)
             .Gauge("/running_query_count");
@@ -1366,7 +1364,7 @@ void TClickHouseHandler::AdjustQueryCount(const std::string& user, int delta)
 
 void TClickHouseHandler::UpdateOperationIds()
 {
-    auto Logger = ClickHouseUnstructuredLogger;
+    auto Logger = ClickHouseUnstructuredLogger();
     THashMap<TString, TOperationId> aliasToOperationId;
     try {
         TListNodeOptions options;

@@ -94,7 +94,7 @@ public:
 
     void Start() override
     {
-        auto profiler = DataNodeProfiler
+        auto profiler = DataNodeProfiler()
             .WithPrefix("/ally_replica_manager");
         AnnouncementsSent_ = profiler.Counter("/announcements_sent");
         AnnouncementsReceived_ = profiler.Counter("/announcements_received");

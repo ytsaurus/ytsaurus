@@ -565,7 +565,7 @@ private:
     static const TCellTagList EmptyCellTagList;
 
     const TIntrusivePtr<TAsyncBatcher<void>> UpstreamSyncBatcher_;
-    NProfiling::TEventTimer UpstreamSyncTimer_ = CellMasterProfiler.Timer("/upstream_sync_time");
+    NProfiling::TEventTimer UpstreamSyncTimer_ = CellMasterProfiler().Timer("/upstream_sync_time");
 
     std::atomic<bool> DynamicallyPropagated_ = false;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DynamicallyPropagatedMastersCellTagsLock_);

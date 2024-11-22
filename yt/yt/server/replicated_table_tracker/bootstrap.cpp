@@ -230,7 +230,7 @@ private:
         ReplicatedTableTracker_ = CreateReplicatedTableTracker(
             ReplicatedTableTrackerHost_,
             DynamicConfigManager_->GetConfig(),
-            ReplicatedTableTrackerProfiler);
+            ReplicatedTableTrackerProfiler());
 
         RegisterInstance();
 

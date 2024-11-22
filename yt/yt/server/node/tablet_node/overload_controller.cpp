@@ -291,7 +291,7 @@ TOverloadController::TOverloadController(TOverloadControllerConfigPtr config)
         Invoker_,
         BIND(&TOverloadController::Adjust, MakeWeak(this)),
         config->LoadAdjustingPeriod))
-    , Profiler(TabletNodeProfiler.WithPrefix("/overload_controller"))
+    , Profiler(TabletNodeProfiler().WithPrefix("/overload_controller"))
 {
     State_.Config = std::move(config);
     CreateGenericTracker<TContainerCpuThrottlingTracker>(CpuThrottlingTrackerName);

@@ -18,7 +18,7 @@ struct IBootstrap;
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, MasterCacheLogger, "MasterCache");
-inline const NProfiling::TProfiler MasterCacheProfiler("/master_cache");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, MasterCacheProfiler, "/master_cache");
 
 ////////////////////////////////////////////////////////////////////////////////
 

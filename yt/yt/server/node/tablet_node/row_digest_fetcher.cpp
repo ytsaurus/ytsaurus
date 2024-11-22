@@ -48,7 +48,7 @@ public:
         const TClusterNodeDynamicConfigPtr& config)
         : TCompactionHintFetcher(
             std::move(invoker),
-            TabletNodeProfiler
+            TabletNodeProfiler()
                 .WithPrefix("/chunk_row_digest_fetcher")
                 .WithTag("cell_id", ToString(cellId)))
         , RowDigestParseCumulativeTime_(Profiler_.TimeCounter("/row_digest_parse_cumulative_time"))

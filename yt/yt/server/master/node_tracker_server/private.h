@@ -12,7 +12,7 @@ namespace NYT::NNodeTrackerServer {
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, NodeTrackerServerStructuredLogger, "NodeTrackerServerStructured");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, NodeTrackerServerLogger, "NodeTrackerServer");
-inline const NProfiling::TProfiler NodeTrackerProfiler("/node_tracker");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, NodeTrackerProfiler, "/node_tracker");
 
 ////////////////////////////////////////////////////////////////////////////////
 

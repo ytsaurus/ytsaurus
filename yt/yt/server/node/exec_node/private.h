@@ -40,6 +40,8 @@ YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ControllerAgentConnectorProfiler, 
 
 YT_DEFINE_GLOBAL(const NProfiling::TProfiler, JobEnvironmentProfiler, ExecNodeProfiler().WithPrefix("/job_environment"));
 
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, HeartbeatOutOfBandAttemptsProfiler, SchedulerConnectorProfiler().WithPrefix("/heartbeat_out_of_band_attempts"));
+
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr int TmpfsRemoveAttemptCount = 5;

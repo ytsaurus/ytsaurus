@@ -11,7 +11,7 @@ namespace NYT::NClusterClock {
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, ClusterClockLogger, "Clock");
-inline const NProfiling::TProfiler ClusterClockProfiler("/clock");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ClusterClockProfiler, "/clock");
 
 ////////////////////////////////////////////////////////////////////////////////
 

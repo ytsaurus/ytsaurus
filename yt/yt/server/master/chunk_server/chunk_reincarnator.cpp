@@ -660,10 +660,10 @@ public:
             BIND_NO_PROPAGATE(&TChunkReincarnator::HydraReincarnateForeignChunks, Unretained(this)));
 
         for (auto [path, kind] : ReincarnationMetrics) {
-            Metrics_[kind] = ChunkServerProfiler.Counter(path);
+            Metrics_[kind] = ChunkServerProfiler().Counter(path);
         }
 
-        TeleportedReincarnationCounter_ = ChunkServerProfiler
+        TeleportedReincarnationCounter_ = ChunkServerProfiler()
             .WithGlobal()
             .WithTag("cell_tag", ToString(Bootstrap_->GetCellTag()))
             .Counter("/chunk_reincarnator/teleported_reincarnations");

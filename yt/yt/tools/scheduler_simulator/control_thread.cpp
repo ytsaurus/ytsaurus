@@ -267,7 +267,7 @@ void TSimulatorControlThread::OnOperationStarted(const TControlThreadEvent& even
     TPoolTreeControllerSettingsMap poolTreeControllerSettingsMap;
     SchedulerStrategy_->RegisterOperation(operation.Get(), &unknownTreeIds, &poolTreeControllerSettingsMap);
     YT_VERIFY(unknownTreeIds.empty());
-    StrategyHost_.LogEventFluently(&SchedulerStructuredLogger, ELogEventType::OperationStarted)
+    StrategyHost_.LogEventFluently(&SchedulerStructuredLogger(), ELogEventType::OperationStarted)
         .Item("operation_id").Value(operation->GetId())
         .Item("operation_type").Value(operation->GetType())
         .Item("spec").Value(operation->GetSpecString())

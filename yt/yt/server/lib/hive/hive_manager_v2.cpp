@@ -101,7 +101,7 @@ public:
         , AutomatonInvoker_(std::move(automatonInvoker))
         , GuardedAutomatonInvoker_(hydraManager->CreateGuardedAutomatonInvoker(AutomatonInvoker_))
         , HydraManager_(std::move(hydraManager))
-        , Profiler_(HiveServerProfiler
+        , Profiler_(HiveServerProfiler()
             .WithGlobal()
             .WithSparse()
             .WithTag("cell_id", ToString(selfCellId)))

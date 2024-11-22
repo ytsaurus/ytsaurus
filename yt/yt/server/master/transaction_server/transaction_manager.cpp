@@ -155,7 +155,7 @@ public:
             Bootstrap_->GetTransactionLeaseTrackerThreadPool(),
             TransactionServerLogger()))
     {
-        TransactionServerProfiler.AddProducer("", BufferedProducer_);
+        TransactionServerProfiler().AddProducer("", BufferedProducer_);
 
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 

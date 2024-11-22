@@ -173,30 +173,30 @@ TNodeShard::TNodeShard(
         BIND(&TNodeShard::SubmitAllocationsToStrategy, MakeWeak(this)),
         Config_->NodeShardSubmitAllocationsToStrategyPeriod))
 {
-    SoftConcurrentHeartbeatLimitReachedCounter_ = SchedulerProfiler
+    SoftConcurrentHeartbeatLimitReachedCounter_ = SchedulerProfiler()
         .WithTag("limit_type", "soft")
         .Counter("/node_heartbeat/concurrent_limit_reached_count");
-    HardConcurrentHeartbeatLimitReachedCounter_ = SchedulerProfiler
+    HardConcurrentHeartbeatLimitReachedCounter_ = SchedulerProfiler()
         .WithTag("limit_type", "hard")
         .Counter("/node_heartbeat/concurrent_limit_reached_count");
-    ConcurrentHeartbeatComplexityLimitReachedCounter_ = SchedulerProfiler
+    ConcurrentHeartbeatComplexityLimitReachedCounter_ = SchedulerProfiler()
         .Counter("/node_heartbeat/concurrent_complexity_limit_reached_count");
-    HeartbeatWithScheduleAllocationsCounter_ = SchedulerProfiler
+    HeartbeatWithScheduleAllocationsCounter_ = SchedulerProfiler()
         .Counter("/node_heartbeat/with_schedule_jobs_count");
-    HeartbeatAllocationCount_ = SchedulerProfiler
+    HeartbeatAllocationCount_ = SchedulerProfiler()
         .Counter("/node_heartbeat/job_count");
-    HeartbeatCount_ = SchedulerProfiler
+    HeartbeatCount_ = SchedulerProfiler()
         .Counter("/node_heartbeat/count");
-    HeartbeatRequestProtoMessageBytes_ = SchedulerProfiler
+    HeartbeatRequestProtoMessageBytes_ = SchedulerProfiler()
         .Counter("/node_heartbeat/request/proto_message_bytes");
-    HeartbeatResponseProtoMessageBytes_ = SchedulerProfiler
+    HeartbeatResponseProtoMessageBytes_ = SchedulerProfiler()
         .Counter("/node_heartbeat/response/proto_message_bytes");
-    HeartbeatRegisteredControllerAgentsBytes_ = SchedulerProfiler
+    HeartbeatRegisteredControllerAgentsBytes_ = SchedulerProfiler()
         .Counter("/node_heartbeat/response/proto_registered_controller_agents_bytes");
 
     for (auto reason : TEnumTraitsImpl<ESchedulingStopReason>::GetDomainValues()) {
         UnscheduledResourcesCounterByStopReason_[reason].Init(
-            SchedulerProfiler
+            SchedulerProfiler()
                 .WithPrefix("/unscheduled_node_resources")
                 .WithTag("reason", FormatEnum(reason)),
             EMetricType::Counter);
@@ -2291,7 +2291,7 @@ void TNodeShard::UpdateProfilingCounter(const TAllocationPtr& allocation, int va
     YT_VERIFY(allocationState <= EAllocationState::Running);
 
     auto createGauge = [&] {
-        return SchedulerProfiler.WithTags(TTagSet(TTagList{
+        return SchedulerProfiler().WithTags(TTagSet(TTagList{
                 {ProfilingPoolTreeKey, allocation->GetTreeId()},
                 {"state", FormatEnum(allocationState)}}))
             .Gauge("/allocations/running_allocation_count");

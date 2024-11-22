@@ -148,7 +148,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         Config_->MemoryLimits->Total.value_or(std::numeric_limits<i64>::max()),
         /*limits*/ {},
         Logger(),
-        HttpProxyProfiler.WithPrefix("/memory_usage"));
+        HttpProxyProfiler().WithPrefix("/memory_usage"));
 
     ReconfigureMemoryLimits(Config_->MemoryLimits);
 

@@ -528,7 +528,7 @@ public:
                 Config_->ResponseKeeper,
                 occupier->GetOccupierAutomatonInvoker(),
                 Logger,
-                Profiler);
+                Profiler());
 
             auto rpcServer = Bootstrap_->GetRpcServer();
 

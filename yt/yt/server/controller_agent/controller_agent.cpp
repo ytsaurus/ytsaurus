@@ -203,11 +203,11 @@ public:
         , ChunkLocationThrottlerManager_(New<TThrottlerManager>(
             Config_->ChunkLocationThrottler,
             ControllerAgentLogger(),
-            ControllerAgentProfiler.WithPrefix("/chunk_location_throttler")))
+            ControllerAgentProfiler().WithPrefix("/chunk_location_throttler")))
         , ReconfigurableJobSpecSliceThrottler_(CreateReconfigurableThroughputThrottler(
             Config_->JobSpecSliceThrottler,
             NLogging::TLogger(),
-            ControllerAgentProfiler.WithPrefix("/job_spec_slice_throttler")))
+            ControllerAgentProfiler().WithPrefix("/job_spec_slice_throttler")))
         , JobSpecSliceThrottler_(ReconfigurableJobSpecSliceThrottler_)
         , CoreSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentSafeCoreDumps))
         , EventLogWriter_(CreateStaticTableEventLogWriter(
@@ -231,9 +231,9 @@ public:
         , SchedulerProxy_(Bootstrap_->GetClient()->GetSchedulerChannel())
         , ZombieOperationOrchids_(New<TZombieOperationOrchids>(Config_->ZombieOperationOrchids))
         , JobMonitoringIndexManager_(Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent)
-        , ThrottledScheduleAllocationRequestCount_(ControllerAgentProfiler.WithHot().Counter("/throttled_schedule_allocation_request_count"))
+        , ThrottledScheduleAllocationRequestCount_(ControllerAgentProfiler().WithHot().Counter("/throttled_schedule_allocation_request_count"))
     {
-        ControllerAgentProfiler.AddFuncGauge("/monitored_user_job_count", MakeStrong(this), [this] {
+        ControllerAgentProfiler().AddFuncGauge("/monitored_user_job_count", MakeStrong(this), [this] {
             return WaitFor(BIND([&] {
                 int sum = 0;
                 for (const auto& [_, operation] : IdToOperation_) {
@@ -1259,13 +1259,13 @@ private:
             ControllerAgentLogger().WithTag(
                 "Kind: AgentToSchedulerOperations, IncarnationId: %v",
                 IncarnationId_),
-            ControllerAgentProfiler.WithTag("queue", "operation_events"),
+            ControllerAgentProfiler().WithTag("queue", "operation_events"),
             CancelableControlInvoker_);
         ScheduleAllocationResponsesOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerScheduleAllocationResponse>>(
             ControllerAgentLogger().WithTag(
                 "Kind: AgentToSchedulerScheduleAllocationResponses, IncarnationId: %v",
                 IncarnationId_),
-            ControllerAgentProfiler.WithTag("queue", "schedule_job_responses"),
+            ControllerAgentProfiler().WithTag("queue", "schedule_job_responses"),
             Bootstrap_->GetControlInvoker(),
             /*supportTracing*/ true);
 
@@ -1273,26 +1273,26 @@ private:
             ControllerAgentLogger().WithTag(
                 "Kind: AgentToSchedulerRunningAllocationStatistics, IncarnationId: %v",
                 IncarnationId_),
-            ControllerAgentProfiler.WithTag("queue", "running_allocation_statistics"),
+            ControllerAgentProfiler().WithTag("queue", "running_allocation_statistics"),
             Bootstrap_->GetControlInvoker());
 
         AllocationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
             ControllerAgentLogger().WithTag(
                 "Kind: SchedulerToAgentAllocationEvents, IncarnationId: %v",
                 IncarnationId_),
-            ControllerAgentProfiler.WithTag("queue", "job_events"),
+            ControllerAgentProfiler().WithTag("queue", "job_events"),
             JobEventsInvoker_);
         OperationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
             ControllerAgentLogger().WithTag(
                 "Kind: SchedulerToAgentOperations, IncarnationId: %v",
                 IncarnationId_),
-            ControllerAgentProfiler.WithTag("queue", "operation_events"),
+            ControllerAgentProfiler().WithTag("queue", "operation_events"),
             CancelableControlInvoker_);
         ScheduleAllocationRequestsInbox_ = std::make_unique<TMessageQueueInbox>(
             ControllerAgentLogger().WithTag(
                 "Kind: SchedulerToAgentScheduleAllocationRequests, IncarnationId: %v",
                 IncarnationId_),
-            ControllerAgentProfiler.WithTag("queue", "schedule_job_requests"),
+            ControllerAgentProfiler().WithTag("queue", "schedule_job_requests"),
             Bootstrap_->GetControlInvoker());
 
         MemoryWatchdog_ = New<TMemoryWatchdog>(

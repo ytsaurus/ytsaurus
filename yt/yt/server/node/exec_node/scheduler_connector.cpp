@@ -44,8 +44,6 @@ using namespace NScheduler;
 
 static constexpr auto& Logger = ExecNodeLogger;
 
-static const auto HeartbeatOutOfBandAttemptsProfiler = SchedulerConnectorProfiler().WithPrefix("/heartbeat_out_of_band_attempts");
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerConnector::TSchedulerConnector(IBootstrap* bootstrap)
@@ -62,23 +60,23 @@ TSchedulerConnector::TSchedulerConnector(IBootstrap* bootstrap)
     , TimeBetweenAcknowledgedHeartbeatsCounter_(SchedulerConnectorProfiler().Timer("/time_between_acknowledged_heartbeats"))
     , TimeBetweenFullyProcessedHeartbeatsCounter_(SchedulerConnectorProfiler().Timer("/time_between_fully_processed_heartbeats"))
     , PendingResourceHolderHeartbeatSkippedCounter_(
-        HeartbeatOutOfBandAttemptsProfiler
+        HeartbeatOutOfBandAttemptsProfiler()
             .WithTag("reason", "pending_resource_holders")
             .Counter("/skipped"))
     , NotEnoughResourcesHeartbeatSkippedCounter_(
-        HeartbeatOutOfBandAttemptsProfiler
+        HeartbeatOutOfBandAttemptsProfiler()
             .WithTag("reason", "not_enough_resources")
             .Counter("/skipped"))
     , ResourcesAcquiredHeartbeatRequestedCounter_(
-        HeartbeatOutOfBandAttemptsProfiler
+        HeartbeatOutOfBandAttemptsProfiler()
             .WithTag("reason", "resources_acquired")
             .Counter("/requested"))
     , ResourcesReleasedHeartbeatRequestedCounter_(
-        HeartbeatOutOfBandAttemptsProfiler
+        HeartbeatOutOfBandAttemptsProfiler()
             .WithTag("reason", "resources_released")
             .Counter("/requested"))
     , AllocationFinishedHeartbeatRequestedCounter_(
-        HeartbeatOutOfBandAttemptsProfiler
+        HeartbeatOutOfBandAttemptsProfiler()
             .WithTag("reason", "allocation_finished")
             .Counter("/requested"))
     , TracingSampler_(New<TSampler>(

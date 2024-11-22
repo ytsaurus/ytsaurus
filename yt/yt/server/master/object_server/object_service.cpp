@@ -175,7 +175,7 @@ public:
             Config_->MasterCache,
             GetNullMemoryUsageTracker(),
             ObjectServerLogger(),
-            ObjectServerProfiler.WithPrefix("/object_service_cache")))
+            ObjectServerProfiler().WithPrefix("/object_service_cache")))
         , ProcessSessionsExecutor_(New<TPeriodicExecutor>(
             AutomatonInvoker_,
             BIND(&TObjectService::ProcessSessions, MakeWeak(this))))

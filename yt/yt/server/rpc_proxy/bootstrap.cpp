@@ -142,7 +142,7 @@ void TBootstrap::DoRun()
         *Config_->MemoryLimits->Total,
         /*limits*/ {},
         Logger(),
-        RpcProxyProfiler.WithPrefix("/memory_usage"));
+        RpcProxyProfiler().WithPrefix("/memory_usage"));
 
     ReconfigureMemoryLimits(Config_->MemoryLimits);
 
@@ -292,7 +292,7 @@ void TBootstrap::DoRun()
             securityManager,
             TraceSampler_,
             RpcProxyLogger(),
-            RpcProxyProfiler,
+            RpcProxyProfiler(),
             MemoryUsageTracker_);
     };
 

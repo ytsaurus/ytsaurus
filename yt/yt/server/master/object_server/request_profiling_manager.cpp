@@ -31,7 +31,7 @@ public:
         auto key = std::tuple(user, method);
         return *KeyToCounters_.FindOrInsert(key, [&] {
             return New<TRequestProfilingCounters>(
-                ObjectServerProfiler
+                ObjectServerProfiler()
                     .WithHot()
                     .WithSparse()
                     .WithTag("user", user)

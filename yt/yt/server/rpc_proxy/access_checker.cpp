@@ -37,7 +37,7 @@ public:
         , Cache_(New<TPermissionCache>(
             Config_->Cache,
             connection,
-            RpcProxyProfiler.WithPrefix("/access_checker_cache")))
+            RpcProxyProfiler().WithPrefix("/access_checker_cache")))
         , Enabled_(Config_->Enabled)
     {
         dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TAccessChecker::OnDynamicConfigChanged, MakeWeak(this)));

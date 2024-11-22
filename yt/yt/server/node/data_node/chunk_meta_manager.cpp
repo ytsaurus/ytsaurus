@@ -70,17 +70,17 @@ public:
             Config_->ChunkMetaCache,
             memoryUsageTracker
                 ->WithCategory(EMemoryCategory::ChunkMeta),
-            DataNodeProfiler.WithPrefix("/chunk_meta_cache")))
+            DataNodeProfiler().WithPrefix("/chunk_meta_cache")))
         , BlocksExtCache_(New<TBlocksExtCache>(
             Config_->BlocksExtCache,
             memoryUsageTracker
                 ->WithCategory(EMemoryCategory::ChunkBlocksExt),
-            DataNodeProfiler.WithPrefix("/blocks_ext_cache")))
+            DataNodeProfiler().WithPrefix("/blocks_ext_cache")))
         , BlockMetaCache_(New<TBlockMetaCache>(
             Config_->BlockMetaCache,
             memoryUsageTracker
                 ->WithCategory(EMemoryCategory::ChunkBlockMeta),
-            DataNodeProfiler.WithPrefix("/block_meta_cache")))
+            DataNodeProfiler().WithPrefix("/block_meta_cache")))
     {
         dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TChunkMetaManager::OnDynamicConfigChanged, MakeWeak(this)));
     }

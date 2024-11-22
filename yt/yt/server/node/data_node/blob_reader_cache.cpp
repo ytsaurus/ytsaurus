@@ -95,7 +95,7 @@ public:
         IChunkMetaManagerPtr chunkMetaManager)
         : TSyncSlruCacheBase(
             dataNodeConfig->BlobReaderCache,
-            DataNodeProfiler.WithPrefix("/blob_reader_cache"))
+            DataNodeProfiler().WithPrefix("/blob_reader_cache"))
         , Config_(dataNodeConfig)
         , ChunkMetaManager_(chunkMetaManager)
     {

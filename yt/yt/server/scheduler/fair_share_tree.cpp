@@ -262,7 +262,7 @@ public:
         , StrategyHost_(strategyHost)
         , ResourceTree_(New<TResourceTree>(Config_, feasibleInvokers))
         , TreeProfiler_(
-            SchedulerProfiler
+            SchedulerProfiler()
                 .WithGlobal()
                 .WithProducerRemoveSupport()
                 .WithRequiredTag("tree", TreeId_))

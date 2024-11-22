@@ -55,7 +55,7 @@ public:
         const TClusterNodeDynamicConfigPtr& config)
         : TCompactionHintFetcher(
             std::move(invoker),
-            TabletNodeProfiler
+            TabletNodeProfiler()
                 .WithPrefix("/chunk_view_size_fetcher")
                 .WithTag("cell_id", ToString(cellId)))
         , NodeDirectory_(std::move(nodeDirectory))

@@ -2175,7 +2175,7 @@ void TTablet::ReconfigureRowCache(const ITabletSlotPtr& slot)
     if (!RowCache_) {
         RowCache_ = New<TRowCache>(
             lookupCacheCapacity,
-            TabletNodeProfiler.WithTag("table_path", TablePath_).WithPrefix("/row_cache"),
+            TabletNodeProfiler().WithTag("table_path", TablePath_).WithPrefix("/row_cache"),
             Context_
                 ->GetNodeMemoryUsageTracker()
                 ->WithCategory(EMemoryCategory::LookupRowsCache));

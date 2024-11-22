@@ -18,7 +18,7 @@ void TNetworkStatistics::IncrementReadThrottlingCounter(const TString& name)
 {
     auto counters = Counters_.FindOrInsert(name, [&] {
         auto counters = New<TNetworkCounters>();
-        counters->ThrottledReadsCounter = DataNodeProfiler
+        counters->ThrottledReadsCounter = DataNodeProfiler()
             .WithTag("network", name)
             .Counter("/net_throttled_reads");
         return counters;

@@ -82,14 +82,14 @@ public:
         , ReconfigurationCallback_(CreateReconfigurationCallback(bootstrap))
         , CreateChunkRequestQueueProvider_(New<TPerUserRequestQueueProvider>(
             ReconfigurationCallback_,
-            ChunkServiceProfiler
+            ChunkServiceProfiler()
                 .WithDefaultDisabled()
                 .WithSparse()
                 .WithTag("cell_tag", ToString(bootstrap->GetMulticellManager()->GetCellTag()))
                 .WithTag("method", "create_chunk")))
         , ExecuteBatchRequestQueueProvider_(New<TPerUserRequestQueueProvider>(
             ReconfigurationCallback_,
-            ChunkServiceProfiler
+            ChunkServiceProfiler()
                 .WithDefaultDisabled()
                 .WithSparse()
                 .WithTag("cell_tag", ToString(bootstrap->GetMulticellManager()->GetCellTag()))

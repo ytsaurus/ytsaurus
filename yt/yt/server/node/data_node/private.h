@@ -13,11 +13,11 @@ constexpr auto SessionIdAllocationTag = "session_id";
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, DataNodeLogger, "DataNode");
-inline const NProfiling::TProfiler DataNodeProfiler("/data_node");
-inline const NProfiling::TProfiler LocationProfiler("/location");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, DataNodeProfiler, "/data_node");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, LocationProfiler, "/location");
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, P2PLogger, "P2P");
-inline const NProfiling::TProfiler P2PProfiler = DataNodeProfiler.WithPrefix("/p2p");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, P2PProfiler, DataNodeProfiler().WithPrefix("/p2p"));
 
 inline const TString CellIdFileName("cell_id");
 inline const TString ChunkLocationUuidFileName("uuid");

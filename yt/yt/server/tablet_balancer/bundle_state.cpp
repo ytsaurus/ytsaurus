@@ -139,7 +139,7 @@ TBundleState::TBundleState(
     IInvokerPtr invoker)
     : Bundle_(New<TTabletCellBundle>(name))
     , Logger(TabletBalancerLogger().WithTag("BundleName: %v", name))
-    , Profiler_(TabletBalancerProfiler.WithTag("tablet_cell_bundle", name))
+    , Profiler_(TabletBalancerProfiler().WithTag("tablet_cell_bundle", name))
     , Client_(client)
     , Invoker_(invoker)
     , TableRegistry_(std::move(tableRegistry))

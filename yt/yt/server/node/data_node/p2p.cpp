@@ -43,22 +43,22 @@ TP2PBlockCache::TP2PBlockCache(
     : TMemoryTrackingSyncSlruCacheBase<TBlockId, TP2PBlock>(
         config->BlockCache,
         memoryTracker,
-        P2PProfiler.WithPrefix("/cache"))
+        P2PProfiler().WithPrefix("/cache"))
     , Config_(config)
     , StaleSessionCleaup_(New<TPeriodicExecutor>(
         invoker,
         BIND(&TP2PBlockCache::CleanupOldSessions, MakeWeak(this)),
         Config_->SessionCleaupPeriod))
-    , WastedBytes_(P2PProfiler.Counter("/wasted_bytes"))
-    , DuplicateBytes_(P2PProfiler.Counter("/duplicate_bytes"))
-    , MissedBlocks_(P2PProfiler.Counter("/missed_blocks"))
+    , WastedBytes_(P2PProfiler().Counter("/wasted_bytes"))
+    , DuplicateBytes_(P2PProfiler().Counter("/duplicate_bytes"))
+    , MissedBlocks_(P2PProfiler().Counter("/missed_blocks"))
 {
-    P2PProfiler.AddFuncGauge("/active_sessions", MakeStrong(this), [this] {
+    P2PProfiler().AddFuncGauge("/active_sessions", MakeStrong(this), [this] {
         auto guard = Guard(Lock_);
         return ActiveSessions_.size();
     });
 
-    P2PProfiler.AddFuncGauge("/active_waiters", MakeStrong(this), [this] {
+    P2PProfiler().AddFuncGauge("/active_waiters", MakeStrong(this), [this] {
         return ActiveWaiters_.load();
     });
 }
@@ -261,19 +261,19 @@ TP2PSnooper::TP2PSnooper(
     : TMemoryTrackingSyncSlruCacheBase<NChunkClient::TChunkId, TP2PChunk>(
         config->RequestCache,
         memoryTracker,
-        P2PProfiler.WithPrefix("/request_cache"))
+        P2PProfiler().WithPrefix("/request_cache"))
     , Config_(std::move(config))
-    , ThrottledBytes_(P2PProfiler.Counter("/throttled_bytes"))
-    , ThrottledLargeBlockBytes_(P2PProfiler.Counter("/throttled_large_block_bytes"))
-    , DistributedBytes_(P2PProfiler.Counter("/distributed_bytes"))
-    , HitBytes_(P2PProfiler.Counter("/hit_bytes"))
+    , ThrottledBytes_(P2PProfiler().Counter("/throttled_bytes"))
+    , ThrottledLargeBlockBytes_(P2PProfiler().Counter("/throttled_large_block_bytes"))
+    , DistributedBytes_(P2PProfiler().Counter("/distributed_bytes"))
+    , HitBytes_(P2PProfiler().Counter("/hit_bytes"))
 {
-    P2PProfiler.AddFuncGauge("/hot_chunks", MakeStrong(this), [this] {
+    P2PProfiler().AddFuncGauge("/hot_chunks", MakeStrong(this), [this] {
         auto guard = Guard(ChunkLock_);
         return HotChunks_.size();
     });
 
-    P2PProfiler.AddFuncGauge("/eligible_nodes", MakeStrong(this), [this] {
+    P2PProfiler().AddFuncGauge("/eligible_nodes", MakeStrong(this), [this] {
         auto guard = Guard(NodesLock_);
         return EligibleNodes_.size();
     });
@@ -591,7 +591,7 @@ TP2PDistributor::TP2PDistributor(
         Invoker_,
         BIND(&TP2PDistributor::CoolHotChunks, MakeWeak(this)),
         Config_->ChunkCooldownTimeout))
-    , DistributionErrorsCounter_(P2PProfiler.Counter("/distribution_errors"))
+    , DistributionErrorsCounter_(P2PProfiler().Counter("/distribution_errors"))
 { }
 
 void TP2PDistributor::Start()

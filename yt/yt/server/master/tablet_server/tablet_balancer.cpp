@@ -83,7 +83,7 @@ public:
         , ConfigCheckExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
             BIND(&TImpl::OnCheckConfig, MakeWeak(this))))
-        , QueueSizeGauge_(TabletServerProfiler.Gauge("/tablet_balancer/queue_size"))
+        , QueueSizeGauge_(TabletServerProfiler().Gauge("/tablet_balancer/queue_size"))
         , LastBalancingTime_(TruncatedNow())
     { }
 

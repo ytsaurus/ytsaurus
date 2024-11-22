@@ -11,7 +11,7 @@ namespace NYT::NAuth {
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, AuthLogger, "Auth");
-inline const NProfiling::TProfiler AuthProfiler("/auth");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, AuthProfiler, "/auth");
 
 ////////////////////////////////////////////////////////////////////////////////
 

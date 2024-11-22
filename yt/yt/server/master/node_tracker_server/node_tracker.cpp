@@ -163,7 +163,7 @@ public:
             BIND_NO_PROPAGATE(&TNodeTracker::SaveValues, Unretained(this)));
 
         BufferedProducer_ = New<TBufferedProducer>();
-        NodeTrackerProfiler
+        NodeTrackerProfiler()
             .WithDefaultDisabled()
             .WithSparse()
             .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))

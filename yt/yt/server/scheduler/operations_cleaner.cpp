@@ -68,7 +68,7 @@ using namespace NTracing;
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "OperationsCleaner");
 
-// TODO(eshcherbin): It should be nested within SchedulerProfiler.
+// TODO(eshcherbin): It should be nested within SchedulerProfiler().
 YT_DEFINE_GLOBAL(const TProfiler, Profiler, TProfiler("/operations_cleaner").WithGlobal());
 
 ////////////////////////////////////////////////////////////////////////////////

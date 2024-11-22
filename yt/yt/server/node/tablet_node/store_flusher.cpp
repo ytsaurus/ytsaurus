@@ -185,7 +185,7 @@ private:
     IBootstrap* const Bootstrap_;
     const TTabletNodeConfigPtr Config_;
 
-    const NProfiling::TProfiler Profiler_ = TabletNodeProfiler.WithPrefix("/store_flusher");
+    const NProfiling::TProfiler Profiler_ = TabletNodeProfiler().WithPrefix("/store_flusher");
 
     const IThreadPoolPtr ThreadPool_;
     const TProfiledAsyncSemaphorePtr Semaphore_;
