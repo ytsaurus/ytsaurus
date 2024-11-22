@@ -11,9 +11,9 @@
 
 #include <yt/yt/library/coredumper/coredumper.h>
 
-#include <yt/yt/library/containers/disk_manager/config.h>
-#include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
-#include <yt/yt/library/containers/disk_manager/disk_manager_proxy.h>
+#include <yt/yt/library/disk_manager/config.h>
+#include <yt/yt/library/disk_manager/disk_info_provider.h>
+#include <yt/yt/library/disk_manager/disk_manager_proxy.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 
@@ -169,8 +169,8 @@ private:
 
     TDynamicConfigManagerPtr DynamicConfigManager_;
 
-    NContainers::IDiskManagerProxyPtr DiskManagerProxy_;
-    NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
+    NDiskManager::IDiskManagerProxyPtr DiskManagerProxy_;
+    NDiskManager::TDiskInfoProviderPtr DiskInfoProvider_;
     TDiskChangeCheckerPtr DiskChangeChecker_;
 
     void DoInitialize()
@@ -238,7 +238,7 @@ private:
             NativeAuthenticator_));
 
         DiskManagerProxy_ = CreateDiskManagerProxy(Config_->DiskManagerProxy);
-        DiskInfoProvider_ = New<NContainers::TDiskInfoProvider>(
+        DiskInfoProvider_ = New<NDiskManager::TDiskInfoProvider>(
             DiskManagerProxy_,
             Config_->DiskInfoProvider);
         DiskChangeChecker_ = New<TDiskChangeChecker>(

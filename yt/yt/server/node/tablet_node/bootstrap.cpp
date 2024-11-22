@@ -47,9 +47,9 @@
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
-#include <yt/yt/library/containers/disk_manager/config.h>
-#include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
-#include <yt/yt/library/containers/disk_manager/disk_manager_proxy.h>
+#include <yt/yt/library/disk_manager/config.h>
+#include <yt/yt/library/disk_manager/disk_info_provider.h>
+#include <yt/yt/library/disk_manager/disk_manager_proxy.h>
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
@@ -319,7 +319,7 @@ public:
         GetRpcServer()->RegisterService(CreateTabletCellService(this));
 
         DiskManagerProxy_ = CreateDiskManagerProxy(GetConfig()->DiskManagerProxy);
-        DiskInfoProvider_ = New<NContainers::TDiskInfoProvider>(
+        DiskInfoProvider_ = New<NDiskManager::TDiskInfoProvider>(
             DiskManagerProxy_,
             GetConfig()->DiskInfoProvider);
         DiskChangeChecker_ = New<TDiskChangeChecker>(
@@ -608,8 +608,8 @@ private:
     ICompressionDictionaryManagerPtr CompressionDictionaryManager_;
     TOverloadControllerPtr OverloadController_;
 
-    NContainers::IDiskManagerProxyPtr DiskManagerProxy_;
-    NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
+    NDiskManager::IDiskManagerProxyPtr DiskManagerProxy_;
+    NDiskManager::TDiskInfoProviderPtr DiskInfoProvider_;
     TDiskChangeCheckerPtr DiskChangeChecker_;
 
     void OnDynamicConfigChanged(

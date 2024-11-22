@@ -15,7 +15,7 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <yt/yt/library/containers/disk_manager/public.h>
+#include <yt/yt/library/disk_manager/public.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -28,7 +28,7 @@ class TDiskChangeChecker
 {
 public:
     TDiskChangeChecker(
-        NContainers::TDiskInfoProviderPtr diskInfoProvider,
+        NDiskManager::TDiskInfoProviderPtr diskInfoProvider,
         IInvokerPtr controlInvoker,
         NLogging::TLogger logger);
 
@@ -39,7 +39,7 @@ public:
     NYTree::IYPathServicePtr GetOrchidService();
 
 private:
-    const NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
+    const NDiskManager::TDiskInfoProviderPtr DiskInfoProvider_;
     const IInvokerPtr Invoker_;
     const NYTree::IYPathServicePtr OrchidService_;
 
@@ -52,7 +52,7 @@ private:
 
     void OnDiskChangeCheck();
 
-    void CheckDiskChange(const std::vector<NContainers::TDiskInfo>& diskInfos);
+    void CheckDiskChange(const std::vector<NDiskManager::TDiskInfo>& diskInfos);
 
     void SetDiskIdsMismatchedAlert(TError alert);
 

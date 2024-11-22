@@ -2,13 +2,9 @@
 
 #include "public.h"
 
-#include <yt/yt/library/containers/disk_manager/config.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/yt/core/rpc/client.h>
-
-#include <library/cpp/yt/threading/atomic_object.h>
-
-namespace NYT::NContainers {
+namespace NYT::NDiskManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,4 +34,4 @@ IDiskManagerProxyPtr CreateDiskManagerProxy(TDiskManagerProxyConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NContainers
+} // namespace NYT::NDiskManager

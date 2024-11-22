@@ -27,9 +27,9 @@
 
 #include <yt/yt/library/query/engine_api/config.h>
 
-#include <yt/yt/library/containers/disk_manager/config.h>
-#include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
-#include <yt/yt/library/containers/disk_manager/disk_manager_proxy.h>
+#include <yt/yt/library/disk_manager/config.h>
+#include <yt/yt/library/disk_manager/disk_info_provider.h>
+#include <yt/yt/library/disk_manager/disk_manager_proxy.h>
 
 #include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
 
@@ -43,9 +43,9 @@ namespace NYT::NDataNode {
 
 using namespace NClusterNode;
 using namespace NConcurrency;
-using namespace NContainers;
 using namespace NCypressClient;
 using namespace NQueryClient;
+using namespace NDiskManager;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////

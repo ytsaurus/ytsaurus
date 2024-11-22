@@ -22,7 +22,7 @@
 #include <yt/yt/library/monitoring/public.h>
 
 #include <yt/yt/library/containers/public.h>
-#include <yt/yt/library/containers/disk_manager/public.h>
+#include <yt/yt/library/disk_manager/public.h>
 
 #include <yt/yt/library/profiling/solomon/public.h>
 
@@ -144,8 +144,8 @@ private:
 
     NCoreDump::ICoreDumperPtr CoreDumper_;
 
-    NContainers::IDiskManagerProxyPtr DiskManagerProxy_;
-    NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
+    NDiskManager::IDiskManagerProxyPtr DiskManagerProxy_;
+    NDiskManager::TDiskInfoProviderPtr DiskInfoProvider_;
     TDiskChangeCheckerPtr DiskChangeChecker_;
 
     INodeMemoryTrackerPtr MemoryUsageTracker_;

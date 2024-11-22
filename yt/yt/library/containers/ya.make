@@ -31,7 +31,6 @@ ENDIF()
 END()
 
 RECURSE(
-    disk_manager
     cri
 )
 

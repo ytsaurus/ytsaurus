@@ -43,9 +43,9 @@
 
 #include <yt/yt/library/dns_over_rpc/server/dns_over_rpc_service.h>
 
-#include <yt/yt/library/containers/disk_manager/config.h>
-#include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
-#include <yt/yt/library/containers/disk_manager/disk_manager_proxy.h>
+#include <yt/yt/library/disk_manager/config.h>
+#include <yt/yt/library/disk_manager/disk_info_provider.h>
+#include <yt/yt/library/disk_manager/disk_manager_proxy.h>
 
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
@@ -159,7 +159,7 @@ public:
 
         DiskManagerProxy_ = CreateDiskManagerProxy(
             GetConfig()->DiskManagerProxy);
-        DiskInfoProvider_ = New<NContainers::TDiskInfoProvider>(
+        DiskInfoProvider_ = New<NDiskManager::TDiskInfoProvider>(
             DiskManagerProxy_,
             GetConfig()->DiskInfoProvider);
         DiskChangeChecker_ = New<TDiskChangeChecker>(
@@ -358,8 +358,8 @@ private:
 
     IJobProxyLogManagerPtr JobProxyLogManager_;
 
-    NContainers::IDiskManagerProxyPtr DiskManagerProxy_;
-    NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
+    NDiskManager::IDiskManagerProxyPtr DiskManagerProxy_;
+    NDiskManager::TDiskInfoProviderPtr DiskInfoProvider_;
     TDiskChangeCheckerPtr DiskChangeChecker_;
 
     void BuildJobProxyConfigTemplate()
