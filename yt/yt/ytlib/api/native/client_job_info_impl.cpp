@@ -4,6 +4,8 @@
 #include "config.h"
 #include "helpers.h"
 
+#include <yt/yt_proto/yt/client/api/rpc_proxy/proto/api_service.pb.h>
+
 #include <yt/yt/client/api/file_reader.h>
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
@@ -132,6 +134,7 @@ static const auto DefaultGetJobAttributes = [] {
 static const THashMap<TString, int> CompatListJobsAttributesToArchiveVersion = {
     {"controller_state", 48},
     {"interruption_info", 50},
+    {"archive_features", 51},
 };
 
 static const auto SupportedJobAttributes = DefaultGetJobAttributes;
@@ -1556,7 +1559,6 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     builder.AddSelectExpression("monitoring_descriptor");
     builder.AddSelectExpression("core_infos");
     builder.AddSelectExpression("job_cookie");
-    builder.AddSelectExpression("archive_features");
     builder.AddSelectExpression("if(is_null(state), transient_state, state)", "node_state");
     if (GetOrDefault(CompatListJobsAttributesToArchiveVersion, "controller_state") <= archiveVersion) {
         builder.AddSelectExpression("controller_state");
@@ -1570,6 +1572,10 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
             "job_state");
     } else {
         builder.AddSelectExpression("state", "job_state");
+    }
+
+    if (GetOrDefault(CompatListJobsAttributesToArchiveVersion, "archive_features") <= archiveVersion) {
+        builder.AddSelectExpression("archive_features");
     }
 
     if (options.WithStderr) {
@@ -1622,6 +1628,13 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
         } else {
             builder.AddWhereConjunct("is_null(monitoring_descriptor)");
         }
+    }
+
+    if (options.FromTime) {
+        builder.AddWhereConjunct(Format("start_time >= %v", options.FromTime->MicroSeconds()));
+    }
+    if (options.ToTime) {
+        builder.AddWhereConjunct(Format("finish_time >= %v", options.ToTime->MicroSeconds()));
     }
 
     if (options.TaskName) {
@@ -1829,6 +1842,7 @@ static void ParseJobsFromControllerAgentResponse(
         auto hasCompetitors = jobMap->GetChildValueOrThrow<bool>("has_competitors");
         auto taskName = jobMap->GetChildValueOrThrow<TString>("task_name");
         auto monitoringDescriptor = jobMap->FindChildValue<TString>("monitoring_descriptor");
+        auto startTime = jobMap->GetChildValueOrThrow<TInstant>("start_time");
         return
             (!options.Address || options.Address == address) &&
             (!options.Type || options.Type == type) &&
@@ -1838,7 +1852,9 @@ static void ParseJobsFromControllerAgentResponse(
             (!options.JobCompetitionId || options.JobCompetitionId == jobCompetitionId) &&
             (!options.WithCompetitors || options.WithCompetitors == hasCompetitors) &&
             (!options.TaskName || options.TaskName == taskName) &&
-            (!options.WithMonitoringDescriptor || *options.WithMonitoringDescriptor == monitoringDescriptor.has_value());
+            (!options.WithMonitoringDescriptor || *options.WithMonitoringDescriptor == monitoringDescriptor.has_value()) &&
+            (!options.FromTime || startTime >= *options.FromTime) &&
+            (!options.ToTime || startTime <= *options.ToTime);
     };
 
     ParseJobsFromControllerAgentResponse(
@@ -2123,11 +2139,17 @@ TListJobsResult TClient::DoListJobs(
     const TOperationIdOrAlias& operationIdOrAlias,
     const TListJobsOptions& options)
 {
-    if (options.Offset < 0 || options.Limit < 0) {
+    auto optionsResult = options;
+    if (const auto& token = optionsResult.ContinuationToken) {
+        optionsResult = DecodeListJobsOptionsFromToken(*token);
+        optionsResult.Limit = options.Limit;
+    }
+
+    if (optionsResult.Offset < 0 || optionsResult.Limit < 0) {
         THROW_ERROR_EXCEPTION("offset and limit must be nonnegative numbers");
     }
 
-    auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultListJobsTimeout);
+    auto timeout = optionsResult.Timeout.value_or(Connection_->GetConfig()->DefaultListJobsTimeout);
     auto deadline = timeout.ToDeadLine();
 
     TOperationId operationId;
@@ -2136,7 +2158,7 @@ TListJobsResult TClient::DoListJobs(
             operationId = id;
         },
         [&] (const TString& alias) {
-            operationId = ResolveOperationAlias(alias, options, deadline);
+            operationId = ResolveOperationAlias(alias, optionsResult, deadline);
         });
 
     // Issue the requests in parallel.
@@ -2147,8 +2169,8 @@ TListJobsResult TClient::DoListJobs(
             *version,
             operationId,
             deadline,
-            options);
-        statisticsFuture = ListJobsStatisticsFromArchiveAsync(*version, operationId, deadline, options);
+            optionsResult);
+        statisticsFuture = ListJobsStatisticsFromArchiveAsync(*version, operationId, deadline, optionsResult);
     }
 
     auto controllerAgentAddress = FindControllerAgentAddressFromCypress(
@@ -2158,7 +2180,7 @@ TListJobsResult TClient::DoListJobs(
         operationId,
         controllerAgentAddress,
         deadline,
-        options);
+        optionsResult);
 
     auto operationInfo = DoGetOperation(operationId, TGetOperationOptions{
         .Attributes = {{"state"}},
@@ -2206,7 +2228,7 @@ TListJobsResult TClient::DoListJobs(
 
         UpdateJobsAndAddMissing(std::move(controllerAgentResult), &archiveResult);
         result.Jobs = std::move(archiveResult);
-        auto jobComparator = GetJobsComparator(options.SortField, options.SortOrder);
+        auto jobComparator = GetJobsComparator(optionsResult.SortField, optionsResult.SortOrder);
         std::sort(result.Jobs.begin(), result.Jobs.end(), jobComparator);
     }
 
@@ -2218,8 +2240,8 @@ TListJobsResult TClient::DoListJobs(
     }
 
     // Take the correct range [offset, offset + limit).
-    result.Jobs.resize(std::min<int>(result.Jobs.size(), options.Offset + options.Limit));
-    auto beginIt = std::min(result.Jobs.end(), result.Jobs.begin() + options.Offset);
+    result.Jobs.resize(std::min<int>(result.Jobs.size(), optionsResult.Offset + optionsResult.Limit));
+    auto beginIt = std::min(result.Jobs.end(), result.Jobs.begin() + optionsResult.Offset);
     result.Jobs.erase(result.Jobs.begin(), beginIt);
 
     // Extract statistics if available.
@@ -2244,6 +2266,12 @@ TListJobsResult TClient::DoListJobs(
     if (!error.IsOK()) {
         YT_LOG_DEBUG(error, "Failed to fill job pools (OperationId: %v)",
             operationId);
+    }
+
+    if (optionsResult.SortField != EJobSortField::None &&
+        std::ssize(result.Jobs) >= optionsResult.Limit)
+    {
+        result.ContinuationToken = EncodeNewToken(std::move(optionsResult), std::ssize(result.Jobs));
     }
 
     return result;

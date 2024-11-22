@@ -975,6 +975,22 @@ class TestListJobs(TestListJobsBase):
 
         check_sorted_list_jobs()
 
+    @authors("omgronny")
+    def test_list_jobs_continuation_token(self):
+        op = run_sleeping_vanilla(job_count=3)
+
+        @wait_no_assert
+        def wait():
+            jobs = list_jobs(op.id)["jobs"]
+            assert len(jobs) == 3
+
+        jobs = list_jobs(op.id, state="running", type="vanilla", sort_field="start_time", limit=1)
+        assert len(jobs["jobs"]) == 1
+
+        jobs = list_jobs(op.id, continuation_token=jobs["continuation_token"], state="completed")["jobs"]
+        assert len(jobs) == 2
+        assert "continuation_token" not in jobs
+
 
 ##################################################################
 
