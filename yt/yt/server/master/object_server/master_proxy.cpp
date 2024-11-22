@@ -87,7 +87,7 @@ private:
         DISPATCH_YPATH_SERVICE_METHOD(AddMaintenance);
         DISPATCH_YPATH_SERVICE_METHOD(RemoveMaintenance);
         DISPATCH_YPATH_SERVICE_METHOD(VectorizedRead);
-        DISPATCH_YPATH_SERVICE_METHOD(GetOrRegisterSchema);
+        DISPATCH_YPATH_SERVICE_METHOD(GetOrRegisterTableSchema);
         return TBase::DoInvoke(context);
     }
 
@@ -461,14 +461,13 @@ private:
         context->Reply();
     }
 
-    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetOrRegisterSchema)
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetOrRegisterTableSchema)
     {
         DeclareMutating();
         context->SetRequestInfo(
             "Schema: %v, TransactionId: %v",
             request->schema(),
-            request->transaction_id()
-        );
+            request->transaction_id());
 
         auto schema = FromProto<NTableClient::TTableSchemaPtr>(request->schema());
 
@@ -482,8 +481,7 @@ private:
 
         context->SetResponseInfo(
             "SchemaId: %v",
-            result->GetId()
-        );
+            result->GetId());
 
         context->Reply();
     }
