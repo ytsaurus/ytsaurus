@@ -757,7 +757,7 @@ void TOperationControllerBase::ValidateAccountPermission(const TString& account,
         .ValueOrThrow();
 
     if (result.Action == ESecurityAction::Deny) {
-        THROW_ERROR_EXCEPTION("User %Qv has been denied %Qv access to intermediate account %Qv",
+        THROW_ERROR_EXCEPTION("User %Qv has been denied %Qlv access to intermediate account %Qv",
             user,
             permission,
             account);

@@ -5,8 +5,8 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/block.h>
+#include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
