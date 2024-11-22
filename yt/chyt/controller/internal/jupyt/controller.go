@@ -22,6 +22,7 @@ type Config struct {
 	ExtraEnvVars        map[string]string `yson:"extra_env_vars"`
 	LastActivityURLPath *string           `yson:"last_activity_url_path"`
 	Command             *string           `yson:"command"`
+	AdditionalFiles     []string          `yson:"additional_files"`
 }
 
 const (
@@ -97,6 +98,11 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	}
 
 	err = c.appendConfigs(ctx, oplet, &speclet, &filePaths)
+	if err != nil {
+		return
+	}
+
+	err = c.appendAdditionalFiles(&filePaths)
 	if err != nil {
 		return
 	}
@@ -250,6 +256,18 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 		return nil
 	}
 	*filePaths = append(*filePaths, serverConfigYTPath)
+	return nil
+}
+
+func (c *Controller) appendAdditionalFiles(filePaths *[]ypath.Rich) error {
+	for _, additionalFilePath := range c.config.AdditionalFiles {
+		var richPath *ypath.Rich
+		richPath, err := ypath.Parse(additionalFilePath)
+		if err != nil {
+			return err
+		}
+		*filePaths = append(*filePaths, *richPath)
+	}
 	return nil
 }
 
