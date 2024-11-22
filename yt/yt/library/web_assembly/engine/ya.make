@@ -33,7 +33,7 @@ IF (NOT OPENSOURCE)
     )
 
     FROM_SANDBOX(
-        FILE 5040591399 OUT_NOAUTO compiled-libc
+        FILE 7514783492 OUT_NOAUTO compiled-libc
     )
 
     RESOURCE(
