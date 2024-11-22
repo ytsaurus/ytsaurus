@@ -50,12 +50,12 @@
 
 namespace NYT::NChunkClient {
 
-using namespace NConcurrency;
-using namespace NNodeTrackerClient;
-using namespace NRpc;
 using namespace NApi;
+using namespace NConcurrency;
 using namespace NNet;
+using namespace NNodeTrackerClient;
 using namespace NObjectClient;
+using namespace NRpc;
 
 // Don't use NChunkClient::NProto as a whole: avoid ambiguity with NProto::TSessionId.
 using NProto::TChunkMeta;

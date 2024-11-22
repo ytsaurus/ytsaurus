@@ -74,5 +74,5 @@ class TestShuffleService(YTEnvSetup):
         create_user("u")
         create_account("a")
 
-        with raises_yt_error('User "u" has been denied "Use" access to account "a"'):
+        with raises_yt_error('User "u" has been denied "use" access to account "a"'):
             start_shuffle("a", partition_count=2, parent_transaction_id=parent_transaction, authenticated_user="u")

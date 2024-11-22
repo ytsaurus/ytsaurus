@@ -36,8 +36,6 @@
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
-#include <yt/yt/client/table_client/table_upload_options.h>
-
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
@@ -47,6 +45,7 @@
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/table_upload_options.h>
 
 #include <yt/yt/client/api/distributed_table_session.h>
 #include <yt/yt/client/api/transaction.h>
@@ -62,7 +61,6 @@
 
 namespace NYT::NTableClient {
 
-using namespace NApi;
 using namespace NApi;
 using namespace NChunkClient::NProto;
 using namespace NChunkClient;
