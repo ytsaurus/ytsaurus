@@ -116,7 +116,6 @@ public:
 
     NObjectClient::TObjectServiceCacheConfigPtr MasterCache;
 
-    bool EnableLocalReadExecutor;
     bool EnableLocalReadBusyWait;
 
     REGISTER_YSON_STRUCT(TObjectServiceConfig);
@@ -171,7 +170,6 @@ class TDynamicObjectServiceConfig
 {
 public:
     bool EnableTwoLevelCache;
-    bool EnableLocalReadExecutor;
     int LocalReadWorkerCount;
     int LocalReadOffloadThreadCount;
     TDuration ScheduleReplyRetryBackoff;

@@ -13,7 +13,7 @@
 
 namespace NYT::NQueryClient {
 
-using NWebAssembly::IWebAssemblyCompartment;
+using namespace NWebAssembly;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,7 +27,8 @@ void TCGPICaller<TCGExpressionSignature, TCGPIExpressionSignature>::Run(
     const TRowBufferPtr& buffer,
     IWebAssemblyCompartment* compartment)
 {
-    YT_ASSERT(!compartment);
+    YT_VERIFY(!compartment);
+    YT_VERIFY(GetCurrentCompartment() == nullptr);
 
     Y_UNUSED(opaqueDataSizes);
 
@@ -61,7 +62,8 @@ void TCGPICaller<TCGQuerySignature, TCGPIQuerySignature>::Run(
     TExecutionContext* context,
     IWebAssemblyCompartment* compartment)
 {
-    YT_ASSERT(!compartment);
+    YT_VERIFY(!compartment);
+    YT_VERIFY(GetCurrentCompartment() == nullptr);
 
     Y_UNUSED(opaqueDataSizes);
 
@@ -81,7 +83,8 @@ void TCGPICaller<TCGAggregateInitSignature, TCGPIAggregateInitSignature>::Run(
     TValue* result,
     IWebAssemblyCompartment* compartment)
 {
-    YT_ASSERT(!compartment);
+    YT_VERIFY(!compartment);
+    YT_VERIFY(GetCurrentCompartment() == nullptr);
 
     auto positionIndependentResult = BorrowFromNonPI(result);
 
@@ -99,7 +102,8 @@ void TCGPICaller<TCGAggregateUpdateSignature, TCGPIAggregateUpdateSignature>::Ru
     TRange<TValue> input,
     IWebAssemblyCompartment* compartment)
 {
-    YT_ASSERT(!compartment);
+    YT_VERIFY(!compartment);
+    YT_VERIFY(GetCurrentCompartment() == nullptr);
 
     TValue resultBuffer = *result;
     auto finallySaveResult = Finally([&] {
@@ -124,7 +128,8 @@ void TCGPICaller<TCGAggregateMergeSignature, TCGPIAggregateMergeSignature>::Run(
     const TValue* state,
     IWebAssemblyCompartment* compartment)
 {
-    YT_ASSERT(!compartment);
+    YT_VERIFY(!compartment);
+    YT_VERIFY(GetCurrentCompartment() == nullptr);
 
     TValue resultBuffer = *result;
     resultBuffer = *result;

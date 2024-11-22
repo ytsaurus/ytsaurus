@@ -1959,6 +1959,7 @@ public:
     //! remote master caches.
     bool UseRemoteMasterCaches;
 
+    // COMPAT(yuryalekseev)
     bool AllowClusterConnection;
 
     bool UseLocalThrottler;

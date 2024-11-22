@@ -254,6 +254,40 @@ TChunkLocation* TChunkLocation::LoadPtr(NCellMaster::TLoadContext& context)
     return ptr;
 }
 
+TNode* TChunkLocation::SkipImaginaryChunkLocation(NCellMaster::TLoadContext& context)
+{
+    YT_VERIFY(context.GetVersion() < EMasterReign::DropImaginaryChunkLocations);
+
+    using NYT::Load;
+
+    auto* owningNode = Load<TNode*>(context);
+
+    // NB: some compats are too old for trunk.
+#if 0
+    // COMPAT(danilalexeev)
+    if (context.GetVersion() >= EMasterReign::MakeDestroyedReplicasSetSharded) {
+        using NYT::Load;
+        Load(context, DestroyedReplicas_);
+    } else {
+        TDestroyedReplicaSet preShardedDestroyedReplicaSet;
+        Load(context, preShardedDestroyedReplicaSet);
+        for (auto replica : preShardedDestroyedReplicaSet) {
+            auto shardId = GetChunkShardIndex(replica.Id);
+            EmplaceOrCrash(DestroyedReplicas_[shardId], replica);
+        }
+    }
+#else
+    Load<TDestroyedReplicaShardedSet>(context);
+#endif
+
+    // Scratch data size.
+    TSizeSerializer::Load(context);
+
+    Load<TUnapprovedReplicaMap>(context);
+
+    return owningNode;
+}
+
 i64 TChunkLocation::GetDestroyedReplicasCount() const
 {
     i64 count = 0;

@@ -1111,6 +1111,11 @@ private:
     NApi::NNative::IConnectionPtr GetReplicaConnectionOrThrow(const TString& clusterName);
     NApi::IClientPtr GetOrCreateReplicaClient(const TString& clusterName);
 
+    TDuration CheckPermissionsForQuery(
+        const NQueryClient::TQueryPtr& query,
+        const NQueryClient::TDataSource& dataSource,
+        const TSelectRowsOptions& options);
+
     TSelectRowsResult DoSelectRowsOnce(
         const TString& queryString,
         const TSelectRowsOptions& options);

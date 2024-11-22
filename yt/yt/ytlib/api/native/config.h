@@ -289,6 +289,7 @@ public:
     TDuration DefaultChaosWatcherClientRequestTimeout;
     TDuration DefaultFetchTableRowsTimeout;
     TDuration DefaultRegisterTransactionActionsTimeout;
+    TDuration DefaultGetOrderedTabletSafeTrimRowCountTimeout;
 
     int CypressWriteYsonNestingLevelLimit;
 

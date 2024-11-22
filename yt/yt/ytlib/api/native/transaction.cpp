@@ -2202,9 +2202,9 @@ private:
                 NObjectClient::TCellId coordinatorCellId;
                 // Actual problem is NP-hard, so use a simple heuristic (however greedy approach could do better here):
                 // if we've already seen given cell id, use it. Otherwise select a random one.
-                for (const auto& coordinatorCellIdCanditate : coordinatorCellIds) {
-                    if (selectedCellIds.contains(coordinatorCellIdCanditate)) {
-                        coordinatorCellId = coordinatorCellIdCanditate;
+                for (const auto& coordinatorCellIdCandidate : coordinatorCellIds) {
+                    if (selectedCellIds.contains(coordinatorCellIdCandidate)) {
+                        coordinatorCellId = coordinatorCellIdCandidate;
                         break;
                     }
                 }

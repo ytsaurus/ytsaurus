@@ -161,13 +161,13 @@ message TRspVectorizedRead
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqGetOrRegisterSchema
+message TReqGetOrRegisterTableSchema
 {
     required NYT.NTableClient.NProto.TTableSchemaExt schema = 1;
     required NYT.NProto.TGuid transaction_id = 2;
 }
 
-message TRspGetOrRegisterSchema
+message TRspGetOrRegisterTableSchema
 {
     required NYT.NProto.TGuid schema_id = 1;
 }
