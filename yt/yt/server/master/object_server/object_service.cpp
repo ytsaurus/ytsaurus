@@ -179,10 +179,10 @@ public:
         , ProcessSessionsExecutor_(New<TPeriodicExecutor>(
             AutomatonInvoker_,
             BIND(&TObjectService::ProcessSessions, MakeWeak(this))))
-        , LocalReadSessionScheduler_(CreateFairScheduler<TExecuteSessionPtr>())
-        , AutomatonSessionScheduler_(CreateFairScheduler<TExecuteSessionPtr>())
+        , LocalReadScheduler_(CreateFairScheduler<TClosure>())
+        , AutomatonScheduler_(CreateFairScheduler<TExecuteSessionPtr>())
         , LocalWriteRequestThrottler_(CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>()))
-        , LocalReadCallbackProvider_(New<TLocalReadCallbackProvider>(LocalReadSessionScheduler_))
+        , LocalReadCallbackProvider_(New<TLocalReadCallbackProvider>(LocalReadScheduler_))
         , LocalReadExecutor_(CreateQuantizedExecutor(
             "LocalRead",
             LocalReadCallbackProvider_,
@@ -228,6 +228,11 @@ public:
         return Cache_;
     }
 
+    IInvokerPtr CreateLocalReadInvoker(const std::string& user) override
+    {
+        return New<TLocalReadInvoker>(LocalReadScheduler_, user);
+    }
+
     IInvokerPtr GetLocalReadOffloadInvoker() override
     {
         return LocalReadOffloadPool_->GetInvoker();
@@ -243,7 +248,7 @@ private:
     class TExecuteSession;
     using TExecuteSessionPtr = TIntrusivePtr<TExecuteSession>;
 
-    IRequestQueueProviderPtr ExecuteRequestQueueProvider_ = New<TPerUserRequestQueueProvider>();
+    const IRequestQueueProviderPtr ExecuteRequestQueueProvider_ = New<TPerUserRequestQueueProvider>();
 
     class TSessionScheduler;
 
@@ -254,28 +259,49 @@ private:
         bool RequestQueueSizeIncreased;
     };
 
-    using TSessionSchedulerPtr = IFairSchedulerPtr<TExecuteSessionPtr>;
-
-    //! Scheduler of sessions to process in local read executor.
-    TSessionSchedulerPtr LocalReadSessionScheduler_;
+    //! Scheduler of callbacks to process in parallel read executor.
+    const IFairSchedulerPtr<TClosure> LocalReadScheduler_;
 
     //! Scheduler of sessions to process in automaton.
-    TSessionSchedulerPtr AutomatonSessionScheduler_;
-    IReconfigurableThroughputThrottlerPtr LocalWriteRequestThrottler_;
+    const IFairSchedulerPtr<TExecuteSessionPtr> AutomatonScheduler_;
+    const IReconfigurableThroughputThrottlerPtr LocalWriteRequestThrottler_;
 
     class TLocalReadCallbackProvider
         : public ICallbackProvider
     {
     public:
-        explicit TLocalReadCallbackProvider(TSessionSchedulerPtr sessionScheduler);
+        explicit TLocalReadCallbackProvider(IFairSchedulerPtr<TClosure> scheduler);
 
-        TCallback<void()> ExtractCallback() override;
+        TCallback<void()> ExtractCallback() final;
 
     private:
-        const TSessionSchedulerPtr SessionScheduler_;
+        const IFairSchedulerPtr<TClosure> Scheduler_;
     };
 
-    TIntrusivePtr<TLocalReadCallbackProvider> LocalReadCallbackProvider_;
+    const ICallbackProviderPtr LocalReadCallbackProvider_;
+
+    class TLocalReadInvoker
+        : public IInvoker
+    {
+    public:
+        TLocalReadInvoker(
+            IFairSchedulerPtr<TClosure> sessionScheduler,
+            const std::string& user);
+
+        void Invoke(TClosure callback) final;
+        void Invoke(TMutableRange<TClosure> callbacks) final;
+
+        NThreading::TThreadId GetThreadId() const final;
+        bool CheckAffinity(const IInvokerPtr& invoker) const final;
+
+        bool IsSerialized() const final;
+
+        void RegisterWaitTimeObserver(TWaitTimeObserver waitTimeObserver) final;
+
+    private:
+        const IFairSchedulerPtr<TClosure> SessionScheduler_;
+        const std::string User_;
+    };
 
     const IQuantizedExecutorPtr LocalReadExecutor_;
     const IThreadPoolPtr LocalReadOffloadPool_;
@@ -377,7 +403,7 @@ public:
         Owner_->EnqueueFinishedSession(TExecuteSessionInfo{
             std::move(EpochCancelableContext_),
             std::move(User_),
-            RequestQueueSizeIncreased_
+            RequestQueueSizeIncreased_,
         });
     }
 
@@ -2272,21 +2298,54 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectService::TLocalReadCallbackProvider::TLocalReadCallbackProvider(TSessionSchedulerPtr sessionScheduler)
-    : SessionScheduler_(std::move(sessionScheduler))
+TObjectService::TLocalReadCallbackProvider::TLocalReadCallbackProvider(IFairSchedulerPtr<TClosure> cheduler)
+    : Scheduler_(std::move(cheduler))
 { }
 
 TCallback<void()> TObjectService::TLocalReadCallbackProvider::ExtractCallback()
 {
-    auto optionalSession = SessionScheduler_->TryDequeue();
-    if (!optionalSession) {
-        return {};
-    }
-
-    const auto& session = *optionalSession;
-    TCurrentTraceContextGuard guard(session->GetTraceContext());
-    return BIND(&TObjectService::TExecuteSession::RunRead, session);
+    auto optionalTask = Scheduler_->TryDequeue();
+    return optionalTask ? *optionalTask : TClosure();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TObjectService::TLocalReadInvoker::TLocalReadInvoker(
+    IFairSchedulerPtr<TClosure> sessionScheduler,
+    const std::string& user)
+    : SessionScheduler_(std::move(sessionScheduler))
+    , User_(user)
+{ }
+
+void TObjectService::TLocalReadInvoker::Invoke(TClosure callback)
+{
+    SessionScheduler_->Enqueue(std::move(callback), User_);
+}
+
+void TObjectService::TLocalReadInvoker::Invoke(TMutableRange<TClosure> callbacks)
+{
+    for (auto&& callback : callbacks) {
+        Invoke(std::move(callback));
+    }
+}
+
+NThreading::TThreadId TObjectService::TLocalReadInvoker::GetThreadId() const
+{
+    return NThreading::InvalidThreadId;
+}
+
+bool TObjectService::TLocalReadInvoker::CheckAffinity(const IInvokerPtr& /*invoker*/) const
+{
+    return true;
+}
+
+bool TObjectService::TLocalReadInvoker::IsSerialized() const
+{
+    return false;
+}
+
+void TObjectService::TLocalReadInvoker::RegisterWaitTimeObserver(IInvoker::TWaitTimeObserver /*waitTimeObserver*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2353,12 +2412,12 @@ void TObjectService::ProcessSessions()
         }
 
         const auto& userName = session->GetUserName();
-        AutomatonSessionScheduler_->Enqueue(session, userName);
-        LocalReadSessionScheduler_->Enqueue(session, userName);
+        AutomatonScheduler_->Enqueue(session, userName);
+        LocalReadScheduler_->Enqueue(BIND(&TObjectService::TExecuteSession::RunRead, session), userName);
     });
 
     while (GetCpuInstant() < deadlineTime) {
-        auto optionalSession = AutomatonSessionScheduler_->TryDequeue();
+        auto optionalSession = AutomatonScheduler_->TryDequeue();
         if (!optionalSession) {
             break;
         }
@@ -2403,11 +2462,20 @@ void TObjectService::OnUserCharged(TUser* user, const TUserWorkload& workload)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    const auto& scheduler = workload.Type == EUserWorkloadType::Read
-        ? LocalReadSessionScheduler_
-        : AutomatonSessionScheduler_;
+    auto charge = [&] (const auto& scheduler) {
+        scheduler->ChargeUser(user->GetName(), workload.RequestTime);
+    };
 
-    scheduler->ChargeUser(user->GetName(), workload.RequestTime);
+    switch (workload.Type) {
+        case EUserWorkloadType::Read:
+            charge(LocalReadScheduler_);
+            break;
+        case EUserWorkloadType::Write:
+            charge(AutomatonScheduler_);
+            break;
+        default:
+            YT_ABORT();
+    }
 }
 
 void TObjectService::SetStickyUserError(const std::string& userName, const TError& error)
