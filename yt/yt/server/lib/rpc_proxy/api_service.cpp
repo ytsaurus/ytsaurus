@@ -3071,6 +3071,15 @@ private:
         if (request->has_task_name()) {
             options.TaskName = request->task_name();
         }
+        if (request->has_from_time()) {
+            options.FromTime = FromProto<TInstant>(request->from_time());
+        }
+        if (request->has_to_time()) {
+            options.ToTime = FromProto<TInstant>(request->to_time());
+        }
+        if (request->has_continuation_token()) {
+            options.ContinuationToken = request->continuation_token();
+        }
 
         options.SortField = FromProto<EJobSortField>(request->sort_field());
         options.SortOrder = FromProto<EJobSortDirection>(request->sort_order());
