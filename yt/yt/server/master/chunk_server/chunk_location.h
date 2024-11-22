@@ -111,6 +111,7 @@ public:
     // COMPAT(kvk1920): remove after 24.2.
     // NB: see comment for TSerializerTraits<NChunkServer::TChunkLocation*, C>.
     static TChunkLocation* LoadPtr(NCellMaster::TLoadContext& context);
+    static TNode* SkipImaginaryChunkLocation(NCellMaster::TLoadContext& context);
 
 private:
     // TODO(kvk1920): TStrongObjectPtr<TDomesticMedium> EffectiveMedium.
