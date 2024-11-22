@@ -88,13 +88,18 @@ static constexpr auto& Logger = QueryClientLogger;
 // NB: Since pointer to current compartment is stored inside of a thread local,
 // calls to context-switching functions should be guarded via this function.
 template <typename TFunction>
-void SaveAndRestoreCurrentCompartment(const TFunction& function)
+auto SaveAndRestoreCurrentCompartment(const TFunction& function) -> decltype(function())
 {
-    auto* compartment = NWebAssembly::GetCurrentCompartment();
+    auto* savedCompartment = GetCurrentCompartment();
+
     auto finally = Finally([&] {
-        SetCurrentCompartment(compartment);
+        YT_VERIFY(GetCurrentCompartment() == nullptr);
+        SetCurrentCompartment(savedCompartment);
     });
-    function();
+
+    SetCurrentCompartment(nullptr);
+
+    return function();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -188,8 +193,8 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* va
         bool shouldNotWait;
         {
             TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics->WriteTime);
-            SaveAndRestoreCurrentCompartment([&] {
-                shouldNotWait = writer->Write(batch);
+            shouldNotWait = SaveAndRestoreCurrentCompartment([&] {
+                return writer->Write(batch);
             });
         }
 
@@ -248,8 +253,8 @@ void ScanOpHelper(
         IUnversionedRowBatchPtr batch;
         {
             TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics->ReadTime);
-            SaveAndRestoreCurrentCompartment([&] {
-                batch = reader->Read(readOptions);
+            batch = SaveAndRestoreCurrentCompartment([&] {
+                return reader->Read(readOptions);
             });
             if (!batch) {
                 break;
@@ -658,8 +663,8 @@ void MultiJoinOpHelper(
                 TRange<TUnversionedRow> foreignRows;
                 {
                     TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&context->Statistics->ReadTime);
-                    SaveAndRestoreCurrentCompartment([&] {
-                        foreignBatch = reader->Read(readOptions);
+                    foreignBatch = SaveAndRestoreCurrentCompartment([&] {
+                        return reader->Read(readOptions);
                     });
                     if (!foreignBatch) {
                         break;
@@ -1663,10 +1668,8 @@ void GroupOpHelper(
     auto compatConsumeDelta = PrepareFunction(compatConsumeDeltaFunction);
     auto compatConsumeTotals = PrepareFunction(compatConsumeTotalsFunction);
 
-
-    auto responseFeatureFlags = TFeatureFlags();
-    SaveAndRestoreCurrentCompartment([&] {
-        responseFeatureFlags = WaitForFast(context->ResponseFeatureFlags)
+    auto responseFeatureFlags = SaveAndRestoreCurrentCompartment([&] {
+        return WaitForFast(context->ResponseFeatureFlags)
             .ValueOrThrow();
     });
 
