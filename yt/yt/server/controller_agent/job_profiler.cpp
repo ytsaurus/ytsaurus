@@ -36,9 +36,9 @@ TDuration GetJobDuration(const TJoblet& joblet)
 
 TJobProfiler::TJobProfiler()
     : ProfilerQueue_(New<NConcurrency::TActionQueue>("JobProfiler"))
-    , TotalCompletedJobTime_(ControllerAgentProfiler.TimeCounter("/jobs/total_completed_wall_time"))
-    , TotalFailedJobTime_(ControllerAgentProfiler.TimeCounter("/jobs/total_failed_wall_time"))
-    , TotalAbortedJobTime_(ControllerAgentProfiler.TimeCounter("/jobs/total_aborted_wall_time"))
+    , TotalCompletedJobTime_(ControllerAgentProfiler().TimeCounter("/jobs/total_completed_wall_time"))
+    , TotalFailedJobTime_(ControllerAgentProfiler().TimeCounter("/jobs/total_failed_wall_time"))
+    , TotalAbortedJobTime_(ControllerAgentProfiler().TimeCounter("/jobs/total_aborted_wall_time"))
 { }
 
 void TJobProfiler::ProfileStartedJob(const TJoblet& joblet)
@@ -57,7 +57,7 @@ void TJobProfiler::DoProfileStartedJob(EJobType jobType, TString treeId)
 
     auto it = StartedJobCounters_.find(key);
     if (it == StartedJobCounters_.end()) {
-        auto counter = ControllerAgentProfiler
+        auto counter = ControllerAgentProfiler()
             .WithTag("job_type", FormatEnum(jobType))
             .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
             .Counter("/jobs/started_job_count");
@@ -173,7 +173,7 @@ void TJobProfiler::DoProfileCompletedJob(
 
     auto it = CompletedJobCounters_.find(key);
     if (it == CompletedJobCounters_.end()) {
-        auto counter = ControllerAgentProfiler
+        auto counter = ControllerAgentProfiler()
             .WithTag("job_type", FormatEnum(jobType))
             .WithTag("interruption_reason", FormatEnum(interruptionReason))
             .WithTag(ProfilingPoolTreeKey, treeId)
@@ -217,7 +217,7 @@ void TJobProfiler::DoProfileFailedJob(
 
     auto it = FailedJobCounters_.find(key);
     if (it == FailedJobCounters_.end()) {
-        auto counter = ControllerAgentProfiler
+        auto counter = ControllerAgentProfiler()
             .WithTag("job_type", FormatEnum(jobType))
             .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
             .Counter("/jobs/failed_job_count");
@@ -269,7 +269,7 @@ void TJobProfiler::DoProfileAbortedJob(
 
     auto it = AbortedJobCounters_.find(key);
     if (it == AbortedJobCounters_.end()) {
-        auto counter = ControllerAgentProfiler
+        auto counter = ControllerAgentProfiler()
             .WithTag("job_type", FormatEnum(jobType))
             .WithTag("abort_reason", FormatEnum(abortReason))
             .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
@@ -307,7 +307,7 @@ void TJobProfiler::ProfileAbortedJobByError(
     if (it == AbortedJobByErrorCounters_.end()) {
         it = AbortedJobByErrorCounters_.emplace(
             std::move(key),
-            ControllerAgentProfiler
+            ControllerAgentProfiler()
                 .WithTag("job_type", FormatEnum(jobType))
                 .WithTag("job_error", FormatEnum(errorCode))
                 .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
@@ -327,7 +327,7 @@ void TJobProfiler::DoUpdateInProgressJobCount(
     auto key = std::tuple(jobState, jobType, treeId);
 
     auto createGauge = [&] {
-        return ControllerAgentProfiler
+        return ControllerAgentProfiler()
             .WithTags(TTagSet(TTagList{
                 {NScheduler::ProfilingPoolTreeKey, treeId},
                 {"job_type", FormatEnum(jobType)},

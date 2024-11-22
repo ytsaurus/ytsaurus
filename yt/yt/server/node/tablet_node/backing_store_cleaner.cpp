@@ -56,7 +56,7 @@ private:
     struct TCounters
     {
         explicit TCounters(const TString& bundleName)
-            : RetentionTime(Profiler
+            : RetentionTime(Profiler()
                 .WithTag("tablet_cell_bundle", bundleName)
                 .TimeGauge("/backing_store_retention_time"))
         { }

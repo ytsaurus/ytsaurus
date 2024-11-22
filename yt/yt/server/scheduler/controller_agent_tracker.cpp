@@ -212,7 +212,7 @@ public:
             Config_->ResponseKeeper,
             Bootstrap_->GetControlInvoker(EControlQueue::AgentTracker),
             SchedulerLogger(),
-            SchedulerProfiler))
+            SchedulerProfiler()))
     { }
 
     void Initialize()

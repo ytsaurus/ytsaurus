@@ -58,7 +58,7 @@ public:
         IMemoryUsageTrackerPtr memoryUsageTracker)
         : TAsyncSlruCacheBase(
             std::move(config),
-            TabletNodeProfiler.WithPrefix("/versioned_chunk_meta_cache"))
+            TabletNodeProfiler().WithPrefix("/versioned_chunk_meta_cache"))
         , MemoryUsageTracker_(std::move(memoryUsageTracker))
     {
         // TODO(akozhikhov): Employ memory tracking cache.

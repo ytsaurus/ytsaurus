@@ -165,7 +165,7 @@ public:
         , AutomationInvoker_(std::move(automationInvoker))
         , DynamicConfigManager_(std::move(dynamicConfigManager))
         , DistributedThrottlerManager_(std::move(distributedThrottlerManager))
-        , Profiler_(TabletNodeProfiler.WithPrefix("/distributed_throttlers")
+        , Profiler_(TabletNodeProfiler().WithPrefix("/distributed_throttlers")
             .WithRequiredTag("tablet_cell_bundle", BundleName_)
             .WithTag("cell_id", ToString(cellId), -1))
     {
@@ -791,7 +791,7 @@ public:
 
     NProfiling::TProfiler GetProfiler() override
     {
-        return TabletNodeProfiler;
+        return TabletNodeProfiler();
     }
 
     IReconfigurableThroughputThrottlerPtr GetChunkFragmentReaderMediumThrottler(TTablet* tablet) const

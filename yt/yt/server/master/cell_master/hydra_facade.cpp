@@ -103,7 +103,7 @@ public:
 
         ResponseKeeper_ = CreatePersistentResponseKeeper(
             NObjectServer::ObjectServerLogger(),
-            NObjectServer::ObjectServerProfiler);
+            NObjectServer::ObjectServerProfiler());
 
         auto electionManagerThunk = New<TElectionManagerThunk>();
 

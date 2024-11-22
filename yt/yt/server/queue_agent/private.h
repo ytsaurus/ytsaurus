@@ -20,8 +20,9 @@ YT_DEFINE_GLOBAL(const NLogging::TLogger, ConsumerControllerLogger, "ConsumerCon
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueStaticTableExporterLogger, "QueueStaticTableExporter");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueAgentShardingManagerLogger, "QueueAgentShardingManager");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, CypressSynchronizerLogger, "CypressSynchronizer");
-inline const NProfiling::TProfiler QueueAgentProfilerGlobal = NProfiling::TProfiler("/queue_agent").WithGlobal();
-inline const NProfiling::TProfiler QueueAgentProfiler = NProfiling::TProfiler("/queue_agent");
+
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, QueueAgentProfiler, "/queue_agent");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, QueueAgentProfilerGlobal, QueueAgentProfiler().WithGlobal());
 
 ////////////////////////////////////////////////////////////////////////////////
 

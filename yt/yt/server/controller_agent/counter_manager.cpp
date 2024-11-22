@@ -12,9 +12,9 @@ using namespace NProfiling;
 TControllerAgentCounterManager::TControllerAgentCounterManager()
 {
     for (auto type : TEnumTraits<EOperationType>::GetDomainValues()) {
-        AssertionsFailed_[type] = ControllerAgentProfiler
+        AssertionsFailed_[type] = ControllerAgentProfiler()
             .WithTag("operation_type", FormatEnum(type))
-            .Counter("/assertions_failed"); 
+            .Counter("/assertions_failed");
     }
 }
 

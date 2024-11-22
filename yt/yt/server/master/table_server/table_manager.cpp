@@ -131,7 +131,7 @@ public:
         , StatisticsGossipThrottler_(CreateReconfigurableThroughputThrottler(
             New<TThroughputThrottlerConfig>(),
             TableServerLogger(),
-            TableServerProfiler.WithPrefix("/table_statistics_gossip_throttler")))
+            TableServerProfiler().WithPrefix("/table_statistics_gossip_throttler")))
     {
         RegisterLoader(
             "TableManager.Keys",

@@ -32,7 +32,7 @@ public:
 
         ChaosCache_ = New<TChaosCache>(
             GetConfig()->ChaosCache,
-            MasterCacheProfiler.WithPrefix("/chaos_cache"));
+            MasterCacheProfiler().WithPrefix("/chaos_cache"));
 
         ChaosCacheService_ = CreateChaosCacheService(
             GetConfig()->ChaosCache,

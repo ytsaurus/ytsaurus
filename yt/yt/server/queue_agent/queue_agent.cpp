@@ -174,7 +174,7 @@ TQueueAgent::TQueueAgent(
         BIND(&TQueueAgent::Pass, MakeWeak(this)),
         DynamicConfig_->PassPeriod))
     , AgentId_(std::move(agentId))
-    , GlobalProfilingCounters_(QueueAgentProfilerGlobal)
+    , GlobalProfilingCounters_(QueueAgentProfilerGlobal())
     , QueueAgentChannelFactory_(
         NAuth::CreateNativeAuthenticationInjectingChannelFactory(
             CreateCachingChannelFactory(CreateTcpBusChannelFactory(Config_->BusClient)),
@@ -648,7 +648,7 @@ TTaggedProfilingCounters& TQueueAgent::GetOrCreateTaggedProfilingCounters(const 
     auto it = TaggedProfilingCounters_.find(profilingTags);
     if (it == TaggedProfilingCounters_.end()) {
         auto profilingCounters =
-            TTaggedProfilingCounters(QueueAgentProfiler
+            TTaggedProfilingCounters(QueueAgentProfiler()
                 .WithTag("yt_cluster", profilingTags.Cluster)
                 .WithTag("leading_status", profilingTags.LeadingStatus)
                 .WithTag("queue_agent_stage", profilingTags.QueueAgentStage)

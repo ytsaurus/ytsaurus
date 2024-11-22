@@ -107,7 +107,7 @@ public:
         , NativeCellTag_(host->GetNativeCellTag())
         , NativeConnection_(host->GetNativeConnection())
         , ClockClusterTag_(clockClusterTag)
-        , TransactionSerializationLagTimer_(TabletNodeProfiler
+        , TransactionSerializationLagTimer_(TabletNodeProfiler()
             .WithTag("cell_id", ToString(host->GetCellId()))
             .Timer("/transaction_serialization_lag"))
         , AbortTransactionIdPool_(Config_->MaxAbortedTransactionPoolSize)

@@ -171,7 +171,7 @@ public:
             Config_->OperationServiceResponseKeeper,
             GetControlInvoker(EControlQueue::UserRequest),
             SchedulerLogger(),
-            SchedulerProfiler))
+            SchedulerProfiler()))
         , NodeManager_(New<TNodeManager>(Config_, this, Bootstrap_))
         , ExperimentsAssigner_(Config_->Experiments)
     {
@@ -266,7 +266,7 @@ public:
         ControlEventLogWriterConsumer_ = EventLogWriter_->CreateConsumer();
         OffloadedEventLogWriterConsumer_ = EventLogWriter_->CreateConsumer();
 
-        LogEventFluently(&SchedulerStructuredLogger, ELogEventType::SchedulerStarted)
+        LogEventFluently(&SchedulerStructuredLogger(), ELogEventType::SchedulerStarted)
             .Item("address").Value(ServiceAddress_);
 
         ClusterInfoLoggingExecutor_ = New<TPeriodicExecutor>(
@@ -310,23 +310,23 @@ public:
             Config_->ExperimentAssignmentErrorCheckPeriod);
         ExperimentAssignmentErrorChecker_->Start();
 
-        MeteringRecordCountCounter_ = SchedulerProfiler
+        MeteringRecordCountCounter_ = SchedulerProfiler()
             .Counter("/metering/record_count");
-        MeteringUsageQuantityCounter_ = SchedulerProfiler
+        MeteringUsageQuantityCounter_ = SchedulerProfiler()
             .Counter("/metering/usage_quantity");
 
-        AllocationMeteringRecordCountCounter_ = SchedulerProfiler
+        AllocationMeteringRecordCountCounter_ = SchedulerProfiler()
             .Counter("/metering/allocation/record_count");
-        AllocationMeteringUsageQuantityCounter_ = SchedulerProfiler
+        AllocationMeteringUsageQuantityCounter_ = SchedulerProfiler()
             .Counter("/metering/allocation/usage_quantity");
 
-        GuaranteesMeteringRecordCountCounter_ = SchedulerProfiler
+        GuaranteesMeteringRecordCountCounter_ = SchedulerProfiler()
             .Counter("/metering/guarantees/record_count");
-        GuaranteesMeteringUsageQuantityCounter_ = SchedulerProfiler
+        GuaranteesMeteringUsageQuantityCounter_ = SchedulerProfiler()
             .Counter("/metering/guarantees/usage_quantity");
 
-        TotalResourceLimitsProfiler_.Init(SchedulerProfiler.WithPrefix("/total_resource_limits"));
-        TotalResourceUsageProfiler_.Init(SchedulerProfiler.WithPrefix("/total_resource_usage"));
+        TotalResourceLimitsProfiler_.Init(SchedulerProfiler().WithPrefix("/total_resource_limits"));
+        TotalResourceUsageProfiler_.Init(SchedulerProfiler().WithPrefix("/total_resource_usage"));
     }
 
     const NApi::NNative::IClientPtr& GetClient() const
@@ -346,7 +346,7 @@ public:
             ->Cached(
                 Config_->StaticOrchidCacheUpdatePeriod,
                 OrchidWorkerPool_->GetInvoker(),
-                SchedulerProfiler.WithPrefix("/static_orchid"));
+                SchedulerProfiler().WithPrefix("/static_orchid"));
         StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
         YT_VERIFY(StaticOrchidService_);
 
@@ -964,7 +964,7 @@ public:
             << TErrorAttribute("abort_reason", EAbortReason::BannedInTentativeTree);
         NodeManager_->AbortAllocations(allocationIds, error, EAbortReason::BannedInTentativeTree);
 
-        LogEventFluently(&SchedulerStructuredLogger, ELogEventType::OperationBannedInTree)
+        LogEventFluently(&SchedulerStructuredLogger(), ELogEventType::OperationBannedInTree)
             .Item("operation_id").Value(operation->GetId())
             .Item(EventLogPoolTreeKey).Value(treeId);
 
@@ -1096,7 +1096,7 @@ public:
                 .ThrowOnError();
         }
 
-        LogEventFluently(&SchedulerStructuredLogger, ELogEventType::RuntimeParametersInfo)
+        LogEventFluently(&SchedulerStructuredLogger(), ELogEventType::RuntimeParametersInfo)
             .Item("operation_id").Value(operation->GetId())
             .Item("authenticated_user").Value(user)
             .Item("runtime_parameters").Value(newParams)
@@ -1324,7 +1324,7 @@ public:
                 /*setAlert*/ false);
         }
 
-        LogEventFluently(&SchedulerStructuredLogger, ELogEventType::OperationMaterialized)
+        LogEventFluently(&SchedulerStructuredLogger(), ELogEventType::OperationMaterialized)
             .Item("operation_id").Value(operation->GetId());
     }
 
@@ -1404,7 +1404,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return &SchedulerEventLogger;
+        return &SchedulerEventLogger();
     }
 
     void LogResourceMetering(
@@ -1420,7 +1420,7 @@ public:
         }
 
         auto buildCommonLogEventPart = [&] (const TString& schema, i64 usageQuantity, TInstant startTime, TInstant finishTime) {
-            return NLogging::LogStructuredEventFluently(SchedulerResourceMeteringLogger, NLogging::ELogLevel::Info)
+            return NLogging::LogStructuredEventFluently(SchedulerResourceMeteringLogger(), NLogging::ELogLevel::Info)
                 .Item("schema").Value(schema)
                 .Item("id").Value(TGuid::Create())
                 .DoIf(Config_->ResourceMetering->EnableNewAbcFormat, [&] (TFluentMap fluent) {
@@ -1524,7 +1524,7 @@ public:
         VERIFY_INVOKER_AFFINITY(GetFairShareLoggingInvoker());
 
         return LogEventFluently(
-            &SchedulerEventLogger,
+            &SchedulerEventLogger(),
             GetFairShareEventLogConsumer(),
             ELogEventType::FairShareInfo,
             now);
@@ -1536,7 +1536,7 @@ public:
         VERIFY_INVOKER_AFFINITY(GetFairShareLoggingInvoker());
 
         return LogEventFluently(
-            &SchedulerStructuredLogger,
+            &SchedulerStructuredLogger(),
             GetFairShareEventLogConsumer(),
             ELogEventType::AccumulatedUsageInfo,
             now);
@@ -1966,7 +1966,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (IsConnected()) {
-            LogEventFluently(&SchedulerEventLogger, ELogEventType::ClusterInfo)
+            LogEventFluently(&SchedulerEventLogger(), ELogEventType::ClusterInfo)
                 .Item("exec_node_count").Value(NodeManager_->GetExecNodeCount())
                 .Item("total_node_count").Value(NodeManager_->GetTotalNodeCount())
                 .Item("resource_limits").Value(GetResourceLimits(EmptySchedulingTagFilter))
@@ -2002,7 +2002,7 @@ private:
 
             for (int batchIndex = 0; batchIndex < std::ssize(splitNodeYsons); ++batchIndex) {
                 const auto& batch = splitNodeYsons[batchIndex];
-                LogEventFluently(&SchedulerEventLogger, ELogEventType::NodesInfo, now)
+                LogEventFluently(&SchedulerEventLogger(), ELogEventType::NodesInfo, now)
                     .Item("nodes_info_event_id").Value(nodesInfoEventId)
                     .Item("nodes_batch_index").Value(batchIndex)
                     .Item("tree_id").Value(treeId)
@@ -2098,23 +2098,23 @@ private:
         TotalResourceLimitsProfiler_.Start();
         TotalResourceUsageProfiler_.Start();
 
-        SchedulerProfiler.AddFuncGauge("/jobs/registered_job_count", MakeStrong(this), [this] {
+        SchedulerProfiler().AddFuncGauge("/jobs/registered_job_count", MakeStrong(this), [this] {
             return NodeManager_->GetActiveAllocationCount();
         });
-        SchedulerProfiler.AddFuncGauge("/jobs/submit_to_strategy_count", MakeStrong(this), [this] {
+        SchedulerProfiler().AddFuncGauge("/jobs/submit_to_strategy_count", MakeStrong(this), [this] {
             return NodeManager_->GetSubmitToStrategyAllocationCount();
         });
-        SchedulerProfiler.AddFuncGauge("/total_scheduling_heartbeat_complexity", MakeStrong(this), [this] {
+        SchedulerProfiler().AddFuncGauge("/total_scheduling_heartbeat_complexity", MakeStrong(this), [this] {
             return NodeManager_->GetTotalConcurrentHeartbeatComplexity();
         });
-        SchedulerProfiler.AddFuncGauge("/exec_node_count", MakeStrong(this), [this] {
+        SchedulerProfiler().AddFuncGauge("/exec_node_count", MakeStrong(this), [this] {
             return NodeManager_->GetExecNodeCount();
         });
-        SchedulerProfiler.AddFuncGauge("/total_node_count", MakeStrong(this), [this] {
+        SchedulerProfiler().AddFuncGauge("/total_node_count", MakeStrong(this), [this] {
             return NodeManager_->GetTotalNodeCount();
         });
 
-        LogEventFluently(&SchedulerStructuredLogger, ELogEventType::MasterConnected)
+        LogEventFluently(&SchedulerStructuredLogger(), ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
 
         YT_LOG_INFO("Master connected for scheduler");
@@ -2179,7 +2179,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LogEventFluently(&SchedulerStructuredLogger, ELogEventType::MasterDisconnected)
+        LogEventFluently(&SchedulerStructuredLogger(), ELogEventType::MasterDisconnected)
             .Item("address").Value(ServiceAddress_);
 
         if (Config_->TestingOptions->MasterDisconnectDelay) {
@@ -2781,7 +2781,7 @@ private:
 
         ValidateOperationState(operation, EOperationState::Initializing);
 
-        LogEventFluently(&SchedulerStructuredLogger, ELogEventType::OperationStarted)
+        LogEventFluently(&SchedulerStructuredLogger(), ELogEventType::OperationStarted)
             .Do(std::bind(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation, _1))
             .Do(std::bind(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, operation.Get(), _1));
 
@@ -2814,7 +2814,7 @@ private:
         YT_LOG_INFO("Operation prepared (OperationId: %v)",
             operationId);
 
-        LogEventFluently(&SchedulerStructuredLogger, ELogEventType::OperationPrepared)
+        LogEventFluently(&SchedulerStructuredLogger(), ELogEventType::OperationPrepared)
             .Item("operation_id").Value(operationId)
             .Item("unrecognized_spec").Value(operation->ControllerAttributes().InitializeAttributes->UnrecognizedSpec);
 
@@ -4060,7 +4060,7 @@ private:
             return;
         }
 
-        LogEventFluently(&SchedulerStructuredLogger, logEventType)
+        LogEventFluently(&SchedulerStructuredLogger(), logEventType)
             .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
             .Do(std::bind(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, operation.Get(), _1))
             .Item("start_time").Value(operation->GetStartTime())
@@ -4131,7 +4131,7 @@ private:
         VERIFY_INVOKER_AFFINITY(EventLoggingActionQueue_->GetInvoker());
 
         LogEventFluently(
-            &SchedulerStructuredLogger,
+            &SchedulerStructuredLogger(),
             OffloadedEventLogWriterConsumer_.get(),
             request.LogEventType,
             TInstant::Now())

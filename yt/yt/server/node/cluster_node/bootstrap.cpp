@@ -794,7 +794,7 @@ private:
             Config_->ResourceLimits->TotalMemory,
             /*limits*/ {},
             Logger(),
-            ClusterNodeProfiler.WithPrefix("/memory_usage"));
+            ClusterNodeProfiler().WithPrefix("/memory_usage"));
 
         // NB: Connection thread pool is required for dynamic config manager
         // initialization, so it is created before other thread pools.
@@ -820,7 +820,7 @@ private:
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
 
         BufferedProducer_ = New<TBufferedProducer>();
-        ClusterNodeProfiler.WithProducerRemoveSupport().AddProducer("", BufferedProducer_);
+        ClusterNodeProfiler().WithProducerRemoveSupport().AddProducer("", BufferedProducer_);
 
         MasterCacheQueue_ = New<TActionQueue>("MasterCache");
         StorageHeavyThreadPool_ = CreateThreadPool(
@@ -836,14 +836,14 @@ private:
             InThrottler_ = New<TFairThrottler>(
                 Config_->InThrottler,
                 ClusterNodeLogger().WithTag("Direction: %v", "In"),
-                ClusterNodeProfiler.WithPrefix("/in_throttler"));
+                ClusterNodeProfiler().WithPrefix("/in_throttler"));
             DefaultInThrottler_ = GetInThrottler("default");
 
             Config_->OutThrottler->TotalLimit = GetNetworkThrottlerLimit(nullptr, {});
             OutThrottler_ = New<TFairThrottler>(
                 Config_->OutThrottler,
                 ClusterNodeLogger().WithTag("Direction: %v", "Out"),
-                ClusterNodeProfiler.WithPrefix("/out_throttler"));
+                ClusterNodeProfiler().WithPrefix("/out_throttler"));
             DefaultOutThrottler_ = GetOutThrottler("default");
         } else {
             auto getThrottlerConfig = [&] (EDataNodeThrottlerKind kind) {
@@ -854,14 +854,14 @@ private:
                 getThrottlerConfig(EDataNodeThrottlerKind::TotalIn),
                 "TotalIn",
                 ClusterNodeLogger(),
-                ClusterNodeProfiler.WithPrefix("/throttlers"));
+                ClusterNodeProfiler().WithPrefix("/throttlers"));
             LegacyTotalInThrottler_ = IThroughputThrottlerPtr(LegacyRawTotalInThrottler_);
 
             LegacyRawTotalOutThrottler_ = CreateNamedReconfigurableThroughputThrottler(
                 getThrottlerConfig(EDataNodeThrottlerKind::TotalOut),
                 "TotalOut",
                 ClusterNodeLogger(),
-                ClusterNodeProfiler.WithPrefix("/throttlers"));
+                ClusterNodeProfiler().WithPrefix("/throttlers"));
             LegacyTotalOutThrottler_ = IThroughputThrottlerPtr(LegacyRawTotalOutThrottler_);
         }
 
@@ -869,21 +869,21 @@ private:
             New<NConcurrency::TThroughputThrottlerConfig>(),
             "UserJobContainerCreation",
             ClusterNodeLogger(),
-            ClusterNodeProfiler.WithPrefix("/user_job_container_creation_throttler"));
+            ClusterNodeProfiler().WithPrefix("/user_job_container_creation_throttler"));
         UserJobContainerCreationThrottler_ = IThroughputThrottlerPtr(RawUserJobContainerCreationThrottler_);
 
         RawReadRpsOutThrottler_ = CreateNamedReconfigurableThroughputThrottler(
             Config_->DataNode->ReadRpsOutThrottler,
             "ReadRpsOut",
             ClusterNodeLogger(),
-            ClusterNodeProfiler.WithPrefix("/out_read_rps_throttler"));
+            ClusterNodeProfiler().WithPrefix("/out_read_rps_throttler"));
         ReadRpsOutThrottler_ = IThroughputThrottlerPtr(RawReadRpsOutThrottler_);
 
         RawAnnounceChunkReplicaRpsOutThrottler_ = CreateNamedReconfigurableThroughputThrottler(
             Config_->DataNode->AnnounceChunkReplicaRpsOutThrottler,
             "AnnounceChunkReplicaRpsOut",
             ClusterNodeLogger(),
-            ClusterNodeProfiler.WithPrefix("/out_announce_chunk_replica_rps_throttler"));
+            ClusterNodeProfiler().WithPrefix("/out_announce_chunk_replica_rps_throttler"));
         AnnounceChunkReplicaRpsOutThrottler_ = IThroughputThrottlerPtr(RawAnnounceChunkReplicaRpsOutThrottler_);
 
         ReadBlockMemoryUsageTracker_ = NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::PendingDiskRead);
@@ -895,7 +895,7 @@ private:
             EBlockType::UncompressedData | EBlockType::CompressedData |
                 EBlockType::HashTableChunkIndex | EBlockType::XorFilter | EBlockType::ChunkFragmentsData,
             NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::BlockCache),
-            DataNodeProfiler.WithPrefix("/block_cache"));
+            DataNodeProfiler().WithPrefix("/block_cache"));
 
         BusServer_ = CreateBusServer(
             Config_->BusServer,
@@ -984,7 +984,7 @@ private:
             Config_->CachingObjectService,
             NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::MasterCache),
             Logger(),
-            ClusterNodeProfiler.WithPrefix("/object_service_cache"));
+            ClusterNodeProfiler().WithPrefix("/object_service_cache"));
 
         InitCachingObjectService(PrimaryMaster_->CellId);
         for (const auto& [_, masterConfig] : SecondaryMasterConnectionConfigs_) {
@@ -1535,7 +1535,7 @@ private:
             ObjectServiceCache_,
             cellId,
             Logger(),
-            ClusterNodeProfiler.WithPrefix("/caching_object_service"),
+            ClusterNodeProfiler().WithPrefix("/caching_object_service"),
             NativeAuthenticator_);
         EmplaceOrCrash(CachingObjectServices_, CellTagFromId(cellId), cachingObjectService);
         if (MasterConnector_->IsRegisteredAtPrimaryMaster()) {

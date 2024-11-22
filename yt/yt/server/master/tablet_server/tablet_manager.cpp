@@ -2802,7 +2802,7 @@ private:
     TPeriodicExecutorPtr BundleResourceUsageGossipExecutor_;
     TPeriodicExecutorPtr ProfilingExecutor_;
 
-    TTimeCounter TabletNodeHeartbeatCounter_ = TabletServerProfiler.TimeCounter("/tablet_node_heartbeat");
+    TTimeCounter TabletNodeHeartbeatCounter_ = TabletServerProfiler().TimeCounter("/tablet_node_heartbeat");
 
     // Mount config keys received from nodes. Persisted.
     THashSet<TString> MountConfigKeysFromNodes_;

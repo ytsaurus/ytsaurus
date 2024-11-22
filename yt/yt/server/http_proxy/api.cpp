@@ -199,7 +199,7 @@ TApi::TProfilingCounters* TApi::GetProfilingCounters(const TUserCommandPair& key
 void TApi::IncrementHttpCode(EStatusCode httpStatusCode)
 {
     auto counter = HttpCodes_.FindOrInsert(httpStatusCode, [&] {
-        return HttpProxyProfiler
+        return HttpProxyProfiler()
             .WithTag("http_code", ToString(static_cast<int>(httpStatusCode)))
             .Counter("/http_code_count");
     }).first;

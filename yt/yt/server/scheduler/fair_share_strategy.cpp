@@ -431,7 +431,7 @@ public:
                     << std::move(errors);
             } else {
                 if (!updatedTreeIds.empty() || !treeIdsToRemove.empty() || !treeIdsToAdd.empty()) {
-                    Host_->LogEventFluently(&SchedulerEventLogger, ELogEventType::PoolsInfo)
+                    Host_->LogEventFluently(&SchedulerEventLogger(), ELogEventType::PoolsInfo)
                         .Item("pools").DoMapFor(IdToTree_, [&] (TFluentMap fluent, const auto& value) {
                             const auto& treeId = value.first;
                             const auto& tree = value.second;

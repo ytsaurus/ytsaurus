@@ -66,7 +66,7 @@ public:
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager)
         : TAsyncSlruCacheBase(
             dataNodeConfig->ChangelogReaderCache,
-            DataNodeProfiler.WithPrefix("/changelog_reader_cache"))
+            DataNodeProfiler().WithPrefix("/changelog_reader_cache"))
     {
         dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TJournalDispatcher::OnDynamicConfigChanged, MakeWeak(this)));
     }

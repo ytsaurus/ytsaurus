@@ -17,7 +17,7 @@ struct IBootstrap;
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, CypressProxyLogger, "CypressProxy");
-inline const NProfiling::TProfiler CypressProxyProfiler("/cypress_proxy");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, CypressProxyProfiler, "/cypress_proxy");
 
 ////////////////////////////////////////////////////////////////////////////////
 

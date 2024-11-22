@@ -257,7 +257,7 @@ public:
                     std::move(throttlerConfig),
                     ToString(kind),
                     TabletNodeLogger(),
-                    TabletNodeProfiler.WithPrefix("/throttlers"));
+                    TabletNodeProfiler().WithPrefix("/throttlers"));
             }
 
             static const THashSet<ETabletNodeThrottlerKind> InCombinedTabletNodeThrottlerKinds = {

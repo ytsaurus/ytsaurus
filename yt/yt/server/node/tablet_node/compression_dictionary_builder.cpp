@@ -872,7 +872,7 @@ private:
     IBootstrap* const Bootstrap_;
     const TCompressionDictionaryBuilderConfigPtr Config_;
 
-    const TProfiler Profiler_ = TabletNodeProfiler.WithPrefix("/compression_dict_builder");
+    const TProfiler Profiler_ = TabletNodeProfiler().WithPrefix("/compression_dict_builder");
     const TCounter StartedTasksCounter_ = Profiler_.Counter("/started_tasks");
 
     // TODO(akozhikhov): Use Compression thread pool when it becomes fair share.

@@ -224,10 +224,10 @@ public:
     explicit TChunkAutotomizer(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ChunkAutotomizer)
         , TransactionRotator_(bootstrap, "Chunk autotomizer transaction")
-        , SuccessfulAutotomyCounter_(ChunkServerProfiler.Counter("/chunk_autotomizer/successful_autotomies"))
-        , UnsuccessfulAutotomyCounter_(ChunkServerProfiler.Counter("/chunk_autotomizer/unsuccessful_autotomies"))
-        , SpeculativeJobWinCounter_(ChunkServerProfiler.Counter("/chunk_autotomizer/speculative_job_wins"))
-        , SpeculativeJobLossCounter_(ChunkServerProfiler.Counter("/chunk_autotomizer/speculative_job_losses"))
+        , SuccessfulAutotomyCounter_(ChunkServerProfiler().Counter("/chunk_autotomizer/successful_autotomies"))
+        , UnsuccessfulAutotomyCounter_(ChunkServerProfiler().Counter("/chunk_autotomizer/unsuccessful_autotomies"))
+        , SpeculativeJobWinCounter_(ChunkServerProfiler().Counter("/chunk_autotomizer/speculative_job_wins"))
+        , SpeculativeJobLossCounter_(ChunkServerProfiler().Counter("/chunk_autotomizer/speculative_job_losses"))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default),

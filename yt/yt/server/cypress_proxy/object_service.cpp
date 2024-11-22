@@ -66,7 +66,7 @@ public:
             bootstrap->GetControlInvoker(),
             "/cypress_proxy/object_service",
             CypressProxyLogger(),
-            CypressProxyProfiler
+            CypressProxyProfiler()
                 .WithDefaultDisabled()
                 .WithSparse()
                 .WithPrefix("/distributed_throttler")))

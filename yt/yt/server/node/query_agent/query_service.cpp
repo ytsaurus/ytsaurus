@@ -189,7 +189,7 @@ public:
         , FunctionImplCache_(CreateFunctionImplCache(
             config->FunctionImplCache,
             bootstrap->GetClient()))
-        , Evaluator_(CreateEvaluator(Config_, QueryAgentProfiler))
+        , Evaluator_(CreateEvaluator(Config_, QueryAgentProfiler()))
         , MemoryTracker_(
             Bootstrap_
                 ->GetNodeMemoryUsageTracker()
@@ -269,8 +269,8 @@ private:
     std::atomic<i64> MaxPullQueueResponseDataWeight_;
     std::atomic<bool> AccountUserBackendOutTraffic_;
 
-    NProfiling::TCounter TabletErrorCountCounter_ = QueryAgentProfiler.Counter("/get_tablet_infos/errors/count");
-    NProfiling::TCounter TabletErrorSizeCounter_ = QueryAgentProfiler.Counter("/get_tablet_infos/errors/byte_size");
+    NProfiling::TCounter TabletErrorCountCounter_ = QueryAgentProfiler().Counter("/get_tablet_infos/errors/count");
+    NProfiling::TCounter TabletErrorSizeCounter_ = QueryAgentProfiler().Counter("/get_tablet_infos/errors/byte_size");
 
     IInvokerPtr GetExecuteInvoker(const NRpc::NProto::TRequestHeader& requestHeader)
     {

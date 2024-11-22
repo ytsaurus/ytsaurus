@@ -158,7 +158,7 @@ public:
                     std::move(throttlerConfig),
                     ToString(kind),
                     DataNodeLogger(),
-                    DataNodeProfiler.WithPrefix("/throttlers"));
+                    DataNodeProfiler().WithPrefix("/throttlers"));
             }
 
             static const THashSet<EDataNodeThrottlerKind> InCombinedDataNodeThrottlerKinds = {

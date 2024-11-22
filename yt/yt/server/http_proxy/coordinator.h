@@ -107,7 +107,7 @@ private:
     const NConcurrency::TPeriodicExecutorPtr UpdateStateExecutor_;
 
     ICypressRegistrarPtr CypressRegistrar_;
-    NProfiling::TGauge BannedGauge_ = HttpProxyProfiler.Gauge("/banned");
+    NProfiling::TGauge BannedGauge_ = HttpProxyProfiler().Gauge("/banned");
 
     TPromise<void> FirstUpdateIterationFinished_ = NewPromise<void>();
 

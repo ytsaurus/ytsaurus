@@ -11,7 +11,7 @@ namespace NYT::NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, ObjectServerLogger, "ObjectServer");
-inline const NProfiling::TProfiler ObjectServerProfiler("/object_server");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ObjectServerProfiler, "/object_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
