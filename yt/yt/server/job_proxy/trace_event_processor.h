@@ -78,7 +78,7 @@ private:
 
     const TJobTraceEventProcessorConfigPtr Config_;
 
-    const NConcurrency::TActionQueuePtr JobTraceReporterActionQueue_ = New<NConcurrency::TActionQueue>("JobTraceReporter");
+    const NConcurrency::TActionQueuePtr JobTraceReporterActionQueue_ = New<NConcurrency::TActionQueue>("JobTrace");
     const TArchiveVersionHolderPtr ArchiveVersion_ = New<TArchiveVersionHolder>();
 
     const IArchiveReporterPtr ArchiveReporter_;
