@@ -4289,12 +4289,6 @@ class TestCypressMirroredTx(TestCypressShardedTxCTxS):
     }
 
 
-class TestCypressNoLocalReadExecutor(TestCypress):
-    def setup_method(self, method):
-        super(TestCypressNoLocalReadExecutor, self).setup_method(method)
-        set("//sys/@config/object_service/enable_local_read_executor", False)
-
-
 class TestCypressCypressProxy(TestCypressShardedTx):
     NUM_CYPRESS_PROXIES = 2
 

@@ -220,8 +220,6 @@ public:
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
 
-        EnableLocalReadExecutor_.store(Config_->EnableLocalReadExecutor);
-
         ProcessSessionsExecutor_->Start();
     }
 
@@ -287,7 +285,6 @@ private:
 
     TStickyUserErrorCache StickyUserErrorCache_;
     std::atomic<bool> EnableTwoLevelCache_ = false;
-    std::atomic<bool> EnableLocalReadExecutor_ = true;
     std::atomic<bool> EnableCypressTransactionsInSequoia_ = false;
     std::atomic<TDuration> ScheduleReplyRetryBackoff_ = TDuration::MilliSeconds(100);
 
@@ -369,8 +366,6 @@ public:
         , Logger(ObjectServerLogger().WithTag("RequestId: %v", RequestId_))
         , TentativePeerState_(Bootstrap_->GetHydraFacade()->GetHydraManager()->GetAutomatonState())
         , CellSyncSession_(New<TMultiPhaseCellSyncSession>(Bootstrap_, Logger))
-          // Copy so it doesn't change mid-execution of this particular session.
-        , EnableLocalReadExecutor_(Owner_->EnableLocalReadExecutor_.load())
     { }
 
     ~TExecuteSession()
@@ -468,7 +463,6 @@ private:
     const NLogging::TLogger Logger;
     const EPeerState TentativePeerState_;
     const TMultiPhaseCellSyncSessionPtr CellSyncSession_;
-    const bool EnableLocalReadExecutor_;
 
     TDelayedExecutorCookie BackoffAlarmCookie_;
 
@@ -1492,7 +1486,7 @@ private:
             return false;
         }
 
-        if (Owner_->Config_->EnableLocalReadExecutor && CurrentLocalReadSubrequestIndex_ < TotalSubrequestCount_) {
+        if (CurrentLocalReadSubrequestIndex_ < TotalSubrequestCount_) {
             return false;
         }
 
@@ -1647,8 +1641,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto subrequestFilter = [this] (TSubrequest* subrequest) {
-            return !EnableLocalReadExecutor_ || subrequest->Type != EExecutionSessionSubrequestType::LocalRead;
+        auto subrequestFilter = [] (TSubrequest* subrequest) {
+            return subrequest->Type != EExecutionSessionSubrequestType::LocalRead;
         };
 
         GuardedProcessSubrequests(&CurrentAutomatonSubrequestIndex_, subrequestFilter);
@@ -1658,8 +1652,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto subrequestFilter = [this] (TSubrequest* subrequest) {
-            return EnableLocalReadExecutor_ && subrequest->Type == EExecutionSessionSubrequestType::LocalRead;
+        auto subrequestFilter = [] (TSubrequest* subrequest) {
+            return subrequest->Type == EExecutionSessionSubrequestType::LocalRead;
         };
 
         GuardedProcessSubrequests(&CurrentLocalReadSubrequestIndex_, subrequestFilter);
@@ -2309,7 +2303,6 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
 
     const auto& objectServiceConfig = GetDynamicConfig();
     EnableTwoLevelCache_ = objectServiceConfig->EnableTwoLevelCache;
-    EnableLocalReadExecutor_ = objectServiceConfig->EnableLocalReadExecutor && Config_->EnableLocalReadExecutor;
     ScheduleReplyRetryBackoff_ = objectServiceConfig->ScheduleReplyRetryBackoff;
 
     const auto& sequoiaConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
@@ -2361,9 +2354,7 @@ void TObjectService::ProcessSessions()
 
         const auto& userName = session->GetUserName();
         AutomatonSessionScheduler_->Enqueue(session, userName);
-        if (Config_->EnableLocalReadExecutor) {
-            LocalReadSessionScheduler_->Enqueue(session, userName);
-        }
+        LocalReadSessionScheduler_->Enqueue(session, userName);
     });
 
     while (GetCpuInstant() < deadlineTime) {
@@ -2377,24 +2368,21 @@ void TObjectService::ProcessSessions()
         session->RunAutomatonSlow();
     }
 
-    // NB: Local read executor cannot be turned off in runtime since some requests can be already in it.
-    if (Config_->EnableLocalReadExecutor) {
-        auto quantumDuration = GetDynamicConfig()->LocalReadExecutorQuantumDuration;
+    auto quantumDuration = GetDynamicConfig()->LocalReadExecutorQuantumDuration;
 
-        TAutomatonBlockGuard guard(Bootstrap_->GetHydraFacade());
-        auto readFuture = LocalReadExecutor_->Run(quantumDuration);
+    TAutomatonBlockGuard guard(Bootstrap_->GetHydraFacade());
+    auto readFuture = LocalReadExecutor_->Run(quantumDuration);
 
-        if (Config_->EnableLocalReadBusyWait) {
-            // Busy wait is intended here to account local read time
-            // into automaton thread CPU usage.
-            while (!readFuture.IsSet())
-            { }
-        }
-
-        readFuture
-            .Get()
-            .ThrowOnError();
+    if (Config_->EnableLocalReadBusyWait) {
+        // Busy wait is intended here to account local read time
+        // into automaton thread CPU usage.
+        while (!readFuture.IsSet())
+        { }
     }
+
+    readFuture
+        .Get()
+        .ThrowOnError();
 }
 
 void TObjectService::FinishSession(const TExecuteSessionInfo& sessionInfo)
@@ -2415,7 +2403,7 @@ void TObjectService::OnUserCharged(TUser* user, const TUserWorkload& workload)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    const auto& scheduler = workload.Type == EUserWorkloadType::Read && EnableLocalReadExecutor_
+    const auto& scheduler = workload.Type == EUserWorkloadType::Read
         ? LocalReadSessionScheduler_
         : AutomatonSessionScheduler_;
 
