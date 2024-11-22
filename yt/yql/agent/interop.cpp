@@ -124,8 +124,6 @@ TYqlRowset BuildRowsetByRef(
     int resultIndex,
     i64 rowCountLimit)
 {
-    Cerr << __func__ << ' ' << references->Reference.size() << ' ' << references->Reference.front() << ",...," << references->Reference.back() << ' ' << references->Columns->size() << Endl;
-
     if (references->Reference.size() != 3 || references->Reference[0] != "yt") {
         THROW_ERROR_EXCEPTION("Malformed YQL reference %v", references->Reference);
     }
@@ -211,7 +209,7 @@ TTableSchemaPtr BuildSchema(const TLogicalType& type) {
     return New<TTableSchema>(columns);
 }
 
-TYqlRowset BuildRowset(const TBuildingValueConsumer& consumer,THashMap<TString, ui32> columns, int resultIndex, bool incomplete)
+TYqlRowset BuildRowset(const TBuildingValueConsumer& consumer, int resultIndex, bool incomplete, THashMap<TString, ui32> columns = {})
 {
     std::vector<TUnversionedRow> resultRows;
     const auto sourceSchema = consumer.GetSchema();
@@ -242,15 +240,6 @@ TYqlRowset BuildRowset(const TBuildingValueConsumer& consumer,THashMap<TString, 
     ReorderAndSaveRows(rowBuffer, sourceNameTable, targetNameTable, consumer.GetRows(), resultRows);
 
     YT_LOG_DEBUG("Result read (RowCount: %v, Incomplete: %v, ResultIndex: %v)", resultRows.size(), incomplete, resultIndex);
-
-    std::cerr << __func__ << std::endl;
-    PrintTo(*targetSchema, &std::cerr);
-
-    Cerr << Endl << "rows: " << resultRows.size() << Endl;
-    for (const auto& row : resultRows) {
-        PrintTo(row, &std::cerr);
-    }
-    Cerr << Endl;
 
     return TYqlRowset{
         .TargetSchema = std::move(targetSchema),
@@ -285,17 +274,7 @@ TYqlRowset BuildRowsetFromYson(
     TBuildingValueConsumer consumer(schema, YqlAgentLogger(), true);
     TDataBuilder dataBuilder(&consumer);
     NYql::NResult::ParseData(*write.Type, *write.Data, dataBuilder);
-
-    THashMap<TString, ui32> columns;
-/*  if (writeNode.HasKey("Columns")) {
-        const auto& columnsNode = writeNode["Columns"];
-        columns.reserve(columnsNode.Size());
-        for (ui32 index = 0U; index < columnsNode.Size(); ++index) {
-            columns[columnsNode.ChildAsString(index)] = index;
-        }
-    }
-*/
-    return BuildRowset(consumer, std::move(columns), resultIndex, write.IsTruncated);
+    return BuildRowset(consumer, resultIndex, write.IsTruncated);
 }
 
 TYqlRowset BuildRowsetFromSkiff(
@@ -314,11 +293,11 @@ TYqlRowset BuildRowsetFromSkiff(
     }
 
     const auto& skiffTypeNode = writeNode->GetChildOrThrow("SkiffType");
-    auto config = ConvertTo<NFormats::TSkiffFormatConfigPtr>(&skiffTypeNode->Attributes());
+    const auto config = ConvertTo<NFormats::TSkiffFormatConfigPtr>(&skiffTypeNode->Attributes());
     auto skiffSchemas = NSkiffExt::ParseSkiffSchemas(config->SkiffSchemaRegistry, config->TableSkiffSchemas);
 
     const auto& typeNode = writeNode->GetChildOrThrow("Type");
-    auto schema = NYT::NYTree::ConvertTo<NYT::NTableClient::TTableSchemaPtr>(typeNode);
+    const auto schema = NYT::NYTree::ConvertTo<NYT::NTableClient::TTableSchemaPtr>(typeNode);
     TBuildingValueConsumer consumer(schema, YqlAgentLogger(), true);
 
     THashMap<TString, ui32> columns;
@@ -338,7 +317,7 @@ TYqlRowset BuildRowsetFromSkiff(
     const auto incompleteNode = writeNode->FindChild("Incomplete");
     const bool incomplete = incompleteNode ? incompleteNode->AsBoolean()->GetValue() : false;
 
-    return BuildRowset(consumer, std::move(columns), resultIndex, incomplete);
+    return BuildRowset(consumer, resultIndex, incomplete, std::move(columns));
 }
 
 TWireYqlRowset MakeWireYqlRowset(const TYqlRowset& rowset)
@@ -357,7 +336,6 @@ std::vector<TWireYqlRowset> BuildRowsets(
     const TString& yqlYsonResults,
     i64 rowCountLimit)
 {
-    Cerr << __func__ << Endl << NYT::NodeToCanonicalYsonString(NYT::NodeFromYsonString(yqlYsonResults)) << Endl;
     std::vector<TWireYqlRowset> rowsets;
     try {
         const auto& responseNode = NYT::NodeFromYsonString(yqlYsonResults);
@@ -370,9 +348,6 @@ std::vector<TWireYqlRowset> BuildRowsets(
             rowsets.push_back(std::move(rowset));
         }
         return rowsets;
-    } catch (const NYql::NResult::TUnsupportedException& ex) {
-        const auto error = TError(ex);
-        YT_LOG_DEBUG("Error building rowset result from yson: %v. Try fallback to skiff.", error);
     } catch (const std::exception& ex) {
         const auto error = TError(ex);
         YT_LOG_DEBUG("Error building rowset result from yson: %v. Try fallback to skiff.", error);

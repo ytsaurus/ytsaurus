@@ -7,13 +7,13 @@ using namespace NTableClient;
 TTypeBuilder::TTypeBuilder() {}
 
 TLogicalTypePtr TTypeBuilder::GetResult() const {
-    return Last;
+    return Type;
 }
 
 template<>
 TLogicalTypePtr TTypeBuilder::Pop<TLogicalTypePtr>() {
     Stack.pop();
-    return std::move(Last);
+    return std::move(Type);
 }
 
 template<class T>
@@ -201,7 +201,7 @@ void TTypeBuilder::OnBeginTagged(TStringBuf tag) {
     ItemsStack.push(TTag(tag));
 }
 void TTypeBuilder::OnEndTagged() {
-    Push(TaggedLogicalType(Pop<TTag>(), std::move(Last)));
+    Push(TaggedLogicalType(Pop<TTag>(), std::move(Type)));
 }
 void TTypeBuilder::OnPg(TStringBuf name, TStringBuf category) {
     THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
@@ -209,7 +209,7 @@ void TTypeBuilder::OnPg(TStringBuf name, TStringBuf category) {
 
 void TTypeBuilder::Push(TLogicalTypePtr type) {
     if (Stack.empty()) {
-        Last = std::move(type);
+        Type = std::move(type);
         return;
     }
 
@@ -225,7 +225,7 @@ void TTypeBuilder::Push(TLogicalTypePtr type) {
             std::get<TKeyAndPayload>(ItemsStack.top()).Set(std::move(type));
             break;
         default:
-            Last = std::move(type);
+            Type = std::move(type);
             return;
     }
 }

@@ -76,11 +76,17 @@ private:
     T Pop();
 
     enum class EKind {
-        Optional, List, Tuple, Struct, Dict, Variant, Tagged
+        Optional,
+        List,
+        Tuple,
+        Struct,
+        Dict,
+        Variant,
+        Tagged
     };
 
-    NTableClient::TLogicalTypePtr Last;
     std::stack<EKind> Stack;
+    NTableClient::TLogicalTypePtr Type;
 
     using TElements = std::vector<NTableClient::TLogicalTypePtr>;
     using TMembers = std::vector<NTableClient::TStructField>;

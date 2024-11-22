@@ -128,18 +128,15 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
                 Datetime64("1950-11-24T11:20:59Z") as `Datetime64`,
                 Timestamp64("1940-11-24T13:42:11.666Z") as `Timestamp64`,
                 -Interval64("PT42M") as `Interval64`,
-        """,
-        [{
-            "Date": 20051,
-            "Datetime": 1732447259,
-            "Timestamp": 1732455731666000,
-            "Interval":  -1209600000000,
-            "Date32": -3325,
-            "Datetime64": -602858341,
-            "Timestamp64": -918382668334000,
-            "Interval64":  -2520000000,
-
-        }])
+        """, [{"Date": 20051,
+               "Datetime": 1732447259,
+               "Timestamp": 1732455731666000,
+               "Interval": -1209600000000,
+               "Date32": -3325,
+               "Datetime64": -602858341,
+               "Timestamp64": -918382668334000,
+               "Interval64": -2520000000
+               }])
 
     @authors("a-romanov")
     def test_exotic_types(self, query_tracker, yql_agent):
@@ -157,21 +154,18 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
                 AsTagged(123, "tag") as `Tagged`,
                 '[1, "text", 3.14]'j as `Json`,
                 Just('[7u; "str"; -3.14]'y) as `Yson`,
-        """,
-        [{
-            "EmptyDict": None,
-            "EmptyList": None,
-            "Null": None,
-            "Struct": {"Signed": -13, "Unsigned": 42, "Y": {"key": 3.14}},
-            "Tuple": [[-13, 42, False], "foo", True, "bar"],
-            "List": [-2.5, 3.],
-            "Dict": [["two", 2], ["one", 1]],
-            "Set": [[["Two", 2], None], [["One", 1], None]],
-            "Variant": ["var", 88],
-            "Tagged": 123,
-            "Json": '[1, "text", 3.14]',
-            "Yson": [7, 'str', -3.14],
-        }])
+        """, [{"EmptyDict": None,
+               "EmptyList": None,
+               "Null": None,
+               "Struct": {"Signed": -13, "Unsigned": 42, "Y": {"key": 3.14}},
+               "Tuple": [[-13, 42, False], "foo", True, "bar"], "List": [-2.5, 3.],
+               "Dict": [["two", 2], ["one", 1]],
+               "Set": [[["Two", 2], None], [["One", 1], None]],
+               "Variant": ["var", 88],
+               "Tagged": 123,
+               "Json": '[1, "text", 3.14]',
+               "Yson": [7, 'str', -3.14]
+               }])
 
 
 class TestYqlAgentBan(TestQueriesYqlBase):
