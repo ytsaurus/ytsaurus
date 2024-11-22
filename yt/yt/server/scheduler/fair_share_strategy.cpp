@@ -1184,14 +1184,21 @@ public:
         }
     }
 
-    TErrorOr<TString> ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand, bool considerGuaranteesForSingleTree) override
+    //! Out of the pool trees specified for the operation, choose one most suitable tree
+    //! depending on the operation's demand and current resource usage in each tree.
+    TError ChooseBestSingleTreeForOperation(
+        TOperationId operationId,
+        const TCompositeNeededResources& neededResources,
+        std::vector<TString>* treeIdsToErase)
     {
-        THashMap<TString, IFairShareTreePtr> idToTree;
-        {
+        auto state = GetOperationState(operationId);
+        bool considerGuaranteesForSingleTree = state->GetHost()->GetStrategySpec()->ConsiderGuaranteesForSingleTree;
+
+        auto idToTree = [&] {
             auto snapshot = TreeSetSnapshot_.Acquire();
             YT_VERIFY(snapshot);
-            idToTree = snapshot->BuildIdToTreeMapping();
-        }
+            return snapshot->BuildIdToTreeMapping();
+        }();
 
         // NB(eshcherbin):
         // First, we ignore all trees in which the new operation is not marked running.
@@ -1204,7 +1211,7 @@ public:
         auto bestReserveRatio = std::numeric_limits<double>::lowest();
         std::vector<TString> emptyTrees;
         std::vector<TString> zeroGuaranteeTrees;
-        for (const auto& [treeId, poolName] : GetOperationState(operationId)->TreeIdToPoolNameMap()) {
+        for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
             YT_VERIFY(idToTree.contains(treeId));
             auto tree = idToTree[treeId];
 
@@ -1232,6 +1239,7 @@ public:
                 continue;
             }
 
+            auto newDemand = neededResources.GetNeededResourcesForTree(treeId);
             auto newDemandShare = TResourceVector::FromJobResources(newDemand, totalResourceLimits);
             auto modelDemandShare = newDemandShare + currentDemandShare;
             auto reserveShare = estimatedGuaranteeShare - modelDemandShare;
@@ -1293,66 +1301,119 @@ public:
             bestReserveRatio,
             emptyTrees);
 
-        return bestTree;
+        // TODO(eshcherbin): Do we really need this?
+        for (const auto& [treeId, treeRuntimeParameters] : state->GetHost()->GetRuntimeParameters()->SchedulingOptionsPerPoolTree) {
+            YT_VERIFY(!treeRuntimeParameters->Tentative);
+            YT_VERIFY(!treeRuntimeParameters->Probing);
+        }
+
+        {
+            std::vector<TString> treeIdsToUnregister;
+            for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
+                if (treeId != bestTree) {
+                    treeIdsToUnregister.push_back(treeId);
+                }
+            }
+
+            for (auto&& treeId : treeIdsToUnregister) {
+                UnregisterOperationFromTree(operationId, treeId);
+                treeIdsToErase->push_back(std::move(treeId));
+            }
+        }
+
+        return {};
     }
 
     TError OnOperationMaterialized(
         TOperationId operationId,
+        bool scheduleInSingleTree,
+        const TCompositeNeededResources& neededResources,
         bool revivedFromSnapshot,
-        std::vector<TString>* treeIdsToUnregister) override
+        std::vector<TString>* treeIdsToErase) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
+        TForbidContextSwitchGuard contextSwitchGuard;
+
+        for (const auto& [treeId, _] : GetOperationState(operationId)->TreeIdToPoolNameMap()) {
+            auto tree = GetTree(treeId);
+            tree->OnOperationMaterialized(operationId);
+        }
+
+        if (auto error = CheckOperationJobResourceLimitsRestrictions(operationId, revivedFromSnapshot, treeIdsToErase);
+            !error.IsOK()) {
+            return error;
+        }
+
+        if (scheduleInSingleTree) {
+            auto error = ChooseBestSingleTreeForOperation(operationId, neededResources, treeIdsToErase);
+            if (!error.IsOK()) {
+                return error;
+            }
+        }
+
+        if (auto error = CheckOperationSchedulingInSeveralTreesAllowed(operationId);
+            !error.IsOK()) {
+            return error;
+        }
+
+        return {};
+    }
+
+    TError CheckOperationJobResourceLimitsRestrictions(
+        TOperationId operationId,
+        bool revivedFromSnapshot,
+        std::vector<TString>* treeIdsToErase)
+    {
         auto state = GetOperationState(operationId);
         std::vector<std::pair<TString, TError>> jobResourceLimitsRestrictionsErrors;
-        std::vector<TError> multiTreeSchedulingErrors;
         for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
             auto tree = GetTree(treeId);
-
-            tree->OnOperationMaterialized(operationId);
-
-            if (auto error = tree->CheckOperationJobResourceLimitsRestrictions(operationId, revivedFromSnapshot);
-                !error.IsOK())
-            {
+            auto error = tree->CheckOperationJobResourceLimitsRestrictions(operationId, revivedFromSnapshot);
+            if (!error.IsOK()) {
                 jobResourceLimitsRestrictionsErrors.emplace_back(treeId, std::move(error));
-            }
-
-            if (auto error = tree->CheckOperationSchedulingInSeveralTreesAllowed(operationId); !error.IsOK()) {
-                multiTreeSchedulingErrors.push_back(TError("Scheduling in several trees is forbidden by %Qlv tree's configuration", treeId)
-                    << std::move(error));
             }
         }
 
         if (size(jobResourceLimitsRestrictionsErrors) == size(state->TreeIdToPoolNameMap())) {
             return TError("Job resource demand restriction violated in all pool trees")
                 << GetIths<1>(jobResourceLimitsRestrictionsErrors);
-        } else {
+        } else if (!jobResourceLimitsRestrictionsErrors.empty()) {
             auto treeIds = GetIths<0>(jobResourceLimitsRestrictionsErrors);
 
             YT_LOG_DEBUG(
-                "Requesting to unregister operation from trees due to job resource limits restrictions violations "
+                "Unregistering operation from trees due to job resource limits restrictions violations "
                 "(OperationId: %v, Trees: %v)",
                 operationId,
                 treeIds);
 
-            treeIdsToUnregister->reserve(size(treeIds));
             for (auto&& treeId : treeIds) {
-                treeIdsToUnregister->push_back(std::move(treeId));
+                UnregisterOperationFromTree(operationId, treeId);
+                treeIdsToErase->push_back(std::move(treeId));
+            }
+        }
+
+        return {};
+    }
+
+    TError CheckOperationSchedulingInSeveralTreesAllowed(TOperationId operationId)
+    {
+        auto state = GetOperationState(operationId);
+        std::vector<TError> multiTreeSchedulingErrors;
+        for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
+            auto tree = GetTree(treeId);
+            if (auto error = tree->CheckOperationSchedulingInSeveralTreesAllowed(operationId); !error.IsOK()) {
+                multiTreeSchedulingErrors.push_back(TError("Scheduling in several trees is forbidden by %Qlv tree's configuration", treeId)
+                    << std::move(error));
             }
         }
 
         if (!multiTreeSchedulingErrors.empty() && size(state->TreeIdToPoolNameMap()) > 1) {
-            std::vector<TString> treeIds;
-            for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
-                treeIds.push_back(treeId);
-            }
-
             return TError("Scheduling in several trees is forbidden by some trees' configuration")
-                << std::move(multiTreeSchedulingErrors)
-                << TErrorAttribute("tree_ids", treeIds);
+                << std::move(multiTreeSchedulingErrors);
         }
 
-        return TError();
+        return {};
     }
 
     void ScanPendingOperations() override
