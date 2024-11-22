@@ -211,7 +211,7 @@ IThroughputThrottlerPtr TThrottlerManager::GetOrCreateDistributedThrottler(EExec
         return nullptr;
     }
 
-    auto throttlerId = Format("%v_%v", traffic, cluster);
+    auto throttlerId = Format("%lv_%v", traffic, cluster);
     auto throttlerConfig = New<NConcurrency::TThroughputThrottlerConfig>();
     throttlerConfig->Limit = limit;
 
