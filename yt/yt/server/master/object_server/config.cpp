@@ -74,8 +74,6 @@ void TObjectServiceConfig::Register(TRegistrar registrar)
     registrar.Parameter("master_cache", &TThis::MasterCache)
         .DefaultNew();
 
-    registrar.Parameter("enable_local_read_executor", &TThis::EnableLocalReadExecutor)
-        .Default(true);
     registrar.Parameter("enable_local_read_busy_wait", &TThis::EnableLocalReadBusyWait)
         .Default(true);
 }
@@ -129,8 +127,6 @@ void TDynamicObjectServiceConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_two_level_cache", &TThis::EnableTwoLevelCache)
         .Default(true);
-    registrar.Parameter("enable_local_read_executor", &TThis::EnableLocalReadExecutor)
-        .Default(false);
     registrar.Parameter("local_read_worker_count", &TThis::LocalReadWorkerCount)
         .GreaterThan(0)
         .Default(4);
