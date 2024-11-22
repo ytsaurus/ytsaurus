@@ -2418,6 +2418,7 @@ class TestSchedulerMapCommandsMirroredTx(TestSchedulerMapCommandsShardedTxCTxS):
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = False
+    NUM_TEST_PARTITIONS = 24
 
     def setup_method(self, method):
         super(TestSchedulerMapCommandsShardedTxCTxS, self).setup_method(method)
