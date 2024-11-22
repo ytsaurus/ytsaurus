@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE, with_additional_threads
 
 from yt_commands import (
     authors, create_user, wait, create, ls, get, set, remove, exists,
@@ -7,7 +7,7 @@ from yt_commands import (
     sync_control_chunk_replicator, get_singular_chunk_id, multicell_sleep, update_nodes_dynamic_config,
     switch_leader, set_node_banned, add_maintenance, remove_maintenance, set_node_decommissioned, execute_command,
     is_active_primary_master_leader, is_active_primary_master_follower, get_active_primary_master_leader_address,
-    get_active_primary_master_follower_address, create_tablet_cell_bundle, get_nodes)
+    get_active_primary_master_follower_address, create_tablet_cell_bundle, get_nodes, raises_yt_error)
 
 from yt_helpers import profiler_factory
 
@@ -1607,11 +1607,11 @@ class TestChunkCreationThrottler(YTEnvSetup):
 
     @authors("h0pless")
     def test_per_user_bytes_throttler_root(self):
-        with pytest.raises(YtError, match="Cannot set \"chunk_service_request_bytes_throttler\" for \"root\""):
+        with raises_yt_error("Cannot set \"chunk_service_request_bytes_throttler\" for \"root\""):
             set("//sys/users/root/@chunk_service_request_bytes_throttler", {"limit": 1337})
 
     @authors("h0pless")
-    @flaky(max_runs=3)
+    @with_additional_threads
     def test_per_user_bytes_throttler_profiling(self):
         user_name = "GregorzBrzeczyszczykiewicz"
         create_user(user_name)
@@ -1619,16 +1619,23 @@ class TestChunkCreationThrottler(YTEnvSetup):
         create("table", "//tmp/t")
 
         set("//sys/@config/chunk_service/enable_per_user_request_bytes_throttling", True)
-        set("//sys/users/{}/@chunk_service_request_bytes_throttler".format(user_name), {"limit": 300})
+        set(f"//sys/users/{user_name}/@chunk_service_request_bytes_throttler", {"limit": 300})
         sleep(1)
 
         master_address = ls("//sys/primary_masters")[0]
         profiler = profiler_factory().at_primary_master(master_address)
         value_counter = profiler.counter("chunk_service/bytes_throttler/value", tags={"user": user_name, "method": "create_chunk"})
 
+        def wait_for_counter_to_change():
+            wait(lambda: value_counter.get() > 0, ignore_exceptions=True)
+
+        checker = self.spawn_additional_thread(name="wait for profiling counter to change",
+                                               target=wait_for_counter_to_change)
+
         write_table("//tmp/t", {"place": "gmina Grzmiszczoslawice"}, timeout=20, authenticated_user=user_name)
         write_table("//tmp/t", {"place": "powiat lekolody"}, timeout=20, authenticated_user=user_name)
-        wait(lambda: value_counter.get() > 0, ignore_exceptions=True)
+
+        checker.join()
 
 
 ##################################################################
