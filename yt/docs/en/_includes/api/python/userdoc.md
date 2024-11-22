@@ -896,7 +896,7 @@ Now, the client configuration includes a new `write_parallel` section with the f
 - `enable` (False by default) enables the option to write to tables and files in {{product-name}} in parallel.
 - `max_thread_count` (10 by default): The maximum number of threads the data is written to in parallel.
 - `unordered` (False by default): Enables you to write rows to a table in an arbitrary order, streamlining the writing process.
-- `concatenate_size` (100 by default): a limit on the number of tables or files that the concatenate command receives as input.
+- `concatenate_size` (20 by default): a limit on the number of tables or files that the concatenate command receives as input.
 
 #### How it works
 
