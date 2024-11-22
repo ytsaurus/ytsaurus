@@ -251,18 +251,13 @@ struct ISchedulerStrategy
     //! Register allocations that are already created somewhere outside strategy.
     virtual void RegisterAllocationsFromRevivedOperation(TOperationId operationId, const std::vector<TAllocationPtr>& allocation) = 0;
 
-    //! Out of the pool trees specified for the operation, choose one most suitable tree
-    //! depending on the operation's demand and current resource usage in each tree.
-    virtual TErrorOr<TString> ChooseBestSingleTreeForOperation(
-        TOperationId operationId,
-        TJobResources newDemand,
-        bool considerGuaranteesForSingleTree) = 0;
-
     //! Error results in operation's failure.
     virtual TError OnOperationMaterialized(
         TOperationId operationId,
+        bool scheduleInSingleTree,
+        const TCompositeNeededResources& neededResources,
         bool revivedFromSnapshot,
-        std::vector<TString>* treeIdsToUnregister) = 0;
+        std::vector<TString>* treeIdsToErase) = 0;
 
     virtual void ApplyJobMetricsDelta(TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics) = 0;
 
