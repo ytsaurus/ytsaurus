@@ -75,12 +75,6 @@ using NTransactionClient::TReadTimestampRange;
 
 static constexpr i64 RowBufferCapacity = 1000;
 
-struct TLookupSessionBufferTag
-{ };
-
-struct TLookupRowsBufferTag
-{ };
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLookupSession;
@@ -173,10 +167,11 @@ public:
         const TColumnFilter& columnFilter,
         const TReadTimestampRange& timestampRange,
         ICodec* const codec,
+        TRowBufferPtr rowBuffer,
         IMemoryUsageTrackerPtr memoryUsageTracker)
         : TCompressingAdapterBase(codec, std::move(memoryUsageTracker))
         , Merger_(std::make_unique<TSchemafulRowMerger>(
-            New<TRowBuffer>(TLookupSessionBufferTag()),
+            std::move(rowBuffer),
             tabletSnapshot->PhysicalSchema->GetColumnCount(),
             tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
             columnFilter,
@@ -210,11 +205,12 @@ public:
         const TRetentionConfigPtr& retentionConfig,
         const TReadTimestampRange& timestampRange,
         ICodec* const codec,
+        TRowBufferPtr rowBuffer,
         IMemoryUsageTrackerPtr memoryUsageTracker)
         : TCompressingAdapterBase(codec, std::move(memoryUsageTracker))
         , Merger_(CreateVersionedRowMerger(
             tabletSnapshot->Settings.MountConfig->RowMergerType,
-            New<TRowBuffer>(TLookupSessionBufferTag()),
+            std::move(rowBuffer),
             tabletSnapshot->PhysicalSchema,
             columnFilter,
             retentionConfig,
@@ -258,6 +254,7 @@ protected:
         const TReadTimestampRange& timestampRange,
         const NChunkClient::TClientChunkReadOptions& /*chunkReadOptions*/,
         const std::optional<TString>& /*profilingUser*/,
+        TRowBufferPtr /*rowBuffer*/,
         NLogging::TLogger /*logger*/)
         : TRowAdapter(std::move(adapter))
         , Timestamp_(timestampRange.Timestamp)
@@ -321,6 +318,7 @@ protected:
         const TReadTimestampRange& timestampRange,
         const NChunkClient::TClientChunkReadOptions& /*chunkReadOptions*/,
         const std::optional<TString>& profilingUser,
+        TRowBufferPtr rowBuffer,
         NLogging::TLogger logger)
         : TRowAdapter(std::move(adapter))
         , TabletId_(tabletSnapshot->TabletId)
@@ -330,6 +328,7 @@ protected:
         , Timestamp_(timestampRange.Timestamp)
         , RetainedTimestamp_(tabletSnapshot->RetainedTimestamp)
         , StoreFlushIndex_(tabletSnapshot->StoreFlushIndex)
+        , RowBuffer_(std::move(rowBuffer))
         , Logger(std::move(logger))
         , CacheRowMerger_(CreateVersionedRowMerger(
             tabletSnapshot->Settings.MountConfig->RowMergerType,
@@ -732,8 +731,8 @@ private:
     const TTimestamp Timestamp_;
     const TTimestamp RetainedTimestamp_;
     const ui32 StoreFlushIndex_;
+    const TRowBufferPtr RowBuffer_;
     const NLogging::TLogger Logger;
-    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TLookupSessionBufferTag());
     const std::unique_ptr<IVersionedRowMerger> CacheRowMerger_;
 
     TSimpleRowMerger SimpleRowMerger_;
@@ -791,6 +790,7 @@ protected:
         const TReadTimestampRange& timestampRange,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         const std::optional<TString>& profilingUser,
+        TRowBufferPtr rowBuffer,
         const NLogging::TLogger Logger)
         : TBasePipeline(
             std::move(adapter),
@@ -799,9 +799,11 @@ protected:
             timestampRange,
             chunkReadOptions,
             profilingUser,
+            rowBuffer,
             Logger)
         , Schema_(tabletSnapshot->PhysicalSchema)
         , ColumnFilter_(columnFilter)
+        , RowBuffer_(std::move(rowBuffer))
         , ChunkFragmentReader_(tabletSnapshot->ChunkFragmentReader)
         , DictionaryCompressionFactory_(tabletSnapshot->DictionaryCompressionFactory)
         , ChunkReadOptions_(chunkReadOptions)
@@ -841,9 +843,9 @@ protected:
 private:
     using typename TBasePipeline::TMutableRow;
 
-    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TLookupSessionBufferTag());
     const TTableSchemaPtr Schema_;
     const TColumnFilter ColumnFilter_;
+    const TRowBufferPtr RowBuffer_;
 
     NChunkClient::IChunkFragmentReaderPtr ChunkFragmentReader_;
     NTableClient::IDictionaryCompressionFactoryPtr DictionaryCompressionFactory_;
@@ -1115,7 +1117,8 @@ public:
         bool produceAllVersions,
         TColumnFilter columnFilter,
         TSharedRange<TUnversionedRow> lookupKeys,
-        TLookupSessionPtr lookupSession);
+        TLookupSessionPtr lookupSession,
+        TRowBufferPtr rowBuffer);
 
     TTabletLookupSession(
         TPipeline::TAdapter&& adapter,
@@ -1127,6 +1130,7 @@ public:
         const TClientChunkReadOptions& chunkReadOptions,
         IInvokerPtr invoker,
         std::optional<TString> profilingUser,
+        TRowBufferPtr rowBuffer,
         NLogging::TLogger logger);
 
     ~TTabletLookupSession();
@@ -1517,7 +1521,8 @@ TFuture<TSharedRef> DoRunTabletLookupSession(
     bool produceAllVersions,
     TColumnFilter columnFilter,
     TSharedRange<TUnversionedRow> lookupKeys,
-    TLookupSessionPtr lookupSession)
+    TLookupSessionPtr lookupSession,
+    TRowBufferPtr rowBuffer)
 {
     if (useLookupCache) {
         if (tabletSnapshot->PhysicalSchema->HasHunkColumns()) {
@@ -1528,7 +1533,8 @@ TFuture<TSharedRef> DoRunTabletLookupSession(
                 /*produceAllVersions*/ true,
                 std::move(columnFilter),
                 std::move(lookupKeys),
-                std::move(lookupSession))
+                std::move(lookupSession),
+                std::move(rowBuffer))
                 ->Run();
         } else {
             using TWholePipeline = TTabletLookupSession<TRowCachePipeline<TRowAdapter>>;
@@ -1538,7 +1544,8 @@ TFuture<TSharedRef> DoRunTabletLookupSession(
                 /*produceAllVersions*/ true,
                 std::move(columnFilter),
                 std::move(lookupKeys),
-                std::move(lookupSession))
+                std::move(lookupSession),
+                std::move(rowBuffer))
                 ->Run();
         }
     } else {
@@ -1550,7 +1557,8 @@ TFuture<TSharedRef> DoRunTabletLookupSession(
                 produceAllVersions,
                 std::move(columnFilter),
                 std::move(lookupKeys),
-                std::move(lookupSession))
+                std::move(lookupSession),
+                std::move(rowBuffer))
                 ->Run();
         } else {
             using TWholePipeline = TTabletLookupSession<TSimplePipeline<TRowAdapter>>;
@@ -1560,7 +1568,8 @@ TFuture<TSharedRef> DoRunTabletLookupSession(
                 produceAllVersions,
                 std::move(columnFilter),
                 std::move(lookupKeys),
-                std::move(lookupSession))
+                std::move(lookupSession),
+                std::move(rowBuffer))
                 ->Run();
         }
     }
@@ -1596,9 +1605,9 @@ TFuture<TSharedRef> TTabletLookupRequest::RunTabletLookupSession(
 
     tabletSnapshot->WaitOnLocks(timestamp);
 
-    auto reader = CreateWireProtocolReader(
-        RequestData,
-        New<TRowBuffer>(TLookupRowsBufferTag()));
+    auto rowBuffer = New<TRowBuffer>(lookupSession->ChunkReadOptions_.MemoryUsageTracker);
+
+    auto reader = CreateWireProtocolReader(RequestData, rowBuffer);
 
     auto command = reader->ReadCommand();
 
@@ -1629,6 +1638,7 @@ TFuture<TSharedRef> TTabletLookupRequest::RunTabletLookupSession(
     auto lookupKeys = reader->ReadSchemafulRowset(
         IWireProtocolReader::GetSchemaData(*tabletSnapshot->PhysicalSchema->ToKeys()),
         /*captureValues*/ false);
+    lookupKeys = MakeSharedRange(lookupKeys, lookupKeys, RequestData);
 
     const auto& Logger = lookupSession->Logger;
     YT_LOG_DEBUG("Creating tablet lookup session (TabletId: %v, CellId: %v, KeyCount: %v)",
@@ -1650,13 +1660,15 @@ TFuture<TSharedRef> TTabletLookupRequest::RunTabletLookupSession(
                     columnFilter,
                     lookupSession->TimestampRange_,
                     lookupSession->ResponseCodec_,
+                    rowBuffer,
                     lookupSession->ChunkReadOptions_.MemoryUsageTracker),
                 useLookupCache,
                 std::move(tabletSnapshot),
                 /*produceAllVersions*/ false,
                 std::move(columnFilter),
                 std::move(lookupKeys),
-                lookupSession);
+                lookupSession,
+                rowBuffer);
         }
 
         case EWireProtocolCommand::VersionedLookupRows: {
@@ -1675,13 +1687,15 @@ TFuture<TSharedRef> TTabletLookupRequest::RunTabletLookupSession(
                     lookupSession->RetentionConfig_,
                     lookupSession->TimestampRange_,
                     lookupSession->ResponseCodec_,
+                    rowBuffer,
                     lookupSession->ChunkReadOptions_.MemoryUsageTracker),
                 useLookupCache,
                 std::move(tabletSnapshot),
                 /*produceAllVersions*/ true,
                 std::move(columnFilter),
                 std::move(lookupKeys),
-                lookupSession);
+                lookupSession,
+                rowBuffer);
         }
 
         default:
@@ -1698,7 +1712,8 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
     bool produceAllVersions,
     TColumnFilter columnFilter,
     TSharedRange<TUnversionedRow> lookupKeys,
-    TLookupSessionPtr lookupSession)
+    TLookupSessionPtr lookupSession,
+    TRowBufferPtr rowBuffer)
     : TPipeline(
         std::move(adapter),
         tabletSnapshot,
@@ -1706,6 +1721,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
         lookupSession->TimestampRange_,
         lookupSession->ChunkReadOptions_,
         lookupSession->ProfilingUser_,
+        std::move(rowBuffer),
         lookupSession->Logger)
     , Invoker_(lookupSession->Invoker_)
     , TabletSnapshot_(std::move(tabletSnapshot))
@@ -1748,6 +1764,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
     const TClientChunkReadOptions& chunkReadOptions,
     IInvokerPtr invoker,
     std::optional<TString> profilingUser,
+    TRowBufferPtr rowBuffer,
     NLogging::TLogger logger)
     : TPipeline(
         std::move(adapter),
@@ -1756,6 +1773,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
         readTimestampRange,
         chunkReadOptions,
         profilingUser,
+        std::move(rowBuffer),
         logger)
     , Invoker_(std::move(invoker))
     , TabletSnapshot_(std::move(tabletSnapshot))
@@ -2263,11 +2281,11 @@ public:
         const TReadTimestampRange& timestampRange,
         const TTimestampReadOptions& timestampReadOptions,
         const TColumnFilter& columnFilter,
-        IMemoryChunkProviderPtr memoryChunkProvider)
+        TRowBufferPtr rowBuffer)
         : Writer_(pipe->GetWriter())
         , Pipe_(std::move(pipe))
         , Merger_(CreateLatestTimestampRowMerger(
-            New<TRowBuffer>(std::move(memoryChunkProvider)),
+            std::move(rowBuffer),
             tabletSnapshot,
             columnFilter,
             timestampRange.RetentionTimestamp,
@@ -2333,6 +2351,8 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
         lookupKeys.Size(),
         useLookupCache);
 
+    auto rowBuffer = New<TRowBuffer>(memoryChunkProvider);
+
     auto pipe = New<TSchemafulPipe>(memoryChunkProvider);
     auto reader = pipe->GetReader();
 
@@ -2342,7 +2362,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
         timestampRange,
         timestampReadOptions,
         columnFilter,
-        std::move(memoryChunkProvider));
+        rowBuffer);
 
     auto pipeWatcher = BIND([pipe = std::move(pipe)] (const TError& error) {
         if (!error.IsOK()) {
@@ -2362,6 +2382,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
                 chunkReadOptions,
                 std::move(invoker),
                 std::move(profilingUser),
+                std::move(rowBuffer),
                 std::move(Logger))
                 ->Run()
                 .Subscribe(pipeWatcher);
@@ -2376,6 +2397,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
                 chunkReadOptions,
                 std::move(invoker),
                 std::move(profilingUser),
+                std::move(rowBuffer),
                 std::move(Logger))
                 ->Run()
                 .Subscribe(pipeWatcher);
@@ -2392,6 +2414,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
                 chunkReadOptions,
                 std::move(invoker),
                 std::move(profilingUser),
+                std::move(rowBuffer),
                 std::move(Logger))
                 ->Run()
                 .Subscribe(pipeWatcher);
@@ -2406,6 +2429,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
                 chunkReadOptions,
                 std::move(invoker),
                 std::move(profilingUser),
+                std::move(rowBuffer),
                 std::move(Logger))
                 ->Run()
                 .Subscribe(pipeWatcher);
