@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, with_additional_threads
 
 from yt_commands import (
     alter_table, authors, concatenate, create, get_driver, get, insert_rows, map as yt_map, write_table,
@@ -11,8 +11,6 @@ from yt.common import YtError
 import pytest
 
 import time
-
-import threading
 
 CELL_TAG_CONVERSION = 10
 
@@ -441,29 +439,42 @@ class TestChunkTeleportation(YTEnvSetup):
         "12": {"roles": ["chunk_host"]},
     }
 
-    def _schedule_unfreeze(self):
-        def do_unfreeze_edge():
-            time.sleep(3)
-            remove("//sys/@config/multicell_manager/testing/frozen_hive_edges")
-        threading.Thread(target=do_unfreeze_edge).start()
-
     @authors("h0pless")
+    @with_additional_threads
     def test_teleportaion_with_hive_instability(self):
         src_cell_tag = 11
         dst_cell_tag = 12
         create("table", "//tmp/output", attributes={"external_cell_tag": src_cell_tag})
+        schema = [{"name": "key", "type": "int64"}, {"name": "value", "type": "string"}]
         create("table", "//tmp/table1", attributes={
-            "schema": [
-                {"name": "key", "type": "int64"},
-                {"name": "value", "type": "string"}
-            ],
+            "schema": schema,
             "external_cell_tag": dst_cell_tag})
-        write_table("//tmp/table1", {"key": 123, "value": "value"})
+        content = [{"key": 123, "value": "value"}]
+        write_table("//tmp/table1", content)
 
         yt_set("//sys/@config/multicell_manager/testing/frozen_hive_edges", [[src_cell_tag, dst_cell_tag]])
         multicell_sleep()
-        self._schedule_unfreeze()
-        concatenate(["//tmp/table1"], "//tmp/output")
+
+        concat_thread = self.spawn_additional_thread(
+            target=lambda: concatenate(["//tmp/table1"], "//tmp/output"))
+
+        # Hive edge shouldn't be unfrozen immediately.
+        time.sleep(1)
+        remove("//sys/@config/multicell_manager/testing/frozen_hive_edges")
+
+        concat_thread.join()
+
+        assert read_table("//tmp/output") == content
+
+        def simplify_schema(schema):
+            schema = list(schema)
+            for column in schema:
+                for attr in ("required", "type_v3"):
+                    if attr in column:
+                        column.pop(attr)
+            return schema
+
+        assert simplify_schema(get("//tmp/output/@schema")) == schema
 
         # Just don't crash.
         time.sleep(3)
