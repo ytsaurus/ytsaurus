@@ -12,7 +12,6 @@ public:
     TTypeBuilder();
 
     NTableClient::TLogicalTypePtr GetResult() const;
-
 private:
     void OnVoid() final;
     void OnNull() final;
@@ -71,8 +70,10 @@ private:
     void OnEndTagged() final;
     void OnPg(TStringBuf name, TStringBuf category) final;
 
-    template<class T = NTableClient::TLogicalTypePtr> T Pop();
     void Push(NTableClient::TLogicalTypePtr type);
+
+    template<class T = NTableClient::TLogicalTypePtr>
+    T Pop();
 
     enum class EKind {
         Optional, List, Tuple, Struct, Dict, Variant, Tagged

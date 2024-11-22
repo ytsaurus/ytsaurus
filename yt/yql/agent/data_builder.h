@@ -2,7 +2,6 @@
 
 #include <yql/essentials/public/result_format/yql_result_format_data.h>
 #include <yt/yt/client/table_client/value_consumer.h>
-#include <yt/yt/client/table_client/unversioned_row.h>
 
 namespace NYT::NYqlAgent {
 class TDataBuilder : public NYql::NResult::IDataVisitor {
@@ -76,18 +75,22 @@ private:
     void OnPg(TMaybe<TStringBuf> value, bool isUtf8) final;
 
     void AddNull();
+    void AddBoolean(bool value);
     void AddSigned(i64 value);
     void AddUnsigned(ui64 value);
     void AddReal(double value);
     void AddString(TStringBuf value);
+    void AddYson(TStringBuf value);
 
-    void FlushCurrentValueIfCompleted();
+    void BeginList();
+    void NextItem();
+    void EndList();
 
     NTableClient::IValueConsumer *const ValueConsumer_;
     TBlobOutput ValueBuffer_;
     NYson::TBufferedBinaryYsonWriter ValueWriter_;
 
-    int Depth_ = -2;
+    int Depth_ = -2; // Starts from table level: -2 List< -1 Struct< 0 ... >>
     int ColumnIndex_ = 0;
 };
 
