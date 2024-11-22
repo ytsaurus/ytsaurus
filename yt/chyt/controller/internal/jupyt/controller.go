@@ -77,6 +77,9 @@ func (c *Controller) buildCommand(speclet *Speclet) (command string, env map[str
 	for key, value := range c.config.ExtraEnvVars {
 		jupyterEnv[key] = value
 	}
+	for key, value := range speclet.EnvVars {
+		jupyterEnv[key] = value
+	}
 	return cmd, jupyterEnv
 }
 
@@ -185,6 +188,14 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 					DefaultValue: DefaultIdleTimeout,
 					MinValue:     0,
 					Description:  "Jupyt operation will be suspended in case of no activity for the specified time.",
+				},
+				{
+					Title:        "Environment variables",
+					Name:         "env_vars",
+					Type:         strawberry.TypeYson,
+					CurrentValue: speclet.EnvVars,
+					DefaultValue: map[string]string{},
+					Description:  "Additional environment variables to add to Jupyt.",
 				},
 			},
 		},
