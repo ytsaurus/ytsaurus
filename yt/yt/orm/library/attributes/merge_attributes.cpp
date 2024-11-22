@@ -279,13 +279,12 @@ TYsonString MergeAttributes(
             EYsonType::Node);
     }
 
-    bool hasEtcs = std::any_of(attributeValues.begin(), attributeValues.end(), [] (const TAttributeValue& value) {
-        return value.IsEtc;
-    });
+    bool hasEtcs = std::ranges::any_of(attributeValues, std::identity{}, &TAttributeValue::IsEtc);
 
-    bool allPathsEmpty = std::all_of(attributeValues.begin(), attributeValues.end(), [] (const TAttributeValue& value) {
-        return value.Path.empty();
-    });
+    bool allPathsEmpty = std::ranges::all_of(attributeValues,
+        [] (const auto& attribute) {
+            return attribute.Path.empty();
+        });
 
     if (!hasEtcs && allPathsEmpty && !attributeValues.empty()) {
         return attributeValues.back().Value;
