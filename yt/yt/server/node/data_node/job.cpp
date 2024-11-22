@@ -2181,22 +2181,20 @@ private:
         return GetProtoExtension<NTableClient::NProto::TTableSchemaExt>(meta->extensions());
     }
 
-    NTableClient::TMasterTableSchemaId FetchSchemaId(const TDeferredChunkMetaPtr& meta) {
+    TMasterTableSchemaId FetchSchemaId(const TDeferredChunkMetaPtr& meta)
+    {
         auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient(), CellTag_);
         auto batchReq = proxy.ExecuteBatch();
-        auto req = TMasterYPathProxy::GetOrRegisterSchema();
+        auto req = TMasterYPathProxy::GetOrRegisterTableSchema();
         *req->mutable_schema() = GetSchemaExt(meta);
         ToProto(req->mutable_transaction_id(), TransactionId_);
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke())
             .ValueOrThrow();
-        auto rsp = batchRsp->GetResponse<NObjectClient::TMasterYPathProxy::TRspGetOrRegisterSchema>(0)
+        auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspGetOrRegisterTableSchema>(0)
             .ValueOrThrow();
-        NTableClient::TMasterTableSchemaId schemaId;
-        FromProto(&schemaId, rsp->schema_id());
-
-        return schemaId;
+        return FromProto<TMasterTableSchemaId>(rsp->schema_id());
     }
 
     void ReincarnateVersionedChunk(
