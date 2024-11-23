@@ -14,7 +14,8 @@ using namespace NYTree;
 
 namespace {
 
-struct ValidateVisitor {
+struct TValidateVisitor
+{
     template <TKeyPairVersion version>
     bool operator()(const TKeyPairMetadataImpl<version>& meta) const
     {
@@ -27,7 +28,7 @@ struct ValidateVisitor {
         }
 
         // TODO(pavook): separate timestamp provider into interface.
-        TInstant currentTime = Now();
+        auto currentTime = Now();
 
         return meta.ValidAfter <= currentTime && currentTime < meta.ExpiresAt;
     }
@@ -39,7 +40,7 @@ struct ValidateVisitor {
 
 bool IsKeyPairMetadataValid(const TKeyPairMetadata& meta)
 {
-    return std::visit(ValidateVisitor{}, meta);
+    return std::visit(TValidateVisitor{}, meta);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,7 +54,8 @@ TKeyId GetKeyId(const TKeyPairMetadata& metadata)
 
 namespace {
 
-struct SerializeVisitor {
+struct TSerializeVisitor
+{
     IYsonConsumer* const Consumer;
 
     template <TKeyPairVersion version>
@@ -74,14 +76,15 @@ struct SerializeVisitor {
 
 void Serialize(const TKeyPairMetadata& metadata, NYson::IYsonConsumer* consumer)
 {
-    std::visit(SerializeVisitor{consumer}, metadata);
+    std::visit(TSerializeVisitor{consumer}, metadata);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
-struct DeserializeVisitor {
+struct TDeserializeVisitor
+{
     NYTree::IMapNodePtr MapNode;
 
     template <TKeyPairVersion version>
@@ -109,7 +112,7 @@ void Deserialize(TKeyPairMetadata& metadata, INodePtr node)
             << TErrorAttribute("version", version);
     }
 
-    std::visit(DeserializeVisitor{node->AsMap()}, metadata);
+    std::visit(TDeserializeVisitor{node->AsMap()}, metadata);
 }
 
 void Deserialize(TKeyPairMetadata& metadata, TYsonPullParserCursor* cursor)
@@ -153,7 +156,7 @@ const TKeyPairMetadata& TKeyInfo::Meta() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-[[nodiscard]] bool TKeyInfo::operator==(const TKeyInfo& other) const
+bool TKeyInfo::operator==(const TKeyInfo& other) const
 {
     return Key() == other.Key() && Meta() == other.Meta();
 }
@@ -174,7 +177,7 @@ void Serialize(const TKeyInfo& keyInfo, IYsonConsumer* consumer)
 
 void Deserialize(TKeyInfo& keyInfo, INodePtr node)
 {
-    IMapNodePtr mapNode = node->AsMap();
+    auto mapNode = node->AsMap();
     keyInfo.Meta_ = mapNode->GetChildValueOrThrow<TKeyPairMetadata>("metadata");
 
     auto keyString = mapNode->GetChildValueOrThrow<std::string>("public_key");

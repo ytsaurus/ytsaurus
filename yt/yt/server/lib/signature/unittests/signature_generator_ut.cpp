@@ -27,12 +27,12 @@ using namespace NYTree;
 struct TSignatureGeneratorTest
     : public ::testing::Test
 {
-    TMockKeyStorePtr store;
-    TSignatureGeneratorPtr gen;
+    TMockKeyStorePtr Store;
+    TSignatureGeneratorPtr Gen;
 
     TSignatureGeneratorTest()
-        : store(New<TMockKeyStore>())
-        , gen(New<TSignatureGenerator>(store))
+        : Store(New<TMockKeyStore>())
+        , Gen(New<TSignatureGenerator>(Store))
     { }
 };
 
@@ -40,25 +40,25 @@ struct TSignatureGeneratorTest
 
 TEST_F(TSignatureGeneratorTest, Rotate)
 {
-    WaitFor(gen->Rotate()).ThrowOnError();
-    EXPECT_EQ(store->Data.size(), 1ULL);
-    EXPECT_EQ(store->Data[store->GetOwner()].size(), 1ULL);
-    EXPECT_EQ(*store->Data[store->GetOwner()][0], gen->KeyInfo());
+    WaitFor(Gen->Rotate()).ThrowOnError();
+    EXPECT_EQ(Store->Data.size(), 1ULL);
+    EXPECT_EQ(Store->Data[Store->GetOwner()].size(), 1ULL);
+    EXPECT_EQ(*Store->Data[Store->GetOwner()][0], *Gen->KeyInfo());
 
-    WaitFor(gen->Rotate()).ThrowOnError();
-    EXPECT_EQ(store->Data.size(), 1ULL);
-    EXPECT_EQ(store->Data[store->GetOwner()].size(), 2ULL);
-    EXPECT_NE(*store->Data[store->GetOwner()][0], *store->Data[store->GetOwner()][1]);
+    WaitFor(Gen->Rotate()).ThrowOnError();
+    EXPECT_EQ(Store->Data.size(), 1ULL);
+    EXPECT_EQ(Store->Data[Store->GetOwner()].size(), 2ULL);
+    EXPECT_NE(*Store->Data[Store->GetOwner()][0], *Store->Data[Store->GetOwner()][1]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TSignatureGeneratorTest, SimpleSign)
 {
-    WaitFor(gen->Rotate()).ThrowOnError();
+    WaitFor(Gen->Rotate()).ThrowOnError();
 
     auto data = ConvertToYsonString("MyImportantData");
-    TSignaturePtr signature = gen->Sign(TYsonString(data));
+    TSignaturePtr signature = Gen->Sign(TYsonString(data));
     EXPECT_EQ(signature->Payload(), data);
 
     auto signatureYson = ConvertToNode(ConvertToYsonString(signature));
@@ -69,7 +69,7 @@ TEST_F(TSignatureGeneratorTest, SimpleSign)
         std::visit([] (const auto& header_) {
             return TOwnerId(header_.Issuer);
         }, header),
-        store->GetOwner());
+        Store->GetOwner());
 
     EXPECT_TRUE(std::visit(
         [] (const auto& header_) {
@@ -85,7 +85,7 @@ TEST_F(TSignatureGeneratorTest, SimpleSign)
     auto signatureBytes = std::as_bytes(std::span(TStringBuf(signatureByteString)));
     EXPECT_EQ(signatureBytes.size(), SignatureSize);
 
-    EXPECT_TRUE(store->Data[store->GetOwner()][0]->Verify(
+    EXPECT_TRUE(Store->Data[Store->GetOwner()][0]->Verify(
         toSign,
         signatureBytes.template first<SignatureSize>()));
 }
@@ -94,10 +94,10 @@ TEST_F(TSignatureGeneratorTest, SimpleSign)
 
 TEST_F(TSignatureGeneratorTest, UninitializedSign)
 {
-    EXPECT_TRUE(store->Data.empty());
+    EXPECT_TRUE(Store->Data.empty());
 
     auto data = NYson::ConvertToYsonString("MyImportantData");
-    EXPECT_THROW_WITH_SUBSTRING(std::ignore = gen->Sign(std::move(data)), "uninitialized generator");
+    EXPECT_THROW_WITH_SUBSTRING(std::ignore = Gen->Sign(std::move(data)), "uninitialized generator");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

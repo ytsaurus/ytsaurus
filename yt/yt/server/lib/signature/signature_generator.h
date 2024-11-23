@@ -27,7 +27,7 @@ public:
     // TODO(pavook) futurize?
     [[nodiscard]] TSignaturePtr Sign(NYson::TYsonString&& payload) const;
 
-    [[nodiscard]] const TKeyInfo& KeyInfo() const;
+    [[nodiscard]] TKeyInfoPtr KeyInfo() const;
 
     TFuture<void> Rotate();
 

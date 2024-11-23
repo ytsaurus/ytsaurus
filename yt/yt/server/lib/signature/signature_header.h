@@ -28,8 +28,6 @@ struct TSignatureVersion
 template <TSignatureVersion version>
 struct TSignatureHeaderImpl;
 
-////////////////////////////////////////////////////////////////////////////////
-
 // TODO(pavook) Maybe TSignatureHeaderImpl<{0, 1}> when CTAD for NTTP arrives (C++20, clang 18).
 
 template <>
@@ -53,11 +51,7 @@ using TSignatureHeader = std::variant<
     TSignatureHeaderImpl<TSignatureVersion{0, 1}>
 >;
 
-////////////////////////////////////////////////////////////////////////////////
-
 void Serialize(const TSignatureHeader& header, NYson::IYsonConsumer* consumer);
-
-////////////////////////////////////////////////////////////////////////////////
 
 void Deserialize(TSignatureHeader& header, NYTree::INodePtr node);
 
