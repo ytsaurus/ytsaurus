@@ -12,7 +12,7 @@ namespace NRoren::NPrivate {
 class TTableStreamRegistry
 {
 public:
-    IOutputStream* GetTableStream(int tableIndex)
+    IZeroCopyOutput* GetTableStream(int tableIndex)
     {
         auto g = Guard(Lock_);
 
@@ -32,7 +32,7 @@ private:
 };
 
 
-IOutputStream* GetTableStream(int tableIndex)
+IZeroCopyOutput* GetTableStream(int tableIndex)
 {
     static TTableStreamRegistry registry;
     return registry.GetTableStream(tableIndex);

@@ -2,6 +2,8 @@
 
 #include "yt_io_private.h"
 
+#include "table_stream_registry.h"
+
 #include <yt/cpp/roren/yt/proto/kv.pb.h>
 
 #include <yt/cpp/mapreduce/io/job_writer.h>
@@ -116,7 +118,6 @@ class TWriteProtoParDo
 public:
     TWriteProtoParDo(ssize_t tableIndex = -1)
         : TableIndex_(tableIndex)
-        , Descriptor_(TMessage::GetDescriptor())
     { }
 
     void SetTableIndex(ssize_t tableIndex) override
@@ -139,10 +140,7 @@ public:
         Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
         Y_ABORT_UNLESS(outputs.empty());
 
-        Writer_ = std::make_unique<::NYT::TLenvalProtoSingleTableWriter>(
-            MakeHolder<::NYT::TSingleStreamJobWriter>(TableIndex_),
-            Descriptor_
-        );
+        Stream_ = GetTableStream(TableIndex_);
     }
 
     void Do(const void* rows, int count) override
@@ -151,13 +149,13 @@ public:
         for (ssize_t i = 0; i < count; ++i, ++current) {
             const auto& row = *static_cast<const TMessage*>(current);
 
-            Writer_->AddRow(row, TableIndex_);
+            NYT::LenvalEncodeProto(Stream_, row);
         }
     }
 
     void Finish() override
     {
-        Writer_->FinishTable(TableIndex_);
+        Stream_->Flush();
     }
 
     const TFnAttributes& GetFnAttributes() const override
@@ -175,9 +173,7 @@ public:
 
 private:
     ssize_t TableIndex_ = 0;
-
-    const ::google::protobuf::Descriptor* Descriptor_;
-    std::unique_ptr<::NYT::TLenvalProtoSingleTableWriter> Writer_;
+    IZeroCopyOutput* Stream_ = nullptr;
 
     Y_SAVELOAD_DEFINE_OVERRIDE(TableIndex_);
 };

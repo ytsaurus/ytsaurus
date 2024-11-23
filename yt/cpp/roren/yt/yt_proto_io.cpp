@@ -1,5 +1,7 @@
 #include "yt_proto_io.h"
 
+#include "table_stream_registry.h"
+
 #include "jobs.h"
 
 #include <yt/cpp/mapreduce/interface/io.h>
@@ -533,11 +535,9 @@ public:
 
     void AddKvToTable(const void* key, const void* value, ui64 tableIndex) override
     {
-        if (!Writer_) {
-            Writer_ = std::make_unique<::NYT::TLenvalProtoTableWriter>(
-                MakeHolder<::NYT::TSingleStreamJobWriter>(GetSinkIndices()[0]),
-                TVector{TKVProto::GetDescriptor()}
-            );
+        if (!Output_) {
+            Output_ = GetTableStream(GetSinkIndices()[0]);
+            YT_VERIFY(Output_);
             for (const auto& keyEncoder : KeyEncoders_) {
                 Y_ABORT_UNLESS(keyEncoder);
             }
@@ -560,11 +560,13 @@ public:
         msg.SetValue(Value_);
         msg.SetTableIndex(tableIndex);
 
-        Writer_->AddRow(msg, GetSinkIndices()[0]);
+        NYT::LenvalEncodeProto(Output_, msg);
     }
 
     void Close() override
-    { }
+    {
+        Output_->Flush();
+    }
 
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
@@ -612,7 +614,7 @@ public:
     }
 
 private:
-    std::unique_ptr<::NYT::TLenvalProtoTableWriter> Writer_;
+    IZeroCopyOutput* Output_ = nullptr;
     std::vector<TRowVtable> RowVtables_;
     std::vector<IRawCoderPtr> KeyEncoders_;
     std::vector<IRawCoderPtr> ValueEncoders_;
