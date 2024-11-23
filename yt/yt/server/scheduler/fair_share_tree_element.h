@@ -934,6 +934,8 @@ public:
 
     bool IsIdleCpuPolicyAllowed() const;
 
+    const std::optional<TBriefVanillaTaskSpecMap>& GetMaybeBriefVanillaTaskSpecMap() const;
+
 protected:
     //! Pre update methods.
     void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const override;

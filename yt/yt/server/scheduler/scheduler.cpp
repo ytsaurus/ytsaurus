@@ -674,7 +674,7 @@ public:
             std::move(preprocessedSpec.CustomSpecPerTree),
             std::move(preprocessedSpec.SpecString),
             std::move(preprocessedSpec.TrimmedAnnotations),
-            std::move(preprocessedSpec.VanillaTaskNames),
+            std::move(preprocessedSpec.BriefVanillaTaskSpecs),
             secureVault,
             runtimeParameters,
             std::move(baseAcl),

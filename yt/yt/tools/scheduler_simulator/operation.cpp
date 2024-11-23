@@ -113,6 +113,11 @@ const NYson::TYsonString& TOperation::GetTrimmedAnnotations() const
     return TrimmedAnnotations_;
 }
 
+const std::optional<NScheduler::TBriefVanillaTaskSpecMap>& TOperation::GetMaybeBriefVanillaTaskSpecs() const
+{
+    YT_UNIMPLEMENTED();
+}
+
 NScheduler::TOperationRuntimeParametersPtr TOperation::GetRuntimeParameters() const
 {
     return RuntimeParameters_;
