@@ -87,12 +87,14 @@ auto TChunkScanQueueWithPayload<TPayload>::DequeueChunk() -> TQueuedChunk
         front = Queue_.front().Chunk.Get();
         chunk = front;
     }
-    Queue_.pop();
 
-    if (IsObjectAlive(chunk)) {
-        ClearScanFlag(chunk);
+    if (!IsObjectAlive(chunk)) {
+        Queue_.pop();
+        return None();
     }
 
+    Queue_.pop();
+    ClearScanFlag(chunk);
     return front;
 }
 
@@ -195,12 +197,12 @@ auto TChunkScannerWithPayload<TPayload>::DequeueChunk() -> TQueuedChunk
     }
 
     auto front = TChunkQueue::DequeueChunk();
-
-    if (TBase::IsRelevant(TChunkQueue::GetChunk(front))) {
-        return front;
+    auto* chunk = TChunkQueue::GetChunk(front);
+    if (!IsObjectAlive(chunk) || !TBase::IsRelevant(chunk)) {
+        return TChunkQueue::None();
     }
 
-    return TChunkQueue::None();
+    return front;
 }
 
 template <class TPayload>
