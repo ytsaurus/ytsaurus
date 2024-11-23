@@ -59,7 +59,16 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EPullerErrorKind,
+    (Default)
+    (UnableToPickQueueReplica)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 static const int TabletRowsPerRead = 1000;
+static const TDuration PullerErrorsTtl = TDuration::Minutes(1);
+static const TString PullerErrorKindAttribute = "puller_error_kind";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -216,6 +225,17 @@ private:
 
     TFuture<void> FiberFuture_;
 
+    struct TExpiringError
+    {
+        TError Error;
+        TInstant Deadline;
+    };
+
+    using TErrorsByKind = TEnumIndexedArray<
+        EPullerErrorKind,
+        std::optional<TExpiringError>>;
+    TErrorsByKind ErrorsByKind_;
+
     void FiberMain()
     {
         while (true) {
@@ -224,6 +244,43 @@ private:
             FiberIteration();
             TDelayedExecutor::WaitForDuration(MountConfig_->ReplicationTickPeriod - timer.GetElapsedTime());
         }
+    }
+
+    void UpdatePullerErrors(TTabletErrors& tabletErrors, TError currentPullError)
+    {
+        TError combinedError;
+        if (currentPullError.IsOK()) {
+            for (auto& expiringError : ErrorsByKind_) {
+                expiringError.reset();
+            }
+        } else {
+            auto now = TInstant::Now();
+
+            for (auto& expiringError : ErrorsByKind_) {
+                if (expiringError && expiringError->Deadline < now) {
+                    expiringError.reset();
+                }
+            }
+
+            auto kind = currentPullError.Attributes().Get<EPullerErrorKind>(
+                PullerErrorKindAttribute,
+                EPullerErrorKind::Default);
+            ErrorsByKind_[kind] = TExpiringError{.Error = currentPullError, .Deadline = now + PullerErrorsTtl};
+
+            combinedError = TError("Pull iteration failed")
+                << TErrorAttribute("tablet_id", TabletId_)
+                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Pull);
+            for (const auto& expiringError : ErrorsByKind_) {
+                if (!expiringError) {
+                    continue;
+                }
+
+                combinedError = combinedError
+                    << expiringError->Error;
+            }
+        }
+
+        tabletErrors.BackgroundErrors[ETabletBackgroundActivity::Pull].Store(combinedError);
     }
 
     void FiberIteration()
@@ -293,8 +350,7 @@ private:
             if (auto writeMode = tabletSnapshot->TabletRuntimeData->WriteMode.load(); writeMode != ETabletWriteMode::Pull) {
                 YT_LOG_DEBUG("Will not pull rows since tablet write mode does not imply pulling (WriteMode: %v)",
                     writeMode);
-                tabletSnapshot->TabletRuntimeData->Errors
-                    .BackgroundErrors[ETabletBackgroundActivity::Pull].Store(TError());
+                UpdatePullerErrors(tabletSnapshot->TabletRuntimeData->Errors, TError());
                 return;
             }
 
@@ -338,16 +394,12 @@ private:
                     replicationProgress);
             }
 
-            tabletSnapshot->TabletRuntimeData->Errors
-                .BackgroundErrors[ETabletBackgroundActivity::Pull].Store(TError());
+            UpdatePullerErrors(tabletSnapshot->TabletRuntimeData->Errors, TError());
         } catch (const std::exception& ex) {
-            auto error = TError(ex)
-                << TErrorAttribute("tablet_id", TabletId_)
-                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Pull);
+            auto error = TError(ex);
             YT_LOG_ERROR(error, "Error pulling rows, backing off");
             if (tabletSnapshot) {
-                tabletSnapshot->TabletRuntimeData->Errors
-                    .BackgroundErrors[ETabletBackgroundActivity::Pull].Store(error);
+                UpdatePullerErrors(tabletSnapshot->TabletRuntimeData->Errors, error);
             }
 
             if (error.Attributes().Get<bool>("hard", false)) {
@@ -539,7 +591,8 @@ private:
             // This form of logging accepts only string literals.
             YT_LOG_DEBUG(queueReplicaOrError, "Unable to pick a queue replica to replicate from");
             THROW_ERROR_EXCEPTION("Unable to pick a queue replica to replicate from")
-                << queueReplicaOrError;
+                << queueReplicaOrError
+                << TErrorAttribute(PullerErrorKindAttribute, EPullerErrorKind::UnableToPickQueueReplica);
         }
 
         auto [queueReplicaId, queueReplicaInfo, upperTimestamp] = queueReplicaOrError
@@ -670,8 +723,7 @@ private:
         // Update progress even if no rows pulled.
         if (IsReplicationProgressGreaterOrEqual(*replicationProgress, progress)) {
             YT_VERIFY(resultRows.empty());
-            tabletSnapshot->TabletRuntimeData->Errors
-                .BackgroundErrors[ETabletBackgroundActivity::Pull].Store(TError());
+            UpdatePullerErrors(tabletSnapshot->TabletRuntimeData->Errors, TError());
             return;
         }
 

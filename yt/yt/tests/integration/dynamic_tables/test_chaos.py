@@ -1024,12 +1024,14 @@ class TestChaos(ChaosTestBase):
         def _pull_failed():
             tablet_infos = get_tablet_infos("//tmp/t", [1], request_errors=True)
             errors = tablet_infos["tablets"][0]["tablet_errors"]
-            if len(errors) == 0 or errors[0]["attributes"]["background_activity"] != "pull":
+
+            if len(errors) != 1 or errors[0]["attributes"]["background_activity"] != "pull":
                 return False
-            message = errors[0]["message"]
-            if message.startswith("Target queue has no corresponding tablet"):
-                return True
-            return False
+
+            return any(
+                error["message"].startswith("Target queue has no corresponding tablet")
+                for error in errors[0]["inner_errors"]
+            )
 
         wait(_pull_failed)
 
@@ -2254,10 +2256,14 @@ class TestChaos(ChaosTestBase):
         def _check():
             tablet_infos = get_tablet_infos("//tmp/t-copy", [0], request_errors=True)
             errors = tablet_infos["tablets"][0]["tablet_errors"]
+
             if len(errors) != 1 or errors[0]["attributes"]["background_activity"] != "pull":
                 return False
 
-            return errors[0]["message"] == "Upstream replica id corresponds to another table"
+            return any(
+                error["message"] == "Upstream replica id corresponds to another table"
+                for error in errors[0]["inner_errors"]
+            )
 
         wait(_check)
 
@@ -2372,14 +2378,18 @@ class TestChaos(ChaosTestBase):
             def _check():
                 tablet_infos = get_tablet_infos("//tmp/catchup_queue-1", [0], request_errors=True)
                 errors = tablet_infos["tablets"][0]["tablet_errors"]
+
                 if len(errors) != 1 or errors[0]["attributes"]["background_activity"] != "pull":
                     return False
 
-                return (
-                    errors[0]["message"] == "All pull rows subrequests failed" and
-                    len(errors[0]["inner_errors"]) == 1 and
-                    errors[0]["inner_errors"][0]["message"] == f"Mismatched upstream replica: expected {replica_ids2[1]}, got {replica_ids1[1]}"
-                )
+                def _is_mismatched_replica_error(error):
+                    return (
+                        error["message"] == "All pull rows subrequests failed" and
+                        len(error["inner_errors"]) == 1 and
+                        error["inner_errors"][0]["message"] == f"Mismatched upstream replica: expected {replica_ids2[1]}, got {replica_ids1[1]}"
+                    )
+
+                return any(_is_mismatched_replica_error(error) for error in errors[0]["inner_errors"])
 
             wait(_check)
         else:
@@ -3912,12 +3922,15 @@ class TestChaos(ChaosTestBase):
         def _check():
             tablet_infos = get_tablet_infos("//tmp/t", [0], request_errors=True)
             errors = tablet_infos["tablets"][0]["tablet_errors"]
-            if len(errors) == 0 or errors[0]["attributes"]["background_activity"] != "pull":
+
+            if len(errors) != 1 or errors[0]["attributes"]["background_activity"] != "pull":
                 return False
-            message = errors[0]["message"]
-            if message.startswith("Table schemas are incompatible"):
-                return True
-            return False
+
+            return any(
+                error["message"].startswith("Table schemas are incompatible")
+                for error in errors[0]["inner_errors"]
+            )
+
         wait(_check)
 
     @authors("savrus")
@@ -4000,12 +4013,15 @@ class TestChaos(ChaosTestBase):
         def _check():
             tablet_infos = get_tablet_infos("//tmp/t", [0], request_errors=True)
             errors = tablet_infos["tablets"][0]["tablet_errors"]
-            if len(errors) == 0 or errors[0]["attributes"]["background_activity"] != "pull":
+
+            if len(errors) != 1 or errors[0]["attributes"]["background_activity"] != "pull":
                 return False
-            message = errors[0]["message"]
-            if message.startswith("Table schemas are incompatible"):
-                return True
-            return False
+
+            return any(
+                error["message"].startswith("Table schemas are incompatible")
+                for error in errors[0]["inner_errors"]
+            )
+
         wait(_check)
 
         def are_keys_compatible():
@@ -4050,12 +4066,15 @@ class TestChaos(ChaosTestBase):
         def _check():
             tablet_infos = get_tablet_infos("//tmp/t", [0], request_errors=True)
             errors = tablet_infos["tablets"][0]["tablet_errors"]
-            if len(errors) == 0 or errors[0]["attributes"]["background_activity"] != "pull":
+
+            if len(errors) != 1 or errors[0]["attributes"]["background_activity"] != "pull":
                 return False
-            message = errors[0]["message"]
-            if message.startswith("Table schemas are incompatible"):
-                return True
-            return False
+
+            return any(
+                error["message"].startswith("Table schemas are incompatible")
+                for error in errors[0]["inner_errors"]
+            )
+
         wait(_check)
 
     @authors("savrus")
