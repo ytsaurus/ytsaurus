@@ -17,7 +17,9 @@ void InitializeCryptography()
     // NB(pavook) sodium_init might stall if there's not enough entropy in the system
     // (see https://docs.libsodium.org/usage). We need to set a reasonable timeout on this operation.
     auto initFuture = BIND(sodium_init)
-        .AsyncVia(GetCurrentInvoker()).Run().WithTimeout(CryptoInitializeTimeout);
+        .AsyncVia(GetCurrentInvoker())
+        .Run()
+        .WithTimeout(CryptoInitializeTimeout);
 
     auto initResult = WaitFor(initFuture);
 

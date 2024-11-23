@@ -13,7 +13,7 @@ class TSignatureValidator final
 public:
     explicit TSignatureValidator(const IKeyStoreReaderPtr& store);
 
-    TFuture<bool> Validate(TSignaturePtr signature);
+    TFuture<bool> Validate(const TSignaturePtr& signature);
 
 private:
     const IKeyStoreReaderPtr Store_;

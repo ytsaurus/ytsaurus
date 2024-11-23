@@ -27,7 +27,7 @@ TEST(TKeyPairTest, Construct)
     TKeyPair keyPair(metaOk);
 
     EXPECT_EQ(
-        GetKeyId(keyPair.KeyInfo().Meta()),
+        GetKeyId(keyPair.KeyInfo()->Meta()),
         GetKeyId(metaOk));
     EXPECT_TRUE(keyPair.CheckSanity());
 }
@@ -47,7 +47,7 @@ TEST(TKeyPairTest, Sign)
     std::array<std::byte, SignatureSize> signature;
     keyPair.Sign(randomData, signature);
 
-    EXPECT_TRUE(keyPair.KeyInfo().Verify(randomData, signature));
+    EXPECT_TRUE(keyPair.KeyInfo()->Verify(randomData, signature));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

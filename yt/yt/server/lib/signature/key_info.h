@@ -14,7 +14,8 @@ namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TKeyPairVersion {
+struct TKeyPairVersion
+{
     int Major;
     int Minor;
 };
@@ -25,7 +26,8 @@ template <TKeyPairVersion version>
 struct TKeyPairMetadataImpl;
 
 template <>
-struct TKeyPairMetadataImpl<TKeyPairVersion{0, 1}> {
+struct TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>
+{
     TOwnerId Owner;
     TKeyId Id;
     TInstant CreatedAt;
@@ -43,6 +45,12 @@ using TKeyPairMetadata = std::variant<
     TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>
 >;
 
+void Serialize(const TKeyPairMetadata& metadata, NYson::IYsonConsumer* consumer);
+
+void Deserialize(TKeyPairMetadata& metadata, NYTree::INodePtr node);
+
+void Deserialize(TKeyPairMetadata& metadata, NYson::TYsonPullParserCursor* cursor);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 [[nodiscard]] bool IsKeyPairMetadataValid(const TKeyPairMetadata& metadata);
@@ -53,19 +61,7 @@ using TKeyPairMetadata = std::variant<
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(const TKeyPairMetadata& metadata, NYson::IYsonConsumer* consumer);
-
-////////////////////////////////////////////////////////////////////////////////
-
-void Deserialize(TKeyPairMetadata& metadata, NYTree::INodePtr node);
-
-void Deserialize(TKeyPairMetadata& metadata, NYson::TYsonPullParserCursor* cursor);
-
-////////////////////////////////////////////////////////////////////////////////
-
 using TPublicKey = std::array<std::byte, PublicKeySize>;
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TKeyInfo final
 {
@@ -93,11 +89,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TKeyInfo)
 
-////////////////////////////////////////////////////////////////////////////////
-
 void Serialize(const TKeyInfo& keyInfo, NYson::IYsonConsumer* consumer);
-
-////////////////////////////////////////////////////////////////////////////////
 
 void Deserialize(TKeyInfo& keyInfo, NYson::TYsonPullParserCursor* cursor);
 

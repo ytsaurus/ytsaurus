@@ -13,7 +13,7 @@ namespace NYT::NSignature {
 struct IKeyStoreReader
     : public virtual TRefCounted
 {
-    virtual TFuture<TKeyInfoPtr> GetKey(const TOwnerId& owner, const TKeyId& id) = 0;
+    virtual TFuture<TKeyInfoPtr> FindKey(const TOwnerId& owner, const TKeyId& key) = 0;
 
     virtual ~IKeyStoreReader() = default;
 };
@@ -27,7 +27,7 @@ struct IKeyStoreWriter
 {
     [[nodiscard]] virtual TOwnerId GetOwner() = 0;
 
-    virtual TFuture<void> RegisterKey(const TKeyInfo& key) = 0;
+    virtual TFuture<void> RegisterKey(const TKeyInfoPtr& keyInfo) = 0;
 
     virtual ~IKeyStoreWriter() = default;
 };

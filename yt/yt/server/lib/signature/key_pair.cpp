@@ -33,10 +33,8 @@ TKeyPair::TKeyPair(const TKeyPairMetadata& metadata)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TKeyInfo& TKeyPair::KeyInfo() const {
-    YT_VERIFY(KeyInfo_);
-
-    return *KeyInfo_;
+TKeyInfoPtr TKeyPair::KeyInfo() const {
+    return KeyInfo_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,7 +61,7 @@ bool TKeyPair::CheckSanity() const
     int res = crypto_sign_ed25519_sk_to_pk(
         reinterpret_cast<unsigned char*>(extractedPublicKey.data()),
         reinterpret_cast<const unsigned char*>(PrivateKey_.Value().Tail(PrivateKeyPrefix.size()).data()));
-    return res == 0 && extractedPublicKey == KeyInfo().Key();
+    return res == 0 && extractedPublicKey == KeyInfo()->Key();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

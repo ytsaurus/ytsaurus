@@ -16,9 +16,9 @@ struct TMockKeyStore
 
     TOwnerId GetOwner() override;
 
-    TFuture<TKeyInfoPtr> GetKey(const TOwnerId& owner, const TKeyId& keyId) override;
+    TFuture<TKeyInfoPtr> FindKey(const TOwnerId& owner, const TKeyId& key) override;
 
-    TFuture<void> RegisterKey(const TKeyInfo& keyInfo) override;
+    TFuture<void> RegisterKey(const TKeyInfoPtr& keyInfo) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMockKeyStore)

@@ -32,7 +32,7 @@ TFuture<void> TSignatureGenerator::Rotate()
 {
     YT_LOG_INFO(
         "Rotating keypair (PreviousKeyPair: %v)",
-        (KeyPair_ ? std::optional{GetKeyId(KeyPair_->KeyInfo().Meta())} : std::nullopt));
+        (KeyPair_ ? std::optional{GetKeyId(KeyPair_->KeyInfo()->Meta())} : std::nullopt));
 
     auto now = Now();
     TKeyPair newKeyPair(TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
@@ -49,13 +49,13 @@ TFuture<void> TSignatureGenerator::Rotate()
                 auto guard = WriterGuard(KeyPairLock_);
                 KeyPair_ = std::move(keyPair);
             }
-            YT_LOG_INFO("Rotated keypair (NewKeyPair: %v)", GetKeyId(KeyPair_->KeyInfo().Meta()));
+            YT_LOG_INFO("Rotated keypair (NewKeyPair: %v)", GetKeyId(KeyPair_->KeyInfo()->Meta()));
         }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-[[nodiscard]] const TKeyInfo& TSignatureGenerator::KeyInfo() const
+TKeyInfoPtr TSignatureGenerator::KeyInfo() const
 {
     YT_VERIFY(KeyPair_);
     return KeyPair_->KeyInfo();
@@ -63,7 +63,7 @@ TFuture<void> TSignatureGenerator::Rotate()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-[[nodiscard]] TSignaturePtr TSignatureGenerator::Sign(TYsonString&& payload) const
+TSignaturePtr TSignatureGenerator::Sign(TYsonString&& payload) const
 {
     auto signatureId = TGuid::Create();
     auto now = Now();
@@ -79,7 +79,7 @@ TFuture<void> TSignatureGenerator::Rotate()
 
         header = TSignatureHeaderImpl<TSignatureVersion{0, 1}>{
             .Issuer = Owner_.Underlying(),
-            .KeypairId = GetKeyId(KeyPair_->KeyInfo().Meta()).Underlying(),
+            .KeypairId = GetKeyId(KeyPair_->KeyInfo()->Meta()).Underlying(),
             .SignatureId = signatureId,
             .IssuedAt = now,
             .ValidAfter = now - TimeSyncMargin,
@@ -91,11 +91,11 @@ TFuture<void> TSignatureGenerator::Rotate()
 
         auto toSign = PreprocessSignature(result->Header_, result->Payload_);
 
-        if (!IsKeyPairMetadataValid(KeyPair_->KeyInfo().Meta())) {
+        if (!IsKeyPairMetadataValid(KeyPair_->KeyInfo()->Meta())) {
             YT_LOG_WARNING(
                 "Signing with an invalid keypair (SignatureId: %v, KeyPair: %v)",
                 signatureId,
-                GetKeyId(KeyPair_->KeyInfo().Meta()));
+                GetKeyId(KeyPair_->KeyInfo()->Meta()));
         }
 
         KeyPair_->Sign(toSign, result->Signature_);
