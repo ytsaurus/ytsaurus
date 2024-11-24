@@ -538,6 +538,8 @@ TEST_F(TUnversionedRowMergerTest, MergeNestedColumns1)
             .SetAggregate("nested_value(n, sum)"),
         TColumnSchema("nv2", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))
             .SetAggregate("nested_value(n)"),
+        TColumnSchema("nv3", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Double)))
+            .SetAggregate("nested_value(n, sum)"),
     });
 
     auto schemaPtr = New<TTableSchema>(schema);
@@ -572,6 +574,20 @@ TEST_F(TUnversionedRowMergerTest, MergeNestedColumns1)
         EXPECT_EQ(
             BuildUnversionedRow(
                 "<id=0>0; <id=1>2;<id=2;aggregate=true>[1; 2; 3]; <id=3;aggregate=true>[10; 40; 30]; <id=4;aggregate=true>[a; c; d]"),
+            merger->BuildMergedRow());
+    }
+
+    {
+        auto row = BuildUnversionedRow("<id=0>0; <id=1>0; <id=2;aggregate=true>[]; <id=3;aggregate=true>[]");
+        merger->InitPartialRow(row);
+        merger->AddPartialRow(row);
+
+        merger->AddPartialRow(BuildUnversionedRow("<id=0>0; <id=1>1; <id=2;aggregate=true>[2; 1]; <id=3;aggregate=true>[20; 10]; <id=4;aggregate=true>[b; a]; <id=5;aggregate=true>[1.0; 2.0]"));
+        merger->AddPartialRow(BuildUnversionedRow("<id=0>0; <id=1>2; <id=2;aggregate=true>[2; 3]; <id=3;aggregate=true>[20; 30]; <id=4;aggregate=true>[c; d]; <id=5;aggregate=true>[3.0; 5.0]"));
+
+        EXPECT_EQ(
+            BuildUnversionedRow(
+                "<id=0>0; <id=1>2;<id=2;aggregate=true>[1; 2; 3]; <id=3;aggregate=true>[10; 40; 30]; <id=4;aggregate=true>[a; c; d]; <id=5;aggregate=true>[2.0; 4.0; 5.0]"),
             merger->BuildMergedRow());
     }
 }

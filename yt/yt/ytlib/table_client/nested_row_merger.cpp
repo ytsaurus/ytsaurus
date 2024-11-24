@@ -134,9 +134,9 @@ TNestedColumnsSchema GetNestedColumnsSchema(TTableSchemaPtr tableSchema)
                     if (elementType == EValueType::Int64) {
                         aggregateFunction = &AggregateSumInt64;
                     } else if (elementType == EValueType::Uint64) {
-                        aggregateFunction = &AggregateSumInt64;
+                        aggregateFunction = &AggregateSumUint64;
                     } else if (elementType == EValueType::Double) {
-                        aggregateFunction = &AggregateSumInt64;
+                        aggregateFunction = &AggregateSumDouble;
                     } else {
                         THROW_ERROR_EXCEPTION("Unsupported nested elemnt type")
                             << TErrorAttribute("type", elementType);
