@@ -11,6 +11,8 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
 
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
+
 #include <yt/yt/ytlib/driver/config.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
@@ -106,6 +108,8 @@ public:
                         nativeConnection->GetClusterDirectorySynchronizer()->Start();
                         nativeConnection->GetQueueConsumerRegistrationManager()->StartSync();
                     }
+
+                    NChunkClient::TDispatcher::Get()->Configure(driverConfig->ChunkClientDispatcher);
                     break;
                 }
             }
