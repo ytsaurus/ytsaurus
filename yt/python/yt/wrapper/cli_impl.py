@@ -1,5 +1,11 @@
+from .http_helpers import get_user_name
+from .common import YtError
+from .auth_commands import encode_sha256
+
 import yt.wrapper as yt
 import yt.logger as logger
+
+from getpass import getpass
 
 
 def _set_attribute(path, name, value, recursive, client=None):
@@ -50,3 +56,65 @@ def _remove_attribute(path, name, recursive, client=None):
                 logger.info("Attribute '%s' is removed on path '%s'", name, str(obj))
     else:
         yt.remove_attribute(path, name)
+
+
+def _validate_authentication_command_permissions(user, client=None):
+    """Checks if the authenticated user (represented by client) has permission to run authentication commands on user,
+    and whether typing a password is required.
+
+    :returns: "passwordless" if no password is required, "password" if password is required, raises YtError if the
+    authenticated user is not allowed to run authentication commands on user.
+    """
+    # Follows TClient::ValidateAuthenticationCommandPermissions from native client.
+    self_user = get_user_name(client=client)
+    if yt.check_permission(self_user, "administer", "//sys/users/" + user)["action"] == "allow":
+        logger.debug("Allowing user %s to run passwordless authentication command on %s by present "
+                     "administer permission", self_user, user)
+        return "passwordless"
+    if self_user == user:
+        logger.debug("Password authentication required for user %s to run authentication command on themselves",
+                     self_user)
+        return "password"
+    raise YtError('Action can be performed either by user "{}" themselves, or by a user having "administer" permission '
+                  'on user \"{}\"'.format(user, user))
+
+
+def _maybe_request_password(user, client=None):
+    """Requests password if needed."""
+    if _validate_authentication_command_permissions(user, client=client) == "passwordless":
+        return None
+    return getpass("Current password for {}: ".format(user))
+
+
+def _set_user_password_interactive(user, client=None):
+    """Updates user password, reading it and optionally a current password
+    interactively and securely from console."""
+
+    current_password = _maybe_request_password(user, client=client)
+    new_password = getpass("New password: ")
+    new_password_retyped = getpass("Retype new password: ")
+    if new_password != new_password_retyped:
+        raise YtError("Passwords do not match")
+    return yt.set_user_password(user, new_password, current_password=current_password,
+                                client=client)
+
+
+def _issue_token_interactive(user, client=None):
+    """Issues a new token for user, reading password interactively and securely from console."""
+    password = _maybe_request_password(user, client=client)
+    return yt.issue_token(user, password=password, client=client)
+
+
+def _revoke_token_interactive(user, token_sha256=None, client=None):
+    """Revokes user token, reading password and maybe token value interactively and securely from console."""
+    password = _maybe_request_password(user, client=client)
+    if not token_sha256:
+        token = getpass("Token: ")
+        token_sha256 = encode_sha256(token)
+    return yt.revoke_token(user, password=password, token_sha256=token_sha256, client=client)
+
+
+def _list_user_tokens_interactive(user, client=None):
+    """Lists sha256-encoded user tokens, reading password interactively and securely from console."""
+    password = _maybe_request_password(user, client=client)
+    return yt.list_user_tokens(user, password=password, client=client)
