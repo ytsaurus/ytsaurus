@@ -213,7 +213,7 @@ TBlockIOStatistics TSelfCGroupsStatisticsFetcher::GetBlockIOStatistics() const
     return IsV2_ ? GetBlockIOStatisticsV2(CGroup_) : GetBlockIOStatisticsV1(CGroup_);
 }
 
-i64 TSelfCGroupsStatisticsFetcher::GetOOMKillCount() const
+i64 TSelfCGroupsStatisticsFetcher::GetOomKillCount() const
 {
     auto oomEventsPath = IsV2_ ? Format("/sys/fs/cgroup/%v/memory.events", CGroup_) : Format("/sys/fs/cgroup/memory/%v/memory.oom_control", CGroup_);
     auto statistics = ReadAndParseStatFile(oomEventsPath);

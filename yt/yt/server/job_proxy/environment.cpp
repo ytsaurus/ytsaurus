@@ -1137,7 +1137,7 @@ public:
     std::optional<i64> GetJobOomKillCount() const noexcept override
     {
         try {
-            return StatisticsFetcher_.GetOOMKillCount();
+            return StatisticsFetcher_.GetOomKillCount();
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to get OOM kill count");
             return std::nullopt;

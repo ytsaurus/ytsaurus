@@ -34,7 +34,7 @@ public:
     TDuration CpuPeriod;
 
     //! By default at OOM kill all tasks at once. Requires cgroup-v2.
-    bool MemoryOOMGroup;
+    bool MemoryOomGroup;
 
     //! Retry requests on generic error with these message prefixes.
     std::vector<TString> RetryErrorPrefixes;
