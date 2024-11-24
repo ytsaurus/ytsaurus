@@ -54,7 +54,7 @@ for path in "ydb/library/yql/tools/mrjob" \
             "ydb/library/yql/yt/dynamic" \
             "ydb/library/yql/yt/dq_vanilla_job" \
             "ydb/library/yql/yt/dq_vanilla_job.lite" \
-            "ydb/library/yql/udfs/logs/dsv"
+            "yql/essentials/udfs/logs/dsv"
 do
     ${YDB_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YDB_SOURCE_PATH}/$path
 done
