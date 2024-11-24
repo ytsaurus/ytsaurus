@@ -1225,6 +1225,7 @@ def _build_native_driver_configs(master_connection_configs,
     configs = {}
     for cell_index in xrange(yt_config.secondary_cell_count + 1):
         config = default_config.get_driver_config()
+        init_chunk_client_dispatcher(config)
 
         if cell_index == 0:
             tag = primary_cell_tag
@@ -1864,6 +1865,12 @@ def get_at(config, path, default_value=None):
     return config
 
 
+def init_chunk_client_dispatcher(config):
+    set_at(config, "chunk_client_dispatcher", {
+        "chunk_reader_pool_size": 1,
+    })
+
+
 def init_singletons(config, yt_config, index):
     set_at(config, "stockpile", {
         "thread_count": 0,
@@ -1871,6 +1878,7 @@ def init_singletons(config, yt_config, index):
     set_at(config, "yp_service_discovery", {
         "enable": False,
     })
+    init_chunk_client_dispatcher(config)
     set_at(config, "rpc_dispatcher", {
         "compression_pool_size": 1,
         "heavy_pool_size": 1,
