@@ -1927,42 +1927,37 @@ def add_get_job_spec_parser(add_parser):
 
 
 def add_set_user_password_parser(add_parser):
-    parser = add_parser("set-user-password", yt.set_user_password)
+    parser = add_parser("set-user-password", cli_impl._set_user_password_interactive)
     parser.add_argument("user", help="user to set password")
-    parser.add_argument("--current-password", type=str, help="current user password")
-    parser.add_argument("--new-password", type=str, help="new user password")
 
 
-@copy_docstring_from(yt.issue_token)
+@copy_docstring_from(cli_impl._issue_token_interactive)
 def issue_token(**kwargs):
-    result = yt.issue_token(**kwargs)
+    result = cli_impl._issue_token_interactive(**kwargs)
     print_to_output(result)
 
 
 def add_issue_token_parser(add_parser):
     parser = add_parser("issue-token", issue_token)
     parser.add_argument("user", help="user to issue token")
-    parser.add_argument("--password", type=str, help="user password")
 
 
 def add_revoke_token_parser(add_parser):
-    parser = add_parser("revoke-token", yt.revoke_token)
+    parser = add_parser("revoke-token", cli_impl._revoke_token_interactive)
     parser.add_argument("user", help="user to revoke token")
-    parser.add_argument("--password", type=str, help="user password")
-    parser.add_argument("--token", type=str, help="token to revoke")
-    parser.add_argument("--token-sha256", type=str, help="sha256-encoded token to revoke")
+    parser.add_argument("--token-sha256", type=str, help="sha256-encoded token to revoke; if omitted, token value "
+                                                         "is requested interactively")
 
 
-@copy_docstring_from(yt.list_user_tokens)
+@copy_docstring_from(cli_impl._list_user_tokens_interactive)
 def list_user_tokens(**kwargs):
-    result = yt.list_user_tokens(**kwargs)
+    result = cli_impl._list_user_tokens_interactive(**kwargs)
     print_to_output(result)
 
 
 def add_list_user_tokens(add_parser):
     parser = add_parser("list-user-tokens", list_user_tokens)
     parser.add_argument("user", help="user to revoke token")
-    parser.add_argument("--password", type=str, help="user password")
 
 
 @copy_docstring_from(yt.get_supported_features)
