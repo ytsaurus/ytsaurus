@@ -4,186 +4,294 @@ namespace NYT::NYqlAgent {
 
 using namespace NTableClient;
 
-TTypeBuilder::TTypeBuilder() {}
+////////////////////////////////////////////////////////////////////////////////
+
+TTypeBuilder::TTypeBuilder()
+{ }
 
 TLogicalTypePtr TTypeBuilder::GetResult() const {
     return Type;
 }
 
 template<>
-TLogicalTypePtr TTypeBuilder::Pop<TLogicalTypePtr>() {
+TLogicalTypePtr TTypeBuilder::Pop<TLogicalTypePtr>()
+{
     Stack.pop();
     return std::move(Type);
 }
 
 template<class T>
-T TTypeBuilder::Pop() {
+T TTypeBuilder::Pop()
+{
     auto items = std::move(std::get<T>(ItemsStack.top()));
     ItemsStack.pop();
     Stack.pop();
     return items;
 }
 
-void TTypeBuilder::OnVoid() {
+void TTypeBuilder::OnVoid()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Void));
 }
-void TTypeBuilder::OnNull() {
+
+void TTypeBuilder::OnNull()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Null));
 }
-void TTypeBuilder::OnEmptyList() {
+
+void TTypeBuilder::OnEmptyList()
+{
     Push(TaggedLogicalType("_EmptyList", NullLogicalType()));
 }
-void TTypeBuilder::OnEmptyDict() {
+
+void TTypeBuilder::OnEmptyDict()
+{
     Push(TaggedLogicalType("_EmptyDict", NullLogicalType()));
 }
-void TTypeBuilder::OnBool() {
+
+void TTypeBuilder::OnBool()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Boolean));
 }
-void TTypeBuilder::OnInt8() {
+
+void TTypeBuilder::OnInt8()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Int8));
 }
-void TTypeBuilder::OnUint8() {
+
+void TTypeBuilder::OnUint8()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Uint8));
 }
-void TTypeBuilder::OnInt16() {
+
+void TTypeBuilder::OnInt16()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Int16));
 }
-void TTypeBuilder::OnUint16() {
+
+void TTypeBuilder::OnUint16()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Uint16));
 }
-void TTypeBuilder::OnInt32() {
+
+void TTypeBuilder::OnInt32()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Int32));
 }
-void TTypeBuilder::OnUint32() {
+
+void TTypeBuilder::OnUint32()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Uint32));
 }
-void TTypeBuilder::OnInt64() {
+
+void TTypeBuilder::OnInt64()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Int64));
 }
-void TTypeBuilder::OnUint64() {
+
+void TTypeBuilder::OnUint64()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Uint64));
 }
-void TTypeBuilder::OnFloat() {
+
+void TTypeBuilder::OnFloat()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Float));
 }
-void TTypeBuilder::OnDouble() {
+
+void TTypeBuilder::OnDouble()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Double));
 }
-void TTypeBuilder::OnString() {
+
+void TTypeBuilder::OnString()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::String));
 }
-void TTypeBuilder::OnUtf8() {
+
+void TTypeBuilder::OnUtf8()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Utf8));
 }
-void TTypeBuilder::OnYson() {
+
+void TTypeBuilder::OnYson()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Any));
 }
-void TTypeBuilder::OnJson() {
+
+void TTypeBuilder::OnJson()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Json));
 }
-void TTypeBuilder::OnJsonDocument() {
+
+void TTypeBuilder::OnJsonDocument()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::String));
 }
-void TTypeBuilder::OnUuid() {
+
+void TTypeBuilder::OnUuid()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Uuid));
 }
-void TTypeBuilder::OnDyNumber() {
+
+void TTypeBuilder::OnDyNumber()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::String));
 }
-void TTypeBuilder::OnDate() {
+
+void TTypeBuilder::OnDate()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Date));
 }
-void TTypeBuilder::OnDatetime() {
+
+void TTypeBuilder::OnDatetime()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Datetime));
 }
-void TTypeBuilder::OnTimestamp() {
+
+void TTypeBuilder::OnTimestamp()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Timestamp));
 }
-void TTypeBuilder::OnTzDate() {
+
+void TTypeBuilder::OnTzDate()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::String));
 }
-void TTypeBuilder::OnTzDatetime() {
+
+void TTypeBuilder::OnTzDatetime()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::String));
 }
-void TTypeBuilder::OnTzTimestamp() {
+
+void TTypeBuilder::OnTzTimestamp()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::String));
 }
-void TTypeBuilder::OnInterval() {
+
+void TTypeBuilder::OnInterval()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Interval));
 }
-void TTypeBuilder::OnDate32() {
+
+void TTypeBuilder::OnDate32()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Date32));
 }
-void TTypeBuilder::OnDatetime64() {
+
+void TTypeBuilder::OnDatetime64()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Datetime64));
 }
-void TTypeBuilder::OnTimestamp64() {
+
+void TTypeBuilder::OnTimestamp64()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Timestamp64));
 }
-void TTypeBuilder::OnTzDate32() {
+
+void TTypeBuilder::OnTzDate32()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::String));
 }
-void TTypeBuilder::OnTzDatetime64() {
+
+void TTypeBuilder::OnTzDatetime64()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::String));
 }
-void TTypeBuilder::OnTzTimestamp64() {
+
+void TTypeBuilder::OnTzTimestamp64()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::String));
 }
-void TTypeBuilder::OnInterval64() {
+
+void TTypeBuilder::OnInterval64()
+{
     Push(SimpleLogicalType(ESimpleLogicalValueType::Interval64));
 }
-void TTypeBuilder::OnDecimal(ui32 precision, ui32 scale) {
+
+void TTypeBuilder::OnDecimal(ui32 precision, ui32 scale)
+{
     Push(DecimalLogicalType(precision, scale));
 }
-void TTypeBuilder::OnBeginOptional() {
+
+void TTypeBuilder::OnBeginOptional()
+{
     Stack.push(EKind::Optional);
 }
-void TTypeBuilder::OnEndOptional() {
+
+void TTypeBuilder::OnEndOptional()
+{
     Push(OptionalLogicalType(Pop()));
 }
-void TTypeBuilder::OnBeginList() {
+void TTypeBuilder::OnBeginList()
+{
     Stack.push(EKind::List);
 }
-void TTypeBuilder::OnEndList() {
+
+void TTypeBuilder::OnEndList()
+{
     Push(ListLogicalType(Pop()));
 }
-void TTypeBuilder::OnBeginTuple() {
+
+void TTypeBuilder::OnBeginTuple()
+{
     Stack.push(EKind::Tuple);
     ItemsStack.push(TElements());
 }
-void TTypeBuilder::OnTupleItem() {
+
+void TTypeBuilder::OnTupleItem()
+{
 }
-void TTypeBuilder::OnEndTuple() {
+
+void TTypeBuilder::OnEndTuple()
+{
     Push(TupleLogicalType(Pop<TElements>()));
 }
-void TTypeBuilder::OnBeginStruct() {
+
+void TTypeBuilder::OnBeginStruct()
+{
     Stack.push(EKind::Struct);
     ItemsStack.push(TMembers());
 }
-void TTypeBuilder::OnStructItem(TStringBuf member) {
+void TTypeBuilder::OnStructItem(TStringBuf member)
+{
     MemberNames.emplace(member);
 }
-void TTypeBuilder::OnEndStruct() {
+
+void TTypeBuilder::OnEndStruct()
+{
     Push(StructLogicalType(Pop<TMembers>()));
 }
-void TTypeBuilder::OnBeginDict() {
+
+void TTypeBuilder::OnBeginDict()
+{
     Stack.push(EKind::Dict);
     ItemsStack.push(TKeyAndPayload());
 }
-void TTypeBuilder::OnDictKey() {
+
+void TTypeBuilder::OnDictKey()
+{
     std::get<TKeyAndPayload>(ItemsStack.top()).Switch = true;
 }
-void TTypeBuilder::OnDictPayload() {
+
+void TTypeBuilder::OnDictPayload()
+{
     std::get<TKeyAndPayload>(ItemsStack.top()).Switch = false;
 }
-void TTypeBuilder::OnEndDict() {
+
+void TTypeBuilder::OnEndDict()
+{
     auto items = Pop<TKeyAndPayload>();
     Push(DictLogicalType(std::move(items.Key), std::move(items.Payload)));
 }
-void TTypeBuilder::OnBeginVariant() {
+
+void TTypeBuilder::OnBeginVariant()
+{
     Stack.push(EKind::Variant);
 }
-void TTypeBuilder::OnEndVariant() {
+
+void TTypeBuilder::OnEndVariant()
+{
     const auto internal = Pop();
     switch (internal->GetMetatype()) {
         case ELogicalMetatype::Struct:
@@ -196,18 +304,25 @@ void TTypeBuilder::OnEndVariant() {
             THROW_ERROR_EXCEPTION("Invalid variant type.");
     }
 }
-void TTypeBuilder::OnBeginTagged(TStringBuf tag) {
+
+void TTypeBuilder::OnBeginTagged(TStringBuf tag)
+{
     Stack.push(EKind::Tagged);
     ItemsStack.push(TTag(tag));
 }
-void TTypeBuilder::OnEndTagged() {
+
+void TTypeBuilder::OnEndTagged()
+{
     Push(TaggedLogicalType(Pop<TTag>(), std::move(Type)));
 }
-void TTypeBuilder::OnPg(TStringBuf name, TStringBuf category) {
+
+void TTypeBuilder::OnPg(TStringBuf name, TStringBuf category)
+{
     THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
 }
 
-void TTypeBuilder::Push(TLogicalTypePtr type) {
+void TTypeBuilder::Push(TLogicalTypePtr type)
+{
     if (Stack.empty()) {
         Type = std::move(type);
         return;

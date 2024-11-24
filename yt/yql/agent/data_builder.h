@@ -6,7 +6,8 @@
 namespace NYT::NYqlAgent {
 class TDataBuilder : public NYql::NResult::IDataVisitor {
 public:
-    TDataBuilder(NTableClient::IValueConsumer* consumer);
+    explicit TDataBuilder(NTableClient::IValueConsumer* consumer);
+
 private:
     void OnVoid() final;
     void OnNull() final;
@@ -93,6 +94,8 @@ private:
     int Depth_ = -2; // Starts from table level: -2 List< -1 Struct< 0 ... >>
     int ColumnIndex_ = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 }
 

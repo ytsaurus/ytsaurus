@@ -201,7 +201,8 @@ TYqlRowset BuildRowsetByRef(
     };
 }
 
-TTableSchemaPtr BuildSchema(const TLogicalType& type) {
+TTableSchemaPtr BuildSchema(const TLogicalType& type)
+{
     std::vector<TColumnSchema> columns;
     for (const auto& member : type.AsListTypeRef().GetElement()->AsStructTypeRef().GetFields()) {
         columns.emplace_back(member.Name, member.Type);
@@ -349,6 +350,7 @@ std::vector<TWireYqlRowset> BuildRowsets(
         }
         return rowsets;
     } catch (const std::exception& ex) {
+        rowsets.clear();
         const auto error = TError(ex);
         YT_LOG_DEBUG("Error building rowset result from yson: %v. Try fallback to skiff.", error);
     }

@@ -12,6 +12,7 @@ public:
     TTypeBuilder();
 
     NTableClient::TLogicalTypePtr GetResult() const;
+
 private:
     void OnVoid() final;
     void OnNull() final;
@@ -106,5 +107,7 @@ private:
     std::stack<TItem> ItemsStack;
     std::stack<TString> MemberNames;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 }
