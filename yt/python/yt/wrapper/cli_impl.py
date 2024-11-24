@@ -1,8 +1,10 @@
-import yt.wrapper as yt
-import yt.logger as logger
 from .http_helpers import get_user_name
 from .common import YtError
 from .auth_commands import encode_sha256
+
+import yt.wrapper as yt
+import yt.logger as logger
+
 from getpass import getpass
 
 
