@@ -7,7 +7,10 @@
 
 namespace NYT::NYqlAgent {
 
-class TTypeBuilder : public NYql::NResult::ITypeVisitor {
+////////////////////////////////////////////////////////////////////////////////
+
+class TTypeBuilder
+    : public NYql::NResult::ITypeVisitor {
 public:
     TTypeBuilder();
 
@@ -110,4 +113,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT::NYqlAgent

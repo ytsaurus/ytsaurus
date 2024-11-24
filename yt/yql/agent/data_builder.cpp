@@ -433,4 +433,4 @@ void TDataBuilder::EndList()
     }
 }
 
-}
+} // namespace NYT::NYqlAgent

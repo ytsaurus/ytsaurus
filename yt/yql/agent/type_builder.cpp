@@ -345,4 +345,4 @@ void TTypeBuilder::Push(TLogicalTypePtr type)
     }
 }
 
-}
+} // namespace NYT::NYqlAgent

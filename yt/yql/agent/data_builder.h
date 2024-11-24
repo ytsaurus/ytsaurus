@@ -4,7 +4,11 @@
 #include <yt/yt/client/table_client/value_consumer.h>
 
 namespace NYT::NYqlAgent {
-class TDataBuilder : public NYql::NResult::IDataVisitor {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDataBuilder
+    : public NYql::NResult::IDataVisitor {
 public:
     explicit TDataBuilder(NTableClient::IValueConsumer* consumer);
 
@@ -97,5 +101,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT::NYqlAgent
 
