@@ -53,10 +53,10 @@ def get_first_job_node(op):
 
 ##################################################################
 
-# @pytest.mark.skipif(
-#     is_asan_build() or is_debug_build(),
-#     reason="This test suite requires a genuine release build to fit into timeout"
-# )
+@pytest.mark.skipif(
+    is_asan_build() or is_debug_build(),
+    reason="This test suite requires a genuine release build to fit into timeout"
+)
 class TestSchedulingSegments(YTEnvSetup):
     NUM_TEST_PARTITIONS = 8
     NUM_MASTERS = 1
@@ -1608,16 +1608,32 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_fail_large_gpu_operation_started_in_several_trees(self):
-        node = list(ls("//sys/cluster_nodes"))[0]
+        other_nodes = list(ls("//sys/cluster_nodes"))[:2]
         set("//sys/pool_trees/default/@config/nodes_filter", "!other")
         create_pool_tree("other", config={"nodes_filter": "other", "main_resource": "gpu"})
-        set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "other")
+        for node in other_nodes:
+            set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "other")
 
         big_op = run_sleeping_vanilla(
             spec={"pool_trees": ["default", "other"]},
+            job_count=2,
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: big_op.get_state() == "failed")
+
+        big_op_single_tree = run_test_vanilla(
+            "sleep 1",
+            spec={"pool_trees": ["default", "other"], "schedule_in_single_tree": True},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        big_op_single_tree.track()
+
+        big_op_single_job = run_test_vanilla(
+            "sleep 1",
+            spec={"pool_trees": ["default", "other"]},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        big_op_single_job.track()
 
         small_op = run_test_vanilla(
             "sleep 1",

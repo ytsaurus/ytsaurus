@@ -96,7 +96,7 @@ public:
         : Config_(std::move(config))
         , InitialConfigNode_(std::move(configNode))
         , Bootstrap_(bootstrap)
-        , ForkCounters_(New<TForkCounters>(ControllerAgentProfiler))
+        , ForkCounters_(New<TForkCounters>(ControllerAgentProfiler()))
     { }
 
     void Initialize()
@@ -315,7 +315,7 @@ private:
 
     TEnumIndexedArray<EControllerAgentAlertType, TError> Alerts_;
 
-    NProfiling::TCounter UpdateOperationProgressFailuresCounter_ = ControllerAgentProfiler
+    NProfiling::TCounter UpdateOperationProgressFailuresCounter_ = ControllerAgentProfiler()
         .Counter("/operations_archive/update_progress_failures");
 
     TForkCountersPtr ForkCounters_;

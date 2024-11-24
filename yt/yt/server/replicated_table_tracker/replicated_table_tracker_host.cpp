@@ -36,7 +36,7 @@ static constexpr auto& Logger = ReplicatedTableTrackerLogger;
 
 TReplicatedTableTrackerHostCounters::TReplicatedTableTrackerHostCounters()
 {
-    auto profiler = ReplicatedTableTrackerProfiler
+    auto profiler = ReplicatedTableTrackerProfiler()
         .WithSparse()
         .WithPrefix("/rtt_host");
 

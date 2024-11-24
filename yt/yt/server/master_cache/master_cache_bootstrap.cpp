@@ -54,7 +54,7 @@ public:
             GetConfig()->CachingObjectService,
             GetNullMemoryUsageTracker(),
             MasterCacheLogger(),
-            MasterCacheProfiler.WithPrefix("/object_service_cache"));
+            MasterCacheProfiler().WithPrefix("/object_service_cache"));
 
         const auto& connection = GetConnection();
         {
@@ -112,7 +112,7 @@ private:
             ObjectServiceCache_,
             masterCellId,
             Logger(),
-            MasterCacheProfiler.WithPrefix("/caching_object_service"),
+            MasterCacheProfiler().WithPrefix("/caching_object_service"),
             GetNativeAuthenticator());
 
         EmplaceOrCrash(CachingObjectServices_, CellTagFromId(masterCellId), cachingObjectService);

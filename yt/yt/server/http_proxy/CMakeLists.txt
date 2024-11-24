@@ -34,7 +34,7 @@ target_link_libraries(yt-server-http_proxy PUBLIC
   yt-library-dynamic_config
   yt-library-ytprof
   yt-library-containers
-  library-containers-disk_manager
+  yt-library-disk_manager
   yt-core-https
   ytserver
   server-lib-chunk_pools

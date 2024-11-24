@@ -110,7 +110,7 @@ ECellarType TCellBundle::GetCellarType() const
 
 void TCellBundle::InitializeProfilingCounters()
 {
-    auto profiler = TabletServerProfiler
+    auto profiler = TabletServerProfiler()
         .WithTag("tablet_cell_bundle", Name_);
 
     ProfilingCounters_.Profiler = profiler;

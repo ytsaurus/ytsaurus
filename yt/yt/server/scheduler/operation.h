@@ -96,6 +96,15 @@ using TOperationAlertMap = TCompactFlatMap<
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TBriefVanillaTaskSpec
+{
+    int JobCount;
+};
+
+using TBriefVanillaTaskSpecMap = THashMap<std::string, TBriefVanillaTaskSpec>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EUnschedulableReason,
     (IsNotRunning)
     (Suspended)
@@ -136,6 +145,8 @@ struct IOperationStrategyHost
     virtual const NYson::TYsonString& GetSpecString() const = 0;
 
     virtual const NYson::TYsonString& GetTrimmedAnnotations() const = 0;
+
+    virtual const std::optional<TBriefVanillaTaskSpecMap>& GetMaybeBriefVanillaTaskSpecs() const = 0;
 
     virtual TOperationRuntimeParametersPtr GetRuntimeParameters() const = 0;
 
@@ -300,7 +311,9 @@ public:
 
     //! Returns names of operation tasks.
     //! Works for vanilla operations only.
-    const std::vector<TString>& GetTaskNames() const;
+    std::vector<std::string> GetTaskNames() const;
+
+    const std::optional<TBriefVanillaTaskSpecMap>& GetMaybeBriefVanillaTaskSpecs() const override;
 
     //! Gets set when the operation is started.
     TFuture<TOperationPtr> GetStarted();
@@ -410,7 +423,7 @@ public:
         THashMap<TString, TStrategyOperationSpecPtr> customSpecPerTree,
         NYson::TYsonString specString,
         NYson::TYsonString trimmedAnnotations,
-        std::vector<TString> vanillaTaskNames,
+        std::optional<TBriefVanillaTaskSpecMap> briefVanillaTaskSpecs,
         NYTree::IMapNodePtr secureVault,
         TOperationRuntimeParametersPtr runtimeParameters,
         NSecurityClient::TSerializableAccessControlList baseAcl,
@@ -435,7 +448,7 @@ private:
     const TString AuthenticatedUser_;
     const NYson::TYsonString SpecString_;
     const NYson::TYsonString TrimmedAnnotations_;
-    const std::vector<TString> VanillaTaskNames_;
+    const std::optional<TBriefVanillaTaskSpecMap> BriefVanillaTaskSpecs_;
     const THashMap<TString, TStrategyOperationSpecPtr> CustomSpecPerTree_;
     const std::string Codicil_;
     const IInvokerPtr ControlInvoker_;
@@ -480,7 +493,7 @@ struct TPreprocessedSpec
     THashMap<TString, TStrategyOperationSpecPtr> CustomSpecPerTree;
     std::vector<TExperimentAssignmentPtr> ExperimentAssignments;
     std::vector<TError> ExperimentAssignmentErrors;
-    std::vector<TString> VanillaTaskNames;
+    std::optional<THashMap<std::string, TBriefVanillaTaskSpec>> BriefVanillaTaskSpecs;
 };
 
 //! Fill various spec parts of preprocessed spec.

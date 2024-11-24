@@ -12,22 +12,22 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_library(library-containers-disk_manager)
+add_library(yt-library-disk_manager)
 
 
-target_compile_options(library-containers-disk_manager PRIVATE
+target_compile_options(yt-library-disk_manager PRIVATE
   -Wdeprecated-this-capture
 )
 
-target_link_libraries(library-containers-disk_manager PUBLIC
+target_link_libraries(yt-library-disk_manager PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
 )
 
-target_sources(library-containers-disk_manager PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/disk_manager/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/disk_manager/disk_info_provider.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/disk_manager/disk_manager_proxy.cpp
+target_sources(yt-library-disk_manager PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/disk_manager/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/disk_manager/disk_info_provider.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/disk_manager/disk_manager_proxy.cpp
 )
 

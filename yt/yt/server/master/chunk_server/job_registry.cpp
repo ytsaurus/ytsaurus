@@ -304,7 +304,7 @@ private:
         return CreateReconfigurableThroughputThrottler(
             New<TThroughputThrottlerConfig>(),
             ChunkServerLogger(),
-            ChunkServerProfiler.WithPrefix("/job_throttler"));
+            ChunkServerProfiler().WithPrefix("/job_throttler"));
     }
 
     static TPerTypeJobThrottlers CreatePerTypeJobThrottlers()
@@ -315,7 +315,7 @@ private:
                 auto throttler = CreateReconfigurableThroughputThrottler(
                     New<TThroughputThrottlerConfig>(),
                     ChunkServerLogger(),
-                    ChunkServerProfiler.WithPrefix(Format("/per_type_job_throttler/%lv", jobType)));
+                    ChunkServerProfiler().WithPrefix(Format("/per_type_job_throttler/%lv", jobType)));
                 EmplaceOrCrash(throttlers, jobType, std::move(throttler));
             }
         }

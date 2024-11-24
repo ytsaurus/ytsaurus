@@ -1292,7 +1292,7 @@ private:
             return &it->second;
         }
 
-        auto profiler = TabletServerProfiler
+        auto profiler = TabletServerProfiler()
             .WithSparse()
             .WithTag("tablet_cell_bundle", std::get<TString>(key))
             .WithTag("table_type", table->IsPhysicallySorted() ? "sorted" : "ordered");

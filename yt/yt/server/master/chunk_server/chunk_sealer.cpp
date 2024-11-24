@@ -146,8 +146,8 @@ public:
     explicit TChunkSealer(TBootstrap* bootstrap)
         : Config_(bootstrap->GetConfig()->ChunkManager)
         , Bootstrap_(bootstrap)
-        , SuccessfulSealCounter_(ChunkServerProfiler.Counter("/chunk_sealer/successful_seals"))
-        , UnsuccessfuleSealCounter_(ChunkServerProfiler.Counter("/chunk_sealer/unsuccessful_seals"))
+        , SuccessfulSealCounter_(ChunkServerProfiler().Counter("/chunk_sealer/successful_seals"))
+        , UnsuccessfuleSealCounter_(ChunkServerProfiler().Counter("/chunk_sealer/unsuccessful_seals"))
         , SealScanner_(std::make_unique<TChunkScanner>(
             EChunkScanKind::Seal,
             /*isJournal*/ true))

@@ -1,6 +1,7 @@
 #include "blob_session.h"
-#include "bootstrap.h"
+
 #include "blob_chunk.h"
+#include "bootstrap.h"
 #include "chunk_store.h"
 #include "config.h"
 #include "location.h"
@@ -15,9 +16,9 @@
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
-
 #include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/fs.h>
@@ -27,14 +28,14 @@
 
 namespace NYT::NDataNode {
 
-using namespace NProfiling;
-using namespace NRpc;
-using namespace NIO;
-using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NNodeTrackerClient;
+using namespace NChunkClient;
 using namespace NClusterNode;
 using namespace NConcurrency;
+using namespace NIO;
+using namespace NNodeTrackerClient;
+using namespace NProfiling;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -44,9 +44,9 @@
 #include <yt/yt/library/auth_server/cypress_cookie_login.h>
 #include <yt/yt/library/auth_server/cypress_cookie_manager.h>
 
-#include <yt/yt/library/containers/disk_manager/config.h>
-#include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
-#include <yt/yt/library/containers/disk_manager/disk_manager_proxy.h>
+#include <yt/yt/library/disk_manager/config.h>
+#include <yt/yt/library/disk_manager/disk_info_provider.h>
+#include <yt/yt/library/disk_manager/disk_manager_proxy.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
@@ -133,7 +133,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         "http_proxy");
 
     DiskManagerProxy_ = CreateDiskManagerProxy(Config_->DiskManagerProxy);
-    DiskInfoProvider_ = New<NContainers::TDiskInfoProvider>(
+    DiskInfoProvider_ = New<NDiskManager::TDiskInfoProvider>(
         DiskManagerProxy_,
         Config_->DiskInfoProvider);
     DiskChangeChecker_ = New<TDiskChangeChecker>(
@@ -148,7 +148,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         Config_->MemoryLimits->Total.value_or(std::numeric_limits<i64>::max()),
         /*limits*/ {},
         Logger(),
-        HttpProxyProfiler.WithPrefix("/memory_usage"));
+        HttpProxyProfiler().WithPrefix("/memory_usage"));
 
     ReconfigureMemoryLimits(Config_->MemoryLimits);
 

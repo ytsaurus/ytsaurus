@@ -55,6 +55,7 @@ target_link_options(unittester-signature-service PRIVATE
 
 target_sources(unittester-signature-service PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/cypress_key_store_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/key_info_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/key_pair_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/signature_ut.cpp

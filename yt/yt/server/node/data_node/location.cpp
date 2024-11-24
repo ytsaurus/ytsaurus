@@ -384,7 +384,7 @@ TChunkLocation::TChunkLocation(
 
     MediumTag_ = tagSet.AddDynamicTag(2);
 
-    Profiler_ = LocationProfiler
+    Profiler_ = LocationProfiler()
         .WithSparse()
         .WithTags(tagSet);
 
@@ -1598,7 +1598,7 @@ void TChunkLocation::SubscribeDiskCheckFailed(const TCallback<void(const TError&
 
 void TChunkLocation::UpdateMediumTag()
 {
-    LocationProfiler.RenameDynamicTag(MediumTag_, "medium", GetMediumName());
+    LocationProfiler().RenameDynamicTag(MediumTag_, "medium", GetMediumName());
 }
 
 void TChunkLocation::UpdateMediumDescriptor(const NChunkClient::TMediumDescriptor& newDescriptor, bool onInitialize)

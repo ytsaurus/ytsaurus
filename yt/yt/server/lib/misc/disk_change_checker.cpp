@@ -6,15 +6,15 @@
 
 #include <yt/yt/core/misc/fs.h>
 
-#include <yt/yt/library/containers/disk_manager/public.h>
-#include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
+#include <yt/yt/library/disk_manager/public.h>
+#include <yt/yt/library/disk_manager/disk_info_provider.h>
 
 #include <util/random/random.h>
 
 namespace NYT {
 
 using namespace NConcurrency;
-using namespace NContainers;
+using namespace NDiskManager;
 using namespace NProfiling;
 using namespace NLogging;
 using namespace NYTree;
@@ -110,7 +110,7 @@ void TDiskChangeChecker::CheckDiskChange(const std::vector<TDiskInfo>& diskInfos
     THashSet<TString> configDiskIds;
 
     for (const auto& diskInfo : diskInfos) {
-        if (diskInfo.State == NContainers::EDiskState::OK) {
+        if (diskInfo.State == EDiskState::OK) {
             aliveDiskIds.insert(diskInfo.DiskId);
             diskIds.insert(diskInfo.DiskId);
         }

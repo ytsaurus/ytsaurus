@@ -45,8 +45,8 @@
 
 #include <yt/yt/library/program/build_attributes.h>
 
-#include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
-#include <yt/yt/library/containers/disk_manager/disk_manager_proxy.h>
+#include <yt/yt/library/disk_manager/disk_info_provider.h>
+#include <yt/yt/library/disk_manager/disk_manager_proxy.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 
@@ -142,7 +142,7 @@ void TBootstrap::DoRun()
         *Config_->MemoryLimits->Total,
         /*limits*/ {},
         Logger(),
-        RpcProxyProfiler.WithPrefix("/memory_usage"));
+        RpcProxyProfiler().WithPrefix("/memory_usage"));
 
     ReconfigureMemoryLimits(Config_->MemoryLimits);
 
@@ -224,7 +224,7 @@ void TBootstrap::DoRun()
     }
 
     DiskManagerProxy_ = CreateDiskManagerProxy(Config_->DiskManagerProxy);
-    DiskInfoProvider_ = New<NContainers::TDiskInfoProvider>(
+    DiskInfoProvider_ = New<NDiskManager::TDiskInfoProvider>(
         DiskManagerProxy_,
         Config_->DiskInfoProvider);
     DiskChangeChecker_ = New<TDiskChangeChecker>(
@@ -292,7 +292,7 @@ void TBootstrap::DoRun()
             securityManager,
             TraceSampler_,
             RpcProxyLogger(),
-            RpcProxyProfiler,
+            RpcProxyProfiler(),
             MemoryUsageTracker_);
     };
 

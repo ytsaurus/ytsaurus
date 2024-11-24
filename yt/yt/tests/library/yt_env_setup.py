@@ -48,6 +48,7 @@ from yt_helpers import master_exit_read_only_sync
 
 import pytest
 
+import inspect
 import gc
 import os
 import sys
@@ -62,6 +63,50 @@ from threading import Thread
 
 OUTPUT_PATH = None
 SANDBOX_ROOTDIR = None
+
+##################################################################
+
+
+class AdditionalThread:
+    def __init__(self, target, name=None):
+        self.name = inspect.getsourcelines(target) if name is None else name
+        self._result = None
+        self._exception = None
+        self._target = target
+        self._thread = Thread(name=name, target=self._run)
+
+    def _run(self):
+        try:
+            self._result = self._target()
+        except Exception as ex:
+            self._exception = ex
+
+    def start(self):
+        self._thread.start()
+
+    def wait(self):
+        yt_commands.print_debug(f"Waiting for additional thread {self.name}")
+        self._thread.join()
+        yt_commands.print_debug(f"Additional thread {self.name} finished")
+
+    def join(self):
+        self.wait()
+        if self._exception is not None:
+            raise self._exception
+        return self._result
+
+
+def with_additional_threads(func):
+    def wrapper(func, self, *args, **kwargs):
+        self._additional_threads = []
+        try:
+            return func(self, *args, **kwargs)
+        finally:
+            for t in self._additional_threads:
+                t.join()
+
+    return decorator.decorate(func, wrapper)
+
 
 ##################################################################
 
@@ -1464,6 +1509,8 @@ class YTEnvSetup(object):
                 sleep(0.1)
 
     def teardown_method(self, method, wait_for_nodes=True):
+        self._maybe_cleanup_additional_threads()
+
         yt_commands._zombie_responses[:] = []
 
         for cluster_index, env in enumerate(self.ground_envs + [self.Env] + self.remote_envs):
@@ -2126,6 +2173,23 @@ class YTEnvSetup(object):
 
             for node, response in zip(exec_nodes, responses):
                 print("Node {}: {}".format(node, response), file=sys.stderr)
+
+    def spawn_additional_thread(self, target, name=None):
+        assert \
+            hasattr(self, "_additional_threads"), \
+            "@with_additional_threads is required to use additional threads"
+        t = AdditionalThread(name=name, target=target)
+        t.start()
+        self._additional_threads.append(t)
+        return t
+
+    def _maybe_cleanup_additional_threads(self):
+        if not hasattr(self, "_additional_threads"):
+            return
+
+        for t in self._additional_threads:
+            t.wait()
+        del self._additional_threads
 
 
 def get_custom_rootfs_delta_node_config():

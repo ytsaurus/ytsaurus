@@ -733,7 +733,7 @@ TObjectManager::TObjectManager(TBootstrap* bootstrap)
     , GarbageCollector_(New<TGarbageCollector>(Bootstrap_))
     , MutationIdempotizer_(New<TMutationIdempotizer>(Bootstrap_))
 {
-    ObjectServerProfiler
+    ObjectServerProfiler()
         .WithDefaultDisabled()
         .AddProducer("", BufferedProducer_);
 
@@ -2412,7 +2412,7 @@ NProfiling::TTimeCounter* TObjectManager::GetMethodCumulativeExecuteTimeCounter(
             key,
             [&] {
                 auto entry = std::make_unique<TMethodEntry>();
-                entry->CumulativeExecuteTimeCounter = ObjectServerProfiler
+                entry->CumulativeExecuteTimeCounter = ObjectServerProfiler()
                     .WithTag("type", FormatObjectType(type))
                     .WithTag("method", method)
                     .TimeCounter("/cumulative_execute_time");

@@ -161,12 +161,12 @@ DECLARE_REFCOUNTED_STRUCT(TRefCountedAllocationPreemptionStatusMapPerOperation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const auto SchedulerEventLogger = NLogging::TLogger("SchedulerEventLog").WithEssential();
-inline const auto SchedulerStructuredLogger = NLogging::TLogger("SchedulerStructuredLog").WithEssential();
-inline const auto SchedulerGpuEventLogger = NLogging::TLogger("SchedulerGpuStructuredLog").WithEssential();
-inline const auto SchedulerResourceMeteringLogger = NLogging::TLogger("SchedulerResourceMetering").WithEssential();
+YT_DEFINE_GLOBAL(const NLogging::TLogger, SchedulerEventLogger, NLogging::TLogger("SchedulerEventLog").WithEssential());
+YT_DEFINE_GLOBAL(const NLogging::TLogger, SchedulerStructuredLogger, NLogging::TLogger("SchedulerStructuredLog").WithEssential());
+YT_DEFINE_GLOBAL(const NLogging::TLogger, SchedulerGpuEventLogger, NLogging::TLogger("SchedulerGpuStructuredLog").WithEssential());
+YT_DEFINE_GLOBAL(const NLogging::TLogger, SchedulerResourceMeteringLogger, NLogging::TLogger("SchedulerResourceMetering").WithEssential());
 
-inline const NProfiling::TProfiler SchedulerProfiler{"/scheduler"};
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, SchedulerProfiler, "/scheduler");
 
 static constexpr int MaxNodesWithoutPoolTreeToAlert = 10;
 

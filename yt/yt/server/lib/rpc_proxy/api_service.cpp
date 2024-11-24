@@ -6621,7 +6621,7 @@ private:
             .ValueOrThrow();
 
         if (checkResult.Action == ESecurityAction::Deny) {
-            THROW_ERROR_EXCEPTION("User %Qv has been denied %Qv access to account %Qv",
+            THROW_ERROR_EXCEPTION("User %Qv has been denied %Qlv access to account %Qv",
                 user,
                 EPermission::Use,
                 request->account());

@@ -97,7 +97,7 @@ private:
     const TAsyncSemaphorePtr Semaphore_;
     const TThrottlerManagerPtr ThrottlerManager_;
 
-    const TProfiler Profiler_ = TabletNodeProfiler.WithPrefix("/partition_balancer");
+    const TProfiler Profiler_ = TabletNodeProfiler().WithPrefix("/partition_balancer");
 
     TAtomicIntrusivePtr<TPartitionBalancerConfig> Config_;
     TEventTimer ScanTime_ = Profiler_.Timer("/scan_time");

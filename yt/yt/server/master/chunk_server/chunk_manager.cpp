@@ -501,7 +501,7 @@ public:
         });
 
         BufferedProducer_ = New<TBufferedProducer>();
-        ChunkServerProfiler
+        ChunkServerProfiler()
             .WithDefaultDisabled()
             .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
             .AddProducer("", BufferedProducer_);
@@ -509,13 +509,13 @@ public:
         // This is a temporary measure to make sure solomon quota is at least somewhat stabilized.
         // The plan was to move these metrics into a separate shard. See original PR for details.
         CrpBufferedProducer_ = New<TBufferedProducer>();
-        ChunkServerProfiler
+        ChunkServerProfiler()
             .WithDefaultDisabled()
             .WithSparse()
             .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
             .AddProducer("", CrpBufferedProducer_);
 
-        auto taggedHistogramProfiler = ChunkServerHistogramProfiler
+        auto taggedHistogramProfiler = ChunkServerHistogramProfiler()
             .WithDefaultDisabled()
             .WithSparse()
             .WithGlobal()
@@ -2554,7 +2554,7 @@ private:
             auto& nodeCounters = node->IncrementalHeartbeatCounters();
             if (!nodeCounters) {
                 nodeCounters.emplace(
-                    ChunkServerProfiler
+                    ChunkServerProfiler()
                         .WithPrefix("/incremental_heartbeat")
                         .WithTag("node", node->GetDefaultAddress()));
             }
@@ -2562,7 +2562,7 @@ private:
         }
 
         if (!TotalIncrementalHeartbeatCounters_) {
-            TotalIncrementalHeartbeatCounters_.emplace(ChunkServerProfiler.WithPrefix(
+            TotalIncrementalHeartbeatCounters_.emplace(ChunkServerProfiler().WithPrefix(
                 "/incremental_heartbeat"));
         }
         return *TotalIncrementalHeartbeatCounters_;

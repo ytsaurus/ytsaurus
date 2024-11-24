@@ -42,7 +42,7 @@ struct TMetadataCheckVisitor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<bool> TSignatureValidator::Validate(TSignaturePtr signature)
+TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature)
 {
     TSignatureHeader header;
     try {
@@ -60,32 +60,38 @@ TFuture<bool> TSignatureValidator::Validate(TSignaturePtr signature)
         [] (auto&& header_) { return std::pair{TOwnerId(header_.Issuer), TKeyId(header_.KeypairId)}; },
         header);
 
-    return Store_->GetKey(keyIssuer, keyId).Apply(
-        BIND([keyIssuer, keyId, signatureId, header = std::move(header), signature] (TKeyInfoPtr key) {
-            if (!key) {
-                YT_LOG_DEBUG(
-                    "Key not found (SignatureId: %v, Issuer: %v, KeyPair: %v)",
-                    signatureId,
-                    keyIssuer,
-                    keyId);
-                return false;
-            }
+    return Store_->FindKey(keyIssuer, keyId).Apply(
+        BIND([
+                keyIssuer = std::move(keyIssuer),
+                keyId = std::move(keyId),
+                signatureId = std::move(signatureId),
+                header = std::move(header),
+                &signature
+            ] (const TKeyInfoPtr& keyInfo) {
+                if (!keyInfo) {
+                    YT_LOG_DEBUG(
+                        "Key not found (SignatureId: %v, Issuer: %v, KeyPair: %v)",
+                        signatureId,
+                        keyIssuer,
+                        keyId);
+                    return false;
+                }
 
-            auto toSign = PreprocessSignature(signature->Header_, signature->Payload());
+                auto toSign = PreprocessSignature(signature->Header_, signature->Payload());
 
-            if (!key->Verify(toSign, signature->Signature_)) {
-                YT_LOG_DEBUG("Cryptographic verification failed (SignatureId: %v)", signatureId);
-                return false;
-            }
+                if (!keyInfo->Verify(toSign, signature->Signature_)) {
+                    YT_LOG_DEBUG("Cryptographic verification failed (SignatureId: %v)", signatureId);
+                    return false;
+                }
 
-            if (!std::visit(TMetadataCheckVisitor{}, header)) {
-                YT_LOG_DEBUG("Metadata check failed (SignatureId: %v)", signatureId);
-                return false;
-            }
+                if (!std::visit(TMetadataCheckVisitor{}, header)) {
+                    YT_LOG_DEBUG("Metadata check failed (SignatureId: %v)", signatureId);
+                    return false;
+                }
 
-            YT_LOG_TRACE("Successfully validated (SignatureId: %v)", signatureId);
-            return true;
-        }));
+                YT_LOG_TRACE("Successfully validated (SignatureId: %v)", signatureId);
+                return true;
+            }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

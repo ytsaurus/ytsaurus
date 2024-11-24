@@ -28,7 +28,7 @@ inline const TString ChangelogIndexExtension("index");
 inline const TString TermFileName("term");
 inline const TString LockFileName("lock");
 
-inline const NProfiling::TProfiler HydraProfiler("/hydra");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, HydraProfiler, "/hydra");
 
 ////////////////////////////////////////////////////////////////////////////////
 

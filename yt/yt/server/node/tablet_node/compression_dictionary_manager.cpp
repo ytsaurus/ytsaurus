@@ -410,7 +410,7 @@ public:
         IBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             std::move(config),
-            TabletNodeProfiler.WithPrefix("/compression_dictionary_cache"))
+            TabletNodeProfiler().WithPrefix("/compression_dictionary_cache"))
         , Bootstrap_(bootstrap)
     { }
 

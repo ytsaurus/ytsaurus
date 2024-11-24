@@ -473,10 +473,10 @@ const TActionManager::TBundleProfilingCounters& TActionManager::GetOrCreateProfi
         return it->second;
     }
     return EmplaceOrCrash(ProfilingCounters_, bundleName, TBundleProfilingCounters{
-        .RunningActions = TabletBalancerProfiler
+        .RunningActions = TabletBalancerProfiler()
             .WithTag("tablet_cell_bundle", bundleName)
             .Gauge("/action_manager/running_actions"),
-        .FailedActions = TabletBalancerProfiler
+        .FailedActions = TabletBalancerProfiler()
             .WithTag("tablet_cell_bundle", bundleName)
             .Counter("/action_manager/failed_actions")
     })->second;

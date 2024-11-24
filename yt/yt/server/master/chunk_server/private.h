@@ -20,10 +20,10 @@ class TSequoiaReplicaInfo;
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, ChunkServerLogger, "ChunkServer");
-inline const NProfiling::TProfiler ChunkServerProfiler("/chunk_server");
-inline const NProfiling::TProfiler ChunkServerHistogramProfiler("/chunk_server/histograms");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ChunkServerProfiler, "/chunk_server");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ChunkServerHistogramProfiler, "/chunk_server/histograms");
 
-inline const NProfiling::TProfiler ChunkServiceProfiler("/chunk_service");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ChunkServiceProfiler, "/chunk_service");
 
 ////////////////////////////////////////////////////////////////////////////////
 

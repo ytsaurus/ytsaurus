@@ -1,13 +1,15 @@
 #include "bootstrap.h"
 
 #include "ally_replica_manager.h"
+#include "chunk_detail.h"
 #include "chunk_store.h"
 #include "data_node_service.h"
 #include "io_throughput_meter.h"
-#include "medium_directory_manager.h"
 #include "job_controller.h"
 #include "journal_dispatcher.h"
+#include "location_manager.h"
 #include "master_connector.h"
+#include "medium_directory_manager.h"
 #include "medium_updater.h"
 #include "orchid.h"
 #include "p2p.h"
@@ -15,8 +17,6 @@
 #include "session_manager.h"
 #include "skynet_http_handler.h"
 #include "table_schema_cache.h"
-#include "chunk_detail.h"
-#include "location_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -27,24 +27,25 @@
 
 #include <yt/yt/library/query/engine_api/config.h>
 
-#include <yt/yt/library/containers/disk_manager/config.h>
-#include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
-#include <yt/yt/library/containers/disk_manager/disk_manager_proxy.h>
+#include <yt/yt/library/disk_manager/config.h>
+#include <yt/yt/library/disk_manager/disk_info_provider.h>
+#include <yt/yt/library/disk_manager/disk_manager_proxy.h>
 
 #include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
 
-#include <yt/yt/core/concurrency/fair_share_thread_pool.h>
-
 #include <yt/yt/core/http/server.h>
+
+#include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 
 #include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NDataNode {
 
 using namespace NClusterNode;
-using namespace NCypressClient;
 using namespace NConcurrency;
-using namespace NContainers;
+using namespace NCypressClient;
+using namespace NQueryClient;
+using namespace NDiskManager;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -158,7 +159,7 @@ public:
                     std::move(throttlerConfig),
                     ToString(kind),
                     DataNodeLogger(),
-                    DataNodeProfiler.WithPrefix("/throttlers"));
+                    DataNodeProfiler().WithPrefix("/throttlers"));
             }
 
             static const THashSet<EDataNodeThrottlerKind> InCombinedDataNodeThrottlerKinds = {
@@ -230,7 +231,7 @@ public:
 
         TableSchemaCache_ = New<TTableSchemaCache>(GetConfig()->DataNode->TableSchemaCache);
 
-        RowComparerProvider_ = NQueryClient::CreateRowComparerProvider(GetConfig()->TabletNode->ColumnEvaluatorCache->CGCache);
+        RowComparerProvider_ = CreateRowComparerProvider(GetConfig()->TabletNode->ColumnEvaluatorCache->CGCache);
 
         GetRpcServer()->RegisterService(CreateDataNodeService(GetConfig()->DataNode, this));
 
@@ -409,7 +410,7 @@ public:
         return TableSchemaCache_;
     }
 
-    const NQueryClient::IRowComparerProviderPtr& GetRowComparerProvider() const override
+    const IRowComparerProviderPtr& GetRowComparerProvider() const override
     {
         return RowComparerProvider_;
     }
@@ -460,7 +461,7 @@ private:
 
     TTableSchemaCachePtr TableSchemaCache_;
 
-    NQueryClient::IRowComparerProviderPtr RowComparerProvider_;
+    IRowComparerProviderPtr RowComparerProvider_;
 
     NHttp::IServerPtr SkynetHttpServer_;
 
@@ -477,7 +478,7 @@ private:
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
         if (!GetConfig()->EnableFairThrottler) {
-            for (auto kind : TEnumTraits<NDataNode::EDataNodeThrottlerKind>::GetDomainValues()) {
+            for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
                 if (DataNodeCompatThrottlers.contains(kind)) {
                     continue;
                 }

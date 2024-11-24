@@ -513,7 +513,7 @@ class TTabletProfilerManager
 {
 public:
     TTabletProfilerManager()
-        : ConsumedTableTags_(TabletNodeProfiler.Gauge("/consumed_table_tags"))
+        : ConsumedTableTags_(TabletNodeProfiler().Gauge("/consumed_table_tags"))
     { }
 
     TTableProfilerPtr CreateTabletProfiler(
@@ -596,17 +596,17 @@ public:
                 break;
         }
 
-        auto tableProfiler = TabletNodeProfiler
+        auto tableProfiler = TabletNodeProfiler()
             .WithHot()
             .WithSparse()
             .WithTags(tableTagSet);
 
-        auto diskProfiler = TabletNodeProfiler
+        auto diskProfiler = TabletNodeProfiler()
             .WithHot()
             .WithSparse()
             .WithTags(diskTagSet);
 
-        auto mediumProfiler = TabletNodeProfiler
+        auto mediumProfiler = TabletNodeProfiler()
             .WithHot()
             .WithTag("tablet_cell_bundle", bundle)
             .WithTag("medium", medium);

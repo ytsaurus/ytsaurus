@@ -87,7 +87,7 @@ YT_DEFINE_GLOBAL(const NLogging::TLogger, ControllerAgentLogger, "ControllerAgen
 YT_DEFINE_GLOBAL(const NLogging::TLogger, ControllerEventLogger, "ControllerEventLog");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, ControllerFeatureStructuredLogger, "ControllerFeatureStructuredLog");
 
-inline const NProfiling::TProfiler ControllerAgentProfiler("/controller_agent");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ControllerAgentProfiler, "/controller_agent");
 
 ////////////////////////////////////////////////////////////////////////////////
 

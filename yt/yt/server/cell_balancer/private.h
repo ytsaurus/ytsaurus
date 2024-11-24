@@ -27,7 +27,7 @@ DECLARE_REFCOUNTED_STRUCT(ICellDowntimeTracker)
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, CellBalancerLogger, "CellBalancer");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, BundleControllerLogger, "BundleController");
-inline const NProfiling::TProfiler CellBalancerProfiler("/cell_balancer");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, CellBalancerProfiler, "/cell_balancer");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -51,9 +51,9 @@ struct TSignatureValidatorTest
     }
 
     TSignatureHeader SimpleHeader(
-        std::chrono::duration<double> delta_created,
-        std::chrono::duration<double> delta_valid,
-        std::chrono::duration<double> delta_expires)
+        TDuration delta_created,
+        TDuration delta_valid,
+        TDuration delta_expires)
     {
         auto now = Now();
         return TSignatureHeaderImpl<TSignatureVersion{0, 1}>{
@@ -66,9 +66,10 @@ struct TSignatureValidatorTest
         };
     }
 
-    bool RunValidate(TSignaturePtr signature)
+    bool RunValidate(const TSignaturePtr& signature)
     {
-        return WaitFor(Validator.Validate(signature)).ValueOrThrow();
+        return WaitFor(Validator.Validate(signature))
+            .ValueOrThrow();
     }
 };
 

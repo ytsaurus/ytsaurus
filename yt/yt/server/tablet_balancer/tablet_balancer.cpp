@@ -260,7 +260,7 @@ TTabletBalancer::TTabletBalancer(
         Config_->ParameterizedTimeoutOnStart,
         Config_->ParameterizedTimeout)
     , IterationIndex_(0)
-    , PickPivotFailures_(TabletBalancerProfiler.WithSparse().Counter("/pick_pivot_failures"))
+    , PickPivotFailures_(TabletBalancerProfiler().WithSparse().Counter("/pick_pivot_failures"))
 {
     ActionManager_ = CreateActionManager(
         DynamicConfig_.Acquire()->ActionManager,
@@ -1393,7 +1393,7 @@ TTableParameterizedMetricTrackerPtr TTabletBalancer::GetParameterizedMetricTrack
 {
     auto it = GroupToParameterizedMetricTracker_.find(groupTag);
     if (it == GroupToParameterizedMetricTracker_.end()) {
-        auto profiler = TabletBalancerProfiler
+        auto profiler = TabletBalancerProfiler()
             .WithSparse()
             .WithTag("tablet_cell_bundle", groupTag.first)
             .WithTag("group", groupTag.second);
@@ -1428,7 +1428,7 @@ TEventTimer& TTabletBalancer::GetProfilingTimer(const TGlobalGroupTag& groupTag,
         return eventIt->second;
     }
 
-    return EmplaceOrCrash(*groupTimers, type, TabletBalancerProfiler
+    return EmplaceOrCrash(*groupTimers, type, TabletBalancerProfiler()
         .WithTag("tablet_cell_bundle", groupTag.first)
         .WithTag("group", groupTag.second)
         .WithTag("type", ToString(type))

@@ -16,9 +16,9 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/core/concurrency/scheduler.h>
-
 #include <yt/yt/library/erasure/impl/codec.h>
+
+#include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -30,13 +30,13 @@
 namespace NYT::NChunkClient {
 
 using namespace NApi;
-using namespace NRpc;
-using namespace NObjectClient;
-using namespace NErasure;
 using namespace NConcurrency;
-using namespace NYTree;
-using namespace NTableClient;
+using namespace NErasure;
 using namespace NNodeTrackerClient;
+using namespace NObjectClient;
+using namespace NRpc;
+using namespace NTableClient;
+using namespace NYTree;
 
 using NYT::ToProto;
 using NYT::FromProto;

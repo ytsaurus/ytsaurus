@@ -114,7 +114,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        DataNodeProfiler.AddFuncGauge("/online", MakeStrong(this), [this] {
+        DataNodeProfiler().AddFuncGauge("/online", MakeStrong(this), [this] {
             return IsOnline() ? 1.0 : 0.0;
         });
     }
@@ -790,7 +790,7 @@ private:
         }
 
         TIncrementalHeartbeatCounters counters(
-            DataNodeProfiler
+            DataNodeProfiler()
                 .WithPrefix("/incremental_heartbeat")
                 .WithTag("cell_tag", ToString(cellTag)));
 

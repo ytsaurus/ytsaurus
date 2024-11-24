@@ -121,7 +121,7 @@ private:
 
     const INodeMemoryTrackerPtr MemoryUsageTracker_;
 
-    const NProfiling::TProfiler SparseProfiler_ = HttpProxyProfiler.WithSparse();
+    const NProfiling::TProfiler SparseProfiler_ = HttpProxyProfiler().WithSparse();
 
     std::vector<std::pair<NNet::TIP6Network, TString>> Networks_;
     TString DefaultNetworkName_;
@@ -162,7 +162,7 @@ private:
 
     TProfilingCounters* GetProfilingCounters(const TUserCommandPair& key);
 
-    NProfiling::TCounter PrepareErrorCount_ = HttpProxyProfiler.Counter("/request_prepare_error_count");
+    NProfiling::TCounter PrepareErrorCount_ = HttpProxyProfiler().Counter("/request_prepare_error_count");
 
     void DoIncrementHttpCode(
         THashMap<NHttp::EStatusCode, NProfiling::TCounter>* counters,

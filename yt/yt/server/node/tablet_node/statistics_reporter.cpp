@@ -70,7 +70,7 @@ TStatisticsReporter::TStatisticsReporter(IBootstrap* const bootstrap)
     , Executor_(New<TPeriodicExecutor>(
         ActionQueue_->GetInvoker(),
         BIND(&TStatisticsReporter::ReportStatistics, MakeWeak(this))))
-    , Profiler_(TabletNodeProfiler.WithPrefix("/statistics_reporter"))
+    , Profiler_(TabletNodeProfiler().WithPrefix("/statistics_reporter"))
     , ReportCount_(Profiler_.Counter("report_count"))
     , ReportErrorCount_(Profiler_.Counter("report_error_count"))
     , ReportedTabletCount_(Profiler_.Counter("reported_tablet_count"))

@@ -84,8 +84,8 @@ private:
 
     INodeMemoryTrackerPtr MemoryUsageTracker_;
 
-    NContainers::IDiskManagerProxyPtr DiskManagerProxy_;
-    NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
+    NDiskManager::IDiskManagerProxyPtr DiskManagerProxy_;
+    NDiskManager::TDiskInfoProviderPtr DiskInfoProvider_;
     TDiskChangeCheckerPtr DiskChangeChecker_;
 
     void DoRun();

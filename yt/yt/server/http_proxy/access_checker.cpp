@@ -31,7 +31,7 @@ public:
         , Cache_(New<TPermissionCache>(
             Config_->Cache,
             Bootstrap_->GetNativeConnection(),
-            HttpProxyProfiler.WithPrefix("/access_checker_cache")))
+            HttpProxyProfiler().WithPrefix("/access_checker_cache")))
         , ProxyRole_(Bootstrap_->GetCoordinator()->GetSelf()->Role)
         , Enabled_(Config_->Enabled)
     {

@@ -36,7 +36,7 @@ from io import BytesIO
 
 
 class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 4
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -72,7 +72,7 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
         }
     }
 
-    OP_COUNT = 8
+    OP_COUNT = 5
 
     def _create_table(self, table):
         create("table", table)
@@ -157,7 +157,7 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
         for index in range(self.OP_COUNT):
             op = map(
                 track=False,
-                command="sleep 15; echo 'AAA' >&2; cat",
+                command="sleep 10; echo 'AAA' >&2; cat",
                 in_="//tmp/t_in",
                 out="//tmp/t_out" + str(index),
                 spec={
@@ -171,7 +171,7 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
 
         ok = False
         for iter in range(100):
-            time.sleep(random.randint(5, 15) * 0.5)
+            time.sleep(random.randint(2, 4))
             with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
                 pass
 

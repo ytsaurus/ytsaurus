@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/actions/future.h>
 
-namespace NYT::NContainers {
+namespace NYT::NDiskManager   {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,4 +39,4 @@ DEFINE_REFCOUNTED_TYPE(TDiskInfoProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NContainers
+} // namespace NYT::NDiskManager

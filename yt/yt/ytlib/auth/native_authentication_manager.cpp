@@ -27,7 +27,7 @@ IDynamicTvmServicePtr TNativeAuthenticationManager::CreateTvmService(const TTvmS
     auto appliedConfig = CloneYsonStruct(config);
     appliedConfig->ClientEnableServiceTicketFetching = true;
     YT_VERIFY(appliedConfig->ClientDstMap.emplace("self", appliedConfig->ClientSelfId).second);
-    return CreateDynamicTvmService(appliedConfig, AuthProfiler.WithPrefix("/native_tvm"));
+    return CreateDynamicTvmService(appliedConfig, AuthProfiler().WithPrefix("/native_tvm"));
 }
 
 void TNativeAuthenticationManager::Configure(const TNativeAuthenticationManagerConfigPtr& config)

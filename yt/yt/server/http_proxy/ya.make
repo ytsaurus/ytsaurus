@@ -36,7 +36,7 @@ PEERDIR(
     yt/yt/library/dynamic_config
     yt/yt/library/ytprof
     yt/yt/library/containers
-    yt/yt/library/containers/disk_manager
+    yt/yt/library/disk_manager
     yt/yt/core/https
     yt/yt/server/lib
     yt/yt/server/lib/chunk_pools

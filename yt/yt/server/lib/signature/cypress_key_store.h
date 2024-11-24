@@ -19,7 +19,7 @@ class TCypressKeyReader
 public:
     TCypressKeyReader(NApi::IClientPtr client);
 
-    TFuture<TKeyInfoPtr> GetKey(const TOwnerId& owner, const TKeyId& keyId) override;
+    TFuture<TKeyInfoPtr> FindKey(const TOwnerId& owner, const TKeyId& key) override;
 
 private:
     NApi::IClientPtr Client_;
@@ -39,7 +39,7 @@ public:
 
     [[nodiscard]] TOwnerId GetOwner() override;
 
-    TFuture<void> RegisterKey(const TKeyInfo& key) override;
+    TFuture<void> RegisterKey(const TKeyInfoPtr& keyInfo) override;
 
 private:
     TOwnerId Owner_;
@@ -50,7 +50,7 @@ DEFINE_REFCOUNTED_TYPE(TCypressKeyWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYPath::TYPath GetCypressKeyPath(const TOwnerId& owner, const TKeyId& keyId);
+NYPath::TYPath GetCypressKeyPath(const TOwnerId& owner, const TKeyId& key);
 
 ////////////////////////////////////////////////////////////////////////////////
 

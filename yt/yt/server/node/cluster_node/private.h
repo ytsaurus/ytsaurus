@@ -11,7 +11,7 @@ namespace NYT::NClusterNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, ClusterNodeLogger, "ClusterNode");
-inline const NProfiling::TProfiler ClusterNodeProfiler("/cluster_node");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ClusterNodeProfiler, "/cluster_node");
 
 ////////////////////////////////////////////////////////////////////////////////
 

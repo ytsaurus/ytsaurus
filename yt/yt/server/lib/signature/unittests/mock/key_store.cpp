@@ -11,17 +11,17 @@ TOwnerId TMockKeyStore::GetOwner()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> TMockKeyStore::RegisterKey(const TKeyInfo& key)
+TFuture<void> TMockKeyStore::RegisterKey(const TKeyInfoPtr& keyInfo)
 {
-    auto owner = std::visit([](const auto& meta) { return meta.Owner; }, key.Meta());
+    auto owner = std::visit([](const auto& meta) { return meta.Owner; }, keyInfo->Meta());
 
-    Data[owner].emplace_back(New<TKeyInfo>(key.Key(), key.Meta()));
+    Data[owner].emplace_back(New<TKeyInfo>(*keyInfo));
     return VoidFuture;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<TKeyInfoPtr> TMockKeyStore::GetKey(const TOwnerId& owner, const TKeyId& keyId)
+TFuture<TKeyInfoPtr> TMockKeyStore::FindKey(const TOwnerId& owner, const TKeyId& key)
 {
     auto ownerIt = Data.find(owner);
     if (ownerIt == Data.end()) {
@@ -30,8 +30,8 @@ TFuture<TKeyInfoPtr> TMockKeyStore::GetKey(const TOwnerId& owner, const TKeyId& 
     auto it = std::find_if(
         ownerIt->second.begin(),
         ownerIt->second.end(),
-        [&keyId](TKeyInfoPtr keyInfo) {
-            return GetKeyId(keyInfo->Meta()) == keyId;
+        [&key](TKeyInfoPtr keyInfo) {
+            return GetKeyId(keyInfo->Meta()) == key;
         });
     return MakeFuture(it != ownerIt->second.end() ? *it : TKeyInfoPtr());
 }
