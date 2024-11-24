@@ -38,7 +38,7 @@ template struct TLibYamlTypeWrapper<yaml_event_t, yaml_event_delete>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static THashMap<TStringBuf, EYamlScalarType> YTTypeMap = {
+static THashMap<std::string_view, EYamlScalarType> YTTypeMap = {
     {"!", EYamlScalarType::String},
     {YAML_INT_TAG, EYamlScalarType::Int},
     {YAML_FLOAT_TAG, EYamlScalarType::Float},
@@ -48,7 +48,7 @@ static THashMap<TStringBuf, EYamlScalarType> YTTypeMap = {
     {YTUintTag, EYamlScalarType::Uint},
 };
 
-EYamlScalarType DeduceScalarTypeFromTag(const TStringBuf& tag)
+EYamlScalarType DeduceScalarTypeFromTag(const std::string_view& tag)
 {
     auto it = YTTypeMap.find(tag);
     if (it != YTTypeMap.end()) {
@@ -57,7 +57,7 @@ EYamlScalarType DeduceScalarTypeFromTag(const TStringBuf& tag)
     return EYamlScalarType::String;
 }
 
-EYamlScalarType DeduceScalarTypeFromValue(const TStringBuf& value)
+EYamlScalarType DeduceScalarTypeFromValue(const std::string_view& value)
 {
     // We conform to YAML 1.2 Core Schema:
     // https://yaml.org/spec/1.2.2/#103-core-schema
@@ -85,7 +85,7 @@ EYamlScalarType DeduceScalarTypeFromValue(const TStringBuf& value)
     return EYamlScalarType::String;
 }
 
-bool ParseAndValidateYamlBool(const TStringBuf& value)
+bool ParseAndValidateYamlBool(const std::string_view& value)
 {
     if (value == "true" || value == "True" || value == "TRUE") {
         return true;
@@ -96,16 +96,16 @@ bool ParseAndValidateYamlBool(const TStringBuf& value)
     }
 }
 
-std::pair<ENodeType, TNonStringScalar> ParseAndValidateYamlInteger(const TStringBuf& value, EYamlScalarType yamlType)
+std::pair<ENodeType, TNonStringScalar> ParseAndValidateYamlInteger(const std::string_view& value, EYamlScalarType yamlType)
 {
     // First, detect the base and prepare a string to calling TryIntFromString function by
     // optionally removing the 0x/0o prefix,
     int base;
-    TStringBuf adjustedValue;
-    if (value.StartsWith("0x")) {
+    std::string_view adjustedValue;
+    if (value.starts_with("0x")) {
         base = 16;
         adjustedValue = value.substr(2);
-    } else if (value.StartsWith("0o")) {
+    } else if (value.starts_with("0o")) {
         base = 8;
         adjustedValue = value.substr(2);
     } else {
@@ -120,8 +120,10 @@ std::pair<ENodeType, TNonStringScalar> ParseAndValidateYamlInteger(const TString
             return TryIntFromString<10>(adjustedValue, result);
         } else if (base == 16) {
             return TryIntFromString<16>(adjustedValue, result);
-        } else {
+        } else if (base = 8) {
             return TryIntFromString<8>(adjustedValue, result);
+        } else {
+            YT_ABORT();
         }
     };
 
@@ -132,12 +134,12 @@ std::pair<ENodeType, TNonStringScalar> ParseAndValidateYamlInteger(const TString
     } else if (tryFromString(ui64Value)) {
         return {ENodeType::Uint64, {.Uint64 = ui64Value}};
     } else {
-        TString requiredDomain = (yamlType == EYamlScalarType::Int) ? "either int64 or uint64" : "uint64";
+        std::string requiredDomain = (yamlType == EYamlScalarType::Int) ? "either int64 or uint64" : "uint64";
         THROW_ERROR_EXCEPTION("Value %Qv is not an integer or does not fit into %v", value, requiredDomain);
     }
 }
 
-double ParseAndValidateYamlDouble(const TStringBuf& value)
+double ParseAndValidateYamlDouble(const std::string_view& value)
 {
     double doubleValue;
     if (value == ".inf" || value == ".Inf" || value == ".INF" ||
@@ -154,7 +156,7 @@ double ParseAndValidateYamlDouble(const TStringBuf& value)
     return doubleValue;
 }
 
-std::pair<ENodeType, TNonStringScalar> ParseScalarValue(const TStringBuf& value, EYamlScalarType yamlType)
+std::pair<ENodeType, TNonStringScalar> ParseScalarValue(const std::string_view& value, EYamlScalarType yamlType)
 {
     switch (yamlType) {
         case EYamlScalarType::String:
@@ -175,6 +177,22 @@ std::pair<ENodeType, TNonStringScalar> ParseScalarValue(const TStringBuf& value,
         }
     }
     YT_ABORT();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::string_view YamlLiteralToStringView(const yaml_char_t* literal, size_t length)
+{
+    return literal
+        ? std::string_view(reinterpret_cast<const char*>(literal), length)
+        : std::string_view();
+}
+
+std::string_view YamlLiteralToStringView(const yaml_char_t* literal)
+{
+    return literal
+        ? std::string_view(reinterpret_cast<const char*>(literal))
+        : std::string_view();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

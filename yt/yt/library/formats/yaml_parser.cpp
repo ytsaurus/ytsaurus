@@ -43,42 +43,43 @@ class TAnchorRecordingConsumer
 public:
     explicit TAnchorRecordingConsumer(IYsonConsumer* underlyingConsumer)
         : UnderlyingConsumer_(underlyingConsumer)
+        , RunListWriter_(&RunListStream_, EYsonType::ListFragment)
     { }
 
     void OnStringScalar(TStringBuf value) override
     {
         ForAllConsumers([=] (auto* consumer) { consumer->OnStringScalar(value); });
-        MaybeFinishRecording();
+        MaybeFinishAnchor();
     }
 
     void OnInt64Scalar(i64 value) override
     {
         ForAllConsumers([=] (auto* consumer) { consumer->OnInt64Scalar(value); });
-        MaybeFinishRecording();
+        MaybeFinishAnchor();
     }
 
     void OnUint64Scalar(ui64 value) override
     {
         ForAllConsumers([=] (auto* consumer) { consumer->OnUint64Scalar(value); });
-        MaybeFinishRecording();
+        MaybeFinishAnchor();
     }
 
     void OnDoubleScalar(double value) override
     {
         ForAllConsumers([=] (auto* consumer) { consumer->OnDoubleScalar(value); });
-        MaybeFinishRecording();
+        MaybeFinishAnchor();
     }
 
     void OnBooleanScalar(bool value) override
     {
         ForAllConsumers([=] (auto* consumer) { consumer->OnBooleanScalar(value); });
-        MaybeFinishRecording();
+        MaybeFinishAnchor();
     }
 
     void OnEntity() override
     {
         ForAllConsumers([=] (auto* consumer) { consumer->OnEntity(); });
-        MaybeFinishRecording();
+        MaybeFinishAnchor();
     }
 
     void OnBeginList() override
@@ -96,7 +97,7 @@ public:
     {
         ForAllConsumers([=] (auto* consumer) { consumer->OnEndList(); });
         --CurrentDepth_;
-        MaybeFinishRecording();
+        MaybeFinishAnchor();
     }
 
     void OnBeginMap() override
@@ -114,7 +115,7 @@ public:
     {
         ForAllConsumers([] (auto* consumer) { consumer->OnEndMap(); });
         --CurrentDepth_;
-        MaybeFinishRecording();
+        MaybeFinishAnchor();
     }
 
     void OnBeginAttributes() override
@@ -127,71 +128,120 @@ public:
     {
         ForAllConsumers([] (auto* consumer) { consumer->OnEndAttributes(); });
         --CurrentDepth_;
-        // NB: do not call MaybeFinishRecording here, as we do not want to record only
+        // NB: do not call MaybeFinishAnchorOrRun here, as we do not want to record only
         // attribute map part of the node.
     }
 
     void OnRaw(TStringBuf yson, EYsonType type) override
     {
+        // The only caller for this OnRaw is ourselves in case of aliases, and aliases
+        // always point to YSON node.
+        YT_VERIFY(type == EYsonType::Node);
         ForAllConsumers([=] (auto* consumer) { consumer->OnRaw(yson, type); });
+        MaybeFinishAnchor();
     }
 
-    void OnAnchor(const TString& anchor)
+    void OnAnchor(const std::string& anchor)
     {
-        if (FinishedAnchors_.contains(anchor)) {
+        StartRun();
+        auto inserted = KnownAnchorNames_.insert(anchor).second;
+        if (!inserted) {
             THROW_ERROR_EXCEPTION("Anchor %Qv is already defined", anchor);
         }
-        RecordingAnchors_.emplace_back(anchor, CurrentDepth_);
+        auto& currentAnchor = ConstructingAnchors_.emplace_back();
+        currentAnchor = {
+            anchor,
+            CurrentDepth_,
+            GetCurrentRunOffset(),
+        };
     }
 
-    void OnAlias(const TString& alias)
+    void OnAlias(const std::string& alias)
     {
         auto it = FinishedAnchors_.find(alias);
         if (it == FinishedAnchors_.end()) {
-            THROW_ERROR_EXCEPTION("Alias %Qv refers to an undefined anchor", alias);
+            THROW_ERROR_EXCEPTION("Alias %Qv refers to an undefined or unfinished anchor", alias);
         }
-        OnRaw(it->second.AsStringBuf(), EYsonType::Node);
+        auto& anchor = it->second;
+
+        RunListWriter_.Flush();
+        std::string_view yson = RunListStream_.Str();
+        yson = yson.substr(anchor.StartOffset, anchor.EndOffset - anchor.StartOffset);
+        // NB: TBufferedBinaryYsonWriter writes ';' in a bit different way that you would expect from
+        // IYsonConsumer interface -- not as a reaction to OnListItem or OnKeyedItem, but rather when a node
+        // is finished. This leads to yson string above always containing extra trailing ';'.
+        // We strip it off, as our YSON consumers expect a YSON node to be serialized during OnAlias call.
+        YT_VERIFY(yson.ends_with(NYson::NDetail::ItemSeparatorSymbol));
+        yson.remove_suffix(1);
+        OnRaw(yson, EYsonType::Node);
     }
 
 private:
     IYsonConsumer* UnderlyingConsumer_;
+    //! Whenever there is at least one anchor being recorded, the stream is used to
+    //! record the YSON representation of the outermost anchor. We call the representation
+    //! of such an outermost anchor a run. Conveniently, we represent runs as elements of
+    //! a fictional YSON list, making each anchor a substring of that YSON list.
+    TStringStream RunListStream_;
+    TBufferedBinaryYsonWriter RunListWriter_;
 
-    struct TRecordingAnchor
+    struct TAnchor
     {
-        TString Anchor;
-        TStringStream Stream;
-        TBufferedBinaryYsonWriter Writer;
+        std::string Name;
         int Depth;
-        TRecordingAnchor(TString anchor, int depth)
-            : Anchor(std::move(anchor))
-            , Writer(&Stream)
-            , Depth(depth)
-        { }
+        ssize_t StartOffset;
+        ssize_t EndOffset = -1;
     };
     //! A stack of all anchors currently being constructed.
-    std::deque<TRecordingAnchor> RecordingAnchors_;
+    std::vector<TAnchor> ConstructingAnchors_;
+    //! A set of all anchors that are currently constructed.
+    THashSet<std::string> KnownAnchorNames_;
 
     //! A map containing YSON representations of anchors that have been finished.
-    THashMap<TString, TYsonString> FinishedAnchors_;
+    THashMap<std::string, TAnchor> FinishedAnchors_;
 
-    i64 CurrentDepth_ = 0;
+    int CurrentDepth_ = 0;
 
     void ForAllConsumers(auto&& action)
     {
         action(UnderlyingConsumer_);
-        for (auto& recordingAnchor : RecordingAnchors_) {
-            action(&recordingAnchor.Writer);
+        if (IsInRun()) {
+            action(&RunListWriter_);
         }
     }
 
-    void MaybeFinishRecording()
+    void StartRun()
     {
-        if (!RecordingAnchors_.empty() && CurrentDepth_ == RecordingAnchors_.back().Depth) {
-            auto& recordingAnchor = RecordingAnchors_.back();
-            recordingAnchor.Writer.Flush();
-            TYsonString yson(recordingAnchor.Stream.Str(), EYsonType::Node);
-            FinishedAnchors_.emplace(std::move(recordingAnchor.Anchor), std::move(yson));
-            RecordingAnchors_.pop_back();
+        if (!IsInRun()) {
+            RunListWriter_.OnListItem();
+        }
+    }
+
+    bool IsInRun() const
+    {
+        return !ConstructingAnchors_.empty();
+    }
+
+    ssize_t GetCurrentRunOffset() const
+    {
+        YT_VERIFY(IsInRun());
+        return RunListWriter_.GetTotalWrittenSize();
+    }
+
+    //! Checks current depth, maybe finalizes the innermost anchor, and if
+    //! the anchor stack vanishes, finalizes the outermost anchor.
+    void MaybeFinishAnchor()
+    {
+        if (!ConstructingAnchors_.empty() && CurrentDepth_ == ConstructingAnchors_.back().Depth) {
+            // Finalize the innermost (stack topmost) anchor.
+            YT_VERIFY(IsInRun());
+            auto& anchor = ConstructingAnchors_.back();
+
+            anchor.EndOffset = GetCurrentRunOffset();
+            auto inserted = FinishedAnchors_.emplace(anchor.Name, std::move(anchor)).second;
+            // Insertion is ensured by the checks in OnAnchor.
+            YT_VERIFY(inserted);
+            ConstructingAnchors_.pop_back();
         }
     }
 };
@@ -202,7 +252,7 @@ public:
     TYamlParser(IInputStream* input, IYsonConsumer* consumer, TYamlFormatConfigPtr config, EYsonType ysonType)
         : Input_(input)
         , Consumer_(consumer)
-        , Config_(config)
+        , Config_(std::move(config))
         , YsonType_(ysonType)
     {
         yaml_parser_initialize(&Parser_);
@@ -232,7 +282,7 @@ private:
         return static_cast<EYamlEventType>(Event_.type);
     }
 
-    static int ReadHandler(void* data, unsigned char* buffer, size_t size, size_t* size_read)
+    static int ReadHandler(void* data, unsigned char* buffer, size_t size, size_t* sizeRead)
     {
         auto* yamlParser = reinterpret_cast<TYamlParser*>(data);
         auto* input = yamlParser->Input_;
@@ -241,12 +291,14 @@ private:
             // IInputStream is similar to yaml_read_handler_t interface
             // in EOF case: former returns 0 from Read(), and latter
             // expects handler to set size_read to 0 and return 1
-            *size_read = input->Read(buffer, size);
+            *sizeRead = input->Read(buffer, size);
             return 1;
         } catch (const std::exception& ex) {
             // We do not expect the read handler to be called after an error.
             YT_ASSERT(yamlParser->ReadError_.IsOK());
             yamlParser->ReadError_ = TError(ex);
+            // Not really used by libyaml, but let's set it to 0 just in case.
+            *sizeRead = 0;
             return 0;
         }
     }
@@ -264,9 +316,9 @@ private:
 
     //! Throw an exception formed from the emitter state and possibly the exception
     //! caught in the last write handler call.
-    void ThrowError()
+    [[noreturn]] void ThrowError()
     {
-        // Unfortunately, libyaml may sometimes YAML_NO_ERROR. This may lead
+        // Unfortunately, libyaml may sometimes set error = YAML_NO_ERROR. This may lead
         // to unclear exceptions during parsing.
         auto yamlErrorType = static_cast<EYamlErrorType>(Parser_.error);
         auto error = TError("YAML parser error: %v", Parser_.problem)
@@ -333,7 +385,7 @@ private:
     {
         auto maybeOnAnchor = [&] (yaml_char_t* anchor) {
             if (anchor) {
-                Consumer_.OnAnchor(reinterpret_cast<const char*>(anchor));
+                Consumer_.OnAnchor(std::string(YamlLiteralToStringView(anchor)));
             }
         };
         switch (GetEventType()) {
@@ -350,7 +402,7 @@ private:
                 VisitMapping(/*isAttributes*/ false);
                 break;
             case EYamlEventType::Alias:
-                Consumer_.OnAlias(reinterpret_cast<const char*>(Event_.data.alias.anchor));
+                Consumer_.OnAlias(std::string(YamlLiteralToStringView(Event_.data.alias.anchor)));
                 break;
             default:
                 YT_ABORT();
@@ -360,7 +412,7 @@ private:
     void VisitScalar()
     {
         auto scalar = Event_.data.scalar;
-        TStringBuf yamlValue(reinterpret_cast<const char*>(scalar.value), scalar.length);
+        auto yamlValue = YamlLiteralToStringView(scalar.value, scalar.length);
 
         // According to YAML spec, there are two non-specific tags "!" and "?", and all other
         // tags are specific.
@@ -378,9 +430,9 @@ private:
         // (which is the most often case, as almost nobody uses type tags in YAML).
         //
         // Cf. https://yaml.org/spec/1.2.2/#332-resolved-tags
-        TStringBuf tag;
+        std::string_view tag;
         if (scalar.tag) {
-            tag = TStringBuf(reinterpret_cast<const char*>(scalar.tag));
+            tag = YamlLiteralToStringView(scalar.tag);
         } else if (scalar.style != YAML_PLAIN_SCALAR_STYLE) {
             tag = "!";
         } else {
@@ -422,7 +474,7 @@ private:
     {
         // NB: YSON node with attributes is represented as a yt/attrnode-tagged YAML sequence,
         // so handle it as a special case.
-        if (TStringBuf(reinterpret_cast<const char*>(Event_.data.mapping_start.tag)) == YTAttrNodeTag) {
+        if (YamlLiteralToStringView(Event_.data.mapping_start.tag) == YTAttrNodeTag) {
             VisitNodeWithAttributes();
             return;
         }
@@ -479,7 +531,7 @@ private:
                 if (Event_.data.scalar.anchor) {
                     THROW_ERROR_EXCEPTION("Putting anchors on map keys is not supported");
                 }
-                TStringBuf key(reinterpret_cast<const char*>(Event_.data.scalar.value), Event_.data.scalar.length);
+                auto key = YamlLiteralToStringView(Event_.data.scalar.value, Event_.data.scalar.length);
                 Consumer_.OnKeyedItem(key);
             }
 
@@ -503,48 +555,6 @@ void ParseYaml(
 {
     TYamlParser parser(input, consumer, config, ysonType);
     parser.Parse();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TYamlPushParser
-    : public IParser
-{
-public:
-    TYamlPushParser(
-        TYamlFormatConfigPtr config,
-        IYsonConsumer* consumer,
-        EYsonType ysonType)
-        : ParserCoroPipe_(
-            BIND([=] (IZeroCopyInput* stream) {
-                ParseYaml(stream, consumer, config, ysonType);
-            }))
-    { }
-
-    void Read(TStringBuf data) override
-    {
-        if (!data.empty()) {
-            ParserCoroPipe_.Feed(data);
-        }
-    }
-
-    void Finish() override
-    {
-        ParserCoroPipe_.Finish();
-    }
-
-private:
-    TCoroPipe ParserCoroPipe_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::unique_ptr<IParser> CreateParserForYaml(
-    IYsonConsumer* consumer,
-    TYamlFormatConfigPtr config,
-    EYsonType ysonType)
-{
-    return std::make_unique<TYamlPushParser>(config, consumer, ysonType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

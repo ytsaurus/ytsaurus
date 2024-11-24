@@ -91,7 +91,7 @@ public:
         OnNodeEnter();
         // Uint64 scalars are by default represented as plain (unquoted) YAML scalars,
         // similar to Int64 scalars (see the comment in OnInt64Scalar).
-        // However, we optionally support a custom "!yt/uint" tag to preserve the
+        // However, we optionally support a custom "!yt/uint64" tag to preserve the
         // information that the value is unsigned, which may be useful to control
         // signedness upon writing and for YT -> YAML -> YT roundtrip consistency.
         char buf[64];
@@ -135,9 +135,9 @@ public:
     void OnBooleanScalar(bool value) override
     {
         OnNodeEnter();
-        static const TStringBuf trueLiteral = "true";
-        static const TStringBuf falseLiteral = "false";
-        const TStringBuf& literal = value ? trueLiteral : falseLiteral;
+        static const std::string_view trueLiteral = "true";
+        static const std::string_view falseLiteral = "false";
+        const std::string_view& literal = value ? trueLiteral : falseLiteral;
         EmitEvent(
             yaml_scalar_event_initialize,
             /*anchor*/ nullptr,
@@ -153,7 +153,7 @@ public:
     virtual void OnEntity() override
     {
         OnNodeEnter();
-        static const TStringBuf nullLiteral = "null";
+        static const std::string_view nullLiteral = "null";
         EmitEvent(
             yaml_scalar_event_initialize,
             /*anchor*/ nullptr,
@@ -243,6 +243,16 @@ private:
     TLibYamlEmitter Emitter_;
     TError WriteError_;
 
+    // Utilities for tracking the current depth and the stack of depths at which
+    // we must perform extra sequence closure due to yt/attrnode-tagged 2-item sequence convention.
+
+    //! The depth of the current node in the YSON tree.
+    int CurrentDepth_ = 0;
+    //! A stack of depths at which attributes are present.
+    std::vector<int> DepthsWithPendingValueClosure_ = {-1};
+    //! A flag indicating that the we are immediately after the OnEndAttributes() event.
+    bool ImmediatelyAfterAttributes_ = false;
+
     static int WriteHandler(void* data, unsigned char* buffer, size_t size)
     {
         auto* yamlWriter = reinterpret_cast<TYamlWriter*>(data);
@@ -295,16 +305,6 @@ private:
         SafeInvoke(yaml_emitter_emit, &Emitter_, &event);
     }
 
-    // Utilities for tracking the current depth and the stack of depths at which
-    // we must perform extra sequence closure due to yt/attrnode-tagged 2-item sequence convention.
-
-    //! The depth of the current node in the YSON tree.
-    int CurrentDepth_ = 0;
-    //! A stack of depths at which attributes are present.
-    std::vector<int> DepthsWithPendingValueClosure_ = {-1};
-    //! A flag indicating that the we are immediately after the OnEndAttributes() event.
-    bool ImmediatelyAfterAttributes_ = false;
-
     void OnNodeEnter()
     {
         // If we are at the depth 0 and it is not a break between the root node attributes and the root node,
@@ -347,18 +347,18 @@ private:
 
         if (std::isfinite(value)) {
             auto length = FloatToString(value, buf, size);
-            TStringBuf str(buf, length);
-            if (str.find('.') == TString::npos && str.find('e') == TString::npos) {
+            std::string_view str(buf, length);
+            if (str.find('.') == std::string::npos && str.find('e') == std::string::npos) {
                 YT_VERIFY(length + 1 <= size);
                 buf[length++] = '.';
             }
             return length;
         } else {
-            static const TStringBuf nanLiteral = ".nan";
-            static const TStringBuf infLiteral = ".inf";
-            static const TStringBuf negativeInfLiteral = "-.inf";
+            static const std::string_view nanLiteral = ".nan";
+            static const std::string_view infLiteral = ".inf";
+            static const std::string_view negativeInfLiteral = "-.inf";
 
-            TStringBuf str;
+            std::string_view str;
             if (std::isnan(value)) {
                 str = nanLiteral;
             } else if (std::isinf(value) && value > 0) {

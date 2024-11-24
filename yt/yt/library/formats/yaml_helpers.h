@@ -57,18 +57,18 @@ DEFINE_ENUM(EYamlEventType,
 );
 
 //! This tag is used for denoting 2-element sequences that represent a YSON node with attributes.
-static constexpr TStringBuf YTAttrNodeTag = "!yt/attrnode";
+static constexpr std::string_view YTAttrNodeTag = "!yt/attrnode";
 
 //! Thia tag is used upon parsing to denote an integer scalar which should be
 //! represented by YT uint64 type. Writer by default omits this tag, but may be
 //! configured to force this tag on all uint64 values.
-static constexpr TStringBuf YTUintTag = "!yt/uint";
+static constexpr std::string_view YTUintTag = "!yt/uint64";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! We support:
 //! - YAML 1.2 Core schema types
-//! - YT-specific uint type, for which we introduce a special tag "!yt/uint".
+//! - YT-specific uint type, for which we introduce a special tag "!yt/uint64".
 DEFINE_ENUM(EYamlScalarType,
     (String)
     (Int)
@@ -87,14 +87,22 @@ union TNonStringScalar
 };
 
 //! Extracts a recognized YAML scalar type from a tag.
-EYamlScalarType DeduceScalarTypeFromTag(const TStringBuf& tag);
+EYamlScalarType DeduceScalarTypeFromTag(const std::string_view& tag);
 //! Guesses a recognized YAML scalar type from a value.
-EYamlScalarType DeduceScalarTypeFromValue(const TStringBuf& value);
+EYamlScalarType DeduceScalarTypeFromValue(const std::string_view& value);
 //! Given a recognized YAML type, transforms it into a YT type and,
 //! in case of a non-string result, parses a scalar value.
 std::pair<NYTree::ENodeType, TNonStringScalar> ParseScalarValue(
-    const TStringBuf& value,
+    const std::string_view& value,
     EYamlScalarType yamlType);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Convenience helpers for transforming a weirdly represented (yaml_char_t* ~ unsigned char*)
+// YAML string into string_view, also handling the case of a null pointer.
+
+std::string_view YamlLiteralToStringView(const yaml_char_t* literal, size_t length);
+std::string_view YamlLiteralToStringView(const yaml_char_t* literal);
 
 ////////////////////////////////////////////////////////////////////////////////
 

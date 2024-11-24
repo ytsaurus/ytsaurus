@@ -115,6 +115,9 @@ std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForYaml(
     const IAttributeDictionary& attributes,
     IZeroCopyOutput* output)
 {
+    if (dataType != EDataType::Structured) {
+        THROW_ERROR_EXCEPTION("YAML is supported only for structured data");
+    }
     auto config = ConvertTo<TYamlFormatConfigPtr>(&attributes);
     return CreateYamlWriter(output, DataTypeToYsonType(dataType), config);
 }
@@ -426,6 +429,9 @@ TYsonProducer CreateProducerForYaml(
     const IAttributeDictionary& attributes,
     IInputStream* input)
 {
+    if (dataType != EDataType::Structured) {
+        THROW_ERROR_EXCEPTION("YAML is supported only for structured data");
+    }
     auto ysonType = DataTypeToYsonType(dataType);
     auto config = ConvertTo<TYamlFormatConfigPtr>(&attributes);
     return BIND([=] (IYsonConsumer* consumer) {
@@ -516,10 +522,10 @@ std::unique_ptr<IParser> CreateParserForFormat(const TFormat& format, EDataType 
             auto config = ConvertTo<TSchemafulDsvFormatConfigPtr>(&format.Attributes());
             return CreateParserForSchemafulDsv(consumer, config);
         }
-        case EFormatType::Yaml: {
-            auto config = ConvertTo<TYamlFormatConfigPtr>(&format.Attributes());
-            return CreateParserForYaml(consumer, config, DataTypeToYsonType(dataType));
-        }
+        case EFormatType::Yaml:
+            // We can only get here with EDataType::Tabular, so throw specific error about supporting
+            // only structured data in YAML.
+            THROW_ERROR_EXCEPTION("YAML is supported only for structured data");
         default:
             THROW_ERROR_EXCEPTION("Unsupported input format %Qlv",
                 format.GetType());

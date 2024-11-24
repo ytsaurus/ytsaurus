@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (authors, create, read_table, write_table, get, set, sync_create_cells, merge,
-                         sync_freeze_table, select_rows, wait)
+                         sync_freeze_table, select_rows, wait, raises_yt_error)
 import yt.environment.init_operations_archive as init_operations_archive
 
 import yaml
@@ -111,17 +111,28 @@ class TestYamlFormat(YTEnvSetup):
         set("//tmp/d", yaml_content, is_raw=True, input_format="yaml")
         assert self.sanitize_struct(get("//tmp/d")) == self.sanitize_struct(from_native)
 
-    def test_read_table(self):
-        # Read a complex table row sequence in YAML and in native format and compare them as Python dicts.
-        from_native = self.read_complex_table_native()
-        from_yaml = list(yaml.load_all(self.read_complex_table_yaml(), Loader=yaml.SafeLoader))
-        assert len(from_native) >= 2
-        assert from_native == from_yaml
-
-    def test_write_table(self):
+    def test_unssupported_tabular_commands(self):
+        # Test that tabular commands are not supported in YAML format.
+        with raises_yt_error("YAML is supported only for structured data"):
+            read_table(self.TABLE_PATH, is_raw=True, output_format="yaml")
         create("table", "//tmp/t2")
-        yaml_content = self.read_complex_table_yaml(write_uint_tag=True)
-        from_native = self.read_complex_table_native()
-        assert len(from_native) >= 2
-        write_table("//tmp/t2", yaml_content, is_raw=True, input_format="yaml")
-        assert read_table("//tmp/t2") == from_native
+        with raises_yt_error("YAML is supported only for structured data"):
+            write_table("//tmp/t2", b"a: 1", is_raw=True, input_format="yaml")
+
+    # Tests below are commented because we decided to not support YAML format for tables for now,
+    # but they may be useful in the future.
+    #
+    # def test_read_table(self):
+    #     # Read a complex table row sequence in YAML and in native format and compare them as Python dicts.
+    #     from_native = self.read_complex_table_native()
+    #     from_yaml = list(yaml.load_all(self.read_complex_table_yaml(), Loader=yaml.SafeLoader))
+    #     assert len(from_native) >= 2
+    #     assert from_native == from_yaml
+    #
+    # def test_write_table(self):
+    #     create("table", "//tmp/t2")
+    #     yaml_content = self.read_complex_table_yaml(write_uint_tag=True)
+    #     from_native = self.read_complex_table_native()
+    #     assert len(from_native) >= 2
+    #     write_table("//tmp/t2", yaml_content, is_raw=True, input_format="yaml")
+    #     assert read_table("//tmp/t2") == from_native

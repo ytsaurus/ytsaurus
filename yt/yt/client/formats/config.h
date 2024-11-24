@@ -419,7 +419,7 @@ class TYamlFormatConfig
     : public NYTree::TYsonStruct
 {
 public:
-    //! Write explicit tag "!yt/uint" for uint64 data type.
+    //! Write explicit tag "!yt/uint64" for uint64 data type.
     //! Use this option if you want to preserve information about
     //! the original YT type (without it, numbers in range [0, 2^63-1]
     //! will always be written as integers).

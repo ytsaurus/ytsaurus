@@ -15,12 +15,6 @@ void ParseYaml(
     TYamlFormatConfigPtr config,
     NYson::EYsonType ysonType);
 
-//! Parses a YAML stream in push mode (may be used for tabular driver commands).
-std::unique_ptr<IParser> CreateParserForYaml(
-    NYson::IYsonConsumer* consumer,
-    TYamlFormatConfigPtr config,
-    NYson::EYsonType ysonType);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFormats

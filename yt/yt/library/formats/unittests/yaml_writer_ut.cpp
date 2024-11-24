@@ -60,11 +60,11 @@ TEST(TYamlWriterTest, IntegersWithUintTag)
     TString yson = "{a=1; b=1u; c=-1; d=9223372036854775808u; e=-9223372036854775808; f=18446744073709551615u}";
     TString expectedYaml = R"(
 a: 1
-b: !yt/uint 1
+b: !yt/uint64 1
 c: -1
-d: !yt/uint 9223372036854775808
+d: !yt/uint64 9223372036854775808
 e: -9223372036854775808
-f: !yt/uint 18446744073709551615
+f: !yt/uint64 18446744073709551615
 )";
     EXPECT_EQ(YsonToYaml(TYsonString(yson), TYsonString(formatAttributes)), expectedYaml.substr(1));
 }
@@ -285,10 +285,10 @@ schema: !yt/attrnode
     type_v3:
       type_name: optional
       item: double
-native_cell_tag: !yt/uint 9991
+native_cell_tag: !yt/uint64 9991
 creation_time: 2024-08-15T11:17:59.314773Z
 inherit_acl: true
-revision: !yt/uint 8233452423020
+revision: !yt/uint64 8233452423020
 resource_usage:
   node_count: 1
   chunk_count: 1

@@ -25,23 +25,6 @@ TString ParseYaml(const TString& yaml, EYsonType ysonType)
     return outputStream.Str();
 }
 
-struct TParserHolder
-{
-    TStringStream OutputStream;
-    TYsonWriter Writer;
-    std::unique_ptr<IParser> Parser;
-    TParserHolder(TYamlFormatConfigPtr config, EYsonType ysonType)
-        : Writer(&OutputStream, EYsonFormat::Pretty, ysonType)
-        , Parser(CreateParserForYaml(&Writer, config, ysonType))
-    { }
-};
-
-std::unique_ptr<TParserHolder> CreateParserForYaml(EYsonType ysonType)
-{
-    auto config = New<TYamlFormatConfig>();
-    return std::make_unique<TParserHolder>(config, ysonType);
-}
-
 //////////////////////////////////////////////////////////////////////////////
 
 TEST(TYamlParserTest, Simple)
@@ -75,7 +58,7 @@ j: 9223372036854775808
 # 2^64 - 1, should be unsigned
 k: 18446744073709551615
 l: -9223372036854775808
-m: !yt/uint 1234
+m: !yt/uint64 1234
 n: !!int 23
 o: !!int -15)";
     TString expectedYson = R"(
@@ -104,8 +87,8 @@ o: !!int -15)";
         "!!int deadbeef",
         "!!int 18446744073709551616",
         "!!int -9223372036854775809"
-        "!yt/uint -1",
-        "!yt/uint 18446744073709551616",
+        "!yt/uint64 -1",
+        "!yt/uint64 18446744073709551616",
         "!!int 0x",
         // Examples below were integers in YAML 1.1, but not in YAML 1.2.
         "!!int 123_456",
@@ -421,10 +404,15 @@ b: *foo
 c: &bar
   x: &baz
   - False
-  - True
+  - &qux True
   y: 2
+  z: *baz
+  t: *foo
+  w: *qux
 d: *bar
 e: *baz
+f: *foo
+g: *qux
 )";
     TString expectedYson = R"(
 {
@@ -436,6 +424,12 @@ e: *baz
             %true;
         ];
         "y" = 2;
+        "z" = [
+            %false;
+            %true;
+        ];
+        "t" = 1;
+        "w" = %true;
     };
     "d" = {
         "x" = [
@@ -443,26 +437,39 @@ e: *baz
             %true;
         ];
         "y" = 2;
+        "z" = [
+            %false;
+            %true;
+        ];
+        "t" = 1;
+        "w" = %true;
     };
     "e" = [
         %false;
         %true;
     ];
+    "f" = 1;
+    "g" = %true;
 })";
     EXPECT_EQ(ParseYaml(yaml, EYsonType::Node), expectedYson.substr(1));
 
     std::vector<std::pair<TString, TString>> invalidYamlsAndErrors = {
         {R"(
 a: *foo
-)", "undefined anchor"},
+)", "undefined or unfinished anchor"},
         {R"(
 - &foo a
 - &foo b
 )", "already defined"},
         {R"(
 a: &foo
+- b: &foo
+  - c
+)", "already defined"},
+        {R"(
+a: &foo
   bar: *foo
-)", "undefined anchor"},
+)", "undefined or unfinished anchor"},
         {R"(
 a: &foo bar
 *foo: baz
@@ -504,10 +511,10 @@ schema: !yt/attrnode
     type_v3:
       type_name: optional
       item: double
-native_cell_tag: !yt/uint 9991
+native_cell_tag: !yt/uint64 9991
 creation_time: 2024-08-15T11:17:59.314773Z
 inherit_acl: true
-revision: !yt/uint 8233452423020
+revision: !yt/uint64 8233452423020
 resource_usage:
   node_count: 1
   chunk_count: 1
@@ -583,60 +590,6 @@ compression_ratio: 0.3679379456925491
     "compression_ratio" = 0.3679379456925491;
 })";
     EXPECT_EQ(ParseYaml(yaml, EYsonType::Node), expectedYson.substr(1));
-}
-
-TEST(TYamlPushParserTest, Simple)
-{
-    TString yaml = R"(
-foo:
-  x: 1
-  y: 2
-bar:
-- a
-- b
----
-baz: null
-qux: !yt/attrnode
-- unique_keys: true
-- - name: lat
-    type: double
-  - name: lon
-    type: double
-)";
-    auto holder = CreateParserForYaml(EYsonType::ListFragment);
-    auto fragmentSize = 4;
-    for (int index = 0; index < std::ssize(yaml); index += fragmentSize) {
-        holder->Parser->Read(yaml.substr(index, fragmentSize));
-    }
-    holder->Parser->Finish();
-    TString expectedYson = R"(
-{
-    "foo" = {
-        "x" = 1;
-        "y" = 2;
-    };
-    "bar" = [
-        "a";
-        "b";
-    ];
-};
-{
-    "baz" = #;
-    "qux" = <
-        "unique_keys" = %true;
-    > [
-        {
-            "name" = "lat";
-            "type" = "double";
-        };
-        {
-            "name" = "lon";
-            "type" = "double";
-        };
-    ];
-};
-)";
-    EXPECT_EQ(holder->OutputStream.Str(), expectedYson.substr(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////
