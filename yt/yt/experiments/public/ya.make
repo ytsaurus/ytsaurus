@@ -32,4 +32,5 @@ RECURSE(
     value_dictionary_compression
     ytserver_dummy
     http_server
+    native_file_downloader
 )
