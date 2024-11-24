@@ -423,7 +423,7 @@ public:
     bool CheckUserJobMemoryLimit;
 
     //! If set, abort user job at detecting OOM kill inside container.
-    bool CheckUserJobOOMKill;
+    bool CheckUserJobOomKill;
 
     //! Compat option for urgent disable of job shell audit.
     bool EnableJobShellSeccopm;
@@ -508,7 +508,7 @@ public:
     bool EnableStderrAndCoreLivePreview;
 
     //! If set, abort user job at detecting OOM kill inside container.
-    bool CheckUserJobOOMKill;
+    bool CheckUserJobOomKill;
 
     TJobEnvironmentConfig JobEnvironment;
 

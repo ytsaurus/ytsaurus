@@ -415,10 +415,10 @@ public:
                 .ThrowOnError();
         }
 
-        if (Config_->CheckUserJobOOMKill) {
+        if (Config_->CheckUserJobOomKill) {
             // Detect OOM kills in job environment regardless of exit status of the main process.
             if (auto oomKillCount = UserJobEnvironment_->GetJobOomKillCount(); oomKillCount.value_or(0)) {
-                YT_LOG_INFO("Out of memory kill detected (OOMKillCount: %v)", *oomKillCount);
+                YT_LOG_INFO("Out of memory kill detected (OomKillCount: %v)", *oomKillCount);
                 auto error = TError(
                     EErrorCode::MemoryLimitExceeded,
                     "User job process killed by OOM")
@@ -1792,9 +1792,9 @@ private:
 
         Host_->SetUserJobMemoryUsage(memoryUsage);
 
-        if (Config_->CheckUserJobOOMKill) {
+        if (Config_->CheckUserJobOomKill) {
             if (auto oomKillCount = UserJobEnvironment_->GetJobOomKillCount(); oomKillCount.value_or(0)) {
-                YT_LOG_INFO("Out of memory kill detected (OOMKillCount: %v)", *oomKillCount);
+                YT_LOG_INFO("Out of memory kill detected (OomKillCount: %v)", *oomKillCount);
                 CleanupUserProcesses();
             }
         }
