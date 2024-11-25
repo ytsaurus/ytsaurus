@@ -1300,7 +1300,7 @@ public:
             bestReserveRatio,
             emptyTrees);
 
-        return {};
+        return bestTree;
     }
 
     TError OnOperationMaterialized(
@@ -1319,9 +1319,11 @@ public:
             tree->OnOperationMaterialized(operationId);
         }
 
-        auto unregisterTree = [&] (const TString& treeId) {
-            UnregisterOperationFromTree(operationId, treeId);
-            treeIdsToErase->push_back(treeId);
+        auto unregisterFromTrees = [&] (std::vector<TString>&& treeIds) {
+            for (auto&& treeId : treeIds) {
+                UnregisterOperationFromTree(operationId, treeId);
+                treeIdsToErase->push_back(std::move(treeId));
+            }
         };
 
         {
@@ -1337,9 +1339,7 @@ public:
                 operationId,
                 treeIdsToUnregister);
 
-            for (const auto& treeId : treeIdsToUnregister) {
-                unregisterTree(treeId);
-            }
+            unregisterFromTrees(std::move(treeIdsToUnregister));
         }
 
         if (scheduleInSingleTree) {
@@ -1357,11 +1357,14 @@ public:
             }
 
             auto bestTree = errorOrTree.ValueOrThrow();
+            std::vector<TString> treesToUnregister;
             for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
                 if (treeId != bestTree) {
-                    unregisterTree(treeId);
+                    treesToUnregister.push_back(treeId);
                 }
             }
+
+            unregisterFromTrees(std::move(treesToUnregister));
         }
 
         if (auto error = CheckOperationSchedulingInSeveralTreesAllowed(operationId);
