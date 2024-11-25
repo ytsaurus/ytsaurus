@@ -88,10 +88,6 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
                         .build())
                 .forEach(clients::add);
 
-        if (this.clients.size() < 2) {
-            throw new IllegalArgumentException("Count of clients is less than 2");
-        }
-
         List<String> clusterNames = this.clients.stream()
                 .map(YTsaurusClientOptions::getClusterName)
                 .collect(Collectors.toUnmodifiableList());
