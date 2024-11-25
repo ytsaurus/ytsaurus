@@ -97,6 +97,7 @@ public:
     bool EnablePwritev;
     bool FlushAfterWrite;
     bool AsyncFlushAfterWrite;
+    bool UseSyncOnCloseWithWrite;
 
     // Request size in bytes.
     i64 DesiredRequestSize;
@@ -123,6 +124,8 @@ public:
             .Default(false);
         registrar.Parameter("async_flush_after_write", &TThis::AsyncFlushAfterWrite)
             .Default(false);
+        registrar.Parameter("use_sync_on_close_with_write", &TThis::UseSyncOnCloseWithWrite)
+            .Default(true);
 
         registrar.Parameter("desired_request_size", &TThis::DesiredRequestSize)
             .GreaterThanOrEqual(4_KB)
@@ -343,6 +346,13 @@ public:
         TSessionId sessionId) override
     {
         YT_ASSERT(request.Handle);
+
+        bool useSyncOnClose = Config_.Acquire()->UseSyncOnCloseWithWrite;
+
+        if (!useSyncOnClose) {
+            request.Flush = false;
+        }
+
         std::vector<TFuture<void>> futures;
         for (auto& slice : RequestSlicer_.Slice(std::move(request))) {
             auto future = BIND(
