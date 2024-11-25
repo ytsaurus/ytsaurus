@@ -5,6 +5,7 @@
 #include "helpers.h"
 #include "host.h"
 #include "query_context.h"
+#include "query_registry.h"
 
 #include <yt/chyt/client/query_service_proxy.h>
 
@@ -244,6 +245,7 @@ public:
         , Host_(host)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExecuteQuery));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryProgress));
     }
 
 private:
@@ -275,6 +277,26 @@ private:
                 queryId,
                 rowsetOrError);
             ToProto(response->mutable_error(), rowsetOrError);
+        }
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetQueryProgress)
+    {
+        auto queryId = FromProto<TQueryId>(request->query_id());
+
+        context->SetRequestInfo("QueryId: %v", queryId);
+
+        auto progress = WaitFor(Host_->GetQueryRegistry()->GetQueryProgress(queryId))
+            .ValueOrThrow();
+
+        if (progress) {
+            context->SetResponseInfo("QueryId: %v, IsFinished: %v", queryId, progress.value().TotalProgress.Finished);
+            ToProto(response->mutable_progress(), progress.value());
+        } else {
+            context->SetResponseInfo(
+                "No progress found because the query has already finished or was initiated on another instance");
         }
 
         context->Reply();

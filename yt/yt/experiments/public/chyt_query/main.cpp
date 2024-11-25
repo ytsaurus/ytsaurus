@@ -13,6 +13,8 @@
 
 #include <yt/chyt/client/query_service_proxy.h>
 
+#include <yt/yt/core/concurrency/thread_pool.h>
+
 namespace NYT {
 
 using namespace NBus;
@@ -39,11 +41,16 @@ public:
         Opts_.AddLongOption("query").StoreResult(&Query_);
         Opts_.AddLongOption("query-path").StoreResult(&QueryPath_);
         Opts_.AddLongOption("row-count-limit").StoreResult(&RowCountLimit_);
+        Opts_.AddLongOption("poll-progress").StoreTrue(&PollProgressFlag_);
+        Opts_.AddLongOption("poll-period-ms").StoreResult(&PollPeriodMs_);
     }
 
 protected:
     void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
     {
+
+        auto pool = CreateThreadPool(2, "ChytQuery");
+
         if (!Query_ && !QueryPath_) {
             THROW_ERROR_EXCEPTION("Either \"query\" or \"query_path\" must be specified");
         }
@@ -59,6 +66,8 @@ protected:
         auto channel = channelFactory->CreateChannel(Address_);
         TQueryServiceProxy proxy(channel);
         auto req = proxy.ExecuteQuery();
+        auto queryId = TGuid::Create();
+        ToProto(req->mutable_query_id(), queryId);
         auto* chytRequest = req->mutable_chyt_request();
         chytRequest->set_query(Query_);
 
@@ -70,20 +79,26 @@ protected:
             req->set_row_count_limit(RowCountLimit_);
         }
 
-        auto rsp = WaitFor(req->Invoke())
+        auto rsp = req->Invoke();
+        if (PollProgressFlag_) {
+            WaitFor(BIND(&TChytQuery::PollProgress, this, proxy, queryId)
+                .AsyncVia(pool->GetInvoker())
+                .Run()).ThrowOnError();
+        }
+        auto result = WaitFor(rsp)
             .ValueOrThrow();
 
-        Cout << Format("Query id: %v", FromProto<TGuid>(rsp->query_id())) << Endl;
+        Cout << Format("Query id: %v", FromProto<TGuid>(result->query_id())) << Endl;
 
-        const auto& error = FromProto<TError>(rsp->error());
+        const auto& error = FromProto<TError>(result->error());
         Cout << "Result: " << ((error.IsOK()) ? "OK" : "Error") << Endl;
         if (error.IsOK()) {
-            for (size_t i = 0; i < rsp->Attachments().size(); ++i) {
-                if (rsp->Attachments()[i].Empty()) {
+            for (size_t i = 0; i < result->Attachments().size(); ++i) {
+                if (result->Attachments()[i].Empty()) {
                     Cout << "Empty attachment" << Endl;
                     continue;
                 }
-                auto wireRowset = rsp->Attachments()[i];
+                auto wireRowset = result->Attachments()[i];
                 auto wireReader = CreateWireProtocolReader(wireRowset);
                 auto schema = wireReader->ReadTableSchema();
                 auto schemaData = IWireProtocolReader::GetSchemaData(schema);
@@ -94,10 +109,53 @@ protected:
                     Cout << ToString(row) << Endl;
                 }
             }
-
         } else {
             Cout << ToString(error) << Endl;
         }
+    }
+
+private:
+    void PrintProgressAndTs(const NClickHouseServer::NProto::TQueryProgressValues& progress, const TInstant& ts)
+    {
+        Cout << '[' << ts << ']' << Endl;
+        int secondaryQueriesCount = progress.secondary_query_ids_size();
+        for (int i = 0; i < secondaryQueriesCount; ++i) {
+            auto queryId = progress.secondary_query_ids()[i];
+            auto queryProgress = progress.secondary_query_progresses()[i];
+
+            std::string isFinishedStr = "";
+            if (queryProgress.finished()) {
+                isFinishedStr = " - [FINISHED] - ";
+            }
+
+            Cout << "   " << Format("%v", FromProto<TGuid>(queryId)) << isFinishedStr << ": Read-row = "<< queryProgress.read_rows() << '/' << queryProgress.total_rows_to_read() <<
+                "; Read-bytes = " << queryProgress.read_bytes() << '/' << queryProgress.total_bytes_to_read() << Endl;
+        }
+        Cout << "   Total progress: Read-rows = " << progress.total_progress().read_rows() << '/' << progress.total_progress().total_rows_to_read() <<
+            "; Read-bytes = " << progress.total_progress().read_bytes() << '/' << progress.total_progress().total_bytes_to_read() << Endl;
+    }
+
+    void PollProgress(TQueryServiceProxy proxy, TGuid queryId)
+    {
+        do {
+            auto req = proxy.GetQueryProgress();
+            ToProto(req->mutable_query_id(), queryId);
+
+            auto result = WaitFor(req->Invoke())
+                .ValueOrThrow();
+
+            auto start = TInstant::Now();
+            if (result->has_progress()) {
+                PrintProgressAndTs(result->progress(), start);
+                if (result->progress().total_progress().finished()) {
+                    break;
+                }
+            } else {
+                Cout << '[' << start << "] Empty progress" << Endl;
+            }
+
+            TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(PollPeriodMs_));
+        } while (true);
     }
 
 private:
@@ -105,6 +163,8 @@ private:
     TString Query_;
     TString QueryPath_;
     i64 RowCountLimit_ = -1;
+    bool PollProgressFlag_ = false;
+    i64 PollPeriodMs_ = 100;
     THashMap<TString, TString> Settings_;
 };
 

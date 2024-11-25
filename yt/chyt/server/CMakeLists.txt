@@ -92,9 +92,11 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/query_analyzer.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/query_context.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/query_progress.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/query_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/query_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/read_plan.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/remote_source.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/revision_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/schema_inference.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/secondary_query_header.cpp

@@ -265,7 +265,8 @@ class Clique(object):
     def get_active_instance_count(self):
         return len(self.get_active_instances())
 
-    def make_query_and_validate_row_count(self, query, exact=None, min=None, max=None, verbose=True, **kwargs):
+    # Validate number of rows that were read from storage.
+    def make_query_and_validate_read_row_count(self, query, exact=None, min=None, max=None, verbose=True, **kwargs):
         result = self.make_query(query, verbose=verbose, only_rows=False, **kwargs)
         assert (exact is not None) ^ (min is not None and max is not None)
         if exact is not None:
@@ -273,6 +274,31 @@ class Clique(object):
         else:
             assert min <= result["statistics"]["rows_read"] <= max
         return result["data"]
+
+    # Validate number of rows retrieved from the ISource using the query log.
+    # Rows that were filtered out during conversion are not counted.
+    def make_query_and_validate_prewhered_row_count(self, query, exact=None, min=None, max=None, **kwargs):
+        assert self.query_log_table_path is not None
+        assert (exact is not None) ^ (min is not None and max is not None)
+
+        result = self.make_query(query, full_response=True, **kwargs)
+        query_log_rows = self.wait_and_get_query_log_rows(result.headers["X-ClickHouse-Query-Id"])
+
+        block_rows = 0
+        for row in query_log_rows:
+            statistics = row['chyt_query_statistics']
+            if "secondary_query_source" not in statistics:
+                continue
+            if "block_rows" not in statistics["secondary_query_source"]:
+                continue
+            block_rows += statistics["secondary_query_source"]["block_rows"]["sum"]
+
+        if exact is not None:
+            assert block_rows == exact
+        else:
+            assert min <= block_rows <= max
+
+        return result.json()["data"]
 
     def _print_progress(self):
         print_debug(self.op.build_progress(), "(active instance count: {})".format(self.get_active_instance_count()))

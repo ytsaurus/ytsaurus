@@ -42,6 +42,8 @@ void TChytEngineConfig::Register(TRegistrar registrar)
         .Default("ch_public");
     registrar.Parameter("default_cluster", &TThis::DefaultCluster)
         .Default();
+    registrar.Parameter("progress_poll_period", &TThis::ProgressPollPeriod)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

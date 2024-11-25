@@ -5,6 +5,7 @@
 #include "private.h"
 #include "query_context.h"
 #include "query_finish_info.h"
+#include "query_progress.h"
 
 #include <yt/yt/core/ytree/ypath_service.h>
 #include <yt/yt/core/ytree/fluent.h>
@@ -458,6 +459,14 @@ public:
             .Run();
     }
 
+    TFuture<std::optional<TQueryProgressValues>> GetQueryProgress(TQueryId queryId) const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return BIND(&TImpl::DoGetQueryProgress, MakeStrong(this), queryId)
+            .AsyncVia(Invoker_)
+            .Run();
+    }
 
 private:
     TQueryRegistryConfigPtr Config_;
@@ -546,6 +555,20 @@ private:
 
         return result;
     }
+
+    std::optional<TQueryProgressValues> DoGetQueryProgress(TQueryId queryId) const
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        if (auto it = QueryContexts_.find(queryId); it != QueryContexts_.end()) {
+            return it->second->GetQueryProgress();
+        }
+        if (auto it = QueryFinishInfos_.find(queryId); it != QueryFinishInfos_.end()) {
+            return it->second.Info.Progess;
+        }
+
+        return std::nullopt;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -615,6 +638,11 @@ void TQueryRegistry::Stop()
 TFuture<std::vector<std::optional<TQueryFinishInfo>>> TQueryRegistry::ExtractQueryFinishInfos(const std::vector<TQueryId>& queryIds)
 {
     return Impl_->ExtractQueryFinishInfos(queryIds);
+}
+
+TFuture<std::optional<TQueryProgressValues>> TQueryRegistry::GetQueryProgress(TQueryId queryId) const
+{
+    return Impl_->GetQueryProgress(queryId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
