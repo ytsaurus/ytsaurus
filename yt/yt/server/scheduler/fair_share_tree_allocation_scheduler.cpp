@@ -2753,10 +2753,12 @@ TError TFairShareTreeAllocationScheduler::CheckOperationSchedulingInSeveralTrees
         (maybeVanillaTaskSpecs->begin()->second.JobCount == 1);
 
     auto segment = operationState->SchedulingSegment;
-    if (IsModuleAwareSchedulingSegment(*segment) && !singleJobVanillaOperation) {
+    if (IsModuleAwareSchedulingSegment(*segment) &&
+        (!singleJobVanillaOperation || !Config_->AllowSingleJobLargeGpuOperationsInMultipleTrees))
+    {
         // NB: This error will be propagated to operation's failure only if operation is launched in several trees.
         return TError(
-            "Scheduling in several trees is forbidden for operations with several jobs in module-aware scheduling segments, "
+            "Scheduling in several trees is forbidden for operations in module-aware scheduling segments, "
             "specify a single tree or use the \"schedule_in_single_tree\" spec option")
             << TErrorAttribute("segment", segment);
     }
