@@ -159,6 +159,12 @@ void TInstanceLimitsTracker::DoBuildOrchid(NYson::IYsonConsumer* consumer) const
             .DoIf(static_cast<bool>(MemoryUsage_), [&] (auto fluent) {
                 fluent.Item("memory_usage").Value(*MemoryUsage_);
             })
+            .DoIf(static_cast<bool>(InstanceLimits_ && InstanceLimits_->NetRx), [&] (auto fluent) {
+                fluent.Item("network_rx_bandwidth_limit").Value(*InstanceLimits_->NetRx);
+            })
+            .DoIf(static_cast<bool>(InstanceLimits_ && InstanceLimits_->NetTx), [&] (auto fluent) {
+                fluent.Item("network_tx_bandwidth_limit").Value(*InstanceLimits_->NetTx);
+            })
         .EndMap();
 }
 
