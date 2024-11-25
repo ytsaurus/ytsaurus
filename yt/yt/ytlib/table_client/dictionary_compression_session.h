@@ -24,6 +24,8 @@ struct TRowDictionaryCompressor
 {
     NChunkClient::TChunkId DictionaryId;
     THashMap<int, TColumnDictionaryCompressor> ColumnCompressors;
+    // These are used to immediately check that compression was correct.
+    THashMap<int, NCompression::IDictionaryDecompressorPtr> ColumnDecompressors;
 };
 
 using TRowDictionaryCompressors = TEnumIndexedArray<
