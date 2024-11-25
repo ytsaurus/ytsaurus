@@ -144,7 +144,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
     @authors("evgenstf")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_prewhere_several_chunks(self, optimize_for):
-        with Clique(1, config_patch=self.get_config_patch(False)) as clique:
+        with Clique(1, export_query_log=True, config_patch=self.get_config_patch(False)) as clique:
             create(
                 "table",
                 "//tmp/test_table",
@@ -174,10 +174,10 @@ class TestClickHousePrewhere(ClickHouseTestBase):
             assert clique.make_query("select index from \"//tmp/test_table\" prewhere key = 'b_key'") == [
                 {"index": 1234}
             ]
-            clique.make_query_and_validate_row_count(
+            clique.make_query_and_validate_prewhered_row_count(
                 "select index from \"//tmp/test_table\" where key = 'b_key'", exact=102400
             )
-            clique.make_query_and_validate_row_count(
+            clique.make_query_and_validate_prewhered_row_count(
                 "select index from \"//tmp/test_table\" prewhere key = 'b_key'", exact=1
             )
 
@@ -195,13 +195,13 @@ class TestClickHousePrewhere(ClickHouseTestBase):
         rows = [{"heavy": random_str(), "light": i} for i in range(1024)]
         write_table("//tmp/t", rows, table_writer={"block_size": 1024, "desired_chunk_size": 10 * 1024})
 
-        with Clique(1, config_patch=self.get_config_patch(True)) as clique:
+        with Clique(1, export_query_log=True, config_patch=self.get_config_patch(True)) as clique:
             query = "select light from `//tmp/t` where heavy == '{}'".format(rows[42]["heavy"])
             explain_result = clique.make_query("explain syntax " + query)
             print_debug(explain_result)
             assert any("PREWHERE" in row["explain"] for row in explain_result)
 
-            result = clique.make_query_and_validate_row_count(
+            result = clique.make_query_and_validate_prewhered_row_count(
                 query,
                 exact=1,
                 verbose=False)
@@ -238,7 +238,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
             print_debug(explain_result)
             assert not any("PREWHERE" in row["explain"] for row in explain_result)
 
-            result = clique.make_query_and_validate_row_count(
+            result = clique.make_query_and_validate_read_row_count(
                 query,
                 exact=1024,
                 verbose=False)

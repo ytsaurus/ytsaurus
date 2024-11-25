@@ -53,9 +53,9 @@ public:
         TLogger logger,
         TChunkReaderStatisticsPtr chunkReaderStatistics,
         TCallback<void(const TStatistics&)> statisticsCallback)
-        : DB::ISource(DeriveHeaderBlockFromReadPlan(
-            readPlan,
-            settings->Composite))
+        : DB::ISource(
+            DeriveHeaderBlockFromReadPlan(readPlan, settings->Composite),
+            /*enable_auto_progress*/ false)
         , Reader_(std::move(reader))
         , ReadPlan_(std::move(readPlan))
         , TraceContext_(std::move(traceContext))
@@ -150,6 +150,7 @@ private:
         TWallTimer totalWallTimer;
         YT_LOG_TRACE("Started reading ClickHouse block");
 
+        i64 readRows = 0;
         DB::Block resultBlock;
         while (resultBlock.rows() == 0) {
             TRowBatchReadOptions options{
@@ -177,6 +178,7 @@ private:
             }
 
             TBlockWithFilter blockWithFilter(batch->GetRowCount());
+            readRows += blockWithFilter.RowCount;
 
             for (int stepIndex = 0; stepIndex < std::ssize(ReadPlan_->Steps); ++stepIndex) {
                 const auto& step = ReadPlan_->Steps[stepIndex];
@@ -215,6 +217,11 @@ private:
 
         auto totalElapsed = totalWallTimer.GetElapsedTime();
         YT_LOG_TRACE("Finished reading ClickHouse block (WallTime: %v)", totalElapsed);
+
+        // Report the query progress, including rows that were filtered out.
+        // The number of bytes read by the reader but later filtered cannot be counted,
+        // because this information cannot be directly obtained from RowBatch.
+        progress(readRows, resultBlock.bytes());
 
         Statistics_.AddSample("/secondary_query_source/block_rows"_SP, resultBlock.rows());
         Statistics_.AddSample("/secondary_query_source/block_columns"_SP, resultBlock.columns());

@@ -7,10 +7,10 @@
 #include "helpers.h"
 #include "host.h"
 #include "index.h"
-#include "logging_transform.h"
 #include "query_analyzer.h"
 #include "query_context.h"
 #include "query_registry.h"
+#include "remote_source.h"
 #include "schema_inference.h"
 #include "secondary_query_header.h"
 #include "storage_base.h"
@@ -32,7 +32,6 @@
 #include <yt/yt/client/ypath/rich.h>
 
 #include <Core/QueryProcessingStage.h>
-#include <QueryPipeline/RemoteQueryExecutor.h>
 #include <DataTypes/DataTypeFactory.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <Interpreters/getHeaderForProcessingStage.h>
@@ -50,7 +49,6 @@
 #include <Processors/ConcatProcessor.h>
 #include <Processors/ResizeProcessor.h>
 #include <Processors/Sinks/NullSink.h>
-#include <Processors/Sources/RemoteSource.h>
 #include <Processors/Sources/SinkToOutputStream.h>
 #include <Processors/Sources/SourceFromInputStream.h>
 #include <Storages/StorageFactory.h>
@@ -143,114 +141,6 @@ DB::ThrottlerPtr CreateNetThrottler(const DB::Settings& settings)
 //     // And this is not allowed, since all code is based on the assumption that in the block stream all types are the same.
 //     return std::make_shared<DB::MaterializingBlockInputStream>(stream);
 // }
-
-DB::Pipe CreateRemoteSource(
-    const IClusterNodePtr& remoteNode,
-    const TSecondaryQuery& secondaryQuery,
-    TQueryId remoteQueryId,
-    DB::ContextPtr context,
-    const DB::ThrottlerPtr& throttler,
-    const DB::Tables& externalTables,
-    DB::QueryProcessingStage::Enum processingStage,
-    const DB::Block& blockHeader,
-    TLogger logger)
-{
-    const auto& queryAst = secondaryQuery.Query;
-    const auto& Logger = logger;
-
-    const auto* queryContext = GetQueryContext(context);
-
-    std::string query = queryToString(queryAst);
-
-    auto scalars = context->getQueryContext()->getScalars();
-
-    // If the current query is already secondary, then it can contain 'yt_table_*' scalars in it.
-    // These scalars have already been used in ytSubquery() and we do not need them any more.
-    // Erase them and then add proper ones.
-    std::vector<std::string> scalarNamesToErase;
-    for (const auto& [scalarName, _] : scalars) {
-        if (scalarName.starts_with("yt_table_")) {
-            scalarNamesToErase.push_back(scalarName);
-        }
-    }
-    for (const auto& scalarName : scalarNamesToErase) {
-        scalars.erase(scalarName);
-    }
-
-    for (const auto& [key, value] : secondaryQuery.Scalars) {
-        scalars.emplace(key, value);
-    }
-
-    bool isInsert = queryAst->as<DB::ASTInsertQuery>();
-
-    auto remoteQueryExecutor = std::make_shared<DB::RemoteQueryExecutor>(
-        remoteNode->GetConnection(),
-        query,
-        blockHeader,
-        context,
-        throttler,
-        scalars,
-        externalTables,
-        processingStage);
-    remoteQueryExecutor->setPoolMode(DB::PoolMode::GET_MANY);
-
-    auto* traceContext = TryGetCurrentTraceContext();
-    if (!traceContext) {
-        traceContext = queryContext->TraceContext.Get();
-    }
-    YT_VERIFY(traceContext);
-
-    auto queryHeader = New<TSecondaryQueryHeader>();
-    queryHeader->QueryId = remoteQueryId;
-    queryHeader->ParentQueryId = queryContext->QueryId;
-    queryHeader->SpanContext = New<TSerializableSpanContext>();
-    static_cast<TSpanContext&>(*queryHeader->SpanContext) = traceContext->GetSpanContext();
-    queryHeader->QueryDepth = queryContext->QueryDepth + 1;
-    queryHeader->SnapshotLocks = queryContext->SnapshotLocks;
-    queryHeader->DynamicTableReadTimestamp = queryContext->DynamicTableReadTimestamp;
-    queryHeader->ReadTransactionId = queryContext->ReadTransactionId;
-    queryHeader->WriteTransactionId = queryContext->WriteTransactionId;
-    queryHeader->CreatedTablePath = queryContext->CreatedTablePath;
-
-    auto serializedQueryHeader = ConvertToYsonString(queryHeader, EYsonFormat::Text).ToString();
-
-    YT_LOG_INFO("Subquery header for secondary query constructed (RemoteQueryId: %v, SecondaryQueryHeader: %v)",
-        remoteQueryId,
-        serializedQueryHeader);
-    remoteQueryExecutor->setQueryId(serializedQueryHeader);
-
-    // XXX(max42): should we use this?
-    // if (!table_func_ptr)
-    //     remote_query_executor->setMainTable(main_table); */
-
-    bool addAggregationInfo = processingStage == DB::QueryProcessingStage::WithMergeableState;
-    bool addTotals = false;
-    bool addExtremes = false;
-    bool asyncRead = false;
-    bool asyncQuerySending = false;
-    if (!isInsert && processingStage == DB::QueryProcessingStage::Complete) {
-        addTotals = queryAst->as<DB::ASTSelectQuery &>().group_by_with_totals;
-        addExtremes = context->getSettingsRef().extremes;
-    }
-
-    auto pipe = createRemoteSourcePipe(
-        remoteQueryExecutor,
-        addAggregationInfo,
-        addTotals,
-        addExtremes,
-        asyncRead,
-        asyncQuerySending);
-
-    pipe.addSimpleTransform([&] (const DB::Block& header) {
-        return std::make_shared<TLoggingTransform>(
-            header,
-            queryContext->Logger.WithTag("RemoteQueryId: %v, RemoteNode: %v",
-                remoteQueryId,
-                remoteNode->GetName().ToString()));
-    });
-
-    return pipe;
-}
 
 void ValidateReadPermissions(
     const std::vector<std::string>& columnNames,
@@ -1437,7 +1327,7 @@ private:
 
         preparer.PrepareSecondaryQueries();
 
-        return std::move(preparer);
+        return preparer;
     }
 
     //! Erase underlying table (assuming that we have single underlying static table)

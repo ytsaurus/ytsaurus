@@ -28,3 +28,33 @@ message TRspExecuteQuery
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TProgressValues
+{
+    optional int64 read_rows = 1;
+    optional int64 read_bytes = 2;
+    optional int64 total_rows_to_read = 3;
+    optional int64 total_bytes_to_read = 4;
+    optional bool finished = 5;
+}
+
+message TQueryProgressValues
+{
+    optional TProgressValues total_progress = 1;
+    repeated NYT.NProto.TGuid secondary_query_ids = 2;
+    repeated TProgressValues secondary_query_progresses = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetQueryProgress
+{
+    required NYT.NProto.TGuid query_id = 1;
+}
+
+message TRspGetQueryProgress
+{
+    optional TQueryProgressValues progress = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

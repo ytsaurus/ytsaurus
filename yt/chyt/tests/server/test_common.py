@@ -1304,7 +1304,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 interval64_max - 1,
             ]))))
             query = "select * from '//tmp/t'"
-            assert clique.make_query_and_validate_row_count(query, exact=2)
+            assert clique.make_query_and_validate_read_row_count(query, exact=2)
 
     @authors("dakovalkov")
     def test_yson_extract(self):
@@ -1618,12 +1618,12 @@ class TestClickHouseCommon(ClickHouseTestBase):
         with Clique(1, config_patch=config_patch) as clique:
             # Simple.
             query = "select * from concatYtTablesRange('//tmp') where $table_index = 2 order by (key, subkey)"
-            assert clique.make_query_and_validate_row_count(query, exact=(1 * rows_per_table)) == \
+            assert clique.make_query_and_validate_read_row_count(query, exact=(1 * rows_per_table)) == \
                    table_data[2]
 
             # Non-monotonic transformation.
             query = "select * from concatYtTablesRange('//tmp') where $table_index % 2 = 0 order by (key, subkey)"
-            assert clique.make_query_and_validate_row_count(query, exact=(2 * rows_per_table)) == \
+            assert clique.make_query_and_validate_read_row_count(query, exact=(2 * rows_per_table)) == \
                    table_data[0] + table_data[2]
 
             # Several expressions.
@@ -1631,7 +1631,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             select * from concatYtTablesRange('//tmp')
             where $table_index = 0 or $table_name = 't1' or $table_path = '//tmp/t2' order by (key, subkey)
             """
-            assert clique.make_query_and_validate_row_count(query, exact=(3 * rows_per_table)) == \
+            assert clique.make_query_and_validate_read_row_count(query, exact=(3 * rows_per_table)) == \
                    table_data[0] + table_data[1] + table_data[2]
 
             # Non-monotonic transformation + $table_index check.
@@ -1639,7 +1639,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             select *, $table_index from concatYtTablesRange('//tmp')
             where endsWith($table_path, '1') order by (key, subkey)
             """
-            assert clique.make_query_and_validate_row_count(query, exact=(1 * rows_per_table)) == \
+            assert clique.make_query_and_validate_read_row_count(query, exact=(1 * rows_per_table)) == \
                    [{"key": 1, "$table_index": 1, "subkey": i} for i in range(0, rows_per_table)]
 
     @authors("dakovalkov")

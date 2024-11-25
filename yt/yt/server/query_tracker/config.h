@@ -60,6 +60,7 @@ class TChytEngineConfig
 public:
     TString DefaultClique;
     TString DefaultCluster;
+    TDuration ProgressPollPeriod;
 
     REGISTER_YSON_STRUCT(TChytEngineConfig);
 
