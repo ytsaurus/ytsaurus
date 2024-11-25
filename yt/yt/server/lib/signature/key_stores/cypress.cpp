@@ -1,4 +1,6 @@
-#include "cypress_key_store.h"
+#include "cypress.h"
+
+#include <yt/yt/server/lib/signature/key_info.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 

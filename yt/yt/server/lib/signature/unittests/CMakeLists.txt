@@ -14,8 +14,6 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_subdirectory(mock)
-
 add_executable(unittester-signature-service)
 
 
@@ -33,7 +31,6 @@ target_link_libraries(unittester-signature-service PUBLIC
   client-unittests-mock
   yt-core-test_framework
   server-lib-signature
-  signature-unittests-mock
 )
 
 target_allocator(unittester-signature-service

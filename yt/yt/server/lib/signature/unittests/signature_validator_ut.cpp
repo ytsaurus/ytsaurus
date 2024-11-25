@@ -1,9 +1,10 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include "mock/key_store.h"
-
 #include <yt/yt/server/lib/signature/signature_validator.h>
 
+#include <yt/yt/server/lib/signature/key_stores/stub.h>
+
+#include <yt/yt/server/lib/signature/key_pair.h>
 #include <yt/yt/server/lib/signature/signature.h>
 #include <yt/yt/server/lib/signature/signature_header.h>
 #include <yt/yt/server/lib/signature/signature_preprocess.h>
@@ -32,19 +33,19 @@ struct TSignatureValidatorTest
 {
     TKeyId KeyId;
     TKeyPair Key;
-    TMockKeyStorePtr Store;
+    TStubKeyStorePtr Store;
     TSignatureValidator Validator;
     TYsonString Payload;
 
     TSignatureValidatorTest()
         : KeyId(TGuid::Create())
         , Key(TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
-            .Owner = TOwnerId{"TMockKeyStore"},
+            .Owner = TOwnerId{"TStubKeyStore"},
             .Id = KeyId,
             .CreatedAt = Now(),
             .ValidAfter = Now() - 10h,
             .ExpiresAt = Now() + 10h})
-        , Store(New<TMockKeyStore>())
+        , Store(New<TStubKeyStore>())
         , Validator(Store)
         , Payload("MyImportantData"_sb)
     {
@@ -57,7 +58,7 @@ struct TSignatureValidatorTest
     {
         auto now = Now();
         return TSignatureHeaderImpl<TSignatureVersion{0, 1}>{
-            .Issuer = "TMockKeyStore",
+            .Issuer = "TStubKeyStore",
             .KeypairId = KeyId.Underlying(),
             .SignatureId = TGuid::Create(),
             .IssuedAt = now + delta_created,

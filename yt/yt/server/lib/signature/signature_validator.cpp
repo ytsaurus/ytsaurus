@@ -1,5 +1,6 @@
 #include "signature_validator.h"
 
+#include "key_info.h"
 #include "private.h"
 #include "signature.h"
 #include "signature_preprocess.h"

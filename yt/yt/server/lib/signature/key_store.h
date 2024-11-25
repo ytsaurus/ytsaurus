@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include "key_pair.h"
-
 #include "yt/yt/core/actions/future.h"
 
 namespace NYT::NSignature {

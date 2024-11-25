@@ -1,17 +1,19 @@
-#include "key_store.h"
+#include "stub.h"
+
+#include <yt/yt/server/lib/signature/key_info.h>
 
 namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwnerId TMockKeyStore::GetOwner()
+TOwnerId TStubKeyStore::GetOwner()
 {
-    return TOwnerId("TMockKeyStore");
+    return TOwnerId("TStubKeyStore");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> TMockKeyStore::RegisterKey(const TKeyInfoPtr& keyInfo)
+TFuture<void> TStubKeyStore::RegisterKey(const TKeyInfoPtr& keyInfo)
 {
     auto owner = std::visit([](const auto& meta) { return meta.Owner; }, keyInfo->Meta());
 
@@ -21,7 +23,7 @@ TFuture<void> TMockKeyStore::RegisterKey(const TKeyInfoPtr& keyInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<TKeyInfoPtr> TMockKeyStore::FindKey(const TOwnerId& owner, const TKeyId& key)
+TFuture<TKeyInfoPtr> TStubKeyStore::FindKey(const TOwnerId& owner, const TKeyId& key)
 {
     auto ownerIt = Data.find(owner);
     if (ownerIt == Data.end()) {

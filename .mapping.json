@@ -3437,7 +3437,6 @@
   "yt/yt/server/lib/shuffle_server/CMakeLists.txt":"",
   "yt/yt/server/lib/signature/CMakeLists.txt":"",
   "yt/yt/server/lib/signature/unittests/CMakeLists.txt":"",
-  "yt/yt/server/lib/signature/unittests/mock/CMakeLists.txt":"",
   "yt/yt/server/lib/squash_fs/CMakeLists.darwin-arm64.txt":"",
   "yt/yt/server/lib/squash_fs/CMakeLists.darwin-x86_64.txt":"",
   "yt/yt/server/lib/squash_fs/CMakeLists.linux-x86_64.txt":"",

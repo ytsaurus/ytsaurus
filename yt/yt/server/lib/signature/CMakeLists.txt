@@ -35,7 +35,6 @@ target_link_libraries(server-lib-signature PUBLIC
 
 target_sources(server-lib-signature PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/crypto.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/cypress_key_store.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/key_info.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/key_pair.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/signature.cpp
@@ -43,5 +42,7 @@ target_sources(server-lib-signature PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/signature_header.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/signature_preprocess.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/signature_validator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/key_stores/cypress.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/key_stores/stub.cpp
 )
 
