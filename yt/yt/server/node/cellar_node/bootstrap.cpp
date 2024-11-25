@@ -45,7 +45,7 @@ using namespace NTransactionSupervisor;
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto& Logger = CellarNodeLogger;
-YT_DEFINE_GLOBAL(const NLogging::TLogger, DryRunLogger, "DryRun");
+static YT_DEFINE_GLOBAL(const NLogging::TLogger, DryRunLogger, "DryRun");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -51,15 +51,13 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef _linux_
-static constexpr auto ResourceUsageUpdatePeriod = TDuration::MilliSeconds(1000);
-#endif
+namespace {
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "JobProxyEnvironment");
 
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
+#ifdef _linux_
+static constexpr auto ResourceUsageUpdatePeriod = TDuration::MilliSeconds(1000);
+#endif
 
 template <class T>
 std::optional<T> ValueOrNullopt(const TErrorOr<T>& result) noexcept

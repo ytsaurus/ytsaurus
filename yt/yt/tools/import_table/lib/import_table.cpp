@@ -60,10 +60,9 @@ using namespace NYson;
 using namespace NYtBlobTable;
 using namespace NYTree;
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Importer");
+static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Importer");
 
 ////////////////////////////////////////////////////////////////////////////////
 

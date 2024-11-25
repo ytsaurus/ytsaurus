@@ -20,11 +20,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Used only for YT_LOG_ALERT.
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "NewJobManager");
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TNewJobStub::AddDataSlice(const TLegacyDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie, bool isPrimary)
 {
     YT_VERIFY(!dataSlice->IsLegacy);

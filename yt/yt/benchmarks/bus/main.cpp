@@ -20,8 +20,7 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, BusBenchmarkLogger, "BusBenchmark");
-static constexpr auto& Logger = BusBenchmarkLogger;
+static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "BusBenchmark");
 
 ////////////////////////////////////////////////////////////////////////////////
 
