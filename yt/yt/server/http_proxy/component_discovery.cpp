@@ -27,7 +27,7 @@ void FillMasterReadOptions(TMasterReadOptions& options, const TMasterReadOptions
     options = value;
 }
 
-[[nodiscard]] bool IsComponentOptional(EClusterComponentType component)
+bool IsComponentOptional(EClusterComponentType component)
 {
     switch (component) {
         case EClusterComponentType::MasterCache:
@@ -43,7 +43,7 @@ void FillMasterReadOptions(TMasterReadOptions& options, const TMasterReadOptions
 }
 
 // COMPAT(koloshmet)
-[[nodiscard]] bool IsComponentCompat(EClusterComponentType component)
+bool IsComponentCompat(EClusterComponentType component)
 {
     switch (component) {
         case EClusterComponentType::TabletBalancer:
@@ -280,7 +280,11 @@ TErrorOr<std::string> TComponentDiscoverer::GetCompatBinaryVersion(const TYPath&
         return std::move(static_cast<TError&>(rspOrError));
     }
 
-    return ConvertTo<std::string>(rspOrError.Value());
+    try {
+        return ConvertTo<std::string>(rspOrError.Value());
+    } catch (const std::exception& ex) {
+        return ex;
+    }
 }
 
 std::vector<TClusterComponentInstance> TComponentDiscoverer::GetAttributes(
@@ -312,7 +316,7 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::GetAttributes(
         result.Address = StringSplitter(subpaths[index]).Split('/').ToList<std::string>().back();
         if (!ysonOrError.IsOK()) {
             if (IsComponentCompat(component)) {
-                auto versionOrError = GetCompatBinaryVersion(GetCypressDirectory(component) + "/" + subpaths[index]);
+                auto versionOrError = GetCompatBinaryVersion(GetCypressDirectory(component) + subpaths[index]);
                 if (versionOrError.IsOK()) {
                     result.Version = std::move(versionOrError).Value();
                 } else {
@@ -324,18 +328,22 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::GetAttributes(
             continue;
         }
 
-        auto rspMap = ConvertToNode(ysonOrError.Value())->AsMap();
+        try {
+            auto rspMap = ConvertToNode(ysonOrError.Value())->AsMap();
 
-        if (auto errorNode = rspMap->FindChild("error")) {
-            result.Error = ConvertTo<TError>(errorNode);
-            continue;
+            if (auto errorNode = rspMap->FindChild("error")) {
+                result.Error = ConvertTo<TError>(errorNode);
+                continue;
+            }
+
+            auto version = ConvertTo<std::string>(rspMap->GetChildOrThrow("version"));
+            auto startTime = ConvertTo<std::string>(rspMap->GetChildOrThrow("start_time"));
+
+            result.Version = std::move(version);
+            result.StartTime = std::move(startTime);
+        } catch (const std::exception& ex) {
+            result.Error = ex;
         }
-
-        auto version = ConvertTo<std::string>(rspMap->GetChildOrThrow("version"));
-        auto startTime = ConvertTo<std::string>(rspMap->GetChildOrThrow("start_time"));
-
-        result.Version = std::move(version);
-        result.StartTime = std::move(startTime);
     }
     return results;
 }
