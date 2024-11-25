@@ -8,7 +8,7 @@ void TDiskInfoProviderConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("disk_ids", &TThis::DiskIds)
         .Default();
-    registrar.Parameter("yt_disk_prefix", &TThis::YtDiskPrefix)
+    registrar.Parameter("yt_disk_prefix", &TThis::YTDiskPrefix)
         .Default("/yt");
 }
 
@@ -32,6 +32,23 @@ void TDiskManagerProxyDynamicConfig::Register(TRegistrar registrar)
         .Default();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+void THotswapManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("disk_manager_proxy", &TThis::DiskManagerProxy)
+        .DefaultNew();
+    registrar.Parameter("disk_info_provider", &TThis::DiskInfoProvider)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void THotswapManagerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("disk_manager_proxy", &TThis::DiskManagerProxy)
+        .DefaultNew();
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDiskManager

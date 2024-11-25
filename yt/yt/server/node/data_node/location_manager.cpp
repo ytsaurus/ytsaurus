@@ -37,7 +37,7 @@ TLocationManager::TLocationManager(
     IBootstrap* bootstrap,
     TChunkStorePtr chunkStore,
     IInvokerPtr controlInvoker,
-    TDiskInfoProviderPtr diskInfoProvider)
+    IDiskInfoProviderPtr diskInfoProvider)
     : DiskInfoProvider_(std::move(diskInfoProvider))
     , ChunkStore_(std::move(chunkStore))
     , ControlInvoker_(std::move(controlInvoker))
@@ -109,8 +109,8 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    THashMap<TString, TDiskInfo> diskNameToDisk;
-    THashSet<TString> failedDisks;
+    THashMap<std::string, TDiskInfo> diskNameToDisk;
+    THashSet<std::string> failedDisks;
 
     for (const auto& disk : disks) {
         diskNameToDisk.emplace(disk.DeviceName, disk);
@@ -125,27 +125,28 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
 
     for (const auto& location : locations) {
         auto it = diskNameToDisk.find(location->GetStaticConfig()->DeviceName);
-
         if (it == diskNameToDisk.end()) {
             YT_LOG_WARNING("Unknown location disk (DeviceName: %v)",
                 location->GetStaticConfig()->DeviceName);
-        } else {
-            locationLivenessInfos.push_back(TLocationLivenessInfo{
-                .Location = location,
-                .DiskId = it->second.DiskId,
-                .LocationState = location->GetState(),
-                .IsDiskAlive = !failedDisks.contains(location->GetStaticConfig()->DeviceName),
-                .DiskState = it->second.State
-            });
+            continue;
         }
+
+        locationLivenessInfos.push_back(TLocationLivenessInfo{
+            .Location = location,
+            // TODO(babenko): switch to std::string
+            .DiskId = TString(it->second.DiskId),
+            .LocationState = location->GetState(),
+            .IsDiskAlive = !failedDisks.contains(location->GetStaticConfig()->DeviceName),
+            .DiskState = it->second.State,
+        });
     }
 
     return locationLivenessInfos;
 }
 
-TFuture<bool> TLocationManager::GetHotSwapEnabledFuture()
+TFuture<bool> TLocationManager::GetHotSwapEnabled()
 {
-    return DiskInfoProvider_->GetHotSwapEnabledFuture();
+    return DiskInfoProvider_->GetHotSwapEnabled();
 }
 
 TFuture<std::vector<TDiskInfo>> TLocationManager::GetDiskInfos()
@@ -331,7 +332,7 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
 {
     VERIFY_INVOKER_AFFINITY(Invoker_);
 
-    auto hotSwapEnabled = WaitFor(LocationManager_->GetHotSwapEnabledFuture());
+    auto hotSwapEnabled = WaitFor(LocationManager_->GetHotSwapEnabled());
 
     // Fast path.
     if (!hotSwapEnabled.IsOK()) {

@@ -18,10 +18,8 @@ void TNativeSingletonsConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("pod_spec", &TThis::PodSpec)
         .DefaultNew();
-    registrar.Parameter("disk_manager_proxy", &TThis::DiskManagerProxy)
-        .DefaultNew();
-    registrar.Parameter("disk_info_provider", &TThis::DiskInfoProvider)
-        .DefaultNew();
+    registrar.Parameter("hotswap_manager", &TThis::HotswapManager)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,8 +30,8 @@ void TNativeSingletonsDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("native_authentication_manager", &TThis::NativeAuthenticationManager)
         .DefaultNew();
-    registrar.Parameter("disk_manager_proxy", &TThis::DiskManagerProxy)
-        .DefaultNew();
+    registrar.Parameter("hotswap_manager", &TThis::HotswapManager)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

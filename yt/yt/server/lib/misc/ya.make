@@ -9,7 +9,6 @@ SRCS(
     cluster_throttlers_config.cpp
     config.cpp
     disk_health_checker.cpp
-    disk_change_checker.cpp
     fork_executor.cpp
     format_manager.cpp
     estimate_size_helpers.cpp
@@ -24,7 +23,6 @@ SRCS(
 
 PEERDIR(
     yt/yt/ytlib
-    yt/yt/library/disk_manager
     yt/yt/library/coredumper
     yt/yt/library/process
     yt/yt/library/ytprof

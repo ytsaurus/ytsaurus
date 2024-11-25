@@ -15,7 +15,7 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/server/lib/misc/disk_change_checker.h>
+#include <yt/yt/library/disk_manager/hotswap_manager.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
 
@@ -43,10 +43,6 @@
 #include <yt/yt/library/auth_server/config.h>
 #include <yt/yt/library/auth_server/cypress_cookie_login.h>
 #include <yt/yt/library/auth_server/cypress_cookie_manager.h>
-
-#include <yt/yt/library/disk_manager/config.h>
-#include <yt/yt/library/disk_manager/disk_info_provider.h>
-#include <yt/yt/library/disk_manager/disk_manager_proxy.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
@@ -132,15 +128,6 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         orchidRoot,
         "http_proxy");
 
-    DiskManagerProxy_ = CreateDiskManagerProxy(Config_->DiskManagerProxy);
-    DiskInfoProvider_ = New<NDiskManager::TDiskInfoProvider>(
-        DiskManagerProxy_,
-        Config_->DiskInfoProvider);
-    DiskChangeChecker_ = New<TDiskChangeChecker>(
-        DiskInfoProvider_,
-        GetControlInvoker(),
-        Logger());
-
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
 
@@ -199,7 +186,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     SetNodeByYPath(
         orchidRoot,
         "/disk_monitoring",
-        CreateVirtualNode(DiskChangeChecker_->GetOrchidService()));
+        CreateVirtualNode(NDiskManager::THotswapManager::GetOrchidService()));
 
     Config_->BusServer->Port = Config_->RpcPort;
     RpcServer_ = NRpc::NBus::CreateBusServer(CreateBusServer(Config_->BusServer));
@@ -394,8 +381,6 @@ void TBootstrap::OnDynamicConfigChanged(
     Connection_->Reconfigure(newConfig->ClusterConnection);
 
     Coordinator_->GetTraceSampler()->UpdateConfig(newConfig->Tracing);
-
-    DiskManagerProxy_->OnDynamicConfigChanged(newConfig->DiskManagerProxy);
 }
 
 void TBootstrap::HandleRequest(
@@ -448,8 +433,6 @@ void TBootstrap::Run()
     if (ZookeeperBootstrap_) {
         ZookeeperBootstrap_->Run();
     }
-
-    DiskChangeChecker_->Start();
 
     Sleep(TDuration::Max());
 }

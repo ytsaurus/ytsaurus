@@ -8,30 +8,11 @@ namespace NYT::NDiskManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMockedDiskConfig
-    : public NYTree::TYsonStruct
-{
-    TString DiskId;
-    TString DevicePath;
-    TString DeviceName;
-    TString DiskModel;
-    std::vector<TString> PartitionFsLabels;
-    EDiskState State;
-
-    REGISTER_YSON_STRUCT(TMockedDiskConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TMockedDiskConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TDiskManagerProxyConfig
     : public NYTree::TYsonStruct
 {
-    TString DiskManagerAddress;
-    TString DiskManagerServiceName;
+    std::string DiskManagerAddress;
+    std::string DiskManagerServiceName;
 
     TDuration RequestTimeout;
 
@@ -47,8 +28,8 @@ DEFINE_REFCOUNTED_TYPE(TDiskManagerProxyConfig)
 struct TDiskInfoProviderConfig
     : public NYTree::TYsonStruct
 {
-    std::vector<TString> DiskIds;
-    TString YtDiskPrefix;
+    std::vector<std::string> DiskIds;
+    std::string YTDiskPrefix;
 
     REGISTER_YSON_STRUCT(TDiskInfoProviderConfig);
 
@@ -70,6 +51,35 @@ struct TDiskManagerProxyDynamicConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiskManagerProxyDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct THotswapManagerConfig
+    : public NYTree::TYsonStruct
+{
+    TDiskManagerProxyConfigPtr DiskManagerProxy;
+    TDiskInfoProviderConfigPtr DiskInfoProvider;
+
+    REGISTER_YSON_STRUCT(THotswapManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(THotswapManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct THotswapManagerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    TDiskManagerProxyDynamicConfigPtr DiskManagerProxy;
+
+    REGISTER_YSON_STRUCT(THotswapManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(THotswapManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
