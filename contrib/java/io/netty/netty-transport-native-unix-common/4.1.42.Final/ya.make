@@ -1,5 +1,7 @@
 JAVA_CONTRIB(netty-transport-native-unix-common-4.1.42.Final)
 
+VERSION(4.1.42.Final)
+
 LICENSE(Apache-2.0)
 
 PEERDIR(
