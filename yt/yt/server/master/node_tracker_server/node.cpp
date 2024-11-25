@@ -676,8 +676,15 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     // COMPAT(kvk1920)
     if (context.GetVersion() < EMasterReign::DropImaginaryChunkLocations) {
         auto imaginaryLocationCount = TSizeSerializer::Load(context);
-        YT_LOG_FATAL_IF(imaginaryLocationCount > 0,
-            "Node with imaginary locations encountered");
+
+        // Just drop it.
+        for (size_t i = 0; i < imaginaryLocationCount; ++i) {
+            // Medium index.
+            Load<int>(context);
+
+            auto* owningNode = TChunkLocation::SkipImaginaryChunkLocation(context);
+            YT_VERIFY(owningNode == this);
+        }
     }
 
     Load(context, RegisterTime_);
