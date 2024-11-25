@@ -1,5 +1,7 @@
 JAVA_CONTRIB()
 
+VERSION(3.2.13)
+
 LICENSE(Apache-2.0)
 
 PEERDIR(

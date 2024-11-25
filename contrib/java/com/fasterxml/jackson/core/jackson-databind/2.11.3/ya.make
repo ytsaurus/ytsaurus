@@ -1,5 +1,7 @@
 JAVA_CONTRIB(jackson-databind-2.11.3)
 
+VERSION(2.11.3)
+
 LICENSE(Apache-2.0)
 
 PEERDIR(
