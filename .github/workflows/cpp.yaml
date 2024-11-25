@@ -3,8 +3,7 @@ name: C++ CI
 on:
   push:
     branches:
-      - main
-      - stable/[0-9]+\.[0-9]+
+      - members/mpereskokova/test-ydb-build
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
