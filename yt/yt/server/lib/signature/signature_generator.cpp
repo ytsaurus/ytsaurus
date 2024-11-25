@@ -1,5 +1,6 @@
 #include "signature_generator.h"
 
+#include "key_info.h"
 #include "private.h"
 #include "signature.h"
 #include "signature_header.h"

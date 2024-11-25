@@ -1,8 +1,8 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include "mock/key_store.h"
-
 #include <yt/yt/server/lib/signature/signature_generator.h>
+
+#include <yt/yt/server/lib/signature/key_stores/stub.h>
 
 #include <yt/yt/server/lib/signature/signature.h>
 #include <yt/yt/server/lib/signature/signature_header.h>
@@ -27,11 +27,11 @@ using namespace NYTree;
 struct TSignatureGeneratorTest
     : public ::testing::Test
 {
-    TMockKeyStorePtr Store;
+    TStubKeyStorePtr Store;
     TSignatureGeneratorPtr Gen;
 
     TSignatureGeneratorTest()
-        : Store(New<TMockKeyStore>())
+        : Store(New<TStubKeyStore>())
         , Gen(New<TSignatureGenerator>(Store))
     { }
 };

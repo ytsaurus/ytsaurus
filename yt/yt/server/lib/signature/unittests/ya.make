@@ -22,7 +22,6 @@ PEERDIR(
     yt/yt/client/unittests/mock
     yt/yt/core/test_framework
     yt/yt/server/lib/signature
-    yt/yt/server/lib/signature/unittests/mock
 )
 
 SIZE(SMALL)

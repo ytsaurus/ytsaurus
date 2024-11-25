@@ -1,14 +1,14 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/server/lib/signature/key_store.h>
 
 namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TMockKeyStore)
-
-struct TMockKeyStore
+struct TStubKeyStore
     : public IKeyStoreReader
     , public IKeyStoreWriter
 {
@@ -21,7 +21,7 @@ struct TMockKeyStore
     TFuture<void> RegisterKey(const TKeyInfoPtr& keyInfo) override;
 };
 
-DEFINE_REFCOUNTED_TYPE(TMockKeyStore)
+DEFINE_REFCOUNTED_TYPE(TStubKeyStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 

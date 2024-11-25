@@ -4,7 +4,6 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     crypto.cpp
-    cypress_key_store.cpp
     key_info.cpp
     key_pair.cpp
     signature.cpp
@@ -12,6 +11,9 @@ SRCS(
     signature_header.cpp
     signature_preprocess.cpp
     signature_validator.cpp
+
+    key_stores/cypress.cpp
+    key_stores/stub.cpp
 )
 
 PEERDIR(
