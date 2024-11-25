@@ -1202,6 +1202,7 @@ public:
             futures.push_back(NodeManager_->ResetOperationRevival(operation));
         }
 
+        // TODO(eshcherbin): Remove config option for this feature and move all logic inside strategy.
         auto scheduleOperationInSingleTree = operation->Spec()->ScheduleInSingleTree && Config_->EnableScheduleInSingleTree;
         if (scheduleOperationInSingleTree) {
             // NB(eshcherbin): We need to make sure that all necessary information is in fair share tree snapshots
