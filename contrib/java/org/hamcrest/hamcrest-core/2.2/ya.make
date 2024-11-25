@@ -1,5 +1,7 @@
 JAVA_CONTRIB(hamcrest-core-2.2)
 
+VERSION(2.2)
+
 LICENSE(BSD-3-Clause)
 
 PEERDIR(

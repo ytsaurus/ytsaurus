@@ -1,5 +1,7 @@
 JAVA_CONTRIB()
 
+VERSION(2.8)
+
 LICENSE(LGPL-3.0-only)
 
 LOCAL_JAR(sonar-scanner-cli-2.8.jar)
