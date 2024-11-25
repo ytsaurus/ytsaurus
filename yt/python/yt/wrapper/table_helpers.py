@@ -20,17 +20,13 @@ from .progress_bar import CustomTqdm
 import yt.logger as logger
 import yt.yson as yson
 
+import itertools
 import os
 import time
 import types
 from copy import deepcopy
 
-try:
-    from cStringIO import StringIO as BytesIO
-except ImportError:  # Python 3
-    from io import BytesIO
-
-import itertools
+from io import BytesIO
 
 DEFAULT_EMPTY_TABLE = TablePath("//sys/empty_yamr_table", simplify=False)
 

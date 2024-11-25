@@ -22,10 +22,7 @@ from yt.yson import to_yson_type
 import os
 import hashlib
 
-try:
-    from cStringIO import StringIO as BytesIO
-except ImportError:  # Python 3
-    from io import BytesIO
+from io import BytesIO
 
 
 # TODO(ignat): avoid copypaste (same function presented in py_wrapper.py)
