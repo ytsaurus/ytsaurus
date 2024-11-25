@@ -1,6 +1,7 @@
 #pragma once
 
 #include <yql/essentials/public/result_format/yql_result_format_data.h>
+
 #include <yt/yt/client/table_client/value_consumer.h>
 
 namespace NYT::NYqlAgent {

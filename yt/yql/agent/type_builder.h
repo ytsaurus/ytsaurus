@@ -1,6 +1,7 @@
 #pragma once
 
 #include <yql/essentials/public/result_format/yql_result_format_type.h>
+
 #include <yt/yt/client/table_client/logical_type.h>
 
 #include <stack>
