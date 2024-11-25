@@ -1,10 +1,6 @@
 from collections.abc import Iterable
+from io import BytesIO
 from itertools import chain
-
-try:
-    from cStringIO import StringIO as BytesIO
-except ImportError:  # Python 3
-    from io import BytesIO
 
 
 class StringIterIO(Iterable):
