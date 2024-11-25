@@ -1201,6 +1201,7 @@ public:
             futures.push_back(NodeManager_->ResetOperationRevival(operation));
         }
 
+        // TODO(eshcherbin): Remove config option for this feature and move all logic inside strategy.
         auto scheduleOperationInSingleTree = operation->Spec()->ScheduleInSingleTree && Config_->EnableScheduleInSingleTree;
         if (scheduleOperationInSingleTree) {
             // NB(eshcherbin): We need to make sure that all necessary information is in fair share tree snapshots
@@ -1249,13 +1250,21 @@ public:
     {
         MaybeDelay(operation->Spec()->TestingOperationOptions->DelayInsideMaterializeScheduler);
 
-        //! Returns false if something changed during persisting operation node and we need to return from current method.
-        auto unregisterOperationFromTrees = [&] (const std::vector<TString>& treeIds) -> bool {
-            if (treeIds.empty()) {
-                return true;
-            }
+        std::vector<TString> treeIdsToErase;
+        auto error = Strategy_->OnOperationMaterialized(
+            operation->GetId(),
+            scheduleOperationInSingleTree,
+            operation->GetController()->GetNeededResources(),
+            operation->GetRevivedFromSnapshot(),
+            &treeIdsToErase);
 
-            UnregisterOperationFromTrees(operation, treeIds);
+        if (!error.IsOK()) {
+            OnOperationFailed(operation, error);
+            return;
+        }
+
+        if (!treeIdsToErase.empty()) {
+            operation->EraseTrees(treeIdsToErase);
 
             // NB(eshcherbin): Persist info about erased trees and min needed resources to master. This flush is safe because nothing should
             // happen to |operation| until its state is set to EOperationState::Running. The only possible exception would be the case when
@@ -1263,51 +1272,7 @@ public:
             // Result is ignored since failure causes scheduler disconnection.
             auto expectedState = operation->GetState();
             Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
-            return operation->GetState() == expectedState;
-        };
-
-        {
-            std::vector<TString> treeIdsToUnregister;
-            auto error = Strategy_->OnOperationMaterialized(
-                operation->GetId(),
-                operation->GetRevivedFromSnapshot(),
-                &treeIdsToUnregister);
-
-            if (!error.IsOK()) {
-                OnOperationFailed(operation, error);
-                return;
-            }
-
-            if (!unregisterOperationFromTrees(treeIdsToUnregister)) {
-                return;
-            }
-        }
-
-        if (scheduleOperationInSingleTree) {
-            auto neededResources = operation->GetController()->GetNeededResources();
-            TString chosenTree;
-            {
-                auto treeOrError = Strategy_->ChooseBestSingleTreeForOperation(
-                    operation->GetId(),
-                    neededResources.DefaultResources,
-                    operation->Spec()->ConsiderGuaranteesForSingleTree);
-                if (!treeOrError.IsOK()) {
-                    OnOperationFailed(operation, treeOrError);
-                    return;
-                }
-                chosenTree = treeOrError.Value();
-            }
-
-            std::vector<TString> treeIdsToUnregister;
-            for (const auto& [treeId, treeRuntimeParameters] : operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree) {
-                YT_VERIFY(!treeRuntimeParameters->Tentative);
-                YT_VERIFY(!treeRuntimeParameters->Probing);
-                if (treeId != chosenTree) {
-                    treeIdsToUnregister.emplace_back(treeId);
-                }
-            }
-
-            if (!unregisterOperationFromTrees(treeIdsToUnregister)) {
+            if (operation->GetState() != expectedState) {
                 return;
             }
         }

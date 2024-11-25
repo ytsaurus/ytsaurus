@@ -1009,12 +1009,19 @@ public:
         TreeScheduler_->InitPersistentState(persistentState->AllocationSchedulerState);
     }
 
-    TError CheckOperationJobResourceLimitsRestrictions(TOperationId operationId, bool revivedFromSnapshot) override
+    void OnOperationMaterialized(TOperationId operationId) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto element = GetOperationElement(operationId);
         TreeScheduler_->OnOperationMaterialized(element.Get());
+    }
+
+    TError CheckOperationJobResourceLimitsRestrictions(TOperationId operationId, bool revivedFromSnapshot) override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+        auto element = GetOperationElement(operationId);
 
         // NB(eshcherbin): We don't apply this check to a revived operation so that
         // it doesn't fail in the middle of its progress.
