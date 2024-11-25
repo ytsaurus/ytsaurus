@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/misc/disk_change_checker.h>
-
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/misc/public.h>
@@ -83,10 +81,6 @@ private:
     IAccessCheckerPtr AccessChecker_;
 
     INodeMemoryTrackerPtr MemoryUsageTracker_;
-
-    NDiskManager::IDiskManagerProxyPtr DiskManagerProxy_;
-    NDiskManager::TDiskInfoProviderPtr DiskInfoProvider_;
-    TDiskChangeCheckerPtr DiskChangeChecker_;
 
     void DoRun();
 

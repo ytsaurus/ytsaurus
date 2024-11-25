@@ -8,34 +8,31 @@ namespace NYT::NDiskManager   {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiskInfoProvider
+struct IDiskInfoProvider
     : public TRefCounted
 {
-public:
-    TDiskInfoProvider(
-        IDiskManagerProxyPtr diskManagerProxy,
-        TDiskInfoProviderConfigPtr config);
+    virtual const std::vector<std::string>& GetConfigDiskIds() = 0;
 
-    const std::vector<TString>& GetConfigDiskIds() const;
+    virtual TFuture<std::vector<TDiskInfo>> GetYTDiskInfos() = 0;
 
-    TFuture<std::vector<TDiskInfo>> GetYTDiskInfos();
+    virtual TFuture<void> UpdateDiskCache() = 0;
 
-    TFuture<void> UpdateDiskCache();
+    virtual TFuture<void> RecoverDisk(const std::string& diskId) = 0;
 
-    TFuture<void> RecoverDisk(const TString& diskId);
+    virtual TFuture<void> FailDisk(
+        const std::string& diskId,
+        const std::string& reason) = 0;
 
-    TFuture<void> FailDisk(
-        const TString& diskId,
-        const TString& reason);
-
-    TFuture<bool> GetHotSwapEnabledFuture();
-
-private:
-    const IDiskManagerProxyPtr DiskManagerProxy_;
-    const TDiskInfoProviderConfigPtr Config_;
+    virtual TFuture<bool> GetHotSwapEnabled() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TDiskInfoProvider)
+DEFINE_REFCOUNTED_TYPE(IDiskInfoProvider)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IDiskInfoProviderPtr CreateDiskInfoProvider(
+    IDiskManagerProxyPtr diskManagerProxy,
+    TDiskInfoProviderConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -9,7 +9,8 @@ PEERDIR(
 SRCS(
     config.cpp
     disk_info_provider.cpp
-    disk_manager_proxy.cpp
+    disk_manager_proxy_stub.cpp
+    hotswap_manager.cpp
 )
 
 IF (NOT OPENSOURCE)

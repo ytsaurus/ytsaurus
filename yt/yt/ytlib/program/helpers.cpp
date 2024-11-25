@@ -10,6 +10,8 @@
 
 #include <yt/yt/library/containers/porto_resource_tracker.h>
 
+#include <yt/yt/library/disk_manager/hotswap_manager.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,6 +28,10 @@ void ConfigureNativeSingletons(const TNativeSingletonsConfigPtr& config)
     if (config->EnablePortoResourceTracker) {
         NContainers::EnablePortoResourceTracker(config->PodSpec);
     }
+
+    if (config->HotswapManager) {
+        NDiskManager::THotswapManager::Configure(config->HotswapManager);
+    }
 }
 
 void ReconfigureNativeSingletons(
@@ -38,6 +44,10 @@ void ReconfigureNativeSingletons(
 
     NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher->ApplyDynamic(dynamicConfig->ChunkClientDispatcher));
     NAuth::TNativeAuthenticationManager::Get()->Reconfigure(dynamicConfig->NativeAuthenticationManager);
+
+    if (dynamicConfig->HotswapManager) {
+        NDiskManager::THotswapManager::Reconfigure(dynamicConfig->HotswapManager);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
