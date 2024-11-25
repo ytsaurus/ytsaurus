@@ -1,5 +1,7 @@
 JAVA_CONTRIB(netty-handler-4.1.42.Final)
 
+VERSION(4.1.42.Final)
+
 LICENSE(Apache-2.0)
 
 PEERDIR(

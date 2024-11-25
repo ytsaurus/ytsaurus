@@ -1,5 +1,7 @@
 JAVA_CONTRIB(netty-common-4.1.42.Final)
 
+VERSION(4.1.42.Final)
+
 LICENSE(Apache-2.0)
 
 JAR_RESOURCE(1167120947)
