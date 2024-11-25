@@ -76,12 +76,11 @@ using namespace NTransactionServer;
 using NNodeTrackerClient::TAddressMap;
 using NNodeTrackerClient::GetDefaultAddress;
 
-
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "MasterConnector");
+static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "MasterConnector");
 
 ////////////////////////////////////////////////////////////////////////////////
 

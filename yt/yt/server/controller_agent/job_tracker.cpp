@@ -31,12 +31,6 @@
 
 namespace NYT::NControllerAgent {
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "JobTracker");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, JobTrackerProfiler, ControllerAgentProfiler().WithPrefix("/job_tracker"));
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, NodeHeartbeatProfiler, JobTrackerProfiler().WithPrefix("/node_heartbeat"));
-
-////////////////////////////////////////////////////////////////////////////////
-
 using namespace NConcurrency;
 using namespace NScheduler;
 using namespace NNodeTrackerClient;
@@ -50,6 +44,10 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "JobTracker");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, JobTrackerProfiler, ControllerAgentProfiler().WithPrefix("/job_tracker"));
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, NodeHeartbeatProfiler, JobTrackerProfiler().WithPrefix("/node_heartbeat"));
 
 EJobStage JobStageFromJobState(EJobState jobState) noexcept
 {

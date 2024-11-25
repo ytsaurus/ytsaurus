@@ -17,13 +17,12 @@ namespace NYT::NHuggingface {
 
 using namespace NYT::NHttp;
 
-const TString DefaultHuggingfaceUrl = "https://huggingface.co";
-
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "HuggingFace");
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+const TString DefaultHuggingfaceUrl = "https://huggingface.co";
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "HuggingFace");
 
 NHttp::IClientPtr CreateHttpClient(
     NConcurrency::IPollerPtr poller,
