@@ -90,7 +90,7 @@ TOperation::TOperation(
     THashMap<TString, TStrategyOperationSpecPtr> customSpecPerTree,
     TYsonString specString,
     TYsonString trimmedAnnotations,
-    std::vector<TString> vanillaTaskNames,
+    std::optional<TBriefVanillaTaskSpecMap> briefVanillaTaskSpecs,
     IMapNodePtr secureVault,
     TOperationRuntimeParametersPtr runtimeParameters,
     NSecurityClient::TSerializableAccessControlList baseAcl,
@@ -124,7 +124,7 @@ TOperation::TOperation(
     , AuthenticatedUser_(authenticatedUser)
     , SpecString_(specString)
     , TrimmedAnnotations_(std::move(trimmedAnnotations))
-    , VanillaTaskNames_(std::move(vanillaTaskNames))
+    , BriefVanillaTaskSpecs_(std::move(briefVanillaTaskSpecs))
     , CustomSpecPerTree_(std::move(customSpecPerTree))
     , CodicilData_(MakeOperationCodicilString(Id_))
     , ControlInvoker_(std::move(controlInvoker))
@@ -182,9 +182,16 @@ const TYsonString& TOperation::GetTrimmedAnnotations() const
     return TrimmedAnnotations_;
 }
 
-const std::vector<TString>& TOperation::GetTaskNames() const
+std::vector<std::string> TOperation::GetTaskNames() const
 {
-    return VanillaTaskNames_;
+    return BriefVanillaTaskSpecs_
+        ? GetKeys(*BriefVanillaTaskSpecs_)
+        : std::vector<std::string>{};
+}
+
+const std::optional<TBriefVanillaTaskSpecMap>& TOperation::GetMaybeBriefVanillaTaskSpecs() const
+{
+    return BriefVanillaTaskSpecs_;
 }
 
 TFuture<TOperationPtr> TOperation::GetStarted()
@@ -659,9 +666,14 @@ void ParseSpec(
                 << ex;
         }
 
-        preprocessedSpec->VanillaTaskNames.reserve(vanillaOperationSpec->Tasks.size());
-        for (const auto& [taskName, _] : vanillaOperationSpec->Tasks) {
-            preprocessedSpec->VanillaTaskNames.push_back(taskName);
+        preprocessedSpec->BriefVanillaTaskSpecs.emplace();
+        preprocessedSpec->BriefVanillaTaskSpecs->reserve(size(vanillaOperationSpec->Tasks));
+        for (const auto& [taskName, taskSpec] : vanillaOperationSpec->Tasks) {
+            preprocessedSpec->BriefVanillaTaskSpecs->emplace(
+                taskName,
+                TBriefVanillaTaskSpec{
+                    .JobCount = taskSpec->JobCount,
+                });
         }
     }
 

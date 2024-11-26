@@ -40,6 +40,7 @@ public:
 
     const NYson::TYsonString& GetSpecString() const override;
     const NYson::TYsonString& GetTrimmedAnnotations() const override;
+    const std::optional<NScheduler::TBriefVanillaTaskSpecMap>& GetMaybeBriefVanillaTaskSpecs() const override;
 
     NScheduler::TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
 

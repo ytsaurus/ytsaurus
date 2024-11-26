@@ -2428,6 +2428,11 @@ bool TSchedulerOperationElement::IsIdleCpuPolicyAllowed() const
     return false;
 }
 
+const std::optional<TBriefVanillaTaskSpecMap>& TSchedulerOperationElement::GetMaybeBriefVanillaTaskSpecMap() const
+{
+    return OperationHost_->GetMaybeBriefVanillaTaskSpecs();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerRootElement::TSchedulerRootElement(

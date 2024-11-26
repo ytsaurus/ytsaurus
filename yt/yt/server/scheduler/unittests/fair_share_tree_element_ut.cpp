@@ -400,6 +400,11 @@ public:
         return TrimmedAnnotations_;
     }
 
+    const std::optional<TBriefVanillaTaskSpecMap>& GetMaybeBriefVanillaTaskSpecs() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     TOperationRuntimeParametersPtr GetRuntimeParameters() const override
     {
         YT_UNIMPLEMENTED();
