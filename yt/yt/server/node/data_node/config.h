@@ -1083,6 +1083,9 @@ public:
 
     TP2PConfigPtr P2P;
 
+    //! Desired number of bytes per disk write in a blob chunks.
+    std::optional<i64> BytesPerWrite;
+
     TDuration IOStatisticsUpdateTimeout;
 
     std::optional<double> ReadMetaTimeoutFraction;
