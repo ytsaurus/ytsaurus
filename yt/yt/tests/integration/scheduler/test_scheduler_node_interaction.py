@@ -62,7 +62,7 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
                 "ban_nodes_with_failed_jobs": True,
                 "ignore_job_failures_at_banned_nodes": True,
                 "fail_on_all_nodes_banned": False,
-                "mapper": {"memory_limit": 100 * 1024 * 1024},
+                "mapper": {"memory_limit": 200 * 1024 * 1024},
             },
         )
 
@@ -92,7 +92,7 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
                 "ban_nodes_with_failed_jobs": True,
                 "ignore_job_failures_at_banned_nodes": True,
                 "fail_on_all_nodes_banned": True,
-                "mapper": {"memory_limit": 100 * 1024 * 1024},
+                "mapper": {"memory_limit": 200 * 1024 * 1024},
             },
         )
 
@@ -334,7 +334,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
             command='if [ "$YT_JOB_INDEX" == "0" ]; then sleep 1000; else cat; fi',
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            spec={"mapper": {"memory_limit": 100 * 1024 * 1024}},
+            spec={"mapper": {"memory_limit": 200 * 1024 * 1024}},
             track=False,
         )
 

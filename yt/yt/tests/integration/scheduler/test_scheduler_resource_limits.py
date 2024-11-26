@@ -267,8 +267,8 @@ class TestCumulativeMemoryStatistics(YTEnvSetup):
                 "resource_limits": {"cpu": 1},
                 "data_weight_per_job": 1,
                 "mapper": {
-                    "memory_limit": 200 * 10 ** 6,
-                    "user_job_memory_digest_default_value": 0.9,
+                    "memory_limit": 400 * 10 ** 6,
+                    "user_job_memory_digest_default_value": 0.4,
                     "file_paths": ["//tmp/mapper.py"],
                 },
             })

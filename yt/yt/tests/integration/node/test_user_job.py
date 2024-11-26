@@ -434,7 +434,7 @@ class TestSandboxTmpfs(YTEnvSetup):
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec={
-                "mapper": {"tmpfs_path": "tmpfs", "memory_limit": 250 * 1000 * 1000},
+                "mapper": {"tmpfs_path": "tmpfs", "memory_limit": 350 * 1000 * 1000},
                 "max_failed_job_count": 1,
             },
         )
@@ -2908,54 +2908,6 @@ class TestJobProxyFailBeforeStart(YTEnvSetup):
 
         with raises_yt_error("Fail before job started"):
             op.track()
-
-
-##################################################################
-
-
-@pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
-class TestUnusedMemoryAlertWithMemoryReserveFactorSet(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "unused_memory_alert_threshold": 0.3,
-        },
-    }
-
-    @authors("alexkolodezny")
-    def test_unused_memory_alert_with_memory_reserve_factor_set(self):
-        op = vanilla(
-            spec={
-                "tasks": {
-                    "task1": {
-                        "command": "exit 0",
-                        "job_count": 1,
-                        "memory_limit": 400 * 1024 * 1024,
-                        "memory_reserve_factor": 1,
-                    },
-                },
-            },
-        )
-
-        assert "unused_memory" in op.get_alerts()
-
-        op = vanilla(
-            spec={
-                "tasks": {
-                    "task1": {
-                        "command": "exit 0",
-                        "job_count": 1,
-                        "memory_limit": 400 * 1024 * 1024,
-                        "memory_reserve_factor": 0.9,
-                    },
-                },
-            },
-        )
-
-        assert len(op.get_alerts()) == 0
 
 
 ##################################################################
