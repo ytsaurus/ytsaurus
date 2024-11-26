@@ -2348,7 +2348,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
         tabletSnapshot,
         chunkReadOptions);
 
-    YT_LOG_DEBUG("Creating lookup session reader (ColumnFilter: %v, LookupKeysCount: %v, UseLookupCache: %v)",
+    YT_LOG_DEBUG("Creating lookup session reader (ColumnFilter: %v, LookupKeyCount: %v, UseLookupCache: %v)",
         columnFilter,
         lookupKeys.Size(),
         useLookupCache);
