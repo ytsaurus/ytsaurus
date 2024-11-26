@@ -776,7 +776,8 @@ private:
             .Channel = CreateRetryingChannel(
                 retryingChannelConfig,
                 Bootstrap_->GetNodeChannelFactory()->CreateChannel(std::move(nodeAddresses))),
-            .Timeout = timeout});
+            .Timeout = timeout,
+        });
     }
 
     static void BuildYsonCellar(const TNode::TCellar& cellar, TFluentAny fluent)
