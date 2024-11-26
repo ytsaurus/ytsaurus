@@ -82,6 +82,7 @@ for udf_name in compress_base \
                 topfreq \
                 unicode_base \
                 url_base \
+                vector \
                 yson2
 do
     ${YDB_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses -DSTRIP=yes --output=${YQL_BUILD_PATH} ${YDB_SOURCE_PATH}/ydb/library/yql/udfs/common/${udf_name}

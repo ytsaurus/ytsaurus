@@ -197,6 +197,7 @@ jobs:
           ninja libunicode_udf.so
           ninja liburl_udf.so
           ninja libyqlplugin.so
+          ninja libvector_udf.so
           ninja libyson2_udf.so
           ninja mrjob
 
