@@ -733,6 +733,22 @@ private:
                 continue;
             }
 
+            // Check that creation of digested dictionary works properly.
+            try {
+                Y_UNUSED(NCompression::GetDictionaryCompressionCodec()->CreateDigestedCompressionDictionary(
+                    columnInfo.Dictionary,
+                    tabletSnapshot->Settings.HunkReaderConfig->CompressionLevel));
+                Y_UNUSED(NCompression::GetDictionaryCompressionCodec()->CreateDigestedDecompressionDictionary(
+                    columnInfo.Dictionary));
+            } catch (const std::exception& ex) {
+                auto error = TError("Trained compression dictionary cannot be digested; skipping it")
+                    << TErrorAttribute("column_id", columnId)
+                    << TErrorAttribute("dictionary_size", columnInfo.Dictionary.Size())
+                    << TError(ex);
+                YT_LOG_ALERT(error);
+                continue;
+            }
+
             auto [blockIndex, blockOffset, ready] = HunkWriter_->WriteHunk(
                 columnInfo.Dictionary,
                 columnInfo.Dictionary.size());

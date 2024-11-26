@@ -157,8 +157,25 @@ private:
                 continue;
             }
 
-            auto frameInfo = codec->GetFrameInfo(TRef(compressedValue->Data.String, compressedValue->Length));
-            contentSizes.push_back(frameInfo.ContentSize);
+            i64 contentSize;
+            try {
+                auto frameInfo = codec->GetFrameInfo(TRef(compressedValue->Data.String, compressedValue->Length));
+                contentSize = frameInfo.ContentSize;
+            } catch (const std::exception& ex) {
+                auto error = TError("Failed to read frame info of a dictionary compressed value")
+                    << TErrorAttribute("dictionary_id", dictionaryId)
+                    << TErrorAttribute("value_id", compressedValue->Id)
+                    << TErrorAttribute("value_size", compressedValue->Length)
+                    << TErrorAttribute("decompressed_value_count", decompressedValueCount)
+                    << TErrorAttribute("new_decompressed_value_count", newDecompressedValueCount)
+                    << TErrorAttribute("decompressed_size", decompressedSize);
+
+                YT_LOG_ALERT(error);
+                Promise_.TrySet(error);
+                return;
+            }
+
+            contentSizes.push_back(contentSize);
             decompressedSize += contentSizes.back();
 
             if (decompressedSize >= Config_->MaxDecompressionBlobSize) {
@@ -449,12 +466,22 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
                 for (int index = 0; index < std::ssize(columnIdMapping); ++index) {
                     YT_VERIFY(response.Fragments[index]);
 
-                    auto digestedDictionary = GetDictionaryCompressionCodec()->CreateDigestedDecompressionDictionary(
-                        response.Fragments[index]);
-                    EmplaceOrCrash(
-                        rowDigestedDictionary,
-                        columnIdMapping[index],
-                        std::move(digestedDictionary));
+                    try {
+                        auto digestedDictionary = GetDictionaryCompressionCodec()->CreateDigestedDecompressionDictionary(
+                            response.Fragments[index]);
+                        EmplaceOrCrash(
+                            rowDigestedDictionary,
+                            columnIdMapping[index],
+                            std::move(digestedDictionary));
+                    } catch (const std::exception& ex) {
+                        auto error = TError("Failed to build digested decompression dictionary")
+                            << TErrorAttribute("column_index", index)
+                            << TErrorAttribute("column_id", columnIdMapping[index])
+                            << TErrorAttribute("dictionary_id", dictionaryId)
+                            << TErrorAttribute("read_session_id", chunkReadOptions.ReadSessionId);
+                        YT_LOG_ALERT(error);
+                        THROW_ERROR(error);
+                    }
                 }
                 return rowDigestedDictionary;
             } else {
@@ -464,13 +491,23 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
                 for (int index = 0; index < std::ssize(columnIdMapping); ++index) {
                     YT_VERIFY(response.Fragments[index]);
 
-                    auto digestedDictionary = GetDictionaryCompressionCodec()->CreateDigestedCompressionDictionary(
-                        response.Fragments[index],
-                        dictionaryReaderConfig->CompressionLevel);
-                    EmplaceOrCrash(
-                        rowDigestedDictionary,
-                        columnIdMapping[index],
-                        std::move(digestedDictionary));
+                    try {
+                        auto digestedDictionary = GetDictionaryCompressionCodec()->CreateDigestedCompressionDictionary(
+                            response.Fragments[index],
+                            dictionaryReaderConfig->CompressionLevel);
+                        EmplaceOrCrash(
+                            rowDigestedDictionary,
+                            columnIdMapping[index],
+                            std::move(digestedDictionary));
+                    } catch (const std::exception& ex) {
+                        auto error = TError("Failed to build digested compression dictionary")
+                            << TErrorAttribute("column_index", index)
+                            << TErrorAttribute("column_id", columnIdMapping[index])
+                            << TErrorAttribute("dictionary_id", dictionaryId)
+                            << TErrorAttribute("read_session_id", chunkReadOptions.ReadSessionId);
+                        YT_LOG_ALERT(error);
+                        THROW_ERROR(error);
+                    }
                 }
                 return rowDigestedDictionary;
             }

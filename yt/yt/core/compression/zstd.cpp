@@ -219,7 +219,12 @@ TDictionaryCompressionFrameInfo ZstdGetFrameInfo(TRef input)
         input.Begin(),
         input.Size(),
         ZSTD_f_zstd1_magicless);
-    YT_VERIFY(result == 0);
+    if (result != 0) {
+        THROW_ERROR_EXCEPTION("Failed to get frame header")
+            << TErrorAttribute("code", result)
+            << TErrorAttribute("is_error", ZSTD_isError(result))
+            << TErrorAttribute("error", ZSTD_getErrorName(result));
+    }
 
     return {
         .ContentSize = frameHeader.frameContentSize,
@@ -487,11 +492,17 @@ IDigestedCompressionDictionaryPtr ZstdCreateDigestedCompressionDictionary(
     int compressionLevel)
 {
     YT_VERIFY(compressionDictionary);
+    YT_VERIFY(compressionLevel >= 0 && compressionLevel <= ZstdGetMaxCompressionLevel());
 
     auto* digestedDictionary = ZSTD_createCDict(
         compressionDictionary.Begin(),
         compressionDictionary.Size(),
         compressionLevel);
+    if (!digestedDictionary) {
+        THROW_ERROR_EXCEPTION("Failed to create digested compression dictionary")
+            << TErrorAttribute("compression_level", compressionLevel)
+            << TErrorAttribute("dictionary_size", compressionDictionary.Size());
+    }
     return New<TDigestedCompressionDictionary>(digestedDictionary);
 }
 
@@ -503,6 +514,10 @@ IDigestedDecompressionDictionaryPtr ZstdCreateDigestedDecompressionDictionary(
     auto* digestedDictionary = ZSTD_createDDict(
         compressionDictionary.Begin(),
         compressionDictionary.Size());
+    if (!digestedDictionary) {
+        THROW_ERROR_EXCEPTION("Failed to create digested decompression dictionary")
+            << TErrorAttribute("dictionary_size", compressionDictionary.Size());
+    }
     return New<TDigestedDecompressionDictionary>(digestedDictionary);
 }
 
