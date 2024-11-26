@@ -262,15 +262,19 @@ TEST(TFilterIntrospectionTest, FullScanIntrospection)
         MakeExpression<NAst::TReferenceExpression>(&holder, NQueryClient::TSourceLocation(), "foo"),
         MakeExpression<NAst::TLiteralExpression>(&holder, NQueryClient::TSourceLocation(), 5));
 
-    EXPECT_FALSE(IntrospectQueryForFullScan(&query, "hash", "foo"));
+    EXPECT_FALSE(IntrospectQueryForFullScan(
+        &query,
+        /*firstKeyFieldName*/ "hash",
+        /*firstNonEvaluatedKeyFieldName*/ "foo"));
     EXPECT_TRUE(IntrospectQueryForFullScan(&query, "hash", "bar"));
 
-    query.WherePredicate.value()[0]->As<NAst::TBinaryOpExpression>()->Opcode = EBinaryOp::Less;
-    query.OrderExpressions.push_back(TOrderExpression{
-        .Expressions = MakeExpression<NAst::TReferenceExpression>(&holder, NQueryClient::TSourceLocation(), "foo"),
-    });
+    // TODO(dgolear): Enable when order by is taken into account.
+    // query.WherePredicate.value()[0]->As<NAst::TBinaryOpExpression>()->Opcode = EBinaryOp::Less;
+    // query.OrderExpressions.push_back(TOrderExpression{
+    //     .Expressions = MakeExpression<NAst::TReferenceExpression>(&holder, NQueryClient::TSourceLocation(), "foo"),
+    // });
     // EXPECT_TRUE(IntrospectQueryForFullScan(&query, "hash", "foo"));
-    query.OrderExpressions[0].Expressions[0]->As<NAst::TReferenceExpression>()->Reference.ColumnName = "hash";
+    // query.OrderExpressions[0].Expressions[0]->As<NAst::TReferenceExpression>()->Reference.ColumnName = "hash";
     // EXPECT_FALSE(IntrospectQueryForFullScan(&query, "hash", "foo"));
 }
 
