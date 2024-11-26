@@ -499,7 +499,17 @@ public:
     void SetFuture(TFuture<void> awaitable)
     {
         auto guard = Guard(Lock_);
-        Future_ = std::move(awaitable);
+        if (!IsCanceled()) {
+            Future_ = std::move(awaitable);
+            return;
+        }
+
+        guard.Release();
+
+        ErrorSet_.Wait();
+
+        YT_ASSERT(!CancelationError_.IsOK());
+        awaitable.Cancel(CancelationError_);
     }
 
     void ResetFuture()
@@ -522,6 +532,8 @@ public:
             future = std::move(Future_);
         }
 
+        ErrorSet_.NotifyAll();
+
         if (future) {
             YT_LOG_DEBUG("Sending cancelation to fiber, propagating to the awaited future (TargetFiberId: %x)",
                 FiberId_);
@@ -530,12 +542,6 @@ public:
             YT_LOG_DEBUG("Sending cancelation to fiber (TargetFiberId: %x)",
                 FiberId_);
         }
-    }
-
-    TError GetCancelationError() const
-    {
-        auto guard = Guard(Lock_);
-        return CancelationError_;
     }
 
     void Run(const TError& error)
@@ -558,6 +564,7 @@ private:
     const TFiberId FiberId_;
 
     std::atomic<bool> Canceled_ = false;
+    NThreading::TEvent ErrorSet_;
     NThreading::TSpinLock Lock_;
     TError CancelationError_;
     TFuture<void> Future_;
@@ -954,10 +961,6 @@ void WaitUntilSet(TFuture<void> future, IInvokerPtr invoker)
     GetCurrentFiberCanceler();
 
     const auto& canceler = NDetail::GetFiberSwitchHandler()->Canceler();
-    if (canceler->IsCanceled()) {
-        future.Cancel(canceler->GetCancelationError());
-    }
-
     canceler->SetFuture(future);
     auto finally = Finally([&] {
         canceler->ResetFuture();
