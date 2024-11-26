@@ -184,7 +184,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             for resource, limit in resource_limits.items():
                 assert are_almost_equal(pool_resource_limits[resource], limit)
 
-        memory_limit = 30 * 1024 * 1024
+        memory_limit = 200 * 1024 * 1024
         testing_options = {"schedule_job_delay": {"duration": 500, "type": "async"}}
         op = run_sleeping_vanilla(
             job_count=3,
