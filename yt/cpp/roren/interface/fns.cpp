@@ -10,6 +10,12 @@ TFnAttributes& TFnAttributes::SetIsPure(bool isPure)
     return *this;
 }
 
+TFnAttributes& TFnAttributes::SetKeyLockMode(EKeyLockMode mode)
+{
+    KeyLockMode_ = mode;
+    return *this;
+}
+
 TFnAttributes& TFnAttributes::AddResourceFile(const TString& resourceFile) &
 {
     ResourceFileList_.push_back(resourceFile);
