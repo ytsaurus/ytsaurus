@@ -199,6 +199,8 @@ private:
     THashMap<TString, TBundleAlertCounters> BundleAlerts_;
     ICellDowntimeTrackerPtr CellDowntimeTracker_;
 
+    THashSet<TString> BundleJail_;
+
     void ScanBundles()
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
@@ -223,8 +225,21 @@ private:
                 DoScanTabletBundles();
                 SuccessfulScanBundleCounter_.Increment();
             }
+            YT_LOG_DEBUG_UNLESS(BundleJail_.empty(), "Jail cleared (BundleJail: %v)",
+                BundleJail_);
+            BundleJail_.clear();
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Scanning tablet cell bundles failed");
+            YT_LOG_ERROR(ex, "Scanning tablet cell bundles failed (BundleJail: %v)",
+                BundleJail_);
+
+            for (const auto& bundle : BundleJail_) {
+                RegisterAlert({
+                    .Id = "bundle_moved_to_jail",
+                    .BundleName = bundle,
+                    .Description = "Bundle moved to jail",
+                });
+            }
+
             FailedScanBundleCounter_.Increment();
         }
     }
@@ -359,7 +374,10 @@ private:
         YT_LOG_DEBUG("Bundles scan started");
 
         auto transaction = CreateTransaction();
+
         auto inputState = GetInputState(transaction);
+        DropJailedBundlesFromInputState(&inputState);
+
         TSchedulerMutations mutations;
         ScheduleBundles(inputState, &mutations);
 
@@ -465,11 +483,11 @@ private:
             SetBundlesDynamicConfig(transaction, *mutations.DynamicConfig);
         }
 
-        SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleTabletStaticMemoryLimits, mutations.ChangedTabletStaticMemory);
-        SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleAttributeShortName, mutations.ChangedBundleShortName);
+        SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleTabletStaticMemoryLimits, mutations.ChangedTabletStaticMemory, &BundleJail_);
+        SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleAttributeShortName, mutations.ChangedBundleShortName, &BundleJail_);
 
-        SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleAttributeNodeTagFilter, mutations.ChangedNodeTagFilters);
-        SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleAttributeTargetConfig, mutations.InitializedBundleTargetConfig);
+        SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleAttributeNodeTagFilter, mutations.ChangedNodeTagFilters, &BundleJail_);
+        SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleAttributeTargetConfig, mutations.InitializedBundleTargetConfig, &BundleJail_);
 
         for (const auto& alert : mutations.AlertsToFire) {
             RegisterAlert(alert);
@@ -502,13 +520,15 @@ private:
             transaction,
             TabletCellBundlesPath,
             BundleAttributeMuteTabletCellSnapshotCheck,
-            mutations.ChangedMuteTabletCellSnapshotsCheck);
+            mutations.ChangedMuteTabletCellSnapshotsCheck,
+            &BundleJail_);
 
         SetInstanceAttributes(
             transaction,
             TabletCellBundlesPath,
             BundleAttributeMuteTabletCellsCheck,
-            mutations.ChangedMuteTabletCellsCheck);
+            mutations.ChangedMuteTabletCellsCheck,
+            &BundleJail_);
     }
 
     void Mutate(
@@ -1102,7 +1122,7 @@ private:
         inputState.SysConfig = GetSystemConfig(transaction);
 
         YT_LOG_DEBUG("Bundle Controller input state loaded "
-            "(ZoneCount: %v, BundleCount: %v, BundleStateCount: %v, TabletNodeCount %v, TabletCellCount: %v, "
+            "(ZoneCount: %v, BundleCount: %v, BundleStateCount: %v, TabletNodeCount: %v, TabletCellCount: %v, "
             "NodeAllocationRequestCount: %v, NodeDeallocationRequestCount: %v, RpcProxyCount: %v, SystemAccounts: %v)",
             inputState.Zones.size(),
             inputState.Bundles.size(),
@@ -1115,6 +1135,23 @@ private:
             inputState.SystemAccounts.size());
 
         return inputState;
+    }
+
+    void DropJailedBundlesFromInputState(TSchedulerInputState* inputState) const
+    {
+        if (!Config_->SkipJailedBundles) {
+            YT_LOG_WARNING_UNLESS(BundleJail_.empty(), "Jailed bundles filtration explicitly turned off in config (BundleJail: %v)",
+                BundleJail_);
+            return;
+        }
+
+        for (const auto& bundleName : BundleJail_) {
+            inputState->Bundles.erase(bundleName);
+            inputState->BundleStates.erase(bundleName);
+        }
+
+        YT_LOG_DEBUG_UNLESS(BundleJail_.empty(), "Removed bundles from input state (BundleJail: %v)",
+            BundleJail_);
     }
 
     TChaosSchedulerInputState GetChaosInputState(ITransactionPtr& transaction, TForeignClientProvider* clientProvider) const
@@ -1306,7 +1343,8 @@ private:
         const IClientBasePtr& client,
         const TYPath& instanceBasePath,
         const TString& attributeName,
-        const THashMap<TString, TAttribute>& attributes)
+        const THashMap<TString, TAttribute>& attributes,
+        THashSet<TString>* instanceJail = nullptr)
     {
         for (const auto& [instanceName, attribute] : attributes) {
             auto path = Format("%v/%v/@%v",
@@ -1315,8 +1353,11 @@ private:
                 attributeName);
 
             TSetNodeOptions setOptions;
-            WaitFor(client->SetNode(path, ConvertToYsonString(attribute), setOptions))
-                .ThrowOnError();
+            auto result = WaitFor(client->SetNode(path, ConvertToYsonString(attribute), setOptions));
+            if (!result.IsOK() && instanceJail) {
+                instanceJail->insert(instanceName);
+            }
+            result.ThrowOnError();
         }
     }
 
@@ -1350,7 +1391,7 @@ private:
     }
 
     template <typename TAttribute>
-    static void SetProxyAttributes(
+    void SetProxyAttributes(
         const ITransactionPtr& transaction,
         const TString& attributeName,
         const THashMap<TString, TAttribute>& attributes)

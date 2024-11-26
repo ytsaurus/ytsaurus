@@ -99,6 +99,8 @@ public:
 
     bool EnableNetworkLimits;
 
+    bool SkipJailedBundles;
+
     bool EnableChaosBundleManagement;
     TChaosConfigPtr ChaosConfig;
 
