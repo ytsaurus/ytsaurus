@@ -1311,12 +1311,14 @@ void TScheduleAllocationsContext::AbortAllocationsSinceResourcesOvercommit() con
         if (!Dominates(SchedulingContext_->ResourceLimits(), currentResources + allocationInfo.Allocation->ResourceUsage())) {
             YT_LOG_DEBUG(
                 "Preempting allocation since node resources are overcommitted "
-                "(ResourceLimits: %v, CurrentResourceUsage: %v, AllocationResourceUsage: %v, AllocationId: %v, OperationId: %v, NodeAddress: %v)",
+                "(ResourceLimits: %v, CurrentResourceUsage: %v, AllocationResourceUsage: %v, "
+                "AllocationId: %v, OperationId: %v, PreemptionStatus: %v, NodeAddress: %v)",
                 FormatResources(SchedulingContext_->ResourceLimits()),
                 FormatResources(currentResources),
                 FormatResources(allocationInfo.Allocation->ResourceUsage()),
                 allocationInfo.Allocation->GetId(),
                 allocationInfo.OperationElement->GetId(),
+                allocationInfo.PreemptionStatus,
                 SchedulingContext_->GetNodeDescriptor()->Address);
 
             allocationInfo.Allocation->SetPreemptionReason("Preempted due to node resource ovecommit");
