@@ -1042,6 +1042,10 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("p2p", &TThis::P2P)
         .Optional();
 
+    registrar.Parameter("bytes_per_write", &TThis::BytesPerWrite)
+        .GreaterThan(0)
+        .Default();
+
     registrar.Parameter("io_statistics_update_timeout", &TThis::IOStatisticsUpdateTimeout)
         .Default(TDuration::Seconds(10));
 
