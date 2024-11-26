@@ -363,28 +363,30 @@ void TClient::ValidateAuthenticationCommandPermissions(
                 << TErrorAttribute("authenticated_user", Options_.User);
         }
 
-        TGetNodeOptions getOptions;
-        static_cast<TTimeoutOptions&>(getOptions) = options;
+        if (Options_.RequirePasswordInAuthenticationCommands) {
+            TGetNodeOptions getOptions;
+            static_cast<TTimeoutOptions&>(getOptions) = options;
 
-        getOptions.Attributes = std::vector<TString>({
-            TString{HashedPasswordAttribute},
-            TString{PasswordSaltAttribute},
-            TString{PasswordRevisionAttribute},
-        });
+            getOptions.Attributes = std::vector<TString>({
+                TString{HashedPasswordAttribute},
+                TString{PasswordSaltAttribute},
+                TString{PasswordRevisionAttribute},
+            });
 
-        auto path = Format("//sys/users/%v", ToYPathLiteral(user));
-        auto rsp = WaitFor(GetNode(path, getOptions))
-            .ValueOrThrow();
-        auto rspNode = ConvertToNode(rsp);
-        const auto& attributes = rspNode->Attributes();
+            auto path = Format("//sys/users/%v", ToYPathLiteral(user));
+            auto rsp = WaitFor(GetNode(path, getOptions))
+                .ValueOrThrow();
+            auto rspNode = ConvertToNode(rsp);
+            const auto& attributes = rspNode->Attributes();
 
-        auto hashedPassword = attributes.Get<TString>(HashedPasswordAttribute);
-        auto passwordSalt = attributes.Get<TString>(PasswordSaltAttribute);
-        auto passwordRevision = attributes.Get<ui64>(PasswordRevisionAttribute);
+            auto hashedPassword = attributes.Get<TString>(HashedPasswordAttribute);
+            auto passwordSalt = attributes.Get<TString>(PasswordSaltAttribute);
+            auto passwordRevision = attributes.Get<ui64>(PasswordRevisionAttribute);
 
-        if (HashPasswordSha256(passwordSha256, passwordSalt) != hashedPassword) {
-            THROW_ERROR_EXCEPTION("User provided invalid password")
-                << TErrorAttribute("password_revision", passwordRevision);
+            if (HashPasswordSha256(passwordSha256, passwordSalt) != hashedPassword) {
+                THROW_ERROR_EXCEPTION("User provided invalid password")
+                    << TErrorAttribute("password_revision", passwordRevision);
+            }
         }
     }
 }
