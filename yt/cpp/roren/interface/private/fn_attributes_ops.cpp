@@ -9,6 +9,15 @@ namespace NRoren::NPrivate {
 void TFnAttributesOps::Merge(TFnAttributes& destination, const TFnAttributes& source)
 {
     destination.IsPure_ = destination.IsPure_ && source.IsPure_;
+    destination.KeyLockMode_ = [&] {
+        switch (source.KeyLockMode_) {
+            using enum TFnAttributes::EKeyLockMode;
+            case LockKeys:
+                return LockKeys;
+            case NoLock:
+                return destination.KeyLockMode_;
+        }
+    } ();
     for (const auto& resourceFile : source.ResourceFileList_) {
         destination.ResourceFileList_.push_back(resourceFile);
     }
@@ -17,6 +26,11 @@ void TFnAttributesOps::Merge(TFnAttributes& destination, const TFnAttributes& so
 bool TFnAttributesOps::GetIsPure(const TFnAttributes& attributes)
 {
     return attributes.IsPure_;
+}
+
+TFnAttributes::EKeyLockMode TFnAttributesOps::GetKeyLockMode(const TFnAttributes& attributes)
+{
+    return attributes.KeyLockMode_;
 }
 
 void TFnAttributesOps::SetIsMove(TFnAttributes& attributes, bool isMove)

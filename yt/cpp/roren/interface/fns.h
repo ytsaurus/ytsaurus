@@ -58,6 +58,21 @@ class TFnAttributes
 public:
     TFnAttributes& SetIsPure(bool isPure = true);
 
+    enum class EKeyLockMode
+    {
+        LockKeys,
+        NoLock,
+    };
+
+    ///
+    /// @brief StatefulParDo instances may lock state keys to prevent state data races.
+    ///
+    /// Status by executors:
+    ///   - Local executor :: ignores.
+    ///   - YT executor :: ignores.
+    ///   - BigRT executor :: uses.
+    TFnAttributes& SetKeyLockMode(EKeyLockMode mode);
+
     ///
     /// @brief Resource files are files that are required to run user function.
     ///
@@ -76,6 +91,7 @@ public:
 private:
     bool IsPure_ = false; // Random function can not be implicitly pure. So default is false.
     bool IsMove_ = false;
+    EKeyLockMode KeyLockMode_ = EKeyLockMode::LockKeys;
     std::vector<TString> ResourceFileList_;
 
     friend NPrivate::TFnAttributesOps;
