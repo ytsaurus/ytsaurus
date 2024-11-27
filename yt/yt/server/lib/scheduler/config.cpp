@@ -713,9 +713,6 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_optimized_operation_orchid", &TThis::EnableOptimizedOperationOrchid)
         .Default(false);
 
-    registrar.Parameter("enable_async_operation_event_logging", &TThis::EnableAsyncOperationEventLogging)
-        .Default(true);
-
     registrar.Parameter("ephemeral_pool_name_regex", &TThis::EphemeralPoolNameRegex)
         .Default("[-_a-z0-9:A-Z]+");
 
