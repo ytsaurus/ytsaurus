@@ -1,6 +1,7 @@
 #include "signature_validator.h"
 
 #include "key_info.h"
+#include "key_store.h"
 #include "private.h"
 #include "signature.h"
 #include "signature_preprocess.h"
@@ -17,8 +18,9 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSignatureValidator::TSignatureValidator(const IKeyStoreReaderPtr& store)
-    : Store_(store)
+TSignatureValidator::TSignatureValidator(TSignatureValidatorConfigPtr config, IKeyStoreReaderPtr store)
+    : Config_(std::move(config))
+    , Store_(std::move(store))
 {
     InitializeCryptography();
     YT_LOG_INFO("Signature validator initialized");

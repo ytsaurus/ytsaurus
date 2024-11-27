@@ -1,6 +1,8 @@
 #include "signature_generator.h"
 
+#include "config.h"
 #include "key_info.h"
+#include "key_store.h"
 #include "private.h"
 #include "signature.h"
 #include "signature_header.h"
@@ -19,8 +21,9 @@ using namespace std::chrono_literals;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSignatureGenerator::TSignatureGenerator(const IKeyStoreWriterPtr& keyStore)
-    : Store_(keyStore)
+TSignatureGenerator::TSignatureGenerator(TSignatureGeneratorConfigPtr config, IKeyStoreWriterPtr store)
+    : Config_(std::move(config))
+    , Store_(std::move(store))
     , Owner_(Store_->GetOwner())
 {
     InitializeCryptography();
@@ -40,8 +43,8 @@ TFuture<void> TSignatureGenerator::Rotate()
         .Owner = Owner_,
         .Id = TKeyId{TGuid::Create()},
         .CreatedAt = now,
-        .ValidAfter = now - TimeSyncMargin,
-        .ExpiresAt = now + KeyExpirationTime,
+        .ValidAfter = now - Config_->TimeSyncMargin,
+        .ExpiresAt = now + Config_->KeyExpirationDelta,
     });
 
     return Store_->RegisterKey(newKeyPair.KeyInfo()).Apply(
@@ -83,8 +86,8 @@ TSignaturePtr TSignatureGenerator::Sign(TYsonString&& payload) const
             .KeypairId = GetKeyId(KeyPair_->KeyInfo()->Meta()).Underlying(),
             .SignatureId = signatureId,
             .IssuedAt = now,
-            .ValidAfter = now - TimeSyncMargin,
-            .ExpiresAt = now + SignatureExpirationTime,
+            .ValidAfter = now - Config_->TimeSyncMargin,
+            .ExpiresAt = now + Config_->SignatureExpirationDelta,
         };
 
         result->Header_ = ConvertToYsonString(header, EYsonFormat::Binary);

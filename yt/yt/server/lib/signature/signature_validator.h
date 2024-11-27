@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include "key_store.h"
+#include <yt/yt/core/actions/public.h>
 
 namespace NYT::NSignature {
 
@@ -11,11 +11,12 @@ namespace NYT::NSignature {
 class TSignatureValidator final
 {
 public:
-    explicit TSignatureValidator(const IKeyStoreReaderPtr& store);
+    explicit TSignatureValidator(TSignatureValidatorConfigPtr config, IKeyStoreReaderPtr store);
 
     TFuture<bool> Validate(const TSignaturePtr& signature);
 
 private:
+    const TSignatureValidatorConfigPtr Config_;
     const IKeyStoreReaderPtr Store_;
 };
 

@@ -12,6 +12,8 @@ struct TStubKeyStore
     : public IKeyStoreReader
     , public IKeyStoreWriter
 {
+    TOwnerId Owner = TOwnerId("TStubKeyStore");
+
     THashMap<TOwnerId, std::vector<TKeyInfoPtr>> Data;
 
     TOwnerId GetOwner() override;

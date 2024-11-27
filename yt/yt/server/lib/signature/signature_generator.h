@@ -3,26 +3,19 @@
 #include "public.h"
 
 #include "key_pair.h"
-#include "key_store.h"
 
 #include <yt/yt/core/yson/public.h>
 
+#include <library/cpp/yt/threading/rw_spin_lock.h>
+
 namespace NYT::NSignature {
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(pavook) make this properly configurable.
-constexpr auto KeyExpirationTime = TDuration::Hours(24);
-constexpr auto SignatureExpirationTime = TDuration::Hours(1);
-constexpr auto TimeSyncMargin = TDuration::Hours(1);
-constexpr auto KeyRotationInterval = TDuration::Hours(2);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSignatureGenerator final
 {
 public:
-    explicit TSignatureGenerator(const IKeyStoreWriterPtr& keyStore);
+    explicit TSignatureGenerator(TSignatureGeneratorConfigPtr config, IKeyStoreWriterPtr store);
 
     // TODO(pavook) futurize?
     [[nodiscard]] TSignaturePtr Sign(NYson::TYsonString&& payload) const;
@@ -32,6 +25,7 @@ public:
     TFuture<void> Rotate();
 
 private:
+    const TSignatureGeneratorConfigPtr Config_;
     const IKeyStoreWriterPtr Store_;
     const TOwnerId Owner_;
 

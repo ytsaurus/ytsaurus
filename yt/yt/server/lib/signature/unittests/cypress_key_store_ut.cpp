@@ -54,6 +54,7 @@ struct TCypressKeyReaderTest
         .ValidAfter = NowTime - TDuration::Hours(10),
         .ExpiresAt = ExpiresAt,
     };
+    TCypressKeyReaderConfigPtr Config = New<TCypressKeyReaderConfig>();
 
     TCypressKeyReaderTest() = default;
 };
@@ -68,7 +69,7 @@ TEST_F(TCypressKeyReaderTest, FindKey)
     EXPECT_CALL(*Client, GetNode("//sys/public_keys/by_owner/test/4-3-2-1", _))
         .WillOnce(Return(MakeFuture(ConvertToYsonString(simpleKeyInfo))));
 
-    auto reader = New<TCypressKeyReader>(Client);
+    auto reader = New<TCypressKeyReader>(Config, Client);
 
     auto keyInfo = WaitFor(reader->FindKey(Owner, KeyId));
     EXPECT_THAT(keyInfo.ValueOrThrow(), Pointee(*simpleKeyInfo));
@@ -81,7 +82,7 @@ TEST_F(TCypressKeyReaderTest, FindKeyNotFound)
     EXPECT_CALL(*Client, GetNode(_, _))
         .WillOnce(Return(MakeFuture<TYsonString>(TError("Key not found"))));
 
-    auto reader = New<TCypressKeyReader>(Client);
+    auto reader = New<TCypressKeyReader>(Config, Client);
 
     auto keyInfo = WaitFor(reader->FindKey(Owner, KeyId));
     EXPECT_FALSE(keyInfo.IsOK());
@@ -95,7 +96,7 @@ TEST_F(TCypressKeyReaderTest, FindKeyInvalidString)
     EXPECT_CALL(*Client, GetNode(_, _))
         .WillOnce(Return(MakeFuture<TYsonString>(ConvertToYsonString("abacaba"))));
 
-    auto reader = New<TCypressKeyReader>(Client);
+    auto reader = New<TCypressKeyReader>(Config, Client);
 
     auto keyInfo = WaitFor(reader->FindKey(Owner, KeyId));
     EXPECT_FALSE(keyInfo.IsOK());
@@ -119,8 +120,11 @@ struct TCypressKeyWriterNoInitTest
         .ValidAfter = NowTime - TDuration::Hours(10),
         .ExpiresAt = ExpiresAt,
     };
+    TCypressKeyWriterConfigPtr Config = New<TCypressKeyWriterConfig>();
 
-    TCypressKeyWriterNoInitTest() = default;
+    TCypressKeyWriterNoInitTest() {
+        Config->Owner = Owner;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -140,7 +144,7 @@ struct TCypressKeyWriterTest
 
 TEST_F(TCypressKeyWriterTest, Init)
 {
-    auto writer = New<TCypressKeyWriter>(TOwnerId("test"), Client);
+    auto writer = New<TCypressKeyWriter>(Config, Client);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -150,14 +154,14 @@ TEST_F(TCypressKeyWriterNoInitTest, InitFailed)
     EXPECT_CALL(*Client, CreateNode("//sys/public_keys/by_owner/test", _, _))
         .WillOnce(Return(MakeFuture<TNodeId>(TError("failure"))));
 
-    EXPECT_THROW_WITH_SUBSTRING(New<TCypressKeyWriter>(TOwnerId("test"), Client), "Failed to initialize");
+    EXPECT_THROW_WITH_SUBSTRING(New<TCypressKeyWriter>(Config, Client), "Failed to initialize");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TCypressKeyWriterTest, GetOwner)
 {
-    auto writer = New<TCypressKeyWriter>(Owner, Client);
+    auto writer = New<TCypressKeyWriter>(Config, Client);
 
     EXPECT_EQ(writer->GetOwner(), Owner);
 }
@@ -170,7 +174,7 @@ TEST_F(TCypressKeyWriterTest, RegisterKey)
         Field("IgnoreExisting", &TCreateNodeOptions::IgnoreExisting, false),
         Field("Attributes", &TCreateNodeOptions::Attributes, Pointer(ResultOf([] (auto attributes) {
             return attributes->template Get<TInstant>("expiration_time");
-        }, ExpiresAt + KeyExpirationMargin))));
+        }, ExpiresAt + Config->KeyDeletionDelay))));
 
     EXPECT_CALL(*Client, CreateNode("//sys/public_keys/by_owner/test/4-3-2-1", EObjectType::Document, optionMatcher))
         .WillOnce(Return(MakeFuture(TNodeId())));
@@ -180,7 +184,7 @@ TEST_F(TCypressKeyWriterTest, RegisterKey)
     EXPECT_CALL(*Client, SetNode("//sys/public_keys/by_owner/test/4-3-2-1", ConvertToYsonString(keyInfo), _))
         .WillOnce(Return(VoidFuture));
 
-    auto writer = New<TCypressKeyWriter>(Owner, Client);
+    auto writer = New<TCypressKeyWriter>(Config, Client);
 
     EXPECT_TRUE(WaitFor(writer->RegisterKey(keyInfo)).IsOK());
 }
@@ -192,7 +196,7 @@ TEST_F(TCypressKeyWriterTest, RegisterKeyFailed)
     EXPECT_CALL(*Client, CreateNode("//sys/public_keys/by_owner/test/4-3-2-1", _, _))
         .WillOnce(Return(MakeFuture<TNodeId>(TError("some error"))));
 
-    auto writer = New<TCypressKeyWriter>(Owner, Client);
+    auto writer = New<TCypressKeyWriter>(Config, Client);
 
     auto keyInfo = New<TKeyInfo>(TPublicKey{}, Meta);
 
@@ -205,7 +209,7 @@ TEST_F(TCypressKeyWriterTest, RegisterKeyFailed)
 
 TEST_F(TCypressKeyWriterTest, RegisterKeyWrongOwner)
 {
-    auto writer = New<TCypressKeyWriter>(Owner, Client);
+    auto writer = New<TCypressKeyWriter>(Config, Client);
 
     // TODO(pavook): enable this test when we can replace YT_VERIFY with exceptions.
     if (false) {

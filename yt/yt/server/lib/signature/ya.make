@@ -3,6 +3,7 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
+    config.cpp
     crypto.cpp
     key_info.cpp
     key_pair.cpp
@@ -17,7 +18,6 @@ SRCS(
 )
 
 PEERDIR(
-    yt/yt/core
     yt/yt/ytlib
     contrib/libs/libsodium
     library/cpp/string_utils/secret_string
