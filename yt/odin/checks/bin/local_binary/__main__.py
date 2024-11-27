@@ -56,6 +56,7 @@ def discover_versions(yt_client, yt_token, logger):
     for binary in resp_json["details"]:
         if (
             binary["type"] in ["primary_master", "controller_agent", "scheduler"]
+            and "version" in binary
             and "-local-" in binary["version"]
         ):
             local_versions.append(
