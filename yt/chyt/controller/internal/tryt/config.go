@@ -9,6 +9,7 @@ type Config struct {
 	LogConfig    *string           `yson:"log_config"`
 	JobCount     *int              `yson:"job_count"`
 	Binary       *string           `yson:"binary_path"`
+	ExtraLayers  []string          `yson:"extra_layers"`
 }
 
 func (c *Config) CommandOrDefault(spec Speclet) string {
@@ -22,12 +23,12 @@ func (c *Config) CommandOrDefault(spec Speclet) string {
 	return fmt.Sprintf("%s %s --transfer transfer.yaml --log-level %s --log-config %s", cliPath, spec.Command(), c.LogLevelOrDefault(), c.LogConfigOrDefault())
 }
 
-func (c *Config) EnvVars(speclet Speclet) map[string]string {
+func (c *Config) EnvVars() map[string]string {
 	res := map[string]string{
 		"NB_GID":        "0",
 		"NB_UID":        "0",
 		"NB_USER":       "root",
-		"YT_BASE_LAYER": speclet.DockerImage,
+		"YT_BASE_LAYER": "auto",
 	}
 	for k, v := range c.ExtraEnvVars {
 		res[k] = v

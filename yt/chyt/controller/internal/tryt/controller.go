@@ -44,12 +44,17 @@ func (c *Controller) Prepare(
 	configRich.FileName = "transfer.yaml"
 	filePaths = append(filePaths, *configRich)
 	if c.config.Binary != nil {
-		binaryPath, err := ypath.Parse(*c.config.Binary)
+		var binaryPath *ypath.Rich
+		binaryPath, err = ypath.Parse(*c.config.Binary)
 		if err != nil {
 			return
 		}
 		binaryPath.FileName = "trcli"
 		filePaths = append(filePaths, *binaryPath)
+	}
+	for _, l := range c.config.ExtraLayers {
+		p, _ := ypath.Parse(l)
+		filePaths = append(filePaths, *p)
 	}
 	_, err = c.ytc.CreateNode(ctx, configP, yt.NodeFile, nil)
 	if err != nil {
@@ -92,7 +97,7 @@ dst:
 				"job_count":                     c.config.JobCountOrDefault(),
 				"cpu_limit":                     speclet.CPUOrDefault(),
 				"memory_limit":                  speclet.MemoryOrDefault(),
-				"environment":                   c.config.EnvVars(speclet),
+				"environment":                   c.config.EnvVars(),
 				"docker_image":                  speclet.DockerImage,
 				"file_paths":                    filePaths,
 				"restart_completed_jobs":        true,

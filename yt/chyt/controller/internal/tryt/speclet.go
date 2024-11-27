@@ -16,7 +16,7 @@ type Speclet struct {
 const (
 	gib           = 1024 * 1024 * 1024
 	DefaultCPU    = 0.1
-	DefaultMemory = 2 * gib
+	DefaultMemory = 0.5 * gib
 )
 
 func (s *Speclet) CPUOrDefault() float64 {
