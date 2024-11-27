@@ -425,7 +425,7 @@ private:
 
             Device_ = Server_->GetDeviceOrThrow(name);
 
-            Logger = Logger().WithTag("DeviceName: %v", name);
+            Logger.AddTag("DeviceName: %v", name);
 
             auto flags =
                 ETransmissionFlags::NBD_FLAG_HAS_FLAGS |
