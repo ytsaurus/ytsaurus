@@ -66,9 +66,7 @@ DEFINE_REFCOUNTED_TYPE(TLimitConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Get //sys/cluster_throttlers configuration file as YSON.
-std::optional<NYT::NYson::TYsonString> GetClusterThrottlersYson(NApi::NNative::IClientPtr client);
-//! Make cluster throttlers config from YSON file.
-TClusterThrottlersConfigPtr MakeClusterThrottlersConfig(const NYT::NYson::TYsonString& yson);
+TFuture<NYT::NYson::TYsonString> GetClusterThrottlersYson(NApi::NNative::IClientPtr client);
 //! Get //sys/cluster_throttlers configuration file as config.
 TClusterThrottlersConfigPtr GetClusterThrottlersConfig(NApi::NNative::IClientPtr client);
 //! Return true if two configs are the same.

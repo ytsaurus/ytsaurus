@@ -117,19 +117,21 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
 
     YT_LOG_DEBUG("Try update cluster throttlers config");
 
-    auto newConfigYson = GetClusterThrottlersYson(Client_);
-    if (!newConfigYson) {
-        YT_LOG_DEBUG("Failed to get cluster throttlers config");
+    auto future = GetClusterThrottlersYson(Client_);
+    auto errorOrYson = NConcurrency::WaitFor(future);
+    if (!errorOrYson.IsOK()) {
+        YT_LOG_DEBUG("Failed to get cluster throttlers config: (Error: %v)", errorOrYson);
         return;
     }
 
+    auto newConfigYson = errorOrYson.Value();
     YT_LOG_DEBUG("Got cluster throttlers config (Config: %v)",
-        NYson::ConvertToYsonString(*newConfigYson, NYson::EYsonFormat::Text));
+        NYson::ConvertToYsonString(newConfigYson, NYson::EYsonFormat::Text));
 
-    auto newConfig = MakeClusterThrottlersConfig(*newConfigYson);
+    auto newConfig = ConvertTo<TClusterThrottlersConfigPtr>(newConfigYson);
     if (!newConfig) {
         YT_LOG_ERROR("Failed to make cluster throttlers config (Config: %v)",
-            *newConfigYson);
+            newConfigYson);
         DistributedThrottlerFactory_.Reset();
         return;
     }
