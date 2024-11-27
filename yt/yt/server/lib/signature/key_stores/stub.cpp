@@ -8,7 +8,7 @@ namespace NYT::NSignature {
 
 TOwnerId TStubKeyStore::GetOwner()
 {
-    return TOwnerId("TStubKeyStore");
+    return Owner;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,6 +16,8 @@ TOwnerId TStubKeyStore::GetOwner()
 TFuture<void> TStubKeyStore::RegisterKey(const TKeyInfoPtr& keyInfo)
 {
     auto owner = std::visit([](const auto& meta) { return meta.Owner; }, keyInfo->Meta());
+
+    YT_ASSERT(owner == Owner);
 
     Data[owner].emplace_back(New<TKeyInfo>(*keyInfo));
     return VoidFuture;
