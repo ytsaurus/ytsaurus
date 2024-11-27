@@ -131,36 +131,27 @@ class ExprFuncSerializer:
 
     @staticmethod
     def series_avg(serializer, expression):
-        query_parts, other_tags = serializer._prepare_expr_query(expression.args[-1])
-        args = ''
-        if len(expression.args) > 2:
-            args = ExprFuncSerializer.serialize_arg(expression.args[1])
-        return f"avg by({args}) ({query_parts})", other_tags
+        return ExprFuncSerializer._series_func(serializer, expression, "avg")
 
     @staticmethod
     def series_max(serializer, expression):
-        query_parts, other_tags = serializer._prepare_expr_query(expression.args[-1])
-        args = ''
-        if len(expression.args) > 2:
-            args = ExprFuncSerializer.serialize_arg(expression.args[1])
-        return f"max by({args}) ({query_parts})", other_tags
+        return ExprFuncSerializer._series_func(serializer, expression, "max")
 
     @staticmethod
     def series_min(serializer, expression):
-        query_parts, other_tags = serializer._prepare_expr_query(expression.args[-1])
-        args = ''
-        if len(expression.args) > 2:
-            args = ExprFuncSerializer.serialize_arg(expression.args[1])
-        return f"min by({args}) ({query_parts})", other_tags
+        return ExprFuncSerializer._series_func(serializer, expression, "min")
 
     @staticmethod
     def series_sum(serializer, expression):
+        return ExprFuncSerializer._series_func(serializer, expression, "sum")
+
+    @staticmethod
+    def _series_func(serializer, expression, func):
         query_parts, other_tags = serializer._prepare_expr_query(expression.args[-1])
         args = ''
         if len(expression.args) > 2:
             args = ExprFuncSerializer.serialize_arg(expression.args[1])
-        return f"sum by({args}) ({query_parts})", other_tags
-
+        return f"{func} by({args}) ({query_parts})", other_tags
 
 ##################################################################
 
@@ -465,7 +456,7 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
                 "x": 0,
                 "y": self.vertical_offset
             },
-            "type": "row"
+            "type": "row",
         }
         if rowset.name is not None:
             row_header["title"] = rowset.name

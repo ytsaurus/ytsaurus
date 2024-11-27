@@ -144,7 +144,7 @@ class MonitoringExpr(Taggable):
             serialized_elements = [
                 default_serializer(item) for item in arg
             ]
-            return ", ".join(serialized_elements)
+            return "[" + ", ".join(serialized_elements) + "]"
 
         return default_serializer(arg)
 
