@@ -172,7 +172,6 @@ using namespace NJobTrackerClient;
 using namespace NLogging;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
-using namespace NProfiling;
 using namespace NQueryClient;
 using namespace NRpc;
 using namespace NScheduler;
@@ -4549,7 +4548,7 @@ TControllerScheduleAllocationResultPtr TOperationControllerBase::SafeScheduleAll
         AllocationMap_.erase(allocationIt);
     });
 
-    TWallTimer timer;
+    NProfiling::TWallTimer timer;
     auto scheduleAllocationResult = New<TControllerScheduleAllocationResult>();
     DoScheduleAllocation(allocation, context, treeId, scheduleAllocationResult.Get());
     auto scheduleAllocationDuration = timer.GetElapsedTime();
@@ -9466,7 +9465,7 @@ void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
 
     YT_LOG_DEBUG("Scheduling aggregated job statistics update heavy routine");
 
-    TWallTimer wallTimer;
+    NProfiling::TWallTimer wallTimer;
     auto [runningJobStatistics, isLimitExceeded] = WaitFor(
         BIND(buildAggregatedStatisticsHeavy)
             .AsyncVia(Host->GetStatisticsOffloadInvoker())
