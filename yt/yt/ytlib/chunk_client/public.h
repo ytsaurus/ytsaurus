@@ -150,7 +150,15 @@ DEFINE_ENUM(EChunkClientFeature,
     ((AllBlocksIndex)           (0))
 );
 
-DEFINE_ENUM(EChunkMergerMode,
+// TODO(cherepashka): remove after corresponding compat in 25.1 will be removed.
+DEFINE_ENUM(ECompatChunkMergerMode,
+    ((None)         (0))
+    ((Shallow)      (1))
+    ((Deep)         (2))
+    ((Auto)         (3))
+);
+
+DEFINE_ENUM_WITH_UNDERLYING_TYPE(EChunkMergerMode, i8,
     ((None)         (0))
     ((Shallow)      (1))
     ((Deep)         (2))
