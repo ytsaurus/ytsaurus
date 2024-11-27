@@ -55,6 +55,32 @@ using namespace NCrypto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(cherepashka): remove after corresponding compat in 25.1 will be removed.
+DEFINE_ENUM(ECompatChunkFormat,
+    // Sentinels.
+    ((Unknown)                             (-1))
+
+    // File chunks.
+    ((FileDefault)                          (1))
+
+    // Table chunks.
+    ((TableUnversionedSchemaful)            (3))
+    ((TableUnversionedSchemalessHorizontal) (4))
+    ((TableUnversionedColumnar)             (6))
+    ((TableVersionedSimple)                 (2))
+    ((TableVersionedColumnar)               (5))
+    ((TableVersionedIndexed)                (8))
+    ((TableVersionedSlim)                   (9))
+
+    // Journal chunks.
+    ((JournalDefault)                       (0))
+
+    // Hunk chunks.
+    ((HunkDefault)                          (7))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 static constexpr auto& Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -367,8 +393,32 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     TSchemafulNode::Load(context);
 
     using NYT::Load;
-    Load(context, OptimizeFor_);
-    Load(context, ChunkFormat_);
+    // COMPAT(cherepashka)
+    if (context.GetVersion() >= EMasterReign::EnumsAndChunkReplicationReductionsInTTableNode) {
+        Load(context, OptimizeFor_);
+        Load(context, ChunkFormat_);
+    } else {
+        auto compatOptimizeFor = Load<TVersionedBuiltinAttribute<ECompatOptimizeFor>>(context);
+        if (compatOptimizeFor.IsNull()) {
+            OptimizeFor_.Reset();
+        } else if (compatOptimizeFor.IsTombstoned()) {
+            OptimizeFor_.Remove();
+        } else if (compatOptimizeFor.IsSet()) {
+            auto optimizeFor = compatOptimizeFor.ToOptional();
+            YT_VERIFY(optimizeFor);
+            OptimizeFor_.Set(CheckedEnumCast<EOptimizeFor>(*optimizeFor));
+        }
+        auto compatChunkFormat = Load<TVersionedBuiltinAttribute<ECompatChunkFormat>>(context);
+        if (compatChunkFormat.IsNull()) {
+            ChunkFormat_.Reset();
+        } else if (compatChunkFormat.IsTombstoned()) {
+            ChunkFormat_.Remove();
+        } else if (compatChunkFormat.IsSet()) {
+            auto chunkFormat = compatChunkFormat.ToOptional();
+            YT_VERIFY(chunkFormat);
+            ChunkFormat_.Set(CheckedEnumCast<EChunkFormat>(*chunkFormat));
+        }
+    }
     Load(context, HunkErasureCodec_);
     Load(context, RetainedTimestamp_);
     Load(context, UnflushedTimestamp_);

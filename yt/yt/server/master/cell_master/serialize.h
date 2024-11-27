@@ -195,6 +195,7 @@ DEFINE_ENUM(EMasterReign,
     ((SequoiaNodeExpiration)                                        (2805))  // danilalexeev
     ((IncumbentSchedulerConfigDefaults)                             (2806))  // cherepashka
     ((ScanFormatIsDefaultForDynamicTables)                          (2807))  // sabdenovch
+    ((EnumsAndChunkReplicationReductionsInTTableNode)               (2808))  // cherepashka
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
