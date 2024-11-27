@@ -11,7 +11,7 @@
 set -eux
 shopt -s expand_aliases
 
-build_python_udfs="no"
+build_python_udfs="yes"
 
 print_usage() {
     cat << EOF
