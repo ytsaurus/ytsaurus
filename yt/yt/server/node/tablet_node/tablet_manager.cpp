@@ -99,6 +99,8 @@
 
 #include <yt/yt/client/transaction_client/helpers.h>
 
+#include <yt/yt/core/actions/new_with_offloaded_dtor.h>
+
 #include <yt/yt/core/concurrency/async_semaphore.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
@@ -107,8 +109,9 @@
 #include <yt/yt/core/misc/ring_queue.h>
 #include <yt/yt/core/misc/string_helpers.h>
 
-#include <yt/yt/core/rpc/helpers.h>
 #include <yt/yt/core/rpc/authentication_identity.h>
+#include <yt/yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/helpers.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
@@ -4735,7 +4738,8 @@ private:
             }
 
             case EStoreType::SortedDynamic:
-                return New<TSortedDynamicStore>(
+                return NewWithOffloadedDtor<TSortedDynamicStore>(
+                    NRpc::TDispatcher::Get()->GetHeavyInvoker(),
                     Config_,
                     storeId,
                     tablet);
@@ -4762,7 +4766,8 @@ private:
             }
 
             case EStoreType::OrderedDynamic:
-                return New<TOrderedDynamicStore>(
+                return NewWithOffloadedDtor<TOrderedDynamicStore>(
+                    NRpc::TDispatcher::Get()->GetHeavyInvoker(),
                     Config_,
                     storeId,
                     tablet);
