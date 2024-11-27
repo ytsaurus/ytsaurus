@@ -15,7 +15,7 @@ class TTypeBuilder
 public:
     TTypeBuilder();
 
-    NTableClient::TLogicalTypePtr GetResult() const;
+    NTableClient::TLogicalTypePtr PullResult();
 
 private:
     void OnVoid() final;
@@ -80,33 +80,21 @@ private:
     template<class T = NTableClient::TLogicalTypePtr>
     T Pop();
 
-    enum class EKind {
-        Optional,
-        List,
-        Tuple,
-        Struct,
-        Dict,
-        Variant,
-        Tagged
-    };
-
-    std::stack<EKind> Stack;
-    NTableClient::TLogicalTypePtr Type;
-
-    using TElements = std::vector<NTableClient::TLogicalTypePtr>;
+    using TItemType = NTableClient::TLogicalTypePtr;
+    using TElements = std::vector<TItemType>;
     using TMembers = std::vector<NTableClient::TStructField>;
-    using TTag = TString;
+    using TTagAndType = std::pair<TString, TItemType>;
 
     struct TKeyAndPayload {
-        NTableClient::TLogicalTypePtr Key, Payload;
+        TItemType Key, Payload;
         std::optional<bool> Switch;
 
-        void Set(NTableClient::TLogicalTypePtr type) {
+        void Set(TItemType type) {
             (*Switch ? Key : Payload) = std::move(type);
         }
     };
 
-    using TItem = std::variant<TElements, TMembers, TKeyAndPayload, TTag>;
+    using TItem = std::variant<TItemType, TElements, TMembers, TKeyAndPayload, TTagAndType>;
 
     std::stack<TItem> ItemsStack;
     std::stack<TString> MemberNames;
