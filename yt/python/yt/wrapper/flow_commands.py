@@ -1,9 +1,10 @@
 from .common import set_param
 from .driver import make_request, make_formatted_request, get_structured_format
 from .dynamic_table_commands import select_rows
+from .format import YsonFormat
 from .ypath import YPath
 
-from yt.wrapper.common import YtError
+from yt.common import YtError
 
 from datetime import datetime, timedelta
 
@@ -186,10 +187,12 @@ def get_pipeline_state(pipeline_path, client=None):
 
     params = {"pipeline_path": YPath(pipeline_path, client=client)}
 
-    return make_request(
+    result = make_formatted_request(
         "get_pipeline_state",
-        params,
+        params=params,
+        format=YsonFormat(),
         client=client)
+    return result.decode("utf-8").lower()
 
 
 class PipelineState(str, enum.Enum):
