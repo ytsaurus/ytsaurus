@@ -101,17 +101,37 @@ public:
             auto& columnCompressor = GetOrCrash(
                 RowDictionaryCompressors_[*ElectedPolicy_].ColumnCompressors,
                 value.Id);
+            const auto& columnDecompressor = GetOrCrash(
+                RowDictionaryCompressors_[*ElectedPolicy_].ColumnDecompressors,
+                value.Id);
             if (!columnCompressor.Compressor) {
                 continue;
             }
 
             PerformedCompression_ = true;
-            auto compressedRef = columnCompressor.Compressor->Compress(
+            TRef initialValue(value.Data.String, value.Length);
+            auto compressedValue = columnCompressor.Compressor->Compress(
                 pool,
-                TRef(value.Data.String, value.Length));
+                initialValue);
 
-            value.Data.String = compressedRef.Begin();
-            value.Length = compressedRef.Size();
+            YT_VERIFY(columnDecompressor);
+            char* output = pool->AllocateUnaligned(value.Length);
+            TMutableRef decompressedValue(output, value.Length);
+            columnDecompressor->Decompress(compressedValue, decompressedValue);
+            if (!TRef::AreBitwiseEqual(initialValue, decompressedValue)) {
+                auto error = TError("Value decompression double-check failed")
+                    << TErrorAttribute("policy", *ElectedPolicy_)
+                    << TErrorAttribute("dictonary_id", RowDictionaryCompressors_[*ElectedPolicy_].DictionaryId)
+                    << TErrorAttribute("value_id", value.Id)
+                    << TErrorAttribute("row", ToString(*row))
+                    << TErrorAttribute("value", ToString(value));
+                YT_LOG_ALERT(error);
+                THROW_ERROR(error);
+            }
+            pool->Free(output, output + value.Length);
+
+            value.Data.String = compressedValue.Begin();
+            value.Length = compressedValue.Size();
         }
 
         CompressionTime_ += compressionTimer.GetElapsedTime();
@@ -371,7 +391,6 @@ public:
 
     EDictionaryCompressionPolicy GetPolicy() const
     {
-        YT_VERIFY(!GetKey().IsDecompression);
         return Policy_;
     }
 
@@ -438,22 +457,27 @@ public:
                 continue;
             }
 
-            auto key = TCompressionDictionaryCacheKey{
-                .ChunkId = chunkId,
-                .IsDecompression = false,
-                .SchemaId = tabletSnapshot->SchemaId,
+            auto getEntryFuture = [&] (bool isDecompression) {
+                auto key = TCompressionDictionaryCacheKey{
+                    .ChunkId = chunkId,
+                    .IsDecompression = isDecompression,
+                    .SchemaId = tabletSnapshot->SchemaId,
+                };
+
+                auto cookie = BeginInsert(key);
+                entryFutures.push_back(cookie.GetValue());
+
+                if (cookie.IsActive()) {
+                    PrepareDigestedDictionary(
+                        tabletSnapshot,
+                        chunkReadOptions,
+                        std::move(cookie),
+                        policy);
+                }
             };
 
-            auto cookie = BeginInsert(key);
-            entryFutures.push_back(cookie.GetValue());
-
-            if (cookie.IsActive()) {
-                PrepareDigestedDictionary(
-                    tabletSnapshot,
-                    chunkReadOptions,
-                    std::move(cookie),
-                    policy);
-            }
+            getEntryFuture(/*isDecompression*/ false);
+            getEntryFuture(/*isDecompression*/ true);
         }
 
         if (entryFutures.empty()) {
@@ -472,19 +496,37 @@ public:
                                 rowDictionaryCompressors[policy].ColumnCompressors,
                                 index,
                                 TColumnDictionaryCompressor{});
+                            EmplaceOrCrash(
+                                rowDictionaryCompressors[policy].ColumnDecompressors,
+                                index,
+                                nullptr);
                         }
                     }
                 }
 
-                for (const auto& entry : entries) {
-                    const auto& rowDigestedDictionary = entry->GetRowDigestedCompressionDictionary();
-                    auto& rowCompressor = rowDictionaryCompressors[entry->GetPolicy()];
-                    rowCompressor.DictionaryId = entry->GetKey().ChunkId;
-                    for (const auto& [valueId, columnDigestedDictionary] : rowDigestedDictionary) {
+                int entryIndex = 0;
+                YT_VERIFY(entries.size() % 2 == 0);
+                while (entryIndex < std::ssize(entries)) {
+                    const auto& compressionEntry = entries[entryIndex];
+                    const auto& decompressionEntry = entries[entryIndex + 1];
+                    YT_VERIFY(compressionEntry->GetPolicy() == decompressionEntry->GetPolicy());
+                    YT_VERIFY(compressionEntry->GetKey().ChunkId == decompressionEntry->GetKey().ChunkId);
+                    entryIndex += 2;
+
+                    const auto& compressionDictionary = compressionEntry->GetRowDigestedCompressionDictionary();
+                    const auto& decompressionDictionary = decompressionEntry->GetRowDigestedDecompressionDictionary();
+                    YT_VERIFY(compressionDictionary.size() == decompressionDictionary.size());
+
+                    auto& rowCompressor = rowDictionaryCompressors[compressionEntry->GetPolicy()];
+                    rowCompressor.DictionaryId = compressionEntry->GetKey().ChunkId;
+                    for (const auto& [valueId, columnDigestedCompressionDictionary] : compressionDictionary) {
+                        const auto& columnDigestedDecompressionDictionary = GetOrCrash(decompressionDictionary, valueId);
                         rowCompressor.ColumnCompressors[valueId] = TColumnDictionaryCompressor{
                             .Compressor = GetDictionaryCompressionCodec()->CreateDictionaryCompressor(
-                                columnDigestedDictionary),
+                                columnDigestedCompressionDictionary),
                         };
+                        rowCompressor.ColumnDecompressors[valueId] = GetDictionaryCompressionCodec()->
+                            CreateDictionaryDecompressor(columnDigestedDecompressionDictionary);
                     }
                 }
 

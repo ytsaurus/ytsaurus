@@ -6,8 +6,6 @@
 
 #include <yt/yt/server/lib/chunk_pools/public.h>
 
-#include <yt/yt/server/lib/misc/disk_change_checker.h>
-
 #include <yt/yt/server/lib/zookeeper_proxy/bootstrap_proxy.h>
 
 #include <yt/yt/ytlib/api/public.h>
@@ -143,10 +141,6 @@ private:
     IAccessCheckerPtr AccessChecker_;
 
     NCoreDump::ICoreDumperPtr CoreDumper_;
-
-    NDiskManager::IDiskManagerProxyPtr DiskManagerProxy_;
-    NDiskManager::TDiskInfoProviderPtr DiskInfoProvider_;
-    TDiskChangeCheckerPtr DiskChangeChecker_;
 
     INodeMemoryTrackerPtr MemoryUsageTracker_;
 

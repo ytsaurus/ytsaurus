@@ -27,7 +27,7 @@ def generate_proto_recursively(dir, source_root, output):
 
     proto_path = source_root / "yt"
     for file_path in search_proto_files(source_root / dir):
-        subprocess.check_call(["protoc", "--proto_path", proto_path, "--python_out", output, file_path])
+        subprocess.check_call(["protoc", "--proto_path", proto_path, "--proto_path", ".", "--python_out", output, file_path])
         dir_path = file_path.parent.relative_to(proto_path)
         while dir_path != dir_path.parent:
             touch(output / dir_path / "__init__.py")

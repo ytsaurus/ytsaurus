@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "query_progress.h"
 
 #include <yt/yt/core/misc/statistics.h>
 
@@ -13,10 +14,11 @@ namespace NYT::NClickHouseServer {
 struct TQueryFinishInfo
 {
     TStatistics Statistics;
+    TQueryProgressValues Progess;
     NYTree::IAttributeDictionaryPtr RuntimeVariables;
     std::vector<TQueryId> SecondaryQueryIds;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NClickHouseServer
+} // namespace NYT::NClickHouseServer

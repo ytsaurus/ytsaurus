@@ -51,15 +51,13 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef _linux_
-static constexpr auto ResourceUsageUpdatePeriod = TDuration::MilliSeconds(1000);
-#endif
+namespace {
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "JobProxyEnvironment");
 
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
+#ifdef _linux_
+static constexpr auto ResourceUsageUpdatePeriod = TDuration::MilliSeconds(1000);
+#endif
 
 template <class T>
 std::optional<T> ValueOrNullopt(const TErrorOr<T>& result) noexcept
@@ -1137,7 +1135,7 @@ public:
     std::optional<i64> GetJobOomKillCount() const noexcept override
     {
         try {
-            return StatisticsFetcher_.GetOOMKillCount();
+            return StatisticsFetcher_.GetOomKillCount();
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to get OOM kill count");
             return std::nullopt;

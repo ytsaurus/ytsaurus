@@ -34,7 +34,7 @@ public:
         IBootstrap* bootstrap,
         TChunkStorePtr chunkStore,
         IInvokerPtr controlInvoker,
-        NDiskManager::TDiskInfoProviderPtr diskInfoProvider);
+        NDiskManager::IDiskInfoProviderPtr diskInfoProvider);
 
     void SetFailedDiskAlerts(std::vector<TError> alerts);
 
@@ -44,7 +44,7 @@ public:
 
     TFuture<std::vector<NDiskManager::TDiskInfo>> GetDiskInfos();
 
-    TFuture<bool> GetHotSwapEnabledFuture();
+    TFuture<bool> GetHotSwapEnabled();
 
     TFuture<std::vector<TGuid>> ResurrectChunkLocations(const THashSet<TGuid>& locationUuids);
 
@@ -68,8 +68,7 @@ public:
         const std::vector<NDiskManager::TDiskInfo>& diskInfos);
 
 private:
-    const NDiskManager::TDiskInfoProviderPtr DiskInfoProvider_;
-
+    const NDiskManager::IDiskInfoProviderPtr DiskInfoProvider_;
     const TChunkStorePtr ChunkStore_;
     const IInvokerPtr ControlInvoker_;
 

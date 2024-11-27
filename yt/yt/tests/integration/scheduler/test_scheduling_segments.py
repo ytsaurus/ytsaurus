@@ -1607,8 +1607,13 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
         wait(lambda: current_resource_amount_large_sensor.get(tags={"module": op2_module}) == 16)
 
     @authors("eshcherbin")
-    def test_fail_large_gpu_operation_started_in_several_trees(self):
+    @pytest.mark.parametrize("allow_single_job", [True, False])
+    def test_fail_large_gpu_operation_started_in_several_trees(self, allow_single_job):
         other_nodes = list(ls("//sys/cluster_nodes"))[:2]
+        update_pool_tree_config("default", {
+            "nodes_filter": "!other",
+            "allow_single_job_large_gpu_operations_in_multiple_trees": allow_single_job,
+        })
         set("//sys/pool_trees/default/@config/nodes_filter", "!other")
         create_pool_tree("other", config={"nodes_filter": "other", "main_resource": "gpu"})
         for node in other_nodes:
@@ -1633,7 +1638,10 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool_trees": ["default", "other"]},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        big_op_single_job.track()
+        if allow_single_job:
+            big_op_single_job.track()
+        else:
+            wait(lambda: big_op_single_job.get_state() == "failed")
 
         small_op = run_test_vanilla(
             "sleep 1",

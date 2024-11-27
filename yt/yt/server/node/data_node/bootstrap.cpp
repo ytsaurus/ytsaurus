@@ -27,9 +27,7 @@
 
 #include <yt/yt/library/query/engine_api/config.h>
 
-#include <yt/yt/library/disk_manager/config.h>
-#include <yt/yt/library/disk_manager/disk_info_provider.h>
-#include <yt/yt/library/disk_manager/disk_manager_proxy.h>
+#include <yt/yt/library/disk_manager/hotswap_manager.h>
 
 #include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
 
@@ -241,20 +239,11 @@ public:
             DataNodeLogger().WithTag("IOMeter"));
         JobController_->Initialize();
 
-        DiskManagerProxy_ = CreateDiskManagerProxy(
-            GetConfig()->DiskManagerProxy);
-        DiskInfoProvider_ = New<TDiskInfoProvider>(
-            DiskManagerProxy_,
-            GetConfig()->DiskInfoProvider);
-        DiskChangeChecker_ = New<TDiskChangeChecker>(
-            DiskInfoProvider_,
-            GetControlInvoker(),
-            DataNodeLogger());
         LocationManager_ = New<TLocationManager>(
             this,
             ChunkStore_,
             GetControlInvoker(),
-            DiskInfoProvider_);
+            NDiskManager::THotswapManager::GetDiskInfoProvider());
         LocationHealthChecker_ = CreateLocationHealthChecker(
             ChunkStore_,
             LocationManager_,
@@ -263,7 +252,7 @@ public:
         LocationHealthChecker_->Initialize();
         MasterConnector_->Initialize();
 
-        SubscribePopulateAlerts(BIND(&TDiskChangeChecker::PopulateAlerts, DiskChangeChecker_));
+        SubscribePopulateAlerts(BIND(&NDiskManager::THotswapManager::PopulateAlerts));
     }
 
     void Run() override
@@ -280,7 +269,7 @@ public:
         SetNodeByYPath(
             GetOrchidRoot(),
             "/disk_monitoring",
-            CreateVirtualNode(DiskChangeChecker_->GetOrchidService()));
+            CreateVirtualNode(NDiskManager::THotswapManager::GetOrchidService()));
 
         P2PDistributor_->Start();
 
@@ -289,8 +278,6 @@ public:
         AllyReplicaManager_->Start();
 
         LocationHealthChecker_->Start();
-
-        DiskChangeChecker_->Start();
     }
 
     const TChunkStorePtr& GetChunkStore() const override
@@ -306,11 +293,6 @@ public:
     const TLocationManagerPtr& GetLocationManager() const override
     {
         return LocationManager_;
-    }
-
-    const TDiskChangeCheckerPtr& GetDiskChangeChecker() const override
-    {
-        return DiskChangeChecker_;
     }
 
     const TSessionManagerPtr& GetSessionManager() const override
@@ -467,9 +449,6 @@ private:
 
     IIOThroughputMeterPtr IOThroughputMeter_;
 
-    IDiskManagerProxyPtr DiskManagerProxy_;
-    TDiskInfoProviderPtr DiskInfoProvider_;
-    TDiskChangeCheckerPtr DiskChangeChecker_;
     TLocationManagerPtr LocationManager_;
     TLocationHealthCheckerPtr LocationHealthChecker_;
 
@@ -504,7 +483,6 @@ private:
 
         ChunkStore_->UpdateConfig(newConfig->DataNode);
 
-        DiskManagerProxy_->OnDynamicConfigChanged(newConfig->DiskManagerProxy);
         LocationHealthChecker_->OnDynamicConfigChanged(newConfig->DataNode->LocationHealthChecker);
         JobController_->OnDynamicConfigChanged(newConfig->DataNode->JobController);
     }

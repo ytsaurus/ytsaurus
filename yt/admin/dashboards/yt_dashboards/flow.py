@@ -291,6 +291,33 @@ def build_logging():
                     .stack(False))
     )
 
+def build_message_distributor():
+    return (Rowset()
+        .stack(False)
+        .all("host")
+        .row()
+            .cell(
+                "Push messages timeout",
+                MonitoringExpr(FlowWorker("yt.flow.worker.message_distributor.push_messages_timeout_count.rate"))
+                    .top()
+                    .unit("UNIT_REQUESTS_PER_SECOND"))
+            .cell(
+                "Retransmits count rate",
+                MonitoringExpr(FlowWorker("yt.flow.worker.message_distributor.retransmit_count.rate"))
+                    .top()
+                    .unit("UNIT_COUNTS_PER_SECOND"))
+            .cell(
+                "Unknown messages queue size",
+                MonitoringExpr(FlowWorker("yt.flow.worker.message_distributor.unknown_task_queue_size"))
+                    .top()
+                    .unit("UNIT_COUNT"))
+            .cell(
+                "Inflight message count",
+                MonitoringExpr(FlowWorker("yt.flow.worker.message_distributor.inflight_messages_count"))
+                    .top()
+                    .unit("UNIT_COUNT"))
+    )
+
 def build_pipeline():
     d = Dashboard()
     d.add(build_versions())
@@ -305,6 +332,7 @@ def build_pipeline():
     d.add(build_heartbeats())
     d.add(build_epoch_timings())
     d.add(build_logging())
+    d.add(build_message_distributor())
 
     d.set_title("[YT Flow] Pipeline general")
     d.add_parameter("project", "Pipeline project", MonitoringTextDashboardParameter())

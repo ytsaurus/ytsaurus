@@ -28,6 +28,7 @@ using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
 using namespace NCypressClient;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -47,9 +47,7 @@
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
-#include <yt/yt/library/disk_manager/config.h>
-#include <yt/yt/library/disk_manager/disk_info_provider.h>
-#include <yt/yt/library/disk_manager/disk_manager_proxy.h>
+#include <yt/yt/library/disk_manager/hotswap_manager.h>
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
@@ -318,19 +316,10 @@ public:
         GetRpcServer()->RegisterService(CreateQueryService(GetConfig()->QueryAgent, this));
         GetRpcServer()->RegisterService(CreateTabletCellService(this));
 
-        DiskManagerProxy_ = CreateDiskManagerProxy(GetConfig()->DiskManagerProxy);
-        DiskInfoProvider_ = New<NDiskManager::TDiskInfoProvider>(
-            DiskManagerProxy_,
-            GetConfig()->DiskInfoProvider);
-        DiskChangeChecker_ = New<TDiskChangeChecker>(
-            DiskInfoProvider_,
-            GetControlInvoker(),
-            TabletNodeLogger());
-
         SlotManager_->Initialize();
         MasterConnector_->Initialize();
 
-        SubscribePopulateAlerts(BIND_NO_PROPAGATE(&TDiskChangeChecker::PopulateAlerts, DiskChangeChecker_));
+        SubscribePopulateAlerts(BIND_NO_PROPAGATE(&NDiskManager::THotswapManager::PopulateAlerts));
     }
 
     void InitializeOverloadController()
@@ -371,7 +360,7 @@ public:
         SetNodeByYPath(
             GetOrchidRoot(),
             "/disk_monitoring",
-            CreateVirtualNode(DiskChangeChecker_->GetOrchidService()));
+            CreateVirtualNode(NDiskManager::THotswapManager::GetOrchidService()));
 
         StoreFlusher_->Start();
         StoreTrimmer_->Start();
@@ -385,7 +374,6 @@ public:
         SlotManager_->Start();
         CompressionDictionaryBuilder_->Start();
         OverloadController_->Start();
-        DiskChangeChecker_->Start();
         ErrorManager_->Start();
     }
 
@@ -608,10 +596,6 @@ private:
     ICompressionDictionaryManagerPtr CompressionDictionaryManager_;
     TOverloadControllerPtr OverloadController_;
 
-    NDiskManager::IDiskManagerProxyPtr DiskManagerProxy_;
-    NDiskManager::TDiskInfoProviderPtr DiskInfoProvider_;
-    TDiskChangeCheckerPtr DiskChangeChecker_;
-
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
@@ -640,7 +624,6 @@ private:
 
         CompressionDictionaryManager_->OnDynamicConfigChanged(newConfig->TabletNode->CompressionDictionaryCache);
 
-        DiskManagerProxy_->OnDynamicConfigChanged(newConfig->DiskManagerProxy);
         ErrorManager_->Reconfigure(newConfig);
     }
 

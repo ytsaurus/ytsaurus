@@ -3092,7 +3092,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyConfig->ForceIdleCpuPolicy = proxyDynamicConfig->ForceIdleCpuPolicy;
         proxyConfig->AbortOnUncaughtException = proxyDynamicConfig->AbortOnUncaughtException;
         proxyConfig->EnableStderrAndCoreLivePreview = proxyDynamicConfig->EnableStderrAndCoreLivePreview;
-        proxyConfig->CheckUserJobOOMKill = proxyDynamicConfig->CheckUserJobOOMKill;
+        proxyConfig->CheckUserJobOomKill = proxyDynamicConfig->CheckUserJobOomKill;
         if (auto nodeConfig = ConvertToNode(proxyDynamicConfig->JobEnvironment)) {
             proxyConfig->JobEnvironment = ConvertTo<TJobEnvironmentConfig>(PatchNode(ConvertToNode(proxyConfig->JobEnvironment), nodeConfig));
         }

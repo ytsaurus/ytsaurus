@@ -224,25 +224,27 @@ public:
         for (int threadIndex = 0; threadIndex < std::ssize(perThreadDataSliceDescriptors); ++threadIndex) {
             const auto& threadDataSliceDescriptors = perThreadDataSliceDescriptors[threadIndex];
 
+            DB::SourcePtr sourcePtr;
             if (StorageContext_->Settings->Prewhere->PrefilterDataSlices && readPlan->SuitableForTwoStagePrewhere()) {
-                pipes.emplace_back(CreatePrewhereSecondaryQuerySource(
+                sourcePtr = CreatePrewhereSecondaryQuerySource(
                     StorageContext_,
                     SubquerySpec_,
                     readPlan,
                     traceContext,
                     threadDataSliceDescriptors,
                     granuleMinMaxFilter,
-                    statisticsCallback));
+                    statisticsCallback);
             } else {
-                pipes.emplace_back(CreateSecondaryQuerySource(
+                sourcePtr = CreateSecondaryQuerySource(
                     StorageContext_,
                     SubquerySpec_,
                     readPlan,
                     traceContext,
                     threadDataSliceDescriptors,
                     granuleMinMaxFilter,
-                    statisticsCallback));
+                    statisticsCallback);
             }
+            pipes.emplace_back(sourcePtr);
 
             i64 rowCount = 0;
             i64 dataWeight = 0;
@@ -267,6 +269,8 @@ public:
                     }
                 }
             }
+            sourcePtr->addTotalRowsApprox(rowCount);
+            sourcePtr->addTotalBytes(dataWeight);
             YT_LOG_DEBUG(
                 "Thread table reader stream created (ThreadIndex: %v, RowCount: %v, DataWeight: %v, DataSliceCount: %v)",
                 threadIndex,

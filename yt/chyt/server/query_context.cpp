@@ -68,7 +68,7 @@ TFuture<std::vector<TErrorOr<TObjectLock>>> DoAcquireSnapshotLocksAsync(
     for (size_t index = 0; index < paths.size(); ++index) {
         auto req = TCypressYPathProxy::Lock(paths[index]);
         req->Tag() = index;
-        req->set_mode(ToProto(ELockMode::Snapshot));
+        req->set_mode(NYT::ToProto(ELockMode::Snapshot));
         SetTransactionId(req, readTransactionId);
         batchReq->AddRequest(req);
     }
@@ -225,14 +225,13 @@ TQueryContext::~TQueryContext()
         TraceContext->Finish();
     }
 
-    auto finishTime = TInstant::Now();
-    auto duration = finishTime - StartTime_;
+    auto duration = FinishTime_ - StartTime_;
 
     if (QueryKind == EQueryKind::InitialQuery) {
         Host->GetQueryRegistry()->AccountTotalDuration(duration);
     }
 
-    YT_LOG_INFO("Query time statistics (StartTime: %v, FinishTime: %v, Duration: %v)", StartTime_, finishTime, duration);
+    YT_LOG_INFO("Query time statistics (StartTime: %v, FinishTime: %v, Duration: %v)", StartTime_, FinishTime_, duration);
     YT_LOG_INFO("Query phase debug string (DebugString: %v)", PhaseDebugString_);
     YT_LOG_INFO("Query context destroyed");
 }
@@ -311,6 +310,7 @@ EQueryPhase TQueryContext::GetQueryPhase() const
 void TQueryContext::Finish()
 {
     FinishTime_ = TInstant::Now();
+    Progress_.Finish();
 }
 
 TInstant TQueryContext::GetStartTime() const
@@ -692,6 +692,8 @@ TQueryFinishInfo TQueryContext::GetQueryFinishInfo()
         "phase_duration_us"_L / TStatisticPathLiteral(ToString(QueryPhase_.load())),
         lastPhaseDuration.MicroSeconds());
 
+    result.Progess = Progress_.GetValues();
+
     return result;
 }
 
@@ -717,7 +719,7 @@ TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> TQueryContext::FetchTabl
         auto nodeIdOrPath = GetNodeIdOrPath(path);
         auto req = TYPathProxy::Get(Format("%v/@", nodeIdOrPath));
         req->Tag() = index;
-        ToProto(req->mutable_attributes()->mutable_keys(), TableAttributesToFetch);
+        NYT::ToProto(req->mutable_attributes()->mutable_keys(), TableAttributesToFetch);
         SetTransactionId(req, transactionId);
         SetCachingHeader(req, connection, masterReadOptions);
 
@@ -745,6 +747,26 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::FetchTableAttribut
 {
     return WaitForUniqueFast(FetchTableAttributesAsync(paths, transactionId))
         .ValueOrThrow();
+}
+
+void TQueryContext::OnProgress(const DB::Progress& progress)
+{
+    Progress_.Add(progress);
+}
+
+void TQueryContext::OnSecondaryProgress(TQueryId queryId, const DB::ReadProgress& progress)
+{
+    Progress_.AddSecondaryProgress(queryId, progress);
+}
+
+void TQueryContext::OnSecondaryFinish(TQueryId queryId)
+{
+    Progress_.FinishSecondaryQuery(queryId);
+}
+
+TQueryProgressValues TQueryContext::GetQueryProgress() const
+{
+    return Progress_.GetValues();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -837,6 +859,15 @@ void SetupHostContext(THost* host,
         std::move(dataLensRequestId),
         std::move(yqlOperationId),
         secondaryQueryHeader);
+
+    auto prevCallback = context->getProgressCallback();
+    auto curCallback = BIND(&TQueryContext::OnProgress, queryContext);
+    context->setProgressCallback([prevCallback = std::move(prevCallback), curCallback = std::move(curCallback)](const DB::Progress& progress) {
+        curCallback(progress);
+        if (prevCallback) {
+            prevCallback(progress);
+        }
+    });
 
     WaitFor(BIND(
         &TQueryRegistry::Register,

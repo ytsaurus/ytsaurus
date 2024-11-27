@@ -1,5 +1,7 @@
 JAVA_CONTRIB(jna-5.8.0)
 
+VERSION(5.8.0)
+
 LICENSE(
     LGPL-2.1-only AND
     Apache-2.0

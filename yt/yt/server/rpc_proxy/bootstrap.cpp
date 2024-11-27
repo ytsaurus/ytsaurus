@@ -18,7 +18,6 @@
 #include <yt/yt/server/lib/admin/restart_service.h>
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
-#include <yt/yt/server/lib/misc/disk_change_checker.h>
 #include <yt/yt/server/lib/misc/restart_manager.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
@@ -45,8 +44,7 @@
 
 #include <yt/yt/library/program/build_attributes.h>
 
-#include <yt/yt/library/disk_manager/disk_info_provider.h>
-#include <yt/yt/library/disk_manager/disk_manager_proxy.h>
+#include <yt/yt/library/disk_manager/hotswap_manager.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 
@@ -223,15 +221,6 @@ void TBootstrap::DoRun()
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
-    DiskManagerProxy_ = CreateDiskManagerProxy(Config_->DiskManagerProxy);
-    DiskInfoProvider_ = New<NDiskManager::TDiskInfoProvider>(
-        DiskManagerProxy_,
-        Config_->DiskInfoProvider);
-    DiskChangeChecker_ = New<TDiskChangeChecker>(
-        DiskInfoProvider_,
-        GetControlInvoker(),
-        Logger());
-
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
         HttpServer_,
@@ -261,7 +250,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/disk_monitoring",
-        CreateVirtualNode(DiskChangeChecker_->GetOrchidService()));
+        CreateVirtualNode(NDiskManager::THotswapManager::GetOrchidService()));
     SetBuildAttributes(
         orchidRoot,
         "proxy");
@@ -316,7 +305,6 @@ void TBootstrap::DoRun()
         Connection_->RegisterShuffleService(localServerAddress);
     }
 
-    DiskChangeChecker_->Start();
     DynamicConfigManager_->Initialize();
     DynamicConfigManager_->Start();
 
@@ -450,8 +438,6 @@ void TBootstrap::OnDynamicConfigChanged(
     ApiService_->OnDynamicConfigChanged(newConfig->Api);
 
     RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
-
-    DiskManagerProxy_->OnDynamicConfigChanged(newConfig->DiskManagerProxy);
 
     ReconfigureMemoryLimits(newConfig->MemoryLimits);
 

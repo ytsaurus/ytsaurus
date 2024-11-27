@@ -28,6 +28,10 @@ public:
     TDuration QueryProgressWritePeriod;
     i64 RowCountLimit;
 
+    // Resulting rowset is passed via wire protocol.
+    // Wire protocol reader validates that rowset doesn't contain values above this limit.
+    i64 ResultingRowsetValueLengthLimit;
+
     REGISTER_YSON_STRUCT(TEngineConfigBase);
 
     static void Register(TRegistrar registrar);
@@ -60,6 +64,7 @@ class TChytEngineConfig
 public:
     TString DefaultClique;
     TString DefaultCluster;
+    TDuration ProgressPollPeriod;
 
     REGISTER_YSON_STRUCT(TChytEngineConfig);
 

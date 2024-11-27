@@ -15,6 +15,7 @@ public:
     DEFINE_RPC_PROXY(TQueryServiceProxy, QueryService);
 
     DEFINE_RPC_PROXY_METHOD(NProto, ExecuteQuery);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetQueryProgress);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

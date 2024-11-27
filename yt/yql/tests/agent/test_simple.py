@@ -8,6 +8,8 @@ from yt_commands import (authors, create, create_user, sync_mount_table,
 
 from yt_env_setup import YTEnvSetup
 
+from yt.wrapper import yson
+
 import yt_error_codes
 
 import pytest
@@ -550,6 +552,99 @@ class TestQueriesYqlLimitedResult(TestQueriesYqlBase):
         result = query.read_result(0)
         assert_items_equal(result, [{"a": 42}])
         assert not query.get_result(0)["is_truncated"]
+
+
+class TestQueriesYqlResultTruncation(TestQueriesYqlBase):
+    QUERY_TRACKER_DYNAMIC_CONFIG = {"yql_engine": {"resulting_rowset_value_length_limit": 20 * 1024**2}}
+
+    @staticmethod
+    def _assert_select_result(path, rows, is_truncated):
+        q = start_query("yql", f"select * from `{path}`")
+        q.track()
+        assert q.get()["result_count"] == 1
+        assert_items_equal(q.read_result(0), rows)
+        assert q.get_result(0)["is_truncated"] == yson.YsonBoolean(is_truncated)
+
+    @authors("aleksandr.gaev")
+    @pytest.mark.timeout(300)
+    def test_big_result(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "value", "type": "string"}]
+        })
+
+        value_size = 1024**2
+
+        # 14 MB
+        rows = [{"value": str(i) + ''.join(['a' for _ in range(value_size)])} for i in range(14)]
+        write_table("//tmp/t", rows)
+        self._assert_select_result("//tmp/t", rows, False)
+
+        # 15 MB
+        new_rows = [{"value": str(i) + ''.join(['b' for _ in range(value_size)])} for i in range(14, 15)]
+        rows += new_rows
+        write_table("//tmp/t", rows)
+        self._assert_select_result("//tmp/t", rows, False)
+
+        # 16 MB
+        new_rows = [{"value": str(i) + ''.join(['c' for _ in range(value_size)])} for i in range(15, 16)]
+        rows += new_rows
+        write_table("//tmp/t", rows)
+        self._assert_select_result("//tmp/t", rows[:15], True)
+
+        # 17 MB
+        new_rows = [{"value": str(i) + ''.join(['d' for _ in range(value_size)])} for i in range(16, 17)]
+        rows += new_rows
+        write_table("//tmp/t", rows)
+        self._assert_select_result("//tmp/t", rows[:15], True)
+
+        # 22 MB
+        new_rows = [{"value": str(i) + ''.join(['d' for _ in range(value_size)])} for i in range(17, 22)]
+        rows += new_rows
+        write_table("//tmp/t", rows)
+        self._assert_select_result("//tmp/t", rows[:15], True)
+
+    @authors("aleksandr.gaev")
+    @pytest.mark.timeout(180)
+    def test_big_line(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "value", "type": "string"}]
+        })
+
+        # 12 MB line
+        rows = [{"value": "a"}, {"value": ''.join(['a' for _ in range(12 * 1024**2)])}]
+        write_table("//tmp/t", rows, table_writer={"max_row_weight": 64 * 1024**2})
+        self._assert_select_result("//tmp/t", rows, False)
+
+        # 16 MB line
+        rows = [{"value": "a"}, {"value": ''.join(['a' for _ in range(16 * 1024**2)])}]
+        write_table("//tmp/t", rows, table_writer={"max_row_weight": 64 * 1024**2})
+        self._assert_select_result("//tmp/t", rows[:1], True)
+
+        # 19 MB line
+        rows = [{"value": "a"}, {"value": ''.join(['a' for _ in range(19 * 1024**2)])}]
+        write_table("//tmp/t", rows, table_writer={"max_row_weight": 64 * 1024**2})
+        self._assert_select_result("//tmp/t", rows[:1], True)
+
+    @authors("aleksandr.gaev")
+    @pytest.mark.timeout(180)
+    def test_line_above_limit(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "value", "type": "string"}]
+        })
+
+        # 22 MB line
+        rows = [{"value": "a"}, {"value": ''.join(['a' for _ in range(22 * 1024**2)])}]
+        write_table("//tmp/t", rows, table_writer={"max_row_weight": 64 * 1024**2})
+        q = start_query("yql", "select * from `//tmp/t`")
+        q.track()
+        assert q.get()["result_count"] == 1
+        with raises_yt_error("Failed to save rowset"):
+            q.read_result(0)
+        result = q.get_result(0)
+        assert result["is_truncated"] == yson.YsonBoolean(True)
+        assert "error" in result
+        assert "Failed to save rowset" in str(result["error"])
+        assert "Failed to read resulting rowset. Try using INSERT INTO to save result" in str(result["error"])
 
 
 class TestQueriesYqlAuth(TestQueriesYqlBase):

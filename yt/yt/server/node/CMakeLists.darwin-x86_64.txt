@@ -53,7 +53,6 @@ target_link_libraries(yt-server-node PUBLIC
   yt-library-re2
   yt-library-containers
   library-containers-cri
-  yt-library-disk_manager
   yt-library-gpu
   yt-ytlib-distributed_throttler
   server-node-cellar_node

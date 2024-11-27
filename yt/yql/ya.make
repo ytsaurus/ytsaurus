@@ -6,6 +6,7 @@ RECURSE(
 IF (NOT OPENSOURCE)
     RECURSE(
         providers
+        purecalc
     )
 ENDIF()
 

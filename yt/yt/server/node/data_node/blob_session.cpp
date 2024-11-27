@@ -6,6 +6,10 @@
 #include "config.h"
 #include "location.h"
 
+#include <yt/yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+
 #include <yt/yt/server/lib/io/chunk_file_reader.h>
 #include <yt/yt/server/lib/io/chunk_file_writer.h>
 
@@ -674,6 +678,8 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
         blocksToWrite.clear();
     };
 
+    auto bytesPerWrite = Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->BytesPerWrite.value_or(Config_->BytesPerWrite);
+
     while (true) {
         if (WindowIndex_ >= std::ssize(Window_)) {
             flushBlocksToPipeline();
@@ -704,7 +710,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
         blocksToWriteSize += slot.Block.Size();
         ++WindowIndex_;
 
-        if (blocksToWriteSize >= Config_->BytesPerWrite) {
+        if (blocksToWriteSize >= bytesPerWrite) {
             flushBlocksToPipeline();
         }
     }

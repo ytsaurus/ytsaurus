@@ -1,5 +1,7 @@
 JAVA_CONTRIB(slf4j-api-1.7.25)
 
+VERSION(1.7.25)
+
 LICENSE(MIT)
 
 

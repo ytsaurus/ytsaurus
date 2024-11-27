@@ -261,40 +261,6 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
             assert raw_events[0][counter] > 0
             assert raw_events[1][counter] > 0
 
-    @authors("ngc224")
-    def test_multiple_read_io_requests(self):
-        large_data, large_data_size = self.generate_large_data(column_count=100)
-        columns = list(large_data[0].keys())
-
-        schema = yson.YsonList([
-            {"name": _, "type": "string" if _ != "id" else "int64"}
-            for _ in columns
-        ])
-        schema.attributes["strict"] = True
-
-        create("table", "//tmp/table", attributes={"schema": schema, "optimize_for": "scan"})
-        write_table("//tmp/table", large_data)
-
-        from_barrier = self.write_log_barrier(self.get_node_address())
-
-        path = f"//tmp/table{{{columns[0]},{columns[50]},{columns[99]}}}"
-        options = {
-            "table_reader": {
-                "group_size": large_data_size,
-                "window_size": large_data_size,
-                "group_out_of_order_blocks": True,
-            }
-        }
-
-        assert len(read_table(path, **options)) == len(large_data)
-
-        raw_events = self.wait_for_raw_events(count=1, from_barrier=from_barrier)
-
-        assert raw_events[0]["data_node_method@"] == "GetBlockSet"
-        assert raw_events[0]["direction@"] == "read"
-        assert raw_events[0]["bytes"] > 0
-        assert raw_events[0]["io_requests"] == 3
-
     @authors("gepardo")
     def test_large_data(self):
         create("table", "//tmp/table")
@@ -378,6 +344,63 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
             assert raw_events[0]["direction@"] == "read"
             assert min_data_bound <= raw_events[0]["bytes"] <= max_data_bound
             assert raw_events[0]["io_requests"] > 0
+
+##################################################################
+
+
+class TestMultipleReadIORequests(TestNodeIOTrackingBase):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1,
+            "default_journal_read_quorum": 1,
+            "default_journal_write_quorum": 1,
+            "default_journal_replication_factor": 1,
+        }
+    }
+
+    DELTA_DRIVER_CONFIG = {
+        "chunk_client_dispatcher": {
+            "chunk_reader_pool_size": 1,
+        }
+    }
+
+    @authors("ngc224")
+    def test_multiple_read_io_requests(self):
+        large_data, large_data_size = self.generate_large_data(column_count=100)
+        columns = list(large_data[0].keys())
+
+        schema = yson.YsonList([
+            {"name": _, "type": "string" if _ != "id" else "int64"}
+            for _ in columns
+        ])
+        schema.attributes["strict"] = True
+
+        create("table", "//tmp/table", attributes={"schema": schema, "optimize_for": "scan"})
+        write_table("//tmp/table", large_data)
+
+        from_barrier = self.write_log_barrier(self.get_node_address())
+
+        path = f"//tmp/table{{{columns[0]},{columns[50]},{columns[99]}}}"
+        options = {
+            "table_reader": {
+                "group_size": large_data_size,
+                "window_size": large_data_size,
+                "group_out_of_order_blocks": True,
+            }
+        }
+
+        assert len(read_table(path, **options)) == len(large_data)
+
+        raw_events = self.wait_for_raw_events(count=1, from_barrier=from_barrier)
+
+        assert raw_events[0]["data_node_method@"] == "GetBlockSet"
+        assert raw_events[0]["direction@"] == "read"
+        assert raw_events[0]["bytes"] > 0
+        assert raw_events[0]["io_requests"] == 3
 
 ##################################################################
 

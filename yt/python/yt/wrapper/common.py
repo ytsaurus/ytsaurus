@@ -43,16 +43,12 @@ except ImportError:
         except ImportError:
             linux_distribution = None
 
-from multiprocessing.pool import ThreadPool
-# Python3 compatibility
-try:
-    from collections.abc import Mapping
-except ImportError:
-    from collections import Mapping
-from itertools import chain, starmap
-from functools import reduce
+from collections.abc import Mapping
 from copy import copy, deepcopy
 from datetime import timedelta
+from functools import reduce
+from itertools import chain, starmap
+from multiprocessing.pool import ThreadPool
 
 EMPTY_GENERATOR = (i for i in [])
 

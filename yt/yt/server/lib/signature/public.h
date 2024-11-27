@@ -18,8 +18,6 @@ DECLARE_REFCOUNTED_CLASS(TKeyInfo)
 DECLARE_REFCOUNTED_CLASS(TSignature)
 DECLARE_REFCOUNTED_CLASS(TSignatureGenerator)
 DECLARE_REFCOUNTED_CLASS(TSignatureValidator)
-DECLARE_REFCOUNTED_CLASS(TCypressKeyReader)
-DECLARE_REFCOUNTED_CLASS(TCypressKeyWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

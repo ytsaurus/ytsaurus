@@ -43,9 +43,7 @@
 
 #include <yt/yt/library/dns_over_rpc/server/dns_over_rpc_service.h>
 
-#include <yt/yt/library/disk_manager/config.h>
-#include <yt/yt/library/disk_manager/disk_info_provider.h>
-#include <yt/yt/library/disk_manager/disk_manager_proxy.h>
+#include <yt/yt/library/disk_manager/hotswap_manager.h>
 
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
@@ -157,16 +155,6 @@ public:
             NNet::TAddressResolver::Get()->GetDnsResolver(),
             DnsOverRpcActionQueue_->GetInvoker()));
 
-        DiskManagerProxy_ = CreateDiskManagerProxy(
-            GetConfig()->DiskManagerProxy);
-        DiskInfoProvider_ = New<NDiskManager::TDiskInfoProvider>(
-            DiskManagerProxy_,
-            GetConfig()->DiskInfoProvider);
-        DiskChangeChecker_ = New<TDiskChangeChecker>(
-            DiskInfoProvider_,
-            GetControlInvoker(),
-            ExecNodeLogger());
-
         // NB(psushin): initialize chunk cache first because slot manager (and root
         // volume manager inside it) can start using it to populate tmpfs layers cache.
         ChunkCache_->Initialize();
@@ -180,7 +168,7 @@ public:
         SchedulerConnector_->Initialize();
         ControllerAgentConnectorPool_->Initialize();
 
-        SubscribePopulateAlerts(BIND_NO_PROPAGATE(&TDiskChangeChecker::PopulateAlerts, DiskChangeChecker_));
+        SubscribePopulateAlerts(BIND_NO_PROPAGATE(&NDiskManager::THotswapManager::PopulateAlerts));
     }
 
     void Run() override
@@ -199,7 +187,7 @@ public:
         SetNodeByYPath(
             GetOrchidRoot(),
             "/disk_monitoring",
-            CreateVirtualNode(DiskChangeChecker_->GetOrchidService()));
+            CreateVirtualNode(NDiskManager::THotswapManager::GetOrchidService()));
 
         // COMPAT(pogorelov)
         if (JobProxyLogManager_) {
@@ -215,7 +203,6 @@ public:
         SchedulerConnector_->Start();
 
         ControllerAgentConnectorPool_->Start();
-        DiskChangeChecker_->Start();
     }
 
     const IJobInputCachePtr& GetJobInputCache() const override
@@ -358,10 +345,6 @@ private:
 
     IJobProxyLogManagerPtr JobProxyLogManager_;
 
-    NDiskManager::IDiskManagerProxyPtr DiskManagerProxy_;
-    NDiskManager::TDiskInfoProviderPtr DiskInfoProvider_;
-    TDiskChangeCheckerPtr DiskChangeChecker_;
-
     void BuildJobProxyConfigTemplate()
     {
         auto localAddress = NNet::BuildServiceAddress(NNet::GetLoopbackAddress(), GetConfig()->RpcPort);
@@ -462,8 +445,6 @@ private:
         JobReporter_->OnDynamicConfigChanged(
             oldConfig->ExecNode->JobReporter,
             newConfig->ExecNode->JobReporter);
-
-        DiskManagerProxy_->OnDynamicConfigChanged(newConfig->DiskManagerProxy);
 
         DynamicConfig_.Store(newConfig);
 

@@ -17,9 +17,6 @@
 #include <library/cpp/testing/gtest/gtest.h>
 
 namespace NYT::NScheduler {
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace {
 
 using namespace NControllerAgent;
@@ -28,7 +25,7 @@ using namespace NControllerAgent;
 
 // NB(eshcherbin): Set to true, when in pain.
 static constexpr bool EnableDebugLogging = false;
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, EnableDebugLogging
+static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, EnableDebugLogging
     ? NLogging::TLogger("TestDebug")
     : NLogging::TLogger());
 

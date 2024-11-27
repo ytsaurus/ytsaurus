@@ -419,20 +419,22 @@ void FormatValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<ELayerAccessMethod, ELayerFilesystem> GetAccessMethodAndFilesystemFromStrings(const TString& accessMethod, const TString& filesystem)
+std::pair<ELayerAccessMethod, ELayerFilesystem> GetAccessMethodAndFilesystemFromStrings(
+    const TString& accessMethod,
+    const TString& filesystem)
 {
     std::pair<ELayerAccessMethod, ELayerFilesystem> res;
     try {
-        res.first = TEnumTraits<ELayerAccessMethod>::FromString(accessMethod);
+        res.first = ParseEnum<ELayerAccessMethod>(accessMethod);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("'access_method' has invalid value %Qv",
+        THROW_ERROR_EXCEPTION("\"access_method\" has invalid value %Qlv",
             accessMethod) << ex;
     }
 
     try {
-        res.second = TEnumTraits<ELayerFilesystem>::FromString(filesystem);
+        res.second = ParseEnum<ELayerFilesystem>(filesystem);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("'filesystem' has invalid value %Qv",
+        THROW_ERROR_EXCEPTION("\"filesystem\" has invalid value %Qv",
             filesystem) << ex;
     }
 

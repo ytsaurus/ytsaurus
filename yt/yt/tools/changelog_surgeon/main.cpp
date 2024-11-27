@@ -18,6 +18,8 @@ using namespace NHydra;
 using namespace NIO;
 using namespace NLastGetopt;
 
+////////////////////////////////////////////////////////////////////////////////
+
 YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "ChangelogSurgeonLogger");
 constexpr int DefaultMaxRecordsPerRead = 1000000;
 

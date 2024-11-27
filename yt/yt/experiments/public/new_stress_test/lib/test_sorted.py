@@ -293,6 +293,12 @@ def test_sorted_tables(base_path, spec, attributes, force):
                 })
             logger.info("Replace original table with the copied one")
             yt.move(registry.base + ".copy", registry.base, force=True)
+            if spec.index:
+                yt.create("secondary_index", attributes={
+                    "table_path": registry.base,
+                    "index_table_path": registry.index,
+                    "kind": spec.index.kind,
+                })
             mount_table(registry.base)
 
         # Verify lookups.

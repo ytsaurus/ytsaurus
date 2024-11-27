@@ -11,9 +11,7 @@
 
 #include <yt/yt/library/coredumper/coredumper.h>
 
-#include <yt/yt/library/disk_manager/config.h>
-#include <yt/yt/library/disk_manager/disk_info_provider.h>
-#include <yt/yt/library/disk_manager/disk_manager_proxy.h>
+#include <yt/yt/library/disk_manager/hotswap_manager.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 
@@ -22,7 +20,6 @@
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
 #include <yt/yt/server/lib/misc/restart_manager.h>
-#include <yt/yt/server/lib/misc/disk_change_checker.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
@@ -169,10 +166,6 @@ private:
 
     TDynamicConfigManagerPtr DynamicConfigManager_;
 
-    NDiskManager::IDiskManagerProxyPtr DiskManagerProxy_;
-    NDiskManager::TDiskInfoProviderPtr DiskInfoProvider_;
-    TDiskChangeCheckerPtr DiskChangeChecker_;
-
     void DoInitialize()
     {
         BusServer_ = NBus::CreateBusServer(Config_->BusServer);
@@ -237,15 +230,6 @@ private:
             MasterCacheLogger(),
             NativeAuthenticator_));
 
-        DiskManagerProxy_ = CreateDiskManagerProxy(Config_->DiskManagerProxy);
-        DiskInfoProvider_ = New<NDiskManager::TDiskInfoProvider>(
-            DiskManagerProxy_,
-            Config_->DiskInfoProvider);
-        DiskChangeChecker_ = New<TDiskChangeChecker>(
-            DiskInfoProvider_,
-            GetControlInvoker(),
-            Logger());
-
         if (Config_->ExposeConfigInOrchid) {
             SetNodeByYPath(
                 OrchidRoot_,
@@ -259,7 +243,7 @@ private:
         SetNodeByYPath(
             OrchidRoot_,
             "/disk_monitoring",
-            CreateVirtualNode(DiskChangeChecker_->GetOrchidService()));
+            CreateVirtualNode(NDiskManager::THotswapManager::GetOrchidService()));
 
         RpcServer_->RegisterService(CreateOrchidService(
             OrchidRoot_,
@@ -270,8 +254,6 @@ private:
     void DoRun()
     {
         DynamicConfigManager_->Start();
-
-        DiskChangeChecker_->Start();
 
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
@@ -287,7 +269,6 @@ private:
         const TMasterCacheDynamicConfigPtr& newConfig)
     {
         ReconfigureNativeSingletons(Config_, newConfig);
-        DiskManagerProxy_->OnDynamicConfigChanged(newConfig->DiskManagerProxy);
     }
 };
 

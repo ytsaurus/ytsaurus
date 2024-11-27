@@ -239,8 +239,8 @@ using NTransactionServer::ITransactionManagerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Bootstrap");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, DryRunLogger, "DryRun");
+static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Bootstrap");
+static YT_DEFINE_GLOBAL(const NLogging::TLogger, DryRunLogger, "DryRun");
 
 ////////////////////////////////////////////////////////////////////////////////
 

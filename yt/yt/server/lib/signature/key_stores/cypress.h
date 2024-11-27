@@ -1,4 +1,8 @@
-#include "key_store.h"
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/server/lib/signature/key_store.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 

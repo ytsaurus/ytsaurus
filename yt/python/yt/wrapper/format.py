@@ -26,10 +26,8 @@ from collections.abc import Iterable
 import copy
 import struct
 import sys
-try:
-    from cStringIO import StringIO as BytesIO
-except ImportError:  # Python 3
-    from io import BytesIO
+
+from io import BytesIO
 
 try:
     from statbox_bindings2.string_utils import (

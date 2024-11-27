@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <yt/yt/ytlib/chunk_client/public.h>
+
 namespace NYT::NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,6 +19,7 @@ class TNativeDriverConfig
 {
 public:
     NAuth::TTvmServiceConfigPtr TvmService;
+    NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
 
     REGISTER_YSON_STRUCT(TNativeDriverConfig);
 

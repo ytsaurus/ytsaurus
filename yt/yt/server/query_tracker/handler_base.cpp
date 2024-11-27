@@ -79,33 +79,59 @@ TSharedRef TruncateRowset(TSharedRange<NTableClient::TUnversionedRow>& rows)
     return TSharedRef::MakeEmpty();
 }
 
-void ProcessRowset(TFinishedQueryResultPartial& newRecord, TWireRowset wireSchemaAndSchemafulRowset)
+void ProcessRowset(TFinishedQueryResultPartial& newRecord, TWireRowset wireSchemaAndSchemafulRowset, i64 ValueLengthLimit)
 {
-    // Process schema.
-    auto reader = CreateWireProtocolReader(wireSchemaAndSchemafulRowset.Rowset);
-    auto schema = reader->ReadTableSchema();
-    auto schemaNode = ConvertToNode(schema);
-    // Values in tables cannot have top-level attributes, but we do not need them anyway.
-    schemaNode->MutableAttributes()->Clear();
-    newRecord.Schema = ConvertToYsonString(schemaNode);
+    try {
+        YT_LOG_DEBUG("Processing wire rowset");
+        // Process schema.
+        YT_LOG_DEBUG("Reading schema");
+        TWireProtocolOptions readerOptions;
+        readerOptions.MaxStringValueLength = ValueLengthLimit;
+        readerOptions.MaxAnyValueLength = ValueLengthLimit;
+        readerOptions.MaxCompositeValueLength = ValueLengthLimit;
+        auto reader = CreateWireProtocolReader(wireSchemaAndSchemafulRowset.Rowset, TRowBufferPtr(), readerOptions);
+        auto schema = reader->ReadTableSchema();
+        auto schemaNode = ConvertToNode(schema);
+        // Values in tables cannot have top-level attributes, but we do not need them anyway.
+        schemaNode->MutableAttributes()->Clear();
+        newRecord.Schema = ConvertToYsonString(schemaNode);
 
-    // Process schemaful rowset.
-    auto rowset = reader->Slice(reader->GetCurrent(), reader->GetEnd());
-    auto schemaData = IWireProtocolReader::GetSchemaData(schema);
-    auto rows = reader->ReadSchemafulRowset(schemaData, /*captureValues*/ false);
-    TDataStatistics dataStatistics;
-    dataStatistics.set_row_count(rows.size());
-    dataStatistics.set_data_weight(GetDataWeight(rows));
-    newRecord.DataStatistics = ConvertToYsonString(dataStatistics);
-    newRecord.IsTruncated = wireSchemaAndSchemafulRowset.IsTruncated;
-    if (rowset.Size() <= MaxStringValueLength) {
-        // Fast path. Copy full rowset.
-        newRecord.Rowset = TString(rowset.ToStringBuf());
-    } else {
-        // Slow path. Truncate rowset.
+        // Process schemaful rowset.
+        YT_LOG_DEBUG("Reading schemaful rowset");
+        auto rowset = reader->Slice(reader->GetCurrent(), reader->GetEnd());
+        auto schemaData = IWireProtocolReader::GetSchemaData(schema);
+        TSharedRange<NTableClient::TUnversionedRow> rows;
+        try {
+            rows = reader->ReadSchemafulRowset(schemaData, /*captureValues*/ false);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Failed to read resulting rowset. Try using INSERT INTO to save result") << ex;
+        }
+        TDataStatistics dataStatistics;
+        dataStatistics.set_row_count(rows.size());
+        dataStatistics.set_data_weight(GetDataWeight(rows));
+        newRecord.DataStatistics = ConvertToYsonString(dataStatistics);
+        newRecord.IsTruncated = wireSchemaAndSchemafulRowset.IsTruncated;
+        if (rowset.Size() <= MaxStringValueLength) {
+            // Fast path. Copy full rowset.
+            YT_LOG_DEBUG("Copying full rowset of size %v", rowset.Size());
+            newRecord.Error = TError();
+            newRecord.Rowset = TString(rowset.ToStringBuf());
+        } else {
+            // Slow path. Truncate rowset.
+            YT_LOG_DEBUG("Truncating rowset of size %v", rowset.Size());
+            newRecord.IsTruncated = true;
+            auto truncatedRowset = TruncateRowset(rows);
+            YT_LOG_DEBUG("Copying truncated rowset of size %v", truncatedRowset.Size());
+            newRecord.Error = TError();
+            newRecord.Rowset = TString(truncatedRowset.ToStringBuf());
+        }
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(ex, "Failed to save rowset");
+        newRecord.Schema = ConvertToYsonString(TString());
+        newRecord.DataStatistics = ConvertToYsonString(TDataStatistics());
         newRecord.IsTruncated = true;
-        auto truncatedRowset = TruncateRowset(rows);
-        newRecord.Rowset = TString(truncatedRowset.ToStringBuf());
+        newRecord.Error = TError("Failed to save rowset") << ex;
+        newRecord.Rowset = TString();
     }
 }
 
@@ -342,6 +368,7 @@ void TQueryHandlerBase::TryWriteProgress()
 bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previousState, const TError& error, const std::vector<TErrorOr<TWireRowset>>& wireRowsetOrErrors)
 {
     try {
+        YT_LOG_INFO("Writing query state (State: %v, PreviousState: %v)", state, previousState);
         auto transaction = StartIncarnationTransaction(previousState);
         auto rowBuffer = New<TRowBuffer>();
         {
@@ -359,6 +386,9 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
             std::vector newRows = {
                 newRecord.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetIdMapping()),
             };
+            YT_LOG_DEBUG("Writing active query state (FinishTime: %v, ResultCount: %v)",
+                newRecord.FinishTime,
+                newRecord.ResultCount);
             transaction->WriteRows(
                 StateRoot_ + "/active_queries",
                 TActiveQueryDescriptor::Get()->GetNameTable(),
@@ -374,14 +404,18 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
                     },
                 };
                 if (wireRowsetOrError.IsOK()) {
-                    newRecord.Error = TError();
-                    NDetail::ProcessRowset(newRecord, wireRowsetOrError.Value());
+                    NDetail::ProcessRowset(newRecord, wireRowsetOrError.Value(), Config_->ResultingRowsetValueLengthLimit);
                 } else {
                     newRecord.Error = static_cast<TError>(wireRowsetOrError);
                     newRecord.DataStatistics = ConvertToYsonString(TDataStatistics());
                 }
+                YT_LOG_DEBUG("Writing finished query result (Index: %v, ErrorMessageSize: %v, RowsetSize: %v)",
+                    index,
+                    newRecord.Error ? newRecord.Error->GetMessage().size() : 0,
+                    newRecord.Rowset && *newRecord.Rowset ? (**newRecord.Rowset).size() : 0);
                 newRows.push_back(newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryResultDescriptor::Get()->GetIdMapping()));
             }
+            YT_LOG_INFO("Writing finished query result");
             transaction->WriteRows(
                 StateRoot_ + "/finished_query_results",
                 TFinishedQueryResultDescriptor::Get()->GetNameTable(),

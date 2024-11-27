@@ -12,10 +12,7 @@ import yt.yson as yson
 
 import inspect
 
-try:
-    from cStringIO import StringIO as BytesIO
-except ImportError:  # Python 3
-    from io import BytesIO
+from io import BytesIO
 
 
 driver_bindings_type = None

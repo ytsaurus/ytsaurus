@@ -443,6 +443,9 @@ public:
 
     bool AllowGangOperationsOnlyInFifoPools;
 
+    // TODO(eshcherbin): Remove when 24.2 is finalized.
+    bool AllowSingleJobLargeGpuOperationsInMultipleTrees;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
     static void Register(TRegistrar registrar);

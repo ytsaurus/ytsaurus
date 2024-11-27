@@ -28,7 +28,6 @@ target_link_libraries(server-lib-misc PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
-  yt-library-disk_manager
   yt-library-coredumper
   yt-library-process
   yt-library-ytprof
@@ -43,7 +42,6 @@ target_sources(server-lib-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/cluster_throttlers_config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/disk_health_checker.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/disk_change_checker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/fork_executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/format_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/estimate_size_helpers.cpp
@@ -69,7 +67,6 @@ target_link_libraries(server-lib-misc.global PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
-  yt-library-disk_manager
   yt-library-coredumper
   yt-library-process
   yt-library-ytprof

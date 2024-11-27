@@ -94,6 +94,10 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
 
         try {
             pids = Environment_->GetJobPids();
+            if (auto pid = Environment_->GetJobRootPid()) {
+                pids.push_back(*pid);
+            }
+            YT_LOG_DEBUG("Job process pids collected (Pids: %v)", pids);
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to get list of user job processes");
             return New<TJobMemoryStatistics>();

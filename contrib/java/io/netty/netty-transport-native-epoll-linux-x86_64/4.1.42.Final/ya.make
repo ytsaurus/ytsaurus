@@ -1,5 +1,7 @@
 JAVA_CONTRIB(netty-transport-native-epoll-4.1.42.Final-linux-x86_64)
 
+VERSION(4.1.42.Final)
+
 LICENSE(Apache-2.0)
 
 PEERDIR(

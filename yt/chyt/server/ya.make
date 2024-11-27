@@ -76,9 +76,11 @@ SRCS(
     private.cpp
     query_analyzer.cpp
     query_context.cpp
+    query_progress.cpp
     query_registry.cpp
     query_service.cpp
     read_plan.cpp
+    remote_source.cpp
     revision_tracker.cpp
     schema_inference.cpp
     secondary_query_header.cpp
