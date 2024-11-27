@@ -42,15 +42,15 @@ If you edit the attribute, the method of writing new data will change. At the sa
 
 | Codec | Algorithm | Description | Size on disk as compared to compressed data. | Recovery cost. |
 |-------|----------|----------|------------------------|--------------------------|
-| `reed_solomon_6_3` | Uses the [Reed-Solomon codes](https://en.wikipedia.org/wiki/Reed-Solomon_error_correction). | When writing an erasure chunk, data are split into 6 data parts. Three control parts are generated for recovery. | 1.5x | The recovery cost is high in CPU resources and time. |
-| `lrc_12_2_2` | Uses [Local Reconstruction Codes (LRC)](https://www.microsoft.com/en-us/research/publication/erasure-coding-in-windows-azure-storage/?from=http%3A%2F%2Fresearch.microsoft.com%2Fpubs%2F179583%2Flrc12-cheng%2520webpage.pdf) that are a variation on the Reed-Solomon codes. | When writing an erasure chunk, the data is split into 12 parts. Two xor parts are computed: for the first 6 parts containing data, and for the other 6 parts. Two further control parts are computed for recovery using an algorithm similar to Reed-Solomon (erasure parts). This is the recommended option for all cases where erasure coding is required. | 1.33x | The recovery cost is moderate in CPU resources and time. |
+| `isa_reed_solomon_6_3` | Uses the [Reed-Solomon codes](https://en.wikipedia.org/wiki/Reed-Solomon_error_correction). | When writing an erasure chunk, data are split into 6 data parts. Three control parts are generated for recovery. | 1.5x | The recovery cost is high in CPU resources and time. |
+| `isa_lrc_12_2_2` | Uses [Local Reconstruction Codes (LRC)](https://www.microsoft.com/en-us/research/publication/erasure-coding-in-windows-azure-storage/?from=http%3A%2F%2Fresearch.microsoft.com%2Fpubs%2F179583%2Flrc12-cheng%2520webpage.pdf) that are a variation on the Reed-Solomon codes. | When writing an erasure chunk, the data is split into 12 parts. Two xor parts are computed: for the first 6 parts containing data, and for the other 6 parts. Two further control parts are computed for recovery using an algorithm similar to Reed-Solomon (erasure parts). This is the recommended option for all cases where erasure coding is required. | 1.33x | The recovery cost is moderate in CPU resources and time. |
 
 In both cases, the system is able to survive the loss of any three cluster nodes.
 The system attempts to write each chunk part to a separate **rack** to provide **rack awareness**.
 
 Erasure coding has the following weaknesses:
 
-- Even after the loss of a single cluster node, the system will have to start background recovery to maintain failure tolerance. A different number of parts are required for recovery. Thus, `reed_solomon_6_3` requires 6 separate parts. The recovery process is automatic but needs CPU and takes time: between 10 and 60 minutes.
+- Even after the loss of a single cluster node, the system will have to start background recovery to maintain failure tolerance. A different number of parts are required for recovery. Thus, `isa_reed_solomon_6_3` requires 6 separate parts. The recovery process is automatic but needs CPU and takes time: between 10 and 60 minutes.
 - Reading may be slow since the data has one physical replica. In fact, a read has nothing to choose from, and if the only cluster node hosting the data part being read is very busy for whatever reason, then reading will be slow. If a part cannot be read for a long time, the system will recover this part on the client (**read recovery**), which will require extra time and computational power. When using replication, the system selects the least busy replica for reading.
 - A data write is an operation that has a high cost in terms of RAM usage. For reference, by default, a table write that uses replication requires 100 MB of RAM while an erasure coding table write needs 1500 MB.
 
@@ -79,7 +79,7 @@ To force the operation, run `merge` manually with `force_transform=%true` after 
 
 CLI
 ```bash
-yt set //path/to/table/@erasure_codec reed_solomon_6_3
+yt set //path/to/table/@erasure_codec isa_reed_solomon_6_3
 yt set //path/to/table/@compression_codec brotli_6
 yt merge --src //path/to/table --dst //path/to/table --spec '{force_transform = %true;data_weight_per_job=N}
 ```

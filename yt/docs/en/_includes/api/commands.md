@@ -2915,7 +2915,7 @@ PARAMETERS { }
 OUTPUT {
 OUTPUT   "features" = {
 OUTPUT     "primitive_types" = ["int8"; "int16"; ... ];
-OUTPUT     "erasure_codecs" = ["lrc_12_2_2"; "reed_solomon_6_3"; ... ];
+OUTPUT     "erasure_codecs" = ["none", "isa_lrc_12_2_2"; "isa_reed_solomon_6_3"; ... ];
 OUTPUT     "compression_codecs" = ["none"; "snappy"; "brotli_1"; ... ];
 OUTPUT   };
 OUTPUT }
