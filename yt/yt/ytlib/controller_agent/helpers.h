@@ -75,7 +75,9 @@ bool AreCompatible(ELayerAccessMethod accessMethod, ELayerFilesystem filesystem)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<ELayerAccessMethod, ELayerFilesystem> GetAccessMethodAndFilesystemFromStrings(const TString& accessMethod, const TString& filesystem);
+std::pair<ELayerAccessMethod, ELayerFilesystem> GetAccessMethodAndFilesystemFromStrings(
+    const TString& accessMethod,
+    const TString& filesystem);
 
 ////////////////////////////////////////////////////////////////////////////////
 
