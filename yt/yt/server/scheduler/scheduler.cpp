@@ -679,7 +679,7 @@ public:
             runtimeParameters,
             std::move(baseAcl),
             user,
-            TInstant::Now(),
+            /*startTime*/ TInstant::Now(),
             MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation),
             spec->Alias,
             std::move(preprocessedSpec.ExperimentAssignments),
@@ -3076,7 +3076,9 @@ private:
             .Item("spec").Value(operation->GetSpecString())
             .Item("experiment_assignments").Value(operation->ExperimentAssignments())
             .Item("experiment_assignment_names").Value(operation->GetExperimentAssignmentNames())
-            .Item("authenticated_user").Value(operation->GetAuthenticatedUser());
+            .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
+            .Item("start_time").Value(operation->GetStartTime())
+            .OptionalItem("finish_time", operation->GetFinishTime());
     }
 
     void SetOperationFinalState(const TOperationPtr& operation, EOperationState state, TError error)
@@ -4043,8 +4045,6 @@ private:
         attributes.SerializedLightAttributes = BuildYsonStringFluently<EYsonType::MapFragment>()
             .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
             .Do(std::bind(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, operation.Get(), _1))
-            .Item("start_time").Value(operation->GetStartTime())
-            .Item("finish_time").Value(operation->GetFinishTime())
             .Item("error").Value(error)
             .Finish();
 
