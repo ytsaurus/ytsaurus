@@ -1,4 +1,5 @@
 #include "cluster_throttlers_config.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -48,39 +49,22 @@ void TLimitConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<NYT::NYson::TYsonString> GetClusterThrottlersYson(NApi::NNative::IClientPtr client)
+TFuture<NYT::NYson::TYsonString> GetClusterThrottlersYson(NApi::NNative::IClientPtr client)
 {
-    static constexpr auto ClusterThrottlersConfigPath = "//sys/cluster_throttlers";
-
     NApi::TGetNodeOptions options;
-    options.ReadFrom = NApi::EMasterChannelKind::MasterCache;
-    auto errorOrYson = NConcurrency::WaitFor(client->GetNode(ClusterThrottlersConfigPath, std::move(options)));
-    if (!errorOrYson.IsOK()) {
-        return std::nullopt;
-    }
-
-    return errorOrYson.Value();
-}
-
-TClusterThrottlersConfigPtr MakeClusterThrottlersConfig(const NYT::NYson::TYsonString& yson)
-{
-    try {
-        auto config = New<TClusterThrottlersConfig>();
-        config->Load(NYTree::ConvertTo<NYTree::INodePtr>(yson));
-        return config;
-    } catch (const std::exception& ex) {
-        return nullptr;
-    }
+    options.ReadFrom = NApi::EMasterChannelKind::Cache;
+    return client->GetNode(ClusterThrottlersConfigPath, std::move(options));
 }
 
 TClusterThrottlersConfigPtr GetClusterThrottlersConfig(NApi::NNative::IClientPtr client)
 {
-    auto yson = GetClusterThrottlersYson(client);
-    if (!yson) {
+    auto future = GetClusterThrottlersYson(client);
+    auto errorOrYson = NConcurrency::WaitFor(future);
+    if (!errorOrYson.IsOK()) {
         return nullptr;
     }
 
-    return MakeClusterThrottlersConfig(*yson);
+    return ConvertTo<TClusterThrottlersConfigPtr>(errorOrYson.Value());
 }
 
 bool AreClusterThrottlersConfigsEqual(TClusterThrottlersConfigPtr lhs, TClusterThrottlersConfigPtr rhs)
