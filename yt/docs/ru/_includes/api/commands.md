@@ -2888,7 +2888,7 @@ PARAMETERS { }
 OUTPUT {
     "features" = {
       "primitive_types" = ["int8"; "int16"; ... ];
-      "erasure_codecs" = ["lrc_12_2_2"; "reed_solomon_6_3"; ... ];
+      "erasure_codecs" = ["none", "isa_lrc_12_2_2"; "isa_reed_solomon_6_3"; ... ];
       "compression_codecs" = ["none"; "snappy"; "brotli_1"; ... ];
     };
 }
