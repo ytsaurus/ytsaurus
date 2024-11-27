@@ -2,6 +2,8 @@
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
 
+#include <yt/yt/library/profiling/solomon/config.h>
+
 #include <yt/yt/core/misc/config.h>
 
 #include <yt/yt/core/ytree/convert.h>

@@ -15,7 +15,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NProfiling::IHistogramImplPtr TChunkReaderStatistics::CreateRequestTimeHistogram()
+NProfiling::IHistogramPtr TChunkReaderStatistics::CreateRequestTimeHistogram()
 {
     TSensorOptions options;
     options.HistogramMax = MaxTrackedLatency;
@@ -149,7 +149,7 @@ void DumpTimingStatistics(
 ////////////////////////////////////////////////////////////////////////////////
 
 void LoadTimeHistogram(
-    const IHistogramImplPtr& source,
+    const IHistogramPtr& source,
     const TGaugeHistogram& timer)
 {
     auto snapshot = source->GetSnapshot(true);
