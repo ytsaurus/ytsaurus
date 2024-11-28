@@ -4,8 +4,9 @@ RECURSE(
     distributed
     engine_api
     engine
+    proto
     row_comparer
     row_comparer_api
-    proto
+    secondary_index
     unittests
 )

@@ -10,13 +10,9 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TFunctionsFetcher = std::function<void(
-    const std::vector<TString>& names,
-    const TTypeInferrerMapPtr& typeInferrers)>;
+using TFunctionsFetcher = std::function<void(TRange<TString> names, const TTypeInferrerMapPtr& typeInferrers)>;
 
-void DefaultFetchFunctions(
-    const std::vector<TString>& names,
-    const TTypeInferrerMapPtr& typeInferrers);
+void DefaultFetchFunctions(TRange<TString> names, const TTypeInferrerMapPtr& typeInferrers);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,7 +49,6 @@ struct TPlanFragment
 std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TString& source,
-    const TFunctionsFetcher& functionsFetcher = DefaultFetchFunctions,
     NYson::TYsonStringBuf placeholderValues = {},
     int syntaxVersion = 1,
     IMemoryUsageTrackerPtr memoryTracker = nullptr);
@@ -61,7 +56,6 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TParsedSource& parsedSource,
-    const TFunctionsFetcher& functionsFetcher = DefaultFetchFunctions,
     IMemoryUsageTrackerPtr memoryTracker = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,7 +1,5 @@
 #pragma once
 
-#include <yt/yt/library/query/base/public.h>
-
 #include <yt/yt/client/table_client/public.h>
 
 namespace NYT::NTableClient {
@@ -11,34 +9,6 @@ namespace NYT::NTableClient {
 TTableSchemaPtr InferInputSchema(
     const std::vector<TTableSchemaPtr>& schemas,
     bool discardKeyColumns);
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ValidateFullSyncIndexSchema(
-    const TTableSchema& tableSchema,
-    const TTableSchema& indexTableSchema);
-
-void ValidateUnfoldingIndexSchema(
-    const TTableSchema& tableSchema,
-    const TTableSchema& indexTableSchema,
-    const TString& unfoldedColumnName);
-
-const TColumnSchema& FindUnfoldedColumnAndValidate(
-    const TTableSchema& tableSchema,
-    const TTableSchema& indexTableSchema);
-
-void ValidateColumnsAreInIndexLockGroup(
-    const NQueryClient::TColumnSet& columns,
-    const TTableSchema& tableSchema,
-    const TTableSchema& indexTableSchema);
-
-void ValidateUniqueIndexSchema(
-    const TTableSchema& tableSchema,
-    const TTableSchema& indexTableSchema);
-
-bool IsValidUnfoldedColumnPair(
-    const TLogicalTypePtr& tableColumnType,
-    const TLogicalTypePtr& indexColumnType);
 
 ////////////////////////////////////////////////////////////////////////////////
 

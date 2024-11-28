@@ -1,8 +1,6 @@
 #include "secondary_index.h"
 #include "table_manager.h"
 
-#include <yt/yt/ytlib/table_client/schema.h>
-
 #include <yt/yt/server/master/table_server/table_node.h>
 
 #include <yt/yt/server/master/cell_master/serialize.h>

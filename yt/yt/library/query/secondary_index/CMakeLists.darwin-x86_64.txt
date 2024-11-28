@@ -12,13 +12,25 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(engine_api)
-add_subdirectory(misc)
-add_subdirectory(proto)
-add_subdirectory(base)
-add_subdirectory(row_comparer_api)
-add_subdirectory(secondary_index)
-add_subdirectory(engine)
-add_subdirectory(row_comparer)
-add_subdirectory(unittests)
-add_subdirectory(distributed)
+add_library(library-query-secondary_index)
+
+
+target_compile_options(library-query-secondary_index PRIVATE
+  -Wdeprecated-this-capture
+)
+
+target_include_directories(library-query-secondary_index PUBLIC
+  ${PROJECT_BINARY_DIR}/yt
+)
+
+target_link_libraries(library-query-secondary_index PUBLIC
+  contrib-libs-cxxsupp
+  yutil
+  library-query-base
+)
+
+target_sources(library-query-secondary_index PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/secondary_index/schema.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/secondary_index/transform.cpp
+)
+

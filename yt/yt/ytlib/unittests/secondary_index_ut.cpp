@@ -1,6 +1,6 @@
 #include <yt/yt/ytlib/api/native/secondary_index_modification.h>
 
-#include <yt/yt/ytlib/table_client/schema.h>
+#include <yt/yt/library/query/secondary_index/schema.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 

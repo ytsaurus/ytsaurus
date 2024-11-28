@@ -3,10 +3,9 @@
 #include "type_handler_detail.h"
 #include "client_impl.h"
 
-#include <yt/yt/ytlib/table_client/helpers.h>
-#include <yt/yt/ytlib/table_client/schema.h>
-
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
+
+#include <yt/yt/library/query/secondary_index/schema.h>
 
 #include <yt/yt/library/query/base/query_helpers.h>
 #include <yt/yt/library/query/base/query_preparer.h>
