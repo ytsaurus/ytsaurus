@@ -222,11 +222,11 @@ select $infer_llama("Why is the sky blue?");
 
 ## FAQ
 
-### Я получаю ошибку `Module not loaded for script type: SystemPython3_8`
+### Я получаю ошибку `Module not loaded for script type: SystemPython3_8` или `Module SystemPython3_8 is not registered` {#module-is-missing-error}
 
 Это означает, что функциональность не поддержана на кластере. На кластере должны присутствовать QueryTracker и YqlAgents с минимальной версией образа [YTsaurus QueryTracker 0.0.8](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fquery-tracker%2F0.0.8). Попросите администраторов кластера обновить данные компоненты.
 
-### Я получаю ошибку `libpython3.8.so.1.0: cannot open shared object file: No such file or directory`
+### Я получаю ошибку `libpython3.8.so.1.0: cannot open shared object file: No such file or directory` {#libpython-is-missing-error}
 
 Это означает, что в окружении джоба, исполняющего функцию, нет динамической библиотеки `libpython3.8.so.1.0`. Необходимо использовать ту версию Python, которая присутствует в окружении джоба. [Подробнее](#environment).
 
