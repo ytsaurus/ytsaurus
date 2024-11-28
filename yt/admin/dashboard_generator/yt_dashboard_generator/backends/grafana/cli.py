@@ -13,6 +13,7 @@ class GrafanaFacade(cli.FacadeBase):
     base_url = None
     datasource = {"type": "prometheus", "uid": "${PROMETHEUS_DS_UID}"}
     tag_postprocessor = None
+    folder_uid = None
 
     def __init__(self, dashboard_id, func, uid, title):
         super().__init__(dashboard_id)
@@ -40,6 +41,9 @@ class GrafanaFacade(cli.FacadeBase):
         parser.add_argument(
             "--grafana-datasource", type=str,
             help="Grafana datasource in JSON")
+        parser.add_argument(
+            "--grafana-folder", type=str,
+            help="Grafana dashboard folder uid")
 
     @classmethod
     def on_args_parsed(cls, args):
@@ -50,8 +54,10 @@ class GrafanaFacade(cli.FacadeBase):
 
         cls.api_key = cls.api_key or args.grafana_api_key or _get_key_from_env()
         cls.base_url = args.grafana_base_url or os.getenv("GRAFANA_BASE_URL") or cls.base_url
-        if args.grafana_datasource:
+        if args.grafana_datasource is not None:
             cls.datasource = json.loads(args.grafana_datasource)
+        if args.grafana_folder is not None:
+            cls.folder_uid = args.grafana_folder
 
     def diff(self):
         # TODO: Current implementation with pretty dashboard rendering in text format is impossible to maintain,
@@ -112,4 +118,4 @@ class GrafanaFacade(cli.FacadeBase):
         if verbose:
             json.dump(serialized_dashboard, sys.stderr, indent=4)
         proxy = grafana.GrafanaProxy(self.base_url, self.api_key)
-        proxy.submit_dashboard(serialized_dashboard, self.dashboard_id)
+        proxy.submit_dashboard(serialized_dashboard, self.dashboard_id, self.folder_uid)

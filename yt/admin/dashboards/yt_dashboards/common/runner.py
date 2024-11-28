@@ -5,9 +5,9 @@ from yt_dashboard_generator.cli import Cli
 from .postprocessors import YtTagPostprocessor
 
 try:
-    from .settings import GRAFANA_BASE_URL, MONITORING_ENDPOINT
+    from .settings import GRAFANA_BASE_URL, MONITORING_ENDPOINT, GRAFANA_DASHBOARD_TAGS
 except ImportError:
-    from .opensource_settings import GRAFANA_BASE_URL, MONITORING_ENDPOINT
+    from .opensource_settings import GRAFANA_BASE_URL, MONITORING_ENDPOINT, GRAFANA_DASHBOARD_TAGS
 
 import argparse
 
@@ -45,6 +45,7 @@ def expand_dashboards(specs):
 def set_facade_settings():
     GrafanaFacade.tag_postprocessor = YtTagPostprocessor(backend="grafana")
     GrafanaFacade.base_url = GRAFANA_BASE_URL
+    GrafanaFacade.additional_dashboard_tags = GRAFANA_DASHBOARD_TAGS
 
     MonitoringFacade.tag_postprocessor = YtTagPostprocessor(backend="monitoring")
     MonitoringFacade.endpoint = MONITORING_ENDPOINT
