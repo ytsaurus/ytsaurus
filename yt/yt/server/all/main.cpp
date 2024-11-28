@@ -23,15 +23,120 @@
 
 #include <yt/yt/library/program/program.h>
 
+#include <yt/yt/core/misc/fs.h>
+
 #include <library/cpp/yt/system/exit.h>
 
 #include <library/cpp/getopt/small/last_getopt_parse_result.h>
 
-using namespace NYT;
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYT::TStringBuilder AllProgramNames;
+constexpr auto CommandPrefix = TStringBuf("ytserver-");
+constexpr auto AllCommand = TStringBuf("ytserver-all");
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TProgramRunner = std::function<void(int argc, const char** argv)>;
+
+class TProgramMap
+{
+public:
+    std::vector<std::string> GetNames() const
+    {
+        return GetKeys(NameToRunner_);
+    }
+
+    bool TryRun(int argc, const char** argv) const
+    {
+        // TODO(babenko): migrate to std::string
+        auto command = std::string(NFS::GetFileName(TString(argv[0])));
+        if (!command.starts_with(CommandPrefix)) {
+            return false;
+        }
+
+        auto suffix = command.substr(CommandPrefix.size());
+        auto it = NameToRunner_.find(suffix);
+        if (it == NameToRunner_.end()) {
+            return false;
+        }
+
+        it->second(argc, argv);
+        return true;
+    }
+
+private:
+    friend class TProgramMapBuilder;
+
+    explicit TProgramMap(THashMap<std::string, TProgramRunner> nameToRunner)
+        : NameToRunner_(std::move(nameToRunner))
+    { }
+
+    const THashMap<std::string, TProgramRunner> NameToRunner_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProgramMapBuilder
+{
+public:
+    template <class T>
+    TProgramMapBuilder Add(const std::string& name) &&
+    {
+        EmplaceOrCrash(
+            NameToRunner_,
+            name,
+            [] (int argc, const char** argv) {
+                T().Run(argc, argv);
+            });
+        return std::move(*this);
+    }
+
+    TProgramMap Finish() &&
+    {
+        return TProgramMap(std::move(NameToRunner_));
+    }
+
+private:
+    THashMap<std::string, TProgramRunner> NameToRunner_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TProgramMap& GetProgramMap()
+{
+    static const auto result = [] {
+        return TProgramMapBuilder()
+            .Add<NCellMaster::TCellMasterProgram>("master")
+            .Add<NClusterClock::TClusterClockProgram>("clock")
+            .Add<NHttpProxy::THttpProxyProgram>("http-proxy")
+            // TODO(babenko): rename to rpc-proxy
+            .Add<NRpcProxy::TRpcProxyProgram>("proxy")
+            .Add<NClusterNode::TClusterNodeProgram>("node")
+            .Add<NJobProxy::TJobProxyProgram>("job-proxy")
+            .Add<NExec::TExecProgram>("exec")
+            .Add<NTools::TToolsProgram>("tools")
+            .Add<NScheduler::TSchedulerProgram>("scheduler")
+            .Add<NControllerAgent::TControllerAgentProgram>("controller-agent")
+            .Add<NLogTailer::TLogTailerProgram>("log-tailer")
+            .Add<NClusterDiscoveryServer::TClusterDiscoveryServerProgram>("discovery")
+            .Add<NTimestampProvider::TTimestampProviderProgram>("timestamp-provider")
+            .Add<NMasterCache::TMasterCacheProgram>("master-cache")
+            .Add<NCellBalancer::TCellBalancerProgram>("cell-balancer")
+            .Add<NQueueAgent::TQueueAgentProgram>("queue-agent")
+            .Add<NTabletBalancer::TTabletBalancerProgram>("tablet-balancer")
+            .Add<NCypressProxy::TCypressProxyProgram>("cypress-proxy")
+            .Add<NQueryTracker::TQueryTrackerProgram>("query-tracker")
+            .Add<NTcpProxy::TTcpProxyProgram>("tcp-proxy")
+            .Add<NKafkaProxy::TKafkaProxyProgram>("kafka-proxy")
+            .Add<NReplicatedTableTracker::TReplicatedTableTrackerProgram>("replicated-table-tracker")
+            .Finish();
+    }();
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TAllProgram
     : public TProgram
@@ -39,13 +144,18 @@ class TAllProgram
 public:
     TAllProgram()
     {
+        TStringBuilder allNamesBuilder;
+        for (const auto& name : GetProgramMap().GetNames()) {
+            allNamesBuilder.AppendFormat("ytserver-%v\n", name);
+        }
+
         // Fake option just to show in --help output.
         Opts_
             .AddFreeArgBinding("program-name", ProgramName_, "Program name to run");
         Opts_
             .SetFreeArgsMax(Opts_.UNLIMITED_ARGS);
         Opts_
-            .AddSection("Programs", AllProgramNames.Flush());
+            .AddSection("Programs", allNamesBuilder.Flush());
     }
 
 private:
@@ -58,52 +168,28 @@ private:
     }
 };
 
-template <class T>
-void TryProgram(int argc, const char** argv, const TString& nameSuffix)
-{
-    if (TStringBuf(argv[0]).EndsWith("ytserver-" + nameSuffix)) {
-        T().Run(argc, argv);
-    }
-    AllProgramNames.AppendFormat("ytserver-%v\n", nameSuffix);
-}
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
 
 int main(int argc, const char** argv)
 {
+    using namespace NYT;
+
     // Shift arguments to handle "program-name" specified in the first argument.
     // Example: ./ytserver-all ytserver-master --help
     if (argc >= 2 &&
-        TStringBuf(argv[0]).EndsWith("ytserver-all") &&
-        TStringBuf(argv[1]).StartsWith("ytserver-"))
+        TStringBuf(argv[0]).EndsWith(AllCommand) &&
+        TStringBuf(argv[1]).StartsWith(CommandPrefix))
     {
         argc--;
         argv++;
     }
 
-    TryProgram<NCellMaster::TCellMasterProgram>(argc, argv, "master");
-    TryProgram<NClusterClock::TClusterClockProgram>(argc, argv, "clock");
-    TryProgram<NHttpProxy::THttpProxyProgram>(argc, argv, "http-proxy");
-    // TODO(babenko): rename to rpc-proxy
-    TryProgram<NRpcProxy::TRpcProxyProgram>(argc, argv, "proxy");
-    TryProgram<NClusterNode::TClusterNodeProgram>(argc, argv, "node");
-    TryProgram<NJobProxy::TJobProxyProgram>(argc, argv, "job-proxy");
-    TryProgram<NExec::TExecProgram>(argc, argv, "exec");
-    TryProgram<NTools::TToolsProgram>(argc, argv, "tools");
-    TryProgram<NScheduler::TSchedulerProgram>(argc, argv, "scheduler");
-    TryProgram<NControllerAgent::TControllerAgentProgram>(argc, argv, "controller-agent");
-    TryProgram<NLogTailer::TLogTailerProgram>(argc, argv, "log-tailer");
-    TryProgram<NClusterDiscoveryServer::TClusterDiscoveryServerProgram>(argc, argv, "discovery");
-    TryProgram<NTimestampProvider::TTimestampProviderProgram>(argc, argv, "timestamp-provider");
-    TryProgram<NMasterCache::TMasterCacheProgram>(argc, argv, "master-cache");
-    TryProgram<NCellBalancer::TCellBalancerProgram>(argc, argv, "cell-balancer");
-    TryProgram<NQueueAgent::TQueueAgentProgram>(argc, argv, "queue-agent");
-    TryProgram<NTabletBalancer::TTabletBalancerProgram>(argc, argv, "tablet-balancer");
-    TryProgram<NCypressProxy::TCypressProxyProgram>(argc, argv, "cypress-proxy");
-    TryProgram<NQueryTracker::TQueryTrackerProgram>(argc, argv, "query-tracker");
-    TryProgram<NTcpProxy::TTcpProxyProgram>(argc, argv, "tcp-proxy");
-    TryProgram<NKafkaProxy::TKafkaProxyProgram>(argc, argv, "kafka-proxy");
-    TryProgram<NReplicatedTableTracker::TReplicatedTableTrackerProgram>(argc, argv, "replicated-table-tracker");
-    // Handles auxiliary flags like --version and --build.
-    TAllProgram().Run(argc, argv);
+    if (!GetProgramMap().TryRun(argc, argv)) {
+        // Handles auxiliary flags like --version and --build.
+        TAllProgram().Run(argc, argv);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
