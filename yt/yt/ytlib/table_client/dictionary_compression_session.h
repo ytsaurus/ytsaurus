@@ -36,9 +36,17 @@ using TRowDictionaryDecompressor = THashMap<int, NCompression::IDictionaryDecomp
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TRowDigestedCompressionDictionary = THashMap<int, NCompression::IDigestedCompressionDictionaryPtr>;
+struct TRowDigestedCompressionDictionary
+{
+    THashMap<int, NCompression::IDigestedCompressionDictionaryPtr> ColumnDictionaries;
+    i64 StorageSize;
+};
 
-using TRowDigestedDecompressionDictionary = THashMap<int, NCompression::IDigestedDecompressionDictionaryPtr>;
+struct TRowDigestedDecompressionDictionary
+{
+    THashMap<int, NCompression::IDigestedDecompressionDictionaryPtr> ColumnDictionaries;
+    i64 StorageSize;
+};
 
 using TRowDigestedDictionary = std::variant<
     TRowDigestedCompressionDictionary,
