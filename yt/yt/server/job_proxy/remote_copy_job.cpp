@@ -967,7 +967,7 @@ private:
                 endBlockIndex += 1;
             }
 
-            if (RemoteCopyJobSpecExt_.use_local_throttler()) {
+            if (RemoteCopyJobSpecExt_.use_remote_throttler()) {
                 ReadBlocksOptions_.EstimatedSize = sizeToRead;
             }
 
@@ -1039,15 +1039,16 @@ private:
     TChunkReaderHostPtr MakeChunkReaderHost()
     {
         auto bandwidthThrottler = Host_->GetInBandwidthThrottler();
-        if (RemoteCopyJobSpecExt_.has_remote_cluster_name()) {
+        if (RemoteCopyJobSpecExt_.has_remote_cluster_name() && RemoteCopyJobSpecExt_.use_remote_throttler()) {
             auto throttler = Host_->GetInBandwidthThrottler(RemoteCopyJobSpecExt_.remote_cluster_name());
             if (throttler) {
                 bandwidthThrottler = throttler;
             }
         }
 
-        YT_LOG_DEBUG("MakeChunkReaderHost (RemoteClusterName: %v)",
-            RemoteCopyJobSpecExt_.remote_cluster_name());
+        YT_LOG_DEBUG("MakeChunkReaderHost (RemoteClusterName: %v, UseRemoteThrottler: %v)",
+            RemoteCopyJobSpecExt_.remote_cluster_name(),
+            RemoteCopyJobSpecExt_.use_remote_throttler());
 
         return New<TChunkReaderHost>(
             RemoteClient_,
