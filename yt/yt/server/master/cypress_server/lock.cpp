@@ -15,9 +15,9 @@ using namespace NTransactionServer;
 
 // TODO(cherepashka): remove after corresponding compat in 25.1 will be removed.
 DEFINE_ENUM(ECompatLockKeyKind,
-    (None)
-    (Child)
-    (Attribute)
+    ((None)     (0))
+    ((Child)    (1))
+    ((Attribute)(2))
 );
 
 // TODO(cherepashka): remove after corresponding compat in 25.1 will be removed.
