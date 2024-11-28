@@ -29,6 +29,7 @@
 
 #include <yt/yt/client/object_client/public.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NJobProxy {

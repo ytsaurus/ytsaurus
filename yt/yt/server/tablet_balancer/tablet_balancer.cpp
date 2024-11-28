@@ -27,6 +27,8 @@
 
 #include <yt/yt/core/misc/random.h>
 
+#include <yt/yt/core/concurrency/thread_pool.h>
+
 #include <util/random/shuffle.h>
 
 namespace NYT::NTabletBalancer {

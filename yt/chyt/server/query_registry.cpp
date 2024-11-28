@@ -7,6 +7,8 @@
 #include "query_finish_info.h"
 #include "query_progress.h"
 
+#include <yt/yt/library/profiling/producer.h>
+
 #include <yt/yt/core/ytree/ypath_service.h>
 #include <yt/yt/core/ytree/fluent.h>
 

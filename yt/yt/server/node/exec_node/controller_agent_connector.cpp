@@ -1,6 +1,5 @@
 #include "controller_agent_connector.h"
 
-#include "allocation.h"
 #include "bootstrap.h"
 #include "helpers.h"
 #include "job.h"
@@ -11,6 +10,7 @@
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/lib/exec_node/config.h>
+
 #include <yt/yt/server/lib/controller_agent/job_tracker_service_proxy.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -21,6 +21,8 @@
 #include <yt/yt/library/tracing/jaeger/sampler.h>
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
+
+#include <yt/yt/core/rpc/dispatcher.h>
 
 namespace NYT::NExecNode {
 

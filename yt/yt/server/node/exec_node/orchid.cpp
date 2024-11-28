@@ -5,6 +5,8 @@
 
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <yt/yt/library/profiling/solomon/exporter.h>
+
 #include <yt/yt/server/node/data_node/ytree_integration.h>
 
 namespace NYT::NExecNode {

@@ -14,6 +14,8 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/attributes.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
+
 #include <yt/yt/core/rpc/roaming_channel.h>
 
 namespace NYT::NQueryTracker {

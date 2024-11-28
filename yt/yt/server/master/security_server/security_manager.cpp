@@ -74,6 +74,8 @@
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
+#include <yt/yt/library/profiling/producer.h>
+
 #include <yt/yt/core/misc/intern_registry.h>
 
 #include <yt/yt/core/logging/fluent_log.h>
@@ -548,7 +550,7 @@ public:
 
         AccountProfilingProducers_.reserve(AccountProfilingProducerCount);
         for (auto i = 0; i < AccountProfilingProducerCount; ++i) {
-            auto& producer = AccountProfilingProducers_.emplace_back(New<TBufferedProducer>());
+            const auto& producer = AccountProfilingProducers_.emplace_back(New<TBufferedProducer>());
             producer->SetEnabled(false);
             AccountProfiler()
                 .WithGlobal()

@@ -12,6 +12,8 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/attributes.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
+
 namespace NYT::NQueryTracker {
 
 using namespace NQueryTrackerClient;
