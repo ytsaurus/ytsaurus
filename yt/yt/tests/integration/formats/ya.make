@@ -13,6 +13,7 @@ TEST_SRCS(
     test_skiff_format.py
     test_json_format.py
     test_web_json_format.py
+    test_yaml_format.py
     test_yson_format.py
 )
 

@@ -88,6 +88,8 @@ target_sources(unittester-formats PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/web_json_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/yamred_dsv_parser_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/yamred_dsv_writer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/yaml_parser_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/yaml_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/yamr_parser_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/yamr_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/yson_helpers.cpp
