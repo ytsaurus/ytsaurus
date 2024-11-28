@@ -335,6 +335,7 @@ private:
 
     TExecAttributes ExecAttributes_;
 
+    std::optional<int> ExitCode_;
     std::optional<TError> Error_;
     std::optional<NControllerAgent::NProto::TJobResultExt> JobResultExtension_;
 

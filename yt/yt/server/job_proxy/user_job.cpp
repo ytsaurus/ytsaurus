@@ -85,6 +85,7 @@
 
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/error_helpers.h>
 #include <yt/yt/core/misc/pattern_formatter.h>
 #include <yt/yt/core/misc/statistics.h>
 
@@ -433,6 +434,8 @@ public:
             : TError(EErrorCode::UserJobFailed, "User job failed") << std::move(innerErrors);
 
         ToProto(result.mutable_error(), jobError);
+        // TODO(arkady-e1ppa): Consider leaving the field empty if exit code is not set.
+        result.set_exit_code(FindAttributeRecursive<int>(jobError, "exit_code").value_or(0));
 
         return result;
     }

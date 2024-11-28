@@ -50,6 +50,8 @@ struct TJobSummary
     // COMPAT(max42): remove this when data statistics are always sent separately from the rest of statistics.
     void FillDataStatisticsFromStatistics();
 
+    std::optional<int> GetExitCode() const;
+
     // NB: may be nullopt or may miss scheduler job result extension while job
     // result is being combined from scheduler and node parts.
     // Prefer using GetJobResult() and GetJobResult() helpers.

@@ -181,6 +181,14 @@ void TJobSummary::FillDataStatisticsFromStatistics()
     }
 }
 
+std::optional<int> TJobSummary::GetExitCode() const
+{
+    YT_VERIFY(Result.has_value());
+    return Result->has_exit_code()
+        ? std::optional(Result->exit_code())
+        : std::nullopt;
+}
+
 PHOENIX_DEFINE_TYPE(TJobSummary);
 
 ////////////////////////////////////////////////////////////////////////////////

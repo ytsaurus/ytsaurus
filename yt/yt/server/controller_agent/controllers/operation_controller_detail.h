@@ -1228,6 +1228,10 @@ private:
     std::atomic<int> FailedJobCount_ = 0;
     std::atomic<bool> ShouldUpdateLightOperationAttributes_ = false;
 
+    int UnknownExitCodeFailCount_ = 0;
+    int NoExitCodeFailCount_ = 0;
+    THashMap<int, int> FailCountsPerKnownExitCode_;
+
     // Release job flags to be sent to scheduler in EAgentToSchedulerJobEventType::Released.
     THashMap<TJobId, TReleaseJobFlags> JobIdToReleaseFlags_;
     std::vector<std::pair<TJobId, NYson::TYsonString>> RetainedFinishedJobs_;
@@ -1511,6 +1515,14 @@ private:
 
     // Returns false if operation has been finished.
     bool RestartJobInAllocation(TNonNullPtr<TAllocation> allocation, bool operationIsReviving);
+
+
+    // Returns nullptr if corresponding feature-flag is |false|.
+    NScheduler::TJobFailsTolerancePtr GetJobFailsTolerance() const;
+    bool IsExitCodeKnown(int exitCode) const;
+    int GetMaxJobFailCountForExitCode(std::optional<int> maybeExitCode);
+    bool IsJobsFailToleranceExceeded(std::optional<int> maybeExitCode);
+    void UpdateFailedJobsExitCodeCounters(std::optional<int> maybeExitCode);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
