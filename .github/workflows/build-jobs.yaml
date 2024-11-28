@@ -292,6 +292,8 @@ jobs:
           SCRIPT_FLAGS=""
           if [ "${{ inputs.build-yql-python-udfs }}" == "true" ]; then
             SCRIPT_FLAGS="${SCRIPT_FLAGS} --build-python-udfs yes"
+          else
+            SCRIPT_FLAGS="${SCRIPT_FLAGS} --build-python-udfs no"
           fi
 
           ../ytsaurus/ytsaurus/yt/docker/ya-build/query-tracker/build_yql_agent.sh ${SCRIPT_FLAGS}
