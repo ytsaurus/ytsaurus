@@ -62,6 +62,8 @@ class TestJobCommands(object):
         shell.make_request("update", keys=command, input_offset=0)
         output = self._poll_until_prompt(shell)
 
+        output = output.replace(b"\x1b[?2004l\r", b"").replace(b"\x1b[?2004h\r", b"")
+
         expected = command + b"\nscreen-256color\r\n50\r\n132\r\n"
         assert output.startswith(expected)
 

@@ -1394,6 +1394,7 @@ print row + table_index
                 "buffer_row_count": 1,
             },
             "enable_job_splitting": False,
+            "max_speculative_job_count_per_task": 0,
         }
 
         update_inplace(spec, spec_patch)
