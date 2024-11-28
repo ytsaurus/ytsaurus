@@ -1,7 +1,7 @@
 from ...serializer import SerializerBase
 from ...sensor import Sensor, MultiSensor, Text, Title
 from ...specific_tags.tags import BackendTag, Regex
-from ...taggable import SystemFields, NotEquals, ContainerTemplate, SensorTemplate
+from ...taggable import SystemFields, NotEquals, SensorTemplate
 from ...helpers import break_long_lines_in_multiline_cell, pretty_print_fixed_indent, monitoring_to_grafana_unit
 from ...specific_sensors.monitoring import MonitoringExpr
 from ...postprocessors import DollarTemplateTagPostprocessor
@@ -99,6 +99,16 @@ class GrafanaProxy():
 
 class ExprFuncSerializer:
     @staticmethod
+    def serialize_arg(arg):
+        if isinstance(arg, list):
+            serialized_elements = [
+                ExprFuncSerializer.serialize_arg(item) for item in arg
+            ]
+            return ", ".join(serialized_elements)
+
+        return str(arg)
+
+    @staticmethod
     def alias_expr_builder(serializer, expression):
         query_parts, other_tags = serializer._prepare_expr_query(expression.args[1])
         other_tags[SystemFields.LegendFormat] = expression.args[2]
@@ -122,21 +132,35 @@ class ExprFuncSerializer:
 
     @staticmethod
     def moving_avg(serializer, expression):
-        query_parts, other_tags = serializer._prepare_expr_query(expression.args[1])
+        query_parts, other_tags = serializer._prepare_expr_query(expression.args[2])
         return f"(avg_over_time({query_parts}[{expression.args[1]}]))", other_tags
 
     @staticmethod
     def series_avg(serializer, expression):
-        query_parts, other_tags = serializer._prepare_expr_query(expression.args[1])
-        return f"(avg by({expression.args[1]}) {query_parts})", other_tags
+        return ExprFuncSerializer._series_func(serializer, expression, "avg")
 
     @staticmethod
     def series_max(serializer, expression):
-        query_parts, other_tags = serializer._prepare_expr_query(expression.args[1])
-        return f"(max by({expression.args[1]}) {query_parts})", other_tags
+        return ExprFuncSerializer._series_func(serializer, expression, "max")
 
+    @staticmethod
+    def series_min(serializer, expression):
+        return ExprFuncSerializer._series_func(serializer, expression, "min")
+
+    @staticmethod
+    def series_sum(serializer, expression):
+        return ExprFuncSerializer._series_func(serializer, expression, "sum")
+
+    @staticmethod
+    def _series_func(serializer, expression, func):
+        query_parts, other_tags = serializer._prepare_expr_query(expression.args[-1])
+        args = ""
+        if len(expression.args) > 2:
+            args = ExprFuncSerializer.serialize_arg(expression.args[1])
+        return f"{func} by({args}) ({query_parts})", other_tags
 
 ##################################################################
+
 
 class GrafanaSerializerBase(SerializerBase):
     def __init__(self, tag_postprocessor=None):
@@ -166,8 +190,10 @@ class GrafanaSerializerBase(SerializerBase):
             "top_min": lambda expression: ExprFuncSerializer.topk_expr_builder(self, expression),
             "bottom_min": lambda expression: ExprFuncSerializer.bottomk_expr_builder(self, expression),
             "moving_avg": lambda expression: ExprFuncSerializer.moving_avg(self, expression),
-            "series_avg": lambda expression: ExprFuncSerializer.moving_avg(self, expression),
-            "series_max": lambda expression: ExprFuncSerializer.moving_avg(self, expression),
+            "series_avg": lambda expression: ExprFuncSerializer.series_avg(self, expression),
+            "series_max": lambda expression: ExprFuncSerializer.series_max(self, expression),
+            "series_min": lambda expression: ExprFuncSerializer.series_min(self, expression),
+            "series_sum": lambda expression: ExprFuncSerializer.series_sum(self, expression),
         }
         builder = builders.get(expression.args[0])
         if builder is None:
@@ -326,7 +352,7 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
                 }
                 if SystemFields.LegendFormat in other_tags:
                     value = other_tags[SystemFields.LegendFormat]
-                    value = value.replace(ContainerTemplate, "{{pod}}").replace(SensorTemplate, "{{__name__}}")
+                    value = value.replace(SensorTemplate, "{{__name__}}")
                     target["legendFormat"] = value
 
                 targets.append(target)
@@ -429,6 +455,20 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
 
         max_len = max(len(row) for row in rows)
         width = self.BOARD_WIDTH // max_len
+
+        row_header = {
+            "gridPos": {
+                "h": 1,
+                "w": self.BOARD_WIDTH,
+                "x": 0,
+                "y": self.vertical_offset
+            },
+            "type": "row",
+        }
+        if rowset.name is not None:
+            row_header["title"] = rowset.name
+        self.panels.append(row_header)
+        self.vertical_offset += 1
 
         def _get_grid_pos(i, x_shift, height):
             return dict(x=x_shift + i * width, y=self.vertical_offset, w=width, h=height)

@@ -103,15 +103,19 @@ class Rowset(Taggable):
         my_second_sensor: host=man1-1234, stack=True
     """
 
-    def __init__(self):
+    def __init__(self, name=None):
         self.begin_values = []
         self.end_values = []
         self.rows = []
         self.cell_per_row = None
+        self.name = name
 
     def set_cell_per_row(self, value):
         self.cell_per_row = value
         return self
+
+    def set_name(self, name):
+        self.name = name
 
     def value(self, key, value):
         if self.rows:
