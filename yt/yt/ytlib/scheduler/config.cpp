@@ -596,6 +596,31 @@ void TCudaProfilerEnvironment::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJobFailsTolerance::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_fails_unknown_exit_code", &TThis::MaxFailsUnknownExitCode)
+        .GreaterThanOrEqual(0)
+        .Default(1);
+
+    registrar.Parameter("max_fails_no_exit_code", &TThis::MaxFailsNoExitCode)
+        .GreaterThanOrEqual(0)
+        .Default(std::numeric_limits<int>::max());
+
+    registrar.Parameter("max_fails_per_known_exit_code", &TThis::MaxFailsPerKnownExitCode)
+        .CheckThat([] (const auto& field) {
+            for (const auto& [key, value] : field) {
+                THROW_ERROR_EXCEPTION_UNLESS(
+                    value >= 0,
+                    "Maximum value of fails for each exit code must be non-negative! (ExitCode: %v, MaxFailsCount: %v)",
+                    key,
+                    value);
+            }
+        })
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TOperationSpecBase::Register(TRegistrar registrar)
 {
     registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -639,6 +664,8 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default(10)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(10000);
+    registrar.Parameter("job_fails_tolerance", &TThis::JobFailsTolerance)
+        .Default();
     registrar.Parameter("max_stderr_count", &TThis::MaxStderrCount)
         .Default(10)
         .GreaterThanOrEqual(0)

@@ -926,6 +926,32 @@ DEFINE_REFCOUNTED_TYPE(TCudaProfilerEnvironment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobFailsTolerance
+    : public NYTree::TYsonStruct
+{
+public:
+    //! If exit code does not match any of the mentioned
+    //! it is matched for unknown.
+    int MaxFailsUnknownExitCode;
+
+    //! If no exit code is provided this value is
+    //! used as maximum.
+    int MaxFailsNoExitCode;
+
+    //! Maximum allowed failures with a given exit code.
+    //! Note that MaxFailedJobCount is still applied to
+    //! the total number of failures regardless of exit code.
+    THashMap<int, int> MaxFailsPerKnownExitCode;
+
+    REGISTER_YSON_STRUCT(TJobFailsTolerance);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobFailsTolerance);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationSpecBase
     : public TStrategyOperationSpec
 {
@@ -964,6 +990,9 @@ public:
 
     //! Once this limit is reached the operation fails.
     int MaxFailedJobCount;
+
+    //! Note that MaxFailedJobCount still applies first.
+    TJobFailsTolerancePtr JobFailsTolerance;
 
     //! Maximum number of saved stderr per job type.
     int MaxStderrCount;
