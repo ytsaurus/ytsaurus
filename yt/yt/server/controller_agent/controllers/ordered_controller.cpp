@@ -1754,7 +1754,7 @@ private:
             remoteCopyJobSpecExt->set_remote_cluster_name(*Spec_->ClusterName);
         }
 
-        remoteCopyJobSpecExt->set_use_local_throttler(Spec_->UseLocalThrottler);
+        remoteCopyJobSpecExt->set_use_remote_throttler(Spec_->UseRemoteThrottler);
     }
 
     NNative::IConnectionPtr GetRemoteConnection() const

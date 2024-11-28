@@ -2033,7 +2033,7 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("allow_cluster_connection", &TThis::AllowClusterConnection)
         .Default(true);
-    registrar.Parameter("use_local_throttler", &TThis::UseLocalThrottler)
+    registrar.Parameter("use_remote_throttler", &TThis::UseRemoteThrottler)
         .Default(false);
 
     registrar.Preprocessor([] (TRemoteCopyOperationSpec* spec) {
