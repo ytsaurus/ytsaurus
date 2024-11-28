@@ -65,22 +65,28 @@ class GrafanaProxy():
             exit(1)
         return res
 
-    def submit_dashboard(self, serialized_dashboard, dashboard_id):
+    def submit_dashboard(self, serialized_dashboard, dashboard_id, folder_uid):
         try:
-            current = self.fetch_dashboard(dashboard_id)["dashboard"]
-            print("Current version:", current["version"])
+            current = self.fetch_dashboard(dashboard_id)
+            current_dashboard = current["dashboard"]
+            print("Current version:", current_dashboard["version"])
         except BaseException:
             current = {}
+            current_dashboard = {}
 
         request = serialized_dashboard
         if dashboard_id is not None:
             request["uid"] = dashboard_id
-        request.setdefault("title", current.get("title", "some default title"))
-        request.setdefault("title", "arusntarstrst")
-        request.setdefault("templating", current.get("templating", {}))
-        request["version"] = current.get("version", 1)
+        request.setdefault("title", current_dashboard.get("title", "Unnamed dashboard"))
+        request.setdefault("templating", current_dashboard.get("templating", {}))
+        request.setdefault("tags", current_dashboard.get("tags", []))
+        request["version"] = current_dashboard.get("version", 1)
 
         request = {"dashboard": request}
+        if folder_uid is not None:
+            request["folderUid"] = folder_uid
+        elif "meta" in current and "folderUid" in current["meta"]:
+            request["folderUid"] = current["meta"]["folderUid"]
 
         rsp = requests.post(
             f"{self.base_url}/api/dashboards/db",
@@ -460,6 +466,8 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
         }
         if dashboard.title is not None:
             result["title"] = dashboard.title
+        if dashboard.dashboard_tags is not None:
+            result["tags"] = dashboard.dashboard_tags
         if dashboard.parameters is not None:
             result["templating"] = {
                 "list": self.dashboard_parameters_to_dict(dashboard.parameters)

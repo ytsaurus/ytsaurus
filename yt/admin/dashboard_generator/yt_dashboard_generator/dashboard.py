@@ -156,6 +156,7 @@ class Dashboard(Taggable):
         self.cell_per_row = None
         self.parameters = None
         self.serializer_options = {}
+        self.dashboard_tags = []
 
     def value(self, key, value):
         self.has_set_values = True
@@ -212,6 +213,9 @@ class Dashboard(Taggable):
         if self.parameters is None:
             self.parameters = []
         self.parameters.append({"name": name, "title": title, "args": args, "backends": backends})
+
+    def add_dashboard_tags(self, *tags):
+        self.dashboard_tags.extend(tags)
 
     def set_grafana_serializer_options(self, options):
         self.serializer_options["grafana"] = options
