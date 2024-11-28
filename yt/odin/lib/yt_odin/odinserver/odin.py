@@ -35,7 +35,8 @@ class Odin(object):
                  yt_heavy_request_retry_timeout=15000, default_check_timeout=65,
                  check_log_messages_max_size=16384, juggler_client_host=None, juggler_client_scheme=None,
                  juggler_client_port=None, juggler_host=None, juggler_responsibles=None,
-                 secrets=None, yt_enable_proxy_discovery=True, yt_driver_address_resolver_config=None):
+                 secrets=None, yt_enable_proxy_discovery=True, yt_driver_address_resolver_config=None,
+                 yt_driver_logging_config=None):
         signal.signal(signal.SIGHUP, sighup_handler)
 
         self.db_client_factory = db_client_factory
@@ -101,6 +102,7 @@ class Odin(object):
                 "start_operation_retries": retries_policy,
                 "token": token,
                 "driver_address_resolver_config": yt_driver_address_resolver_config,
+                "driver_logging_config": yt_driver_logging_config,
             })
 
         self.secrets = secrets

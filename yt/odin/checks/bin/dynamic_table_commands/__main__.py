@@ -30,7 +30,7 @@ def run_check(yt_client, logger, options, states):
     rpc_client.remove(table, force=True)
 
     try:
-        rpc_client.create("table", table, attributes={
+        table_id = rpc_client.create("table", table, attributes={
             "dynamic": True,
             "schema": [
                 {"name": "x", "type": "string"},
@@ -40,15 +40,14 @@ def run_check(yt_client, logger, options, states):
             "expiration_time": "{}".format(datetime.utcnow() +
                                            timedelta(minutes=TABLE_EXPIRATION_TIME_DELTA_MINUTES)),
         })
-        logger.info("Created table %s", table)
+        logger.info("Created table %s with id %s", table, table_id)
 
         correct_rows = [{"x": "hello", "y": "world"}]
         rpc_client.mount_table(table, sync=True)
         logger.info("Mounted table")
 
-        with rpc_client.Transaction(type="tablet"):
-            rpc_client.insert_rows(table, correct_rows)
-            logger.info("Inserted rows")
+        rpc_client.insert_rows(table, correct_rows)
+        logger.info("Inserted rows")
 
         result_rows = list(rpc_client.select_rows("x, y from [{}]".format(table)))
 
