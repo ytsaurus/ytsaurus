@@ -31,7 +31,7 @@ class DebugTagPostprocessor():
 
     def _unpack_system_tags(self, tags):
         res = []
-        for k, v in tags:
+        for k, v in tags.items():
             if k == SystemFields.Top:
                 res.append(("Top", v))
             elif k == SystemFields.Stack:
@@ -39,7 +39,7 @@ class DebugTagPostprocessor():
             else:
                 assert isinstance(k, str)
                 res.append((k, v))
-        return res
+        return dict(res)
 
 
 class DebugSerializer(SerializerBase):
@@ -54,7 +54,7 @@ class DebugSerializer(SerializerBase):
             return content.text
         if not issubclass(type(content), Sensor):
             raise Exception(f"Cannot serialize cell content of type {type(content)}")
-        tags = list(content.get_tags().items())
+        tags = content.get_tags()
         if self.tag_postprocessor is not None:
             tags, _ = self.tag_postprocessor.postprocess(tags)
-        return "\n".join("{}={}".format(k, str(v)) for k, v in tags)
+        return "\n".join("{}={}".format(k, str(v)) for k, v in tags.items())

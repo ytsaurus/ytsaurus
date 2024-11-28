@@ -139,17 +139,21 @@ class Cli():
                 headers="firstrow"))
             return
 
+        def is_selected_backend(backend):
+            return args.backend is None or backend in args.backend
+
         for cls in self.backend_classes.values():
-            cls.on_args_parsed(args)
+            if is_selected_backend(cls.get_backend_name()):
+                cls.on_args_parsed(args)
 
         selected_dashboards = []
         if "all" in args.dashboards:
             for slug, backend in self.dashboards:
-                if args.backend is None or backend.get_backend_name() in args.backend:
+                if is_selected_backend(backend.get_backend_name()):
                     selected_dashboards.append(backend)
         else:
             for slug, backend in self.dashboards:
-                if slug in args.dashboards and (args.backend is None or backend.get_backend_name() in args.backend):
+                if slug in args.dashboards and is_selected_backend(backend.get_backend_name()):
                     selected_dashboards.append(backend)
 
         if not selected_dashboards:

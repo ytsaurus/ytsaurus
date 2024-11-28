@@ -9,6 +9,11 @@ from ...postprocessors import DollarTemplateTagPostprocessor
 import requests
 import enum
 import lark
+import logging
+
+##################################################################
+
+logger = logging.getLogger()
 
 ##################################################################
 
@@ -67,20 +72,28 @@ class GrafanaProxy():
 
     def submit_dashboard(self, serialized_dashboard, dashboard_id):
         try:
-            current = self.fetch_dashboard(dashboard_id)["dashboard"]
-            print("Current version:", current["version"])
-        except BaseException:
+            current = self.fetch_dashboard(dashboard_id)
+            current_dashboard = current["dashboard"]
+            logger.info("Current version:", current_dashboard["version"])
+        except BaseException as ex:
+            logger.exception("Failed to retrieve current dashboard configuration, using plain configuration")
             current = {}
+            current_dashboard = {}
 
         request = serialized_dashboard
         if dashboard_id is not None:
             request["uid"] = dashboard_id
-        request.setdefault("title", current.get("title", "some default title"))
-        request.setdefault("title", "arusntarstrst")
-        request.setdefault("templating", current.get("templating", {}))
-        request["version"] = current.get("version", 1)
+        request.setdefault("title", current_dashboard.get("title", "some default title"))
+        request.setdefault("templating", current_dashboard.get("templating", {}))
+        request["version"] = current_dashboard.get("version", 1)
 
         request = {"dashboard": request}
+
+        folder_id = current.get("meta", {}).get("folderUid")
+        if folder_id is not None:
+            request["folderUid"] = folder_id
+        elif not current:
+            logger.warning("Submitting Grafana dashboard without specified folder and knowledge about current dashboard, this might cause the dashboard to move to your root folder")
 
         rsp = requests.post(
             f"{self.base_url}/api/dashboards/db",
@@ -146,6 +159,16 @@ class GrafanaSerializerBase(SerializerBase):
             regex.append(c)
         return "".join(regex)
 
+    # This is a bit hacky, but should work for most reasonable cases of non-regex values and variables.
+    def _is_exact(self, value):
+        return all(c.isalnum() or c in "-_<>" for c in value.removeprefix("$"))
+
+    def _get_comparison_operator(self, negate, exact):
+        if exact:
+            return "!=" if negate else "="
+        else:
+            return "!~" if negate else "=~"
+
     def _prepare_bin_op_expr_query(self, expression):
         assert expression.args[0] in "+-*/", f"Binary operation {expression.args[0]} is not supported. Expression: {expression}, expression type: {type(expression)}"
         left_query, left_tags = self._prepare_expr_query(expression.args[1])
@@ -194,7 +217,7 @@ class GrafanaSerializerBase(SerializerBase):
         if not issubclass(type(sensor), Sensor):
             raise Exception(f"Cannot serialize cell content of type {type(sensor)}")
 
-        tags = list(sensor.get_tags().items())
+        tags = sensor.get_tags()
         sensor_name = sensor.sensor
 
         if self.tag_postprocessor is not None:
@@ -204,7 +227,7 @@ class GrafanaSerializerBase(SerializerBase):
 
         string_tags = []
         other_tags = {}
-        for k, v in tags:
+        for k, v in tags.items():
             if k == sensor.sensor_tag_name:
                 continue
 
@@ -237,10 +260,13 @@ class GrafanaSerializerBase(SerializerBase):
             if not regex:
                 v = self._glob_to_regex(v)
 
-            if negate:
-                query_parts.append(f'{k}!~"{v}"')
-            else:
-                query_parts.append(f'{k}=~"{v}"')
+            # This is a workaround for labels that cannot be specified as a regex.
+            # It is often the case for workspace-like "required" labels.
+            # We use normal comparison operators for all values that do not contain regex-related symbols.
+            # See the definition of the function below for specifics.
+            exact = self._is_exact(v)
+            op = self._get_comparison_operator(negate=negate, exact=exact)
+            query_parts.append(f'{k}{op}"{v}"')
 
         return (query_parts, other_tags)
 
@@ -496,7 +522,7 @@ class GrafanaDebugSerializer(GrafanaSerializerBase):
             return break_long_lines_in_multiline_cell(content.title)
 
         query_parts, other_tags = self._prepare_expr_query(content)
-        _, name = self.tag_postprocessor.postprocess(content.get_tags().items(), content.sensor)
+        _, name = self.tag_postprocessor.postprocess(content.get_tags(), content.sensor)
 
         if other_tags.get(GrafanaSystemTags.Rate, False):
             query_parts.append("$rate=True")
