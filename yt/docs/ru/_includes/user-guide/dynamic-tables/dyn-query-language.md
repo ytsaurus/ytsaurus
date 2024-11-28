@@ -358,7 +358,9 @@ $ yt select-rows 't.b.c[0] from `//tmp/test` as t' --syntax-version 2 --format j
 2. `list_contains(list, value) :: any -> (string | int64 | uint64 | boolean) -> boolean`
     Ищет `value` в YSON-списке `list`, имеющем тип `any`. Значение `value` скалярного типа. Список не обязан быть гомогенным (т. е. может содержать значения разных типов), сравнение выполняется с учётом типа.
 3. `list_has_intersection(list, list) :: any -> any -> boolean`
-    Принимает на вход два YSON-списка и возвращает `true`, если они имеют хотя бы один общий элемент. Списки обязаны быть гомогенными.
+    Принимает на вход два YSON-списка и возвращает `true`, если они имеют хотя бы один общий элемент.
+    Списки обязаны быть гомогенными.
+    Функция поддерживается на кластерах вресии 24.2 или выше.
 4. `any_to_yson_string(yson) :: any -> string`
     Преобразует значение типа `any` в строку, содержащую его binary-[YSON](../../../user-guide/storage/yson.md) представление.
 5. `yson_length(yson) :: any -> int64`
