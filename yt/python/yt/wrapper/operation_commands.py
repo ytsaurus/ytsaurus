@@ -26,8 +26,6 @@ from multiprocessing import TimeoutError
 
 from io import StringIO
 
-OPERATIONS_PATH = "//sys/operations"
-
 
 class OperationInfoRetrier(Retrier):
     def __init__(self, retry_config, command, params, format, timeout, client=None):
