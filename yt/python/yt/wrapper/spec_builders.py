@@ -485,6 +485,10 @@ class UserJobSpecBuilder(object):
     def set_container_cpu_limit(self, set_container_cpu_limit):
         return _set_spec_value(self, "set_container_cpu_limit", set_container_cpu_limit)
 
+    @spec_option("The network project for user job")
+    def network_project(self, network_project):
+        return _set_spec_value(self, "network_project", network_project)
+
     @spec_option("Adds environment variable")
     def environment_variable(self, key, value):
         self._spec.setdefault("environment", {})
