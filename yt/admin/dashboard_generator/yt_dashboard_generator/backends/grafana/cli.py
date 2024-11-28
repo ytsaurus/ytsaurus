@@ -14,6 +14,7 @@ class GrafanaFacade(cli.FacadeBase):
     datasource = {"type": "prometheus", "uid": "${PROMETHEUS_DS_UID}"}
     tag_postprocessor = None
     folder_uid = None
+    additional_dashboard_tags = None
 
     def __init__(self, dashboard_id, func, uid, title):
         super().__init__(dashboard_id)
@@ -97,6 +98,8 @@ class GrafanaFacade(cli.FacadeBase):
 
     def json(self, file=False):
         dashboard = self.func()
+        if self.additional_dashboard_tags is not None:
+            dashboard.add_dashboard_tags(*self.additional_dashboard_tags)
         serializer = grafana.GrafanaDictSerializer(self.datasource, self.tag_postprocessor)
         result = dashboard.serialize(serializer)
         result["uid"] = self.uid
@@ -113,6 +116,8 @@ class GrafanaFacade(cli.FacadeBase):
 
     def do_submit(self, verbose):
         dashboard = self.func()
+        if self.additional_dashboard_tags is not None:
+            dashboard.add_dashboard_tags(*self.additional_dashboard_tags)
         serializer = grafana.GrafanaDictSerializer(self.datasource, self.tag_postprocessor)
         serialized_dashboard = dashboard.serialize(serializer)
         if verbose:
