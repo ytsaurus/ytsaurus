@@ -97,9 +97,7 @@ class GrafanaFacade(cli.FacadeBase):
         print(tabulate.tabulate(result, tablefmt="grid"))
 
     def json(self, file=False):
-        dashboard = self.func()
-        if self.additional_dashboard_tags is not None:
-            dashboard.add_dashboard_tags(*self.additional_dashboard_tags)
+        dashboard = self._generate_dashboard()
         serializer = grafana.GrafanaDictSerializer(self.datasource, self.tag_postprocessor)
         result = dashboard.serialize(serializer)
         result["uid"] = self.uid
@@ -115,12 +113,16 @@ class GrafanaFacade(cli.FacadeBase):
                 json.dump(result, fd, indent=4)
 
     def do_submit(self, verbose):
-        dashboard = self.func()
-        if self.additional_dashboard_tags is not None:
-            dashboard.add_dashboard_tags(*self.additional_dashboard_tags)
+        dashboard = self._generate_dashboard()
         serializer = grafana.GrafanaDictSerializer(self.datasource, self.tag_postprocessor)
         serialized_dashboard = dashboard.serialize(serializer)
         if verbose:
             json.dump(serialized_dashboard, sys.stderr, indent=4)
         proxy = grafana.GrafanaProxy(self.base_url, self.api_key)
         proxy.submit_dashboard(serialized_dashboard, self.dashboard_id, self.folder_uid)
+
+    def _generate_dashboard(self):
+        dashboard = self.func()
+        if self.additional_dashboard_tags is not None:
+            dashboard.add_dashboard_tags(*self.additional_dashboard_tags)
+        return dashboard
