@@ -371,6 +371,7 @@ struct ITabletContext
     virtual NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() const = 0;
     virtual IHedgingManagerRegistryPtr GetHedgingManagerRegistry() const = 0;
     virtual ITabletWriteManagerHostPtr GetTabletWriteManagerHost() const = 0;
+    virtual IVersionedChunkMetaManagerPtr GetVersionedChunkMetaManager() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

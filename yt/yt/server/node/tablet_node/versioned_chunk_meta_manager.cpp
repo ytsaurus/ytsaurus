@@ -114,6 +114,24 @@ public:
             .ToImmediatelyCancelable();
     }
 
+    bool InsertMeta(
+        const TVersionedChunkMetaCacheKey& key,
+        const NChunkClient::TRefCountedChunkMetaPtr& meta) override
+    {
+        auto cookie = BeginInsert(key);
+        if (!cookie.IsActive()) {
+            return false;
+        }
+
+        auto cachedMeta = TCachedVersionedChunkMeta::Create(
+            key.PreparedColumnarMeta,
+            MemoryUsageTracker_,
+            meta);
+        auto result = New<TVersionedChunkMetaCacheEntry>(key, std::move(cachedMeta));
+        cookie.EndInsert(result);
+        return true;
+    }
+
     void Touch(const TVersionedChunkMetaCacheEntryPtr& entry) override
     {
         TAsyncSlruCacheBase::Touch(entry);

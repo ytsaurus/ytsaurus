@@ -2025,7 +2025,7 @@ void TTabletLookupSession<TPipeline>::LookupInPartitions(const TError& error)
         &TTabletLookupSession::FinishSession,
         MakeStrong(this))
         .Via(Invoker_));
-    SetSessionFuture(rowsetFuture.AsVoid());
+    SetSessionFuture(std::move(rowsetFuture).AsVoid());
 }
 
 template <class TPipeline>

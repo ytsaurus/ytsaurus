@@ -2151,6 +2151,7 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
                 read_quorum=1,
                 write_quorum=1,
             )
+            set("{}/@mount_config/insert_meta_upon_store_update".format(table), False)
 
             sync_mount_table(table)
 
@@ -2219,6 +2220,7 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
             read_quorum=1,
             write_quorum=1,
         )
+        set("{}/@mount_config/insert_meta_upon_store_update".format(path), False)
 
         sync_reshard_table(path, [[]] + [[i * 10] for i in range(3)])
 
@@ -2264,7 +2266,7 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
 
         expected = gen_rows(0, 10) + [None for i in range(10, 20)] + gen_rows(20, 30)
 
-        actual = lookup_rows("//tmp/t", keys, enable_partial_result=True, keep_missing_rows=True)
+        actual = lookup_rows(path, keys, enable_partial_result=True, keep_missing_rows=True)
         assert_items_equal(actual, expected)
 
 
@@ -2398,6 +2400,7 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
         cell_id = sync_create_cells(1, tablet_cell_bundle="b")[0]
 
         self._create_simple_table("//tmp/t", tablet_cell_bundle="b", dynamic_store_auto_flush_period=yson.YsonEntity())
+        set("//tmp/t/@mount_config/insert_meta_upon_store_update", False)
         sync_mount_table("//tmp/t")
 
         _get_row = ({"key": i, "value": str(i) * 100} for i in range(10**9))

@@ -372,6 +372,10 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("value_dictionary_compression", &TThis::ValueDictionaryCompression)
         .DefaultNew();
 
+    registrar.Parameter("insert_meta_upon_store_update", &TThis::InsertMetaUponStoreUpdate)
+        .Default(true)
+        .DontSerializeDefault();
+
     registrar.Postprocessor([&] (TCustomTableMountConfig* config) {
         if (config->MaxDynamicStoreRowCount > config->MaxDynamicStoreValueCount) {
             THROW_ERROR_EXCEPTION("\"max_dynamic_store_row_count\" must be less than or equal to \"max_dynamic_store_value_count\"");

@@ -640,33 +640,38 @@ class TestLookup(TestSortedDynamicTablesBase):
 
     @authors("akozhikhov")
     def test_lookup_row_count_sensors(self):
+        table_path = "//tmp/very_unique_t"
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
-        sync_mount_table("//tmp/t")
+        self._create_simple_table(table_path)
+        sync_mount_table(table_path)
 
         sensors = [None] * 4
 
         def _init_sensors():
-            sensors[0] = profiler_factory().at_tablet_node("//tmp/t").counter(
-                name="lookup/row_count")
-            sensors[1] = profiler_factory().at_tablet_node("//tmp/t").counter(
-                name="lookup/missing_row_count")
-            sensors[2] = profiler_factory().at_tablet_node("//tmp/t").counter(
-                name="lookup/unmerged_row_count")
-            sensors[3] = profiler_factory().at_tablet_node("//tmp/t").counter(
-                name="lookup/unmerged_missing_row_count")
+            sensors[0] = profiler_factory().at_tablet_node(
+                table_path,
+                fixed_tags={"table_path": table_path}).counter(name="lookup/row_count")
+            sensors[1] = profiler_factory().at_tablet_node(
+                table_path,
+                fixed_tags={"table_path": table_path}).counter(name="lookup/missing_row_count")
+            sensors[2] = profiler_factory().at_tablet_node(
+                table_path,
+                fixed_tags={"table_path": table_path}).counter(name="lookup/unmerged_row_count")
+            sensors[3] = profiler_factory().at_tablet_node(
+                table_path,
+                fixed_tags={"table_path": table_path}).counter(name="lookup/unmerged_missing_row_count")
             for sensor in sensors:
                 if sensor.start_value != 0:
                     return False
             return True
         wait(lambda: _init_sensors())
 
-        insert_rows("//tmp/t", [{"key": 0, "value": "0"}, {"key": 2, "value": "2"}])
-        sync_flush_table("//tmp/t")
+        insert_rows(table_path, [{"key": 0, "value": "0"}, {"key": 2, "value": "2"}])
+        sync_flush_table(table_path)
 
-        insert_rows("//tmp/t", [{"key": 1, "value": "1"}, {"key": 2, "value": "22"}])
+        insert_rows(table_path, [{"key": 1, "value": "1"}, {"key": 2, "value": "22"}])
 
-        assert lookup_rows("//tmp/t", [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}]) == \
+        assert lookup_rows(table_path, [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}]) == \
             [{"key": 0, "value": "0"}, {"key": 1, "value": "1"}, {"key": 2, "value": "22"}]
 
         wait(lambda: sensors[0].get_delta() == 3)
@@ -1390,7 +1395,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
             return str(i) + ("payload" * (i % 5) if hunks else "")
 
         self._create_simple_table("//tmp/t", hunks, lookup_cache_rows_per_tablet=50)
-
+        set("//tmp/t/@mount_config/insert_meta_upon_store_update", False)
         sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": make_value(i)} for i in range(0, 1000, 2)]
