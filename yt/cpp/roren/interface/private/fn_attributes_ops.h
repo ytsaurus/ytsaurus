@@ -15,7 +15,6 @@ public:
     static void Merge(TFnAttributes& destination, const TFnAttributes& source);
 
     static bool GetIsPure(const TFnAttributes& attributes);
-    static TFnAttributes::EKeyLockMode GetKeyLockMode(const TFnAttributes& attributes);
     static void SetIsMove(TFnAttributes& attributes, bool isMove = true);
     static bool GetIsMove(const TFnAttributes& attributes);
     static const std::vector<TString> GetResourceFileList(const TFnAttributes& attributes);
