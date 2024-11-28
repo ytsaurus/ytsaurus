@@ -45,6 +45,7 @@ namespace NYT::NTabletNode {
 
 using namespace NApi;
 using namespace NChunkClient;
+using namespace NCompression;
 using namespace NConcurrency;
 using namespace NHydra;
 using namespace NLogging;
@@ -671,7 +672,7 @@ private:
             YT_VERIFY(std::ssize(columnInfo.Samples) <= columnInfo.ProcessedNonNullSampleCount);
             YT_VERIFY(columnInfo.ProcessedNonNullSampleCount <= columnInfo.ProcessedSampleCount);
 
-            auto dictionaryOrError = NCompression::GetDictionaryCompressionCodec()->TrainCompressionDictionary(
+            auto dictionaryOrError = GetDictionaryCompressionCodec()->TrainCompressionDictionary(
                 Config_->ColumnDictionarySize,
                 columnInfo.Samples);
             if (dictionaryOrError.IsOK()) {
@@ -737,11 +738,21 @@ private:
 
             // Check that creation of digested dictionary works properly.
             try {
-                Y_UNUSED(NCompression::GetDictionaryCompressionCodec()->CreateDigestedCompressionDictionary(
+                auto estimatedSize = GetDictionaryCompressionCodec()->EstimateDigestedCompressionDictionarySize(
+                    std::ssize(columnInfo.Dictionary),
+                    tabletSnapshot->Settings.HunkReaderConfig->CompressionLevel);
+                auto storage = TSharedMutableRef::Allocate(estimatedSize, { .InitializeStorage = false });
+                Y_UNUSED(GetDictionaryCompressionCodec()->ConstructDigestedCompressionDictionary(
                     columnInfo.Dictionary,
+                    storage,
                     tabletSnapshot->Settings.HunkReaderConfig->CompressionLevel));
-                Y_UNUSED(NCompression::GetDictionaryCompressionCodec()->CreateDigestedDecompressionDictionary(
-                    columnInfo.Dictionary));
+
+                estimatedSize = GetDictionaryCompressionCodec()->EstimateDigestedDecompressionDictionarySize(
+                    std::ssize(columnInfo.Dictionary));
+                storage = TSharedMutableRef::Allocate(estimatedSize, { .InitializeStorage = false });
+                Y_UNUSED(GetDictionaryCompressionCodec()->ConstructDigestedDecompressionDictionary(
+                    columnInfo.Dictionary,
+                    storage));
             } catch (const std::exception& ex) {
                 auto error = TError("Trained compression dictionary cannot be digested; skipping it")
                     << TErrorAttribute("column_id", columnId)
