@@ -69,6 +69,8 @@
 
 #include <yt/yt/library/erasure/public.h>
 
+#include <yt/yt/library/profiling/producer.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/rpc/response_keeper.h>

@@ -130,6 +130,10 @@
 
 #include <yt/yt/client/tablet_client/public.h>
 
+#include <yt/yt/library/erasure/impl/codec.h>
+
+#include <yt/yt/library/profiling/solomon/sensor.h>
+
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/parallel_runner.h>
@@ -137,8 +141,6 @@
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
-
-#include <yt/yt/library/erasure/impl/codec.h>
 
 #include <yt/yt/core/logging/log.h>
 

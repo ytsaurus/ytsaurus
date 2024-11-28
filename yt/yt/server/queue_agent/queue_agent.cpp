@@ -34,6 +34,7 @@
 #include <yt/yt/core/rpc/caching_channel_factory.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 
 namespace NYT::NQueueAgent {
 

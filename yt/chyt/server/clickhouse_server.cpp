@@ -18,6 +18,8 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/coroutine.h>
 
+#include <yt/yt/library/profiling/producer.h>
+
 #include <Server/HTTP/HTTPServer.h>
 #include <Server/TCPServer.h>
 #include <Server/IServer.h>

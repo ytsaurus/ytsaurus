@@ -1,7 +1,10 @@
 #include "config.h"
 
 #include <yt/yt/library/coredumper/config.h>
+
 #include <yt/yt/library/program/config.h>
+
+#include <yt/yt/library/profiling/solomon/config.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
@@ -36,6 +39,8 @@ void TServerConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("core_dumper", &TThis::CoreDumper)
         .Default();
+    registrar.Parameter("solomon_exporter", &TThis::SolomonExporter)
+        .DefaultNew();
 
     registrar.Parameter("rpc_port", &TThis::RpcPort)
         .Default(0)

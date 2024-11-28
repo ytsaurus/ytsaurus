@@ -10,6 +10,10 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
+
+#include <yt/yt/core/rpc/server.h>
+
 namespace NYT::NMasterCache {
 
 using namespace NApi;

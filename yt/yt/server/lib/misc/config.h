@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/library/profiling/solomon/public.h>
+
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -37,6 +39,7 @@ public:
     NBus::TBusServerConfigPtr BusServer;
     NRpc::TServerConfigPtr RpcServer;
     NCoreDump::TCoreDumperConfigPtr CoreDumper;
+    NProfiling::TSolomonExporterConfigPtr SolomonExporter;
 
     int RpcPort;
     int TvmOnlyRpcPort;

@@ -52,6 +52,8 @@
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
 
+#include <yt/yt/library/profiling/solomon/registry.h>
+
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
 #include <yt/yt/core/rpc/grpc/config.h>

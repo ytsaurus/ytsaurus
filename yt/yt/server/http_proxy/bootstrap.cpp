@@ -48,6 +48,7 @@
 #include <yt/yt/library/monitoring/monitoring_manager.h>
 
 #include <yt/yt/library/profiling/solomon/proxy.h>
+#include <yt/yt/library/profiling/solomon/registry.h>
 
 #include <yt/yt/library/program/build_attributes.h>
 
