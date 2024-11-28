@@ -475,10 +475,8 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         actual = select_rows("keyA, keyB, valueA from [//tmp/table] with index [//tmp/index_table]")
         assert actual == expected
 
-        if not isinstance(self, TestSecondaryIndexReplicatedSelect):
-            # TODO(sabdenovch): explain query does not support replicated tables ATM.
-            plan = explain_query("keyA, keyB, valueA from [//tmp/table] with index [//tmp/index_table] where valueA = 100")
-            assert plan["query"]["constraints"] == "Constraints:\n100: <universe>"
+        plan = explain_query("keyA, keyB, valueA from [//tmp/table] with index [//tmp/index_table] where valueA = 100")
+        assert plan["query"]["constraints"] == "Constraints:\n100: <universe>"
 
     @authors("sabdenovch")
     def test_unfolding(self):

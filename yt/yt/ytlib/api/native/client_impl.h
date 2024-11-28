@@ -1104,8 +1104,8 @@ private:
         const std::vector<NTabletClient::TTableMountInfoPtr>& tableInfos);
 
     std::pair<TString, TSelectRowsOptions::TExpectedTableSchemas> PickInSyncClusterAndPatchQuery(
-        const std::vector<NTabletClient::TTableMountInfoPtr>& tableInfos,
-        const std::vector<TTableReplicaInfoPtrList>& candidates,
+        TRange<NTabletClient::TTableMountInfoPtr> tableInfos,
+        TRange<TTableReplicaInfoPtrList> candidates,
         NQueryClient::NAst::TQuery* query);
 
     NApi::NNative::IConnectionPtr GetReplicaConnectionOrThrow(const TString& clusterName);
@@ -1115,6 +1115,13 @@ private:
         const NQueryClient::TQueryPtr& query,
         const NQueryClient::TDataSource& dataSource,
         const TSelectRowsOptions& options);
+
+    void FallbackToReplica(
+        NQueryClient::NAst::TQuery* astQuery,
+        TMutableRange<TTableReplicaInfoPtrList> replicaCandidates,
+        TRange<NTabletClient::TTableMountInfoPtr> tableInfos,
+        TSelectRowsOptionsBase* options,
+        std::function<void(TError*, const TString&, const TString&, const TSelectRowsOptionsBase*)> callback);
 
     TSelectRowsResult DoSelectRowsOnce(
         const TString& queryString,
