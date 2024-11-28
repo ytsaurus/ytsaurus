@@ -1,0 +1,17 @@
+pragma AnsiInForEmptyOrNullableItemsCollections;
+pragma AnsiOptionalAs;
+pragma CompactGroupBy;
+pragma TablePathPrefix = "home/tpcds/3Tb";
+pragma config.flags("OptimizerFlags", "FieldSubsetEnableMultiusage");
+pragma yt.AutoMerge = "disabled";
+pragma yt.DataSizePerJob = "16M";
+pragma yt.DataSizePerMapJob = "24M";
+pragma yt.DataSizePerPartition = "64M";
+pragma yt.HybridDqExecution = "true";
+pragma yt.MapJoinLimit = "4G";
+pragma yt.MaxReplicationFactorToFuseOperations="100";
+pragma yt.PartitionByConstantKeysViaMap;
+pragma yt.Pool = "tpcds";
+pragma yt.QueryCacheMode = "disable";
+pragma yt.SchedulingTagFilter = "%true";
+pragma yt.TableContentLocalExecution;
