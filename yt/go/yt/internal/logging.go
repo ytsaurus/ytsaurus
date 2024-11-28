@@ -121,6 +121,7 @@ func (l *LoggingInterceptor) Read(ctx context.Context, call *Call, invoke ReadIn
 	ctx = l.logStart(ctx, call)
 	r, err = invoke(ctx, call)
 	if err != nil {
+		l.logFinish(ctx, err)
 		return
 	}
 
@@ -132,6 +133,7 @@ func (l *LoggingInterceptor) Write(ctx context.Context, call *Call, invoke Write
 	ctx = l.logStart(ctx, call)
 	w, err = invoke(ctx, call)
 	if err != nil {
+		l.logFinish(ctx, err)
 		return
 	}
 
