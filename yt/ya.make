@@ -1,5 +1,6 @@
 RECURSE(
     admin
+    benchmarks
     yt
     chyt
     yql
@@ -21,7 +22,6 @@ IF (NOT OPENSOURCE)
     # Yandex-specific parts of YT.
     RECURSE(
         abcdapter
-        benchmarks
         buildall
         cfg
         cron
