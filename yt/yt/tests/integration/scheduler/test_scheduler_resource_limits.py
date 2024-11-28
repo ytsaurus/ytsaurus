@@ -71,7 +71,7 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             command="python -c 'import time; a=[1]*100000000; time.sleep(10)'",
-            spec={"max_failed_job_count": 2, "mapper" : {"memory_limit" : 512 * 1024 * 1024}},
+            spec={"max_failed_job_count": 2, "mapper": {"memory_limit": 512 * 1024 * 1024}},
         )
 
         # if all jobs failed then operation is also failed

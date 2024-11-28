@@ -94,7 +94,9 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
 
         try {
             pids = Environment_->GetJobPids();
-            if (auto pid = Environment_->GetJobRootPid()) {
+            if (auto pid = Environment_->GetJobRootPid();
+                pid && std::find(pids.begin(), pids.end(), *pid) == pids.end())
+            {
                 pids.push_back(*pid);
             }
             YT_LOG_DEBUG("Job process pids collected (Pids: %v)", pids);
