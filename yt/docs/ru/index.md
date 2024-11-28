@@ -43,8 +43,8 @@ h3 {
         <p>Хранение данных в {{product-name}}: дерево метаинформации Кипарис, основные объекты системы, ACL, статические таблицы, транзакции, форматы хранения.</p>
     </div>
     <div class="grid-item">
-        <h3><a lang="ru" href="overview/try-yt">Как попробовать</a></h3>
-        <p>Пошаговая инструкция по тому, как быстро развернуть свою копию {{product-name}}.</p>
+        <h3><a lang="ru" href="quickstart">Как попробовать</a></h3>
+        <p>Примеры базовых действий c {{product-name}} в CLI и веб-интерфейсе.</p>
     </div>
     <div class="grid-item">
         <h3><a lang="ru" href="user-guide/dynamic-tables/overview">Динамические таблицы</a></h3>
