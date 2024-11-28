@@ -9,6 +9,7 @@
 #include "structured_logger.h"
 #include "automaton.h"
 #include "store_flusher.h"
+#include "versioned_chunk_meta_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -739,6 +740,35 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                     tabletSnapshot->Settings.MountConfig->EnableHunkColumnarProfiling,
                     tabletSnapshot->PhysicalSchema),
             });
+
+        if (mountConfig->InsertMetaUponStoreUpdate) {
+            storeWriter->GetMeta()->SubscribeMetaFinalized(BIND([
+                =,
+                this,
+                this_ = MakeStrong(this)] (const TRefCountedChunkMeta* finalizedMeta)
+            {
+                auto enableNewScanReader =
+                    mountConfig->EnableNewScanReaderForLookup ||
+                    mountConfig->EnableNewScanReaderForSelect;
+
+                auto result = false;
+                if (auto chunkMetaManager = TabletContext_->GetVersionedChunkMetaManager()) {
+                    result = chunkMetaManager->InsertMeta(
+                        TVersionedChunkMetaCacheKey{
+                            .ChunkId = storeWriter->GetChunkId(),
+                            .TableSchemaKeyColumnCount = tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
+                            .PreparedColumnarMeta = enableNewScanReader,
+                        },
+                        New<TRefCountedChunkMeta>(*finalizedMeta));
+                }
+
+                YT_LOG_DEBUG("Propagating versioned chunk meta cache upon chunk finalization"
+                    "(Success: %v, ChunkId: %v, Activity: %Qlv)",
+                    result,
+                    storeWriter->GetChunkId(),
+                    ETabletBackgroundActivity::Flush);
+            }));
+        }
 
         auto updateProfilerGuard = Finally([&] {
             writerProfiler->Update(storeWriter);

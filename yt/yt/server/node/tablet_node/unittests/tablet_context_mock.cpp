@@ -36,6 +36,11 @@ TMockBackendChunkReadersHolderPtr TTabletContextMock::GetBackendChunkReadersHold
     return BackendChunkReadersHolder_;
 }
 
+IVersionedChunkMetaManagerPtr TTabletContextMock::GetVersionedChunkMetaManager() const
+{
+    return nullptr;
+}
+
 TCellId TTabletContextMock::GetCellId() const
 {
     return NullCellId;

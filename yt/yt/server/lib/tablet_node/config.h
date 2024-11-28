@@ -285,6 +285,8 @@ public:
 
     NTableClient::TDictionaryCompressionConfigPtr ValueDictionaryCompression;
 
+    bool InsertMetaUponStoreUpdate;
+
     REGISTER_YSON_STRUCT(TCustomTableMountConfig);
 
     static void Register(TRegistrar registrar);

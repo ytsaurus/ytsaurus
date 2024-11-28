@@ -48,6 +48,10 @@ struct IVersionedChunkMetaManager
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         bool prepareColumnarMeta = false) = 0;
 
+    virtual bool InsertMeta(
+        const TVersionedChunkMetaCacheKey& key,
+        const NChunkClient::TRefCountedChunkMetaPtr& meta) = 0;
+
     virtual void Touch(const TVersionedChunkMetaCacheEntryPtr& entry) = 0;
 
     virtual void Reconfigure(const TSlruCacheDynamicConfigPtr& config) = 0;

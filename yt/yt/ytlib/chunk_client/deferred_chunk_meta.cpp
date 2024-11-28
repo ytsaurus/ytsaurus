@@ -14,6 +14,12 @@ void TDeferredChunkMeta::RegisterFinalizer(std::function<void(TDeferredChunkMeta
     Finalizers_.emplace_back(std::move(finalizer));
 }
 
+void TDeferredChunkMeta::SubscribeMetaFinalized(TCallback<void(const TRefCountedChunkMeta*)> callback)
+{
+    YT_VERIFY(!Finalized_);
+    FinalizationSubscribers_.emplace_back(std::move(callback));
+}
+
 void TDeferredChunkMeta::Finalize()
 {
     YT_VERIFY(!Finalized_);
@@ -23,6 +29,12 @@ void TDeferredChunkMeta::Finalize()
         finalizer = nullptr;
     }
     Finalizers_.clear();
+
+    for (auto& finalizationSubscriber : FinalizationSubscribers_) {
+        finalizationSubscriber(this);
+        finalizationSubscriber.Reset();
+    }
+    FinalizationSubscribers_.clear();
 
     Finalized_ = true;
 }
