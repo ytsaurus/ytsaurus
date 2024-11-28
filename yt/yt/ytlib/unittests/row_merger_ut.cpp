@@ -2559,13 +2559,13 @@ TEST_F(TVersionedRowMergerTest, WatermarkBasic)
 
     auto row = BuildVersionedRow(
         "<id=0> 0",
-        "<id=1;ts=10> 5; <id=1;ts=15> 10; <id=1;ts=20> 12;"
+        "<id=1;ts=10> 5; <id=1;ts=15> 10; <id=1;ts=20> 11;"
         "<id=2;ts=15> 42; <id=2;ts=13> 52");
     merger->AddPartialRow(row);
 
     EXPECT_EQ(
         TIdentityComparableVersionedRow{BuildVersionedRow(
-                "<id=0> 0","<id=1;ts=20> 12")},
+                "<id=0> 0","<id=1;ts=20> 11")},
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
 }
 
