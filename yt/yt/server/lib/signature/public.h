@@ -14,6 +14,11 @@ YT_DEFINE_STRONG_TYPEDEF(TOwnerId, std::string)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(TSignatureGeneratorConfig)
+DECLARE_REFCOUNTED_STRUCT(TSignatureValidatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TKeyInfo)
 DECLARE_REFCOUNTED_CLASS(TSignature)
 DECLARE_REFCOUNTED_CLASS(TSignatureGenerator)

@@ -297,7 +297,13 @@ void TCypressNode::Load(NCellMaster::TLoadContext& context)
     Load(context, ExternalCellTag_);
     TUniquePtrSerializer<>::Load(context, LockingState_);
     TRawNonversionedObjectPtrSerializer::Load(context, Parent_);
-    Load(context, LockMode_);
+
+    // COMPAT(cherepashka)
+    if (context.GetVersion() >= EMasterReign::EnumsAndChunkReplicationReductionsInTTableNode) {
+        Load(context, LockMode_);
+    } else {
+        LockMode_ = CheckedEnumCast<ELockMode>(Load<NCypressClient::ECompatLockMode>(context));
+    }
     Load(context, ExpirationTime_);
     Load(context, ExpirationTimeout_);
     Load(context, CreationTime_);

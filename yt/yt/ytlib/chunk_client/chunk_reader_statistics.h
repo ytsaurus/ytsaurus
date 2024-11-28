@@ -44,10 +44,10 @@ struct TChunkReaderStatistics
     static constexpr TDuration MinTrackedLatency = TDuration::MicroSeconds(1);
     static constexpr TDuration MaxTrackedLatency = TDuration::Seconds(125);
 
-    NProfiling::IHistogramImplPtr DataWaitTimeHistogram = CreateRequestTimeHistogram();
-    NProfiling::IHistogramImplPtr MetaWaitTimeHistogram = CreateRequestTimeHistogram();
+    NProfiling::IHistogramPtr DataWaitTimeHistogram = CreateRequestTimeHistogram();
+    NProfiling::IHistogramPtr MetaWaitTimeHistogram = CreateRequestTimeHistogram();
 
-    static NProfiling::IHistogramImplPtr CreateRequestTimeHistogram();
+    static NProfiling::IHistogramPtr CreateRequestTimeHistogram();
 
     void RecordDataWaitTime(TDuration duration);
     void RecordMetaWaitTime(TDuration duration);

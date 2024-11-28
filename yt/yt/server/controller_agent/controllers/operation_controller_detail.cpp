@@ -172,7 +172,6 @@ using namespace NJobTrackerClient;
 using namespace NLogging;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
-using namespace NProfiling;
 using namespace NQueryClient;
 using namespace NRpc;
 using namespace NScheduler;
@@ -3376,6 +3375,7 @@ bool TOperationControllerBase::OnJobFailed(
     }
 
     auto error = jobSummary->GetError();
+    auto maybeExitCode = jobSummary->GetExitCode();
 
     TJobFinishedResult taskJobResult;
 
@@ -3386,6 +3386,7 @@ bool TOperationControllerBase::OnJobFailed(
         TForbidContextSwitchGuard guard;
 
         ++FailedJobCount_;
+        UpdateFailedJobsExitCodeCounters(maybeExitCode);
         if (FailedJobCount_ == 1) {
             ShouldUpdateLightOperationAttributes_ = true;
             ShouldUpdateProgressAttributesInCypress_ = true;
@@ -3440,22 +3441,37 @@ bool TOperationControllerBase::OnJobFailed(
         return false;
     }
 
+    auto makeOperationFailedError = [&] (TError failureKindError) {
+        failureKindError <<= TErrorAttribute("job_id", jobId);
+        if (IsFailingByTimeout()) {
+            return GetTimeLimitError()
+                << std::move(failureKindError)
+                << error;
+        } else {
+            return std::move(failureKindError)
+                << error;
+        }
+    };
+
     int maxFailedJobCount = Spec_->MaxFailedJobCount;
     if (FailedJobCount_ >= maxFailedJobCount) {
         auto failedJobsLimitExceededError = TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Failed jobs limit exceeded")
                 << TErrorAttribute("max_failed_job_count", maxFailedJobCount);
-        auto operationFailedError = [&] {
-            if (IsFailingByTimeout()) {
-                return GetTimeLimitError()
-                    << failedJobsLimitExceededError
-                    << error;
-            } else {
-                return failedJobsLimitExceededError
-                    << error;
-            }
-        }();
 
-        OnOperationFailed(operationFailedError);
+        OnOperationFailed(makeOperationFailedError(std::move(failedJobsLimitExceededError)));
+        return false;
+    }
+    if (IsJobsFailToleranceExceeded(maybeExitCode)) {
+        auto jobsFailToleranceExceededError = TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Jobs fail tolerance exceeded")
+            << TErrorAttribute("max_failed_job_count", GetMaxJobFailCountForExitCode(maybeExitCode));
+
+        if (maybeExitCode.has_value()) {
+            (jobsFailToleranceExceededError
+                <<= TErrorAttribute("exit_code_known", IsExitCodeKnown(*maybeExitCode)))
+                <<= TErrorAttribute("exit_code", *maybeExitCode);
+        }
+
+        OnOperationFailed(makeOperationFailedError(std::move(jobsFailToleranceExceededError)));
         return false;
     }
 
@@ -4549,7 +4565,7 @@ TControllerScheduleAllocationResultPtr TOperationControllerBase::SafeScheduleAll
         AllocationMap_.erase(allocationIt);
     });
 
-    TWallTimer timer;
+    NProfiling::TWallTimer timer;
     auto scheduleAllocationResult = New<TControllerScheduleAllocationResult>();
     DoScheduleAllocation(allocation, context, treeId, scheduleAllocationResult.Get());
     auto scheduleAllocationDuration = timer.GetElapsedTime();
@@ -5866,6 +5882,89 @@ bool TOperationControllerBase::RestartJobInAllocation(TNonNullPtr<TAllocation> a
         failReason);
 
     return true;
+}
+
+TJobFailsTolerancePtr TOperationControllerBase::GetJobFailsTolerance() const
+{
+    return Config->EnableJobFailsTolerance
+        ? Spec_->JobFailsTolerance
+        : TJobFailsTolerancePtr{};
+}
+
+bool TOperationControllerBase::IsExitCodeKnown(int exitCode) const
+{
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+
+    auto jobFailsTolerance = GetJobFailsTolerance();
+
+    if (!jobFailsTolerance) {
+        return false;
+    }
+
+    return jobFailsTolerance->MaxFailsPerKnownExitCode.contains(exitCode);
+}
+
+int TOperationControllerBase::GetMaxJobFailCountForExitCode(std::optional<int> maybeExitCode)
+{
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+
+    auto jobFailsTolerance = GetJobFailsTolerance();
+
+    YT_VERIFY(jobFailsTolerance);
+    if (!maybeExitCode.has_value()) {
+        return jobFailsTolerance->MaxFailsNoExitCode;
+    }
+
+    return IsExitCodeKnown(*maybeExitCode)
+        ? jobFailsTolerance->MaxFailsPerKnownExitCode[*maybeExitCode]
+        : jobFailsTolerance->MaxFailsUnknownExitCode;
+}
+
+bool TOperationControllerBase::IsJobsFailToleranceExceeded(std::optional<int> maybeExitCode)
+{
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+
+    const auto& jobFailsTolerance = GetJobFailsTolerance();
+
+    if (!jobFailsTolerance) {
+        return false;
+    }
+
+    if (!maybeExitCode.has_value()) {
+        return NoExitCodeFailCount_ >= jobFailsTolerance->MaxFailsNoExitCode;
+    }
+
+    auto exitCode = maybeExitCode.value();
+
+    if (!IsExitCodeKnown(exitCode)) {
+        return UnknownExitCodeFailCount_ >= jobFailsTolerance->MaxFailsUnknownExitCode;
+    }
+
+    return FailCountsPerKnownExitCode_[exitCode] >= jobFailsTolerance->MaxFailsPerKnownExitCode[exitCode];
+}
+
+void TOperationControllerBase::UpdateFailedJobsExitCodeCounters(std::optional<int> maybeExitCode)
+{
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+
+    const auto& jobFailsTolerance = GetJobFailsTolerance();
+
+    if (!jobFailsTolerance) {
+        return;
+    }
+
+    if (!maybeExitCode.has_value()) {
+        ++NoExitCodeFailCount_;
+        return;
+    }
+    auto exitCode = maybeExitCode.value();
+
+    if (!IsExitCodeKnown(exitCode)) {
+        ++UnknownExitCodeFailCount_;
+        return;
+    }
+
+    ++FailCountsPerKnownExitCode_[exitCode];
 }
 
 bool TOperationControllerBase::IsJobIdEarlier(TJobId lhs, TJobId rhs) const noexcept
@@ -9466,7 +9565,7 @@ void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
 
     YT_LOG_DEBUG("Scheduling aggregated job statistics update heavy routine");
 
-    TWallTimer wallTimer;
+    NProfiling::TWallTimer wallTimer;
     auto [runningJobStatistics, isLimitExceeded] = WaitFor(
         BIND(buildAggregatedStatisticsHeavy)
             .AsyncVia(Host->GetStatisticsOffloadInvoker())
@@ -10554,6 +10653,12 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
         Persist(context, MonitoredUserJobCount_);
         Persist(context, MonitoredUserJobAttemptCount_);
         Persist(context, RegisteredMonitoringDescriptorCount_);
+    }
+
+    if (context.GetVersion() >= ESnapshotVersion::JobFailTolerance) {
+        Persist(context, UnknownExitCodeFailCount_);
+        Persist(context, NoExitCodeFailCount_);
+        Persist(context, FailCountsPerKnownExitCode_);
     }
 }
 

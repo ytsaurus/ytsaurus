@@ -143,7 +143,7 @@ private:
     };
 
     // Leave some space for the replicator to manipulate replication policies.
-    static constexpr unsigned TypicalChunkMediumCount = 7;
+    static constexpr unsigned TypicalChunkMediumCount = 3;
     using TEntries = TCompactVector<TEntry, TypicalChunkMediumCount>;
 
 public:
@@ -245,7 +245,7 @@ private:
     static auto Find(T& entries, int mediumIndex) -> decltype(entries.begin());
 };
 
-static_assert(sizeof(TChunkReplication) == 24, "TChunkReplication's size is wrong");
+static_assert(sizeof(TChunkReplication) == 16, "TChunkReplication's size is wrong");
 
 bool operator==(const TChunkReplication& lhs, const TChunkReplication& rhs);
 

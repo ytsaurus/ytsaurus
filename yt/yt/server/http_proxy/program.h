@@ -7,6 +7,8 @@
 
 #include <yt/yt/library/auth_server/config.h>
 
+#include <yt/yt/library/profiling/solomon/config.h>
+
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/program_config_mixin.h>
 #include <yt/yt/library/program/program_pdeathsig_mixin.h>

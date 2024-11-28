@@ -311,7 +311,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         job_ids = op.list_jobs()
         assert len(job_ids) == 1
-        assert op.read_stderr(job_ids[0]) == b"/bin/bash: /non_existed_command: No such file or directory\n"
+        assert op.read_stderr(job_ids[0]).endswith(b"/non_existed_command: No such file or directory\n")
 
     @authors("ignat")
     def test_pipe_statistics(self):

@@ -535,9 +535,6 @@ public:
     // COMPAT(renadeen): remove when optimization proves worthy.
     bool EnableOptimizedOperationOrchid;
 
-    // COMPAT(renadeen): remove when optimization proves worthy.
-    bool EnableAsyncOperationEventLogging;
-
     TString EphemeralPoolNameRegex;
 
     REGISTER_YSON_STRUCT(TFairShareStrategyConfig);

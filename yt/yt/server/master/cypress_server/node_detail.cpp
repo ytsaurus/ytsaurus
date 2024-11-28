@@ -539,10 +539,38 @@ void TCompositeNodeBase::TAttributes<Transient>::Persist(const NCellMaster::TPer
     Persist(context, Atomicity);
     Persist(context, CommitOrdering);
     Persist(context, InMemoryMode);
-    Persist(context, OptimizeFor);
+    // COMPAT(cherepashka)
+    if (context.GetVersion() >= EMasterReign::EnumsAndChunkReplicationReductionsInTTableNode) {
+        Persist(context, OptimizeFor);
+    } else {
+        auto compatOptimizeFor = Load<TVersionedBuiltinAttribute<NTableClient::ECompatOptimizeFor>>(context.LoadContext());
+        if (compatOptimizeFor.IsNull()) {
+            OptimizeFor.Reset();
+        } else if (compatOptimizeFor.IsTombstoned()) {
+            OptimizeFor.Remove();
+        } else if (compatOptimizeFor.IsSet()) {
+            auto optimizeFor = compatOptimizeFor.ToOptional();
+            YT_VERIFY(optimizeFor);
+            OptimizeFor.Set(CheckedEnumCast<NTableClient::EOptimizeFor>(*optimizeFor));
+        }
+    }
     Persist(context, ProfilingMode);
     Persist(context, ProfilingTag);
-    Persist(context, ChunkMergerMode);
+    // COMPAT(cherepashka)
+    if (context.GetVersion() >= EMasterReign::EnumsAndChunkReplicationReductionsInTTableNode) {
+        Persist(context, ChunkMergerMode);
+    } else {
+        auto compatChunkMergerMode = Load<TVersionedBuiltinAttribute<NChunkClient::ECompatChunkMergerMode>>(context.LoadContext());
+        if (compatChunkMergerMode.IsNull()) {
+            ChunkMergerMode.Reset();
+        } else if (compatChunkMergerMode.IsTombstoned()) {
+            ChunkMergerMode.Remove();
+        } else if (compatChunkMergerMode.IsSet()) {
+            auto chunkMergerMode = compatChunkMergerMode.ToOptional();
+            YT_VERIFY(chunkMergerMode);
+            ChunkMergerMode.Set(CheckedEnumCast<NChunkClient::EChunkMergerMode>(*chunkMergerMode));
+        }
+    }
     Persist(context, PrimaryMediumIndex);
     Persist(context, Media);
     Persist(context, TabletCellBundle);

@@ -4,6 +4,7 @@
 
 #include <yt/yt/server/lib/signature/key_stores/stub.h>
 
+#include <yt/yt/server/lib/signature/config.h>
 #include <yt/yt/server/lib/signature/key_pair.h>
 #include <yt/yt/server/lib/signature/signature.h>
 #include <yt/yt/server/lib/signature/signature_header.h>
@@ -31,23 +32,24 @@ using namespace NYTree;
 struct TSignatureValidatorTest
     : public ::testing::Test
 {
+    TStubKeyStorePtr Store;
     TKeyId KeyId;
     TKeyPair Key;
-    TStubKeyStorePtr Store;
+    TSignatureValidatorConfigPtr Config;
     TSignatureValidator Validator;
-    TYsonString Payload;
+    TYsonString Payload = TYsonString("MyImportantData"_sb);
 
     TSignatureValidatorTest()
-        : KeyId(TGuid::Create())
+        : Store(New<TStubKeyStore>())
+        , KeyId(TGuid::Create())
         , Key(TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
-            .Owner = TOwnerId{"TStubKeyStore"},
+            .Owner = Store->Owner,
             .Id = KeyId,
             .CreatedAt = Now(),
             .ValidAfter = Now() - 10h,
             .ExpiresAt = Now() + 10h})
-        , Store(New<TStubKeyStore>())
-        , Validator(Store)
-        , Payload("MyImportantData"_sb)
+        , Config(New<TSignatureValidatorConfig>())
+        , Validator(Config, Store)
     {
     }
 
@@ -58,7 +60,7 @@ struct TSignatureValidatorTest
     {
         auto now = Now();
         return TSignatureHeaderImpl<TSignatureVersion{0, 1}>{
-            .Issuer = "TStubKeyStore",
+            .Issuer = Store->Owner.Underlying(),
             .KeypairId = KeyId.Underlying(),
             .SignatureId = TGuid::Create(),
             .IssuedAt = now + delta_created,

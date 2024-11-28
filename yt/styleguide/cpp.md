@@ -118,7 +118,7 @@ void DoSomething(const TFooBar& fooBar)
 
 ### Namespaces
 
-Namespaces are always in PascalCase and are prepended with capital `N`. 
+Namespaces are always in PascalCase and are prepended with capital `N`.
 
 Nested namespaces are a common practice. Topmost namespace is usually `NYT`, but may be different for some libraries.
 
@@ -174,7 +174,7 @@ class TSomeClass
 public:
     DEFINE_BYREF_RO_PROPERTY(TFoo, Foo); // Produces const TFoo& Foo() const;
     DEFINE_BYREF_RW_PROPERTY(TBar, Bar); // Produces TBar& Bar(); and const TBar& Bar() const;
-    
+
     DEFINE_BYVAL_RO_PROPERTY(TBaz, Baz); // Produces TBaz GetBaz() const;
     DEFINE_BYVAL_RW_PROPERTY(TQux, Qux); // Produces TQux GetQux(); and void SetQux(TQux value);
 
@@ -198,11 +198,11 @@ We use a quote-style include directives for the headers located in the same dire
 
 Included headers are grouped by the base directory they are located in. Groups are separated by a blank line. Within a group, headers are sorted alphabetically.
 
-We order groups from the most specific to the most general. Motivation is that we would like to reduce the number of situations when the latter included header already includes the former one as it may hide some dependency issues. 
+We order groups from the most specific to the most general. Motivation is that we would like to reduce the number of situations when the latter included header already includes the former one as it may hide some dependency issues.
 
 We do not care about including everything which is used by the current file.
 
-For .cpp files, the corresponding header is always the first included header and is separated by a blank line. 
+For .cpp files, the corresponding header is always the first included header and is separated by a blank line.
 
 For .h files, usually the private.h/public.h header is the first included.
 
@@ -270,7 +270,7 @@ void AnnotateTraceContext(TFn&& fn)
 { ... }
 
 Y_FORCE_INLINE TTraceContext* GetCurrentTraceContext()
-{ ... } 
+{ ... }
 
 ```
 
@@ -284,9 +284,9 @@ Y_FORCE_INLINE TTraceContext* GetCurrentTraceContext()
 
 We use `int` when we do not care about the exact size of the integer and for the most loop variables.
 
-When arity of the integer is important, we use `i8`, `i16`, `i32`, `i64` and `ui8`, `ui16`, `ui32`, `ui64` for signed and unsigned integers respectively. 
+When arity of the integer is important, we use `i8`, `i16`, `i32`, `i64` and `ui8`, `ui16`, `ui32`, `ui64` for signed and unsigned integers respectively.
 
-We sometimes use `size_t` and `ssize_t` when interoperability with standard library requires them, but in general we try not to use them for local variables or loop variables. 
+We sometimes use `size_t` and `ssize_t` when interoperability with standard library requires them, but in general we try not to use them for local variables or loop variables.
 
 We do not use `long`, `long long` or `short` types, as well as C++11 fixed width types like `int8_t` or `uint32_t` or non-standard extensions like `__int64` or `unsigned __int64`.
 
@@ -416,9 +416,9 @@ DECLARE_REFCOUNTED_CLASS(TBar);
 
 The most common pointer type used across our code base is `TIntrusivePtr<T>`. Semantically it is very close to `std::shared_ptr<T>`, but it has a slightly different memory layout, and it is tightly integrated with our reference counting mechanism and asynchronous framework.
 
-Intrusive pointer requires the class to be either derived from `TRefCounted`, or be a final class. 
+Intrusive pointer requires the class to be either derived from `TRefCounted`, or be a final class.
 
-After a full definition of such class, a `DEFINE_REFCOUNTED_TYPE` macro must be used to provide implementations of reference counting methods. 
+After a full definition of such class, a `DEFINE_REFCOUNTED_TYPE` macro must be used to provide implementations of reference counting methods.
 
 The forward declaration of a class itself and a fully defined alias `TPtr = TIntrusivePtr<T>` are provided by `DECLARE_REFCOUNTED_CLASS`/`DECLARE_REFCOUNTED_STRUCT` macros and are usually placed in `public.h`/`private.h` file.
 
@@ -510,7 +510,7 @@ Pimpl is currently considered a legacy idiom, but may be used sometimes. A notab
 
 Log messages follow quite strict rules. This results in an extreme convenience for debugging and searching for relevant log messages whenever you get used to it.
 
-Logging is done only using the `YT_LOG_XXX` macros. 
+Logging is done only using the `YT_LOG_XXX` macros.
 
 Log messages are usually in past simple, present continuous or do not contain a verb at all. Log messages are not completed English sentences, they do not finish with period. In case when multiple "sentences" must be present within a single message, separate them with a semicolon.
 
@@ -551,7 +551,7 @@ YT_LOG_DEBUG("Tables fetched (tableCount: %v)", tableCount);
 
 ### Errors
 
-All error and exception text must be written as if they were dedicated to an end user. They must also be written in a gramatically correct English; typically they also do not contain dots, having semicolons instead. 
+All error and exception text must be written as if they were dedicated to an end user. They must also be written in a gramatically correct English; typically they also do not contain dots, having semicolons instead.
 
 In contrast to the log messages, variable parts of an error are encouraged to be in included directly in the error text. In general, we assume that the end user will read the error text and will not read the attributes of an error.
 
@@ -778,7 +778,7 @@ We often use doxygen-style comments for documenting classes, methods and functio
 IInvokerPtr CreateSerializedInvoker(
     IInvokerPtr underlyingInvoker,
     const TString& invokerName = "default",
-    NProfiling::IRegistryImplPtr registry = nullptr);
+    NProfiling::IRegistryPtr registry = nullptr);
 
 struct IInvoker
     : public virtual TRefCounted

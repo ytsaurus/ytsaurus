@@ -10,10 +10,41 @@ namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const NYPath::TYPath KeyStorePath("//sys/public_keys/by_owner");
+struct TCypressKeyReaderConfig
+    : public NYTree::TYsonStruct
+{
+    //! Prefix path for public keys (will be read from <Path>/<OwnerId>/<KeyId>).
+    NYPath::TYPath Path;
 
-//! Time to wait after key expiration before deleting it from Cypress.
-static const auto KeyExpirationMargin = TDuration::Hours(1);
+    REGISTER_YSON_STRUCT(TCypressKeyReaderConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCypressKeyReaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCypressKeyWriterConfig
+    : public NYTree::TYsonStruct
+{
+    //! Prefix path for public keys (will be stored as <Path>/<Owner>/<KeyId>).
+    NYPath::TYPath Path;
+
+    TOwnerId Owner;
+
+    //! Time to wait after expiration before deleting keys from Cypress.
+    TDuration KeyDeletionDelay;
+
+    //! Maximum key count allowed.
+    std::optional<int> MaxKeyCount;
+
+    REGISTER_YSON_STRUCT(TCypressKeyWriterConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCypressKeyWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,11 +52,14 @@ class TCypressKeyReader
     : public IKeyStoreReader
 {
 public:
-    TCypressKeyReader(NApi::IClientPtr client);
+    TCypressKeyReader(
+        TCypressKeyReaderConfigPtr config,
+        NApi::IClientPtr client);
 
     TFuture<TKeyInfoPtr> FindKey(const TOwnerId& owner, const TKeyId& key) override;
 
 private:
+    TCypressKeyReaderConfigPtr Config_;
     NApi::IClientPtr Client_;
 };
 
@@ -38,7 +72,7 @@ class TCypressKeyWriter
 {
 public:
     TCypressKeyWriter(
-        TOwnerId owner,
+        TCypressKeyWriterConfigPtr config,
         NApi::IClientPtr client);
 
     [[nodiscard]] TOwnerId GetOwner() override;
@@ -46,7 +80,7 @@ public:
     TFuture<void> RegisterKey(const TKeyInfoPtr& keyInfo) override;
 
 private:
-    TOwnerId Owner_;
+    TCypressKeyWriterConfigPtr Config_;
     NApi::IClientPtr Client_;
 };
 
@@ -54,7 +88,10 @@ DEFINE_REFCOUNTED_TYPE(TCypressKeyWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYPath::TYPath GetCypressKeyPath(const TOwnerId& owner, const TKeyId& key);
+NYPath::TYPath GetCypressKeyPath(
+    const NYPath::TYPath& prefix,
+    const TOwnerId& owner,
+    const TKeyId& key);
 
 ////////////////////////////////////////////////////////////////////////////////
 

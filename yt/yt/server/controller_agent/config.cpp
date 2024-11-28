@@ -1216,6 +1216,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("fetch_schemas_from_external_cell_tags", &TThis::FetchSchemasFromExternalCellTags)
         .Default(false);
 
+    registrar.Parameter("enable_job_fails_tolerance", &TThis::EnableJobFailsTolerance)
+        .Default(false);
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->ChunkLocationThrottler->Limit = 10'000;
 

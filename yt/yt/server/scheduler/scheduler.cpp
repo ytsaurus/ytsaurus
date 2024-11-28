@@ -679,7 +679,7 @@ public:
             runtimeParameters,
             std::move(baseAcl),
             user,
-            TInstant::Now(),
+            /*startTime*/ TInstant::Now(),
             MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation),
             spec->Alias,
             std::move(preprocessedSpec.ExperimentAssignments),
@@ -3076,7 +3076,9 @@ private:
             .Item("spec").Value(operation->GetSpecString())
             .Item("experiment_assignments").Value(operation->ExperimentAssignments())
             .Item("experiment_assignment_names").Value(operation->GetExperimentAssignmentNames())
-            .Item("authenticated_user").Value(operation->GetAuthenticatedUser());
+            .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
+            .Item("start_time").Value(operation->GetStartTime())
+            .OptionalItem("finish_time", operation->GetFinishTime());
     }
 
     void SetOperationFinalState(const TOperationPtr& operation, EOperationState state, TError error)
@@ -4012,35 +4014,20 @@ private:
         return UserToDefaultPoolMap_;
     }
 
-    void LogOperationFinished(
-        const TOperationPtr& operation,
-        ELogEventType logEventType,
-        const TError& error,
-        TYsonString progress,
-        TYsonString alerts)
+    struct TOperationFinishedLogEventAttributes
     {
-        // TODO(renadeen): remove sync version when async proves worthy.
-        if (Config_->EnableAsyncOperationEventLogging) {
-            LogOperationFinishedAsync(operation, logEventType, error, progress, alerts);
-            return;
-        }
+        TInstant LogInstant;
 
-        LogEventFluently(&SchedulerStructuredLogger(), logEventType)
-            .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
-            .Do(std::bind(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, operation.Get(), _1))
-            .Item("start_time").Value(operation->GetStartTime())
-            .Item("finish_time").Value(operation->GetFinishTime())
-            .Item("error").Value(error)
-            .Item("runtime_parameters").Value(operation->GetRuntimeParameters())
-            .DoIf(progress.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("progress").Value(progress);
-            })
-            .DoIf(alerts.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("alerts").Value(alerts);
-            });
-    }
+        // Already serialized light attributes.
+        TYsonString SerializedLightAttributes;
 
-    void LogOperationFinishedAsync(
+        // Heavy attributes that will be copied/serialized in the offloading invoker.
+        TYsonString Progress;
+        TYsonString Alerts;
+        TOperationRuntimeParametersPtr RuntimeParameters;
+    };
+
+    void LogOperationFinished(
         const TOperationPtr& operation,
         ELogEventType logEventType,
         const TError& error,
@@ -4049,23 +4036,47 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        TOperationFinishedLogEvent request{
-            .LogEventType = logEventType,
-            .StartTime = operation->GetStartTime(),
-            .FinishTime = operation->GetFinishTime(),
+        TOperationFinishedLogEventAttributes attributes{
             .Progress = std::move(progress),
             .Alerts = std::move(alerts),
-            .RuntimeParameters = operation->GetRuntimeParameters()
+            .RuntimeParameters = operation->GetRuntimeParameters(),
         };
 
-        request.OperationInfoForEventLog = BuildYsonStringFluently<EYsonType::MapFragment>()
+        attributes.SerializedLightAttributes = BuildYsonStringFluently<EYsonType::MapFragment>()
             .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
             .Do(std::bind(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, operation.Get(), _1))
             .Item("error").Value(error)
             .Finish();
 
         EventLoggingActionQueue_->GetInvoker()
-            ->Invoke(BIND(&TImpl::DoLogOperationFinishedEvent, MakeStrong(this), std::move(request)));
+            ->Invoke(BIND(
+                &TImpl::DoLogOperationFinished,
+                MakeStrong(this),
+                logEventType,
+                std::move(attributes),
+                /*logInstant*/ TInstant::Now()));
+    }
+
+    void DoLogOperationFinished(
+        ELogEventType logEventType,
+        const TOperationFinishedLogEventAttributes& attributes,
+        TInstant logInstant)
+    {
+        VERIFY_INVOKER_AFFINITY(EventLoggingActionQueue_->GetInvoker());
+
+        LogEventFluently(
+            &SchedulerStructuredLogger(),
+            OffloadedEventLogWriterConsumer_.get(),
+            logEventType,
+            logInstant)
+            .Items(attributes.SerializedLightAttributes)
+            .DoIf(attributes.Progress.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("progress").Value(attributes.Progress);
+            })
+            .DoIf(attributes.Alerts.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("alerts").Value(attributes.Alerts);
+            })
+            .Item("runtime_parameters").Value(attributes.RuntimeParameters);
     }
 
     void EraseOffloadingTrees(const TOperationPtr& operation)
@@ -4078,38 +4089,6 @@ private:
         }
 
         UnregisterOperationFromTrees(operation, offloadingTrees);
-    }
-
-    struct TOperationFinishedLogEvent
-    {
-        ELogEventType LogEventType;
-        TInstant StartTime;
-        std::optional<TInstant> FinishTime;
-        TYsonString Progress;
-        TYsonString Alerts;
-        TOperationRuntimeParametersPtr RuntimeParameters;
-        TYsonString OperationInfoForEventLog;
-    };
-
-    void DoLogOperationFinishedEvent(const TOperationFinishedLogEvent& request)
-    {
-        VERIFY_INVOKER_AFFINITY(EventLoggingActionQueue_->GetInvoker());
-
-        LogEventFluently(
-            &SchedulerStructuredLogger(),
-            OffloadedEventLogWriterConsumer_.get(),
-            request.LogEventType,
-            TInstant::Now())
-            .Item("start_time").Value(request.StartTime)
-            .Item("finish_time").Value(request.FinishTime)
-            .Item("runtime_parameters").Value(request.RuntimeParameters)
-            .DoIf(request.Progress.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("progress").Value(request.Progress);
-            })
-            .DoIf(request.Alerts.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("alerts").Value(request.Alerts);
-            })
-            .Items(request.OperationInfoForEventLog);
     }
 
     class TOperationService

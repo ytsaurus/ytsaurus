@@ -108,7 +108,7 @@ DECLARE_REFCOUNTED_CLASS(TDynamicCypressManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 // Changing the member order requires reign promotion.
-DEFINE_ENUM(ELockKeyKind,
+DEFINE_ENUM_WITH_UNDERLYING_TYPE(ELockKeyKind, i8,
     (None)
     (Child)
     (Attribute)

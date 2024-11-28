@@ -3789,7 +3789,7 @@ class TestPortoFuseDevice(YTEnvSetup):
 
         job_id = wait_breakpoint()[0]
 
-        assert b"File: '/dev/fuse'" in get_job_stderr(op.id, job_id)
+        assert b"File: /dev/fuse" in get_job_stderr(op.id, job_id)
 
 
 ##################################################################

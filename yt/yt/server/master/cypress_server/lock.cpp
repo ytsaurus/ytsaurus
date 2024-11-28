@@ -13,10 +13,29 @@ using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(cherepashka): remove after corresponding compat in 25.1 will be removed.
+DEFINE_ENUM(ECompatLockKeyKind,
+    (None)
+    (Child)
+    (Attribute)
+);
+
+// TODO(cherepashka): remove after corresponding compat in 25.1 will be removed.
+DEFINE_ENUM(ECompatLockState,
+    ((Pending)   (0))
+    ((Acquired)  (1))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TLockKey::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
-    Persist(context, Kind);
+    if (context.GetVersion() >= EMasterReign::EnumsAndChunkReplicationReductionsInTTableNode) {
+        Persist(context, Kind);
+    } else {
+        Kind = CheckedEnumCast<ELockKeyKind>(Load<ECompatLockKeyKind>(context.LoadContext()));
+    }
     Persist(context, Name);
 }
 
@@ -54,7 +73,12 @@ TLockRequest TLockRequest::MakeSharedAttribute(const std::string& key)
 void TLockRequest::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
-    Persist(context, Mode);
+    // COMPAT(cherepashka)
+    if (context.GetVersion() >= EMasterReign::EnumsAndChunkReplicationReductionsInTTableNode) {
+        Persist(context, Mode);
+    } else {
+        Mode = CheckedEnumCast<ELockMode>(Load<NCypressClient::ECompatLockMode>(context.LoadContext()));
+    }
     Persist(context, Key);
     Persist(context, Timestamp);
 }
@@ -343,7 +367,13 @@ void TLock::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     Load(context, Implicit_);
-    Load(context, State_);
+
+    // COMPAT(cherepashka)
+    if (context.GetVersion() >= EMasterReign::EnumsAndChunkReplicationReductionsInTTableNode) {
+        Load(context, State_);
+    } else {
+        State_ = CheckedEnumCast<ELockState>(Load<ECompatLockState>(context));
+    }
     Load(context, CreationTime_);
     Load(context, AcquisitionTime_);
     Load(context, Request_);

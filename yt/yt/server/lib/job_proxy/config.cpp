@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/library/profiling/solomon/config.h>
+
 namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////

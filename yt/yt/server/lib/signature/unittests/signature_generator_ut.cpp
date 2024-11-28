@@ -4,6 +4,7 @@
 
 #include <yt/yt/server/lib/signature/key_stores/stub.h>
 
+#include <yt/yt/server/lib/signature/config.h>
 #include <yt/yt/server/lib/signature/signature.h>
 #include <yt/yt/server/lib/signature/signature_header.h>
 #include <yt/yt/server/lib/signature/signature_preprocess.h>
@@ -28,11 +29,13 @@ struct TSignatureGeneratorTest
     : public ::testing::Test
 {
     TStubKeyStorePtr Store;
+    TSignatureGeneratorConfigPtr Config;
     TSignatureGeneratorPtr Gen;
 
     TSignatureGeneratorTest()
         : Store(New<TStubKeyStore>())
-        , Gen(New<TSignatureGenerator>(Store))
+        , Config(New<TSignatureGeneratorConfig>())
+        , Gen(New<TSignatureGenerator>(Config, Store))
     { }
 };
 

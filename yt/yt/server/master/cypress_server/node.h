@@ -194,15 +194,9 @@ class TCypressNode
     , public TRefTracked<TCypressNode>
 {
 public:
-    //! For external nodes, this is the tag of the cell were the node
-    //! was delegated to. For non-external nodes, this is #NotReplicatedCellTagSentinel.
-    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExternalCellTag, NObjectClient::NotReplicatedCellTagSentinel);
-
     //! Contains all nodes with parent pointing here.
     //! When a node dies parent pointers of its immediate descendants are reset.
     DEFINE_BYREF_RW_PROPERTY(THashSet<TCypressNode*>, ImmediateDescendants);
-
-    DEFINE_BYVAL_RW_PROPERTY(ELockMode, LockMode, ELockMode::None);
 
     DEFINE_BYVAL_RW_PROPERTY(TCypressNode*, TrunkNode);
 
@@ -222,8 +216,14 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccountPtr, Account);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
+    DEFINE_BYVAL_RW_PROPERTY(ELockMode, LockMode, ELockMode::None);
+
     DEFINE_BYVAL_RW_PROPERTY(bool, Opaque);
     DEFINE_BYVAL_RW_PROPERTY(bool, Reachable);
+
+    //! For external nodes, this is the tag of the cell the node
+    //! was delegated to. For non-external nodes, this is #NotReplicatedCellTagSentinel.
+    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExternalCellTag, NObjectClient::NotReplicatedCellTagSentinel);
 
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TString, Annotation);
 
@@ -380,7 +380,7 @@ private:
 DEFINE_MASTER_OBJECT_TYPE(TCypressNode)
 
 // Think twice before increasing this.
-YT_STATIC_ASSERT_SIZEOF_SANITY(TCypressNode, 424);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TCypressNode, 408);
 
 ////////////////////////////////////////////////////////////////////////////////
 

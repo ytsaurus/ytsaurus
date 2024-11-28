@@ -193,7 +193,7 @@ public:
     void Load(NCellMaster::TLoadContext& context);
 };
 
-static_assert(sizeof(TLock) <= 216, "Think twice before increasing this size");
+static_assert(sizeof(TLock) == 216, "Think twice before increasing this size");
 
 ////////////////////////////////////////////////////////////////////////////////
 

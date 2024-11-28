@@ -12,6 +12,7 @@
         };
     };
     task_spec={
+        enable_fuse=%true;
         monitoring={
             enable=%true;
             sensor_names=[
@@ -30,6 +31,10 @@
             ];
         };
         use_porto_memory_tracking=%true;
+        layer_paths=[
+            "//porto_layers/delta/fuse/porto_delta_layer_ubuntu_jammy_libfuse2_2024-11-22.tar.gz"; 
+            "//porto_layers/base/jammy/porto_layer_search_ubuntu_jammy_app_lastest.tar.gz";
+        ];
     };
     run_as_root=%true;
     enable_network=%false;
