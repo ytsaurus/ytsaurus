@@ -730,6 +730,7 @@ PEERDIR(
     yt/yt/library/formats
     yt/yt/library/query/engine_api
     yt/yt/library/query/row_comparer_api
+    yt/yt/library/query/secondary_index
     yt/yt/library/web_assembly/api
     yt/yt/library/program
     yt/yt/library/vector_hdrf

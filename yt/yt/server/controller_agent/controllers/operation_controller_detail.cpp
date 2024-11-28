@@ -7547,7 +7547,7 @@ void TOperationControllerBase::ParseInputQuery(
     }
 
     auto externalCGInfo = New<TExternalCGInfo>();
-    auto fetchFunctions = [&] (const std::vector<TString>& names, const TTypeInferrerMapPtr& typeInferrers) {
+    auto fetchFunctions = [&] (TRange<TString> names, const TTypeInferrerMapPtr& typeInferrers) {
         MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
 
         std::vector<TString> externalNames;

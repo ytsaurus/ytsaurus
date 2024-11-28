@@ -34,6 +34,9 @@ struct TColumnDescriptor
     int Index;
 };
 
+using TStructMemberAccessor = TString;
+using TTupleItemIndexAccessor = i64;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EExpressionKind,
@@ -239,11 +242,11 @@ struct TLikeExpression
 struct TCompositeMemberAccessorPath
 {
     std::vector<NTableClient::ELogicalMetatype> NestedTypes;
-    std::vector<TString> NamedStructMembers;
+    std::vector<TStructMemberAccessor> NamedStructMembers;
     std::vector<int> PositionalStructMembers;
     std::vector<int> TupleItemIndices;
 
-    void AppendStructMember(const TString& name, int position);
+    void AppendStructMember(TStructMemberAccessor name, int position);
     void AppendTupleItem(int index);
     void Reserve(int length);
 

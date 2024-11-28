@@ -54,12 +54,12 @@
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/yt/ytlib/table_client/schema.h>
-
 #include <yt/yt/ytlib/tablet_client/backup.h>
 #include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/library/heavy_schema_validation/schema_validation.h>
+
+#include <yt/yt/library/query/secondary_index/schema.h>
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 #include <yt/yt/client/chaos_client/helpers.h>
@@ -97,6 +97,7 @@ using namespace NHydra;
 using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NQueryClient;
 using namespace NQueueClient;
 using namespace NSecurityServer;
 using namespace NTableClient;

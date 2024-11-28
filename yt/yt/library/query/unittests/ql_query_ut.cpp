@@ -124,7 +124,7 @@ protected:
     {
         EXPECT_THROW_THAT(
             BIND([&] {
-                PreparePlanFragment(&PrepareMock_, query, DefaultFetchFunctions, placeholderValues, syntaxVersion);
+                PreparePlanFragment(&PrepareMock_, query, placeholderValues, syntaxVersion);
             })
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run()
@@ -1818,14 +1818,9 @@ protected:
                 .WillOnce(Return(MakeFuture(dataSplit.second)));
         }
 
-        auto fetchFunctions = [&] (const std::vector<TString>& /*names*/, const TTypeInferrerMapPtr& typeInferrers) {
-            MergeFrom(typeInferrers.Get(), *TypeInferrers_);
-        };
-
         auto fragment = PreparePlanFragment(
             &PrepareMock_,
             query,
-            fetchFunctions,
             placeholderValues,
             syntaxVersion);
 
@@ -2252,13 +2247,12 @@ protected:
 
     const IEvaluatorPtr Evaluator_ = CreateEvaluator(New<TExecutorConfig>());
 
-    StrictMock<TPrepareCallbacksMock> PrepareMock_;
-    TActionQueuePtr ActionQueue_;
-
     const TTypeInferrerMapPtr TypeInferrers_ = New<TTypeInferrerMap>();
     const TFunctionProfilerMapPtr FunctionProfilers_ = New<TFunctionProfilerMap>();
     const TAggregateProfilerMapPtr AggregateProfilers_ = New<TAggregateProfilerMap>();
 
+    StrictMock<TPrepareCallbacksMock> PrepareMock_{TypeInferrers_};
+    TActionQueuePtr ActionQueue_;
 };
 
 std::vector<TOwningRow> YsonToRows(TRange<TString> rowsData, const TDataSplit& split)

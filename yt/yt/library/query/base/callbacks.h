@@ -43,6 +43,9 @@ struct IPrepareCallbacks
 
     //! Returns the initial split for a given path.
     virtual TFuture<TDataSplit> GetInitialSplit(const NYPath::TYPath& path) = 0;
+
+    //! Fetches externally defined functions.
+    virtual void FetchFunctions(TRange<TString> names, const TTypeInferrerMapPtr& typeInferrers) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

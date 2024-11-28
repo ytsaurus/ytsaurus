@@ -182,10 +182,10 @@ TTransformExpression::TTransformExpression(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCompositeMemberAccessorPath::AppendStructMember(const TString& name, int position)
+void TCompositeMemberAccessorPath::AppendStructMember(TStructMemberAccessor name, int position)
 {
     NestedTypes.push_back(ELogicalMetatype::Struct);
-    NamedStructMembers.push_back(name);
+    NamedStructMembers.push_back(std::move(name));
     PositionalStructMembers.push_back(position);
     TupleItemIndices.push_back(-1); // Dummy.
 }

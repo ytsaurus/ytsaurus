@@ -56,7 +56,6 @@
 #include <yt/yt/ytlib/table_client/chunk_slice_size_fetcher.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
-#include <yt/yt/ytlib/table_client/schema.h>
 #include <yt/yt/ytlib/table_client/timestamped_schema_helpers.h>
 
 #include <yt/yt/ytlib/tablet_client/pivot_keys_picker.h>
@@ -91,11 +90,15 @@
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/range_formatters.h>
 #include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/yt/library/query/base/ast_visitors.h>
+#include <yt/yt/library/query/secondary_index/transform.h>
+
 #include <yt/yt/library/query/base/functions.h>
 #include <yt/yt/library/query/base/query_preparer.h>
+
+#include <yt/yt/library/query/engine_api/new_range_inferrer.h>
 
 #include <yt/yt/library/heavy_schema_validation/schema_validation.h>
 
@@ -129,7 +132,6 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 const TString UpstreamReplicaIdAttributeName = "upstream_replica_id";
-const TString SecondaryIndexAlias = "IndexTable";
 constexpr i64 MinPullDataSize = 1_KB;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -320,133 +322,7 @@ private:
 
 using TStickyTableMountInfoCachePtr = TIntrusivePtr<TStickyTableMountInfoCache>;
 
-void TransformWithIndexStatement(NAst::TAstHead* head, TMutableRange<TTableMountInfoPtr> mountInfos)
-{
-    auto& query = std::get<NAst::TQuery>(head->Ast);
-    if (!query.WithIndex) {
-        return;
-    }
 
-    auto& index = *(query.WithIndex);
-
-    YT_VERIFY(mountInfos.Size() >= 2);
-
-    auto& tableInfo = mountInfos[0];
-    auto& indexTableInfo = mountInfos[1];
-
-    indexTableInfo->ValidateDynamic();
-    indexTableInfo->ValidateSorted();
-
-    const auto& indexTableSchema = *indexTableInfo->Schemas[ETableSchemaKind::Write];
-    const auto& tableSchema = *tableInfo->Schemas[ETableSchemaKind::Write];
-    const auto& indices = tableInfo->Indices;
-
-    const TColumnSchema* unfoldedColumn{};
-    auto indexIt = std::find_if(indices.begin(), indices.end(), [&] (const TIndexInfo& index) {
-        return index.TableId == indexTableInfo->TableId;
-    });
-
-    if (indexIt == indices.end()) {
-        ValidateFullSyncIndexSchema(tableSchema, indexTableSchema);
-    } else {
-        switch (indexIt->Kind) {
-            case ESecondaryIndexKind::FullSync:
-                ValidateFullSyncIndexSchema(tableSchema, indexTableSchema);
-                break;
-
-            case ESecondaryIndexKind::Unfolding:
-                // COMPAT(sabdenovch)
-                if (indexIt->UnfoldedColumn) {
-                    unfoldedColumn = &indexTableSchema.GetColumn(*indexIt->UnfoldedColumn);
-                    ValidateUnfoldingIndexSchema(tableSchema, indexTableSchema, *indexIt->UnfoldedColumn);
-                } else {
-                    unfoldedColumn = &FindUnfoldedColumnAndValidate(tableSchema, indexTableSchema);
-                }
-                break;
-
-            case ESecondaryIndexKind::Unique:
-                ValidateUniqueIndexSchema(tableSchema, indexTableSchema);
-                break;
-
-            default:
-                THROW_ERROR_EXCEPTION("Unsupported secondary index kind %Qlv", indexIt->Kind);
-        }
-    }
-
-    index.Alias = SecondaryIndexAlias;
-
-    if (unfoldedColumn) {
-        NAst::TReference repeatedIndexedColumn(unfoldedColumn->Name(), query.Table.Alias);
-        NAst::TReference unfoldedIndexerColumn(unfoldedColumn->Name(), index.Alias);
-
-        query.WherePredicate = NAst::TListContainsTransformer(
-            head,
-            repeatedIndexedColumn,
-            unfoldedIndexerColumn)
-            .Visit(query.WherePredicate);
-
-        query.WherePredicate = NAst::TInTransformer(
-            head,
-            repeatedIndexedColumn,
-            unfoldedIndexerColumn)
-            .Visit(query.WherePredicate);
-    }
-
-    NAst::TExpressionList indexJoinColumns;
-    indexJoinColumns.reserve(tableSchema.GetKeyColumnCount());
-
-    NAst::TExpressionList tableJoinColumns;
-    tableJoinColumns.reserve(tableSchema.GetKeyColumnCount());
-
-    THashSet<std::string> replacedColumns;
-
-    for (const auto& tableColumn : tableSchema.Columns()) {
-        const auto* indexColumn = indexTableSchema.FindColumn(tableColumn.Name());
-
-        if (!indexColumn || *indexColumn->LogicalType() != *tableColumn.LogicalType()) {
-            continue;
-        }
-
-        replacedColumns.insert(indexColumn->Name());
-
-        auto* indexReference = head->New<NAst::TReferenceExpression>(
-            NullSourceLocation,
-            indexColumn->Name(),
-            index.Alias);
-        auto* tableReference = head->New<NAst::TReferenceExpression>(
-            NullSourceLocation,
-            tableColumn.Name(),
-            query.Table.Alias);
-
-        indexJoinColumns.push_back(indexReference);
-        tableJoinColumns.push_back(tableReference);
-    }
-
-    THROW_ERROR_EXCEPTION_IF(tableJoinColumns.empty(),
-        "Misuse of operator WITH INDEX: tables %v and %v have no shared columns",
-        query.Table.Path,
-        index.Path);
-
-    query.WherePredicate = NAst::TTableReferenceReplacer(
-        head,
-        std::move(replacedColumns),
-        query.Table.Alias,
-        index.Alias)
-        .Visit(query.WherePredicate);
-
-    std::swap(query.Table, index);
-    std::swap(tableInfo, indexTableInfo);
-    query.Joins.insert(
-        query.Joins.begin(),
-        NAst::TJoin(
-            /*isLeft*/ false,
-            std::move(index),
-            std::move(indexJoinColumns),
-            std::move(tableJoinColumns),
-            /*predicate*/ std::nullopt));
-
-    query.WithIndex.reset();
-}
 
 std::vector<TTableMountInfoPtr> GetQueryTableInfos(
     NAst::TQuery* query,
@@ -507,17 +383,20 @@ public:
     TQueryPreparer(
         TStickyTableMountInfoCachePtr tableMountCache,
         IInvokerPtr invoker,
+        TString udfRegistryPath,
+        IFunctionRegistry* functionRegistry,
+        TVersionedReadOptions versionedReadOptions = {},
         TDetailedProfilingInfoPtr detailedProfilingInfo = nullptr,
-        TSelectRowsOptions::TExpectedTableSchemas expectedTableSchemas = {},
-        TVersionedReadOptions versionedReadOptions = {})
+        TSelectRowsOptions::TExpectedTableSchemas expectedTableSchemas = {})
         : TableMountCache_(std::move(tableMountCache))
         , Invoker_(std::move(invoker))
+        , UdfRegistryPath_(std::move(udfRegistryPath))
+        , FunctionRegistry_(functionRegistry)
+        , VersionedReadOptions_(std::move(versionedReadOptions))
         , DetailedProfilingInfo_(std::move(detailedProfilingInfo))
         , ExpectedTableSchemas_(std::move(expectedTableSchemas))
-        , VersionedReadOptions_(std::move(versionedReadOptions))
     { }
 
-    // IPrepareCallbacks implementation.
     TFuture<TDataSplit> GetInitialSplit(const TYPath& path) override
     {
         return BIND(&TQueryPreparer::DoGetInitialSplit, MakeStrong(this))
@@ -525,12 +404,39 @@ public:
             .Run(path);
     }
 
+    void FetchFunctions(TRange<TString> names, const TTypeInferrerMapPtr& typeInferrers) override
+    {
+        MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
+
+        std::vector<TString> externalNames;
+        for (const auto& name : names) {
+            auto found = typeInferrers->find(name);
+            if (found == typeInferrers->end()) {
+                externalNames.push_back(name);
+            }
+        }
+
+        auto descriptors = WaitFor(FunctionRegistry_->FetchFunctions(UdfRegistryPath_, externalNames))
+            .ValueOrThrow();
+
+        AppendUdfDescriptors(typeInferrers, ExternalCGInfo_, externalNames, descriptors);
+    };
+
+    TExternalCGInfoPtr GetExternalCGInfo() const
+    {
+        return ExternalCGInfo_;
+    }
+
 private:
     const TStickyTableMountInfoCachePtr TableMountCache_;
     const IInvokerPtr Invoker_;
+    const TString UdfRegistryPath_;
+    IFunctionRegistry* const FunctionRegistry_;
+    const TVersionedReadOptions VersionedReadOptions_;
     const TDetailedProfilingInfoPtr DetailedProfilingInfo_;
     const TSelectRowsOptions::TExpectedTableSchemas ExpectedTableSchemas_;
-    const TVersionedReadOptions VersionedReadOptions_;
+
+    const TExternalCGInfoPtr ExternalCGInfo_ = New<TExternalCGInfo>();
 
     static TTableSchemaPtr GetTableSchema(
         const TRichYPath& path,
@@ -1581,6 +1487,42 @@ TDuration TClient::CheckPermissionsForQuery(
     return timer.GetElapsedTime();
 }
 
+TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnectionDynamicConfigPtr& config)
+{
+    TQueryOptions queryOptions;
+
+    queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
+    queryOptions.VerboseLogging = options.VerboseLogging;
+
+    queryOptions.TimestampRange.Timestamp = options.Timestamp;
+    queryOptions.TimestampRange.RetentionTimestamp = options.RetentionTimestamp;
+    queryOptions.NewRangeInference = config->DisableNewRangeInference
+        ? false
+        : options.NewRangeInference;
+    queryOptions.ExecutionBackend = config->UseWebAssembly
+        ? static_cast<NCodegen::EExecutionBackend>(options.ExecutionBackend.value_or(NApi::EExecutionBackend::Native))
+        : NCodegen::EExecutionBackend::Native;
+    queryOptions.EnableCodeCache = options.EnableCodeCache;
+    queryOptions.MaxSubqueries = options.MaxSubqueries;
+    queryOptions.MinRowCountPerSubquery = options.MinRowCountPerSubquery;
+    queryOptions.WorkloadDescriptor = options.WorkloadDescriptor;
+    queryOptions.InputRowLimit = options.InputRowLimit.value_or(
+        config->DefaultInputRowLimit);
+    queryOptions.OutputRowLimit = options.OutputRowLimit.value_or(
+        config->DefaultOutputRowLimit);
+    queryOptions.AllowFullScan = options.AllowFullScan;
+    queryOptions.MemoryLimitPerNode = options.MemoryLimitPerNode;
+    queryOptions.ExecutionPool = options.ExecutionPool;
+    queryOptions.Deadline = options.Timeout.value_or(config->DefaultSelectRowsTimeout)
+        .ToDeadLine();
+    queryOptions.SuppressAccessTracking = options.SuppressAccessTracking;
+    queryOptions.UseCanonicalNullRelations = options.UseCanonicalNullRelations;
+    queryOptions.MergeVersionedRows = options.MergeVersionedRows;
+    queryOptions.UseLookupCache = options.UseLookupCache;
+
+    return queryOptions;
+}
+
 TSelectRowsResult TClient::DoSelectRowsOnce(
     const TString& queryString,
     const TSelectRowsOptions& options)
@@ -1607,6 +1549,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 
     TransformWithIndexStatement(&parsedQuery->AstHead, tableInfos);
 
+    auto dynamicConfig = GetNativeConnection()->GetConfig();
+
     auto replicaCandidates = PrepareInSyncReplicaCandidates(options, tableInfos);
     if (!replicaCandidates.empty()) {
         std::vector<TYPath> paths;
@@ -1620,7 +1564,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         int retryCountLimit = 0;
         for (const auto& tableInfo : tableInfos) {
             if (tableInfo->ReplicationCardId) {
-                retryCountLimit = Connection_->GetConfig()->ReplicaFallbackRetryCount;
+                retryCountLimit = GetNativeConnection()->GetConfig()->ReplicaFallbackRetryCount;
                 break;
             }
         }
@@ -1662,7 +1606,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
             if (auto schemaError = resultOrError.FindMatching(NTabletClient::EErrorCode::TableSchemaIncompatible)) {
                 if (auto replicaId = schemaError->Attributes().Find<TTableReplicaId>(UpstreamReplicaIdAttributeName)) {
                     if (auto it = replicaIdToTableId.find(*replicaId)) {
-                        auto bannedReplicaTracker = Connection_->GetBannedReplicaTrackerCache()->GetTracker(it->second);
+                        auto bannedReplicaTracker = GetNativeConnection()
+                            ->GetBannedReplicaTrackerCache()
+                            ->GetTracker(it->second);
                         bannedReplicaTracker->BanReplica(*replicaId, resultOrError.Truncate());
                     }
                 }
@@ -1673,58 +1619,24 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         resultOrError.ThrowOnError();
     }
 
-    auto inputRowLimit = options.InputRowLimit.value_or(Connection_->GetConfig()->DefaultInputRowLimit);
-    auto outputRowLimit = options.OutputRowLimit.value_or(Connection_->GetConfig()->DefaultOutputRowLimit);
+    auto queryOptions = GetQueryOptions(options, dynamicConfig);
+    queryOptions.ReadSessionId = TReadSessionId::Create();
 
-    auto udfRegistryPath = options.UdfRegistryPath
-        ? *options.UdfRegistryPath
-        : Connection_->GetConfig()->UdfRegistryPath;
-
-    auto externalCGInfo = New<TExternalCGInfo>();
-    auto fetchFunctions = [&] (const std::vector<TString>& names, const TTypeInferrerMapPtr& typeInferrers) {
-        MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
-
-        std::vector<TString> externalNames;
-        for (const auto& name : names) {
-            auto found = typeInferrers->find(name);
-            if (found == typeInferrers->end()) {
-                externalNames.push_back(name);
-            }
-        }
-
-        auto descriptors = WaitFor(FunctionRegistry_->FetchFunctions(udfRegistryPath, externalNames))
-            .ValueOrThrow();
-
-        AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
-    };
+    auto memoryChunkProvider = MemoryProvider_->GetProvider(
+        ToString(queryOptions.ReadSessionId),
+        options.MemoryLimitPerNode,
+        QueryMemoryTracker_);
 
     auto queryPreparer = New<TQueryPreparer>(
         cache,
         Connection_->GetInvoker(),
+        options.UdfRegistryPath ? *options.UdfRegistryPath : dynamicConfig->UdfRegistryPath,
+        FunctionRegistry_.Get(),
+        options.VersionedReadOptions,
         options.DetailedProfilingInfo,
-        options.ExpectedTableSchemas,
-        options.VersionedReadOptions);
+        options.ExpectedTableSchemas);
 
-    auto readSessionId = TReadSessionId::Create();
-
-    auto memoryChunkProvider = MemoryProvider_->GetProvider(
-        ToString(readSessionId),
-        options.MemoryLimitPerNode,
-        QueryMemoryTracker_);
-
-    auto queryExecutor = CreateQueryExecutor(
-        memoryChunkProvider,
-        Connection_,
-        Connection_->GetColumnEvaluatorCache(),
-        Connection_->GetQueryEvaluator(),
-        ChannelFactory_,
-        FunctionImplCache_.Get());
-
-    auto fragment = PreparePlanFragment(
-        queryPreparer.Get(),
-        *parsedQuery,
-        fetchFunctions,
-        QueryMemoryTracker_);
+    auto fragment = PreparePlanFragment(queryPreparer.Get(), *parsedQuery, QueryMemoryTracker_);
     const auto& query = fragment->Query;
     const auto& dataSource = fragment->DataSource;
 
@@ -1755,42 +1667,23 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         }
     }
 
-    TQueryOptions queryOptions;
-    queryOptions.TimestampRange.Timestamp = options.Timestamp;
-    queryOptions.TimestampRange.RetentionTimestamp = options.RetentionTimestamp;
-    queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
-    queryOptions.VerboseLogging = options.VerboseLogging;
-    queryOptions.NewRangeInference = GetNativeConnection()->GetConfig()->DisableNewRangeInference
-        ? false
-        : options.NewRangeInference;
-    queryOptions.ExecutionBackend = GetNativeConnection()->GetConfig()->UseWebAssembly
-        ? static_cast<NCodegen::EExecutionBackend>(options.ExecutionBackend.value_or(NApi::EExecutionBackend::Native))
-        : NCodegen::EExecutionBackend::Native;
-    queryOptions.EnableCodeCache = options.EnableCodeCache;
-    queryOptions.MaxSubqueries = options.MaxSubqueries;
-    queryOptions.MinRowCountPerSubquery = options.MinRowCountPerSubquery;
-    queryOptions.WorkloadDescriptor = options.WorkloadDescriptor;
-    queryOptions.InputRowLimit = inputRowLimit;
-    queryOptions.OutputRowLimit = outputRowLimit;
-    queryOptions.AllowFullScan = options.AllowFullScan;
-    queryOptions.ReadSessionId = readSessionId;
-    queryOptions.MemoryLimitPerNode = options.MemoryLimitPerNode;
-    queryOptions.ExecutionPool = options.ExecutionPool;
-    queryOptions.Deadline = options.Timeout.value_or(Connection_->GetConfig()->DefaultSelectRowsTimeout).ToDeadLine();
-    queryOptions.SuppressAccessTracking = options.SuppressAccessTracking;
-    queryOptions.UseCanonicalNullRelations = options.UseCanonicalNullRelations;
-    queryOptions.MergeVersionedRows = options.MergeVersionedRows;
-    queryOptions.UseLookupCache = options.UseLookupCache;
-
     auto requestFeatureFlags = MostFreshFeatureFlags();
 
     IUnversionedRowsetWriterPtr writer;
     TFuture<IUnversionedRowsetPtr> asyncRowset;
     std::tie(writer, asyncRowset) = CreateSchemafulRowsetWriter(query->GetTableSchema());
 
+    auto queryExecutor = CreateQueryExecutor(
+        memoryChunkProvider,
+        GetNativeConnection(),
+        GetNativeConnection()->GetColumnEvaluatorCache(),
+        GetNativeConnection()->GetQueryEvaluator(),
+        ChannelFactory_,
+        FunctionImplCache_.Get());
+
     auto statistics = queryExecutor->Execute(
         query,
-        externalCGInfo,
+        queryPreparer->GetExternalCGInfo(),
         dataSource,
         writer,
         queryOptions,
@@ -1803,14 +1696,16 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         if (statistics.IncompleteInput) {
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::QueryInputRowCountLimitExceeded,
-                "Query terminated prematurely due to excessive input; consider rewriting your query or changing input limit")
-                << TErrorAttribute("input_row_limit", inputRowLimit);
+                "Query terminated prematurely due to excessive input; "
+                "consider rewriting your query or changing input limit")
+                << TErrorAttribute("input_row_limit", queryOptions.InputRowLimit);
         }
         if (statistics.IncompleteOutput) {
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::QueryOutputRowCountLimitExceeded,
-                "Query terminated prematurely due to excessive output; consider rewriting your query or changing output limit")
-                << TErrorAttribute("output_row_limit", outputRowLimit);
+                "Query terminated prematurely due to excessive output; "
+                "consider rewriting your query or changing output limit")
+                << TErrorAttribute("output_row_limit", queryOptions.OutputRowLimit);
         }
     }
 
@@ -1830,36 +1725,23 @@ NYson::TYsonString TClient::DoExplainQuery(
     auto cache = New<TStickyTableMountInfoCache>(Connection_->GetTableMountCache());
 
     auto tableInfos = GetQueryTableInfos(&std::get<NAst::TQuery>(parsedQuery->AstHead.Ast), cache);
-    TransformWithIndexStatement(&parsedQuery->AstHead, tableInfos);
 
     auto udfRegistryPath = options.UdfRegistryPath
         ? *options.UdfRegistryPath
         : GetNativeConnection()->GetConfig()->UdfRegistryPath;
 
-    auto externalCGInfo = New<TExternalCGInfo>();
-    auto fetchFunctions = [&] (const std::vector<TString>& names, const TTypeInferrerMapPtr& typeInferrers) {
-        MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
+    TransformWithIndexStatement(&parsedQuery->AstHead, tableInfos);
 
-        std::vector<TString> externalNames;
-        for (const auto& name : names) {
-            auto found = typeInferrers->find(name);
-            if (found == typeInferrers->end()) {
-                externalNames.push_back(name);
-            }
-        }
-
-        auto descriptors = WaitFor(GetFunctionRegistry()->FetchFunctions(udfRegistryPath, externalNames))
-            .ValueOrThrow();
-
-        AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
-    };
-
-    auto queryPreparer = New<TQueryPreparer>(cache, GetNativeConnection()->GetInvoker());
+    auto queryPreparer = New<TQueryPreparer>(
+        cache,
+        Connection_->GetInvoker(),
+        udfRegistryPath,
+        FunctionRegistry_.Get(),
+        options.VersionedReadOptions);
 
     auto fragment = PreparePlanFragment(
         queryPreparer.Get(),
         *parsedQuery,
-        fetchFunctions,
         QueryMemoryTracker_);
 
     return BuildExplainQueryYson(GetNativeConnection(), fragment, udfRegistryPath, options);

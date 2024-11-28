@@ -196,11 +196,7 @@ protected:
                 .WillOnce(Return(MakeFuture(split)));
         }
 
-        auto fragment = PreparePlanFragment(
-            &PrepareMock_,
-            query,
-            DefaultFetchFunctions,
-            {});
+        auto fragment = PreparePlanFragment(&PrepareMock_, query);
 
         return fragment->Query;
     }
