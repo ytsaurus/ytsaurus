@@ -83,22 +83,25 @@ class MonitoringExpr(Taggable):
     def group_by_labels(self, label, expr):
         return self.func("group_by_labels", self, f'"{label}"', expr)
 
-    def series_avg(self, label):
-        return self.func("series_avg", f'"{label}"', self)
+    def series_avg(self, *labels):
+        if len(labels) == 0:
+            return self.func("series_avg", self)
+        return self.func("series_avg", [f'"{label}"' for label in labels], self)
 
-    def series_sum(self, label):
-        return self.func("series_sum", f'"{label}"', self)
+    def series_sum(self, *labels):
+        if len(labels) == 0:
+            return self.func("series_sum", self)
+        return self.func("series_sum", [f'"{label}"' for label in labels], self)
 
-    def series_min(self, label):
-        return self.func("series_min", f'"{label}"', self)
+    def series_min(self, *labels):
+        if len(labels) == 0:
+            return self.func("series_min", self)
+        return self.func("series_min", [f'"{label}"' for label in labels], self)
 
     def series_max(self, *labels):
         if len(labels) == 0:
             return self.func("series_max", self)
-        else:
-            labels = [f'"{label}"' for label in labels]
-            labels = "[" + ",".join(labels) + "]"
-            return self.func("series_max", labels, self)
+        return self.func("series_max", [f'"{label}"' for label in labels], self)
 
     def top_avg(self, k):
         return self.func("top_avg", k, self)
@@ -136,8 +139,12 @@ class MonitoringExpr(Taggable):
     def _serialize_arg(arg, default_serializer):
         if hasattr(arg, "serialize"):
             return arg.serialize(default_serializer)
-        else:
-            return default_serializer(arg)
+
+        if isinstance(arg, list):
+            serialized_elements = ", ".join(default_serializer(item) for item in arg)
+            return f"[{serialized_elements}]"
+
+        return default_serializer(arg)
 
     def serialize(self, default_serializer=lambda x: str(x)):
         if self.node_type == self.NodeType.Terminal:

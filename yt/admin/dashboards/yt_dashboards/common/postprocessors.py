@@ -1,4 +1,4 @@
-from yt_dashboard_generator.taggable import SystemFields, NotEquals
+from yt_dashboard_generator.taggable import SystemFields, NotEquals, ContainerTemplate
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
 from yt_dashboard_generator.postprocessors import TagPostprocessorBase
 from yt_dashboard_generator.backends.grafana import GrafanaSystemTags
@@ -94,6 +94,12 @@ class GrafanaTagPostprocessor(TagPostprocessorBase):
             tags[GrafanaSystemTags.Rate] = True
             sensor_name = sensor_name[:-5]
         sensor_name = sensor_name.replace(".", "_")
+
+        if SystemFields.LegendFormat in tags:
+            value = tags[SystemFields.LegendFormat]
+            value = value.replace(ContainerTemplate, "{{pod}}")
+            tags[SystemFields.LegendFormat] = value
+
         tags["__name__"] = sensor_name
         return tags, sensor_name
 
