@@ -1523,6 +1523,73 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
     return queryOptions;
 }
 
+void TClient::FallbackToReplica(
+    NAst::TQuery* astQuery,
+    TMutableRange<TTableReplicaInfoPtrList> replicaCandidates,
+    TRange<TTableMountInfoPtr> tableInfos,
+    TSelectRowsOptionsBase* options,
+    std::function<void(TError*, const TString&, const TString&, const TSelectRowsOptionsBase*)> callback)
+{
+    std::vector<TYPath> paths;
+    for (const auto& tableInfo : tableInfos) {
+        paths.push_back(tableInfo->Path);
+    }
+
+    options->ReplicaConsistency = EReplicaConsistency::None;
+
+    int retryCountLimit = 0;
+    for (const auto& tableInfo : tableInfos) {
+        if (tableInfo->ReplicationCardId) {
+            retryCountLimit = GetNativeConnection()->GetConfig()->ReplicaFallbackRetryCount;
+            break;
+        }
+    }
+
+    THashMap<TTableReplicaId, TTableId> replicaIdToTableId;
+    for (int index = 0; index < std::ssize(tableInfos); ++index) {
+        const auto& tableInfo = tableInfos[index];
+        if (tableInfo->ReplicationCardId) {
+            for (const auto& replicaInfo : replicaCandidates[index]) {
+                replicaIdToTableId[replicaInfo->ReplicaId] = tableInfo->TableId;
+            }
+        }
+    }
+
+    for (int retryCount = 0; retryCount <= retryCountLimit; ++retryCount) {
+        YT_LOG_DEBUG("Picking cluster for replica fallback (Tables: %v, Attempt: %v)",
+            paths,
+            retryCount);
+
+        for (auto& tableReplicaCandidates : replicaCandidates) {
+            std::random_shuffle(tableReplicaCandidates.begin(), tableReplicaCandidates.end());
+        }
+
+        auto [clusterName, expectedTableSchemas] = PickInSyncClusterAndPatchQuery(
+            tableInfos,
+            replicaCandidates,
+            astQuery);
+        options->ExpectedTableSchemas = std::move(expectedTableSchemas);
+
+        auto updatedQueryString = NAst::FormatQuery(*astQuery);
+        TError error;
+        callback(&error, clusterName, updatedQueryString, options);
+        if (error.IsOK()) {
+            return;
+        }
+
+        if (auto schemaError = error.FindMatching(NTabletClient::EErrorCode::TableSchemaIncompatible)) {
+            if (auto replicaId = schemaError->Attributes().Find<TTableReplicaId>(UpstreamReplicaIdAttributeName)) {
+                if (auto it = replicaIdToTableId.find(*replicaId)) {
+                    auto bannedReplicaTracker = GetNativeConnection()
+                        ->GetBannedReplicaTrackerCache()
+                        ->GetTracker(it->second);
+                    bannedReplicaTracker->BanReplica(*replicaId, error.Truncate());
+                }
+            }
+        }
+    }
+}
+
 TSelectRowsResult TClient::DoSelectRowsOnce(
     const TString& queryString,
     const TSelectRowsOptions& options)
@@ -1553,70 +1620,23 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 
     auto replicaCandidates = PrepareInSyncReplicaCandidates(options, tableInfos);
     if (!replicaCandidates.empty()) {
-        std::vector<TYPath> paths;
-        for (const auto& tableInfo : tableInfos) {
-            paths.push_back(tableInfo->Path);
-        }
-
-        auto unresolveOptions = options;
-        unresolveOptions.ReplicaConsistency = EReplicaConsistency::None;
-
-        int retryCountLimit = 0;
-        for (const auto& tableInfo : tableInfos) {
-            if (tableInfo->ReplicationCardId) {
-                retryCountLimit = GetNativeConnection()->GetConfig()->ReplicaFallbackRetryCount;
-                break;
-            }
-        }
-
-        THashMap<TTableReplicaId, TTableId> replicaIdToTableId;
-        for (int index = 0; index < std::ssize(tableInfos); ++index) {
-            const auto& tableInfo = tableInfos[index];
-            if (tableInfo->ReplicationCardId) {
-                for (const auto& replicaInfo : replicaCandidates[index]) {
-                    replicaIdToTableId[replicaInfo->ReplicaId] = tableInfo->TableId;
-                }
-            }
-        }
-
-        for (auto& tableReplicaCandidates : replicaCandidates) {
-            std::random_shuffle(tableReplicaCandidates.begin(), tableReplicaCandidates.end());
-        }
-
         TErrorOr<TSelectRowsResult> resultOrError;
-        for (int retryCount = 0; retryCount <= retryCountLimit; ++retryCount) {
-            YT_LOG_DEBUG("Picking cluster for replica fallback (Tables: %v, Attempt: %v)",
-                paths,
-                retryCount);
-
-            auto [clusterName, expectedTableSchemas] = PickInSyncClusterAndPatchQuery(
-                tableInfos,
-                replicaCandidates,
-                astQuery);
-            unresolveOptions.ExpectedTableSchemas = std::move(expectedTableSchemas);
-
+        auto optionsCopy = options;
+        FallbackToReplica(astQuery, replicaCandidates, tableInfos, &optionsCopy, [this, &resultOrError] (
+            TError* error,
+            const TString& clusterName,
+            const TString& updatedQuery,
+            const TSelectRowsOptionsBase* options) -> void
+        {
             auto replicaClient = GetOrCreateReplicaClient(clusterName);
-            auto updatedQueryString = NAst::FormatQuery(*astQuery);
-            auto asyncResult = replicaClient->SelectRows(updatedQueryString, unresolveOptions);
-            resultOrError = WaitFor(asyncResult);
-            if (resultOrError.IsOK()) {
-                return resultOrError.Value();
+            resultOrError = WaitFor(replicaClient->SelectRows(updatedQuery, static_cast<const TSelectRowsOptions&>(*options)));
+            if (!resultOrError.IsOK()) {
+                *error = resultOrError;
             }
+        });
 
-            if (auto schemaError = resultOrError.FindMatching(NTabletClient::EErrorCode::TableSchemaIncompatible)) {
-                if (auto replicaId = schemaError->Attributes().Find<TTableReplicaId>(UpstreamReplicaIdAttributeName)) {
-                    if (auto it = replicaIdToTableId.find(*replicaId)) {
-                        auto bannedReplicaTracker = GetNativeConnection()
-                            ->GetBannedReplicaTrackerCache()
-                            ->GetTracker(it->second);
-                        bannedReplicaTracker->BanReplica(*replicaId, resultOrError.Truncate());
-                    }
-                }
-            }
-        }
-
-        YT_VERIFY(!resultOrError.IsOK());
-        resultOrError.ThrowOnError();
+        return resultOrError
+            .ValueOrThrow();
     }
 
     auto queryOptions = GetQueryOptions(options, dynamicConfig);
@@ -1724,13 +1744,39 @@ NYson::TYsonString TClient::DoExplainQuery(
 
     auto cache = New<TStickyTableMountInfoCache>(Connection_->GetTableMountCache());
 
-    auto tableInfos = GetQueryTableInfos(&std::get<NAst::TQuery>(parsedQuery->AstHead.Ast), cache);
+    auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
+
+    auto tableInfos = GetQueryTableInfos(astQuery, cache);
 
     auto udfRegistryPath = options.UdfRegistryPath
         ? *options.UdfRegistryPath
         : GetNativeConnection()->GetConfig()->UdfRegistryPath;
 
     TransformWithIndexStatement(&parsedQuery->AstHead, tableInfos);
+
+    auto replicaCandidates = PrepareInSyncReplicaCandidates(options, tableInfos);
+    if (!replicaCandidates.empty()) {
+        TErrorOr<NYson::TYsonString> resultOrError;
+        auto optionsCopy = options;
+        FallbackToReplica(astQuery, replicaCandidates, tableInfos, &optionsCopy, [this, &resultOrError] (
+            TError* error,
+            const TString& clusterName,
+            const TString& updatedQuery,
+            const TSelectRowsOptionsBase* options) -> void
+        {
+            auto replicaClient = GetOrCreateReplicaClient(clusterName);
+            resultOrError = WaitFor(replicaClient->ExplainQuery(
+                updatedQuery,
+                static_cast<const TExplainQueryOptions&>(*options)));
+
+            if (!resultOrError.IsOK()) {
+                *error = resultOrError;
+            }
+        });
+
+        return resultOrError
+            .ValueOrThrow();
+    }
 
     auto queryPreparer = New<TQueryPreparer>(
         cache,

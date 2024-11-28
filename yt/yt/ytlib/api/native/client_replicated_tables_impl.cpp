@@ -440,8 +440,8 @@ std::vector<TTableReplicaInfoPtrList> TClient::PrepareInSyncReplicaCandidates(
 }
 
 std::pair<TString, TSelectRowsOptions::TExpectedTableSchemas> TClient::PickInSyncClusterAndPatchQuery(
-    const std::vector<TTableMountInfoPtr>& tableInfos,
-    const std::vector<TTableReplicaInfoPtrList>& candidates,
+    TRange<TTableMountInfoPtr> tableInfos,
+    TRange<TTableReplicaInfoPtrList> candidates,
     NAst::TQuery* query)
 {
     YT_VERIFY(tableInfos.size() == candidates.size());
