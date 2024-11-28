@@ -1130,14 +1130,3 @@ class TestPorts(YTEnvSetup):
         finally:
             if server_socket is not None:
                 server_socket.close()
-
-
-@authors("don-dron")
-class TestJobWorkspaceBuilder(TestMemoryReserveFactor):
-
-    DELTA_DYNAMIC_NODE_CONFIG = {
-        "%true": {
-            "exec_node": {
-            },
-        },
-    }
