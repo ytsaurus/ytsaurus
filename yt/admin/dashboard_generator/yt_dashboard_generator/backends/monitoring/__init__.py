@@ -217,6 +217,7 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
         stack = None
         axis_to_range = {}
         axis_to_unit = {}
+        axis_to_precision = {}
         downsampling_aggregation = None
         targets = []
         for sensor in sensors:
@@ -229,6 +230,9 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
             if SystemFields.Unit in tags:
                 unit, axis = tags[SystemFields.Unit]
                 axis_to_unit[axis] = unit
+            if SystemFields.Precision in tags:
+                precision, axis = tags[SystemFields.Precision]
+                axis_to_precision[axis] = precision
             if MonitoringSystemFields.DownsamplingAggregation in tags:
                 downsampling_aggregation = tags[MonitoringSystemFields.DownsamplingAggregation]
             targets.append({"query": self._get_sensor_query(sensor)})
@@ -266,6 +270,10 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
             assert axis in (SystemFields.LeftAxis, SystemFields.RightAxis)
             axisKey = "left" if axis == SystemFields.LeftAxis else "right"
             settings.setdefault("yaxis_settings", {}).setdefault(axisKey, {})["unit_format"] = unit
+        for axis, precision in axis_to_precision.items():
+            assert axis in (SystemFields.LeftAxis, SystemFields.RightAxis)
+            axisKey = "left" if axis == SystemFields.LeftAxis else "right"
+            settings.setdefault("yaxis_settings", {}).setdefault(axisKey, {})["precision"] = precision
 
         if "yaxis_settings" not in settings:
             settings["yaxis_settings"] = {}

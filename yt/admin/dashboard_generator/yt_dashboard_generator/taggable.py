@@ -16,6 +16,7 @@ class SystemFields(Enum):
     LeftAxis = auto()
     RightAxis = auto()
     Unit = auto()
+    Precision = auto()
 
 
 ContainerTemplate = "{{container}}"
@@ -93,6 +94,9 @@ class Taggable(ABC):
 
     def unit(self, unit, axis=SystemFields.LeftAxis):
         return self.value(SystemFields.Unit, (unit, axis))
+
+    def precision(self, precision, axis=SystemFields.LeftAxis):
+        return self.value(SystemFields.Precision, (precision, axis))
 
     def legend_format(self, value):
         return self.value(SystemFields.LegendFormat, value)

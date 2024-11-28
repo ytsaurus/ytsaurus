@@ -83,13 +83,15 @@ def build_watermarks():
                 "System watermark",
                 MonitoringExpr(FlowController("yt.flow.controller.watermark_lag.system_timestamp"))
                     .alias("{{stream_id}}")
-                    .unit("UNIT_SECONDS"))
+                    .unit("UNIT_SECONDS")
+                    .precision(1))
             .cell(
                 "User watermarks",
                 MonitoringExpr(FlowController("yt.flow.controller.watermark_lag.user_timestamp"))
                     .all("user_timestamp_id")
                     .alias("{{stream_id}}/{{user_timestamp_id}}")
-                    .unit("UNIT_SECONDS"))
+                    .unit("UNIT_SECONDS")
+                    .precision(1))
     ).owner
 
 def build_lags():
