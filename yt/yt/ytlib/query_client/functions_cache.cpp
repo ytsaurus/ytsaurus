@@ -403,9 +403,14 @@ public:
             keys.emplace_back(udfRegistryPath, name);
         }
         return GetMany(keys)
-            .Apply(BIND([] (std::vector<TErrorOr<TExternalFunctionSpec>> specs) {
+            .Apply(BIND([names] (std::vector<TErrorOr<TExternalFunctionSpec>> specs) {
+                int index = 0;
                 for (const auto& spec : specs) {
-                    spec.ThrowOnError();
+                    if (!spec.IsOK()) {
+                        THROW_ERROR_EXCEPTION("Function %Qv is not known", names[index])
+                            << spec;
+                    }
+                    index++;
                 }
                 std::vector<TExternalFunctionSpec> result;
                 result.reserve(specs.size());
