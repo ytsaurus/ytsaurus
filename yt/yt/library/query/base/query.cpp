@@ -321,6 +321,17 @@ TTableSchemaPtr TGroupClause::GetTableSchema(bool isFinal) const
     return New<TTableSchema>(std::move(result));
 }
 
+bool TGroupClause::AllAggregatesAreFirst() const
+{
+    for (const auto& aggregate : AggregateItems) {
+        if (aggregate.AggregateFunction != "first") {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TProjectClause::AddProjection(TNamedItem namedItem)
@@ -366,7 +377,7 @@ TBaseQuery::TBaseQuery(const TBaseQuery& other)
 bool TBaseQuery::IsOrdered() const
 {
     if (Limit < std::numeric_limits<i64>::max()) {
-        return !OrderClause;
+        return !OrderClause && (!GroupClause || GroupClause->AllAggregatesAreFirst() || GroupClause->CommonPrefixWithPrimaryKey > 0);
     } else {
         YT_VERIFY(!OrderClause);
         return false;
