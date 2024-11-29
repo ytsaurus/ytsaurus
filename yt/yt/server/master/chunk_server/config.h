@@ -743,10 +743,10 @@ public:
     bool EnablePerUserRequestWeightThrottling;
     bool EnablePerUserRequestBytesThrottling;
 
-    NConcurrency::TThroughputThrottlerConfigPtr DefaultRequestWeightThrottlerConfig;
+    NConcurrency::TThroughputThrottlerConfigPtr DefaultRequestWeightThrottler;
 
-    NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserRequestWeightThrottlerConfig;
-    NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserRequestBytesThrottlerConfig;
+    NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserRequestWeightThrottler;
+    NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserRequestBytesThrottler;
 
     REGISTER_YSON_STRUCT(TDynamicChunkServiceConfig);
 

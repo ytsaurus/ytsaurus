@@ -308,10 +308,6 @@ private:
         auto nodeId = FromProto<TNodeId>(request->node_id());
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* trunkNode = cypressManager->GetNodeOrThrow(TVersionedNodeId(nodeId));
-        if (!IsObjectAlive(trunkNode)) {
-            THROW_ERROR_EXCEPTION("No such node %v", nodeId);
-        }
-
         VerifySequoiaNode(trunkNode);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -403,10 +399,6 @@ private:
         auto* trunkNode = cypressManager->GetNodeOrThrow(TVersionedObjectId(nodeId));
         VerifySequoiaNode(trunkNode);
 
-        if (!IsObjectAlive(trunkNode)) {
-            THROW_ERROR_EXCEPTION("Cypress node %v is not alive", nodeId);
-        }
-
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* cypressTransaction = cypressTransactionId
@@ -438,10 +430,6 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* trunkNode = cypressManager->GetNodeOrThrow(TVersionedObjectId(nodeId));
         VerifySequoiaNode(trunkNode);
-
-        if (!IsObjectAlive(trunkNode)) {
-            THROW_ERROR_EXCEPTION("Cypress node %v is not alive", nodeId);
-        }
 
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -623,13 +611,6 @@ private:
         auto nodeId = FromProto<TNodeId>(request->node_id());
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* trunkNode = cypressManager->GetNodeOrThrow(TVersionedNodeId{nodeId});
-
-        if (!IsObjectAlive(trunkNode)) {
-            YT_LOG_ALERT("Attempted to lock zombie Sequoia node (NodeId: %v)",
-                nodeId);
-            THROW_ERROR_EXCEPTION("Cypress node %v is not alive", nodeId);
-        }
-
         VerifySequoiaNode(trunkNode);
 
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
