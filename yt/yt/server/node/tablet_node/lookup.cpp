@@ -546,7 +546,8 @@ protected:
 
         if (auto cachedItem = std::move(RowsFromCache_[WriteRowIndex_])) {
             if (Timestamp_ < cachedItem->RetainedTimestamp) {
-                THROW_ERROR_EXCEPTION("Timestamp %v is less than retained timestamp %v of cached row in tablet %v",
+                THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::TimestampOutOfRange,
+                    "Timestamp %v is less than retained timestamp %v of cached row in tablet %v",
                     Timestamp_,
                     cachedItem->RetainedTimestamp,
                     TabletId_);

@@ -120,7 +120,8 @@ void TCompressionDictionaryInfo::Load(TLoadContext& context)
 void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)
 {
     if (timestamp < tabletSnapshot->RetainedTimestamp) {
-        THROW_ERROR_EXCEPTION("Timestamp %v is less than tablet %v retained timestamp %v",
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::TimestampOutOfRange,
+            "Timestamp %v is less than tablet %v retained timestamp %v",
             timestamp,
             tabletSnapshot->TabletId,
             tabletSnapshot->RetainedTimestamp);
