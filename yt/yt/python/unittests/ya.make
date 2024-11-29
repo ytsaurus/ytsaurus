@@ -2,8 +2,6 @@ GTEST(unittester-python)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
-ALLOCATOR(YT)
-
 SRCS(
     dynamic_ring_buffer_ut.cpp
     stream_ut.cpp

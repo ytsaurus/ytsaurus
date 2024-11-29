@@ -17,8 +17,6 @@ TAG(
     ya:fat
 )
 
-ALLOCATOR(YT)
-
 SRCS(
     import_table_ut.cpp
 )

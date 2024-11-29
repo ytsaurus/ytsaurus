@@ -1,6 +1,6 @@
 PROGRAM(changelog_surgeon)
 
-ALLOCATOR(YT)
+ALLOCATOR(TCMALLOC)
 
 PROTO_NAMESPACE(yt)
 

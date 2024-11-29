@@ -1,6 +1,6 @@
 PROGRAM(scheduler_simulator)
 
-ALLOCATOR(YT)
+ALLOCATOR(TCMALLOC)
 
 SRCS(
     main.cpp

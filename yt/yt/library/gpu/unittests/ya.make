@@ -2,8 +2,6 @@ GTEST(library-gpu-unittest)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
-ALLOCATOR(YT)
-
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 IF (NOT OPENSOURCE)

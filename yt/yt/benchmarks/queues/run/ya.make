@@ -1,6 +1,6 @@
 PROGRAM(benchmark_queues)
 
-ALLOCATOR(YT)
+ALLOCATOR(TCMALLOC)
 
 SRCS(
     main.cpp

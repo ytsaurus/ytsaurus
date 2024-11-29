@@ -1,6 +1,6 @@
 PROGRAM(rpc_proxy_example)
 
-ALLOCATOR(YT)
+ALLOCATOR(TCMALLOC)
 
 SRCS(
     main.cpp

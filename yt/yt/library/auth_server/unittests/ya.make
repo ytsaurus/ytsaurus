@@ -1,7 +1,5 @@
 GTEST(unittester-library-auth_server)
 
-ALLOCATOR(YT)
-
 SRCS(
     blackbox_ut.cpp
     mock_http_server.cpp

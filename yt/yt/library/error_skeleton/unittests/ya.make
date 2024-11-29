@@ -2,8 +2,6 @@ GTEST(unittester-library-error-skeleton)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
-ALLOCATOR(YT)
-
 SRCS(
     skeleton_ut.cpp
 )
