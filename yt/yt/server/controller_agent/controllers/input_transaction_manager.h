@@ -64,11 +64,11 @@ DEFINE_REFCOUNTED_TYPE(TClusterResolver)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TInputTransactionsManager
+class TInputTransactionManager
     : public TRefCounted
 {
 public:
-    TInputTransactionsManager(
+    TInputTransactionManager(
         NApi::NNative::IClientPtr client,
         TClusterResolverPtr clusterResolver,
         NScheduler::TOperationId operationId,
@@ -133,7 +133,7 @@ private:
         const NYPath::TRichYPath& path) const;
 };
 
-DEFINE_REFCOUNTED_TYPE(TInputTransactionsManager)
+DEFINE_REFCOUNTED_TYPE(TInputTransactionManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
