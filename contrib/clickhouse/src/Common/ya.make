@@ -118,6 +118,12 @@ CFLAGS(
     -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
 )
 
+IF (MUSL)
+    CFLAGS(
+        -DUSE_MUSL
+    )
+ENDIF()
+
 SRCDIR(contrib/clickhouse)
 
 SRCS(
