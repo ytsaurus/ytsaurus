@@ -70,9 +70,10 @@ func (enc *cliEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (*
 	}
 
 	if final.cfg.LineEnding != "" {
-		final.AppendString(final.cfg.LineEnding)
+		final.buf.AppendString(final.cfg.LineEnding)
 	} else {
-		final.AppendString(zapcore.DefaultLineEnding)
+		final.buf.AppendString(zapcore.DefaultLineEnding)
 	}
+
 	return final.buf, nil
 }
