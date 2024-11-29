@@ -225,6 +225,10 @@ public:
 
     bool HasDynamicTableWithHunkChunks() const;
 
+    // NB: Asserts that there is only one input table.
+    TFuture<NYTree::IAttributeDictionaryPtr> FetchSingleInputTableAttributes(
+        const std::optional<std::vector<TString>>& attributeKeys) const;
+
 private:
     // NB: InputManager does not outlive its host.
     IInputManagerHost* Host_;

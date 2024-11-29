@@ -1453,6 +1453,31 @@ bool TInputManager::HasDynamicTableWithHunkChunks() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFuture<NYTree::IAttributeDictionaryPtr> TInputManager::FetchSingleInputTableAttributes(
+    const std::optional<std::vector<TString>>& attributeKeys) const
+{
+    YT_VERIFY(InputTables_.size() == 1 && Clusters_.size() == 1);
+    const auto& table = InputTables_[0];
+    const auto& cluster = Clusters_.begin()->second;
+    auto proxy = CreateObjectServiceReadProxy(cluster->Client(), EMasterChannelKind::Follower);
+    auto req = TObjectYPathProxy::Get(table->GetObjectIdPath() + "/@");
+    SetTransactionId(req, *table->TransactionId);
+
+    if (attributeKeys) {
+        ToProto(req->mutable_attributes()->mutable_keys(), *attributeKeys);
+    }
+
+    return proxy.Execute(req).Apply(
+        BIND([table] (const TErrorOr<TObjectYPathProxy::TRspGetPtr>& rspOrError) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of input table %v",
+                table->GetPath());
+
+            return ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
+        }));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 const TNodeDirectoryPtr& TInputManager::GetNodeDirectory(const TClusterName& clusterName) const
 {
     return GetOrCrash(Clusters_, clusterName)->NodeDirectory();

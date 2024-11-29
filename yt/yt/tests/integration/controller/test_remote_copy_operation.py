@@ -18,7 +18,7 @@ from yt_commands import (
     update_controller_agent_config,
     write_file, wait_for_nodes, read_file)
 
-from yt_helpers import skip_if_no_descending, skip_if_old
+from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_component_old
 from yt_type_helpers import make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type
 import yt_error_codes
 
@@ -594,6 +594,55 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                 spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
                 authenticated_user="u",
             )
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("copy_user_attributes", [True, False])
+    @pytest.mark.parametrize("object_type", ["table", "file"])
+    def test_copy_basic_attributes(self, copy_user_attributes, object_type):
+        skip_if_component_old(self.Env, (24, 2), "controller-agent")
+        create(object_type, "//tmp/t_in", driver=self.remote_driver)
+        create(object_type, "//tmp/t_out")
+
+        set("//tmp/t_in/@custom_attr", "attr_value", driver=self.remote_driver)
+
+        ypath_attrs = [
+            "compression_codec=lz4",
+            "erasure_codec=reed_solomon_6_3",
+        ]
+        if object_type == "table":
+            ypath_attrs.append("optimize_for=lookup")
+            write_table(f"<{';'.join(ypath_attrs)}>//tmp/t_in", [{"column": "value"}], driver=self.remote_driver)
+        else:
+            write_file(f"<{';'.join(ypath_attrs)}>//tmp/t_in", b"asdf", driver=self.remote_driver)
+
+        # Verify that attributes are set
+        assert get("//tmp/t_in/@compression_codec", driver=self.remote_driver) == "lz4"
+        assert get(
+            "#{chunk_id}/@compression_codec".format(
+                chunk_id=get("//tmp/t_in/@chunk_ids/0", driver=self.remote_driver)
+            ),
+            driver=self.remote_driver,
+        ) == "lz4"
+
+        remote_copy(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                "copy_attributes": copy_user_attributes,
+                "attribute_keys": ["custom_attr", "compression_codec"],
+            },
+        )
+
+        if copy_user_attributes:
+            assert get("//tmp/t_out/@custom_attr") == "attr_value"
+        else:
+            assert not exists("//tmp/t_out/@custom_attr")
+
+        assert get("//tmp/t_out/@compression_codec") == "lz4"
+        assert get("//tmp/t_out/@erasure_codec") == "reed_solomon_6_3"
+        if object_type == "table":
+            assert get("//tmp/t_out/@optimize_for") == "lookup"
 
     @authors("asaitgalin", "ignat")
     def test_copy_attributes(self):
