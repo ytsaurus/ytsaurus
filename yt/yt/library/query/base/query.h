@@ -386,6 +386,8 @@ struct TGroupClause
     void AddGroupItem(TConstExpressionPtr expression, const std::string& name);
 
     TTableSchemaPtr GetTableSchema(bool isFinal) const;
+
+    bool AllAggregatesAreFirst() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TGroupClause)
