@@ -327,36 +327,37 @@ def build_master_local():
     return d
 
 def build_merge_jobs_rowsets():
-    nodes_being_merged = (Master("yt.chunk_server.chunk_merger_nodes_being_merged")
+    nodes_being_merged = (Master("yt.chunk_server.chunk_merger.nodes_being_merged")
         .stack(True))
-    account_queue_size = (Master("yt.chunk_server.chunk_merger_account_queue_size")
+    account_queue_size = (Master("yt.chunk_server.chunk_merger.account_queue_size")
         .stack(False)
         .top(20, "avg"))
 
     chunk_server_jobs_info = Master("*").value("job_type", "merge_chunks")
-    jobs_undergoing_chunk_creation = (Master("yt.chunk_server.chunk_merger_jobs_undergoing_chunk_creation")
+    jobs_undergoing_chunk_creation = (Master("yt.chunk_server.chunk_merger.jobs_undergoing_chunk_creation")
         .value("account", "{{account}}"))
-    jobs_awaiting_chunk_creation = Master("yt.chunk_server.chunk_merger_jobs_awaiting_chunk_creation")
-    jobs_awaiting_node_heartbeat = Master("yt.chunk_server.chunk_merger_jobs_awaiting_node_heartbeat")
-    completed_job_count = Master("yt.chunk_server.chunk_merger_completed_job_count.rate")
-    chunk_count_saving = (Master("yt.chunk_server.chunk_merger_chunk_count_saving")
+    jobs_awaiting_chunk_creation = Master("yt.chunk_server.chunk_merger.jobs_awaiting_chunk_creation")
+    jobs_awaiting_node_heartbeat = Master("yt.chunk_server.chunk_merger.jobs_awaiting_node_heartbeat")
+    completed_job_count = Master("yt.chunk_server.chunk_merger.completed_job_count.rate")
+    chunk_count_saving = (Master("yt.chunk_server.chunk_merger.chunk_count_saving")
         .value("account", "{{account}}"))
     chunk_replacement_rate = (MultiSensor(
-        Master("yt.chunk_server.chunk_merger_chunk_replacements_failed"),
-        Master("yt.chunk_server.chunk_merger_chunk_replacements_succeeded"))
+        Master("yt.chunk_server.chunk_merger.chunk_replacements_failed"),
+        Master("yt.chunk_server.chunk_merger.chunk_replacements_succeeded"))
             .value("account", "{{account}}"))
-    auto_merge_fallback_count = Master("yt.chunk_server.chunk_merger_auto_merge_fallback_count.rate")
-    sessions_awaiting_finalization = Master("yt.chunk_server.chunk_merger_sessions_awaiting_finalization.rate")
-    max_chunk_count_violated_criteria = (Master("yt.chunk_server.chunk_merger_max_chunk_count_violated_criteria")
+    auto_merge_fallback_count = Master("yt.chunk_server.chunk_merger.auto_merge_fallback_count.rate")
+    sessions_awaiting_finalization = Master("yt.chunk_server.chunk_merger.sessions_awaiting_finalization.rate")
+    max_chunk_count_violated_criteria = (Master("yt.chunk_server.chunk_merger.max_chunk_count_violated_criteria")
         .value("account", "{{account}}"))
 
-    max_row_count_violated_criteria = Master("yt.chunk_server.chunk_merger_max_row_count_violated_criteria")
-    max_data_weight_violated_criteria = Master("yt.chunk_server.chunk_merger_max_data_weight_violated_criteria")
-    max_uncompressed_data_violated_criteria = Master("yt.chunk_server.chunk_merger_max_uncompressed_data_violated_criteria")
-    max_compressed_data_violated_criteria = Master("yt.chunk_server.chunk_merger_max_compressed_data_violated_criteria")
-    max_input_chunk_data_weight_violated_criteria = Master("yt.chunk_server.chunk_merger_max_input_chunk_data_weight_violated_criteria")
-    stuck_nodes_count = Master("yt.chunk_server.chunk_merger_stuck_nodes_count")
-    average_merge_duration = Master("yt.chunk_server.chunk_merger_average_merge_duration")
+    max_row_count_violated_criteria = Master("yt.chunk_server.chunk_merger.max_row_count_violated_criteria")
+    max_data_weight_violated_criteria = Master("yt.chunk_server.chunk_merger.max_data_weight_violated_criteria")
+    max_uncompressed_data_violated_criteria = Master("yt.chunk_server.chunk_merger.max_uncompressed_data_violated_criteria")
+    max_compressed_data_violated_criteria = Master("yt.chunk_server.chunk_merger.max_compressed_data_violated_criteria")
+    max_input_chunk_data_weight_violated_criteria = Master("yt.chunk_server.chunk_merger.max_input_chunk_data_weight_violated_criteria")
+    max_chunk_meta_size_violated_criteria = Master("yt.chunk_server.chunk_merger.max_chunk_meta_size_violated_criteria")
+    stuck_nodes_count = Master("yt.chunk_server.chunk_merger.stuck_nodes_count")
+    average_merge_duration = Master("yt.chunk_server.chunk_merger.average_merge_duration")
 
     return [
         Rowset().value("account", "{{account}}")
@@ -388,8 +389,9 @@ def build_merge_jobs_rowsets():
                 .cell("Max compressed data violated criteria", max_compressed_data_violated_criteria)
             .row()
                 .cell("Max input chunk data weight violated criteria", max_input_chunk_data_weight_violated_criteria)
-                .cell("Stuck nodes count", stuck_nodes_count)
+                .cell("Max chunk meta size violated criteria", max_chunk_meta_size_violated_criteria)
             .row()
+                .cell("Stuck nodes count", stuck_nodes_count)
                 .cell("Average merge duration", average_merge_duration)
     ]
 
