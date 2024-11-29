@@ -21,8 +21,9 @@ class VariationPolicy(Enum):
 
 
 class Variable():
-    def __init__(self, modes, policy=VariationPolicy.Variate):
+    def __init__(self, modes, policy=VariationPolicy.Variate, weights=None):
         self.modes = list(modes)
+        self.weights = [1] * len(self.modes) if weights is None else weights
         if isinstance(policy, str):
             policy = VariationPolicy[policy]
         assert isinstance(policy, VariationPolicy)
@@ -38,7 +39,7 @@ class Variable():
         if self.policy == VariationPolicy.Variate:
             return self.modes[index]
         else:
-            return random.choice(self.modes)
+            return random.choice(self.modes, weights=self.weights)
 
     def __repr__(self):
         modes = ", ".join(map(str, self.modes))
@@ -507,6 +508,11 @@ def spec_from_yson(preset, mixins, yson_dict):
     def _unroll_variables(obj):
         if isinstance(obj, yson.YsonList) and obj.attributes.get("any"):
             return Variable(obj, policy=VariationPolicy.PickRandom)
+        elif isinstance(obj, yson.YsonList) and "weighted_any" in obj.attributes:
+            weights = obj.attributes["weighted_any"]
+            assert isinstance(weights, yson.YsonList)
+            assert len(weights) == len(obj)
+            return Variable(obj, policy=VariationPolicy.PickRandom, weights=weights)
         elif isinstance(obj, dict):
             return {k: _unroll_variables(v) for k, v in obj.items()}
         else:
