@@ -78,8 +78,8 @@ public:
 
     bool EnablePerUserRequestWeightThrottling;
 
-    NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserReadRequestWeightThrottlerConfig;
-    NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserWriteRequestWeightThrottlerConfig;
+    NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserReadRequestWeightThrottler;
+    NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserWriteRequestWeightThrottler;
 
     REGISTER_YSON_STRUCT(TObjectServiceDynamicConfig);
 

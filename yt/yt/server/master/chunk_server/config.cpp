@@ -748,12 +748,14 @@ void TDynamicChunkServiceConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_per_user_request_bytes_throttling", &TThis::EnablePerUserRequestBytesThrottling)
         .Default(false);
 
-    registrar.Parameter("default_request_weight_throttler_config", &TThis::DefaultRequestWeightThrottlerConfig)
+    registrar.Parameter("default_request_weight_throttler_config", &TThis::DefaultRequestWeightThrottler)
         .DefaultNew();
 
-    registrar.Parameter("default_per_user_request_weight_throttler_config", &TThis::DefaultPerUserRequestWeightThrottlerConfig)
+    registrar.Parameter("default_per_user_request_weight_throttler", &TThis::DefaultPerUserRequestWeightThrottler)
+        .Alias("default_per_user_request_weight_throttler_config")
         .DefaultNew();
-    registrar.Parameter("default_per_user_request_bytes_throttler_config", &TThis::DefaultPerUserRequestBytesThrottlerConfig)
+    registrar.Parameter("default_per_user_request_bytes_throttler", &TThis::DefaultPerUserRequestBytesThrottler)
+        .Alias("default_per_user_request_bytes_throttler_config")
         .DefaultNew();
 }
 

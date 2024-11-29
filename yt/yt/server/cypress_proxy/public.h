@@ -33,6 +33,8 @@ DECLARE_REFCOUNTED_STRUCT(IUserDirectorySynchronizer)
 
 DECLARE_REFCOUNTED_CLASS(TUserDirectory)
 
+DECLARE_REFCOUNTED_CLASS(TPerUserAndWorkloadRequestQueueProvider);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TObjectServiceDynamicConfig)
@@ -82,7 +84,7 @@ struct TCopyOptions
 
 struct TMultisetAttributesSubrequest
 {
-    std::string Attribute;
+    std::string AttributeKey;
     NYson::TYsonString Value;
 };
 

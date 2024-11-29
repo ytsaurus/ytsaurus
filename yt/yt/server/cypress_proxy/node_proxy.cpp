@@ -1199,7 +1199,7 @@ private:
             std::vector<TMultisetAttributesSubrequest> subrequests;
             for (auto& [key, value] : Attributes_->ListPairs()) {
                 subrequests.push_back({
-                    .Attribute = std::move(key),
+                    .AttributeKey = std::move(key),
                     .Value = std::move(value),
                 });
             }

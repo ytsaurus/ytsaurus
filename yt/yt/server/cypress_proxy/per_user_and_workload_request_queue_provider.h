@@ -6,27 +6,24 @@
 
 namespace NYT::NCypressProxy {
 
-using namespace NRpc;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPerUserAndWorkloadRequestQueueProvider
-    : public TPerKeyRequestQueueProvider<std::pair<std::string, EUserWorkloadType>>
+    : public NRpc::TPerKeyRequestQueueProvider<std::pair<std::string, EUserWorkloadType>>
 {
 public:
-    using TBase = TPerKeyRequestQueueProvider<TKey>;
-
-    TPerUserAndWorkloadRequestQueueProvider(
+    explicit TPerUserAndWorkloadRequestQueueProvider(
         TReconfigurationCallback reconfigurationCallback = {});
 
 private:
-    TRequestQueuePtr CreateQueueForKey(const TKey& userNameAndWorkloadType) override;
+    using TBase = TPerKeyRequestQueueProvider<TKey>;
+
+    NRpc::TRequestQueuePtr CreateQueueForKey(const TKey& userNameAndWorkloadType) override;
     bool IsReconfigurationPermitted(const TKey& userNameAndWorkloadType) const override;
 
     static TKeyFromRequestHeaderCallback CreateKeyFromRequestHeaderCallback();
 };
 
-DECLARE_REFCOUNTED_CLASS(TPerUserAndWorkloadRequestQueueProvider);
 DEFINE_REFCOUNTED_TYPE(TPerUserAndWorkloadRequestQueueProvider);
 
 ////////////////////////////////////////////////////////////////////////////////

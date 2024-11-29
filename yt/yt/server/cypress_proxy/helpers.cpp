@@ -224,7 +224,7 @@ void FromProto(
     TMultisetAttributesSubrequest* subrequest,
     const NYTree::NProto::TReqMultisetAttributes::TSubrequest& protoSubrequest)
 {
-    subrequest->Attribute = protoSubrequest.attribute();
+    subrequest->AttributeKey = protoSubrequest.attribute();
     subrequest->Value = NYson::TYsonString(protoSubrequest.value());
 }
 

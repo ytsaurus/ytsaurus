@@ -98,7 +98,7 @@ message TReqSetNode
 
 message TReqMultisetAttributes
 {
-    required string node_id = 1;
+    required NYT.NProto.TGuid node_id = 1;
     required string path = 2;
     repeated NYT.NYTree.NProto.TReqMultisetAttributes.TSubrequest subrequests = 3;
     required bool force = 4;

@@ -48,9 +48,9 @@ void TObjectServiceDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_per_user_request_weight_throttling", &TThis::EnablePerUserRequestWeightThrottling)
         .Default(true);
-    registrar.Parameter("default_per_user_read_request_weight_throttler_config", &TThis::DefaultPerUserReadRequestWeightThrottlerConfig)
+    registrar.Parameter("default_per_user_read_request_weight_throttler", &TThis::DefaultPerUserReadRequestWeightThrottler)
         .DefaultNew();
-    registrar.Parameter("default_per_user_write_request_weight_throttler_config", &TThis::DefaultPerUserWriteRequestWeightThrottlerConfig)
+    registrar.Parameter("default_per_user_write_request_weight_throttler", &TThis::DefaultPerUserWriteRequestWeightThrottler)
         .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {

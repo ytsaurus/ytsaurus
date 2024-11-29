@@ -331,7 +331,7 @@ void ToProto(
     NYTree::NProto::TReqMultisetAttributes::TSubrequest* protoSubrequest,
     const TMultisetAttributesSubrequest& subrequest)
 {
-    protoSubrequest->set_attribute(ToProto<TProtobufString>(subrequest.Attribute));
+    protoSubrequest->set_attribute(ToProto(subrequest.AttributeKey));
     protoSubrequest->set_value(subrequest.Value.ToString());
 }
 
