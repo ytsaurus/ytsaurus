@@ -709,6 +709,8 @@
   "contrib/libs/nayuki_md5/CMakeLists.linux-x86_64.txt":"",
   "contrib/libs/nayuki_md5/CMakeLists.txt":"",
   "contrib/libs/nghttp2/CMakeLists.txt":"",
+  "contrib/libs/nghttp3/CMakeLists.txt":"",
+  "contrib/libs/ngtcp2/CMakeLists.txt":"",
   "contrib/libs/openssl/CMakeLists.darwin-arm64.txt":"",
   "contrib/libs/openssl/CMakeLists.darwin-x86_64.txt":"",
   "contrib/libs/openssl/CMakeLists.linux-x86_64.txt":"",
