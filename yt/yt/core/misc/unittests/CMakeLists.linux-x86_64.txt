@@ -48,7 +48,8 @@ target_link_libraries(unittester-core-misc PUBLIC
 )
 
 target_allocator(unittester-core-misc
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-core-misc PRIVATE

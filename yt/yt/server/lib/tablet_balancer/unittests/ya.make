@@ -2,8 +2,6 @@ GTEST(unittester-tablet-balancer-lib)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
-ALLOCATOR(YT)
-
 SRCS(
     balancing_helpers_ut.cpp
     bounded_priority_queue_ut.cpp

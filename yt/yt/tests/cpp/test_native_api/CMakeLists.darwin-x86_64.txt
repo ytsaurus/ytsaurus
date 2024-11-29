@@ -33,7 +33,7 @@ target_link_libraries(cpp-integration-test-native-api PUBLIC
 )
 
 target_allocator(cpp-integration-test-native-api
-  cpp-ytalloc-impl
+  system_allocator
 )
 
 target_link_options(cpp-integration-test-native-api PRIVATE

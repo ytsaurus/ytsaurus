@@ -29,7 +29,8 @@ target_link_libraries(dummy-logger PUBLIC
 )
 
 target_allocator(dummy-logger
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(dummy-logger PRIVATE

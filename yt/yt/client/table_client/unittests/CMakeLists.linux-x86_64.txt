@@ -38,7 +38,8 @@ target_link_libraries(unittester-client-table-client PUBLIC
 )
 
 target_allocator(unittester-client-table-client
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-client-table-client PRIVATE

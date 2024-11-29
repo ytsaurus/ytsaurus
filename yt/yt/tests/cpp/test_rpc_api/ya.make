@@ -2,8 +2,6 @@ GTEST(cpp-integration-test-rpc-api)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
-ALLOCATOR(YT)
-
 SRCS(
     test_rpc_api.cpp
 )

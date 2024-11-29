@@ -30,7 +30,8 @@ target_link_libraries(rng PUBLIC
 )
 
 target_allocator(rng
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(rng PRIVATE

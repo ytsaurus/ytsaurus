@@ -29,7 +29,8 @@ target_link_libraries(joining_reader PUBLIC
 )
 
 target_allocator(joining_reader
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(joining_reader PRIVATE

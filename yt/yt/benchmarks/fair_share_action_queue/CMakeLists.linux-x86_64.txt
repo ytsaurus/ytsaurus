@@ -31,7 +31,8 @@ target_link_libraries(fair_share_action_queue PUBLIC
 )
 
 target_allocator(fair_share_action_queue
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(fair_share_action_queue PRIVATE

@@ -29,7 +29,8 @@ target_link_libraries(per_cpu_workload_model PUBLIC
 )
 
 target_allocator(per_cpu_workload_model
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(per_cpu_workload_model PRIVATE

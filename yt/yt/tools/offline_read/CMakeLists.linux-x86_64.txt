@@ -40,7 +40,8 @@ target_link_libraries(offline_read PUBLIC
 )
 
 target_allocator(offline_read
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(offline_read PRIVATE

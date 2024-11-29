@@ -32,7 +32,7 @@ target_link_libraries(unittester-library-auth PUBLIC
 )
 
 target_allocator(unittester-library-auth
-  cpp-ytalloc-impl
+  system_allocator
 )
 
 target_link_options(unittester-library-auth PRIVATE

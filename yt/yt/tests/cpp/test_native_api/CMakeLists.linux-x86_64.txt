@@ -36,7 +36,8 @@ target_link_libraries(cpp-integration-test-native-api PUBLIC
 )
 
 target_allocator(cpp-integration-test-native-api
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(cpp-integration-test-native-api PRIVATE

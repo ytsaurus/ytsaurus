@@ -34,7 +34,7 @@ target_link_libraries(unittester-core-http PUBLIC
 )
 
 target_allocator(unittester-core-http
-  cpp-ytalloc-impl
+  system_allocator
 )
 
 target_link_options(unittester-core-http PRIVATE

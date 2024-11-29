@@ -34,7 +34,8 @@ target_link_libraries(unittester-core-net PUBLIC
 )
 
 target_allocator(unittester-core-net
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-core-net PRIVATE

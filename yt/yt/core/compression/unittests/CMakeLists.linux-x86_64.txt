@@ -33,7 +33,8 @@ target_link_libraries(unittester-core-compression PUBLIC
 )
 
 target_allocator(unittester-core-compression
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-core-compression PRIVATE

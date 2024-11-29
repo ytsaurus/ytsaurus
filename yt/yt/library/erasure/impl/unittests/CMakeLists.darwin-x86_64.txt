@@ -31,7 +31,7 @@ target_link_libraries(unittester-library-erasure PUBLIC
 )
 
 target_allocator(unittester-library-erasure
-  cpp-ytalloc-impl
+  system_allocator
 )
 
 target_link_options(unittester-library-erasure PRIVATE

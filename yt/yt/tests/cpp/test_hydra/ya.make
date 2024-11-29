@@ -2,8 +2,6 @@ GTEST(cpp-integration-test-hydra)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
-ALLOCATOR(YT)
-
 SRCS(
     test_remote_changelog_store.cpp
 )

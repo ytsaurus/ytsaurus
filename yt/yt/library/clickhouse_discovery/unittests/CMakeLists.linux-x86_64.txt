@@ -36,7 +36,8 @@ target_link_libraries(unittester-library-clickhouse-discovery PUBLIC
 )
 
 target_allocator(unittester-library-clickhouse-discovery
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-library-clickhouse-discovery PRIVATE

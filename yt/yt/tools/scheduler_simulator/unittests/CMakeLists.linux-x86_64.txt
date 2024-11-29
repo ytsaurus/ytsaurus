@@ -37,7 +37,8 @@ target_link_libraries(unittester-scheduler-simulator PUBLIC
 )
 
 target_allocator(unittester-scheduler-simulator
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-scheduler-simulator PRIVATE

@@ -2,7 +2,7 @@ PROGRAM()
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
-ALLOCATOR(YT)
+ALLOCATOR(TCMALLOC)
 
 ADDINCL(
     contrib/libs/sparsehash/src

@@ -33,7 +33,7 @@ target_link_libraries(unittester-core-rpc PUBLIC
 )
 
 target_allocator(unittester-core-rpc
-  cpp-ytalloc-impl
+  system_allocator
 )
 
 target_link_options(unittester-core-rpc PRIVATE

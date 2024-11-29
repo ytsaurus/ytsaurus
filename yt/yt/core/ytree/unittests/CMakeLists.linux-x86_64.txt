@@ -56,7 +56,8 @@ target_link_libraries(unittester-core-ytree PUBLIC
 )
 
 target_allocator(unittester-core-ytree
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-core-ytree PRIVATE

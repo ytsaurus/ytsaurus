@@ -35,7 +35,8 @@ target_link_libraries(unittester-clickhouse-server PUBLIC
 )
 
 target_allocator(unittester-clickhouse-server
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(unittester-clickhouse-server PRIVATE

@@ -2,8 +2,6 @@ GTEST(unittester-ytlib)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
-ALLOCATOR(YT)
-
 SRCS(
     misc/test_connection.cpp
 

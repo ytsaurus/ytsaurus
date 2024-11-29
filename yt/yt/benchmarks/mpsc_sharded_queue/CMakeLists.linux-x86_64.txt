@@ -31,7 +31,8 @@ target_link_libraries(mpsc_sharded_queue PUBLIC
 )
 
 target_allocator(mpsc_sharded_queue
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(mpsc_sharded_queue PRIVATE

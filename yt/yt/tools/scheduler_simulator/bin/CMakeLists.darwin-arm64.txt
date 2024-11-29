@@ -28,7 +28,8 @@ target_link_libraries(scheduler_simulator PUBLIC
 )
 
 target_allocator(scheduler_simulator
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(scheduler_simulator PRIVATE

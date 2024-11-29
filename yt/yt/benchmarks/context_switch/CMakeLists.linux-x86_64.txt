@@ -30,7 +30,8 @@ target_link_libraries(context_switch PUBLIC
 )
 
 target_allocator(context_switch
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(context_switch PRIVATE

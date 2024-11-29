@@ -30,7 +30,8 @@ target_link_libraries(uring PUBLIC
 )
 
 target_allocator(uring
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(uring PRIVATE

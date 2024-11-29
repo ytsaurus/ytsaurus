@@ -53,7 +53,7 @@ target_link_libraries(unittester-core-ytree PUBLIC
 )
 
 target_allocator(unittester-core-ytree
-  cpp-ytalloc-impl
+  system_allocator
 )
 
 target_link_options(unittester-core-ytree PRIVATE

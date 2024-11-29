@@ -30,7 +30,7 @@ target_link_libraries(unittester-core-profiling PUBLIC
 )
 
 target_allocator(unittester-core-profiling
-  cpp-ytalloc-impl
+  system_allocator
 )
 
 target_link_options(unittester-core-profiling PRIVATE

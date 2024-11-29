@@ -33,7 +33,7 @@ target_link_libraries(unittester-library-clickhouse-discovery PUBLIC
 )
 
 target_allocator(unittester-library-clickhouse-discovery
-  cpp-ytalloc-impl
+  system_allocator
 )
 
 target_link_options(unittester-library-clickhouse-discovery PRIVATE

@@ -33,7 +33,8 @@ target_link_libraries(dns_test PUBLIC
 )
 
 target_allocator(dns_test
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(dns_test PRIVATE

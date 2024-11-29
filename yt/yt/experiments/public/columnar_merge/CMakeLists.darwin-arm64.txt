@@ -37,7 +37,8 @@ target_link_libraries(columnar_merge PUBLIC
 )
 
 target_allocator(columnar_merge
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(columnar_merge PRIVATE

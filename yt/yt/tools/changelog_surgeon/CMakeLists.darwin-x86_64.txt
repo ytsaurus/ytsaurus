@@ -27,7 +27,8 @@ target_link_libraries(changelog_surgeon PUBLIC
 )
 
 target_allocator(changelog_surgeon
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(changelog_surgeon PRIVATE

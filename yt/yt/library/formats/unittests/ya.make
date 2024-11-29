@@ -2,8 +2,6 @@ GTEST(unittester-formats)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
-ALLOCATOR(YT)
-
 PROTO_NAMESPACE(yt)
 
 SRCS(

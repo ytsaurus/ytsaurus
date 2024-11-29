@@ -26,7 +26,8 @@ target_link_libraries(rpc_proxy_example PUBLIC
 )
 
 target_allocator(rpc_proxy_example
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(rpc_proxy_example PRIVATE

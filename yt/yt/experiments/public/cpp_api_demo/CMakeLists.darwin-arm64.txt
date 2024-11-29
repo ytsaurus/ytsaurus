@@ -29,7 +29,8 @@ target_link_libraries(cpp_api_demo PUBLIC
 )
 
 target_allocator(cpp_api_demo
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(cpp_api_demo PRIVATE

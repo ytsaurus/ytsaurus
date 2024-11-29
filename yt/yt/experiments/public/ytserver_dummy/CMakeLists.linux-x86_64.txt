@@ -29,7 +29,8 @@ target_link_libraries(ytserver-dummy PUBLIC
 )
 
 target_allocator(ytserver-dummy
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(ytserver-dummy PRIVATE

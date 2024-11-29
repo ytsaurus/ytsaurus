@@ -32,7 +32,7 @@ target_link_libraries(cpp-integration-test-hydra PUBLIC
 )
 
 target_allocator(cpp-integration-test-hydra
-  cpp-ytalloc-impl
+  system_allocator
 )
 
 target_link_options(cpp-integration-test-hydra PRIVATE
