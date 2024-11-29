@@ -146,6 +146,14 @@ def skip_if_old(env, version_at_least, message):
         pytest.skip(get_message("RPC proxies"))
 
 
+def skip_if_component_old(env, version_at_least, component, message="too old"):
+    """
+    Example components: master, controller-agent, scheduler, job-proxy, http-proxy, proxy
+    """
+    if env.get_component_version("ytserver-" + component).abi < version_at_least:
+        pytest.skip(component + " " + message)
+
+
 def skip_if_no_descending(env):
     skip_if_old(env, (21, 1), "do not support descending yet")
 

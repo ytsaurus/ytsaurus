@@ -1557,27 +1557,34 @@ private:
         }
     }
 
+    std::vector<TString> BuildSystemAttributeKeys() const
+    {
+        std::vector<TString> keys{
+            "compression_codec",
+            "erasure_codec",
+        };
+
+        if (!InputManager->GetInputTables()[0]->IsFile()) {
+            keys.push_back("optimize_for");
+        }
+
+        return keys;
+    }
+
+    void FetchInputTableAttributes()
+    {
+        auto attributesFuture = InputManager->FetchSingleInputTableAttributes(
+            Spec_->CopyAttributes
+                ? std::nullopt
+                : std::make_optional(BuildSystemAttributeKeys()));
+
+        InputTableAttributes_ = WaitFor(attributesFuture)
+            .ValueOrThrow();
+    }
+
     void CustomMaterialize() override
     {
-        if (Spec_->CopyAttributes) {
-            if (InputManager->GetInputTables().size() != 1) {
-                THROW_ERROR_EXCEPTION("Attributes can be copied only in case of one input table");
-            }
-
-            const auto& table = InputManager->GetInputTables()[0];
-
-            auto proxy = CreateObjectServiceReadProxy(InputClient, EMasterChannelKind::Follower);
-
-            auto req = TObjectYPathProxy::Get(table->GetObjectIdPath() + "/@");
-            SetTransactionId(req, *table->TransactionId);
-
-            auto rspOrError = WaitFor(proxy.Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of input table %v",
-                table->GetPath());
-
-            const auto& rsp = rspOrError.Value();
-            InputTableAttributes_ = ConvertToAttributes(TYsonString(rsp->value()));
-        }
+        FetchInputTableAttributes();
 
         bool hasDynamicInputTable = false;
         bool hasDynamicOutputTable = false;
@@ -1674,18 +1681,45 @@ private:
         return std::ssize(OrderedTasks_) > 1;
     }
 
+    std::vector<TString> BuildOutputTableAttributeKeys() const
+    {
+        auto systemAttributeKeys = BuildSystemAttributeKeys();
+        auto attributeKeys = systemAttributeKeys;
+        if (Spec_->CopyAttributes) {
+            // Filter out unneeded attributes.
+            auto userAttributeKeys = InputTableAttributes_->Get<std::vector<TString>>("user_attribute_keys");
+            auto specAttributeKeys = Spec_->AttributeKeys.value_or(userAttributeKeys);
+            attributeKeys.reserve(attributeKeys.size() + specAttributeKeys.size());
+            for (const auto& key : specAttributeKeys) {
+                auto isSystemAttribute = [&] (const auto& key) {
+                    return std::find(
+                        systemAttributeKeys.begin(),
+                        systemAttributeKeys.end(),
+                        key) != systemAttributeKeys.end();
+                };
+
+                if (isSystemAttribute(key)) {
+                    // Do not duplicate system attributes' keys.
+                    continue;
+                }
+                attributeKeys.push_back(key);
+            }
+        }
+
+        return attributeKeys;
+    }
+
     void CustomCommit() override
     {
         TOperationControllerBase::CustomCommit();
 
-        if (Spec_->CopyAttributes) {
+        // COMPAT(coteeq): InputTableAttributes_ is always defined from now on.
+        if (InputTableAttributes_) {
             const auto& path = Spec_->OutputTablePath.GetPath();
 
             auto proxy = CreateObjectServiceWriteProxy(OutputClient);
 
-            auto userAttributeKeys = InputTableAttributes_->Get<std::vector<TString>>("user_attribute_keys");
-            auto attributeKeys = Spec_->AttributeKeys.value_or(userAttributeKeys);
-
+            auto attributeKeys = BuildOutputTableAttributeKeys();
             auto batchReq = proxy.ExecuteBatch();
             auto req = TYPathProxy::MultisetAttributes(path + "/@");
             SetTransactionId(req, OutputCompletionTransaction->GetId());
