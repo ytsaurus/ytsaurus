@@ -163,7 +163,7 @@ public:
     void InitializeClients(NApi::NNative::IClientPtr client);
     void InitializeStructures(
         NApi::NNative::IClientPtr client,
-        const TInputTransactionsManagerPtr& inputTransactionsManager);
+        const TInputTransactionManagerPtr& inputTransactionManager);
 
     const std::vector<TInputTablePtr>& GetInputTables() const;
 

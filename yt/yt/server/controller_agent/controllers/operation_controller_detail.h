@@ -564,7 +564,7 @@ protected:
     int UnavailableIntermediateChunkCount = 0;
 
     // NB: Transaction objects are ephemeral and should not be saved to snapshot.
-    TInputTransactionsManagerPtr InputTransactions;
+    TInputTransactionManagerPtr InputTransactions;
     NApi::ITransactionPtr AsyncTransaction;
     NApi::ITransactionPtr OutputTransaction;
     NApi::ITransactionPtr DebugTransaction;
