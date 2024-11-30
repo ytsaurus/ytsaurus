@@ -1,10 +1,10 @@
 Metadata-Version: 2.1
 Name: requests-futures
-Version: 1.0.1
+Version: 1.0.2
 Summary: Asynchronous Python HTTP for Humans.
 Home-page: https://github.com/ross/requests-futures
 Author: Ross McFarland
-Author-email: rwmcfa1@rwmcfa1.com
+Author-email: rwmcfa1@gmail.com
 License: Apache License v2
 Classifier: Development Status :: 5 - Production/Stable
 Classifier: Intended Audience :: Developers
@@ -18,17 +18,21 @@ Classifier: Programming Language :: Python :: 3.7
 Classifier: Programming Language :: Python :: 3.8
 Description-Content-Type: text/x-rst
 License-File: LICENSE
-Requires-Dist: requests (>=1.2.0)
+Requires-Dist: requests >=1.2.0
 Provides-Extra: dev
-Requires-Dist: pytest (>=6.2.5) ; extra == 'dev'
-Requires-Dist: pytest-cov (>=3.0.0) ; extra == 'dev'
-Requires-Dist: pytest-network (>=0.0.1) ; extra == 'dev'
-Requires-Dist: black (>=22.3.0) ; extra == 'dev'
-Requires-Dist: build (>=0.7.0) ; extra == 'dev'
-Requires-Dist: isort (>=5.11.4) ; extra == 'dev'
-Requires-Dist: pyflakes (>=2.2.0) ; extra == 'dev'
-Requires-Dist: readme-renderer[rst] (>=26.0) ; extra == 'dev'
-Requires-Dist: twine (>=3.4.2) ; extra == 'dev'
+Requires-Dist: pytest >=6.2.5 ; extra == 'dev'
+Requires-Dist: pytest-cov >=3.0.0 ; extra == 'dev'
+Requires-Dist: pytest-httpbin >=2.0.0 ; extra == 'dev'
+Requires-Dist: Werkzeug >=3.0.6 ; extra == 'dev'
+Requires-Dist: black <25.0.0,>=24.3.0 ; extra == 'dev'
+Requires-Dist: build >=0.7.0 ; extra == 'dev'
+Requires-Dist: docutils <=0.20.1 ; extra == 'dev'
+Requires-Dist: isort >=5.11.4 ; extra == 'dev'
+Requires-Dist: pyflakes >=2.2.0 ; extra == 'dev'
+Requires-Dist: readme-renderer[rst] >=26.0 ; extra == 'dev'
+Requires-Dist: twine >=3.4.2 ; extra == 'dev'
+Requires-Dist: greenlet <=2.0.2 ; (python_version < "3.12") and extra == 'dev'
+Requires-Dist: greenlet >=3.0.0 ; (python_version >= "3.12.0rc0") and extra == 'dev'
 
 Asynchronous Python HTTP Requests for Humans
 ============================================

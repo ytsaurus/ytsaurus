@@ -12,7 +12,7 @@ async requests HTTP library
 import logging
 
 __title__ = 'requests-futures'
-__version__ = '1.0.1'
+__version__ = '1.0.2'
 __build__ = 0x000000
 __author__ = 'Ross McFarland'
 __license__ = 'Apache 2.0'
