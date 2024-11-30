@@ -117,7 +117,7 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitUnrecognizedField(
     Y_UNUSED(message);
     Y_UNUSED(reason);
 
-    if (!Self()->AllowMissing_) {
+    if (Self()->MissingFieldPolicy_ != EMissingFieldPolicy::Skip) {
         Self()->Throw(EErrorCode::MissingField,
             "Field %v not found in message %v",
             name,
@@ -210,11 +210,21 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitMissingSingularField(
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     EVisitReason reason)
 {
-    Y_UNUSED(message);
-    Y_UNUSED(reason);
-
-    if (!Self()->AllowMissing_ && reason == EVisitReason::Path) {
-        Self()->Throw(EErrorCode::MissingField, "Missing field %v", fieldDescriptor->full_name());
+    switch (Self()->MissingFieldPolicy_) {
+        case EMissingFieldPolicy::Throw:
+            if (reason == EVisitReason::Path) {
+                Self()->Throw(EErrorCode::MissingField,
+                    "Missing field %v",
+                    fieldDescriptor->full_name());
+            } else {
+                return;
+            }
+        case EMissingFieldPolicy::Skip:
+            return;
+        case EMissingFieldPolicy::Force:
+            // This will visit the default value if const/create and visit one if mutable.
+            Self()->VisitPresentSingularField(message, fieldDescriptor, reason);
+            return;
     }
 }
 
@@ -270,7 +280,7 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitRepeatedField(
             return;
         }
         auto& indexParseResult = errorOrIndexParseResult.Value();
-        Self()->AdvanceOver(ui64(indexParseResult.Index));
+        Self()->AdvanceOver(indexParseResult.Index);
 
         switch (indexParseResult.IndexType) {
             case EListIndexType::Absolute:
@@ -305,7 +315,7 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitWholeRepeatedField(
         return;
     }
 
-    for (ui64 index = 0; !StopIteration_ && index < ui64(errorOrSize.Value()); ++index) {
+    for (int index = 0; !StopIteration_ && index < errorOrSize.Value(); ++index) {
         auto checkpoint = Self()->CheckpointBranchedTraversal(index);
         Self()->VisitRepeatedFieldEntry(message, fieldDescriptor, index, reason);
     }
@@ -374,8 +384,17 @@ void TProtoVisitor<TWrappedMessage, TSelf>::OnIndexError(
     Y_UNUSED(fieldDescriptor);
     Y_UNUSED(reason);
 
-    if (Self()->AllowMissing_ && error.GetCode() == EErrorCode::OutOfBounds) {
-        return;
+    switch (Self()->MissingFieldPolicy_) {
+        case EMissingFieldPolicy::Throw:
+            break;
+        case EMissingFieldPolicy::Skip:
+            if (error.GetCode() == EErrorCode::OutOfBounds) {
+                return;
+            } else {
+                break;
+            }
+        case EMissingFieldPolicy::Force:
+            break;
     }
 
     Self()->Throw(std::move(error));
@@ -489,8 +508,15 @@ void TProtoVisitor<TWrappedMessage, TSelf>::OnKeyError(
     Y_UNUSED(key);
     Y_UNUSED(reason);
 
-    if (Self()->AllowMissing_ && error.GetCode() == EErrorCode::MissingKey) {
-        return;
+    if (error.GetCode() == EErrorCode::MissingKey) {
+        switch (Self()->MissingFieldPolicy_) {
+            case EMissingFieldPolicy::Throw:
+                break;
+            case EMissingFieldPolicy::Skip:
+                return;
+            case EMissingFieldPolicy::Force:
+                break;
+        }
     }
 
     Self()->Throw(std::move(error));

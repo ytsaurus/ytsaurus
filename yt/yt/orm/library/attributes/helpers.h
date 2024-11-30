@@ -62,16 +62,16 @@ DEFINE_ENUM(EListIndexType,
 
 struct TIndexParseResult
 {
-    i64 Index;
+    int Index;
     EListIndexType IndexType;
 
     void EnsureIndexType(EListIndexType indexType, TStringBuf path);
-    void EnsureIndexIsWithinBounds(i64 count, TStringBuf path);
-    bool IsOutOfBounds(i64 count);
+    void EnsureIndexIsWithinBounds(int count, TStringBuf path);
+    bool IsOutOfBounds(int count);
 };
 
 // Parses list index from 'end', 'begin', 'before:<index>', 'after:<index>' or Integer in [-count, count).
-TIndexParseResult ParseListIndex(TStringBuf token, i64 count);
+TIndexParseResult ParseListIndex(TStringBuf token, int count);
 
 ////////////////////////////////////////////////////////////////////////////////
 
