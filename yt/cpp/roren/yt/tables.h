@@ -311,7 +311,7 @@ public:
         Y_ABORT_UNLESS(OutputOf.Operation);
 
         TStringStream tableName;
-        tableName << OutputOf.Operation->GetFirstName();
+        tableName << SubstGlobalCopy(OutputOf.Operation->GetFirstName(), '/', ':');
         tableName << "." << ConnectorToString(OutputOf.Connector);
 
         return TemporaryDirectory_ + "/" + tableName.Str() + ".GUID-" + Guid_;
