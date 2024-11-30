@@ -338,7 +338,7 @@ SRCS(
     orchid/proto/orchid_service.proto
 
     program/config.cpp
-    program/helpers.cpp
+    program/native_singletons.cpp
 
     query_client/executor.cpp
     query_client/explain.cpp

@@ -35,7 +35,7 @@
 
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
-#include <yt/yt/ytlib/program/helpers.h>
+#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/client/table_client/public.h>
 
@@ -297,7 +297,7 @@ void TBootstrap::OnDynamicConfigChanged(
     const TQueryTrackerServerDynamicConfigPtr& oldConfig,
     const TQueryTrackerServerDynamicConfigPtr& newConfig)
 {
-    ReconfigureNativeSingletons(Config_, newConfig);
+    ReconfigureNativeSingletons(newConfig);
 
     if (AlertManager_) {
         AlertManager_->Reconfigure(oldConfig->AlertManager, newConfig->AlertManager);

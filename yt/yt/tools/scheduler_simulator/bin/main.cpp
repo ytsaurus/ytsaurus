@@ -10,8 +10,6 @@
 
 #include <yt/yt/server/scheduler/public.h>
 
-#include <yt/yt/ytlib/program/helpers.h>
-
 #include <yt/yt/client/job_tracker_client/public.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
@@ -19,6 +17,7 @@
 
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/program_pdeathsig_mixin.h>
+#include <yt/yt/library/program/helpers.h>
 
 #include <yt/yt/core/logging/public.h>
 #include <yt/yt/core/logging/config.h>

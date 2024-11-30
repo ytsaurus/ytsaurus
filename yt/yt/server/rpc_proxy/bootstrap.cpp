@@ -38,7 +38,7 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/yt/ytlib/program/helpers.h>
+#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
 
@@ -433,7 +433,7 @@ void TBootstrap::OnDynamicConfigChanged(
     const TProxyDynamicConfigPtr& /*oldConfig*/,
     const TProxyDynamicConfigPtr& newConfig)
 {
-    ReconfigureNativeSingletons(Config_, newConfig);
+    ReconfigureNativeSingletons(newConfig);
 
     TraceSampler_->UpdateConfig(newConfig->Tracing);
 

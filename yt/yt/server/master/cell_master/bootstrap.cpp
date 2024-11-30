@@ -127,7 +127,7 @@
 #include <yt/yt/ytlib/auth/native_authenticating_channel.h>
 
 #include <yt/yt/library/program/build_attributes.h>
-#include <yt/yt/ytlib/program/helpers.h>
+#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/ytlib/election/config.h>
 #include <yt/yt/ytlib/election/cell_manager.h>
@@ -1296,7 +1296,7 @@ void TBootstrap::DoFinishDryRun()
 void TBootstrap::OnDynamicConfigChanged(const TDynamicClusterConfigPtr& /*oldConfig*/)
 {
     const auto& config = ConfigManager_->GetConfig();
-    ReconfigureNativeSingletons(Config_, config->CellMaster);
+    ReconfigureNativeSingletons(config->CellMaster);
 
     HydraFacade_->Reconfigure(config->CellMaster);
 }

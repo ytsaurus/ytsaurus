@@ -1,9 +1,10 @@
 #include "bootstrap.h"
 #include "config.h"
 
-#include <yt/yt/ytlib/program/helpers.h>
+#include <yt/yt/ytlib/program/native_singletons.h>
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/program_config_mixin.h>
+#include <yt/yt/library/program/helpers.h>
 
 #include <util/system/thread.h>
 

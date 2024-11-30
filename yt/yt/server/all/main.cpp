@@ -22,6 +22,7 @@
 #include <yt/yt/server/replicated_table_tracker/program.h>
 
 #include <yt/yt/library/program/program.h>
+#include <yt/yt/library/program/helpers.h>
 
 #include <yt/yt/core/misc/fs.h>
 

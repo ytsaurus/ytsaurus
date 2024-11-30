@@ -2,7 +2,7 @@
 
 #include "bootstrap.h"
 
-#include <yt/yt/ytlib/program/helpers.h>
+#include <yt/yt/library/program/helpers.h>
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 

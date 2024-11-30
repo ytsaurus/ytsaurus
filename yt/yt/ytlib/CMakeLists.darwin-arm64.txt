@@ -459,7 +459,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/orchid/orchid_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/orchid/orchid_ypath_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/program/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/program/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/program/native_singletons.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/explain.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/functions_cache.cpp

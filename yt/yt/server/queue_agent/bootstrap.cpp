@@ -36,7 +36,7 @@
 
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
-#include <yt/yt/ytlib/program/helpers.h>
+#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
@@ -327,7 +327,7 @@ void TBootstrap::OnDynamicConfigChanged(
     const TQueueAgentServerDynamicConfigPtr& oldConfig,
     const TQueueAgentServerDynamicConfigPtr& newConfig)
 {
-    ReconfigureNativeSingletons(Config_, newConfig);
+    ReconfigureNativeSingletons(newConfig);
 
     YT_VERIFY(MemberClient_);
     YT_VERIFY(DiscoveryClient_);
