@@ -1,7 +1,5 @@
 #pragma once
 
-#include "yt_graph_v2.h"
-
 #include <yt/cpp/roren/interface/private/par_do_tree.h>
 
 namespace NRoren::NPrivate {
