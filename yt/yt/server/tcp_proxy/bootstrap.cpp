@@ -18,7 +18,7 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/ytlib/program/helpers.h>
+#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
 
@@ -240,7 +240,7 @@ private:
         const TTcpProxyDynamicConfigPtr& /*oldConfig*/,
         const TTcpProxyDynamicConfigPtr& newConfig)
     {
-        ReconfigureNativeSingletons(Config_, newConfig);
+        ReconfigureNativeSingletons(newConfig);
 
         Poller_->Reconfigure(newConfig->PollerThreadCount);
         Acceptor_->Reconfigure(newConfig->AcceptorThreadCount);

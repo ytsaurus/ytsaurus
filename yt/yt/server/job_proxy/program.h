@@ -7,8 +7,9 @@
 #include <yt/yt/library/program/program_config_mixin.h>
 #include <yt/yt/library/program/program_pdeathsig_mixin.h>
 #include <yt/yt/library/program/program_setsid_mixin.h>
+#include <yt/yt/library/program/helpers.h>
 
-#include <yt/yt/ytlib/program/helpers.h>
+#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/server/lib/job_proxy/config.h>
 

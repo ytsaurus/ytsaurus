@@ -31,7 +31,7 @@
 
 #include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/yt/ytlib/program/helpers.h>
+#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
@@ -269,7 +269,7 @@ const IAuthenticatorPtr& TBootstrap::GetNativeAuthenticator() const
 
 void TBootstrap::OnDynamicConfigChanged(const TControllerAgentConfigPtr& config)
 {
-    ReconfigureNativeSingletons(Config_, config);
+    ReconfigureNativeSingletons(config);
 
     RpcServer_->OnDynamicConfigChanged(config->RpcServer);
 }

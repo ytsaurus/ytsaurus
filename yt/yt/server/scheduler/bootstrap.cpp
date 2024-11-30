@@ -33,7 +33,7 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/ytlib/program/helpers.h>
+#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
 
@@ -254,7 +254,7 @@ const NRpc::IAuthenticatorPtr& TBootstrap::GetNativeAuthenticator() const
 
 void TBootstrap::OnDynamicConfigChanged(const TSchedulerConfigPtr& config)
 {
-    ReconfigureNativeSingletons(Config_, config);
+    ReconfigureNativeSingletons(config);
 
     RpcServer_->OnDynamicConfigChanged(config->RpcServer);
 }
