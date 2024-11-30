@@ -181,7 +181,7 @@ void TPathVisitor<TSelf>::VisitVector(
         }
 
         auto& indexParseResult = errorOrIndexParseResult.Value();
-        Self()->AdvanceOver(ui64(indexParseResult.Index));
+        Self()->AdvanceOver(indexParseResult.Index);
 
         switch (indexParseResult.IndexType) {
             case EListIndexType::Absolute:
@@ -205,7 +205,7 @@ void TPathVisitor<TSelf>::VisitWholeVector(
     TVisitParam&& target,
     EVisitReason reason)
 {
-    for (size_t index = 0; !Self()->StopIteration_ && index < target.size(); ++index) {
+    for (int index = 0; !Self()->StopIteration_ && index < ssize(target); ++index) {
         auto checkpoint = Self()->CheckpointBranchedTraversal(index);
         Self()->VisitGeneric(target[index], reason);
     }
@@ -237,8 +237,15 @@ void TPathVisitor<TSelf>::OnVectorIndexError(
     Y_UNUSED(target);
     Y_UNUSED(reason);
 
-    if (Self()->AllowMissing_ && error.GetCode() == EErrorCode::OutOfBounds) {
-        return;
+    if (error.GetCode() == EErrorCode::OutOfBounds) {
+        switch (Self()->MissingFieldPolicy_) {
+            case EMissingFieldPolicy::Throw:
+                break;
+            case EMissingFieldPolicy::Skip:
+                return;
+            case EMissingFieldPolicy::Force:
+                break;
+        }
     }
 
     Self()->Throw(std::move(error));
@@ -321,8 +328,13 @@ void TPathVisitor<TSelf>::OnMapKeyError(
     Y_UNUSED(mapKey);
     Y_UNUSED(reason);
 
-    if (Self()->AllowMissing_) {
-        return;
+    switch (Self()->MissingFieldPolicy_) {
+        case EMissingFieldPolicy::Throw:
+            break;
+        case EMissingFieldPolicy::Skip:
+            return;
+        case EMissingFieldPolicy::Force:
+            break;
     }
 
     Self()->Throw(EErrorCode::MissingKey, "Key %v not found in map", key);

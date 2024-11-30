@@ -225,7 +225,7 @@ protected:
             {
                 reflection->ClearField(message, fieldDescriptor);
                 return;
-            } // Else let the basic implementation of AllowMissing do the check.
+            } // Else let the basic implementation of MissingFieldPolicy do the check.
         }
 
         TProtoVisitor::VisitField(message, fieldDescriptor, reason);
@@ -526,14 +526,14 @@ protected:
 
             if (CurrentValue_->GetType() == NYTree::ENodeType::List) {
                 for (const auto& [index, value] : Enumerate(CurrentValue_->AsList()->GetChildren())) {
-                    auto checkpoint = CheckpointBranchedTraversal(index);
+                    auto checkpoint = CheckpointBranchedTraversal(int(index));
                     TemporarilySetCurrentValue(checkpoint, value);
                     // This is a bunch of insertions at the end of the array. Index points at the
                     // end.
                     VisitRepeatedFieldEntryRelative(
                         message,
                         fieldDescriptor,
-                        index,
+                        int(index),
                         EVisitReason::Manual);
                 }
             } else if (CurrentValue_->GetType() != NYTree::ENodeType::Entity) {
@@ -788,7 +788,7 @@ protected:
                         "Unexpected relative path specifier %v",
                         GetToken());
                 }
-                AdvanceOver(ui64(indexParseResults.first.Index));
+                AdvanceOver(indexParseResults.first.Index);
 
                 if (fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE) {
                     auto next = TTraits::Combine(
@@ -953,7 +953,9 @@ void ClearProtobufFieldByPath(
         message.Clear();
     } else {
         TClearVisitor visitor;
-        visitor.SetAllowMissing(skipMissing);
+        if (skipMissing) {
+            visitor.SetMissingFieldPolicy(EMissingFieldPolicy::Skip);
+        }
         visitor.SetAllowAsterisk(true);
         visitor.Visit(&message, path);
     }

@@ -204,7 +204,7 @@ bool AreScalarAttributesEqualByPath(
     }
 
     auto suffix = path.substr(2);
-    for (size_t i = 0; i < lhs.size(); ++i) {
+    for (int i = 0; i < ssize(lhs); ++i) {
         if (!AreScalarAttributesEqualByPath(lhs[i], rhs[i], suffix)) {
             return false;
         }

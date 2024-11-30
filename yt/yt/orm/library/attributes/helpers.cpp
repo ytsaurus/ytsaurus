@@ -75,7 +75,7 @@ void TIndexParseResult::EnsureIndexType(EListIndexType indexType, TStringBuf pat
         indexType);
 }
 
-void TIndexParseResult::EnsureIndexIsWithinBounds(i64 count, TStringBuf path)
+void TIndexParseResult::EnsureIndexIsWithinBounds(int count, TStringBuf path)
 {
     THROW_ERROR_EXCEPTION_IF(IsOutOfBounds(count),
         "Repeated field index at %Qv must be in range [-%v, %v), but got %v",
@@ -85,7 +85,7 @@ void TIndexParseResult::EnsureIndexIsWithinBounds(i64 count, TStringBuf path)
         Index);
 }
 
-bool TIndexParseResult::IsOutOfBounds(i64 count)
+bool TIndexParseResult::IsOutOfBounds(int count)
 {
     return Index < 0 || Index > count || (Index == count && IndexType == EListIndexType::Absolute);
 }
@@ -237,10 +237,10 @@ std::unique_ptr<NYson::IYsonConsumer> CreateAttributesRemovingConsumer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TIndexParseResult ParseListIndex(TStringBuf token, i64 count)
+TIndexParseResult ParseListIndex(TStringBuf token, int count)
 {
     auto parseAbsoluteIndex = [count] (TStringBuf token) {
-        i64 index = NYPath::ParseListIndex(token);
+        int index = NYPath::ParseListIndex(token);
         if (index < 0) {
             index += count;
         }

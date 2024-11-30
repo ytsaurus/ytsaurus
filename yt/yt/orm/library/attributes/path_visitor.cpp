@@ -24,8 +24,8 @@ void TPathVisitorUtil::SkipSlash()
 void TPathVisitorUtil::Push(TToken token)
 {
     Visit(token,
-        [this] (i64 index) { CurrentPath_.Push(index); },
-        [this] (ui64 index) { CurrentPath_.Push(index); },
+        [this] (int index) { CurrentPath_.Push(index); },
+        [this] (ui64 index) { CurrentPath_.Push(static_cast<int>(index)); },
         [this] (TStringBuf key) { CurrentPath_.Push(key); });
 }
 

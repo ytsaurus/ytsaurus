@@ -34,7 +34,7 @@ public:
     // Does not throw when visiting absent fields.
     DEFINE_BYVAL_RW_PROPERTY(bool, VisitEverythingAfterPath, false);
     // Do not throw if the path leads into a missing field/key/index.
-    DEFINE_BYVAL_RW_PROPERTY(bool, AllowMissing, false);
+    DEFINE_BYVAL_RW_PROPERTY(EMissingFieldPolicy, MissingFieldPolicy, EMissingFieldPolicy::Throw);
     // Visit all fields/entries when the path has a "*".
     DEFINE_BYVAL_RW_PROPERTY(bool, AllowAsterisk, false);
 
@@ -47,7 +47,7 @@ protected:
     // Advances tokenizer over a slash unless it's optional here.
     void SkipSlash();
 
-    using TToken = std::variant<ui64, TStringBuf>;
+    using TToken = std::variant<int, ui64, TStringBuf>;
 
     // Pushes the token onto the current path.
     void Push(TToken token);

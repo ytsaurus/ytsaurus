@@ -353,7 +353,7 @@ struct TProtoVisitorTraitsForVector
 
     using TSubTraits = TProtoVisitorTraits<TQualifiedMessage*>;
 
-    static void Accumulate(TMessageReturn& result, TQualifiedMessage* message, size_t size)
+    static void Accumulate(TMessageReturn& result, TQualifiedMessage* message, int size)
     {
         result.reserve(size);
         result.push_back(message);
@@ -362,7 +362,7 @@ struct TProtoVisitorTraitsForVector
     static void Accumulate(
         TErrorOr<TMessageReturn>& result,
         TErrorOr<TQualifiedMessage*> message,
-        size_t size,
+        int size,
         EErrorCode mismatchErrorCode)
     {
         if (result.IsOK()) {
@@ -419,7 +419,7 @@ struct TProtoVisitorTraitsForVector
             Accumulate(
                 result,
                 TSubTraits::GetMessageFromSingularField(entry, fieldDescriptor),
-                message.size());
+                ssize(message));
         }
 
         return result;
@@ -453,7 +453,7 @@ struct TProtoVisitorTraitsForVector
             Accumulate(
                 result,
                 TSubTraits::GetMessageFromRepeatedField(entry, fieldDescriptor, index),
-                message.size());
+                ssize(message));
         }
 
         return result;
@@ -473,7 +473,7 @@ struct TProtoVisitorTraitsForVector
                     entry,
                     fieldDescriptor,
                     keyMessage),
-                message.size());
+                ssize(message));
         }
 
         return result;
