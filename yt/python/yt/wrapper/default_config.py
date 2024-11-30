@@ -3,7 +3,9 @@ from __future__ import print_function
 from typing import Optional, Tuple
 
 from . import common
-from .config_remote_patch import RemotePatchableValueBase, RemotePatchableString, RemotePatchableBoolean, RemotePatchableInteger, _validate_operation_link_pattern  # noqa
+from .config_remote_patch import (RemotePatchableValueBase, RemotePatchableString, RemotePatchableBoolean,
+                                  RemotePatchableInteger, _validate_operation_link_pattern,
+                                  _validate_query_link_pattern)
 from .constants import DEFAULT_HOST_SUFFIX, SKYNET_MANAGER_URL, PICKLING_DL_ENABLE_AUTO_COLLECTION
 from .errors import YtConfigError
 from .mappings import VerifiedDict
@@ -170,7 +172,12 @@ default_config = {
 
         # Link to operation in web interface.
         # NB: this option can be overridden with settings from cluster
+        # TODO(max42): this default is prehistorically obsolete and can be changed to something actual.
         "operation_link_pattern": RemotePatchableString("{proxy}/{cluster_path}?page=operation&mode=detail&id={id}&tab=details", "operation_link_template", _validate_operation_link_pattern),
+
+        # Link to query in web interface.
+        # NB: this option can be overridden with settings from cluster
+        "query_link_pattern": RemotePatchableString("{proxy}/queries/{id}", "query_link_template", _validate_query_link_pattern),
 
         # Sometimes proxy can return incorrect or incomplete response.
         # This option enables checking response format for light requests.
@@ -462,6 +469,17 @@ default_config = {
         "stderr_encoding": "utf-8",
         # Collect operation's stderr from all jobs (not just failed)
         "always_show_job_stderr": False,
+    },
+
+    "query_tracker": {
+        # Query state check interval.
+        "poll_period": 1000,
+        # Log level used for print stderr messages.
+        "stderr_logging_level": "INFO",
+        # Log level used for printing operation progress.
+        "progress_logging_level": "INFO",
+        # Abort operation when SIGINT is received while waiting for the operation to finish.
+        "abort_on_sigint": True,
     },
 
     "read_parallel": {

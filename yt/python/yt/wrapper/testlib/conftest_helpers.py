@@ -10,6 +10,8 @@ from yt.packages import requests
 from yt.wrapper.common import GB
 from yt.wrapper.constants import UI_ADDRESS_PATTERN
 
+from yt.environment.components.query_tracker import QueryTracker
+
 import yt.wrapper as yt
 
 try:
@@ -433,6 +435,27 @@ def yt_env_with_increased_memory(request, test_environment_with_increased_memory
     test_function_setup()
     register_test_function_finalizer(request)
     return test_environment_with_increased_memory
+
+
+@pytest.fixture(scope="class")
+def yt_query_tracker(test_environment):
+    """ YT cluster fixture for tests that require query tracker
+    """
+    if test_environment.config["api_version"] == "v3":
+        pytest.skip("Query tracker is not supported in v3")
+    env = test_environment.env
+    cell_id = yt.create("tablet_cell")
+    wait(lambda: yt.get("//sys/tablet_cells/{0}/@health".format(cell_id)) == "good")
+    query_tracker = QueryTracker()
+    config = query_tracker.get_default_config()
+    config["count"] = 1
+    # Simon says "Prepare!", Simon says "Init!", Simon says "Run! Wait!"...
+    query_tracker.prepare(env, config)
+    query_tracker.init()
+    query_tracker.run()
+    query_tracker.wait()
+
+    return query_tracker
 
 
 @pytest.fixture(scope="function")

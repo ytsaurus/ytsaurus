@@ -43,6 +43,7 @@ PEERDIR(
     yt/python/yt/wrapper/testlib
     yt/python/yt/testlib
     yt/python/yt/yson
+
     yt/yt/python/yt_driver_bindings
     yt/yt/python/yt_driver_rpc_bindings
     yt/yt/python/yt_yson_bindings
@@ -179,6 +180,7 @@ TEST_SRCS(
     test_parse_ypath.py
     test_ping_failed_modes.py
     test_queue_commands.py
+    test_query_commands.py
     test_random_sample.py
     test_run_compression_benchmarks.py
     test_spark.py

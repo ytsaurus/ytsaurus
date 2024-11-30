@@ -2,15 +2,24 @@ from .driver import make_request, make_formatted_request
 from .config import get_config
 from .batch_response import apply_function_to_result
 from .table_helpers import _prepare_command_format
-from .common import datetime_to_string, set_param, get_value
+from .common import datetime_to_string, date_string_to_datetime, set_param, get_value, YtError, utcnow
+from .http_helpers import get_proxy_address_url
+from .errors import YtQueryFailedError
+from .operation_commands import TimeWatcher, get_proxy_and_cluster_path, order_progress
+from .exceptions_catcher import ExceptionCatcher
 
+import yt.logger as logger
+
+from collections import defaultdict
 from datetime import datetime
+from time import time
+import logging
 
 
 def start_query(engine, query, settings=None, files=None, stage=None, annotations=None, access_control_object=None, access_control_objects=None, client=None):
     """Start query.
 
-    :param engine: one of "ql", "yql".
+    :param engine: one of "ql", "yql", "chyt", "spyt".
     :type engine: str
     :param query: text of a query
     :type query: str
@@ -195,3 +204,303 @@ def list_queries(user=None, engine=None, state=None, filter=None, from_time=None
         params=params,
         format=format,
         client=client)
+
+# Helpers
+
+
+def get_query_url(query_id, client=None):
+    proxy_url = get_proxy_address_url(required=False, client=client)
+    if not proxy_url:
+        return None
+
+    proxy, cluster_path = get_proxy_and_cluster_path(client=client)
+
+    return get_config(client)["proxy"]["query_link_pattern"].format(
+        proxy=proxy,
+        cluster_path=cluster_path,
+        id=query_id)
+
+
+class QueryState(object):
+    """State of the query (simple wrapper for the string name)."""
+    def __init__(self, name):
+        self.name = name
+
+    def is_finished(self):
+        return self.name in ("aborted", "completed", "failed", "draft")
+
+    def is_unsuccessfully_finished(self):
+        return self.name in ("aborted", "failed")
+
+    def is_running(self):
+        return self.name == "running"
+
+    def is_starting(self):
+        return self.name == "starting"
+
+    def __eq__(self, other):
+        return self.name == str(other)
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __repr__(self):
+        return self.name
+
+    def __str__(self):
+        return self.name
+
+
+def get_query_state_monitor(query_id, time_watcher, stage=None, client=None):
+    """
+    Yields state and sleeps. Waits for the state of query to become final.
+
+    :return: iterator over query states.
+    """
+    last_state = None
+    while True:
+        state = QueryState(get_query(query_id, stage=stage, client=client, attributes=["state"])["state"])
+        yield state
+        if state.is_finished():
+            break
+
+        if state != last_state:
+            time_watcher.reset()
+        last_state = state
+
+        time_watcher.wait()
+
+
+class QueryResult(object):
+    """Holds information about query result."""
+    def __init__(self, query_id, result_index, query_tracker_stage=None, client=None):
+        self.query_id = query_id
+        self.result_index = result_index
+        self.query_tracker_stage = query_tracker_stage
+        self.client = client
+
+    def get_attributes(self):
+        """Returns query result attributes."""
+        return get_query_result(self.query_id, self.result_index, stage=self.query_tracker_stage, client=self.client)
+
+    def get_error(self):
+        """Returns error of the query result."""
+        attributes = self.get_attributes()
+        if "error" in attributes:
+            return YtError.from_dict(attributes["error"])
+        return None
+
+    def is_truncated(self):
+        """Returns whether the result is truncated."""
+        return self.get_attributes().get("is_truncated", False)
+
+    def read_rows(self, validate_not_truncated=True, format=None, raw=None):
+        error = self.get_error()
+        if error:
+            raise error
+        if validate_not_truncated and self.is_truncated():
+            raise YtError("Query result is truncated, use get_rows(validate_not_truncated=False) to get the truncated "
+                          "result")
+        return read_query_result(self.query_id, self.result_index, stage=self.query_tracker_stage,
+                                 format=format, raw=raw, client=self.client)
+
+    def __iter__(self):
+        return self.read_rows()
+
+
+class GenericQueryInfoPrinter(object):
+    """Tracks query state and prints info on updates."""
+    def __init__(self, query, client=None):
+        self.query = query
+        self.state = None
+        self.progress_line = None
+        # TODO(max42): the corresponding code in operation_commands.py handles timezones incorrectly
+        # around the daylight saving time changes. That code should be fixed as well.
+
+        start_time_str = self.query.get_attributes(attributes=["start_time"])["start_time"]
+        self.start_time = date_string_to_datetime(start_time_str)
+        self.client = client
+        self.level = logging.getLevelName(get_config(self.client)["query_tracker"]["progress_logging_level"])
+
+    def __call__(self, new_state):
+        if new_state.is_running():
+            new_progress_line = self.get_running_progress_line()
+            if self.progress_line != new_progress_line:
+                self.log("query %s: %s", self.query.id, new_progress_line)
+            self.progress_line = new_progress_line
+        elif new_state != self.state:
+            self.log("query %s %s", self.query.id, new_state)
+        self.state = new_state
+
+    # This method is to be overridden in subclasses for concrete engines.
+    def get_running_progress_line(self):
+        """Return a line that is to be printed for a running operation. It is printed only
+        if it differs from its previous state"""
+        return "running"
+
+    def log(self, message, *args, **kwargs):
+        elapsed_seconds = (utcnow() - self.start_time).total_seconds()
+        message = "({0:2} min) ".format(int(elapsed_seconds) // 60) + message
+        logger.log(self.level, message, *args, **kwargs)
+
+
+class YqlQueryInfoPrinter(GenericQueryInfoPrinter):
+    def get_running_progress_line(self):
+        progress = self.query.get_progress()
+        yql_progress = progress.get("yql_progress", {})
+        # YQL node progress contains something similar to YT progress counter and also some additional
+        # fields like "finishedAt" or "stages". We want to aggregate numbers that are similar to YT progress
+        # and output them similar to how YT operation progress is printed.
+        key_whitelist = ["aborted", "completed", "failed", "lost", "pending", "running", "total"]
+        total_progress = defaultdict(int)
+        for node_id, node_progress in yql_progress.items():
+            for key, value in node_progress.items():
+                if key in key_whitelist:
+                    total_progress[key] += value
+        return " ".join("{0}={1:<5}".format(k, v) for k, v in order_progress(total_progress))
+
+
+class Query(object):
+    """Holds information about query."""
+    def __init__(self, id, engine, query_tracker_stage=None,
+                 abort_exceptions=(KeyboardInterrupt, TimeoutError), client=None):
+        self.id = id
+        self.engine = engine
+        self.abort_exceptions = abort_exceptions
+        self.client = client
+        self.url = get_query_url(id, client=client)
+        self.query_tracker_stage = query_tracker_stage
+
+        # TODO(max42): CHYT support was introduced quite recently, so we do not support it yet. QL does not
+        # provide means of tracking query progress, so we do not support it either. SPYT will also follow later.
+        printers = {
+            "yql": YqlQueryInfoPrinter,
+        }
+        self.printer = printers.get(self.engine, GenericQueryInfoPrinter)(self, client=client)
+
+    def abort(self, message=None):
+        """Aborts query."""
+        abort_query(self.id, message=message, stage=self.query_tracker_stage, client=self.client)
+
+    def get_state_monitor(self, time_watcher):
+        """Returns iterator over query progress states."""
+        return get_query_state_monitor(self.id, time_watcher, stage=self.query_tracker_stage,
+                                       client=self.client)
+
+    def get_attributes(self, attributes=None):
+        """Returns query attributes, possibly with given attribute filter."""
+        return get_query(self.id, attributes=attributes, stage=self.query_tracker_stage, client=self.client)
+
+    def get_progress(self):
+        """Returns dictionary that represents the query execution progress."""
+        return self.get_attributes(attributes=["progress"]).get("progress", {})
+
+    def get_state(self):
+        """Returns object that represents state of operation."""
+        return QueryState(self.get_attributes(attributes=["state"])["state"])
+
+    def get_result(self, result_index=0):
+        """Returns query result with the given index."""
+        return QueryResult(self.id, result_index, query_tracker_stage=self.query_tracker_stage, client=self.client)
+
+    def get_results(self):
+        """Returns list of query results."""
+        result_count = self.get_attributes(attributes=["result_count"])["result_count"]
+        return [self.get_result(i) for i in range(result_count)]
+
+    def __iter__(self):
+        if len(self.get_results()) != 1:
+            raise YtError("Query does not have exactly one result; use get_results() instead")
+        return iter(self.get_result(0))
+
+    def get_error(self, return_error_if_all_results_are_errors=True):
+        """If query has failed, or, if return_error_if_all_results_are_errors = True and
+        all subqueries within a query resulted in errors, returns YtQueryFailed. Subquery errors
+        are returned as inner errors. Otherwise, return None."""
+        state = self.get_state()
+
+        if not state.is_finished():
+            return None
+
+        if state.is_unsuccessfully_finished():
+            error = self.get_attributes(attributes=["error"])["error"]
+            return YtQueryFailedError(self.id, state, [error], self.url)
+
+        if return_error_if_all_results_are_errors:
+            result_errors = [result.get_error() for result in self.get_results()]
+            if len(result_errors) >= 1 and all(error is not None for error in result_errors):
+                # YtQueryError.
+                return YtQueryFailedError(
+                    "All subqueries within a query resulted in errors",
+                    QueryState("failed"),
+                    result_errors,
+                    self.url)
+
+        return None
+
+    def wait(self, print_progress=True, timeout=None, raise_if_all_results_are_errors=True):
+        """Synchronously tracks query, prints current progress and finalizes at the completion.
+
+        If query fails, raises :class:`YtOperationFailedError <yt.wrapper.errors.YtOperationFailedError>`.
+        If `KeyboardInterrupt` occurs, aborts query, finalizes and re-raises `KeyboardInterrupt`.
+
+        :param bool print_progress: print progress
+        :param float timeout: timeout of query in msec. If `None`, wait indefinitely.
+        :param bool raise_if_all_results_are_errors: if `True`, raise `YtQueryFailedError` if all results are errors
+        even for a completed query.
+        """
+
+        query_poll_period = get_config(self.client)["query_tracker"]["poll_period"] / 1000.0
+        time_watcher = TimeWatcher(min_interval=query_poll_period / 10.0,
+                                   max_interval=query_poll_period,
+                                   slowdown_coef=0.2)
+        print_info = self.printer if print_progress else lambda state: None
+
+        def abort():
+            self.abort(message="query aborted by client interruption")
+            for state in self.get_state_monitor(TimeWatcher(1.0, 1.0, 0.0)):
+                print_info(state)
+
+        abort_on_sigint = get_config(self.client)["query_tracker"]["abort_on_sigint"]
+
+        with ExceptionCatcher(self.abort_exceptions, abort, enable=abort_on_sigint):
+            start_time = time()
+            for state in self.get_state_monitor(time_watcher):
+                print_info(state)
+                if timeout is not None and time() - start_time > timeout / 1000.0:
+                    raise TimeoutError("Timed out while waiting for query to finish")
+
+        error = self.get_error(return_error_if_all_results_are_errors=raise_if_all_results_are_errors)
+        if error is not None:
+            raise error
+
+
+def run_query(engine, query, settings=None, files=None, stage=None, annotations=None, access_control_objects=None, sync=True, client=None):
+    """Run query and track its progress (unless sync = false).
+
+    :param engine: one of "ql", "yql", "chyt", "spyt".
+    :type engine: str
+    :param query: text of a query
+    :type query: str
+    :param settings: a dictionary of settings
+    :type settings: dict or None
+    :param files: a YSON list of files, each of which is represented by a map with keys "name", "content", "type". Field "type" is one of "raw_inline_data", "url"
+    :type files: list or None
+    :param stage: query tracker stage, defaults to "production"
+    :type stage: str
+    :param annotations: a dictionary of annotations
+    :type annotations: dict or None
+    :param access_control_objects: list access control object names
+    :type access_control_objects: list or None
+    """
+
+    query_id = start_query(engine, query, settings=settings, files=files, stage=stage,
+                           annotations=annotations, access_control_objects=access_control_objects, client=client)
+    query = Query(query_id, engine, query_tracker_stage=stage, client=client)
+    if query.url:
+        logger.info("Query started: %s", query.url)
+    else:
+        logger.info("Query started: %s", query.id)
+    if sync:
+        query.wait()
+    return query

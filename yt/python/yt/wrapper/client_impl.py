@@ -2496,6 +2496,36 @@ class YtClient(ClientState):
             client=self,
             sync=sync, run_operation_mutation_id=run_operation_mutation_id, enable_optimizations=enable_optimizations)
 
+    def run_query(
+            self,
+            engine, query,
+            settings=None, files=None, stage=None, annotations=None, access_control_objects=None,
+            sync=True):
+        """
+        Run query and track its progress (unless sync = false).
+
+        :param engine: one of "ql", "yql", "chyt", "spyt".
+        :type engine: str
+        :param query: text of a query
+        :type query: str
+        :param settings: a dictionary of settings
+        :type settings: dict or None
+        :param files: a YSON list of files, each of which is represented by a map with keys "name", "content", "type". Field "type" is one of "raw_inline_data", "url"
+        :type files: list or None
+        :param stage: query tracker stage, defaults to "production"
+        :type stage: str
+        :param annotations: a dictionary of annotations
+        :type annotations: dict or None
+        :param access_control_objects: list access control object names
+        :type access_control_objects: list or None
+
+        """
+        return client_api.run_query(
+            engine, query,
+            client=self,
+            settings=settings, files=files, stage=stage, annotations=annotations, access_control_objects=access_control_objects,
+            sync=sync)
+
     def run_reduce(
             self,
             binary, source_table,
@@ -2812,7 +2842,7 @@ class YtClient(ClientState):
         """
         Start query.
 
-        :param engine: one of "ql", "yql".
+        :param engine: one of "ql", "yql", "chyt", "spyt".
         :type engine: str
         :param query: text of a query
         :type query: str

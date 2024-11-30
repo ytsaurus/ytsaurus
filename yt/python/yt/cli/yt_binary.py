@@ -12,7 +12,7 @@ from yt.wrapper.common import (
 from yt.wrapper.cli_helpers import (
     write_silently, print_to_output, run_main, ParseStructuredArgument, populate_argument_help, SUBPARSER_KWARGS,
     add_subparser, parse_arguments, parse_data, output_format, dump_data, add_argument, add_structured_argument,
-    YT_STRUCTURED_DATA_FORMAT, YT_ARGUMENTS_FORMAT)
+    YT_STRUCTURED_DATA_FORMAT, YT_ARGUMENTS_FORMAT, OUTPUT_FORMATS)
 from yt.wrapper.constants import GETTINGSTARTED_DOC_URL, TUTORIAL_DOC_URL
 from yt.wrapper.default_config import get_default_config, RemotePatchableValueBase
 from yt.wrapper.admin_commands import add_switch_leader_parser
@@ -1276,11 +1276,63 @@ def add_start_query_parser(add_parser):
     parser.add_argument("engine", type=str, help='engine of a query, one of "ql", "yql", "chyt", "spyt"')
     parser.add_argument("query", type=str, help="query text")
     add_structured_argument(parser, "--settings", help="additional settings of a query in structured form")
-    add_structured_argument(parser, "--files", help='query files, a YSON list of files, each of which is represented by a map with keys "name", "content", "type".'
+    add_structured_argument(parser, "--files", help='query files, a YSON list of files, each of which is represented by a map with keys "name", "content", "type". '
                                                     'Field "type" is one of "raw_inline_data", "url"')
     parser.add_argument("--access-control-object", type=str, help='optional access control object name (deprecated)')
     add_structured_argument(parser, "--access-control-objects", help='access control objects, a YSON list of ACO names')
     parser.add_argument("--stage", type=str, help='query tracker stage, defaults to "production"')
+
+
+@copy_docstring_from(yt.run_query)
+def run_query(*args, format=None, structured=None, **kwargs):
+    is_async = kwargs.pop("async", False)
+
+    if structured:
+        if format is None:
+            format = yt.format.create_format(OUTPUT_FORMATS[YT_STRUCTURED_DATA_FORMAT])
+    else:
+        # Perform an early check similar to the one in read_query_result to
+        # avoid late errors (after query execution) in case user forgets to specify format.
+        if format is None:
+            raise yt.YtError("You should specify format")
+
+    query = yt.run_query(*args, sync=not is_async, **kwargs)
+    if is_async:
+        print(query.id)
+        return
+
+    if structured:
+        result = []
+        for query_result in query.get_results():
+            attributes = query_result.get_attributes()
+            if "error" not in attributes:
+                attributes["rows"] = builtins.list(query_result.read_rows(validate_not_truncated=False, raw=False))
+            result.append(attributes)
+        print_to_output(format.dumps_node(result))
+    else:
+        query_results = query.get_results()
+        if len(query_results) == 1:
+            query_result = query_results[0]
+            write_silently(chunk_iter_stream(query_result.read_rows(format=format), yt.config["read_buffer_size"]))
+        else:
+            raise yt.YtError("Multiple query results are not supported when format is specified")
+
+
+def add_query_parser(add_parser):
+    parser = add_parser("query", run_query)
+    parser.add_argument("engine", type=str, help='engine of a query, one of "ql", "yql", "chyt", "spyt"')
+    parser.add_argument("query", type=str, help="query text")
+    add_structured_argument(parser, "--settings", help="additional settings of a query in structured form")
+    add_structured_argument(parser, "--files",
+                            help='query files, a YSON list of files, each of which is represented by a map with keys '
+                                 '"name", "content", "type". Field "type" is one of "raw_inline_data", "url"')
+    add_structured_argument(parser, "--access-control-objects",
+                            help='access control objects, a YSON list of ACO names')
+    parser.add_argument("--stage", type=str, help='query tracker stage, defaults to "production"')
+    parser.add_argument("--structured", action="store_true", help="output all query results together with their "
+                                                                  "metainformation in structured form")
+    parser.add_argument("--async", action="store_true", default=False, help="do not track query progress")
+    add_format_argument(parser, help="output format")
 
 
 def add_abort_query_parser(add_parser):
@@ -2748,6 +2800,7 @@ def _prepare_parser():
     add_advance_consumer_parser(add_parser)
 
     add_start_query_parser(add_parser)
+    add_query_parser(add_parser)
     add_abort_query_parser(add_parser)
     add_read_query_result_parser(add_parser)
     add_get_query_parser(add_parser)

@@ -584,11 +584,7 @@ def process_operation_unsuccessful_finish_state(operation, error):
     raise error
 
 
-def get_operation_url(operation, client=None):
-    proxy_url = get_proxy_address_url(required=False, client=client)
-    if not proxy_url:
-        return None
-
+def get_proxy_and_cluster_path(client=None):
     local_mode_proxy_address = get_local_mode_proxy_address(client=client)
     if local_mode_proxy_address is None and not is_local_mode(client=client):
         cluster_path = ""
@@ -600,6 +596,15 @@ def get_operation_url(operation, client=None):
         else:
             cluster_path = "ui/"
             proxy = get_proxy_address_url(client=client)
+    return proxy, cluster_path
+
+
+def get_operation_url(operation, client=None):
+    proxy_url = get_proxy_address_url(required=False, client=client)
+    if not proxy_url:
+        return None
+
+    proxy, cluster_path = get_proxy_and_cluster_path(client=client)
 
     return get_config(client)["proxy"]["operation_link_pattern"].format(
         proxy=proxy,

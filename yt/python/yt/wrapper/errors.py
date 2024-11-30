@@ -34,6 +34,17 @@ class YtOperationFailedError(YtError):
         super(YtOperationFailedError, self).__init__(message, attributes=attributes, inner_errors=inner_errors)
 
 
+class YtQueryFailedError(YtError):
+    """Query failed."""
+    def __init__(self, id, state, inner_errors, url):
+        message = "Query {0} {1}".format(id, state)
+        attributes = {
+            "id": id,
+            "state": state,
+            "url": url}
+        super(YtQueryFailedError, self).__init__(message, attributes=attributes, inner_errors=inner_errors)
+
+
 # COMPAT
 YtHttpResponseError = yt.common.YtResponseError
 
