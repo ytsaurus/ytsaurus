@@ -769,19 +769,19 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         self._wait_for_row_count("//tmp/q", 0, 2)
         self._wait_for_min_row_index("//tmp/q", 0, 3)
 
+        retained_lifetime_duration_seconds = 10
         set("//tmp/q/@auto_trim_config", {
             "enable": True,
-            "retained_lifetime_duration": 3000})  # 3 seconds
+            "retained_lifetime_duration": retained_lifetime_duration_seconds * 1000})  # 10 seconds
         self._wait_for_component_passes()
 
         insert_rows("//tmp/q", [{"$tablet_index": 1, "data": "foo"}] * 3)
-        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        time_after_insert = time.time()
         self._flush_table("//tmp/q", first_tablet_index=1, last_tablet_index=1)
         # Flush dynamic store with inserted rows into chunk.
-        time.sleep(3)
+        time.sleep(max(retained_lifetime_duration_seconds - (time.time() - time_after_insert), 1))
 
         insert_rows("//tmp/q", [{"$tablet_index": 1, "data": "foo"}] * 5)
-        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
 
         self._advance_consumer("//tmp/c1", "//tmp/q", 1, 7)
         # Now we have at least 2 stores in chunk.
