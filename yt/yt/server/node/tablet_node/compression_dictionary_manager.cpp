@@ -396,13 +396,22 @@ public:
 
     i64 GetMemoryUsage() const
     {
+        if (GetKey().IsDecompression) {
+            return std::get<1>(RowDictionary_).StorageSize;
+        } else {
+            return std::get<0>(RowDictionary_).StorageSize;
+        }
+    }
+
+    i64 GetEffectiveMemoryUsage() const
+    {
         i64 memoryUsage = 0;
         if (GetKey().IsDecompression) {
-            for (const auto& [_, digestedDictionary] : std::get<1>(RowDictionary_)) {
+            for (const auto& [_, digestedDictionary] : std::get<1>(RowDictionary_).ColumnDictionaries) {
                 memoryUsage += digestedDictionary->GetMemoryUsage();
             }
         } else {
-            for (const auto& [_, digestedDictionary] : std::get<0>(RowDictionary_)) {
+            for (const auto& [_, digestedDictionary] : std::get<0>(RowDictionary_).ColumnDictionaries) {
                 memoryUsage += digestedDictionary->GetMemoryUsage();
             }
         }
@@ -515,16 +524,19 @@ public:
 
                     const auto& compressionDictionary = compressionEntry->GetRowDigestedCompressionDictionary();
                     const auto& decompressionDictionary = decompressionEntry->GetRowDigestedDecompressionDictionary();
-                    YT_VERIFY(compressionDictionary.size() == decompressionDictionary.size());
+                    YT_VERIFY(compressionDictionary.ColumnDictionaries.size() == decompressionDictionary.ColumnDictionaries.size());
 
                     auto& rowCompressor = rowDictionaryCompressors[compressionEntry->GetPolicy()];
                     rowCompressor.DictionaryId = compressionEntry->GetKey().ChunkId;
-                    for (const auto& [valueId, columnDigestedCompressionDictionary] : compressionDictionary) {
-                        const auto& columnDigestedDecompressionDictionary = GetOrCrash(decompressionDictionary, valueId);
+                    for (const auto& [valueId, columnDigestedCompressionDictionary] : compressionDictionary.ColumnDictionaries) {
                         rowCompressor.ColumnCompressors[valueId] = TColumnDictionaryCompressor{
                             .Compressor = GetDictionaryCompressionCodec()->CreateDictionaryCompressor(
                                 columnDigestedCompressionDictionary),
                         };
+
+                        const auto& columnDigestedDecompressionDictionary = GetOrCrash(
+                            decompressionDictionary.ColumnDictionaries,
+                            valueId);
                         rowCompressor.ColumnDecompressors[valueId] = GetDictionaryCompressionCodec()->
                             CreateDictionaryDecompressor(columnDigestedDecompressionDictionary);
                     }
@@ -656,9 +668,10 @@ private:
                     policy);
 
                 YT_LOG_DEBUG("Compression dictionary manager successfully read digested dictionary "
-                    "(%v, MemoryUsage: %v)",
+                    "(%v, MemoryUsage: %v, EffectiveMemoryUsage: %v)",
                     cookie.GetKey(),
-                    entry->GetMemoryUsage());
+                    entry->GetMemoryUsage(),
+                    entry->GetEffectiveMemoryUsage());
 
                 cookie.EndInsert(std::move(entry));
             }));

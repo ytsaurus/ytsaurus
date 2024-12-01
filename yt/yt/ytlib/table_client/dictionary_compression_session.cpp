@@ -26,6 +26,11 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDigestedCompressionDictionaryStorage { };
+struct TDigestedDecompressionDictionaryStorage { };
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TDictionaryDecompressionSession)
 
 class TDictionaryDecompressionSession
@@ -460,21 +465,37 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
             }
 
             if (isDecompression) {
+                // NB: Allocate single blob for all column dictionaries
+                // as they all we be stored together and destroyed simultaneously.
+                i64 estimatedStorageSize = 0;
+                for (int index = 0; index < std::ssize(response.Fragments); ++index) {
+                    YT_VERIFY(response.Fragments[index]);
+                    auto estimatedSize = GetDictionaryCompressionCodec()->EstimateDigestedDecompressionDictionarySize(
+                        std::ssize(response.Fragments[index]));
+                    estimatedStorageSize += AlignUp<i64>(estimatedSize, 8);
+                }
+
+                auto storage = TSharedMutableRef::AllocatePageAligned<TDigestedDecompressionDictionaryStorage>(
+                    AlignUp<i64>(estimatedStorageSize, 4_KB),
+                    { .InitializeStorage = false });
+
+                i64 startOffset = 0;
                 TRowDigestedDecompressionDictionary rowDigestedDictionary;
+                rowDigestedDictionary.StorageSize = storage.Size();
                 // NB: Columns that are missing in the dictionary will be ignored here
                 // and no decompression will be performed either.
                 for (int index = 0; index < std::ssize(columnIdMapping); ++index) {
-                    YT_VERIFY(response.Fragments[index]);
+                    auto estimatedSize = GetDictionaryCompressionCodec()->EstimateDigestedDecompressionDictionarySize(
+                        std::ssize(response.Fragments[index]));
+                    estimatedSize = AlignUp<i64>(estimatedSize, 8);
 
+                    IDigestedDecompressionDictionaryPtr digestedDictionary;
                     try {
-                        auto digestedDictionary = GetDictionaryCompressionCodec()->CreateDigestedDecompressionDictionary(
-                            response.Fragments[index]);
-                        EmplaceOrCrash(
-                            rowDigestedDictionary,
-                            columnIdMapping[index],
-                            std::move(digestedDictionary));
+                        digestedDictionary = GetDictionaryCompressionCodec()->ConstructDigestedDecompressionDictionary(
+                            response.Fragments[index],
+                            storage.Slice(startOffset, startOffset + estimatedSize));
                     } catch (const std::exception& ex) {
-                        auto error = TError("Failed to build digested decompression dictionary")
+                        auto error = TError("Failed to construct digested decompression dictionary")
                             << TErrorAttribute("column_index", index)
                             << TErrorAttribute("column_id", columnIdMapping[index])
                             << TErrorAttribute("dictionary_id", dictionaryId)
@@ -482,25 +503,53 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
                         YT_LOG_ALERT(error);
                         THROW_ERROR(error);
                     }
+                    startOffset += estimatedSize;
+
+                    EmplaceOrCrash(
+                        rowDigestedDictionary.ColumnDictionaries,
+                        columnIdMapping[index],
+                        std::move(digestedDictionary));
                 }
+
+                YT_VERIFY(startOffset == estimatedStorageSize);
+
                 return rowDigestedDictionary;
             } else {
+                // NB: Allocate single blob for all column dictionaries
+                // as they all we be stored together and destroyed simultaneously.
+                i64 estimatedStorageSize = 0;
+                for (int index = 0; index < std::ssize(response.Fragments); ++index) {
+                    YT_VERIFY(response.Fragments[index]);
+                    auto estimatedSize = GetDictionaryCompressionCodec()->EstimateDigestedCompressionDictionarySize(
+                        std::ssize(response.Fragments[index]),
+                        dictionaryReaderConfig->CompressionLevel);
+                    estimatedStorageSize += AlignUp<i64>(estimatedSize, 8);
+                }
+
+                auto storage = TSharedMutableRef::AllocatePageAligned<TDigestedCompressionDictionaryStorage>(
+                    AlignUp<i64>(estimatedStorageSize, 4_KB),
+                    { .InitializeStorage = false });
+
+                i64 startOffset = 0;
                 TRowDigestedCompressionDictionary rowDigestedDictionary;
+                rowDigestedDictionary.StorageSize = storage.Size();
                 // NB: Columns that are missing in the dictionary will be ignored here
                 // and no compression will be performed either.
                 for (int index = 0; index < std::ssize(columnIdMapping); ++index) {
                     YT_VERIFY(response.Fragments[index]);
+                    auto estimatedSize = GetDictionaryCompressionCodec()->EstimateDigestedCompressionDictionarySize(
+                        std::ssize(response.Fragments[index]),
+                        dictionaryReaderConfig->CompressionLevel);
+                    estimatedSize = AlignUp<i64>(estimatedSize, 8);
 
+                    IDigestedCompressionDictionaryPtr digestedDictionary;
                     try {
-                        auto digestedDictionary = GetDictionaryCompressionCodec()->CreateDigestedCompressionDictionary(
+                        digestedDictionary = GetDictionaryCompressionCodec()->ConstructDigestedCompressionDictionary(
                             response.Fragments[index],
+                            storage.Slice(startOffset, startOffset + estimatedSize),
                             dictionaryReaderConfig->CompressionLevel);
-                        EmplaceOrCrash(
-                            rowDigestedDictionary,
-                            columnIdMapping[index],
-                            std::move(digestedDictionary));
                     } catch (const std::exception& ex) {
-                        auto error = TError("Failed to build digested compression dictionary")
+                        auto error = TError("Failed to construct digested compression dictionary")
                             << TErrorAttribute("column_index", index)
                             << TErrorAttribute("column_id", columnIdMapping[index])
                             << TErrorAttribute("dictionary_id", dictionaryId)
@@ -508,7 +557,16 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
                         YT_LOG_ALERT(error);
                         THROW_ERROR(error);
                     }
+                    startOffset += estimatedSize;
+
+                    EmplaceOrCrash(
+                        rowDigestedDictionary.ColumnDictionaries,
+                        columnIdMapping[index],
+                        std::move(digestedDictionary));
                 }
+
+                YT_VERIFY(startOffset == estimatedStorageSize);
+
                 return rowDigestedDictionary;
             }
         }));
@@ -566,7 +624,7 @@ TRowDictionaryDecompressor CreateRowDictionaryDecompressor(
     const TRowDigestedDecompressionDictionary& digestedDictionary)
 {
     TRowDictionaryDecompressor rowDecompressor;
-    for (const auto& [valueId, columnDigestedDictionary] : digestedDictionary) {
+    for (const auto& [valueId, columnDigestedDictionary] : digestedDictionary.ColumnDictionaries) {
         EmplaceOrCrash(
             rowDecompressor,
             valueId,
