@@ -60,7 +60,7 @@ class HeavyProxyProvider(ProxyProvider):
             time = self.state.banned_proxies[proxy]
             if total_seconds(now - time) * 1000 > get_config(self.client)["proxy"]["proxy_ban_timeout"]:
                 logger.info("Proxy %s unbanned", proxy)
-                self.state.banned_proxies.pop(proxy, None)
+                del self.state.banned_proxies[proxy]
 
         if get_config(self.client)["proxy"]["enable_proxy_discovery"]:
             limit = get_config(self.client)["proxy"]["number_of_top_proxies_for_random_choice"]
