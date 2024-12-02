@@ -23,6 +23,9 @@ message TChunkReaderStatistics
     optional int64 retry_count = 17;
     optional int64 pass_count = 18;
 
+    optional int64 block_count = 19;
+    optional int64 prefetched_block_count = 20;
+
     reserved 8;
 }
 
