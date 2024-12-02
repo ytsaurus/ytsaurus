@@ -1,6 +1,7 @@
 #include "cypress.h"
 
 #include <yt/yt/server/lib/signature/key_info.h>
+#include <yt/yt/server/lib/signature/private.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -18,6 +19,7 @@ using namespace NObjectClient;
 using namespace NYson;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NThreading;
 
 YT_DEFINE_GLOBAL(TYPath, DefaultPath, "//sys/public_keys/by_owner");
 
@@ -71,20 +73,21 @@ TFuture<TKeyInfoPtr> TCypressKeyReader::FindKey(const TOwnerId& owner, const TKe
 TCypressKeyWriter::TCypressKeyWriter(TCypressKeyWriterConfigPtr config, IClientPtr client)
     : Config_(std::move(config))
     , Client_(std::move(client))
+{ }
+
+TFuture<void> TCypressKeyWriter::Initialize()
 {
     TCreateNodeOptions options;
     options.IgnoreExisting = true;
-    auto node_id = WaitFor(Client_->CreateNode(
+
+    Initialization_ = Client_->CreateNode(
         YPathJoin(Config_->Path, ToYPathLiteral(Config_->Owner)),
         EObjectType::MapNode,
-        std::move(options)));
+        std::move(options)).AsVoid();
 
-    if (!node_id.IsOK()) {
-        THROW_ERROR_EXCEPTION(
-            "Failed to initialize cypress key writer (OwnerId: %v, Error: %v)",
-            Config_->Owner,
-            node_id);
-    }
+    YT_LOG_INFO("Initialized Cypress key writer");
+
+    return Initialization_;
 }
 
 TOwnerId TCypressKeyWriter::GetOwner()
@@ -94,9 +97,20 @@ TOwnerId TCypressKeyWriter::GetOwner()
 
 TFuture<void> TCypressKeyWriter::RegisterKey(const TKeyInfoPtr& keyInfo)
 {
+    YT_ASSERT(keyInfo);
+
+    return Initialization_.Apply(BIND([this, keyInfo, this_ = MakeStrong(this)] () {
+        return DoRegister(std::move(keyInfo));
+    }));
+}
+
+TFuture<void> TCypressKeyWriter::DoRegister(const TKeyInfoPtr& keyInfo)
+{
     auto [owner, id] = std::visit([] (const auto& meta) {
         return std::pair{meta.Owner, meta.Id};
     }, keyInfo->Meta());
+
+    YT_LOG_DEBUG("Registering key (Owner: %v, Id %v)", owner, id);
 
     // We should not register keys belonging to other owners.
     YT_VERIFY(owner == Config_->Owner);
@@ -121,10 +135,10 @@ TFuture<void> TCypressKeyWriter::RegisterKey(const TKeyInfoPtr& keyInfo)
         BIND([
                 this,
                 keyNodePath = std::move(keyNodePath),
-                &keyInfo,
+                keyInfo,
                 this_ = MakeStrong(this)
             ] (NCypressClient::TNodeId /*nodeId*/) {
-                return Client_->SetNode(keyNodePath, ConvertToYsonString(keyInfo));
+                return Client_->SetNode(keyNodePath, ConvertToYsonString(std::move(keyInfo)));
             }));
 }
 

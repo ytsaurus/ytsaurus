@@ -145,6 +145,7 @@ struct TCypressKeyWriterTest
 TEST_F(TCypressKeyWriterTest, Init)
 {
     auto writer = New<TCypressKeyWriter>(Config, Client);
+    WaitFor(writer->Initialize()).ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,7 +155,11 @@ TEST_F(TCypressKeyWriterNoInitTest, InitFailed)
     EXPECT_CALL(*Client, CreateNode("//sys/public_keys/by_owner/test", _, _))
         .WillOnce(Return(MakeFuture<TNodeId>(TError("failure"))));
 
-    EXPECT_THROW_WITH_SUBSTRING(New<TCypressKeyWriter>(Config, Client), "Failed to initialize");
+    auto writer = New<TCypressKeyWriter>(Config, Client);
+    auto error = WaitFor(writer->Initialize());
+
+    EXPECT_FALSE(error.IsOK());
+    EXPECT_THAT(error.GetMessage(), HasSubstr("failure"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,6 +167,7 @@ TEST_F(TCypressKeyWriterNoInitTest, InitFailed)
 TEST_F(TCypressKeyWriterTest, GetOwner)
 {
     auto writer = New<TCypressKeyWriter>(Config, Client);
+    WaitFor(writer->Initialize()).ThrowOnError();
 
     EXPECT_EQ(writer->GetOwner(), Owner);
 }
@@ -185,6 +191,7 @@ TEST_F(TCypressKeyWriterTest, RegisterKey)
         .WillOnce(Return(VoidFuture));
 
     auto writer = New<TCypressKeyWriter>(Config, Client);
+    WaitFor(writer->Initialize()).ThrowOnError();
 
     EXPECT_TRUE(WaitFor(writer->RegisterKey(keyInfo)).IsOK());
 }
@@ -197,6 +204,7 @@ TEST_F(TCypressKeyWriterTest, RegisterKeyFailed)
         .WillOnce(Return(MakeFuture<TNodeId>(TError("some error"))));
 
     auto writer = New<TCypressKeyWriter>(Config, Client);
+    WaitFor(writer->Initialize()).ThrowOnError();
 
     auto keyInfo = New<TKeyInfo>(TPublicKey{}, Meta);
 
@@ -210,6 +218,7 @@ TEST_F(TCypressKeyWriterTest, RegisterKeyFailed)
 TEST_F(TCypressKeyWriterTest, RegisterKeyWrongOwner)
 {
     auto writer = New<TCypressKeyWriter>(Config, Client);
+    WaitFor(writer->Initialize()).ThrowOnError();
 
     // TODO(pavook): enable this test when we can replace YT_VERIFY with exceptions.
     if (false) {
