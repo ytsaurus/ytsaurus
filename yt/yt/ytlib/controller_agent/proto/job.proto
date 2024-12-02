@@ -42,6 +42,7 @@ message TJobSpec
 message TJobResult
 {
     required NYT.NProto.TError error = 1;
+    optional int32 exit_code = 2;
 
     extensions 100 to max;
 }

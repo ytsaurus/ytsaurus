@@ -7,7 +7,7 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, create_test_tables, print_debug, release_breakpoint, remove, wait, wait_breakpoint, with_breakpoint, create, ls, get,
-    set, exists, update_op_parameters,
+    set, exists, update_op_parameters, get_job,
     write_table, map, reduce, map_reduce, merge, erase, vanilla, run_sleeping_vanilla, run_test_vanilla, get_operation, raises_yt_error)
 
 from yt_helpers import profiler_factory
@@ -1127,3 +1127,126 @@ class TestLivePreview(YTEnvSetup):
 
         op.abort()
         wait(lambda: op.get_state() == "aborted")
+
+
+class TestJobFailTolerance(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "enable_job_fails_tolerance": True,
+        },
+    }
+
+    def _get_failed_job_count(self, op):
+        failed_count = 0
+        for job_id in op.list_jobs():
+            job = get_job(op.id, job_id)
+            if job["state"] == "failed":
+                failed_count += 1
+
+        return failed_count
+
+    @authors("arkady-e1ppa")
+    def test_job_fails_tolerance_known_code(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"key": 1}])
+
+        op = map(
+            in_=["//tmp/t_in"],
+            out=[],
+            command="sleep 1 && exit 42",
+            spec={
+                "max_failed_job_count": 10,
+                "job_fails_tolerance": {
+                    "max_fails_unknown_exit_code": 5,
+                    "max_fails_per_known_exit_code": {
+                        "42": 2,
+                    },
+                },
+            },
+            track=False,
+        )
+
+        with raises_yt_error():
+            op.track()
+
+        wait(lambda: self._get_failed_job_count(op) == 2)
+
+    @authors("arkady-e1ppa")
+    def test_job_fails_tolerance_unknown_code(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"key": 1}])
+
+        op = map(
+            in_=["//tmp/t_in"],
+            out=[],
+            command="sleep 1 && exit 11",
+            spec={
+                "max_failed_job_count": 10,
+                "job_fails_tolerance": {
+                    "max_fails_unknown_exit_code": 3,
+                    "max_fails_per_known_exit_code": {
+                        "42": 1,
+                    },
+                },
+            },
+            track=False,
+        )
+
+        with raises_yt_error():
+            op.track()
+
+        wait(lambda: self._get_failed_job_count(op) == 3)
+
+    @authors("arkady-e1ppa")
+    def test_job_fails_tolerance_two_known_codes(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"key": 1}])
+
+        op = map(
+            in_=["//tmp/t_in"],
+            out=[],
+            command="sleep 1 && exit 11",
+            spec={
+                "max_failed_job_count": 10,
+                "job_fails_tolerance": {
+                    "max_fails_unknown_exit_code": 3,
+                    "max_fails_per_known_exit_code": {
+                        "11": 5,
+                        "42": 1,
+                    },
+                },
+            },
+            track=False,
+        )
+
+        with raises_yt_error():
+            op.track()
+
+        wait(lambda: self._get_failed_job_count(op) == 5)
+
+    @authors("arkady-e1ppa")
+    def test_job_fails_tolerance_max_failed_job_count_overrides(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"key": 1}])
+
+        op = map(
+            in_=["//tmp/t_in"],
+            out=[],
+            command="sleep 1 && exit 11",
+            spec={
+                "max_failed_job_count": 2,
+                "job_fails_tolerance": {
+                    "max_fails_unknown_exit_code": 3,
+                },
+            },
+            track=False,
+        )
+
+        with raises_yt_error():
+            op.track()
+
+        wait(lambda: self._get_failed_job_count(op) == 2)

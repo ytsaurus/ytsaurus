@@ -62,6 +62,8 @@ DEFINE_ENUM(ESnapshotVersion,
     ((AcoName)                              (301605))
     ((DisableShrinkingJobs)                 (301606))
     ((MultipleOrderedTasks)                 (301607))
+    ((RemoteCopyDynamicTableWithHunks)      (301608))
+    ((JobFailTolerance)                     (301609))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

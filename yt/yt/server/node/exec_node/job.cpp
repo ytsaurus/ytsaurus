@@ -933,6 +933,10 @@ void TJob::OnResultReceived(TJobResult jobResult)
 
             SetJobPhase(EJobPhase::FinalizingJobProxy);
 
+            if (jobResult.has_exit_code()) {
+                ExitCode_.emplace(jobResult.exit_code());
+            }
+
             std::optional<NControllerAgent::NProto::TJobResultExt> jobResultExtension;
             if (jobResult.HasExtension(NControllerAgent::NProto::TJobResultExt::job_result_ext)) {
                 jobResultExtension = std::move(
@@ -1198,6 +1202,10 @@ TJobResult TJob::GetResult() const
 
     TJobResult result;
     ToProto(result.mutable_error(), *Error_);
+
+    if (ExitCode_.has_value()) {
+        result.set_exit_code(*ExitCode_);
+    }
 
     if (JobResultExtension_) {
         *result.MutableExtension(
