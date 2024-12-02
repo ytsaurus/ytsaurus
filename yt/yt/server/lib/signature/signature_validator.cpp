@@ -69,7 +69,7 @@ TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature)
                 keyId = std::move(keyId),
                 signatureId = std::move(signatureId),
                 header = std::move(header),
-                &signature
+                signature = std::move(signature)
             ] (const TKeyInfoPtr& keyInfo) {
                 if (!keyInfo) {
                     YT_LOG_DEBUG(
