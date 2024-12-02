@@ -39,7 +39,11 @@ def run_check(yt_client, logger, options, states):
             return False
 
     for chunk_type in ["data_missing_chunks", "parity_missing_chunks"]:
-        process_state(chunk_type)
+        try:
+            process_state(chunk_type)
+        except Exception as error:
+            logger.info("Error getting {}: '{}'".format(chunk_type, error))
+            return states.PARTIALLY_AVAILABLE_STATE, error
 
     message = {}
     for k, v in STATE.items():
