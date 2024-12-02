@@ -45,7 +45,7 @@ class TestShuffleService(YTEnvSetup):
 
         assert read_shuffle_data(shuffle_handle, 10) == []
 
-        # Check that active_shuffle_count_sensor actually works
+        # Check that active_shuffle_count_sensor actually works.
         wait(lambda: active_shuffle_count_sensor.get() == 1, iter=300, sleep_backoff=0.1)
 
         if abort:
@@ -57,6 +57,22 @@ class TestShuffleService(YTEnvSetup):
 
         with raises_yt_error(f'Shuffle with id "{shuffle_handle["transaction_id"]}" does not exist'):
             read_shuffle_data(shuffle_handle, 1)
+
+    @authors("apollo1321")
+    def test_different_partition_columns(self):
+        parent_transaction = start_transaction(timeout=60000)
+
+        shuffle_handle = start_shuffle("intermediate", partition_count=11, parent_transaction_id=parent_transaction)
+
+        # Check that a negative partition index is not accepted.
+        with raises_yt_error("Received negative partition index -1"):
+            write_shuffle_data(shuffle_handle, "key1", [{"key1": -1}])
+
+        rows = [{"key1": 0, "key2": -1}, {"key1": -1, "key2": 0}]
+        write_shuffle_data(shuffle_handle, "key1", rows[0])
+        write_shuffle_data(shuffle_handle, "key2", rows[1])
+
+        assert read_shuffle_data(shuffle_handle, 0) == rows
 
     @authors("apollo1321")
     def test_invalid_arguments(self):

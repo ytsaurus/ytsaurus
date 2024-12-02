@@ -217,7 +217,8 @@ TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
     const std::string& partitionColumn,
     const TTableWriterConfigPtr& config)
 {
-    auto nameTable = TNameTable::FromKeyColumns({partitionColumn});
+    auto keyColumns = TKeyColumns({partitionColumn});
+    auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
     auto partitioner = CreateColumnBasedPartitioner(
         shuffleHandle->PartitionCount,
@@ -227,11 +228,19 @@ TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
     options->EvaluateComputedColumns = false;
     options->Account = shuffleHandle->Account;
 
+    // The partition column index must be preserved for the partitioner.
+    // However, the row is partitioned after the row value ids are mapped to
+    // the chunk name table. As a result, the partition column id may differ
+    // from the one specified in the partitioner. To prevent this issue, it is
+    // necessary to specify the table schema with the partition column, as it
+    // guaranteed that the chunk name table always coincides with the column
+    // index in the schema (because the chunk name table is initialized from the
+    // schema columns).
     auto writer = CreatePartitionMultiChunkWriter(
         config,
         std::move(options),
         std::move(nameTable),
-        /*schema*/ New<TTableSchema>(),
+        /*schema*/ TTableSchema::FromKeyColumns(keyColumns),
         this,
         /*localHostName*/ "",
         CellTagFromId(shuffleHandle->TransactionId),
