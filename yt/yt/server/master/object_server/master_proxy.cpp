@@ -521,8 +521,16 @@ private:
             ? transactionManager->GetTransactionOrThrow(transactionId)
             : nullptr;
 
+        auto onSubresponseCallback = [context, response] (TObjectId objectId, const TSharedRefArray& message) {
+            auto& attachments = context->Response().Attachments();
+            attachments.insert(attachments.end(), message.Begin(), message.End());
+            auto* subresponse = response->add_subresponses();
+            subresponse->set_part_count(message.size());
+            ToProto(subresponse->mutable_object_id(), objectId);
+        };
+
+        std::vector<TFuture<void>> futures;
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto& attachments = context->Response().Attachments();
         for (auto objectId : objectIds) {
             // It's impossible to clear response without wiping the whole context, so it has to be created anew for each node.
             auto subcontext = CreateYPathContext(templateRequest, Logger());
@@ -537,14 +545,36 @@ private:
                     objectId));
             }
 
-            const auto& subresponseMessage = subcontext->GetResponseMessage();
-            attachments.insert(attachments.end(), subresponseMessage.Begin(), subresponseMessage.End());
-            auto* subresponse = response->add_subresponses();
-            subresponse->set_part_count(subresponseMessage.size());
-            ToProto(subresponse->mutable_object_id(), objectId);
+            if (subcontext->IsReplied()) {
+                onSubresponseCallback(objectId, subcontext->GetResponseMessage());
+            } else {
+                futures.push_back(subcontext->GetAsyncResponseMessage()
+                    .Apply(BIND([objectId, onSubresponseCallback] (const TErrorOr<TSharedRefArray>& resultOrError) {
+                        if (resultOrError.IsOK()) {
+                            onSubresponseCallback(objectId, resultOrError.Value());
+                        } else {
+                            auto message = CreateErrorResponseMessage(resultOrError);
+                            onSubresponseCallback(objectId, message);
+                        }
+                    }).Via(GetCurrentInvoker())));
+            }
         }
 
-        context->Reply();
+        // Shortcut for synchronous response.
+        if (futures.empty()) {
+            context->Reply();
+        } else {
+            AllSucceeded(std::move(futures)).Subscribe(BIND([context] (const TError& error) {
+                if (error.IsOK()) {
+                    context->Reply();
+                } else {
+                    context->Reply(TError(
+                        NRpc::EErrorCode::TransientFailure,
+                        "Error executing asynchronous subrequests")
+                        << error);
+                }
+            }).Via(GetCurrentInvoker()));
+        }
     }
 
     void ValidateVectorizedRead(const std::string& templateMethod, const std::vector<TObjectId>& objectIds)
