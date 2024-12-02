@@ -155,7 +155,6 @@ class NativeSnapshotRunner:
             "--export-snapshot", snapshot_path,
             "--config", config_path,
             "--export-config", export_config,
-            "--sleep-after-initialize",
         ]
 
         proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -193,7 +192,6 @@ class NativeSnapshotRunner:
             "--replay-changelogs", changelog_path,
             "--build-snapshot", build_snapshot_dir,
             "--config", config_path,
-            "--sleep-after-initialize",
         ]
 
         if cell_id is not None:
