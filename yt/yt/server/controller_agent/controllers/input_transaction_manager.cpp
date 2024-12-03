@@ -178,7 +178,14 @@ std::vector<TRichTransactionId> TInputTransactionManager::RestoreFromNestedTrans
     THashMap<TRichTransactionId, int> parentToIndex;
     for (const auto& [i, parentAndTransaction] : Enumerate(ParentToTransaction_)) {
         const auto& [parent, _] = parentAndTransaction;
-        YT_VERIFY(IsLocal(parent.Cluster));
+
+        // FIXME(coteeq): This may be triggered during update with remote operations
+        // and will lead to clean start. TODO(coteeq): Fix the bug and remove this.
+        if (!IsLocal(parent.Cluster)) {
+            THROW_ERROR_EXCEPTION("Lost local transaction; will do clean start")
+                << TErrorAttribute("parent_transaction_id", parent);
+
+        }
         parentToIndex[parent] = i;
     }
 
