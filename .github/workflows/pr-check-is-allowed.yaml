@@ -1,0 +1,162 @@
+name: Check is allowed PR
+
+on:
+  pull_request_target:
+    branches:
+      - main
+      - stable/[0-9]+\.[0-9]+
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - labeled
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
+jobs:
+  check-running-allowed:
+    name: Check if running checks is allowed for the PR
+    if: ${{ vars.RUN_PR_CHECK == 'true' }}
+    runs-on: trampoline
+    outputs:
+      result: ${{ steps.check-pr-is-mergeable.outputs.result == 'true' }}
+      commit_sha: ${{ steps.check-pr-is-mergeable.outputs.commit_sha }}
+    steps:
+      - name: Check if PR labeled with 'ok-to-test'
+        id: check-ok-to-test
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          script: |
+            const prLabels = context.payload.pull_request.labels;
+            const okToTestFind = prLabels.find(label => label.name === 'ok-to-test');
+            const okToTest = okToTestFind !== undefined;
+
+            if (okToTest) {
+              return true;
+            }
+            console.log("This PR is not labeled with 'ok-to-test'");
+            return false;
+
+      - name: Check if author of PR is collaborator or owner
+        id: check-author-is-member-or-owner
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          script: |
+            const prAuthor = context.payload.pull_request.user.login;
+
+            if (prAuthor == context.payload.repository.owner.login) {
+              console.log("Author of PR is owner of repository");
+              return true;
+            }
+
+            isColaborator = false;
+
+            try {
+              const checkCollaboratorResponse = await github.rest.repos.checkCollaborator({
+                owner: context.payload.repository.owner.login,
+                repo: context.payload.repository.name,
+                username: prAuthor,
+              });
+              return checkCollaboratorResponse.status == 204;
+            } catch (error) {
+              console.log("Error checking if author of PR is collaborator: " + error);
+            }
+            return false;
+
+      - name: Comment if PR is not labeled with 'ok-to-test' and author of PR is not collaborator or owner and mark it as 'external'
+        uses: actions/github-script@v7
+        if: ${{ steps.check-ok-to-test.outputs.result == 'false' && steps.check-author-is-member-or-owner.outputs.result == 'false' && github.event.action == 'opened'}}
+        with:
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          script: |
+
+            const message = 'Hi! Thank you for your contribution!\n\nA member of YTsaurus team will review your changes soon, add "ok-to-test" label and tests will be run.';
+
+            github.rest.issues.createComment({
+              owner: context.payload.repository.owner.login,
+              repo: context.payload.repository.name,
+              issue_number: context.payload.pull_request.number,
+              body: message,
+            });
+
+            github.rest.issues.addLabels({
+              owner: context.payload.repository.owner.login,
+              repo: context.payload.repository.name,
+              issue_number: context.payload.pull_request.number,
+              labels: ['external'],
+            });
+
+      - name: Remove label 'ok-to-test'
+        uses: actions/github-script@v7
+        if: ${{ steps.check-ok-to-test.outputs.result == 'true' }}
+        with:
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          script: |
+            github.rest.issues.removeLabel({
+              owner: context.payload.repository.owner.login,
+              repo: context.payload.repository.name,
+              issue_number: context.payload.pull_request.number,
+              name: 'ok-to-test',
+            });
+
+      - name: Check if PR is mergeable
+        id: check-pr-is-mergeable
+        if: steps.check-ok-to-test.outputs.result == 'true' || steps.check-author-is-member-or-owner.outputs.result == 'true'
+        uses: actions/github-script@v7
+        with:
+          result-encoding: string
+          script: |
+            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+            const maxAttempts = 60;
+
+            let prData = context.payload.pull_request;
+            let attempt = 0;
+
+            while (prData.mergeable === null && attempt < maxAttempts) {
+              console.log("Fetching PR status...");
+
+              let result = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prData.number
+              })
+
+              prData = result.data;
+
+              if (prData.mergeable === null) {
+                await sleep(5000);
+              }
+
+              attempt += 1;
+            }
+
+            if (prData.mergeable === null) {
+              core.setFailed("Failed to determine if the PR is mergeable, please try again later.");
+              return false;
+            }
+            console.log("pr.mergeable=%o", prData.mergeable);
+            core.info(`commit_sha=${prData.merge_commit_sha}`);
+            core.setOutput('commit_sha', prData.merge_commit_sha);
+            return true;
+
+  check-pr:
+    name: Check PR
+    needs:
+      - check-running-allowed
+    if: needs.check-running-allowed.outputs.result == 'true' && needs.check-running-allowed.outputs.commit_sha != ''
+    secrets:
+      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
+      YC_SA_JSON_CREDENTIALS: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+      YC_VM_USERNAME: ${{ secrets.YC_VM_USERNAME }}
+      YC_VM_SSH_PUBLIC_KEY: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
+    uses: ./.github/workflows/pr-check.yaml
+    with:
+      commit-sha: ${{ needs.check-running-allowed.outputs.commit_sha }}

@@ -1,0 +1,146 @@
+name: Check PR
+on:
+  workflow_call:
+    inputs:
+      commit-sha:
+        required: true
+        type: string
+
+    secrets:
+      YA_YT_TOKEN:
+        required: true
+      YC_SA_JSON_CREDENTIALS:
+        required: true
+      GH_PERSONAL_ACCESS_TOKEN:
+        required: true
+      YC_VM_USERNAME:
+        required: true
+      YC_VM_SSH_PUBLIC_KEY:
+        required: true
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
+jobs:
+
+  start-vm:
+    name: Start VM
+    runs-on: trampoline
+    outputs:
+      label: ${{ steps.start-yc-runner.outputs.label }}
+      instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
+    steps:
+      - name: Start YC runner
+        id: start-yc-runner
+        uses: yc-actions/yc-github-runner@v1
+        with:
+          mode: start
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          folder-id: ${{ vars.YC_FOLDER_ID }}
+          image-id: ${{ vars.YC_DEFAULT_IMAGE_ID }}
+          zone-id: ${{ vars.YC_ZONE_ID }}
+          subnet-id: ${{ vars.YC_SUBNET_ID }}
+          cores: 32
+          memory: 64GB
+          core-fraction: 100
+          disk-type: network-ssd-nonreplicated
+          disk-size: 558GB
+          user: ${{ secrets.YC_VM_USERNAME }}
+          ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
+          public-ip: false
+          ttl: PT6H
+          disable-update: true
+  
+  checkout:
+    name: Checkout sources
+    needs: 
+      - start-vm
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Checkout ytsaurus
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.commit-sha }}
+          fetch-depth: 2
+          path: ytsaurus
+      - name: Checkout ydb
+        uses: actions/checkout@v3
+        with:
+          repository: ydb-platform/ydb
+          ref: 64db63f9333fa966df2b65badbdef3bc5db10372
+          path: ydb
+
+  patch-ya-conf:
+    name: Patch ya conf
+    needs:
+      - start-vm
+      - checkout
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Patch ya conf
+        run: |
+          cat ./ydb/build/internal/ya.conf | grep -v bazel | grep -v "dist_cache" > ./patched.ya.conf
+          cp ./patched.ya.conf ./ydb/build/internal/ya.conf
+
+  build-strawberry:
+    name: Build Strawberry controller
+    needs:
+      - start-vm
+      - checkout
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      build-strawberry: true
+    secrets:
+      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
+    uses: ./.github/workflows/build-jobs.yaml
+
+  build-cmake:
+    name: Build with cmake
+    needs:
+      - start-vm
+      - checkout
+      - build-strawberry
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      cpp-build-system: cmake
+      build-ytsaurus: true
+      build-chyt: ${{ github.ref_name == 'main' }}
+      build-python: true
+    secrets:
+      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
+    uses: ./.github/workflows/build-jobs.yaml
+
+  build-ya-make:
+    name: Build with ya-make
+    needs:
+      - start-vm
+      - checkout
+      - patch-ya-conf
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      cpp-build-system: ya-make
+      build-ytsaurus: true
+      build-query-tracker: ${{ github.ref_name == 'main' }}
+      build-python: true
+    secrets:
+      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
+    uses: ./.github/workflows/build-jobs.yaml
+
+  stop-vm:
+    name: Stop VM
+    needs:
+      - start-vm
+      - build-ya-make
+      - build-cmake
+    runs-on: trampoline
+    if: ${{ always() }}
+    steps:
+      - name: Stop YC runner
+        uses: yc-actions/yc-github-runner@v1
+        with:
+          mode: stop
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          label: ${{ needs.start-vm.outputs.label }}
+          instance-id: ${{ needs.start-vm.outputs.instance-id }}
