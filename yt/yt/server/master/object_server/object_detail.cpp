@@ -90,6 +90,10 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr auto& Logger = ObjectServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TObjectProxyBase::TObjectProxyBase(
     TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
@@ -338,6 +342,18 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
     const auto& objectManager = Bootstrap_->GetObjectManager();
     if (requestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
         const auto& prerequisitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+
+        YT_LOG_DEBUG_IF(
+            prerequisitesExt.revisions_size() != 0,
+            "Request contains prerequisite revisions (RequestId: %v, AuthenticationIdentity: %v, NodeId: %v, "
+            "OriginalTargetPath: %v, OriginalAdditionalPaths: %v, Revisions: %v)",
+            FromProto<TRequestId>(context->RequestHeader().request_id()),
+            GetCurrentAuthenticationIdentity(),
+            GetId(),
+            GetOriginalRequestTargetYPath(context->GetRequestHeader()),
+            GetOriginalRequestAdditionalPaths(context->GetRequestHeader()),
+            prerequisitesExt.revisions());
+
         objectManager->ValidatePrerequisites(prerequisitesExt);
     }
 
