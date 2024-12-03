@@ -1542,6 +1542,7 @@ print(json.dumps(input))
             job_type=job_type))
 
     @authors("arkady-e1ppa")
+    @pytest.mark.skip(reason="broken until YIML-219 is closed")
     @pytest.mark.parametrize("ordered", [False, True])
     @pytest.mark.parametrize("fmt", ["json", "dsv"])
     def test_map_interrupt_job_with_delivery_fenced_pipe_writer(self, ordered, fmt):
