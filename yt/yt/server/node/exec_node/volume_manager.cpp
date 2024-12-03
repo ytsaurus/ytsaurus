@@ -2057,8 +2057,18 @@ public:
             ProfilingPeriod))
     {
         auto absorbLayer = BIND(
-            &TLayerCache::DownloadAndImportLayer,
-            MakeStrong(this));
+            [=, this, this_ = MakeWeak(this)] (
+                const TArtifactKey& artifactKey,
+                const TArtifactDownloadOptions& downloadOptions,
+                TGuid tag,
+                TLayerLocationPtr location)
+            {
+                if (auto cache = this_.Lock()) {
+                    return DownloadAndImportLayer(artifactKey, downloadOptions, tag, std::move(location));
+                } else {
+                    THROW_ERROR_EXCEPTION("Layer cache has been destroyed");
+                }
+            });
 
         RegularTmpfsLayerCache_ = New<TTmpfsLayerCache>(
             bootstrap,
