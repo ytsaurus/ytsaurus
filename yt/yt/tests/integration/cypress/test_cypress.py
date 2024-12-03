@@ -237,6 +237,8 @@ class TestCypress(YTEnvSetup):
         set("//tmp/map", {"a": 1, "b": 2, "c": 3}, force=True)
         assert ls("//tmp/map") == ["a", "b", "c"]
 
+        assert ls("//tmp/map", max_size=1).attributes["incomplete"]
+
         set("//tmp/map", {"a": 1}, force=True)
         assert ls("//tmp/map", max_size=1) == ["a"]
 
@@ -1112,12 +1114,15 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/a", attributes={"keys": ["type"]}) == expected
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_list_with_attributes(self):
         set("//tmp/a/b", {}, recursive=True, force=True)
         expected = [yson.to_yson_type("b", attributes={"type": "map_node"})]
         assert ls("//tmp/a", attributes=["type"]) == expected
         assert ls("//tmp/a", attributes={"keys": ["type"]}) == expected
+
+        set("//tmp/a/c", b"<attr=100>{}", is_raw=True)
+        expected = ["b", yson.to_yson_type("c", attributes={"attr": 100})]
+        assert sorted(ls("//tmp/a", attributes=["attr"])) == sorted(expected)
 
     @authors("kiselyovp")
     def test_get_with_attributes_objects(self):
@@ -1127,7 +1132,6 @@ class TestCypress(YTEnvSetup):
         )
 
     @authors("max42")
-    @not_implemented_in_sequoia
     def test_attribute_path_filtering(self):
         schema = [{"name": "x", "type": "int64"}, {"name": "y", "type": "int64"}]
         attributes = {"schema": schema, "custom": {"foo": 42, "bar": 57}}
@@ -1803,7 +1807,6 @@ class TestCypress(YTEnvSetup):
         assert get("//sys/replica_temporarily_unavailable_chunks/@count") == 0
 
     @authors("ignat")
-    @not_implemented_in_sequoia
     def test_list_attributes(self):
         create("map_node", "//tmp/map", attributes={"user_attr1": 10})
         set("//tmp/map/@user_attr2", "abc")
@@ -1822,7 +1825,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/file/@user_attributes") == {}
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_opaque_attribute_keys(self):
         create("table", "//tmp/t")
         assert "compression_statistics" in get("//tmp/t/@opaque_attribute_keys")
