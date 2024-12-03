@@ -31,6 +31,7 @@ RECURSE(
     skiff_ext
     sparse_coredump
     syncmap
+    tcmalloc
     tracing
     vector_hdrf
     web_assembly
