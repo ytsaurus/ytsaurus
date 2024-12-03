@@ -76,6 +76,10 @@ class HttpProxyTestBase(YTEnvSetup):
         },
     }
 
+    USER = "root"
+    PATH = "//tmp/test"
+    PARAMS = {"path": PATH, "output_format": "yson"}
+
     def _get_proxy_address(self):
         return "http://" + self.Env.get_proxy_address()
 
@@ -111,6 +115,22 @@ class HttpProxyTestBase(YTEnvSetup):
             suppress_transaction_coordinator_sync=True,
             default={},
         )
+
+    def _execute_command(self, http_method, command_name, params=PARAMS):
+        headers = {
+            "X-YT-Parameters": yson.dumps(params),
+            "X-YT-Header-Format": "<format=text>yson",
+            "X-YT-Output-Format": "<format=text>yson",
+            "X-YT-User-Name": self.USER,
+        }
+        rsp = requests.request(
+            http_method,
+            "{}/api/v4/{}".format(self._get_proxy_address(), command_name),
+            headers=headers,
+        )
+
+        try_parse_yt_error_headers(rsp)
+        return rsp
 
 
 class TestHttpProxy(HttpProxyTestBase):
@@ -338,6 +358,32 @@ class TestHttpProxy(HttpProxyTestBase):
             wait(lambda: not requests.get(self._get_proxy_address() + "/ping").ok)
 
         wait(lambda: requests.get(self._get_proxy_address() + "/ping").ok)
+
+
+class TestHttpProxyMemoryDrop(HttpProxyTestBase):
+    @authors("nadya73")
+    def test_basic(self):
+        wait(lambda: requests.get(f"{self._get_proxy_address()}/api/v4/get?path=//@").ok)
+
+        total_memory_limit = 100
+        set("//sys/http_proxies/@config", {"memory_limits": {"total": total_memory_limit}})
+
+        # No memory limits.
+        self._execute_command("GET", "get", {"path": "//@"})
+
+        monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
+        config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
+
+        def config_updated():
+            config = requests.get(config_url).json()
+            return config.get("memory_limits", {}).get("total", 0) == total_memory_limit
+        wait(config_updated)
+
+        with pytest.raises(YtResponseError) as err:
+            self._execute_command("GET", "get", {"path": "//@"})
+
+        assert err.value.is_rpc_unavailable()
+        assert err.value.is_rpc_response_memory_pressure()
 
 
 class TestFullDiscoverVersions(HttpProxyTestBase):
@@ -1295,25 +1341,6 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestHttpProxyHeapUsageStatisticsBase(HttpProxyTestBase):
     NUM_HTTP_PROXIES = 1
-    PATH = "//tmp/test"
-    USER = "root"
-    PARAMS = {"path": PATH, "output_format": "yson", }
-
-    def _execute_command(self, http_method, command_name, params=PARAMS):
-        headers = {
-            "X-YT-Parameters": yson.dumps(params),
-            "X-YT-Header-Format": "<format=text>yson",
-            "X-YT-Output-Format": "<format=text>yson",
-            "X-YT-User-Name": self.USER,
-        }
-        rsp = requests.request(
-            http_method,
-            "{}/api/v4/{}".format(self._get_proxy_address(), command_name),
-            headers=headers,
-        )
-
-        try_parse_yt_error_headers(rsp)
-        return rsp
 
     def enable_allocation_tags(self, proxy):
         set(f"//sys/{proxy}/@config", {

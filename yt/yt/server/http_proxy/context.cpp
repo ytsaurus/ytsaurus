@@ -58,6 +58,17 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+bool ShouldWrapInRetryableError(const TError& error)
+{
+    return static_cast<bool>(error.FindMatching(NRpc::EErrorCode::ResponseMemoryPressure));
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TContext::TContext(
     TApiPtr api,
     IRequestPtr request,
@@ -765,6 +776,12 @@ void TContext::SetEnrichedError(const TError& error)
                 << TErrorAttribute("path", path->GetValue<TString>());
         }
     }
+
+    // We wrap it in Unavailable code here, as it is already retryable in all clients.
+    if (ShouldWrapInRetryableError(Error_)) {
+        Error_ = TError(NRpc::EErrorCode::Unavailable, "Proxy is unavailable") << error;
+    }
+
     YT_LOG_ERROR(Error_, "Command failed");
 }
 
