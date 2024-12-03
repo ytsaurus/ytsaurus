@@ -42,8 +42,7 @@ jobs:
             }
             console.log("This PR is not labeled with 'ok-to-test'");
             return false;
-
-      - name: Check if author of PR is collaborator or owner
+      - name: Check if author of PR is a team member
         id: check-author-is-member-or-owner
         uses: actions/github-script@v7
         with:
@@ -51,20 +50,18 @@ jobs:
           script: |
             const prAuthor = context.payload.pull_request.user.login;
 
-            if (prAuthor == context.payload.repository.owner.login) {
-              console.log("Author of PR is owner of repository");
-              return true;
-            }
-
-            isColaborator = false;
-
             try {
-              const checkCollaboratorResponse = await github.rest.repos.checkCollaborator({
-                owner: context.payload.repository.owner.login,
-                repo: context.payload.repository.name,
+              const checkMembershipResponse = await github.rest.teams.getMembershipForUserInOrg({
+                org: `ytsaurus`,
+                team_slug: `yt-team`,
                 username: prAuthor,
               });
-              return checkCollaboratorResponse.status == 204;
+              if (checkMembershipResponse.status == 200 &&
+                checkMembershipResponse.data.state == 'active' && 
+                (checkMembershipResponse.data.role == 'member' || 
+                checkMembershipResponse.data.role == 'maintainer')) {
+                return true;
+              }
             } catch (error) {
               console.log("Error checking if author of PR is collaborator: " + error);
             }
