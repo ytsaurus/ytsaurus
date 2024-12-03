@@ -173,7 +173,7 @@ public:
     void InterruptReader() override
     {
         if (!Initialized_) {
-            THROW_ERROR_EXCEPTION(EErrorCode::JobNotPrepared, "Cannot interrupt uninitialized reader");
+            THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::JobNotPrepared, "Cannot interrupt uninitialized reader");
         }
 
         if (JobSpecHelper_->IsReaderInterruptionSupported() && !Interrupted_) {
@@ -183,7 +183,7 @@ public:
                 Interrupted_ = true;
                 Reader_->Interrupt();
             } else {
-                THROW_ERROR_EXCEPTION(EErrorCode::JobNotPrepared, "Cannot interrupt reader that didn't start reading");
+                THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::JobNotPrepared, "Cannot interrupt reader that didn't start reading");
             }
         }
     }

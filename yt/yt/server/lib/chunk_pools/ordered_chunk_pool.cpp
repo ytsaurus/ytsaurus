@@ -555,7 +555,7 @@ private:
                 ++BuiltJobCount_;
 
                 if (GetDataSliceCounter()->GetTotal() > MaxTotalSliceCount_) {
-                    THROW_ERROR_EXCEPTION(EErrorCode::DataSliceLimitExceeded, "Total number of data slices in ordered pool is too large")
+                    THROW_ERROR_EXCEPTION(NChunkPools::EErrorCode::DataSliceLimitExceeded, "Total number of data slices in ordered pool is too large")
                         << TErrorAttribute("actual_total_slice_count", GetDataSliceCounter()->GetTotal())
                         << TErrorAttribute("max_total_slice_count", MaxTotalSliceCount_)
                         << TErrorAttribute("current_job_count", JobIndex_);

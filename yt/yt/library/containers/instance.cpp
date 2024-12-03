@@ -347,7 +347,7 @@ public:
 
         auto onContainerCreated = [this, this_ = MakeStrong(this)] (const TError& error) -> IInstancePtr {
             if (!error.IsOK()) {
-                THROW_ERROR_EXCEPTION(EErrorCode::FailedToStartContainer, "Unable to start container")
+                THROW_ERROR_EXCEPTION(NContainers::EErrorCode::FailedToStartContainer, "Unable to start container")
                     << error;
             }
 
@@ -364,7 +364,7 @@ public:
 
         auto onContainerCreated = [this, this_ = MakeStrong(this)] (const TError& error) -> IInstancePtr {
             if (!error.IsOK()) {
-                THROW_ERROR_EXCEPTION(EErrorCode::FailedToStartContainer, "Unable to create container")
+                THROW_ERROR_EXCEPTION(NContainers::EErrorCode::FailedToStartContainer, "Unable to create container")
                     << error;
             }
 

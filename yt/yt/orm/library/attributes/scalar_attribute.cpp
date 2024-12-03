@@ -63,18 +63,18 @@ TErrorOr<std::pair<int, TYsonString>> LookupUnknownYsonFieldsItem(
         auto* field = unknownFields->mutable_field(index);
         if (field->number() == UnknownYsonFieldNumber) {
             if (field->type() != UnknownField::TYPE_LENGTH_DELIMITED) {
-                return TError(EErrorCode::InvalidData,
+                return TError(NAttributes::EErrorCode::InvalidData,
                     "Unexpected type %v of item within yson unknown field set",
                     static_cast<int>(field->type()));
             }
 
             UnknownFieldSet tmpItem;
             if (!tmpItem.ParseFromString(field->length_delimited())) {
-                return TError(EErrorCode::InvalidData, "Cannot parse UnknownYsonFields item");
+                return TError(NAttributes::EErrorCode::InvalidData, "Cannot parse UnknownYsonFields item");
             }
 
             if (tmpItem.field_count() != 2) {
-                return TError(EErrorCode::InvalidData,
+                return TError(NAttributes::EErrorCode::InvalidData,
                     "Unexpected field count %v in item within yson unknown field set",
                     tmpItem.field_count());
             }
@@ -86,23 +86,23 @@ TErrorOr<std::pair<int, TYsonString>> LookupUnknownYsonFieldsItem(
             }
 
             if (keyField->number() != ProtobufMapKeyFieldNumber) {
-                return TError(EErrorCode::InvalidData,
+                return TError(NAttributes::EErrorCode::InvalidData,
                     "Unexpected key tag %v of item within yson unknown field set",
                     keyField->number());
             }
             if (keyField->type() != UnknownField::TYPE_LENGTH_DELIMITED) {
-                return TError(EErrorCode::InvalidData,
+                return TError(NAttributes::EErrorCode::InvalidData,
                     "Unexpected key type %v of item within yson unknown field set",
                     static_cast<int>(keyField->type()));
             }
 
             if (valueField->number() != ProtobufMapValueFieldNumber) {
-                return TError(EErrorCode::InvalidData,
+                return TError(NAttributes::EErrorCode::InvalidData,
                     "Unexpected value tag %v of item within yson unknown field set",
                     valueField->number());
             }
             if (valueField->type() != UnknownField::TYPE_LENGTH_DELIMITED) {
-                return TError(EErrorCode::InvalidData,
+                return TError(NAttributes::EErrorCode::InvalidData,
                     "Unexpected value type %v of item within yson unknown field set",
                     static_cast<int>(valueField->type()));
             }
@@ -114,7 +114,7 @@ TErrorOr<std::pair<int, TYsonString>> LookupUnknownYsonFieldsItem(
             }
         }
     }
-    return TError(EErrorCode::MissingKey, "Unknown yson field not found");
+    return TError(NAttributes::EErrorCode::MissingKey, "Unknown yson field not found");
 }
 
 TString SerializeUnknownYsonFieldsItem(TStringBuf key, TStringBuf value)
@@ -327,7 +327,7 @@ protected:
                     }
                 }
             } else if (CurrentValue_->GetType() != NYTree::ENodeType::Entity) {
-                Throw(EErrorCode::Unimplemented,
+                Throw(NAttributes::EErrorCode::Unimplemented,
                     "Cannot set a message from a yson node of type %v",
                     CurrentValue_->GetType());
             }
@@ -378,7 +378,7 @@ protected:
             int index;
             std::tie(index, value) = std::move(errorOrItem).Value();
             item = unknownFields->mutable_field(index)->mutable_length_delimited();
-        } else if (errorOrItem.GetCode() == EErrorCode::MissingKey) {
+        } else if (errorOrItem.GetCode() == NAttributes::EErrorCode::MissingKey) {
             if (PathComplete() || Recursive_) {
                 item = unknownFields->AddLengthDelimited(UnknownYsonFieldNumber);
             } else {
@@ -414,7 +414,7 @@ protected:
                         ConvertToYsonString(value)));
                 }
             } else if (CurrentValue_->GetType() != NYTree::ENodeType::Entity) {
-                Throw(EErrorCode::Unimplemented,
+                Throw(NAttributes::EErrorCode::Unimplemented,
                     "Cannot set an attribute dictionary from a yson node of type %v",
                     CurrentValue_->GetType());
             }
@@ -433,7 +433,7 @@ protected:
         if (error.IsOK()) {
             entry = reflection->MutableRepeatedMessage(message, fieldDescriptor, index);
             value = ValueOrThrow(GetAttributeDictionaryEntryValue(entry));
-        } else if (error.GetCode() == EErrorCode::MissingKey) {
+        } else if (error.GetCode() == NAttributes::EErrorCode::MissingKey) {
             ThrowOnError(AddAttributeDictionaryEntry(message, fieldDescriptor, key));
             RotateLastEntryBeforeIndex(message, fieldDescriptor, index);
             entry = reflection->MutableRepeatedMessage(message, fieldDescriptor, index);
@@ -473,7 +473,7 @@ protected:
                 // Falling back to a list of maps with explicit |key| and |value| fields.
                 VisitRepeatedField(message, fieldDescriptor, reason);
             } else if (CurrentValue_->GetType() != NYTree::ENodeType::Entity) {
-                Throw(EErrorCode::Unimplemented,
+                Throw(NAttributes::EErrorCode::Unimplemented,
                     "Cannot set a proto map from a yson node of type %v",
                     CurrentValue_->GetType());
             }
@@ -537,7 +537,7 @@ protected:
                         EVisitReason::Manual);
                 }
             } else if (CurrentValue_->GetType() != NYTree::ENodeType::Entity) {
-                Throw(EErrorCode::Unimplemented,
+                Throw(NAttributes::EErrorCode::Unimplemented,
                     "Cannot set a repeated proto field from a yson node of type %v",
                     CurrentValue_->GetType());
             }
@@ -688,7 +688,7 @@ protected:
         EVisitReason reason,
         TError error)
     {
-        if (error.GetCode() == EErrorCode::Empty) {
+        if (error.GetCode() == NAttributes::EErrorCode::Empty) {
             // Both messages are null.
             return;
         }
@@ -704,11 +704,11 @@ protected:
         EVisitReason reason,
         TError error)
     {
-        if (error.GetCode() == EErrorCode::MissingKey) {
+        if (error.GetCode() == NAttributes::EErrorCode::MissingKey) {
             // Both fields are equally missing.
             return;
         }
-        if (error.GetCode() == EErrorCode::MismatchingKeys) {
+        if (error.GetCode() == NAttributes::EErrorCode::MismatchingKeys) {
             // One present, one missing.
             NotEqual();
             return;
@@ -754,28 +754,28 @@ protected:
         EVisitReason reason,
         TError error)
     {
-        if (error.GetCode() == EErrorCode::MismatchingSize) {
+        if (error.GetCode() == NAttributes::EErrorCode::MismatchingSize) {
             if (reason == EVisitReason::Path) {
                 // The caller wants to pinpoint a specific entry in two arrays of different sizes...
                 // let's try!
                 auto sizes = ValueOrThrow(TTraits::Combine(
                     TTraits::TSubTraits::GetRepeatedFieldSize(message.first, fieldDescriptor),
                     TTraits::TSubTraits::GetRepeatedFieldSize(message.second, fieldDescriptor),
-                    EErrorCode::MismatchingSize));
+                    NAttributes::EErrorCode::MismatchingSize));
 
                 // Negative index may result in different parsed values!
                 auto errorOrIndexParseResults = TTraits::Combine(
                     ParseCurrentListIndex(sizes.first),
                     ParseCurrentListIndex(sizes.second),
-                    EErrorCode::MismatchingSize);
+                    NAttributes::EErrorCode::MismatchingSize);
 
 
-                if (errorOrIndexParseResults.GetCode() == EErrorCode::MismatchingSize) {
+                if (errorOrIndexParseResults.GetCode() == NAttributes::EErrorCode::MismatchingSize) {
                     // Probably just one is out of bounds.
                     NotEqual();
                     return;
                 }
-                if (errorOrIndexParseResults.GetCode() == EErrorCode::OutOfBounds) {
+                if (errorOrIndexParseResults.GetCode() == NAttributes::EErrorCode::OutOfBounds) {
                     // Equally out of bounds.
                     return;
                 }
@@ -784,7 +784,7 @@ protected:
                 if (indexParseResults.first.IndexType != EListIndexType::Relative ||
                     indexParseResults.second.IndexType != EListIndexType::Relative)
                 {
-                    Throw(EErrorCode::MalformedPath,
+                    Throw(NAttributes::EErrorCode::MalformedPath,
                         "Unexpected relative path specifier %v",
                         GetToken());
                 }
@@ -830,7 +830,7 @@ protected:
         EVisitReason reason,
         TError error)
     {
-        if (error.GetCode() == EErrorCode::OutOfBounds) {
+        if (error.GetCode() == NAttributes::EErrorCode::OutOfBounds) {
             // Equally misplaced path. Would have been a size error if it were a mismatch.
             return;
         }
@@ -878,7 +878,7 @@ protected:
         EVisitReason reason,
         TError error)
     {
-        if (error.GetCode() == EErrorCode::MismatchingPresence) {
+        if (error.GetCode() == NAttributes::EErrorCode::MismatchingPresence) {
             if (!PathComplete()
                 && fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE)
             {

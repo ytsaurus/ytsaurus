@@ -1732,7 +1732,7 @@ void TJobProxy::FillJobResult(TJobResult* jobResult)
             if (jobResult->error().code() == 0) {
                 ToProto(
                     jobResult->mutable_error(),
-                    TError(EErrorCode::InterruptionFailed, "Job did not read anything"));
+                    TError(NJobProxy::EErrorCode::InterruptionFailed, "Job did not read anything"));
             }
         }
     }
@@ -1742,7 +1742,7 @@ void TJobProxy::FillJobResult(TJobResult* jobResult)
         const auto& userJobSpec = jobSpecExt.user_job_spec();
         if (userJobSpec.has_restart_exit_code()) {
             auto error = FromProto<TError>(jobResult->error());
-            if (auto userJobFailedError = error.FindMatching(EErrorCode::UserJobFailed)) {
+            if (auto userJobFailedError = error.FindMatching(NJobProxy::EErrorCode::UserJobFailed)) {
                 auto processFailedError = userJobFailedError->FindMatching(EProcessErrorCode::NonZeroExitCode);
                 if (processFailedError && processFailedError->Attributes().Get<int>("exit_code", 0) == userJobSpec.restart_exit_code()) {
                     YT_LOG_INFO("Job exited with code that indicates job restart (ExitCode: %v)",

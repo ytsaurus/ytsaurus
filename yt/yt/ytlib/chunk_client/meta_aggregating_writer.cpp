@@ -203,8 +203,7 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
     if (!Options_->AllowUnknownExtensions) {
         for (auto tag : GetExtensionTagSet(meta->extensions())) {
             if (!KnownExtensionTags.contains(tag)) {
-                THROW_ERROR_EXCEPTION(
-                    EErrorCode::IncompatibleChunkMetas,
+                THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
                     "Chunk %v has unknown extension %v with tag %v",
                     chunkId,
                     FindExtensionName(tag),
@@ -222,16 +221,14 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
     }
 
     if (FindProtoExtension<TPartitionsExt>(meta->extensions())) {
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::IncompatibleChunkMetas,
+        THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
             "Cannot absorb meta of partitioned chunk %v",
             chunkId);
     }
 
     auto tableSchema = ParseOptionalProto<TTableSchema>(FindProtoExtension<TTableSchemaExt>(meta->extensions()));
     if (TableSchema_ != tableSchema) {
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::IncompatibleChunkMetas,
+        THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
             "Chunks %v schema is different from output chunk schema",
             chunkId);
     }
@@ -239,8 +236,7 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
     if (MiscExt_.sorted()) {
         auto boundaryKeysExt = ParseOptionalProto<TBoundaryKeysExtension>(FindProtoExtension<TBoundaryKeysExt>(meta->extensions()));
         if (!boundaryKeysExt) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::IncompatibleChunkMetas,
+            THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
                 "Sorted chunk %v must have boundary keys extension",
                 chunkId);
         }
@@ -259,8 +255,7 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
     if (NYT::FromProto<EChunkType>(meta->type()) == EChunkType::Table) {
         auto samplesExt = ParseOptionalProto<TSamplesExtension>(FindProtoExtension<TSamplesExt>(meta->extensions()));
         if (!samplesExt) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::IncompatibleChunkMetas,
+            THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
                 "Cannot absorb meta of a chunk %v without samples",
                 chunkId);
         }
@@ -274,8 +269,7 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
 
         auto columnarStatisticsExt = FindProtoExtension<TColumnarStatisticsExt>(meta->extensions());
         if (!columnarStatisticsExt) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::IncompatibleChunkMetas,
+            THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
                 "Cannot absorb meta of a chunk %v without columnar statistics",
                 chunkId);
         }
@@ -294,8 +288,7 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
             ColumnarStatistics_ = std::move(chunkColumnarStatistics);
         } else {
             if (ColumnarStatistics_->GetColumnCount() != chunkColumnarStatistics.GetColumnCount()) {
-                THROW_ERROR_EXCEPTION(
-                    EErrorCode::IncompatibleChunkMetas,
+                THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
                     "Sizes of columnar statistics differ in chunks %v and %v",
                     FirstChunkId_,
                     chunkId)
@@ -309,8 +302,7 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
     auto blockMetaExt = GetProtoExtension<TDataBlockMetaExt>(meta->extensions());
     for (const auto& block : blockMetaExt.data_blocks()) {
         if (MiscExt_.sorted() && !block.has_last_key()) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::IncompatibleChunkMetas,
+            THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
                 "No last key in a block of a sorted chunk %v",
                 chunkId);
         }
@@ -334,15 +326,13 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
 
     auto miscExt = GetProtoExtension<NProto::TMiscExt>(meta->extensions());
     if (MiscExt_.sorted() && !miscExt.sorted()) {
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::IncompatibleChunkMetas,
+        THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
             "Input chunk %v is not sorted",
             chunkId);
     }
 
     if (MiscExt_.compression_codec() != miscExt.compression_codec()) {
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::IncompatibleChunkMetas,
+        THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
             "Chunk compression codec %v does not match options compression codec %v for chunk %v",
             MiscExt_.compression_codec(),
             miscExt.compression_codec(),
@@ -354,8 +344,7 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
         // NB. This error, in fact, doesn't mean that the metas are incompatible. It's used to indicate that
         // we cannot perform shallow merge of the given chunks, as the amount of blocks is too large, preventing
         // shallow merge jobs from running.
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::IncompatibleChunkMetas,
+        THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
             "Too many blocks")
             << TErrorAttribute("actual_total_block_count", totalBlockCount)
             << TErrorAttribute("max_allowed_total_block_count", *Options_->MaxBlockCount);
@@ -400,8 +389,7 @@ void TMetaAggregatingWriter::AbsorbFirstMeta(const TDeferredChunkMetaPtr& meta, 
 void TMetaAggregatingWriter::AbsorbAnotherMeta(const TDeferredChunkMetaPtr& meta, TChunkId chunkId)
 {
     if (ChunkMeta_->type() != meta->type()) {
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::IncompatibleChunkMetas,
+        THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
             "Meta types differ in chunks %v and %v",
             FirstChunkId_,
             chunkId)
@@ -410,8 +398,7 @@ void TMetaAggregatingWriter::AbsorbAnotherMeta(const TDeferredChunkMetaPtr& meta
     }
 
     if (ChunkMeta_->format() != meta->format()) {
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::IncompatibleChunkMetas,
+        THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
             "Meta formats differ in chunks %v and %v",
             FirstChunkId_,
             chunkId)
@@ -421,8 +408,7 @@ void TMetaAggregatingWriter::AbsorbAnotherMeta(const TDeferredChunkMetaPtr& meta
 
     auto nameTableExt = GetProtoExtension<TNameTableExt>(meta->extensions());
     if (!google::protobuf::util::MessageDifferencer::Equals(NameTableExt_, nameTableExt)) {
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::IncompatibleChunkMetas,
+        THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
             "Name tables differ in chunks %v and %v",
             FirstChunkId_,
             chunkId);
@@ -430,8 +416,7 @@ void TMetaAggregatingWriter::AbsorbAnotherMeta(const TDeferredChunkMetaPtr& meta
 
     auto keyColumns = ParseOptionalProto<TKeyColumnsExtension>(FindProtoExtension<TKeyColumnsExt>(meta->extensions()));
     if (keyColumns != KeyColumns_) {
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::IncompatibleChunkMetas,
+        THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
             "Key columns differ in chunks %v and %v",
             FirstChunkId_,
             chunkId);
@@ -439,16 +424,14 @@ void TMetaAggregatingWriter::AbsorbAnotherMeta(const TDeferredChunkMetaPtr& meta
 
     auto columnMeta = ParseOptionalProto<TColumnMetaExtension>(FindProtoExtension<TColumnMetaExt>(meta->extensions()));
     if (columnMeta.has_value() != ColumnMeta_.has_value()) {
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::IncompatibleChunkMetas,
+        THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
             "Column metas differ in chunks %v and %v",
             FirstChunkId_,
             chunkId);
     }
     if (columnMeta) {
         if (ssize(columnMeta->Columns) != ssize(ColumnMeta_->Columns)) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::IncompatibleChunkMetas,
+            THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
                 "Columns size differ in chunks %v and %v",
                 FirstChunkId_,
                 chunkId);

@@ -23,7 +23,7 @@ void InitializeCryptography()
 
     auto initResult = WaitFor(initFuture);
 
-    if (initResult.FindMatching(EErrorCode::Timeout)) {
+    if (initResult.FindMatching(NYT::EErrorCode::Timeout)) {
         THROW_ERROR_EXCEPTION(
             "timeout exceeded on libsodium initialization, ensure there is enough entropy in the system");
     }

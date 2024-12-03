@@ -2513,7 +2513,7 @@ void TJob::OnWaitingForCleanupTimeout()
     if (JobPhase_ == EJobPhase::WaitingForCleanup) {
         auto timeout = CommonConfig_->WaitingForJobCleanupTimeout;
 
-        auto error = TError(EErrorCode::JobCleanupTimeout, "Failed to wait for job cleanup within timeout")
+        auto error = TError(NExecNode::EErrorCode::JobCleanupTimeout, "Failed to wait for job cleanup within timeout")
             << TErrorAttribute("job_id", Id_)
             << TErrorAttribute("operation_id", OperationId_)
             << TErrorAttribute("waiting_for_job_cleanup_timeout", timeout);
@@ -3245,12 +3245,12 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
         }
 
         if (options.DiskSpaceLimit.has_value() && options.DiskSpaceLimit.value() <= 0) {
-            THROW_ERROR_EXCEPTION(EErrorCode::QuotaSettingFailed, "Set disk space limit must be greater than 0")
+            THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::QuotaSettingFailed, "Set disk space limit must be greater than 0")
                 << TErrorAttribute("disk_space_limit", options.DiskSpaceLimit.value());
         }
 
         if (options.InodeLimit.has_value() && options.InodeLimit.value() <= 0) {
-            THROW_ERROR_EXCEPTION(EErrorCode::QuotaSettingFailed, "Set inode limit must be greater than 0")
+            THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::QuotaSettingFailed, "Set inode limit must be greater than 0")
                 << TErrorAttribute("inode_limit", options.InodeLimit.value());
         }
     }

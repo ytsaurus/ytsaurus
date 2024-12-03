@@ -120,7 +120,7 @@ void TRecovery::DoRun()
         try {
             snapshotReader = createAndOpenReaderOrThrow();
         } catch (const TErrorException& ex) {
-            if (ex.Error().FindMatching(EErrorCode::NoSuchSnapshot)) {
+            if (ex.Error().FindMatching(NHydra::EErrorCode::NoSuchSnapshot)) {
                 YT_LOG_INFO(ex, "Snapshot is missing, attempting to download (SnapshotId: %v)",
                     snapshotId);
                 WaitFor(DownloadSnapshot(

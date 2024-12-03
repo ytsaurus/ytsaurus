@@ -103,7 +103,8 @@ void ValidateRowWeight(i64 weight, const TChunkWriterConfigPtr& config, const TC
         return;
     }
 
-    THROW_ERROR_EXCEPTION(EErrorCode::RowWeightLimitExceeded, "Row weight is too large")
+    THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::RowWeightLimitExceeded,
+        "Row weight is too large")
         << TErrorAttribute("row_weight", weight)
         << TErrorAttribute("row_weight_limit", config->MaxRowWeight);
 }
@@ -114,7 +115,8 @@ void ValidateKeyWeight(i64 weight, const TChunkWriterConfigPtr& config, const TC
         return;
     }
 
-    THROW_ERROR_EXCEPTION(EErrorCode::RowWeightLimitExceeded, "Key weight is too large")
+    THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::RowWeightLimitExceeded,
+        "Key weight is too large")
         << TErrorAttribute("key_weight", weight)
         << TErrorAttribute("key_weight_limit", config->MaxKeyWeight);
 }
@@ -1123,8 +1125,7 @@ protected:
                 } else {
                     // Validate non-schema columns for
                     if (Schema_->GetStrict() && id >= maxColumnCount) {
-                        THROW_ERROR_EXCEPTION(
-                            EErrorCode::SchemaViolation,
+                        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation,
                             "Unknown column %Qv in strict schema",
                             NameTable_->GetName(valueIt->Id));
                     }
@@ -1381,13 +1382,11 @@ private:
         TError error;
         if (comparisonResult == 0) {
             YT_VERIFY(checkKeysUniqueness);
-            error = TError(
-                EErrorCode::UniqueKeyViolation,
+            error = TError(NTableClient::EErrorCode::UniqueKeyViolation,
                 "Duplicate key %v",
                 currentKey);
         } else {
-            error = TError(
-                EErrorCode::SortOrderViolation,
+            error = TError(NTableClient::EErrorCode::SortOrderViolation,
                 "Sort order violation: %v > %v",
                 currentKey,
                 nextKey)
@@ -1904,8 +1903,7 @@ private:
     void ValidateModificationType(ERowModificationType modificationType) const
     {
         if (modificationType != ERowModificationType::Write && modificationType != ERowModificationType::Delete) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::SchemaViolation,
+            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation,
                 "Unknown modification type with raw value %v",
                 ToUnderlying(modificationType));
         }
@@ -1918,8 +1916,7 @@ private:
         }
         YT_ASSERT(flags.Type == EValueType::Uint64);
         if (flags.Data.Uint64 > ToUnderlying(MaxValidUnversionedUpdateDataFlags)) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::SchemaViolation,
+            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation,
                 "Flags column %v has value %v which exceeds its maximum value %v",
                 columnSchema.GetDiagnosticNameString(),
                 flags.Data.Uint64,
@@ -1932,8 +1929,7 @@ private:
         if (isKey) {
             for (int index = keyColumnCount + 1; index < static_cast<int>(row.GetCount()); ++index) {
                 if (row[index].Type != EValueType::Null) {
-                    THROW_ERROR_EXCEPTION(
-                        EErrorCode::SchemaViolation,
+                    THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation,
                         "Column %v must be %Qlv when modification type is \"delete\"",
                         Schema_->Columns()[index].GetDiagnosticNameString(),
                         EValueType::Null);
@@ -1958,15 +1954,13 @@ private:
                 const auto& columnSchema = PhysicalSchema_->Columns()[originalId];
                 if (columnSchema.Required()) {
                     if (isMissing) {
-                        THROW_ERROR_EXCEPTION(
-                            EErrorCode::SchemaViolation,
+                        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation,
                             "Flags for required column %v cannot have %Qlv bit set",
                             columnSchema.GetDiagnosticNameString(),
                             EUnversionedUpdateDataFlags::Missing);
                     }
                     if (value.Type == EValueType::Null) {
-                        THROW_ERROR_EXCEPTION(
-                            EErrorCode::SchemaViolation,
+                        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation,
                             "Required column %v cannot have %Qlv value",
                             columnSchema.GetDiagnosticNameString(),
                             value.Type);
@@ -2301,8 +2295,7 @@ TTableSchemaPtr GetChunkSchema(
     auto chunkUniqueKeys = richPath.GetChunkUniqueKeys();
     if (chunkUniqueKeys) {
         if (!*chunkUniqueKeys && tableUniqueKeys) {
-            THROW_ERROR_EXCEPTION(
-                NTableClient::EErrorCode::SchemaViolation,
+            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation,
                 "Table schema forces keys to be unique while chunk schema does not");
         }
 
@@ -2313,16 +2306,14 @@ TTableSchemaPtr GetChunkSchema(
     if (chunkSortColumns) {
         auto tableSchemaSortColumns = chunkSchema->GetSortColumns();
         if (chunkSortColumns->size() < tableSchemaSortColumns.size()) {
-            THROW_ERROR_EXCEPTION(
-                NTableClient::EErrorCode::SchemaViolation,
+            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation,
                 "Chunk sort columns list is shorter than table schema sort columns")
                 << TErrorAttribute("chunk_sort_columns_count", chunkSortColumns->size())
                 << TErrorAttribute("table_sort_column_count", tableSchemaSortColumns.size());
         }
 
         if (tableUniqueKeys && !tableSchemaSortColumns.empty()) {
-            THROW_ERROR_EXCEPTION(
-                NTableClient::EErrorCode::SchemaViolation,
+            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation,
                 "Chunk sort columns cannot be set when table is sorted with unique keys");
         }
 

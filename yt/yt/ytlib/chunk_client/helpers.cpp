@@ -978,7 +978,7 @@ void ValidateChunkFeatures(
         for (auto chunkFeature : TEnumTraits<EChunkFeatures>::GetDomainValues()) {
             EChunkFeatures chunkFeatureMask = chunkFeature;
             if ((chunkFeatures & chunkFeatureMask) != EChunkFeatures::None && (supportedChunkFeatures & chunkFeatureMask) == EChunkFeatures::None) {
-                THROW_ERROR_EXCEPTION(EErrorCode::UnsupportedChunkFeature,
+                THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::UnsupportedChunkFeature,
                     "Chunk %v requires feature %Qlv that is not supported yet",
                     chunkId,
                     TEnumTraits<EChunkFeatures>::FindLiteralByValue(chunkFeature))
@@ -990,7 +990,7 @@ void ValidateChunkFeatures(
         // NB: Unsupported feature can be unsupported by the chunk storage too.
         // That's why we cannot cast bitmasks to enums and show unsupported feature
         // name in some cases.
-        THROW_ERROR_EXCEPTION(EErrorCode::UnsupportedChunkFeature,
+        THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::UnsupportedChunkFeature,
             "Processing chunk %v requires feature that is not supported by cluster yet",
             chunkId)
             << TErrorAttribute("chunk_features", chunkFeatures)

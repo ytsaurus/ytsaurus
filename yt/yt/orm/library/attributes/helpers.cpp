@@ -445,7 +445,7 @@ TErrorOr<int> LocateMapEntry(
         }
     }
 
-    return TError(EErrorCode::MissingKey, "Key not found in map");
+    return TError(NAttributes::EErrorCode::MissingKey, "Key not found in map");
 }
 
 TErrorOr<TString> MapKeyFieldToString(
@@ -466,7 +466,7 @@ TErrorOr<TString> MapKeyFieldToString(
         case FieldDescriptor::CppType::CPPTYPE_STRING:
             return reflection->GetString(*message, keyFieldDescriptor);
         default:
-            return TError(EErrorCode::InvalidData,
+            return TError(NAttributes::EErrorCode::InvalidData,
                 "Fields of type %v are not supported as map keys",
                 keyFieldDescriptor->type_name());
     }
@@ -510,7 +510,7 @@ TError SetScalarField(
         case NYTree::ENodeType::Entity:
             return SetDefaultScalarFieldValue(message, fieldDescriptor);
         default:
-            return TError(EErrorCode::Unimplemented,
+            return TError(NAttributes::EErrorCode::Unimplemented,
                 "Cannot convert yson value of type %v to a proto field",
                 value->GetType());
     }
@@ -536,7 +536,7 @@ TError SetScalarRepeatedFieldEntry(
         case NYTree::ENodeType::Entity:
             return SetDefaultScalarRepeatedFieldEntryValue(message, fieldDescriptor, index);
         default:
-            return TError(EErrorCode::Unimplemented,
+            return TError(NAttributes::EErrorCode::Unimplemented,
                 "Cannot convert yson value of type %v to a proto field",
                 value->GetType());
     }
@@ -561,7 +561,7 @@ TError AddScalarRepeatedFieldEntry(
         case NYTree::ENodeType::Entity:
             return AddDefaultScalarFieldEntryValue(message, fieldDescriptor);
         default:
-            return TError(EErrorCode::Unimplemented,
+            return TError(NAttributes::EErrorCode::Unimplemented,
                 "Cannot convert yson value of type %v to a proto field",
                 value->GetType());
     }
@@ -602,14 +602,14 @@ std::pair<int, TError> FindAttributeDictionaryEntry(
         if (entryKey > key) {
             return {
                 i,
-                TError(EErrorCode::MissingKey, "Attribute dictionary does not contain the key")
+                TError(NAttributes::EErrorCode::MissingKey, "Attribute dictionary does not contain the key")
             };
         }
     }
 
     return {
         size,
-        TError(EErrorCode::MissingKey, "Attribute dictionary does not contain the key")
+        TError(NAttributes::EErrorCode::MissingKey, "Attribute dictionary does not contain the key")
     };
 }
 
@@ -711,7 +711,7 @@ const EnumValueDescriptor* LookupEnumValue(
 #define _CAST(snakeType) \
     auto optionalCastValue = TryCheckedIntegralCast<snakeType>(value); \
     if (!optionalCastValue) { \
-        return TError(EErrorCode::InvalidData, \
+        return TError(NAttributes::EErrorCode::InvalidData, \
             "Value %v does not fit in " #snakeType, \
             value); \
     } \
@@ -721,7 +721,7 @@ const EnumValueDescriptor* LookupEnumValue(
 #define _CAST_FROM_STRING(snakeType) \
     snakeType castValue; \
     if (!TryFromString(value, castValue)) { \
-        return TError(EErrorCode::InvalidData, \
+        return TError(NAttributes::EErrorCode::InvalidData, \
             "Cannot convert %v to a " #snakeType, \
             value); \
     } \
@@ -730,7 +730,7 @@ const EnumValueDescriptor* LookupEnumValue(
 #define _CAST_ENUM() \
     const auto* enumValue = LookupEnumValue(fieldDescriptor, value); \
     if (!enumValue) { \
-        return TError(EErrorCode::InvalidData, \
+        return TError(NAttributes::EErrorCode::InvalidData, \
             "Failed to convert %v to a %v enum", \
             value, \
             fieldDescriptor->enum_type()->full_name()); \
@@ -851,7 +851,7 @@ const EnumValueDescriptor* LookupEnumValue(
 
 #define END_SWITCH(snakeType) \
         default: \
-            return TError(EErrorCode::InvalidData, \
+            return TError(NAttributes::EErrorCode::InvalidData, \
                 "Cannot convert " #snakeType " to a proto field of type %v", \
                 fieldDescriptor->type_name()); \
     } \

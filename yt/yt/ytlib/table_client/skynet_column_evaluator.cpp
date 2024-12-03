@@ -82,7 +82,7 @@ void ValidateSkynetSchema(const TTableSchema& schema)
     checkColumn("data", ESimpleLogicalValueType::String, "data");
 
     if (!validationErrors.empty()) {
-        THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation, "Invalid schema for Skynet shared table")
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation, "Invalid schema for Skynet shared table")
             << validationErrors;
     }
 }

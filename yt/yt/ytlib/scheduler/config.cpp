@@ -913,10 +913,10 @@ void TOperationSpecBase::Register(TRegistrar registrar)
                 THROW_ERROR_EXCEPTION("Cannot use \"add_authenticated_user_to_acl\" with aco");
             }
             if (spec->Acl) {
-                THROW_ERROR_EXCEPTION(EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
+                THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
             }
             if (spec->Owners) {
-                THROW_ERROR_EXCEPTION(EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
+                THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
             }
         }
 
@@ -2631,10 +2631,10 @@ void Deserialize(TOperationRuntimeParameters& parameters, INodePtr node)
 
     if (parameters.AcoName) {
         if (!parameters.Acl.Entries.empty()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
+            THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
         }
         if (!parameters.Owners.empty()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
+            THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
         }
     }
     ValidateOperationAcl(parameters.Acl);
@@ -2687,7 +2687,7 @@ void TOperationRuntimeParametersUpdate::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TOperationRuntimeParametersUpdate* update) {
         if (update->Acl) {
             if (update->AcoName) {
-                THROW_ERROR_EXCEPTION(EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
+                THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
             }
             ValidateOperationAcl(*update->Acl);
         }

@@ -342,7 +342,7 @@ public:
             poolTreesNode = WaitFor(future)
                 .ValueOrThrow();
         } catch (const std::exception& ex) {
-            auto error = TError(EErrorCode::WatcherHandlerFailed, "Error parsing pool trees")
+            auto error = TError(NScheduler::EErrorCode::WatcherHandlerFailed, "Error parsing pool trees")
                 << ex;
             THROW_ERROR(error);
         }
@@ -357,7 +357,7 @@ public:
             YT_LOG_INFO("Updating pool trees");
 
             if (poolTreesNode->GetType() != NYTree::ENodeType::Map) {
-                THROW_ERROR_EXCEPTION(EErrorCode::WatcherHandlerFailed, "Pool trees node has invalid type")
+                THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::WatcherHandlerFailed, "Pool trees node has invalid type")
                     << TErrorAttribute("expected_type", NYTree::ENodeType::Map)
                     << TErrorAttribute("actual_type", poolTreesNode->GetType());
             }
@@ -392,7 +392,7 @@ public:
 
             if (defaultTreeId && idToTree.find(*defaultTreeId) == idToTree.end()) {
                 errors.push_back(TError("Default tree is missing"));
-                THROW_ERROR_EXCEPTION(EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
+                THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
                     << std::move(errors);
             }
 
@@ -401,7 +401,7 @@ public:
             bool shouldCheckConfiguration = !treeIdsToAdd.empty() || !treeIdsToRemove.empty() || !treeIdsWithChangedFilter.empty();
 
             if (shouldCheckConfiguration && !CheckTreesConfiguration(treeIdToFilter, &errors)) {
-                THROW_ERROR_EXCEPTION(EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
+                THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
                     << std::move(errors);
             }
 
@@ -427,7 +427,7 @@ public:
 
             // Setting alerts.
             if (!errors.empty()) {
-                error = TError(EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
+                error = TError(NScheduler::EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
                     << std::move(errors);
             } else {
                 if (!updatedTreeIds.empty() || !treeIdsToRemove.empty() || !treeIdsToAdd.empty()) {

@@ -150,7 +150,7 @@ void ValidateKeyColumnCount(
     bool requireUniqueKeys)
 {
     if (requireUniqueKeys && chunkKeyColumnCount > tableKeyColumnCount) {
-        THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleKeyColumns,
             "Chunk has more key columns than requested: chunk has %v key columns, request has %v key columns",
             chunkKeyColumnCount,
             tableKeyColumnCount);
@@ -166,7 +166,7 @@ void ValidateSortColumns(
 
     for (int i = 0; i < std::min(std::ssize(tableSortColumns), std::ssize(chunkSortColumns)); ++i) {
         if (chunkSortColumns[i] != tableSortColumns[i]) {
-            THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
+            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleKeyColumns,
                 "Incompatible sort columns: chunk sort columns %v, table sort columns %v",
                 chunkSortColumns,
                 tableSortColumns);
@@ -279,7 +279,7 @@ void ValidateDynamicTableTimestamp(
             attributes.Get<bool>("enable_dynamic_store_read", false) &&
             !forceDisableDynamicStoreRead;
         if (requested < retained || (!enableDynamicStoreRead && requested >= unflushed)) {
-            THROW_ERROR_EXCEPTION(EErrorCode::TimestampOutOfRange,
+            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::TimestampOutOfRange,
                 "Requested timestamp is out of range for table %v",
                 path.GetPath())
                 << TErrorAttribute("requested_timestamp", requested)

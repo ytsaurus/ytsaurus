@@ -1816,7 +1816,7 @@ static void ParseJobsFromControllerAgentResponse(
         return;
     }
     if (!rspOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION(EErrorCode::UncertainOperationControllerState,
+        THROW_ERROR_EXCEPTION(NApi::EErrorCode::UncertainOperationControllerState,
             "Error obtaining %Qv of operation %v from controller agent orchid",
             key,
             operationId)
@@ -1898,14 +1898,14 @@ TFuture<TListJobsFromControllerAgentResult> TClient::DoListJobsFromControllerAge
         BIND([operationId, options, this, this_ = MakeStrong(this)] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
             auto operationStateRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("controller_state");
             if (!operationStateRspOrError.IsOK()) {
-                THROW_ERROR_EXCEPTION(EErrorCode::UncertainOperationControllerState,
+                THROW_ERROR_EXCEPTION(NApi::EErrorCode::UncertainOperationControllerState,
                     "Error obtaining state of operation %v from controller agent",
                     operationId)
                     << operationStateRspOrError;
             }
             auto state = ConvertTo<EControllerState>(TYsonStringBuf(operationStateRspOrError.Value()->value()));
             if (state == EControllerState::Preparing) {
-                THROW_ERROR_EXCEPTION(EErrorCode::UncertainOperationControllerState,
+                THROW_ERROR_EXCEPTION(NApi::EErrorCode::UncertainOperationControllerState,
                     "Operation controller of operation %v is in %Qlv state",
                     operationId,
                     EControllerState::Preparing);
@@ -2197,7 +2197,7 @@ TListJobsResult TClient::DoListJobs(
         result.ControllerAgentJobCount =
             controllerAgentResult.TotalFinishedJobCount + controllerAgentResult.TotalInProgressJobCount;
     } else {
-        if (operationFinished && controllerAgentResultOrError.FindMatching(EErrorCode::UncertainOperationControllerState)) {
+        if (operationFinished && controllerAgentResultOrError.FindMatching(NApi::EErrorCode::UncertainOperationControllerState)) {
             // No such operation in the controller agent.
             result.ControllerAgentJobCount = 0;
         } else {
@@ -2425,7 +2425,7 @@ std::optional<TJob> TClient::DoGetJobFromControllerAgent(
             YT_VERIFY(jobs.size() == 1);
             return jobs[0];
         } else if (!rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            THROW_ERROR_EXCEPTION(EErrorCode::UncertainOperationControllerState,
+            THROW_ERROR_EXCEPTION(NApi::EErrorCode::UncertainOperationControllerState,
                 "Error obtaining job %v of operation %v from controller agent",
                 jobId,
                 operationId)
@@ -2435,14 +2435,14 @@ std::optional<TJob> TClient::DoGetJobFromControllerAgent(
 
     auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_controller_state");
     if (!rspOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION(EErrorCode::UncertainOperationControllerState,
+        THROW_ERROR_EXCEPTION(NApi::EErrorCode::UncertainOperationControllerState,
             "Error obtaining state of operation %v from controller agent",
             operationId)
             << rspOrError;
     }
     auto state = ConvertTo<EControllerState>(TYsonStringBuf(rspOrError.Value()->value()));
     if (state == EControllerState::Preparing) {
-        THROW_ERROR_EXCEPTION(EErrorCode::UncertainOperationControllerState,
+        THROW_ERROR_EXCEPTION(NApi::EErrorCode::UncertainOperationControllerState,
             "Operation controller of operation %v is in %Qlv state",
             operationId,
             EControllerState::Preparing);

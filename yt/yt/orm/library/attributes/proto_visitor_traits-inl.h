@@ -29,9 +29,9 @@ void Reduce(
             }
             currentValue = result;
         }
-    } else if (currentValue.GetCode() == EErrorCode::Empty) {
+    } else if (currentValue.GetCode() == NAttributes::EErrorCode::Empty) {
         currentValue = std::move(newValue);
-    } else if (newValue.GetCode() != EErrorCode::Empty) {
+    } else if (newValue.GetCode() != NAttributes::EErrorCode::Empty) {
         ReduceErrors(currentValue, std::move(newValue), mismatchErrorCode);
     }
 }
@@ -51,7 +51,7 @@ struct TProtoVisitorTraits<TQualifiedMessage*>
     static TErrorOr<const NProtoBuf::Descriptor*> GetDescriptor(TMessageParam message)
     {
         if (message == nullptr) {
-            return TError(EErrorCode::Empty, "Received nullptr instead of message");
+            return TError(NAttributes::EErrorCode::Empty, "Received nullptr instead of message");
         }
 
         return message->GetDescriptor();
@@ -173,7 +173,7 @@ struct TProtoVisitorTraits<TQualifiedMessage*>
                 std::move(entry));
             if (!inserted) {
                 // Strictly speaking, this is allowed by protobuf, but not by yson.
-                return TError(EErrorCode::InvalidData, "Map has equal keys");
+                return TError(NAttributes::EErrorCode::InvalidData, "Map has equal keys");
             }
         }
 
@@ -219,7 +219,7 @@ struct TProtoVisitorTraits<const std::pair<TQualifiedMessage*, TQualifiedMessage
         NDetail::Reduce(
             result,
             TSubTraits::GetDescriptor(message.second),
-            EErrorCode::MismatchingDescriptors);
+            NAttributes::EErrorCode::MismatchingDescriptors);
         return result;
     }
 
@@ -232,7 +232,7 @@ struct TProtoVisitorTraits<const std::pair<TQualifiedMessage*, TQualifiedMessage
         NDetail::Reduce(
             result,
             TSubTraits::IsSingularFieldPresent(message.second, fieldDescriptor),
-            EErrorCode::MismatchingPresence);
+            NAttributes::EErrorCode::MismatchingPresence);
         return result;
     }
 
@@ -254,7 +254,7 @@ struct TProtoVisitorTraits<const std::pair<TQualifiedMessage*, TQualifiedMessage
         NDetail::Reduce(
             result,
             TSubTraits::GetRepeatedFieldSize(message.second, fieldDescriptor),
-            EErrorCode::MismatchingSize);
+            NAttributes::EErrorCode::MismatchingSize);
         return result;
     }
 
@@ -288,7 +288,7 @@ struct TProtoVisitorTraits<const std::pair<TQualifiedMessage*, TQualifiedMessage
                 message.second,
                 fieldDescriptor,
                 keyMessage),
-            EErrorCode::MismatchingKeys);
+            NAttributes::EErrorCode::MismatchingKeys);
     }
 
     using TMapReturn = THashMap<TString, TMessageReturn>;
@@ -305,7 +305,7 @@ struct TProtoVisitorTraits<const std::pair<TQualifiedMessage*, TQualifiedMessage
             ReduceErrors(
                 errorsOrSubResults1,
                 std::move(errorsOrSubResults2),
-                EErrorCode::MismatchingKeys);
+                NAttributes::EErrorCode::MismatchingKeys);
             return TError(errorsOrSubResults1);
         }
 
@@ -314,7 +314,7 @@ struct TProtoVisitorTraits<const std::pair<TQualifiedMessage*, TQualifiedMessage
 
         if (subResults1.size() != subResults2.size()) {
             // The key sets are different. MismatchingSize is reserved for repeated fields.
-            return TError(EErrorCode::MismatchingKeys,
+            return TError(NAttributes::EErrorCode::MismatchingKeys,
                 "Mismatching map sizes %v vs %v",
                 subResults1.size(),
                 subResults2.size());
@@ -326,7 +326,7 @@ struct TProtoVisitorTraits<const std::pair<TQualifiedMessage*, TQualifiedMessage
         for (auto& [key, value1] : subResults1) {
             auto it2 = subResults2.find(key);
             if (it2 == subResults2.end()) {
-                return TError(EErrorCode::MismatchingKeys,
+                return TError(NAttributes::EErrorCode::MismatchingKeys,
                     "Mismathing keys in maps: no match for %v",
                     key);
             }
@@ -381,13 +381,13 @@ struct TProtoVisitorTraitsForVector
     static TErrorOr<const NProtoBuf::Descriptor*> GetDescriptor(TMessageParam message)
     {
         TErrorOr<const NProtoBuf::Descriptor*> result(
-            TError(EErrorCode::Empty, "Empty message param"));
+            TError(NAttributes::EErrorCode::Empty, "Empty message param"));
 
         for (TQualifiedMessage* entry : message) {
             NDetail::Reduce(
                 result,
                 TSubTraits::GetDescriptor(entry),
-                EErrorCode::MismatchingDescriptors);
+                NAttributes::EErrorCode::MismatchingDescriptors);
         }
 
         return result;
@@ -397,13 +397,13 @@ struct TProtoVisitorTraitsForVector
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor)
     {
-        TErrorOr<bool> result(TError(EErrorCode::Empty, "Empty message param"));
+        TErrorOr<bool> result(TError(NAttributes::EErrorCode::Empty, "Empty message param"));
 
         for (TQualifiedMessage* entry : message) {
             NDetail::Reduce(
                 result,
                 TSubTraits::IsSingularFieldPresent(entry, fieldDescriptor),
-                EErrorCode::MismatchingPresence);
+                NAttributes::EErrorCode::MismatchingPresence);
         }
 
         return result;
@@ -430,13 +430,13 @@ struct TProtoVisitorTraitsForVector
         const NProtoBuf::FieldDescriptor* fieldDescriptor)
     {
         TErrorOr<int> result(
-            TError(EErrorCode::Empty, "Empty message param"));
+            TError(NAttributes::EErrorCode::Empty, "Empty message param"));
 
         for (TQualifiedMessage* entry : message) {
             NDetail::Reduce(
                 result,
                 TSubTraits::GetRepeatedFieldSize(entry, fieldDescriptor),
-                EErrorCode::MismatchingSize);
+                NAttributes::EErrorCode::MismatchingSize);
         }
 
         return result;
@@ -493,7 +493,7 @@ struct TProtoVisitorTraitsForVector
                 ReduceErrors(
                     errorOrResult,
                     std::move(errorOrSubResult),
-                    EErrorCode::MismatchingKeys);
+                    NAttributes::EErrorCode::MismatchingKeys);
                 continue;
             }
 
@@ -507,7 +507,7 @@ struct TProtoVisitorTraitsForVector
                 }
             } else if (result.size() != subResult.size()) {
                 errorOrResult = TError(
-                    EErrorCode::MismatchingKeys,
+                    NAttributes::EErrorCode::MismatchingKeys,
                     "Mismatching map sizes %v vs %v",
                     result.size(),
                     subResult.size());
@@ -515,7 +515,7 @@ struct TProtoVisitorTraitsForVector
                 for (auto it1 : result.Value()) {
                     auto it2 = subResult.find(it1->first);
                     if (it2 == subResult.end()) {
-                        return TError(EErrorCode::MismatchingKeys,
+                        return TError(NAttributes::EErrorCode::MismatchingKeys,
                             "Mismathing keys in maps: no match for %v",
                             it1.first);
                     }
