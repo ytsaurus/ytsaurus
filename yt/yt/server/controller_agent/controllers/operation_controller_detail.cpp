@@ -1275,7 +1275,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
 
         LogProgress(/*force*/ true);
     } catch (const std::exception& ex) {
-        auto wrappedError = TError(EErrorCode::MaterializationFailed, "Materialization failed")
+        auto wrappedError = TError(NControllerAgent::EErrorCode::MaterializationFailed, "Materialization failed")
             << ex;
         YT_LOG_INFO(wrappedError);
         DoFailOperation(wrappedError);
@@ -4474,7 +4474,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
         }
 
         DoFailOperation(TError(
-            EErrorCode::NoOnlineNodeToScheduleAllocation,
+            NControllerAgent::EErrorCode::NoOnlineNodeToScheduleAllocation,
             errorMessageBuilder.Flush(),
             TError::DisableFormat)
             << TErrorAttribute("other_trees_node_count", otherTreesNodeCount)
@@ -4526,7 +4526,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
         if (!Dominates(*CachedMaxAvailableExecNodeResources_, neededResources.ToJobResources())) {
             DoFailOperation(
                 TError(
-                    EErrorCode::NoOnlineNodeToScheduleAllocation,
+                    NControllerAgent::EErrorCode::NoOnlineNodeToScheduleAllocation,
                     "No online node can satisfy the resource demand")
                     << TErrorAttribute("task_name", task->GetTitle())
                     << TErrorAttribute("needed_resources", neededResources.ToJobResources())
@@ -8950,7 +8950,7 @@ TJobletPtr TOperationControllerBase::GetJobletOrThrow(TJobId jobId) const
     auto joblet = FindJoblet(jobId);
     if (!joblet) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::NoSuchJob,
+            NControllerAgent::EErrorCode::NoSuchJob,
             "No such job %v",
             jobId);
     }
@@ -9357,7 +9357,7 @@ TJobStartInfo TOperationControllerBase::SafeSettleJob(TAllocationId allocationId
 
     if (auto state = State.load(); state != EControllerState::Running) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::OperationIsNotRunning,
+            NControllerAgent::EErrorCode::OperationIsNotRunning,
             "Operation controller is in %v state",
             state);
     }

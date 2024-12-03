@@ -388,7 +388,7 @@ private:
 
         if (Context_.DockerImage) {
             return MakeFuture(TError(
-                EErrorCode::DockerImagePullingFailed,
+                NExecNode::EErrorCode::DockerImagePullingFailed,
                 "External docker image is not supported in Porto job environment"));
         }
 
@@ -416,7 +416,7 @@ private:
                     if (!volumeOrError.IsOK()) {
                         YT_LOG_WARNING(volumeOrError, "Failed to prepare root volume");
 
-                        THROW_ERROR_EXCEPTION(EErrorCode::RootVolumePreparationFailed, "Failed to prepare root volume")
+                        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::RootVolumePreparationFailed, "Failed to prepare root volume")
                             << volumeOrError;
                     }
 
@@ -555,7 +555,7 @@ private:
                 .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& result) {
                     ValidateJobPhase(EJobPhase::RunningGpuCheckCommand);
                     if (!result.IsOK()) {
-                        auto checkError = TError(EErrorCode::GpuCheckCommandFailed, "Preliminary GPU check command failed")
+                        auto checkError = TError(NExecNode::EErrorCode::GpuCheckCommandFailed, "Preliminary GPU check command failed")
                             << std::move(result);
                         THROW_ERROR checkError;
                     }
@@ -611,7 +611,7 @@ private:
 
         if (!Context_.LayerArtifactKeys.empty()) {
             return MakeFuture(TError(
-                EErrorCode::LayerUnpackingFailed,
+                NExecNode::EErrorCode::LayerUnpackingFailed,
                 "Porto layers are not supported in CRI job environment"));
         }
 
@@ -637,7 +637,7 @@ private:
                     if (!imageOrError.IsOK()) {
                         YT_LOG_WARNING(imageOrError, "Failed to prepare root volume (Image: %v)", imageDescriptor);
 
-                        THROW_ERROR_EXCEPTION(EErrorCode::DockerImagePullingFailed, "Failed to pull docker image")
+                        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::DockerImagePullingFailed, "Failed to pull docker image")
                             << TErrorAttribute("docker_image", *dockerImage)
                             << TErrorAttribute("authenticated", authenticated)
                             << imageOrError;

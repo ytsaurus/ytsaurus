@@ -218,7 +218,7 @@ public:
             return;
         }
 
-        auto alert = TError(EErrorCode::JobEnvironmentDisabled, "Job environment is disabled") << std::move(error);
+        auto alert = TError(NExecNode::EErrorCode::JobEnvironmentDisabled, "Job environment is disabled") << std::move(error);
         YT_LOG_ERROR(alert);
 
         Alert_.Store(alert);

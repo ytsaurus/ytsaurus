@@ -158,7 +158,7 @@ void TPathVisitor<TSelf>::VisitVector(
                 EVisitReason::AfterPath);
             return;
         } else {
-            Self()->Throw(EErrorCode::Unimplemented, "Cannot handle whole vectors");
+            Self()->Throw(NAttributes::EErrorCode::Unimplemented, "Cannot handle whole vectors");
         }
     }
 
@@ -221,7 +221,7 @@ void TPathVisitor<TSelf>::VisitVectorEntryRelative(
     Y_UNUSED(target);
     Y_UNUSED(reason);
 
-    Self()->Throw(EErrorCode::MalformedPath,
+    Self()->Throw(NAttributes::EErrorCode::MalformedPath,
         "Unexpected relative path specifier %v (producing an index of %v)",
         Self()->GetToken(),
         index);
@@ -237,7 +237,7 @@ void TPathVisitor<TSelf>::OnVectorIndexError(
     Y_UNUSED(target);
     Y_UNUSED(reason);
 
-    if (error.GetCode() == EErrorCode::OutOfBounds) {
+    if (error.GetCode() == NAttributes::EErrorCode::OutOfBounds) {
         switch (Self()->MissingFieldPolicy_) {
             case EMissingFieldPolicy::Throw:
                 break;
@@ -264,7 +264,7 @@ void TPathVisitor<TSelf>::VisitMap(
                 EVisitReason::AfterPath);
             return;
         } else {
-            Self()->Throw(EErrorCode::Unimplemented, "Cannot handle whole message maps");
+            Self()->Throw(NAttributes::EErrorCode::Unimplemented, "Cannot handle whole message maps");
         }
     }
 
@@ -286,7 +286,7 @@ void TPathVisitor<TSelf>::VisitMap(
             mapKey = key;
         } else {
             if (!TryFromString(key, mapKey)) {
-                Self()->Throw(EErrorCode::MalformedPath, "Invalid map key %v", key);
+                Self()->Throw(NAttributes::EErrorCode::MalformedPath, "Invalid map key %v", key);
             }
         }
 
@@ -337,7 +337,7 @@ void TPathVisitor<TSelf>::OnMapKeyError(
             break;
     }
 
-    Self()->Throw(EErrorCode::MissingKey, "Key %v not found in map", key);
+    Self()->Throw(NAttributes::EErrorCode::MissingKey, "Key %v not found in map", key);
 }
 
 template <typename TSelf>
@@ -349,7 +349,7 @@ void TPathVisitor<TSelf>::VisitOther(
     Y_UNUSED(target);
     Y_UNUSED(reason);
 
-    Self()->Throw(EErrorCode::Unimplemented, "Cannot visit type %v", TypeName<TVisitParam>());
+    Self()->Throw(NAttributes::EErrorCode::Unimplemented, "Cannot visit type %v", TypeName<TVisitParam>());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

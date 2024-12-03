@@ -107,7 +107,7 @@ public:
         Host_->OnPrepared();
 
         if (Host_->GetJobSpecHelper()->GetJobTestingOptions()->ThrowInShallowMerge) {
-            THROW_ERROR_EXCEPTION(EErrorCode::ShallowMergeFailed, "Shallow merge is aborted");
+            THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::ShallowMergeFailed, "Shallow merge is aborted");
         }
 
         YT_LOG_INFO("Shallow merge is running");
@@ -117,7 +117,7 @@ public:
             AbsorbMetas();
         } catch (const std::exception& ex) {
             YT_LOG_INFO(TError(ex), "Error absorbing metas");
-            THROW_ERROR_EXCEPTION(EErrorCode::ShallowMergeFailed, "Shallow merge failed") << ex;
+            THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::ShallowMergeFailed, "Shallow merge failed") << ex;
         }
 
         YT_LOG_DEBUG("Shallow merging blocks");

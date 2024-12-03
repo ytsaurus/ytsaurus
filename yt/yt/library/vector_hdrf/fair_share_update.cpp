@@ -1257,8 +1257,7 @@ void TRootElement::ValidatePoolConfigs(TFairShareUpdateContext* context)
     if (!context->NestedPromisedGuaranteeFairSharePools.empty()) {
         auto poolIds = collectPoolIds(context->NestedPromisedGuaranteeFairSharePools);
         context->Errors.push_back(
-            TError(
-                EErrorCode::NestedPromisedGuaranteeFairSharePools,
+            TError(NVectorHdrf::EErrorCode::NestedPromisedGuaranteeFairSharePools,
                 "Found pools with enabled promised fair share computation which are nested inside other such pools")
             << TErrorAttribute("nested_promised_fair_share_pools", poolIds));
     }
@@ -1266,8 +1265,7 @@ void TRootElement::ValidatePoolConfigs(TFairShareUpdateContext* context)
     if (!context->PriorityStrongGuaranteeAdjustmentPoolsWithoutDonor.empty()) {
         auto poolIds = collectPoolIds(context->PriorityStrongGuaranteeAdjustmentPoolsWithoutDonor);
         context->Errors.push_back(
-            TError(
-                EErrorCode::PriorityStrongGuaranteeAdjustmentPoolsWithoutDonor,
+            TError(NVectorHdrf::EErrorCode::PriorityStrongGuaranteeAdjustmentPoolsWithoutDonor,
                 "Found pools with enabled priority strong guarantee adjustment which do not have a donor")
             << TErrorAttribute("priority_pools_without_donors", poolIds));
     }
@@ -1284,14 +1282,14 @@ void TRootElement::ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext*
     }
 
     if (!Dominates(context->TotalResourceLimits, totalStrongGuaranteeResources + totalResourceFlow)) {
-        context->Errors.push_back(TError(EErrorCode::PoolTreeGuaranteesOvercommit, "Strong guarantees and resource flows exceed total cluster resources")
+        context->Errors.push_back(TError(NVectorHdrf::EErrorCode::PoolTreeGuaranteesOvercommit, "Strong guarantees and resource flows exceed total cluster resources")
             << TErrorAttribute("total_strong_guarantee_resources", totalStrongGuaranteeResources)
             << TErrorAttribute("total_resource_flow", totalResourceFlow)
             << TErrorAttribute("total_cluster_resources", context->TotalResourceLimits));
     }
 
     if (!Dominates(context->TotalResourceLimits, totalStrongGuaranteeResources + totalBurstResources)) {
-        context->Errors.push_back(TError(EErrorCode::PoolTreeGuaranteesOvercommit, "Strong guarantees and burst guarantees exceed total cluster resources")
+        context->Errors.push_back(TError(NVectorHdrf::EErrorCode::PoolTreeGuaranteesOvercommit, "Strong guarantees and burst guarantees exceed total cluster resources")
             << TErrorAttribute("total_strong_guarantee_resources", totalStrongGuaranteeResources)
             << TErrorAttribute("total_burst_resources", totalBurstResources)
             << TErrorAttribute("total_cluster_resources", context->TotalResourceLimits));

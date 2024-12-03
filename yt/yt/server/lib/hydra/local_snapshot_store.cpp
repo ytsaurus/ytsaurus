@@ -101,7 +101,7 @@ private:
         try {
             TFileHandle fileHandle(FileName_, RdOnly | OpenExisting | CloseOnExec);
             if (!fileHandle.IsOpen()) {
-                THROW_ERROR_EXCEPTION(EErrorCode::NoSuchSnapshot, "Failed to open snapshot file");
+                THROW_ERROR_EXCEPTION(NHydra::EErrorCode::NoSuchSnapshot, "Failed to open snapshot file");
             }
             File_.reset(new TFile(fileHandle.Release(), FileName_));
 
@@ -450,7 +450,7 @@ private:
         try {
             TFileHandle fileHandle(FileName_, RdOnly | OpenExisting | CloseOnExec);
             if (!fileHandle.IsOpen()) {
-                THROW_ERROR_EXCEPTION(EErrorCode::NoSuchSnapshot, "Failed to open snapshot file");
+                THROW_ERROR_EXCEPTION(NHydra::EErrorCode::NoSuchSnapshot, "Failed to open snapshot file");
             }
             File_.reset(new TFile(fileHandle.Release(), FileName_));
 
@@ -651,7 +651,7 @@ public:
     ISnapshotReaderPtr CreateReader(int snapshotId) override
     {
         if (!CheckSnapshotExists(snapshotId)) {
-            THROW_ERROR_EXCEPTION(EErrorCode::NoSuchSnapshot, "No such snapshot %v", snapshotId);
+            THROW_ERROR_EXCEPTION(NHydra::EErrorCode::NoSuchSnapshot, "No such snapshot %v", snapshotId);
         }
 
         return CreateLocalSnapshotReader(

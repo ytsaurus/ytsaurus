@@ -223,7 +223,7 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
                 SlotsWithQuota_.insert(slotIndex);
             }
         } catch (const std::exception& ex) {
-            auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set FS quota for a job sandbox")
+            auto error = TError(NExecNode::EErrorCode::QuotaSettingFailed, "Failed to set FS quota for a job sandbox")
                 << TErrorAttribute("sandbox_path", sandboxPath)
                 << ex;
             Disable(error);
@@ -243,7 +243,7 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
             WaitFor(JobDirectoryManager_->ApplyQuota(tmpPath, properties))
                 .ThrowOnError();
         } catch (const std::exception& ex) {
-            auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set FS quota for a job tmp directory")
+            auto error = TError(NExecNode::EErrorCode::QuotaSettingFailed, "Failed to set FS quota for a job tmp directory")
                 << TErrorAttribute("tmp_path", tmpPath)
                 << ex;
             Disable(error);
@@ -295,7 +295,7 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
             result.push_back(tmpfsPath);
         } catch (const std::exception& ex) {
             // Job will be aborted.
-            auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to mount tmpfs %v into sandbox %v", tmpfsPath, sandboxPath)
+            auto error = TError(NExecNode::EErrorCode::SlotLocationDisabled, "Failed to mount tmpfs %v into sandbox %v", tmpfsPath, sandboxPath)
                 << ex;
             Disable(error);
             THROW_ERROR error;
@@ -680,7 +680,7 @@ TFuture<void> TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
             writer.Flush();
         } catch (const std::exception& ex) {
             // Job will be aborted.
-            auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to write job proxy config into %v",
+            auto error = TError(NExecNode::EErrorCode::SlotLocationDisabled, "Failed to write job proxy config into %v",
                 proxyConfigPath)
                 << ex;
             Disable(error);
@@ -853,8 +853,7 @@ void TSlotLocation::OnArtifactPreparationFailed(
     if (brokenPipe) {
         YT_LOG_INFO(error, "Failed to build file in sandbox: broken pipe");
 
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::ArtifactCopyingFailed,
+        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::ArtifactCopyingFailed,
             "Failed to build file %Qv in sandbox %Qlv: broken pipe",
             artifactName,
             sandboxKind)
@@ -862,8 +861,7 @@ void TSlotLocation::OnArtifactPreparationFailed(
     } else if (destinationInsideTmpfs && noSpace) {
         YT_LOG_INFO(error, "Failed to build file in sandbox: tmpfs is too small");
 
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::TmpfsOverflow,
+        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsOverflow,
             "Failed to build file %Qv in sandbox %Qlv: tmpfs is too small",
             artifactName,
             sandboxKind)
@@ -887,8 +885,7 @@ void TSlotLocation::OnArtifactPreparationFailed(
     } else {
         YT_LOG_INFO(error, "Failed to build file in sandbox:");
 
-        auto wrappedError = TError(
-            EErrorCode::ArtifactCopyingFailed,
+        auto wrappedError = TError(NExecNode::EErrorCode::ArtifactCopyingFailed,
             "Failed to build file %Qv in sandbox %Qlv",
             artifactName,
             sandboxKind)
@@ -938,8 +935,7 @@ void TSlotLocation::ForceSubdirectories(const TString& filePath, const TString& 
 void TSlotLocation::ValidateEnabled() const
 {
     if (!IsEnabled()) {
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::SlotLocationDisabled,
+        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::SlotLocationDisabled,
             "Slot location at %v is disabled",
             Config_->Path);
     }
@@ -955,8 +951,7 @@ void TSlotLocation::Disable(const TError& error)
     YT_UNUSED_FUTURE(BIND([=, this, this_ = MakeStrong(this)] {
         Error_.Store(error);
 
-        auto alert = TError(
-            EErrorCode::SlotLocationDisabled,
+        auto alert = TError(NExecNode::EErrorCode::SlotLocationDisabled,
             "Slot location at %v is disabled",
             Config_->Path)
             << error;

@@ -2330,7 +2330,7 @@ struct TReaderParams
                 columnFilter,
                 omittedInaccessibleColumns);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION(EErrorCode::NameTableUpdateFailed, "Failed to update name table for schemaless chunk reader")
+            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::NameTableUpdateFailed, "Failed to update name table for schemaless chunk reader")
                 << TErrorAttribute("chunk_id", chunkId)
                 << ex;
         }

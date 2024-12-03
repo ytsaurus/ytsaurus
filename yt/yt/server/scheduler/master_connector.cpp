@@ -265,7 +265,7 @@ public:
             auto error = TError("Error creating operation node %v", operationId)
                 << ex;
             if (IsMasterDisconnectionError(error)) {
-                error.SetCode(EErrorCode::MasterDisconnected);
+                error.SetCode(NScheduler::EErrorCode::MasterDisconnected);
             }
             THROW_ERROR error;
         }
@@ -1349,7 +1349,7 @@ private:
 
             auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_strategy_state");
             if (!rspOrError.IsOK() && !rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                THROW_ERROR(rspOrError.Wrap(EErrorCode::WatcherHandlerFailed, "Error fetching strategy state"));
+                THROW_ERROR(rspOrError.Wrap(NScheduler::EErrorCode::WatcherHandlerFailed, "Error fetching strategy state"));
             }
 
             TPersistentStrategyStatePtr strategyState;
@@ -1670,7 +1670,7 @@ private:
         StopPeriodicActivities();
 
         if (CancelableContext_) {
-            CancelableContext_->Cancel(TError(EErrorCode::MasterDisconnected, "Master disconnected"));
+            CancelableContext_->Cancel(TError(NScheduler::EErrorCode::MasterDisconnected, "Master disconnected"));
             CancelableContext_.Reset();
         }
 
@@ -1847,7 +1847,7 @@ private:
                 operation->GetId())
                 << ex;
             if (IsMasterDisconnectionError(error)) {
-                error.SetCode(EErrorCode::MasterDisconnected);
+                error.SetCode(NScheduler::EErrorCode::MasterDisconnected);
             }
             THROW_ERROR error;
         }

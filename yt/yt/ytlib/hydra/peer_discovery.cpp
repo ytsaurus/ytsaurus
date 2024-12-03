@@ -34,7 +34,7 @@ public:
         if (response->HasExtension(NProto::TDiscombobulationExt::discombobulation_ext)) {
             const auto& ext = response->GetExtension(NProto::TDiscombobulationExt::discombobulation_ext);
             if (ext.discombobulated()) {
-                auto error = TError(EErrorCode::ReadOnly,
+                auto error = TError(NHydra::EErrorCode::ReadOnly,
                     "Read-only mode is active");
                 THROW_ERROR_EXCEPTION(NRpc::EErrorCode::GlobalDiscoveryError,
                     "Cell is in a discombobulated state")

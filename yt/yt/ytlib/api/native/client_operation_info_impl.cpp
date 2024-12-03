@@ -759,7 +759,7 @@ TOperation TClient::DoGetOperation(
         } catch (const TErrorException& error) {
             YT_LOG_DEBUG(error, "Failed to get operation (OperationId: %v)",
                 operationId);
-            if (!error.Error().FindMatching(EErrorCode::RetriableArchiveError)) {
+            if (!error.Error().FindMatching(NApi::EErrorCode::RetriableArchiveError)) {
                 throw;
             }
             if (TInstant::Now() + retryInterval > deadline) {

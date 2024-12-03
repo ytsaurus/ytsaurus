@@ -608,7 +608,7 @@ private:
                 succeeded = true;
                 break;
             } catch (TErrorException& ex) {
-                if (ex.Error().FindMatching(EErrorCode::DataSliceLimitExceeded)) {
+                if (ex.Error().FindMatching(NChunkPools::EErrorCode::DataSliceLimitExceeded)) {
                     YT_LOG_DEBUG(ex,
                         "Retriable error during job building (RetryIndex: %v, MaxBuildRetryCount: %v)",
                         retryIndex,

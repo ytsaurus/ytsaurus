@@ -224,8 +224,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
 
                 if (MakeBooleanFormula(configFilter).IsSatisfiedBy(InstanceTags_)) {
                     if (matchedConfigNode) {
-                        THROW_ERROR_EXCEPTION(
-                            EErrorCode::DuplicateMatchingDynamicConfigs,
+                        THROW_ERROR_EXCEPTION(NDynamicConfig::EErrorCode::DuplicateMatchingDynamicConfigs,
                             "Found duplicate matching dynamic config")
                             << TErrorAttribute("dynamic_config_name", Options_.Name)
                             << TErrorAttribute("first_config_filter", matchingConfigFilter)
@@ -260,8 +259,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
             YT_LOG_DEBUG("No suitable dynamic config was found, using empty one");
             matchedConfigNode = NYTree::GetEphemeralNodeFactory()->CreateMap();
         } else {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::NoSuitableDynamicConfig,
+            THROW_ERROR_EXCEPTION(NDynamicConfig::EErrorCode::NoSuitableDynamicConfig,
                 "No suitable dynamic config was found")
                 << TErrorAttribute("dynamic_config_name", Options_.Name);
         }

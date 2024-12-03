@@ -18,7 +18,7 @@ void TPathVisitorUtil::SkipSlash()
         return;
     }
 
-    Throw(EErrorCode::MalformedPath, "Expected slash but got %Qv", Tokenizer_.GetToken());
+    Throw(NAttributes::EErrorCode::MalformedPath, "Expected slash but got %Qv", Tokenizer_.GetToken());
 }
 
 void TPathVisitorUtil::Push(TToken token)
@@ -40,7 +40,7 @@ void TPathVisitorUtil::AdvanceOver(TToken token)
 void TPathVisitorUtil::AdvanceOverAsterisk()
 {
     if (!AllowAsterisk_) {
-        Throw(EErrorCode::Unimplemented, "Cannot handle asterisks");
+        Throw(NAttributes::EErrorCode::Unimplemented, "Cannot handle asterisks");
     }
 
     Tokenizer_.Advance();
@@ -108,7 +108,7 @@ void TPathVisitorUtil::Expect(NYPath::ETokenType type) const
         return;
     }
 
-    TError error(EErrorCode::MalformedPath,
+    TError error(NAttributes::EErrorCode::MalformedPath,
         "Expected %Qlv but got %Qlv",
         type,
         Tokenizer_.GetType());
@@ -139,7 +139,7 @@ TErrorOr<TIndexParseResult> TPathVisitorUtil::ParseCurrentListIndex(int size) co
     auto indexParseResult = ParseListIndex(Tokenizer_.GetToken(), size);
 
     if (indexParseResult.IsOutOfBounds(size)) {
-        return TError(EErrorCode::OutOfBounds,
+        return TError(NAttributes::EErrorCode::OutOfBounds,
             "Index %Qv out of bounds for repeated field of size %v",
             Tokenizer_.GetToken(),
             size);

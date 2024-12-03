@@ -135,7 +135,7 @@ void TSlotManager::OnPortoHealthCheckFailed(const TError& result)
     }
 
     auto error = result
-            << TError(EErrorCode::PortoHealthCheckFailed, "Porto health check failed");
+            << TError(NExecNode::EErrorCode::PortoHealthCheckFailed, "Porto health check failed");
 
     if (!IsJobSchedulingDisabled()) {
         YT_LOG_INFO(
@@ -364,7 +364,7 @@ IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequ
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (IsJobSchedulingDisabled()) {
-        THROW_ERROR_EXCEPTION(EErrorCode::SchedulerJobsDisabled, "Slot manager disabled");
+        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::SchedulerJobsDisabled, "Slot manager disabled");
     }
 
     // NB(arkady-e1ppa): This branch covers scenario when
@@ -376,7 +376,7 @@ IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequ
     // it is not designed to know about non-instant slot initialization
     // thus we check for it here.
     if (FreeSlots_.empty()) {
-        THROW_ERROR_EXCEPTION(EErrorCode::NotEnoughInitializedSlots, "Some user slots are not initialized yet");
+        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::NotEnoughInitializedSlots, "Some user slots are not initialized yet");
     }
 
     UpdateAliveLocations();
@@ -415,7 +415,7 @@ IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequ
     }
 
     if (!bestLocation) {
-        THROW_ERROR_EXCEPTION(EErrorCode::SlotNotFound, "No feasible slot found")
+        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::SlotNotFound, "No feasible slot found")
             << TErrorAttribute("alive_location_count", AliveLocations_.size())
             << TErrorAttribute("feasible_location_count", feasibleLocationCount)
             << TErrorAttribute("skipped_by_disk_space", skippedByDiskSpace)
@@ -818,7 +818,7 @@ bool TSlotManager::Disable(TError error)
     {
         auto guard = WriterGuard(AlertsLock_);
 
-        auto wrappedError = TError(EErrorCode::SchedulerJobsDisabled, "Scheduler jobs disabled")
+        auto wrappedError = TError(NExecNode::EErrorCode::SchedulerJobsDisabled, "Scheduler jobs disabled")
         // NB: Must copy here since error is used in volume manager too.
             << error;
         YT_LOG_WARNING(wrappedError, "Disabling slot manager");
@@ -897,7 +897,7 @@ void TSlotManager::OnPortoExecutorFailed(const TError& error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    Disable(TError(EErrorCode::PortoExecutorFailure, "Porto exeuctor failed") << error);
+    Disable(TError(NExecNode::EErrorCode::PortoExecutorFailure, "Porto exeuctor failed") << error);
 }
 
 void TSlotManager::OnWaitingForJobCleanupTimeout(TError error)
@@ -907,7 +907,7 @@ void TSlotManager::OnWaitingForJobCleanupTimeout(TError error)
     // NB(arkady-e1ppa): This call is sync and this event has already
     // been logged before going there.
 
-    YT_VERIFY(error.FindMatching(EErrorCode::JobCleanupTimeout));
+    YT_VERIFY(error.FindMatching(NExecNode::EErrorCode::JobCleanupTimeout));
 
     Disable(std::move(error));
 }
@@ -916,7 +916,7 @@ void TSlotManager::OnJobEnvironmentDisabled(TError error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    YT_VERIFY(error.FindMatching(EErrorCode::JobEnvironmentDisabled));
+    YT_VERIFY(error.FindMatching(NExecNode::EErrorCode::JobEnvironmentDisabled));
 
     YT_LOG_WARNING(error, "Job environment disabled; disabling slot manager");
 
@@ -1159,7 +1159,7 @@ void TSlotManager::FinishInitialization(const TError& error)
         YT_LOG_INFO("Slot manager async initialization finished");
         State_.store(ESlotManagerState::Initialized);
     } else {
-        auto wrappedError = TError(EErrorCode::SchedulerJobsDisabled, "Initialization failed")
+        auto wrappedError = TError(NExecNode::EErrorCode::SchedulerJobsDisabled, "Initialization failed")
             << error;
 
         YT_LOG_WARNING(wrappedError, "Initialization failed");
@@ -1372,14 +1372,14 @@ ESlotManagerAlertType DeduceAlertType(const TError& error, std::optional<ESlotMa
         return *hint;
     }
 
-    if (error.FindMatching(EErrorCode::JobEnvironmentDisabled)) {
+    if (error.FindMatching(NExecNode::EErrorCode::JobEnvironmentDisabled)) {
         return ESlotManagerAlertType::JobEnvironmentFailure;
     }
     if (
-        error.FindMatching(EErrorCode::PortoVolumeManagerFailure) ||
-        error.FindMatching(EErrorCode::PortoHealthCheckFailed) ||
-        error.FindMatching(EErrorCode::JobCleanupTimeout) ||
-        error.FindMatching(EErrorCode::PortoExecutorFailure))
+        error.FindMatching(NExecNode::EErrorCode::PortoVolumeManagerFailure) ||
+        error.FindMatching(NExecNode::EErrorCode::PortoHealthCheckFailed) ||
+        error.FindMatching(NExecNode::EErrorCode::JobCleanupTimeout) ||
+        error.FindMatching(NExecNode::EErrorCode::PortoExecutorFailure))
     {
         return ESlotManagerAlertType::PortoFailure;
     }

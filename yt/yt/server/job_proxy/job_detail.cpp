@@ -107,22 +107,19 @@ void TJob::PopulateInputNodeDirectory() const
 
 std::vector<NChunkClient::TChunkId> TJob::DumpInputContext(TTransactionId /*transactionId*/)
 {
-    THROW_ERROR_EXCEPTION(
-        EErrorCode::UnsupportedJobType,
+    THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::UnsupportedJobType,
         "Dumping input context is not supported for built-in jobs");
 }
 
 NApi::TGetJobStderrResponse TJob::GetStderr(const NApi::TGetJobStderrOptions& /*options*/)
 {
-    THROW_ERROR_EXCEPTION(
-        EErrorCode::UnsupportedJobType,
+    THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::UnsupportedJobType,
         "Getting stderr is not supported for built-in jobs");
 }
 
 std::optional<TString> TJob::GetFailContext()
 {
-    THROW_ERROR_EXCEPTION(
-        EErrorCode::UnsupportedJobType,
+    THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::UnsupportedJobType,
         "Getting stderr is not supported for built-in jobs");
 }
 
@@ -139,8 +136,7 @@ std::vector<TJobProfile> TJob::GetProfiles()
 
 const TCoreInfos& TJob::GetCoreInfos() const
 {
-    THROW_ERROR_EXCEPTION(
-        EErrorCode::UnsupportedJobType,
+    THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::UnsupportedJobType,
         "Getting core infos is not supported for built-in jobs");
 }
 
@@ -148,8 +144,7 @@ NApi::TPollJobShellResponse TJob::PollJobShell(
     const NJobProberClient::TJobShellDescriptor& /*jobShellDescriptor*/,
     const TYsonString& /*parameters*/)
 {
-    THROW_ERROR_EXCEPTION(
-        EErrorCode::UnsupportedJobType,
+    THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::UnsupportedJobType,
         "Job shell is not supported for built-in jobs");
 }
 
@@ -368,7 +363,7 @@ void TSimpleJobBase::Interrupt()
     }
 
     if (!Initialized_) {
-        THROW_ERROR_EXCEPTION(EErrorCode::InterruptionFailed, "Cannot interrupt uninitialized reader");
+        THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::InterruptionFailed, "Cannot interrupt uninitialized reader");
     }
 
     if (!Interrupted_) {
@@ -378,7 +373,7 @@ void TSimpleJobBase::Interrupt()
         if (Reader_->GetDataStatistics().row_count() > 0) {
             Reader_->Interrupt();
         } else {
-            THROW_ERROR_EXCEPTION(EErrorCode::InterruptionFailed, "Cannot interrupt reader that didn't start reading");
+            THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::InterruptionFailed, "Cannot interrupt reader that didn't start reading");
         }
     }
 }

@@ -178,7 +178,7 @@ public:
                 auto pollResult = WaitFor(shell->Poll());
                 if (pollResult.FindMatching(NYT::EErrorCode::Timeout)) {
                     if (shell->Terminated()) {
-                        THROW_ERROR_EXCEPTION(EErrorCode::ShellExited, "Shell exited")
+                        THROW_ERROR_EXCEPTION(NShell::EErrorCode::ShellExited, "Shell exited")
                             << TErrorAttribute("shell_id", parameters.ShellId)
                             << TErrorAttribute("shell_index", parameters.ShellIndex);
                     }
@@ -194,7 +194,7 @@ public:
                         << pollResult;
                 }
                 if (!pollResult.IsOK() || pollResult.Value().Empty()) {
-                    THROW_ERROR_EXCEPTION(EErrorCode::ShellExited, "Shell exited")
+                    THROW_ERROR_EXCEPTION(NShell::EErrorCode::ShellExited, "Shell exited")
                         << TErrorAttribute("shell_id", parameters.ShellId)
                         << TErrorAttribute("shell_index", parameters.ShellIndex)
                         << pollResult;
