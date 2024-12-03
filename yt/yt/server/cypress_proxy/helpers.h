@@ -51,6 +51,10 @@ std::optional<TParsedReqCreate> TryParseReqCreate(ISequoiaServiceContextPtr cont
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ConsumeAttributes(NYson::IAsyncYsonConsumer* consumer, const NYTree::IAttributeDictionaryPtr& attributes);
+
+////////////////////////////////////////////////////////////////////////////////
+
 void FromProto(
     TCopyOptions* options,
     const NCypressClient::NProto::TReqCopy& protoOptions);
