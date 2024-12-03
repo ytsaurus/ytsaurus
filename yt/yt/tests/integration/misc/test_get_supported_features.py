@@ -11,13 +11,15 @@ import pytest
 ##################################################################
 
 
-class TestGetFeatures(YTEnvSetup):
+class TestGetFeaturesBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
     SKIP_STATISTICS_DESCRIPTIONS = False
 
+
+class TestGetFeatures(TestGetFeaturesBase):
     @authors("levysotsky")
     def test_get_features(self):
         driver = get_driver(api_version=4)
@@ -117,9 +119,24 @@ class TestGetFeatures(YTEnvSetup):
             assert "unit" in description
 
     @authors("aleksandr.gaev")
-    def test_user_tokens_with_metadata_feature(self):
-        driver = get_driver(api_version=4)
-        features = get_supported_features(driver=driver)
+    def test_features(self):
+        features = get_supported_features()
 
         assert "user_tokens_metadata" in features
         assert features["user_tokens_metadata"] == yson.YsonBoolean(True)
+
+        assert "require_password_in_authentication_commands" in features
+        assert features["require_password_in_authentication_commands"] == yson.YsonBoolean(True)
+
+
+class TestGetFeaturesWithConfigs(TestGetFeaturesBase):
+    DELTA_DRIVER_CONFIG = {
+        "require_password_in_authentication_commands": False,
+    }
+
+    @authors("aleksandr.gaev")
+    def test_features(self):
+        features = get_supported_features()
+
+        assert "require_password_in_authentication_commands" in features
+        assert features["require_password_in_authentication_commands"] == yson.YsonBoolean(False)
