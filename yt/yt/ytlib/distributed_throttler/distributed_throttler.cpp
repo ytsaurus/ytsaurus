@@ -165,7 +165,13 @@ public:
     {
         YT_VERIFY(Config_.Acquire()->Mode != EDistributedThrottlerMode::Precise);
 
-        return Underlying_->GetQueueTotalAmount();
+        auto queueByteSize = Underlying_->GetQueueTotalAmount();
+
+        if (Initialized_) {
+            QueueByteSize_.Update(queueByteSize);
+        }
+
+        return queueByteSize;
     }
 
     void Reconfigure(TThroughputThrottlerConfigPtr config) override
@@ -193,7 +199,13 @@ public:
 
     TDuration GetEstimatedOverdraftDuration() const override
     {
-        return Underlying_->GetEstimatedOverdraftDuration();
+        auto duration = Underlying_->GetEstimatedOverdraftDuration();
+
+        if (Initialized_) {
+            QueueEstimatedOverrunDuration_.Update(duration.Seconds());
+        }
+
+        return duration;
     }
 
     void SetLeaderChannel(IChannelPtr leaderChannel)
@@ -222,6 +234,8 @@ private:
     TProfiler Profiler_;
     TGauge Limit_;
     TGauge Usage_;
+    TGauge QueueByteSize_;
+    TGauge QueueEstimatedOverrunDuration_;
     std::atomic<bool> Initialized_ = false;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, HistoricUsageAggregatorLock_);
@@ -239,8 +253,12 @@ private:
 
         Limit_ = Profiler_.Gauge("/limit");
         Usage_ = Profiler_.Gauge("/usage");
+        QueueByteSize_ = Profiler_.Gauge("/queue_byte_size");
+        QueueEstimatedOverrunDuration_ = Profiler_.Gauge("/queue_estimated_overrun_duration");
 
         Limit_.Update(ThrottlerConfig_.Acquire()->Limit.value_or(-1));
+        QueueByteSize_.Update(0);
+        QueueEstimatedOverrunDuration_.Update(0);
     }
 
     void UpdateHistoricUsage(i64 amount)
@@ -1298,6 +1316,7 @@ private:
                                     .Item("queue_byte_size").Value(strongPtr->GetQueueTotalAmount())
                                     .Item("quota_exceeded").Value(strongPtr->IsOverdraft());
                             })
+                            .Item("queue_estimated_overrun_duration").Value(strongPtr->GetEstimatedOverdraftDuration().Seconds())
                             .Item("period").Value(strongPtr->GetConfig()->Period)
                         .EndMap();
                 }
