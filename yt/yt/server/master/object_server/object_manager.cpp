@@ -1739,11 +1739,6 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
                 trunkNode->GetRevision());
         }
     }
-
-    YT_LOG_DEBUG("Successfully validated prerequisites (AuthenticationIdentity: %v, Transactions: %v, Revisions: %v)",
-        GetCurrentAuthenticationIdentity(),
-        prerequisites.transactions(),
-        prerequisites.revisions());
 }
 
 TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
