@@ -1423,8 +1423,8 @@ TError TChunkPlacement::ComputeDataCenterFaultiness(
             "Storage data center %Qv considered faulty: %v, needed >= %v but got %v",
             dataCenter->GetName(),
             dataCenterIsEnabled ? "enough offline nodes to disable" : "too few online nodes to enable",
-            onlineNodeCount,
-            targetOnlineNodeCount);
+            targetOnlineNodeCount,
+            onlineNodeCount);
         return error;
     }
 
@@ -1438,8 +1438,8 @@ TError TChunkPlacement::ComputeDataCenterFaultiness(
             "Storage data center %Qv considered faulty: %v, fraction needed >= %v but got %v",
             dataCenter->GetName(),
             dataCenterIsEnabled ? "enough offline nodes to disable" : "too few online nodes to enable",
-            onlineFraction,
-            targetFraction);
+            targetFraction,
+            onlineFraction);
         return error;
     }
 
