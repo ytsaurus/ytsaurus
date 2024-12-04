@@ -226,7 +226,9 @@ private:
     {
         YT_LOG_DEBUG("Requesting chunk meta");
 
-        auto metaOrError = WaitFor(ChunkReader_->GetMeta(ChunkReadOptions_));
+        auto metaOrError = WaitFor(ChunkReader_->GetMeta(IChunkReader::TGetMetaOptions{
+            .ClientOptions = ChunkReadOptions_,
+        }));
         THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Failed to get file chunk meta");
 
         YT_LOG_DEBUG("Chunk meta received");

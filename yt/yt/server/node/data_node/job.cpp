@@ -1784,7 +1784,7 @@ private:
 
     TDeferredChunkMetaPtr GetChunkMeta(IChunkReaderPtr reader, const TClientChunkReadOptions& options)
     {
-        auto result = WaitFor(reader->GetMeta(options));
+        auto result = WaitFor(reader->GetMeta(IChunkReader::TGetMetaOptions{ .ClientOptions = options }));
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Merge job failed");
 
         auto deferredChunkMeta = New<TDeferredChunkMeta>();
@@ -2091,12 +2091,12 @@ private:
                 /*band*/ 0,
                 /*instant*/ {},
                 {Format("Reincarnate chunk %v", OldChunkId_)}),
-            .MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker()
+            .MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker(),
         };
 
         auto oldChunkMeta = New<TDeferredChunkMeta>();
         {
-            auto result = WaitFor(remoteReader->GetMeta(readerOptions));
+            auto result = WaitFor(remoteReader->GetMeta(IChunkReader::TGetMetaOptions{ .ClientOptions = readerOptions }));
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Reincarnation job failed");
 
             oldChunkMeta->CopyFrom(*result.Value());

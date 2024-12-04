@@ -246,7 +246,9 @@ private:
 
         // Fetch chunk meta.
         const auto& reader = Readers_[RandomNumber(Readers_.size())];
-        auto meta = WaitFor(reader->GetMeta(ReadBlocksOptions_.ClientOptions))
+        auto meta = WaitFor(reader->GetMeta(IChunkReader::TGetMetaOptions{
+            .ClientOptions = ReadBlocksOptions_.ClientOptions,
+        }))
             .ValueOrThrow();
         auto deferredMeta = New<TDeferredChunkMeta>();
         deferredMeta->CopyFrom(*meta);

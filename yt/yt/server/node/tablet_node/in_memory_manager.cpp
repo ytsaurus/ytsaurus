@@ -514,7 +514,9 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     readerProfiler->SetChunkReaderStatistics(readBlocksOptions.ClientOptions.ChunkReaderStatistics);
 
     auto reader = store->GetBackendReaders(EWorkloadCategory::SystemTabletPreload).ChunkReader;
-    auto meta = WaitFor(reader->GetMeta(readBlocksOptions.ClientOptions))
+    auto meta = WaitFor(reader->GetMeta(IChunkReader::TGetMetaOptions{
+        .ClientOptions = readBlocksOptions.ClientOptions,
+    }))
         .ValueOrThrow();
 
     auto miscExt = GetProtoExtension<TMiscExt>(meta->extensions());

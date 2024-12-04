@@ -51,7 +51,7 @@ private:
             Cout << "ID: " << ToString(reader->GetChunkId()) << Endl;
         }
 
-        auto chunkMeta = reader->GetMeta(/*chunkReadOptions*/ {})
+        auto chunkMeta = reader->GetMeta(/*options*/ {})
             .Get()
             .ValueOrThrow();
 

@@ -303,7 +303,9 @@ private:
 
     TDeferredChunkMetaPtr GetChunkMeta(const IChunkReaderPtr& reader)
     {
-        auto result = WaitFor(reader->GetMeta(ChunkReadOptions_));
+        auto result = WaitFor(reader->GetMeta(IChunkReader::TGetMetaOptions{
+            .ClientOptions = ChunkReadOptions_,
+        }));
         if (!result.IsOK()) {
             FailedChunkIds_.push_back(reader->GetChunkId());
             THROW_ERROR_EXCEPTION("Failed to get chunk meta") << result;

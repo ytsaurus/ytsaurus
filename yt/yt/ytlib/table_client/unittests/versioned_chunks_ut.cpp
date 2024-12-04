@@ -354,7 +354,7 @@ protected:
     {
         WriteManyRows(testOptions);
 
-        auto chunkMeta = MemoryReader->GetMeta(/*chunkReadOptions*/ {})
+        auto chunkMeta = MemoryReader->GetMeta(/*options*/ {})
             .Apply(BIND(
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,
@@ -531,7 +531,7 @@ TEST_F(TVersionedChunkLookupTest, TestIndexedMetadata)
         .ChunkFormat = EChunkFormat::TableVersionedIndexed
     });
 
-    auto chunkMeta = MemoryReader->GetMeta(/*chunkReadOptions*/ {})
+    auto chunkMeta = MemoryReader->GetMeta(/*options*/ {})
         .Get()
         .ValueOrThrow();
 
@@ -814,7 +814,7 @@ protected:
             columnFilter,
             GetTestOptions().UseNewReader);
 
-        auto chunkMeta = memoryReader->GetMeta(/*chunkReadOptions*/ {})
+        auto chunkMeta = memoryReader->GetMeta(/*options*/ {})
             .Apply(BIND(
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,
@@ -927,7 +927,7 @@ protected:
             columnFilter,
             GetTestOptions().UseNewReader);
 
-        auto chunkMeta = memoryReader->GetMeta(/*chunkReadOptions*/ {})
+        auto chunkMeta = memoryReader->GetMeta(/*options*/ {})
             .Apply(BIND(
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,
@@ -1047,7 +1047,7 @@ protected:
     {
         auto blockCache = GetPreloadedBlockCache(memoryReader);
 
-        auto chunkMeta = memoryReader->GetMeta(/*chunkReadOptions*/ {})
+        auto chunkMeta = memoryReader->GetMeta(/*options*/ {})
             .Apply(BIND(
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,

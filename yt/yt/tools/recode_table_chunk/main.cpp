@@ -115,7 +115,7 @@ private:
 
         Cout << "Chunk id: " << ToString(ChunkReader_->GetChunkId()) << Endl;
 
-        InputChunkMeta_ = WaitFor(ChunkReader_->GetMeta(/*chunkReadOptions*/ {}))
+        InputChunkMeta_ = WaitFor(ChunkReader_->GetMeta(/*options*/ {}))
             .ValueOrThrow();
 
         InputChunkState_ = New<TChunkState>(TChunkState{
@@ -154,7 +154,7 @@ private:
 
     void DoRunVersioned()
     {
-        auto cachedVersionedChunkMeta = WaitFor(ChunkReader_->GetMeta(/*chunkReadOptions*/ {})
+        auto cachedVersionedChunkMeta = WaitFor(ChunkReader_->GetMeta(/*options*/ {})
             .Apply(BIND(
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,

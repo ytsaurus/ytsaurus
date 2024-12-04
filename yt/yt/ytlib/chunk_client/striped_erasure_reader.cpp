@@ -393,9 +393,10 @@ protected:
 
     TFuture<void> FetchPlacementExt()
     {
+        // TODO(akozhikhov): Add throttling by meta size.
         const auto& reader = PartReaders_[RandomNumber(PartReaders_.size())];
         return reader->GetMeta(
-            ReadBlocksOptions_.ClientOptions,
+            IChunkReader::TGetMetaOptions{ .ClientOptions = ReadBlocksOptions_.ClientOptions, },
             /*partitionTag*/ std::nullopt,
             std::vector<int>{
                 TProtoExtensionTag<NProto::TStripedErasurePlacementExt>::Value
@@ -508,8 +509,11 @@ private:
         }
 
         // Fetch chunk meta.
+        // TODO(akozhikhov): Add throttling by meta size.
         const auto& reader = PartReaders_[RandomNumber(PartReaders_.size())];
-        auto meta = WaitFor(reader->GetMeta(ReadBlocksOptions_.ClientOptions))
+        auto meta = WaitFor(reader->GetMeta(IChunkReader::TGetMetaOptions{
+            .ClientOptions = ReadBlocksOptions_.ClientOptions,
+        }))
             .ValueOrThrow();
 
         auto deferredMeta = New<TDeferredChunkMeta>();

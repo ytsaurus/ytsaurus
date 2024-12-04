@@ -241,7 +241,7 @@ public:
         int blockCount) override;
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
-        const TClientChunkReadOptions& options,
+        const TGetMetaOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override;
 
@@ -280,6 +280,12 @@ public:
         auto timePassed = TInstant::Now() - startTimestamp;
         return SlownessChecker_(bytesReceived, timePassed);
     }
+
+    //! Looks for chunk meta in ChunkMetaCache if the cache is enabled.
+    TFuture<TRefCountedChunkMetaPtr> FindMetaInCache(
+        std::optional<int> partitionTag,
+        const std::optional<std::vector<int>>& extensionTags,
+        const ICachedChunkMeta::TMetaFetchCallback& callback);
 
 private:
     friend class TRequestBatcher;
@@ -432,11 +438,6 @@ private:
         }
     }
 
-    //! Fallback for GetMeta when the chunk meta is missing in ChunkMetaCache or the cache is disabled.
-    TFuture<TRefCountedChunkMetaPtr> FetchMeta(
-        const TClientChunkReadOptions& options,
-        std::optional<int> partitionTag,
-        const std::optional<std::vector<int>>& extensionsTags);
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicationReader)
@@ -2650,16 +2651,20 @@ class TGetMetaSession
 public:
     TGetMetaSession(
         TReplicationReader* reader,
-        const TClientChunkReadOptions& options,
+        const IChunkReader::TGetMetaOptions& options,
         const std::optional<int> partitionTag,
-        const std::optional<std::vector<int>>& extensionTags)
+        const std::optional<std::vector<int>>& extensionTags,
+        IThroughputThrottlerPtr bandwidthThrottler,
+        IThroughputThrottlerPtr rpsThrottler,
+        IThroughputThrottlerPtr mediumThrottler)
         : TSessionBase(
             reader,
-            options,
-            reader->BandwidthThrottler_,
-            reader->RpsThrottler_,
-            reader->MediumThrottler_,
+            options.ClientOptions,
+            std::move(bandwidthThrottler),
+            std::move(rpsThrottler),
+            std::move(mediumThrottler),
             GetCurrentInvoker())
+        , MetaSize_(options.MetaSize)
         , PartitionTag_(partitionTag)
         , ExtensionTags_(extensionTags)
     { }
@@ -2686,11 +2691,14 @@ public:
     }
 
 private:
+    const std::optional<i64> MetaSize_;
     const std::optional<int> PartitionTag_;
     const std::optional<std::vector<int>> ExtensionTags_;
 
     //! Promise representing the session.
     const TPromise<TRefCountedChunkMetaPtr> Promise_ = NewPromise<TRefCountedChunkMetaPtr>();
+
+    i64 BytesThrottled_ = 0;
 
 
     void NextPass() override
@@ -2716,6 +2724,7 @@ private:
             return;
         }
 
+        // NB: This is solely for testing purposes.
         if (ReaderConfig_->ChunkMetaCacheFailureProbability &&
             RandomNumber<double>() < *ReaderConfig_->ChunkMetaCacheFailureProbability)
         {
@@ -2748,6 +2757,15 @@ private:
         }
 
         YT_LOG_DEBUG("Requesting chunk meta (Addresses: %v)", peers);
+
+        if (ShouldThrottle(peers[0].Address, BytesThrottled_ == 0 && MetaSize_ > 0)) {
+            BytesThrottled_ = *MetaSize_;
+            if (!CombinedDataByteThrottler_->IsOverdraft()) {
+                CombinedDataByteThrottler_->Acquire(BytesThrottled_);
+            } else if (!SyncThrottle(CombinedDataByteThrottler_, BytesThrottled_)) {
+                return;
+            }
+        }
 
         TDataNodeServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(ReaderConfig_->MetaRpcTimeout);
@@ -2812,7 +2830,10 @@ private:
 
     void OnSessionSucceeded(NProto::TChunkMeta&& chunkMeta)
     {
-        YT_LOG_DEBUG("Chunk meta obtained");
+        YT_LOG_DEBUG("Chunk meta obtained (ThrottledBytes: %v, BytesReceived: %v)",
+            BytesThrottled_,
+            TotalBytesReceived_);
+
         Promise_.TrySet(New<TRefCountedChunkMeta>(std::move(chunkMeta)));
     }
 
@@ -2827,9 +2848,13 @@ private:
 
     void OnSessionFailed(bool fatal, const TError& error) override
     {
+        YT_LOG_DEBUG(error, "Get meta session failed (Fatal: %v)", fatal);
+
         if (fatal) {
             SetReaderFailed();
         }
+
+        ReleaseThrottledBytesExcess(BandwidthThrottler_, BytesThrottled_);
 
         Promise_.TrySet(error);
     }
@@ -2843,25 +2868,10 @@ private:
     }
 };
 
-TFuture<TRefCountedChunkMetaPtr> TReplicationReader::FetchMeta(
-    const TClientChunkReadOptions& options,
+TFuture<TRefCountedChunkMetaPtr> TReplicationReader::FindMetaInCache(
     std::optional<int> partitionTag,
-    const std::optional<std::vector<int>>& extensionTags)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    auto session = New<TGetMetaSession>(
-        this,
-        options,
-        partitionTag,
-        extensionTags);
-    return session->Run();
-}
-
-TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
-    const TClientChunkReadOptions& options,
-    std::optional<int> partitionTag,
-    const std::optional<std::vector<int>>& extensionTags)
+    const std::optional<std::vector<int>>& extensionTags,
+    const ICachedChunkMeta::TMetaFetchCallback& callback)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -2870,10 +2880,40 @@ TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
         return ChunkMetaCache_->Fetch(
             decodedChunkId,
             extensionTags,
-            BIND(&TReplicationReader::FetchMeta, MakeStrong(this), options, std::nullopt));
-    } else {
-        return FetchMeta(options, partitionTag, extensionTags);
+            callback);
     }
+
+    return {};
+}
+
+TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
+    const TGetMetaOptions& options,
+    std::optional<int> partitionTag,
+    const std::optional<std::vector<int>>& extensionTags)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto callback = BIND([
+        this,
+        this_ = MakeStrong(this),
+        options,
+        partitionTag
+    ] (const std::optional<std::vector<int>>& extensionTags) {
+        return New<TGetMetaSession>(
+            this,
+            options,
+            partitionTag,
+            extensionTags,
+            BandwidthThrottler_,
+            RpsThrottler_,
+            MediumThrottler_)
+            ->Run();
+    });
+
+    auto cacheFuture = FindMetaInCache(partitionTag, extensionTags, callback);
+    return cacheFuture
+        ? cacheFuture
+        : callback(extensionTags);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2985,6 +3025,8 @@ private:
 
     void OnSessionFailed(bool fatal, const TError& error) override
     {
+        YT_LOG_DEBUG(error, "Lookup rows session failed (Fatal: %v)", fatal);
+
         if (fatal) {
             SetReaderFailed();
         }
@@ -3356,12 +3398,33 @@ public:
     }
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
-        const TClientChunkReadOptions& options,
+        const TGetMetaOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override
     {
-        // NB: No network throttling is applied within GetMeta request.
-        return UnderlyingReader_->GetMeta(options, partitionTag, extensionTags);
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto callback = BIND([
+            this,
+            this_ = MakeStrong(this),
+            options,
+            partitionTag
+        ] (const std::optional<std::vector<int>>& extensionTags) {
+            return New<TGetMetaSession>(
+                UnderlyingReader_.Get(),
+                options,
+                partitionTag,
+                extensionTags,
+                BandwidthThrottler_,
+                RpsThrottler_,
+                MediumThrottler_)
+                ->Run();
+        });
+
+        auto cacheFuture = UnderlyingReader_->FindMetaInCache(partitionTag, extensionTags, callback);
+        return cacheFuture
+            ? cacheFuture
+            : callback(extensionTags);
     }
 
     TFuture<TSharedRef> LookupRows(

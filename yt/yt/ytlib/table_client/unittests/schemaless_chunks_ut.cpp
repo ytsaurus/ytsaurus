@@ -758,7 +758,7 @@ protected:
 
     TCachedVersionedChunkMetaPtr FetchMeta()
     {
-        auto asyncCachedMeta = MemoryReader_->GetMeta(/*chunkReadOptions*/ {})
+        auto asyncCachedMeta = MemoryReader_->GetMeta(/*options*/ {})
             .Apply(BIND(
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,

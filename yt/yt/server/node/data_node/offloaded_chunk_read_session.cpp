@@ -126,7 +126,7 @@ public:
         NProfiling::TWallTimer metaWaitTimer;
         const auto& chunkMetaManager = Bootstrap_->GetVersionedChunkMetaManager();
 
-        auto metaFuture = chunkMetaManager->GetMeta(UnderlyingChunkReader_, TableSchema_, Options_);
+        auto metaFuture = chunkMetaManager->GetMeta(UnderlyingChunkReader_, TableSchema_, Options_, /*metaSize*/ {});
         if (metaFuture.IsSet()) {
             const auto& metaOrError = metaFuture.Get();
             return metaOrError.IsOK()

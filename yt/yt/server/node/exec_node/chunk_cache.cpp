@@ -677,8 +677,12 @@ private:
                 dataFileName);
 
             TClientChunkReadOptions chunkReadOptions{
-                .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::Idle, 0, TInstant::Zero(), {"Validate chunk length"}),
-                .ReadSessionId = TReadSessionId::Create()
+                .WorkloadDescriptor = TWorkloadDescriptor(
+                    EWorkloadCategory::Idle,
+                    /*band*/ 0,
+                    TInstant::Zero(),
+                    {"Validate chunk length"}),
+                .ReadSessionId = TReadSessionId::Create(),
             };
 
             auto metaOrError = WaitFor(chunkReader->GetMeta(chunkReadOptions));
@@ -1018,8 +1022,9 @@ private:
 
             YT_LOG_DEBUG("Getting chunk meta");
 
-            auto chunkMeta = WaitFor(chunkReader->GetMeta(
-                chunkReadOptions))
+            auto chunkMeta = WaitFor(chunkReader->GetMeta(IChunkReader::TGetMetaOptions{
+                .ClientOptions = chunkReadOptions,
+            }))
                 .ValueOrThrow();
 
             // Download all blocks.

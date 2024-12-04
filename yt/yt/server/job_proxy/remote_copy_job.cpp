@@ -1016,7 +1016,9 @@ private:
         asyncResults.reserve(readers.size());
         for (const auto& reader : readers) {
             if (reader) {
-                asyncResults.push_back(reader->GetMeta(ReadBlocksOptions_.ClientOptions));
+                asyncResults.push_back(reader->GetMeta(IChunkReader::TGetMetaOptions{
+                    .ClientOptions = ReadBlocksOptions_.ClientOptions,
+                }));
             }
         }
 

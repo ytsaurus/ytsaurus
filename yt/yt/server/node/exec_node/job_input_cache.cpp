@@ -298,7 +298,12 @@ TFuture<TRefCountedChunkMetaPtr> TJobInputCache::GetChunkMeta(
     options.WorkloadDescriptor.Annotations.push_back(std::move(annotation));
     options.MemoryUsageTracker = MetaMemoryTracker_;
 
-    return GetOrCreateReaderForChunk(chunkId)->GetMeta(options, partitionTag, extensionTags)
+    return GetOrCreateReaderForChunk(chunkId)->GetMeta(
+        IChunkReader::TGetMetaOptions{
+            .ClientOptions = options,
+        },
+        partitionTag,
+        extensionTags)
         .ToUncancelable();
 }
 

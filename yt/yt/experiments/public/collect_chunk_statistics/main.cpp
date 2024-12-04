@@ -65,7 +65,7 @@ void ProcessChunkMeta(const TFsPath& pathToMeta)
         NYT::NChunkClient::NullChunkId,
         pathToMeta.Dirname() + "/" + chunkId);
 
-    auto chunkMetaOrError = chunkReader->GetMeta({}).Get();
+    auto chunkMetaOrError = chunkReader->GetMeta(/*options*/ {}).Get();
     if (!chunkMetaOrError.IsOK()) {
         std::cerr << chunkMetaOrError.GetMessage() << "\n";
         return;
