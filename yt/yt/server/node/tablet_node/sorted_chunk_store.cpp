@@ -1015,7 +1015,7 @@ private:
             underlyingReader = CreateTimestampResettingAdapter(
                 std::move(underlyingReader),
                 chunk->OverrideTimestamp_,
-                static_cast<EChunkFormat>(chunk->ChunkMeta_->format()));
+                FromProto<EChunkFormat>(chunk->ChunkMeta_->format()));
         }
 
         UnderlyingReader_ = CreateVersionedPerformanceCountingReader(
@@ -1264,7 +1264,7 @@ IVersionedReaderPtr TSortedChunkStore::MaybeWrapWithTimestampResettingAdapter(
         return CreateTimestampResettingAdapter(
             std::move(underlyingReader),
             OverrideTimestamp_,
-            static_cast<EChunkFormat>(ChunkMeta_->format()));
+            FromProto<EChunkFormat>(ChunkMeta_->format()));
     } else {
         return underlyingReader;
     }
