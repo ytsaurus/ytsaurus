@@ -43,7 +43,6 @@ protected:
         }
 
         ConfigureNativeSingletons(config);
-        StartDiagnosticDump(config);
 
         TBootstrap bootstrap(std::move(config));
         bootstrap.Run();

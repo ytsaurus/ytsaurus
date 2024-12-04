@@ -96,7 +96,6 @@ protected:
         auto config = GetConfig();
 
         ConfigureNativeSingletons(config);
-        StartDiagnosticDump(config);
 
         auto jobProxy = New<TJobProxy>(std::move(config), OperationId_, JobId_);
         jobProxy->Run();

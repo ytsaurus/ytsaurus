@@ -35,7 +35,6 @@ using namespace NTracing;
 using namespace NYson;
 using namespace NYPath;
 using namespace NYTree;
-using namespace NYTAlloc;
 using namespace NYTProf;
 
 using NYT::FromProto;
