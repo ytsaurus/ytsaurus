@@ -1,6 +1,6 @@
 // Этот пример можно собрать и запустить.
 
-#include <yt/cpp/roren/examples/01_01_par_do_simple_proto/data.pb.h>
+#include <yt/cpp/roren/examples/01_02_par_do_simple_proto/data.pb.h>
 
 #include <yt/cpp/roren/interface/roren.h>
 #include <yt/cpp/roren/yt/yt.h>

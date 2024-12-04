@@ -26,10 +26,10 @@ get_built_tool_path(
   cpp_styleguide
 )
 
-add_executable(01_01_par_do_simple_proto)
+add_executable(01_02_par_do_simple_proto)
 
 
-target_link_libraries(01_01_par_do_simple_proto PUBLIC
+target_link_libraries(01_02_par_do_simple_proto PUBLIC
   contrib-libs-cxxsupp
   yutil
   cpp-roren-interface
@@ -37,11 +37,11 @@ target_link_libraries(01_01_par_do_simple_proto PUBLIC
   contrib-libs-protobuf
 )
 
-target_allocator(01_01_par_do_simple_proto
+target_allocator(01_02_par_do_simple_proto
   system_allocator
 )
 
-target_link_options(01_01_par_do_simple_proto PRIVATE
+target_link_options(01_02_par_do_simple_proto PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
@@ -49,22 +49,22 @@ target_link_options(01_01_par_do_simple_proto PRIVATE
   CoreFoundation
 )
 
-target_sources(01_01_par_do_simple_proto PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/examples/01_01_par_do_simple_proto/main.cpp
-  ${PROJECT_BINARY_DIR}/yt/cpp/roren/examples/01_01_par_do_simple_proto/data.pb.h
+target_sources(01_02_par_do_simple_proto PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/examples/01_02_par_do_simple_proto/main.cpp
+  ${PROJECT_BINARY_DIR}/yt/cpp/roren/examples/01_02_par_do_simple_proto/data.pb.h
 )
 
-target_proto_messages(01_01_par_do_simple_proto PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/examples/01_01_par_do_simple_proto/data.proto
+target_proto_messages(01_02_par_do_simple_proto PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/examples/01_02_par_do_simple_proto/data.proto
 )
 
 
-target_proto_outs(01_01_par_do_simple_proto
+target_proto_outs(01_02_par_do_simple_proto
   --cpp_out=${PROJECT_BINARY_DIR}/
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 
-target_proto_addincls(01_01_par_do_simple_proto
+target_proto_addincls(01_02_par_do_simple_proto
   ./
   ${PROJECT_SOURCE_DIR}/
   ${PROJECT_BINARY_DIR}
@@ -75,4 +75,4 @@ target_proto_addincls(01_01_par_do_simple_proto
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 
-vcs_info(01_01_par_do_simple_proto)
+vcs_info(01_02_par_do_simple_proto)
