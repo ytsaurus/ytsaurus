@@ -719,6 +719,29 @@ TEST_F(TOrderedChunkPoolTest, ExplicitSingleJob)
     CheckEverything(stripeLists);
 }
 
+TEST_F(TOrderedChunkPoolTest, UnsuccessfulSplitMarksJobUnsplittable)
+{
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    DataSizePerJob_ = 2_KB;
+    InitJobConstraints();
+
+    auto chunk = CreateChunk(
+        0,
+        /*size*/ 1_KB,
+        /*rowCount*/ 1);
+
+    CreateChunkPool();
+
+    AddChunk(chunk);
+
+    ChunkPool_->Finish();
+
+    CheckUnsuccessfulSplitMarksJobUnsplittable(ChunkPool_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOrderedChunkPoolTestRandomized

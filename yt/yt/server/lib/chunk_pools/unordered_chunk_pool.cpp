@@ -348,13 +348,16 @@ public:
 
     void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
+        TJobSplittingBase::Completed(cookie, jobSummary);
+
         if (jobSummary.InterruptionReason != EInterruptReason::None) {
             YT_LOG_DEBUG(
                 "Splitting job (OutputCookie: %v, InterruptionReason: %v, SplitJobCount: %v)",
                 cookie,
                 jobSummary.InterruptionReason,
                 jobSummary.SplitJobCount);
-            SplitJob(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount);
+            auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount);
+            RegisterChildCookies(cookie, std::move(childCookies));
         }
 
         //! If we don't have enough pending jobs - don't adjust data size per job.
@@ -367,7 +370,9 @@ public:
         CheckCompleted();
     }
 
-    void SplitJob(const std::vector<NChunkClient::TLegacyDataSlicePtr>& dataSlices, int jobCount)
+    std::vector<IChunkPoolOutput::TCookie> SplitJob(
+        const std::vector<NChunkClient::TLegacyDataSlicePtr>& dataSlices,
+        int jobCount)
     {
         i64 unreadRowCount = GetCumulativeRowCount(dataSlices);
         i64 rowsPerJob = DivCeil<i64>(unreadRowCount, jobCount);
@@ -375,8 +380,12 @@ public:
         int sliceIndex = 0;
         auto currentDataSlice = dataSlices[0];
         TChunkStripePtr stripe = New<TChunkStripe>(false /*foreign*/, true /*solid*/);
+        std::vector<IChunkPoolOutput::TCookie> childCookies;
         auto flushStripe = [&] {
-            AddStripe(std::move(stripe));
+            auto outputCookie = AddStripe(std::move(stripe));
+            if (outputCookie != IChunkPoolOutput::NullCookie) {
+                childCookies.push_back(outputCookie);
+            }
             stripe = New<TChunkStripe>(false /*foreign*/, true /*solid*/);
         };
         while (true) {
@@ -403,6 +412,7 @@ public:
         if (!stripe->DataSlices.empty()) {
             flushStripe();
         }
+        return childCookies;
     }
 
     void Failed(IChunkPoolOutput::TCookie cookie) override
@@ -617,10 +627,10 @@ private:
         }
     }
 
-    void AddStripe(const TChunkStripePtr& stripe)
+    IChunkPoolOutput::TCookie AddStripe(const TChunkStripePtr& stripe)
     {
         if (!stripe->Solid && !Sampler_.Sample()) {
-            return;
+            return IChunkPoolOutput::NullCookie;
         }
 
         int internalCookie = Stripes_.size();
@@ -648,6 +658,8 @@ private:
                 DoSuspend(internalCookie);
             }
         }
+
+        return internalCookie;
     }
 
     i64 GetFreeJobCount() const
