@@ -1,4 +1,4 @@
-#include "input_transactions_manager.h"
+#include "input_transaction_manager.h"
 
 #include <yt/yt/server/controller_agent/config.h>
 #include <yt/yt/server/controller_agent/operation_controller.h>
@@ -58,7 +58,7 @@ void TClusterResolver::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInputTransactionsManager::TInputTransactionsManager(
+TInputTransactionManager::TInputTransactionManager(
     IClientPtr client,
     TClusterResolverPtr clusterResolver,
     TOperationId operationId,
@@ -106,7 +106,7 @@ TInputTransactionsManager::TInputTransactionsManager(
     }
 }
 
-TFuture<void> TInputTransactionsManager::Start(
+TFuture<void> TInputTransactionManager::Start(
     IAttributeDictionaryPtr transactionAttributes)
 {
     std::vector<TFuture<void>> transactionFutures;
@@ -153,7 +153,7 @@ TFuture<void> TInputTransactionsManager::Start(
     return AllSucceeded(std::move(transactionFutures));
 }
 
-std::vector<TRichTransactionId> TInputTransactionsManager::RestoreFromNestedTransactions(
+std::vector<TRichTransactionId> TInputTransactionManager::RestoreFromNestedTransactions(
     const TControllerTransactionIds& transactionIds) const
 {
     /// Old (aka NonTrivial) transactions come in a fixed layout, which is hopefully the same as in
@@ -175,10 +175,17 @@ std::vector<TRichTransactionId> TInputTransactionsManager::RestoreFromNestedTran
     }
 
     std::vector<TRichTransactionId> flatTransactionIds(ParentToTransaction_.size());
-    std::map<TRichTransactionId, int> parentToIndex;
+    THashMap<TRichTransactionId, int> parentToIndex;
     for (const auto& [i, parentAndTransaction] : Enumerate(ParentToTransaction_)) {
         const auto& [parent, _] = parentAndTransaction;
-        YT_VERIFY(IsLocal(parent.Cluster));
+
+        // FIXME(coteeq): This may be triggered during update with remote operations
+        // and will lead to clean start. TODO(coteeq): Fix the bug and remove this.
+        if (!IsLocal(parent.Cluster)) {
+            THROW_ERROR_EXCEPTION("Lost local transaction; will do clean start")
+                << TErrorAttribute("parent_transaction_id", parent);
+
+        }
         parentToIndex[parent] = i;
     }
 
@@ -217,7 +224,7 @@ std::vector<TRichTransactionId> TInputTransactionsManager::RestoreFromNestedTran
     return flatTransactionIds;
 }
 
-TFuture<void> TInputTransactionsManager::Revive(TControllerTransactionIds transactionIds)
+TFuture<void> TInputTransactionManager::Revive(TControllerTransactionIds transactionIds)
 {
     // COMPAT(coteeq)
     if (transactionIds.InputIds.empty()) {
@@ -298,7 +305,7 @@ TFuture<void> TInputTransactionsManager::Revive(TControllerTransactionIds transa
             .AsyncVia(GetCurrentInvoker()));
 }
 
-TTransactionId TInputTransactionsManager::GetTransactionIdForObject(
+TTransactionId TInputTransactionManager::GetTransactionIdForObject(
     const NYPath::TRichYPath& path) const
 {
     auto it = ParentToTransaction_.find(GetTransactionParentFromPath(path));
@@ -306,7 +313,7 @@ TTransactionId TInputTransactionsManager::GetTransactionIdForObject(
     return it->second->GetId();
 }
 
-std::vector<TTransactionId> TInputTransactionsManager::GetCompatDuplicatedNestedTransactionIds() const
+std::vector<TTransactionId> TInputTransactionManager::GetCompatDuplicatedNestedTransactionIds() const
 {
     std::vector<TTransactionId> transactionIds;
     for (const auto& parent : OldNonTrivialInputTransactionParents_) {
@@ -317,7 +324,7 @@ std::vector<TTransactionId> TInputTransactionsManager::GetCompatDuplicatedNested
     return transactionIds;
 }
 
-void TInputTransactionsManager::FillSchedulerTransactionIds(
+void TInputTransactionManager::FillSchedulerTransactionIds(
     TControllerTransactionIds* transactionIds) const
 {
     for (const auto& [parent, transaction] : ParentToTransaction_) {
@@ -336,7 +343,7 @@ void TInputTransactionsManager::FillSchedulerTransactionIds(
     transactionIds->NestedInputIds = GetCompatDuplicatedNestedTransactionIds();
 }
 
-TFuture<void> TInputTransactionsManager::Abort(IClientPtr schedulerClient)
+TFuture<void> TInputTransactionManager::Abort(IClientPtr schedulerClient)
 {
     std::vector<TFuture<void>> abortFutures;
     for (const auto& [parent, transaction] : ParentToTransaction_) {
@@ -377,17 +384,17 @@ TFuture<void> TInputTransactionsManager::Abort(IClientPtr schedulerClient)
     return AllSet(abortFutures).AsVoid();
 }
 
-TTransactionId TInputTransactionsManager::GetLocalInputTransactionId() const
+TTransactionId TInputTransactionManager::GetLocalInputTransactionId() const
 {
     return LocalInputTransaction_ ? LocalInputTransaction_->GetId() : NullTransactionId;
 }
 
-TClusterResolverPtr TInputTransactionsManager::GetClusterResolver() const
+TClusterResolverPtr TInputTransactionManager::GetClusterResolver() const
 {
     return ClusterResolver_;
 }
 
-TRichTransactionId TInputTransactionsManager::GetTransactionParentFromPath(const TRichYPath& path) const
+TRichTransactionId TInputTransactionManager::GetTransactionParentFromPath(const TRichYPath& path) const
 {
     TRichTransactionId parent;
     parent.Cluster = ClusterResolver_->GetClusterName(path);
@@ -401,7 +408,7 @@ TRichTransactionId TInputTransactionsManager::GetTransactionParentFromPath(const
     return parent;
 }
 
-TError TInputTransactionsManager::ValidateSchedulerTransactions(
+TError TInputTransactionManager::ValidateSchedulerTransactions(
     const NScheduler::TControllerTransactionIds& transactionIds) const
 {
     if (transactionIds.InputIds.size() != ParentToTransaction_.size()) {
@@ -423,7 +430,7 @@ TError TInputTransactionsManager::ValidateSchedulerTransactions(
     return TError();
 }
 
-void TInputTransactionsManager::ValidateRemoteOperationsAllowed(
+void TInputTransactionManager::ValidateRemoteOperationsAllowed(
     const NScheduler::TClusterName& clusterName,
     const std::string& authenticatedUser,
     const NYPath::TRichYPath& path) const

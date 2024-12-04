@@ -1,7 +1,9 @@
 #include "operation_controller_detail.h"
 
 #include "auto_merge_task.h"
-#include "input_transactions_manager.h"
+#include "helpers.h"
+#include "input_transaction_manager.h"
+#include "job_helpers.h"
 #include "job_info.h"
 #include "job_helpers.h"
 #include "helpers.h"
@@ -497,7 +499,7 @@ void TOperationControllerBase::InitializeInputTransactions()
         }
     }
 
-    InputTransactions = New<TInputTransactionsManager>(
+    InputTransactions = New<TInputTransactionManager>(
         InputClient,
         New<TClusterResolver>(InputClient),
         OperationId,
@@ -1519,7 +1521,7 @@ bool TOperationControllerBase::IsTransactionNeeded(ETransactionType type) const
         case ETransactionType::Async:
             return IsLegacyIntermediateLivePreviewSupported() || IsLegacyOutputLivePreviewSupported() || GetStderrTablePath();
         case ETransactionType::Input:
-            // Input transaction is managed by InputTransactionsManager.
+            // Input transaction is managed by InputTransactionManager.
             YT_ABORT();
         case ETransactionType::Output:
         case ETransactionType::OutputCompletion:

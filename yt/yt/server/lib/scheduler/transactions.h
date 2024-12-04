@@ -8,6 +8,8 @@
 
 #include <yt/yt/ytlib/scheduler/cluster_name.h>
 
+#include <util/generic/hash.h>
+
 #include <functional>
 
 namespace NYT::NScheduler {
@@ -88,3 +90,9 @@ void ToProto(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
+
+template <>
+struct THash<NYT::NScheduler::TRichTransactionId>
+{
+    size_t operator()(const NYT::NScheduler::TRichTransactionId& transactionId) const;
+};
