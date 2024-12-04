@@ -39,7 +39,7 @@ class Variable():
         if self.policy == VariationPolicy.Variate:
             return self.modes[index]
         else:
-            return random.choice(self.modes, weights=self.weights)
+            return random.choices(self.modes, weights=self.weights)[0]
 
     def __repr__(self):
         modes = ", ".join(map(str, self.modes))
