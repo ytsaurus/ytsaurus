@@ -7,6 +7,7 @@ IF (NOT OPENSOURCE)
     RECURSE(
         providers
         purecalc
+        tools
     )
 ENDIF()
 
