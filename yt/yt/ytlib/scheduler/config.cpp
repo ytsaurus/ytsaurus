@@ -1,8 +1,6 @@
 #include "config.h"
 #include "job_resources.h"
 
-#include "yt/yt/core/misc/error.h"
-
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
@@ -20,10 +18,13 @@
 #include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/helpers.h>
 
+#include <yt/yt/client/chunk_client/public.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/misc/adjusted_exponential_moving_average.h>
 #include <yt/yt/core/misc/config.h>
+#include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/fs.h>
 
 #include <util/string/split.h>
@@ -32,11 +33,12 @@
 
 namespace NYT::NScheduler {
 
-using namespace NYson;
-using namespace NYTree;
+using namespace NChunkClient;
 using namespace NSecurityClient;
 using namespace NTableClient;
 using namespace NTransactionClient;
+using namespace NYTree;
+using namespace NYson;
 
 using NVectorHdrf::EIntegralGuaranteeType;
 
@@ -631,7 +633,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("intermediate_compression_codec", &TThis::IntermediateCompressionCodec)
         .Default(NCompression::ECodec::Lz4);
     registrar.Parameter("intermediate_data_replication_factor", &TThis::IntermediateDataReplicationFactor)
-        .Default(2);
+        .Default(DefaultIntermediateDataReplicationFactor);
     registrar.Parameter("intermediate_min_data_replication_factor", &TThis::IntermediateMinDataReplicationFactor)
         .Default(1);
     registrar.Parameter("intermediate_data_sync_on_close", &TThis::IntermediateDataSyncOnClose)

@@ -72,6 +72,12 @@ public:
         shuffleHandle->CoordinatorAddress = LocalServerAddress_;
         shuffleHandle->Account = request->account();
         shuffleHandle->PartitionCount = request->partition_count();
+        shuffleHandle->ReplicationFactor = request->has_replication_factor()
+            ? request->replication_factor()
+            : DefaultIntermediateDataReplicationFactor;
+        shuffleHandle->MediumName = request->has_medium_name()
+            ? request->medium_name()
+            : DefaultStoreMediumName;
 
         response->set_shuffle_handle(ConvertToYsonString(shuffleHandle).ToString());
 

@@ -3,7 +3,8 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, start_shuffle, write_shuffle_data, read_shuffle_data, start_transaction,
     abort_transaction, commit_transaction, wait, raises_yt_error, ls, create_user,
-    create_account
+    create_account, create_domestic_medium, get_account_disk_space_limit,
+    set_account_disk_space_limit, get_account_disk_space, get_chunks, get
 )
 
 from yt_helpers import profiler_factory
@@ -24,6 +25,22 @@ class TestShuffleService(YTEnvSetup):
     DELTA_RPC_PROXY_CONFIG = {
         "enable_shuffle_service": True,
     }
+
+    STORE_LOCATION_COUNT = 2
+
+    NON_DEFAULT_MEDIUM = "hdd1"
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        assert len(config["data_node"]["store_locations"]) == 2
+
+        config["data_node"]["store_locations"][0]["medium_name"] = "default"
+        config["data_node"]["store_locations"][1]["medium_name"] = cls.NON_DEFAULT_MEDIUM
+
+    @classmethod
+    def setup_class(cls):
+        super(TestShuffleService, cls).setup_class()
+        create_domestic_medium(cls.NON_DEFAULT_MEDIUM)
 
     @authors("apollo1321")
     @pytest.mark.parametrize("abort", [False, True])
@@ -92,3 +109,36 @@ class TestShuffleService(YTEnvSetup):
 
         with raises_yt_error('User "u" has been denied "use" access to account "a"'):
             start_shuffle("a", partition_count=2, parent_transaction_id=parent_transaction, authenticated_user="u")
+
+    @authors("apollo1321")
+    def test_store_options(self):
+        disk_space_limit = get_account_disk_space_limit("intermediate", "default")
+        set_account_disk_space_limit("intermediate", disk_space_limit, self.NON_DEFAULT_MEDIUM)
+
+        parent_transaction = start_transaction(timeout=60000)
+
+        shuffle_handle = start_shuffle(
+            "intermediate",
+            partition_count=11,
+            parent_transaction_id=parent_transaction,
+            replication_factor=5,
+            medium_name=self.NON_DEFAULT_MEDIUM)
+
+        rows = [{"key1": 0, "key2": -1}, {"key1": 1, "key2": 0}]
+        write_shuffle_data(shuffle_handle, "key1", rows[1])
+        write_shuffle_data(shuffle_handle, "key1", rows[0])
+
+        assert read_shuffle_data(shuffle_handle, 0) == [rows[0]]
+        assert read_shuffle_data(shuffle_handle, 1) == [rows[1]]
+
+        assert get_account_disk_space("intermediate", "default") == 0
+        assert get_account_disk_space("intermediate", self.NON_DEFAULT_MEDIUM) > 0
+
+        chunks = get_chunks()
+        assert len(chunks) > 0
+        for chunk in chunks:
+            media = get(f"#{chunk}/@media")
+            assert len(media) == 1
+            assert media[self.NON_DEFAULT_MEDIUM]["replication_factor"] == 5
+
+        commit_transaction(parent_transaction)
