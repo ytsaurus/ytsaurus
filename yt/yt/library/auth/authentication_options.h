@@ -36,6 +36,9 @@ struct TAuthenticationOptions
     std::optional<TString> SessionId;
     std::optional<TString> SslSessionId;
     std::optional<IServiceTicketAuthPtr> ServiceTicketAuth;
+
+    //! Controls whether authentication commands (SetUserPassword, IssueToken, ListUserTokens, etc.) require a correct password to be used.
+    bool RequirePasswordInAuthenticationCommands;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
