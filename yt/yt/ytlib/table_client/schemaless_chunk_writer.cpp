@@ -1182,7 +1182,7 @@ private:
 
     bool IsFirstRow_ = true;
 
-    TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSchemalessChunkWriterTag());
+    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSchemalessChunkWriterTag());
 
     TColumnEvaluatorPtr ColumnEvaluator_;
     TSkynetColumnEvaluatorPtr SkynetColumnEvaluator_;
@@ -1425,17 +1425,17 @@ public:
         : TSchemalessMultiChunkWriterBase(
             config,
             options,
-            client,
+            std::move(client),
             std::move(localHostName),
             cellTag,
             transactionId,
             schemaId,
             parentChunkListId,
-            nameTable,
-            schema,
+            std::move(nameTable),
+            std::move(schema),
             TLegacyOwningKey(),
-            trafficMeter,
-            throttler,
+            std::move(trafficMeter),
+            std::move(throttler),
             blockCache)
         , Partitioner_(std::move(partitioner))
         , BlockReserveSize_(std::max(Config_->MaxBufferSize / Partitioner_->GetPartitionCount() / 2, i64(1)))
@@ -1451,18 +1451,19 @@ public:
         }
 
         ChunkWriterFactory_ = [
-            =,
             config = std::move(config),
             options = std::move(options),
             blockCache = std::move(blockCache),
-            this
+            schema = Schema_,
+            partitionCount,
+            dataSink
         ] (IChunkWriterPtr underlyingWriter){
             return New<TPartitionChunkWriter>(
                 config,
                 options,
                 std::move(underlyingWriter),
                 blockCache,
-                Schema_,
+                schema,
                 /*nameTable*/ nullptr,
                 partitionCount,
                 dataSink);
@@ -1692,20 +1693,20 @@ public:
         IBlockCachePtr blockCache,
         TCallback<void(TKey, TKey)> boundaryKeysProcessor)
         : TSchemalessMultiChunkWriterBase(
-            config,
-            options,
-            client,
+            std::move(config),
+            std::move(options),
+            std::move(client),
             std::move(localHostName),
             cellTag,
             transactionId,
             schemaId,
             parentChunkListId,
-            nameTable,
-            schema,
-            lastKey,
-            trafficMeter,
-            throttler,
-            blockCache,
+            std::move(nameTable),
+            std::move(schema),
+            std::move(lastKey),
+            std::move(trafficMeter),
+            std::move(throttler),
+            std::move(blockCache),
             std::move(boundaryKeysProcessor))
         , CreateChunkWriter_(std::move(createChunkWriter))
     { }
@@ -1844,7 +1845,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TUnversionedUpdateMultiChunkWriterTag {};
+struct TUnversionedUpdateMultiChunkWriterTag
+{ };
 
 class TUnversionedUpdateMultiChunkWriter
     : public TVersionedSchemalessMultiChunkWriterBase<TUnversionedUpdateMultiChunkWriterTag>
@@ -1868,22 +1870,22 @@ public:
         IBlockCachePtr blockCache,
         TCallback<void(TKey, TKey)> boundaryKeysProcessor)
         : TVersionedSchemalessMultiChunkWriterBase<TUnversionedUpdateMultiChunkWriterTag>(
-            config,
-            options,
-            client,
+            std::move(config),
+            std::move(options),
+            std::move(client),
             std::move(localHostName),
             cellTag,
             transactionId,
             schemaId,
             parentChunkListId,
-            createChunkWriter,
-            nameTable,
+            std::move(createChunkWriter),
+            std::move(nameTable),
             schema->ToUnversionedUpdate(),
             std::move(schema),
-            lastKey,
-            trafficMeter,
-            throttler,
-            blockCache,
+            std::move(lastKey),
+            std::move(trafficMeter),
+            std::move(throttler),
+            std::move(blockCache),
             std::move(boundaryKeysProcessor))
     { }
 
@@ -2052,7 +2054,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TLatestTimestampMultiChunkWriterTag {};
+struct TLatestTimestampMultiChunkWriterTag
+{ };
 
 class TLatestTimestampMultiChunkWriter
     : public TVersionedSchemalessMultiChunkWriterBase<TLatestTimestampMultiChunkWriterTag>
@@ -2076,22 +2079,22 @@ public:
         IBlockCachePtr blockCache,
         TCallback<void(TKey, TKey)> boundaryKeysProcessor)
         : TVersionedSchemalessMultiChunkWriterBase<TLatestTimestampMultiChunkWriterTag>(
-            config,
-            options,
-            client,
+            std::move(config),
+            std::move(options),
+            std::move(client),
             std::move(localHostName),
             cellTag,
             transactionId,
             schemaId,
             parentChunkListId,
-            createChunkWriter,
-            nameTable,
+            std::move(createChunkWriter),
+            std::move(nameTable),
             ToLatestTimestampSchema(schema),
-            schema,
-            lastKey,
-            trafficMeter,
-            throttler,
-            blockCache,
+            std::move(schema),
+            std::move(lastKey),
+            std::move(trafficMeter),
+            std::move(throttler),
+            std::move(blockCache),
             std::move(boundaryKeysProcessor))
     { }
 
@@ -2162,42 +2165,45 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     IBlockCachePtr blockCache,
     TCallback<void(TKey, TKey)> boundaryKeysProcessor)
 {
+    auto createSuitableSchemalessMultiChunkWriter = [&] <class TWriter> (auto createChunkWriter) {
+        auto writer = New<TWriter>(
+            std::move(config),
+            std::move(options),
+            std::move(client),
+            std::move(localHostName),
+            cellTag,
+            transactionId,
+            schemaId,
+            parentChunkListId,
+            std::move(createChunkWriter),
+            std::move(nameTable),
+            std::move(schema),
+            std::move(lastKey),
+            std::move(trafficMeter),
+            std::move(throttler),
+            std::move(blockCache),
+            std::move(boundaryKeysProcessor));
+
+        writer->Init();
+
+        return writer;
+    };
+
     switch (options->VersionedWriteOptions.WriteMode) {
         case EVersionedIOMode::Default:
             break;
 
         case EVersionedIOMode::LatestTimestamp: {
-            auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
-                return CreateVersionedChunkWriter(
-                    config,
-                    options,
-                    schema,
-                    std::move(underlyingWriter),
-                    dataSink,
-                    blockCache);
-            };
-
-            auto writer = New<TLatestTimestampMultiChunkWriter>(
-                config,
-                options,
-                client,
-                localHostName,
-                cellTag,
-                transactionId,
-                schemaId,
-                parentChunkListId,
-                createChunkWriter,
-                nameTable,
-                schema,
-                lastKey,
-                trafficMeter,
-                throttler,
-                blockCache,
-                std::move(boundaryKeysProcessor));
-
-            writer->Init();
-
-            return writer;
+            return createSuitableSchemalessMultiChunkWriter.template operator()<TLatestTimestampMultiChunkWriter>(
+                [config, options, schema, dataSink, blockCache] (IChunkWriterPtr underlyingWriter) {
+                    return CreateVersionedChunkWriter(
+                        config,
+                        options,
+                        schema,
+                        std::move(underlyingWriter),
+                        dataSink,
+                        blockCache);
+                });
         }
 
         default:
@@ -2207,73 +2213,31 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
 
     switch (options->SchemaModification) {
         case ETableSchemaModification::None: {
-            auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
-                return CreateSchemalessChunkWriter(
-                    config,
-                    options,
-                    schema,
-                    /*nameTable*/ nullptr,
-                    underlyingWriter,
-                    dataSink,
-                    chunkTimestamps,
-                    blockCache);
-            };
-
-            auto writer = New<TSchemalessMultiChunkWriter>(
-                config,
-                options,
-                client,
-                localHostName,
-                cellTag,
-                transactionId,
-                schemaId,
-                parentChunkListId,
-                createChunkWriter,
-                nameTable,
-                schema,
-                lastKey,
-                trafficMeter,
-                throttler,
-                blockCache,
-                std::move(boundaryKeysProcessor));
-
-            writer->Init();
-
-            return writer;
+            return createSuitableSchemalessMultiChunkWriter.template operator()<TSchemalessMultiChunkWriter>(
+                [config, options, schema, dataSink, chunkTimestamps, blockCache] (IChunkWriterPtr underlyingWriter) {
+                    return CreateSchemalessChunkWriter(
+                        config,
+                        options,
+                        schema,
+                        /*nameTable*/ nullptr,
+                        underlyingWriter,
+                        dataSink,
+                        chunkTimestamps,
+                        blockCache);
+                });
         }
 
         case ETableSchemaModification::UnversionedUpdate: {
-            auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
-                return CreateVersionedChunkWriter(
-                    config,
-                    options,
-                    schema,
-                    std::move(underlyingWriter),
-                    dataSink,
-                    blockCache);
-            };
-
-            auto writer = New<TUnversionedUpdateMultiChunkWriter>(
-                config,
-                options,
-                client,
-                localHostName,
-                cellTag,
-                transactionId,
-                schemaId,
-                parentChunkListId,
-                createChunkWriter,
-                nameTable,
-                schema,
-                lastKey,
-                trafficMeter,
-                throttler,
-                blockCache,
-                std::move(boundaryKeysProcessor));
-
-            writer->Init();
-
-            return writer;
+            return createSuitableSchemalessMultiChunkWriter.template operator()<TUnversionedUpdateMultiChunkWriter>(
+                [config, options, schema, dataSink, blockCache] (IChunkWriterPtr underlyingWriter) {
+                    return CreateVersionedChunkWriter(
+                        config,
+                        options,
+                        schema,
+                        std::move(underlyingWriter),
+                        dataSink,
+                        blockCache);
+                });
         }
 
         default:

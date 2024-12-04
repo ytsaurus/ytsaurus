@@ -417,7 +417,7 @@ protected:
 
     void CloseWriter(const IVersionedMultiChunkWriterPtr& writer)
     {
-        CloseFutures_.emplace_back(writer->Close());
+        CloseFutures_.push_back(writer->Close());
     }
 
     virtual ETabletBackgroundActivity GetActivityKind() const = 0;
