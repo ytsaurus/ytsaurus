@@ -1,3 +1,5 @@
+#include <yt/yt/server/lib/chunk_pools/public.h>
+
 #include <yt/yt/server/lib/controller_agent/structs.h>
 
 #include <yt/yt/core/test_framework/framework.h>
@@ -24,7 +26,14 @@ NLogging::TLogger GetTestLogger();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NControllerAgent::TCompletedJobSummary SummaryWithSplitJobCount(TChunkStripeListPtr stripeList, int splitJobCount);
+NControllerAgent::TCompletedJobSummary SummaryWithSplitJobCount(
+    TChunkStripeListPtr stripeList,
+    int splitJobCount,
+    std::optional<int> readRowCount = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
+void CheckUnsuccessfulSplitMarksJobUnsplittable(IPersistentChunkPoolPtr chunkPool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
