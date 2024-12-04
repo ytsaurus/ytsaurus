@@ -5,6 +5,7 @@ RECURSE(
     backtrace_introspector
     clickhouse_discovery
     codegen
+    codegen_api
     column_converters
     containers
     coredumper

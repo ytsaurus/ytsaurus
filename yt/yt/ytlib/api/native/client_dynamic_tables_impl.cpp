@@ -112,6 +112,7 @@ namespace NYT::NApi::NNative {
 
 using namespace NChaosClient;
 using namespace NChunkClient;
+using namespace NCodegen;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NHiveClient;
@@ -1500,8 +1501,8 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
         ? false
         : options.NewRangeInference;
     queryOptions.ExecutionBackend = config->UseWebAssembly
-        ? static_cast<NCodegen::EExecutionBackend>(options.ExecutionBackend.value_or(NApi::EExecutionBackend::Native))
-        : NCodegen::EExecutionBackend::Native;
+        ? options.ExecutionBackend.value_or(EExecutionBackend::Native)
+        : EExecutionBackend::Native;
     queryOptions.EnableCodeCache = options.EnableCodeCache;
     queryOptions.MaxSubqueries = options.MaxSubqueries;
     queryOptions.MinRowCountPerSubquery = options.MinRowCountPerSubquery;

@@ -92,6 +92,7 @@ using namespace NArrow;
 using namespace NAuth;
 using namespace NChaosClient;
 using namespace NChunkClient;
+using namespace NCodegen;
 using namespace NCompression;
 using namespace NConcurrency;
 using namespace NLogging;
@@ -3909,7 +3910,7 @@ private:
             options.SyntaxVersion = request->syntax_version();
         }
         if (request->has_execution_backend()) {
-            options.ExecutionBackend = static_cast<NApi::EExecutionBackend>(request->execution_backend());
+            options.ExecutionBackend = CheckedEnumCast<EExecutionBackend>(request->execution_backend());
         }
         if (request->has_versioned_read_options()) {
             FromProto(&options.VersionedReadOptions, request->versioned_read_options());
