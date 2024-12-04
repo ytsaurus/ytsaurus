@@ -1894,7 +1894,9 @@ def init_singletons(config, yt_config, index):
     set_at(config, "solomon_exporter/grid_step", 1000)
     set_at(config, "cypress_annotations/yt_env_index", index)
     set_at(config, "enable_ref_counted_tracker_profiling", yt_config.enable_resource_tracking)
+    # COMPAT(babenko): drop in 25.1
     set_at(config, "enable_resource_tracker", yt_config.enable_resource_tracking)
+    set_at(config, "resource_tracker/enable", yt_config.enable_resource_tracking)
     if yt_config.mock_tvm_id is not None:
         set_at(config, "native_authentication_manager", {
             "tvm_service": {
