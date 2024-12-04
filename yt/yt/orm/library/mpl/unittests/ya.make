@@ -12,7 +12,7 @@ SRCS(
 PEERDIR(
     yt/yt/orm/library/mpl
 
-    yt/yt/core/test_framework
+    library/cpp/testing/gtest
 )
 
 END()
