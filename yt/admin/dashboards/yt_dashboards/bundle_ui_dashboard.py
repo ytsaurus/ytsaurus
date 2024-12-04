@@ -54,6 +54,9 @@ def build_user_load():
             .row()
                 .cell("Table lookup unmerged row count rate", top_rate("lookup", "unmerged_row_count"))
                 .cell("Table select unmerged row count rate", top_rate("select", "unmerged_row_count"))
+            .row()
+                .cell("Fetch table rows data weight rate", top_rate("fetch_table_rows", "data_weight").unit("UNIT_BYTES_SI"))
+                .cell("Fetch table rows row count rate", top_rate("fetch_table_rows", "row_count"))
             ).owner
 
 
