@@ -1214,6 +1214,7 @@ public:
     TFairShareQueue(TString locationId, TUringConfigProviderPtr config)
         : Config_(std::move(config))
         , EnableIOUringLogging_(Config_->EnableIOUringLogging)
+        , Shards_(MaxUringThreadCount)
         , OffloadActionQueue_(New<TActionQueue>(Format("%v:%v", "UOffload", locationId)))
         , OffloadInvoker_(OffloadActionQueue_->GetInvoker())
         , OffloadScheduled_(false)
@@ -1327,7 +1328,7 @@ private:
 
     const TUringConfigProviderPtr Config_;
     const bool EnableIOUringLogging_;
-    std::array<TQueueShard, MaxUringThreadCount> Shards_;
+    std::vector<TQueueShard> Shards_;
 
     TMpscShardedQueue<TUringRequestPtr> OffloadedRequests_;
     TActionQueuePtr OffloadActionQueue_;

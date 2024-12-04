@@ -1078,6 +1078,7 @@ public:
         , AccessTracker_(New<TAccessTracker>(bootstrap))
         , ExpirationTracker_(New<TExpirationTracker>(bootstrap))
         , NodeMap_(TNodeMapTraits(this))
+        , TypeToHandler_(std::make_unique<TEnumIndexedArray<NObjectClient::EObjectType, INodeTypeHandlerPtr>>())
         , RecursiveResourceUsageCache_(New<TRecursiveResourceUsageCache>(
             BIND_NO_PROPAGATE(&TCypressManager::DoComputeRecursiveResourceUsage, MakeStrong(this)),
             std::nullopt,
@@ -1292,8 +1293,8 @@ public:
 
         auto type = handler->GetObjectType();
         YT_VERIFY(IsVersionedType(type));
-        YT_VERIFY(!TypeToHandler_[type]);
-        TypeToHandler_[type] = handler;
+        YT_VERIFY(!(*TypeToHandler_)[type]);
+        (*TypeToHandler_)[type] = handler;
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TNodeTypeHandler>(this, handler));
@@ -1307,7 +1308,7 @@ public:
             return NullTypeHandler;
         }
 
-        return TypeToHandler_[type];
+        return (*TypeToHandler_)[type];
     }
 
     const INodeTypeHandlerPtr& GetHandler(EObjectType type) override
@@ -2731,7 +2732,7 @@ private:
     using TNameToAccessControlObjectNamespace = THashMap<TString, TAccessControlObjectNamespace*>;
     TNameToAccessControlObjectNamespace NameToAccessControlObjectNamespaceMap_;
 
-    TEnumIndexedArray<NObjectClient::EObjectType, INodeTypeHandlerPtr> TypeToHandler_;
+    std::unique_ptr<TEnumIndexedArray<NObjectClient::EObjectType, INodeTypeHandlerPtr>> TypeToHandler_;
 
     TNodeId RootNodeId_;
     TCypressMapNode* RootNode_ = nullptr;
