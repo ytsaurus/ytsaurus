@@ -74,6 +74,10 @@ def build_read_write_rowset():
         .row()
             .cell("Table lookup request count", top_rate("multiread", "request_count"))
             .cell("Table select request count", top_rate("execute", "request_count"))
+        .row()
+            .cell("Fetch table rows data weight rate", top_rate("fetch_table_rows", "data_weight").unit("UNIT_BYTES_SI"))
+            .cell("Fetch table rows row count rate", top_rate("fetch_table_rows", "row_count"))
+
     ).owner
 
 
