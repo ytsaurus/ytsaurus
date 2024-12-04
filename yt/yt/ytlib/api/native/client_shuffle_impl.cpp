@@ -42,8 +42,7 @@ public:
         : Writer_(std::move(writer))
         , Client_(std::move(client))
         , ShuffleHandle_(std::move(shuffleHandle))
-    {
-    }
+    { }
 
     bool Write(TRange<TUnversionedRow> rows) override
     {
@@ -68,9 +67,9 @@ public:
     }
 
 private:
-    ISchemalessMultiChunkWriterPtr Writer_;
-    TClientPtr Client_;
-    TShuffleHandlePtr ShuffleHandle_;
+    const ISchemalessMultiChunkWriterPtr Writer_;
+    const TClientPtr Client_;
+    const TShuffleHandlePtr ShuffleHandle_;
 };
 
 class TShuffleReader
@@ -97,7 +96,7 @@ public:
     }
 
 private:
-    ISchemalessMultiChunkReaderPtr Reader_;
+    const ISchemalessMultiChunkReaderPtr Reader_;
 };
 
 } // namespace
@@ -107,7 +106,7 @@ private:
 TShuffleHandlePtr TClient::DoStartShuffle(
     const std::string& account,
     int partitionCount,
-    NObjectClient::TTransactionId parentTransactionId,
+    TTransactionId parentTransactionId,
     const TStartShuffleOptions& options)
 {
     auto channel = GetNativeConnection()->GetShuffleServiceChannelOrThrow();
@@ -119,6 +118,12 @@ TShuffleHandlePtr TClient::DoStartShuffle(
     req->set_account(account);
     req->set_partition_count(partitionCount);
     ToProto(req->mutable_parent_transaction_id(), parentTransactionId);
+    if (options.MediumName) {
+        req->set_medium_name(*options.MediumName);
+    }
+    if (options.ReplicationFactor) {
+        req->set_replication_factor(*options.ReplicationFactor);
+    }
 
     auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
 
@@ -227,6 +232,8 @@ TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
     auto options = New<TTableWriterOptions>();
     options->EvaluateComputedColumns = false;
     options->Account = shuffleHandle->Account;
+    options->ReplicationFactor = shuffleHandle->ReplicationFactor;
+    options->MediumName = shuffleHandle->MediumName;
 
     // The partition column index must be preserved for the partitioner.
     // However, the row is partitioned after the row value ids are mapped to

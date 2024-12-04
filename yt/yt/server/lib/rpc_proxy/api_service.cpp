@@ -6632,6 +6632,12 @@ private:
             context,
             [client = std::move(client), request, parentTransactionId] () {
                 TStartShuffleOptions options;
+                if (request->has_medium_name()) {
+                    options.MediumName = request->medium_name();
+                }
+                if (request->has_replication_factor()) {
+                    options.ReplicationFactor = request->replication_factor();
+                }
                 return client->StartShuffle(
                     request->account(),
                     request->partition_count(),
