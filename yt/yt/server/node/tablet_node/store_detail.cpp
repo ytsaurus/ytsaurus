@@ -1114,6 +1114,7 @@ TFuture<TCachedVersionedChunkMetaPtr> TChunkStoreBase::GetCachedVersionedChunkMe
         chunkReader,
         Schema_,
         chunkReadOptions,
+        MiscExt_.meta_size(),
         prepareColumnarMeta)
         .Apply(BIND([
             =,

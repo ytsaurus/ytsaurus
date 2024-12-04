@@ -119,7 +119,7 @@ public:
             ChunkId_,
             compressorOptions.ChunkPath,
             /*validateBlocksChecksums*/ true));
-        ChunkMeta_ = BackendReader_->GetMeta(/*chunkReadOptions*/ {})
+        ChunkMeta_ = BackendReader_->GetMeta(/*options*/ {})
             .Get()
             .ValueOrThrow();
         CachedVersionedChunkMeta_ = TCachedVersionedChunkMeta::Create(

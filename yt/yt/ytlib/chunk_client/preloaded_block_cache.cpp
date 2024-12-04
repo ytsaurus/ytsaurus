@@ -69,7 +69,7 @@ private:
 
 IBlockCachePtr GetPreloadedBlockCache(IChunkReaderPtr chunkReader)
 {
-    auto meta = NConcurrency::WaitFor(chunkReader->GetMeta(/*chunkReadOptions*/ {}))
+    auto meta = NConcurrency::WaitFor(chunkReader->GetMeta(/*options*/ {}))
         .ValueOrThrow();
 
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());

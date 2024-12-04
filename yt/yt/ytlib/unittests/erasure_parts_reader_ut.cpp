@@ -96,7 +96,7 @@ public:
     }
 
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
-        const TClientChunkReadOptions& /*options*/,
+        const TGetMetaOptions& /*options*/,
         std::optional<int> /*partitionTag*/,
         const std::optional<std::vector<int>>& /*extensionTags*/) override
     {

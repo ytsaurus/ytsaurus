@@ -606,9 +606,8 @@ TFuture<TRowDigestedDictionary> ReadDigestedDictionary(
         New<TRemoteReaderOptions>(),
         std::move(chunkReaderHost));
 
-    return chunkReader->GetMeta(chunkReadOptions)
-        .Apply(BIND(
-            OnDictionaryMetaRead,
+    return chunkReader->GetMeta(IChunkReader::TGetMetaOptions{ .ClientOptions = chunkReadOptions })
+        .Apply(BIND(OnDictionaryMetaRead,
             std::move(chunkReader),
             dictionaryId,
             isDecompression,

@@ -24,6 +24,12 @@ struct IChunkReader
         bool DisableBandwidthThrottler = false;
     };
 
+    struct TGetMetaOptions
+    {
+        TClientChunkReadOptions ClientOptions;
+        std::optional<i64> MetaSize;
+    };
+
     //! Asynchronously reads a given set of blocks.
     //! Returns a collection of blocks, each corresponding to a single given index.
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
@@ -40,7 +46,7 @@ struct IChunkReader
 
     //! Asynchronously obtains a meta, possibly filtered by #partitionTag and #extensionTags.
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
-        const TClientChunkReadOptions& options,
+        const TGetMetaOptions& options,
         std::optional<int> partitionTag = std::nullopt,
         const std::optional<std::vector<int>>& extensionTags = {}) = 0;
 

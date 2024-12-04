@@ -64,7 +64,7 @@ protected:
     }
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
-        const TClientChunkReadOptions& options,
+        const TGetMetaOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override
     {
@@ -108,7 +108,7 @@ protected:
         const std::vector<IChunkReaderAllowingRepairPtr>& readers) = 0;
 
     virtual TFuture<TRefCountedChunkMetaPtr> DoGetMeta(
-        const TClientChunkReadOptions& options,
+        const TGetMetaOptions& options,
         const std::optional<std::vector<int>>& extensionTags) = 0;
 };
 
@@ -138,7 +138,7 @@ private:
 
 
     TFuture<TRefCountedChunkMetaPtr> DoGetMeta(
-        const TClientChunkReadOptions& options,
+        const TGetMetaOptions& options,
         const std::optional<std::vector<int>>& extensionTags) override
     {
         const auto& reader = Readers_[RandomNumber(Readers_.size())];
@@ -223,7 +223,7 @@ private:
 
 
     TFuture<TRefCountedChunkMetaPtr> DoGetMeta(
-        const TClientChunkReadOptions& options,
+        const TGetMetaOptions& options,
         const std::optional<std::vector<int>>& extensionTags) override
     {
         return BIND(
@@ -236,7 +236,7 @@ private:
     }
 
     TRefCountedChunkMetaPtr DoGetMetaImpl(
-        const TClientChunkReadOptions& options,
+        const TGetMetaOptions& options,
         const std::optional<std::vector<int>>& extensionTags)
     {
         std::vector<TError> errors;
@@ -392,7 +392,7 @@ public:
     }
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
-        const TClientChunkReadOptions& options,
+        const TGetMetaOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override
     {

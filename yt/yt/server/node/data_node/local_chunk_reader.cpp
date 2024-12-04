@@ -91,14 +91,14 @@ public:
     }
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
-        const TClientChunkReadOptions& clientOptions,
+        const TGetMetaOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override
     {
-        TChunkReadOptions options;
-        static_cast<TClientChunkReadOptions&>(options) = clientOptions;
+        TChunkReadOptions chunkReadOptions;
+        static_cast<TClientChunkReadOptions&>(chunkReadOptions) = options.ClientOptions;
 
-        auto asyncResult = Chunk_->ReadMeta(options, extensionTags);
+        auto asyncResult = Chunk_->ReadMeta(chunkReadOptions, extensionTags);
         return asyncResult.Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError) {
             if (!metaOrError.IsOK()) {
                 ThrowError(metaOrError);

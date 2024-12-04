@@ -196,7 +196,7 @@ TUnversionedUniversalReader CreateUnversionedUniversalReader(
     blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
     auto chunkReader = CreateChunkReader(ioEngine, chunkFileName);
-    auto chunkMeta = chunkReader->GetMeta(blockReadOptions)
+    auto chunkMeta = chunkReader->GetMeta(IChunkReader::TGetMetaOptions{ .ClientOptions = blockReadOptions })
         .Get()
         .ValueOrThrow();
 
@@ -266,7 +266,7 @@ void GuardedMain(int argc, char** argv)
     auto chunkReader = CreateChunkReader(ioEngine, chunkFileName);
     TClientChunkReadOptions blockReadOptions;
     blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-    auto meta = WaitFor(chunkReader->GetMeta(blockReadOptions))
+    auto meta = WaitFor(chunkReader->GetMeta(IChunkReader::TGetMetaOptions{ .ClientOptions = blockReadOptions }))
         .ValueOrThrow();
     schema = GetSchemaFromChunkMeta(*meta);
 

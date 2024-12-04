@@ -124,7 +124,7 @@ std::tuple<std::function<IVersionedReaderPtr(int)>, std::vector<TLegacyOwningKey
 
     for (const auto& chunkFileName : chunkFileNames) {
         auto chunkReader = GetChunkReader(ioEngine, chunkFileName);
-        auto meta = WaitFor(chunkReader->GetMeta(/*chunkReadOptions*/ {}))
+        auto meta = WaitFor(chunkReader->GetMeta(/*options*/ {}))
             .ValueOrThrow();
         auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(meta->extensions());
         auto minKey = WidenKey(NYT::FromProto<TLegacyOwningKey>(boundaryKeysExt.min()), schema->GetKeyColumnCount());
@@ -134,7 +134,7 @@ std::tuple<std::function<IVersionedReaderPtr(int)>, std::vector<TLegacyOwningKey
 
     auto factory = [=, chunkReaders = std::move(chunkReaders)] (int index) -> IVersionedReaderPtr {
         const auto& chunkReader = chunkReaders[index];
-        auto cachedVersionedChunkMeta = WaitFor(chunkReader->GetMeta(/*chunkReadOptions*/ {})
+        auto cachedVersionedChunkMeta = WaitFor(chunkReader->GetMeta(/*options*/ {})
             .Apply(BIND(
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,
@@ -180,7 +180,7 @@ TTableSchemaPtr GetMergedSchema(const IIOEnginePtr& ioEngine, const std::vector<
 
     for (const auto& chunkFileName : chunkFileNames) {
         auto chunkReader = GetChunkReader(ioEngine, chunkFileName);
-        auto meta = WaitFor(chunkReader->GetMeta(/*chunkReadOptions*/ {}))
+        auto meta = WaitFor(chunkReader->GetMeta(/*options*/ {}))
             .ValueOrThrow();
         schemas.push_back(GetSchemaFromChunkMeta(*meta));
     }
@@ -263,7 +263,7 @@ void PrintMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
 {
     auto chunkId = TChunkId::FromString(NFS::GetFileName(TString(chunkFileName)));
     auto chunkReader = GetChunkReader(ioEngine, chunkFileName);
-    auto meta = chunkReader->GetMeta(/*chunkReadOptions*/{})
+    auto meta = chunkReader->GetMeta(/*options*/{})
         .Get()
         .ValueOrThrow();
 
@@ -492,7 +492,7 @@ std::unique_ptr<IUniversalReader> CreateUnversionedUniversalReader(
     }
 
     auto chunkReader = GetChunkReader(ioEngine, chunkFileNames[0]);
-    auto chunkMeta = chunkReader->GetMeta(/*chunkReadOptions*/ {})
+    auto chunkMeta = chunkReader->GetMeta(/*options*/ {})
         .Get()
         .ValueOrThrow();
 
@@ -550,7 +550,7 @@ std::unique_ptr<IUniversalReader> CreateVersionedUniversalReader(
     }
 
     auto chunkReader = GetChunkReader(ioEngine, chunkFileNames[0]);
-    auto chunkMeta = WaitFor(chunkReader->GetMeta(/*chunkReadOptions*/ {}))
+    auto chunkMeta = WaitFor(chunkReader->GetMeta(/*options*/ {}))
         .ValueOrThrow();
 
     if (!lowerKey) {
@@ -567,7 +567,7 @@ std::unique_ptr<IUniversalReader> CreateVersionedUniversalReader(
         THROW_ERROR_EXCEPTION("Versioned chunk schema should be strict");
     }
 
-    auto cachedVersionedChunkMeta = WaitFor(chunkReader->GetMeta(/*chunkReadOptions*/ {})
+    auto cachedVersionedChunkMeta = WaitFor(chunkReader->GetMeta(/*options*/ {})
         .Apply(BIND(
             &TCachedVersionedChunkMeta::Create,
             /*prepareColumnarMeta*/ false,
@@ -609,7 +609,7 @@ std::unique_ptr<IUniversalReader> CreateNativeUniversalReader(
     }
 
     auto chunkReader = GetChunkReader(ioEngine, chunkFileNames[0]);
-    auto chunkMeta = WaitFor(chunkReader->GetMeta(/*chunkReadOptions*/ {}))
+    auto chunkMeta = WaitFor(chunkReader->GetMeta(/*options*/ {}))
         .ValueOrThrow();
     auto format = FromProto<EChunkFormat>(chunkMeta->format());
 
@@ -816,7 +816,7 @@ void ExtractErasureBlocks(
     NYT::NErasure::ICodec* codec;
     {
         auto chunkReader = GetChunkReader(ioEngine, chunkFileNames[0]);
-        auto meta = chunkReader->GetMeta(/*chunkReadOptions*/ {}).Get()
+        auto meta = chunkReader->GetMeta(/*options*/ {}).Get()
             .ValueOrThrow();
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
         auto codecId = FromProto<NYT::NErasure::ECodec>(miscExt.erasure_codec());
@@ -829,7 +829,7 @@ void ExtractErasureBlocks(
     std::vector<IChunkReaderAllowingRepairPtr> readers;
     for (int partIndex = 0; partIndex < codec->GetDataPartCount(); ++partIndex) {
         auto chunkReader = GetChunkReader(ioEngine, chunkFileNames[partIndex]);
-        auto meta = chunkReader->GetMeta(/*chunkReadOptions*/ {}).Get()
+        auto meta = chunkReader->GetMeta(/*options*/ {}).Get()
             .ValueOrThrow();
         auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions());
         auto blockMetaExt = GetProtoExtension<NTableClient::NProto::TDataBlockMetaExt>(meta->extensions());
@@ -943,7 +943,7 @@ void ExtractBlocks(
     const TString& chunkFileName)
 {
     auto chunkReader = GetChunkReader(ioEngine, chunkFileName);
-    auto meta = chunkReader->GetMeta(/*chunkReadOptions*/ {})
+    auto meta = chunkReader->GetMeta(/*options*/ {})
         .Get()
         .ValueOrThrow();
 
@@ -999,7 +999,7 @@ void SliceChunk(
     int keyColumnCount)
 {
     auto chunkReader = GetChunkReader(ioEngine, chunkFileName);
-    auto meta = chunkReader->GetMeta(/*chunkReadOptions*/ {})
+    auto meta = chunkReader->GetMeta(/*options*/ {})
         .Get()
         .ValueOrThrow();
 

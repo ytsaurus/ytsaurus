@@ -124,7 +124,7 @@ TFuture<TColumnarChunkMetaPtr> DownloadChunkMeta(
     }
 
     return chunkReader->GetMeta(
-        chunkReadOptions,
+        IChunkReader::TGetMetaOptions{ .ClientOptions = chunkReadOptions },
         partitionTag,
         extensionTags)
         .Apply(BIND([] (const TRefCountedChunkMetaPtr& chunkMeta) {
@@ -1265,7 +1265,9 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             options,
             chunkReaderHost);
 
-        auto asyncVersionedChunkMeta = remoteReader->GetMeta(chunkReadOptions)
+        auto asyncVersionedChunkMeta = remoteReader->GetMeta(IChunkReader::TGetMetaOptions{
+            .ClientOptions = chunkReadOptions,
+        })
             .Apply(BIND(
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,
