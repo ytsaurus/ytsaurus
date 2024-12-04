@@ -32,8 +32,7 @@ namespace NYT {
 //! "native" cluster. Examples of non-native components are timestamp providers
 //! and discovery servers.
 class TServerConfig
-    : public TDiagnosticDumpConfig
-    , public virtual TSingletonsConfig
+    : public virtual TSingletonsConfig
 {
 public:
     NBus::TBusServerConfigPtr BusServer;

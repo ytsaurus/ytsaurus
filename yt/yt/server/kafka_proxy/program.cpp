@@ -54,7 +54,6 @@ void TKafkaProxyProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResul
     auto config = GetConfig();
 
     ConfigureNativeSingletons(config);
-    StartDiagnosticDump(config);
 
     // TODO(babenko): This memory leak is intentional.
     // We should avoid destroying bootstrap since some of the subsystems

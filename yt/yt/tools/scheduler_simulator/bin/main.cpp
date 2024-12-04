@@ -267,7 +267,6 @@ protected:
         auto config = LoadConfig<TSchedulerSimulatorConfig>(/* configFilename */ parseResult.GetFreeArgs()[0]);
 
         ConfigureSingletons(config);
-        StartDiagnosticDump(config);
 
         {
             auto httpServer = NHttp::CreateServer(config->CreateMonitoringHttpServerConfig());

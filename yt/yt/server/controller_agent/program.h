@@ -122,7 +122,6 @@ protected:
         ConfigureAllocator({.SnapshotUpdatePeriod = config->HeapProfiler->SnapshotUpdatePeriod});
 
         ConfigureNativeSingletons(config);
-        StartDiagnosticDump(config);
 
         if (RemoteClusterProxy_) {
             // Set controller agent cluster connection.

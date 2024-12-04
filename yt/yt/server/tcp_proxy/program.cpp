@@ -52,7 +52,6 @@ void TTcpProxyProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*
     auto config = GetConfig();
 
     ConfigureSingletons(config);
-    StartDiagnosticDump(config);
 
     // TODO(babenko): This memory leak is intentional.
     // We should avoid destroying bootstrap since some of the subsystems

@@ -116,7 +116,6 @@ protected:
         ConfigureAllocator({.SnapshotUpdatePeriod = config->HeapProfiler->SnapshotUpdatePeriod});
 
         ConfigureNativeSingletons(config);
-        StartDiagnosticDump(config);
 
         if (RemoteClusterProxy_) {
             auto clusterConnectionNode = DownloadClusterConnection(RemoteClusterProxy_, RpcProxyLogger());

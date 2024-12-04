@@ -45,7 +45,6 @@ void TReplicatedTableTrackerProgram::DoRun(const NLastGetopt::TOptsParseResult& 
     auto config = GetConfig();
 
     ConfigureNativeSingletons(config);
-    StartDiagnosticDump(config);
 
     auto configNode = GetConfigNode();
 

@@ -179,7 +179,6 @@ protected:
         }
 
         ConfigureNativeSingletons(config);
-        StartDiagnosticDump(config);
 
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems
