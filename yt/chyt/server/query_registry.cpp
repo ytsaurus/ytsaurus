@@ -180,9 +180,8 @@ class TSignalSafeState
 {
 public:
     TSignalSafeState()
-    {
-        memset(&StateBuffer_, 0, sizeof(StateBuffer_));
-    }
+        : StateBuffer_(StateAllocationSize_, 0)
+    { }
 
     void SaveState(TString stateString)
     {
@@ -232,7 +231,7 @@ public:
 
 private:
     static constexpr i64 StateAllocationSize_ = 128_MB;
-    std::array<char, StateAllocationSize_> StateBuffer_;
+    std::vector<char> StateBuffer_;
     i64 StatePointer_ = 0;
 };
 
