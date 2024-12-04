@@ -11,7 +11,7 @@
 
 #include <yt/yt/client/misc/workload.h>
 
-#include <yt/yt/library/codegen/execution_backend.h>
+#include <yt/yt/library/codegen_api/execution_backend.h>
 
 namespace NYT::NQueryClient {
 

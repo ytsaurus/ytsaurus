@@ -5,7 +5,7 @@
 #include "format.h"
 #include "config.h"
 
-#include <yt/yt/library/codegen/execution_backend.h>
+#include <yt/yt/library/codegen_api/execution_backend.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/client/table_client/logical_type.h>
 
