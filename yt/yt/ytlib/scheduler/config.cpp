@@ -1333,7 +1333,7 @@ void TVanillaTaskSpec::Register(TRegistrar registrar)
 void TQueryFilterOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_chunk_filter", &TThis::EnableChunkFilter)
-        .Default(true);
+        .Default(false);
     registrar.Parameter("enable_row_filter", &TThis::EnableRowFilter)
         .Default(true);
 }
