@@ -343,13 +343,17 @@ class Migration(object):
                     lambda: client.get(ypath_join(tables_path, table_name) + "/@tablet_state") == "mounted",
                     "table {} becomes mounted".format(table_name))
 
-    def _transform(self, client, transform_begin, transform_end, force, tables_path, shard_count):
+    def _transform(self, client, transform_begin, transform_end, force, retransform, tables_path, shard_count):
         logging.info("Transforming from %s to %s version", transform_begin - 1, transform_end)
         table_infos = copy.deepcopy(self.initial_table_infos)
         for version in range(self.initial_version, transform_begin):
             for conversion in self.transforms.get(version, []):
                 if conversion.table_info:
                     table_infos[conversion.table] = conversion.table_info
+
+        # NB(omgronny): Allow retransform to the current version.
+        if retransform:
+            transform_begin -= 1
 
         for version in range(transform_begin, transform_end + 1):
             logging.info("Transforming to version %d", version)
@@ -460,7 +464,7 @@ class Migration(object):
 
         client.set(tables_path + "/@version", target_version)
 
-    def run(self, client, tables_path, target_version, shard_count, force):
+    def run(self, client, tables_path, target_version, shard_count, force, retransform):
         """Migrate tables to the given version"""
         assert target_version == self.initial_version or target_version in self.transforms
         assert target_version >= self.initial_version
@@ -478,4 +482,4 @@ class Migration(object):
 
         next_version = current_version + 1
 
-        self._transform(client, next_version, target_version, force, tables_path, shard_count)
+        self._transform(client, next_version, target_version, force, retransform, tables_path, shard_count)
