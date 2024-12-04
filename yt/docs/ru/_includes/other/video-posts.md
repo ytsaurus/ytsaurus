@@ -4,6 +4,12 @@
 
 ##  Конференции, публикации
 
+
+### 2024: Новые динтаблицы: вторичные индексы, web assembly и ещё много улучшений к версии YTsaurus 24.1.0
+- **Мероприятие:** [Публикация на Хабре](https://habr.com/ru/companies/yandex/articles/857708/)
+- **Автор:** Руслан Савченко
+- **Язык:** русский
+
 ### 2024: Хаос: устойчивый к даунтаймам протокол репликации между кластерами YTsaurus
 - **Мероприятие:** [Database Internals Meetup #3](https://databaseinternals.timepad.ru/event/2873648/)
 - **Материалы:** [YouTube](https://www.youtube.com/live/iwA-vzD_5cQ?t=5917s), [slides](https://drive.google.com/file/d/1vAWBLzSBg7q-bGmHzXv0ney6dOSnMZX4/view?usp=sharing)
