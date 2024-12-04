@@ -28,7 +28,6 @@ target_link_libraries(orm-library-attributes PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
-  yt-yt-client
   orm-library-mpl
 )
 
