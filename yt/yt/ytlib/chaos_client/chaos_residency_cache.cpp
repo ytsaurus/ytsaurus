@@ -292,14 +292,8 @@ public:
         }
 
         const auto& cellDirectory = connection->GetCellDirectory();
-        if (auto channel = cellDirectory->FindChannelByCellTag(CellTag_); !channel) {
-            const auto& synchronizer = connection->GetChaosCellDirectorySynchronizer();
-            synchronizer->AddCellTag(CellTag_);
-            WaitFor(synchronizer->Sync())
-                .ThrowOnError();
-        }
-
-        if (auto channel = cellDirectory->FindChannelByCellTag(CellTag_)) {
+        auto channel = WaitForFast(EnsureChaosCellChannel(connection, CellTag_)).ValueOrThrow();
+        if (channel) {
             auto proxy = TChaosNodeServiceProxy(channel);
             auto req = proxy.FindReplicationCard();
             ToProto(req->mutable_replication_card_id(), ObjectId_);
@@ -362,6 +356,24 @@ public:
 private:
     const TIntrusivePtr<TChaosResidencyMasterCache> Owner_;
 
+    TFuture<IChannelPtr> EnsureChaosCellChannel(IConnectionPtr connection, TCellTag cellTag)
+    {
+        auto cellDirectoryPtr = connection->GetCellDirectory();
+        auto channel = cellDirectoryPtr->FindChannelByCellTag(CellTag_);
+        if (!channel) {
+            const auto& synchronizer = connection->GetChaosCellDirectorySynchronizer();
+            synchronizer->AddCellTag(CellTag_);
+            return synchronizer->Sync().Apply(BIND([
+                cellTag = CellTag_,
+                cellDirectoryPtr = std::move(cellDirectoryPtr)
+            ] (const TErrorOr<void>& syncResult) {
+                return cellDirectoryPtr->FindChannelByCellTag(cellTag);
+            }));
+        }
+
+        return MakeFuture(std::move(channel));
+    }
+
     std::vector<TCellTag> GetChaosCellTags(const ICellDirectoryPtr& cellDirectory)
     {
         std::vector<TCellTag> chaosCellTags;
@@ -418,16 +430,21 @@ public:
             req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext));
 
         YT_LOG_DEBUG("Requesting master cache");
+        return WaitFor(req->Invoke().ApplyUnique(BIND(
+            [
+                type = Type_,
+                objectId = ObjectId_
+            ] (TErrorOr<TChaosNodeServiceProxy::TRspGetReplicationCardResidencyPtr>&& resultOrError)
+        {
+            if (!resultOrError.IsOK()) {
+                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %v %v",
+                    type,
+                    objectId)
+                    << resultOrError;
+            }
 
-        auto resultOrError = WaitFor(req->Invoke());
-        if (!resultOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %v %v",
-                Type_,
-                ObjectId_)
-                << resultOrError;
-        }
-
-        return FromProto<TCellTag>(resultOrError.Value()->replication_card_cell_tag());
+            return FromProto<TCellTag>(resultOrError.Value()->replication_card_cell_tag());
+        }))).ValueOrThrow();
     }
 
 private:
