@@ -4045,6 +4045,15 @@ class TestCypress(YTEnvSetup):
 
         wait(lambda: get("//tmp/t/@touch_time", suppress_access_tracking=suppress_access_tracking) > time_0)
 
+    @authors("kvk1920")
+    def test_yt23706(self):
+        create("map_node", "//tmp/m")
+        set("//tmp/m/@attr", {"a": {}})
+        with raises_yt_error("Duplicate key"):
+            set("//tmp/m/@attr/a", b"{b = c; b = c}", is_raw=True)
+        # Shouldn't crash.
+        get("//tmp")
+
 
 ##################################################################
 
