@@ -3111,10 +3111,15 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyConfig->RetryingChannel = proxyDynamicConfig->RetryingChannel;
         proxyConfig->PipeReaderTimeoutThreshold = proxyDynamicConfig->PipeReaderTimeoutThreshold;
         proxyConfig->AdaptiveRowCountUpperBound = proxyDynamicConfig->AdaptiveRowCountUpperBound;
-        proxyConfig->HeapDumpDirectory = proxyDynamicConfig->HeapDumpDirectory;
 
         proxyConfig->EnableCudaProfileEventStreaming = proxyDynamicConfig->EnableCudaProfileEventStreaming;
         proxyConfig->JobTraceEventProcessor = proxyDynamicConfig->JobTraceEventProcessor;
+
+        if (proxyDynamicConfig->MemoryProfileDumpPath) {
+            proxyConfig->TCMalloc->HeapSizeLimit->MemoryProfileDumpPath = *proxyDynamicConfig->MemoryProfileDumpPath;
+            proxyConfig->TCMalloc->HeapSizeLimit->MemoryProfileDumpFilenameSuffix = ToString(GetId());
+            proxyConfig->TCMalloc->HeapSizeLimit->DumpMemoryProfileOnViolation = true;
+        }
     }
 
     proxyConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);
