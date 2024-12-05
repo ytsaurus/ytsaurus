@@ -24,6 +24,7 @@ RECURSE(
     process
     profiling
     program
+    stockpile
     quantile_digest
     query
     random

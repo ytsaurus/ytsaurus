@@ -12,24 +12,21 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(misc)
-add_subdirectory(exception)
-add_subdirectory(assert)
-add_subdirectory(yson)
-add_subdirectory(yson_string)
-add_subdirectory(coding)
-add_subdirectory(string)
-add_subdirectory(small_containers)
-add_subdirectory(malloc)
-add_subdirectory(memory)
-add_subdirectory(system)
-add_subdirectory(logging)
-add_subdirectory(containers)
-add_subdirectory(global)
-add_subdirectory(threading)
-add_subdirectory(cpu_clock)
-add_subdirectory(error)
-add_subdirectory(backtrace)
-add_subdirectory(stockpile)
-add_subdirectory(mlock)
-add_subdirectory(phdr_cache)
+add_library(yt-library-stockpile)
+
+
+target_compile_options(yt-library-stockpile PRIVATE
+  -Wdeprecated-this-capture
+)
+
+target_link_libraries(yt-library-stockpile PUBLIC
+  contrib-libs-cxxsupp
+  yutil
+  yt-yt-core
+  cpp-yt-stockpile
+)
+
+target_sources(yt-library-stockpile PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/stockpile/config.cpp
+)
+
