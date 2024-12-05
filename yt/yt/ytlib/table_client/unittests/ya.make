@@ -24,6 +24,7 @@ SRCS(
     timestamp_column_ut.cpp
     chunk_index_read_controller_ut.cpp
     chunk_meta_extensions_ut.cpp
+    granule_min_max_filter_ut.cpp
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
@@ -32,6 +33,7 @@ PEERDIR(
     yt/yt/client/unittests/mock
     yt/yt/client/table_client/unittests/helpers
     yt/yt/core/test_framework
+    yt/yt/library/query/engine
     yt/yt/ytlib
 )
 

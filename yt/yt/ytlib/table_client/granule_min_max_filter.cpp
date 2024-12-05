@@ -4,14 +4,23 @@
 
 #include <yt/yt/library/query/base/constraints.h>
 #include <yt/yt/library/query/base/query.h>
+#include <yt/yt/library/query/base/query_helpers.h>
 
 #include <yt/yt/client/table_client/columnar_statistics.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>
 
+#include <yt/yt/core/misc/finally.h>
+
+#include <yt/yt/core/profiling/timing.h>
+
 namespace NYT::NTableClient {
 
 using namespace NQueryClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+const NLogging::TLogger Logger("GranuleMinMaxFilter");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,95 +29,139 @@ class TGranuleMinMaxFilter
 {
 public:
     TGranuleMinMaxFilter(
-        TConstExpressionPtr predicate,
-        TKeyColumns keyColumns,
-        TTableSchemaPtr schema)
-        : Predicate_(std::move(predicate))
-        , KeyColumns_(std::move(keyColumns))
-        , Schema_(std::move(schema))
-        , RowBuffer_(New<TRowBuffer>())
-        , QueryConstraintsHolder_(KeyColumns_.size())
+        TTableSchemaPtr schema,
+        std::vector<int> relevantKeyPartIndices,
+        TConstraintRef queryConstraint,
+        TConstraintsHolder queryConstraintsHolder,
+        TRowBufferPtr rowBuffer)
+        : Schema_(std::move(schema))
+        , RelevantKeyPartIndices_(std::move(relevantKeyPartIndices))
+        , QueryConstraint_(std::move(queryConstraint))
+        , QueryConstraintsHolder_(std::move(queryConstraintsHolder))
+        , RowBuffer_(std::move(rowBuffer))
+    { }
+
+    ~TGranuleMinMaxFilter()
     {
-        QueryConstraint_ = QueryConstraintsHolder_.ExtractFromExpression(
-            Predicate_,
-            KeyColumns_,
-            RowBuffer_);
+        YT_LOG_DEBUG("Destroying granule filter (SeenGranules: %v, SkippedGranules: %v, TotalTimeSpentMilliSeconds: %vms)",
+            SeenGranules_,
+            SkippedGranules_,
+            TotalTimeSpentMilliSeconds_);
     }
 
     bool CanSkip(
         const TColumnarStatistics& statistics,
         const TNameTablePtr& granuleNameTable) const override
     {
+        ++SeenGranules_;
+
+        NProfiling::TWallTimer wallTime;
+        auto finally = Finally([&] {
+            TotalTimeSpentMilliSeconds_ += wallTime.GetElapsedTime().MilliSeconds();
+        });
+
         if (!statistics.HasValueStatistics()) {
             return false;
         }
 
         TConstraintsHolder constraints = QueryConstraintsHolder_;
-        auto rootConstraint = QueryConstraint_;
+        auto statisticsConstraints = TConstraintRef::Universal();
 
-        for (const auto& column: KeyColumns_) {
-            auto columnSchema = Schema_->GetColumn(column);
+        for (int keyPartIndex : RelevantKeyPartIndices_) {
+            auto& columnSchema = Schema_->Columns()[keyPartIndex];
+
             auto columnId = granuleNameTable->FindId(columnSchema.StableName().Underlying());
-            auto keyPartIndex = ColumnNameToKeyPartIndex(KeyColumns_, column);
 
             if (!columnId || *columnId >= statistics.GetColumnCount()) {
                 continue;
             }
 
             if (statistics.ColumnNonNullValueCounts[*columnId] == 0) {
-                auto nullConstraint = constraints.Constant(
-                    MakeUnversionedNullValue(),
-                    keyPartIndex);
-                rootConstraint = constraints.Intersect(rootConstraint, nullConstraint);
-
+                auto nullConstraint = constraints.Constant(MakeUnversionedNullValue(), keyPartIndex);
+                statisticsConstraints = constraints.Intersect(statisticsConstraints, nullConstraint);
             } else {
                 auto constraint = constraints.Interval(
-                    TValueBound{statistics.ColumnMinValues[*columnId], false},
-                    TValueBound{statistics.ColumnMaxValues[*columnId], true},
+                    TValueBound(statistics.ColumnMinValues[*columnId], false),
+                    TValueBound(statistics.ColumnMaxValues[*columnId], true),
                     keyPartIndex);
 
                 if (statistics.ColumnNonNullValueCounts[*columnId] != statistics.ChunkRowCount) {
-                    constraint = constraints.Unite(
-                        constraint,
-                        constraints.Constant(MakeUnversionedNullValue(), keyPartIndex));
+                    auto nullConstraint = constraints.Constant(MakeUnversionedNullValue(), keyPartIndex);
+                    constraint = constraints.Unite(constraint, nullConstraint);
                 }
 
-                rootConstraint = constraints.Intersect(rootConstraint, constraint);
+                statisticsConstraints = constraints.Intersect(statisticsConstraints, constraint);
             }
         }
 
-        return rootConstraint.IsEmpty();
+        bool canSkip = constraints.Intersect(statisticsConstraints, QueryConstraint_).IsEmpty();
+
+        if (canSkip) {
+            ++SkippedGranules_;
+        }
+
+        return canSkip;
     }
 
 private:
-    const TConstExpressionPtr Predicate_;
-    const TKeyColumns KeyColumns_;
     const TTableSchemaPtr Schema_;
+    const std::vector<int> RelevantKeyPartIndices_;
+    const TConstraintRef QueryConstraint_;
+    const TConstraintsHolder QueryConstraintsHolder_;
+    const TRowBufferPtr RowBuffer_;
 
-    TRowBufferPtr RowBuffer_;
-    TConstraintsHolder QueryConstraintsHolder_;
-    TConstraintRef QueryConstraint_;
+    mutable std::atomic<ui64> SeenGranules_ = 0;
+    mutable std::atomic<ui64> SkippedGranules_ = 0;
+    mutable std::atomic<ui64> TotalTimeSpentMilliSeconds_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TGranuleMinMaxFilterQueryConstraintsTag
+{ };
+
 IGranuleFilterPtr CreateGranuleMinMaxFilter(const TConstQueryPtr& query)
 {
-    auto readSchema = query->GetReadSchema();
+    auto schema = query->GetReadSchema();
+    auto& schemaColumns = schema->Columns();
 
-    // For these columns we will build disjunctive form
-    // that represents constraints from predicate and min/max statistics.
-    // Here we will take into account all columns that have statistics.
-    TKeyColumns keyColumns;
-    keyColumns.reserve(readSchema->Columns().size());
-    for (const auto& column : readSchema->Columns()) {
-        keyColumns.emplace_back(column.Name());
+    auto relevantKeyPartIndices = std::vector<int>();
+    {
+        auto queryReferences = TColumnSet();
+        TReferenceHarvester(&queryReferences).Visit(query->WhereClause);
+
+        for (int index = 0; index < std::ssize(schemaColumns); ++index) {
+            if (auto it = queryReferences.find(schemaColumns[index].Name()); it != queryReferences.end()) {
+                relevantKeyPartIndices.push_back(index);
+                queryReferences.erase(it);
+            }
+        }
+
+        YT_VERIFY(queryReferences.empty());
+    }
+
+    auto rowBuffer = New<TRowBuffer>(TGranuleMinMaxFilterQueryConstraintsTag());
+    auto queryConstraintsHolder = TConstraintsHolder(schemaColumns.size());
+    auto queryConstraint = TConstraintRef();
+    {
+        auto keyColumns = TKeyColumns();
+        keyColumns.reserve(std::ssize(schemaColumns));
+        for (const auto& column : schemaColumns) {
+            keyColumns.emplace_back(column.Name());
+        }
+
+        queryConstraint = queryConstraintsHolder.ExtractFromExpression(
+            query->WhereClause,
+            keyColumns,
+            rowBuffer);
     }
 
     return New<TGranuleMinMaxFilter>(
-        query->WhereClause,
-        std::move(keyColumns),
-        std::move(readSchema));
+        std::move(schema),
+        std::move(relevantKeyPartIndices),
+        std::move(queryConstraint),
+        std::move(queryConstraintsHolder),
+        std::move(rowBuffer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
