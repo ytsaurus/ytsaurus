@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
@@ -40,6 +42,8 @@ struct IUserJobIOFactory
         NTableClient::TMasterTableSchemaId schemaId,
         const NTableClient::TChunkTimestamps& chunkTimestamps,
         const std::optional<NChunkClient::TDataSink>& dataSink) = 0;
+
+    virtual std::optional<NChunkClient::NProto::TDataStatistics> GetPreparationDataStatistics() { return std::nullopt; }
 };
 
 DEFINE_REFCOUNTED_TYPE(IUserJobIOFactory)
