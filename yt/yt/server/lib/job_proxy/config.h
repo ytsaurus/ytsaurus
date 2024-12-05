@@ -478,8 +478,6 @@ public:
     //! Apply the quota to the entire RootFs instead of the sandbox and tmp folders individually.
     bool EnableRootVolumeDiskQuota;
 
-    TString HeapDumpDirectory;
-
     TClusterThrottlersConfigPtr ClusterThrottlersConfig;
 
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
@@ -526,7 +524,7 @@ public:
 
     i64 AdaptiveRowCountUpperBound;
 
-    TString HeapDumpDirectory;
+    std::optional<TString> MemoryProfileDumpPath;
 
     REGISTER_YSON_STRUCT(TJobProxyDynamicConfig);
 

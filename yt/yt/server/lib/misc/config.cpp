@@ -65,8 +65,9 @@ void TServerConfig::Register(TRegistrar registrar)
             config->BusServer->Port = config->RpcPort;
         }
 
-        if (!config->TCMalloc->HeapSizeLimit->DumpMemoryProfilePath && config->CoreDumper) {
-            config->TCMalloc->HeapSizeLimit->DumpMemoryProfilePath = config->CoreDumper->Path;
+        // TODO(babenko): consider configuring memory_profile_dump_path in ytcfgen
+        if (!config->TCMalloc->HeapSizeLimit->MemoryProfileDumpPath && config->CoreDumper) {
+            config->TCMalloc->HeapSizeLimit->MemoryProfileDumpPath = config->CoreDumper->Path;
         }
     });
 }

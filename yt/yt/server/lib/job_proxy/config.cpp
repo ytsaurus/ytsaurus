@@ -389,9 +389,6 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("adaptive_row_count_upper_bound", &TThis::AdaptiveRowCountUpperBound)
         .Default(std::numeric_limits<i64>::max());
 
-    registrar.Parameter("heap_dump_directory", &TThis::HeapDumpDirectory)
-        .Default();
-
     registrar.Parameter("cluster_throttlers_config", &TThis::ClusterThrottlersConfig)
         .Default();
 
@@ -457,7 +454,8 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("adaptive_row_count_upper_bound", &TThis::AdaptiveRowCountUpperBound)
         .Default(std::numeric_limits<i64>::max());
 
-    registrar.Parameter("heap_dump_directory", &TThis::HeapDumpDirectory)
+    registrar.Parameter("memory_profile_dump_path", &TThis::MemoryProfileDumpPath)
+        .Alias("heap_dump_directory")
         .Default();
 }
 
