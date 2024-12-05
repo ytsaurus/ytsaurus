@@ -347,11 +347,11 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
             prerequisitesExt.revisions_size() != 0,
             "Request contains prerequisite revisions (RequestId: %v, AuthenticationIdentity: %v, NodeId: %v, "
             "OriginalTargetPath: %v, OriginalAdditionalPaths: %v, Revisions: %v)",
-            FromProto<TRequestId>(context->RequestHeader().request_id()),
+            FromProto<TRequestId>(requestHeader.request_id()),
             GetCurrentAuthenticationIdentity(),
             GetId(),
-            GetOriginalRequestTargetYPath(context->GetRequestHeader()),
-            GetOriginalRequestAdditionalPaths(context->GetRequestHeader()),
+            GetOriginalRequestTargetYPath(requestHeader),
+            GetOriginalRequestAdditionalPaths(requestHeader),
             prerequisitesExt.revisions());
 
         objectManager->ValidatePrerequisites(prerequisitesExt);
