@@ -3993,6 +3993,15 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("No such transaction"):
             get("#{}".format(object_id), tx=tx)
 
+    @authors("kvk1920")
+    def test_yt23706(self):
+        create("map_node", "//tmp/m")
+        set("//tmp/m/@attr", {"a": {}})
+        with raises_yt_error("Duplicate key"):
+            set("//tmp/m/@attr/a", b"{b = c; b = c}", is_raw=True)
+        # Shouldn't crash.
+        get("//tmp")
+
 
 ##################################################################
 
