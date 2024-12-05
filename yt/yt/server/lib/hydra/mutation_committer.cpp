@@ -459,7 +459,7 @@ void TLeaderCommitter::Stop()
     for (const auto& [id, changelogFuture] : NextChangelogs_) {
         auto changelogOrError = WaitForFast(changelogFuture);
         if (!changelogOrError.IsOK()) {
-            YT_LOG_ALERT(changelogOrError, "Error opening changelog");
+            YT_LOG_DEBUG(changelogOrError, "Error opening changelog");
             continue;
         }
         CloseChangelog(changelogOrError.Value());
@@ -1572,7 +1572,7 @@ void TFollowerCommitter::Stop()
     for (const auto& [id, changelogFuture] : NextChangelogs_) {
         auto changelogOrError = WaitForFast(changelogFuture);
         if (!changelogOrError.IsOK()) {
-            YT_LOG_ALERT(changelogOrError, "Error opening changelog");
+            YT_LOG_DEBUG(changelogOrError, "Error opening changelog");
             continue;
         }
         CloseChangelog(changelogOrError.Value());
