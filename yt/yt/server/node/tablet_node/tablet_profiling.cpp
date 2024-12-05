@@ -130,6 +130,13 @@ TPullRowsCounters::TPullRowsCounters(const NProfiling::TProfiler& profiler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFetchTableRowsCounters::TFetchTableRowsCounters(const NProfiling::TProfiler& profiler)
+    : DataWeight(profiler.Counter("/fetch_table_rows/data_weight"))
+    , RowCount(profiler.Counter("/fetch_table_rows/row_count"))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTablePullerCounters::TTablePullerCounters(const NProfiling::TProfiler& profiler)
     : DataWeight(profiler.Counter("/table_puller/data_weight"))
     , RowCount(profiler.Counter("/table_puller/row_count"))
@@ -792,6 +799,11 @@ TTabletServiceCounters* TTableProfiler::GetTabletServiceCounters(const std::opti
 TPullRowsCounters* TTableProfiler::GetPullRowsCounters(const std::optional<std::string>& userTag)
 {
     return PullRowsCounters_.Get(Disabled_, userTag, Profiler_);
+}
+
+TFetchTableRowsCounters* TTableProfiler::GetFetchTableRowsCounters(const std::optional<std::string>& userTag)
+{
+    return FetchTableRowsCounters_.Get(Disabled_, userTag, Profiler_);
 }
 
 TReplicaCounters TTableProfiler::GetReplicaCounters(const std::string& cluster)

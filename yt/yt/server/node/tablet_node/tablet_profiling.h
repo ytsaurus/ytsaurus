@@ -134,6 +134,18 @@ struct TPullRowsCounters
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TFetchTableRowsCounters
+{
+    TFetchTableRowsCounters() = default;
+
+    explicit TFetchTableRowsCounters(const NProfiling::TProfiler& profiler);
+
+    NProfiling::TCounter DataWeight;
+    NProfiling::TCounter RowCount;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTablePullerCounters
 {
     TTablePullerCounters() = default;
@@ -462,6 +474,7 @@ public:
     TSelectRowsCounters* GetSelectRowsCounters(const std::optional<std::string>& userTag);
     TRemoteDynamicStoreReadCounters* GetRemoteDynamicStoreReadCounters(const std::optional<std::string>& userTag);
     TPullRowsCounters* GetPullRowsCounters(const std::optional<std::string>& userTag);
+    TFetchTableRowsCounters* GetFetchTableRowsCounters(const std::optional<std::string>& userTag);
 
     TReplicaCounters GetReplicaCounters(const std::string& cluster);
 
@@ -506,6 +519,7 @@ private:
     TUserTaggedCounter<TSelectRowsCounters> SelectRowsCounters_;
     TUserTaggedCounter<TRemoteDynamicStoreReadCounters> DynamicStoreReadCounters_;
     TUserTaggedCounter<TPullRowsCounters> PullRowsCounters_;
+    TUserTaggedCounter<TFetchTableRowsCounters> FetchTableRowsCounters_;
 
     TTablePullerCounters TablePullerCounters_;
     TChunkWriteCountersVector ChunkWriteCounters_;
