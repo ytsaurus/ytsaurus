@@ -54,6 +54,7 @@ protected:
         Options_.MinTeleportChunkSize = Inf64;
         Options_.RowBuffer = RowBuffer_;
         Options_.Logger = GetTestLogger();
+        Options_.UnsuccessfulSplitMarksJobUnsplittable = true;
         DataSizePerJob_ = Inf64;
         MaxDataSlicesPerJob_ = Inf32;
         InputSliceDataSize_ = Inf64;
@@ -663,6 +664,31 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks3)
     EXPECT_EQ(0, ChunkPool_->GetJobCounter()->GetPending());
     ChunkPool_->Resume(0);
     EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
+}
+
+TEST_F(TUnorderedChunkPoolTest, UnsuccessfulSplitMarksJobUnsplittable)
+{
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    DataSizePerJob_ = 2_KB;
+    IsExplicitJobCount_ = false;
+    JobCount_ = 1;
+    InitJobConstraints();
+
+    auto chunk = CreateChunk(
+        0,
+        /*size*/ 1_KB,
+        /*rowCount*/ 1);
+
+    CreateChunkPool();
+
+    AddChunk(chunk);
+
+    ChunkPool_->Finish();
+
+    CheckUnsuccessfulSplitMarksJobUnsplittable(ChunkPool_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

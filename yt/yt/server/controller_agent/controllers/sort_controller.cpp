@@ -2328,6 +2328,7 @@ protected:
             options.JobSizeConstraints = std::move(jobSizeConstraints);
             options.JobSizeAdjusterConfig = std::move(jobSizeAdjusterConfig);
             options.Logger = Logger().WithTag("Name: RootPartition");
+            options.UnsuccessfulSplitMarksJobUnsplittable = Config->UnsuccessfulSplitMarksJobUnsplittable;
 
             RootPartitionPool = CreateUnorderedChunkPool(
                 std::move(options),
@@ -2380,6 +2381,7 @@ protected:
         options.RowBuffer = RowBuffer;
         options.JobSizeConstraints = std::move(jobSizeConstraints);
         options.Logger = Logger().WithTag("Name: SimpleSort");
+        options.UnsuccessfulSplitMarksJobUnsplittable = Config->UnsuccessfulSplitMarksJobUnsplittable;
 
         SimpleSortPool = CreateUnorderedChunkPool(
             std::move(options),

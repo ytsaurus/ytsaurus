@@ -31,6 +31,7 @@ struct TUnorderedChunkPoolOptions
     NTableClient::TRowBufferPtr RowBuffer;
     NLogging::TSerializableLogger Logger;
     NScheduler::ESingleChunkTeleportStrategy SingleChunkTeleportStrategy = NScheduler::ESingleChunkTeleportStrategy::Disabled;
+    bool UnsuccessfulSplitMarksJobUnsplittable = false;
 
     PHOENIX_DECLARE_TYPE(TUnorderedChunkPoolOptions, 0x6c20b2f2);
 };

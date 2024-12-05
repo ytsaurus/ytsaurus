@@ -1197,6 +1197,10 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("fail_operation_on_errors_in_live_preview", &TThis::FailOperationOnErrorsInLivePreview)
         .Default(false);
 
+    // TODO(galtsev): remove after 24.2
+    registrar.Parameter("unsuccessful_split_marks_job_unsplittable", &TThis::UnsuccessfulSplitMarksJobUnsplittable)
+        .Default(true);
+
     registrar.Parameter("fetch_schemas_from_external_cell_tags", &TThis::FetchSchemasFromExternalCellTags)
         .Default(false);
 

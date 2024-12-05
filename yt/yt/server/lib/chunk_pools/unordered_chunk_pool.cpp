@@ -70,6 +70,7 @@ public:
         , FreeDataWeightCounter_(New<TProgressCounter>())
         , FreeRowCounter_(New<TProgressCounter>())
         , SingleChunkTeleportStrategy_(options.SingleChunkTeleportStrategy)
+        , UnsuccessfulSplitMarksJobUnsplittable_(options.UnsuccessfulSplitMarksJobUnsplittable)
     {
         Logger = options.Logger;
         ValidateLogger(Logger);
@@ -348,13 +349,19 @@ public:
 
     void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
+        if (UnsuccessfulSplitMarksJobUnsplittable_) {
+            TJobSplittingBase::Completed(cookie, jobSummary);
+        }
+
         if (jobSummary.InterruptionReason != EInterruptReason::None) {
             YT_LOG_DEBUG(
                 "Splitting job (OutputCookie: %v, InterruptionReason: %v, SplitJobCount: %v)",
                 cookie,
                 jobSummary.InterruptionReason,
                 jobSummary.SplitJobCount);
-            SplitJob(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount);
+            auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount);
+        if (UnsuccessfulSplitMarksJobUnsplittable_)
+            RegisterChildCookies(cookie, std::move(childCookies));
         }
 
         //! If we don't have enough pending jobs - don't adjust data size per job.
@@ -367,7 +374,9 @@ public:
         CheckCompleted();
     }
 
-    void SplitJob(const std::vector<NChunkClient::TLegacyDataSlicePtr>& dataSlices, int jobCount)
+    std::vector<IChunkPoolOutput::TCookie> SplitJob(
+        const std::vector<NChunkClient::TLegacyDataSlicePtr>& dataSlices,
+        int jobCount)
     {
         i64 unreadRowCount = GetCumulativeRowCount(dataSlices);
         i64 rowsPerJob = DivCeil<i64>(unreadRowCount, jobCount);
@@ -375,8 +384,12 @@ public:
         int sliceIndex = 0;
         auto currentDataSlice = dataSlices[0];
         TChunkStripePtr stripe = New<TChunkStripe>(false /*foreign*/, true /*solid*/);
+        std::vector<IChunkPoolOutput::TCookie> childCookies;
         auto flushStripe = [&] {
-            AddStripe(std::move(stripe));
+            auto outputCookie = AddStripe(std::move(stripe));
+            if (outputCookie != IChunkPoolOutput::NullCookie) {
+                childCookies.push_back(outputCookie);
+            }
             stripe = New<TChunkStripe>(false /*foreign*/, true /*solid*/);
         };
         while (true) {
@@ -403,6 +416,7 @@ public:
         if (!stripe->DataSlices.empty()) {
             flushStripe();
         }
+        return childCookies;
     }
 
     void Failed(IChunkPoolOutput::TCookie cookie) override
@@ -483,6 +497,8 @@ private:
     bool IsCompleted_ = false;
 
     ESingleChunkTeleportStrategy SingleChunkTeleportStrategy_ = ESingleChunkTeleportStrategy::Disabled;
+
+    bool UnsuccessfulSplitMarksJobUnsplittable_ = false;
 
     //! Teleport (move to destination pool) trivial (complete), unversioned, teleportable chunk.
     bool TryTeleportChunk(const TLegacyDataSlicePtr dataSlice)
@@ -617,10 +633,10 @@ private:
         }
     }
 
-    void AddStripe(const TChunkStripePtr& stripe)
+    IChunkPoolOutput::TCookie AddStripe(const TChunkStripePtr& stripe)
     {
         if (!stripe->Solid && !Sampler_.Sample()) {
-            return;
+            return IChunkPoolOutput::NullCookie;
         }
 
         int internalCookie = Stripes_.size();
@@ -648,6 +664,8 @@ private:
                 DoSuspend(internalCookie);
             }
         }
+
+        return internalCookie;
     }
 
     i64 GetFreeJobCount() const
