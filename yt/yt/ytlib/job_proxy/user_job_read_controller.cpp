@@ -139,6 +139,11 @@ public:
             return std::nullopt;
         }
         auto dataStatistics = Reader_->GetDataStatistics();
+        auto overheadStatistics = UserJobIOFactory_->GetPreparationDataStatistics();
+
+        if (overheadStatistics) {
+            dataStatistics += *overheadStatistics;
+        }
 
         i64 encodedRowBatchCount = 0;
         i64 encodedColumnarBatchCount = 0;

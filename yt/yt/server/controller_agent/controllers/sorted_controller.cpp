@@ -1094,6 +1094,10 @@ public:
             reduceJobSpecExt->set_foreign_table_lookup_keys_threshold(
                 *Spec_->ForeignTableLookupKeysThreshold);
         }
+        if (Spec_->ForeignTableLookupDataWeightThreshold) {
+            reduceJobSpecExt->set_foreign_table_lookup_data_weight_threshold(
+                *Spec_->ForeignTableLookupDataWeightThreshold);
+        }
     }
 
     void CustomPrepare() override

@@ -1762,6 +1762,7 @@ public:
     bool SliceForeignChunks;
 
     std::optional<i64> ForeignTableLookupKeysThreshold;
+    std::optional<i64> ForeignTableLookupDataWeightThreshold;
 
     REGISTER_YSON_STRUCT(TReduceOperationSpec);
 
