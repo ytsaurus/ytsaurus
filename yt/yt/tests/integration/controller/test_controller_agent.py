@@ -7,7 +7,7 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, create_test_tables, print_debug, release_breakpoint, remove, wait, wait_breakpoint, with_breakpoint, create, ls, get,
-    set, exists, update_op_parameters, get_job,
+    set, exists, update_op_parameters, get_job, get_allocation_id_from_job_id, update_controller_agent_config,
     write_table, map, reduce, map_reduce, merge, erase, vanilla, run_sleeping_vanilla, run_test_vanilla, get_operation, raises_yt_error)
 
 from yt_helpers import profiler_factory
@@ -927,6 +927,9 @@ class TestControllerAgentMemoryAlert(YTEnvSetup):
             op3.track()
 
 
+##################################################################
+
+
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestMemoryWatchdog(YTEnvSetup):
     NUM_MASTERS = 1
@@ -1038,6 +1041,9 @@ class TestMemoryWatchdog(YTEnvSetup):
         op.track()
 
 
+##################################################################
+
+
 class TestLivePreview(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -1127,6 +1133,9 @@ class TestLivePreview(YTEnvSetup):
 
         op.abort()
         wait(lambda: op.get_state() == "aborted")
+
+
+##################################################################
 
 
 class TestJobFailTolerance(YTEnvSetup):
@@ -1250,3 +1259,123 @@ class TestJobFailTolerance(YTEnvSetup):
             op.track()
 
         wait(lambda: self._get_failed_job_count(op) == 2)
+
+
+##################################################################
+
+
+class TestAllocationJobLimit(YTEnvSetup):
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        }
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+            },
+        }
+    }
+
+    @authors("pogorelov")
+    def test_no_limit(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        set("//tmp/t_in" + "/@replication_factor", 1)
+        set("//tmp/t_out" + "/@replication_factor", 1)
+
+        write_table("//tmp/t_in", [{"foo": "bar"}] * 2)
+
+        op = map(
+            wait_for_jobs=True,
+            track=False,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"data_size_per_job": 1},
+        )
+
+        job_ids = wait_breakpoint()
+        assert len(job_ids) == 1
+
+        job_id1 = job_ids[0]
+
+        allocation_id1 = get_allocation_id_from_job_id(job_id1)
+
+        release_breakpoint(job_id=job_id1)
+
+        job_ids = wait_breakpoint()
+        assert len(job_ids) == 1
+
+        job_id2 = job_ids[0]
+
+        assert job_id1 != job_id2
+
+        allocation_id2 = get_allocation_id_from_job_id(job_id2)
+
+        assert allocation_id1 == allocation_id2
+
+        release_breakpoint()
+
+        op.track()
+
+    @authors("pogorelov")
+    def test_limit(self):
+        update_controller_agent_config("allocation_job_count_limit", 1)
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        set("//tmp/t_in" + "/@replication_factor", 1)
+        set("//tmp/t_out" + "/@replication_factor", 1)
+
+        write_table("//tmp/t_in", [{"foo": "bar"}] * 2)
+
+        op = map(
+            wait_for_jobs=True,
+            track=False,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"data_size_per_job": 1},
+        )
+
+        job_ids = wait_breakpoint()
+        assert len(job_ids) == 1
+
+        job_id1 = job_ids[0]
+
+        print_debug("job_id1: ", job_id1)
+
+        allocation_id1 = get_allocation_id_from_job_id(job_id1)
+
+        release_breakpoint(job_id=job_id1)
+
+        job_ids = wait_breakpoint()
+        assert len(job_ids) == 1
+
+        job_id2 = job_ids[0]
+
+        print_debug("job_id2: ", job_id2)
+
+        allocation_id2 = get_allocation_id_from_job_id(job_id2)
+
+        print_debug("Allocations are: ", allocation_id1, allocation_id2)
+
+        assert allocation_id1 != allocation_id2
+
+        release_breakpoint()
+        op.track()

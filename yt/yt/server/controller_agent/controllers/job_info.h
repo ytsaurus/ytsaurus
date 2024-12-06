@@ -62,6 +62,8 @@ struct TAllocation
 
     TLastJobInfo LastJobInfo;
 
+    std::optional<EScheduleFailReason> NewJobsForbiddenReason;
+
     void Persist(const TPersistenceContext& context);
 };
 
