@@ -246,11 +246,13 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, OutputStreamDescriptors);
     Persist(context, InputStreamDescriptors);
 
-    // COMPAT(pogorelov): Remove after all CAs are 24.2.
-    if (context.GetVersion() >= ESnapshotVersion::OperationIncarnationInJoblet) {
-        Persist(context, OperationIncarnation);
+    // COMPAT(pogorelov): Remove after all CAs are 25.1.
+    if (context.GetVersion() < ESnapshotVersion::OperationIncarnationIsStrongTypedef) {
+        TString operationIncarnationStr;
+        Persist(context, operationIncarnationStr);
+        OperationIncarnation = TOperationIncarnation(std::move(operationIncarnationStr));
     } else {
-        OperationIncarnation = "0";
+        Persist(context, OperationIncarnation);
     }
 
     if (context.IsLoad()) {

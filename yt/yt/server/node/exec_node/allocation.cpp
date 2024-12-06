@@ -656,9 +656,11 @@ void TAllocation::OnJobFinished(TJobPtr job)
 
                     return;
                 }
+
                 YT_LOG_INFO(
                     "Job cleanup finished and job stored; evicting previous and settling new job (PreviousJobId: %v)",
                     jobId);
+
                 EvictJob();
                 SettleJob();
             })

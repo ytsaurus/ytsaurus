@@ -301,7 +301,7 @@ private:
 
         auto jobProxyLogWriterConfigIt = jobProxyLoggingConfig->Writers.find(newLogWriterName);
         if (jobProxyLogWriterConfigIt == jobProxyLoggingConfig->Writers.end()) {
-            THROW_ERROR_EXCEPTION("Log writer %qv configured for dump is missing", newLogWriterName);
+            THROW_ERROR_EXCEPTION("Log writer %Qv configured for dump is missing", newLogWriterName);
         }
 
         const auto& logWriterConfigNode = jobProxyLogWriterConfigIt->second;
@@ -309,7 +309,7 @@ private:
         auto typedWriterConfig = ConvertTo<TLogWriterConfigPtr>(logWriterConfigNode);
 
         if (typedWriterConfig->Type != TFileLogWriterConfig::WriterType) {
-            THROW_ERROR_EXCEPTION("Log writer %qv configured for dump must have “file” type", newLogWriterName)
+            THROW_ERROR_EXCEPTION("Log writer %Qv configured for dump must have “file” type", newLogWriterName)
                 << TErrorAttribute("log_writer_type", typedWriterConfig->Type);
         }
 

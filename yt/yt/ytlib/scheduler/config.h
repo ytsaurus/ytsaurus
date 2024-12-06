@@ -1437,8 +1437,9 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_CLASS(TGangManagerConfig)
 DEFINE_REFCOUNTED_TYPE(TGangManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TVanillaTaskSpec
     : public TMandatoryUserJobSpec

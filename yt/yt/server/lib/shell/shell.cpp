@@ -151,7 +151,8 @@ public:
         return TerminatedPromise_;
     }
 
-    virtual void TerminateSpecific() { }
+    virtual void TerminateSpecific()
+    { }
 
     void Terminate(const TError& error) override
     {
