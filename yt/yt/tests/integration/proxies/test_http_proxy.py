@@ -365,11 +365,11 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
     def test_basic(self):
         wait(lambda: requests.get(f"{self._get_proxy_address()}/api/v4/get?path=//@").ok)
 
-        total_memory_limit = 100
-        set("//sys/http_proxies/@config", {"memory_limits": {"total": total_memory_limit}})
-
         # No memory limits.
         self._execute_command("GET", "get", {"path": "//@"})
+
+        total_memory_limit = 100
+        set("//sys/http_proxies/@config", {"memory_limits": {"total": total_memory_limit}})
 
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
         config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
