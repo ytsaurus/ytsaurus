@@ -704,7 +704,7 @@ bool TVanillaController::OnJobFailed(
     }
 
     if (joblet->JobType == EJobType::Vanilla) {
-        static_cast<TVanillaTask*>(joblet->Task)->TrySwitchToNewOperationIncarnation(joblet, /*operationIsReviving*/ true);
+        static_cast<TVanillaTask*>(joblet->Task)->TrySwitchToNewOperationIncarnation(joblet, /*operationIsReviving*/ false);
     }
 
     return true;
@@ -721,7 +721,7 @@ bool TVanillaController::OnJobAborted(
     }
 
     if (joblet->JobType == EJobType::Vanilla) {
-        static_cast<TVanillaTask*>(joblet->Task)->TrySwitchToNewOperationIncarnation(joblet, /*operationIsReviving*/ true);
+        static_cast<TVanillaTask*>(joblet->Task)->TrySwitchToNewOperationIncarnation(joblet, /*operationIsReviving*/ false);
     }
 
     return true;
@@ -886,7 +886,7 @@ void TVanillaController::OnOperationRevived()
     TOperationControllerBase::OnOperationRevived();
 
     if (ShouldRestartJobsOnRevival()) {
-        TrySwitchToNewOperationIncarnation(/*operationIsReviving*/ false);
+        TrySwitchToNewOperationIncarnation(/*operationIsReviving*/ true);
     }
 }
 
