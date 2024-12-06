@@ -64,6 +64,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((MultipleOrderedTasks)                 (301607))
     ((RemoteCopyDynamicTableWithHunks)      (301608))
     ((JobFailTolerance)                     (301609))
+    ((NewJobsForbiddenReason)               (301610))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

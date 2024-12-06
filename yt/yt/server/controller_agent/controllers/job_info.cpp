@@ -72,6 +72,10 @@ void TAllocation::Persist(const TPersistenceContext& context)
 
         Persist(context, LastJobInfo);
     }
+
+    if (context.GetVersion() >= ESnapshotVersion::NewJobsForbiddenReason) {
+        Persist(context, NewJobsForbiddenReason);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
