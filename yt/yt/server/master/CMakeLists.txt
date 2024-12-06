@@ -84,10 +84,10 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/master_hydra_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multi_phase_cell_sync_session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/persistent_state_transient_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/response_keeper_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/snapshot_exporter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/world_initializer_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/world_initializer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/area_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/area_type_handler.cpp
@@ -282,6 +282,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/node_tracker_server/node_tracker_log.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/node_tracker_server/node_tracker_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/node_tracker_server/node_tracker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/node_tracker_server/node_tracker_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/node_tracker_server/node_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/node_tracker_server/node.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/node_tracker_server/public.cpp
