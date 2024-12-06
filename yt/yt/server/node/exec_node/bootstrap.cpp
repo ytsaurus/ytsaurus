@@ -355,7 +355,7 @@ private:
         JobProxyConfigTemplate_ = New<NJobProxy::TJobProxyInternalConfig>();
 
         // Singletons.
-        JobProxyConfigTemplate_->FiberStackPoolSizes = GetConfig()->FiberStackPoolSizes;
+        JobProxyConfigTemplate_->FiberManager = CloneYsonStruct(GetConfig()->FiberManager);
         JobProxyConfigTemplate_->AddressResolver = CloneYsonStruct(GetConfig()->AddressResolver);
         JobProxyConfigTemplate_->AddressResolver->LocalHostNameOverride = NNet::ReadLocalHostName();
 
