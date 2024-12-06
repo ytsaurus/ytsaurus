@@ -1647,9 +1647,9 @@ class YtClient(ClientState):
     def move(
             self,
             source_path, destination_path,
-            recursive=None, force=None, preserve_account=None, preserve_owner=None, preserve_expiration_time=None,
-            preserve_expiration_timeout=None, preserve_creation_time=None, preserve_modification_time=None,
-            pessimistic_quota_check=None, enable_cross_cell_copying=None):
+            recursive=None, force=None, preserve_account=None, preserve_owner=None, preserve_acl=None,
+            preserve_expiration_time=None, preserve_expiration_timeout=None, preserve_creation_time=None,
+            preserve_modification_time=None, pessimistic_quota_check=None, enable_cross_cell_copying=None):
         """
         Moves (renames) Cypress node.
 
@@ -1660,6 +1660,7 @@ class YtClient(ClientState):
         :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
         :param bool preserve_account: preserve account.
         :param bool preserve_owner: preserve owner.
+        :param bool preserve_acl: preserve acl.
         :param bool preserve_expiration_time: preserve expiration time.
         :param bool preserve_expiration_timeout: preserve expiration timeout.
         :param bool preserve_creation_time: preserve creation time.
@@ -1675,7 +1676,7 @@ class YtClient(ClientState):
             source_path, destination_path,
             client=self,
             recursive=recursive, force=force, preserve_account=preserve_account, preserve_owner=preserve_owner,
-            preserve_expiration_time=preserve_expiration_time, preserve_expiration_timeout=preserve_expiration_timeout,
+            preserve_acl=preserve_acl, preserve_expiration_time=preserve_expiration_time, preserve_expiration_timeout=preserve_expiration_timeout,
             preserve_creation_time=preserve_creation_time, preserve_modification_time=preserve_modification_time,
             pessimistic_quota_check=pessimistic_quota_check, enable_cross_cell_copying=enable_cross_cell_copying)
 

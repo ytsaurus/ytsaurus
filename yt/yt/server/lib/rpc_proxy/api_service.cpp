@@ -2119,6 +2119,9 @@ private:
         if (request->has_preserve_owner()) {
             options.PreserveOwner = request->preserve_owner();
         }
+        if (request->has_preserve_acl()) {
+            options.PreserveAcl = request->preserve_acl();
+        }
         if (request->has_pessimistic_quota_check()) {
             options.PessimisticQuotaCheck = request->pessimistic_quota_check();
         }

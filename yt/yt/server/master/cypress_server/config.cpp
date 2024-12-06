@@ -110,6 +110,10 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_intra_cell_cross_shard_links", &TThis::EnableIntraCellCrossShardLinks)
         .Default(true);
 
+    // COMPAT(koloshmet)
+    registrar.Parameter("enable_preserve_acl_during_move", &TThis::EnablePreserveAclDuringMove)
+        .Default(true);
+
     registrar.Postprocessor([] (TThis* config) {
         NJournalClient::ValidateJournalAttributes(
             config->DefaultJournalErasureCodec,
