@@ -313,9 +313,22 @@ Publishes as docker images.
 
 Publishes as docker images.
 
-**Current release:** 2.4.1 (`ghcr.io/ytsaurus/spyt:2.4.1`)
+**Current release:** 2.4.2 (`ghcr.io/ytsaurus/spyt:2.4.2`)
 
 **All releases:**
+
+{% cut "**2.4.2**" %}
+
+Maintenance release with bug fixes:
+
+- Autocast DatetimeType to TimestampType in spark udf
+- Add parsing spark.executorEnv and spark.ytsaurus.driverEnv and set SPARK_LOCAL_DIRS
+- Fix worker_disk_limit and worker_disk_account parameters for standalone cluster
+- Using compatible SPYT versions instead of latest for direct submit
+- Separate proxy role into client (spark.hadoop.yt.proxyRole) and cluster (spark.hadoop.yt.clusterProxyRole)
+- Add flag spark.ytsaurus.driver.watch for watching driver operation
+
+{% endcut %}
 
 {% cut "**2.4.1**" %}
 
