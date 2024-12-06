@@ -185,6 +185,10 @@ protected:
     template <typename TVisitParam>
     void VisitWholeVector(TVisitParam&& target, EVisitReason reason);
 
+    // The path called for an absolute index in a vector.
+    template <typename TVisitParam>
+    void VisitVectorEntry(TVisitParam&& target, int index, EVisitReason reason);
+
     // The path called for a relative index (insertion before the index) in a vector.
     template <typename TVisitParam>
     void VisitVectorEntryRelative(TVisitParam&& target, int index, EVisitReason reason);
@@ -201,6 +205,14 @@ protected:
     // Called for asterisks and visits after the path.
     template <typename TVisitParam>
     void VisitWholeMap(TVisitParam&& target, EVisitReason reason);
+
+    // The key was found in the map.
+    template <typename TVisitParam, typename TMapIterator>
+    void VisitMapEntry(
+        TVisitParam&& target,
+        TMapIterator mapIterator,
+        TString key,
+        EVisitReason reason);
 
     // The key was not found in the map.
     template <typename TVisitParam, typename TMapKey>

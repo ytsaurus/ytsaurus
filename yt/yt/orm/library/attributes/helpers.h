@@ -14,6 +14,7 @@ namespace protobuf {
 
     class Message;
     class FieldDescriptor;
+    class UnknownFieldSet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,6 +27,7 @@ namespace NProtoBuf {
 
 using Message = ::google::protobuf::Message;
 using FieldDescriptor = ::google::protobuf::FieldDescriptor;
+using UnknownFieldSet = ::google::protobuf::UnknownFieldSet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,6 +46,14 @@ NYTree::INodePtr ConvertProtobufToNode(
     const NYson::TProtobufMessageType* rootType,
     const NYPath::TYPath& path,
     const TString& payload);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TErrorOr<std::pair<int, NYson::TYsonString>> LookupUnknownYsonFieldsItem(
+    NProtoBuf::UnknownFieldSet* unknownFields,
+    TStringBuf key);
+
+TString SerializeUnknownYsonFieldsItem(TStringBuf key, TStringBuf value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -27,6 +27,14 @@ using namespace NYson;
 using NProtoBuf::EnumValueDescriptor;
 using NProtoBuf::FieldDescriptor;
 using NProtoBuf::Message;
+using NProtoBuf::UnknownField;
+using NProtoBuf::UnknownFieldSet;
+using NProtoBuf::io::CodedOutputStream;
+using NProtoBuf::io::StringOutputStream;
+using NProtoBuf::internal::WireFormatLite;
+
+constexpr int ProtobufMapKeyFieldNumber = 1;
+constexpr int ProtobufMapValueFieldNumber = 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,6 +71,88 @@ NYTree::INodePtr ConvertProtobufToNode(
     builder->BeginTree();
     ParseProtobuf(&*builder, &protobufInputStream, payloadType);
     return builder->EndTree();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Returns [index of the item, its content].
+TErrorOr<std::pair<int, TYsonString>> LookupUnknownYsonFieldsItem(
+    UnknownFieldSet* unknownFields,
+    TStringBuf key)
+{
+    int count = unknownFields->field_count();
+    for (int index = 0; index < count; ++index) {
+        auto* field = unknownFields->mutable_field(index);
+        if (field->number() == UnknownYsonFieldNumber) {
+            if (field->type() != UnknownField::TYPE_LENGTH_DELIMITED) {
+                return TError(NAttributes::EErrorCode::InvalidData,
+                    "Unexpected type %v of item within yson unknown field set",
+                    static_cast<int>(field->type()));
+            }
+
+            UnknownFieldSet tmpItem;
+            if (!tmpItem.ParseFromString(field->length_delimited())) {
+                return TError(NAttributes::EErrorCode::InvalidData, "Cannot parse UnknownYsonFields item");
+            }
+
+            if (tmpItem.field_count() != 2) {
+                return TError(NAttributes::EErrorCode::InvalidData,
+                    "Unexpected field count %v in item within yson unknown field set",
+                    tmpItem.field_count());
+            }
+
+            auto* keyField = tmpItem.mutable_field(0);
+            auto* valueField = tmpItem.mutable_field(1);
+            if (keyField->number() != ProtobufMapKeyFieldNumber) {
+                std::swap(keyField, valueField);
+            }
+
+            if (keyField->number() != ProtobufMapKeyFieldNumber) {
+                return TError(NAttributes::EErrorCode::InvalidData,
+                    "Unexpected key tag %v of item within yson unknown field set",
+                    keyField->number());
+            }
+            if (keyField->type() != UnknownField::TYPE_LENGTH_DELIMITED) {
+                return TError(NAttributes::EErrorCode::InvalidData,
+                    "Unexpected key type %v of item within yson unknown field set",
+                    static_cast<int>(keyField->type()));
+            }
+
+            if (valueField->number() != ProtobufMapValueFieldNumber) {
+                return TError(NAttributes::EErrorCode::InvalidData,
+                    "Unexpected value tag %v of item within yson unknown field set",
+                    valueField->number());
+            }
+            if (valueField->type() != UnknownField::TYPE_LENGTH_DELIMITED) {
+                return TError(NAttributes::EErrorCode::InvalidData,
+                    "Unexpected value type %v of item within yson unknown field set",
+                    static_cast<int>(valueField->type()));
+            }
+
+            if (keyField->length_delimited() == key) {
+                return std::pair<int, TYsonString>{
+                    index,
+                    TYsonString(valueField->length_delimited())};
+            }
+        }
+    }
+    return TError(NAttributes::EErrorCode::MissingKey, "Unknown yson field not found");
+}
+
+TString SerializeUnknownYsonFieldsItem(TStringBuf key, TStringBuf value)
+{
+    TString output;
+    StringOutputStream outputStream(&output);
+    CodedOutputStream codedOutputStream(&outputStream);
+    codedOutputStream.WriteTag(
+        WireFormatLite::MakeTag(ProtobufMapKeyFieldNumber, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+    codedOutputStream.WriteVarint64(key.length());
+    codedOutputStream.WriteRaw(key.data(), static_cast<int>(key.length()));
+    codedOutputStream.WriteTag(
+        WireFormatLite::MakeTag(ProtobufMapValueFieldNumber, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+    codedOutputStream.WriteVarint64(value.length());
+    codedOutputStream.WriteRaw(value.data(), static_cast<int>(value.length()));
+    return output;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -279,7 +369,7 @@ TIndexParseResult ParseListIndex(TStringBuf token, int count)
 
 // The error coalescing makes sure the top-level error code is either common to all errors or is the
 // mismatch code. This is important for comparisons.
-void ReduceErrors(TError& base, TError incoming, EErrorCode mismatchErrorCode)
+void ReduceErrors(TError& base, TError incoming, NAttributes::EErrorCode mismatchErrorCode)
 {
     if (base.IsOK()) {
         YT_VERIFY(!incoming.IsOK());
