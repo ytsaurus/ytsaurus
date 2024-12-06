@@ -21,6 +21,8 @@
 
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
 
+#include <library/cpp/yt/mlock/mlock.h>
+
 #include <util/system/thread.h>
 
 namespace NYT::NJobProxy {
@@ -79,6 +81,7 @@ protected:
         EnablePhdrCache();
         ConfigureCrashHandler();
         ConfigureAllocator();
+        MlockFileMappings();
 
         try {
             NFS::MakeDirRecursive(NFS::GetDirectoryName(StderrPath_));

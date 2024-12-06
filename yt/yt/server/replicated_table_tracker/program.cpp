@@ -9,6 +9,8 @@
 
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
 
+#include <library/cpp/yt/mlock/mlock.h>
+
 #include <util/system/thread.h>
 
 namespace NYT::NReplicatedTableTracker {
@@ -31,6 +33,7 @@ void TReplicatedTableTrackerProgram::DoRun(const NLastGetopt::TOptsParseResult& 
     ConfigureExitZeroOnSigterm();
     EnablePhdrCache();
     ConfigureAllocator();
+    MlockFileMappings();
 
     if (HandleSetsidOptions()) {
         return;

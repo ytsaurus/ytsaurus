@@ -9,6 +9,8 @@
 
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
 
+#include <library/cpp/yt/mlock/mlock.h>
+
 #include <util/system/thread.h>
 
 namespace NYT::NTabletBalancer {
@@ -31,6 +33,7 @@ void TTabletBalancerProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseR
     ConfigureExitZeroOnSigterm();
     EnablePhdrCache();
     ConfigureAllocator();
+    MlockFileMappings();
 
     if (HandleSetsidOptions()) {
         return;

@@ -40,6 +40,7 @@ void TCellBalancerProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseRes
     ConfigureExitZeroOnSigterm();
     EnablePhdrCache();
     ConfigureAllocator();
+    MlockFileMappings();
 
     if (HandleSetsidOptions()) {
         return;
