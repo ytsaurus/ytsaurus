@@ -38,6 +38,7 @@ void TClusterDiscoveryServerProgram::DoRun(const NLastGetopt::TOptsParseResult& 
     ConfigureExitZeroOnSigterm();
     EnablePhdrCache();
     ConfigureAllocator();
+    MlockFileMappings();
 
     if (HandleSetsidOptions()) {
         return;

@@ -38,6 +38,7 @@ void TTcpProxyProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*
     ConfigureExitZeroOnSigterm();
     EnablePhdrCache();
     ConfigureAllocator();
+    MlockFileMappings();
 
     if (HandleSetsidOptions()) {
         return;

@@ -15,6 +15,8 @@
 
 #include <library/cpp/yt/mlock/mlock.h>
 
+#include <library/cpp/yt/mlock/mlock.h>
+
 #include <util/system/thread.h>
 
 namespace NYT::NYqlAgent {
@@ -46,6 +48,7 @@ protected:
         // We intentionally omit EnablePhdrCache() because not only YQL is loaded as a shared library, but also
         // YQL UDFs, and they may be user-provided in runtime for particular query.
         ConfigureAllocator({});
+        MlockFileMappings();
 
         if (HandleSetsidOptions()) {
             return;

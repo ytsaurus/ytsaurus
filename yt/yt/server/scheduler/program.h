@@ -45,6 +45,7 @@ protected:
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
         ConfigureAllocator();
+        MlockFileMappings();
 
         if (HandleSetsidOptions()) {
             return;

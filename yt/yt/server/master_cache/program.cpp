@@ -38,6 +38,7 @@ void TMasterCacheProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResu
     ConfigureExitZeroOnSigterm();
     EnablePhdrCache();
     ConfigureAllocator();
+    MlockFileMappings();
 
     if (HandleSetsidOptions()) {
         return;

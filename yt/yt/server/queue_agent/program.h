@@ -6,6 +6,7 @@
 #include <yt/yt/library/program/program_config_mixin.h>
 #include <yt/yt/library/program/program_pdeathsig_mixin.h>
 #include <yt/yt/library/program/program_setsid_mixin.h>
+
 #include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
@@ -45,6 +46,7 @@ protected:
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
         ConfigureAllocator();
+        MlockFileMappings();
 
         if (HandleSetsidOptions()) {
             return;
