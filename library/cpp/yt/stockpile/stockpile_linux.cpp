@@ -47,14 +47,15 @@ std::pair<i64, TDuration> RunWithBackoffs(
     const TStockpileOptions& options,
     i64 pageSize)
 {
-    int returnCode = -::madvise(nullptr, adjustedBufferSize, MADV_STOCKPILE);
-    YT_LOG_DEBUG_IF(returnCode, "System call \"madvise\" returned %v", strerror(returnCode));
+    int result = ::madvise(nullptr, adjustedBufferSize, MADV_STOCKPILE);
+    if (result == 0) {
+        Sleep(options.Period);
+        return {options.BufferSize, options.Period};
+    }
 
-    switch(returnCode) {
-        case 0:
-            Sleep(options.Period);
-            return {options.BufferSize, options.Period};
+    YT_LOG_DEBUG("System call \"madvise\" returned %v", strerror(errno));
 
+    switch (errno) {
         case ENOMEM:
             if (adjustedBufferSize / 2 >= pageSize) {
                 // Immediately make an attempt to reclaim half as much.
