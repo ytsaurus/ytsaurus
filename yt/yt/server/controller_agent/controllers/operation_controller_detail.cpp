@@ -5864,7 +5864,7 @@ bool TOperationControllerBase::RestartJobInAllocation(TNonNullPtr<TAllocation> a
         }
     }
 
-    if (!operationIsReviving) {
+    if (operationIsReviving) {
         YT_LOG_DEBUG(
             "No later job absence guaranteed, do not create new job immediately (AllocationId: %v, CurrentJobId: %v)",
             allocation->Id,
