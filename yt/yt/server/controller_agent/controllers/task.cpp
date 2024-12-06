@@ -1098,14 +1098,9 @@ void TTask::Persist(const TPersistenceContext& context)
     Persist(context, SpeculativeJobManager_);
     Persist(context, ProbingJobManager_);
 
-    // COMPAT(galtsev)
-    if (context.GetVersion() >= ESnapshotVersion::ProbingBaseLayer) {
-        Persist(context, ExperimentJobManager_);
-        if (context.GetVersion() >= ESnapshotVersion::ProbingBaseLayer && TaskHost_->GetSpec()->JobExperiment) {
-            ExperimentJobManager_.SetJobExperiment(TaskHost_->GetJobExperiment());
-        }
-    } else {
-        ExperimentJobManager_ = TExperimentJobManager(this, TaskHost_->GetSpec(), Logger);
+    Persist(context, ExperimentJobManager_);
+    if (TaskHost_->GetSpec()->JobExperiment) {
+        ExperimentJobManager_.SetJobExperiment(TaskHost_->GetJobExperiment());
     }
 
     Persist(context, StartTime_);

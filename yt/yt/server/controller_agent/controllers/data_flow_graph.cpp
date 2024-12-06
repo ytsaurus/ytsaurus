@@ -100,17 +100,7 @@ void TOutputStreamDescriptor::Persist(const TPersistenceContext& context)
     Persist(context, SlowMedium);
     Persist(context, TableUploadOptions);
     Persist(context, TableWriterConfig);
-    // COMPAT(galtsev)
-    if (context.GetVersion() >= ESnapshotVersion::UnwrapTimestamp) {
-        Persist(context, Timestamp);
-    } else {
-        YT_VERIFY(context.IsLoad());
-        std::optional<TTimestamp> timestamp;
-        Persist(context, timestamp);
-        if (timestamp) {
-            Timestamp = *timestamp;
-        }
-    }
+    Persist(context, Timestamp);
     Persist(context, CellTags);
     Persist(context, ImmediatelyUnstageChunkLists);
     Persist(context, IsOutputTableDynamic);

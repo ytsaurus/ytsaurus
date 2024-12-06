@@ -1970,6 +1970,8 @@ std::vector<TOutputStreamDescriptorPtr> TOperationControllerBase::GetAutoMergeSt
         intermediateDataAccount = Spec_->IntermediateDataAccount;
     }
 
+    YT_VERIFY(std::ssize(streamDescriptors) <= std::ssize(AutoMergeEnabled_));
+
     int autoMergeTaskTableIndex = 0;
     for (int index = 0; index < std::ssize(streamDescriptors); ++index) {
         if (AutoMergeEnabled_[index]) {
@@ -10601,23 +10603,13 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, RetainedJobWithStderrCount_);
     Persist(context, RetainedJobsCoreInfoCount_);
     Persist(context, RetainedJobCount_);
-
-    // COMPAT(pogorelov)
-    if (context.GetVersion() < ESnapshotVersion::DoNotPersistJobReleaseFlags) {
-        THashMap<TJobId, TReleaseJobFlags> jobIdToReleaseFlags;
-        Persist(context, jobIdToReleaseFlags);
-    }
-
     Persist(context, JobSpecCompletedArchiveCount_);
     Persist(context, FailedJobCount_);
     Persist(context, Sink_);
     Persist(context, AutoMergeTask_);
     Persist<TUniquePtrSerializer<>>(context, AutoMergeDirector_);
     Persist(context, DataFlowGraph_);
-    // COMPAT(galtsev)
-    if (context.GetVersion() >= ESnapshotVersion::NewLivePreview) {
-        Persist(context, *LivePreviews_);
-    }
+    Persist(context, *LivePreviews_);
     Persist(context, AvailableExecNodesObserved_);
     Persist(context, BannedNodeIds_);
     Persist(context, PathToOutputTable_);
@@ -10651,27 +10643,13 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
         InitUpdatingTables();
     }
 
-    // COMPAT(gepardo)
-    if (context.IsSave() && AutoMergeEnabled_.empty()) {
-        AutoMergeEnabled_.resize(OutputTables_.size(), false);
-    }
-
     Persist(context, AlertManager_);
-
     Persist(context, FastIntermediateMediumLimit_);
-
-    YT_VERIFY(context.GetVersion() >= ESnapshotVersion::JobExperiment);
     Persist(context, BaseLayer_);
     Persist(context, JobExperiment_);
+    Persist(context, InitialMinNeededResources_);
+    Persist(context, JobAbortsUntilOperationFailure_);
 
-    // COMPAT(eshcherbin)
-    if (context.GetVersion() >= ESnapshotVersion::InitialMinNeededResources) {
-        Persist(context, InitialMinNeededResources_);
-    }
-
-    if (context.GetVersion() >= ESnapshotVersion::JobAbortsUntilOperationFailure) {
-        Persist(context, JobAbortsUntilOperationFailure_);
-    }
     if (context.GetVersion() >= ESnapshotVersion::PersistMonitoringCounts) {
         Persist(context, MonitoredUserJobCount_);
         Persist(context, MonitoredUserJobAttemptCount_);

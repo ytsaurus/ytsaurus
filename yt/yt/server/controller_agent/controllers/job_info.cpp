@@ -184,25 +184,12 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, NodeDescriptor);
     Persist(context, StartTime);
     Persist(context, FinishTime);
-    // COMPAT(arkady-e1ppa)
-    if (context.GetVersion() >= ESnapshotVersion::NodeJobStartTimeInJoblet) {
-        Persist(context, NodeJobStartTime);
-    }
+    Persist(context, NodeJobStartTime);
     // COMPAT(pogorelov)
     if (context.GetVersion() >= ESnapshotVersion::WaitingForResourcesDuration) {
         Persist(context, WaitingForResourcesDuration);
     }
-    // COMPAT(pogorelov)
-    if (context.GetVersion() < ESnapshotVersion::JobStateInJoblet) {
-        bool isStarted;
-        Persist(context, isStarted);
-
-        if (isStarted) {
-            JobState = EJobState::Waiting;
-        }
-    } else {
-        Persist(context, JobState);
-    }
+    Persist(context, JobState);
     if (context.GetVersion() >= ESnapshotVersion::InterruptionReasonInJoblet) {
         Persist(context, InterruptionReason);
     }
