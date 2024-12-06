@@ -301,6 +301,15 @@ public:
     }
 };
 
+template <typename K, typename V>
+class THash<NRoren::TKV<K, V>>
+{
+public:
+    inline size_t operator()(const NRoren::TKV<K, V>& kv) const noexcept
+    {
+        return THash<std::tuple<const K&, const V&>>{}(std::tie(kv.Key(), kv.Value()));
+    }
+};
 
 namespace std
 {
