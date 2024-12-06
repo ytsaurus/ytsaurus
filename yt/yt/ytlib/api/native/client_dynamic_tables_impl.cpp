@@ -405,6 +405,8 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
             continue;
         }
 
+        replacedColumns.insert(indexColumn->Name());
+
         auto* indexReference = head->New<NAst::TReferenceExpression>(
             NullSourceLocation,
             indexColumn->Name(),

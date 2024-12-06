@@ -6,7 +6,7 @@ from yt_commands import (
     create, create_secondary_index, create_table_replica, create_table_collocation, create_user,
     authors, set, get, exists, remove, copy, get_driver, alter_table,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_enable_table_replica,
-    select_rows, insert_rows, delete_rows, commit_transaction, start_transaction,
+    select_rows, explain_query, insert_rows, delete_rows, commit_transaction, start_transaction,
     sorted_dicts, raises_yt_error,
 )
 
@@ -465,6 +465,11 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         expected = list(select_rows("keyA, keyB, valueA from [//tmp/table]"))
         actual = list(select_rows("keyA, keyB, valueA from [//tmp/table] with index [//tmp/index_table]"))
         assert actual == expected
+
+        if not issubclass(self.__class__, TestSecondaryIndexReplicatedBase):
+            # TODO(sabdenovch): explain query does not support replicated tables ATM.
+            plan = explain_query("keyA, keyB, valueA from [//tmp/table] with index [//tmp/index_table] where valueA = 100")
+            assert plan["query"]["constraints"] == "Constraints:\n100: <universe>"
 
     @authors("sabdenovch")
     def test_unfolding(self):
