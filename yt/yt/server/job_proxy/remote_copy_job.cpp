@@ -1040,17 +1040,18 @@ private:
 
     TChunkReaderHostPtr MakeChunkReaderHost()
     {
-        auto bandwidthThrottler = Host_->GetInBandwidthThrottler();
-        if (RemoteCopyJobSpecExt_.has_remote_cluster_name() && RemoteCopyJobSpecExt_.use_remote_throttler()) {
-            auto throttler = Host_->GetInBandwidthThrottler(RemoteCopyJobSpecExt_.remote_cluster_name());
-            if (throttler) {
-                bandwidthThrottler = throttler;
-            }
-        }
-
-        YT_LOG_DEBUG("MakeChunkReaderHost (RemoteClusterName: %v, UseRemoteThrottler: %v)",
+        YT_LOG_DEBUG("Creating chunk reader host (RemoteClusterName: %v, UseRemoteThrottler: %v)",
             RemoteCopyJobSpecExt_.remote_cluster_name(),
             RemoteCopyJobSpecExt_.use_remote_throttler());
+
+        auto clusterName = LocalClusterName;
+        if (RemoteCopyJobSpecExt_.has_remote_cluster_name() && RemoteCopyJobSpecExt_.use_remote_throttler()) {
+            clusterName = TClusterName(RemoteCopyJobSpecExt_.remote_cluster_name());
+        }
+
+        auto bandwidthThrottlerFactory = BIND([this, this_ = MakeWeak(this)](const TClusterName& clusterName) {
+            return Host_->GetInBandwidthThrottler(clusterName);
+        });
 
         return New<TChunkReaderHost>(
             RemoteClient_,
@@ -1058,11 +1059,11 @@ private:
             Host_->GetReaderBlockCache(),
             /*chunkMetaCache*/ nullptr,
             /*nodeStatusDirectory*/ nullptr,
-            std::move(bandwidthThrottler),
+            bandwidthThrottlerFactory(clusterName),
             Host_->GetOutRpsThrottler(),
             /*mediumThrottler*/ GetUnlimitedThrottler(),
             Host_->GetTrafficMeter(),
-            Host_->GetInBandwidthThrottlers());
+            std::move(bandwidthThrottlerFactory));
     }
 
     void ReplaceHunkChunkIds(const TDeferredChunkMetaPtr& chunkMeta)

@@ -22,6 +22,7 @@ target_compile_options(server-lib-misc PRIVATE
 target_link_libraries(server-lib-misc PUBLIC
   contrib-libs-cxxsupp
   yutil
+  yt-yt-core
   yt-yt-ytlib
   yt-ytlib-distributed_throttler
   yt-library-coredumper
@@ -60,6 +61,7 @@ target_compile_options(server-lib-misc.global PRIVATE
 target_link_libraries(server-lib-misc.global PUBLIC
   contrib-libs-cxxsupp
   yutil
+  yt-yt-core
   yt-yt-ytlib
   yt-ytlib-distributed_throttler
   yt-library-coredumper

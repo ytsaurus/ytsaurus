@@ -22,6 +22,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/yt/ytlib/scheduler/cluster_name.h>
+
 #include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
 #include <yt/yt/ytlib/table_client/timing_statistics.h>
@@ -100,8 +102,7 @@ struct IJobHost
 
     virtual NChunkClient::TTrafficMeterPtr GetTrafficMeter() const = 0;
 
-    virtual const THashMap<TString, NConcurrency::IThroughputThrottlerPtr>& GetInBandwidthThrottlers() const = 0;
-    virtual NConcurrency::IThroughputThrottlerPtr GetInBandwidthThrottler(const TString& clusterName = "") const = 0;
+    virtual NConcurrency::IThroughputThrottlerPtr GetInBandwidthThrottler(const NScheduler::TClusterName& clusterName) const = 0;
     virtual NConcurrency::IThroughputThrottlerPtr GetOutBandwidthThrottler() const = 0;
     virtual NConcurrency::IThroughputThrottlerPtr GetOutRpsThrottler() const = 0;
     virtual NConcurrency::IThroughputThrottlerPtr GetUserJobContainerCreationThrottler() const = 0;

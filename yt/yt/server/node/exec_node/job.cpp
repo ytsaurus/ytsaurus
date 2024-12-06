@@ -3139,8 +3139,6 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
     proxyConfig->EnableRootVolumeDiskQuota = RootVolumeDiskQuotaEnabled_;
 
-    proxyConfig->ClusterThrottlersConfig = Bootstrap_->GetThrottlerManager()->GetClusterThrottlersConfig();
-
     return proxyConfig;
 }
 

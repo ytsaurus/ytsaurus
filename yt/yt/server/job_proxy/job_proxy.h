@@ -20,6 +20,8 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
+#include <yt/yt/ytlib/scheduler/cluster_name.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/library/profiling/solomon/exporter.h>
@@ -76,8 +78,7 @@ public:
 
     NChunkClient::TTrafficMeterPtr GetTrafficMeter() const override;
 
-    const THashMap<TString, NConcurrency::IThroughputThrottlerPtr>& GetInBandwidthThrottlers() const override;
-    NConcurrency::IThroughputThrottlerPtr GetInBandwidthThrottler(const TString& clusterName = "") const override;
+    NConcurrency::IThroughputThrottlerPtr GetInBandwidthThrottler(const NScheduler::TClusterName& clusterName) const override;
     NConcurrency::IThroughputThrottlerPtr GetOutBandwidthThrottler() const override;
     NConcurrency::IThroughputThrottlerPtr GetOutRpsThrottler() const override;
     NConcurrency::IThroughputThrottlerPtr GetUserJobContainerCreationThrottler() const override;
@@ -139,6 +140,7 @@ private:
 
     NConcurrency::IThreadPoolPtr ApiServiceThreadPool_;
 
+    NRpc::IChannelPtr SupervisorChannel_;
     std::unique_ptr<NExecNode::TSupervisorServiceProxy> SupervisorProxy_;
 
     NApi::NNative::IClientPtr Client_;
@@ -160,7 +162,7 @@ private:
 
     NChunkClient::TTrafficMeterPtr TrafficMeter_;
 
-    THashMap<TString, NConcurrency::IThroughputThrottlerPtr> InBandwidthThrottlers_;
+    mutable THashMap<NScheduler::TClusterName, NConcurrency::IThroughputThrottlerPtr> InBandwidthThrottlers_;
     NConcurrency::IThroughputThrottlerPtr OutBandwidthThrottler_;
     NConcurrency::IThroughputThrottlerPtr OutRpsThrottler_;
     NConcurrency::IThroughputThrottlerPtr UserJobContainerCreationThrottler_;

@@ -5,6 +5,8 @@
 
 #include <yt/yt/client/rpc/helpers.h>
 
+#include <yt/yt/ytlib/scheduler/cluster_name.h>
+
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 namespace NYT::NJobProxy {
@@ -13,6 +15,7 @@ using namespace NRpc;
 using namespace NConcurrency;
 using namespace NJobTrackerClient;
 using namespace NExecNode;
+using namespace NScheduler;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -27,7 +30,7 @@ class TThrottlingSession
     : public TRefCounted
 {
 public:
-    TThrottlingSession(const TJobThrottlerConfigPtr& jobThrottlerConfig, const IChannelPtr& nodeChannel, std::optional<TString> remoteClusterName)
+    TThrottlingSession(const TJobThrottlerConfigPtr& jobThrottlerConfig, const IChannelPtr& nodeChannel, std::optional<TClusterName> remoteClusterName)
         : Config_(jobThrottlerConfig)
         , Proxy_(nodeChannel)
         , RemoteClusterName_(std::move(remoteClusterName))
@@ -43,7 +46,7 @@ public:
         request->set_amount(amount);
         ToProto(request->mutable_job_id(), jobId);
         if (RemoteClusterName_) {
-            request->set_remote_cluster_name(*RemoteClusterName_);
+            request->set_remote_cluster_name(RemoteClusterName_->Underlying());
         }
 
         request->Invoke().Subscribe(BIND(&TThrottlingSession::OnThrottlingResponse, MakeStrong(this)));
@@ -54,7 +57,7 @@ public:
 private:
     const TJobThrottlerConfigPtr Config_;
     TSupervisorServiceProxy Proxy_;
-    const std::optional<TString> RemoteClusterName_;
+    const std::optional<TClusterName> RemoteClusterName_;
     TPromise<void> ThrottlePromise_ = NewPromise<void>();
 
     TGuid PollRequestId_;
@@ -130,7 +133,7 @@ public:
         , JobId_(jobId)
     { }
 
-    TFuture<void> DoThrottle(i64 amount, std::optional<TString> remoteClusterName)
+    TFuture<void> DoThrottle(i64 amount, std::optional<TClusterName> remoteClusterName)
     {
         auto throttlingSession = New<TThrottlingSession>(Config_, Channel_, std::move(remoteClusterName));
         return throttlingSession->Throttle(amount, ThrottlerType_, Descriptor_, JobId_);
@@ -196,7 +199,7 @@ class TJobBandwidthThrottlerWrapper
     : public IThroughputThrottler
 {
 public:
-    TJobBandwidthThrottlerWrapper(std::optional<TString> clusterName, TIntrusivePtr<TJobBandwidthThrottler> throttler)
+    TJobBandwidthThrottlerWrapper(std::optional<TClusterName> clusterName, TIntrusivePtr<TJobBandwidthThrottler> throttler)
         : ClusterName_(std::move(clusterName))
         , Throttler_(std::move(throttler))
     { }
@@ -248,18 +251,18 @@ public:
     }
 
 private:
-    std::optional<TString> ClusterName_;
+    std::optional<TClusterName> ClusterName_;
     TIntrusivePtr<TJobBandwidthThrottler> Throttler_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TString, NConcurrency::IThroughputThrottlerPtr> CreateInJobBandwidthThrottlers(
+NConcurrency::IThroughputThrottlerPtr CreateInJobBandwidthThrottler(
     const TJobThrottlerConfigPtr& config,
     const IChannelPtr& channel,
     const TWorkloadDescriptor& descriptor,
     TJobId jobId,
-    THashSet<TString> clusterNames,
+    const TClusterName& clusterName,
     const NLogging::TLogger& logger)
 {
      auto throttler = New<TJobBandwidthThrottler>(
@@ -269,21 +272,16 @@ THashMap<TString, NConcurrency::IThroughputThrottlerPtr> CreateInJobBandwidthThr
         descriptor,
         jobId);
 
-    THashMap<TString, NConcurrency::IThroughputThrottlerPtr> res;
-    for (auto& clusterName : clusterNames) {
-        std::optional<TString> name;
-        if (!clusterName.empty()) {
-            name = clusterName;
-        }
-        auto wrapper = New<TJobBandwidthThrottlerWrapper>(std::move(name), throttler);
-        auto prefetchingThrottler = CreatePrefetchingThrottler(
+    std::optional<TClusterName> name;
+    if (!IsLocal(clusterName)) {
+        name = clusterName;
+    }
+    auto wrapper = New<TJobBandwidthThrottlerWrapper>(std::move(name), std::move(throttler));
+    auto prefetchingThrottler = CreatePrefetchingThrottler(
         config->BandwidthPrefetch,
         std::move(wrapper),
-            logger);
-        YT_VERIFY(res.insert({std::move(clusterName), prefetchingThrottler}).second);
-    }
-
-    return res;
+        logger);
+    return prefetchingThrottler;
 }
 
 IThroughputThrottlerPtr CreateOutJobBandwidthThrottler(

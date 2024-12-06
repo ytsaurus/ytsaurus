@@ -281,17 +281,28 @@ TTrafficMeterPtr TJobProxy::GetTrafficMeter() const
     return TrafficMeter_;
 }
 
-const THashMap<TString, IThroughputThrottlerPtr>& TJobProxy::GetInBandwidthThrottlers() const
+IThroughputThrottlerPtr TJobProxy::GetInBandwidthThrottler(const TClusterName& clusterName) const
 {
-    return InBandwidthThrottlers_;
-}
-
-IThroughputThrottlerPtr TJobProxy::GetInBandwidthThrottler(const TString& clusterName) const
-{
-    if (auto it = InBandwidthThrottlers_.find(clusterName); it != InBandwidthThrottlers_.end()) {
-        return it->second;
+    auto it = InBandwidthThrottlers_.find(clusterName);
+    if (it == InBandwidthThrottlers_.end()) {
+        NConcurrency::IThroughputThrottlerPtr throttler;
+        if (Config_->JobThrottler) {
+            // Throttling is enabled.
+            throttler = CreateInJobBandwidthThrottler(
+                Config_->JobThrottler,
+                SupervisorChannel_,
+                GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
+                JobId_,
+                clusterName,
+                Logger);
+        } else {
+            // Throttling is disabled.
+            throttler = GetUnlimitedThrottler();
+        }
+        it = InBandwidthThrottlers_.emplace(clusterName, std::move(throttler)).first;
     }
-    return IThroughputThrottlerPtr();
+
+    return it->second;
 }
 
 IThroughputThrottlerPtr TJobProxy::GetOutBandwidthThrottler() const
@@ -860,7 +871,8 @@ TJobResult TJobProxy::RunJob()
             NNet::TAddressResolver::Get()->PurgeCache();
         }
 
-        SupervisorProxy_ = std::make_unique<TSupervisorServiceProxy>(supervisorChannel);
+        SupervisorChannel_ = supervisorChannel;
+        SupervisorProxy_ = std::make_unique<TSupervisorServiceProxy>(SupervisorChannel_);
         SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
 
         RetrieveJobSpec();
@@ -879,49 +891,32 @@ TJobResult TJobProxy::RunJob()
         if (Config_->JobThrottler) {
             YT_LOG_INFO("Job throttling enabled");
 
-            // Empty cluster name stands for absent cluster.
-            THashSet<TString> clusterNames({""});
-            if (Config_->ClusterThrottlersConfig) {
-                YT_LOG_INFO("Received cluster throttlers config (Config: %v)",
-                     NYson::ConvertToYsonString(*Config_->ClusterThrottlersConfig, NYson::EYsonFormat::Text));
-
-                for (const auto& [clusterName, _] : Config_->ClusterThrottlersConfig->ClusterLimits) {
-                    YT_VERIFY(clusterNames.insert(clusterName).second);
-                }
-            }
-
-            InBandwidthThrottlers_ = CreateInJobBandwidthThrottlers(
-                Config_->JobThrottler,
-                supervisorChannel,
-                GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
-                JobId_,
-                std::move(clusterNames),
-                Logger);
+            // InBandwidthThrottlers are created on demand.
 
             OutBandwidthThrottler_ = CreateOutJobBandwidthThrottler(
                 Config_->JobThrottler,
-                supervisorChannel,
+                SupervisorChannel_,
                 GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
                 JobId_,
                 Logger);
 
             OutRpsThrottler_ = CreateOutJobRpsThrottler(
                 Config_->JobThrottler,
-                supervisorChannel,
+                SupervisorChannel_,
                 GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
                 JobId_,
                 Logger);
 
             UserJobContainerCreationThrottler_ = CreateUserJobContainerCreationThrottler(
                 Config_->JobThrottler,
-                supervisorChannel,
+                SupervisorChannel_,
                 GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
                 JobId_);
         } else {
             YT_LOG_INFO("Job throttling disabled");
 
-            // Empty cluster name stands for absent cluster.
-            InBandwidthThrottlers_[""] = GetUnlimitedThrottler();
+            // InBandwidthThrottlers are created on demand.
+
             OutBandwidthThrottler_ = GetUnlimitedThrottler();
             OutRpsThrottler_ = GetUnlimitedThrottler();
             UserJobContainerCreationThrottler_ = GetUnlimitedThrottler();
@@ -1531,17 +1526,21 @@ NApi::NNative::IClientPtr TJobProxy::GetClient() const
 
 TChunkReaderHostPtr TJobProxy::GetChunkReaderHost() const
 {
+    auto bandwidthThrottlerFactory = BIND([this, this_ = MakeWeak(this)](const TClusterName& clusterName) {
+        return GetInBandwidthThrottler(clusterName);
+    });
+
     return New<TChunkReaderHost>(
         Client_,
         LocalDescriptor_,
         ReaderBlockCache_,
         /*chunkMetaCache*/ nullptr,
         /*nodeStatusDirectory*/ nullptr,
-        GetInBandwidthThrottler(),
+        bandwidthThrottlerFactory(LocalClusterName),
         GetOutRpsThrottler(),
         /*mediumThrottler*/ GetUnlimitedThrottler(),
         GetTrafficMeter(),
-        GetInBandwidthThrottlers());
+        std::move(bandwidthThrottlerFactory));
 }
 
 IBlockCachePtr TJobProxy::GetReaderBlockCache() const

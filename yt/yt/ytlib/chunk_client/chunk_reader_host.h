@@ -27,7 +27,7 @@ struct TChunkReaderHost
         NConcurrency::IThroughputThrottlerPtr rpsThrottler,
         NConcurrency::IThroughputThrottlerPtr mediumThrottler,
         TTrafficMeterPtr trafficMeter,
-        std::optional<THashMap<TString, NConcurrency::IThroughputThrottlerPtr>> perClusterInBandwidthThrottlers = std::nullopt);
+        std::optional<TCallback<NConcurrency::IThroughputThrottlerPtr(const NScheduler::TClusterName& clusterName)>> bandwidthThrottlerFactory = std::nullopt);
 
     const NApi::NNative::IClientPtr Client;
 
@@ -44,7 +44,7 @@ struct TChunkReaderHost
 
     const TTrafficMeterPtr TrafficMeter;
 
-    const std::optional<THashMap<TString, NConcurrency::IThroughputThrottlerPtr>> PerClusterInBandwidthThrottlers;
+    const std::optional<TCallback<NConcurrency::IThroughputThrottlerPtr(const NScheduler::TClusterName& clusterName)>> BandwidthThrottlerFactory;
 
     static TChunkReaderHostPtr FromClient(
         NApi::NNative::IClientPtr client,

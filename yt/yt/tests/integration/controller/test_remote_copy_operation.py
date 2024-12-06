@@ -1956,7 +1956,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
 
     CHUNK_COUNT = 3
     BANDWIDTH_LIMIT = 10 ** 6
-    THROTTLER_JITTER_MULTIPLIER = 0.8
+    THROTTLER_JITTER_MULTIPLIER = 0.7
     DATA_WEIGHT_SIZE_PER_CHUNK = 10 ** 7
 
     # Setup //sys/cluster_throttlers on local cluster.
@@ -1989,8 +1989,13 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         remove('//sys/cluster_throttlers', force=True)
         create('document', '//sys/cluster_throttlers')
 
+    # Setup malformed //sys/cluster_throttlers on local cluster.
+    def setup_malformed_cluster_throttlers(self):
+        remove('//sys/cluster_throttlers', force=True)
+        set('//sys/cluster_throttlers', '{ malformed_config ')
+
     @authors("yuryalekseev")
-    def test_non_empty_table(self):
+    def test_cluster_throttlers(self):
         self.setup_cluster_throttlers()
 
         # Restart exe nodes to initialize cluster throttlers after //sys/cluster_throttlers setup.
@@ -2042,8 +2047,12 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         assert not get("//tmp/local_table/@sorted")
 
     @authors("yuryalekseev")
-    def test_empty_cluster_throttlers(self):
-        self.setup_empty_cluster_throttlers()
+    @pytest.mark.parametrize("config", ["empty", "malformed"])
+    def test_absent_cluster_throttlers(self, config):
+        if config == "empty":
+            self.setup_empty_cluster_throttlers()
+        if config == "malformed":
+            self.setup_malformed_cluster_throttlers()
 
         # Restart exe nodes to initialize cluster throttlers after //sys/cluster_throttlers setup.
         with Restarter(self.Env, NODES_SERVICE):

@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/misc/workload.h>
 
+#include <yt/yt/ytlib/scheduler/cluster_name.h>
+
 #include <yt/yt/core/concurrency/public.h>
 
 namespace NYT::NJobProxy {
@@ -16,12 +18,12 @@ namespace NYT::NJobProxy {
 // coordinating network usage of all jobs via RPC calls to yt_node.
 // Only method #Throttle is supported.
 
-THashMap<TString, NConcurrency::IThroughputThrottlerPtr> CreateInJobBandwidthThrottlers(
+NConcurrency::IThroughputThrottlerPtr CreateInJobBandwidthThrottler(
     const TJobThrottlerConfigPtr& config,
     const NRpc::IChannelPtr& channel,
     const TWorkloadDescriptor& descriptor,
     NJobTrackerClient::TJobId jobId,
-    THashSet<TString> clusterNames,
+    const NScheduler::TClusterName& clusterName,
     const NLogging::TLogger& logger);
 
 NConcurrency::IThroughputThrottlerPtr CreateOutJobBandwidthThrottler(

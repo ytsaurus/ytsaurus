@@ -24,6 +24,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
+#include <yt/yt/ytlib/scheduler/cluster_name.h>
+
 #include <yt/yt/client/misc/workload.h>
 
 #include <yt/yt/client/rpc/helpers.h>
@@ -43,6 +45,7 @@ using namespace NJobProxy;
 using namespace NCoreDump;
 using namespace NObjectClient;
 using NChunkClient::NProto::TDataStatistics;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,13 +91,13 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
-    IThroughputThrottlerPtr GetJobThrottler(EJobThrottlerType throttlerType, std::optional<TString> remoteClusterName)
+    IThroughputThrottlerPtr GetJobThrottler(EJobThrottlerType throttlerType, std::optional<TClusterName> remoteClusterName)
     {
         switch (throttlerType) {
             case EJobThrottlerType::InBandwidth:
-                return Bootstrap_->GetThrottler(EExecNodeThrottlerKind::JobIn, EExecNodeThrottlerTraffic::Bandwidth, std::move(remoteClusterName));
+                return Bootstrap_->GetThrottler(EExecNodeThrottlerKind::JobIn, EExecNodeThrottlerTrafficType::Bandwidth, std::move(remoteClusterName));
             case EJobThrottlerType::OutBandwidth:
-                return Bootstrap_->GetThrottler(EExecNodeThrottlerKind::JobOut, EExecNodeThrottlerTraffic::Bandwidth, std::move(remoteClusterName));
+                return Bootstrap_->GetThrottler(EExecNodeThrottlerKind::JobOut);
             case EJobThrottlerType::OutRps:
                 return Bootstrap_->GetReadRpsOutThrottler();
             case EJobThrottlerType::ContainerCreation:
@@ -366,7 +369,7 @@ private:
         auto amount = request->amount();
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         auto jobId = FromProto<TJobId>(request->job_id());
-        auto remoteClusterName = request->has_remote_cluster_name() ? std::make_optional<TString>(request->remote_cluster_name()) : std::nullopt;
+        auto remoteClusterName = request->has_remote_cluster_name() ? std::make_optional<TClusterName>(request->remote_cluster_name()) : std::nullopt;
 
         context->SetRequestInfo("ThrottlerType: %v, Amount: %v, JobId: %v, WorkloadDescriptor: %v, RemoteClusterName: %v",
             throttlerType,

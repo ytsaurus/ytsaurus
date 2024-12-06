@@ -41,6 +41,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
+#include <yt/yt/ytlib/scheduler/cluster_name.h>
+
 #include <yt/yt/library/dns_over_rpc/server/dns_over_rpc_service.h>
 
 #include <yt/yt/library/disk_manager/hotswap_manager.h>
@@ -64,6 +66,7 @@ using namespace NJobProxy;
 using namespace NNodeTrackerClient;
 using namespace NProfiling;
 using namespace NYTree;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -128,7 +131,7 @@ public:
             ClusterNodeBootstrap_,
             {
                 .LocalAddress = NNet::BuildServiceAddress(GetLocalHostName(), GetConfig()->RpcPort),
-                .Logger = ExecNodeLogger().WithTag("throttler_manager"),
+                .Logger = ExecNodeLogger().WithTag("Component: ThrottlerManager"),
                 .Profiler = ExecNodeProfiler().WithPrefix("/throttler_manager")
             }
         );
@@ -255,9 +258,9 @@ public:
         return SchedulerConnector_;
     }
 
-    IThroughputThrottlerPtr GetThrottler(EExecNodeThrottlerKind kind, EExecNodeThrottlerTraffic traffic, std::optional<TString> remoteClusterName) const override
+    IThroughputThrottlerPtr GetThrottler(EExecNodeThrottlerKind kind, EExecNodeThrottlerTrafficType trafficType, std::optional<TClusterName> remoteClusterName) const override
     {
-        return ThrottlerManager_->GetOrCreateThrottler(kind, traffic, std::move(remoteClusterName));
+        return ThrottlerManager_->GetOrCreateThrottler(kind, trafficType, std::move(remoteClusterName));
     }
 
     const TSolomonExporterPtr& GetJobProxySolomonExporter() const override
