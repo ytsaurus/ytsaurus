@@ -43,6 +43,8 @@ using NNodeTrackerClient::TNodeDescriptor;
 DECLARE_REFCOUNTED_STRUCT(INodeTracker)
 DECLARE_REFCOUNTED_STRUCT(INodeDisposalManager)
 
+DECLARE_REFCOUNTED_STRUCT(INodeTrackerCache)
+
 DECLARE_REFCOUNTED_CLASS(TNodeDiscoveryManager)
 
 DECLARE_REFCOUNTED_CLASS(TNodeGroupConfig)

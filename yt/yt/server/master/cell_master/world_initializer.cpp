@@ -3,7 +3,7 @@
 #include "private.h"
 #include "config.h"
 #include "hydra_facade.h"
-#include "persistent_state_transient_cache.h"
+#include "world_initializer_cache.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
@@ -106,10 +106,15 @@ public:
         auto* rootNode = cypressManager->GetRootNode();
         auto isInitialized = !rootNode->KeyToChild().empty();
 
-        auto& transientCache = Bootstrap_->GetPersistentStateTransientCache();
-        transientCache->UpdateWorldInitializationStatus(isInitialized);
+        const auto& observer = Bootstrap_->GetWorldInitializerCache();
+        observer->UpdateWorldInitializationStatus(isInitialized);
 
         return isInitialized;
+    }
+
+    void UpdateWorldInitializerCache() override
+    {
+        Y_UNUSED(IsInitialized());
     }
 
     void ValidateInitialized() override
@@ -142,7 +147,7 @@ private:
 
     void OnLeaderActive()
     {
-        Bootstrap_->GetPersistentStateTransientCache()->UpdateWorldInitializationStatus(false);
+        Bootstrap_->GetWorldInitializerCache()->UpdateWorldInitializationStatus(false);
 
         // NB: Initialization cannot be carried out here since not all subsystems
         // are fully initialized yet.
@@ -154,17 +159,17 @@ private:
 
     void OnStopLeading()
     {
-        Bootstrap_->GetPersistentStateTransientCache()->UpdateWorldInitializationStatus(false);
+        Bootstrap_->GetWorldInitializerCache()->UpdateWorldInitializationStatus(false);
     }
 
     void OnStartFollowing()
     {
-        Bootstrap_->GetPersistentStateTransientCache()->UpdateWorldInitializationStatus(false);
+        Bootstrap_->GetWorldInitializerCache()->UpdateWorldInitializationStatus(false);
     }
 
     void OnStopFollowing()
     {
-        Bootstrap_->GetPersistentStateTransientCache()->UpdateWorldInitializationStatus(false);
+        Bootstrap_->GetWorldInitializerCache()->UpdateWorldInitializationStatus(false);
     }
 
     void ScheduleInitialize(TDuration delay = TDuration::Zero())

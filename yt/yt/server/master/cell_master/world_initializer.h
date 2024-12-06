@@ -6,12 +6,17 @@ namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ *  Thread affinity: automaton.
+ */
 struct IWorldInitializer
     : public TRefCounted
 {
 public:
     //! Returns |true| if the cluster is initialized.
     virtual bool IsInitialized() = 0;
+
+    virtual void UpdateWorldInitializerCache() = 0;
 
     //! Checks if the cluster is initialized. Throws if not.
     virtual void ValidateInitialized() = 0;

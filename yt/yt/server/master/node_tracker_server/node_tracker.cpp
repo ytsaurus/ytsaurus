@@ -12,6 +12,7 @@
 #include "rack_type_handler.h"
 #include "node_disposal_manager.h"
 #include "data_center_type_handler.h"
+#include "node_tracker_cache.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -19,7 +20,6 @@
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
-#include <yt/yt/server/master/cell_master/persistent_state_transient_cache.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/master/cell_server/cellar_node_tracker.h>
@@ -1853,7 +1853,7 @@ private:
         PendingRestartMaintenanceNodeIdToSetIt_.clear();
 
         Bootstrap_
-            ->GetPersistentStateTransientCache()
+            ->GetNodeTrackerCache()
             ->ResetNodeDefaultAddresses();
     }
 
@@ -1868,7 +1868,7 @@ private:
         TransactionToNodeMap_.clear();
 
         Bootstrap_
-            ->GetPersistentStateTransientCache()
+            ->GetNodeTrackerCache()
             ->ResetNodeDefaultAddresses();
 
         AggregatedOnlineNodeCount_ = 0;
@@ -2510,7 +2510,7 @@ private:
         }
 
         Bootstrap_
-            ->GetPersistentStateTransientCache()
+            ->GetNodeTrackerCache()
             ->UpdateNodeDefaultAddress(node->GetId(), node->GetDefaultAddress());
     }
 
@@ -2528,7 +2528,7 @@ private:
         }
 
         Bootstrap_
-            ->GetPersistentStateTransientCache()
+            ->GetNodeTrackerCache()
             ->UpdateNodeDefaultAddress(node->GetId(), std::nullopt);
     }
 
