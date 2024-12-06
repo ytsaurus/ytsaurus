@@ -20,5 +20,6 @@
     "quality/antifraud/security": "quality/antifraud/security/pyproject.toml",
     "dj/services/inspire": "dj/services/inspire/pyproject.toml",
     "hrtech/backend/events_crm": "hrtech/backend/events_crm/pyproject.toml",
-    "ml/dod": "ml/dod/pyproject.toml"
+    "ml/dod": "ml/dod/pyproject.toml",
+    "intranet/crt/monolith": "intranet/crt/monolith/pyproject.toml"
 }
