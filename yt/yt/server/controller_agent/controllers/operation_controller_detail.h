@@ -518,7 +518,7 @@ public:
     void InitializeJobExperiment();
     TJobExperimentBasePtr GetJobExperiment() override;
 
-    TJobId GenerateJobId(NScheduler::TAllocationId allocationId, TJobId previousJobId) override;
+    std::expected<TJobId, EScheduleFailReason> GenerateJobId(NScheduler::TAllocationId allocationId, TJobId previousJobId) override;
 
     TJobletPtr CreateJoblet(
         TTask* task,

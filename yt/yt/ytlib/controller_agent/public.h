@@ -128,6 +128,7 @@ DEFINE_ENUM(EScheduleFailReason,
     ((OperationIsNotAlive)           (23))
     ((NewJobsForbidden)              (24))
     ((NoPendingProbingJobs)          (25))
+    ((AllocationJobCountReachedLimit)(26))
 );
 
 YT_DEFINE_ERROR_ENUM(

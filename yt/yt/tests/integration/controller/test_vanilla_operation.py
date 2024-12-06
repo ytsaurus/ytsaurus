@@ -1213,5 +1213,66 @@ class TestGangManager(YTEnvSetup):
 
         op.track()
 
+    @authors("pogorelov")
+    def test_allocation_job_count_reached_limit(self):
+        update_controller_agent_config("allocation_job_count_limit", 1)
+
+        restarted_job_profiler = JobCountProfiler(
+            "aborted",
+            tags={"tree": "default", "job_type": "vanilla", "abort_reason": "operation_incarnation_changed"},
+        )
+        aborted_by_request_job_profiler = JobCountProfiler(
+            "aborted",
+            tags={"tree": "default", "job_type": "vanilla", "abort_reason": "user_request"},
+        )
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=2,
+            task_patch={"gang_manager": {}},
+        )
+
+        first_incarnation_job_ids = wait_breakpoint(job_count=2)
+
+        assert len(first_incarnation_job_ids) == 2
+
+        first_job_id, second_job_id = first_incarnation_job_ids
+
+        first_incarnation_id = self._get_operation_incarnation(op)
+
+        print_debug(f"First incarnation {first_incarnation_id} jobs are: {first_incarnation_job_ids}")
+
+        print_debug("aborting job ", first_job_id)
+
+        abort_job(first_job_id)
+
+        wait(lambda: aborted_by_request_job_profiler.get_job_count_delta() == 1)
+        wait(lambda: restarted_job_profiler.get_job_count_delta() == 1)
+
+        release_breakpoint(job_id=first_job_id)
+        release_breakpoint(job_id=second_job_id)
+
+        def get_allocation_ids(job_ids):
+            return set([get_allocation_id_from_job_id(job_id) for job_id in job_ids])
+
+        first_incarnation_allocation_ids = get_allocation_ids(first_incarnation_job_ids)
+
+        second_incarnation_job_ids = wait_breakpoint(job_count=2)
+        assert len(second_incarnation_job_ids) == 2
+
+        second_incarnation_id = self._get_operation_incarnation(op)
+
+        print_debug(f"Second incarnation {second_incarnation_id} jobs are: {second_incarnation_job_ids}")
+
+        assert first_incarnation_id != second_incarnation_id
+
+        second_incarnation_allocation_ids = get_allocation_ids(second_incarnation_job_ids)
+
+        assert len(first_incarnation_allocation_ids & second_incarnation_allocation_ids) == 0
+
+        release_breakpoint()
+
+        op.track()
+
 
 ##################################################################

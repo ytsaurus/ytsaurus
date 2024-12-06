@@ -1207,6 +1207,10 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_job_fails_tolerance", &TThis::EnableJobFailsTolerance)
         .Default(false);
 
+    registrar.Parameter("allocation_job_count_limit", &TThis::AllocationJobCountLimit)
+        .Default()
+        .GreaterThan(0);
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->ChunkLocationThrottler->Limit = 10'000;
 

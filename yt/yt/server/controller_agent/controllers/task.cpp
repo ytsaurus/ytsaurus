@@ -629,6 +629,11 @@ std::optional<EScheduleFailReason> TTask::TryScheduleJob(
         return *failReason;
     }
 
+    auto jobIdOrError = TaskHost_->GenerateJobId(allocation.Id, previousJobId.value_or(TJobId()));
+    if (!jobIdOrError) {
+        return jobIdOrError.error();
+    }
+
     auto cookieInfoOrError = previousJobId
         ? GetOutputCookieInfoForNextJob(allocation)
         : GetOutputCookieInfoForFirstJob(allocation);
@@ -637,11 +642,12 @@ std::optional<EScheduleFailReason> TTask::TryScheduleJob(
     }
 
     auto cookieInfo = std::move(cookieInfoOrError.value());
+    auto jobId = jobIdOrError.value();
 
     auto result =  TryScheduleJob(
         allocation,
         context,
-        TaskHost_->GenerateJobId(allocation.Id, previousJobId.value_or(TJobId())),
+        jobId,
         treeIsTentative,
         cookieInfo.OutputCookie,
         cookieInfo.CompetitionType);
