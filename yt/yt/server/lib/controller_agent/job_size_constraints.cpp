@@ -201,12 +201,8 @@ void TExplicitJobSizeConstraints::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(8, MaxPrimaryDataWeightPerJob_)();
     PHOENIX_REGISTER_FIELD(9, InputSliceDataWeight_)();
     PHOENIX_REGISTER_FIELD(10, InputSliceRowCount_)();
-    // NB: ESnapshotVersion::BumpTo_24_1 is the first 24.1 snapshot version.
     PHOENIX_REGISTER_FIELD(11, BatchRowCount_)
-        .InVersions([] (ESnapshotVersion version) {
-            return ((version >= ESnapshotVersion::BatchRowCount_23_2 && version < ESnapshotVersion::BumpTo_24_1) ||
-                version >= ESnapshotVersion::BatchRowCount_24_1);
-        })();
+        .SinceVersion(ESnapshotVersion::BatchRowCount_24_1)();
     PHOENIX_REGISTER_FIELD(12, ForeignSliceDataWeight_)();
     PHOENIX_REGISTER_FIELD(13, SamplingRate_)();
     PHOENIX_REGISTER_FIELD(14, SamplingDataWeightPerJob_)();

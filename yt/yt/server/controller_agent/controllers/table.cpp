@@ -21,9 +21,7 @@ void TLivePreviewTableBase::Persist(const TPersistenceContext& context)
     using NYT::Persist;
 
     Persist(context, LivePreviewTableId);
-    if (context.GetVersion() >= ESnapshotVersion::NewLivePreview) {
-        Persist(context, LivePreviewTableName);
-    }
+    Persist(context, LivePreviewTableName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -159,8 +157,7 @@ void TOutputTable::Persist(const TPersistenceContext& context)
     Persist(context, TableUploadOptions);
     Persist(context, TableWriterOptions);
     Persist(context, OutputType);
-    if (ESnapshotVersion::AddChunkSchemas <= context.GetVersion()
-        && context.GetVersion() < ESnapshotVersion::DropOriginalTableSchemaRevision) {
+    if (context.GetVersion() < ESnapshotVersion::DropOriginalTableSchemaRevision) {
         NHydra::TRevision originalTableSchemaRevision;
         Persist(context, originalTableSchemaRevision);
     }

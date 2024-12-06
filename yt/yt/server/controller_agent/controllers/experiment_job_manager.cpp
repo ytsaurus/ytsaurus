@@ -404,19 +404,13 @@ void TExperimentJobManager::Persist(const TPersistenceContext& context)
 
     TCompetitiveJobManagerBase::Persist(context);
 
-    YT_VERIFY(context.GetVersion() >= ESnapshotVersion::JobExperiment);
     Persist(context, OperationSpec_);
-
-    YT_VERIFY(context.GetVersion() >= ESnapshotVersion::ProbingBaseLayerPersistAlertCounts);
     Persist(context, FailedControlJobCount_);
     Persist(context, SucceededTreatmentJobCount_);
-
-    YT_VERIFY(context.GetVersion() >= ESnapshotVersion::ProbingBaseLayerPersistLostJobs);
     Persist(context, FailedTreatmentJobCount_);
     Persist(context, FailedTreatmentJob_);
     Persist(context, FailedControlJob_);
     Persist(context, LostJobs_);
-
     Persist(context, ExperimentStatus_);
 }
 
