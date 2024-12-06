@@ -87,6 +87,9 @@ public:
     // COMPAT(shakurov)
     bool EnableIntraCellCrossShardLinks;
 
+    // COMPAT(koloshmet)
+    bool EnablePreserveAclDuringMove;
+
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 
     static void Register(TRegistrar registrar);

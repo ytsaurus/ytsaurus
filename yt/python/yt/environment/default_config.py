@@ -70,6 +70,7 @@ def get_master_config():
 """)
 
 
+# COMPAT(koloshmet) cypress_manager/enable_preserve_acl_during_move
 def get_dynamic_master_config():
     return yson.loads(b"""
 {
@@ -118,6 +119,7 @@ def get_dynamic_master_config():
         expiration_backoff_time = 200;
         scion_removal_period = 1000;
         virtual_map_read_offload_batch_size = 2;
+        enable_preserve_acl_during_move = %false;
     };
 
     transaction_manager = {

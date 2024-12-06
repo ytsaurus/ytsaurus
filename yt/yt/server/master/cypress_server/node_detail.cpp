@@ -263,9 +263,7 @@ bool TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
         /*transaction*/ nullptr);
 
     auto sourceAcd = Load<TAccessControlDescriptor>(*context);
-    if ((context->GetMode() == ENodeCloneMode::Move || factory->ShouldPreserveAcl()) &&
-        trunkNode->GetType() != EObjectType::PortalExit)
-    {
+    if (factory->ShouldPreserveAcl(context->GetMode()) && trunkNode->GetType() != EObjectType::PortalExit) {
         trunkNode->Acd().SetInherit(sourceAcd.Inherit());
         trunkNode->Acd().SetEntries(sourceAcd.Acl());
     }
@@ -504,7 +502,7 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
     }
 
     // Copy ACD.
-    if (mode == ENodeCloneMode::Move || factory->ShouldPreserveAcl()) {
+    if (factory->ShouldPreserveAcl(mode)) {
         clonedTrunkNode->Acd().SetInherit(sourceNode->Acd().Inherit());
         for (const auto& ace : sourceNode->Acd().Acl().Entries) {
             clonedTrunkNode->Acd().AddEntry(ace);

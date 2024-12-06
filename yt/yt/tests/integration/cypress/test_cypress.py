@@ -934,8 +934,8 @@ class TestCypress(YTEnvSetup):
         acl = [make_ace("deny", "guest", "write")]
         set("//tmp/t1/@acl", acl)
         move("//tmp/t1", "//tmp/t2")
-        assert not get("//tmp/t2/@inherit_acl")
-        assert_items_equal(get("//tmp/t2/@acl"), acl)
+        assert get("//tmp/t2/@inherit_acl")
+        assert_items_equal(get("//tmp/t2/@acl"), [])
 
     @authors("ignat")
     def test_move_simple1(self):
@@ -3638,9 +3638,12 @@ class TestCypress(YTEnvSetup):
         acl = [make_ace("deny", "guest", "write")]
         set("//tmp/t1/@acl", acl)
         copy("//tmp/t1", "//tmp/t2", preserve_acl=True)
+        move("//tmp/t1", "//tmp/t3", preserve_acl=True)
 
         assert not get("//tmp/t2/@inherit_acl")
+        assert not get("//tmp/t3/@inherit_acl")
         assert_items_equal(get("//tmp/t2/@acl"), acl)
+        assert_items_equal(get("//tmp/t3/@acl"), acl)
 
     @authors("avmatrosov")
     @not_implemented_in_sequoia
@@ -3650,11 +3653,18 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/test")
 
         set("//tmp/t1/@inherit_acl", False)
-        acl = [make_ace("allow", "u", "read")]
+        acl = [make_ace("allow", "u", "read"), make_ace("allow", "u", "remove")]
         set("//tmp/t1/@acl", acl)
 
-        with pytest.raises(YtError):
+        access_denied = 'Access denied for user "u": "administer" permission for node //tmp/test is not allowed'
+        with pytest.raises(YtError, match=access_denied):
             copy("//tmp/t1", "//tmp/test/t2", preserve_acl=True, authenticated_user="u")
+        with pytest.raises(YtError, match=access_denied):
+            move("//tmp/t1", "//tmp/test/t2", preserve_acl=True, authenticated_user="u")
+
+        # COMPAT(koloshmet)
+        set("//sys/@config/cypress_manager/enable_preserve_acl_during_move", True)
+        move("//tmp/t1", "//tmp/test/t2", authenticated_user="u")
 
     @authors("avmatrosov")
     @not_implemented_in_sequoia
@@ -4253,9 +4263,12 @@ class TestCypressPortal(TestCypressMulticell):
         acl = [make_ace("deny", "guest", "write")]
         set("//tmp/t1/@acl", acl)
         copy("//tmp/t1", "//portals/p/t2", preserve_acl=True)
+        move("//tmp/t1", "//portals/p/t3", preserve_acl=True)
 
         assert not get("//portals/p/t2/@inherit_acl")
+        assert not get("//portals/p/t3/@inherit_acl")
         assert_items_equal(get("//portals/p/t2/@acl"), acl)
+        assert_items_equal(get("//portals/p/t3/@acl"), acl)
 
 ################################################################################
 

@@ -338,9 +338,13 @@ public:
         return Options_.PreserveOwner;
     }
 
-    bool ShouldPreserveAcl() const override
+    bool ShouldPreserveAcl(ENodeCloneMode cloneMode) const override
     {
-        return Options_.PreserveAcl;
+        // COMPAT(koloshmet)
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->CypressManager;
+        auto preserveAclDuringMove = cloneMode == ENodeCloneMode::Move && config->EnablePreserveAclDuringMove;
+
+        return preserveAclDuringMove || Options_.PreserveAcl;
     }
 
     TAccount* GetNewNodeAccount() const override
