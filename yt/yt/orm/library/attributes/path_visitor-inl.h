@@ -185,7 +185,7 @@ void TPathVisitor<TSelf>::VisitVector(
 
         switch (indexParseResult.IndexType) {
             case EListIndexType::Absolute:
-                Self()->VisitGeneric(target[indexParseResult.Index], EVisitReason::Path);
+                Self()->VisitVectorEntry(target, indexParseResult.Index, EVisitReason::Path);
                 break;
             case EListIndexType::Relative:
                 Self()->VisitVectorEntryRelative(
@@ -209,6 +209,16 @@ void TPathVisitor<TSelf>::VisitWholeVector(
         auto checkpoint = Self()->CheckpointBranchedTraversal(index);
         Self()->VisitGeneric(target[index], reason);
     }
+}
+
+template <typename TSelf>
+template <typename TVisitParam>
+void TPathVisitor<TSelf>::VisitVectorEntry(
+    TVisitParam&& target,
+    int index,
+    EVisitReason reason)
+{
+    Self()->VisitGeneric(target[index], reason);
 }
 
 template <typename TSelf>
@@ -300,7 +310,11 @@ void TPathVisitor<TSelf>::VisitMap(
             return;
         }
 
-        Self()->VisitGeneric(it->second, EVisitReason::Path);
+        Self()->VisitMapEntry(
+            std::forward<TVisitParam>(target),
+            std::move(it),
+            std::move(key),
+            EVisitReason::Path);
     }
 }
 
@@ -314,6 +328,20 @@ void TPathVisitor<TSelf>::VisitWholeMap(
         auto checkpoint = Self()->CheckpointBranchedTraversal(key);
         Self()->VisitGeneric(entry, reason);
     }
+}
+
+template <typename TSelf>
+template <typename TVisitParam, typename TMapIterator>
+void TPathVisitor<TSelf>::VisitMapEntry(
+    TVisitParam&& target,
+    TMapIterator mapIterator,
+    TString key,
+    EVisitReason reason)
+{
+    Y_UNUSED(target);
+    Y_UNUSED(key);
+
+    Self()->VisitGeneric(mapIterator->second, reason);
 }
 
 template <typename TSelf>
