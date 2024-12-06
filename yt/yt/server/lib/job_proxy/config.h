@@ -4,8 +4,6 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/yt/server/lib/misc/cluster_throttlers_config.h>
-
 #include <yt/yt/server/lib/rpc_proxy/config.h>
 
 #include <yt/yt/ytlib/auth/config.h>
@@ -477,8 +475,6 @@ public:
     //! Enable root volume disk quota.
     //! Apply the quota to the entire RootFs instead of the sandbox and tmp folders individually.
     bool EnableRootVolumeDiskQuota;
-
-    TClusterThrottlersConfigPtr ClusterThrottlersConfig;
 
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
 
