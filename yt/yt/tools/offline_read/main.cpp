@@ -240,6 +240,15 @@ void PrintHunkChunkRefsExt(const THunkChunkRefsExt& refs)
     }
 }
 
+void PrintHunkChunkMetasExt(const THunkChunkMetasExt& metas)
+{
+    Cout << "  Hunk chunk metas: " << Endl;
+    for (const auto& meta : metas.metas()) {
+        Cout << "    Hunk chunk id: " << ToString(FromProto<TGuid>(meta.chunk_id())) << Endl;
+        Cout << "    Block sizes: " << ToString(FromProto<std::vector<i64>>(meta.block_sizes())) << Endl;
+    }
+}
+
 void PrintHunkChunkMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
 {
     auto chunkId = TChunkId::FromString(NFS::GetFileName(TString(chunkFileName)));
@@ -283,6 +292,7 @@ void PrintMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
     auto tableSchemaExt = GetProtoExtension<NTableClient::NProto::TTableSchemaExt>(meta->extensions());
     auto maybeVersionedRowDigestExt = FindProtoExtension<NTableClient::NProto::TVersionedRowDigestExt>(meta->extensions());
     auto maybeHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(meta->extensions());
+    auto maybeHunkChunkMetasExt = FindProtoExtension<NTableClient::NProto::THunkChunkMetasExt>(meta->extensions());
 
     TTableSchema schema;
     if (maybeKeyColumnsExt) {
@@ -362,6 +372,10 @@ void PrintMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
 
     if (maybeHunkChunkRefsExt) {
         PrintHunkChunkRefsExt(*maybeHunkChunkRefsExt);
+    }
+
+    if (maybeHunkChunkMetasExt) {
+        PrintHunkChunkMetasExt(*maybeHunkChunkMetasExt);
     }
 }
 
