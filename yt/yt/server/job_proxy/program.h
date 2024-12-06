@@ -78,9 +78,7 @@ protected:
         ConfigureIgnoreSigpipe();
         EnablePhdrCache();
         ConfigureCrashHandler();
-        ConfigureAllocator({
-            .TCMallocOptimizeSize = true,
-        });
+        ConfigureAllocator();
 
         try {
             NFS::MakeDirRecursive(NFS::GetDirectoryName(StderrPath_));

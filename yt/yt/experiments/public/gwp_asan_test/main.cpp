@@ -35,8 +35,7 @@ protected:
     void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
     {
         ConfigureCrashHandler();
-        // We activate sampling rate manually in ConfigureSingletons.
-        ConfigureAllocator({.TCMallocGuardedSamplingRate = std::nullopt});
+
         auto singletonsConfig = New<TSingletonsConfig>();
         singletonsConfig->TCMalloc->GuardedSamplingRate = GuardedSamplingRate_;
         ConfigureSingletons(singletonsConfig);
