@@ -29,7 +29,7 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
-#include <library/cpp/yt/misc/non_null_ptr.h>
+#include <library/cpp/yt/memory/non_null_ptr.h>
 
 namespace NYT::NScheduler {
 

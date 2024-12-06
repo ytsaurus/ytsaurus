@@ -65,6 +65,9 @@ DEFINE_ENUM(ESnapshotVersion,
     ((RemoteCopyDynamicTableWithHunks)      (301608))
     ((JobFailTolerance)                     (301609))
     ((NewJobsForbiddenReason)               (301610))
+    // 25.1 starts here
+    ((BumpTo_25_1)                          (301700))
+    ((OperationIncarnationIsStrongTypedef)  (301701))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

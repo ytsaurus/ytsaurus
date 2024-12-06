@@ -3009,7 +3009,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             YT_VERIFY(jobProxyLogManager);
 
             *proxyConfig->StderrPath = jobProxyLogManager->AdjustLogPath(Id_, *proxyConfig->StderrPath);
-            YT_LOG_DEBUG("Job proxy stderr path is %v", *proxyConfig->StderrPath);
+            YT_LOG_DEBUG("Job proxy stderr path replaced (NewPath: %v)", *proxyConfig->StderrPath);
         }
     }
 
@@ -3019,7 +3019,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             YT_VERIFY(jobProxyLogManager);
 
             *proxyConfig->ExecutorStderrPath = jobProxyLogManager->AdjustLogPath(Id_, *proxyConfig->ExecutorStderrPath);
-            YT_LOG_DEBUG("Executor stderr path is %v", *proxyConfig->ExecutorStderrPath);
+            YT_LOG_DEBUG("Executor stderr path replaced (NewPath: %v)", *proxyConfig->ExecutorStderrPath);
 
         }
     }

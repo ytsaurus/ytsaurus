@@ -318,10 +318,10 @@ class TPortoShellManager
 {
 public:
     TPortoShellManager(
-        const TShellManagerConfig& config,
+        TShellManagerConfig config,
         IPortoExecutorPtr portoExecutor,
         IInstancePtr rootInstance)
-        : TShellManagerBase(config)
+        : TShellManagerBase(std::move(config))
         , RootInstance_(std::move(rootInstance))
         , PortoExecutor_(std::move(portoExecutor))
     { }
@@ -394,7 +394,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IShellManagerPtr CreatePortoShellManager(
-    const TShellManagerConfig& config,
+    TShellManagerConfig config,
     IPortoExecutorPtr portoExecutor,
     IInstancePtr rootInstance)
 {
@@ -430,7 +430,7 @@ public:
 
         YT_LOG_INFO("Shell manager is terminating");
         Terminated_ = true;
-        for (auto& [_, shell] : IdToShell_) {
+        for (const auto& [_, shell] : IdToShell_) {
             shell->Terminate(error);
         }
         IdToShell_.clear();
@@ -439,22 +439,22 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IShellManagerPtr CreateShellManager(const TShellManagerConfig& config)
+IShellManagerPtr CreateShellManager(TShellManagerConfig config)
 {
-     return New<TShellManager>(config);
+     return New<TShellManager>(std::move(config));
 }
 
 #else
 
 IShellManagerPtr CreatePortoShellManager(
-    const TShellManagerConfig& config,
-    IPortoExecutorPtr portoExecutor,
-    IInstancePtr rootInstance)
+    TShellManagerConfig /*config*/,
+    IPortoExecutorPtr /*portoExecutor*/,
+    IInstancePtr /*rootInstance*/)
 {
     THROW_ERROR_EXCEPTION("Shell manager is supported only under Unix");
 }
 
-IShellManagerPtr CreateShellManager(const TShellManagerConfig& config)
+IShellManagerPtr CreateShellManager(TShellManagerConfig /*config*/)
 {
     THROW_ERROR_EXCEPTION("Shell manager is supported only under Unix");
 }

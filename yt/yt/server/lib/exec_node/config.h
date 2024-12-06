@@ -487,8 +487,6 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_CLASS(TTestingConfig)
-
 DEFINE_REFCOUNTED_TYPE(TTestingConfig)
 
 class TJobCommonConfig
@@ -725,9 +723,10 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_CLASS(TLogDumpConfig)
 
 DEFINE_REFCOUNTED_TYPE(TLogDumpConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TJobProxyLogManagerConfig
     : public NYTree::TYsonStruct

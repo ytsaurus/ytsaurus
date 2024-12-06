@@ -56,6 +56,8 @@ DECLARE_REFCOUNTED_CLASS(TScheduleAllocationStatistics)
 
 DECLARE_REFCOUNTED_CLASS(TJobExperimentBase)
 
+YT_DEFINE_STRONG_TYPEDEF(TOperationIncarnation, std::string)
+
 class TAutoMergeDirector;
 struct TJobNodeDescriptor;
 

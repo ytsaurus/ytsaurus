@@ -859,21 +859,16 @@ public:
             }
         }
 
-        try {
-            if (neededResources.UserSlots > 0) {
-                YT_VERIFY(Bootstrap_->IsExecNode());
+        if (neededResources.UserSlots > 0) {
+            YT_VERIFY(Bootstrap_->IsExecNode());
 
-                userSlot = AcquireUserSlot(neededResources, allocationAttributes);
-            }
+            userSlot = AcquireUserSlot(neededResources, allocationAttributes);
+        }
 
-            if (neededResources.Gpu > 0) {
-                YT_VERIFY(Bootstrap_->IsExecNode());
+        if (neededResources.Gpu > 0) {
+            YT_VERIFY(Bootstrap_->IsExecNode());
 
-                gpuSlots = AcquireGpuSlots(neededResources);
-            }
-        } catch (const std::exception& ex) {
-            // Provide job abort.
-            THROW_ERROR_EXCEPTION(ex);
+            gpuSlots = AcquireGpuSlots(neededResources);
         }
 
         resourceAcquisitionFailedGuard.Release();
