@@ -50,6 +50,7 @@ target_link_options(native_file_downloader PRIVATE
 
 target_sources(native_file_downloader PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/native_file_downloader/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/native_file_downloader/config.cpp
 )
 
 vcs_info(native_file_downloader)

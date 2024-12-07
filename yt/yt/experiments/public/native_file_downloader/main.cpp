@@ -1,3 +1,5 @@
+#include "config.h"
+
 #include <yt/yt/server/lib/misc/cluster_connection.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -20,6 +22,7 @@
 #include <yt/yt/library/program/config.h>
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/helpers.h>
+#include <yt/yt/library/program/program_config_mixin.h>
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 #include <yt/yt/client/chunk_client/public.h>
@@ -57,15 +60,18 @@ static NLogging::TLogger Logger("Downloader");
 
 class TNativeFileDownloader
     : public TProgram
+    , public TProgramConfigMixin<TConfig>
 {
 public:
     TNativeFileDownloader()
+        : TProgramConfigMixin<TConfig>(Opts_, true)
     {
         Opts_.AddLongOption("src-ypath").StoreResult(&SrcYPath_);
         Opts_.AddLongOption("dst-path").StoreResult(&DstPath_);
         Opts_.AddLongOption("cluster-proxy").StoreResult(&ClusterProxy_);
         Opts_.AddLongOption("user").StoreResult(&User_);
-        Opts_.AddLongOption("repeat").StoreResult(&Repeat_);
+        Opts_.AddLongOption("repeat").StoreResult(&Repeat_, true)
+            .NoArgument();
     }
 
 protected:
@@ -75,6 +81,13 @@ protected:
         ConfigureIgnoreSigpipe();
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
+
+        if (HandleConfigOptions()) {
+            return;
+        }
+
+        Config_ = GetConfig();
+
         auto singletonsConfig = New<TSingletonsConfig>();
         singletonsConfig->Stockpile->ThreadCount = 0;
         ConfigureSingletons(singletonsConfig);
@@ -194,7 +207,7 @@ protected:
         TWallTimer timer;
         TBlock block;
 
-        TEmaCounter<i64> speedCounter({TDuration::Seconds(1)});
+        TEmaCounter<i64> speedCounter({Config_->SpeedMesaurementWindow});
 
         while (reader->ReadBlock(&block)) {
             if (block.Data.Empty()) {
@@ -229,6 +242,8 @@ private:
     TString ClusterProxy_;
     TString User_;
     bool Repeat_ = false;
+
+    TConfigPtr Config_;
 
     TActionQueuePtr ActionQueue_;
 
