@@ -1,0 +1,41 @@
+{
+    logging = {
+        "flush_period"=100;
+        rules=[
+            {
+                family="plain_text";
+                "min_level"=debug;
+                writers=[
+                    debug;
+                ];
+            };
+            {
+                family="plain_text";
+                "min_level"=info;
+                writers=[
+                    stderr;
+                    info;
+                ];
+            };
+        ];
+        writers={
+            debug={
+                "enable_system_messages"=%true;
+                "file_name"="debug.log";
+                format="plain_text";
+                type=file;
+            };
+            info={
+                "enable_system_messages"=%true;
+                "file_name"="info.log";
+                format="plain_text";
+                type=file;
+            };
+            stderr={
+                "enable_system_messages"=%true;
+                format="plain_text";
+                type=stderr;
+            };
+        };
+    };
+}

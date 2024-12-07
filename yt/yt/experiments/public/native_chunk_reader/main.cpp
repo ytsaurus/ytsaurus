@@ -13,7 +13,11 @@
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
+#include <yt/yt/ytlib/chunk_client/replication_reader.h>
+
 #include <yt/yt/ytlib/file_client/file_chunk_reader.h>
+#include <yt/yt/ytlib/file_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/file_client/proto/file_chunk_meta.pb.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
@@ -53,6 +57,7 @@ using namespace NYTree;
 using namespace NNet;
 using namespace NFileClient;
 using namespace NProfiling;
+using namespace NTracing;
 
 static NLogging::TLogger Logger("Downloader");
 
@@ -64,14 +69,13 @@ class TNativeFileDownloader
 {
 public:
     TNativeFileDownloader()
-        : TProgramConfigMixin<TConfig>(Opts_, true)
+        : TProgramConfigMixin<TConfig>(Opts_, false)
     {
-        Opts_.AddLongOption("src-ypath").StoreResult(&SrcYPath_);
         Opts_.AddLongOption("dst-path").StoreResult(&DstPath_);
         Opts_.AddLongOption("cluster-proxy").StoreResult(&ClusterProxy_);
         Opts_.AddLongOption("user").StoreResult(&User_);
-        Opts_.AddLongOption("repeat").StoreResult(&Repeat_, true)
-            .NoArgument();
+        Opts_.AddLongOption("chunk-id").StoreResult(&ChunkIdStr_);
+        Opts_.AddLongOption("node-address").StoreResult(&NodeAddress_);
     }
 
 protected:
@@ -97,10 +101,8 @@ protected:
 
         WaitFor(BIND([&] {
             SetupClient();
-            FetchChunkSpecs();
-            do {
-                DownloadFile();
-            } while (Repeat_);
+            UpdateNodeDirectory();
+            DownloadChunk();
         })
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run())
@@ -116,65 +118,31 @@ protected:
         Client_ = NApi::NNative::CreateClient(Connection_, NApi::TClientOptions{.User = User_});
     }
 
-    void FetchChunkSpecs()
+    void UpdateNodeDirectory()
     {
-        TUserObject file(SrcYPath_);
-
-        YT_LOG_INFO("Getting basic attributes");
-
-        GetUserObjectBasicAttributes(
-            Client_,
-            {&file},
-            NullTransactionId,
-            Logger,
-            EPermission::Read);
-
-        YT_LOG_INFO("Basic attributes collected (ObjectId: %v)", file.ObjectId);
-
-        YT_VERIFY(file.Type == EObjectType::File);
-
-        YT_LOG_INFO("Fetching chunk specs");
-
-        auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
-            Client_,
-            NApi::TMasterReadOptions{},
-            Connection_->GetNodeDirectory(),
-            GetCurrentInvoker(),
-            /*maxChunksPerFetch*/ 100'000,
-            /*maxChunksPerLocateRequest*/ 10'000,
-            [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int /*fileIndex*/) {
-                req->set_fetch_all_meta_extensions(false);
-                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-            },
-            Logger);
-
-        chunkSpecFetcher->Add(
-            file.ObjectId,
-            file.ExternalCellTag,
-            file.ChunkCount,
-            /*fileIndex*/ 0,
-            {TReadRange()});
-
-        WaitFor(chunkSpecFetcher->Fetch())
-            .ThrowOnError();
-
-        ChunkSpecs_ = std::move(chunkSpecFetcher->ChunkSpecs());
-
-        FileLength_ = 0;
-        for (const auto& chunkSpec : ChunkSpecs_) {
-            auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
-            FileLength_ += miscExt.uncompressed_data_size();
+        auto clusterMeta = WaitFor(Client_->GetClusterMeta(NApi::TGetClusterMetaOptions{.PopulateNodeDirectory = true}))
+            .ValueOrThrow();
+        Connection_->GetNodeDirectory()->MergeFrom(*clusterMeta.NodeDirectory);
+        auto nodeDescriptors = Connection_->GetNodeDirectory()->GetAllDescriptors();
+        bool found = false;
+        for (const auto& [id, descriptor] : nodeDescriptors) {
+            YT_LOG_DEBUG("Node descriptor (NodeId: %v, NodeAddress: %v)", id, descriptor.GetDefaultAddress());
+            if (descriptor.GetDefaultAddress() == NodeAddress_){
+                YT_VERIFY(!found);
+                NodeId_ = id;
+                found = true;
+            }
         }
-
-        YT_LOG_INFO(
-            "Chunk specs fetched (FileLength: %v, ChunkCount: %v)",
-            FileLength_,
-            chunkSpecFetcher->ChunkSpecs().size());
+        if (!found) {
+            THROW_ERROR_EXCEPTION("Node with address %v not found", NodeAddress_);
+        }
+        YT_LOG_INFO("Node descriptor found (NodeId: %v, NodeAddress: %v)", NodeId_, NodeAddress_);
     }
 
-    void DownloadFile()
+    void DownloadChunk()
     {
-        auto readerOptions = New<TMultiChunkReaderOptions>();
+        auto readerOptions = New<TRemoteReaderOptions>();
+        readerOptions->AllowFetchingSeedsFromMaster = false;
 
         auto chunkReaderHost = New<TChunkReaderHost>(
             Client_,
@@ -191,57 +159,83 @@ protected:
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::Idle, 0, TInstant::Zero(), {"Download file"}),
             .ReadSessionId = TReadSessionId::Create(),
         };
-        auto reader = CreateFileMultiChunkReader(
+
+        TChunkReplica seedReplica(NodeId_, /*replicaIndex*/ 0);
+
+        ChunkId_ = TChunkId::FromString(ChunkIdStr_);
+
+        auto replicationReader = CreateReplicationReader(
             Config_->Reader,
             readerOptions,
-            std::move(chunkReaderHost),
-            chunkReadOptions,
-            ChunkSpecs_,
-            MakeFileDataSource(std::nullopt));
+            chunkReaderHost,
+            ChunkId_,
+            TChunkReplicaWithMediumList{TChunkReplicaWithMedium(seedReplica)});
 
-        TFile file(DstPath_, CreateAlways | WrOnly | Seq);
-        TUnbufferedFileOutput fileOutput(file);
-
-        i64 writtenBytes = 0;
+        YT_LOG_INFO("Downloading meta (ChunkId: %v)", ChunkId_);
 
         TWallTimer timer;
-        TBlock block;
 
-        TEmaCounter<i64> speedCounter({Config_->SpeedMesaurementWindow});
+        auto asyncMeta = replicationReader->GetMeta(
+            IChunkReader::TGetMetaOptions{.ClientOptions = chunkReadOptions});
+        auto chunkMeta = WaitFor(asyncMeta).ValueOrThrow();
 
-        while (reader->ReadBlock(&block)) {
-            if (block.Data.Empty()) {
-                auto error = WaitFor(reader->GetReadyEvent());
-                error.ThrowOnError();
-            } else {
-                fileOutput.Write(block.Data.Begin(), block.Size());
-                file.FlushData();
-                writtenBytes += block.Size();
-                speedCounter.Update(writtenBytes);
-                YT_LOG_INFO(
-                    "Download progress (Bytes: %v/%v, Fraction: %.2v, Speed: %v MiB/sec)",
-                    writtenBytes,
-                    FileLength_,
-                    double(writtenBytes) / FileLength_,
-                    speedCounter.GetRate(0).value_or(0) / 1024.0 / 1024.0);
-            }
-        }
-        fileOutput.Flush();
-        fileOutput.Finish();
-        file.Flush();
+        auto duration = timer.GetElapsedTime();
+
+        YT_LOG_DEBUG("Chunk meta debug string (DebugString: %v)", chunkMeta->DebugString());
+        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkMeta->extensions());
+        auto blocksExt = GetProtoExtension<NFileClient::NProto::TBlocksExt>(chunkMeta->extensions());
+        YT_LOG_DEBUG("Chunk meta misc ext debug string (DebugString: %v)", miscExt.DebugString());
+        YT_LOG_DEBUG("Chunk meta file blocks ext debug string (DebugString: %v)", blocksExt.DebugString());
         YT_LOG_INFO(
-            "Download complete (Bytes: %v, Time: %v sec, Speed: %v MiB/sec)",
-            writtenBytes,
-            timer.GetElapsedTime().SecondsFloat(),
-            speedCounter.GetRate(0).value_or(0) / 1024.0 / 1024.0);
+            "Chunk meta downloaded (ChunkId: %v, UncompressedSize: %v, BlockCount: %v, WallTime: %v)",
+            ChunkId_,
+            miscExt.uncompressed_data_size(),
+            blocksExt.blocks_size(),
+            duration);
+
+        std::vector<int> blockIndices;
+        for (int i = 0; i < blocksExt.blocks_size(); ++i) {
+            blockIndices.push_back(i);
+        }
+
+        {
+            timer.Restart();
+
+            TTraceContextGuard guard(TTraceContext::NewRoot("BlockRead"));
+
+            YT_LOG_INFO("Downloading blocks");
+
+            auto blocks = WaitFor(
+                replicationReader->ReadBlocks(
+                    IChunkReader::TReadBlocksOptions{.ClientOptions = chunkReadOptions},
+                    blockIndices))
+                .ValueOrThrow();
+
+            i64 totalSize = 0;
+            for (const auto& block : blocks) {
+                totalSize += block.Size();
+            }
+            YT_VERIFY(totalSize == miscExt.uncompressed_data_size());
+
+            duration = timer.GetElapsedTime();
+            YT_LOG_INFO(
+                "Blocks downloaded (BlockCount: %v, UncompressedSize: %v, WallTime: %v, Speed: %v MiB/sec)",
+                blocks.size(),
+                totalSize,
+                duration,
+                static_cast<double>(totalSize) / (1024 * 1024) / duration.SecondsFloat());
+        }
     }
 
 private:
-    std::string SrcYPath_;
     std::string DstPath_;
     std::string ClusterProxy_;
+    std::string NodeAddress_;
+    std::string ChunkIdStr_;
     std::string User_;
-    bool Repeat_ = false;
+
+    TChunkId ChunkId_;
+    TNodeId NodeId_;
 
     TConfigPtr Config_;
 
@@ -251,8 +245,6 @@ private:
     NApi::NNative::IClientPtr Client_;
 
     std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs_;
-
-    i64 FileLength_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
