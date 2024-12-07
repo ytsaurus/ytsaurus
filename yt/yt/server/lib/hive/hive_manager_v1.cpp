@@ -1033,7 +1033,10 @@ private:
             protoMessage->set_type(message->Type);
             protoMessage->set_data(message->Data);
             if (traceContext) {
-                ToProto(protoMessage->mutable_tracing_ext(), traceContext);
+                ToProto(
+                    protoMessage->mutable_tracing_ext(),
+                    traceContext,
+                    Config_->SendTracingBaggage);
             }
 
             req->Invoke().Subscribe(
@@ -1685,7 +1688,7 @@ private:
                 auto req = proxy.PostMessages();
                 req->SetTimeout(Config_->PostRpcTimeout);
 
-                auto fillSubrequest = [] (auto* req, const auto& envelope) {
+                auto fillSubrequest = [&] (auto* req, const auto& envelope) {
                     ToProto(req->mutable_src_endpoint_id(), envelope.SrcEndpointId);
                     req->set_first_message_id(envelope.FirstMessageId);
                     for (const auto& message : envelope.MessagesToPost) {
@@ -1693,7 +1696,10 @@ private:
                         protoMessage->set_type(message.SerializedMessage->Type);
                         protoMessage->set_data(message.SerializedMessage->Data);
                         if (message.TraceContext) {
-                            ToProto(protoMessage->mutable_tracing_ext(), message.TraceContext);
+                            ToProto(
+                                protoMessage->mutable_tracing_ext(),
+                                message.TraceContext,
+                                Config_->SendTracingBaggage);
                         }
                         protoMessage->set_logical_time(message.Time.Underlying());
                     }

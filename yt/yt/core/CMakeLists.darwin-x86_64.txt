@@ -284,7 +284,6 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/threading/spin_wait_slow_path_logger.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/threading/thread.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/tracing/allocation_tags.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/tracing/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/tracing/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/utilex/random.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ypath/stack.cpp
