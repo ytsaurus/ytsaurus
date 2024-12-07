@@ -12,7 +12,7 @@ namespace NYT::NCellBalancer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellBalancerProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
     , public TProgramConfigMixin<TCellBalancerBootstrapConfig>

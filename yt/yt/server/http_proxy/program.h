@@ -40,7 +40,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 class THttpProxyProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
     , public TProgramConfigMixin<NHttpProxy::TProxyConfig>
@@ -76,21 +76,7 @@ protected:
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
-
-        if (HandleSetsidOptions()) {
-            return;
-        }
-        if (HandlePdeathsigOptions()) {
-            return;
-        }
-
-        if (HandleConfigOptions()) {
-            return;
-        }
-
-        if (HandleDescribeStructuredLogsOptions()) {
-            return;
-        }
+        RunMixinCallbacks();
 
         NHttpProxy::TProxyConfigPtr config;
         NYTree::INodePtr configNode;

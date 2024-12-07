@@ -22,7 +22,7 @@ namespace NYT::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
     , public TProgramConfigMixin<TSchedulerBootstrapConfig>
@@ -46,17 +46,7 @@ protected:
         EnablePhdrCache();
         ConfigureAllocator();
         MlockFileMappings();
-
-        if (HandleSetsidOptions()) {
-            return;
-        }
-        if (HandlePdeathsigOptions()) {
-            return;
-        }
-
-        if (HandleConfigOptions()) {
-            return;
-        }
+        RunMixinCallbacks();
 
         auto config = GetConfig();
         auto configNode = GetConfigNode();

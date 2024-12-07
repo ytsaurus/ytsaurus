@@ -46,7 +46,7 @@ static const TString FakeBundleName = "fake-bundle";
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterNodeProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
     , public TProgramConfigMixin<NClusterNode::TClusterNodeConfig, NClusterNode::TClusterNodeDynamicConfig>
@@ -127,17 +127,7 @@ protected:
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
-
-        if (HandleSetsidOptions()) {
-            return;
-        }
-        if (HandlePdeathsigOptions()) {
-            return;
-        }
-
-        if (HandleConfigOptions()) {
-            return;
-        }
+        RunMixinCallbacks();
 
         auto loadSnapshot = dumpSnapshot || validateSnapshot;
         auto isDryRun = loadSnapshot || replayChangelogs || buildSnapshot;

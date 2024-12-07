@@ -32,7 +32,7 @@ static constexpr auto& Logger = JobProxyLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobProxyProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramConfigMixin<TJobProxyInternalConfig>
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
@@ -87,12 +87,10 @@ protected:
             NFS::MakeDirRecursive(NFS::GetDirectoryName(StderrPath_));
             SafeCreateStderrFile(StderrPath_);
         } catch (const std::exception& ex) {
-            Exit(static_cast<int>(NJobProxy::EJobProxyExitCode::JobProxyPrepareFailed));
+            Exit(NJobProxy::EJobProxyExitCode::JobProxyPrepareFailed);
         }
 
-        if (HandleConfigOptions()) {
-            return;
-        }
+        RunMixinCallbacks();
 
         auto config = GetConfig();
 

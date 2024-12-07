@@ -32,6 +32,7 @@ void TTcpProxyProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*
 {
     TThread::SetCurrentThreadName("TcpProxy");
 
+    RunMixinCallbacks();
     ConfigureUids();
     ConfigureIgnoreSigpipe();
     ConfigureCrashHandler();
@@ -39,16 +40,6 @@ void TTcpProxyProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*
     EnablePhdrCache();
     ConfigureAllocator();
     MlockFileMappings();
-
-    if (HandleSetsidOptions()) {
-        return;
-    }
-    if (HandlePdeathsigOptions()) {
-        return;
-    }
-    if (HandleConfigOptions()) {
-        return;
-    }
 
     auto config = GetConfig();
 

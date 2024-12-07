@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/yson/writer.h>
 
+#include <library/cpp/yt/system/exit.h>
+
 namespace NYT::NLogging {
 
 using namespace NYson;
@@ -15,19 +17,18 @@ TProgramDescribeStructuredLogsMixin::TProgramDescribeStructuredLogsMixin(NLastGe
     opts.AddLongOption("describe-structured-logs", "describe existing structured logs")
         .StoreTrue(&DescribeStructuredLogs_)
         .Optional();
+
+    RegisterMixinCallback([&] { Handle(); });
 }
 
-bool TProgramDescribeStructuredLogsMixin::HandleDescribeStructuredLogsOptions()
+void TProgramDescribeStructuredLogsMixin::Handle()
 {
     if (DescribeStructuredLogs_) {
         TYsonWriter writer(&Cout, EYsonFormat::Pretty);
         TStructuredCategoryRegistry::Get()->DumpCategories(&writer);
         Cout << Endl;
-
-        return true;
+        Exit(EProcessExitCode::OK);
     }
-
-    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

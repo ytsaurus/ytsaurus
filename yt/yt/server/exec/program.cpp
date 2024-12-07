@@ -31,13 +31,7 @@ TExecProgram::TExecProgram()
 
 void TExecProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/)
 {
-    auto config = GetConfig();
-
-    JobId_ = config->JobId;
-
-    if (HandleConfigOptions()) {
-        return;
-    }
+    RunMixinCallbacks();
 
     ConfigureUids();
     ConfigureCrashHandler();
@@ -47,6 +41,10 @@ void TExecProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/)
     // Don't start any other singleton or parse config in executor mode.
     // Explicitly shut down log manager to ensure it doesn't spoil dup-ed descriptors.
     NLogging::TLogManager::Get()->Shutdown();
+
+    auto config = GetConfig();
+
+    JobId_ = config->JobId;
 
     if (config->Uid > 0) {
         SetUid(config->Uid);

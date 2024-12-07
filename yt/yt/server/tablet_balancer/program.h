@@ -11,7 +11,7 @@ namespace NYT::NTabletBalancer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletBalancerProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
     , public TProgramConfigMixin<TTabletBalancerServerConfig>

@@ -11,7 +11,7 @@ namespace NYT::NReplicatedTableTracker {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReplicatedTableTrackerProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
     , public TProgramConfigMixin<TReplicatedTableTrackerServerConfig>
