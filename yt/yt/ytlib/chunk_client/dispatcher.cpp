@@ -4,8 +4,6 @@
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/yt/core/misc/singleton.h>
-
 #include <yt/yt/core/rpc/dispatcher.h>
 
 namespace NYT::NChunkClient {

@@ -33,7 +33,6 @@
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/misc/fs.h>
-#include <yt/yt/core/misc/singleton.h>
 #include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/yson/writer.h>

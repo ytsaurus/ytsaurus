@@ -15,12 +15,13 @@
 #include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
 #include <yt/yt/ytlib/table_client/config.h>
 
-#include <yt/yt/core/misc/singleton.h>
-
 #include <yt/yt/library/profiling/sensor.h>
+
 #include <yt/yt/library/syncmap/map.h>
 
 #include <library/cpp/yt/farmhash/farm_hash.h>
+
+#include <library/cpp/yt/memory/leaky_ref_counted_singleton.h>
 
 namespace NYT::NTabletNode {
 

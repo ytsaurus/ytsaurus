@@ -18,9 +18,9 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/yt/core/misc/singleton.h>
-
 #include <yt/yt/core/profiling/timing.h>
+
+#include <library/cpp/yt/memory/leaky_ref_counted_singleton.h>
 
 namespace NYT::NChunkServer {
 
