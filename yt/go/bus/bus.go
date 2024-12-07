@@ -332,7 +332,7 @@ func (c *Bus) receive(message io.Reader) (busMsg, error) {
 		var part []byte
 		if partSize != nullPartSize {
 			if partSize > maxPartSize {
-				return busMsg{}, fmt.Errorf("bus: part is to big, max %v, actual %v", maxPartSize, partSize)
+				return busMsg{}, fmt.Errorf("bus: part is too big, max %v, actual %v", maxPartSize, partSize)
 			}
 
 			part = make([]byte, partSize)
