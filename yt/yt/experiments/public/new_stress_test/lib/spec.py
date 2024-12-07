@@ -178,6 +178,7 @@ spec_template = {
     "chunk_format": Variable(["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"], VariationPolicy.PickRandom),
     "in_memory_mode": Variable(["none", "compressed", "uncompressed"], VariationPolicy.PickRandom),
     "erasure_codec": Variable(["none"], VariationPolicy.PickRandom),
+    "hunk_erasure_codec": Variable(["none"], VariationPolicy.PickRandom),
     "compression_codec": None,
     "enable_tablet_balancer": False,
     "network_project": None,
@@ -267,6 +268,7 @@ simple_sorted_spec = merge_specs(spec_template, {
     "chunk_format": Variable(["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"], VariationPolicy.PickRandom),
     "in_memory_mode": "none",
     "erasure_codec": "none",
+    "hunk_erasure_codec": "none",
 
     "size": {
         "tablet_count": 1,
@@ -289,6 +291,7 @@ simple_ordered_spec = merge_specs(spec_template, {
     "chunk_format": Variable(["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"], VariationPolicy.PickRandom),
     "in_memory_mode": "none",
     "erasure_codec": "none",
+    "hunk_erasure_codec": "none",
 
     "size": {
         "tablet_count": 1,
@@ -308,6 +311,7 @@ indexed_sorted_spec = merge_specs(spec_template, {
     "chunk_format": "table_versioned_indexed",
     "in_memory_mode": "none",
     "erasure_codec": "none",
+    "hunk_erasure_codec": "none",
     "compression_codec": "none",
 
     "size": {
@@ -332,6 +336,7 @@ secondary_index_sorted_spec = merge_specs(spec_template, {
     "chunk_format": Variable(["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"], VariationPolicy.PickRandom),
     "in_memory_mode": "none",
     "erasure_codec": "none",
+    "hunk_erasure_codec": "none",
     "compression_codec": "none",
 
     "size": {
