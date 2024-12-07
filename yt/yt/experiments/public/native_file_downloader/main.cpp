@@ -194,7 +194,7 @@ protected:
         TWallTimer timer;
         TBlock block;
 
-        TEmaCounter<i64> speedCounter({TDuration::Seconds(5)});
+        TEmaCounter<i64> speedCounter({TDuration::Seconds(1)});
 
         while (reader->ReadBlock(&block)) {
             if (block.Data.Empty()) {
