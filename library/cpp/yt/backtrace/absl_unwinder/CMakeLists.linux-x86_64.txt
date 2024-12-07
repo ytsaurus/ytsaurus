@@ -12,25 +12,24 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(cursors)
-add_subdirectory(absl_unwinder)
-add_subdirectory(symbolizers)
+find_package(linux-headers-generic REQUIRED)
 
-add_library(cpp-yt-backtrace)
+add_library(yt-backtrace-absl_unwinder)
 
 
-target_compile_options(cpp-yt-backtrace PRIVATE
+target_compile_options(yt-backtrace-absl_unwinder PRIVATE
   -Wdeprecated-this-capture
 )
 
-target_link_libraries(cpp-yt-backtrace PUBLIC
+target_link_libraries(yt-backtrace-absl_unwinder PUBLIC
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  cpp-yt-string
+  backtrace-cursors-libunwind
+  libs-tcmalloc-malloc_extension
 )
 
-target_sources(cpp-yt-backtrace PRIVATE
-  ${PROJECT_SOURCE_DIR}/library/cpp/yt/backtrace/backtrace.cpp
-  ${PROJECT_SOURCE_DIR}/library/cpp/yt/backtrace/symbolizers/dynload/dynload_symbolizer.cpp
+target_sources(yt-backtrace-absl_unwinder PRIVATE
+  ${PROJECT_SOURCE_DIR}/library/cpp/yt/backtrace/absl_unwinder/absl_unwinder.cpp
 )
 

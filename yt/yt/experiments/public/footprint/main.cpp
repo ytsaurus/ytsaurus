@@ -1,13 +1,15 @@
+#include <yt/yt/library/ytprof/heap_profiler.h>
+
 #include <library/cpp/yt/memory/new.h>
 #include <library/cpp/yt/memory/ref.h>
+
+#include <tcmalloc/malloc_extension.h>
 
 #include <iostream>
 #include <iomanip>
 #include <vector>
 #include <memory>
 #include <map>
-
-#include <yt/yt/library/ytprof/heap_profiler.h>
 
 struct TMergedTag { };
 
