@@ -90,9 +90,8 @@ protected:
 
         AbortOnUnrecognizedOptions(Logger, Config_);
 
-        auto singletonsConfig = New<TSingletonsConfig>();
-        singletonsConfig->Stockpile->ThreadCount = 0;
-        ConfigureSingletons(singletonsConfig);
+        Config_->Stockpile->ThreadCount = 0;
+        ConfigureSingletons(Config_);
 
         ActionQueue_ = New<TActionQueue>();
 

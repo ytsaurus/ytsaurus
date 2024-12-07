@@ -2,6 +2,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/program/config.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT {
@@ -10,6 +12,7 @@ namespace NYT {
 
 class TConfig
     : public virtual NYTree::TYsonStruct
+    , public TNativeSingletonsConfig
 {
 public:
     //! Window for an EMA counter.
