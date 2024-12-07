@@ -65,6 +65,7 @@ public:
         Opts_.AddLongOption("dst-path").StoreResult(&DstPath_);
         Opts_.AddLongOption("cluster-proxy").StoreResult(&ClusterProxy_);
         Opts_.AddLongOption("user").StoreResult(&User_);
+        Opts_.AddLongOption("repeat").StoreResult(&Repeat_);
     }
 
 protected:
@@ -83,7 +84,9 @@ protected:
         WaitFor(BIND([&] {
             SetupClient();
             FetchChunkSpecs();
-            DownloadFile();
+            do {
+                DownloadFile();
+            } while (Repeat_);
         })
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run())
@@ -225,6 +228,7 @@ private:
     TString DstPath_;
     TString ClusterProxy_;
     TString User_;
+    bool Repeat_ = false;
 
     TActionQueuePtr ActionQueue_;
 
