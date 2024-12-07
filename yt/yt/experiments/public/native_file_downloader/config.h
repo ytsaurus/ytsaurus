@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/ytlib/api/native/public.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT {
@@ -12,6 +14,8 @@ class TConfig
 public:
     //! Window for an EMA counter.
     TDuration SpeedMesaurementWindow;
+
+    NChunkClient::TMultiChunkReaderConfigPtr Reader;
 
     REGISTER_YSON_STRUCT(TConfig);
 

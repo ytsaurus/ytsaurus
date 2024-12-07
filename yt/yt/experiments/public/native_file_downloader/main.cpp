@@ -186,13 +186,12 @@ protected:
             /*mediumThrottler*/ GetUnlimitedThrottler(),
             /*trafficMeter*/ nullptr);
 
-        auto readerConfig = New<TMultiChunkReaderConfig>();
         TClientChunkReadOptions chunkReadOptions{
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::Idle, 0, TInstant::Zero(), {"Download file"}),
             .ReadSessionId = TReadSessionId::Create(),
         };
         auto reader = CreateFileMultiChunkReader(
-            readerConfig,
+            Config_->Reader,
             readerOptions,
             std::move(chunkReaderHost),
             chunkReadOptions,
