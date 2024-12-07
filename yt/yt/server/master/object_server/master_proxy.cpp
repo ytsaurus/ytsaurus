@@ -48,6 +48,8 @@
 
 #include <yt/yt/core/ytree/helpers.h>
 
+#include <library/cpp/iterator/zip.h>
+
 namespace NYT::NObjectServer {
 
 using namespace NCellMaster;
@@ -529,7 +531,8 @@ private:
             ToProto(subresponse->mutable_object_id(), objectId);
         };
 
-        std::vector<TFuture<void>> futures;
+        std::vector<TFuture<TSharedRefArray>> futures;
+        std::vector<TObjectId> objectIdsWithAsyncRequests;
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto objectId : objectIds) {
             // It's impossible to clear response without wiping the whole context, so it has to be created anew for each node.
@@ -548,15 +551,10 @@ private:
             if (subcontext->IsReplied()) {
                 onSubresponseCallback(objectId, subcontext->GetResponseMessage());
             } else {
-                futures.push_back(subcontext->GetAsyncResponseMessage()
-                    .Apply(BIND([objectId, onSubresponseCallback] (const TErrorOr<TSharedRefArray>& resultOrError) {
-                        if (resultOrError.IsOK()) {
-                            onSubresponseCallback(objectId, resultOrError.Value());
-                        } else {
-                            auto message = CreateErrorResponseMessage(resultOrError);
-                            onSubresponseCallback(objectId, message);
-                        }
-                    }).Via(GetCurrentInvoker())));
+                // To avoid unnecessary conflicts, we populate the attachments only after
+                // all asynchronous requests are executed.
+                futures.push_back(subcontext->GetAsyncResponseMessage());
+                objectIdsWithAsyncRequests.push_back(objectId);
             }
         }
 
@@ -564,16 +562,29 @@ private:
         if (futures.empty()) {
             context->Reply();
         } else {
-            AllSucceeded(std::move(futures)).Subscribe(BIND([context] (const TError& error) {
-                if (error.IsOK()) {
+            AllSet(std::move(futures))
+                .Subscribe(BIND([
+                    context,
+                    onSubresponseCallback,
+                    objectIds = std::move(objectIdsWithAsyncRequests)
+                ] (TErrorOr<std::vector<TErrorOr<TSharedRefArray>>> allSetResult) {
+                    if (!allSetResult.IsOK()) {
+                        context->Reply(allSetResult);
+                        return;
+                    }
+
+                    const auto& results = allSetResult.Value();
+                    for (const auto& [objectId, result] : Zip(objectIds, results)) {
+                        if (result.IsOK()) {
+                            onSubresponseCallback(objectId, result.Value());
+                        } else {
+                            auto message = CreateErrorResponseMessage(result);
+                            onSubresponseCallback(objectId, message);
+                        }
+                    }
+
                     context->Reply();
-                } else {
-                    context->Reply(TError(
-                        NRpc::EErrorCode::TransientFailure,
-                        "Error executing asynchronous subrequests")
-                        << error);
-                }
-            }).Via(GetCurrentInvoker()));
+                }));
         }
     }
 

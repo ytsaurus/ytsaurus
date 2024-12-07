@@ -354,6 +354,15 @@ class TestCypress(YTEnvSetup):
         with pytest.raises(YtError):
             set("//tmp/t/@", [1, 2, 3])
 
+    @authors("danilalexeev")
+    def test_error_reading_attributes(self):
+        set("//tmp", b"{foo=<attr=100>1;bar=2}", is_raw=True, force=True)
+        for func in [get, ls]:
+            with raises_yt_error("Error reading the attribute"):
+                func("//tmp", attributes=["attr", "wrong_door_sync"])
+            with raises_yt_error("Error reading the attribute"):
+                func("//tmp", attributes=["attr", "wrong_door_async"])
+
     @authors("ifsmirnov")
     def test_reserved_attributes(self):
         set(

@@ -594,6 +594,8 @@
     XX(WithAlertsNodeCount, with_alerts_node_count) \
     XX(WriteQuorum, write_quorum) \
     XX(WriteRequestRateLimit, write_request_rate_limit) \
+    XX(WrongDoorSync, wrong_door_sync) \
+    XX(WrongDoorAsync, wrong_door_async) \
 
 namespace NYT {
 
