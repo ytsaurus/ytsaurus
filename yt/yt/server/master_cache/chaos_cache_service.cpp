@@ -175,7 +175,6 @@ public:
             config->UnwatchedCardExpirationDelay,
             Client_->GetNativeConnection(),
             Logger))
-        , EnableWatching_(config->EnableWatching)
     {
         ReplicationCardsWatcher_->Start({});
 
@@ -194,7 +193,6 @@ private:
     const IClientPtr Client_;
     const IReplicationCardsWatcherPtr ReplicationCardsWatcher_;
     const IReplicationCardsWatcherClientPtr ReplicationCardsWatcherClient_;
-    const bool EnableWatching_;
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetReplicationCard);
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, WatchReplicationCard);
@@ -290,11 +288,6 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, WatchReplicationCard)
     context->SetRequestInfo("ReplicationCardId: %v, CacheTimestamp: %v",
         replicationCardId,
         cacheTimestamp);
-
-    if (!EnableWatching_) {
-        context->Reply(TError("Watching is disabled"));
-        return;
-    }
 
     auto state = ReplicationCardsWatcher_->WatchReplicationCard(
         replicationCardId,
