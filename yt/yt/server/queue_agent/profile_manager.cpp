@@ -237,6 +237,8 @@ struct TConsumerProfilingCounters
 //! Consumer-related per-partition profiling counters.
 struct TConsumerPartitionProfilingCounters
 {
+    static constexpr ESummaryPolicy LagSummaryPolicy = ESummaryPolicy::Avg | ESummaryPolicy::Max | ESummaryPolicy::Sum;
+
     TCounter RowsConsumed;
     TCounter DataWeightConsumed;
     TGauge LagRows;
@@ -247,9 +249,9 @@ struct TConsumerPartitionProfilingCounters
     TConsumerPartitionProfilingCounters(const TProfiler& profiler, const TProfiler& aggregationProfiler)
         : RowsConsumed(profiler.Counter("/rows_consumed"))
         , DataWeightConsumed(profiler.Counter("/data_weight_consumed"))
-        , LagRows(profiler.GaugeSummary("/lag_rows"))
-        , LagDataWeight(profiler.GaugeSummary("/lag_data_weight"))
-        , LagTime(profiler.TimeGaugeSummary("/lag_time"))
+        , LagRows(profiler.GaugeSummary("/lag_rows", LagSummaryPolicy))
+        , LagDataWeight(profiler.GaugeSummary("/lag_data_weight", LagSummaryPolicy))
+        , LagTime(profiler.TimeGaugeSummary("/lag_time", LagSummaryPolicy))
         , LagTimeHistogram(aggregationProfiler.GaugeHistogram("/lag_time_histogram", GenerateGenericBucketBounds()))
     { }
 };
