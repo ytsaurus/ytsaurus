@@ -20,6 +20,8 @@
 #include <yt/yt/library/containers/porto_executor.h>
 #include <yt/yt/library/containers/public.h>
 
+#include <library/cpp/yt/memory/leaky_ref_counted_singleton.h>
+
 namespace NYT::NContainers {
 
 using namespace NConcurrency;

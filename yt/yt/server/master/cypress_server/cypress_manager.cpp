@@ -97,7 +97,6 @@
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
-#include <yt/yt/core/misc/singleton.h>
 #include <yt/yt/core/misc/sync_expiring_cache.h>
 
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>

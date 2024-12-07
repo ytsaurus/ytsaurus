@@ -4,6 +4,9 @@
 
 #include <yt/yt/client/table_client/record_codegen_h.h>
 #include <yt/yt/client/table_client/row_base.h>
+
+#include <library/cpp/yt/memory/leaky_singleton.h>
+
 {% for include in includes %}
 #include <{{include}}>
 {% endfor %}

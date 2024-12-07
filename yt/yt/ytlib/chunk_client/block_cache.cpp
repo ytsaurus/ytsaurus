@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/actions/future.h>
 
-#include <yt/yt/core/misc/singleton.h>
+#include <library/cpp/yt/memory/leaky_ref_counted_singleton.h>
 
 namespace NYT::NChunkClient {
 
