@@ -95,11 +95,12 @@ void TMessageQueueOutbox<TItem>::BuildOutcoming(TProtoMessage* message, TBuilder
         protoItemBuilder(newItem, it->Item);
 
         using TProtoItem = typename std::remove_reference<decltype(*newItem)>::type;
-
         if constexpr (requires(TProtoItem tmp) { { tmp.tracing_ext() }; }) {
             if (it->TraceContext) {
-                auto* tracingExt = newItem->mutable_tracing_ext();
-                ToProto(tracingExt, it->TraceContext);
+                ToProto(
+                    newItem->mutable_tracing_ext(),
+                    it->TraceContext,
+                    /*sendBaggage*/ true);
             }
         }
         Queue_.move_forward(it);

@@ -42,6 +42,8 @@ void THiveManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("read_only_check_period", &TThis::ReadOnlyCheckPeriod)
         .Default(TDuration::Seconds(3));
+    registrar.Parameter("send_tracing_baggage", &TThis::SendTracingBaggage)
+        .Default(true);
     registrar.Parameter("logical_time_registry", &TThis::LogicalTimeRegistry)
         .DefaultNew();
 }
