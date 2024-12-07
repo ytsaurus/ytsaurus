@@ -13,9 +13,6 @@ void TChaosCacheConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("unwatched_cards_expiration_delay", &TThis::UnwatchedCardExpirationDelay)
         .Default(TDuration::Minutes(15));
-
-    registrar.Parameter("enable_watching", &TThis::EnableWatching)
-        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
