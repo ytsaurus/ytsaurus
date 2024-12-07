@@ -172,7 +172,7 @@ void TMultiReaderManagerBase::DoCreateReader(int index)
         return;
     }
 
-    YT_LOG_DEBUG("Creating reader (Index: %v)", index);
+    YT_LOG_INFO("Creating reader (Index: %v)", index);
 
     try {
         // NB: MakeStrong here delays MultiReaderMemoryManager finalization until child reader is fully created.
@@ -271,7 +271,7 @@ void TMultiReaderManagerBase::OnReaderFinished()
 
     --ActiveReaderCount_;
 
-    YT_LOG_DEBUG("Reader finished (Index: %v, ActiveReaderCount: %v)",
+    YT_LOG_INFO("Reader finished (Index: %v, ActiveReaderCount: %v)",
         CurrentSession_.Index,
         ActiveReaderCount_.load());
 
