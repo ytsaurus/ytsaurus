@@ -41,16 +41,7 @@ void TKafkaProxyProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResul
     EnablePhdrCache();
     ConfigureAllocator();
     MlockFileMappings();
-
-    if (HandleSetsidOptions()) {
-        return;
-    }
-    if (HandlePdeathsigOptions()) {
-        return;
-    }
-    if (HandleConfigOptions()) {
-        return;
-    }
+    RunMixinCallbacks();
 
     auto config = GetConfig();
 

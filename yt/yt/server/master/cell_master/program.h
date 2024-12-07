@@ -36,7 +36,7 @@ namespace NYT::NCellMaster {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellMasterProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
     , public TProgramConfigMixin<NCellMaster::TCellMasterConfig>
@@ -124,17 +124,7 @@ protected:
         EnablePhdrCache();
         ConfigureAllocator();
         MlockFileMappings();
-
-        if (HandleSetsidOptions()) {
-            return;
-        }
-        if (HandlePdeathsigOptions()) {
-            return;
-        }
-
-        if (HandleConfigOptions()) {
-            return;
-        }
+        RunMixinCallbacks();
 
         auto config = GetConfig();
 

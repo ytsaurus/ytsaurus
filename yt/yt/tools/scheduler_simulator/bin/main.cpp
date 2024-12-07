@@ -227,7 +227,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerSimulatorProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramPdeathsigMixin
 {
 public:
@@ -259,10 +259,7 @@ protected:
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
-
-        if (HandlePdeathsigOptions()) {
-            return;
-        }
+        RunMixinCallbacks();
 
         auto config = LoadConfig<TSchedulerSimulatorConfig>(/* configFilename */ parseResult.GetFreeArgs()[0]);
 

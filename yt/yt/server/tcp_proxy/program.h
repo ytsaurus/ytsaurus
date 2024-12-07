@@ -12,7 +12,7 @@ namespace NYT::NTcpProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTcpProxyProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
     , public TProgramConfigMixin<TTcpProxyConfig>

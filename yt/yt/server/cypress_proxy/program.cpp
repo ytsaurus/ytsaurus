@@ -37,16 +37,7 @@ void TCypressProxyProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseRes
     EnablePhdrCache();
     ConfigureAllocator();
     MlockFileMappings();
-
-    if (HandleSetsidOptions()) {
-        return;
-    }
-    if (HandlePdeathsigOptions()) {
-        return;
-    }
-    if (HandleConfigOptions()) {
-        return;
-    }
+    RunMixinCallbacks();
 
     auto config = GetConfig();
 

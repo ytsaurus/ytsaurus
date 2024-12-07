@@ -35,7 +35,7 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClickHouseServerProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
     , public TProgramConfigMixin<TClickHouseServerBootstrapConfig>
@@ -51,8 +51,7 @@ private:
 
 public:
     TClickHouseServerProgram()
-        : TProgram()
-        , TProgramPdeathsigMixin(Opts_)
+        : TProgramPdeathsigMixin(Opts_)
         , TProgramSetsidMixin(Opts_)
         , TProgramConfigMixin(Opts_)
     {
@@ -100,17 +99,7 @@ private:
         ConfigureExitZeroOnSigterm();
         ConfigureAllocator();
         MlockFileMappings();
-
-        if (HandleSetsidOptions()) {
-            return;
-        }
-        if (HandlePdeathsigOptions()) {
-            return;
-        }
-
-        if (HandleConfigOptions()) {
-            return;
-        }
+        RunMixinCallbacks();
 
         PatchConfigFromEnv();
 

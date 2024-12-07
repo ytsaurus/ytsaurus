@@ -12,7 +12,7 @@ namespace NYT::NExec {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExecProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramConfigMixin<NUserJob::TUserJobExecutorConfig>
 {
 public:

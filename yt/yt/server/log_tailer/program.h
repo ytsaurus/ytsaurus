@@ -13,7 +13,7 @@ namespace NYT::NLogTailer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogTailerProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramConfigMixin<TLogTailerBootstrapConfig>
 {
 public:
@@ -34,6 +34,7 @@ protected:
         TThread::SetCurrentThreadName("LogTailerMain");
 
         ConfigureCrashHandler();
+        RunMixinCallbacks();
 
         auto config = GetConfig();
         config->MonitoringPort = MonitoringPort_;

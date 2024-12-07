@@ -27,7 +27,7 @@ namespace NYT::NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TControllerAgentProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
     , public TProgramConfigMixin<TControllerAgentBootstrapConfig>
@@ -67,16 +67,7 @@ protected:
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
-
-        if (HandleSetsidOptions()) {
-            return;
-        }
-        if (HandlePdeathsigOptions()) {
-            return;
-        }
-        if (HandleConfigOptions()) {
-            return;
-        }
+        RunMixinCallbacks();
 
         NControllerAgent::TControllerAgentBootstrapConfigPtr config;
         NYTree::INodePtr configNode;

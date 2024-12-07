@@ -11,7 +11,7 @@ namespace NYT::NTimestampProvider {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTimestampProviderProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
     , public TProgramConfigMixin<TTimestampProviderConfig>

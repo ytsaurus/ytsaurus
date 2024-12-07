@@ -34,16 +34,7 @@ void TTabletBalancerProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseR
     EnablePhdrCache();
     ConfigureAllocator();
     MlockFileMappings();
-
-    if (HandleSetsidOptions()) {
-        return;
-    }
-    if (HandlePdeathsigOptions()) {
-        return;
-    }
-    if (HandleConfigOptions()) {
-        return;
-    }
+    RunMixinCallbacks();
 
     auto config = GetConfig();
 

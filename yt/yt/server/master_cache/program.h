@@ -11,7 +11,7 @@ namespace NYT::NMasterCache {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterCacheProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
     , public TProgramConfigMixin<TMasterCacheConfig>

@@ -25,7 +25,7 @@ namespace NYT::NRpcProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRpcProxyProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
     , public TProgramConfigMixin<NRpcProxy::TProxyConfig>
@@ -60,17 +60,7 @@ protected:
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
-
-        if (HandleSetsidOptions()) {
-            return;
-        }
-        if (HandlePdeathsigOptions()) {
-            return;
-        }
-
-        if (HandleConfigOptions()) {
-            return;
-        }
+        RunMixinCallbacks();
 
         NRpcProxy::TProxyConfigPtr config;
         NYTree::INodePtr configNode;

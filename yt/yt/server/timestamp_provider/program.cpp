@@ -39,16 +39,7 @@ void TTimestampProviderProgram::DoRun(const NLastGetopt::TOptsParseResult& /*par
     EnablePhdrCache();
     ConfigureAllocator();
     MlockFileMappings();
-
-    if (HandleSetsidOptions()) {
-        return;
-    }
-    if (HandlePdeathsigOptions()) {
-        return;
-    }
-    if (HandleConfigOptions()) {
-        return;
-    }
+    RunMixinCallbacks();
 
     auto config = GetConfig();
 

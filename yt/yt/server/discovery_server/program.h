@@ -11,7 +11,7 @@ namespace NYT::NClusterDiscoveryServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterDiscoveryServerProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
     , public TProgramConfigMixin<NClusterDiscoveryServer::TClusterDiscoveryServerConfig>

@@ -24,7 +24,7 @@ namespace NYT::NYqlAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYqlAgentProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
     , public TProgramConfigMixin<TYqlAgentServerConfig>
@@ -49,16 +49,7 @@ protected:
         // YQL UDFs, and they may be user-provided in runtime for particular query.
         ConfigureAllocator({});
         MlockFileMappings();
-
-        if (HandleSetsidOptions()) {
-            return;
-        }
-        if (HandlePdeathsigOptions()) {
-            return;
-        }
-        if (HandleConfigOptions()) {
-            return;
-        }
+        RunMixinCallbacks();
 
         auto config = GetConfig();
         auto configNode = GetConfigNode();

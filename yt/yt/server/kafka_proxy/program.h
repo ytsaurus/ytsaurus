@@ -12,7 +12,7 @@ namespace NYT::NKafkaProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TKafkaProxyProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
     , public TProgramConfigMixin<TKafkaProxyConfig>
