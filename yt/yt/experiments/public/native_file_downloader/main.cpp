@@ -35,6 +35,7 @@
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/ema_counter.h>
 
 #include <random>
 
@@ -189,6 +190,9 @@ protected:
 
         TWallTimer timer;
         TBlock block;
+
+        TEmaCounter<i64> speedCounter({TDuration::Seconds(5)});
+
         while (reader->ReadBlock(&block)) {
             if (block.Data.Empty()) {
                 auto error = WaitFor(reader->GetReadyEvent());
@@ -197,13 +201,13 @@ protected:
                 fileOutput.Write(block.Data.Begin(), block.Size());
                 file.FlushData();
                 writtenBytes += block.Size();
-                double currentSpeed = double(writtenBytes) / timer.GetElapsedTime().SecondsFloat() / 1024.0 / 1024.0;
+                speedCounter.Update(writtenBytes);
                 YT_LOG_INFO(
                     "Download progress (Bytes: %v/%v, Fraction: %.2v, Speed: %v MiB/sec)",
                     writtenBytes,
                     FileLength_,
                     double(writtenBytes) / FileLength_,
-                    currentSpeed);
+                    speedCounter.GetRate(0).value_or(0) / 1024.0 / 1024.0);
             }
         }
         fileOutput.Flush();
@@ -213,7 +217,7 @@ protected:
             "Download complete (Bytes: %v, Time: %v sec, Speed: %v MiB/sec)",
             writtenBytes,
             timer.GetElapsedTime().SecondsFloat(),
-            double(writtenBytes) / timer.GetElapsedTime().SecondsFloat() / 1024.0 / 1024.0);
+            speedCounter.GetRate(0).value_or(0) / 1024.0 / 1024.0);
     }
 
 private:
