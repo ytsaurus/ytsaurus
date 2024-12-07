@@ -45,7 +45,7 @@
 {#slim_format}
 Также рекомендуется использовать альтернативный формат чанков. Формат чанков по умолчанию `@optimize_for=lookup` может быть неэффективен с точки зрения uncompressed data size, особенно для таблиц с ханками, потому что в них хранится множество hunk refs, которые физически представленны как короткие строчки. Стоит либо выставить slim chunk format: `@optimize_for=lookup` и `@chunk_format=table_versioned_slim`, либо scan формат: `@optimize_for=scan` и `@chunk_format=table_versioned_columnar`. При использовании scan формата также скорее всего стоит выставить на все колонки схемы одинаковую column group. Подробнее про группы колонок можно найти в [документации](../storage/chunks#columns).
 
-Для включения ханков на таблице можно воспользоваться скриптом, который лежит в `yt/yt/experiments/private/hunkifier`.
+Для включения ханков на таблице можно воспользоваться скриптом, который лежит в `yt/yt/experiments/public/hunkifier`.
 
 <details>
 <summary><i>Подробнее про hunkifier</i></summary>
