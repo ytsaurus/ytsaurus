@@ -473,6 +473,15 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(
             return cypressManager->ComputeRecursiveResourceUsage(GetTrunkNode(), GetTransaction());
         }
 
+        case EInternedAttributeKey::WrongDoorAsync: {
+            if (!Bootstrap_->GetConfig()->ExposeTestingFacilities) {
+                break;
+            }
+
+            THROW_ERROR_EXCEPTION("Error reading the attribute")
+                << TErrorAttribute("attribute_key", EInternedAttributeKey::WrongDoorAsync);
+        }
+
         default:
             break;
     }
@@ -761,6 +770,13 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TouchTime)
         .SetPresent(node && node->IsTrunk() && node->GetTouchTime())
         .SetOpaque(true));
+
+    if (Bootstrap_->GetConfig()->ExposeTestingFacilities) {
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::WrongDoorSync)
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::WrongDoorAsync)
+            .SetOpaque(true));
+    }
 }
 
 bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
@@ -1011,6 +1027,15 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
             BuildYsonFluently(consumer)
                 .Value(node->GetTouchTime());
             return true;
+
+        case EInternedAttributeKey::WrongDoorSync: {
+            if (!Bootstrap_->GetConfig()->ExposeTestingFacilities) {
+                break;
+            }
+
+            THROW_ERROR_EXCEPTION("Error reading the attribute")
+                << TErrorAttribute("attribute_key", EInternedAttributeKey::WrongDoorSync);
+        }
 
         default:
             break;

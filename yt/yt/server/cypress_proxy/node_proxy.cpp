@@ -1182,7 +1182,7 @@ private:
             , AccessTrackingOptions_(std::move(options))
         {
             YT_VERIFY(Session_);
-            YT_VERIFY(TypeFromId(nodeId) == EObjectType::SequoiaMapNode);
+            YT_VERIFY(IsSequoiaCompositeNodeType(TypeFromId(nodeId)));
         }
 
         void OnMyBeginAttributes() override
