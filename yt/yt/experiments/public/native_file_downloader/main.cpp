@@ -88,6 +88,8 @@ protected:
 
         Config_ = GetConfig();
 
+        AbortOnUnrecognizedOptions(Logger, Config_);
+
         auto singletonsConfig = New<TSingletonsConfig>();
         singletonsConfig->Stockpile->ThreadCount = 0;
         ConfigureSingletons(singletonsConfig);
