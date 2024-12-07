@@ -17,7 +17,7 @@ class TDispatcher::TImpl
 public:
     void Configure(TDispatcherConfigPtr config)
     {
-        ReaderThreadPool_->Configure(config->ChunkReaderPoolSize);
+        ReaderThreadPool_->SetThreadCount(config->ChunkReaderPoolSize);
     }
 
     IInvokerPtr GetReaderInvoker()

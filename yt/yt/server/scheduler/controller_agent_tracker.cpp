@@ -434,7 +434,7 @@ public:
         Config_ = SchedulerConfig_->ControllerAgentTracker;
         AtomicConfig_.Store(Config_);
 
-        MessageOffloadThreadPool_->Configure(Config_->MessageOffloadThreadCount);
+        MessageOffloadThreadPool_->SetThreadCount(Config_->MessageOffloadThreadCount);
     }
 
     const IResponseKeeperPtr& GetResponseKeeper() const

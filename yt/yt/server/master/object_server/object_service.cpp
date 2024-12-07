@@ -2371,7 +2371,7 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
         std::memory_order::release);
 
     LocalReadExecutor_->Reconfigure(objectServiceConfig->LocalReadWorkerCount);
-    LocalReadOffloadPool_->Configure(objectServiceConfig->LocalReadOffloadThreadCount);
+    LocalReadOffloadPool_->SetThreadCount(objectServiceConfig->LocalReadOffloadThreadCount);
     ProcessSessionsExecutor_->SetPeriod(objectServiceConfig->ProcessSessionsPeriod);
     LocalWriteRequestThrottler_->Reconfigure(objectServiceConfig->LocalWriteRequestThrottler);
 }

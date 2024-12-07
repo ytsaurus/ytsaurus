@@ -912,7 +912,7 @@ private:
         const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig)
     {
         const auto& dynamicConfig = newConfig->TabletNode->CompressionDictionaryBuilder;
-        ThreadPool_->Configure(dynamicConfig->ThreadPoolSize.value_or(Config_->ThreadPoolSize));
+        ThreadPool_->SetThreadCount(dynamicConfig->ThreadPoolSize.value_or(Config_->ThreadPoolSize));
         BuildTaskSemaphore_->SetTotal(dynamicConfig->MaxConcurrentBuildTasks.value_or(Config_->MaxConcurrentBuildTasks));
     }
 

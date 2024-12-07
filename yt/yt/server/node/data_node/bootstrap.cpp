@@ -470,9 +470,9 @@ private:
             }
         }
 
-        StorageLookupThreadPool_->Configure(
+        StorageLookupThreadPool_->SetThreadCount(
             newConfig->DataNode->StorageLookupThreadCount.value_or(GetConfig()->DataNode->StorageLookupThreadCount));
-        MasterJobThreadPool_->Configure(newConfig->DataNode->MasterJobThreadCount);
+        MasterJobThreadPool_->SetThreadCount(newConfig->DataNode->MasterJobThreadCount);
 
         TableSchemaCache_->Configure(newConfig->DataNode->TableSchemaCache);
 

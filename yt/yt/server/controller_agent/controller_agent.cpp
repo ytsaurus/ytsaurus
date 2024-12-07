@@ -424,8 +424,8 @@ public:
 
         Bootstrap_->OnDynamicConfigChanged(Config_);
 
-        ControllerThreadPool_->Configure(Config_->ControllerThreadCount);
-        ChunkScraperThreadPool_->Configure(Config_->ChunkScraperThreadCount);
+        ControllerThreadPool_->SetThreadCount(Config_->ControllerThreadCount);
+        ChunkScraperThreadPool_->SetThreadCount(Config_->ChunkScraperThreadCount);
 
         JobTracker_->UpdateConfig(Config_);
 

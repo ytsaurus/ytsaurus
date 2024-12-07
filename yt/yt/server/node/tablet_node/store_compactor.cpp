@@ -1088,7 +1088,7 @@ private:
         const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
     {
         const auto& config = newNodeConfig->TabletNode->StoreCompactor;
-        ThreadPool_->Configure(config->ThreadPoolSize.value_or(Config_->ThreadPoolSize));
+        ThreadPool_->SetThreadCount(config->ThreadPoolSize.value_or(Config_->ThreadPoolSize));
         PartitioningSemaphore_->SetTotal(config->MaxConcurrentPartitionings.value_or(Config_->MaxConcurrentPartitionings));
         CompactionSemaphore_->SetTotal(config->MaxConcurrentCompactions.value_or(Config_->MaxConcurrentCompactions));
         PartitioningOrchid_->Reconfigure(config->Orchid);
