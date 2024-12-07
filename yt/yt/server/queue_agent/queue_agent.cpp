@@ -231,7 +231,7 @@ void TQueueAgent::OnDynamicConfigChanged(
 
     PassExecutor_->SetPeriod(newConfig->PassPeriod);
 
-    ControllerThreadPool_->Configure(newConfig->ControllerThreadCount);
+    ControllerThreadPool_->SetThreadCount(newConfig->ControllerThreadCount);
 
     {
         auto guard = ReaderGuard(ObjectLock_);

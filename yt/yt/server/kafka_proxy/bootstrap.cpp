@@ -273,8 +273,8 @@ private:
     {
         ReconfigureNativeSingletons(newConfig);
 
-        Poller_->Reconfigure(newConfig->PollerThreadCount);
-        Acceptor_->Reconfigure(newConfig->AcceptorThreadCount);
+        Poller_->SetThreadCount(newConfig->PollerThreadCount);
+        Acceptor_->SetThreadCount(newConfig->AcceptorThreadCount);
     }
 };
 

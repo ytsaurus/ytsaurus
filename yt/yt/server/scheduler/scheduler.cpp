@@ -2360,9 +2360,9 @@ private:
 
             EventLogWriter_->UpdateConfig(Config_->EventLog);
 
-            OrchidWorkerPool_->Configure(Config_->OrchidWorkerThreadCount);
-            FairShareUpdatePool_->Configure(Config_->FairShareUpdateThreadCount);
-            BackgroundThreadPool_->Configure(Config_->BackgroundThreadCount);
+            OrchidWorkerPool_->SetThreadCount(Config_->OrchidWorkerThreadCount);
+            FairShareUpdatePool_->SetThreadCount(Config_->FairShareUpdateThreadCount);
+            BackgroundThreadPool_->SetThreadCount(Config_->BackgroundThreadCount);
 
             ExperimentsAssigner_.UpdateExperimentConfigs(Config_->Experiments);
         }

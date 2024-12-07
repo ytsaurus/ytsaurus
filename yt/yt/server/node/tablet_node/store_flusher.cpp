@@ -220,7 +220,7 @@ private:
         const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
     {
         const auto& config = newNodeConfig->TabletNode->StoreFlusher;
-        ThreadPool_->Configure(config->ThreadPoolSize.value_or(Config_->StoreFlusher->ThreadPoolSize));
+        ThreadPool_->SetThreadCount(config->ThreadPoolSize.value_or(Config_->StoreFlusher->ThreadPoolSize));
         Semaphore_->SetTotal(config->MaxConcurrentFlushes.value_or(Config_->StoreFlusher->MaxConcurrentFlushes));
         Orchid_->Reconfigure(config->Orchid);
     }

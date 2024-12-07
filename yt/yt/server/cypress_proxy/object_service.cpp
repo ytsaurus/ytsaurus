@@ -93,7 +93,7 @@ public:
 
     void Reconfigure(const TObjectServiceDynamicConfigPtr& config) override
     {
-        ThreadPool_->Configure(config->ThreadPoolSize);
+        ThreadPool_->SetThreadCount(config->ThreadPoolSize);
     }
 
     IServicePtr GetService() override

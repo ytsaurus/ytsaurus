@@ -1293,7 +1293,7 @@ void TJobTracker::DoUpdateConfig(const TControllerAgentConfigPtr& config)
     Config_ = config->JobTracker;
     JobEventsControllerQueue_ = config->JobEventsControllerQueue;
 
-    ThreadPool_->Configure(Config_->HeavyInvokerThreadCount);
+    ThreadPool_->SetThreadCount(Config_->HeavyInvokerThreadCount);
 }
 
 void TJobTracker::DoUpdateExecNodes(TRefCountedExecNodeDescriptorMapPtr newExecNodes)

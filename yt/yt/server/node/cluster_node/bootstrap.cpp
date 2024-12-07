@@ -1407,9 +1407,9 @@ private:
     {
         ReconfigureNativeSingletons(newConfig);
 
-        StorageHeavyThreadPool_->Configure(
+        StorageHeavyThreadPool_->SetThreadCount(
             newConfig->DataNode->StorageHeavyThreadCount.value_or(Config_->DataNode->StorageHeavyThreadCount));
-        StorageLightThreadPool_->Configure(
+        StorageLightThreadPool_->SetThreadCount(
             newConfig->DataNode->StorageLightThreadCount.value_or(Config_->DataNode->StorageLightThreadCount));
 
         auto netTxLimit = NodeResourceManager_->GetNetTxLimit();

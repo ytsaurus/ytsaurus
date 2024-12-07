@@ -452,7 +452,7 @@ private:
         DynamicConfig_.Store(newConfig);
 
         if (NbdThreadPool_ && newConfig->ExecNode->Nbd) {
-            NbdThreadPool_->Configure(newConfig->ExecNode->Nbd->Server->ThreadCount);
+            NbdThreadPool_->SetThreadCount(newConfig->ExecNode->Nbd->Server->ThreadCount);
         }
     }
 
