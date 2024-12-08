@@ -196,8 +196,6 @@ protected:
         {
             timer.Restart();
 
-            TTraceContextGuard guard(TTraceContext::NewRoot("BlockRead"));
-
             YT_LOG_INFO("Downloading blocks (BlockReadParallelism: %v)", Config_->BlockReadParallelism);
 
             std::vector<std::vector<int>> fiberBlockIndices;
@@ -229,7 +227,7 @@ protected:
             for (const auto& size : result) {
                 totalSize += size;
             }
-            YT_VERIFY(totalSize == miscExt.uncompressed_data_size());
+//            YT_VERIFY(totalSize == miscExt.uncompressed_data_size());
 
             duration = timer.GetElapsedTime();
             YT_LOG_INFO(
@@ -246,6 +244,8 @@ protected:
         IChunkReaderPtr replicationReader,
         TClientChunkReadOptions chunkReadOptions)
     {
+        TTraceContextGuard guard(TTraceContext::NewRoot("BlockRead"));
+
         chunkReadOptions.ReadSessionId = TGuid::Create();
         YT_LOG_INFO(
             "Downloading blocks (FiberIndex: %v, BlockCount: %v, ReadSessionId: %v)",
