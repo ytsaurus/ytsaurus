@@ -14,7 +14,10 @@ PEERDIR(
     library/cpp/getopt
 
     yt/yt/ytlib
-    library/cpp/yt/phdr_cache
+
+    yt/yt/library/program
+    yt/yt/library/server_program
+
     yt/yt/server/lib
     yt/yt/server/lib/transaction_server
 )

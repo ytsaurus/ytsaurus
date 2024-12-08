@@ -14,6 +14,7 @@ SRCS(
     cluster_node/node_resource_manager.cpp
     cluster_node/master_connector.cpp
     cluster_node/master_heartbeat_reporter_base.cpp
+    cluster_node/program.cpp
     cluster_node/bootstrap.cpp
     cluster_node/config.cpp
 
@@ -196,6 +197,7 @@ PEERDIR(
     yt/yt/library/containers
     yt/yt/library/containers/cri
     yt/yt/library/gpu
+    yt/yt/library/server_program
 
     yt/yt/ytlib/distributed_throttler
 

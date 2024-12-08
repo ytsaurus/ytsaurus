@@ -1,54 +1,53 @@
 #include "program.h"
 
-#include "config.h"
 #include "bootstrap.h"
-
-#include <yt/yt/library/server_program/server_program.h>
-
-#include <yt/yt/library/program/program.h>
-#include <yt/yt/library/program/program_config_mixin.h>
+#include "config.h"
 
 #include <yt/yt/ytlib/program/native_singletons.h>
 
-namespace NYT::NCellBalancer {
+#include <yt/yt/library/server_program/server_program.h>
+
+#include <yt/yt/library/program/program_config_mixin.h>
+
+namespace NYT::NQueryTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellBalancerProgram
+class TQueryTrackerProgram
     : public TServerProgram
-    , public TProgramConfigMixin<TCellBalancerBootstrapConfig>
+    , public TProgramConfigMixin<TQueryTrackerServerConfig>
 {
 public:
-    TCellBalancerProgram()
+    TQueryTrackerProgram()
         : TProgramConfigMixin(Opts_)
     {
-        SetMainThreadName("CellBalancer");
+        SetMainThreadName("QueryTracker");
     }
 
-private:
+protected:
     void DoStart() final
     {
         auto config = GetConfig();
+        auto configNode = GetConfigNode();
 
         ConfigureNativeSingletons(config);
 
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems
         // may be holding a reference to it and continue running some actions in background threads.
-        auto* bootstrap = CreateBootstrap(std::move(config)).release();
+        auto* bootstrap = new TBootstrap(std::move(config), std::move(configNode));
         DoNotOptimizeAway(bootstrap);
-        bootstrap->Initialize();
         bootstrap->Run();
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RunCellBalancerProgram(int argc, const char** argv)
+void RunQueryTrackerProgram(int argc, const char** argv)
 {
-    TCellBalancerProgram().Run(argc, argv);
+    TQueryTrackerProgram().Run(argc, argv);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCellBalancer
+} // namespace NYT::NQueryTracker

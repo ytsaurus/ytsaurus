@@ -24,6 +24,7 @@ SRCS(
     operation_controller_host.cpp
     partitioning_parameters_evaluator.cpp
     private.cpp
+    program.cpp
     scheduling_context.cpp
     snapshot_builder.cpp
     snapshot_downloader.cpp
@@ -35,6 +36,7 @@ PEERDIR(
     library/cpp/yt/phdr_cache
 
     yt/yt/library/ytprof
+    yt/yt/library/server_program
 
     yt/yt/server/lib
     yt/yt/server/lib/chunk_pools

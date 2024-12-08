@@ -1,11 +1,13 @@
 #pragma once
 
-namespace NYT::NQueueAgent {
+#include <yt/yt/core/misc/public.h>
+
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RunQueueAgentProgram(int argc, const char** argv);
+constexpr auto DefaultMainThreadName = "Main";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NQueueAgent
+} // namespace NYT

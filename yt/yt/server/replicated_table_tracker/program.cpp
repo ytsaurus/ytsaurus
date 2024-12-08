@@ -1,49 +1,47 @@
-#include "bootstrap.h"
 #include "program.h"
 
+#include "bootstrap.h"
+#include "config.h"
+
+#include <yt/yt/library/server_program/server_program.h>
+
+#include <yt/yt/library/program/program_config_mixin.h>
+
 #include <yt/yt/ytlib/program/native_singletons.h>
-
-#include <yt/yt/library/program/helpers.h>
-
-#include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
-
-#include <library/cpp/yt/phdr_cache/phdr_cache.h>
-
-#include <library/cpp/yt/mlock/mlock.h>
-
-#include <util/system/thread.h>
 
 namespace NYT::NReplicatedTableTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReplicatedTableTrackerProgram::TReplicatedTableTrackerProgram()
-    : TProgramPdeathsigMixin(Opts_)
-    , TProgramSetsidMixin(Opts_)
-    , TProgramConfigMixin(Opts_)
-{ }
-
-void TReplicatedTableTrackerProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/)
+class TReplicatedTableTrackerProgram
+    : public TServerProgram
+    , public TProgramConfigMixin<TReplicatedTableTrackerServerConfig>
 {
-    TThread::SetCurrentThreadName("RttMain");
+public:
+    TReplicatedTableTrackerProgram()
+        : TProgramConfigMixin(Opts_)
+    {
+        SetMainThreadName("RttMain");
+    }
 
-    ConfigureUids();
-    ConfigureIgnoreSigpipe();
-    ConfigureCrashHandler();
-    ConfigureExitZeroOnSigterm();
-    EnablePhdrCache();
-    ConfigureAllocator();
-    MlockFileMappings();
-    RunMixinCallbacks();
+    void DoStart() final
+    {
+        auto config = GetConfig();
 
-    auto config = GetConfig();
+        ConfigureNativeSingletons(config);
 
-    ConfigureNativeSingletons(config);
+        auto configNode = GetConfigNode();
 
-    auto configNode = GetConfigNode();
+        auto* bootstrap = CreateBootstrap(std::move(config), std::move(configNode)).release();
+        bootstrap->Run();
+    }
+};
 
-    auto* bootstrap = CreateBootstrap(std::move(config), std::move(configNode)).release();
-    bootstrap->Run();
+////////////////////////////////////////////////////////////////////////////////
+
+void RunReplicatedTableTrackerProgram(int argc, const char** argv)
+{
+    TReplicatedTableTrackerProgram().Run(argc, argv);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

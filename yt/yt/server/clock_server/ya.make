@@ -8,9 +8,11 @@ SRCS(
     cluster_clock/config.cpp
     cluster_clock/hydra_facade.cpp
     cluster_clock/serialize.cpp
+    cluster_clock/program.cpp
 )
 
 PEERDIR(
+    yt/yt/library/server_program
     yt/yt/server/lib
     yt/yt/server/lib/hydra
     yt/yt/server/lib/hive

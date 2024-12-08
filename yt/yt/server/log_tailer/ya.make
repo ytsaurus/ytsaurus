@@ -8,6 +8,7 @@ SRCS(
     log_rotator.cpp
     log_tailer.cpp
     log_writer_liveness_checker.cpp
+    program.cpp
 )
 
 PEERDIR(

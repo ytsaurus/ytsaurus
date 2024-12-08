@@ -1,0 +1,67 @@
+#include "program.h"
+
+#include "bootstrap.h"
+#include "config.h"
+
+#include <yt/yt/ytlib/program/native_singletons.h>
+#include <yt/yt/library/program/program.h>
+#include <yt/yt/library/program/program_config_mixin.h>
+#include <yt/yt/library/program/helpers.h>
+
+#include <util/system/thread.h>
+
+namespace NYT::NLogTailer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLogTailerProgram
+    : public virtual TProgram
+    , public TProgramConfigMixin<TLogTailerBootstrapConfig>
+{
+public:
+    TLogTailerProgram()
+        : TProgramConfigMixin(Opts_, false)
+    {
+        Opts_.AddLongOption("monitoring-port", "ytserver monitoring port")
+            .DefaultValue(10242)
+            .StoreResult(&MonitoringPort_);
+        Opts_.SetFreeArgsMin(0);
+        Opts_.SetFreeArgsMax(1);
+        Opts_.SetFreeArgTitle(0, "writer-pid");
+    }
+
+protected:
+    void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
+    {
+        TThread::SetCurrentThreadName("LogTailer");
+
+        ConfigureCrashHandler();
+        RunMixinCallbacks();
+
+        auto config = GetConfig();
+        config->MonitoringPort = MonitoringPort_;
+        if (parseResult.GetFreeArgCount() == 1) {
+            auto freeArgs = parseResult.GetFreeArgs();
+            config->LogTailer->LogRotation->LogWriterPid = FromString<int>(freeArgs[0]);
+        }
+
+        ConfigureNativeSingletons(config);
+
+        TBootstrap bootstrap(std::move(config));
+        bootstrap.Run();
+    }
+
+private:
+    int MonitoringPort_ = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+void RunLogTailerProgram(int argc, const char** argv)
+{
+    TLogTailerProgram().Run(argc, argv);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NLogTailer

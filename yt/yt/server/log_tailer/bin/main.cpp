@@ -2,5 +2,5 @@
 
 int main(int argc, const char** argv)
 {
-    NYT::NLogTailer::TLogTailerProgram().Run(argc, argv);
+    NYT::NLogTailer::RunLogTailerProgram(argc, argv);
 }

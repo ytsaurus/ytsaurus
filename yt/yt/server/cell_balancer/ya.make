@@ -26,11 +26,11 @@ SRCS(
 PEERDIR(
     library/cpp/getopt
     library/cpp/yt/phdr_cache
+    yt/yt/library/server_program
     yt/yt/server/lib
     yt/yt/server/lib/cypress_election
     yt/yt/server/lib/tablet_server
     yt/yt/server/master
-    yt/yt/server/node
 )
 
 END()

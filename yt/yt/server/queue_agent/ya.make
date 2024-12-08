@@ -11,6 +11,7 @@ SRCS(
     helpers.cpp
     performance_counters.cpp
     profile_manager.cpp
+    program.cpp
     queue_agent.cpp
     queue_agent_sharding_manager.cpp
     queue_controller.cpp
@@ -24,6 +25,8 @@ PEERDIR(
     library/cpp/getopt
 
     yt/yt/library/dynamic_config
+    yt/yt/library/program
+    yt/yt/library/server_program
 
     yt/yt/client
     yt/yt/client/federated

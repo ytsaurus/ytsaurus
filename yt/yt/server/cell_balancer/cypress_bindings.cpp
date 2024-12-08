@@ -1,7 +1,5 @@
 #include "cypress_bindings.h"
 
-#include <yt/yt/server/node/cluster_node/config.h>
-
 namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -26,6 +26,8 @@
 
 #include <yt/yt/core/misc/fs.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
+
 #include <library/cpp/yt/system/exit.h>
 
 #include <library/cpp/getopt/small/last_getopt_parse_result.h>
@@ -82,14 +84,14 @@ private:
 class TProgramMapBuilder
 {
 public:
-    template <class T>
-    TProgramMapBuilder Add(const std::string& name) &&
+    template <class TRunner>
+    TProgramMapBuilder Add(TRunner runner, const std::string& name) &&
     {
         EmplaceOrCrash(
             NameToRunner_,
             name,
-            [] (int argc, const char** argv) {
-                T().Run(argc, argv);
+            [=] (int argc, const char** argv) {
+                runner(argc, argv);
             });
         return std::move(*this);
     }
@@ -109,29 +111,29 @@ const TProgramMap& GetProgramMap()
 {
     static const auto result = [] {
         return TProgramMapBuilder()
-            .Add<NCellMaster::TCellMasterProgram>("master")
-            .Add<NClusterClock::TClusterClockProgram>("clock")
-            .Add<NHttpProxy::THttpProxyProgram>("http-proxy")
+            .Add(NCellMaster::RunCellMasterProgram, "master")
+            .Add(NClusterClock::RunClusterClockProgram, "clock")
+            .Add(NHttpProxy::RunHttpProxyProgram, "http-proxy")
             // TODO(babenko): rename to rpc-proxy
-            .Add<NRpcProxy::TRpcProxyProgram>("proxy")
-            .Add<NClusterNode::TClusterNodeProgram>("node")
-            .Add<NJobProxy::TJobProxyProgram>("job-proxy")
-            .Add<NExec::TExecProgram>("exec")
-            .Add<NTools::TToolsProgram>("tools")
-            .Add<NScheduler::TSchedulerProgram>("scheduler")
-            .Add<NControllerAgent::TControllerAgentProgram>("controller-agent")
-            .Add<NLogTailer::TLogTailerProgram>("log-tailer")
-            .Add<NClusterDiscoveryServer::TClusterDiscoveryServerProgram>("discovery")
-            .Add<NTimestampProvider::TTimestampProviderProgram>("timestamp-provider")
-            .Add<NMasterCache::TMasterCacheProgram>("master-cache")
-            .Add<NCellBalancer::TCellBalancerProgram>("cell-balancer")
-            .Add<NQueueAgent::TQueueAgentProgram>("queue-agent")
-            .Add<NTabletBalancer::TTabletBalancerProgram>("tablet-balancer")
-            .Add<NCypressProxy::TCypressProxyProgram>("cypress-proxy")
-            .Add<NQueryTracker::TQueryTrackerProgram>("query-tracker")
-            .Add<NTcpProxy::TTcpProxyProgram>("tcp-proxy")
-            .Add<NKafkaProxy::TKafkaProxyProgram>("kafka-proxy")
-            .Add<NReplicatedTableTracker::TReplicatedTableTrackerProgram>("replicated-table-tracker")
+            .Add(NRpcProxy::RunRpcProxyProgram, "proxy")
+            .Add(NClusterNode::RunClusterNodeProgram, "node")
+            .Add(NJobProxy::RunJobProxyProgram, "job-proxy")
+            .Add(NExec::RunExecProgram, "exec")
+            .Add(NTools::RunToolsProgram, "tools")
+            .Add(NScheduler::RunSchedulerProgram, "scheduler")
+            .Add(NControllerAgent::RunControllerAgentProgram, "controller-agent")
+            .Add(NLogTailer::RunLogTailerProgram, "log-tailer")
+            .Add(NClusterDiscoveryServer::RunClusterDiscoveryServerProgram, "discovery")
+            .Add(NTimestampProvider::RunTimestampProviderProgram, "timestamp-provider")
+            .Add(NMasterCache::RunMasterCacheProgram, "master-cache")
+            .Add(NCellBalancer::RunCellBalancerProgram, "cell-balancer")
+            .Add(NQueueAgent::RunQueueAgentProgram, "queue-agent")
+            .Add(NTabletBalancer::RunTabletBalancerProgram, "tablet-balancer")
+            .Add(NCypressProxy::RunCypressProxyProgram, "cypress-proxy")
+            .Add(NQueryTracker::RunQueryTrackerProgram, "query-tracker")
+            .Add(NTcpProxy::RunTcpProxyProgram, "tcp-proxy")
+            .Add(NKafkaProxy::RunKafkaProxyProgram, "kafka-proxy")
+            .Add(NReplicatedTableTracker::RunReplicatedTableTrackerProgram, "replicated-table-tracker")
             .Finish();
     }();
     return result;
