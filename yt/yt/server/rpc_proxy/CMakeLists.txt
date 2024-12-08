@@ -21,6 +21,7 @@ add_library(yt-server-rpc_proxy)
 
 target_compile_options(yt-server-rpc_proxy PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-server-rpc_proxy PUBLIC

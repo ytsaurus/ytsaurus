@@ -19,6 +19,7 @@ add_executable(cpp-integration-test-rpc-api)
 
 target_compile_options(cpp-integration-test-rpc-api PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(cpp-integration-test-rpc-api PUBLIC

@@ -38,6 +38,7 @@ add_library(yt-yt-core)
 
 target_compile_options(yt-yt-core PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-yt-core PUBLIC
@@ -363,6 +364,7 @@ add_global_library_for(yt-yt-core.global
 
 target_compile_options(yt-yt-core.global PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-yt-core.global PUBLIC

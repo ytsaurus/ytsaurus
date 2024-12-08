@@ -19,6 +19,7 @@ add_library(yt-server-replicated_table_tracker)
 
 target_compile_options(yt-server-replicated_table_tracker PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-server-replicated_table_tracker PUBLIC

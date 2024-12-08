@@ -21,6 +21,7 @@ add_library(server-lib-signature)
 
 target_compile_options(server-lib-signature PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(server-lib-signature PUBLIC

@@ -17,6 +17,7 @@ add_executable(unittester-scheduler-simulator)
 
 target_compile_options(unittester-scheduler-simulator PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(unittester-scheduler-simulator PRIVATE

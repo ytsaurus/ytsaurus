@@ -19,6 +19,7 @@ add_library(yt-server-controller_agent)
 
 target_compile_options(yt-server-controller_agent PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-server-controller_agent PUBLIC

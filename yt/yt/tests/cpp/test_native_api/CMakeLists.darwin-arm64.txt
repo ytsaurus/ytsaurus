@@ -17,6 +17,7 @@ add_executable(cpp-integration-test-native-api)
 
 target_compile_options(cpp-integration-test-native-api PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(cpp-integration-test-native-api PUBLIC

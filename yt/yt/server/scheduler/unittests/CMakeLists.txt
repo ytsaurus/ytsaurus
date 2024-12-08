@@ -19,6 +19,7 @@ add_executable(unittester-scheduler)
 
 target_compile_options(unittester-scheduler PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-scheduler PUBLIC

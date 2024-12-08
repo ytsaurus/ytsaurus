@@ -1493,7 +1493,7 @@ private:
                     InferSchemaFromInputOrdered();
                     break;
                 }
-                // We intentionally fall into next clause.
+                [[fallthrough]];
 
             case ESchemaInferenceMode::FromOutput:
                 ValidateOutputSchemaOrdered();

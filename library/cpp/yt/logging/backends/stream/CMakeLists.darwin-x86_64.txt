@@ -17,6 +17,7 @@ add_library(logging-backends-stream)
 
 target_compile_options(logging-backends-stream PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(logging-backends-stream PUBLIC

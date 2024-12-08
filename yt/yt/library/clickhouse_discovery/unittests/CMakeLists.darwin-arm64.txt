@@ -17,6 +17,7 @@ add_executable(unittester-library-clickhouse-discovery)
 
 target_compile_options(unittester-library-clickhouse-discovery PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-library-clickhouse-discovery PUBLIC

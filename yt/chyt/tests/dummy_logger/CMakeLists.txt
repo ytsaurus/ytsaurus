@@ -19,6 +19,7 @@ add_executable(dummy-logger)
 
 target_compile_options(dummy-logger PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(dummy-logger PUBLIC

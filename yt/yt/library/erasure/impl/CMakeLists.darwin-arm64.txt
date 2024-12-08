@@ -19,6 +19,7 @@ add_library(library-erasure-impl)
 
 target_compile_options(library-erasure-impl PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(library-erasure-impl PUBLIC

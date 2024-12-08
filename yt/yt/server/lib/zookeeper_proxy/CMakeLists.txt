@@ -19,6 +19,7 @@ add_library(server-lib-zookeeper_proxy)
 
 target_compile_options(server-lib-zookeeper_proxy PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(server-lib-zookeeper_proxy PUBLIC

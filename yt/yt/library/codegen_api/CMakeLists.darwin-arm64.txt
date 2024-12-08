@@ -17,6 +17,7 @@ add_library(yt-library-codegen_api INTERFACE)
 
 target_compile_options(yt-library-codegen_api INTERFACE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-library-codegen_api INTERFACE

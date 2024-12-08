@@ -17,6 +17,7 @@ add_executable(core-rpc-allocation-tags)
 
 target_compile_options(core-rpc-allocation-tags PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(core-rpc-allocation-tags PUBLIC

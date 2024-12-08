@@ -19,6 +19,7 @@ add_executable(unittester-yt-library-numeric)
 
 target_compile_options(unittester-yt-library-numeric PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(unittester-yt-library-numeric PRIVATE

@@ -22,6 +22,7 @@ add_library(server-lib-chunk_pools)
 
 target_compile_options(server-lib-chunk_pools PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(server-lib-chunk_pools PUBLIC
@@ -64,6 +65,7 @@ add_global_library_for(server-lib-chunk_pools.global
 
 target_compile_options(server-lib-chunk_pools.global PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(server-lib-chunk_pools.global PUBLIC

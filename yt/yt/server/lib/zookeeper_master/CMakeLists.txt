@@ -19,6 +19,7 @@ add_library(server-lib-zookeeper_master)
 
 target_compile_options(server-lib-zookeeper_master PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(server-lib-zookeeper_master PUBLIC

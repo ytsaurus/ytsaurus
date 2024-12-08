@@ -19,6 +19,7 @@ add_executable(journal_reader)
 
 target_compile_options(journal_reader PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(journal_reader PUBLIC

@@ -19,6 +19,7 @@ add_library(table_client-unittests-helpers)
 
 target_compile_options(table_client-unittests-helpers PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(table_client-unittests-helpers PUBLIC

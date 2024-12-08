@@ -19,6 +19,7 @@ add_executable(unittester-tablet-balancer-lib)
 
 target_compile_options(unittester-tablet-balancer-lib PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-tablet-balancer-lib PUBLIC

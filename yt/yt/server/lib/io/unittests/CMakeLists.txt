@@ -19,6 +19,7 @@ add_executable(unittester-server-lib-io)
 
 target_compile_options(unittester-server-lib-io PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-server-lib-io PUBLIC

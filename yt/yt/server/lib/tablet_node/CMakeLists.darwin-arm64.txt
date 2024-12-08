@@ -31,6 +31,7 @@ add_library(server-lib-tablet_node)
 
 target_compile_options(server-lib-tablet_node PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(server-lib-tablet_node PUBLIC

@@ -19,6 +19,7 @@ add_library(yt-server-timestamp_provider)
 
 target_compile_options(yt-server-timestamp_provider PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(yt-server-timestamp_provider PUBLIC

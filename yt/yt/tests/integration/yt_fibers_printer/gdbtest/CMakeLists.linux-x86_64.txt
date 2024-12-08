@@ -20,6 +20,7 @@ add_executable(gdbtest)
 target_compile_options(gdbtest PRIVATE
   -g
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(gdbtest PUBLIC

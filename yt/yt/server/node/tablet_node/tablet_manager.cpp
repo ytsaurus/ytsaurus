@@ -1793,7 +1793,7 @@ private:
                         tablet->GetLoggingTag());
                     return;
                 }
-                // No break intentionally.
+                [[fallthrough]];
             }
 
             case ETabletState::UnmountFlushing: {

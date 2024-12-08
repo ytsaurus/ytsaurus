@@ -19,6 +19,7 @@ add_library(yt-server-clock_server)
 
 target_compile_options(yt-server-clock_server PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-server-clock_server PUBLIC

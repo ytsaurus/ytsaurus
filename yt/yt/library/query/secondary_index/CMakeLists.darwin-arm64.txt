@@ -17,6 +17,7 @@ add_library(library-query-secondary_index)
 
 target_compile_options(library-query-secondary_index PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(library-query-secondary_index PUBLIC

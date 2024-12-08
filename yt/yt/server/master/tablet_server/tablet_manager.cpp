@@ -3585,7 +3585,8 @@ private:
                 if (!action->Error().IsOK()) {
                     ChangeTabletActionState(action, ETabletActionState::Failed, false);
                 }
-                // No break intentionally.
+                [[fallthrough]];
+
             case ETabletActionState::Failed: {
                 UnbindTabletAction(action);
                 if (auto* bundle = action->GetTabletCellBundle()) {

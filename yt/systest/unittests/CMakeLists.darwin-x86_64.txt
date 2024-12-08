@@ -17,6 +17,7 @@ add_executable(unittester-yt-systest)
 
 target_compile_options(unittester-yt-systest PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-yt-systest PUBLIC

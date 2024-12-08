@@ -38,6 +38,7 @@ add_executable(unittester-formats)
 
 target_compile_options(unittester-formats PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-formats PUBLIC

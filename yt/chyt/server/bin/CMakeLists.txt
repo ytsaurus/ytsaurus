@@ -19,6 +19,7 @@ add_executable(ytserver-clickhouse)
 
 target_compile_options(ytserver-clickhouse PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
   -fno-inline
 )
 

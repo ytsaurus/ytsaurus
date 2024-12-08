@@ -19,6 +19,7 @@ add_library(tablet_balancer-dry_run-lib)
 
 target_compile_options(tablet_balancer-dry_run-lib PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(tablet_balancer-dry_run-lib PUBLIC

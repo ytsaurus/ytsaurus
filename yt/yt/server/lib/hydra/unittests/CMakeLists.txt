@@ -19,6 +19,7 @@ add_executable(unittester-hydra)
 
 target_compile_options(unittester-hydra PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-hydra PUBLIC

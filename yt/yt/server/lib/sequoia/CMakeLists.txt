@@ -33,6 +33,7 @@ add_library(server-lib-sequoia)
 
 target_compile_options(server-lib-sequoia PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(server-lib-sequoia PUBLIC

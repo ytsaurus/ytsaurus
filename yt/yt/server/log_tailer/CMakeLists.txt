@@ -21,6 +21,7 @@ add_library(yt-server-log_tailer)
 
 target_compile_options(yt-server-log_tailer PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-server-log_tailer PUBLIC

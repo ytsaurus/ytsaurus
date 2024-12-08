@@ -33,6 +33,7 @@ add_executable(protobuf_complex_types)
 
 target_compile_options(protobuf_complex_types PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(protobuf_complex_types PUBLIC

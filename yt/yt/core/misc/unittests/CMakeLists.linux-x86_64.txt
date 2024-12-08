@@ -33,6 +33,7 @@ add_executable(unittester-core-misc)
 
 target_compile_options(unittester-core-misc PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-core-misc PUBLIC

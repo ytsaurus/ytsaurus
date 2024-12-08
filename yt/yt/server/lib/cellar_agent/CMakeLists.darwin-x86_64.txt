@@ -17,6 +17,7 @@ add_library(server-lib-cellar_agent)
 
 target_compile_options(server-lib-cellar_agent PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(server-lib-cellar_agent PUBLIC

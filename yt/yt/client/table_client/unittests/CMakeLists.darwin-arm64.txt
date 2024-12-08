@@ -19,6 +19,7 @@ add_executable(unittester-client-table-client)
 
 target_compile_options(unittester-client-table-client PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-client-table-client PUBLIC

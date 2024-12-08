@@ -33,6 +33,7 @@ add_library(server-lib-user_job)
 
 target_compile_options(server-lib-user_job PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(server-lib-user_job PUBLIC

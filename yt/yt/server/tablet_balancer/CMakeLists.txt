@@ -19,6 +19,7 @@ add_library(yt-server-tablet_balancer)
 
 target_compile_options(yt-server-tablet_balancer PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-server-tablet_balancer PUBLIC

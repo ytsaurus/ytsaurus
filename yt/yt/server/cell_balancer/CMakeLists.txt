@@ -21,6 +21,7 @@ add_library(yt-server-cell_balancer)
 
 target_compile_options(yt-server-cell_balancer PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(yt-server-cell_balancer PUBLIC

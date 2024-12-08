@@ -19,6 +19,7 @@ add_executable(unittester-library-logging)
 
 target_compile_options(unittester-library-logging PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-library-logging PUBLIC

@@ -19,6 +19,7 @@ add_library(yt-server-queue_agent)
 
 target_compile_options(yt-server-queue_agent PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-server-queue_agent PUBLIC

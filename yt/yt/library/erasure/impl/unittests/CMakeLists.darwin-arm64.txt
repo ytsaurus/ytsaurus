@@ -17,6 +17,7 @@ add_executable(unittester-library-erasure)
 
 target_compile_options(unittester-library-erasure PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-library-erasure PUBLIC

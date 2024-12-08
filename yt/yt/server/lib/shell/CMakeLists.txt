@@ -19,6 +19,7 @@ add_library(server-lib-shell)
 
 target_compile_options(server-lib-shell PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(server-lib-shell PUBLIC

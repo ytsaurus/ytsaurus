@@ -19,6 +19,7 @@ add_executable(unittester-http-proxy)
 
 target_compile_options(unittester-http-proxy PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(unittester-http-proxy PRIVATE

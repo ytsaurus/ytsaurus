@@ -19,6 +19,7 @@ add_executable(check_schema_compatibility)
 
 target_compile_options(check_schema_compatibility PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(check_schema_compatibility PUBLIC

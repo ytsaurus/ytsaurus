@@ -19,6 +19,7 @@ add_executable(unittester-job-proxy)
 
 target_compile_options(unittester-job-proxy PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-job-proxy PUBLIC

@@ -19,6 +19,7 @@ add_executable(unittester-clickhouse-server)
 
 target_compile_options(unittester-clickhouse-server PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-clickhouse-server PUBLIC

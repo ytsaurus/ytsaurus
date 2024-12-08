@@ -19,6 +19,7 @@ add_executable(unittester-rpc-proxy)
 
 target_compile_options(unittester-rpc-proxy PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-rpc-proxy PUBLIC

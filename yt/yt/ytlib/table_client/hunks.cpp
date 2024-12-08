@@ -931,7 +931,7 @@ public:
             switch (CompressionContext_->SessionStage) {
                 case ECompressionSessionStage::Initial:
                     CompressionContext_->SessionStage = ECompressionSessionStage::WaitingOnFuture;
-                    // No break intentionally.
+                    [[fallthrough]];
 
                 case ECompressionSessionStage::WaitingOnFuture:
                     if (CompressionContext_->SessionFuture.IsSet()) {
@@ -941,7 +941,7 @@ public:
                             return false;
                         }
                     }
-                    // No break intentionally.
+                    [[fallthrough]];
 
                 case ECompressionSessionStage::FeedingSamples:
                     CompressionContext_->FeedSamples(rows);
@@ -1024,7 +1024,7 @@ public:
             switch (CompressionContext_->SessionStage) {
                 case ECompressionSessionStage::Initial:
                     CompressionContext_->SessionStage = ECompressionSessionStage::WaitingOnFuture;
-                    // No break intentionally.
+                    [[fallthrough]];
 
                 case ECompressionSessionStage::WaitingOnFuture:
                     return CompressionContext_->SessionFuture.Apply(BIND([

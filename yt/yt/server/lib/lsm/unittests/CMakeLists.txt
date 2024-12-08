@@ -19,6 +19,7 @@ add_executable(unittester-library-lsm)
 
 target_compile_options(unittester-library-lsm PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-library-lsm PUBLIC

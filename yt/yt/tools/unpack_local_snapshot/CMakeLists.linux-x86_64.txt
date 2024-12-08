@@ -19,6 +19,7 @@ add_executable(unpack-local-snapshot)
 
 target_compile_options(unpack-local-snapshot PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unpack-local-snapshot PUBLIC

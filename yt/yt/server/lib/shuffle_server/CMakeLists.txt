@@ -19,6 +19,7 @@ add_library(server-lib-shuffle_server)
 
 target_compile_options(server-lib-shuffle_server PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(server-lib-shuffle_server PUBLIC

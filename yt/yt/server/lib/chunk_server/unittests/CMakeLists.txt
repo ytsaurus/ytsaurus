@@ -19,6 +19,7 @@ add_executable(unittester-server-lib-chunk-server)
 
 target_compile_options(unittester-server-lib-chunk-server PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-server-lib-chunk-server PUBLIC
