@@ -3663,6 +3663,8 @@ private:
         std::sort(blockIndexes.begin(), blockIndexes.end());
 
         ToProto(req->mutable_block_indexes(), blockIndexes);
+        // XXX(max)
+        req->set_fetch_from_cache(false);
         req->set_populate_cache(ReaderConfig_->PopulateCache);
         ToProto(req->mutable_read_session_id(), queuedBatch.Session->SessionOptions_.ReadSessionId);
 
