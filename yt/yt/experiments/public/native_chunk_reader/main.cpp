@@ -157,7 +157,6 @@ protected:
 
         TClientChunkReadOptions chunkReadOptions{
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::Idle, 0, TInstant::Zero(), {"Download file"}),
-            .ReadSessionId = TReadSessionId::Create(),
             .MultiplexingParallelism = Config_->MultiplexingParallelism,
         };
 
@@ -247,7 +246,12 @@ protected:
         IChunkReaderPtr replicationReader,
         TClientChunkReadOptions chunkReadOptions)
     {
-        YT_LOG_INFO("Downloading blocks (FiberIndex: %v, BlockCount: %v)", fiberIndex, blockIndices.size());
+        chunkReadOptions.ReadSessionId = TGuid::Create();
+        YT_LOG_INFO(
+            "Downloading blocks (FiberIndex: %v, BlockCount: %v, ReadSessionId: %v)",
+            fiberIndex,
+            blockIndices.size(),
+            chunkReadOptions.ReadSessionId);
         auto blocks = WaitFor(
             replicationReader->ReadBlocks(
                 IChunkReader::TReadBlocksOptions{.ClientOptions = chunkReadOptions},
