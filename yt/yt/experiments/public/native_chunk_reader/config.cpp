@@ -12,6 +12,8 @@ void TConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("multiplexing_parallelism", &TConfig::MultiplexingParallelism)
         .Default(1);
+    registrar.Parameter("block_read_parallelism", &TConfig::BlockReadParallelism)
+        .Default(1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

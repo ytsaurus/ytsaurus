@@ -1,4 +1,5 @@
 {
+    block_read_parallelism = 2;
     logging = {
         "flush_period"=100;
         rules=[

@@ -194,38 +194,73 @@ protected:
             blocksExt.blocks_size(),
             duration);
 
-        std::vector<int> blockIndices;
-        for (int i = 0; i < blocksExt.blocks_size(); ++i) {
-            blockIndices.push_back(i);
-        }
-
         {
             timer.Restart();
 
             TTraceContextGuard guard(TTraceContext::NewRoot("BlockRead"));
 
-            YT_LOG_INFO("Downloading blocks");
+            YT_LOG_INFO("Downloading blocks (BlockReadParallelism: %v)", Config_->BlockReadParallelism);
 
-            auto blocks = WaitFor(
-                replicationReader->ReadBlocks(
-                    IChunkReader::TReadBlocksOptions{.ClientOptions = chunkReadOptions},
-                    blockIndices))
+            std::vector<std::vector<int>> fiberBlockIndices;
+            for (int fiberIndex = 0; fiberIndex < Config_->BlockReadParallelism; ++fiberIndex) {
+                std::vector<int> blockIndices;
+                for (int i = fiberIndex; i < blocksExt.blocks_size(); i += Config_->BlockReadParallelism) {
+                    blockIndices.push_back(i);
+                }
+                fiberBlockIndices.push_back(std::move(blockIndices));
+            }
+
+            std::vector<TFuture<i64>> fiberAsyncReadBytes;
+            for (int fiberIndex = 0; fiberIndex < Config_->BlockReadParallelism; ++fiberIndex) {
+                fiberAsyncReadBytes.push_back(
+                    BIND(
+                        &TNativeFileDownloader::DownloadBlocks,
+                        this,
+                        fiberIndex,
+                        fiberBlockIndices[fiberIndex],
+                        replicationReader,
+                        chunkReadOptions)
+                        .AsyncVia(ActionQueue_->GetInvoker())
+                        .Run());
+            }
+            auto result = WaitFor(AllSucceeded(fiberAsyncReadBytes))
                 .ValueOrThrow();
 
             i64 totalSize = 0;
-            for (const auto& block : blocks) {
-                totalSize += block.Size();
+            for (const auto& size : result) {
+                totalSize += size;
             }
             YT_VERIFY(totalSize == miscExt.uncompressed_data_size());
 
             duration = timer.GetElapsedTime();
             YT_LOG_INFO(
-                "Blocks downloaded (BlockCount: %v, UncompressedSize: %v, WallTime: %v, Speed: %v MiB/sec)",
-                blocks.size(),
+                "Blocks downloaded (UncompressedSize: %v, WallTime: %v, Speed: %v MiB/sec)",
                 totalSize,
                 duration,
                 static_cast<double>(totalSize) / (1024 * 1024) / duration.SecondsFloat());
         }
+    }
+
+    i64 DownloadBlocks(
+        int fiberIndex,
+        std::vector<int> blockIndices,
+        IChunkReaderPtr replicationReader,
+        TClientChunkReadOptions chunkReadOptions)
+    {
+        YT_LOG_INFO("Downloading blocks (FiberIndex: %v, BlockCount: %v)", fiberIndex, blockIndices.size());
+        auto blocks = WaitFor(
+            replicationReader->ReadBlocks(
+                IChunkReader::TReadBlocksOptions{.ClientOptions = chunkReadOptions},
+                blockIndices))
+            .ValueOrThrow();
+
+        i64 totalSize = 0;
+        for (const auto& block : blocks) {
+            totalSize += block.Size();
+        }
+        YT_LOG_INFO("Blocks downloaded (FiberIndex: %v, BlockCount: %v)", fiberIndex, blockIndices.size());
+
+        return totalSize;
     }
 
 private:
