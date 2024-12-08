@@ -48,7 +48,7 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr size_t ReadBufferSize = 16_KB;
-static constexpr size_t MaxBatchReadSize = 64_KB;
+static constexpr size_t MaxBatchReadSize = 128_KB;
 static constexpr auto ReadTimeWarningThreshold = TDuration::MilliSeconds(100);
 
 static constexpr size_t WriteBufferSize = 16_KB;
