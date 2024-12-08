@@ -164,7 +164,7 @@ static constexpr auto NullLoggerMinLevel = ELogLevel::Maximum;
 // - For debug mode logger min level is set to trace by default, so that trace logging is
 //   allowed by logger, but still may be discarded by category min level.
 #ifdef NDEBUG
-static constexpr auto LoggerDefaultMinLevel = ELogLevel::Debug;
+static constexpr auto LoggerDefaultMinLevel = ELogLevel::Trace;
 #else
 static constexpr auto LoggerDefaultMinLevel = ELogLevel::Trace;
 #endif
