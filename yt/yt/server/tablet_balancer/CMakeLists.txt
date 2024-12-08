@@ -28,6 +28,7 @@ target_link_libraries(yt-server-tablet_balancer PUBLIC
   cpp-yt-phdr_cache
   library-cpp-getopt
   yt-library-dynamic_config
+  yt-library-server_program
   yt-yt-ytlib
   yt-yt-core
   server-lib-admin

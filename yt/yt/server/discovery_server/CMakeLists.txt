@@ -30,8 +30,9 @@ target_link_libraries(yt-server-discovery_server PUBLIC
   contrib-libs-cxxsupp
   yutil
   library-cpp-getopt
-  yt-yt-ytlib
   cpp-yt-phdr_cache
+  yt-library-server_program
+  yt-yt-ytlib
   ytserver
   server-lib-discovery_server
 )

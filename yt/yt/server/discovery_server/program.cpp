@@ -1,57 +1,50 @@
 #include "program.h"
 
-#include <yt/yt/ytlib/program/native_singletons.h>
+#include "bootstrap.h"
+#include "config.h"
 
+#include <yt/yt/library/server_program/server_program.h>
+
+#include <yt/yt/library/program/program_config_mixin.h>
 #include <yt/yt/library/program/helpers.h>
-
-#include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
-
-#include <yt/yt/core/logging/log_manager.h>
-#include <yt/yt/core/logging/config.h>
-
-#include <yt/yt/core/bus/tcp/dispatcher.h>
-
-#include <library/cpp/yt/phdr_cache/phdr_cache.h>
-
-#include <library/cpp/yt/mlock/mlock.h>
-
-#include <util/system/compiler.h>
-#include <util/system/thread.h>
 
 namespace NYT::NClusterDiscoveryServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClusterDiscoveryServerProgram::TClusterDiscoveryServerProgram()
-    : TProgramPdeathsigMixin(Opts_)
-    , TProgramSetsidMixin(Opts_)
-    , TProgramConfigMixin(Opts_)
-{ }
-
-void TClusterDiscoveryServerProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/)
+class TClusterDiscoveryServerProgram
+    : public TServerProgram
+    , public TProgramConfigMixin<NClusterDiscoveryServer::TClusterDiscoveryServerConfig>
 {
-    TThread::SetCurrentThreadName("DiscoveryMain");
+public:
+    TClusterDiscoveryServerProgram()
+        : TProgramConfigMixin(Opts_)
+    {
+        SetMainThreadName("DiscoveryServer");
+    }
 
-    ConfigureUids();
-    ConfigureIgnoreSigpipe();
-    ConfigureCrashHandler();
-    ConfigureExitZeroOnSigterm();
-    EnablePhdrCache();
-    ConfigureAllocator();
-    MlockFileMappings();
-    RunMixinCallbacks();
+protected:
+    void DoStart() override
+    {
+        auto config = GetConfig();
 
-    auto config = GetConfig();
+        ConfigureSingletons(config);
 
-    ConfigureSingletons(config);
+        // TODO(babenko): This memory leak is intentional.
+        // We should avoid destroying bootstrap since some of the subsystems
+        // may be holding a reference to it and continue running some actions in background threads.
+        auto* bootstrap = NClusterDiscoveryServer::CreateBootstrap(std::move(config)).release();
+        DoNotOptimizeAway(bootstrap);
+        bootstrap->Initialize();
+        bootstrap->Run();
+    }
+};
 
-    // TODO(babenko): This memory leak is intentional.
-    // We should avoid destroying bootstrap since some of the subsystems
-    // may be holding a reference to it and continue running some actions in background threads.
-    auto* bootstrap = NClusterDiscoveryServer::CreateBootstrap(std::move(config)).release();
-    DoNotOptimizeAway(bootstrap);
-    bootstrap->Initialize();
-    bootstrap->Run();
+////////////////////////////////////////////////////////////////////////////////
+
+void RunClusterDiscoveryServerProgram(int argc, const char** argv)
+{
+    TClusterDiscoveryServerProgram().Run(argc, argv);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

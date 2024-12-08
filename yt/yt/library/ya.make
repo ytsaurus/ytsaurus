@@ -24,6 +24,7 @@ RECURSE(
     process
     profiling
     program
+    server_program
     stockpile
     quantile_digest
     query

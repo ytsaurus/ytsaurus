@@ -37,6 +37,7 @@ target_link_libraries(yt-server-rpc_proxy PUBLIC
   core-rpc-grpc
   yt-library-auth_server
   yt-library-dynamic_config
+  yt-library-server_program
   cpp-yt-phdr_cache
   library-cpp-getopt
 )
@@ -48,5 +49,6 @@ target_sources(yt-server-rpc_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/rpc_proxy/discovery_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/rpc_proxy/dynamic_config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/rpc_proxy/bundle_dynamic_config_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/rpc_proxy/program.cpp
 )
 

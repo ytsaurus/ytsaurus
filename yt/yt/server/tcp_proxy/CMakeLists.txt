@@ -33,8 +33,9 @@ target_link_libraries(yt-server-tcp_proxy PUBLIC
   server-lib-misc
   yt-yt-ytlib
   yt-library-dynamic_config
+  yt-library-program
+  yt-library-server_program
   library-cpp-getopt
-  cpp-yt-phdr_cache
 )
 
 target_sources(yt-server-tcp_proxy PRIVATE

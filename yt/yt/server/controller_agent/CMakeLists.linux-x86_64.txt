@@ -30,6 +30,7 @@ target_link_libraries(yt-server-controller_agent PUBLIC
   yutil
   cpp-yt-phdr_cache
   yt-library-ytprof
+  yt-library-server_program
   ytserver
   server-lib-chunk_pools
   server-lib-scheduler
@@ -61,6 +62,7 @@ target_sources(yt-server-controller_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/operation_controller_host.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/partitioning_parameters_evaluator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/private.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/scheduling_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/snapshot_builder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/snapshot_downloader.cpp

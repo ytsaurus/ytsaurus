@@ -1,49 +1,48 @@
-#include "bootstrap.h"
 #include "program.h"
+
+#include "bootstrap.h"
+#include "config.h"
 
 #include <yt/yt/ytlib/program/native_singletons.h>
 
-#include <yt/yt/library/program/helpers.h>
+#include <yt/yt/library/server_program/server_program.h>
 
-#include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
-
-#include <library/cpp/yt/phdr_cache/phdr_cache.h>
-
-#include <library/cpp/yt/mlock/mlock.h>
-
-#include <util/system/thread.h>
+#include <yt/yt/library/program/program_config_mixin.h>
 
 namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletBalancerProgram::TTabletBalancerProgram()
-    : TProgramPdeathsigMixin(Opts_)
-    , TProgramSetsidMixin(Opts_)
-    , TProgramConfigMixin(Opts_)
-{ }
-
-void TTabletBalancerProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/)
+class TTabletBalancerProgram
+    : public TServerProgram
+    , public TProgramConfigMixin<TTabletBalancerServerConfig>
 {
-    TThread::SetCurrentThreadName("TabletBalancerMain");
+public:
+    TTabletBalancerProgram()
+        : TProgramConfigMixin(Opts_)
+    {
+        SetMainThreadName("TabletBalancer");
+    }
 
-    ConfigureUids();
-    ConfigureIgnoreSigpipe();
-    ConfigureCrashHandler();
-    ConfigureExitZeroOnSigterm();
-    EnablePhdrCache();
-    ConfigureAllocator();
-    MlockFileMappings();
-    RunMixinCallbacks();
+protected:
+    void DoStart() final
+    {
+        auto config = GetConfig();
 
-    auto config = GetConfig();
+        ConfigureNativeSingletons(config);
 
-    ConfigureNativeSingletons(config);
+        auto configNode = GetConfigNode();
 
-    auto configNode = GetConfigNode();
+        auto* bootstrap = CreateBootstrap(std::move(config), std::move(configNode)).release();
+        bootstrap->Run();
+    }
+};
 
-    auto* bootstrap = CreateBootstrap(std::move(config), std::move(configNode)).release();
-    bootstrap->Run();
+////////////////////////////////////////////////////////////////////////////////
+
+void RunTabletBalancerProgram(int argc, const char** argv)
+{
+    TTabletBalancerProgram().Run(argc, argv);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

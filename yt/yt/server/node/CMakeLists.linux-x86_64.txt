@@ -60,6 +60,7 @@ target_link_libraries(yt-server-node PUBLIC
   yt-library-containers
   library-containers-cri
   yt-library-gpu
+  yt-library-server_program
   yt-ytlib-distributed_throttler
   server-node-cellar_node
   server-node-chaos_node
@@ -90,6 +91,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/node_resource_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/master_connector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/master_heartbeat_reporter_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/ally_replica_manager.cpp

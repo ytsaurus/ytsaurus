@@ -18,6 +18,7 @@ SRCS(
     private.cpp
     profilers.cpp
     profiling.cpp
+    program.cpp
     public.cpp
     solomon_proxy.cpp
     zookeeper_bootstrap_proxy.cpp
@@ -36,6 +37,7 @@ PEERDIR(
     yt/yt/library/dynamic_config
     yt/yt/library/ytprof
     yt/yt/library/containers
+    yt/yt/library/server_program
     yt/yt/core/https
     yt/yt/server/lib
     yt/yt/server/lib/chunk_pools

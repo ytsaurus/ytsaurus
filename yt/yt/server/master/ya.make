@@ -17,6 +17,7 @@ SRCS(
     cell_master/master_hydra_service.cpp
     cell_master/multi_phase_cell_sync_session.cpp
     cell_master/multicell_manager.cpp
+    cell_master/program.cpp
     cell_master/proto/alert_manager.proto
     cell_master/proto/epoch_history_manager.proto
     cell_master/proto/multicell_manager.proto
@@ -425,6 +426,8 @@ SRCS(
 
 PEERDIR(
     library/cpp/getopt
+    library/cpp/yt/phdr_cache
+    yt/yt/library/server_program
     yt/yt/ytlib/distributed_throttler
     yt/yt/server/lib
     yt/yt/server/lib/cell_server
@@ -444,8 +447,6 @@ PEERDIR(
     yt/yt/server/lib/transaction_supervisor
     yt/yt/server/lib/zookeeper_master
     yt/yt/server/lib/sequoia
-
-    library/cpp/yt/phdr_cache
 
     # TODO(max42): eliminate.
     yt/yt/server/lib/scheduler

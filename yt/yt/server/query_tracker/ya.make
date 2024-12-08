@@ -12,6 +12,7 @@ SRCS(
     query_tracker.cpp
     query_tracker_proxy.cpp
     mock_engine.cpp
+    program.cpp
     ql_engine.cpp
     spyt_discovery.cpp
     spyt_engine.cpp
@@ -26,10 +27,9 @@ PEERDIR(
     yt/chyt/client
 
     yt/yt/library/dynamic_config
-
     yt/yt/library/clickhouse_discovery
-
     yt/yt/library/coredumper
+    yt/yt/library/server_program
 
     yt/yt/server/lib/admin
     yt/yt/server/lib/alert_manager

@@ -40,5 +40,6 @@ target_sources(yt-server-log_tailer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/log_tailer/log_rotator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/log_tailer/log_tailer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/log_tailer/log_writer_liveness_checker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/log_tailer/program.cpp
 )
 

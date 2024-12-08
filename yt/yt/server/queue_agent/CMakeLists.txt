@@ -28,6 +28,8 @@ target_link_libraries(yt-server-queue_agent PUBLIC
   cpp-yt-phdr_cache
   library-cpp-getopt
   yt-library-dynamic_config
+  yt-library-program
+  yt-library-server_program
   yt-yt-client
   yt-client-federated
   yt-yt-ytlib
@@ -47,6 +49,7 @@ target_sources(yt-server-queue_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/performance_counters.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/profile_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_agent.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_agent_sharding_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_controller.cpp

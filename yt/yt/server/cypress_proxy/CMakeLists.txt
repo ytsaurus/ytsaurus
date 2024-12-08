@@ -28,6 +28,7 @@ target_link_libraries(yt-server-cypress_proxy PUBLIC
   cpp-yt-phdr_cache
   library-cpp-getopt
   yt-library-dynamic_config
+  yt-library-server_program
   yt-yt-ytlib
   server-lib-admin
   server-lib-misc

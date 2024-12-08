@@ -34,6 +34,7 @@ target_link_libraries(yt-server-http_proxy PUBLIC
   yt-library-dynamic_config
   yt-library-ytprof
   yt-library-containers
+  yt-library-server_program
   yt-core-https
   ytserver
   server-lib-chunk_pools
@@ -63,6 +64,7 @@ target_sources(yt-server-http_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/profilers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/profiling.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/solomon_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/zookeeper_bootstrap_proxy.cpp

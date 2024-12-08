@@ -12,8 +12,9 @@ SRCS(
 
 PEERDIR(
     library/cpp/getopt
-    yt/yt/ytlib
     library/cpp/yt/phdr_cache
+    yt/yt/library/server_program
+    yt/yt/ytlib
     yt/yt/server/lib
     yt/yt/server/lib/discovery_server
 )

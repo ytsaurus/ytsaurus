@@ -46,6 +46,8 @@ target_link_libraries(yt-server-master PUBLIC
   contrib-libs-cxxsupp
   yutil
   library-cpp-getopt
+  cpp-yt-phdr_cache
+  yt-library-server_program
   yt-ytlib-distributed_throttler
   ytserver
   server-lib-cell_server
@@ -65,7 +67,6 @@ target_link_libraries(yt-server-master PUBLIC
   server-lib-transaction_supervisor
   server-lib-zookeeper_master
   server-lib-sequoia
-  cpp-yt-phdr_cache
   server-lib-scheduler
   server-lib-controller_agent
   contrib-libs-protobuf
@@ -84,6 +85,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/master_hydra_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multi_phase_cell_sync_session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/response_keeper_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/snapshot_exporter.cpp
