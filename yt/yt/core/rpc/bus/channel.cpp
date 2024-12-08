@@ -84,7 +84,7 @@ public:
         TSessionPtr session;
 
         try {
-            session = GetOrCreateSession(options);
+            session = GetOrCreateSession(options, request->GetRequestId());
         } catch (const std::exception& ex) {
             responseHandler->HandleError(TError(ex));
             return nullptr;
@@ -180,13 +180,21 @@ private:
     std::atomic<bool> TerminationFlag_ = false;
     NThreading::TAtomicObject<TError> TerminationError_;
 
-    TSessionPtr GetOrCreateSession(const TSendOptions& options)
+    TSessionPtr GetOrCreateSession(const TSendOptions& options, TRequestId requestId)
     {
         auto& bucket = Buckets_[options.MultiplexingBand];
         auto parallelism = TTcpDispatcher::Get()->GetMultiplexingParallelism(
             options.MultiplexingBand,
             options.MultiplexingParallelism);
         auto index = parallelism <= 1 ? 0 : bucket.CurrentSessionIndex++ % parallelism;
+
+        if (parallelism >= 2) {
+            YT_LOG_DEBUG("Multiplexing session (RequestId: %v, Band: %v, MultiplexingIndex: %v, Parallelism: %v)",
+                requestId,
+                options.MultiplexingBand,
+                index,
+                parallelism);
+        }
 
         // Fast path.
         {
