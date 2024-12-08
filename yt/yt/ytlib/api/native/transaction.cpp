@@ -915,9 +915,10 @@ private:
                                 std::make_move_iterator(rowPayloads.begin()),
                                 std::make_move_iterator(rowPayloads.end()));
                         }
+                        break;
                     }
                     default:
-                        continue;
+                        break;
                 }
             }
         }

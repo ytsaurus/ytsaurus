@@ -1464,6 +1464,7 @@ private:
                     case EAgentToSchedulerOperationEventType::Suspended:
                     case EAgentToSchedulerOperationEventType::BannedInTentativeTree:
                         flushJobMetricsOperationIds.insert(event.OperationId);
+                        break;
                     default:
                         break;
                 }
@@ -1473,6 +1474,7 @@ private:
                     case EAgentToSchedulerOperationEventType::Aborted:
                     case EAgentToSchedulerOperationEventType::Failed:
                         finishedOperationIds.insert(event.OperationId);
+                        break;
                     default:
                         break;
                 }

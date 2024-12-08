@@ -1524,7 +1524,7 @@ TObject* TObjectManager::CreateObject(
     switch (object->GetLifeStage()) {
         case EObjectLifeStage::RemovalPreCommitted:
             object->SetLifeStage(EObjectLifeStage::RemovalStarted);
-            /*fallthrough*/
+            [[fallthrough]];
 
         case EObjectLifeStage::RemovalStarted:
             CheckRemovingObjectRefCounter(object);

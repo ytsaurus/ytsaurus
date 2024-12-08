@@ -465,6 +465,7 @@ public:
                 case ETabletBackupState::RestoreStarted:
                 case ETabletBackupState::RestoreFailed:
                     clonedTablet->SetBackupState(ETabletBackupState::RestoreFailed);
+                    break;
 
                 // If source table is a backup table, so is cloned one.
                 case ETabletBackupState::BackupCompleted:
