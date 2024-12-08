@@ -4,6 +4,8 @@
 
 #include <library/cpp/yt/yson_string/format.h>
 
+#include <ranges>
+
 namespace NYT::NOrm::NAttributes {
 namespace {
 
@@ -11,8 +13,8 @@ namespace {
 
 TStringBuf TrimSpaces(TStringBuf buf)
 {
-    int prefixSpaces = std::find_if_not(buf.begin(), buf.end(), &IsSpace) - buf.begin();
-    int suffixSpaces = std::find_if_not(buf.rbegin(), buf.rend(), &IsSpace) - buf.rbegin();
+    int prefixSpaces = std::ranges::find_if_not(buf, IsSpace) - buf.begin();
+    int suffixSpaces = std::ranges::find_if_not(buf | std::views::reverse, IsSpace) - buf.rbegin();
     if (prefixSpaces + suffixSpaces >= std::ssize(buf)) {
         return TStringBuf{};
     } else {

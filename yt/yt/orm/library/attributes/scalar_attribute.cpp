@@ -399,10 +399,7 @@ protected:
     std::vector<std::pair<TString, INodePtr>> SortedMapChildren() const
     {
         auto children = CurrentValue_->AsMap()->GetChildren();
-        std::sort(
-            children.begin(),
-            children.end(),
-            [] (const auto& lhs, const auto& rhs) { return lhs.first < rhs.first; });
+        std::ranges::sort(children, std::less{}, &std::pair<std::string, INodePtr>::first);
         return {children.begin(), children.end()};
     }
 

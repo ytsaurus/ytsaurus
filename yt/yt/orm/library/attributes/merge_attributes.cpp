@@ -136,8 +136,8 @@ TYsonString MergeAttributeValuesAsNodes(
     std::vector<TAttributeValue> attributeValues,
     EYsonFormat format)
 {
-    std::stable_sort(attributeValues.begin(), attributeValues.end(), [] (const auto& lhs, const auto& rhs) {
-        return lhs.Path.size() < rhs.Path.size();
+    std::ranges::stable_sort(attributeValues, std::less{}, [] (const auto& attributeValue) {
+        return attributeValue.Path.size();
     });
 
     auto rootNode = NYTree::GetEphemeralNodeFactory()->CreateMap();
@@ -193,7 +193,7 @@ bool HasPrefixes(const std::vector<TAttributeValue>& attributeValues)
 
 bool IsOnePrefixOfAnother(const NYPath::TYPath& lhs, const NYPath::TYPath& rhs)
 {
-    auto [lit, rit] = std::mismatch(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
+    auto [lit, rit] = std::ranges::mismatch(lhs, rhs);
     if (lit == lhs.end() && (rit == rhs.end() || *rit == '/')) {
         return true;
     }

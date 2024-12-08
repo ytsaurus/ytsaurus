@@ -26,8 +26,7 @@ void ValidateSortedPaths(const TRange& paths, TPathProj pathProj, TIsEtcProj etc
     while ((begin = std::ranges::adjacent_find(
         begin,
         paths.end(),
-        [] (const NYPath::TYPath& lhs, const NYPath::TYPath& rhs)
-        {
+        [] (const NYPath::TYPath& lhs, const NYPath::TYPath& rhs) {
             return NYPath::HasPrefix(rhs, lhs);
         },
         pathProj)) != paths.end())
@@ -45,7 +44,7 @@ void SortAndRemoveNestedPaths(std::vector<TType>& collection, TPathProj pathProj
         return;
     }
 
-    std::ranges::sort(collection.begin(), collection.end(), /*comp*/ {}, pathProj);
+    std::ranges::sort(collection, std::less{}, pathProj);
 
     int lastRemainingPath = 0;
     int lastPath = 0;
