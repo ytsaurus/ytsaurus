@@ -2047,6 +2047,10 @@ private:
             }
         }
 
+        YT_LOG_DEBUG("Requesting block set (Address: %v, BlocksRequested: %v)",
+            primaryAddress,
+            MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3));
+
         auto getBlockSetResponseFuture = RequestBatcher_->GetBlockSet(
             IRequestBatcher::TRequest{
                 .Address = primaryAddress,
