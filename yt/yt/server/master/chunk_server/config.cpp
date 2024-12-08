@@ -146,6 +146,9 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
     registrar.Parameter("shallow_merge_validation_probability", &TThis::ShallowMergeValidationProbability)
         .Default(0);
 
+    registrar.Parameter("enable_chunk_meta_extensions_validation", &TThis::EnableChunkMetaExtensionsValidation)
+        .Default(true);
+
     registrar.Parameter("reschedule_merge_on_success", &TThis::RescheduleMergeOnSuccess)
         .Default(false)
         .DontSerializeDefault();

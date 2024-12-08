@@ -14,6 +14,8 @@ struct IMetaAggregatingWriter
     virtual void AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChunkId chunkId) = 0;
 
     virtual const TDeferredChunkMetaPtr& GetChunkMeta() const = 0;
+
+    virtual TError FinalizeAndValidateChunkMeta() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

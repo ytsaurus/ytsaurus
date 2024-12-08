@@ -50,6 +50,11 @@ const static THashSet<int> KnownExtensionTags = {
     TProtoExtensionTag<TLargeColumnarStatisticsExt>::Value,
 };
 
+const static THashSet<int> ExtensionTagsToIgnoreInValidation = {
+    TProtoExtensionTag<NProto::TBlocksExt>::Value,
+    TProtoExtensionTag<NProto::TErasurePlacementExt>::Value,
+};
+
 class TMetaAggregatingWriter
     : public IMetaAggregatingWriter
 {
@@ -102,7 +107,10 @@ public:
         const TWorkloadDescriptor& workloadDescriptor,
         const TDeferredChunkMetaPtr& /*chunkMeta*/ = nullptr) override
     {
-        FinalizeMeta();
+        if (!MetaFinalized_) {
+            FinalizeMeta();
+        }
+
         return UnderlyingWriter_->Close(workloadDescriptor, ChunkMeta_);
     }
 
@@ -144,6 +152,8 @@ public:
         return ChunkMeta_;
     }
 
+    TError FinalizeAndValidateChunkMeta() override;
+
     TFuture<void> Cancel() override
     {
         return UnderlyingWriter_->Cancel();
@@ -177,6 +187,8 @@ private:
     TDataBlockMetaExt BlockMetaExt_;
     TNameTableExt NameTableExt_;
 
+    THashSet<int> InputChunkMetaExtensions_;
+
     std::optional<TBoundaryKeysExtension> BoundaryKeys_;
     std::optional<TColumnMetaExtension> ColumnMeta_;
     std::optional<TTableSchema> TableSchema_;
@@ -200,8 +212,10 @@ DEFINE_REFCOUNTED_TYPE(TMetaAggregatingWriter)
 
 void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChunkId chunkId)
 {
+    InputChunkMetaExtensions_ = GetExtensionTagSet(meta->extensions());
+
     if (!Options_->AllowUnknownExtensions) {
-        for (auto tag : GetExtensionTagSet(meta->extensions())) {
+        for (auto tag : InputChunkMetaExtensions_) {
             if (!KnownExtensionTags.contains(tag)) {
                 THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
                     "Chunk %v has unknown extension %v with tag %v",
@@ -363,6 +377,27 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
         auto maxTs = miscExt.max_timestamp();
         MaxTimestamp_ = MaxTimestamp_ == NullTimestamp ? maxTs : std::max(maxTs, MaxTimestamp_);
     }
+}
+
+TError TMetaAggregatingWriter::FinalizeAndValidateChunkMeta()
+{
+    if (!MetaFinalized_) {
+        FinalizeMeta();
+    }
+
+    // These extensions are set at a different level of writers, so the discrepancies in them should be ignored at this point.
+    for (auto tag : ExtensionTagsToIgnoreInValidation) {
+        InputChunkMetaExtensions_.erase(tag);
+    }
+
+    auto outputChunkMetaExtensions = GetExtensionTagSet(ChunkMeta_->extensions());
+    if (InputChunkMetaExtensions_ == outputChunkMetaExtensions) {
+        return TError();
+    }
+
+    return TError("Chunk meta extensions in input chunks differs from extensions in output chunks")
+        << TErrorAttribute("input_chunks_chunk_meta_extensions", InputChunkMetaExtensions_)
+        << TErrorAttribute("output_chunks_chunk_meta_extensions", outputChunkMetaExtensions);
 }
 
 template <typename TParsedExtension, typename TProtobufExtension>

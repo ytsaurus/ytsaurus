@@ -105,7 +105,8 @@ TMergeJob::TMergeJob(
     TChunkVector inputChunks,
     TChunkMergerWriterOptions chunkMergerWriterOptions,
     TNodePtrWithReplicaAndMediumIndexList targetReplicas,
-    bool validateShallowMerge)
+    bool validateShallowMerge,
+    bool validateChunkMetaExtensions)
     : TJob(
         jobId,
         EJobType::MergeChunks,
@@ -118,6 +119,7 @@ TMergeJob::TMergeJob(
     , InputChunks_(std::move(inputChunks))
     , ChunkMergerWriterOptions_(std::move(chunkMergerWriterOptions))
     , ValidateShallowMerge_(validateShallowMerge)
+    , ValidateChunkMetaExtensions_(validateChunkMetaExtensions)
 { }
 
 bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
@@ -169,6 +171,7 @@ bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
     }
 
     jobSpecExt->set_validate_shallow_merge(ValidateShallowMerge_);
+    jobSpecExt->set_validate_chunk_meta_extensions(ValidateChunkMetaExtensions_);
 
     return true;
 }
@@ -1132,14 +1135,18 @@ void TChunkMerger::RescheduleMerge(TObjectId nodeId, TAccountId accountId)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(HasMutationContext());
 
-    YT_LOG_DEBUG(
-        "Initiating backoff reschedule merge (NodeId: %v, AccountId: %v)",
-        nodeId,
-        accountId);
-
     auto [it, _] = NodeToBackoffPeriod_.emplace(nodeId, GetDynamicConfig()->MinBackoffPeriod);
     auto maxBackoffPeriod = GetDynamicConfig()->MaxBackoffPeriod;
     auto backoff = it->second;
+    auto rescheduleIteration = NodeToRescheduleCountAfterMaxBackoffDelay_[nodeId];
+
+    YT_LOG_DEBUG(
+        "Initiating backoff reschedule merge (NodeId: %v, AccountId: %v, ReschedulingIteration: %v, Backoff: %v)",
+        nodeId,
+        accountId,
+        rescheduleIteration,
+        backoff);
+
     AddToNodesBeingMerged(nodeId, accountId);
 
     TDelayedExecutor::Submit(
@@ -1156,10 +1163,10 @@ void TChunkMerger::RescheduleMerge(TObjectId nodeId, TAccountId accountId)
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMerger));
 
     if (backoff == maxBackoffPeriod) {
-        if (NodeToRescheduleCountAfterMaxBackoffDelay_[nodeId] + 1 > GetDynamicConfig()->MaxAllowedBackoffReschedulingsPerSession) {
+        if (rescheduleIteration + 1 > GetDynamicConfig()->MaxAllowedBackoffReschedulingsPerSession) {
             YT_LOG_ALERT("Node is suspected in being stuck in merge pipeline (NodeId: %v, RescheduleIteration: %v, AccountId: %v)",
                 nodeId,
-                NodeToRescheduleCountAfterMaxBackoffDelay_[nodeId],
+                rescheduleIteration,
                 accountId);
             AccountIdToStuckNodes_[accountId].insert(nodeId);
         }
@@ -1741,6 +1748,7 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
 
     const auto& config = GetDynamicConfig();
     auto validateShallowMerge = static_cast<int>(RandomNumber<ui32>() % 100) < config->ShallowMergeValidationProbability;
+    auto validateChunkMetaExtensions = config->EnableChunkMetaExtensionsValidation;
     auto job = New<TMergeJob>(
         jobInfo.JobId,
         JobEpoch_,
@@ -1750,11 +1758,13 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
         std::move(inputChunks),
         std::move(chunkMergerWriterOptions),
         std::move(targetReplicas),
-        validateShallowMerge);
+        validateShallowMerge,
+        validateChunkMetaExtensions);
     context->ScheduleJob(job);
 
     YT_LOG_DEBUG("Merge job scheduled "
-        "(JobId: %v, JobEpoch: %v, Address: %v, NodeId: %v, InputChunkIds: %v, OutputChunkId: %v, ValidateShallowMerge: %v, AccointId: %v)",
+        "(JobId: %v, JobEpoch: %v, Address: %v, NodeId: %v, InputChunkIds: %v, OutputChunkId: %v, "
+        "ValidateShallowMerge: %v, ValidateChunkMetaExtensions: %v, AccointId: %v)",
         job->GetJobId(),
         job->GetJobEpoch(),
         context->GetNode()->GetDefaultAddress(),
@@ -1762,6 +1772,7 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
         jobInfo.InputChunkIds,
         jobInfo.OutputChunkId,
         validateShallowMerge,
+        validateChunkMetaExtensions,
         jobInfo.AccountId);
 
     return true;
@@ -1791,15 +1802,21 @@ void TChunkMerger::OnJobFinished(const TMergeJobPtr& job)
         const auto& jobResult = job->Result();
         const auto& jobResultExt = jobResult.GetExtension(NChunkClient::NProto::TMergeChunksJobResultExt::merge_chunks_job_result_ext);
 
-        TError error;
-        FromProto(&error, jobResultExt.shallow_merge_validation_error());
-        if (!error.IsOK()) {
-            YT_VERIFY(job->GetState() == EJobState::Failed);
-            YT_LOG_ALERT(error, "Shallow merge validation failed; disabling chunk merger (JobId: %v)",
-                job->GetJobId());
-            NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
-                BIND(&TChunkMerger::DisableChunkMerger, MakeStrong(this)));
-        }
+        auto validateError = [&, this_ = MakeStrong(this)] (auto error, auto message) {
+            if (!error.IsOK()) {
+                YT_VERIFY(job->GetState() == EJobState::Failed);
+                YT_LOG_ALERT(error, "%v (JobId: %v)",
+                    message,
+                    job->GetJobId());
+                NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
+                    BIND(&TChunkMerger::DisableChunkMerger, MakeStrong(this)));
+            }
+        };
+
+        auto shallowMergeValidationError = FromProto<TError>(jobResultExt.shallow_merge_validation_error());
+        auto chunksMetaValidationError = FromProto<TError>(jobResultExt.chunk_meta_validation_error());
+        validateError(shallowMergeValidationError, "Shallow merge validation failed; disabling chunk merger");
+        validateError(chunksMetaValidationError, "Input and output chunks meta validation failed; disabling chunk merger");
     }
 
     FinalizeJob(
