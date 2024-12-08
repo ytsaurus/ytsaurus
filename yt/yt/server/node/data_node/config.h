@@ -687,6 +687,7 @@ public:
 
     // Testing options.
     bool FailShallowMergeValidation;
+    bool FailChunkMetaValidation;
     bool TrackWriterMemory;
 
     i64 ReadMemoryLimit;

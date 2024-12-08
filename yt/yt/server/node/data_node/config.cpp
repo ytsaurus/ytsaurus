@@ -652,6 +652,8 @@ void TMergeChunksJobDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("fail_shallow_merge_validation", &TThis::FailShallowMergeValidation)
         .Default(false);
+    registrar.Parameter("fail_chunk_meta_validation", &TThis::FailChunkMetaValidation)
+        .Default(false);
 
     registrar.Parameter("read_memory_limit", &TThis::ReadMemoryLimit)
         .Default(1_GB);

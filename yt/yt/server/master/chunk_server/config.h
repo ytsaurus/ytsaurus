@@ -185,6 +185,8 @@ public:
     //! Fraction (in percents) of shallow merge jobs for which validation is run.
     int ShallowMergeValidationProbability;
 
+    bool EnableChunkMetaExtensionsValidation;
+
     bool RescheduleMergeOnSuccess;
     bool AllowSettingChunkMergerMode;
 

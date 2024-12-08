@@ -1270,6 +1270,7 @@ private:
     const TMergeChunksJobDynamicConfigPtr DynamicConfig_;
 
     bool DeepMergeFallbackOccurred_ = false;
+    TError ChunkMetaValidationError_;
     TError ShallowMergeValidationError_;
     EChunkMergerMode MergeMode_;
     IMultiReaderMemoryManagerPtr MultiReaderMemoryManager_;
@@ -1411,11 +1412,17 @@ private:
             jobResultExt->set_deep_merge_fallback_occurred(DeepMergeFallbackOccurred_);
         }
         ToProto(jobResultExt->mutable_shallow_merge_validation_error(), ShallowMergeValidationError_);
+        ToProto(jobResultExt->mutable_chunk_meta_validation_error(), ChunkMetaValidationError_);
 
-        if (!ShallowMergeValidationError_.IsOK()) {
-            YT_LOG_ALERT(ShallowMergeValidationError_, "Shallow merge validation failed");
-            THROW_ERROR ShallowMergeValidationError_;
-        }
+        auto validateError = [this, this_ = MakeStrong(this)] (auto error, auto message) {
+            if (!error.IsOK()) {
+                YT_LOG_ALERT(error, "%v", message);
+                THROW_ERROR error;
+            }
+        };
+
+        validateError(ShallowMergeValidationError_, "Shallow merge validation failed");
+        validateError(ChunkMetaValidationError_, "Chunk meta validation failed");
     }
 
     TFuture<void> DoRun() override
@@ -1632,6 +1639,10 @@ private:
             }
         }
 
+        if (JobSpecExt_.validate_chunk_meta_extensions()) {
+            ChunkMetaValidationError_ = ValidateChunkMeta(writer);
+        }
+
         WaitFor(writer->Close())
             .ThrowOnError();
 
@@ -1790,6 +1801,15 @@ private:
         auto deferredChunkMeta = New<TDeferredChunkMeta>();
         deferredChunkMeta->CopyFrom(*result.Value());
         return deferredChunkMeta;
+    }
+
+    TError ValidateChunkMeta(const IMetaAggregatingWriterPtr& writer)
+    {
+        if (DynamicConfig_->FailChunkMetaValidation) {
+            return TError("Testing error");
+        }
+
+        return writer->FinalizeAndValidateChunkMeta();
     }
 
     TError ValidateShallowMerge(
