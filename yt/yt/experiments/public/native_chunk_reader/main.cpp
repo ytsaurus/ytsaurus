@@ -158,6 +158,7 @@ protected:
         TClientChunkReadOptions chunkReadOptions{
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::Idle, 0, TInstant::Zero(), {"Download file"}),
             .ReadSessionId = TReadSessionId::Create(),
+            .MultiplexingParallelism = Config_->MultiplexingParallelism,
         };
 
         TChunkReplica seedReplica(NodeId_, /*replicaIndex*/ 0);

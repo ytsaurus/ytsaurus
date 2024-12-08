@@ -16,6 +16,7 @@ class TConfig
 {
 public:
     NChunkClient::TMultiChunkReaderConfigPtr Reader;
+    int MultiplexingParallelism;
 
     REGISTER_YSON_STRUCT(TConfig);
 

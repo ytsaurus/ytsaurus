@@ -10,6 +10,8 @@ void TConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("reader", &TConfig::Reader)
         .DefaultNew();
+    registrar.Parameter("multiplexing_parallelism", &TConfig::MultiplexingParallelism)
+        .Default(1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
