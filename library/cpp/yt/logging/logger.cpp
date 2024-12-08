@@ -152,7 +152,7 @@ ELogLevel GetThreadMinLogLevel()
 TLogger::TLogger(ILogManager* logManager, TStringBuf categoryName)
     : LogManager_(logManager)
     , Category_(LogManager_ ? LogManager_->GetCategory(categoryName) : nullptr)
-    , MinLevel_(LogManager_ ? LoggerDefaultMinLevel : NullLoggerMinLevel)
+    , MinLevel_(LogManager_ ? ELogLevel::Trace : NullLoggerMinLevel)
 { }
 
 TLogger::TLogger(TStringBuf categoryName)
