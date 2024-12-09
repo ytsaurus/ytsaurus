@@ -1944,7 +1944,7 @@ class YtClient(ClientState):
             self,
             table,
             format=None, table_reader=None, control_attributes=None, unordered=None, raw=None,
-            response_parameters=None, enable_read_parallel=None):
+            response_parameters=None, enable_read_parallel=None, omit_inaccessible_columns=None):
         """
         Reads rows from table and parse (optionally).
 
@@ -1952,6 +1952,7 @@ class YtClient(ClientState):
         :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :param dict table_reader: spec of "read" operation.
         :param bool raw: don't parse response to rows.
+        :param bool omit_inaccessible_columns: do not fail on inaccessible columns
         :rtype: if `raw` is specified -- :class:`ResponseStream <yt.wrapper.response_stream.ResponseStream>`,     rows iterator over dicts or :class:`Record <yt.wrapper.yamr_record.Record>` otherwise.
 
         If ``yt.wrapper.config["read_retries"]["enable"]`` is specified,
@@ -1963,7 +1964,8 @@ class YtClient(ClientState):
             table,
             client=self,
             format=format, table_reader=table_reader, control_attributes=control_attributes, unordered=unordered,
-            raw=raw, response_parameters=response_parameters, enable_read_parallel=enable_read_parallel)
+            raw=raw, response_parameters=response_parameters, enable_read_parallel=enable_read_parallel,
+            omit_inaccessible_columns=omit_inaccessible_columns)
 
     def read_table_structured(
             self,

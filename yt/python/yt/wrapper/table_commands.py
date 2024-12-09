@@ -788,13 +788,14 @@ def _get_table_attributes(table, client):
 
 
 def read_table(table, format=None, table_reader=None, control_attributes=None, unordered=None,
-               raw=None, response_parameters=None, enable_read_parallel=None, client=None):
+               raw=None, response_parameters=None, enable_read_parallel=None, omit_inaccessible_columns=None, client=None):
     """Reads rows from table and parse (optionally).
 
     :param table: table to read.
     :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
     :param dict table_reader: spec of "read" operation.
     :param bool raw: don't parse response to rows.
+    :param bool omit_inaccessible_columns: do not fail on inaccessible columns
     :rtype: if `raw` is specified -- :class:`ResponseStream <yt.wrapper.response_stream.ResponseStream>`, \
     rows iterator over dicts or :class:`Record <yt.wrapper.yamr_record.Record>` otherwise.
 
@@ -823,6 +824,8 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
     }
     set_param(params, "table_reader", table_reader)
     set_param(params, "unordered", unordered)
+
+    set_param(params, "omit_inaccessible_columns", get_value(omit_inaccessible_columns,  get_config(client)["read_omit_inaccessible_columns"]), bool)
 
     enable_read_parallel = get_value(enable_read_parallel, get_config(client)["read_parallel"]["enable"])
 

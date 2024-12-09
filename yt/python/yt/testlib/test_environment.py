@@ -242,7 +242,8 @@ class YtTestEnvironment(object):
         self.config["read_parallel"]["data_size_per_thread"] = 1
         self.config["read_parallel"]["max_thread_count"] = 10
 
-        self.config["enable_token"] = False
+        if "enable_token" not in config:
+            self.config["enable_token"] = False
         self.config["pickling"]["module_filter"] = lambda module: \
             hasattr(module, "__file__") and module.__file__ is not None and "driver_lib" not in module.__file__
 

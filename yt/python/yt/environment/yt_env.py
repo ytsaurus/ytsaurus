@@ -697,6 +697,8 @@ class YTInstance(object):
 
         client.set_user_password(DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD)
 
+        wait(lambda: client.get("//sys/users/{}/@life_stage".format(DEFAULT_ADMIN_USERNAME)) == "creation_committed")
+
     def stop(self, force=False):
         if not self._started and not force:
             return
