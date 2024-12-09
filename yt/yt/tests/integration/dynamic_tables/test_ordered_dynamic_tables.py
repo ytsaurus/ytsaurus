@@ -4,13 +4,13 @@ from yt_env_setup import Restarter, NODES_SERVICE
 
 from yt_commands import (
     authors, print_debug, wait, ls, get, set, copy, concatenate,
-    start_transaction, abort_transaction,
+    start_transaction, abort_transaction, remount_table,
     lock, insert_rows, select_rows, delete_rows, trim_rows, alter_table, read_table, write_table,
     mount_table, reshard_table, generate_timestamp, wait_for_cells,
     get_tablet_leader_address, sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_unfreeze_table, sync_reshard_table, sync_flush_table,
     get_singular_chunk_id, create_dynamic_table, build_snapshot, generate_uuid,
-    raises_yt_error)
+    raises_yt_error, remove)
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -1353,6 +1353,83 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
 
             self._verify_chunk_tree_statistics("//tmp/t")
             assert [t["trimmed_row_count"] for t in get("//tmp/t/@tablets")] == trimmed_row_counts
+
+    @authors("alexelexa")
+    def test_tablet_size_limit(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@mount_config/max_ordered_tablet_data_weight", 1)
+        sync_reshard_table("//tmp/t", 3)
+        sync_mount_table("//tmp/t")
+
+        for i in range(2):
+            insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
+
+        for i in range(2):
+            with raises_yt_error():
+                insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
+
+        insert_rows("//tmp/t", [{"$tablet_index": 2, "a": 2}])
+        with raises_yt_error():
+            insert_rows("//tmp/t", [{"$tablet_index": 2, "a": i}])
+
+        remove("//tmp/t/@mount_config/max_ordered_tablet_data_weight")
+        remount_table("//tmp/t")
+
+        for i in range(3):
+            insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
+
+        sync_unmount_table("//tmp/t")
+        set("//tmp/t/@mount_config/max_ordered_tablet_data_weight", 1)
+        sync_mount_table("//tmp/t")
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        trim_rows("//tmp/t", 0, 2)
+        wait(lambda: len(chunk_ids) > len(get("//tmp/t/@chunk_ids")))
+
+        with raises_yt_error():
+            insert_rows("//tmp/t", [{"$tablet_index": 1, "a": 4}])
+
+        insert_rows("//tmp/t", [{"$tablet_index": 0, "a": 3}])
+
+    @authors("alexelexa")
+    def test_large_tablet_size_limit(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+
+        max_data_weight = 200000
+        set("//tmp/t/@mount_config/max_ordered_tablet_data_weight", max_data_weight)
+        sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        def get_table_data_weight():
+            address = get_tablet_leader_address(tablet_id)
+            tablet_data = self._find_tablet_orchid(address, tablet_id)
+            stores = tablet_data["stores"].values()
+
+            size = 0
+            for store in stores:
+                if store["store_state"] == "persistent":
+                    size += store["uncompressed_data_size"]
+                elif store["store_state"] == "active_dynamic":
+                    size += store["pool_capacity"]
+            return size
+
+        def make_rows(index=0):
+            return [{"a": i, "c": chr(ord('a') + index) * 70} for i in range(100)]
+
+        insert_rows("//tmp/t", make_rows())
+        sync_flush_table("//tmp/t")
+
+        for i in range(13):
+            assert get_table_data_weight() < max_data_weight
+            insert_rows("//tmp/t", make_rows(i))
+
+        assert get_table_data_weight() >= max_data_weight
+
+        with raises_yt_error():
+            insert_rows("//tmp/t", make_rows(13))
 
 
 class TestOrderedDynamicTablesMulticell(TestOrderedDynamicTables):

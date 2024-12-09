@@ -361,6 +361,10 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_replication_progress_advance_to_barrier", &TThis::EnableReplicationProgressAdvanceToBarrier)
         .Default(true);
 
+    registrar.Parameter("max_ordered_tablet_data_weight", &TThis::MaxOrderedTabletDataWeight)
+        .GreaterThan(0)
+        .Default();
+
     registrar.Parameter("simulated_tablet_snapshot_delay", &TThis::SimulatedTabletSnapshotDelay)
         .Default()
         .DontSerializeDefault();
