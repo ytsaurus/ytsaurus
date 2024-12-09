@@ -166,7 +166,8 @@ public:
             .Apply(BIND(&TSequoiaTransaction::CommitSessions, MakeStrong(this))
                 .AsyncVia(SerializedInvoker_))
             .Apply(BIND(&TSequoiaTransaction::DoCommitTransaction, MakeStrong(this), options)
-                .AsyncVia(SerializedInvoker_));
+                .AsyncVia(SerializedInvoker_))
+            .Apply(BIND(MaybeWrapSequoiaRetriableError<void>));
     }
 
     TFuture<TUnversionedLookupRowsResult> LookupRows(
