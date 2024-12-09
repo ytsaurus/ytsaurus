@@ -71,10 +71,10 @@ TStatisticsReporter::TStatisticsReporter(IBootstrap* const bootstrap)
         ActionQueue_->GetInvoker(),
         BIND(&TStatisticsReporter::ReportStatistics, MakeWeak(this))))
     , Profiler_(TabletNodeProfiler().WithPrefix("/statistics_reporter"))
-    , ReportCount_(Profiler_.Counter("report_count"))
-    , ReportErrorCount_(Profiler_.Counter("report_error_count"))
-    , ReportedTabletCount_(Profiler_.Counter("reported_tablet_count"))
-    , ReportTime_(Profiler_.Timer("report_time"))
+    , ReportCount_(Profiler_.Counter("/report_count"))
+    , ReportErrorCount_(Profiler_.Counter("/report_error_count"))
+    , ReportedTabletCount_(Profiler_.Counter("/reported_tablet_count"))
+    , ReportTime_(Profiler_.Timer("/report_time"))
 {
     Reconfigure(Bootstrap_->GetDynamicConfigManager()->GetConfig());
 }
