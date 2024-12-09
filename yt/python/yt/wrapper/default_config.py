@@ -492,6 +492,9 @@ default_config = {
     # Size of block to read from response stream.
     "read_buffer_size": 8 * 1024 * 1024,
 
+    # Do not fail while reading columns blocked by column acl
+    "read_omit_inaccessible_columns": None,
+
     # Defaults that will be passed to all operation specs with the least priority.
     "spec_defaults": {
     },
