@@ -480,58 +480,58 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
 
     @authors("sabdenovch")
     def test_unfolding(self):
-        self._create_table("//tmp/table", PRIMARY_SCHEMA_WITH_LIST)
-        self._create_table("//tmp/index_table", UNFOLDING_INDEX_SCHEMA)
-        self._sync_create_cells()
-        self._mount("//tmp/table", "//tmp/index_table")
+        self._create_basic_tables(
+            table_schema=PRIMARY_SCHEMA_WITH_LIST,
+            index_schema=UNFOLDING_INDEX_SCHEMA,
+            kind="unfolding",
+            mount=True,
+            attributes={
+                "unfolded_column": "value"
+            },
+        )
 
         insert_rows("//tmp/table", [
             {"key": 0, "value": [14, 13, 12]},
             {"key": 1, "value": [11, 12]},
             {"key": 2, "value": [13, 11]},
-            {"key": 3, "value": None},
-        ])
-        insert_rows("//tmp/index_table", [
-            {"value": 1, "key": 1},
-            {"value": 1, "key": 2},
-            {"value": 2, "key": 0},
-            {"value": 2, "key": 1},
-            {"value": 3, "key": 0},
-            {"value": 3, "key": 2},
-            {"value": 4, "key": 0},
+            {"key": 3, "value": [None, 12]},
+            {"key": 4, "value": None},
         ])
 
-        self._unmount("//tmp/table", "//tmp/index_table")
-        self._create_secondary_index("//tmp/table", "//tmp/index_table", kind="unfolding", attributes={
-            "unfolded_column": "value"
-        })
-        self._mount("//tmp/table", "//tmp/index_table")
+        query = """
+            key, value from [//tmp/table] with index [//tmp/index_table]
+            where list_contains(value, 12)
+        """
+        rows = select_rows(query)
+        expected = select_rows("key, value from [//tmp/table] where list_contains(value, 12)")
+        assert_items_equal(sorted_dicts(rows), sorted_dicts(expected))
+        assert explain_query(query)["query"]["constraints"] != "Constraints: <universe>"
 
-        expected_table_rows = [
-            {"key": 0, "value": [14, 13, 12]},
-            {"key": 1, "value": [11, 12]},
-        ]
-        rows = select_rows("key, value "
-                           "from [//tmp/table] with index [//tmp/index_table] "
-                           "where list_contains(value, 2)")
-        assert_items_equal(sorted_dicts(rows), sorted_dicts(expected_table_rows))
+        query = """
+            key, first(to_any(value)) as value from [//tmp/table] with index [//tmp/index_table]
+            where list_contains(value, 12) or list_contains(value, 13)
+            group by key
+        """
+        rows = select_rows(query)
+        expected = select_rows("""
+            key, value from [//tmp/table]
+            where list_contains(value, 12) or list_contains(value, 13)
+        """)
+        assert_items_equal(sorted_dicts(rows), sorted_dicts(expected))
+        assert explain_query(query)["query"]["constraints"] != "Constraints: <universe>"
 
-        expected_table_rows = [
-            {"key": 0, "value": [14, 13, 12]},
-            {"key": 1, "value": [11, 12]},
-            {"key": 2, "value": [13, 11]},
-        ]
-        rows = select_rows("key, first(to_any(value)) as value "
-                           "from [//tmp/table] with index [//tmp/index_table] "
-                           "where list_contains(value, 2) or list_contains(value, 3) "
-                           "group by key")
-        assert_items_equal(sorted_dicts(rows), sorted_dicts(expected_table_rows))
-
-        rows = select_rows("key, first(to_any(value)) as value "
-                           "from [//tmp/table] with index [//tmp/index_table] "
-                           "where value in (1, 4) "
-                           "group by key")
-        assert_items_equal(sorted_dicts(rows), sorted_dicts(expected_table_rows))
+        query = """
+            key, first(to_any(value)) as value from [//tmp/table] with index [//tmp/index_table]
+            where value in (#, 11, 14)
+            group by key
+        """
+        rows = select_rows(query)
+        expected = select_rows("""
+            key, value from [//tmp/table]
+            where list_contains(value, 11) or list_contains(value, 14) or list_contains(value, #)
+        """)
+        assert_items_equal(sorted_dicts(rows), sorted_dicts(expected))
+        assert explain_query(query)["query"]["constraints"] != "Constraints: <universe>"
 
     @authors("sabdenovch")
     @pytest.mark.parametrize("table_schema", (PRIMARY_SCHEMA, PRIMARY_SCHEMA_WITH_EXPRESSION))
