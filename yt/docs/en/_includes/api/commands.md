@@ -1,6 +1,6 @@
 # Commands
 
-This section lists all the commands available in the YT system API and includes a full description of their options.
+This section lists all the commands available in the {{product-name}} system API and includes a full description of their options.
 
 ## Structure { #structure }
 
@@ -15,8 +15,8 @@ Each command also defines the type of its input and output data. Below all the p
 
 - No data (`null`).
 - The data is a `binary` stream. For example, [file](../../user-guide/storage/files.md) contents.
-- The data is structured (`structured`). For example, regular Cypress [nodes](../../user-guide/storage/formats.md#structured_data).
-- The data is a `binary` stream. For example, [table](../../user-guide/storage/static-tables.md) contents.
+- The data is [structured](../../user-guide/storage/formats.md#structured_data) (`structured`). For example, regular [Cypress](../../user-guide/storage/cypress.md) nodes.
+- The data is a `binary` stream. For example, [table](../../user-guide/storage/objects.md#tables) contents.
 
 In addition to that, each command can be:
 
@@ -39,7 +39,7 @@ Availability of retry options and the mechanism of retries depends on the comma
 
 For non-mutating light commands, you can repeat the original query.
 
-The mutating light commands change the system status. That's why you need to hint the system that such a query has already been made. To do this, before executing the command, generate the `mutation_id` for the command. This is a standard GUID that consists of four 32-bit numbers in the HEX format separated by a dash (`-`).
+The mutating light commands change the system status. That's why you need to hint the system that such a query has already been made. To do this, before executing the command, generate the `mutation_id` for the command. This is a standard GUID that consists of four 32-bit numbers in the HEX format separated by a dash (`-`).
 
 Specify the `mutation_id` generated both in the parameters of both the original query and in the retries.  In addition, you need to add, to the original query, the `retry` parameter with the value of `false`. To the retried queries, add the `retry` parameter with the value of `true`. Some light mutating commands do not support retries (an example is `concatenate`). If you need to retry such commands, you can use transactions.
 
@@ -56,9 +56,9 @@ You can't retry heavy commands However, you can implement a retry mechanism by 
 
 ## Transactions { #transactions }
 
-[Transactions](../../user-guide/storage/transactions.md) are an integral [Cypress](../../user-guide/storage/cypress.md) property. Many commands that interact with Cypress this way or another, are transactional. Each command or group of commands has a separate indication of whether it is transactional or not. If the command is transactional, it supports the following parameters:
+[Transactions](../../user-guide/storage/transactions.md) are an integral Cypress property. Many commands that interact with Cypress this way or another, are transactional. Each command or group of commands has a separate indication of whether it is transactional or not. Transactional commands support the following parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | -------------------------- | ------------- | --------------------- | ------------------------------------------------------------ |
 | `transaction_id` | No | *null-transaction-id* | Current transaction ID. |
 | `ping_ancestor_transactions` | No | `false` | Whether to ping all the parent transactions while running the operation. |
@@ -82,12 +82,12 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | -------------------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `transaction_id` | No | *null-transaction-id* | ID of the current transaction (it will become a parent transaction for the transaction created by the command). |
 | `ping_ancestor_transactions` | No | `false` | Whether to ping, when running the operation, all the parent transactions (to extend their TTL). |
 | `timeout` | No | `15000` | Transaction TTL since the last extension (in ms). |
-| `deadline` | No | `missing` | Deadline for the transaction execution time (in UTC). |
+| `deadline` | No | `missing` | Transaction execution deadline (in UTC). |
 | `attributes` | No | `missing` | Enables you to set attributes for the created transaction. |
 | `type` | No | `master` | Enables you to set the transaction type: `master` or `tablet`. |
 
@@ -123,7 +123,7 @@ Detailed description.
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | -------------------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `transaction_id` | Yes |                           | Parent transaction ID. |
 | `ping_ancestor_transactions` | No | `false` | Whether to ping all the parent transactions while running the operation. |
@@ -153,7 +153,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | -------------------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `transaction_id` | Yes |                           | Transaction ID. |
 | `ping_ancestor_transactions` | No | `false` | Whether to ping all the parent transactions while running the operation. |
@@ -183,7 +183,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | -------------------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `transaction_id` | Yes |                           | Transaction ID. |
 | `ping_ancestor_transactions` | No | `false` | Whether to ping all the parent transactions while running the operation. |
@@ -223,7 +223,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ----------------- | ----------        | ------------------------- | ------------------------------------------------------------                                                                                                                                                                                     |
 | `path` | Yes |                           | Path to the node in Cypress. At default settings, the *path* should not exist. |
 | `type` | Yes |                           | [Node type](../../user-guide/storage/objects.md). |
@@ -270,7 +270,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `path` | Yes |                           | Path to the node in Cypress. The path *must* exist. |
 | `recursive` | No | `false` | Enables you to delete the entire subtree in the case when the deleted node is a composite type. |
@@ -300,7 +300,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `path` | Yes |                           | Path to the node in Cypress. If `recursive == false`, then the path *must* exist (except, probably, the last token). |
 | `recursive` | No | `false` | Create all non-existent intermediate nodes on the path. |
@@ -320,11 +320,11 @@ Example:
 ```bash
 PARAMETERS { "path" = "//tmp/node" }
 INPUT {
-INPUT   "my_integer" = 4 ;
-INPUT   "my_double" = 2.718281828 ;
-INPUT   "map" = { "a" = 1 ; "b" = 2 } ;
-INPUT   "list" = [ 1, 2, 3 ]
-INPUT }
+    "my_integer" = 4 ;
+    "my_double" = 2.718281828 ;
+    "map" = { "a" = 1 ; "b" = 2 } ;
+    "list" = [ 1, 2, 3 ]
+}
 ```
 
 ### multiset_attributes
@@ -337,14 +337,14 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `path` | Yes |                           | Path to attributes of a node in Cypress. The path *must* exist. |
 
 Input data:
 
 - Type: `structured`.
-- Value: A map-node including new attribute values.
+- Value: A map node that contains new attribute values.
 
 Output data:
 
@@ -355,9 +355,9 @@ Example:
 ```bash
 PARAMETERS { "path" = "//tmp/node/@" }
 INPUT {
-INPUT   "attribute1" = 4 ;
-INPUT   "attribute2" = "attribute2 value";
-INPUT }
+    "attribute1" = 4 ;
+    "attribute2" = "attribute2 value";
+}
 ```
 
 ### get { #get }
@@ -370,12 +370,12 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `path` | Yes |                           | Path to the node in Cypress. The path *must* exist. |
 | `attributes` | No | `[]` | A list of attributes that need to be obtained along with each node. |
 | `max_size` | No | `missing` | Sets a limit on the number of children that will be issued in the case of virtual composite nodes (for regular map nodes, this option doesn't make sense). |
-| `ignore_opaque` | No | `false` | Ignore the `opaque` attribute when executing a query (never use this option without explicit advice from YT developers). |
+| `ignore_opaque` | No | `false` | Ignore the `opaque` attribute when executing a query (never use this option without explicit advice from {{product-name}} developers). |
 
 Input data:
 
@@ -391,11 +391,11 @@ Example:
 ```bash
 PARAMETERS { "path" = "//tmp/node" }
 OUTPUT {
-OUTPUT   "my_integer" = 4 ;
-OUTPUT   "my_double" = 2.718281828 ;
-OUTPUT   "map" = { "a" = 1 ; "b" = 2 } ;
-OUTPUT   "list" = [ 1, 2, 3 ]
-OUTPUT }
+    "my_integer" = 4 ;
+    "my_double" = 2.718281828 ;
+    "map" = { "a" = 1 ; "b" = 2 } ;
+    "list" = [ 1, 2, 3 ]
+}
 ```
 
 ### list { #list }
@@ -408,7 +408,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `path` | Yes |                           | Path to the node in Cypress. The path *must* exist. |
 | `attributes` | No | `[]` | A list of attributes that need to be obtained along with each node. |
@@ -428,11 +428,11 @@ Example:
 ```bash
 PARAMETERS { "path" = "//tmp/node" }
 OUTPUT [
-OUTPUT   "home" ;
-OUTPUT   "sys" ;
-OUTPUT   "statbox" ;
-OUTPUT   "tmp"
-OUTPUT ]
+    "home" ;
+    "sys" ;
+    "statbox" ;
+    "tmp"
+]
 ```
 
 ### lock
@@ -445,7 +445,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------- | -------------     | ------------------------- | ------------------------------------------------------------                                                                                                                                                                                |
 | `path` | Yes |                           | Path to the node in Cypress. The path *must* exist. |
 | `mode` | No | `exclusive` | Lock type (snapshot, shared, exclusive). |
@@ -480,7 +480,7 @@ OUTPUT }
 
 ### unlock
 
-{% note warning "Attention!" %}
+{% note warning "Attention" %}
 
 Locks are automatically removed at the end of the transaction. Do not use the `unlock` command unless absolutely needed. See [Transactions](../../user-guide/storage/transactions.md#lock_operations).
 
@@ -498,7 +498,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ---------------------------------------------------- |
 | `path` | Yes |                           | Path to the node in Cypress. The path *must* exist. |
 
@@ -534,17 +534,17 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------------------    | -------------     | ------------------------- | ------------------------------------------------------------                                                                                                                                                                                                      |
 | `source_path` | Yes |                           | Path to the source node in Cypress. The path *must* exist. |
 | `destination_path` | Yes |                           | Path where the copy will be created. The path *must not* exist. |
 | `recursive` | No | `false` | Whether to create the skipped levels (map nodes) at the destination path. |
-| ignore_existing | No | `false` | If the node already exists at `destination_path`, do nothing  (you can't use this parameter together with `force = %true`). |
+| `ignore_existing` | No | `false` | If the node already exists at `destination_path`, do nothing  (you can't use this parameter together with `force = %true`). |
 | `lock_existing` | No | `false` | Set an [exclusive lock](../../user-guide/storage/transactions.md#locks) on the node at `destination_path`, even if it already exists. This parameter is only used together with `ignore_existing`. If the command fails to set a lock, it returns an error. |
 | `force` | No | `false` | Allows you to specify an existing node to be replaced, as the destination path. |
 | `preserve_account` | No | `false` | Whether to keep the accounts of the source nodes or use the account at the destination path. |
-| `preserve_expiration_time` | No | `false` | Whether the copy the `expiration_time` attribute or leave it empty. |
-| `preserve_expiration_timeout` | No | `false` | Whether the copy the `expiration_timeout` attribute or leave it empty. |
+| `preserve_expiration_time` | No | `false` | Whether to copy the [`expiration_time`](../../user-guide/storage/cypress.md#TTL) attribute or leave it empty. |
+| `preserve_expiration_timeout` | No | `false` | Whether to copy the [`expiration_timeout`](../../user-guide/storage/cypress.md#TTL) attribute or leave it empty. |
 
 Input data:
 
@@ -559,9 +559,9 @@ Example:
 
 ```bash
 PARAMETERS {
-PARAMETERS   "source_path" = "//tmp/from" ;
-PARAMETER    "destination_path" = "//tmp/to" ;
-PARAMETERS }
+    "source_path" = "//tmp/from" ;
+    "destination_path" = "//tmp/to" ;
+}
 OUTPUT "0-4-191-6c07cd58"
 ```
 
@@ -575,14 +575,14 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------------------    | -------------     | ------------------------- | ------------------------------------------------------------                                             |
 | `source_path` | Yes |                           | Path to the source node in Cypress. The path *must* exist. |
 | `destination_path` | Yes |                           | A new path in Cypress. The path *must not* exist. |
 | `recursive` | No | `false` | Whether to create the skipped levels (map nodes) at the destination path. |
 | `force` | No | `false` | Allows you to specify an existing node to be replaced, as the destination path. |
 | `preserve_account` | No | `false` | Whether to keep the accounts of the source nodes or use the account at the destination path. |
-| `preserve_expiration_timeout` | No | `false` | Whether the copy the `expiration_timeout` attribute or leave it empty. |
+| `preserve_expiration_timeout` | No | `false` | Whether to copy the [`expiration_timeout`](../../user-guide/storage/cypress.md#TTL) attribute or leave it empty. |
 
 Input data:
 
@@ -596,9 +596,9 @@ Example:
 
 ```bash
 PARAMETERS {
-PARAMETERS   "source_path" = "//tmp/from" ;
-PARAMETER    "destination_path" = "//tmp/to" ;
-PARAMETERS }
+    "source_path" = "//tmp/from" ;
+    "destination_path" = "//tmp/to" ;
+}
 ```
 
 ### link { #link }
@@ -611,7 +611,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | --------------- | -------------     | ------------------------- | ------------------------------------------------------------                                                                                            |
 | `link_path` | Yes |                           | Path where the link will be created. The path *must not* exist. |
 | `target_path` | Yes |                           | Path to the source node in Cypress. The path *must* exist. |
@@ -634,9 +634,9 @@ Example:
 
 ```bash
 PARAMETERS {
-PARAMETERS   "target_path" = "//tmp/from" ;
-PARAMETER    "link_path" = "//tmp/to" ;
-PARAMETERS }
+    "target_path" = "//tmp/from" ;
+    "link_path" = "//tmp/to" ;
+}
 OUTPUT "0-4-191-6c07cd58"
 ```
 
@@ -650,7 +650,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ---------------------------------- |
 | `path` | Yes |                           | Path to the source node in Cypress. |
 
@@ -667,8 +667,8 @@ Example:
 
 ```bash
 PARAMETERS {
-PARAMETERS   "path" = "//tmp/my_table/@_format" ;
-PARAMETERS }
+    "path" = "//tmp/my_table/@_format" ;
+}
 ```
 
 ### concatenate { #concatenate }
@@ -679,7 +679,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | -------------------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `transaction_id` | No | *null-transaction-id* | Current transaction ID. |
 | `ping_ancestor_transactions` | No | `false` | Whether to ping all the parent transactions while running the operation. |
@@ -698,9 +698,9 @@ Example:
 
 ```bash
 PARAMETERS {
-PARAMETERS   "source_paths" = ["//tmp/file1"; "//tmp/file2"];
-PARAMETERS   "destination_path" = "//tmp/file";
-PARAMETERS }
+    "source_paths" = ["//tmp/file1"; "//tmp/file2"];
+    "destination_path" = "//tmp/file";
+}
 ```
 
 ## Access control { #access-control }
@@ -723,7 +723,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `member` | Yes |                           | The name of the user or group that needs to be added to the group. |
 | `group` | Yes |                           | The name of the group into which you are adding a user or another group. |
@@ -740,9 +740,9 @@ Example:
 
 ```bash
 PARAMETERS {
-PARAMETERS   "group" = "admins";
-PARAMETERS   "member": "devs";
-PARAMETERS   }
+    "group" = "admins";
+    "member" = "devs";
+}
 ```
 
 ### remove_member
@@ -755,7 +755,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `member` | Yes |                           | The name of the user or group that needs to be deleted from the group. |
 | `group` | Yes |                           | The name of the group that you are deleting a user or another group from. |
@@ -772,9 +772,9 @@ Example:
 
 ```bash
 PARAMETERS {
-PARAMETERS   "group" = "admins";
-PARAMETERS   "member": "devs";
-PARAMETERS }
+    "group" = "admins";
+    "member" = "devs";
+}
 ```
 
 ### check_permission
@@ -787,7 +787,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `path` | Yes |                           | Path to the node in Cypress. |
 | `user` | Yes |                           | The name of the user that you are checking the permission for. |
@@ -805,10 +805,11 @@ Output data:
 Example:
 
 ```bash
-PARAMETERS { "path" = "//sys/accounts/statbox";
-PARAMETERS   "permission": "use";
-PARAMETERS   "user": "vasya";
-PARAMETERS }
+PARAMETERS {
+    "path" = "//sys/accounts/statbox";
+    "permission" = "use";
+    "user" = "bob";
+}
 ```
 
 ## Working with files { #files }
@@ -837,7 +838,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | -------------------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `transaction_id` | No | *null-transaction-id* | Current transaction ID. |
 | `ping_ancestor_transactions` | No | `false` | Whether to ping all the parent transactions while running the operation. |
@@ -874,7 +875,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | -------------------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `transaction_id` | No | *null-transaction-id* | Current transaction ID. |
 | `ping_ancestor_transactions` | No | `false` | Whether to ping all the parent transactions while running the operation. |
@@ -913,7 +914,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ------------------------ |
 | `path` | Yes |                           | Path to the file in Cypress. |
 | `md5` | Yes |                           | Expected MD5 hash for the file. |
@@ -932,10 +933,10 @@ Example:
 
 ```bash
 PARAMETERS {
-PARAMETERS   "path" = "//tmp/file";
-PARAMETERS   "md5" = "a3dcb4d229de6fde0db5686dee47145d";
-PARAMETERS   "cache_path" = "//tmp/yt_wrapper/file_storage/new_cache";
-PARAMETERS }
+    "path" = "//tmp/file";
+    "md5" = "a3dcb4d229de6fde0db5686dee47145d";
+    "cache_path" = "//tmp/yt_wrapper/file_storage/new_cache";
+}
 OUTPUT "//tmp/yt_wrapper/file_storage/new_cache/5d/a3dcb4d229de6fde0db5686dee47145d"
 ```
 
@@ -949,7 +950,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ---------------------- |
 | `md5` | Yes |                           | MD5 hash for the file. |
 | `cache_path` | Yes |                           | Path to the file cache. |
@@ -967,9 +968,9 @@ Example:
 
 ```bash
 PARAMETERS {
-PARAMETERS   "md5" = "a3dcb4d229de6fde0db5686dee47145d";
-PARAMETERS   "cache_path" = "//tmp/yt_wrapper/file_storage/new_cache";
-PARAMETERS }
+    "md5" = "a3dcb4d229de6fde0db5686dee47145d";
+    "cache_path" = "//tmp/yt_wrapper/file_storage/new_cache";
+}
 OUTPUT "//tmp/yt_wrapper/file_storage/new_cache/5d/a3dcb4d229de6fde0db5686dee47145d"
 ```
 
@@ -979,7 +980,7 @@ To learn more about static tables, see the [Static tables](../../user-guide/sto
 
 To learn more about dynamic tables, see the [Dynamic tables](../../user-guide/dynamic-tables/overview.md) section.
 
-### write_table
+### write_table { #write_table }
 
 Command properties: **Mutating**, **Heavy**.
 
@@ -994,13 +995,13 @@ Semantics:
 - Add new entries to a static table.
 - The table must exist.
 - If the table `path` includes the `append=%true` attribute, the entries are appended to the table; otherwise, the table is overwritten.
-- If the table `path` includes the `sorted_by` attribute, the system checks that the data is sorted by the specified set of keys and the resulting table is labeled as sorted. You can write sorted data (with a `sorted_by` attribute specified) only if any new key is greater than or equal to any old key.
-- You can write unsorted data (that is, without the `sorted_by` attribute) to any table, but the  table's sort flag will be removed.
+- If the table `path` includes the `sorted_by` attribute, the system checks that the data is sorted by the specified set of keys and the resulting table is labeled as sorted. You can write sorted data (when the `sorted_by` attribute is specified) only if any new key is greater than or equal to any old key.
+- You can write unsorted data (when the `sorted_by` attribute is not specified) to any table, but the table's sort flag will be removed.
 - The command can be nested in a [transaction](#transactions).
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `path` | Yes |                           | Path to a table in Cypress. The path *must* exist. |
 | `table_writer` | No | From the driver configuration | [Table write options](../../user-guide/storage/io-configuration.md). |
@@ -1018,15 +1019,15 @@ Example:
 
 ```bash
 PARAMETERS {
-PARAMETERS   "path" = "//tmp/node" ;
-PARAMETERS   "table_writer" = { "codec_id" = "gzip" };
-PARAMETERS }
+    "path" = "//tmp/node" ;
+    "table_writer" = { "codec_id" = "gzip" };
+}
 INPUT { "id" = 1; "value" = 1.125; };
 INPUT { "id" = 2; "value" = 2.000; };
 INPUT { "id" = 3; "value" = 3.850; };
 ```
 
-### read_table
+### read_table { #read_table }
 
 Command properties: **Non-mutating**, **Heavy**.
 
@@ -1043,11 +1044,11 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `path` | Yes |                           | Path to a table in Cypress. The path *must* exist. |
 | `table_reader` | No | From the driver configuration | [Table's read options](../../user-guide/storage/io-configuration.md#table_reader). |
-| `control_attributes` | No | From the driver configuration | [Configuration of the control read attributes.](../../user-guide/storage/io-configuration.md#control_attributes) |
+| `control_attributes` | No | From the driver configuration | [Configuration of the control read attributes](../../user-guide/storage/io-configuration.md#control_attributes). |
 | `unordered` | No | `false` | Whether to read data in parallel, regardless of the entry order. |
 
 Input data:
@@ -1081,7 +1082,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ---------------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `path` | Yes |                           | Path to a table in Cypress. The path *must* exist. |
 | `table_reader` | No | From the driver config file | [Table's read options](../../user-guide/storage/io-configuration.md). |
@@ -1112,12 +1113,12 @@ Scope: [Dynamic tables](../../user-guide/dynamic-tables/overview.md).
 
 Semantics:
 
-- Execute an SQL-like query for a dynamic table in accordance with the supported features.
-- The transaction can be executed against a data snapshot with a specified timestamp.
+- Execute an SQL-like query for a dynamic table in accordance with the [supported features](../../user-guide/dynamic-tables/dyn-query-language.md).
+- The transaction can be executed against a data snapshot with a specified timestamp.
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `query` | Yes |                           | Query string. |
 | `timestamp` | No | `sync last committed` | Which timestamp the query should run against. |
@@ -1151,12 +1152,13 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `path` | Yes |                           | Path to the dynamic table. |
 | `update` | No | `false` | If set to `false`, the columns missing in the input data will be written with the value of `Null` (overwriting the current value in the table). If set to `true`, such columns will preserve their previous value in the table. |
 | `aggregate` | No | `false` | If set to `false`, the [aggregating columns](../../user-guide/dynamic-tables/sorted-dynamic-tables.md#aggr_columns) will be overwritten by the new value. If set to `true`, such columns will apply the delta from the source data. |
-| `atomicity` | No | `full` | Supported values: `none` and `full`, [learn more](../../user-guide/dynamic-tables/sorted-dynamic-tables.md) |
+| `atomicity` | No | `full` | Supported values: `none` and `full`. If set to `none`, writing will occur on each tablet, independent of the others. If set to `full`, either all of the passed rows will be written, or nothing. [Read more](../../user-guide/dynamic-tables/sorted-dynamic-tables.md). |
+| `require-sync-replica` | No | `true` | The option makes sense only in case of replication. If set to `true`, inserting will occur only if the table has a synchronous replica. If set to `false`, a synchronous replica is not required. |
 
 Input data:
 
@@ -1188,7 +1190,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ----------------------------- |
 | `path` | Yes |                           | Path to the dynamic table. |
 
@@ -1221,11 +1223,11 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ----------------------------- |
 | `path` | Yes |                           | Path to the dynamic table. |
 | `locks` | Yes |                           | List of the involved `lock groups` from the table schema. |
-| `lock_type` | No | `shared strong` | Lock types: `shared weak`, `shared strong`, `exclusive` |
+| `lock_type` | No | `shared strong` | Lock types: `shared weak`, `shared strong`, `exclusive`. |
 
 A shared lock can be taken from multiple different transactions at the same time. An exclusive lock can be taken from a single transaction that usually updates this row.
 
@@ -1253,7 +1255,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ----------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `path` | Yes |                           | Path to the dynamic table. The path should be simple (without columns, ranges, etc.) |
 | `column_names` | No |                           | Which columns to include in the response. |
@@ -1295,7 +1297,7 @@ Semantics:
 
 Parameters:
 
-| **parameter** | **Mandatory** | **Default value** | **Description** |
+| **parameter** | **Required** | **Default value** | **Description** |
 | ------------------- | ------------- | ------------------------- | ----------------------------- |
 | `path` | Yes |                           | Path to the dynamic table. |
 | `tablet_index` | Yes |                           | Index of the truncated tablet. |
@@ -1327,7 +1329,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | -------------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `path` | Yes |                           | Path to the dynamic table. |
 | `first_tablet_index` | No | `0` | Index of the first mounted tablet. |
@@ -1361,12 +1363,12 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | -------------------- | ---------- | ------------------------- | ---------------------------------------- |
 | `path` | Yes |                           | Path to the dynamic table. |
 | `first_tablet_index` | No | `0` | Index of the first unmounted tablet. |
 | `last_tablet_index` | No | `tablet_count - 1` | Index of the last unmounted tablet. |
-| `force` | No | `false` | Forcibly unmount the tablets. Using this flag poses a risk of data loss, so you need YT admin rights to use it. |
+| `force` | No | `false` | Forcibly unmount the tablets. Using this flag poses a risk of data loss, that's why you need {{product-name}} admin rights to use it. |
 
 Input data:
 
@@ -1391,12 +1393,12 @@ Scope: [Dynamic tables](../../user-guide/dynamic-tables/overview.md).
 Semantics:
 
 - Enables you to update certain settings of dynamic tables without unmounting them.
-- In the case of such remounting, the table remains accessible for reading and writing.
+- When remounted like that, the table remains accessible for reading and writing.
 - The settings are taken from the table attributes and eventually reach the node where the tablets are processed.
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | -------------------- | ------------- | ------------------------- | ------------------------------------------ |
 | `path` | Yes |                           | Path to the dynamic table. |
 | `first_tablet_index` | No | `0` | Index of the first remounted tablet. |
@@ -1428,7 +1430,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | -------------------- | ------------- | ------------------------- | -------------------------------------- |
 | `path` | Yes |                           | Path to the dynamic table. |
 | `first_tablet_index` | No | `0` | Index of the first frozen tablet. |
@@ -1460,7 +1462,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | -------------------- | ------------- | ------------------------- | -------------------------------------- |
 | `path` | Yes |                           | Path to the dynamic table. |
 | `first_tablet_index` | No | `0` | Index of the first unfrozen tablet. |
@@ -1492,14 +1494,14 @@ Semantics:
 - The resharded tablets must be unmounted.
 - Be sure to specify `tablet_count` for an ordered table. For a sorted table, you can specify both `tablet_count` and `pivot_keys`. The resharded tablets are replaced by a set of new tablets.
 - In the case of a sorted table:
-   - When passing `pivot_keys`, the first key in `pivot_keys` must match the first key of the first resharded tablet. The number of `pivot_keys` is equal to the number of new tablets that the resharded tablets are split into.
-   - When passing `tablet_count`, the system will select pivot keys based on the data available in the table as evenly as possible. If the table isn't large enough, you might get less tablets then requested as a result. At default settings, your resulting tablets can't be smaller than about 200 MB each. For smaller slicing, use the option`enable_slicing`.
-   - If the first key column of the table has an integer type, then along with `tablet_count`, you can use `uniform=True`. In this case, uniform values from the range of the appropriate type will be selected as pivot keys. `0, 2^64/n, 2^64\*2/n, ...` for an unsigned 64-bit type and `-2^63, -2^63 + 2^64/n, -2^63 + 2^64\*2/n, ...` for a signed 64-bit type.
+  - When passing `pivot_keys`, the first key in `pivot_keys` must match the first key of the first resharded tablet. The number of `pivot_keys` is equal to the number of new tablets that the resharded tablets are split into.
+  - When passing `tablet_count`, the system will select pivot keys based on the data available in the table as evenly as possible. If the table isn't large enough, you might get less tablets then requested as a result. At default settings, your resulting tablets can't be smaller than about 200 MB each. For smaller slicing, use the option`enable_slicing`.
+  - If the first key column of the table has an integer type, then along with `tablet_count`, you can use `uniform=True`. In this case, uniform values from the range of the appropriate type will be selected as pivot keys. `0, 2^64/n, 2^64\*2/n, ...` for an unsigned 64-bit type and `-2^63, -2^63 + 2^64/n, -2^63 + 2^64\*2/n, ...` for a signed 64-bit type.
 - For an ordered table, `table_count` specifies the number of new tablets that the sharded tablets are split into. In this case, if the resulting tablets are higher in numbers than the old ones, new empty tablets are created. If the resulting tablets are smaller in numbers, the corresponding number of source trailing tablets are merged into a single tablet in their natural order.
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `path` | Yes |                           | Table path. |
 | `first_tablet_index` | No | `0` | Index of the first resharded tablet. |
@@ -1539,7 +1541,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `path` | Yes |                           | Table path. |
 | `keep_actions` | No | `false` | If set to `true`, respond with a list of IDs to track the progress. |
@@ -1558,11 +1560,11 @@ Example:
 ```bash
 PARAMETERS { "path" = "//home/user/table"; }
 OUTPUT [
-OUTPUT     "11-22-33-44";
-OUTPUT ]
+    "11-22-33-44";
+]
 ```
 
-### alter_table
+ ### alter_table
 
 Command properties: **Mutating**, **Light**.
 
@@ -1578,7 +1580,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | --------------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `path` | Yes |                           | Table path. |
 | `schema` | No |                           | If specified, it sets a new schema for the table. |
@@ -1611,7 +1613,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | -------------------------------- | ----------------------------------------------------- |
 | `replica_id` | Yes |                                  | Replica ID. |
 | `enabled` | No | Doesn't change the enabled/disabled status of the replica | If set to `true`, enables the table. If set to `false`, disables the table. |
@@ -1641,15 +1643,15 @@ Semantics:
 
 - Get statistics on the set of columns in the given set of tables (taken completely or partially, by ranges).
 - The statistics includes:
-   - The total `data_weight` for each of the requested columns.
-   - The total `data_weight` for all the old chunks (that the metainformation about each column hasn't been saved to because the chunk has been generated before column-by-column statistics were supported).
-   - The total weight of all the timestamps of rows in a dynamic table.
+  - The total `data_weight` for each of the requested columns.
+  - The total `data_weight` for all the old chunks (that the metainformation about each column hasn't been saved to because the chunk has been generated before column-by-column statistics were supported).
+  - The total weight of all the timestamps of rows in a dynamic table.
 - The paths should always include the `column selectors`.
 - The command can be nested in a transaction.
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `paths` | Yes |                           | A list of paths to tables in Cypress. The tables *must* exist. The paths *must* include `column selectors`. |
 
@@ -1666,18 +1668,18 @@ Example:
 
 ```bash
 PARAMETERS {
-PARAMETERS   "paths" = ["//tmp/table1{a,b,c}"; "//tmp/table2{a,b,c}"];
-PARAMETERS   "transaction_id" = "1234-abcd-abcd-7890"
-PARAMETERS }
+    "paths" = ["//tmp/table1{a,b,c}"; "//tmp/table2{a,b,c}"];
+    "transaction_id" = "1234-abcd-abcd-7890"
+}
 OUTPUT {
-OUTPUT    "column_data_weights" = {
-OUTPUT        "a" = 8124;
-OUTPUT        "b" = 124241241;
-OUTPUT        "c" = 3121414;
-OUTPUT    };
-OUTPUT    "legacy_chunks_data_weight" = 100242;
-OUTPUT    "timestamp_total_weight" = 50056;
-OUTPUT }
+    "column_data_weights" = {
+        "a" = 8124;
+        "b" = 124241241;
+        "c" = 3121414;
+    };
+    "legacy_chunks_data_weight" = 100242;
+    "timestamp_total_weight" = 50056;
+}
 ```
 
 ## Running operations
@@ -1697,9 +1699,9 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | -------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
-| `operation_type` | Yes |                           | Operation type (can be one of these: `map`, `reduce`, `map_reduce`, `join_reduce`, `remote-copy`, `erase`, `sort`, `merge`, `vanilla`). |
+| `operation_type` | Yes |                           | Operation type (can be one of these: `map`, `reduce`, `map_reduce`, `remote-copy`, `erase`, `sort`, `merge`, `vanilla`). |
 | `spec` | Yes |                           | Operation specification. For more information, see [Setting up operations](../../user-guide/data-processing/operations/operations-options.md). |
 
 Input data:
@@ -1715,11 +1717,11 @@ Example:
 
 ```bash
 PARAMETERS {  "operation_type" = "map_reduce";
-PARAMETERS    "spec" = {
-PARAMETERS      "input_table_paths" = [ "//tmp/table_in", "//tmp/table_in" ] ;
-PARAMETERS      "output_table_path" = "//tmp/table_out"
-PARAMETERS    }
-PARAMETERS }
+    "spec" = {
+        "input_table_paths" = [ "//tmp/table_in", "//tmp/table_in" ] ;
+        "output_table_path" = "//tmp/table_out"
+    }
+}
 OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 ```
 
@@ -1730,11 +1732,11 @@ Command properties: **Mutating**, **Light**.
 Semantics:
 
 - Start merging the source tables.
-- [Detailed description](../../user-guide/data-processing/operations/merge.md) of all specification parameters.
+- Detailed description of all [specification parameters](../../user-guide/data-processing/operations/merge.md).
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ----------------------- | -------------- | ------------------------- | ------------------------------------------- |
 | `spec` | Yes |                           | Operation specification. |
 | *spec[input_table_paths]* | Yes |                           | List of input tables. |
@@ -1754,11 +1756,11 @@ Example:
 
 ```bash
 PARAMETERS {
-PARAMETERS    "spec" = {
-PARAMETERS      "input_table_paths" = [ "//tmp/table_in", "//tmp/table_in" ] ;
-PARAMETERS      "output_table_path" = "//tmp/table_out"
-PARAMETERS    }
-PARAMETERS }
+    "spec" = {
+        "input_table_paths" = [ "//tmp/table_in", "//tmp/table_in" ] ;
+        "output_table_path" = "//tmp/table_out"
+    }
+}
 OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 ```
 
@@ -1769,11 +1771,11 @@ Command properties: **Mutating**, **Light**.
 Semantics:
 
 - Start erasing data from the source table.
-- [Detailed description](../../user-guide/data-processing/operations/erase.md) of all specification parameters.
+- Detailed description of all [specification parameters](../../user-guide/data-processing/operations/erase.md).
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ---------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `spec` | Yes |                           | Operation specification. |
 | *spec[table_path]* | Yes |                           | An input table with the specified row selector. The same table will be used for output. |
@@ -1791,10 +1793,10 @@ Example:
 
 ```bash
 PARAMETERS {
-PARAMETERS    "spec" = {
-PARAMETERS      "table_path" = "//tmp/table[#0:#500]" ;
-PARAMETERS    }
-PARAMETERS }
+    "spec" = {
+        "table_path" = "//tmp/table[#0:#500]" ;
+    }
+}
 OUTPUT "3f9e62-ce8d2965-6350842b-3e4628d2"
 ```
 
@@ -1805,11 +1807,11 @@ Command properties: **Mutating**, **Light**.
 Semantics:
 
 - Run the map operation on the source tables, writing the output to the output tables.
-- [Detailed description](../../user-guide/data-processing/operations/map.md) of all specification parameters.
+- Detailed description of all [specification parameters](../../user-guide/data-processing/operations/map.md).
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------------------ | ------------- | ------------------------- | -------------------------------------------------- |
 | `spec` | Yes |                           | Operation specification (see the relevant fields below). |
 | *spec[input_table_paths]* | Yes |                           | List of input tables. |
@@ -1829,14 +1831,14 @@ Example:
 
 ```bash
 PARAMETERS {
-PARAMETERS    "spec" = {
-PARAMETERS      "mapper" = {
-PARAMETERS          "command" = "cat"
-PARAMETERS      } ;
-PARAMETERS      "input_table_paths"  = [ "//tmp/table_in", "//tmp/table_in" ] ;
-PARAMETERS      "output_table_paths" = [ "//tmp/table_out" ]
-PARAMETERS    }
-PARAMETERS }
+    "spec" = {
+      "mapper" = {
+          "command" = "cat"
+      } ;
+      "input_table_paths"  = [ "//tmp/table_in", "//tmp/table_in" ] ;
+      "output_table_paths" = [ "//tmp/table_out" ]
+    }
+}
 OUTPUT "33ab3f-bf1df917-b35fe9ed-c70a4bf4"
 ```
 
@@ -1847,11 +1849,11 @@ Command properties: **Mutating**, **Light**.
 Semantics:
 
 - Run the reduce operation on the source tables, writing the output to the output tables.
-- [Detailed description](../../user-guide/data-processing/operations/reduce.md) of all specification parameters.
+- Detailed description of all [specification parameters](../../user-guide/data-processing/operations/reduce.md).
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------------------ | ------------- | ------------------------- | -------------------------------------------------- |
 | `spec` | Yes |                           | Operation specification (see the relevant fields below). |
 | *spec[input_table_paths]* | Yes |                           | List of input tables. |
@@ -1872,62 +1874,15 @@ Example:
 
 ```bash
 PARAMETERS {
-PARAMETERS    "spec" = {
-PARAMETERS      "reducer" = {
-PARAMETERS          "command" = "cat" ;
-PARAMETERS      } ;
-PARAMETERS      "input_table_paths"  = [ "//tmp/table_in", "//tmp/table_in" ] ;
-PARAMETERS      "output_table_paths" = [ "//tmp/table_out" ] ;
-PARAMETERS      "reduce_by"          = [ "my_key" ] ;
-PARAMETERS }
-OUTPUT "33ab3f-bf1df917-b35fe9ed-c70a4bf4"
-```
-
-### join_reduce
-
-{% note warning "Attention!" %}
-
-In the upcoming versions, we'll discontinue support for Join Reduce. Instead of the Join Reduce operation, you need to use the [Reduce](../../user-guide/data-processing/operations/reduce.md) operation with the `enable_key_guarantee` option.
-
-{% endnote %}
-
-Command properties: **Mutating**, **Light**.
-
-Semantics:
-
-- Run the `join_reduce` operation on the source tables, writing the output to the output tables.
-
-Parameters:
-
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
-| ------------------------ | ------------- | ------------------------- | -------------------------------------------------- |
-| `spec` | Yes |                           | Operation specification (see the relevant fields below). |
-| *spec[input_table_paths]* | Yes |                           | List of input tables. |
-| *spec[output_table_paths]* | Yes |                           | List of output tables. |
-| *spec[join_by]* | Yes |                           | Columns that `join` runs against. |
-| *spec[reducer]\[command]* | Yes |                           | Command that runs the reducer. |
-
-Input data:
-
-- Type: `null`.
-
-Output data:
-
-- Type: `structured`.
-- Value: ID of the running operation.
-
-Example:
-
-```bash
-PARAMETERS {
-PARAMETERS    "spec" = {
-PARAMETERS      "reducer" = {
-PARAMETERS          "command" = "cat" ;
-PARAMETERS      } ;
-PARAMETERS      "input_table_paths"  = [ "//tmp/table_in", "//tmp/table_in" ] ;
-PARAMETERS      "output_table_paths" = [ "//tmp/table_out" ] ;
-PARAMETERS      "join_by"          = [ "my_key" ] ;
-PARAMETERS }
+    "spec" = {
+      "reducer" = {
+          "command" = "cat" ;
+      } ;
+      "input_table_paths"  = [ "//tmp/table_in", "//tmp/table_in" ] ;
+      "output_table_paths" = [ "//tmp/table_out" ] ;
+      "reduce_by"          = [ "my_key" ] ;
+    }
+}
 OUTPUT "33ab3f-bf1df917-b35fe9ed-c70a4bf4"
 ```
 
@@ -1938,11 +1893,11 @@ Command properties: **Mutating**, **Light**.
 Semantics:
 
 - Start sorting the source tables.
-- [Detailed description](../../user-guide/data-processing/operations/sort.md) of all the specification parameters.
+- Detailed description of all [specification parameters](../../user-guide/data-processing/operations/sort.md).
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ----------------------- | ------------- | ------------------------- | -------------------------------------------------------- |
 | `spec` | Yes |                           | Operation specification (see the relevant fields below). |
 | *spec[input_table_paths]* | Yes |                           | List of input tables. |
@@ -1962,12 +1917,12 @@ Example:
 
 ```bash
 PARAMETERS {
-PARAMETERS    "spec" = {
-PARAMETERS      "input_table_paths" = [ "//tmp/table_in", "//tmp/table_in" ] ;
-PARAMETERS      "output_table_path" = "//tmp/table_out" ;
-PARAMETERS      "sort_by"           = [ "mykey" ];
-PARAMETERS    }
-PARAMETERS }
+    "spec" = {
+      "input_table_paths" = [ "//tmp/table_in", "//tmp/table_in" ] ;
+      "output_table_path" = "//tmp/table_out" ;
+      "sort_by"           = [ "mykey" ];
+    }
+}
 OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 ```
 
@@ -1978,11 +1933,11 @@ Command properties: **Mutating**, **Light**.
 Semantics:
 
 - Run Map-Reduce on the source tables.
-- [Detailed description](../../user-guide/data-processing/operations/mapreduce.md) of all the specification parameters.
+- Detailed description of all [specification parameters](../../user-guide/data-processing/operations/mapreduce.md).
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `spec` | Yes |                           | Operation specification (see the relevant fields below). |
 | *spec[input_table_paths]* | Yes |                           | List of input tables. |
@@ -2005,18 +1960,18 @@ Example:
 
 ```bash
 PARAMETERS {
-PARAMETERS    "spec" = {
-PARAMETERS      "mapper" = {
-PARAMETERS          "command" = "cat"
-PARAMETERS      } ;
-PARAMETERS      "reducer" = {
-PARAMETERS          "command" = "cat" ;
-PARAMETERS      } ;
-PARAMETERS      "input_table_paths" = [ "//tmp/table_in", "//tmp/table_in" ] ;
-PARAMETERS      "output_table_path" = "//tmp/table_out" ;
-PARAMETERS      "reduce_by" = [ "my_key" ] ;
-PARAMETERS    }
-PARAMETERS }
+    "spec" = {
+      "mapper" = {
+          "command" = "cat"
+      } ;
+      "reducer" = {
+          "command" = "cat"
+      } ;
+      "input_table_paths" = [ "//tmp/table_in", "//tmp/table_in" ] ;
+      "output_table_path" = "//tmp/table_out" ;
+      "reduce_by" = [ "my_key" ] ;
+    }
+}
 OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 ```
 
@@ -2031,7 +1986,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------------------ | ------------- | ------------------------- | -------------------------------------------------- |
 | `spec` | Yes |                           | Operation specification (see the relevant fields below). |
 | *spec[input_table_paths]* | Yes |                           | List of input tables. |
@@ -2051,12 +2006,12 @@ Example:
 
 ```bash
 PARAMETERS {
-PARAMETERS    "spec" = {
-PARAMETERS      "input_table_paths" = [ "//tmp/table_in", "//tmp/table_in" ] ;
-PARAMETERS      "output_table_path" = "//tmp/table_out" ;
-PARAMETERS      "cluster_name"           = <cluster-name>;
-PARAMETERS    }
-PARAMETERS }
+    "spec" = {
+      "input_table_paths" = [ "//tmp/table_in", "//tmp/table_in" ] ;
+      "output_table_path" = "//tmp/table_out" ;
+      "cluster_name" = {{production-cluster}};
+    }
+}
 OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 ```
 
@@ -2070,6 +2025,12 @@ All the commands used to work with the operations are non-transactional.
 
 ### list_operations { #list_operations }
 
+{% note warning "Attention" %}
+
+This command can create a significant load against the cluster. Do not use it in your workflow without a prior approval by the administrator.
+
+{% endnote %}
+
 Command properties: **Non-mutating**, **Light**.
 
 Semantics:
@@ -2078,7 +2039,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Type** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Type** | **Required** | **Default value** | **Description** |
 | ---------------- | -------------- | ----------------- | ------------------------- | ------------------------------------------------------------ |
 | `attributes` | `list<string>` | No | `Null` | List of operation attributes that need to be returned in the response. |
 | `from_time` | `ISO 8601 string` | No | `Null` | Bottom limit for the time interval for operation selection (by the time when the operation began). |
@@ -2091,7 +2052,7 @@ Parameters:
 | `filter` | `string` | No | `Null` | Substring that the operation's `filter_factors` should include. |
 | `pool` | `string` | No | `Null` | Pool used for filtering. |
 | `with_failed_jobs` | `bool` | No | `Null` | Return only the operations that have jobs with the `failed` status. |
-| `access` | map | No | `Null` | Dictionary with the mandatory fields `subject` (a string) and `permissions` (a list of strings) that set a filter by access rights. If specified, only the operations for which a `subject` has every right in the `permissions` list, are returned. |
+| `access` | `map` | No | `Null` | Dictionary with the mandatory fields `subject` (a string) and `permissions` (a list of strings) that set a filter by access rights. If specified, only the operations for which a `subject` has every right in the `permissions` list, are returned. |
 | `include_archive` | `bool` | No | `false` | Whether to request operations from the archive. |
 | `include_counters` | `bool` | No | `true` | Whether to return statistics for the requested operations. |
 | `limit` | `int` | No | `100` | List of operations that need to be returned in the response. |
@@ -2105,64 +2066,63 @@ Output data:
 
 - Type: `structured`.
 - Returns a dictionary with the following fields:
-   - `operations`: List with explicit descriptions of operations. Each operation described is a dictionary that includes the selected operation attributes: `id`, `type`, `state`, `authenticated_user`, `brief_progress`, `brief_spec`, `start_time`, `suspended`, `weight`. The `weight`, `brief_progress`, and `brief_spec` attributes are optional.
-   - `incomplete`: Whether the list of operations is complete (that is, whether all the operations in the range `from_time` — `to_time` are listed).
-   - `pool_counts`: Statistics on pools.
-   - `user_counts`: Statistics on users.
-   - `state_counts`: Statistics on operation states.
-   - `type_counts`: Statistics on operation type.
-   - `failed_jobs_count`: Count of `failed` jobs for the operations.
+  - `operations`: List with explicit descriptions of operations. Each operation described is a dictionary that includes the selected operation attributes: `id`, `type`, `state`, `authenticated_user`, `brief_progress`, `brief_spec`, `start_time`, `suspended`, `weight`. The `weight`, `brief_progress`, and `brief_spec` attributes are optional.
+  - `incomplete`: Whether the list of operations is complete (that is, whether all the operations in the range `from_time` — `to_time` are listed).
+  - `pool_counts`: Statistics on pools.
+  - `user_counts`: Statistics on users.
+  - `state_counts`: Statistics on operation states.
+  - `type_counts`: Statistics on operation type.
+  - `failed_jobs_count`: Count of `failed` jobs for the operations.
 
 Example:
 
 ```bash
 PARAMETERS { }
 OUTPUT {
-OUTPUT     "operations" = [
-OUTPUT         {
-OUTPUT             "id" = "7001208d-fef089b3-3fe03e8-453d99a1";
-OUTPUT             "type" = "remote-copy";
-OUTPUT             "state" = "initializing";
-OUTPUT             "authenticated_user" = "user-name";
-OUTPUT             "brief_progress" = {};
-OUTPUT             "brief_spec" = {
-OUTPUT                 ...
-OUTPUT             };
-OUTPUT             "start_time" = "2018-02-06T11:06:34.200591Z";
-OUTPUT             "suspended" = %false;
-OUTPUT             "weight" = 1.;
-OUTPUT         };
-OUTPUT     ];
-OUTPUT     "incomplete" = %true;
-OUTPUT     "pool_counts" = {
-OUTPUT         "pool-counts-example" = 2;
-OUTPUT         "user-name-1" = 2;
-OUTPUT         ...
-OUTPUT     };
-OUTPUT     "user_counts" = {
-OUTPUT         "yql" = 52;
-OUTPUT         "user-name-1" = 2;
-OUTPUT     };
-OUTPUT     "state_counts" = {
-OUTPUT         "materializing" = 10;
-OUTPUT         "pending" = 763;
-OUTPUT         "running" = 1848;
-OUTPUT         "completed" = 6654;
-OUTPUT         "aborted" = 37;
-OUTPUT         "failed" = 98;
-OUTPUT     };
-OUTPUT     "type_counts" = {
-OUTPUT         "map" = 4294;
-OUTPUT         "merge" = 1337;
-OUTPUT         "erase" = 97;
-OUTPUT         "sort" = 1126;
-OUTPUT         "reduce" = 886;
-OUTPUT         "map_reduce" = 1609;
-OUTPUT         "remote-copy" = 24;
-OUTPUT         "join_reduce" = 37;
-OUTPUT     };
-OUTPUT     "failed_jobs_count" = 109;
-OUTPUT }
+      "operations" = [
+          {
+              "id" = "7001208d-fef089b3-3fe03e8-453d99a1";
+              "type" = "remote-copy";
+              "state" = "initializing";
+              "authenticated_user" = "user-name";
+              "brief_progress" = {};
+              "brief_spec" = {
+                  ...
+              };
+              "start_time" = "2018-02-06T11:06:34.200591Z";
+              "suspended" = %false;
+              "weight" = 1.;
+          };
+      ];
+      "incomplete" = %true;
+      "pool_counts" = {
+          "pool-counts-example" = 2;
+          "user-name-1" = 2;
+          ...
+      };
+      "user_counts" = {
+          "yql" = 52;
+          "user-name-1" = 2;
+      };
+      "state_counts" = {
+          "materializing" = 10;
+          "pending" = 763;
+          "running" = 1848;
+          "completed" = 6654;
+          "aborted" = 37;
+          "failed" = 98;
+      };
+      "type_counts" = {
+          "map" = 4294;
+          "merge" = 1337;
+          "erase" = 97;
+          "sort" = 1126;
+          "reduce" = 886;
+          "map_reduce" = 1609;
+          "remote-copy" = 24;
+      };
+      "failed_jobs_count" = 109;
+}
 ```
 
 ### get_operation { #get_operation }
@@ -2175,7 +2135,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Type** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Type** | **Required** | **Default value** | **Description** |
 | ------------ | ------- | ----------------- | ------------------------- | ----------------------- |
 | `operation_id` | `GUID` | Yes |                           | Operation ID. |
 | `attributes` | `list` | No | `[]` | Operation attributes. |
@@ -2215,8 +2175,8 @@ Example:
 ```bash
 PARAMETERS {  "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; attributes = [ "state" ] }
 OUTPUT {
-OUTPUT     "state" = "running";
-OUTPUT }
+    "state" = "running";
+}
 ```
 
 ### abort_operation
@@ -2229,7 +2189,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ----------------------- |
 | `operation_id` | Yes |                           | Operation ID. |
 
@@ -2257,7 +2217,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ----------------------- |
 | `operation_id` | Yes |                           | Operation ID. |
 
@@ -2286,7 +2246,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------------ | ------------- | ------------------------- | ----------------------------------------------- |
 | `operation_id` | Yes |                           | Operation ID. |
 | `abort_running_jobs` | No | `false` | Whether to abort the running operation jobs. |
@@ -2316,7 +2276,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ----------------------- |
 | `operation_id` | Yes |                           | Operation ID. |
 
@@ -2344,7 +2304,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | -------------------------------------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `operation_id` | Yes |                           | Operation ID. |
 | `parameters` | Yes |                           | Dictionary with the operation parameters. |
@@ -2353,14 +2313,21 @@ Parameters:
 | *parameters[pool]* | No |                           | Name of the pool to which the operation has to be switched over in all its trees. |
 | *parameters[weight]* | No |                           | New weight of the operation in all the trees. |
 | *parameters[scheduling_options_per_pool_tree]* | No |                           | Dictionary `{tree name: scheduler settings for this tree}`. The settings are described below. To learn more about the scheduler, see [Scheduler and pools](../../user-guide/data-processing/scheduler/scheduler-and-pools.md). |
+| *parameters[options_per_job_shell]* | No |                           | Dictionary `{Job Shell name: settings for this Job Shell}`. The settings are described below. |
 
 Scheduler settings for the tree:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | --------------- | ------------- | ------------------------- | ------------------------------------------------------- |
 | `weight` | No |                           | Weight of the operation in the tree. |
 | `pool` | No |                           | Pool of the operation in the tree. |
 | `resource_limits` | No |                           | Dictionary `{ resource name: limit}`. Resource limits in the tree. |
+
+Job Shell settings:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| --------------- | ------------- | ------------------------- | ------------------------------------------------------- |
+| `owners` | No |                           | Subjects (users or groups) who will have access to the Job Shell. |
 
 Input data:
 
@@ -2373,7 +2340,7 @@ Output data:
 Example:
 
 ```bash
-PARAMETERS {"`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "parameters" = {"pool" = "username"; "scheduling_options_per_pool_tree" = {"physical" = {"weight" = 2; "resource_limits" = { "user_slots" = 1; "cpu" = 0.5; "network" = 10; "memory" = 1000000000}}}}}
+PARAMETERS {"operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "parameters" = {"pool" = "username"; "scheduling_options_per_pool_tree" = {"physical" = {"weight" = 2; "resource_limits" = { "user_slots" = 1; "cpu" = 0.5; "network" = 10; "memory" = 1000000000}}}}}
 ```
 
 ## Working with jobs
@@ -2394,7 +2361,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ----------------- | ------------------------- | ----------------------- |
 | `operation_id` | Yes |                           | Operation ID |
 | `job_id` | Yes |                           | Job ID |
@@ -2420,43 +2387,43 @@ Output data:
 | `pool` | `string` | Name of the [pool](../../user-guide/data-processing/scheduler/scheduler-and-pools.md) where the job was run. |
 | `pool_tree` | `string` | Name of the [pool tree](../../user-guide/data-processing/scheduler/scheduler-and-pools.md) where the job was run. |
 | `progress` | `float in [0,1]` | Evaluation of the share of work executed by the job by the current moment. |
-| `stderr_size` | `integer` | Size of the saved stderr of the job (you can get stderr using the command `get_job_stderr`). |
+| `stderr_size` | `integer` | Size of the saved stderr of the job (you can get stderr using the [`get_job_stderr`](#get_job_stderr) command). |
 | `error` | `map` | Dictionary with an error description (for a failed job). |
-| `statistics` | `map` | Dictionary with the job's statistics |
+| `statistics` | `map` | Dictionary with the job's statistics. |
 | `brief_statistics` | `map` | Dictionary with brief statistics. |
 | `input_paths` | `list<YPath>` | List of parts to tables (with row ranges) processed by the job. |
 | `core_infos` | `list<map>` | List of dictionaries describing the core dumps saved by the job. |
 | `events` | `list<map>` | List of dictionaries describing events (changes in state or phase) that occurred to the job. |
-| `is_stale` | `bool` | Whether the information about the job is outdated (if `%true`, some fields might need update). Information about the job is considered outdated if it hasn't been updated for a long time. The information in the job archive is updated by the node running the job. The update process is asynchronous. If the node restarts for some reason (for example, as a result of an update), the information about the final job state (`completed`, `failed`, or `aborted`) could fail to be archived, and the job is always returned as `stale` as a result. Despite the `running` status, such jobs have usually been executed for a long time, and you should ignore them. |
+| `is_stale` | `bool` | Whether the information about the job is outdated (if `%true`, some fields might need update). Information about the job is considered outdated if it hasn't been updated for a long time. The information in the job archive is updated by the node running the job and the operation controller. The update process is asynchronous. If the node and the controller restart at the same time for some reason (for example, as a result of an update), the information about the final job state (`completed`, `failed`, or `aborted`) might not end up in the archive, resulting in this job always returning as stale. Despite the `running` status, such jobs likely haven't been running for a long time and should be ignored. |
 
 Example:
 
 ```bash
 PARAMETERS { "operation_id" = "e13c5406-e5dd6f5d-3fe03e8-fe05f0d3"; "job_id" = "f11ae559-a0375703-3fe0384-8f1"}
 OUTPUT {
-OUTPUT     "operation_id" = "e13c5406-e5dd6f5d-3fe03e8-fe05f0d3";
-OUTPUT     "job_id" = "f11ae559-a0375703-3fe0384-8f1";
-OUTPUT     "state" = "completed";
-OUTPUT     "start_time" = "2018-02-06T09:37:02.858492Z";
-OUTPUT     "finish_time" = "2018-02-06T09:42:19.185525Z";
-OUTPUT     "address" = "<cluster-name>:9012";
-OUTPUT     "statistics" = {
-OUTPUT         "data" = {
-OUTPUT              ...
-OUTPUT         };
-OUTPUT     };
-OUTPUT     "events" = [
-OUTPUT         ...
-OUTPUT     ];
-OUTPUT }
+      "operation_id" = "e13c5406-e5dd6f5d-3fe03e8-fe05f0d3";
+      "job_id" = "f11ae559-a0375703-3fe0384-8f1";
+      "state" = "completed";
+      "start_time" = "2018-02-06T09:37:02.858492Z";
+      "finish_time" = "2018-02-06T09:42:19.185525Z";
+      "address" = "hostname.net:9012";
+      "statistics" = {
+          "data" = {
+               ...
+          };
+      };
+      "events" = [
+          ...
+      ];
+}
 ```
 
 
 ### list_jobs { #list_jobs }
 
-{% note warning "Attention!" %}
+{% note warning "Attention" %}
 
-This command can create a significant load on the cluster.
+This command can create significant load on the cluster. Do not use it in your workflow without a prior approval by the administrator.
 
 {% endnote %}
 
@@ -2468,21 +2435,26 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Type** | **Mandatory** | **Default value** | **Description** |
-| ----------------- | ------------------------------------------------------------ | ----------------- | ------------------------- | ------------------------------------------------------------ |
+| **Parameter** | **Type** | **Required** | **Default value** | **Description** |
+| -------------------- | ------------------------------------------------------------ | ----------------- | ------------------------- | ------------------------------------------------------------ |
 | `operation_id` | `GUID` | Yes |                           | Operation ID. |
 | `type (job_type)` | `EJobType` | No | `Null` | When you specify the parameter, the response will only include the jobs with the specified `job_type`. |
 | `state (job_state)` | `EJobState` | No | `Null` | When you specify the parameter, the response will only include the jobs with the specified `job_state`. |
-| `address` | `string` | No | `Null` | When you specify the parameter, the response will only include the jobs with the specified `address`. |
+| `address` | `string` | No | `Null` | If this parameter is specified, the response will only include the jobs with an address that starts with `address`. |
 | `with_stderr` | `bool` | No | `Null` | At `Null`, all the jobs are returned. At `True`, only the jobs with a non-null `stderr` are returned. At `False`, only the jobs with a null `stderr` are returned. |
-| `with_fail_context` | `bool` | No | `Null` | At `Null`, all the jobs are returned. At `True`, only the jobs for the saved `fail_context` are returned. At `False`, only the jobs that do not have `fail_context` are returned. |
+| `with_fail_context` | `bool` | No | `Null` | At `Null`, all the jobs are returned. At `True`, only the jobs that have a saved `fail_context` are returned. At `False`, only the jobs that do not have `fail_context` are returned. |
+| `with_spec` | `bool` | No | `Null` | At `Null`, all the jobs are returned. At `True`, only the jobs that have a saved specification are returned. At `False`, only the jobs that do not have a specification are returned. |
+| `with_competitors` | `bool` | No | `Null` | At `Null`, all the jobs are returned. At `True`, only the jobs for which speculative copies were run along with those copies are returned. At `False`, only the jobs that do not have speculative copies are returned. |
+| `job_competition_id` | `GUID` | No | `Null` | When you specify the parameter, the response will include the job with the `job_competition_id` and all of its speculative copies (if any). |
+| `with_monitoring_descriptor` | `bool` | No | `Null` | At `Null`, all the jobs are returned. At `True`, only the jobs that have `monitoring_descriptor` are returned. At `False`, only the jobs that do not have `monitoring_descriptor` are returned. |
+| `task_name` | `string` | No | `Null` | When you specify the parameter, the response will only include the jobs with the specified `task_name`. |
 | `sort_field` | `{none,type,state,start_time,finish_time,address,duration,progress,id}` | No | `none` | Sort fields. |
 | `sort_order` | `{ascending,descending}` | No | `ascending` | Sorting order. |
 | `limit` | `int` | No | `1000` | Limit on the number of returned jobs. |
 | `offset` | `int` | No | `0` | Offset by the given number of jobs. |
 | `data_source` | `EDataSource` | No | `auto` | Data source, acceptable values: `runtime`, `archive`, and `auto`. |
 
-The `job_type`, `job_state`, `address`, and `has_stderr` parameters define the job *filter*. The response will only include the jobs that meet the filtering criteria.
+The `job_type`, `job_state`, `address`, `with_stderr`, `with_fail_context`, `with_competitors`, `with_spec`, and `with_monitoring_descriptor` parameters define the job *filter*. The response will only include the jobs that meet the filtering criteria.
 
 The `sort_field` and`sort_order` define the order of jobs in the response. In this case, the `limit` and `offset` parameters define the slice (subset) of jobs in the response: the first `offset` jobs are skipped, and then `limit` of the remaining jobs is selected.
 
@@ -2499,65 +2471,65 @@ Output data:
 
 - Type: `structured`.
 - Structure with the fields `jobs`, `cypress_job_count`, `controller_agent_job_count`, and `archive_job_count`.
-- `*_count` fields: Counter of jobs found for a given operation in the appropriate data sources, without filtering. If all three numbers are zeros, it means that there's no information about the operation's jobs. If all the three numbers aren't zeros, but the `jobs` response is empty, it means that all the jobs were filtered out. If you get `null` instead of a number, the corresponding data source wasn't polled.
+- `*_count` fields: Сounter of jobs found for a given operation in the appropriate data sources, without filtering. If all three numbers are zeros, it means that there's no information about the operation's jobs. If all the three numbers aren't zeros, but the `jobs` response is empty, it means that all the jobs were filtered out. If you get `null` instead of a number, the corresponding data source wasn't polled.
 
 - `jobs` field: List of structures that describe each job. Each job can have the following fields:
-   - `id` (`guid`), `type` (`string`), `state` (`string`), `address` (`string`): Required fields.
-   - `start_time` (`instant`), `finish_time` (`instant`), `progress` (`double`), `stderr_size` (`int`): Optional fields.
-   - `error`, `brief_statistics`, `input_paths`, `core_infos`: Optional fields.
+  - `id` (`guid`), `type` (`string`), `state` (`string`), `address` (`string`): Required fields.
+  - `start_time` (`instant`), `finish_time` (`instant`), `progress` (`double`), `stderr_size` (`int`): Optional fields.
+  - `error`, `brief_statistics`, `input_paths`, `core_infos`: Optional fields.
 
 Example:
 
 ```bash
-PARAMETERS {operation_id" = "4505e8eb-28fa88e2-3fe03e8-c6fcd8fa"; }
+PARAMETERS { "operation_id" = "4505e8eb-28fa88e2-3fe03e8-c6fcd8fa"; }
 OUTPUT {
-OUTPUT     "jobs" = [
-OUTPUT         {
-OUTPUT             "id" = "55aff293-7ef14284-3fe0384-3e07";
-OUTPUT             "type" = "map";
-OUTPUT             "state" = "failed";
-OUTPUT             "address" = "fb-sas2-0511-sas-yt-prod-portovm-14323.gencfg-c.host-name.net:9012";
-OUTPUT             "start_time" = "2018-05-05T00:41:27.433832Z";
-OUTPUT             "finish_time" = "2018-05-05T00:49:04.288196Z";
-OUTPUT             "fail_context_size" = 973230u;
-OUTPUT             "error" = {
-OUTPUT                 "code" = 1205;
-OUTPUT                 "message" = "User job failed";
-OUTPUT                 ...
-OUTPUT             };
-OUTPUT             ...
-OUTPUT         };
-OUTPUT         ...
-OUTPUT         {
-OUTPUT             "id" = "69ae20a7-887b25ab-3fe0384-3cff";
-OUTPUT             "type" = "map";
-OUTPUT             "state" = "running";
-OUTPUT             "address" = "fb-sas2-0101-sas-yt-prod-portovm-14323.gencfg-c.host-name.net:9012";
-OUTPUT             "start_time" = "2018-05-07T13:04:03.339873Z";
-OUTPUT             "progress" = 0.;
-OUTPUT             "brief_statistics" = <
-OUTPUT                 "timestamp" = "2018-05-07T13:04:08.431740Z";
-OUTPUT             > {
-OUTPUT                 "processed_input_compressed_data_size" = 0;
-OUTPUT                 "processed_input_data_weight" = 0;
-OUTPUT                 "processed_output_uncompressed_data_size" = 0;
-OUTPUT                 "processed_output_compressed_data_size" = 0;
-OUTPUT                 "processed_input_uncompressed_data_size" = 0;
-OUTPUT                 "processed_input_row_count" = 0;
-OUTPUT             };
-OUTPUT         };
-OUTPUT     ];
-OUTPUT     "cypress_job_count" = 200;
-OUTPUT     "scheduler_job_count" = 208;
-OUTPUT     "archive_job_count" = #;
-OUTPUT     "type_counts" = {
-OUTPUT         "map" = 408;
-OUTPUT     };
-OUTPUT     "state_counts" = {
-OUTPUT         "running" = 208;
-OUTPUT         "failed" = 200;
-OUTPUT     };
-OUTPUT }
+      "jobs" = [
+          {
+              "id" = "55aff293-7ef14284-3fe0384-3e07";
+              "type" = "map";
+              "state" = "failed";
+              "address" = "hostname.net:9012";
+              "start_time" = "2018-05-05T00:41:27.433832Z";
+              "finish_time" = "2018-05-05T00:49:04.288196Z";
+              "fail_context_size" = 973230u;
+              "error" = {
+                  "code" = 1205;
+                  "message" = "User job failed";
+                  ...
+              };
+              ...
+          };
+          ...
+          {
+              "id" = "69ae20a7-887b25ab-3fe0384-3cff";
+              "type" = "map";
+              "state" = "running";
+              "address" = "hostname.net:9012";
+              "start_time" = "2018-05-07T13:04:03.339873Z";
+              "progress" = 0.;
+              "brief_statistics" = <
+                  "timestamp" = "2018-05-07T13:04:08.431740Z";
+              > {
+                  "processed_input_compressed_data_size" = 0;
+                  "processed_input_data_weight" = 0;
+                  "processed_output_uncompressed_data_size" = 0;
+                  "processed_output_compressed_data_size" = 0;
+                  "processed_input_uncompressed_data_size" = 0;
+                  "processed_input_row_count" = 0;
+              };
+          };
+      ];
+      "cypress_job_count" = 200;
+      "scheduler_job_count" = 208;
+      "archive_job_count" = #;
+      "type_counts" = {
+          "map" = 408;
+      };
+      "state_counts" = {
+          "running" = 208;
+          "failed" = 200;
+      };
+}
 ```
 
 ### abandon_job
@@ -2570,7 +2542,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | -------------------- |
 | `job_id` | Yes |                           | Job ID. |
 
@@ -2598,7 +2570,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ----------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `job_id` | Yes |                           | Job ID. |
 | `interrupt_timeout` | No |                           | A timeout for successful completion of the job after it stops receiving input data. |
@@ -2617,12 +2589,12 @@ Example:
 PARAMETERS { "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
 ```
 
-{% if audience == internal %}
+{% if audience == "internal" %}
 
 ### strace_job
 
 
-{% note warning "Attention!" %}
+{% note warning "Attention" %}
 
 The command is obsolete and will be deleted. Use `job shell` to replace it.
 
@@ -2636,7 +2608,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | -------------------- |
 | `job_id` | Yes |                           | Job ID. |
 
@@ -2657,6 +2629,7 @@ PARAMETERS { "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
 
 {% endif %}
 
+
 ### dump_job_context
 
 Command properties: **Non-mutating**, **Light**.
@@ -2667,7 +2640,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `job_id` | Yes |                           | Job ID. |
 | `path` | Yes |                           | A path where to save the set of input parameters received by the job. The path's components should exist (except for the file itself). |
@@ -2696,7 +2669,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | -------------------- |
 | `job_id` | Yes |                           | Job ID. |
 
@@ -2725,7 +2698,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ----------------------- |
 | `operation_id` | Yes |                           | Operation ID. |
 | `job_id` | Yes |                           | Job ID. |
@@ -2745,7 +2718,7 @@ Example:
 PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"}
 ```
 
-### get_job_stderr { #job_stderr }
+### get_job_stderr { #get_job_stderr }
 
 Command properties: **Non-mutating**, **Heavy**.
 
@@ -2755,12 +2728,12 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ----------------------- |
 | `operation_id` | Yes |                           | Operation ID. |
 | `job_id` | Yes |                           | Job ID. |
-| `offset` | No |                           | Offset in bytes. |
-| `limit` | No |                           | Limit in bytes. |
+| `offset` | No |                            | Offset from the beginning in bytes. |
+| `limit` | No |                            | Maximum size in bytes. |
 
 Input data:
 
@@ -2793,7 +2766,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ------------------------------------ |
 | `path` | Yes |                           | The path that needs to be parsed. |
 
@@ -2812,7 +2785,7 @@ PARAMETERS { "path" = "//tmp/table[#1:#2]" }
 OUTPUT { "path" = "<ranges=[{lower_limit={row_index=1};upper_limit={row_index=2}}]>//tmp/table" }
 ```
 
-### execute_batch
+### execute_batch { #execute_batch }
 
 Command properties:  **Mutating if the set includes mutating commands**, **Light**.
 
@@ -2826,7 +2799,7 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `requests` | Yes |                           | Description of executed queries. |
 | `concurrency` | No | `50` | A numeric parameter that sets the maximum number of commands running on the cluster in parallel. Use this parameter to avoid exhausting your request rate limit. |
@@ -2837,7 +2810,7 @@ Input data:
 - The queries executed are listed in the `requests` parameter, which is a list.
 - Each element in this list is a dictionary including the following fields:
 
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
+| **Parameter** | **Required** | **Default value** | **Description** |
 | ---------- | ------------- | ------------------------- | ------------------------------------------------------------ |
 | `command` | Yes |                           | Command name. |
 | `parameters` | Yes |                           | Dictionary with the command parameters. |
@@ -2849,7 +2822,7 @@ Output data:
 - The output produces a list of the same length as at the input.
 - Each list item describes the result of a single query execution. This is a dictionary of the following format:
 
-| **Parameter** | **Mandatory** | **Description** |
+| **Parameter** | **Required** | **Description** |
 | -------- | ------------- | ------------------------------------------------------------ |
 | `error` | No | Error that arose during the query execution (if any). |
 | `output` | No | Output for the query (for the successful commands with the `structured` input type, for example, `get`). |
@@ -2858,27 +2831,27 @@ Example:
 
 ```bash
 PARAMETERS {
-PARAMETERS    "requests" = [
-PARAMETERS      {
-PARAMETERS        "command" = "set";
-PARAMETERS        "parameters" = {"path" = "//tmp/a"};
-PARAMETERS        "input" = "value_a";
-PARAMETERS      };
-PARAMETERS      {
-PARAMETERS        "command" = "get";
-PARAMETERS        "parameters" = {"path" = "//tmp/b"};
-PARAMETERS      };
-PARAMETERS      {
-PARAMETERS        "command" = "get";
-PARAMETERS        "parameters" = {"path" = "//nonexisting"};
-PARAMETERS      };
-PARAMETERS    ];
-PARAMETERS }
+    "requests" = [
+      {
+        "command" = "set";
+        "parameters" = {"path" = "//tmp/a"};
+        "input" = "value_a";
+      };
+      {
+        "command" = "get";
+        "parameters" = {"path" = "//tmp/b"};
+      };
+      {
+        "command" = "get";
+        "parameters" = {"path" = "//nonexisting"};
+      };
+    ];
+}
 OUTPUT [
-OUTPUT   { };
-OUTPUT   { output = "value_b"; };
-OUTPUT   { error = {...} };
-OUTPUT ]
+    { };
+    { output = "value_b"; };
+    { error = {...} };
+]
 ```
 
 ### get_supported_features
@@ -2913,12 +2886,12 @@ Example:
 ```bash
 PARAMETERS { }
 OUTPUT {
-OUTPUT   "features" = {
-OUTPUT     "primitive_types" = ["int8"; "int16"; ... ];
-OUTPUT     "erasure_codecs" = ["none", "isa_lrc_12_2_2"; "isa_reed_solomon_6_3"; ... ];
-OUTPUT     "compression_codecs" = ["none"; "snappy"; "brotli_1"; ... ];
-OUTPUT   };
-OUTPUT }
+    "features" = {
+      "primitive_types" = ["int8"; "int16"; ... ];
+      "erasure_codecs" = ["lrc_12_2_2"; "reed_solomon_6_3"; ... ];
+      "compression_codecs" = ["none"; "snappy"; "brotli_1"; ... ];
+    };
+}
 ```
 
 ### generate_timestamp
@@ -2946,6 +2919,6 @@ Example:
 ```bash
 PARAMETERS { }
 OUTPUT {
-OUTPUT   "timestamp" = 1723665447133469427u;
-OUTPUT }
+    "timestamp" = 1723665447133469427u;
+}
 ```
