@@ -380,6 +380,9 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("cell_manager", &TThis::CellManager)
         .DefaultNew();
+    registrar.Parameter("table_manager", &TThis::TableManager)
+        .DefaultNew()
+        .DontSerializeDefault();
     registrar.Parameter("tablet_manager", &TThis::TabletManager)
         .DefaultNew();
     registrar.Parameter("chaos_manager", &TThis::ChaosManager)

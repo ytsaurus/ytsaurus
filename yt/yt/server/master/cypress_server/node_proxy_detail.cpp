@@ -2046,9 +2046,18 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, EndCopy)
 
     const auto& tableManager = Bootstrap_->GetTableManager();
     THashMap<TMasterTableSchemaId, TMasterTableSchema*> schemaIdToSchemaMapping(request->schema_id_to_schema_size());
+
+    std::vector<TTableSchemaPtr> parsedSchemas;
+    auto offloadSchemaDestruction = Finally([&] {
+        NRpc::TDispatcher::Get()->GetHeavyInvoker()
+            ->Invoke(BIND([parsedSchemas = std::move(parsedSchemas)] { }));
+    });
+
+    parsedSchemas.reserve(request->schema_id_to_schema_size());
     for (const auto& schemaIdToSchema : request->schema_id_to_schema()) {
         auto schemaId = FromProto<TMasterTableSchemaId>(schemaIdToSchema.schema_id());
-        auto tableSchema = FromProto<TTableSchema>(schemaIdToSchema.schema());
+        parsedSchemas.push_back(FromProto<TTableSchemaPtr>(schemaIdToSchema.schema()));
+        const auto& tableSchema = *parsedSchemas.back();
         auto* schema = tableManager->GetOrCreateNativeMasterTableSchema(tableSchema, Transaction_);
         EmplaceOrCrash(schemaIdToSchemaMapping, schemaId, schema);
     }

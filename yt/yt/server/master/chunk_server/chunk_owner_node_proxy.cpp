@@ -1714,6 +1714,13 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         ? FromProto<TTableSchemaPtr>(request->chunk_schema())
         : nullptr;
 
+    auto offloadedSchemaDestruction = Finally([&] {
+        if (tableSchema || chunkSchema) {
+            NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
+                BIND([tableSchema = std::move(tableSchema), chunkSchema = std::move(chunkSchema)] { }));
+        }
+    });
+
     auto chunkSchemaId = FromProto<TMasterTableSchemaId>(request->chunk_schema_id());
 
     uploadContext.SchemaMode = CheckedEnumCast<ETableSchemaMode>(request->schema_mode());
@@ -2062,6 +2069,14 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     auto tableSchema = request->has_table_schema()
         ? FromProto<TTableSchemaPtr>(request->table_schema())
         : nullptr;
+
+    auto offloadedSchemaDestruction = Finally([&] {
+        if (tableSchema) {
+            NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
+                BIND([tableSchema = std::move(tableSchema)] { }));
+        }
+    });
+
     auto tableSchemaId = FromProto<TMasterTableSchemaId>(request->table_schema_id());
     uploadContext.SchemaMode = CheckedEnumCast<ETableSchemaMode>(request->schema_mode());
 

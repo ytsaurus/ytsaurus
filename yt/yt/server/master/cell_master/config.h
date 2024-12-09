@@ -6,14 +6,6 @@
 
 #include <yt/yt/server/master/cypress_server/public.h>
 
-#include <yt/yt/server/lib/hive/public.h>
-
-#include <yt/yt/server/lib/hydra/config.h>
-
-#include <yt/yt/server/lib/transaction_supervisor/config.h>
-
-#include <yt/yt/server/lib/misc/config.h>
-
 #include <yt/yt/server/master/table_server/public.h>
 
 #include <yt/yt/server/master/cell_server/public.h>
@@ -29,6 +21,8 @@
 
 #include <yt/yt/server/master/security_server/public.h>
 
+#include <yt/yt/server/master/table_server/public.h>
+
 #include <yt/yt/server/master/tablet_server/public.h>
 
 #include <yt/yt/server/master/transaction_server/public.h>
@@ -39,9 +33,17 @@
 
 #include <yt/yt/server/master/scheduler_pool_server/public.h>
 
+#include <yt/yt/server/lib/hive/public.h>
+
+#include <yt/yt/server/lib/hydra/config.h>
+
 #include <yt/yt/server/lib/lease_server/public.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/config.h>
+
 #include <yt/yt/server/lib/timestamp_server/public.h>
+
+#include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -385,6 +387,7 @@ public:
 
     NChunkServer::TDynamicChunkManagerConfigPtr ChunkManager;
     NCellServer::TDynamicCellManagerConfigPtr CellManager;
+    NTableServer::TDynamicTableManagerConfigPtr TableManager;
     NTabletServer::TDynamicTabletManagerConfigPtr TabletManager;
     NChaosServer::TDynamicChaosManagerConfigPtr ChaosManager;
     NNodeTrackerServer::TDynamicNodeTrackerConfigPtr NodeTracker;
