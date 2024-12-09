@@ -1922,8 +1922,6 @@ class TestSchedulerRemoteCopyDynamicTablesErasure(TestSchedulerRemoteCopyDynamic
     @pytest.mark.parametrize("available", [False, True])
     @pytest.mark.parametrize("with_repair", [False, True])
     def test_remote_copy_erasure_hunks(self, chunk_format, available, with_repair):
-        set("//sys/@config/chunk_manager/enable_chunk_replicator", False, driver=self.remote_driver)
-
         self._nodes = ls("//sys/cluster_nodes")
         assert len(self._nodes) == self.NUM_NODES
 
@@ -1947,6 +1945,7 @@ class TestSchedulerRemoteCopyDynamicTablesErasure(TestSchedulerRemoteCopyDynamic
                 },
                 chunk_format=chunk_format,
                 hunk_erasure_codec="isa_reed_solomon_6_3",
+                replication_factor=4,
                 driver=driver)
 
             if chunk_format == "table_versioned_indexed":
