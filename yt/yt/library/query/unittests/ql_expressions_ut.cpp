@@ -2599,6 +2599,10 @@ INSTANTIATE_TEST_SUITE_P(
             "list_contains(any, 9)",
             MakeBoolean(true)),
         std::tuple<const char*, const char*, TUnversionedValue>(
+            "any=[#; 1; 2]",
+            "list_contains(any, #)",
+            MakeBoolean(true)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
             "any=[\"x\"; 2.7; 5]",
             "list_contains(any, 2.7)",
             MakeBoolean(true)),

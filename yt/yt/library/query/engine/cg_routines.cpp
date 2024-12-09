@@ -2703,6 +2703,14 @@ extern "C" void MakeList(
     NDetail::CopyAny(context, result, resultYson);
 }
 
+bool ListContainsNullImpl(const INodePtr& node)
+{
+    auto children = node->AsList()->GetChildren();
+    return std::any_of(children.begin(), children.end(), [] (const INodePtr& element) {
+        return element->GetType() == ENodeType::Entity;
+    });
+}
+
 template <ENodeType NodeType, typename TElement, typename TValue>
 bool ListContainsImpl(const INodePtr& node, const TValue& value)
 {
@@ -2748,6 +2756,9 @@ void ListContains(
             break;
         case EValueType::Double:
             found = ListContainsImpl<ENodeType::Double, double>(node, whatAtHost.Data.Double);
+            break;
+        case EValueType::Null:
+            found = ListContainsNullImpl(node);
             break;
         default:
             THROW_ERROR_EXCEPTION("ListContains is not implemented for %Qlv values",

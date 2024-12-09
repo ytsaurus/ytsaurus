@@ -369,7 +369,10 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterFunction(
         "list_contains",
         std::vector<TType>{
-            EValueType::Any,
+            TUnionType{
+                EValueType::Any,
+                EValueType::Composite,
+            },
             TUnionType{
                 EValueType::Int64,
                 EValueType::Uint64,
@@ -385,8 +388,14 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterFunction(
         "list_has_intersection",
         std::vector<TType>{
-            EValueType::Any,
-            EValueType::Any,
+            TUnionType{
+                EValueType::Any,
+                EValueType::Composite,
+            },
+            TUnionType{
+                EValueType::Any,
+                EValueType::Composite,
+            },
         },
         EValueType::Boolean,
         "list_has_intersection",
