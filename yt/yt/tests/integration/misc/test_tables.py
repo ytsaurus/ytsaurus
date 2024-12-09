@@ -602,11 +602,13 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/table") == [{"k1": i * 2, "k2": i} for i in range(2)]
 
     @authors("cherepashka")
-    def test_non_materializied_computed_columns(self):
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_non_materializied_computed_columns(self, optimize_for):
         create(
             "table",
             "//tmp/table",
             attributes={
+                "optimize_for": optimize_for,
                 "schema": [
                     {"name": "num", "type": "int64"},
                     {
@@ -622,8 +624,8 @@ class TestTables(YTEnvSetup):
 
         write_table("//tmp/table", [{"num": 1}, {"num": 1}, {"num": 2}, {"num": 3}, {"num": 5}, {"num": 8}, {"num": 13}])
 
-        # Computation of non materializied computed columns is not implemented yet.
-        assert read_table("//tmp/table") == [{"doubled_num": yson.YsonEntity(), "num": i} for i in [1, 1, 2, 3, 5, 8, 13]]
+        assert read_table("//tmp/table") == [{"doubled_num": 2 * i, "num": i} for i in [1, 1, 2, 3, 5, 8, 13]]
+        assert read_table("//tmp/table{doubled_num}") == [{"doubled_num": 2 * i} for i in [1, 1, 2, 3, 5, 8, 13]]
 
     @authors("cherepashka")
     def test_alter_materializability_of_computed_columns(self):

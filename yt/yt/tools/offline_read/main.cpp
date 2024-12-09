@@ -146,6 +146,7 @@ std::tuple<std::function<IVersionedReaderPtr(int)>, std::vector<TLegacyOwningKey
             .TableSchema = schema,
         });
         return CreateVersionedChunkReader(
+            CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>()),
             TChunkReaderConfig::GetDefault(),
             std::move(chunkReader),
             chunkState,
@@ -536,6 +537,7 @@ std::unique_ptr<IUniversalReader> CreateUnversionedUniversalReader(
     }
 
     auto schemalessReader = CreateSchemalessRangeChunkReader(
+        CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>()),
         std::move(chunkState),
         New<TColumnarChunkMeta>(*chunkMeta),
         TChunkReaderConfig::GetDefault(),
@@ -593,6 +595,7 @@ std::unique_ptr<IUniversalReader> CreateVersionedUniversalReader(
         .TableSchema = schema,
     });
     auto versionedReader = CreateVersionedChunkReader(
+        CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>()),
         TChunkReaderConfig::GetDefault(),
         std::move(chunkReader),
         chunkState,

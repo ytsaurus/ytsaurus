@@ -21,6 +21,9 @@
 
 #include <yt/yt/client/table_client/unittests/helpers/helpers.h>
 
+#include <yt/yt/library/query/engine_api/config.h>
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+
 #include <yt/yt/core/compression/public.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -47,6 +50,8 @@ const TStringBuf AnyValueMap = "{a=b; c=d}";
 const std::vector<TString> ColumnNames = {"c0", "c1", "c2", "c3", "c4", "c5", "c6"};
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// TODO(cherepashka): add test checking no chunk materialization happen during read.
 
 class TSchemalessChunksTest
     : public ::testing::TestWithParam<std::tuple<EOptimizeFor, TTableSchema, TColumnFilter, TLegacyReadRange>>
@@ -256,6 +261,7 @@ protected:
         });
 
         return CreateSchemalessRangeChunkReader(
+            CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
             std::move(chunkState),
             ChunkMeta_,
             TChunkReaderConfig::GetDefault(),
@@ -433,6 +439,7 @@ protected:
     virtual ISchemalessUnversionedReaderPtr CreateReader(const TColumnFilter& columnFilter)
     {
         return CreateSchemalessRangeChunkReader(
+            CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
             ChunkState_,
             ChunkMeta_,
             TChunkReaderConfig::GetDefault(),
@@ -781,6 +788,7 @@ protected:
         });
 
         return CreateSchemalessLookupChunkReader(
+            CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
             std::move(chunkState),
             FetchMeta(),
             TChunkReaderConfig::GetDefault(),
@@ -809,6 +817,7 @@ protected:
         });
 
         return CreateSchemalessKeyRangesChunkReader(
+            CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
             std::move(chunkState),
             FetchMeta(),
             TChunkReaderConfig::GetDefault(),
@@ -838,6 +847,7 @@ protected:
         });
 
         return CreateSchemalessRangeChunkReader(
+            CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
             std::move(chunkState),
             meta,
             TChunkReaderConfig::GetDefault(),

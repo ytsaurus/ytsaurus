@@ -139,7 +139,7 @@ public:
             auto sortedIndex = SortedIndexes_[ReadRowCount_];
             auto& rowDescriptor = RowDescriptorBuffer_[sortedIndex];
             YT_VERIFY(rowDescriptor.BlockReader->JumpToRowIndex(rowDescriptor.RowIndex));
-            auto row = rowDescriptor.BlockReader->GetRow(&MemoryPool_);
+            auto row = rowDescriptor.BlockReader->GetRow(&MemoryPool_, /*remap*/ true);
             rows.push_back(row);
             dataWeight += GetDataWeight(row);
             ++ReadRowCount_;

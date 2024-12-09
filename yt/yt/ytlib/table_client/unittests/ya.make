@@ -30,6 +30,7 @@ SRCS(
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
+    yt/yt/library/query/engine
     yt/yt/client/unittests/mock
     yt/yt/client/table_client/unittests/helpers
     yt/yt/core/test_framework

@@ -28,44 +28,50 @@ TColumnEvaluator::TColumnEvaluator(
     , IsAggregate_(std::move(isAggregate))
 { }
 
-void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buffer, int index) const
+void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buffer, int columnIndex, bool preserveColumnId) const
 {
-    YT_VERIFY(index < static_cast<int>(fullRow.GetCount()));
-    YT_VERIFY(index < std::ssize(Columns_));
+    YT_VERIFY(columnIndex < static_cast<int>(fullRow.GetCount()));
+    YT_VERIFY(columnIndex < std::ssize(Columns_));
 
-    const auto& column = Columns_[index];
+    const auto& column = Columns_[columnIndex];
     auto& evaluator = column.EvaluatorInstance;
     YT_VERIFY(evaluator);
 
+    auto initialColumnId = fullRow[columnIndex].Id;
+
     // Zero row to avoid garbage after evaluator.
-    fullRow[index] = MakeUnversionedSentinelValue(EValueType::Null);
+    fullRow[columnIndex] = MakeUnversionedSentinelValue(EValueType::Null);
 
     evaluator.Run(
         column.Variables.GetLiteralValues(),
         column.Variables.GetOpaqueData(),
         column.Variables.GetOpaqueDataSizes(),
-        &fullRow[index],
+        &fullRow[columnIndex],
         fullRow.Elements(),
         buffer);
 
-    fullRow[index].Id = index;
+    fullRow[columnIndex].Id = preserveColumnId ? initialColumnId : columnIndex;
 }
 
-void TColumnEvaluator::EvaluateKeys(TMutableRow fullRow, const TRowBufferPtr& buffer) const
+void TColumnEvaluator::EvaluateKeys(
+    TMutableRow fullRow,
+    const TRowBufferPtr& buffer,
+    bool preserveColumnsIds) const
 {
     for (int index = 0; index < std::ssize(Columns_); ++index) {
         if (Columns_[index].EvaluatorImage) {
-            EvaluateKey(fullRow, buffer, index);
+            EvaluateKey(fullRow, buffer, index, preserveColumnsIds);
         }
     }
 }
 
 void TColumnEvaluator::EvaluateKeys(
     TMutableVersionedRow fullRow,
-    const TRowBufferPtr& buffer) const
+    const TRowBufferPtr& buffer,
+    bool preserveColumnsIds) const
 {
     auto row = buffer->CaptureRow(fullRow.Keys(), /*captureValues*/ false);
-    EvaluateKeys(row, buffer);
+    EvaluateKeys(row, buffer, preserveColumnsIds);
 
     for (int index = 0; index < fullRow.GetKeyCount(); ++index) {
         if (Columns_[index].EvaluatorImage) {

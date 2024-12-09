@@ -26,10 +26,10 @@ target_link_libraries(unittester-ytlib-table-client PUBLIC
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
+  library-query-engine
   client-unittests-mock
   table_client-unittests-helpers
   yt-core-test_framework
-  library-query-engine
   yt-yt-ytlib
 )
 

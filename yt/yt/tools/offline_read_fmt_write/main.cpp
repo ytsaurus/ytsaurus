@@ -222,6 +222,7 @@ TUnversionedUniversalReader CreateUnversionedUniversalReader(
     }
 
     auto schemalessReader = CreateSchemalessRangeChunkReader(
+        CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>()),
         std::move(chunkState),
         New<TColumnarChunkMeta>(*chunkMeta),
         New<TChunkReaderConfig>(),

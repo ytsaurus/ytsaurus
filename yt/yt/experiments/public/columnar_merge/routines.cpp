@@ -297,6 +297,7 @@ IVersionedReaderPtr CreateChunkReader(
 
         if (options.NoBlockFetcher) {
             return NTableClient::CreateCacheBasedVersionedChunkReader(
+                CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>()),
                 readerData.ChunkReader->GetChunkId(),
                 chunkState,
                 std::move(readerData.ChunkMeta),
@@ -307,6 +308,7 @@ IVersionedReaderPtr CreateChunkReader(
                 options.ProduceAllVersions);
         } else {
             return CreateVersionedChunkReader(
+                CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>()),
                 TChunkReaderConfig::GetDefault(),
                 std::move(readerData.ChunkReader),
                 chunkState,

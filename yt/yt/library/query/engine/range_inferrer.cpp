@@ -559,7 +559,7 @@ void EnrichKeyRange(
                 column.second->Reset();
                 prefixRow[columnIndex] = MakeUnversionedSentinelValue(EValueType::Null, columnIndex);
             } else {
-                evaluator.EvaluateKey(prefixRow, buffer, columnIndex);
+                evaluator.EvaluateKey(prefixRow, buffer, columnIndex, /*preserveColumnId*/ false);
             }
         }
 

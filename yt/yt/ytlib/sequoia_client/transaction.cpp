@@ -547,7 +547,7 @@ private:
             modificationIdMapping,
             /*validateDuplicateAndRequiredValueColumns*/ false);
         if (evaluator) {
-            evaluator->EvaluateKeys(capturedRow, RowBuffer_);
+            evaluator->EvaluateKeys(capturedRow, RowBuffer_, /*preserveColumnsIds*/ false);
         }
         return capturedRow;
     }

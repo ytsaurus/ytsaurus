@@ -1,36 +1,26 @@
+#include "versioned_chunk_reader.h"
+
 #include "cached_versioned_chunk_meta.h"
 #include "chunk_column_mapping.h"
-#include "chunk_meta_extensions.h"
 #include "chunk_reader_base.h"
 #include "chunk_state.h"
 #include "columnar_chunk_reader_base.h"
 #include "config.h"
 #include "schemaless_multi_chunk_reader.h"
 #include "versioned_block_reader.h"
-#include "versioned_chunk_reader.h"
 #include "versioned_reader_adapter.h"
 #include "hunks.h"
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/block_id.h>
+#include <yt/yt/ytlib/chunk_client/block_fetcher.h>
 #include <yt/yt/ytlib/chunk_client/cache_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/yt/ytlib/chunk_client/block_fetcher.h>
 
 #include <yt/yt/ytlib/table_client/key_filter.h>
 #include <yt/yt/ytlib/table_client/schemaful_reader_adapter.h>
-
-#include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
-#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
-
-#include <yt/yt/client/table_client/row_buffer.h>
-#include <yt/yt/client/table_client/unversioned_row.h>
-#include <yt/yt/client/table_client/schema.h>
-#include <yt/yt/client/table_client/name_table.h>
-#include <yt/yt/client/table_client/versioned_reader.h>
-#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/yt/ytlib/table_chunk_format/timestamp_reader.h>
@@ -39,6 +29,15 @@
 #include <yt/yt/ytlib/table_chunk_format/slim_versioned_block_reader.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/versioned_reader.h>
+
+#include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <yt/yt/core/compression/codec.h>
 
@@ -50,6 +49,7 @@ using namespace NChunkClient::NProto;
 using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
 using namespace NTracing;
+using namespace NQueryClient;
 
 using NChunkClient::TReadLimit;
 using NChunkClient::TReadRange;
@@ -1676,6 +1676,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IVersionedReaderPtr CreateVersionedChunkReader(
+    const IColumnEvaluatorCachePtr& columnEvaluatorCache,
     TChunkReaderConfigPtr config,
     IChunkReaderPtr chunkReader,
     const TChunkStatePtr& chunkState,
@@ -1819,6 +1820,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 TReadRange readRange(TReadLimit{lowerKeyBound}, TReadLimit{upperKeyBound});
 
                 return CreateSchemalessRangeChunkReader(
+                    columnEvaluatorCache,
                     chunkState,
                     chunkMeta,
                     config,
@@ -1867,6 +1869,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 }
 
 IVersionedReaderPtr CreateVersionedChunkReader(
+    const IColumnEvaluatorCachePtr& columnEvaluatorCache,
     TChunkReaderConfigPtr config,
     IChunkReaderPtr chunkReader,
     const TChunkStatePtr& chunkState,
@@ -1882,6 +1885,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TKeyFilterStatisticsPtr keyFilterStatistics)
 {
     return CreateVersionedChunkReader(
+        columnEvaluatorCache,
         config,
         chunkReader,
         chunkState,
@@ -1899,6 +1903,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 IVersionedReaderPtr CreateVersionedChunkReader(
+    const IColumnEvaluatorCachePtr& columnEvaluatorCache,
     TChunkReaderConfigPtr config,
     IChunkReaderPtr chunkReader,
     const TChunkStatePtr& chunkState,
@@ -2018,6 +2023,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 options->DynamicTable = true;
 
                 return CreateSchemalessLookupChunkReader(
+                    columnEvaluatorCache,
                     chunkState,
                     chunkMeta,
                     config,

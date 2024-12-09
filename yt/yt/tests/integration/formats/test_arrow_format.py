@@ -13,6 +13,7 @@ import pandas as pd
 
 HELLO_WORLD = b"\xd0\x9f\xd1\x80\xd0\xb8\xd0\xb2\xd0\xb5\xd1\x82, \xd0\xbc\xd0\xb8\xd1\x80!"
 GOODBYE_WORLD = b"\xd0\x9f\xd0\xbe\xd0\xba\xd0\xb0, \xd0\xbc\xd0\xb8\xd1\x80!"
+ARROW_FORMAT = yson.YsonString(b"arrow")
 
 
 def serialize_arrow_table(table):
@@ -77,9 +78,7 @@ class TestArrowFormat(YTEnvSetup):
             ],
         )
 
-        format = yson.YsonString(b"arrow")
-
-        parsed_table = parse_arrow_stream(read_table("//tmp/t_in", output_format=format))
+        parsed_table = parse_arrow_stream(read_table("//tmp/t_in", output_format=ARROW_FORMAT))
         column_names = parsed_table.column_names
 
         assert column_names[0] == "int"
@@ -301,9 +300,7 @@ class TestArrowFormat(YTEnvSetup):
             ],
         )
 
-        format = yson.YsonString(b"arrow")
-
-        parsed_table = parse_arrow_stream(read_table("//tmp/t_in", output_format=format))
+        parsed_table = parse_arrow_stream(read_table("//tmp/t_in", output_format=ARROW_FORMAT))
         column_names = parsed_table.column_names
 
         assert column_names[0] == "int"
@@ -345,12 +342,10 @@ class TestArrowFormat(YTEnvSetup):
             ],
         )
 
-        format = yson.YsonString(b"arrow")
-
-        arrow_dump = read_table("//tmp/table1", output_format=format)
+        arrow_dump = read_table("//tmp/table1", output_format=ARROW_FORMAT)
 
         create("table", "//tmp/table2", attributes={"schema": schema})
-        write_table("//tmp/table2", arrow_dump, is_raw=True, input_format=format)
+        write_table("//tmp/table2", arrow_dump, is_raw=True, input_format=ARROW_FORMAT)
 
         assert read_table("//tmp/table1") == read_table("//tmp/table2")
 
@@ -430,11 +425,9 @@ class TestArrowFormat(YTEnvSetup):
             ],
         )
 
-        format = yson.YsonString(b"arrow")
-
-        arrow_dump = read_table("//tmp/table1", output_format=format)
+        arrow_dump = read_table("//tmp/table1", output_format=ARROW_FORMAT)
         create("table", "//tmp/table2", attributes={"schema": schema})
-        write_table("//tmp/table2", arrow_dump, is_raw=True, input_format=format)
+        write_table("//tmp/table2", arrow_dump, is_raw=True, input_format=ARROW_FORMAT)
 
         assert read_table("//tmp/table1") == read_table("//tmp/table2")
 
@@ -448,8 +441,7 @@ class TestArrowFormat(YTEnvSetup):
         create("table", "//tmp/table2", attributes={"schema": schema, "optimize_for": optimize_for})
 
         arrow_dump = parse_list_to_arrow()
-        format = yson.YsonString(b"arrow")
-        write_table("//tmp/table1", arrow_dump, is_raw=True, input_format=format)
+        write_table("//tmp/table1", arrow_dump, is_raw=True, input_format=ARROW_FORMAT)
 
         write_table(
             "//tmp/table2",
@@ -466,6 +458,35 @@ class TestArrowFormat(YTEnvSetup):
         )
 
         assert read_table("//tmp/table1") == read_table("//tmp/table2")
+
+    @authors("cherepashka")
+    def test_non_materializied_computed_columns(self, optimize_for):
+        create(
+            "table",
+            "//tmp/table",
+            attributes={
+                "optimize_for": optimize_for,
+                "schema": [
+                    {"name": "num", "type": "int64"},
+                    {
+                        "name": "doubled_num",
+                        "type": "int64",
+                        "expression": "num * 2",
+                        "materialized": False,
+                    },
+                ]
+            },
+        )
+
+        rows = [{"num": 1}, {"num": 1}, {"num": 2}, {"num": 3}, {"num": 5}, {"num": 8}, {"num": 13}]
+        write_table("//tmp/table", rows)
+
+        read_result = parse_arrow_stream(read_table("//tmp/table", output_format=ARROW_FORMAT)).to_pydict()
+        assert read_result["num"] == [row["num"] for row in rows]
+        assert read_result["doubled_num"] == [2 * row["num"] for row in rows]
+
+        read_result = parse_arrow_stream(read_table("//tmp/table{doubled_num}", output_format=ARROW_FORMAT)).to_pydict()
+        assert read_result["doubled_num"] == [2 * row["num"] for row in rows]
 
 
 @authors("nadya02")
@@ -532,8 +553,6 @@ class TestMapArrowFormat(YTEnvSetup):
 
         create("table", "//tmp/t_out")
 
-        input_format = yson.YsonString(b"arrow")
-
         output_format = yson.YsonString(b"skiff")
         output_format.attributes["table_skiff_schemas"] = [
             {
@@ -551,7 +570,7 @@ class TestMapArrowFormat(YTEnvSetup):
             in_="//tmp/t_in{int,uint,double}",
             out="//tmp/t_out",
             command="cat > /dev/null",
-            spec={"mapper": {"input_format": input_format, "output_format": output_format}},
+            spec={"mapper": {"input_format": ARROW_FORMAT, "output_format": output_format}},
         )
 
         assert read_table("//tmp/t_out") == []
@@ -622,13 +641,11 @@ class TestMapArrowFormat(YTEnvSetup):
             force=True,
         )
 
-        format = yson.YsonString(b"arrow")
-
         operation = map(
             in_="//tmp/t_in{int,uint,double}",
             out="//tmp/t_out",
             command="cat",
-            spec={"mapper": {"format": format}},
+            spec={"mapper": {"format": ARROW_FORMAT}},
         )
 
         assert read_table("//tmp/t_in{int,uint,double}") == read_table("//tmp/t_out")
@@ -703,13 +720,11 @@ class TestMapArrowFormat(YTEnvSetup):
             force=True,
         )
 
-        format = yson.YsonString(b"arrow")
-
         op = map(
             in_=["//tmp/t1", "//tmp/t2"],
             out=["//tmp/t_out"],
             command="cat 1>&2",
-            spec={"mapper": {"input_format": format}},
+            spec={"mapper": {"input_format": ARROW_FORMAT}},
         )
 
         assert read_table("//tmp/t_out") == []
@@ -807,13 +822,11 @@ class TestMapArrowFormat(YTEnvSetup):
             force=True,
         )
 
-        format = yson.YsonString(b"arrow")
-
         op = map(
             in_=["//tmp/t1", "//tmp/t2"],
             out=["//tmp/t_out"],
             command="cat 1>&2",
-            spec={"mapper": {"input_format": format}},
+            spec={"mapper": {"input_format": ARROW_FORMAT}},
         )
 
         assert read_table("//tmp/t_out") == []
@@ -882,9 +895,7 @@ class TestArrowIntegerColumn_YTADMINREQ_34427(YTEnvSetup):
                 ]
             )
 
-        format = yson.YsonString(b"arrow")
-
-        parsed_table = parse_arrow_stream(read_table("//tmp/t_in", output_format=format, control_attributes={"enable_row_index": True, "enable_range_index": True}))
+        parsed_table = parse_arrow_stream(read_table("//tmp/t_in", output_format=ARROW_FORMAT, control_attributes={"enable_row_index": True, "enable_range_index": True}))
         column_names = parsed_table.column_names
 
         assert "a" in column_names

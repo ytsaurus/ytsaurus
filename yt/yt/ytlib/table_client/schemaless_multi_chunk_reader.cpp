@@ -257,6 +257,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             chunkMeta->GetChunkFormat() != EChunkFormat::TableUnversionedSchemalessHorizontal)
                         {
                             return CreateSchemalessRangeChunkReader(
+                                chunkReaderHost->Client->GetNativeConnection()->GetColumnEvaluatorCache(),
                                 std::move(chunkState),
                                 std::move(chunkMeta),
                                 PatchConfig(config, memoryEstimate),
@@ -277,6 +278,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         } else {
                             YT_LOG_DEBUG("Only reading hint prefixes (Count: %v)", hintKeyPrefixes->HintPrefixes.size());
                             return CreateSchemalessKeyRangesChunkReader(
+                                chunkReaderHost->Client->GetNativeConnection()->GetColumnEvaluatorCache(),
                                 std::move(chunkState),
                                 std::move(chunkMeta),
                                 PatchConfig(config, memoryEstimate),
@@ -1328,6 +1330,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         }
 
         return CreateVersionedChunkReader(
+            chunkReaderHost->Client->GetNativeConnection()->GetColumnEvaluatorCache(),
             config,
             std::move(remoteReader),
             std::move(chunkState),

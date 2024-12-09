@@ -220,7 +220,7 @@ public:
                 ChunkId_);
         }
 
-        YT_LOG_DEBUG("Reader initialized "
+        YT_LOG_DEBUG("Replication reader initialized "
             "(InitialSeedReplicas: %v, FetchPromPeers: %v, LocalDescriptor: %v, PopulateCache: %v, "
             "AllowFetchingSeedsFromMaster: %v, Networks: %v)",
             MakeFormattableView(InitialSeeds_, TChunkReplicaAddressFormatter(NodeDirectory_)),

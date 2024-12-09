@@ -731,6 +731,35 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         assert rows == lookup_rows("//tmp/t", [{"key": i} for i in range(10)], use_lookup_cache=False)
         lookup_rows("//tmp/t", [{"key": i} for i in range(10)], use_lookup_cache=False, versioned=True)
 
+    @authors("cherepashka")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_non_materializied_computed_columns(self, optimize_for):
+        sync_create_cells(1)
+        self._create_sorted_table(
+            "//tmp/t",
+            schema=[
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64", "sort_order": "ascending"},
+                {"name": "c", "type": "int64"},
+                {
+                    "name": "mul",
+                    "type": "int64",
+                    "expression": "a * b",
+                    "materialized": False,
+                },
+            ],
+            optimize_for=optimize_for,
+        )
+
+        sync_mount_table("//tmp/t")
+
+        rows = [{"a": i, "b": -i, "c": i} for i in range(1, 4)]
+        insert_rows("//tmp/t", rows)
+
+        # Evaluation of non materializied computed columns is not implemented yet.
+        assert lookup_rows("//tmp/t", [{"a": r["a"], "b": r["b"]} for r in rows]) == [{"a": i, "b": -i, "c": i, "mul": yson.YsonEntity()} for i in range(1, 4)]
+        assert select_rows("mul from [//tmp/t]") == [{"mul": yson.YsonEntity()} for i in range(1, 4)]
+
 
 ##################################################################
 

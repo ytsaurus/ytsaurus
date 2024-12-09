@@ -2,10 +2,13 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/chunk_client/chunk_spec.h>
+
 #include <yt/yt/client/api/public.h>
 
 #include <yt/yt/client/chunk_client/read_limit.h>
-#include <yt/yt/ytlib/chunk_client/chunk_spec.h>
+
+#include <yt/yt/library/query/base/public.h>
 
 #include <yt/yt/core/misc/range.h>
 #include <yt/yt/core/misc/linear_probe.h>
@@ -25,6 +28,7 @@ namespace NYT::NTableClient {
  */
 
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
+    const NQueryClient::IColumnEvaluatorCachePtr& columnEvaluatorCache,
     NChunkClient::TChunkId chunkId,
     const TChunkStatePtr& state,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
@@ -35,6 +39,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     bool produceAllVersions);
 
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
+    const NQueryClient::IColumnEvaluatorCachePtr& columnEvaluatorCache,
     NChunkClient::TChunkId chunkId,
     const TChunkStatePtr& state,
     const TCachedVersionedChunkMetaPtr& chunkMeta,

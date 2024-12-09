@@ -35,6 +35,9 @@
 
 #include <yt/yt/client/table_client/unittests/helpers/helpers.h>
 
+#include <yt/yt/library/query/engine_api/config.h>
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
 #include <yt/yt/core/compression/public.h>
@@ -478,6 +481,7 @@ protected:
                     std::move(chunkFragmentReader));
             } else {
                 versionedReader = CreateVersionedChunkReader(
+                    CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
                     TChunkReaderConfig::GetDefault(),
                     MemoryReader,
                     std::move(chunkState),
@@ -861,6 +865,7 @@ protected:
             if (GetTestOptions().CacheBased) {
                 chunkState->BlockCache = GetPreloadedBlockCache(memoryReader);
                 versionedReader = CreateCacheBasedVersionedChunkReader(
+                    CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
                     memoryReader->GetChunkId(),
                     std::move(chunkState),
                     std::move(chunkMeta),
@@ -871,6 +876,7 @@ protected:
                     produceAllVersions);
             } else {
                 versionedReader = CreateVersionedChunkReader(
+                    CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
                     TChunkReaderConfig::GetDefault(),
                     memoryReader,
                     std::move(chunkState),
@@ -1015,6 +1021,7 @@ protected:
             if (GetTestOptions().CacheBased) {
                 chunkState->BlockCache = GetPreloadedBlockCache(memoryReader);
                 versionedReader = CreateCacheBasedVersionedChunkReader(
+                    CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
                     memoryReader->GetChunkId(),
                     std::move(chunkState),
                     std::move(chunkMeta),
@@ -1025,6 +1032,7 @@ protected:
                     produceAllVersions);
             } else {
                 versionedReader = CreateVersionedChunkReader(
+                    CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
                     TChunkReaderConfig::GetDefault(),
                     memoryReader,
                     std::move(chunkState),

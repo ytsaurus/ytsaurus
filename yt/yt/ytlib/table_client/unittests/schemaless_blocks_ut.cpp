@@ -26,7 +26,7 @@ protected:
     {
         std::vector<TUnversionedRow> actual;
         do {
-            auto row = reader.GetRow(&MemoryPool_);
+            auto row = reader.GetRow(&MemoryPool_, /*remap*/ true);
             actual.push_back(row);
         } while (reader.NextRow());
         CheckSchemafulResult(actual, rows);
