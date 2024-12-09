@@ -167,7 +167,7 @@ def compact_chunk_views(path):
         logger.info("Table %s contains chunk views, will compact", path)
         sync_compact_table(
             path,
-            compaction_path="forced_chunk_views_compaction_revision",
+            compaction_path="forced_chunk_view_compaction_revision",
             get_chunks=lambda table_path: get_chunk_views(table_path),
             get_remaining_chunks=lambda _, after: after)
 
