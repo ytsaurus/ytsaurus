@@ -123,7 +123,7 @@ private:
         const TNonOwningOperationElementList& operations,
         TUpdateSchedulingSegmentsContext* context) const;
 
-    bool IsOperationEligibleForPriorityModuleAssigment(const TSchedulerOperationElement* operationElement, TUpdateSchedulingSegmentsContext* context) const;
+    bool IsOperationEligibleForPriorityModuleAssignment(const TSchedulerOperationElement* operationElement, TUpdateSchedulingSegmentsContext* context) const;
 
     double GetElementFairResourceAmount(const TSchedulerOperationElement* element, TUpdateSchedulingSegmentsContext* context) const;
 

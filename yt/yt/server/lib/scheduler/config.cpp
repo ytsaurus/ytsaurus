@@ -249,6 +249,60 @@ const THashSet<TString>& TFairShareStrategySchedulingSegmentsConfig::GetModules(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TGpuAllocationSchedulerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("initialization_timeout", &TThis::InitializationTimeout)
+        .Default(TDuration::Minutes(5));
+
+    registrar.Parameter("module_reconsideration_timeout", &TThis::ModuleReconsiderationTimeout)
+        .Default(TDuration::Minutes(20));
+
+    registrar.Parameter("preempt_for_large_operation_timeout", &TThis::PreemptForLargeOperationTimeout)
+        .Default(TDuration::Minutes(5));
+
+    registrar.Parameter("data_centers", &TThis::DataCenters)
+        .Default();
+
+    registrar.Parameter("infiniband_clusters", &TThis::InfinibandClusters)
+        .Default();
+
+    registrar.Parameter("module_assignment_heuristic", &TThis::ModuleAssignmentHeuristic)
+        .Default(ESchedulingSegmentModuleAssignmentHeuristic::MinRemainingFeasibleCapacity);
+
+    registrar.Parameter("module_preemption_heuristic", &TThis::ModulePreemptionHeuristic)
+        .Default(ESchedulingSegmentModulePreemptionHeuristic::Greedy);
+
+    registrar.Parameter("module_type", &TThis::ModuleType)
+        .Default(ESchedulingSegmentModuleType::DataCenter);
+
+    registrar.Parameter("enable_detailed_logs", &TThis::EnableDetailedLogs)
+        .Default(false);
+
+    registrar.Parameter("priority_module_assignment_timeout", &TThis::PriorityModuleAssignmentTimeout)
+        .Default(TDuration::Minutes(15));
+
+    registrar.Postprocessor([&] (TGpuAllocationSchedulerConfig* config) {
+        for (const auto& schedulingSegmentModule : config->DataCenters) {
+            ValidateDataCenterName(schedulingSegmentModule);
+        }
+        for (const auto& schedulingSegmentModule : config->InfinibandClusters) {
+            ValidateInfinibandClusterName(schedulingSegmentModule);
+        }
+    });
+}
+
+const THashSet<TString>& TGpuAllocationSchedulerConfig::GetModules() const
+{
+    switch (ModuleType) {
+        case ESchedulingSegmentModuleType::DataCenter:
+            return DataCenters;
+        case ESchedulingSegmentModuleType::InfinibandCluster:
+            return InfinibandClusters;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TFairShareStrategySsdPriorityPreemptionConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)

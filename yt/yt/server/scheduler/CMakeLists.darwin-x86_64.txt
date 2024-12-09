@@ -75,6 +75,8 @@ target_sources(yt-server-scheduler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_context_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_segment_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/gpu_allocation_scheduler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/gpu_allocation_scheduler_structs.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/serialize.cpp
 )
 

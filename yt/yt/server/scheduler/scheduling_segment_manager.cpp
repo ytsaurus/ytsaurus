@@ -283,7 +283,7 @@ void TSchedulingSegmentManager::PreemptNonPriorityOperationsFromModuleForOperati
     }
 }
 
-bool TSchedulingSegmentManager::IsOperationEligibleForPriorityModuleAssigment(
+bool TSchedulingSegmentManager::IsOperationEligibleForPriorityModuleAssignment(
     const TSchedulerOperationElement* operationElement,
     TUpdateSchedulingSegmentsContext* context) const
 {
@@ -639,7 +639,7 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
             .OperationId = operationId,
             .Operation = operation.Get(),
             .Element = element,
-            .OperationHasPriority = IsOperationEligibleForPriorityModuleAssigment(element, context),
+            .OperationHasPriority = IsOperationEligibleForPriorityModuleAssignment(element, context),
         });
     }
 
