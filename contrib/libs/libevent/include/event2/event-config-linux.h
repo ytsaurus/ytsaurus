@@ -116,7 +116,7 @@
 #define EVENT__HAVE_GETPROTOBYNUMBER 1
 
 /* Define to 1 if you have the `getrandom' function. */
-#define EVENT__HAVE_GETRANDOM 1
+// #define EVENT__HAVE_GETRANDOM 1
 
 /* Define to 1 if you have the `getservbyname' function. */
 #define EVENT__HAVE_GETSERVBYNAME 1
@@ -332,7 +332,7 @@
 #define EVENT__HAVE_SYS_QUEUE_H 1
 
 /* Define to 1 if you have the <sys/random.h> header file. */
-#define EVENT__HAVE_SYS_RANDOM_H 1
+// #define EVENT__HAVE_SYS_RANDOM_H 1
 
 /* Define to 1 if you have the <sys/resource.h> header file. */
 #define EVENT__HAVE_SYS_RESOURCE_H 1
