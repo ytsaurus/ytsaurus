@@ -1029,6 +1029,19 @@ private:
                 << TErrorAttribute("table_path", tablet->GetTablePath())
                 << overflow;
         }
+
+        if (tablet->IsPhysicallyOrdered()) {
+            i64 tabletDataWeight = tablet->GetTotalDataWeight();
+            if (auto maxOrderedTabletDataWeight = tablet->GetSettings().MountConfig->MaxOrderedTabletDataWeight;
+                maxOrderedTabletDataWeight && tabletDataWeight >= maxOrderedTabletDataWeight)
+            {
+                THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,
+                    "Size of tablet %v exceeds the limit, all writes disabled",
+                    tablet->GetId())
+                    << TErrorAttribute("data_weight", tabletDataWeight)
+                    << TErrorAttribute("data_weight_limit", *maxOrderedTabletDataWeight);
+            }
+        }
     }
 
     static bool IsReplicatorWrite(const NRpc::TAuthenticationIdentity& identity)

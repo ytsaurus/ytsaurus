@@ -2269,6 +2269,17 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
         actual = lookup_rows(path, keys, enable_partial_result=True, keep_missing_rows=True)
         assert_items_equal(actual, expected)
 
+    @authors("alexelexa")
+    def test_ordered_tablet_size_limit_does_not_apply_to_sorted_tables(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", replication_factor=1)
+        set("//tmp/t/@mount_config/max_ordered_tablet_data_weight", 1)
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1, "value": "value1"}])
+        insert_rows("//tmp/t", [{"key": 2, "value": "value2"}])
+        sync_flush_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 3, "value": "value3"}])
+
 
 class TestSortedDynamicTablesMemoryLimitRpcProxy(TestSortedDynamicTablesMemoryLimit):
     DRIVER_BACKEND = "rpc"

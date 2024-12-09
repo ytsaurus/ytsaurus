@@ -279,6 +279,8 @@ public:
 
     bool EnableReplicationProgressAdvanceToBarrier;
 
+    std::optional<i64> MaxOrderedTabletDataWeight;
+
     // For testing purposes only.
     TDuration SimulatedTabletSnapshotDelay;
     TDuration SimulatedStorePreloadDelay;

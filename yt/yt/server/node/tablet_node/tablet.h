@@ -870,6 +870,8 @@ public:
 
     void InitializeTargetServantActivationFuture();
 
+    i64 GetTotalDataWeight();
+
 private:
     struct TTabletSizeMetrics
     {
@@ -895,6 +897,8 @@ private:
 
         void AddHunkChunk(const THunkChunkPtr& hunkChunk);
         void RemoveHunkChunk(const THunkChunkPtr& hunkChunk);
+
+        i64 GetDataWeight() const;
 
     private:
         TTabletCounters* TabletCounters_;
@@ -959,6 +963,7 @@ private:
     void UpdateOverlappingStoreCount();
     int ComputeEdenOverlappingStoreCount() const;
     int ComputeDynamicStoreCount() const;
+    i64 ComputeDynamicStoreDataWeight() const;
 
     void ReconfigureLocalThrottlers();
     void ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot);
