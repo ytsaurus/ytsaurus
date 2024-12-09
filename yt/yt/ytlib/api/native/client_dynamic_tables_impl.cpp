@@ -1021,7 +1021,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
             /*validateDuplicateAndRequiredValueColumns*/ false);
 
         if (evaluator) {
-            evaluator->EvaluateKeys(capturedKey, inputRowBuffer);
+            evaluator->EvaluateKeys(capturedKey, inputRowBuffer, /*preserveColumnsIds*/ false);
         }
 
         sortedKeys.emplace_back(capturedKey, index);

@@ -25,6 +25,9 @@
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/config.h>
+
 #include <yt/yt/library/named_value/named_value.h>
 
 #include <util/stream/null.h>
@@ -95,6 +98,7 @@ IUnversionedRowBatchPtr MakeColumnarRowBatch(
     });
 
     auto schemalessRangeChunkReader = CreateSchemalessRangeChunkReader(
+        CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
         ChunkState_,
         ChunkMeta_,
         TChunkReaderConfig::GetDefault(),

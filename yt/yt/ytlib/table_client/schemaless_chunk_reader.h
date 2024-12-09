@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/yt/library/query/base/public.h>
+
 #include <yt/yt/client/chunk_client/read_limit.h>
 #include <yt/yt/client/chunk_client/reader_base.h>
 
@@ -44,6 +46,7 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessChunkReader)
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
+    const NQueryClient::IColumnEvaluatorCachePtr& columnEvaluatorCache,
     const TChunkStatePtr& chunkState,
     const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,
@@ -61,6 +64,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     int interruptDescriptorKeyLength = 0);
 
 ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
+    const NQueryClient::IColumnEvaluatorCachePtr& columnEvaluatorCache,
     const TChunkStatePtr& chunkState,
     const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,
@@ -76,6 +80,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
     const NChunkClient::TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr);
 
 ISchemalessChunkReaderPtr CreateSchemalessKeyRangesChunkReader(
+    const NQueryClient::IColumnEvaluatorCachePtr& columnEvaluatorCache,
     const TChunkStatePtr& chunkState,
     const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,

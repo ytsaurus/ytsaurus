@@ -168,7 +168,7 @@ private:
 
             for (auto row : batch->MaterializeRows()) {
                 auto schemafulRow = RowReorderer_.ReorderRow(row);
-                Evaluator_->EvaluateKeys(schemafulRow, RowBuffer_);
+                Evaluator_->EvaluateKeys(schemafulRow, RowBuffer_, /*preserveColumnsIds*/ false);
                 Rows_.push_back(schemafulRow);
             }
         }

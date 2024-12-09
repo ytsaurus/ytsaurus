@@ -11,6 +11,8 @@
 #include <yt/yt/client/table_client/wire_protocol.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 
+#include <yt/yt/library/query/base/public.h>
+
 #include <yt/yt/core/misc/range.h>
 #include <yt/yt/core/misc/linear_probe.h>
 
@@ -24,6 +26,7 @@ static constexpr size_t RowBufferCapacity = 1000;
 
 //! Creates a versioned chunk reader for a given range of rows.
 IVersionedReaderPtr CreateVersionedChunkReader(
+    const NQueryClient::IColumnEvaluatorCachePtr& columnEvaluatorCache,
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
     const TChunkStatePtr& chunkState,
@@ -38,6 +41,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TKeyFilterStatisticsPtr keyFilterStatistics = nullptr);
 
 IVersionedReaderPtr CreateVersionedChunkReader(
+    const NQueryClient::IColumnEvaluatorCachePtr& columnEvaluatorCache,
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
     const TChunkStatePtr& chunkState,
@@ -58,6 +62,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
  *  If some key is missing, a null row is returned for it.
 */
 IVersionedReaderPtr CreateVersionedChunkReader(
+    const NQueryClient::IColumnEvaluatorCachePtr& columnEvaluatorCache,
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
     const TChunkStatePtr& chunkState,

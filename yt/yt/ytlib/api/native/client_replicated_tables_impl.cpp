@@ -107,7 +107,7 @@ TSharedRange<TUnversionedRow> TClient::PermuteAndEvaluateKeys(
             /*validateDuplicateAndRequiredValueColumns*/ false);
 
         if (evaluator) {
-            evaluator->EvaluateKeys(capturedKey, rowBuffer);
+            evaluator->EvaluateKeys(capturedKey, rowBuffer, /*preserveColumnsIds*/ false);
         }
 
         evaluatedKeys.push_back(capturedKey);

@@ -565,7 +565,6 @@ protected:
         dstValue->Timestamp = Store_->TimestampFromRevision(srcValue.Revision);
     }
 
-
     template <class T>
     T* SearchByTimestamp(TEditList<T> list, TTimestamp maxTimestamp)
     {

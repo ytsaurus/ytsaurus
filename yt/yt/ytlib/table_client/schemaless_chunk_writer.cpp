@@ -1247,7 +1247,7 @@ private:
     void EvaluateComputedColumns(TMutableUnversionedRow row)
     {
         if (ColumnEvaluator_) {
-            ColumnEvaluator_->EvaluateKeys(row, RowBuffer_);
+            ColumnEvaluator_->EvaluateKeys(row, RowBuffer_, /*preserveColumnsIds*/ false);
         }
     }
 

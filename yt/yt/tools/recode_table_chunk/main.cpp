@@ -22,6 +22,9 @@
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/config.h>
+
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/core/misc/fs.h>
@@ -162,6 +165,7 @@ private:
             .ValueOrThrow();
 
         auto tableReader = CreateVersionedChunkReader(
+            CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
             TChunkReaderConfig::GetDefault(),
             ChunkReader_,
             InputChunkState_,
@@ -204,6 +208,7 @@ private:
         }
 
         auto tableReader = CreateSchemalessRangeChunkReader(
+            CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
             InputChunkState_,
             New<TColumnarChunkMeta>(*InputChunkMeta_),
             TChunkReaderConfig::GetDefault(),

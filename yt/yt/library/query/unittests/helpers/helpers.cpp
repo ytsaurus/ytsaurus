@@ -283,7 +283,7 @@ TRow TRandomExpressionGenerator::GenerateRandomRow(int keyColumnCount)
     }
 
     if (ColumnEvaluator) {
-        ColumnEvaluator->EvaluateKeys(row, RowBuffer);
+        ColumnEvaluator->EvaluateKeys(row, RowBuffer, /*preserveColumnsIds*/ false);
     }
 
     return row;

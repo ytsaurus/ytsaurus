@@ -38,6 +38,9 @@
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/config.h>
+
 #include <yt/yt/library/formats/skiff_parser.h>
 #include <yt/yt/library/formats/skiff_writer.h>
 #include <yt/yt/library/formats/format.h>
@@ -154,6 +157,7 @@ public:
 
         TClientChunkReadOptions options;
         return CreateVersionedChunkReader(
+            CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
             New<TChunkReaderConfig>(),
             BackendReader_,
             ChunkState_,

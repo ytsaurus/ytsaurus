@@ -127,6 +127,7 @@ using namespace NIO;
 using namespace NTracing;
 using namespace NJournalClient;
 using namespace NYTree;
+using namespace NQueryClient;
 
 using NChunkClient::TChunkReaderStatistics;
 using NYT::ToProto;
@@ -1300,6 +1301,7 @@ private:
     {
     public:
         TMergeChunkReader(
+            IColumnEvaluatorCachePtr columnEvaluatorCache,
             NTableClient::TChunkReaderConfigPtr readerConfig,
             std::vector<TChunkReadContext> contexts,
             TTableSchemaPtr schema,
@@ -1307,7 +1309,8 @@ private:
             bool permuteRows,
             IBlockCachePtr blockCache,
             IMultiReaderMemoryManagerPtr memoryManager)
-            : ReaderConfig_(std::move(readerConfig))
+            : ColumnEvaluatorCache_(std::move(columnEvaluatorCache))
+            , ReaderConfig_(std::move(readerConfig))
             , Contexts_(std::move(contexts))
             , Schema_(std::move(schema))
             , NameTable_(std::move(nameTable))
@@ -1368,6 +1371,7 @@ private:
         }
 
     private:
+        const IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
         const NTableClient::TChunkReaderConfigPtr ReaderConfig_;
         const std::vector<TChunkReadContext> Contexts_;
         const TTableSchemaPtr Schema_;
@@ -1389,6 +1393,7 @@ private:
             });
 
             ChunkReader_ = CreateSchemalessRangeChunkReader(
+                ColumnEvaluatorCache_,
                 std::move(chunkState),
                 New<TColumnarChunkMeta>(*context.Meta),
                 ReaderConfig_,
@@ -1706,6 +1711,7 @@ private:
             YT_VERIFY(MultiReaderMemoryManager_);
 
             TMergeChunkReader chunkReader(
+                Bootstrap_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
                 DynamicConfig_->Reader,
                 InputChunkReadContexts_,
                 Schema_,
@@ -1844,6 +1850,7 @@ private:
         auto readerConfig = DynamicConfig_->Reader;
 
         TMergeChunkReader outputChunkReader(
+            Bootstrap_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
             readerConfig,
             {outputChunkReadContext},
             Schema_,
@@ -1855,6 +1862,7 @@ private:
         // NB: #InputChunkReadContexts_ could be already used during merge.
         PrepareInputChunkReadContexts();
         TMergeChunkReader inputChunksReader(
+            Bootstrap_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
             readerConfig,
             InputChunkReadContexts_,
             Schema_,
@@ -2247,6 +2255,7 @@ private:
                 /*produceAllVersions*/ true);
         } else {
             reader = CreateVersionedChunkReader(
+                Bootstrap_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
                 NTableClient::TChunkReaderConfig::GetDefault(),
                 std::move(remoteReader),
                 oldChunkState,
@@ -2286,6 +2295,7 @@ private:
         TChunkStatePtr oldChunkState)
     {
         auto reader = CreateSchemalessRangeChunkReader(
+            Bootstrap_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
             oldChunkState,
             New<TColumnarChunkMeta>(*oldChunkMeta),
             NTableClient::TChunkReaderConfig::GetDefault(),
