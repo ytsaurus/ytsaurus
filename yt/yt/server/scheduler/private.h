@@ -37,6 +37,11 @@ DECLARE_REFCOUNTED_CLASS(TFairShareTreeSetSnapshot)
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeSchedulingSnapshot)
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeProfileManager)
 
+DECLARE_REFCOUNTED_CLASS(TGpuSchedulerOperationState)
+DECLARE_REFCOUNTED_STRUCT(TGpuSchedulerNodeState)
+DECLARE_REFCOUNTED_STRUCT(TGpuAllocationState)
+DECLARE_REFCOUNTED_CLASS(TGpuAllocationScheduler)
+
 class TAllocationMetrics;
 
 DECLARE_REFCOUNTED_STRUCT(TDynamicAttributesListSnapshot)

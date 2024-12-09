@@ -44,6 +44,8 @@ SRCS(
     scheduling_context.cpp
     scheduling_context_detail.cpp
     scheduling_segment_manager.cpp
+    gpu_allocation_scheduler.cpp
+    gpu_allocation_scheduler_structs.cpp
     serialize.cpp
 )
 

@@ -203,6 +203,42 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategySchedulingSegmentsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGpuAllocationSchedulerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TDuration InitializationTimeout;
+
+    TDuration ModuleReconsiderationTimeout;
+
+    TDuration PreemptForLargeOperationTimeout;
+
+    THashSet<TString> DataCenters;
+
+    THashSet<TString> InfinibandClusters;
+
+    ESchedulingSegmentModuleAssignmentHeuristic ModuleAssignmentHeuristic;
+
+    ESchedulingSegmentModulePreemptionHeuristic ModulePreemptionHeuristic;
+
+    // TODO(omgronny): Refactor modules config.
+    ESchedulingSegmentModuleType ModuleType;
+
+    bool EnableDetailedLogs;
+
+    TDuration PriorityModuleAssignmentTimeout;
+
+    const THashSet<TString>& GetModules() const;
+
+    REGISTER_YSON_STRUCT(TGpuAllocationSchedulerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGpuAllocationSchedulerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFairShareStrategySsdPriorityPreemptionConfig
     : public NYTree::TYsonStruct
 {
