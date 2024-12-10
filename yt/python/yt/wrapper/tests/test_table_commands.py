@@ -653,7 +653,11 @@ class TestTableCommandsWithAuthorization(object):
         result = client.read_table(table, omit_inaccessible_columns=True)
         assert list(result) == [{"c": "c"}, {"c": "c_new"},]
 
-        result = client.read_table(table+"{c}", omit_inaccessible_columns=True)
+        result = client.read_table(table+"{b,c}", omit_inaccessible_columns=True)
+        assert list(result) == [{"c": "c"}, {"c": "c_new"},]
+
+        client.config["read_omit_inaccessible_columns"] = True
+        result = client.read_table(table+"{b,c}")
         assert list(result) == [{"c": "c"}, {"c": "c_new"},]
 
 
