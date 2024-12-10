@@ -138,7 +138,7 @@ public class ArrowTableRowsSerializer<Row> extends TableRowsSerializer<Row> impl
                             try (var ysonBinaryWriter = new YsonBinaryWriter(byteArrayOutputStream)) {
                                 nonEmptyGetter.getYson(array, i, ysonBinaryWriter);
                             }
-                            varBinaryVector.set(varBinaryVector.getValueCount(), byteArrayOutputStream.toByteArray());
+                            varBinaryVector.setSafe(varBinaryVector.getValueCount(), byteArrayOutputStream.toByteArray());
                         }
                         varBinaryVector.setValueCount(varBinaryVector.getValueCount() + 1);
                     }
@@ -185,7 +185,7 @@ public class ArrowTableRowsSerializer<Row> extends TableRowsSerializer<Row> impl
                                 try (var ysonBinaryWriter = new YsonBinaryWriter(byteArrayOutputStream)) {
                                     nonEmptyGetter.getYson(struct, ysonBinaryWriter);
                                 }
-                                varBinaryVector.set(varBinaryVector.getValueCount(), byteArrayOutputStream.toByteArray());
+                                varBinaryVector.setSafe(varBinaryVector.getValueCount(), byteArrayOutputStream.toByteArray());
                             }
                             varBinaryVector.setValueCount(varBinaryVector.getValueCount() + 1);
                         }
@@ -235,7 +235,7 @@ public class ArrowTableRowsSerializer<Row> extends TableRowsSerializer<Row> impl
                                     varBinaryVector.setNull(varBinaryVector.getValueCount());
                                 } else {
                                     var byteBuffer = stringGetter.getString(list, i);
-                                    varBinaryVector.set(
+                                    varBinaryVector.setSafe(
                                             varBinaryVector.getValueCount(),
                                             byteBuffer, byteBuffer.position(), byteBuffer.remaining()
                                     );
@@ -719,7 +719,7 @@ public class ArrowTableRowsSerializer<Row> extends TableRowsSerializer<Row> impl
                                     varBinaryVector.setNull(varBinaryVector.getValueCount());
                                 } else {
                                     var byteBuffer = stringGetter.getString(struct);
-                                    varBinaryVector.set(
+                                    varBinaryVector.setSafe(
                                             varBinaryVector.getValueCount(),
                                             byteBuffer, byteBuffer.position(), byteBuffer.remaining()
                                     );
