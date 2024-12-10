@@ -1716,7 +1716,6 @@ print(json.dumps(input))
                 "job_io": {
                     "buffer_row_count": 1,
                 },
-                "max_failed_job_count": 1,
             },
         )
 
