@@ -94,12 +94,12 @@ private:
 
     THashMap<TTransactionId, IShuffleControllerPtr> ShuffleControllers_;
 
-    const IShuffleControllerPtr& FindShuffleControllerOrThrow(const TTransactionId& transactionId) const
+    IShuffleControllerPtr GetShuffleControllerOrThrow(TTransactionId transactionId) const
     {
         auto it = ShuffleControllers_.find(transactionId);
         THROW_ERROR_EXCEPTION_IF(
             it == ShuffleControllers_.end(),
-            "Shuffle with id %Qv does not exist",
+            "Shuffle with id %v does not exist",
             transactionId);
         return it->second;
     }
@@ -156,7 +156,7 @@ private:
         TTransactionId transactionId,
         std::vector<TInputChunkPtr> chunks)
     {
-        const auto& shuffleController = FindShuffleControllerOrThrow(transactionId);
+        auto shuffleController = GetShuffleControllerOrThrow(transactionId);
         return shuffleController->RegisterChunks(std::move(chunks));
     }
 
@@ -164,7 +164,7 @@ private:
         TTransactionId transactionId,
         int partitionIndex)
     {
-        const auto& shuffleController = FindShuffleControllerOrThrow(transactionId);
+        auto shuffleController = GetShuffleControllerOrThrow(transactionId);
         return shuffleController->FetchChunks(partitionIndex);
     }
 };
