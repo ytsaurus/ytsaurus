@@ -3112,9 +3112,7 @@ private:
         auto unregisterFuture = controller->Unregister();
         std::vector<TFuture<void>> futures = {unregisterFuture.As<void>()};
         // NB(eshcherbin): We wait for full heartbeat to ensure that allocation metrics have been fully collected. See: YT-12207.
-        if (Config_->WaitForAgentHeartbeatDuringOperationUnregistrationAtController) {
-            futures.push_back(controller->GetFullHeartbeatProcessed());
-        }
+        futures.push_back(controller->GetFullHeartbeatProcessed());
 
         // Failure is intentionally ignored.
         Y_UNUSED(WaitFor(AllSet(futures)));

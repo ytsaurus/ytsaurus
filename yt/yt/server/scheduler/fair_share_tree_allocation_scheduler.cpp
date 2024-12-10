@@ -929,9 +929,7 @@ TScheduleAllocationsContext::TScheduleAllocationsContext(
         }))
     , SsdPriorityPreemptionMedia_(TreeSnapshot_->SchedulingSnapshot()->SsdPriorityPreemptionMedia())
     , SchedulingInfoLoggingEnabled_(schedulingInfoLoggingEnabled)
-    , DynamicAttributesListSnapshot_(TreeSnapshot_->TreeConfig()->EnableResourceUsageSnapshot
-        ? TreeSnapshot_->SchedulingSnapshot()->GetDynamicAttributesListSnapshot()
-        : nullptr)
+    , DynamicAttributesListSnapshot_(TreeSnapshot_->SchedulingSnapshot()->GetDynamicAttributesListSnapshot())
     , StrategyHost_(strategyHost)
     , ScheduleAllocationsDeadlineReachedCounter_(scheduleAllocationsDeadlineReachedCounter)
     , Logger(logger)

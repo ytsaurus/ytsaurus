@@ -210,9 +210,6 @@ def get_scheduler_config():
         operation_to_agent_assignment_backoff = 100;
         orchid_keys_update_period = 100;
 
-        always_send_controller_agent_descriptors = %false;
-        send_full_controller_agent_descriptors_for_allocations = %false;
-
         min_needed_resources_update_period = 100;
 
         validate_node_tags_period = 100;
