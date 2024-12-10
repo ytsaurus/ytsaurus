@@ -38,9 +38,6 @@ DEFINE_ENUM(EMissingFieldPolicy,
     (Throw)  // Throw an error.
     (Skip)   // Quietly return.
     (Force)  // Visit the field anyway (visit the default if const/populate the field if mutable).
-    // NB: |Force| only applies to proto messages. Out of bounds indices/missing map keys throw.
-    // For vectors, relative indices should be used. Creating/visiting missing map entries in the
-    // visitor framework is possible but not currently implemented.
 );
 
 ////////////////////////////////////////////////////////////////////////////////

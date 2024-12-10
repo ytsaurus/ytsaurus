@@ -57,6 +57,21 @@ struct TPathVisitorTraits<THashMap<TKey, TValue>>
     static constexpr bool IsMap = true;
 };
 
+template <typename TValue>
+struct TDefaultTraits
+{
+    static TValue Default()
+    {
+        return TValue{};
+    }
+
+    static const TValue& StaticDefault()
+    {
+        static TValue value{};
+        return value;
+    }
+};
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -228,8 +243,23 @@ void TPathVisitor<TSelf>::VisitVectorEntryRelative(
     int index,
     EVisitReason reason)
 {
-    Y_UNUSED(target);
-    Y_UNUSED(reason);
+    switch (Self()->MissingFieldPolicy_) {
+        case EMissingFieldPolicy::Throw:
+            break;
+        case EMissingFieldPolicy::Skip:
+            break; // Relative index means container modification.
+        case EMissingFieldPolicy::Force:
+            using TVisitedValue = std::remove_reference_t<TVisitParam>;
+            if constexpr (std::is_const_v<TVisitedValue>) {
+                break; // Relative index means container modification.
+            } else {
+                target.insert(
+                    target.begin() + index,
+                    TDefaultTraits<typename TVisitedValue::value_type>::Default());
+                Self()->VisitGeneric(target[index], reason);
+                return;
+            }
+    }
 
     Self()->Throw(NAttributes::EErrorCode::MalformedPath,
         "Unexpected relative path specifier %v (producing an index of %v)",
@@ -245,7 +275,6 @@ void TPathVisitor<TSelf>::OnVectorIndexError(
     TError error)
 {
     Y_UNUSED(target);
-    Y_UNUSED(reason);
 
     if (error.GetCode() == NAttributes::EErrorCode::OutOfBounds) {
         switch (Self()->MissingFieldPolicy_) {
@@ -254,7 +283,15 @@ void TPathVisitor<TSelf>::OnVectorIndexError(
             case EMissingFieldPolicy::Skip:
                 return;
             case EMissingFieldPolicy::Force:
-                break;
+                using TVisitedValue = std::remove_reference_t<TVisitParam>;
+                if constexpr (std::is_const_v<TVisitedValue>) {
+                    Self()->VisitGeneric(
+                        TDefaultTraits<typename TVisitedValue::value_type>::StaticDefault(),
+                        reason);
+                    return;
+                } else {
+                    break; // We don't modify containers with bad indices.
+                }
         }
     }
 
@@ -274,7 +311,8 @@ void TPathVisitor<TSelf>::VisitMap(
                 EVisitReason::AfterPath);
             return;
         } else {
-            Self()->Throw(NAttributes::EErrorCode::Unimplemented, "Cannot handle whole message maps");
+            Self()->Throw(NAttributes::EErrorCode::Unimplemented,
+                "Cannot handle whole message maps");
         }
     }
 
@@ -352,17 +390,22 @@ void TPathVisitor<TSelf>::OnMapKeyError(
     TString key,
     EVisitReason reason)
 {
-    Y_UNUSED(target);
-    Y_UNUSED(mapKey);
-    Y_UNUSED(reason);
-
     switch (Self()->MissingFieldPolicy_) {
         case EMissingFieldPolicy::Throw:
             break;
         case EMissingFieldPolicy::Skip:
             return;
         case EMissingFieldPolicy::Force:
-            break;
+            using TVisitedValue = std::remove_reference_t<TVisitParam>;
+            if constexpr (std::is_const_v<TVisitedValue>) {
+                Self()->VisitGeneric(
+                    TDefaultTraits<typename TVisitedValue::mapped_type>::StaticDefault(),
+                    reason);
+            } else {
+                target[mapKey] = TDefaultTraits<typename TVisitedValue::mapped_type>::Default();
+                Self()->VisitGeneric(target[mapKey], reason);
+            }
+            return;
     }
 
     Self()->Throw(NAttributes::EErrorCode::MissingKey, "Key %v not found in map", key);

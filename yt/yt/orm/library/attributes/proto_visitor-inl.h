@@ -349,10 +349,17 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitRepeatedFieldEntryRelative(
     int index,
     EVisitReason reason)
 {
-    Y_UNUSED(message);
-    Y_UNUSED(fieldDescriptor);
-    Y_UNUSED(index);
-    Y_UNUSED(reason);
+    switch (Self()->MissingFieldPolicy_) {
+        case EMissingFieldPolicy::Throw:
+            break;
+        case EMissingFieldPolicy::Skip:
+            break; // Relative index means container modification.
+        case EMissingFieldPolicy::Force:
+            Self()->ThrowOnError(
+                TTraits::InsertRepeatedFieldEntry(message, fieldDescriptor, index));
+            Self()->VisitRepeatedFieldEntry(message, fieldDescriptor, index, reason);
+            return;
+    }
 
     Self()->Throw(NAttributes::EErrorCode::MalformedPath,
         "Unexpected relative path specifier %v",
@@ -380,21 +387,23 @@ void TProtoVisitor<TWrappedMessage, TSelf>::OnIndexError(
     EVisitReason reason,
     TError error)
 {
-    Y_UNUSED(message);
-    Y_UNUSED(fieldDescriptor);
-    Y_UNUSED(reason);
-
-    switch (Self()->MissingFieldPolicy_) {
-        case EMissingFieldPolicy::Throw:
-            break;
-        case EMissingFieldPolicy::Skip:
-            if (error.GetCode() == NAttributes::EErrorCode::OutOfBounds) {
-                return;
-            } else {
+    if (error.GetCode() == NAttributes::EErrorCode::OutOfBounds) {
+        switch (Self()->MissingFieldPolicy_) {
+            case EMissingFieldPolicy::Throw:
                 break;
-            }
-        case EMissingFieldPolicy::Force:
-            break;
+            case EMissingFieldPolicy::Skip:
+                return;
+            case EMissingFieldPolicy::Force:
+                if constexpr (std::is_const_v<TMessageParam>) {
+                    if (fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE) {
+                        TMessageReturn next =
+                            TTraits::GetDefaultMessage(message, fieldDescriptor->message_type());
+                        Self()->VisitMessage(next, reason);
+                        return;
+                    }
+                }
+                break; // We don't modify containers with bad indices.
+        }
     }
 
     Self()->Throw(std::move(error));
@@ -502,12 +511,6 @@ void TProtoVisitor<TWrappedMessage, TSelf>::OnKeyError(
     EVisitReason reason,
     TError error)
 {
-    Y_UNUSED(message);
-    Y_UNUSED(fieldDescriptor);
-    Y_UNUSED(keyMessage);
-    Y_UNUSED(key);
-    Y_UNUSED(reason);
-
     if (error.GetCode() == NAttributes::EErrorCode::MissingKey) {
         switch (Self()->MissingFieldPolicy_) {
             case EMissingFieldPolicy::Throw:
@@ -515,7 +518,30 @@ void TProtoVisitor<TWrappedMessage, TSelf>::OnKeyError(
             case EMissingFieldPolicy::Skip:
                 return;
             case EMissingFieldPolicy::Force:
-                break;
+                if constexpr (std::is_const_v<TMessageParam>) {
+                    if (fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE) {
+                        TMessageReturn next =
+                            TTraits::GetDefaultMessage(message, fieldDescriptor->message_type());
+                        Self()->VisitMessage(next, reason);
+                    } else {
+                        Self()->Throw(
+                            NAttributes::EErrorCode::Unimplemented,
+                            "Cannot handle missing scalar map entries");
+                    }
+                } else {
+                    auto entry = Self()->ValueOrThrow(
+                        TTraits::InsertMapFieldEntry(
+                            message,
+                            fieldDescriptor,
+                            std::move(keyMessage)));
+                    Self()->VisitMapFieldEntry(
+                        message,
+                        fieldDescriptor,
+                        std::move(entry),
+                        std::move(key),
+                        reason);
+                }
+                return;
         }
     }
 
