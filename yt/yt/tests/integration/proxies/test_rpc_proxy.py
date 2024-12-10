@@ -1268,10 +1268,16 @@ class TestRpcProxyHeapUsageStatistics(TestRpcProxyHeapUsageStatisticsBase):
         },
     }
 
+    USER = 0
+
+    def _get_user(self):
+        self.USER += 1
+        return f"u{self.USER}"
+
     @authors("ni-stoiko")
     @pytest.mark.timeout(120)
     def test_heap_usage_statistics(self):
-        user = "u1"
+        user = self._get_user()
         self.prepare_allocation("rpc_proxies", user)
 
         rpc_proxies = ls("//sys/rpc_proxies")
@@ -1284,7 +1290,7 @@ class TestRpcProxyHeapUsageStatistics(TestRpcProxyHeapUsageStatisticsBase):
     @pytest.mark.timeout(120)
     @flaky(max_runs=3)
     def test_heap_usage_gauge(self):
-        user = "u2"
+        user = self._get_user()
         self.prepare_allocation("rpc_proxies", user)
 
         rpc_proxies = ls("//sys/rpc_proxies")
