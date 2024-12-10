@@ -24,6 +24,7 @@ import yt.wrapper as yt
 
 import os
 import sys
+import tempfile
 import uuid
 import shutil
 import logging
@@ -178,6 +179,11 @@ class YtTestEnvironment(object):
         if not os.path.exists(local_temp_directory):
             os.mkdir(local_temp_directory)
 
+        if config.get("enable_token"):
+            # sanitaze token
+            os.environ["HOME"] = tempfile.gettempdir()
+            os.environ["YT_TOKEN"] = ""
+
         cluster_name = "primary"
 
         yt_config = LocalYtConfig(
@@ -242,8 +248,8 @@ class YtTestEnvironment(object):
         self.config["read_parallel"]["data_size_per_thread"] = 1
         self.config["read_parallel"]["max_thread_count"] = 10
 
-        if "enable_token" not in config:
-            self.config["enable_token"] = False
+        self.config["enable_token"] = config.get("enable_token", False)
+
         self.config["pickling"]["module_filter"] = lambda module: \
             hasattr(module, "__file__") and module.__file__ is not None and "driver_lib" not in module.__file__
 

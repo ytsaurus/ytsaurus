@@ -160,8 +160,6 @@ def test_environment_with_rpc(request):
 
 @pytest.fixture(scope="class", params=["v3", "v4"])
 def test_environment_with_authentication(request):
-    os.environ["HOME"] = "/tmp"  # prevent local token loading ~/.yt/token
-    os.environ["YT_TOKEN"] = ""
     environment = init_environment_for_test_session(
         request,
         request.param,
