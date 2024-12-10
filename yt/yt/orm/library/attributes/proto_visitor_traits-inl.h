@@ -128,6 +128,36 @@ struct TProtoVisitorTraits<TQualifiedMessage*>
         }
     }
 
+    static TError InsertRepeatedFieldEntry(
+        TMessageParam message,
+        const NProtoBuf::FieldDescriptor* fieldDescriptor,
+        int index)
+    {
+        YT_VERIFY(fieldDescriptor->is_repeated());
+
+        if (message == nullptr) {
+            return TError(NAttributes::EErrorCode::Empty, "Received nullptr instead of message");
+        }
+
+        if constexpr (std::is_const_v<TQualifiedMessage>) {
+            return TError(NAttributes::EErrorCode::MalformedPath,
+                "Tried to modify a const message");
+        } else {
+            if (fieldDescriptor->cpp_type() == NProtoBuf::FieldDescriptor::CPPTYPE_MESSAGE) {
+                message->GetReflection()->AddMessage(message, fieldDescriptor);
+            } else {
+                auto error =
+                    AddDefaultScalarFieldEntryValue(message, fieldDescriptor);
+                if (!error.IsOK()) {
+                    return error;
+                }
+            }
+
+            RotateLastEntryBeforeIndex(message, fieldDescriptor, index);
+            return {};
+        }
+    }
+
     static TErrorOr<TMessageReturn> GetMessageFromMapFieldEntry(
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor,
@@ -145,6 +175,30 @@ struct TProtoVisitorTraits<TQualifiedMessage*>
         }
 
         return GetMessageFromRepeatedField(message, fieldDescriptor, errorOrIndex.Value());
+    }
+
+    static TErrorOr<TMessageReturn> InsertMapFieldEntry(
+        TMessageParam message,
+        const NProtoBuf::FieldDescriptor* fieldDescriptor,
+        std::unique_ptr<NProtoBuf::Message> keyMessage)
+    {
+        YT_VERIFY(fieldDescriptor->is_map());
+
+        if (message == nullptr) {
+            return TError(NAttributes::EErrorCode::Empty, "Received nullptr instead of message");
+        }
+
+        if constexpr (std::is_const_v<TQualifiedMessage>) {
+            return TError(NAttributes::EErrorCode::MalformedPath,
+                "Tried to modify a const message");
+        } else {
+            auto* result = keyMessage.get();
+            message->GetReflection()->AddAllocatedMessage(
+                message,
+                fieldDescriptor,
+                keyMessage.release());
+            return result;
+        }
     }
 
     using TMapReturn = THashMap<TString, TMessageReturn>;
@@ -178,6 +232,19 @@ struct TProtoVisitorTraits<TQualifiedMessage*>
         }
 
         return result;
+    }
+
+    static TMessageReturn GetDefaultMessage(
+        TMessageParam message,
+        const NProtoBuf::Descriptor* descriptor)
+    {
+        Y_UNUSED(message);
+
+        if constexpr (std::is_const_v<TQualifiedMessage>) {
+            return NProtoBuf::MessageFactory::generated_factory()->GetPrototype(descriptor)->New();
+        } else {
+            return nullptr;
+        }
     }
 };
 
@@ -274,6 +341,25 @@ struct TProtoVisitorTraits<const std::pair<TQualifiedMessage*, TQualifiedMessage
                 index));
     }
 
+    static TError InsertRepeatedFieldEntry(
+        TMessageParam message,
+        const NProtoBuf::FieldDescriptor* fieldDescriptor,
+        int index)
+    {
+        TError result = TSubTraits::InsertRepeatedFieldEntry(
+            message.first,
+            fieldDescriptor,
+            index);
+        ReduceErrors(
+            result,
+            TSubTraits::InsertRepeatedFieldEntry(
+                message.second,
+                fieldDescriptor,
+                index),
+            NAttributes::EErrorCode::InvalidData);
+        return result;
+    }
+
     static TErrorOr<TMessageReturn> GetMessageFromMapFieldEntry(
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor,
@@ -289,6 +375,26 @@ struct TProtoVisitorTraits<const std::pair<TQualifiedMessage*, TQualifiedMessage
                 fieldDescriptor,
                 keyMessage),
             NAttributes::EErrorCode::MismatchingKeys);
+    }
+
+    static TErrorOr<TMessageReturn> InsertMapFieldEntry(
+        TMessageParam message,
+        const NProtoBuf::FieldDescriptor* fieldDescriptor,
+        std::unique_ptr<NProtoBuf::Message> keyMessage)
+    {
+        std::unique_ptr<NProtoBuf::Message> keyMessage2(keyMessage->New());
+        keyMessage2->CopyFrom(*keyMessage);
+
+        return Combine(
+            TSubTraits::InsertMapFieldEntry(
+                message.first,
+                fieldDescriptor,
+                std::move(keyMessage)),
+            TSubTraits::InsertMapFieldEntry(
+                message.second,
+                fieldDescriptor,
+                std::move(keyMessage2)),
+            NAttributes::EErrorCode::InvalidData);
     }
 
     using TMapReturn = THashMap<TString, TMessageReturn>;
@@ -335,6 +441,15 @@ struct TProtoVisitorTraits<const std::pair<TQualifiedMessage*, TQualifiedMessage
         }
 
         return result;
+    }
+
+    static TMessageReturn GetDefaultMessage(
+        TMessageParam message,
+        const NProtoBuf::Descriptor* descriptor)
+    {
+        return Combine(
+            TSubTraits::GetDefaultMessage(message.first, descriptor),
+            TSubTraits::GetDefaultMessage(message.second, descriptor));
     }
 };
 
@@ -459,6 +574,23 @@ struct TProtoVisitorTraitsForVector
         return result;
     }
 
+    static TError InsertRepeatedFieldEntry(
+        TMessageParam message,
+        const NProtoBuf::FieldDescriptor* fieldDescriptor,
+        int index)
+    {
+        TError result;
+
+        for (TQualifiedMessage* entry : message) {
+            ReduceErrors(
+                result,
+                TSubTraits::InsertRepeatedFieldEntry(entry, fieldDescriptor, index),
+                NAttributes::EErrorCode::InvalidData);
+        }
+
+        return result;
+    }
+
     static TErrorOr<TMessageReturn> GetMessageFromMapFieldEntry(
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor,
@@ -473,6 +605,32 @@ struct TProtoVisitorTraitsForVector
                     entry,
                     fieldDescriptor,
                     keyMessage),
+                ssize(message));
+        }
+
+        return result;
+    }
+
+    static TError InsertMapFieldEntry(
+        TMessageParam message,
+        const NProtoBuf::FieldDescriptor* fieldDescriptor,
+        std::unique_ptr<NProtoBuf::Message> keyMessage)
+    {
+        TErrorOr<TMessageReturn> result;
+        const NProtoBuf::Message* prototype = keyMessage.get();
+
+        for (TQualifiedMessage* entry : message) {
+            if (!keyMessage) {
+                keyMessage.reset(prototype->New());
+                keyMessage->CopyFrom(*prototype);
+            }
+
+            Accumulate(
+                result,
+                TSubTraits::InsertMapFieldEntry(
+                    entry,
+                    fieldDescriptor,
+                    std::move(keyMessage)),
                 ssize(message));
         }
 
@@ -525,6 +683,22 @@ struct TProtoVisitorTraitsForVector
         }
 
         return errorOrResult;
+    }
+
+    static TMessageReturn GetDefaultMessage(
+        TMessageParam message,
+        const NProtoBuf::Descriptor* descriptor)
+    {
+        TMessageReturn result;
+
+        for (TQualifiedMessage* entry : message) {
+            Accumulate(
+                result,
+                TSubTraits::GetDefaultMessage(entry, descriptor),
+                ssize(message));
+        }
+
+        return result;
     }
 };
 

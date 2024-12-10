@@ -251,6 +251,15 @@ TError AddDefaultScalarFieldEntryValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Put the new entry at |index| and slide everything forward. Makes a noop if index was pointing
+// after the last entry.
+void RotateLastEntryBeforeIndex(
+    NProtoBuf::Message* message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    int index);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBooleanOrCollector
 {
 public:

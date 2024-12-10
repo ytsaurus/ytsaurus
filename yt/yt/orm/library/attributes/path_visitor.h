@@ -125,7 +125,7 @@ private:
 /// Construction kit for pain-free (hopefully) path-guided traversals.
 //
 // 1. Make your own visitor by subclassing a CRTP specialization of TPathVisitor and also
-//    TPathVisitorUtil. Make if final to let the compiler inline stuff.
+//    TPathVisitorUtil. Make it final to let the compiler inline stuff.
 //
 // 2. Set policy flags of TPathVisitorUtil in the constructor or at call site.
 //
@@ -157,6 +157,9 @@ private:
 // Throw Unimplemented.
 //
 // The base implementation provides for directed traversal of a path in a tree of vectors and maps.
+//
+// There is rudimentary support for populating missing path entries with the |Force| missing field
+// policy.
 //
 // The use case is writing generic code in ORM attributes that calls Visit and just works.
 

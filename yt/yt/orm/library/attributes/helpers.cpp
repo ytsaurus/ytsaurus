@@ -1233,6 +1233,7 @@ TError AddScalarRepeatedFieldEntryFromString(
         CASE_ADD_ENUM();
     END_SWITCH(TString);
 }
+
 TError AddDefaultScalarFieldEntryValue(
     Message* message,
     const FieldDescriptor* fieldDescriptor)
@@ -1248,6 +1249,20 @@ TError AddDefaultScalarFieldEntryValue(
         CASE_ADD_DEFAULT(string, String, STRING);
         CASE_ADD_DEFAULT(enum, Enum, ENUM);
     END_SWITCH(default);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void RotateLastEntryBeforeIndex(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    int index)
+{
+    const auto* reflection = message->GetReflection();
+    int last = reflection->FieldSize(*message, fieldDescriptor) - 1;
+    for (int pos = index; pos < last; ++pos) {
+        reflection->SwapElements(message, fieldDescriptor, pos, last);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
