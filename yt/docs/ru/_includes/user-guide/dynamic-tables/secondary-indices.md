@@ -11,7 +11,7 @@
 {% if audience == "internal" %}
 {% note warning %}
 
-{{page.secondary-indices.usage-note}}
+{{pages.secondary-indices.usage-note}}
 
 {% endnote %}
 {% endif %}
