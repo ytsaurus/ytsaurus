@@ -3414,6 +3414,8 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         self._create_export_destination(export_dir, queue_id)
 
+        export_period_seconds = 3
+
         start = datetime.datetime.utcnow()
 
         insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 6)
@@ -3422,7 +3424,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         set("//tmp/q/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
-                "export_period": 3 * 1000,
+                "export_period": export_period_seconds * 1000,
                 "output_table_name_pattern": "%ISO-period-is-%PERIOD-fmt-%Y.%d.%m.%H.%M.%S",
                 "use_upper_bound_for_table_names": use_upper_bound_for_table_names,
             }
@@ -3435,6 +3437,12 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         def fmt_time(dt):
             return f"{dt.isoformat(timespec='seconds')}Z-period-is-3-fmt-{dt.strftime('%Y.%d.%m.%H.%M.%S')}"
+
+        if not use_upper_bound_for_table_names:
+            # NB(apachee): It might be possible that export will happen right away, and if
+            # we consider that insertion of rows, flushing the queue, and then setting export config takes 0 + eps seconds,
+            # then in the worst case the resulting timestamp will be lower by #export_period_seconds than #start.
+            start -= datetime.timedelta(seconds=export_period_seconds)
 
         assert fmt_time(start) <= output_table_name <= fmt_time(end)
 
