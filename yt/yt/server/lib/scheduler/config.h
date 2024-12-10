@@ -430,8 +430,6 @@ public:
 
     bool UseUserDefaultParentPoolMap;
 
-    bool EnableResourceUsageSnapshot;
-
     int MaxEventLogPoolBatchSize;
     int MaxEventLogOperationBatchSize;
 
@@ -563,8 +561,6 @@ public:
 
     //! Template pool tree configs.
     THashMap<TString, TPoolTreesTemplateConfigPtr> TemplatePoolTreeConfigMap;
-
-    bool EnablePoolTreesConfigCache;
 
     TDuration SchedulerTreeAlertsUpdatePeriod;
 
@@ -855,10 +851,6 @@ public:
 
     TDuration ExecNodeDescriptorsUpdatePeriod;
 
-    bool AlwaysSendControllerAgentDescriptors;
-
-    bool SendFullControllerAgentDescriptorsForAllocations;
-
     //! Allocations running on node are logged periodically or when they change their state.
     TDuration AllocationsLoggingPeriod;
 
@@ -998,8 +990,6 @@ public:
     //! Minimum amount of resources to continue schedule allocation attempts.
     std::optional<TJobResourcesConfigPtr> MinSpareAllocationResourcesOnNode;
 
-    bool SendPreemptionReasonInNodeHeartbeat;
-
     bool ConsiderDiskQuotaInPreemptiveSchedulingDiscount;
 
     //! Duration of ScheduleAllocation call to log this result.
@@ -1017,8 +1007,6 @@ public:
     TDuration ScheduleAllocationEntryCheckPeriod;
 
     NRpc::TResponseKeeperConfigPtr OperationServiceResponseKeeper;
-
-    bool WaitForAgentHeartbeatDuringOperationUnregistrationAtController;
 
     bool CrashOnAllocationHeartbeatProcessingException;
 

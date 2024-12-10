@@ -1815,9 +1815,7 @@ private:
             std::move(treeSchedulingSnapshot),
             std::move(fairShareUpdateResult.ResourceLimitsByTagFilter));
 
-        if (Config_->EnableResourceUsageSnapshot) {
-            TreeScheduler_->OnResourceUsageSnapshotUpdate(treeSnapshot, ResourceUsageSnapshot_.Acquire());
-        }
+        TreeScheduler_->OnResourceUsageSnapshotUpdate(treeSnapshot, ResourceUsageSnapshot_.Acquire());
 
         YT_LOG_DEBUG("Fair share tree snapshot created (TreeSnapshotId: %v)", treeSnapshotId);
 
@@ -2917,12 +2915,7 @@ private:
         AccumulatedOperationsResourceUsageForProfiling_.Update(treeSnapshot, resourceUsageSnapshot);
         AccumulatedOperationsResourceUsageForLogging_.Update(treeSnapshot, resourceUsageSnapshot);
 
-        if (!treeSnapshot->TreeConfig()->EnableResourceUsageSnapshot) {
-            resourceUsageSnapshot = nullptr;
-            YT_LOG_DEBUG("Resource usage snapshot is disabled");
-        } else {
-            YT_LOG_DEBUG("Updating resource usage snapshot");
-        }
+        YT_LOG_DEBUG("Updating resource usage snapshot");
 
         TreeScheduler_->OnResourceUsageSnapshotUpdate(treeSnapshot, resourceUsageSnapshot);
         SetResourceUsageSnapshot(std::move(resourceUsageSnapshot));
