@@ -72,7 +72,7 @@ class TestShuffleService(YTEnvSetup):
 
         wait(lambda: active_shuffle_count_sensor.get() == 0, iter=300, sleep_backoff=0.1)
 
-        with raises_yt_error(f'Shuffle with id "{shuffle_handle["transaction_id"]}" does not exist'):
+        with raises_yt_error(f'Shuffle with id {shuffle_handle["transaction_id"]} does not exist'):
             read_shuffle_data(shuffle_handle, 1)
 
     @authors("apollo1321")

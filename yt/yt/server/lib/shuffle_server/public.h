@@ -1,7 +1,5 @@
 #pragma once
 
-#include <yt/yt/core/misc/guid.h>
-
 #include <library/cpp/yt/memory/intrusive_ptr.h>
 
 namespace NYT::NShuffleServer {

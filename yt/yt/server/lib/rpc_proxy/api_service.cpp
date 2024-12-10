@@ -6712,23 +6712,25 @@ private:
 
         auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
 
+        auto partitionColumn = request->partition_column();
+
         context->SetRequestInfo(
             "TransactionId: %v, CoordinatorAddress: %v, Account: %v, PartitionCount: %v, PartitionColumn: %v",
             shuffleHandle->TransactionId,
             shuffleHandle->CoordinatorAddress,
             shuffleHandle->Account,
             shuffleHandle->PartitionCount,
-            request->partition_column());
+            partitionColumn);
 
         auto writer = WaitFor(
-            client->CreateShuffleWriter(shuffleHandle, request->partition_column(), writerConfig))
+            client->CreateShuffleWriter(shuffleHandle, partitionColumn, writerConfig))
             .ValueOrThrow();
 
         auto decoder = CreateWireRowStreamDecoder(writer->GetNameTable());
 
         HandleOutputStreamingRequest(
             context,
-            [&] (TSharedRef block) {
+            [&] (const TSharedRef& block) {
                 NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
                 auto payloadRef = DeserializeRowStreamBlockEnvelope(block, &descriptor, nullptr);
 

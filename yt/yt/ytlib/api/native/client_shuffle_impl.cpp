@@ -32,8 +32,6 @@ using NTableClient::TTableWriterOptions;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
 class TShuffleWriter
     : public IRowBatchWriter
 {
@@ -72,11 +70,13 @@ private:
     const TShuffleHandlePtr ShuffleHandle_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TShuffleReader
     : public IRowBatchReader
 {
 public:
-    TShuffleReader(ISchemalessMultiChunkReaderPtr reader)
+    explicit TShuffleReader(ISchemalessMultiChunkReaderPtr reader)
         : Reader_(std::move(reader))
     { }
 
@@ -98,8 +98,6 @@ public:
 private:
     const ISchemalessMultiChunkReaderPtr Reader_;
 };
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,7 +123,8 @@ TShuffleHandlePtr TClient::DoStartShuffle(
         req->set_replication_factor(*options.ReplicationFactor);
     }
 
-    auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
 
     return ConvertTo<TShuffleHandlePtr>(TYsonString(rsp->shuffle_handle()));
 }
@@ -164,7 +163,8 @@ std::vector<TChunkSpec> TClient::DoFetchShuffleChunks(
     req->set_shuffle_handle(ConvertToYsonString(shuffleHandle).ToString());
     req->set_partition_index(partitionIndex);
 
-    auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
 
     return FromProto<std::vector<TChunkSpec>>(rsp->chunk_specs());
 }

@@ -52,12 +52,14 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NShuffleClient::NProto, StartShuffle)
     {
         auto parentTransactionId = FromProto<TTransactionId>(request->parent_transaction_id());
+        int partitionCount = request->partition_count();
+        auto account = request->account();
 
         context->SetRequestInfo(
-            "PartitionCount: %v, Account: %v, ParentTransaction: %v",
-            request->partition_count(),
-            request->account(),
-            parentTransactionId);
+            "ParentTransaction: %v, Account: %v, PartitionCount: %v",
+            parentTransactionId,
+            account,
+            partitionCount);
 
         THROW_ERROR_EXCEPTION_IF(
             parentTransactionId.IsEmpty(),
@@ -70,8 +72,8 @@ public:
         auto shuffleHandle = New<TShuffleHandle>();
         shuffleHandle->TransactionId = transactionId;
         shuffleHandle->CoordinatorAddress = LocalServerAddress_;
-        shuffleHandle->Account = request->account();
-        shuffleHandle->PartitionCount = request->partition_count();
+        shuffleHandle->Account = account;
+        shuffleHandle->PartitionCount = partitionCount;
         shuffleHandle->ReplicationFactor = request->has_replication_factor()
             ? request->replication_factor()
             : DefaultIntermediateDataReplicationFactor;
@@ -81,6 +83,8 @@ public:
 
         response->set_shuffle_handle(ConvertToYsonString(shuffleHandle).ToString());
 
+        context->SetResponseInfo("TransactionId: %v", shuffleHandle->TransactionId);
+
         context->Reply();
     }
 
@@ -89,11 +93,8 @@ public:
         auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
 
         context->SetRequestInfo(
-            "TransactionId: %v, CoordinatorAddress: %v, Account: %v, PartitionCount: %v, ChunkCount: %v",
-            shuffleHandle->TransactionId,
-            shuffleHandle->CoordinatorAddress,
-            shuffleHandle->Account,
-            shuffleHandle->PartitionCount,
+            "ShuffleHandle: %v, ChunkCount: %v",
+            shuffleHandle,
             request->chunk_specs_size());
 
         auto chunks = FromProto<std::vector<TInputChunkPtr>>(request->chunk_specs());
@@ -111,11 +112,8 @@ public:
         auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
 
         context->SetRequestInfo(
-            "TransactionId: %v, CoordinatorAddress: %v, Account: %v, PartitionCount: %v, PartitionIndex: %v",
-            shuffleHandle->TransactionId,
-            shuffleHandle->CoordinatorAddress,
-            shuffleHandle->Account,
-            shuffleHandle->PartitionCount,
+            "ShuffleHandle: %v, PartitionIndex: %v",
+            shuffleHandle,
             request->partition_index());
 
         auto chunks = WaitFor(ShuffleManager_->FetchChunks(
@@ -127,6 +125,8 @@ public:
             auto* protoChunk = response->add_chunk_specs();
             ToProto(protoChunk, chunk, TComparator(), EDataSourceType::UnversionedTable);
         }
+
+        context->SetResponseInfo("ChunkCount: %v", response->chunk_specs_size());
 
         context->Reply();
     }
