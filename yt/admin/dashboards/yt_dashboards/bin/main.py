@@ -22,6 +22,8 @@ from yt_dashboards import lsm
 
 from yt_dashboards import flow
 
+from yt_dashboards import queue_and_consumer_metrics
+
 
 dashboards = {
     "cache": {
@@ -152,7 +154,25 @@ dashboards = {
     "flow-general": {
         "func": flow.build_pipeline,
         "monitoring": {},
-    }
+    },
+    "queue-metrics": {
+        "func": queue_and_consumer_metrics.build_queue_metrics,
+        "monitoring": {
+            "args": ["monitoring"]
+        },
+        "grafana": {
+            "args": ["grafana"]
+        },
+    },
+    "queue-consumer-metrics": {
+        "func": queue_and_consumer_metrics.build_queue_consumer_metrics,
+        "monitoring": {
+            "args": ["monitoring"]
+        },
+        "grafana": {
+            "args": ["grafana"]
+        },
+    },
 }
 
 

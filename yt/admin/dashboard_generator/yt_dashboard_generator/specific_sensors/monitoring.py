@@ -109,6 +109,9 @@ class MonitoringExpr(Taggable):
     def top_max(self, k):
         return self.func("top_max", k, self)
 
+    def top_last(self, k):
+        return self.func("top_last", k, self)
+
     def top_min(self, k):
         return self.func("top_min", k, self)
 
