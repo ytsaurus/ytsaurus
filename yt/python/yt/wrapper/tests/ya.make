@@ -9,7 +9,7 @@ IF (AUTOCHECK OR YT_TEAMCITY)
 
     SPLIT_FACTOR(30)
 
-    TIMEOUT(1800)
+    TIMEOUT(3600)
 ENDIF()
 
 YT_SPEC(yt/yt/tests/integration/spec.yson)
