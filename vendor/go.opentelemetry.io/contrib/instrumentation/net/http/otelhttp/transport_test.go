@@ -124,6 +124,11 @@ func TestTransportBasics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			t.Errorf("close response body: %v", err)
+		}
+	}()
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -170,6 +175,11 @@ func TestNilTransport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			t.Errorf("close response body: %v", err)
+		}
+	}()
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -238,7 +248,7 @@ func TestWrappedBodyRead(t *testing.T) {
 	s := new(span)
 	called := false
 	record := func(numBytes int64) { called = true }
-	wb := &wrappedBody{span: trace.Span(s), record: record, body: readCloser{}}
+	wb := newWrappedBody(s, record, readCloser{})
 	n, err := wb.Read([]byte{})
 	assert.Equal(t, readSize, n, "wrappedBody returned wrong bytes")
 	assert.NoError(t, err)
@@ -254,7 +264,7 @@ func TestWrappedBodyReadEOFError(t *testing.T) {
 		called = true
 		numRecorded = numBytes
 	}
-	wb := &wrappedBody{span: trace.Span(s), record: record, body: readCloser{readErr: io.EOF}}
+	wb := newWrappedBody(s, record, readCloser{readErr: io.EOF})
 	n, err := wb.Read([]byte{})
 	assert.Equal(t, readSize, n, "wrappedBody returned wrong bytes")
 	assert.Equal(t, io.EOF, err)
@@ -268,7 +278,7 @@ func TestWrappedBodyReadError(t *testing.T) {
 	called := false
 	record := func(int64) { called = true }
 	expectedErr := errors.New("test")
-	wb := &wrappedBody{span: trace.Span(s), record: record, body: readCloser{readErr: expectedErr}}
+	wb := newWrappedBody(s, record, readCloser{readErr: expectedErr})
 	n, err := wb.Read([]byte{})
 	assert.Equal(t, readSize, n, "wrappedBody returned wrong bytes")
 	assert.Equal(t, expectedErr, err)
@@ -280,7 +290,7 @@ func TestWrappedBodyClose(t *testing.T) {
 	s := new(span)
 	called := false
 	record := func(int64) { called = true }
-	wb := &wrappedBody{span: trace.Span(s), record: record, body: readCloser{}}
+	wb := newWrappedBody(s, record, readCloser{})
 	assert.NoError(t, wb.Close())
 	s.assert(t, true, nil, codes.Unset, "")
 	assert.True(t, called, "record should have been called")
@@ -298,7 +308,7 @@ func TestWrappedBodyCloseError(t *testing.T) {
 	called := false
 	record := func(int64) { called = true }
 	expectedErr := errors.New("test")
-	wb := &wrappedBody{span: trace.Span(s), record: record, body: readCloser{closeErr: expectedErr}}
+	wb := newWrappedBody(s, record, readCloser{closeErr: expectedErr})
 	assert.Equal(t, expectedErr, wb.Close())
 	s.assert(t, true, nil, codes.Unset, "")
 	assert.True(t, called, "record should have been called")
@@ -372,12 +382,12 @@ func TestTransportProtocolSwitch(t *testing.T) {
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		conn, buf, err := w.(http.Hijacker).Hijack()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		_, err = buf.Write(response)
-		require.NoError(t, err)
-		require.NoError(t, buf.Flush())
-		require.NoError(t, conn.Close())
+		assert.NoError(t, err)
+		assert.NoError(t, buf.Flush())
+		assert.NoError(t, conn.Close())
 	}))
 	defer ts.Close()
 

@@ -84,7 +84,7 @@ func TestHandler(t *testing.T) {
 
 			rr := httptest.NewRecorder()
 			tc.handler(t).ServeHTTP(rr, r)
-			assert.Equal(t, tc.expectedStatusCode, rr.Result().StatusCode)
+			assert.Equal(t, tc.expectedStatusCode, rr.Result().StatusCode) //nolint:bodyclose // False positive for httptest.ResponseRecorder: https://github.com/timakin/bodyclose/issues/59.
 		})
 	}
 }
