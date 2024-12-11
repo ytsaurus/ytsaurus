@@ -37,7 +37,7 @@ do
     ln -s $(dirname ${INCLUDES})/${ARCH}/$(basename ${INCLUDES}) ${INCLUDES}/${ARCH};
   fi
 
-  python3 $YDB_SOURCE_PATH/ya make $YDB_SOURCE_PATH/ydb/library/yql/udfs/common/python/system_python/${udf_name} \
+  python3 $YDB_SOURCE_PATH/ya make $YDB_SOURCE_PATH/yql/essentials/udfs/common/python/system_python/${udf_name} \
     -T ${BUILD_FLAGS} --ignore-recurses -DSTRIP=yes -DUSE_ARCADIA_PYTHON=no -DUSE_LOCAL_PYTHON -DPYTHON_CONFIG=${python_name}-config -DPYTHON_BIN=${python_name} --output $YQL_BUILD_PATH
-  strip --remove-section=.gnu_debuglink $YQL_BUILD_PATH/ydb/library/yql/udfs/common/python/system_python/${udf_name}/libsystem${udf_name}_udf.so
+  strip --remove-section=.gnu_debuglink $YQL_BUILD_PATH/yql/essentials/udfs/common/python/system_python/${udf_name}/libsystem${udf_name}_udf.so
 done
