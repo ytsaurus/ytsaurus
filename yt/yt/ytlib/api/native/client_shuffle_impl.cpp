@@ -222,8 +222,17 @@ TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
     const std::string& partitionColumn,
     const TTableWriterConfigPtr& config)
 {
-    auto keyColumns = TKeyColumns({partitionColumn});
-    auto nameTable = TNameTable::FromKeyColumns(keyColumns);
+    // The partition column index must be preserved for the partitioner.
+    // However, the row is partitioned after the row value ids are mapped to
+    // the chunk name table. As a result, the partition column id may differ
+    // from the one specified in the partitioner. To prevent this issue, it is
+    // necessary to specify the table schema with the partition column, as it
+    // guaranteed that the chunk name table always coincides with the column
+    // index in the schema (because the chunk name table is initialized from the
+    // schema columns).
+    auto schema = New<TTableSchema>(
+        std::vector{TColumnSchema(partitionColumn, ESimpleLogicalValueType::Int64)}, /*strict*/ false);
+    auto nameTable = TNameTable::FromSchema(*schema);
 
     auto partitioner = CreateColumnBasedPartitioner(
         shuffleHandle->PartitionCount,
@@ -235,19 +244,11 @@ TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
     options->ReplicationFactor = shuffleHandle->ReplicationFactor;
     options->MediumName = shuffleHandle->MediumName;
 
-    // The partition column index must be preserved for the partitioner.
-    // However, the row is partitioned after the row value ids are mapped to
-    // the chunk name table. As a result, the partition column id may differ
-    // from the one specified in the partitioner. To prevent this issue, it is
-    // necessary to specify the table schema with the partition column, as it
-    // guaranteed that the chunk name table always coincides with the column
-    // index in the schema (because the chunk name table is initialized from the
-    // schema columns).
     auto writer = CreatePartitionMultiChunkWriter(
         config,
         std::move(options),
         std::move(nameTable),
-        /*schema*/ TTableSchema::FromKeyColumns(keyColumns),
+        std::move(schema),
         this,
         /*localHostName*/ "",
         CellTagFromId(shuffleHandle->TransactionId),
