@@ -1889,7 +1889,7 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
         }
 
         if (spec->ReduceBy.empty() && spec->SortBy.empty()) {
-            THROW_ERROR_EXCEPTION("At least one of the \"sort_by\" or \"reduce_by\" fields shold be specified");
+            THROW_ERROR_EXCEPTION("At least one of the \"sort_by\" or \"reduce_by\" fields should be specified");
         }
 
         if (spec->HasNontrivialMapper()) {
