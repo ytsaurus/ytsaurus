@@ -84,7 +84,7 @@ public:
         // Sort tag list to simplify subsequent equality checks.
         Sort(SecondaryMasterCellTags_);
 
-        // NB: unlike channels, roles will be filled on first sync.
+        // NB: Unlike channels, roles will be filled on first sync.
 
         {
             auto guard = WriterGuard(SpinLock_);
@@ -169,8 +169,8 @@ public:
         cellTagToRoles.reserve(protoDirectory.items_size());
 
         TEnumIndexedArray<EMasterCellRole, TCellTagList> roleToCellTags;
-        THashMap<TCellTag, std::vector<std::string>> cellAddresses;
-        cellAddresses.reserve(protoDirectory.items_size());
+        THashMap<TCellTag, std::vector<std::string>> cellTagToAddresses;
+        cellTagToAddresses.reserve(protoDirectory.items_size());
 
         TSecondaryMasterConnectionConfigs newSecondaryMasterConnectionConfigs;
         TCellTagList newSecondaryMasterCellTags;
@@ -200,7 +200,7 @@ public:
                 roleToCellTags[*role].push_back(cellTag);
             }
             EmplaceOrCrash(cellTagToRoles, cellTag, roles);
-            EmplaceOrCrash(cellAddresses, cellTag, *masterConnectionConfig->Addresses);
+            EmplaceOrCrash(cellTagToAddresses, cellTag, *masterConnectionConfig->Addresses);
 
             if (cellTag == PrimaryMasterCellTag_) {
                 YT_VERIFY(cellId == PrimaryMasterCellId_);
@@ -212,7 +212,7 @@ public:
         }
 
         YT_VERIFY(primaryCellFound);
-        YT_VERIFY(cellTagToRoles.contains(PrimaryMasterCellTag_) && cellAddresses.contains(PrimaryMasterCellTag_));
+        YT_VERIFY(cellTagToRoles.contains(PrimaryMasterCellTag_) && cellTagToAddresses.contains(PrimaryMasterCellTag_));
 
         // To get the actual values under lock.
         auto oldSecondaryMasterCellTags = GetSecondaryMasterCellTags();
@@ -240,21 +240,23 @@ public:
         } else {
             if (Config_->PrimaryMaster->Addresses) {
                 auto expectedPrimaryCellAddresses = *Config_->PrimaryMaster->Addresses;
-                const auto& actualPrimaryCellAddresses = cellAddresses[PrimaryMasterCellTag_];
+                const auto& actualPrimaryCellAddresses = cellTagToAddresses[PrimaryMasterCellTag_];
                 YT_LOG_WARNING_UNLESS(
                     expectedPrimaryCellAddresses == actualPrimaryCellAddresses,
                     "Synchronized primary master cell addresses do not match, connection config is probably incorrect (ConfigPrimaryMasterAddresses: %v, SynchronizedPrimaryMasterAddresses: %v)",
                     expectedPrimaryCellAddresses,
                     actualPrimaryCellAddresses);
 
-                for (auto [_, cellConfig] : oldSecondaryMasterConnectionConfigs) {
+                for (const auto& [cellTag, cellConfig] : oldSecondaryMasterConnectionConfigs) {
                     if (cellConfig->Addresses) {
-                        auto expectedCellAddresses = *cellConfig->Addresses;
-                        const auto& actualCellAddresses = cellAddresses[CellTagFromId(cellConfig->CellId)];
+                        const auto& expectedCellAddresses = *cellConfig->Addresses;
+                        const auto& actualCellAddresses = cellTagToAddresses[CellTagFromId(cellConfig->CellId)];
 
                         YT_LOG_WARNING_UNLESS(
                             expectedCellAddresses == actualCellAddresses,
-                            "Synchronized secondary master cell addresses do not match, connection config is probably incorrect (ConfigSecondaryMasterAddresses: %v, SynchronizedSecondaryMasterAddresses: %v)",
+                            "Synchronized secondary master cell addresses do not match, connection config is probably incorrect "
+                            "(CellTag: %v, ConfigSecondaryMasterAddresses: %v, SynchronizedSecondaryMasterAddresses: %v)",
+                            cellTag,
                             expectedCellAddresses,
                             actualCellAddresses);
                     }

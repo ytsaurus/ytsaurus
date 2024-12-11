@@ -307,14 +307,19 @@ class TestMasterCellsSync(YTEnvSetup):
             "secondary_masters" :  secondary_masters
         }, driver=get_driver(0))
 
-        def _check(predicate):
+        def _check_for_all_nodes_same_host_status(host_should_be_removed=True):
             for node in nodes:
-                if not predicate(node):
+                connected_secondary_masters = _get_connected_secondary_masters_addresses(node, last_cell["cell_id"])
+                if connected_secondary_masters is None:
+                    return False
+                if host_should_be_removed and removed_host in connected_secondary_masters:
+                    return False
+                elif not host_should_be_removed and removed_host not in connected_secondary_masters:
                     return False
             return True
 
-        # Wait for all nodes to receive new cell cluster configuration.
-        wait(lambda: _check(lambda node: removed_host not in _get_connected_secondary_masters_addresses(node, last_cell["cell_id"])))
+        # Wait for all nodes to receive new master cells configuration.
+        wait(lambda: _check_for_all_nodes_same_host_status())
 
         # Return last peer.
         secondary_masters[-1]["addresses"].append(removed_host)
@@ -323,8 +328,8 @@ class TestMasterCellsSync(YTEnvSetup):
             "secondary_masters" :  secondary_masters
         }, driver=get_driver(0))
 
-        # Wait for all nodes to receive new cell cluster configuration.
-        wait(lambda: _check(lambda node: removed_host in _get_connected_secondary_masters_addresses(node, last_cell["cell_id"])))
+        # Wait for all nodes to receive new master cells configuration.
+        wait(lambda: _check_for_all_nodes_same_host_status(host_should_be_removed=False))
 
 ##################################################################
 
