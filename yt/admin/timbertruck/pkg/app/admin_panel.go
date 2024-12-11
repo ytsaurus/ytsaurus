@@ -12,11 +12,16 @@ import (
 	"github.com/google/uuid"
 
 	"go.ytsaurus.tech/library/go/core/metrics/solomon"
+	"go.ytsaurus.tech/library/go/httputil/headers"
 )
 
 type AdminPanelConfig struct {
 	Port           int               `yaml:"port"`
 	MonitoringTags map[string]string `yaml:"monitoring_tags"`
+
+	// MetricsFormat is metrics stream format.
+	// Possible values: 'spack', 'json'.
+	MetricsFormat string `yaml:"metrics_format"`
 }
 
 type adminPanel struct {
@@ -36,21 +41,24 @@ func newAdminPanel(logger *slog.Logger, metrics *solomon.Registry, config AdminP
 
 	mux := http.NewServeMux()
 
+	contentType := headers.TypeApplicationXSolomonSpack.String()
+	if config.MetricsFormat == string(solomon.StreamJSON) {
+		contentType = headers.TypeApplicationJSON.String()
+	}
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("Content-Type", "application/json")
-		ctx, cancelF := context.WithTimeout(context.Background(), time.Second*10)
+		ctx, cancelF := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancelF()
 
 		buffer := bytes.NewBuffer(nil)
-		_, err = metrics.StreamJSON(ctx, buffer)
+		_, err = metrics.Stream(ctx, buffer)
 		if err != nil {
 			logger.Error("Error serializing metrics", "error", err)
+			w.Header().Set(headers.ContentTypeKey, headers.TypeTextPlain.String())
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Header().Set("Content-Type", "application/text")
 			_, _ = io.WriteString(w, fmt.Sprintf("error serializing metrics: %v", err))
 		} else {
+			w.Header().Set(headers.ContentTypeKey, contentType)
 			w.WriteHeader(http.StatusOK)
-			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write(buffer.Bytes())
 		}
 	})

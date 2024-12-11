@@ -237,11 +237,11 @@ func newDaemonApp(config Config) (app *daemonApp, err error) {
 		return
 	}
 
-	solomonRegistryOptions := solomon.NewRegistryOpts()
-	if config.AdminPanel != nil && config.AdminPanel.MonitoringTags != nil {
-		solomonRegistryOptions.SetTags(config.AdminPanel.MonitoringTags)
+	app.metrics, err = createMetricsRegistry(config.AdminPanel)
+	if err != nil {
+		err = fmt.Errorf("failed to create metrics registry: %w", err)
+		return
 	}
-	app.metrics = solomon.NewRegistry(solomonRegistryOptions)
 
 	var logFile io.Writer = os.Stderr
 	if config.LogFile != "" {
@@ -340,6 +340,29 @@ func (app *daemonApp) Fatalf(format string, a ...any) {
 
 func (app *daemonApp) Metrics() metrics.Registry {
 	return app.metrics
+}
+
+func createMetricsRegistry(config *AdminPanelConfig) (*solomon.Registry, error) {
+	if config == nil {
+		return solomon.NewRegistry(nil), nil
+	}
+	solomonRegistryOptions := solomon.NewRegistryOpts()
+
+	if config.MonitoringTags != nil {
+		solomonRegistryOptions.SetTags(config.MonitoringTags)
+	}
+
+	metricsFormat := config.MetricsFormat
+	switch config.MetricsFormat {
+	case "":
+		metricsFormat = string(solomon.StreamSpack)
+	case string(solomon.StreamJSON), string(solomon.StreamSpack):
+	default:
+		return nil, fmt.Errorf("unsupported metrics format: %s", metricsFormat)
+	}
+	solomonRegistryOptions.SetStreamFormat(solomon.StreamFormat(metricsFormat))
+
+	return solomon.NewRegistry(solomonRegistryOptions), nil
 }
 
 func createPidFile(path string) (close func(), err error) {
