@@ -1,4 +1,5 @@
 RECURSE(
+    request
     semconv
     semconvutil
 )

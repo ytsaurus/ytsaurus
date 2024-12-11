@@ -5,6 +5,7 @@ package global // import "go.opentelemetry.io/otel/internal/global"
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 )
@@ -42,7 +44,7 @@ var zeroCallback metric.Callback = func(ctx context.Context, or metric.Observer)
 }
 
 func TestMeterConcurrentSafe(t *testing.T) {
-	mtr := &meter{}
+	mtr := &meter{instruments: make(map[instID]delegatedInstrument)}
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -83,10 +85,16 @@ func TestMeterConcurrentSafe(t *testing.T) {
 	mtr.setDelegate(noop.NewMeterProvider())
 	close(finish)
 	<-done
+
+	// No instruments should be left after the meter is replaced.
+	assert.Empty(t, mtr.instruments)
+
+	// No callbacks should be left after the meter is replaced.
+	assert.Zero(t, mtr.registry.Len())
 }
 
 func TestUnregisterConcurrentSafe(t *testing.T) {
-	mtr := &meter{}
+	mtr := &meter{instruments: make(map[instID]delegatedInstrument)}
 	reg, err := mtr.RegisterCallback(zeroCallback)
 	require.NoError(t, err)
 
@@ -162,8 +170,9 @@ func testSetupAllInstrumentTypes(t *testing.T, m metric.Meter) (metric.Float64Co
 // This is to emulate a read from an exporter.
 func testCollect(t *testing.T, m metric.Meter) {
 	if tMeter, ok := m.(*meter); ok {
-		m, ok = tMeter.delegate.Load().(metric.Meter)
-		if !ok {
+		// This changes the input m to the delegate.
+		m = tMeter.delegate
+		if m == nil {
 			t.Error("meter was not delegated")
 			return
 		}
@@ -174,6 +183,18 @@ func testCollect(t *testing.T, m metric.Meter) {
 		return
 	}
 	tMeter.collect()
+}
+
+func TestInstrumentIdentity(t *testing.T) {
+	globalMeterProvider := &meterProvider{}
+	m := globalMeterProvider.Meter("go.opentelemetry.io/otel/metric/internal/global/meter_test")
+	tMeter := m.(*meter)
+	testSetupAllInstrumentTypes(t, m)
+	assert.Len(t, tMeter.instruments, 14)
+	// Creating the same instruments multiple times should not increase the
+	// number of instruments.
+	testSetupAllInstrumentTypes(t, m)
+	assert.Len(t, tMeter.instruments, 14)
 }
 
 func TestMeterProviderDelegatesCalls(t *testing.T) {
@@ -213,9 +234,9 @@ func TestMeterProviderDelegatesCalls(t *testing.T) {
 	assert.Equal(t, 1, tMeter.siCount)
 	assert.Equal(t, 1, tMeter.siUDCount)
 	assert.Equal(t, 1, tMeter.siHist)
-	assert.Equal(t, 1, len(tMeter.callbacks))
+	assert.Len(t, tMeter.callbacks, 1)
 
-	// Because the Meter was provided by testmeterProvider it should also return our test instrument
+	// Because the Meter was provided by testMeterProvider it should also return our test instrument
 	require.IsType(t, &testCountingFloatInstrument{}, ctr, "the meter did not delegate calls to the meter")
 	assert.Equal(t, 1, ctr.(*testCountingFloatInstrument).count)
 
@@ -249,7 +270,7 @@ func TestMeterDelegatesCalls(t *testing.T) {
 
 	// Calls to Meter methods after setDelegate() should be executed by the delegate
 	require.IsType(t, &meter{}, m)
-	tMeter := m.(*meter).delegate.Load().(*testMeter)
+	tMeter := m.(*meter).delegate.(*testMeter)
 	require.NotNil(t, tMeter)
 	assert.Equal(t, 1, tMeter.afCount)
 	assert.Equal(t, 1, tMeter.afUDCount)
@@ -264,11 +285,11 @@ func TestMeterDelegatesCalls(t *testing.T) {
 	assert.Equal(t, 1, tMeter.siUDCount)
 	assert.Equal(t, 1, tMeter.siHist)
 
-	// Because the Meter was provided by testmeterProvider it should also return our test instrument
+	// Because the Meter was provided by testMeterProvider it should also return our test instrument
 	require.IsType(t, &testCountingFloatInstrument{}, ctr, "the meter did not delegate calls to the meter")
 	assert.Equal(t, 1, ctr.(*testCountingFloatInstrument).count)
 
-	// Because the Meter was provided by testmeterProvider it should also return our test instrument
+	// Because the Meter was provided by testMeterProvider it should also return our test instrument
 	require.IsType(t, &testCountingFloatInstrument{}, actr, "the meter did not delegate calls to the meter")
 	assert.Equal(t, 1, actr.(*testCountingFloatInstrument).count)
 
@@ -297,7 +318,7 @@ func TestMeterDefersDelegations(t *testing.T) {
 
 	// Calls to Meter() before setDelegate() should be the delegated type
 	require.IsType(t, &meter{}, m)
-	tMeter := m.(*meter).delegate.Load().(*testMeter)
+	tMeter := m.(*meter).delegate.(*testMeter)
 	require.NotNil(t, tMeter)
 	assert.Equal(t, 1, tMeter.afCount)
 	assert.Equal(t, 1, tMeter.afUDCount)
@@ -377,17 +398,18 @@ func TestRegistrationDelegation(t *testing.T) {
 }
 
 func TestMeterIdentity(t *testing.T) {
-	type id struct{ name, ver, url string }
+	type id struct{ name, ver, url, attr string }
 
 	ids := []id{
-		{"name-a", "version-a", "url-a"},
-		{"name-a", "version-a", "url-b"},
-		{"name-a", "version-b", "url-a"},
-		{"name-a", "version-b", "url-b"},
-		{"name-b", "version-a", "url-a"},
-		{"name-b", "version-a", "url-b"},
-		{"name-b", "version-b", "url-a"},
-		{"name-b", "version-b", "url-b"},
+		{"name-a", "version-a", "url-a", ""},
+		{"name-a", "version-a", "url-a", "attr"},
+		{"name-a", "version-a", "url-b", ""},
+		{"name-a", "version-b", "url-a", ""},
+		{"name-a", "version-b", "url-b", ""},
+		{"name-b", "version-a", "url-a", ""},
+		{"name-b", "version-a", "url-b", ""},
+		{"name-b", "version-b", "url-a", ""},
+		{"name-b", "version-b", "url-b", ""},
 	}
 
 	provider := &meterProvider{}
@@ -396,6 +418,7 @@ func TestMeterIdentity(t *testing.T) {
 			i.name,
 			metric.WithInstrumentationVersion(i.ver),
 			metric.WithSchemaURL(i.url),
+			metric.WithInstrumentationAttributes(attribute.String("key", i.attr)),
 		)
 	}
 
@@ -410,4 +433,23 @@ func TestMeterIdentity(t *testing.T) {
 			}
 		}
 	}
+}
+
+type failingRegisterCallbackMeter struct {
+	noop.Meter
+}
+
+func (m *failingRegisterCallbackMeter) RegisterCallback(metric.Callback, ...metric.Observable) (metric.Registration, error) {
+	return nil, errors.New("an error occurred")
+}
+
+func TestRegistrationDelegateFailingCallback(t *testing.T) {
+	r := &registration{
+		unreg: func() error { return nil },
+	}
+	m := &failingRegisterCallbackMeter{}
+
+	assert.NotPanics(t, func() {
+		r.setDelegate(m)
+	})
 }

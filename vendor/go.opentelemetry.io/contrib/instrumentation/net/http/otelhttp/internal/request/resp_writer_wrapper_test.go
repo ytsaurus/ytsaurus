@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package otelhttp
+package request
 
 import (
 	"net/http"
@@ -12,10 +12,7 @@ import (
 )
 
 func TestRespWriterWriteHeader(t *testing.T) {
-	rw := &respWriterWrapper{
-		ResponseWriter: &httptest.ResponseRecorder{},
-		record:         func(int64) {},
-	}
+	rw := NewRespWriterWrapper(&httptest.ResponseRecorder{}, func(int64) {})
 
 	rw.WriteHeader(http.StatusTeapot)
 	assert.Equal(t, http.StatusTeapot, rw.statusCode)
@@ -26,10 +23,7 @@ func TestRespWriterWriteHeader(t *testing.T) {
 }
 
 func TestRespWriterFlush(t *testing.T) {
-	rw := &respWriterWrapper{
-		ResponseWriter: &httptest.ResponseRecorder{},
-		record:         func(int64) {},
-	}
+	rw := NewRespWriterWrapper(&httptest.ResponseRecorder{}, func(int64) {})
 
 	rw.Flush()
 	assert.Equal(t, http.StatusOK, rw.statusCode)
@@ -49,12 +43,21 @@ func (_ nonFlushableResponseWriter) Write([]byte) (int, error) {
 func (_ nonFlushableResponseWriter) WriteHeader(int) {}
 
 func TestRespWriterFlushNoFlusher(t *testing.T) {
-	rw := &respWriterWrapper{
-		ResponseWriter: nonFlushableResponseWriter{},
-		record:         func(int64) {},
-	}
+	rw := NewRespWriterWrapper(nonFlushableResponseWriter{}, func(int64) {})
 
 	rw.Flush()
 	assert.Equal(t, http.StatusOK, rw.statusCode)
 	assert.True(t, rw.wroteHeader)
+}
+
+func TestConcurrentRespWriterWrapper(t *testing.T) {
+	rw := NewRespWriterWrapper(&httptest.ResponseRecorder{}, func(int64) {})
+
+	go func() {
+		_, _ = rw.Write([]byte("hello world"))
+	}()
+
+	assert.NotNil(t, rw.BytesWritten())
+	assert.NotNil(t, rw.StatusCode())
+	assert.NoError(t, rw.Error())
 }
