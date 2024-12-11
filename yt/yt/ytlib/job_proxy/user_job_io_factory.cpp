@@ -775,8 +775,6 @@ public:
                 partitionTag);
         }
 
-        auto comparator = GetComparator(FromProto<TSortColumns>(reduceJobSpecExt.sort_columns()));
-
         return CreatePartitionSortReader(
             JobSpecHelper_->GetJobIOConfig()->TableReader,
             ChunkReaderHost_,
