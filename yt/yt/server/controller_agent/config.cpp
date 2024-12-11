@@ -639,6 +639,8 @@ void TDisallowRemoteOperationsConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("allowed_clusters", &TThis::AllowedClusters)
         .Default();
+    registrar.Parameter("allowed_for_everyone_clusters", &TThis::AllowedForEveryoneClusters)
+        .Default();
 }
 
 void TControllerAgentConfig::Register(TRegistrar registrar)

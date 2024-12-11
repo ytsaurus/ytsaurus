@@ -437,6 +437,11 @@ void TInputTransactionManager::ValidateRemoteOperationsAllowed(
 {
     if (!IsLocal(clusterName)) {
         const auto& disallowRemoteConfig = ControllerConfig_->DisallowRemoteOperations;
+
+        if (disallowRemoteConfig->AllowedForEveryoneClusters.contains(clusterName.Underlying())) {
+            return;
+        }
+
         if (!disallowRemoteConfig->AllowedUsers.contains(authenticatedUser)) {
             THROW_ERROR_EXCEPTION(
                 "User %Qv is not allowed to start operations with remote clusters",

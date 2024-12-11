@@ -618,3 +618,33 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
                 out_="//tmp/out",
                 command="cat"
             )
+
+
+class TestSchedulerRemoteOperationAllowedForEveryoneCluster(TestSchedulerRemoteOperationCommandsBase):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+            "remote_copy_operation_options": {
+                "spec_template": {
+                    "use_remote_master_caches": True,
+                },
+            },
+            "disallow_remote_operations": {
+                "allowed_for_everyone_clusters": ["remote_0"],
+            }
+        },
+    }
+
+    @authors("renadeen")
+    def test_simple(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        create("table", "//tmp/t2")
+
+        map(
+            in_=self.to_remote_path("//tmp/t1"),
+            out="//tmp/t2",
+            command="cat",
+        )
+
+        assert read_table("//tmp/t2") == []
+        assert not get("//tmp/t2/@sorted")

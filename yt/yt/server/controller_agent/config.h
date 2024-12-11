@@ -778,6 +778,7 @@ class TDisallowRemoteOperationsConfig
 public:
     THashSet<TString> AllowedUsers;
     THashSet<TString> AllowedClusters;
+    THashSet<TString> AllowedForEveryoneClusters;
 
     REGISTER_YSON_STRUCT(TDisallowRemoteOperationsConfig);
 
