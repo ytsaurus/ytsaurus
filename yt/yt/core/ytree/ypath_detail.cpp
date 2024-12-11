@@ -1431,7 +1431,9 @@ private:
 
     void OnForwardingFinished()
     {
-        YT_VERIFY(Map_->AddChild(ItemKey_, TreeBuilder_->EndTree()));
+        if (!Map_->AddChild(itemKey, TreeBuilder_->EndTree())) {
+            THROW_ERROR_EXCEPTION("Duplicate key %Qv", itemKey);
+        }
         ItemKey_.clear();
     }
 
