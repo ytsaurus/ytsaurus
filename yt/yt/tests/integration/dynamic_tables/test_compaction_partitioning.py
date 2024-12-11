@@ -99,10 +99,10 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"k1": 1}])
         sync_unmount_table("//tmp/t")
         set("//tmp/t/@forced_compaction_revision", 1)
-        chunk_id = get("//tmp/t/@chunk_ids/0")
+        chunk_id = get_singular_chunk_id("//tmp/t")
         sync_mount_table("//tmp/t")
-        wait(lambda: get("//tmp/t/@chunk_ids/0") != chunk_id)
-        assert not get("#{}/@eden".format(get("//tmp/t/@chunk_ids/0")))
+        wait(lambda: get_singular_chunk_id("//tmp/t") != chunk_id)
+        assert not get("#{}/@eden".format(get_singular_chunk_id("//tmp/t")))
 
         # Create [1;1] chunk.
         sync_unmount_table("//tmp/t")

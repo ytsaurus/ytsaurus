@@ -16,7 +16,7 @@ from yt_commands import (
     raises_yt_error, get_driver, ls, disable_write_sessions_on_node,
     create_pool, update_pool_tree_config_option,
     update_controller_agent_config,
-    write_file, wait_for_nodes, read_file)
+    write_file, wait_for_nodes, read_file, get_singular_chunk_id)
 
 from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_component_old
 from yt_type_helpers import make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type
@@ -388,7 +388,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             set("//tmp/t1/@erasure_codec", "reed_solomon_6_3", driver=self.remote_driver)
             write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
 
-            chunk_id = get("//tmp/t1/@chunk_ids/0", driver=self.remote_driver)
+            chunk_id = get_singular_chunk_id("//tmp/t1", driver=self.remote_driver)
             chunk_replicas = get("#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver)
             node = list(str(r) for r in chunk_replicas if r.attributes["index"] == 0)[0]
 
@@ -625,7 +625,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         assert get("//tmp/t_in/@compression_codec", driver=self.remote_driver) == "lz4"
         assert get(
             "#{chunk_id}/@compression_codec".format(
-                chunk_id=get("//tmp/t_in/@chunk_ids/0", driver=self.remote_driver)
+                chunk_id=get_singular_chunk_id("//tmp/t_in", driver=self.remote_driver)
             ),
             driver=self.remote_driver,
         ) == "lz4"
@@ -756,7 +756,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
             multicell_sleep()
 
-            chunk_id = get("//tmp/t1/@chunk_ids/0", driver=self.remote_driver)
+            chunk_id = get_singular_chunk_id("//tmp/t1", driver=self.remote_driver)
 
             def run_operation():
                 op = remote_copy(
@@ -778,7 +778,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             def check_everything():
                 assert get("//tmp/t2/@chunk_count") == 1
                 if self.Env.get_component_version("ytserver-job-proxy").abi > (21, 3):
-                    new_chunk_id = get("//tmp/t2/@chunk_ids/0")
+                    new_chunk_id = get_singular_chunk_id("//tmp/t2")
                     new_chunk_replicas = get("#{}/@stored_replicas".format(new_chunk_id))
                     replicas = [str(r) for r in new_chunk_replicas]
                     assert len(replicas) == 9 and len({r for r in replicas}) == 9
@@ -1443,8 +1443,8 @@ class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyDynamicTablesB
         )
 
         assert read_table("//tmp/t2") == rows
-        src_chunk = get("//tmp/t1/@chunk_ids/0", driver=self.remote_driver)
-        dst_chunk = get("//tmp/t2/@chunk_ids/0")
+        src_chunk = get_singular_chunk_id("//tmp/t1", driver=self.remote_driver)
+        dst_chunk = get_singular_chunk_id("//tmp/t2")
         attr_list = [
             "optimize_for",
             "table_chunk_format",
@@ -1654,7 +1654,7 @@ class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyDynamicTablesB
         )
 
         assert read_table("//tmp/t2") == [{"key": 1, "value": "foo"}]
-        chunk_id = get("//tmp/t2/@chunk_ids/0")
+        chunk_id = get_singular_chunk_id("//tmp/t2")
         assert get("#{}/@erasure_codec".format(chunk_id)) == "reed_solomon_6_3"
 
     @authors("ifsmirnov")
