@@ -163,7 +163,14 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
             "string instead of map. Bazinga!"
         )
 
-        wait(lambda: any(len(get(f"//sys/tablet_balancer/instances/{instance}/orchid/tablet_balancer/retryable_bundle_errors")) > 0 for instance in instances))
+        def _check_parsing_error():
+            for instance in instances:
+                errors = get(f"//sys/tablet_balancer/instances/{instance}/orchid/tablet_balancer/retryable_bundle_errors")
+                if len(errors) > 0 and str(errors).find("Bundle has unparsable tablet balancer config") > 0:
+                    return True
+            return False
+
+        wait(lambda: _check_parsing_error())
 
         self._apply_dynamic_config_patch({
             "bundle_errors_ttl": 100,

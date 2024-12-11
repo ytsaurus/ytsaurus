@@ -141,6 +141,7 @@ private:
         std::deque<TError> RetryableErrors;
     };
 
+    std::atomic_flag IsActive_ = ATOMIC_FLAG_INIT;
     IBootstrap* const Bootstrap_;
     const TStandaloneTabletBalancerConfigPtr Config_;
     const IInvokerPtr ControlInvoker_;
@@ -280,6 +281,10 @@ void TTabletBalancer::Start()
     YT_LOG_INFO("Starting tablet balancer instance (Period: %v)",
         DynamicConfig_.Acquire()->Period.value_or(Config_->Period));
 
+    if (IsActive_.test_and_set()) {
+        YT_LOG_WARNING("Trying to start tablet balancer instance which is already active");
+    }
+
     GroupsToMoveOnNextIteration_.clear();
     FirstIterationStartTime_ = TruncatedNow();
 
@@ -295,6 +300,8 @@ void TTabletBalancer::Stop()
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
     YT_LOG_INFO("Stopping tablet balancer instance");
+
+    IsActive_.clear();
 
     YT_UNUSED_FUTURE(PollExecutor_->Stop());
     ActionManager_->Stop();
@@ -544,6 +551,10 @@ THashSet<TGroupName> TTabletBalancer::GetBalancingGroups(const TTabletCellBundle
 IYPathServicePtr TTabletBalancer::GetOrchidService()
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+    if (!IsActive_.test()) {
+        RemoveBundleErrorsByTtl(DynamicConfig_.Acquire()->BundleErrorsTtl);
+    }
 
     return IYPathService::FromProducer(BIND(&TTabletBalancer::BuildOrchid, MakeWeak(this)))
         ->Via(ControlInvoker_);
