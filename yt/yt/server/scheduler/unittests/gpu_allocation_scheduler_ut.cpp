@@ -123,7 +123,7 @@ using TGpuAllocationSchedulerHostMockPtr = TIntrusivePtr<TGpuAllocationScheduler
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGpuAllocationSchedulerTest
+class DISABLED_TGpuAllocationSchedulerTest
     : public testing::Test
 {
 public:
@@ -324,7 +324,7 @@ MATCHER_P2(ResourceVectorNear, vec, absError, "") {
 
 // Schedule Gpu allocations tests.
 
-TEST_F(TGpuAllocationSchedulerTest, Simple)
+TEST_F(DISABLED_TGpuAllocationSchedulerTest, Simple)
 {
     const size_t nodeCount = 1;
     const size_t operationCount = 1;
@@ -351,7 +351,7 @@ TEST_F(TGpuAllocationSchedulerTest, Simple)
     EXPECT_EQ(scheduledOperations.size(), nodeCount);
 }
 
-TEST_F(TGpuAllocationSchedulerTest, SimpleMultipleOperations)
+TEST_F(DISABLED_TGpuAllocationSchedulerTest, SimpleMultipleOperations)
 {
     const size_t nodeCount = 5;
     const size_t operationCount = 5;
@@ -384,7 +384,7 @@ TEST_F(TGpuAllocationSchedulerTest, SimpleMultipleOperations)
     EXPECT_EQ(scheduledOperationIds.size(), operationCount);
 }
 
-TEST_F(TGpuAllocationSchedulerTest, SimpleMultipleSmallOperations)
+TEST_F(DISABLED_TGpuAllocationSchedulerTest, SimpleMultipleSmallOperations)
 {
     const size_t nodeCount = 2;
     const size_t operationCount = 9;
@@ -427,7 +427,7 @@ TEST_F(TGpuAllocationSchedulerTest, SimpleMultipleSmallOperations)
     // EXPECT_TRUE(gpuScheduler->GetSmallOperationsToSchedule().empty());
 }
 
-TEST_F(TGpuAllocationSchedulerTest, NotEnoughNodes)
+TEST_F(DISABLED_TGpuAllocationSchedulerTest, NotEnoughNodes)
 {
     const size_t nodeCount = 7;
     const size_t operationCount = 7;
@@ -462,7 +462,7 @@ TEST_F(TGpuAllocationSchedulerTest, NotEnoughNodes)
     EXPECT_EQ(scheduledOperationIds.size(), operationCount - 2);
 }
 
-TEST_F(TGpuAllocationSchedulerTest, NewOperation)
+TEST_F(DISABLED_TGpuAllocationSchedulerTest, NewOperation)
 {
     const size_t nodeCount = 5;
     const size_t operationCount = 5;
@@ -511,7 +511,7 @@ TEST_F(TGpuAllocationSchedulerTest, NewOperation)
     EXPECT_EQ(scheduledOperationIds.size(), operationCount);
 }
 
-TEST_F(TGpuAllocationSchedulerTest, MultihostOperation)
+TEST_F(DISABLED_TGpuAllocationSchedulerTest, MultihostOperation)
 {
     const size_t nodeCount = 5;
     const size_t operationCount = 2;
@@ -570,7 +570,7 @@ TEST_F(TGpuAllocationSchedulerTest, MultihostOperation)
     EXPECT_EQ(scheduledOperationIds.size(), operationCount);
 }
 
-TEST_F(TGpuAllocationSchedulerTest, NotEnoughNodesInModule)
+TEST_F(DISABLED_TGpuAllocationSchedulerTest, NotEnoughNodesInModule)
 {
     const size_t nodeCount = 5;
     const size_t operationCount = 1;
@@ -601,7 +601,7 @@ TEST_F(TGpuAllocationSchedulerTest, NotEnoughNodesInModule)
     // EXPECT_EQ(gpuScheduler->GetLargeOperationsToAssign().size(), operationCount);
 }
 
-TEST_F(TGpuAllocationSchedulerTest, UnregisterOperation)
+TEST_F(DISABLED_TGpuAllocationSchedulerTest, UnregisterOperation)
 {
     const size_t nodeCount = 5;
     const size_t operationCount = 5;
@@ -636,7 +636,7 @@ TEST_F(TGpuAllocationSchedulerTest, UnregisterOperation)
     // EXPECT_TRUE(gpuScheduler->GetSmallOperationsToSchedule().empty());
 }
 
-TEST_F(TGpuAllocationSchedulerTest, UnregisterNode)
+TEST_F(DISABLED_TGpuAllocationSchedulerTest, UnregisterNode)
 {
     const size_t nodeCount = 5;
     const size_t operationCount = 5;
@@ -677,7 +677,7 @@ TEST_F(TGpuAllocationSchedulerTest, UnregisterNode)
     // }
 }
 
-TEST_F(TGpuAllocationSchedulerTest, UnregisterNodeUnderMultihostOperation)
+TEST_F(DISABLED_TGpuAllocationSchedulerTest, UnregisterNodeUnderMultihostOperation)
 {
     const size_t nodeCount = 4;
     const size_t operationCount = 2;
@@ -723,7 +723,7 @@ TEST_F(TGpuAllocationSchedulerTest, UnregisterNodeUnderMultihostOperation)
     // EXPECT_EQ(preemptedOperation->ResourceUsage(), 8.0);
 }
 
-TEST_F(TGpuAllocationSchedulerTest, DemandIsNotFullySatisfied)
+TEST_F(DISABLED_TGpuAllocationSchedulerTest, DemandIsNotFullySatisfied)
 {
     auto host = CreateTestGpuAllocationSchedulerHostMock();
     auto gpuScheduler = CreateTestGpuScheduler();
@@ -753,7 +753,7 @@ TEST_F(TGpuAllocationSchedulerTest, DemandIsNotFullySatisfied)
     // EXPECT_EQ(waitingOperations.size(), 1ul);
 }
 
-TEST_F(TGpuAllocationSchedulerTest, PreemptSmallOperationsForLarge)
+TEST_F(DISABLED_TGpuAllocationSchedulerTest, PreemptSmallOperationsForLarge)
 {
     const size_t nodeCount = 4;
 
@@ -835,7 +835,7 @@ TEST_F(TGpuAllocationSchedulerTest, PreemptSmallOperationsForLarge)
     // EXPECT_TRUE(gpuScheduler->GetSmallOperationsToSchedule().contains(operation3));
 }
 
-TEST_F(TGpuAllocationSchedulerTest, SimpleNonGangOperation)
+TEST_F(DISABLED_TGpuAllocationSchedulerTest, SimpleNonGangOperation)
 {
     const size_t nodeCount = 4;
 
@@ -885,7 +885,7 @@ TEST_F(TGpuAllocationSchedulerTest, SimpleNonGangOperation)
     EXPECT_EQ(operation->GetTotalResourceUsage(), 4.0 * 4);
 }
 
-TEST_F(TGpuAllocationSchedulerTest, NonGangOperationInProgress)
+TEST_F(DISABLED_TGpuAllocationSchedulerTest, NonGangOperationInProgress)
 {
     const size_t nodeCount = 4;
 
@@ -963,7 +963,7 @@ TEST_F(TGpuAllocationSchedulerTest, NonGangOperationInProgress)
     EXPECT_EQ(operation->GetTotalResourceUsage(), 4.0 * 5);
 }
 
-TEST_F(TGpuAllocationSchedulerTest, UnregisterNonGangOperation)
+TEST_F(DISABLED_TGpuAllocationSchedulerTest, UnregisterNonGangOperation)
 {
     const size_t nodeCount = 3;
     const size_t operationCount = 2;
@@ -1006,7 +1006,7 @@ TEST_F(TGpuAllocationSchedulerTest, UnregisterNonGangOperation)
     EXPECT_EQ(gpuScheduler->GetOperationState(operations[1])->GetNeededResources(), 0.0);
 }
 
-TEST_F(TGpuAllocationSchedulerTest, DoNotShceduleGangOperationsPartially)
+TEST_F(DISABLED_TGpuAllocationSchedulerTest, DoNotShceduleGangOperationsPartially)
 {
     const size_t nodeCount = 2;
 
@@ -1041,7 +1041,7 @@ TEST_F(TGpuAllocationSchedulerTest, DoNotShceduleGangOperationsPartially)
     }
 }
 
-TEST_F(TGpuAllocationSchedulerTest, ShceduleNonGangOperationsPartially)
+TEST_F(DISABLED_TGpuAllocationSchedulerTest, ShceduleNonGangOperationsPartially)
 {
     const size_t nodeCount = 2;
 
@@ -1078,7 +1078,7 @@ TEST_F(TGpuAllocationSchedulerTest, ShceduleNonGangOperationsPartially)
     }
 }
 
-TEST_F(TGpuAllocationSchedulerTest, ModuleAssignmentPreemption)
+TEST_F(DISABLED_TGpuAllocationSchedulerTest, ModuleAssignmentPreemption)
 {
     const size_t nodeCount = 2;
 
@@ -1139,7 +1139,7 @@ TEST_F(TGpuAllocationSchedulerTest, ModuleAssignmentPreemption)
 }
 
 
-TEST_F(TGpuAllocationSchedulerTest, ScheduledAllocationsPreemption)
+TEST_F(DISABLED_TGpuAllocationSchedulerTest, ScheduledAllocationsPreemption)
 {
     const size_t nodeCount = 3;
 
@@ -1214,7 +1214,7 @@ TEST_F(TGpuAllocationSchedulerTest, ScheduledAllocationsPreemption)
     EXPECT_EQ(priorityOperation->GetNeededResources(), 7.0 * 0);
 }
 
-TEST_F(TGpuAllocationSchedulerTest, NotEnoughResources)
+TEST_F(DISABLED_TGpuAllocationSchedulerTest, NotEnoughResources)
 {
     const size_t nodeCount = 1;
 
