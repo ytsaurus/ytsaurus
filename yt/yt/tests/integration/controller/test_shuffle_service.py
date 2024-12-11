@@ -92,6 +92,25 @@ class TestShuffleService(YTEnvSetup):
         assert read_shuffle_data(shuffle_handle, 0) == rows
 
     @authors("apollo1321")
+    def test_write_unsorted_rows(self):
+        parent_transaction = start_transaction(timeout=60000)
+
+        shuffle_handle = start_shuffle("intermediate", partition_count=11, parent_transaction_id=parent_transaction)
+
+        # Verify that the writer does not enforce any specific sort order on the rows.
+        rows = [
+            {"key1": 5, "key2": -1},
+            {"key1": 0, "key2": -10},
+            {'key1': 4, "key2": -42},
+            {'key1': 4, "key2": 10},
+        ]
+        write_shuffle_data(shuffle_handle, "key1", rows)
+
+        assert read_shuffle_data(shuffle_handle, 0) == [rows[1]]
+        assert read_shuffle_data(shuffle_handle, 5) == [rows[0]]
+        assert read_shuffle_data(shuffle_handle, 4) == [rows[2], rows[3]]
+
+    @authors("apollo1321")
     def test_invalid_arguments(self):
         with raises_yt_error('Parent transaction id is null'):
             start_shuffle("root", partition_count=2, parent_transaction_id="0-0-0-0")
