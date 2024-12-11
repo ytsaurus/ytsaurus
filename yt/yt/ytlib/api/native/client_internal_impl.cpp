@@ -3,6 +3,8 @@
 #include "tablet_helpers.h"
 #include "transaction.h"
 
+#include <yt/yt/ytlib/api/native/config.h>
+
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
@@ -324,7 +326,7 @@ std::vector<TErrorOr<i64>> TClient::DoGetOrderedTabletSafeTrimRowCount(
         auto channel = Connection_->GetChannelFactory()->CreateChannel(address);
         TQueryServiceProxy proxy(channel);
         auto req = proxy.GetOrderedTabletSafeTrimRowCount();
-        req->SetTimeout(options.Timeout);
+        req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultGetOrderedTabletSafeTrimRowCountTimeout));
         for (const auto& [subrequest, index] : subrequests) {
             *req->add_subrequests() = subrequest;
         }
