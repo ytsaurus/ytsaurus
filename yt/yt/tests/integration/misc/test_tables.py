@@ -2587,7 +2587,7 @@ class TestTables(YTEnvSetup):
         ROWS = list([{"key": i} for i in range(10)])
         write_table("//tmp/t", ROWS)
 
-        chunk_id = get("//tmp/t/@chunk_ids/0")
+        chunk_id = get_singular_chunk_id("//tmp/t")
         wait(lambda: len(get("#{}/@stored_replicas".format(chunk_id))) == 3)
 
         for _ in range(10):

@@ -2485,10 +2485,10 @@ class TestSortedDynamicTablesMultipleSlotsPerNode(TestSortedDynamicTablesBase):
 
         schema[1:1] = [{"name": "key2", "type": "double", "sort_order": "ascending"}]
         alter_table("//tmp/t", schema=schema)
-        chunk_id = get("//tmp/t/@chunk_ids/0")
+        chunk_id = get_singular_chunk_id("//tmp/t")
         set("//tmp/t/@forced_compaction_revision", 1)
         sync_mount_table("//tmp/t", cell_id=cells[1])
-        wait(lambda: get("//tmp/t/@chunk_ids/0") != chunk_id)
+        wait(lambda: get_singular_chunk_id("//tmp/t") != chunk_id)
 
         rows[0]["key2"] = None
         assert_items_equal(read_table("//tmp/t"), rows)

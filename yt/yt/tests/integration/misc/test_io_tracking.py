@@ -2376,7 +2376,7 @@ class TestRemoteCopyErasureIOTracking(TestRemoteCopyIOTrackingBase):
 
             from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
 
-            chunk_id = get("//tmp/table_in/@chunk_ids/0", driver=self.remote_driver)
+            chunk_id = get_singular_chunk_id("//tmp/table_in", driver=self.remote_driver)
             chunk_replicas = get("#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver)
             node_to_ban = str(chunk_replicas[0])
 
