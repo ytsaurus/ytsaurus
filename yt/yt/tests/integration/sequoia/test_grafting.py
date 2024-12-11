@@ -37,8 +37,7 @@ class TestGrafting(YTEnvSetup):
             create("scion", "//tmp/s")
 
     @authors("kvk1920", "gritukan")
-    @pytest.mark.parametrize("rootstock_cell_tag", [10, 11])
-    def test_create_rootstock(self, rootstock_cell_tag):
+    def test_create_rootstock(self):
         rootstock_id = create("rootstock", "//tmp/r")
         scion_id = get("//tmp/r&/@scion_id")
 
