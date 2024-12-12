@@ -25,8 +25,10 @@ type AdminPanelConfig struct {
 }
 
 type adminPanel struct {
-	server *http.Server
-	logger *slog.Logger
+	config  AdminPanelConfig
+	metrics *solomon.Registry
+	logger  *slog.Logger
+	server  *http.Server
 }
 
 func newAdminPanel(logger *slog.Logger, metrics *solomon.Registry, config AdminPanelConfig) (panel *adminPanel, err error) {
@@ -36,40 +38,20 @@ func newAdminPanel(logger *slog.Logger, metrics *solomon.Registry, config AdminP
 		}
 	}()
 
-	panel = &adminPanel{}
-	panel.logger = logger.With("component", "AdminPanel")
+	panel = &adminPanel{
+		config:  config,
+		metrics: metrics,
+		logger:  logger.With("component", "AdminPanel"),
+	}
 
 	mux := http.NewServeMux()
 
-	contentType := headers.TypeApplicationXSolomonSpack.String()
-	if config.MetricsFormat == string(solomon.StreamJSON) {
-		contentType = headers.TypeApplicationJSON.String()
-	}
-	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancelF := context.WithTimeout(r.Context(), time.Second*10)
-		defer cancelF()
-
-		buffer := bytes.NewBuffer(nil)
-		_, err = metrics.Stream(ctx, buffer)
-		if err != nil {
-			logger.Error("Error serializing metrics", "error", err)
-			w.Header().Set(headers.ContentTypeKey, headers.TypeTextPlain.String())
-			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = io.WriteString(w, fmt.Sprintf("error serializing metrics: %v", err))
-		} else {
-			w.Header().Set(headers.ContentTypeKey, contentType)
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write(buffer.Bytes())
-		}
-	})
+	mux.HandleFunc("/metrics", panel.handleMetrics)
 	// "For testing purposes"
-	mux.HandleFunc("/log-error", func(w http.ResponseWriter, r *http.Request) {
-		panel.logger.Error("Log error requested")
-		_, _ = io.WriteString(w, "Error is logged!")
-	})
+	mux.HandleFunc("/log-error", panel.handleLogError)
 
 	loggingMux := loggingMiddleware{
-		logger,
+		panel.logger,
 		mux,
 	}
 
@@ -78,6 +60,46 @@ func newAdminPanel(logger *slog.Logger, metrics *solomon.Registry, config AdminP
 		Addr:    fmt.Sprintf(":%v", config.Port),
 	}
 	return
+}
+
+func (p *adminPanel) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	logger := p.requestLogger(r)
+
+	ctx, cancelF := context.WithTimeout(r.Context(), time.Second*10)
+	defer cancelF()
+
+	var buffer bytes.Buffer
+	_, err := p.metrics.Stream(ctx, &buffer)
+	if err != nil {
+		logger.Error("Error serializing metrics", "error", err)
+		w.Header().Set(headers.ContentTypeKey, headers.TypeTextPlain.String())
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = io.WriteString(w, fmt.Sprintf("error serializing metrics: %v", err))
+	} else {
+		contentType := headers.TypeApplicationXSolomonSpack.String()
+		if p.config.MetricsFormat == string(solomon.StreamJSON) {
+			contentType = headers.TypeApplicationJSON.String()
+		}
+		w.Header().Set(headers.ContentTypeKey, contentType)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(buffer.Bytes())
+	}
+}
+
+func (p *adminPanel) handleLogError(w http.ResponseWriter, r *http.Request) {
+	logger := p.requestLogger(r)
+
+	logger.Error("Log error requested")
+	_, _ = io.WriteString(w, "Error is logged!")
+}
+
+func (p *adminPanel) requestLogger(r *http.Request) *slog.Logger {
+	requestID := r.Context().Value(requestIDContextKey{})
+	if requestID == nil {
+		return p.logger
+	} else {
+		return p.logger.With("RequestID", requestID.(string))
+	}
 }
 
 func (p *adminPanel) Run(ctx context.Context) error {
@@ -98,11 +120,13 @@ type loggingMiddleware struct {
 	next http.Handler
 }
 
+type requestIDContextKey struct{}
+
 func (h loggingMiddleware) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	requestID := uuid.New().String()
 	msg := fmt.Sprintf("> request %v %v", req.Method, req.URL.Path)
 	h.logger.Info(msg,
-		"RequestId", requestID,
+		"RequestID", requestID,
 		"Method", req.Method,
 		"Path", req.URL.Path,
 		"Agent", req.UserAgent(),
@@ -112,12 +136,15 @@ func (h loggingMiddleware) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		next: w,
 	}
 
-	h.next.ServeHTTP(&wrapped, req)
+	ctx := context.WithValue(req.Context(), requestIDContextKey{}, requestID)
+	h.next.ServeHTTP(&wrapped, req.WithContext(ctx))
 
 	msg = fmt.Sprintf("< response %v %v", wrapped.statusCode, req.URL.Path)
 
 	h.logger.Info(msg,
-		"RequestId", requestID,
+		"RequestID", requestID,
+		"Method", req.Method,
+		"Path", req.URL.Path,
 		"StatusCode", wrapped.statusCode)
 }
 
