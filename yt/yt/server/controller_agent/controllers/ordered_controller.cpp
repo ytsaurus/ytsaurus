@@ -122,7 +122,7 @@ public:
             YT_VERIFY(context.IsLoad());
             TOrderedTaskPtr task;
             Persist(context, task);
-            OrderedTasks_.emplace_back(std::move(task));
+            OrderedTasks_.push_back(std::move(task));
         }
         Persist(context, OrderedOutputRequired_);
         Persist(context, IsExplicitJobCount_);
