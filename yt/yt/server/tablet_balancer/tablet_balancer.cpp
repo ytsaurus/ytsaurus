@@ -553,6 +553,8 @@ IYPathServicePtr TTabletBalancer::GetOrchidService()
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
     if (!IsActive_.test()) {
+        YT_LOG_DEBUG("Removing errors by ttl for inactive instance");
+
         RemoveBundleErrorsByTtl(DynamicConfig_.Acquire()->BundleErrorsTtl);
     }
 
