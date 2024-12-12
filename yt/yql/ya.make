@@ -3,11 +3,16 @@ RECURSE(
     plugin
 )
 
+IF(NOT EXPORT_CMAKE)
+    RECURSE_FOR_TESTS(
+        providers
+        tools
+    )
+ENDIF()
+
 IF (NOT OPENSOURCE)
     RECURSE(
-        providers
         purecalc
-        tools
     )
 ENDIF()
 
