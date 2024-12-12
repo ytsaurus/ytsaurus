@@ -8,11 +8,16 @@
 
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
+#include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/ypath_service.h>
+
+#include <library/cpp/yt/yson/consumer.h>
 
 namespace NYT::NExecNode {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NClusterNode;
 using namespace NJobAgent;
 using namespace NScheduler;
@@ -101,6 +106,7 @@ TAllocation::TAllocation(
     , RequestedGpu_(resourceDemand.Gpu)
     , RequestedCpu_(resourceDemand.Cpu)
     , RequestedMemory_(resourceDemand.UserMemory)
+    , InitialResourceDemand_(resourceDemand)
     , Attributes_(std::move(attributes))
     , ControllerAgentDescriptor_(std::move(agentDescriptor))
     , ControllerAgentConnector_(
@@ -415,6 +421,9 @@ void TAllocation::OnSettledJobReceived(
         LegacyPrepareAllocationFromStartInfo(jobInfo);
     }
 
+    YT_VERIFY(ResourceHolder_);
+    ResourceHolder_->RestoreResources();
+
     try {
         CreateAndSettleJob(jobInfo.JobId, std::move(jobInfo.JobSpec));
     } catch (const std::exception& ex) {
@@ -510,17 +519,43 @@ const NJobAgent::TResourceHolderPtr& TAllocation::GetResourceHolder() const noex
     return ResourceHolder_;
 }
 
-NYTree::IYPathServicePtr TAllocation::GetOrchidService()
+IYPathServicePtr TAllocation::GetOrchidService()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto service =  New<TCompositeMapService>();
+    auto jobService =  New<TCompositeMapService>();
 
     if (Job_) {
-        service->AddChild("job", Job_->GetOrchidService());
+        jobService->AddChild("job", Job_->GetOrchidService());
     }
 
+    auto staticAllocationService = GetStaticOrchidService();
+
+    auto service = New<TServiceCombiner>(
+        std::vector<IYPathServicePtr>{
+            std::move(jobService),
+            std::move(staticAllocationService)});
+
     return service;
+}
+
+NYTree::IYPathServicePtr TAllocation::GetStaticOrchidService()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return IYPathService::FromProducer(BIND([this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
+            auto [baseResourceUsage, additionalResourceUsage] = ResourceHolder_
+                ? ResourceHolder_->GetDetailedResourceUsage()
+                : std::make_pair(NClusterNode::TJobResources(), NClusterNode::TJobResources());
+            BuildYsonFluently(consumer).BeginMap()
+                .Item("initial_resource_demand").Value(InitialResourceDemand_)
+                .Item("base_resource_usage").Value(baseResourceUsage)
+                .Item("additional_resource_usage").Value(additionalResourceUsage)
+                .Item("state").Value(State_)
+                .Item("last_job_id").Value(LastJobId_)
+                .Item("operation_id").Value(OperationId_)
+            .EndMap();
+        }))->Via(Bootstrap_->GetJobInvoker());
 }
 
 bool TAllocation::IsRunning() const noexcept

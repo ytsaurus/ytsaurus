@@ -316,6 +316,7 @@ TJob::TJob(
         JobType_))
     , Allocation_(std::move(allocation))
     , ResourceHolder_(Allocation_->GetResourceHolder())
+    , InitialResourceDemand_(ResourceHolder_->GetInitialResourceDemand())
     , ControllerAgentDescriptor_(std::move(agentDescriptor))
     , ControllerAgentConnector_(
         Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentDescriptor_))
@@ -1429,6 +1430,7 @@ TBriefJobInfo TJob::GetBriefInfo() const
         GetOperationId(),
         baseResourceUsage,
         additionalResourceUsage,
+        InitialResourceDemand_,
         std::move(jobPorts),
         JobEvents_,
         CoreInfos_,

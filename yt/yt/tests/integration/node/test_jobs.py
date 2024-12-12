@@ -5,7 +5,9 @@ from yt_commands import (
     with_breakpoint, wait_breakpoint, release_breakpoint, vanilla, map,
     disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node,
     interrupt_job, update_nodes_dynamic_config, abort_job, run_sleeping_vanilla,
-    set_node_banned, extract_statistic_v2, get_allocation_id_from_job_id, alter_table)
+    set_node_banned, extract_statistic_v2, get_allocation_id_from_job_id, alter_table,
+    write_file, print_debug,
+)
 
 from yt_helpers import JobCountProfiler, profiler_factory
 
@@ -276,13 +278,20 @@ class TestAllocationWithTwoJobs(YTEnvSetup):
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
 
+    USE_PORTO = True
+
     DELTA_NODE_CONFIG = {
         "job_resource_manager": {
             "resource_limits": {
                 "cpu": 1,
                 "user_slots": 1,
             },
-        }
+        },
+        "exec_node": {
+            "job_proxy": {
+                "check_user_job_memory_limit": False,
+            },
+        },
     }
 
     DELTA_DYNAMIC_NODE_CONFIG = {
@@ -294,7 +303,7 @@ class TestAllocationWithTwoJobs(YTEnvSetup):
                     },
                 },
             },
-        }
+        },
     }
 
     @authors("pogorelov")
@@ -335,6 +344,111 @@ class TestAllocationWithTwoJobs(YTEnvSetup):
         allocation_id2 = get_allocation_id_from_job_id(job_id2)
 
         assert allocation_id1 == allocation_id2
+
+        release_breakpoint()
+
+        op.track()
+
+    @authors("pogorelov")
+    def test_restore_resources(self):
+        job_count = 2
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+        create("file", "//tmp/mapper.py", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"key": i} for i in range(job_count)])
+
+        memory = 500 * 10 ** 6
+
+        script = with_breakpoint(
+f"""
+import os
+import subprocess
+import time
+
+from random import randint
+
+def rndstr(n):
+    s = ''
+    for i in range(100):
+        s += chr(randint(ord('a'), ord('z')))
+    return s * (n // 100)
+
+cmd = '''BREAKPOINT'''
+
+def breakpoint():
+    subprocess.call(cmd, shell=True)
+
+job_index = int(os.environ['YT_JOB_INDEX'])
+
+if job_index != 0:
+    breakpoint()
+
+a = list()
+while len(a) * 100000 < {memory}:
+    a.append(rndstr(100000))
+
+if job_index == 0:
+    breakpoint()
+""" # noqa
+        ).encode("ascii")
+
+        print_debug("Script is ", script)
+
+        write_file("//tmp/mapper.py", script, attributes={"executable": True})
+
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="python mapper.py",
+            job_count=job_count,
+            spec={
+                "data_weight_per_job": 1,
+                "mapper": {
+                    "memory_limit": 200 * 10 ** 6,
+                    "user_job_memory_digest_default_value": 0.9,
+                    "file_paths": ["//tmp/mapper.py"],
+                },
+            })
+
+        job_id1, = wait_breakpoint(job_count=1)
+
+        allocation_id = get_allocation_id_from_job_id(job_id1)
+
+        print_debug(f"First job is {job_id1}")
+
+        first_job_memory = 0
+
+        allocation_orchid_path = op.get_job_node_orchid_path(job_id1) + f"/exec_node/job_controller/allocations/{allocation_id}"
+
+        def check_overdraft():
+            nonlocal first_job_memory
+
+            orchid = get(allocation_orchid_path)
+
+            print_debug(f"Resource usage: {orchid["base_resource_usage"]}, initial resource demand: {orchid["initial_resource_demand"]}")
+
+            first_job_memory = orchid["base_resource_usage"]["user_memory"]
+
+            return orchid["base_resource_usage"]["user_memory"] > orchid["initial_resource_demand"]["user_memory"]
+
+        wait(check_overdraft)
+
+        release_breakpoint(job_id=job_id1)
+
+        job_id2, = wait_breakpoint(job_count=1)
+
+        print_debug(f"Second job is {job_id2}")
+
+        assert allocation_id == get_allocation_id_from_job_id(job_id2)
+
+        orchid = get(allocation_orchid_path)
+
+        print_debug(f"Job2 resource usage: {orchid["base_resource_usage"]}")
+
+        assert orchid["base_resource_usage"]["user_memory"] < first_job_memory
+        assert orchid["base_resource_usage"]["user_memory"] == orchid["initial_resource_demand"]["user_memory"]
 
         release_breakpoint()
 
