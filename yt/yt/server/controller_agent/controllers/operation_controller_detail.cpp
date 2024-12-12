@@ -10460,7 +10460,7 @@ void TOperationControllerBase::ValidateSchemaInferenceMode(ESchemaInferenceMode 
 {
     YT_VERIFY(OutputTables_.size() == 1);
     if (OutputTables_[0]->Dynamic && schemaInferenceMode != ESchemaInferenceMode::Auto) {
-        THROW_ERROR_EXCEPTION("Only schema inference mode %Qv is allowed for dynamic table in output",
+        THROW_ERROR_EXCEPTION("Only schema inference mode %Qlv is allowed for dynamic table in output",
             ESchemaInferenceMode::Auto);
     }
 }
