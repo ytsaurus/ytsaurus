@@ -21,6 +21,7 @@ TBriefJobInfo::TBriefJobInfo(
     TOperationId operationId,
     const TJobResources& baseResourceUsage,
     const TJobResources& additionalResourceUsage,
+    const TJobResources& initialResourceDemand,
     const std::vector<int>& jobPorts,
     const TJobEvents& jobEvents,
     const NControllerAgent::TCoreInfos& jobCoreInfos,
@@ -38,6 +39,7 @@ TBriefJobInfo::TBriefJobInfo(
     , JobStatistics_(jobStatistics)
     , BaseResourceUsage_(baseResourceUsage)
     , AdditionalResourceUsage_(additionalResourceUsage)
+    , InitialResourceDemand_(initialResourceDemand)
     , JobPorts_(jobPorts)
     , JobEvents_(jobEvents)
     , JobCoreInfos_(jobCoreInfos)
@@ -59,6 +61,7 @@ void TBriefJobInfo::BuildOrchid(TFluentMap fluent) const
         .OptionalItem("statistics", JobStatistics_)
         .Item("base_resource_usage").Value(BaseResourceUsage_)
         .Item("additional_resource_usage").Value(AdditionalResourceUsage_)
+        .Item("initial_resource_demand").Value(InitialResourceDemand_)
         .Item("job_ports").Value(JobPorts_)
         .Item("events").Value(JobEvents_)
         .Item("core_infos").Value(JobCoreInfos_)

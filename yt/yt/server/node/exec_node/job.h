@@ -277,6 +277,8 @@ private:
     TAllocationPtr Allocation_;
     NJobAgent::TResourceHolderPtr ResourceHolder_;
 
+    const NClusterNode::TJobResources InitialResourceDemand_;
+
     TControllerAgentDescriptor ControllerAgentDescriptor_;
     TWeakPtr<TControllerAgentConnectorPool::TControllerAgentConnector> ControllerAgentConnector_;
 

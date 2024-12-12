@@ -368,6 +368,21 @@ TError VerifyDominates(const TJobResources& lhs, const TJobResources& rhs, TStri
     return {};
 }
 
+TError VerifyEquals(const TJobResources& lhs, const TJobResources& rhs, TStringBuf failMessage)
+{
+    #define XX(name, Name) if (lhs.Name != rhs.Name) { \
+            return TError(TRuntimeFormat(failMessage)) \
+                << TErrorAttribute("resource_name", PP_STRINGIZE(name)) \
+                << TErrorAttribute("value", lhs.Name) \
+                << TErrorAttribute("expected_e_to", rhs.Name); \
+        }
+
+    ITERATE_JOB_RESOURCE_FIELDS(XX)
+    #undef XX
+
+    return {};
+}
+
 TJobResources Max(const TJobResources& a, const TJobResources& b)
 {
     TJobResources result;

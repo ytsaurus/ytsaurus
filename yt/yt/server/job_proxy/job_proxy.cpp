@@ -1407,6 +1407,7 @@ void TJobProxy::UpdateResourceUsage()
     resourceUsage->set_cpu(CpuGuarantee_);
     resourceUsage->set_network(NetworkUsage_);
     resourceUsage->set_memory(RequestedMemoryReserve_);
+    // TODO(pogorelov): Looks like reordering could happen here. Fix it.
     req->Invoke().Subscribe(BIND(&TJobProxy::OnResourcesUpdated, MakeWeak(this), RequestedMemoryReserve_.load()));
 }
 

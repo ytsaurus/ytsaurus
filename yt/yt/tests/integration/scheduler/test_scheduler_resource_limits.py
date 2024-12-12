@@ -23,7 +23,6 @@ import builtins
 ###############################################################################################
 
 MEMORY_SCRIPT = """
-#!/usr/bin/python
 import time
 
 from random import randint

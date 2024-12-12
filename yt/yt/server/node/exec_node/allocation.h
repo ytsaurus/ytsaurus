@@ -99,6 +99,8 @@ private:
     const double RequestedCpu_;
     const i64 RequestedMemory_;
 
+    const NClusterNode::TJobResources InitialResourceDemand_;
+
     // NB(arkady-e1ppa): "optional" is a COMPAT
     // Remove when scheduler and nodes both are 24.2.
     std::optional<NScheduler::TAllocationAttributes> Attributes_;
@@ -139,6 +141,8 @@ private:
     void PrepareAllocationFromAttributes(const NScheduler::TAllocationAttributes& attributes);
     void LegacyPrepareAllocationFromStartInfo(
         TControllerAgentConnectorPool::TControllerAgentConnector::TJobStartInfo& jobInfo);
+
+    NYTree::IYPathServicePtr GetStaticOrchidService();
 
     friend void FillStatus(NScheduler::NProto::TAllocationStatus* status, const TAllocationPtr& allocation);
 };
