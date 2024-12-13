@@ -12,6 +12,10 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+find_package(Python3 REQUIRED COMPONENTS
+  Development
+)
+
 add_library(python-driver-native INTERFACE)
 
 
@@ -29,6 +33,7 @@ target_link_libraries(python-driver-native INTERFACE
   python-driver-lib
   yt-yt-ytlib
   server-lib-chunk_pools
+  Python3::Module
 )
 
 
@@ -50,6 +55,7 @@ target_link_libraries(python-driver-native.global PUBLIC
   python-driver-lib
   yt-yt-ytlib
   server-lib-chunk_pools
+  Python3::Module
 )
 
 target_sources(python-driver-native.global PRIVATE

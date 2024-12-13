@@ -14,6 +14,10 @@
 
 find_package(linux-headers-generic REQUIRED)
 
+find_package(Python3 REQUIRED COMPONENTS
+  Development
+)
+
 add_library(python-driver-rpc INTERFACE)
 
 
@@ -29,6 +33,7 @@ target_link_libraries(python-driver-rpc INTERFACE
   contrib-libs-cxxsupp
   yutil
   python-driver-lib
+  Python3::Module
 )
 
 
@@ -48,6 +53,7 @@ target_link_libraries(python-driver-rpc.global PUBLIC
   contrib-libs-cxxsupp
   yutil
   python-driver-lib
+  Python3::Module
 )
 
 target_sources(python-driver-rpc.global PRIVATE
