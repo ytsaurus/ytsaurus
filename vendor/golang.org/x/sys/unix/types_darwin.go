@@ -256,17 +256,24 @@ type FdSet C.fd_set
 
 const (
 	SizeofIfMsghdr    = C.sizeof_struct_if_msghdr
+	SizeofIfMsghdr2   = C.sizeof_struct_if_msghdr2
 	SizeofIfData      = C.sizeof_struct_if_data
+	SizeofIfData64    = C.sizeof_struct_if_data64
 	SizeofIfaMsghdr   = C.sizeof_struct_ifa_msghdr
 	SizeofIfmaMsghdr  = C.sizeof_struct_ifma_msghdr
 	SizeofIfmaMsghdr2 = C.sizeof_struct_ifma_msghdr2
 	SizeofRtMsghdr    = C.sizeof_struct_rt_msghdr
+	SizeofRtMsghdr2   = C.sizeof_struct_rt_msghdr2
 	SizeofRtMetrics   = C.sizeof_struct_rt_metrics
 )
 
 type IfMsghdr C.struct_if_msghdr
 
+type IfMsghdr2 C.struct_if_msghdr2
+
 type IfData C.struct_if_data
+
+type IfData64 C.struct_if_data64
 
 type IfaMsghdr C.struct_ifa_msghdr
 
@@ -275,6 +282,8 @@ type IfmaMsghdr C.struct_ifma_msghdr
 type IfmaMsghdr2 C.struct_ifma_msghdr2
 
 type RtMsghdr C.struct_rt_msghdr
+
+type RtMsghdr2 C.struct_rt_msghdr2
 
 type RtMetrics C.struct_rt_metrics
 

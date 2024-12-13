@@ -68,6 +68,44 @@ func TestIoctlGetEthtoolDrvinfo(t *testing.T) {
 	}
 }
 
+func TestIoctlGetEthtoolTsInfo(t *testing.T) {
+	if runtime.GOOS == "android" {
+		t.Skip("ethtool driver info is not available on android, skipping test")
+	}
+
+	s, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0)
+	if err != nil {
+		t.Fatalf("failed to open socket: %v", err)
+	}
+	defer unix.Close(s)
+
+	ifis, err := net.Interfaces()
+	if err != nil {
+		t.Fatalf("failed to get network interfaces: %v", err)
+	}
+
+	// Print the interface name and associated PHC information for each
+	// network interface supported by ethtool.
+	for _, ifi := range ifis {
+		tsi, err := unix.IoctlGetEthtoolTsInfo(s, ifi.Name)
+		if err != nil {
+			if err == unix.EOPNOTSUPP {
+				continue
+			}
+
+			if err == unix.EBUSY {
+				// See https://go.dev/issues/67350
+				t.Logf("%s: ethtool driver busy, possible kernel bug", ifi.Name)
+				continue
+			}
+
+			t.Fatalf("failed to get ethtool PHC info for %q: %v", ifi.Name, err)
+		}
+
+		t.Logf("%s: ptp%d", ifi.Name, tsi.Phc_index)
+	}
+}
+
 func TestIoctlGetInt(t *testing.T) {
 	f, err := os.Open("/dev/random")
 	if err != nil {
@@ -299,15 +337,21 @@ func TestPpoll(t *testing.T) {
 
 	fds := []unix.PollFd{{Fd: int32(f.Fd()), Events: unix.POLLIN}}
 	timeoutTs := unix.NsecToTimespec(int64(timeout))
-	n, err := unix.Ppoll(fds, &timeoutTs, nil)
-	ok <- true
-	if err != nil {
-		t.Errorf("Ppoll: unexpected error: %v", err)
-		return
-	}
-	if n != 0 {
-		t.Errorf("Ppoll: wrong number of events: got %v, expected %v", n, 0)
-		return
+	for {
+		n, err := unix.Ppoll(fds, &timeoutTs, nil)
+		ok <- true
+		if err == unix.EINTR {
+			t.Log("Ppoll interrupted")
+			continue
+		} else if err != nil {
+			t.Errorf("Ppoll: unexpected error: %v", err)
+			return
+		}
+		if n != 0 {
+			t.Errorf("Ppoll: wrong number of events: got %v, expected %v", n, 0)
+			return
+		}
+		break
 	}
 }
 
