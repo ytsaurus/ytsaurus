@@ -258,7 +258,7 @@ public:
         return SchedulerConnector_;
     }
 
-    IThroughputThrottlerPtr GetThrottler(EExecNodeThrottlerKind kind, EExecNodeThrottlerTrafficType trafficType, std::optional<TClusterName> remoteClusterName) const override
+    IThroughputThrottlerPtr GetThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType trafficType, std::optional<TClusterName> remoteClusterName) const override
     {
         return ThrottlerManager_->GetOrCreateThrottler(kind, trafficType, std::move(remoteClusterName));
     }

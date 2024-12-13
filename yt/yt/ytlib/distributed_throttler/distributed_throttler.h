@@ -16,18 +16,6 @@ namespace NYT::NDistributedThrottler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TThrottlerId = TString;
-
-struct TThrottlerGlobalData
-{
-    double Rate = 0.0;
-    double Limit = 0.0;
-    i64 QueueByteSize = 0;
-    i64 QueueEstimatedOverrunDuration = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct IDistributedThrottlerFactory
     : public virtual TRefCounted
 {
@@ -38,8 +26,8 @@ struct IDistributedThrottlerFactory
 
     virtual void Reconfigure(TDistributedThrottlerConfigPtr config) = 0;
 
-    //! Only leader has non empty throttlers global data.
-    virtual std::shared_ptr<THashMap<TThrottlerId, TThrottlerGlobalData>> GetThrottlersGlobalData() const = 0;
+    //! Only the leader has non empty throttler usages collected over all members.
+    virtual std::shared_ptr<const THashMap<TThrottlerId, TThrottlerUsage>> GetThrottlerToTotalUsage() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDistributedThrottlerFactory)
