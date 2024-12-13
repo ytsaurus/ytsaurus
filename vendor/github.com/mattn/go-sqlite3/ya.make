@@ -2,7 +2,7 @@ GO_LIBRARY(sqlite3)
 
 LICENSE(MIT)
 
-VERSION(v1.14.16)
+VERSION(v1.14.24)
 
 NO_COMPILER_WARNINGS()
 
@@ -30,10 +30,10 @@ GO_TEST_SRCS(
     callback_test.go
     error_test.go
     sqlite3_func_crypt_test.go
-    sqlite3_go113_test.go
     sqlite3_go18_test.go
     sqlite3_load_extension_test.go
     sqlite3_opt_fts3_test.go
+    sqlite3_opt_serialize_test.go
     sqlite3_test.go
 )
 
@@ -45,6 +45,7 @@ IF (CGO_ENABLED)
         sqlite3.go
         sqlite3_context.go
         sqlite3_load_extension.go
+        sqlite3_opt_serialize.go
         sqlite3_opt_userauth_omit.go
         sqlite3_type.go
     )
