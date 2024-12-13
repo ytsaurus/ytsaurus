@@ -45,6 +45,12 @@ struct IChunkReplicaFetcher
         std::vector<NObjectServer::TEphemeralObjectPtr<TChunk>> chunks,
         bool includeUnapproved = false) const = 0;
 
+    using TChunkToMediumPtrWithReplicaInfoList = THashMap<TChunkId, TMediumPtrWithReplicaInfoList>;
+    virtual TMediumPtrWithReplicaInfoList GetOffshoreChunkReplicas(
+        const NObjectServer::TEphemeralObjectPtr<TChunk>& chunks) const = 0;
+    virtual TChunkToMediumPtrWithReplicaInfoList GetOffshoreChunkReplicas(
+        const std::vector<NObjectServer::TEphemeralObjectPtr<TChunk>>& chunks) const = 0;
+
     virtual TFuture<std::vector<TNodeId>> GetLastSeenReplicas(
         const NObjectServer::TEphemeralObjectPtr<TChunk>& chunk) const = 0;
 

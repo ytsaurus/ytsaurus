@@ -29,6 +29,8 @@
 
 #include <yt/yt/library/erasure/public.h>
 
+#include <yt/yt/library/s3/config.h>
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -256,6 +258,36 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkTeleporterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! NB: This class is part of master snapshots, consider reign promotion when changing it.
+class TS3MediumConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! Url of the S3 server, for example, http://my_bucket.s3.amazonaws.com
+    TString Url;
+
+    //! Name of the region.
+    //! In some of the S3 implementations it is already included into
+    //! address, in some not.
+    TString Region;
+
+    //! Credentials.
+    TString AccessKeyId;
+    TString SecretAccessKey;
+
+    //! Name of the bucket to use.
+    TString Bucket;
+    // TODO(achulkov2): Add prefix to use for storing chunks.
+
+    REGISTER_YSON_STRUCT(TS3MediumConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TS3MediumConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

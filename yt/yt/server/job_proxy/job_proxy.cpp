@@ -44,6 +44,7 @@
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 #include <yt/yt/ytlib/chunk_client/traffic_meter.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
@@ -865,6 +866,12 @@ TJobResult TJobProxy::RunJob()
         Client_ = clusterConnection->CreateNativeClient(TClientOptions::FromUser(GetAuthenticatedUser()));
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
+
+        if (Config_->SyncMediumDirectoryOnStart) {
+            YT_LOG_DEBUG("Scheduling forced memory directory synchronization");
+            WaitFor(clusterConnection->GetMediumDirectorySynchronizer()->NextSync(/*force*/ true))
+                .ThrowOnError();
+        }
 
         PackBaggageFromJobSpec(RootSpan_, JobSpecHelper_->GetJobSpec(), OperationId_, JobId_, GetJobSpecHelper()->GetJobType());
 

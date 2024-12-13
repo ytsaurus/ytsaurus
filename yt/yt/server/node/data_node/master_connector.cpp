@@ -192,7 +192,7 @@ public:
             const auto& location = chunk->GetLocation();
             if (location->CanPublish() && CellTagFromId(chunk->GetId()) == cellTag) {
                 *req->add_chunks() = BuildAddChunkInfo(chunk, &locationDirectory);
-                auto mediumIndex = chunk->GetLocation()->GetMediumDescriptor().Index;
+                auto mediumIndex = chunk->GetLocation()->GetMediumDescriptor()->GetIndex();
                 ++perMediumChunkCounts[mediumIndex];
                 ++perLocationChunkCounts[location->GetUuid()];
                 ++storedChunkCount;
@@ -1097,7 +1097,7 @@ private:
                 continue;
             }
 
-            auto mediumIndex = location->GetMediumDescriptor().Index;
+            auto mediumIndex = location->GetMediumDescriptor()->GetIndex();
 
             if (mediumIndex == GenericMediumIndex) {
                 continue;
@@ -1183,7 +1183,7 @@ private:
         TChunkAddInfo chunkAddInfo;
 
         ToProto(chunkAddInfo.mutable_chunk_id(), chunk->GetId());
-        chunkAddInfo.set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
+        chunkAddInfo.set_medium_index(chunk->GetLocation()->GetMediumDescriptor()->GetIndex());
         chunkAddInfo.set_active(chunk->IsActive());
         chunkAddInfo.set_sealed(chunk->GetInfo().sealed());
 
@@ -1209,7 +1209,7 @@ private:
         TChunkRemoveInfo chunkRemoveInfo;
 
         ToProto(chunkRemoveInfo.mutable_chunk_id(), chunk->GetId());
-        chunkRemoveInfo.set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
+        chunkRemoveInfo.set_medium_index(chunk->GetLocation()->GetMediumDescriptor()->GetIndex());
 
         auto locationUuid = chunk->GetLocation()->GetUuid();
         chunkRemoveInfo.set_location_index(locationDirectory->GetOrCreateIndex(locationUuid));

@@ -27,7 +27,6 @@
 #include <util/generic/cast.h>
 
 namespace NYT::NChunkClient {
-
 using namespace NApi;
 using namespace NApi::NNative;
 using namespace NChunkClient;
@@ -242,6 +241,7 @@ void TMasterChunkSpecFetcher::DoFetchFromCell(TCellTag cellTag)
         if (NodeDirectory_) {
             NodeDirectory_->MergeFrom(rsp->node_directory());
         }
+        // TODO(achulkov2): [PLater] Populate medium directory in a similar fashion.
     }
 
     for (auto& chunkSpec : cellState.ChunkSpecs) {

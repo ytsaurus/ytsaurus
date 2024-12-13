@@ -178,6 +178,7 @@ public:
     bool HasParents() const;
 
     TRange<TChunkLocationPtrWithReplicaInfo> StoredReplicas() const;
+    TRange<TMediumPtrWithReplicaInfo> StoredOffshoreReplicas() const;
 
     //! For non-erasure chunks, contains a FIFO queue of seen replicas; its tail position is kept in #CurrentLastSeenReplicaIndex_.
     //! For erasure chunks, this array is directly addressed by replica indexes; at most one replica is kept per part.
@@ -188,6 +189,9 @@ public:
         const TDomesticMedium* medium,
         bool approved);
     void RemoveReplica(TChunkLocationPtrWithReplicaIndex replica, bool approved);
+
+    void AddOffshoreReplica(
+        TMediumPtrWithReplicaInfo replica);
 
     void ApproveReplica(TChunkLocationPtrWithReplicaInfo replica);
     int GetApprovedReplicaCount() const;
@@ -503,6 +507,16 @@ private:
     static_assert(ErasureChunkLastSeenReplicaCount >= ::NErasure::MaxTotalPartCount, "ErasureChunkLastSeenReplicaCount < NErasure::MaxTotalPartCount");
     using TErasureChunkReplicasData = TReplicasData<ErasureChunkTypicalReplicaCount, ErasureChunkLastSeenReplicaCount>;
 
+    struct TOffshoreReplicasData
+    {
+        using TStoredReplicas = TCompactVector<TMediumPtrWithReplicaInfo, 1>;
+
+        TStoredReplicas StoredReplicas;
+
+        void Load(NCellMaster::TLoadContext& context);
+        void Save(NCellMaster::TSaveContext& context) const;
+    };
+
     // COMPAT(gritukan)
     static constexpr int OldLastSeenReplicaCount = 16;
 
@@ -511,11 +525,18 @@ private:
     //! It also separates relatively mutable data from static one,
     //! which helps to avoid excessive CoW during snapshot construction.
     std::unique_ptr<TReplicasDataBase> ReplicasData_;
-
+    // TODO(achulkov2): [PLater] The decision to separate offshore replicas is
+    // not final. Ideally, we should store a single flat list of all replicas.
+    // However, it is much more complex and I haven't worked it out yet.
+    std::unique_ptr<TOffshoreReplicasData> OffshoreReplicasData_;
+    
     TChunkRequisition ComputeAggregatedRequisition(const TChunkRequisitionRegistry* registry);
 
     const TReplicasDataBase& ReplicasData() const;
     TReplicasDataBase* MutableReplicasData();
+
+    const TOffshoreReplicasData& OffshoreReplicasData() const;
+    TOffshoreReplicasData* MutableOffshoreReplicasData();
 
     void UpdateAggregatedRequisitionIndex(
         TChunkRequisitionRegistry* registry,
@@ -532,7 +553,7 @@ private:
 DEFINE_MASTER_OBJECT_TYPE(TChunk)
 
 // Think twice before increasing this.
-YT_STATIC_ASSERT_SIZEOF_SANITY(TChunk, 288);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TChunk, 296);
 
 ////////////////////////////////////////////////////////////////////////////////
 

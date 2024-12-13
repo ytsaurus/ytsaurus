@@ -25,6 +25,19 @@ std::string TDomesticMedium::GetCapitalizedObjectName() const
     return Format("Domestic medium %Qv", GetName());
 }
 
+std::string TDomesticMedium::GetMediumType() const
+{
+    return "domestic";
+}
+
+void TDomesticMedium::FillMediumDescriptor(NChunkClient::NProto::TMediumDirectory::TMediumDescriptor* protoItem) const
+{
+    TMedium::FillMediumDescriptor(protoItem);
+
+    // Nothing to be filled, just creating an empty message.
+    Y_UNUSED(protoItem->mutable_domestic_medium_descriptor());
+}
+
 void TDomesticMedium::Save(NCellMaster::TSaveContext& context) const
 {
     TMedium::Save(context);

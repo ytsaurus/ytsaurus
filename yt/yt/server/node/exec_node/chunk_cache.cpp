@@ -30,7 +30,7 @@
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
-#include <yt/yt/ytlib/chunk_client/replication_reader.h>
+#include <yt/yt/ytlib/chunk_client/physical_chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/block_fetcher.h>
 
 #include <yt/yt/ytlib/file_client/file_chunk_reader.h>
@@ -997,7 +997,7 @@ private:
                 /*mediumThrottler*/ GetUnlimitedThrottler(),
                 artifactDownloadOptions.TrafficMeter);
 
-            auto chunkReader = CreateReplicationReader(
+            auto chunkReader = CreatePhysicalChunkReader(
                 artifactCacheReaderConfig,
                 remoteReaderOptions,
                 std::move(chunkReaderHost),

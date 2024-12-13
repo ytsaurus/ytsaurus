@@ -1,45 +1,52 @@
 #include "medium_directory.h"
-
-#include <yt/yt/core/misc/error.h>
-
-#include <yt/yt/core/ytree/fluent.h>
+#include "medium_descriptor.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h>
 
+#include <yt/yt/core/misc/error.h>
+
+#include <yt/yt/core/ytree/fluent.h>
+
 namespace NYT::NChunkClient {
 
+using NYT::ToProto;
+using NYT::FromProto;
+
 using namespace NConcurrency;
+using namespace NObjectClient;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TMediumDescriptor* TMediumDirectory::FindByIndex(int index) const
+TMediumDescriptorPtr TMediumDirectory::FindByIndex(int index) const
 {
     auto guard = ReaderGuard(SpinLock_);
     auto it = IndexToDescriptor_.find(index);
     return it == IndexToDescriptor_.end() ? nullptr : it->second;
 }
 
-const TMediumDescriptor* TMediumDirectory::GetByIndexOrThrow(int index) const
+TMediumDescriptorPtr TMediumDirectory::GetByIndexOrThrow(int index) const
 {
-    const auto* result = FindByIndex(index);
+    auto result = FindByIndex(index);
     if (!result) {
         THROW_ERROR_EXCEPTION("No such medium %v", index);
     }
     return result;
 }
 
-const TMediumDescriptor* TMediumDirectory::FindByName(const TString& name) const
+TMediumDescriptorPtr TMediumDirectory::FindByName(const TString& name) const
 {
     auto guard = ReaderGuard(SpinLock_);
     auto it = NameToDescriptor_.find(name);
-    return it == NameToDescriptor_.end() ? nullptr : it->second;
+    return it == NameToDescriptor_.end() ? nullptr : it->second->second;
 }
 
-const TMediumDescriptor* TMediumDirectory::GetByNameOrThrow(const TString& name) const
+TMediumDescriptorPtr TMediumDirectory::GetByNameOrThrow(const TString& name) const
 {
-    const auto* result = FindByName(name);
+    auto result = FindByName(name);
     if (!result) {
         THROW_ERROR_EXCEPTION("No such medium %Qv", name);
     }
@@ -57,30 +64,32 @@ std::vector<int> TMediumDirectory::GetMediumIndexes() const
     return result;
 }
 
+TString TMediumDirectory::GetMediumName(int index) const
+{
+    auto descriptor = FindByIndex(index);
+    return descriptor ? descriptor->GetName() : TString("unknown");
+}
+
 void TMediumDirectory::LoadFrom(const NProto::TMediumDirectory& protoDirectory)
 {
     auto guard = WriterGuard(SpinLock_);
+
     auto oldIndexToDescriptor = std::move(IndexToDescriptor_);
     IndexToDescriptor_.clear();
     NameToDescriptor_.clear();
-    for (const auto& protoItem : protoDirectory.items()) {
-        TMediumDescriptor descriptor;
-        descriptor.Name = protoItem.name();
-        descriptor.Index = protoItem.index();
-        descriptor.Priority = protoItem.priority();
+    for (const auto& protoMediumDescriptor : protoDirectory.medium_descriptors()) {
+        auto descriptor = TMediumDescriptor::CreateFromProto(protoMediumDescriptor);
 
-        const TMediumDescriptor* descriptorPtr;
-        auto it = oldIndexToDescriptor.find(descriptor.Index);
-        if (it == oldIndexToDescriptor.end() || *it->second != descriptor) {
-            auto descriptorHolder = std::make_unique<TMediumDescriptor>(descriptor);
-            descriptorPtr = descriptorHolder.get();
-            Descriptors_.emplace_back(std::move(descriptorHolder));
-        } else {
-            descriptorPtr = it->second;
+        // Let's keep the same pointer if the medium configuration did not change since the descriptor
+        // sometimes caches things, e.g. S3 client in S3 medium descriptor.
+        auto oldIt = oldIndexToDescriptor.find(descriptor->GetIndex());
+        if (oldIt != oldIndexToDescriptor.end() && *oldIt->second == *descriptor) {
+            descriptor = std::move(oldIt->second);
         }
 
-        YT_VERIFY(IndexToDescriptor_.emplace(descriptor.Index, descriptorPtr).second);
-        YT_VERIFY(NameToDescriptor_.emplace(descriptor.Name, descriptorPtr).second);
+        auto [it, inserted] = IndexToDescriptor_.emplace(descriptor->GetIndex(), descriptor);
+        YT_VERIFY(inserted);
+        EmplaceOrCrash(NameToDescriptor_, descriptor->GetName(), it);
     }
 }
 
@@ -89,7 +98,6 @@ void TMediumDirectory::Clear()
     auto guard = WriterGuard(SpinLock_);
     IndexToDescriptor_.clear();
     NameToDescriptor_.clear();
-    Descriptors_.clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -97,19 +105,17 @@ void TMediumDirectory::Clear()
 void Serialize(const TMediumDirectoryPtr& mediumDirectory, NYson::IYsonConsumer* consumer)
 {
     if (!mediumDirectory) {
-        NYTree::BuildYsonFluently(consumer)
+        BuildYsonFluently(consumer)
             .BeginMap()
             .EndMap();
         return;
     }
-    NYTree::BuildYsonFluently(consumer)
+    BuildYsonFluently(consumer)
         .BeginMap()
             .DoFor(mediumDirectory->GetMediumIndexes(), [&] (auto fluent, int mediumIndex) {
-                auto* descriptor = mediumDirectory->FindByIndex(mediumIndex);
+                auto descriptor = mediumDirectory->FindByIndex(mediumIndex);
                 if (descriptor) {
-                    fluent.Item(descriptor->Name).BeginMap()
-                        .Item("index").Value(descriptor->Index)
-                    .EndMap();
+                    fluent.Item(descriptor->GetName()).Value(descriptor);
                 }
             })
         .EndMap();

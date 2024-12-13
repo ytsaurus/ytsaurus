@@ -267,6 +267,7 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromTractoReign(NHydra::TReign re
 
 DEFINE_ENUM(ETractoMasterReign,
     ((Start_24_2)                                                   (2700))  // faucct
+    ((OffshoreReplicas)                                             (2701))  // achulkov2
 );
 
 static_assert(TEnumTraits<ETractoMasterReign>::IsMonotonic, "Tracto Master reign enum is not monotonic");

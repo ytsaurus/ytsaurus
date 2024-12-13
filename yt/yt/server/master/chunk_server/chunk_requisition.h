@@ -389,8 +389,8 @@ public:
     bool GetVital() const;
     void SetVital(bool vital);
 
-    //! Sets the specified RF to all the entries. RF must be positive.
-    void ForceReplicationFactor(int replicationFactor);
+    //! Sets RF=1 for all entries on offshore media and for all entries of erasure chunks.
+    void CorrectReplicationFactor(const IChunkManagerPtr& chunkManager, bool isErasureChunk);
 
     //! Aggregates this with #rhs ORing vitalities and merging entries.
     TChunkRequisition& operator|=(const TChunkRequisition& rhs);

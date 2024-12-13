@@ -31,6 +31,12 @@ IChunkReaderAllowingRepairPtr CreateReplicationReaderThrottlingAdapter(
     NConcurrency::IThroughputThrottlerPtr rpsThrottler,
     NConcurrency::IThroughputThrottlerPtr mediumThrottler);
 
+IChunkReaderAllowingRepairPtr TryCreateReplicationReaderThrottlingAdapter(
+    const IChunkReaderPtr& underlyingReader,
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler,
+    NConcurrency::IThroughputThrottlerPtr mediumThrottler);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient
