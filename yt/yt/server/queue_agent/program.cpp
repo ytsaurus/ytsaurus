@@ -5,8 +5,6 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
-#include <yt/yt/library/program/program_config_mixin.h>
-
 #include <yt/yt/ytlib/program/native_singletons.h>
 
 namespace NYT::NQueueAgent {
@@ -14,12 +12,10 @@ namespace NYT::NQueueAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueueAgentProgram
-    : public TServerProgram
-    , public TProgramConfigMixin<TQueueAgentServerConfig>
+    : public TServerProgram<TQueueAgentServerConfig>
 {
 public:
     TQueueAgentProgram()
-        : TProgramConfigMixin(Opts_)
     {
         SetMainThreadName("QueueAgent");
     }

@@ -8,12 +8,15 @@
 
 #include <yt/yt/library/dynamic_config/public.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 namespace NYT::NKafkaProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TKafkaProxyConfig
     : public TNativeServerConfig
+    , public TServerProgramConfig
 {
 public:
     //! Kafka proxy will listen on this port.

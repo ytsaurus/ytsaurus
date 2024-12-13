@@ -5,8 +5,6 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
-#include <yt/yt/library/program/program_config_mixin.h>
-
 #include <yt/yt/ytlib/program/native_singletons.h>
 
 namespace NYT::NCypressProxy {
@@ -14,12 +12,10 @@ namespace NYT::NCypressProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressProxyProgram
-    : public TServerProgram
-    , public TProgramConfigMixin<TCypressProxyConfig>
+    : public TServerProgram<TCypressProxyConfig>
 {
 public:
     TCypressProxyProgram()
-        : TProgramConfigMixin(Opts_)
     {
         SetMainThreadName("CypressProxy");
     }

@@ -19,6 +19,8 @@
 
 #include <yt/yt/library/dynamic_config/config.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 #include <yt/yt/library/auth_server/public.h>
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
@@ -265,6 +267,7 @@ DEFINE_REFCOUNTED_TYPE(TProxyMemoryLimitsConfig)
 
 class TProxyConfig
     : public TNativeServerConfig
+    , public TServerProgramConfig
 {
 public:
     int Port;

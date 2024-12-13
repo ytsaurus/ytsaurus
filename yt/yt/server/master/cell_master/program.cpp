@@ -9,8 +9,6 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
-#include <yt/yt/library/program/program_config_mixin.h>
-
 #include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/core/misc/fs.h>
@@ -24,12 +22,10 @@ namespace NYT::NCellMaster {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellMasterProgram
-    : public TServerProgram
-    , public TProgramConfigMixin<NCellMaster::TCellMasterConfig>
+    : public TServerProgram<NCellMaster::TCellMasterConfig>
 {
 public:
     TCellMasterProgram()
-        : TProgramConfigMixin(Opts_)
     {
         Opts_
             .AddLongOption("dump-snapshot", "dump master snapshot and exit")

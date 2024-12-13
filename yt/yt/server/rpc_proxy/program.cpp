@@ -10,19 +10,15 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
-#include <yt/yt/library/program/program_config_mixin.h>
-
 namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRpcProxyProgram
-    : public TServerProgram
-    , public TProgramConfigMixin<NRpcProxy::TProxyConfig>
+    : public TServerProgram<NRpcProxy::TProxyConfig>
 {
 public:
     TRpcProxyProgram()
-        : TProgramConfigMixin(Opts_)
     {
         Opts_
             .AddLongOption(

@@ -18,6 +18,8 @@
 
 #include <yt/yt/library/dynamic_config/config.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -190,6 +192,7 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentShardingManagerDynamicConfig)
 
 class TQueueAgentServerConfig
     : public TNativeServerConfig
+    , public TServerProgramConfig
 {
 public:
     TQueueAgentConfigPtr QueueAgent;

@@ -5,8 +5,6 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
-#include <yt/yt/library/program/program_config_mixin.h>
-
 #include <yt/yt/ytlib/program/native_singletons.h>
 
 namespace NYT::NMasterCache {
@@ -14,12 +12,10 @@ namespace NYT::NMasterCache {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterCacheProgram
-    : public TServerProgram
-    , public TProgramConfigMixin<TMasterCacheConfig>
+    : public TServerProgram<TMasterCacheConfig>
 {
 public:
     TMasterCacheProgram()
-        : TProgramConfigMixin(Opts_)
     {
         SetMainThreadName("MasterCache");
     }

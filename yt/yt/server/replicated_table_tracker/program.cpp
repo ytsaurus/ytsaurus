@@ -5,8 +5,6 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
-#include <yt/yt/library/program/program_config_mixin.h>
-
 #include <yt/yt/ytlib/program/native_singletons.h>
 
 namespace NYT::NReplicatedTableTracker {
@@ -14,12 +12,10 @@ namespace NYT::NReplicatedTableTracker {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReplicatedTableTrackerProgram
-    : public TServerProgram
-    , public TProgramConfigMixin<TReplicatedTableTrackerServerConfig>
+    : public TServerProgram<TReplicatedTableTrackerServerConfig>
 {
 public:
     TReplicatedTableTrackerProgram()
-        : TProgramConfigMixin(Opts_)
     {
         SetMainThreadName("RttMain");
     }

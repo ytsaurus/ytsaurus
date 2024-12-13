@@ -22,11 +22,6 @@ public:
 
     NAuth::TNativeAuthenticationManagerConfigPtr NativeAuthenticationManager;
 
-    bool EnablePortoResourceTracker;
-    NContainers::TPodSpecConfigPtr PodSpec;
-
-    NDiskManager::THotswapManagerConfigPtr HotswapManager;
-
     REGISTER_YSON_STRUCT(TNativeSingletonsConfig);
 
     static void Register(TRegistrar registrar);

@@ -12,6 +12,8 @@
 
 #include <yt/yt/library/dynamic_config/config.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 #include <yt/yt/core/bus/tcp/config.h>
 
 namespace NYT::NCypressProxy {
@@ -20,6 +22,7 @@ namespace NYT::NCypressProxy {
 
 class TCypressProxyConfig
     : public TNativeServerConfig
+    , public TServerProgramConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;

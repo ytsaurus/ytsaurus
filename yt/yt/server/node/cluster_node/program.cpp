@@ -19,8 +19,6 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
-#include <yt/yt/library/program/program_config_mixin.h>
-
 #include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
@@ -38,12 +36,10 @@ static const TString FakeBundleName = "fake-bundle";
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterNodeProgram
-    : public TServerProgram
-    , public TProgramConfigMixin<NClusterNode::TClusterNodeConfig, NClusterNode::TClusterNodeDynamicConfig>
+    : public TServerProgram<NClusterNode::TClusterNodeConfig, NClusterNode::TClusterNodeDynamicConfig>
 {
 public:
     TClusterNodeProgram()
-        : TProgramConfigMixin(Opts_, false)
     {
         Opts_
             .AddLongOption("dump-snapshot", "dump tablet cell snapshot and exit")

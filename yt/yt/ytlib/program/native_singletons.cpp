@@ -46,14 +46,6 @@ public:
 
         NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher);
         NAuth::TNativeAuthenticationManager::Get()->Configure(config->NativeAuthenticationManager);
-
-        if (config->EnablePortoResourceTracker) {
-            NContainers::EnablePortoResourceTracker(config->PodSpec);
-        }
-
-        if (config->HotswapManager) {
-            NDiskManager::THotswapManager::Configure(config->HotswapManager);
-        }
     }
 
     void ReconfigureNativeSingletons(const TNativeSingletonsDynamicConfigPtr& dynamicConfig)

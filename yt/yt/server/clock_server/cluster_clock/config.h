@@ -16,6 +16,8 @@
 
 #include <yt/yt/ytlib/hive/config.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 #include <yt/yt/core/bus/tcp/config.h>
 
 #include <yt/yt/core/rpc/config.h>
@@ -42,6 +44,7 @@ DEFINE_REFCOUNTED_TYPE(TClockHydraManagerConfig)
 
 class TClusterClockConfig
     : public TServerConfig
+    , public TServerProgramConfig
 {
 public:
     NElection::TCellConfigPtr ClockCell;

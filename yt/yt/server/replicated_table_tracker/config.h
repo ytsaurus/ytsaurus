@@ -10,12 +10,15 @@
 
 #include <yt/yt/library/dynamic_config/config.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 namespace NYT::NReplicatedTableTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReplicatedTableTrackerServerConfig
     : public TNativeServerConfig
+    , public TServerProgramConfig
 {
 public:
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;

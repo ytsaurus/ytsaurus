@@ -35,6 +35,8 @@
 
 #include <yt/yt/library/dynamic_config/public.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
 #include <yt/yt/library/containers/public.h>
@@ -301,6 +303,7 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
 
 class TClusterNodeConfig
     : public TNativeServerConfig
+    , public TServerProgramConfig
 {
 public:
     //! Interval between Orchid cache rebuilds.

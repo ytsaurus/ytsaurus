@@ -5,8 +5,6 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
-#include <yt/yt/library/program/program_config_mixin.h>
-
 #include <yt/yt/ytlib/program/native_singletons.h>
 
 namespace NYT::NKafkaProxy {
@@ -14,12 +12,10 @@ namespace NYT::NKafkaProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TKafkaProxyProgram
-    : public TServerProgram
-    , public TProgramConfigMixin<TKafkaProxyConfig>
+    : public TServerProgram<TKafkaProxyConfig>
 {
 public:
     TKafkaProxyProgram()
-        : TProgramConfigMixin(Opts_)
     {
         SetMainThreadName("KafkaProxy");
     }

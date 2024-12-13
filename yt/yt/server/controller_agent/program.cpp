@@ -11,19 +11,15 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
-#include <yt/yt/library/program/program_config_mixin.h>
-
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TControllerAgentProgram
-    : public TServerProgram
-    , public TProgramConfigMixin<TControllerAgentBootstrapConfig>
+    : public TServerProgram<TControllerAgentBootstrapConfig>
 {
 public:
     TControllerAgentProgram()
-        : TProgramConfigMixin(Opts_)
     {
         Opts_
             .AddLongOption(
