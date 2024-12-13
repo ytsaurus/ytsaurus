@@ -427,7 +427,7 @@ if job_index == 0:
 
             orchid = get(allocation_orchid_path)
 
-            print_debug(f"Resource usage: {orchid["base_resource_usage"]}, initial resource demand: {orchid["initial_resource_demand"]}")
+            print_debug("Resource usage: {}, initial resource demand: {}".format(orchid["base_resource_usage"], orchid["initial_resource_demand"]))
 
             first_job_memory = orchid["base_resource_usage"]["user_memory"]
 
@@ -445,7 +445,7 @@ if job_index == 0:
 
         orchid = get(allocation_orchid_path)
 
-        print_debug(f"Job2 resource usage: {orchid["base_resource_usage"]}")
+        print_debug("Job2 resource usage: {}".format(orchid["base_resource_usage"]))
 
         assert orchid["base_resource_usage"]["user_memory"] < first_job_memory
         assert orchid["base_resource_usage"]["user_memory"] == orchid["initial_resource_demand"]["user_memory"]
