@@ -14,10 +14,6 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-find_package(Python3 REQUIRED COMPONENTS
-  Development
-)
-
 add_library(contrib-libs-pycxx)
 
 
@@ -36,7 +32,6 @@ target_include_directories(contrib-libs-pycxx PRIVATE
 target_link_libraries(contrib-libs-pycxx PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
-  Python3::Module
 )
 
 target_sources(contrib-libs-pycxx PRIVATE

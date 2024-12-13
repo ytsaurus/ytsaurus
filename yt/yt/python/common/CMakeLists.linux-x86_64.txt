@@ -14,10 +14,6 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-find_package(Python3 REQUIRED COMPONENTS
-  Development
-)
-
 add_library(yt-python-common)
 
 
@@ -38,7 +34,6 @@ target_link_libraries(yt-python-common PUBLIC
   yutil
   yt-yt-core
   contrib-libs-pycxx
-  Python3::Module
 )
 
 target_sources(yt-python-common PRIVATE

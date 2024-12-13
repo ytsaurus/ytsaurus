@@ -12,10 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(Python3 REQUIRED COMPONENTS
-  Development
-)
-
 add_library(contrib-libs-pycxx)
 
 
@@ -33,7 +29,6 @@ target_include_directories(contrib-libs-pycxx PRIVATE
 
 target_link_libraries(contrib-libs-pycxx PUBLIC
   contrib-libs-cxxsupp
-  Python3::Module
 )
 
 target_sources(contrib-libs-pycxx PRIVATE

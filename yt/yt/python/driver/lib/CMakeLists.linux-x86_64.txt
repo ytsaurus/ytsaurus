@@ -14,10 +14,6 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-find_package(Python3 REQUIRED COMPONENTS
-  Development
-)
-
 add_library(python-driver-lib)
 
 
@@ -42,7 +38,6 @@ target_link_libraries(python-driver-lib PUBLIC
   yt-python-common
   yt-python-yson
   contrib-libs-pycxx
-  Python3::Module
 )
 
 target_sources(python-driver-lib PRIVATE

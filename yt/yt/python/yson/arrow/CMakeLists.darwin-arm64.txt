@@ -12,10 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(Python3 REQUIRED COMPONENTS
-  Development
-)
-
 add_library(python-yson-arrow INTERFACE)
 
 
@@ -38,7 +34,6 @@ target_link_libraries(python-yson-arrow INTERFACE
   cpp-yson-node
   contrib-libs-pycxx
   libs-apache-arrow
-  Python3::Module
 )
 
 
@@ -65,7 +60,6 @@ target_link_libraries(python-yson-arrow.global PUBLIC
   cpp-yson-node
   contrib-libs-pycxx
   libs-apache-arrow
-  Python3::Module
 )
 
 target_sources(python-yson-arrow.global PRIVATE

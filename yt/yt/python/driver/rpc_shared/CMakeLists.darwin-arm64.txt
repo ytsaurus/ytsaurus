@@ -12,10 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(Python3 REQUIRED COMPONENTS
-  Development
-)
-
 add_shared_library(driver_rpc_lib)
 
 
@@ -29,7 +25,6 @@ target_compile_options(driver_rpc_lib PRIVATE
 target_link_libraries(driver_rpc_lib PUBLIC
   contrib-libs-cxxsupp
   yutil
-  Python3::Module
   python-driver-rpc
 )
 
