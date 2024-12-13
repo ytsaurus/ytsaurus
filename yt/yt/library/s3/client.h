@@ -300,4 +300,13 @@ IClientPtr CreateClient(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Wraps client with retries according to provided backoff options and retry checker.
+IClientPtr CreateRetryingClient(
+    IClientPtr underlyingClient,
+    TExponentialBackoffOptions backoffOptions,
+    IInvokerPtr executionInvoker,
+    TCallback<bool(const TError&)> retryChecker = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NS3

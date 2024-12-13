@@ -4,6 +4,9 @@
 
 #include <yt/yt/core/net/address.h>
 
+#include <yt/yt/core/misc/backoff_strategy.h>
+#include <yt/yt/core/misc/config.h>
+
 #include <library/cpp/string_utils/base64/base64.h>
 
 namespace NYT::NS3 {
@@ -299,6 +302,7 @@ public:
         , ExecutionInvoker_(std::move(executionInvoker))
     { }
 
+    // TODO(achulkov2): Add validation in methods that client is started. Do not do extra work when client is started twice. Expose started flag?
     TFuture<void> Start() override
     {
         auto urlRef = NHttp::ParseUrl(Config_->Url);
@@ -379,6 +383,7 @@ private:
         return error;
     }
 
+    // TODO(achulkov2): How receptive is this to cancellations?
     template <class TCommandResponse, class TCommandRequest>
     TFuture<TCommandResponse> SendCommand(const TCommandRequest& request)
     {
@@ -432,6 +437,111 @@ IClientPtr CreateClient(
         std::move(config),
         std::move(poller),
         std::move(executionInvoker));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRetryingClient
+    : public IClient
+{
+public:
+    TRetryingClient(
+        IClientPtr underlyingClient,
+        TExponentialBackoffOptions backoffOptions,
+        IInvokerPtr executionInvoker,
+        TCallback<bool(const TError&)> retryChecker)
+        : UnderlyingClient_(std::move(underlyingClient))
+        , BackoffOptions_(std::move(backoffOptions))
+        , ExecutionInvoker_(std::move(executionInvoker))
+        , RetryChecker_(std::move(retryChecker))
+    { }
+
+    // TODO(achulkov2): Add logging to all clients.
+
+    TFuture<void> Start() override
+    {
+        return UnderlyingClient_->Start();
+    }
+
+#define DEFINE_COMMAND_WITH_RETRIES(Command)                                                            \
+    TFuture<T ## Command ## Response> Command(const T ## Command ## Request& request) override          \
+    {                                                                                                   \
+        return ExecuteCommandWithRetries<T ## Command ## Response, T ## Command ## Request>(            \
+            TCallback(BIND(&IClient::Command, UnderlyingClient_)), request);                            \
+    }
+
+    DEFINE_COMMAND_WITH_RETRIES(ListBuckets)
+    DEFINE_COMMAND_WITH_RETRIES(ListObjects)
+    DEFINE_COMMAND_WITH_RETRIES(PutBucket)
+    DEFINE_COMMAND_WITH_RETRIES(PutObject)
+    DEFINE_COMMAND_WITH_RETRIES(UploadPart)
+    DEFINE_COMMAND_WITH_RETRIES(GetObject)
+    DEFINE_COMMAND_WITH_RETRIES(GetObjectStream)
+    DEFINE_COMMAND_WITH_RETRIES(DeleteObjects)
+    DEFINE_COMMAND_WITH_RETRIES(CreateMultipartUpload)
+    DEFINE_COMMAND_WITH_RETRIES(AbortMultipartUpload)
+    DEFINE_COMMAND_WITH_RETRIES(CompleteMultipartUpload)
+    DEFINE_COMMAND_WITH_RETRIES(HeadObject)
+#undef DEFINE_COMMAND_WITH_RETRIES
+
+private:
+    const IClientPtr UnderlyingClient_;
+    const TExponentialBackoffOptions BackoffOptions_;
+    const IInvokerPtr ExecutionInvoker_;
+    const TCallback<bool(const TError&)> RetryChecker_;
+
+    template <class TCommandResponse, class TCommandRequest>
+    TFuture<TCommandResponse> ExecuteCommandWithRetries(auto command, TCommandRequest request)
+    {
+        return BIND(&TRetryingClient::DoExecuteCommandWithRetries<TCommandResponse, TCommandRequest>, MakeStrong(this))
+            .AsyncVia(ExecutionInvoker_)
+            .Run(std::move(command), std::move(request));
+    }
+
+    // TODO(achulkov2): How cancellable is this?
+    template <class TCommandResponse, class TCommandRequest>
+    TCommandResponse DoExecuteCommandWithRetries(TCallback<TFuture<TCommandResponse>(const TCommandRequest&)> command, TCommandRequest request)
+    {
+        TBackoffStrategy backoffStrategy(BackoffOptions_);
+
+        std::vector<TError> invocationErrors;
+
+        while (backoffStrategy.Next()) {
+            auto response = WaitFor(command(std::move(request)));
+            if (response.IsOK()) {
+                return response.Value();
+            }
+
+            // TODO(achulkov2): Log the error here.
+
+            // TODO(achulkov2): Introduce default retry checker and stop checking that it is not null.
+            if (!RetryChecker_ || !RetryChecker_.Run(response)) {
+                THROW_ERROR_EXCEPTION("Request failed with non-retriable error") << response;
+            }
+
+            invocationErrors.push_back(response);
+
+            TDelayedExecutor::WaitForDuration(backoffStrategy.GetBackoff());
+        }
+
+        THROW_ERROR_EXCEPTION("Request failed after %v attempts", backoffStrategy.GetInvocationCount())
+            << invocationErrors;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IClientPtr CreateRetryingClient(
+    IClientPtr underlyingClient,
+    TExponentialBackoffOptions backoffOptions,
+    IInvokerPtr executionInvoker,
+    TCallback<bool(const TError&)> retryChecker)
+{
+    return New<TRetryingClient>(
+        std::move(underlyingClient),
+        std::move(backoffOptions),
+        std::move(executionInvoker),
+        std::move(retryChecker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

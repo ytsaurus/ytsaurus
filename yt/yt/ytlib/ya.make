@@ -177,6 +177,7 @@ SRCS(
     chunk_client/reader_factory.cpp
     chunk_client/replication_reader.cpp
     chunk_client/replication_writer.cpp
+    chunk_client/s3_writer.cpp
     chunk_client/sequential_multi_reader_manager.cpp
     chunk_client/session_id.cpp
     chunk_client/striped_erasure_reader.cpp
@@ -732,6 +733,7 @@ PEERDIR(
     yt/yt/library/query/row_comparer_api
     yt/yt/library/web_assembly/api
     yt/yt/library/program
+    yt/yt/library/s3
     yt/yt/library/vector_hdrf
     yt/yt/ytlib/discovery_client
     yt/yt/ytlib/query_tracker_client

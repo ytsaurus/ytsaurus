@@ -330,6 +330,18 @@ int TReplicationWriterConfig::GetDirectUploadNodeCount()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TS3WriterConfig::Register(TRegistrar registrar) {
+    registrar.Parameter("upload_part_size", &TThis::UploadPartSize)
+        // TODO(achulkov2): Drag this constant out somewhere. Probably to s3 client lib even.
+        .GreaterThan(5_MB)
+        .Default(64_MB);
+    registrar.Parameter("upload_queue_size_limit", &TThis::UploadQueueSizeLimit)
+        .GreaterThan(0)
+        .GreaterThan(128_MB);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TErasureWriterConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_erasure_target_node_reallocation", &TThis::EnableErasureTargetNodeReallocation)
