@@ -977,17 +977,8 @@ void TControllerAgentTrackerConfig::Register(TRegistrar registrar)
 
 void TResourceMeteringConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("enable_new_abc_format", &TThis::EnableNewAbcFormat)
-        .Default(true);
-
     registrar.Parameter("default_abc_id", &TThis::DefaultAbcId)
         .Default(-1);
-
-    registrar.Parameter("default_cloud_id", &TThis::DefaultCloudId)
-        .Default();
-
-    registrar.Parameter("default_folder_id", &TThis::DefaultFolderId)
-        .Default();
 
     registrar.Parameter("enable_separate_schema_for_allocation", &TThis::EnableSeparateSchemaForAllocation)
         .Default(false);
