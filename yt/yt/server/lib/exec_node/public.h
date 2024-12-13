@@ -47,7 +47,7 @@ DEFINE_ENUM(EExecNodeThrottlerKind,
     (JobOut)
 );
 
-DEFINE_ENUM(EExecNodeThrottlerTrafficType,
+DEFINE_ENUM(EThrottlerTrafficType,
     (Bandwidth)
     (Rps)
 );
