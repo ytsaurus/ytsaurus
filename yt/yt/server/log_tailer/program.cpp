@@ -31,7 +31,7 @@ public:
     }
 
 protected:
-    void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
+    void DoRun() override
     {
         TThread::SetCurrentThreadName("LogTailer");
 
@@ -40,6 +40,8 @@ protected:
 
         auto config = GetConfig();
         config->MonitoringPort = MonitoringPort_;
+
+        const auto& parseResult = GetOptsParseResult();
         if (parseResult.GetFreeArgCount() == 1) {
             auto freeArgs = parseResult.GetFreeArgs();
             config->LogTailer->LogRotation->LogWriterPid = FromString<int>(freeArgs[0]);

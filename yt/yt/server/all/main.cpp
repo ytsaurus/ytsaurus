@@ -164,7 +164,7 @@ public:
 private:
     TString ProgramName_;
 
-    void DoRun(const NLastGetopt::TOptsParseResult& /*result*/) override
+    void DoRun() override
     {
         Cerr << "Program " << Argv0_ << " is not known" << Endl;
         Exit(ToUnderlying(EProcessExitCode::ArgumentsError));

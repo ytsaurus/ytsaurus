@@ -86,10 +86,10 @@ public:
     }
 
 private:
-    virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
+    virtual void DoRun() override
     {
         HandleClickHouseVersion();
-        ValidateRequiredArguments(parseResult);
+        ValidateRequiredArguments();
 
         TThread::SetCurrentThreadName("Main");
 
@@ -171,15 +171,16 @@ private:
         }
     }
 
-    void ValidateRequiredArguments(const NLastGetopt::TOptsParseResult& parseResult)
+    void ValidateRequiredArguments()
     {
-        std::vector<TString> requiredArguments = {
+        const std::vector<TString> requiredArguments = {
             "instance-id",
             "clique-id",
         };
 
         bool missingRequiredArgument = false;
 
+        const auto& parseResult = GetOptsParseResult();
         for (const auto& argument: requiredArguments) {
             if (!parseResult.Has(argument)) {
                 missingRequiredArgument = true;

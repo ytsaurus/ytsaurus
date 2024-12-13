@@ -70,7 +70,7 @@ protected:
         return false;
     }
 
-    void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
+    void DoRun() override
     {
         TThread::SetCurrentThreadName("JobProxyMain");
 

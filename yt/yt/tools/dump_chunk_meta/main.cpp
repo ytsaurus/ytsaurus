@@ -40,7 +40,7 @@ private:
         }
     }
 
-    void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
+    void DoRun() override
     {
         auto reader = New<TChunkFileReader>(
             CreateIOEngine(EIOEngineType::ThreadPool, NYTree::INodePtr()),

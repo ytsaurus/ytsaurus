@@ -32,7 +32,7 @@ protected:
     TString ToolName_;
     TString ToolSpec_;
 
-    void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) final
+    void DoRun() final
     {
         TThread::SetCurrentThreadName("Tool");
 
