@@ -1383,16 +1383,7 @@ public:
             return NLogging::LogStructuredEventFluently(SchedulerResourceMeteringLogger(), NLogging::ELogLevel::Info)
                 .Item("schema").Value(schema)
                 .Item("id").Value(TGuid::Create())
-                .DoIf(Config_->ResourceMetering->EnableNewAbcFormat, [&] (TFluentMap fluent) {
-                    fluent
-                        .Item("abc_id").Value(key.AbcId);
-                })
-                .DoIf(!Config_->ResourceMetering->EnableNewAbcFormat, [&] (TFluentMap fluent) {
-                    fluent
-                        .Item("abc_id").Value(ToString(key.AbcId))
-                        .Item("cloud_id").Value(Config_->ResourceMetering->DefaultCloudId)
-                        .Item("folder_id").Value(Config_->ResourceMetering->DefaultFolderId);
-                })
+                .Item("abc_id").Value(key.AbcId)
                 .Item("usage").BeginMap()
                     .Item("quantity").Value(usageQuantity)
                     .Item("unit").Value("milliseconds")
