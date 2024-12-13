@@ -321,6 +321,7 @@ struct THeadObjectResponse
 struct IClient
     : public TRefCounted
 {
+    // TODO(achulkov2): [PForReview] Remove this method from public interface.
     //! Must be called before work with client.
     virtual TFuture<void> Start() = 0;
 
@@ -353,6 +354,15 @@ IClientPtr CreateClient(
     ICredentialsProviderPtr credentialProvider,
     NConcurrency::IPollerPtr poller,
     IInvokerPtr executionInvoker);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Wraps client with retries according to provided backoff options and retry checker.
+IClientPtr CreateRetryingClient(
+    IClientPtr underlyingClient,
+    TExponentialBackoffOptions backoffOptions,
+    IInvokerPtr executionInvoker,
+    TCallback<bool(const TError&)> retryChecker = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

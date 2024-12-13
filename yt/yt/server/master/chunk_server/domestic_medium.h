@@ -30,8 +30,12 @@ public:
 
     bool IsDomestic() const override;
 
+    std::string GetMediumType() const override;
+
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
+
+    void FillMediumDescriptor(NChunkClient::NProto::TMediumDirectory::TMediumDescriptor* protoItem) const override;
 
     void Save(NCellMaster::TSaveContext& context) const override;
     void Load(NCellMaster::TLoadContext& context) override;

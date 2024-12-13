@@ -82,6 +82,8 @@ message TReqAddConfirmReplicas
 {
     required NYT.NProto.TGuid chunk_id = 1;
     repeated NYT.NChunkClient.NProto.TConfirmChunkReplicaInfo replicas = 2;
+    // TODO(achulkov2): As far as I have discerned, this method is used for sequoia replicas.
+    // Let's not store offshore replicas in sequoia for now. May change in the future.
 }
 
 ////////////////////////////////////////////////////////////////////////////////

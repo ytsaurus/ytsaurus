@@ -68,11 +68,6 @@ void TDomesticMediumConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TS3MediumConfig::Register(TRegistrar /*registrar*/)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
@@ -755,28 +750,6 @@ void TDynamicChunkServiceConfig::Register(TRegistrar registrar)
     registrar.Parameter("default_per_user_request_bytes_throttler_config", &TThis::DefaultPerUserRequestBytesThrottlerConfig)
         .DefaultNew();
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TS3ConnectionConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("url", &TThis::Url)
-        .Default();
-    registrar.Parameter("region", &TThis::Region)
-        .Default();
-    registrar.Parameter("bucket", &TThis::Bucket)
-        .Default();
-
-    registrar.Parameter("access_key_id", &TThis::AccessKeyId)
-        .Default();
-    registrar.Parameter("secret_access_key", &TThis::SecretAccessKey)
-        .Default();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TS3ClientConfig::Register(TRegistrar /*registrar*/)
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

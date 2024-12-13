@@ -48,6 +48,8 @@ void TNodeManager::ProcessNodeHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& 
     auto* request = &context->Request();
     auto nodeId = FromProto<NNodeTrackerClient::TNodeId>(request->node_id());
 
+    ValidateFeasibleRealNodeId(nodeId);
+
     if (nodeId == InvalidNodeId) {
         THROW_ERROR_EXCEPTION("Cannot process a heartbeat with invalid node id");
     }

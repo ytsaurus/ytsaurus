@@ -4,6 +4,9 @@
 
 #include <yt/yt/core/net/address.h>
 
+#include <yt/yt/core/misc/backoff_strategy.h>
+#include <yt/yt/core/misc/config.h>
+
 #include <library/cpp/string_utils/base64/base64.h>
 
 #include <contrib/libs/poco/XML/include/Poco/XML/XML.h>
@@ -386,7 +389,7 @@ public:
         , ExecutionInvoker_(std::move(executionInvoker))
     { }
 
-    TFuture<void> Start() override
+    TFuture<void> DoStart()
     {
         auto urlRef = NHttp::ParseUrl(Config_->Url);
         BaseHttpRequest_ = THttpRequest{
@@ -402,6 +405,7 @@ public:
             urlRef = NHttp::ParseUrl(*Config_->ProxyUrl);
         }
 
+        // TODO(achulkov2): [PLater] Why do we resolve the address ourselves instead of the client?
         auto asyncAddress = TAddressResolver::Get()->Resolve(TString{urlRef.Host});
         return asyncAddress.Apply(BIND([=, this, this_ = MakeStrong(this)] (const TNetworkAddress& address) {
 
@@ -410,6 +414,7 @@ public:
                 address,
                 urlRef.Port.value_or(useTls ? 443 : 80));
 
+            // TODO(achulkov2, gritukan): [PLater] Figure if we can use HTTP client from core here. And/or implement keep-alive in custom HTTP client.
             Client_ = CreateHttpClient(
                 Config_,
                 s3Address,
@@ -418,6 +423,16 @@ public:
                 ExecutionInvoker_);
             return Client_->Start();
         }));
+    }
+
+    // TODO(achulkov2): [PDuringReview] Rename to EnsureStarted?
+    TFuture<void> Start() override
+    {
+        std::call_once(StartRequestedFlag_, [&] {
+            StartedPromise_.SetFrom(DoStart());
+        });
+
+        return StartedPromise_;
     }
 
 #define DEFINE_STRUCTURED_COMMAND(Command)                                                              \
@@ -455,7 +470,7 @@ private:
         try {
             auto parsedDocument = ParseXmlDocument(responseBody);
             for (auto* child = parsedDocument->firstChild(); child; child = child->nextSibling()) {
-                error <<= TErrorAttribute(child->nodeName(), child->innerText());
+                error <<= TErrorAttribute(TString(child->nodeName()), child->innerText());
             }
         } catch (const std::exception&) {
             error <<= TErrorAttribute("response_body", responseBody.ToStringBuf());
@@ -471,6 +486,14 @@ private:
 
     template <class TCommandResponse, class TCommandRequest>
     TFuture<TCommandResponse> SendCommand(const TCommandRequest& request)
+    {
+        return Start()
+            .Apply(BIND(&TClient::DoSendCommand<TCommandResponse, TCommandRequest>, MakeStrong(this), request));
+    }
+
+    // TODO(achulkov2): [PLater] How receptive is this to cancellations?
+    template <class TCommandResponse, class TCommandRequest>
+    TFuture<TCommandResponse> DoSendCommand(const TCommandRequest& request)
     {
         auto req = BaseHttpRequest_;
         request.Serialize(&req);
@@ -507,6 +530,8 @@ private:
     IInvokerPtr ExecutionInvoker_;
 
     IHttpClientPtr Client_;
+    std::once_flag StartRequestedFlag_;
+    TPromise<void> StartedPromise_ = NewPromise<void>();
 
     THttpRequest BaseHttpRequest_;
 };
@@ -524,6 +549,115 @@ IClientPtr CreateClient(
         std::move(credentialProvider),
         std::move(poller),
         std::move(executionInvoker));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRetryingClient
+    : public IClient
+{
+public:
+    TRetryingClient(
+        IClientPtr underlyingClient,
+        TExponentialBackoffOptions backoffOptions,
+        IInvokerPtr executionInvoker,
+        TCallback<bool(const TError&)> retryChecker)
+        : UnderlyingClient_(std::move(underlyingClient))
+        , BackoffOptions_(std::move(backoffOptions))
+        , ExecutionInvoker_(std::move(executionInvoker))
+        , RetryChecker_(std::move(retryChecker))
+    { }
+
+    // TODO(achulkov2): [PLater] Add logging to all clients.
+
+    TFuture<void> Start() override
+    {
+        // No boolean flag needed, since we are just proxying the call.
+        return UnderlyingClient_->Start();
+    }
+
+#define DEFINE_COMMAND_WITH_RETRIES(Command)                                                            \
+    TFuture<T ## Command ## Response> Command(const T ## Command ## Request& request) override          \
+    {                                                                                                   \
+        return ExecuteCommandWithRetries<T ## Command ## Response, T ## Command ## Request>(            \
+            TCallback(BIND(&IClient::Command, UnderlyingClient_)), request);                            \
+    }
+
+    DEFINE_COMMAND_WITH_RETRIES(ListBuckets)
+    DEFINE_COMMAND_WITH_RETRIES(ListObjects)
+    DEFINE_COMMAND_WITH_RETRIES(PutBucket)
+    DEFINE_COMMAND_WITH_RETRIES(PutObject)
+    DEFINE_COMMAND_WITH_RETRIES(UploadPart)
+    DEFINE_COMMAND_WITH_RETRIES(GetObject)
+    DEFINE_COMMAND_WITH_RETRIES(GetObjectStream)
+    DEFINE_COMMAND_WITH_RETRIES(DeleteBucket)
+    DEFINE_COMMAND_WITH_RETRIES(DeleteObject)
+    DEFINE_COMMAND_WITH_RETRIES(DeleteObjects)
+    DEFINE_COMMAND_WITH_RETRIES(CreateMultipartUpload)
+    DEFINE_COMMAND_WITH_RETRIES(AbortMultipartUpload)
+    DEFINE_COMMAND_WITH_RETRIES(CompleteMultipartUpload)
+    DEFINE_COMMAND_WITH_RETRIES(HeadObject)
+#undef DEFINE_COMMAND_WITH_RETRIES
+
+private:
+    const IClientPtr UnderlyingClient_;
+    const TExponentialBackoffOptions BackoffOptions_;
+    const IInvokerPtr ExecutionInvoker_;
+    const TCallback<bool(const TError&)> RetryChecker_;
+
+    template <class TCommandResponse, class TCommandRequest>
+    TFuture<TCommandResponse> ExecuteCommandWithRetries(auto command, TCommandRequest request)
+    {
+        return BIND(&TRetryingClient::DoExecuteCommandWithRetries<TCommandResponse, TCommandRequest>, MakeStrong(this))
+            .AsyncVia(ExecutionInvoker_)
+            .Run(std::move(command), std::move(request));
+    }
+
+    // TODO(achulkov2): [PLater] How cancellable is this?
+    template <class TCommandResponse, class TCommandRequest>
+    TCommandResponse DoExecuteCommandWithRetries(TCallback<TFuture<TCommandResponse>(const TCommandRequest&)> command, TCommandRequest request)
+    {
+        TBackoffStrategy backoffStrategy(BackoffOptions_);
+
+        std::vector<TError> invocationErrors;
+
+        while (backoffStrategy.Next()) {
+            auto response = WaitFor(command(std::move(request)));
+            if (response.IsOK()) {
+                return response.Value();
+            }
+
+            // TODO(achulkov2): [PLater] Log the error here.
+
+            // TODO(achulkov2): [PForReview] Introduce default retry checker and stop checking that it is not null.
+            // TODO(achulkov2): [PForReview] Default retry checker should not retry auth errors.
+            if (!RetryChecker_ || !RetryChecker_.Run(response)) {
+                THROW_ERROR_EXCEPTION("Request failed with non-retriable error") << response;
+            }
+
+            invocationErrors.push_back(response);
+
+            TDelayedExecutor::WaitForDuration(backoffStrategy.GetBackoff());
+        }
+
+        THROW_ERROR_EXCEPTION("Request failed after %v attempts", backoffStrategy.GetInvocationCount())
+            << invocationErrors;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IClientPtr CreateRetryingClient(
+    IClientPtr underlyingClient,
+    TExponentialBackoffOptions backoffOptions,
+    IInvokerPtr executionInvoker,
+    TCallback<bool(const TError&)> retryChecker)
+{
+    return New<TRetryingClient>(
+        std::move(underlyingClient),
+        std::move(backoffOptions),
+        std::move(executionInvoker),
+        std::move(retryChecker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

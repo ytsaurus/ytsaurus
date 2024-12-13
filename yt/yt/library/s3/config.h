@@ -10,6 +10,7 @@ namespace NYT::NS3 {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! NB: This class is part of master snapshots, consider reign promotion when changing it.
 class TS3ConnectionConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -22,6 +23,8 @@ public:
     //! address, in some not.
     TString Region;
 
+    // TODO(achulkov2): [PLater] The bucket is not actually needed to establish a connection,
+    // so there is no good reason for it to be part of the connection config.
     //! Name of the bucket to use.
     TString Bucket;
 

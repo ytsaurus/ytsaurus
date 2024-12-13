@@ -124,6 +124,7 @@ message TReqFetch
 message TRspFetch
 {
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
+    // TODO(achulkov2): [PLater] Return medium directory in a similar fashion, to guarantee knowledge about offshore chunk media.
     repeated NChunkClient.NProto.TChunkSpec chunks = 2;
 }
 

@@ -8,10 +8,12 @@
 #include "erasure_part_writer.h"
 #include "erasure_writer.h"
 #include "helpers.h"
+#include "medium_directory.h"
 #include "private.h"
 #include "replication_writer.h"
 #include "session_id.h"
 #include "striped_erasure_writer.h"
+#include "s3_writer.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -258,6 +260,37 @@ private:
 
     IChunkWriterPtr CreateUnderlyingWriter() const
     {
+        const auto& mediumDirectory = Client_->GetNativeConnection()->GetMediumDirectory();
+        auto mediumDescriptor = mediumDirectory->FindByIndex(SessionId_.MediumIndex);
+   
+        for (const auto& replica : TargetReplicas_) {
+            // TODO(achulkov2): [PLater] Is this check actually valid? It should be, but who knows...
+            if (replica.GetMediumIndex() != SessionId_.MediumIndex) {
+                THROW_ERROR_EXCEPTION(
+                    "Replica medium index %v (%Qv) does not match session medium index %v (%Qv)",
+                    replica.GetMediumIndex(),
+                    mediumDirectory->GetMediumName(replica.GetMediumIndex()),
+                    SessionId_.MediumIndex,
+                    mediumDirectory->GetMediumName(SessionId_.MediumIndex))
+                    << TErrorAttribute("chunk_id", SessionId_.ChunkId);
+            }
+
+            if ((replica.GetNodeId() == OffshoreNodeId) != (mediumDescriptor && mediumDescriptor->IsOffshore())) {
+                THROW_ERROR_EXCEPTION(
+                    "Requested target replica %v for chunk %v is incompatible with desired medium %v (%Qv)",
+                    replica,
+                    SessionId_.ChunkId,
+                    SessionId_.MediumIndex,
+                    mediumDirectory->GetMediumName(SessionId_.MediumIndex))
+                    << TErrorAttribute("chunk_id", SessionId_.ChunkId)
+                    << TErrorAttribute("medium_descriptor", mediumDescriptor);
+            }
+        }
+
+        if (const auto s3MediumDescriptor = mediumDescriptor ? mediumDescriptor->As<TS3MediumDescriptor>() : nullptr) {
+            return CreateS3Writer(s3MediumDescriptor, Config_, SessionId_);
+        }
+
         if (Options_->ErasureCodec == ECodec::None) {
             return CreateReplicationWriter(
                 Config_,
@@ -318,7 +351,9 @@ private:
 
         YT_LOG_DEBUG("Chunk closed");
 
-        auto replicas = UnderlyingWriter_->GetWrittenChunkReplicasInfo().Replicas;
+        auto writtenChunkReplicasInfo = UnderlyingWriter_->GetWrittenChunkReplicasInfo();
+
+        const auto& replicas = writtenChunkReplicasInfo.Replicas;
         YT_VERIFY(!replicas.empty());
 
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTag_);

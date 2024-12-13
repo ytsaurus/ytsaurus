@@ -5,6 +5,7 @@
 #include "chunk_manager.h"
 #include "config.h"
 #include "medium_type_handler_base.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 

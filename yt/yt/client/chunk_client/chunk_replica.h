@@ -52,6 +52,12 @@ private:
     friend void FromProto(TChunkReplicaWithMedium* replica, ui64 value);
     friend void ToProto(NProto::TConfirmChunkReplicaInfo* value, TChunkReplicaWithLocation replica);
     friend void FromProto(TChunkReplicaWithLocation* replica, NProto::TConfirmChunkReplicaInfo value);
+
+    using TLoadContext = NPhoenix2::TLoadContext;
+    using TSaveContext = NPhoenix2::TSaveContext;
+    using TPersistenceContext = NPhoenix2::TPersistenceContext;
+
+    PHOENIX_DECLARE_TYPE(TChunkReplicaWithMedium, 0x004d1b8e);
 };
 
 // These protect from accidently serializing TChunkReplicaWithMedium as ui32.

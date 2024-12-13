@@ -13,6 +13,7 @@
 #include <yt/yt/ytlib/driver/config.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
@@ -85,6 +86,7 @@ public:
 
                 nativeConnection->GetClusterDirectorySynchronizer()->Start();
                 nativeConnection->GetQueueConsumerRegistrationManager()->StartSync();
+                nativeConnection->GetMediumDirectorySynchronizer()->Start();
             }
 
             driver = CreateDriver(std::move(connection), std::move(driverConfig));

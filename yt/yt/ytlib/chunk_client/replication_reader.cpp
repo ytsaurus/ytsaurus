@@ -12,6 +12,7 @@
 #include "chunk_reader_allowing_repair.h"
 #include "chunk_reader_options.h"
 #include "chunk_replica_cache.h"
+#include "s3_reader.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -42,6 +43,8 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
+
+#include <yt/yt/client/chunk_client/helpers.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
@@ -599,8 +602,8 @@ protected:
 
     int GetMediumPriority(TChunkReplicaWithMedium replica)
     {
-        const auto* descriptor = MediumDirectory_->FindByIndex(replica.GetMediumIndex());
-        return descriptor ? descriptor->Priority : 0;
+        auto descriptor = MediumDirectory_->FindByIndex(replica.GetMediumIndex());
+        return descriptor ? descriptor->GetPriority() : 0;
     }
 
     IThroughputThrottlerPtr CreateCombinedDataByteThrottler() const
@@ -3777,8 +3780,26 @@ IChunkReaderAllowingRepairPtr CreateReplicationReaderThrottlingAdapter(
     IThroughputThrottlerPtr rpsThrottler,
     IThroughputThrottlerPtr mediumThrottler)
 {
+    auto chunkReaderWithOverriddenThrottlers = TryCreateReplicationReaderThrottlingAdapter(
+        underlyingReader,
+        std::move(bandwidthThrottler),
+        std::move(rpsThrottler),
+        std::move(mediumThrottler));
+    YT_VERIFY(chunkReaderWithOverriddenThrottlers);
+    return chunkReaderWithOverriddenThrottlers;
+}
+
+IChunkReaderAllowingRepairPtr TryCreateReplicationReaderThrottlingAdapter(
+    const IChunkReaderPtr& underlyingReader,
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler,
+    IThroughputThrottlerPtr mediumThrottler)
+{
     auto* underlyingReplicationReader = dynamic_cast<TReplicationReader*>(underlyingReader.Get());
-    YT_VERIFY(underlyingReplicationReader);
+    
+    if (!underlyingReplicationReader) {
+        return nullptr;
+    }
 
     return New<TReplicationReaderWithOverriddenThrottlers>(
         underlyingReplicationReader,

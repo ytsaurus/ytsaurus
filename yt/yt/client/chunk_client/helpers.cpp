@@ -11,6 +11,8 @@ namespace NYT::NChunkClient {
 using NYT::FromProto;
 using NYT::ToProto;
 
+using namespace NNodeTrackerClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void PrintTo(const TReadRange& readRange, std::ostream* os)
@@ -46,6 +48,27 @@ TChunkReplicaWithMediumList GetReplicasFromChunkSpec(const NProto::TChunkSpec& c
     } else {
         return FromProto<TChunkReplicaWithMediumList>(chunkSpec.replicas());
     }
+}
+
+TReplicasByType GetReplicasByType(const TChunkReplicaWithMediumList& replicas)
+{
+    TReplicasByType result;
+
+    for (const auto& replica : replicas) {
+        if (replica.GetNodeId() == OffshoreNodeId) {
+            result.OffshoreReplicas.push_back(replica);
+        } else {
+            result.DomesticReplicas.push_back(replica);
+        }
+    }
+
+    return result;
+}
+
+void VerifyNoOffshoreReplicas(const TChunkReplicaWithMediumList& replicas)
+{
+    auto replicasByType = GetReplicasByType(replicas);
+    YT_VERIFY(replicasByType.OffshoreReplicas.empty());
 }
 
 void SetTabletId(NProto::TChunkSpec* chunkSpec, NTabletClient::TTabletId tabletId)

@@ -32,6 +32,13 @@ const TDomesticMedium* TMedium::AsDomestic() const
     return As<TDomesticMedium>();
 }
 
+void TMedium::FillMediumDescriptor(NChunkClient::NProto::TMediumDirectory::TMediumDescriptor* protoItem) const
+{
+    protoItem->set_name(TString(Name_));
+    protoItem->set_index(Index_);
+    protoItem->set_priority(Priority_);
+}
+
 void TMedium::Save(TSaveContext& context) const
 {
     TObject::Save(context);
