@@ -1431,8 +1431,8 @@ private:
 
     void OnForwardingFinished()
     {
-        if (!Map_->AddChild(itemKey, TreeBuilder_->EndTree())) {
-            THROW_ERROR_EXCEPTION("Duplicate key %Qv", itemKey);
+        if (!Map_->AddChild(ItemKey_, TreeBuilder_->EndTree())) {
+            THROW_ERROR_EXCEPTION("Duplicate key %Qv", ItemKey_);
         }
         ItemKey_.clear();
     }
