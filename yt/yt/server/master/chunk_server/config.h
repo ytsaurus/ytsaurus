@@ -403,17 +403,6 @@ class TDynamicAllyReplicaManagerConfig
     : public NYTree::TYsonStruct
 {
 public:
-    //! Enables scheduling of ally replica announce requests and endorsements.
-    bool EnableAllyReplicaAnnouncement;
-
-    //! If |false|, ally replica endorsements will not be stored.
-    /*!
-     *  WARNING: setting this from |true| to |false| will trigger immediate
-     *  cleanup of existing endorsement queues and may stall automaton thread
-     *  for a while.
-     */
-    bool EnableEndorsements;
-
     //! When a chunk is not fully replicated by approved replicas, its new replicas
     //! still announce replicas to allies but with a certain delay.
     TDuration UnderreplicatedChunkAnnouncementRequestDelay;

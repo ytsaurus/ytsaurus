@@ -356,12 +356,6 @@ void TDynamicChunkTreeBalancerConfig::Register(TRegistrar registrar)
 
 void TDynamicAllyReplicaManagerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("enable_ally_replica_announcement", &TThis::EnableAllyReplicaAnnouncement)
-        .Default(false);
-
-    registrar.Parameter("enable_endorsements", &TThis::EnableEndorsements)
-        .Default(false);
-
     registrar.Parameter("underreplicated_chunk_announcement_request_delay", &TThis::UnderreplicatedChunkAnnouncementRequestDelay)
         .Default(TDuration::Seconds(60));
 
