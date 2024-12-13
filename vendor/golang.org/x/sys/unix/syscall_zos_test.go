@@ -7,6 +7,7 @@
 package unix_test
 
 import (
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
@@ -202,7 +203,7 @@ func TestSignalNum(t *testing.T) {
 
 func TestFcntlInt(t *testing.T) {
 	t.Parallel()
-	file, err := os.Create(filepath.Join(t.TempDir(), "TestFnctlInt"))
+	file, err := os.Create(filepath.Join(t.TempDir(), t.Name()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,10 +218,27 @@ func TestFcntlInt(t *testing.T) {
 	}
 }
 
+func TestFcntlInt2(t *testing.T) {
+	t.Parallel()
+	file, err := os.Create(filepath.Join(t.TempDir(), t.Name()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	f := file.Fd()
+	flags, err := unix.Fcntl(f, unix.F_GETFD, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if flags&unix.FD_CLOEXEC == 0 {
+		t.Errorf("flags %#x do not include FD_CLOEXEC", flags)
+	}
+}
+
 // TestFcntlFlock tests whether the file locking structure matches
 // the calling convention of each kernel.
 func TestFcntlFlock(t *testing.T) {
-	name := filepath.Join(os.TempDir(), "TestFcntlFlock")
+	name := filepath.Join(t.TempDir(), "TestFcntlFlock")
 	fd, err := unix.Open(name, unix.O_CREAT|unix.O_RDWR|unix.O_CLOEXEC, 0)
 	if err != nil {
 		t.Fatalf("Open failed: %v", err)
@@ -233,6 +251,23 @@ func TestFcntlFlock(t *testing.T) {
 	}
 	if err := unix.FcntlFlock(uintptr(fd), unix.F_GETLK, &flock); err != nil {
 		t.Fatalf("FcntlFlock failed: %v", err)
+	}
+}
+
+func TestFcntlFlock2(t *testing.T) {
+	name := filepath.Join(t.TempDir(), "TestFcntlFlock2")
+	fd, err := unix.Open(name, unix.O_CREAT|unix.O_RDWR|unix.O_CLOEXEC, 0)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer unix.Unlink(name)
+	defer unix.Close(fd)
+	flock := unix.Flock_t{
+		Type:  unix.F_RDLCK,
+		Start: 0, Len: 0, Whence: 1,
+	}
+	if v, err := unix.Fcntl(uintptr(fd), unix.F_GETLK, &flock); err != nil {
+		t.Fatalf("FcntlFlock failed: %d %v", v, err)
 	}
 }
 
@@ -249,8 +284,6 @@ func TestPassFD(t *testing.T) {
 		return
 	}
 
-	tempDir := t.TempDir()
-
 	fds, err := unix.Socketpair(unix.AF_LOCAL, unix.SOCK_STREAM, 0)
 	if err != nil {
 		t.Fatalf("Socketpair: %v", err)
@@ -262,7 +295,11 @@ func TestPassFD(t *testing.T) {
 	defer writeFile.Close()
 	defer readFile.Close()
 
-	cmd := exec.Command(os.Args[0], "-test.run=^TestPassFD$", "--", tempDir)
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(exe, "-test.run=^TestPassFD$", "--", t.TempDir())
 	cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
 	if lp := os.Getenv("LD_LIBRARY_PATH"); lp != "" {
 		cmd.Env = append(cmd.Env, "LD_LIBRARY_PATH="+lp)
@@ -371,7 +408,7 @@ func passFDChild() {
 	}
 }
 
-// TestUnixRightsRoundtrip tests that UnixRights, ParseSocketControlMessage,
+// TestUnixRightsRoundtrip tests that UnixRights, ParseSocketControlMessage, ParseOneSocketControlMessage,
 // and ParseUnixRights are able to successfully round-trip lists of file descriptors.
 func TestUnixRightsRoundtrip(t *testing.T) {
 	testCases := [...][][]int{
@@ -399,6 +436,23 @@ func TestUnixRightsRoundtrip(t *testing.T) {
 		if len(scms) != len(testCase) {
 			t.Fatalf("expected %v SocketControlMessage; got scms = %#v", len(testCase), scms)
 		}
+
+		var c int
+		for len(b) > 0 {
+			hdr, data, remainder, err := unix.ParseOneSocketControlMessage(b)
+			if err != nil {
+				t.Fatalf("ParseOneSocketControlMessage: %v", err)
+			}
+			if scms[c].Header != hdr || !bytes.Equal(scms[c].Data, data) {
+				t.Fatal("expected SocketControlMessage header and data to match")
+			}
+			b = remainder
+			c++
+		}
+		if c != len(scms) {
+			t.Fatalf("expected %d SocketControlMessages; got %d", len(scms), c)
+		}
+
 		for i, scm := range scms {
 			gotFds, err := unix.ParseUnixRights(&scm)
 			if err != nil {
@@ -474,6 +528,12 @@ func TestRlimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Setrlimit: restore failed: %#v %v", rlimit, err)
 	}
+
+	// make sure RLIM_INFINITY can be assigned to Rlimit members
+	_ = unix.Rlimit{
+		Cur: unix.RLIM_INFINITY,
+		Max: unix.RLIM_INFINITY,
+	}
 }
 
 func TestSeekFailure(t *testing.T) {
@@ -497,9 +557,9 @@ func TestSetsockoptString(t *testing.T) {
 }
 
 func TestDup(t *testing.T) {
-	file, err := os.Create(filepath.Join(t.TempDir(), "TestDup"))
+	file, err := os.Create(filepath.Join(t.TempDir(), t.Name()))
 	if err != nil {
-		t.Fatalf("Tempfile failed: %v", err)
+		t.Fatal(err)
 	}
 	defer file.Close()
 	f := int(file.Fd())
@@ -654,25 +714,21 @@ func touch(t *testing.T, name string) {
 }
 
 // chtmpdir changes the working directory to a new temporary directory and
-// provides a cleanup function. Used when PWD is read-only.
-func chtmpdir(t *testing.T) func() {
+// sets up a cleanup function. Used when PWD is read-only.
+func chtmpdir(t *testing.T) {
+	t.Helper()
 	oldwd, err := os.Getwd()
 	if err != nil {
-		t.Fatalf("chtmpdir: %v", err)
+		t.Fatal(err)
 	}
-	d, err := os.MkdirTemp("", "test")
-	if err != nil {
-		t.Fatalf("chtmpdir: %v", err)
+	if err := os.Chdir(t.TempDir()); err != nil {
+		t.Fatal(err)
 	}
-	if err := os.Chdir(d); err != nil {
-		t.Fatalf("chtmpdir: %v", err)
-	}
-	return func() {
+	t.Cleanup(func() {
 		if err := os.Chdir(oldwd); err != nil {
-			t.Fatalf("chtmpdir: %v", err)
+			t.Fatal(err)
 		}
-		os.RemoveAll(d)
-	}
+	})
 }
 
 func TestLegacyMountUnmount(t *testing.T) {
@@ -888,7 +944,11 @@ func TestFlock(t *testing.T) {
 			p2status := BLOCKED
 			done := make(chan bool)
 			execP2 := func(isBlock bool) {
-				cmd := exec.Command(os.Args[0], "-test.run=^TestFlock$", strconv.Itoa(c.p2mode), f.Name())
+				exe, err := os.Executable()
+				if err != nil {
+					t.Fatal(err)
+				}
+				cmd := exec.Command(exe, "-test.run=^TestFlock$", strconv.Itoa(c.p2mode), f.Name())
 				cmd.Env = append(os.Environ(), "TEST_FLOCK_HELPER=1")
 				out, _ := cmd.CombinedOutput()
 				if p2status, err = strconv.Atoi(string(out)); err != nil {
@@ -955,7 +1015,11 @@ func TestLegacyFlock(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Flock: %s", err.Error())
 		}
-		cmd := exec.Command(os.Args[0], "-test.run=TestLegacyFlock", f.Name())
+		exe, err := os.Executable()
+		if err != nil {
+			t.Fatal(err)
+		}
+		cmd := exec.Command(exe, "-test.run=TestLegacyFlock", f.Name())
 		cmd.Env = append(os.Environ(), "GO_WANT_HELPER_PROCESS=1")
 		out, err := cmd.CombinedOutput()
 		if len(out) > 0 || err != nil {
@@ -2323,7 +2387,11 @@ func TestWait4(t *testing.T) {
 
 	for _, c := range testCases {
 		t.Run(c.name, func(t *testing.T) {
-			cmd := exec.Command(os.Args[0], "-test.run=^TestWait4$", fmt.Sprint(c.exitCode))
+			exe, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			cmd := exec.Command(exe, "-test.run=^TestWait4$", fmt.Sprint(c.exitCode))
 			cmd.Env = []string{"TEST_WAIT4_HELPER=1"}
 			if err := cmd.Start(); err != nil {
 				t.Fatal(err)
@@ -2624,7 +2692,11 @@ func TestMountNamespace(t *testing.T) {
 	defer os.Remove(f.Name())
 	f.Close()
 
-	cmd := exec.Command(os.Args[0], "-test.v", "-test.run=^TestMountNamespace$")
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(exe, "-test.v", "-test.run=^TestMountNamespace$")
 	cmd.Env = append(os.Environ(), "SETNS_HELPER_PROCESS=1")
 	cmd.Env = append(cmd.Env, "MNT_NS_FILE="+f.Name())
 
@@ -2993,7 +3065,7 @@ func TestUnlinkat(t *testing.T) {
 }
 
 func TestRenameat(t *testing.T) {
-	defer chtmpdir(t)()
+	chtmpdir(t)
 
 	from, to := "renamefrom", "renameto"
 
@@ -3016,7 +3088,7 @@ func TestRenameat(t *testing.T) {
 }
 
 func TestRenameat2(t *testing.T) {
-	defer chtmpdir(t)()
+	chtmpdir(t)
 
 	from, to := "renamefrom", "renameto"
 
@@ -3050,7 +3122,7 @@ func TestRenameat2(t *testing.T) {
 }
 
 func TestFchmodat(t *testing.T) {
-	defer chtmpdir(t)()
+	chtmpdir(t)
 
 	touch(t, "file1")
 	err := os.Symlink("file1", "symlink1")
@@ -3148,7 +3220,7 @@ func compareStat_t(t *testing.T, otherStat string, st1, st2 *unix.Stat_t) {
 }
 
 func TestFstatat(t *testing.T) {
-	defer chtmpdir(t)()
+	chtmpdir(t)
 
 	touch(t, "file1")
 
@@ -3618,7 +3690,11 @@ func TestSetns(t *testing.T) {
 		}
 	}
 
-	cmd := exec.Command(os.Args[0], "-test.run=^TestSetns$")
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(exe, "-test.run=^TestSetns$")
 	cmd.Env = append(os.Environ(), "SETNS_HELPER_PROCESS=1")
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -3748,4 +3824,195 @@ func TestConsole2modify(t *testing.T) {
 	}
 
 	t.Logf("Got %s %x\n", unix.ZosEbcdicBytesToString(modstr[:], true), cmsg_cmd)
+}
+func TestTty(t *testing.T) {
+	ptmxfd, err := unix.Posix_openpt(unix.O_RDWR)
+	if err != nil {
+		t.Fatalf("Posix_openpt %+v\n", err)
+	}
+	t.Logf("ptmxfd %v\n", ptmxfd)
+
+	// convert to EBCDIC
+	cvtreq := unix.F_cnvrt{Cvtcmd: unix.SETCVTON, Pccsid: 0, Fccsid: 1047}
+	if _, err = unix.Fcntl(uintptr(ptmxfd), unix.F_CONTROL_CVT, &cvtreq); err != nil {
+		t.Fatalf("fcntl F_CONTROL_CVT %+v\n", err)
+	}
+	p := os.NewFile(uintptr(ptmxfd), "/dev/ptmx")
+	if p == nil {
+		t.Fatalf("NewFile %d /dev/ptmx failed\n", ptmxfd)
+	}
+
+	// In case of error after this point, make sure we close the ptmx fd.
+	defer func() {
+		if err != nil {
+			_ = p.Close() // Best effort.
+		}
+	}()
+	sname, err := unix.Ptsname(ptmxfd)
+	if err != nil {
+		t.Fatalf("Ptsname %+v\n", err)
+	}
+	t.Logf("sname %v\n", sname)
+
+	_, err = unix.Grantpt(ptmxfd)
+	if err != nil {
+		t.Fatalf("Grantpt %+v\n", err)
+	}
+
+	if _, err = unix.Unlockpt(ptmxfd); err != nil {
+		t.Fatalf("Unlockpt %+v\n", err)
+	}
+
+	ptsfd, err := syscall.Open(sname, os.O_RDWR|syscall.O_NOCTTY, 0)
+	if err != nil {
+		t.Fatalf("Open %s %+v\n", sname, err)
+	}
+	if _, err = unix.Fcntl(uintptr(ptsfd), unix.F_CONTROL_CVT, &cvtreq); err != nil {
+		t.Fatalf("fcntl F_CONTROL_CVT ptsfd %+v\n", err)
+	}
+
+	tt := os.NewFile(uintptr(ptsfd), sname)
+	if err != nil {
+		t.Fatalf("NewFile %d %+v %+v\n", ptsfd, sname, err)
+	}
+	text := []byte("11111111")
+
+	n, err := tt.Write(text)
+	if err != nil {
+		t.Fatalf("ptsfd Write %+v\n", err)
+	}
+	t.Logf("bytes %d\n", n)
+
+	var buffer [1024]byte
+
+	n, err = p.Read(buffer[:n])
+	if err != nil {
+		t.Fatalf("ptmx read %+v\n", err)
+	}
+	t.Logf("Buffer %+v\n", buffer[:n])
+
+	if !bytes.Equal(text, buffer[:n]) {
+		t.Fatalf("Expected %+v, read %+v\n", text, buffer[:n])
+
+	}
+
+}
+
+func TestSendfile(t *testing.T) {
+	srcContent := "hello, world"
+	srcFile, err := os.Create(filepath.Join(t.TempDir(), "source"))
+	if err != nil {
+		t.Fatal("error: ", err)
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.Create(filepath.Join(t.TempDir(), "dst"))
+	if err != nil {
+		t.Fatal("error: ", err)
+	}
+	defer dstFile.Close()
+
+	err = os.WriteFile(srcFile.Name(), []byte(srcContent), 0644)
+	if err != nil {
+		t.Fatal("error: ", err)
+	}
+
+	n, err := unix.Sendfile(int(dstFile.Fd()), int(srcFile.Fd()), nil, len(srcContent))
+	if n != len(srcContent) {
+		t.Fatal("error: mismatch content length want ", len(srcContent), " got ", n)
+	}
+	if err != nil {
+		t.Fatal("error: ", err)
+	}
+
+	b, err := os.ReadFile(dstFile.Name())
+	if err != nil {
+		t.Fatal("error: ", err)
+	}
+
+	content := string(b)
+	if content != srcContent {
+		t.Fatal("content mismatch: ", content, " vs ", srcContent)
+	}
+}
+
+func TestSendfileSocket(t *testing.T) {
+	// Set up source data file.
+	name := filepath.Join(t.TempDir(), "source")
+	const contents = "contents"
+	err := os.WriteFile(name, []byte(contents), 0666)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan bool)
+
+	// Start server listening on a socket.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Skipf("listen failed: %s\n", err)
+	}
+	defer ln.Close()
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			t.Errorf("failed to accept: %v", err)
+			return
+		}
+		defer conn.Close()
+		b, err := io.ReadAll(conn)
+		if err != nil {
+			t.Errorf("failed to read: %v", err)
+			return
+		}
+		if string(b) != contents {
+			t.Errorf("contents not transmitted: got %s (len=%d), want %s", string(b), len(b), contents)
+		}
+		done <- true
+	}()
+
+	// Open source file.
+	src, err := os.Open(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Send source file to server.
+	conn, err := net.Dial("tcp", ln.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := conn.(*net.TCPConn).File()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var off int64
+	n, err := unix.Sendfile(int(file.Fd()), int(src.Fd()), &off, len(contents))
+	if err != nil {
+		t.Errorf("Sendfile failed %s\n", err)
+	}
+	if n != len(contents) {
+		t.Errorf("written count wrong: want %d, got %d", len(contents), n)
+	}
+	// Note: off is updated on some systems and not others. Oh well.
+	// Linux: increments off by the amount sent.
+	// Darwin: leaves off unchanged.
+	// It would be nice to fix Darwin if we can.
+	if off != 0 && off != int64(len(contents)) {
+		t.Errorf("offset wrong: god %d, want %d or %d", off, 0, len(contents))
+	}
+	// The cursor position should be unchanged.
+	pos, err := src.Seek(0, 1)
+	if err != nil {
+		t.Errorf("can't get cursor position %s\n", err)
+	}
+	if pos != 0 {
+		t.Errorf("cursor position wrong: got %d, want 0", pos)
+	}
+
+	file.Close() // Note: required to have the close below really send EOF to the server.
+	conn.Close()
+
+	// Wait for server to close.
+	<-done
 }
