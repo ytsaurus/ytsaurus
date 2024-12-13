@@ -75,6 +75,9 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Dynamic libraries.
+COPY ./artifacts/libiconv.so /lib/libiconv.so
+
 ##########################################################################################
 
 FROM base AS build-ytsaurus-python-binaries

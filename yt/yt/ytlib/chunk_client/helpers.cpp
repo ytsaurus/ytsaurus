@@ -9,6 +9,10 @@
 #include "input_chunk.h"
 #include "input_chunk_slice.h"
 #include "replication_reader.h"
+#include "s3_reader.h"
+
+// TODO(achulkov2): [PForReview] Probably move this into the reader.
+#include "chunk_reader_host.h"
 
 #include <yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h>
 
@@ -289,6 +293,8 @@ void ProcessFetchResponse(
     if (nodeDirectory) {
         nodeDirectory->MergeFrom(fetchResponse->node_directory());
     }
+
+    // TODO(achulkov2): [PLater] Pass and populate medium directory in a similar fashion.
 
     std::vector<NProto::TChunkSpec*> foreignChunkSpecs;
     for (auto& chunkSpec : *fetchResponse->mutable_chunks()) {
@@ -683,9 +689,10 @@ IChunkReaderPtr CreateRemoteReader(
     TChunkReaderHostPtr chunkReaderHost)
 {
     auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
-    auto replicas = GetReplicasFromChunkSpec(chunkSpec);
 
     auto Logger = ChunkClientLogger().WithTag("ChunkId: %v", chunkId);
+
+    auto replicas = GetReplicasFromChunkSpec(chunkSpec);
 
     auto optionsPerChunk = New<TRemoteReaderOptions>();
     optionsPerChunk->AllowFetchingSeedsFromMaster = options->AllowFetchingSeedsFromMaster;
@@ -693,6 +700,9 @@ IChunkReaderPtr CreateRemoteReader(
     optionsPerChunk->UseProxyingDataNodeService = chunkSpec.use_proxying_data_node_service();
 
     if (IsErasureChunkId(chunkId)) {
+        // Offshore replicas are not supported for erasure chunks.
+        VerifyNoOffshoreReplicas(replicas);
+
         auto erasureCodecId = FromProto<ECodec>(chunkSpec.erasure_codec());
         YT_LOG_DEBUG("Creating erasure remote reader (Codec: %v)",
             erasureCodecId);
@@ -722,7 +732,7 @@ IChunkReaderPtr CreateRemoteReader(
             }
 
             auto partChunkId = ErasurePartIdFromChunkId(chunkId, index);
-            auto reader = CreateReplicationReader(
+            auto reader = CreateReplicationReaderV2(
                 partConfig,
                 optionsPerChunk,
                 chunkReaderHost,
@@ -739,7 +749,8 @@ IChunkReaderPtr CreateRemoteReader(
             /*testingOptions*/ std::nullopt,
             Logger);
     } else {
-        YT_LOG_DEBUG("Creating regular remote reader");
+        // TODO(achulkov2): [PForReview] Fix this with physical chunk reader.
+        YT_LOG_DEBUG("Creating regular remote reader with a twist");
 
         return CreateReplicationReader(
             std::move(config),

@@ -738,6 +738,8 @@ IDriverPtr CreateDriver(
     YT_VERIFY(signatureGenerator);
     YT_VERIFY(signatureValidator);
 
+    YT_LOG_DEBUG("KEK Creating driver (ConneectionPtr: %v)", connection.get());
+
     return New<TDriver>(
         std::move(config),
         std::move(connection),

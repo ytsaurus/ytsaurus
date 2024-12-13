@@ -33,6 +33,8 @@ public:
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
 
+    void FillMediumDescriptor(NChunkClient::NProto::TMediumDirectory::TMediumDescriptor* protoItem) const override;
+
     void Save(NCellMaster::TSaveContext& context) const override;
     void Load(NCellMaster::TLoadContext& context) override;
 };

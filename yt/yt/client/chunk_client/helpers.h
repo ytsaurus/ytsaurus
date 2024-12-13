@@ -15,6 +15,15 @@ NObjectClient::TCellId GetCellIdFromChunkSpec(const NProto::TChunkSpec& chunkSpe
 NTabletClient::TTabletId GetTabletIdFromChunkSpec(const NProto::TChunkSpec& chunkSpec);
 TChunkReplicaWithMediumList GetReplicasFromChunkSpec(const NProto::TChunkSpec& chunkSpec);
 
+struct TReplicasByType
+{
+    TChunkReplicaWithMediumList DomesticReplicas;
+    TChunkReplicaWithMediumList OffshoreReplicas;
+};
+// TODO(achulkov2): [PForReview] Move this function to ytlib?
+TReplicasByType GetReplicasByType(const TChunkReplicaWithMediumList& replicas);
+void VerifyNoOffshoreReplicas(const TChunkReplicaWithMediumList& replicas);
+
 void SetTabletId(NProto::TChunkSpec* chunkSpec, NTabletClient::TTabletId tabletId);
 void SetObjectId(NProto::TChunkSpec* chunkSpec, NObjectClient::TObjectId objectId);
 

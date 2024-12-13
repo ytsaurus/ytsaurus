@@ -2841,6 +2841,12 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
                 auto replicas = GetReplicasFromChunkSpec(chunkSpec);
                 for (auto replica : replicas) {
                     auto nodeId = replica.GetNodeId();
+
+                    // TODO(achulkov2): [PLater] Introduce a similar check for medium descriptors once we start passing them to the job.
+                    if (nodeId == OffshoreNodeId) {
+                        continue;
+                    }
+
                     const auto* descriptor = nodeDirectory->FindDescriptor(nodeId);
                     if (!descriptor) {
                         unresolvedNodeId = nodeId;
@@ -3130,6 +3136,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             tcmallocConfig->HeapSizeLimit->MemoryProfileDumpFilenameSuffix = ToString(GetId());
             tcmallocConfig->HeapSizeLimit->DumpMemoryProfileOnViolation = true;
         }
+
+        proxyInternalConfig->SyncMediumDirectoryOnStart = proxyDynamicConfig->SyncMediumDirectoryOnStart;
     }
 
     proxyInternalConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);

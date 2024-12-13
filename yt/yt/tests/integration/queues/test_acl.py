@@ -7,9 +7,9 @@ import pytest
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
+# @pytest.mark.enabled_multidaemon
 class TestRegisterQueueConsumerPermission(YTEnvSetup):
-    ENABLE_MULTIDAEMON = True
+    ENABLE_MULTIDAEMON = False
 
     @authors("nadya73", "max42")
     def test_register_queue_consumer_permission(self):
@@ -47,8 +47,13 @@ class TestRegisterQueueConsumerPermission(YTEnvSetup):
         assert check_permission("u_vital", "register_queue_consumer", "//tmp/t", vital=True)["action"] == "allow"
 
 
-@pytest.mark.enabled_multidaemon
+# @pytest.mark.enabled_multidaemon
 class TestRegisterQueueConsumerPermissionRpcProxy(TestRegisterQueueConsumerPermission):
-    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+
+    NUM_SCHEDULERS = 1
+
+    ENABLE_MULTIDAEMON = False
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True

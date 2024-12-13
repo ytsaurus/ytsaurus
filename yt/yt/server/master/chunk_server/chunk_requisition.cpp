@@ -400,6 +400,19 @@ void TChunkRequisition::ForceReplicationFactor(int replicationFactor)
     }
 }
 
+void TChunkRequisition::CorrectReplicationFactor(const IChunkManagerPtr& chunkManager, bool isErasureChunk)
+{
+    static_assert(MinReplicationFactor <= 1 && 1 <= MaxReplicationFactor,
+        "Replication factor limits are incorrect.");
+        
+    for (auto& entry : Entries_) {
+        auto* medium = chunkManager->GetMediumByIndex(entry.MediumIndex);
+        if (isErasureChunk || medium->IsOffshore()) {
+            entry.ReplicationPolicy.SetReplicationFactor(1);
+        }
+    }
+}
+
 TChunkRequisition& TChunkRequisition::operator|=(const TChunkRequisition& rhs)
 {
     if (this == &rhs) {

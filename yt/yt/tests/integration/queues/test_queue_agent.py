@@ -1,4 +1,4 @@
-from yt_env_setup import (Restarter, QUEUE_AGENTS_SERVICE)
+from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE)
 from yt_queue_agent_test_base import (OrchidWithRegularPasses, QueueStaticExportHelpers, TestQueueAgentBase, ReplicatedObjectBase, QueueAgentOrchid,
                                       CypressSynchronizerOrchid, AlertManagerOrchid, QueueAgentShardingManagerOrchid,
                                       ObjectAlertHelper)
@@ -32,6 +32,20 @@ import yt_error_codes
 import yt.environment.init_queue_agent_state as init_queue_agent_state
 
 ##################################################################
+
+
+class TestKek(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+
+    NUM_SCHEDULERS = 1
+
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    @authors("achulkov2")
+    def test_kek(self):
+        pass
 
 
 @pytest.mark.enabled_multidaemon

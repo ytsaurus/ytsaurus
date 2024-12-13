@@ -82,6 +82,7 @@ message TReqAddConfirmReplicas
 {
     required NYT.NProto.TGuid chunk_id = 1;
     repeated NYT.NChunkClient.NProto.TConfirmChunkReplicaInfo replicas = 2;
+    // TODO(achulkov2): [PNow] Do we need offshore replicas here?
 }
 
 ////////////////////////////////////////////////////////////////////////////////

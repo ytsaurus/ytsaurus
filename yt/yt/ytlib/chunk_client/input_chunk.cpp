@@ -89,7 +89,7 @@ TChunkReplicaWithMediumList TInputChunkBase::GetReplicaList() const
     replicas.reserve(MaxInputChunkReplicaCount);
     for (auto replica : Replicas_) {
         if (replica.GetNodeId() != InvalidNodeId) {
-            replicas.push_back(TChunkReplicaWithMedium(replica));
+            replicas.push_back(replica);
         }
     }
     return replicas;
@@ -97,7 +97,8 @@ TChunkReplicaWithMediumList TInputChunkBase::GetReplicaList() const
 
 void TInputChunkBase::SetReplicaList(const TChunkReplicaWithMediumList& replicas)
 {
-    Replicas_.fill(TChunkReplica());
+    // TODO(achulkov2): [PDuringReview] Make all of this more efficient.
+    Replicas_.fill(TChunkReplicaWithMedium());
     for (int index = 0; index < std::ssize(replicas); ++index) {
         auto replica = replicas[index];
         if (ErasureCodec_ == NErasure::ECodec::None) {
@@ -142,27 +143,27 @@ void TInputChunkBase::CheckOffsets()
 {
     static_assert(offsetof(TInputChunkBase, ChunkId_) == 0, "invalid offset");
     static_assert(offsetof(TInputChunkBase, Replicas_) == 16, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TableIndex_) == 80, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, ErasureCodec_) == 84, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TableRowIndex_) == 88, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, RangeIndex_) == 96, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, ChunkFormat_) == 100, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, ChunkIndex_) == 104, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TabletIndex_) == 112, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TabletId_) == 120, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, OverrideTimestamp_) == 136, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, MaxClipTimestamp_) == 144, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TotalUncompressedDataSize_) == 152, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TotalRowCount_) == 160, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 168, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TotalDataWeight_) == 176, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 184, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, ValuesPerRow_) == 192, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 196, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, ColumnSelectivityFactor_) == 200, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, StripedErasure_) == 208, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, ReadSizeSelectivityFactor_) == 216, "invalid offset");
-    static_assert(sizeof(TInputChunkBase) == 224, "invalid sizeof");
+    static_assert(offsetof(TInputChunkBase, TableIndex_) == 144, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, ErasureCodec_) == 148, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TableRowIndex_) == 152, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, RangeIndex_) == 160, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, ChunkFormat_) == 164, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, ChunkIndex_) == 168, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TabletIndex_) == 176, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TabletId_) == 184, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, OverrideTimestamp_) == 200, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, MaxClipTimestamp_) == 208, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TotalUncompressedDataSize_) == 216, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TotalRowCount_) == 224, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 232, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TotalDataWeight_) == 240, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 248, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, ValuesPerRow_) == 256, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 260, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, ColumnSelectivityFactor_) == 264, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, StripedErasure_) == 272, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, ReadSizeSelectivityFactor_) == 280, "invalid offset");
+    static_assert(sizeof(TInputChunkBase) == 288, "invalid sizeof");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -188,7 +189,10 @@ TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec, std::optional<int>
         ? std::make_unique<NTableClient::NProto::THunkChunkRefsExt>(
             GetProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(chunkSpec.chunk_meta().extensions()))
         : nullptr)
+    // , OffshoreReplicas_(FromProto<TChunkReplicaWithMediumList>(chunkSpec.offshore_replicas()))
 {
+    // Cerr << Format("KEK Created chunk (ChunkId: %v, OffshoreReplicaCount: %v)", ChunkId_, std::ssize(OffshoreReplicas_)) << Endl;
+
     if (IsSortedDynamicStore()) {
         BoundaryKeys_ = std::make_unique<TOwningBoundaryKeys>();
         BoundaryKeys_->MinKey = LowerLimit_ && LowerLimit_->HasLegacyKey() ? LowerLimit_->GetLegacyKey() : MinKey();
@@ -240,6 +244,9 @@ void TInputChunk::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(8, HunkChunkRefsExt_,
         .SinceVersion(static_cast<int>(ESnapshotVersion::RemoteCopyDynamicTableWithHunks))
         .template Serializer<TUniquePtrSerializer<>>());
+    // PHOENIX_REGISTER_FIELD(9, OffshoreReplicas_,
+    //     .SinceVersion(static_cast<int>(NControllerAgent::ESnapshotVersion::OffshoreReplicas)));
+        // .template Serializer<TUniquePtrSerializer<>>());
 }
 
 size_t TInputChunk::SpaceUsed() const

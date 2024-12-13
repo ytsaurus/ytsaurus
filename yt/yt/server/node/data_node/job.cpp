@@ -774,7 +774,7 @@ private:
             /*mediumThrottler*/ GetUnlimitedThrottler(),
             /*trafficMeter*/ nullptr);
 
-        return CreateReplicationReader(
+        return CreateReplicationReaderV2(
             DynamicConfig_->Reader,
             options,
             std::move(chunkReaderHost),
@@ -1523,6 +1523,8 @@ private:
             NChunkClient::EErrorCode::IncompatibleChunkMetas,
             "Chunk %v has hunk columns in schema, merge is prohibited",
             writer->GetChunkId());
+
+        // TODO(achulkov2): [PNow] Prohibit S3 chunks in merge. Or look into meta aggregating writer compatibility.
 
         auto chunkMeta = writer->GetChunkMeta();
         auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());

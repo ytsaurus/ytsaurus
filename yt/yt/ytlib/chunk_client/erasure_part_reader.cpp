@@ -75,7 +75,7 @@ std::vector<IChunkReaderAllowingRepairPtr> CreateErasurePartReaders(
 
             TChunkReplicaWithMediumList partReplicas(it, jt);
             auto partChunkId = ErasurePartIdFromChunkId(chunkId, it->GetReplicaIndex());
-            auto reader = CreateReplicationReader(
+            auto reader = CreateReplicationReaderV2(
                 partConfig,
                 options,
                 chunkReaderHost,

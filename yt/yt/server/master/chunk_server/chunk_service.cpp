@@ -422,10 +422,13 @@ private:
                     auto replicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk)
                         .ValueOrThrow();
 
+                    auto offshoreReplicas = chunkReplicaFetcher->GetOffshoreChunkReplicas(ephemeralChunk);
+
                     BuildChunkSpec(
                         Bootstrap_,
                         chunk,
                         replicas,
+                        offshoreReplicas,
                         rowIndex,
                         /*tabletIndex*/ {},
                         /*lowerLimit*/ {},
@@ -920,6 +923,7 @@ private:
             request->location_uuids_supported(),
             "Chunk confirmation request without location uuids is received");
 
+        // TODO(achulkov2): [PNow] Offshore replica stuff?
         if (chunkManagerConfig->SequoiaChunkReplicas->Enable) {
             auto allReplicas = request->replicas();
             context->Request().mutable_replicas()->Clear();

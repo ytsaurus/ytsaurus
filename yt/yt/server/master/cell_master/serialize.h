@@ -229,6 +229,7 @@ DEFINE_ENUM(EMasterReign,
     // 25.2 starts here.
     ((Start_25_2)                                                   (2900))  // ponasenko-rs
     ((TabletTransactionSerializationType)                           (2901))  // ponasenko-rs
+    ((OffshoreReplicas)                                             (2902))  // achulkov2
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

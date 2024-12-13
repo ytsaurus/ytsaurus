@@ -12,6 +12,7 @@
 #include "chunk_reader_allowing_repair.h"
 #include "chunk_reader_options.h"
 #include "chunk_replica_cache.h"
+#include "s3_reader.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -42,6 +43,8 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
+
+#include <yt/yt/client/chunk_client/helpers.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
@@ -623,8 +626,8 @@ protected:
 
     int GetMediumPriority(TChunkReplicaWithMedium replica)
     {
-        const auto* descriptor = MediumDirectory_->FindByIndex(replica.GetMediumIndex());
-        return descriptor ? descriptor->Priority : 0;
+        auto descriptor = MediumDirectory_->FindByIndex(replica.GetMediumIndex());
+        return descriptor ? descriptor->GetPriority() : 0;
     }
 
     IThroughputThrottlerPtr CreateCombinedDataByteThrottler() const
@@ -3934,7 +3937,7 @@ IRequestBatcherPtr CreateRequestBatcher(TWeakPtr<TReplicationReader> reader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkReaderAllowingRepairPtr CreateReplicationReader(
+IChunkReaderAllowingRepairPtr CreateReplicationReaderV2(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
@@ -3949,9 +3952,70 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
         std::move(seedReplicas));
 }
 
+IChunkReaderPtr CreateReplicationReader(
+    TReplicationReaderConfigPtr config,
+    TRemoteReaderOptionsPtr options,
+    TChunkReaderHostPtr chunkReaderHost,
+    TChunkId chunkId,
+    TChunkReplicaWithMediumList seedReplicas)
+{
+    auto replicasByType = GetReplicasByType(seedReplicas);
+
+    if (replicasByType.DomesticReplicas.empty() && !replicasByType.OffshoreReplicas.empty()) {
+        if (!chunkReaderHost) {
+            THROW_ERROR_EXCEPTION(
+                "Cannot create offshore chunk reader for chunk %v without chunk reader host",
+                chunkId);
+                // TODO(achulkov2): [PForReview] Make replicas serializable.
+                // << TErrorAttribute("seed_replicas", seedReplicas);
+        }
+
+        auto mediumDirectory = chunkReaderHost->Client->GetNativeConnection()->GetMediumDirectory();
+
+        // TODO(achulkov2): [PForReview] Move/create new function CreatePhysicalChunkReader. Fix configuration, maybe do some replica selection logic.
+        auto mediumDescriptor = mediumDirectory->GetByIndexOrThrow(replicasByType.OffshoreReplicas[0].GetMediumIndex());
+
+        if (const auto s3MediumDescriptor = mediumDescriptor->As<TS3MediumDescriptor>()) {
+            return CreateS3Reader(s3MediumDescriptor, nullptr, chunkId);
+        }
+
+        THROW_ERROR_EXCEPTION("The medium %Qv is not supported for reading data", mediumDescriptor->GetName())
+            << TErrorAttribute("medium_index", mediumDescriptor->GetIndex());
+    }
+
+    return New<TReplicationReader>(
+        std::move(config),
+        std::move(options),
+        std::move(chunkReaderHost),
+        chunkId,
+        std::move(replicasByType.DomesticReplicas));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkReaderAllowingRepairPtr CreateReplicationReaderThrottlingAdapter(
+IChunkReaderPtr CreateReplicationReaderThrottlingAdapter(
+    const IChunkReaderPtr& underlyingReader,
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler,
+    IThroughputThrottlerPtr mediumThrottler)
+{
+    auto* underlyingReplicationReader = dynamic_cast<TReplicationReader*>(underlyingReader.Get());
+
+    // TODO(achulkov2): [PForReview] Fix me.
+    if (!underlyingReplicationReader) {
+        return underlyingReader;
+    }
+
+    YT_VERIFY(underlyingReplicationReader);
+
+    return New<TReplicationReaderWithOverriddenThrottlers>(
+        underlyingReplicationReader,
+        std::move(bandwidthThrottler),
+        std::move(rpsThrottler),
+        std::move(mediumThrottler));
+}
+
+IChunkReaderAllowingRepairPtr CreateReplicationReaderThrottlingAdapterV2(
     const IChunkReaderPtr& underlyingReader,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler,

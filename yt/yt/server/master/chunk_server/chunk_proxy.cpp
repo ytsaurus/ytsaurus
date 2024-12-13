@@ -952,6 +952,8 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
+    // TODO(achulkov2): [PNow] StoredOffshoreReplicas attribute.
+
     TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -1012,9 +1014,12 @@ private:
                     break;
                 }
 
+                // NB: No context switches here.
+                auto offshoreReplicas = chunkReplicaFetcher->GetOffshoreChunkReplicas({TEphemeralObjectPtr<TChunk>(chunk)});
+
                 return chunkReplicaFetcher->GetChunkReplicasAsync({TEphemeralObjectPtr<TChunk>(chunk)})
                     .Apply(BIND([=, this_ = MakeStrong(this)] (const TChunkLocationPtrWithReplicaInfoList& replicas) {
-                        auto statuses = chunkReplicator->ComputeChunkStatuses(chunk, replicas);
+                        auto statuses = chunkReplicator->ComputeChunkStatuses(chunk, replicas, offshoreReplicas);
 
                         return BuildYsonStringFluently().DoMapFor(
                             statuses.begin(),
@@ -1263,6 +1268,8 @@ private:
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
+
+        // TODO(achulkov2): [PNow] Support offshore replicas.
 
         // This is context switch, chunk may die.
         auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunk)

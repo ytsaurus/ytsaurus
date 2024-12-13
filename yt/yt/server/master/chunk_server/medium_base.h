@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/master/security_server/acl.h>
 
+#include <yt/ytlib/chunk_client/proto/medium_directory.pb.h>
+
 #include <yt/yt/core/misc/property.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
@@ -35,6 +37,8 @@ public:
 
     TDomesticMedium* AsDomestic();
     const TDomesticMedium* AsDomestic() const;
+
+    virtual void FillMediumDescriptor(NChunkClient::NProto::TMediumDirectory::TMediumDescriptor* protoItem) const;
 
     virtual void Save(NCellMaster::TSaveContext& context) const;
     virtual void Load(NCellMaster::TLoadContext& context);

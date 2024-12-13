@@ -366,7 +366,7 @@ public:
     {
         ReaderAdapters_.reserve(UnderlyingReader_->Readers_.size());
         for (int i = 0; i < std::ssize(UnderlyingReader_->Readers_); ++i) {
-            ReaderAdapters_.push_back(CreateReplicationReaderThrottlingAdapter(
+            ReaderAdapters_.push_back(CreateReplicationReaderThrottlingAdapterV2(
                 UnderlyingReader_->Readers_[i],
                 bandwidthThrottler,
                 rpsThrottler,

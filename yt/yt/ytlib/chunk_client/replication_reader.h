@@ -16,7 +16,14 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkReaderAllowingRepairPtr CreateReplicationReader(
+IChunkReaderAllowingRepairPtr CreateReplicationReaderV2(
+    TReplicationReaderConfigPtr config,
+    TRemoteReaderOptionsPtr options,
+    TChunkReaderHostPtr chunkReaderHost,
+    TChunkId chunkId,
+    TChunkReplicaWithMediumList seedReplicas);
+
+IChunkReaderPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
@@ -25,7 +32,13 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkReaderAllowingRepairPtr CreateReplicationReaderThrottlingAdapter(
+IChunkReaderAllowingRepairPtr CreateReplicationReaderThrottlingAdapterV2(
+    const IChunkReaderPtr& underlyingReader,
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler,
+    NConcurrency::IThroughputThrottlerPtr mediumThrottler);
+
+IChunkReaderPtr CreateReplicationReaderThrottlingAdapter(
     const IChunkReaderPtr& underlyingReader,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
     NConcurrency::IThroughputThrottlerPtr rpsThrottler,

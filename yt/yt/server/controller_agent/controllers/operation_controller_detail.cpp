@@ -7793,11 +7793,8 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                 continue;
             }
             auto mediumName = *diskRequest->MediumName;
-            auto* mediumDescriptor = mediumDirectory->FindByName(mediumName);
-            if (!mediumDescriptor) {
-                THROW_ERROR_EXCEPTION("Unknown medium %Qv", mediumName);
-            }
-            diskRequest->MediumIndex = mediumDescriptor->Index;
+            auto mediumDescriptor = mediumDirectory->GetByNameOrThrow(mediumName);
+            diskRequest->MediumIndex = mediumDescriptor->GetIndex();
 
             if (Config->ObligatoryAccountMedia.contains(mediumName)) {
                 if (!diskRequest->Account) {
@@ -11561,6 +11558,13 @@ std::unique_ptr<TAbortedJobSummary> TOperationControllerBase::RegisterOutputChun
     auto replicas = GetReplicasFromChunkSpec(chunkSpec);
     for (auto replica : replicas) {
         auto nodeId = replica.GetNodeId();
+
+        // TODO(achulkov2): [PLater] We should introduce a medium directory like input/output node directory
+        // to be passed to jobs, so that they don't have to request it from masters.
+        if (nodeId == OffshoreNodeId) {
+            continue;
+        }
+
         if (OutputNodeDirectory_->FindDescriptor(nodeId)) {
             continue;
         }

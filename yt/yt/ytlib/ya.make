@@ -131,6 +131,7 @@ SRCS(
     chunk_client/cache_reader.cpp
     chunk_client/chunk_fragment_read_controller.cpp
     chunk_client/chunk_fragment_reader.cpp
+    chunk_client/chunk_layout_facade.cpp
     chunk_client/chunk_meta_cache.cpp
     GLOBAL chunk_client/chunk_meta_extensions.cpp
     chunk_client/chunk_meta_fetcher.cpp
@@ -184,6 +185,9 @@ SRCS(
     chunk_client/reader_factory.cpp
     chunk_client/replication_reader.cpp
     chunk_client/replication_writer.cpp
+    chunk_client/s3_common.cpp
+    chunk_client/s3_reader.cpp
+    chunk_client/s3_writer.cpp
     chunk_client/sequential_multi_reader_manager.cpp
     chunk_client/session_id.cpp
     chunk_client/striped_erasure_reader.cpp
@@ -732,6 +736,7 @@ PEERDIR(
     contrib/libs/re2
     contrib/libs/protobuf
     contrib/libs/yajl
+    library/cpp/digest/md5
     library/cpp/erasure
     library/cpp/iterator
     library/cpp/yt/backtrace/symbolizers/dwarf
@@ -757,6 +762,7 @@ PEERDIR(
     yt/yt/library/web_assembly/api
     yt/yt/library/profiling/solomon
     yt/yt/library/program
+    yt/yt/library/s3
     yt/yt/library/vector_hdrf
     yt/yt/ytlib/discovery_client
     yt/yt/ytlib/query_tracker_client

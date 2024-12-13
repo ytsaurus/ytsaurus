@@ -36,8 +36,8 @@ public:
     // TODO(babenko): this could also be a store id.
     DEFINE_BYVAL_RW_PROPERTY(TChunkId, ChunkId);
 
-    // TODO(babenko): store replicas with media.
-    using TInputChunkReplicas = std::array<TChunkReplica, MaxInputChunkReplicaCount>;
+    // TODO(achulkov2): [PLater] Is this really the most efficient representation? Chunks rarely have 16 replicas.
+    using TInputChunkReplicas = std::array<TChunkReplicaWithMedium, MaxInputChunkReplicaCount>;
     DEFINE_BYREF_RO_PROPERTY(TInputChunkReplicas, Replicas);
 
     DEFINE_BYVAL_RW_PROPERTY(int, TableIndex, -1);

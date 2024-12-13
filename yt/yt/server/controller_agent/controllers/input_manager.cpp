@@ -1121,6 +1121,7 @@ void TInputManager::OnInputChunkLocated(
     auto codecId = chunkSpec->GetErasureCodec();
 
     if (IsUnavailable(replicas, codecId, Host_->GetChunkAvailabilityPolicy())) {
+        YT_LOG_DEBUG("KEK unavailable chunk from OnChunkLocated");
         OnInputChunkUnavailable(chunkId, &descriptor);
     } else {
         OnInputChunkAvailable(chunkId, replicas, &descriptor);
@@ -1235,6 +1236,7 @@ void TInputManager::RegisterUnavailableInputChunks(bool reportIfFound)
     }
     for (const auto& [chunkId, chunkDescriptor] : InputChunkMap_) {
         if (chunkDescriptor.State == EInputChunkState::Waiting) {
+            YT_LOG_DEBUG("KEK unavailable chunk from input chunk map");
             RegisterUnavailableInputChunk(chunkId);
         }
     }

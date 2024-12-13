@@ -1592,18 +1592,18 @@ public:
             ->GetClient()
             ->GetNativeConnection()
             ->GetMediumDirectory();
-        const auto* descriptor = mediumDirectory->FindByName(mediumName);
-        return descriptor ? std::optional(descriptor->Index) : std::nullopt;
+        auto descriptor = mediumDirectory->FindByName(mediumName);
+        return descriptor ? std::optional(descriptor->GetIndex()) : std::nullopt;
     }
 
-    const TString& GetMediumNameByIndex(int mediumIndex) const override
+    TString GetMediumNameByIndex(int mediumIndex) const override
     {
         const auto& mediumDirectory = Bootstrap_
             ->GetClient()
             ->GetNativeConnection()
             ->GetMediumDirectory();
-        const auto* descriptor = mediumDirectory->FindByIndex(mediumIndex);
-        return descriptor->Name;
+        const auto descriptor = mediumDirectory->FindByIndex(mediumIndex);
+        return descriptor->GetName();
     }
 
     const ISchedulerStrategyPtr& GetStrategy() const override
@@ -1680,11 +1680,7 @@ public:
             MakeFormattableView(mediumIndexToFreeResources, [&mediumDirectory] (TStringBuilderBase* builder, const std::pair<int, std::vector<i64>>& pair) {
                 int mediumIndex = pair.first;
                 const auto& freeDiskSpace = pair.second;
-                auto* mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
-                TStringBuf mediumName = mediumDescriptor
-                    ? mediumDescriptor->Name
-                    : TStringBuf("unknown");
-                builder->AppendFormat("%v: %v", mediumName, freeDiskSpace);
+                builder->AppendFormat("%v: %v", mediumDirectory->GetMediumName(mediumIndex), freeDiskSpace);
             }));
     }
 

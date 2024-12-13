@@ -5,6 +5,7 @@
 #include "chunk_manager.h"
 #include "config.h"
 #include "medium_type_handler_base.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
@@ -16,6 +17,10 @@ using namespace NObjectServer;
 using namespace NChunkClient;
 using namespace NTransactionServer;
 using namespace NCellMaster;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,6 +50,7 @@ public:
     {
         auto name = attributes->GetAndRemove<std::string>("name");
         auto config = attributes->GetAndRemove<TS3MediumConfigPtr>("config");
+        YT_LOG_DEBUG("KEK Medium config on create (Config: %v)", ConvertToYsonString(config, NYson::EYsonFormat::Text));
         // These three are optional.
         auto priority = attributes->FindAndRemove<int>("priority");
         auto index = attributes->FindAndRemove<int>("index");

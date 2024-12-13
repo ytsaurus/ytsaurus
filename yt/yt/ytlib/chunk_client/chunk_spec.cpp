@@ -20,10 +20,41 @@ bool IsUnavailable(
     NErasure::ECodec codecId,
     EChunkAvailabilityPolicy policy)
 {
-    return IsUnavailable(
-        TChunkReplicaWithMedium::ToChunkReplicas(replicas),
-        codecId,
-        policy);
+    // TODO(achulkov2): [PForReview] Validate me for offshore correctness.
+
+    if (codecId == NErasure::ECodec::None) {
+        return replicas.empty();
+    } else {
+        auto* codec = NErasure::GetCodec(codecId);
+
+        NErasure::TPartIndexSet erasedIndexSet;
+        for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
+            erasedIndexSet.set(index);
+        }
+        for (auto replica : replicas) {
+            erasedIndexSet.reset(replica.GetReplicaIndex());
+        }
+
+        switch (policy) {
+            case EChunkAvailabilityPolicy::DataPartsAvailable:
+                for (int index = codec->GetDataPartCount(); index < codec->GetTotalPartCount(); ++index) {
+                    erasedIndexSet.reset(index);
+                }
+                return erasedIndexSet.any();
+            case EChunkAvailabilityPolicy::AllPartsAvailable:
+                return erasedIndexSet.any();
+            case EChunkAvailabilityPolicy::Repairable:
+                return !codec->CanRepair(erasedIndexSet);
+            default:
+                YT_ABORT();
+        }
+    }
+
+    // TODO(achulkov2): [PForReview] Can we remove this? And function below.
+    // return IsUnavailable(
+    //     TChunkReplicaWithMedium::ToChunkReplicas(replicas),
+    //     codecId,
+    //     policy);
 }
 
 bool IsUnavailable(
