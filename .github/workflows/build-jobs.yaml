@@ -198,9 +198,9 @@ jobs:
           ninja liburl_udf.so
           ninja libyqlplugin.so
           ninja libyson2_udf.so
-          ninja mrjob
 
           cd ../build_${{ matrix.build-type }}
+          ninja mrjob
           ninja ytserver-yql-agent
 
   ya-make_build:
