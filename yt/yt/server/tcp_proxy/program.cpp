@@ -5,8 +5,6 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
-#include <yt/yt/library/program/program_config_mixin.h>
-
 #include <yt/yt/library/program/helpers.h>
 
 namespace NYT::NTcpProxy {
@@ -14,12 +12,10 @@ namespace NYT::NTcpProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTcpProxyProgram
-    : public TServerProgram
-    , public TProgramConfigMixin<TTcpProxyConfig>
+    : public TServerProgram<TTcpProxyConfig>
 {
 public:
     TTcpProxyProgram()
-        : TProgramConfigMixin(Opts_)
     {
         SetMainThreadName("TcpProxy");
     }

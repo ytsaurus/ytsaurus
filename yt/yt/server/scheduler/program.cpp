@@ -8,19 +8,15 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
-#include <yt/yt/library/program/program_config_mixin.h>
-
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerProgram
-    : public TServerProgram
-    , public TProgramConfigMixin<TSchedulerBootstrapConfig>
+    : public TServerProgram<TSchedulerBootstrapConfig>
 {
 public:
     TSchedulerProgram()
-        : TProgramConfigMixin(Opts_)
     {
         SetMainThreadName("Scheduler");
     }

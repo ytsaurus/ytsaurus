@@ -6,7 +6,6 @@
 #include <yt/yt/library/server_program/server_program.h>
 
 #include <yt/yt/library/program/program.h>
-#include <yt/yt/library/program/program_config_mixin.h>
 
 #include <yt/yt/ytlib/program/native_singletons.h>
 
@@ -15,12 +14,10 @@ namespace NYT::NCellBalancer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellBalancerProgram
-    : public TServerProgram
-    , public TProgramConfigMixin<TCellBalancerBootstrapConfig>
+    : public TServerProgram<TCellBalancerBootstrapConfig>
 {
 public:
     TCellBalancerProgram()
-        : TProgramConfigMixin(Opts_)
     {
         SetMainThreadName("CellBalancer");
     }

@@ -16,12 +16,15 @@
 
 #include <yt/yt/library/dynamic_config/public.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 namespace NYT::NMasterCache {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterCacheConfig
     : public TNativeServerConfig
+    , public TServerProgramConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;

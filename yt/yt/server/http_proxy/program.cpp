@@ -15,8 +15,6 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
-#include <yt/yt/library/program/program_config_mixin.h>
-
 #include <yt/yt/library/profiling/solomon/config.h>
 
 namespace NYT::NHttpProxy {
@@ -26,13 +24,12 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 class THttpProxyProgram
-    : public TServerProgram
-    , public TProgramConfigMixin<NHttpProxy::TProxyConfig>
+    : public TServerProgram<NHttpProxy::TProxyConfig>
     , public NLogging::TProgramDescribeStructuredLogsMixin
 {
 public:
     THttpProxyProgram()
-        : TProgramConfigMixin(Opts_, false)
+        : TServerProgram(/*requireConfigArgument*/ false)
         , TProgramDescribeStructuredLogsMixin(Opts_)
     {
         Opts_

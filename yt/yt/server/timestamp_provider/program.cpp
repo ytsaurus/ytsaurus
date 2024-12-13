@@ -5,8 +5,6 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
-#include <yt/yt/library/program/program_config_mixin.h>
-
 #include <yt/yt/library/program/helpers.h>
 
 namespace NYT::NTimestampProvider {
@@ -14,12 +12,10 @@ namespace NYT::NTimestampProvider {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTimestampProviderProgram
-    : public TServerProgram
-    , public TProgramConfigMixin<TTimestampProviderConfig>
+    : public TServerProgram<TTimestampProviderConfig>
 {
 public:
     TTimestampProviderProgram()
-        : TProgramConfigMixin(Opts_)
     {
         SetMainThreadName("TSProvider");
     }

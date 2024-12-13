@@ -5,7 +5,6 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
-#include <yt/yt/library/program/program_config_mixin.h>
 #include <yt/yt/library/program/helpers.h>
 
 namespace NYT::NClusterClock {
@@ -13,12 +12,10 @@ namespace NYT::NClusterClock {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterClockProgram
-    : public TServerProgram
-    , public TProgramConfigMixin<TClusterClockConfig>
+    : public TServerProgram<TClusterClockConfig>
 {
 public:
     TClusterClockProgram()
-        : TProgramConfigMixin(Opts_)
     {
         Opts_
             .AddLongOption("dump-snapshot", "dump master snapshot and exit")

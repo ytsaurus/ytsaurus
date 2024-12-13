@@ -7,19 +7,15 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
-#include <yt/yt/library/program/program_config_mixin.h>
-
 namespace NYT::NQueryTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryTrackerProgram
-    : public TServerProgram
-    , public TProgramConfigMixin<TQueryTrackerServerConfig>
+    : public TServerProgram<TQueryTrackerServerConfig>
 {
 public:
     TQueryTrackerProgram()
-        : TProgramConfigMixin(Opts_)
     {
         SetMainThreadName("QueryTracker");
     }

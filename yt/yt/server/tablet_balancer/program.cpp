@@ -7,19 +7,15 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
-#include <yt/yt/library/program/program_config_mixin.h>
-
 namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletBalancerProgram
-    : public TServerProgram
-    , public TProgramConfigMixin<TTabletBalancerServerConfig>
+    : public TServerProgram<TTabletBalancerServerConfig>
 {
 public:
     TTabletBalancerProgram()
-        : TProgramConfigMixin(Opts_)
     {
         SetMainThreadName("TabletBalancer");
     }

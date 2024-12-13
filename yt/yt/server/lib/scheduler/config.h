@@ -33,6 +33,8 @@
 
 #include <yt/yt/library/program/public.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1021,9 +1023,9 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerConfig)
 
 class TSchedulerBootstrapConfig
     : public TNativeServerConfig
+    , public TServerProgramConfig
 {
 public:
-
     NScheduler::TSchedulerConfigPtr Scheduler;
 
     //! Known scheduler addresses.

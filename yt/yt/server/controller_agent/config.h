@@ -20,6 +20,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 #include <yt/yt/client/job_tracker_client/public.h>
 
 #include <yt/yt/client/ypath/rich.h>
@@ -1273,6 +1275,7 @@ DEFINE_REFCOUNTED_TYPE(TControllerAgentConfig)
 
 class TControllerAgentBootstrapConfig
     : public TNativeServerConfig
+    , public TServerProgramConfig
 {
 public:
     TControllerAgentConfigPtr ControllerAgent;
