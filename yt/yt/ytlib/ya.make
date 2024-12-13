@@ -228,6 +228,12 @@ SRCS(
 
     data_node_tracker_client/proto/data_node_tracker_service.proto
 
+    distributed_chunk_session_client/config.cpp
+    distributed_chunk_session_client/distributed_chunk_writer.cpp
+    distributed_chunk_session_client/distributed_chunk_session_controller.cpp
+
+    distributed_chunk_session_client/proto/distributed_chunk_session_service.proto
+
     driver/config.cpp
 
     election/cell_manager.cpp

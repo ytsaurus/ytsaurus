@@ -23,6 +23,8 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
+#include <yt/yt/server/lib/distributed_chunk_session/distributed_chunk_session_service.h>
+
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/library/query/engine_api/config.h>
@@ -232,6 +234,11 @@ public:
         RowComparerProvider_ = CreateRowComparerProvider(GetConfig()->TabletNode->ColumnEvaluatorCache->CGCache);
 
         GetRpcServer()->RegisterService(CreateDataNodeService(GetConfig()->DataNode, this));
+
+        GetRpcServer()->RegisterService(CreateDistributedChunkSessionService(
+            GetConfig()->DataNode->DistributedChunkSessionService,
+            GetStorageLightInvoker(),
+            GetConnection()));
 
         IOThroughputMeter_ = CreateIOThroughputMeter(
             GetDynamicConfigManager(),
