@@ -669,7 +669,7 @@ TInMemoryManagerConfigPtr TInMemoryManagerConfig::ApplyDynamic(
     UpdateYsonStructField(
         config->EnablePreliminaryNetworkThrottling,
         dynamicConfig->EnablePreliminaryNetworkThrottling);
-
+    config->Postprocess();
     return config;
 }
 
@@ -749,7 +749,7 @@ TPartitionBalancerConfigPtr TPartitionBalancerConfig::ApplyDynamic(
     UpdateYsonStructField(config->MinPartitioningSampleCount, dynamicConfig->MinPartitioningSampleCount);
     UpdateYsonStructField(config->MaxPartitioningSampleCount, dynamicConfig->MaxPartitioningSampleCount);
     UpdateYsonStructField(config->SplitRetryDelay, dynamicConfig->SplitRetryDelay);
-
+    config->Postprocess();
     return config;
 }
 
