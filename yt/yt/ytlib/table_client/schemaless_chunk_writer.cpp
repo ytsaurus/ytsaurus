@@ -23,6 +23,9 @@
 #include <yt/yt/ytlib/chunk_client/multi_chunk_writer_base.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 

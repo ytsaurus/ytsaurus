@@ -380,7 +380,7 @@ private:
 
     virtual TS3Medium* CreateS3Medium(
         const std::string& name,
-        TS3MediumConfigPtr config,
+        NChunkClient::TS3MediumConfigPtr config,
         std::optional<int> priority,
         std::optional<int> hintIndex,
         NObjectClient::TObjectId hintId) = 0;

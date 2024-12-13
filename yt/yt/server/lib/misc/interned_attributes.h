@@ -501,6 +501,7 @@
     XX(State, state) \
     XX(Statistics, statistics) \
     XX(Status, status) \
+    XX(StoredOffshoreReplicas, stored_offshore_replicas) \
     XX(StoredReplicas, stored_replicas) \
     XX(StoredMasterReplicas, stored_master_replicas) \
     XX(StoredSequoiaReplicas, stored_sequoia_replicas) \

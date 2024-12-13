@@ -710,6 +710,8 @@ IDriverPtr CreateDriver(
     YT_VERIFY(connection);
     YT_VERIFY(config);
 
+    YT_LOG_DEBUG("KEK Creating driver (ConneectionPtr: %v)", connection.get());
+
     return New<TDriver>(
         std::move(config),
         std::move(connection));

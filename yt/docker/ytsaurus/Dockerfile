@@ -38,6 +38,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   unzip \
   zstd
 
+# Dynamic libraries.
+COPY ./artifacts/libiconv.so /lib/libiconv.so
+
 ##########################################################################################
 
 FROM base AS build-ytsaurus-python-binaries

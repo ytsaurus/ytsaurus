@@ -6,7 +6,8 @@
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
-#include <yt/yt/ytlib/chunk_client/replication_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/physical_chunk_reader.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -319,18 +320,18 @@ private:
             YT_LOG_INFO("Start creating chunk reader (Chunk: %v)",
                 chunk.Index);
 
-            auto readerConfig = New<TReplicationReaderConfig>();
+            auto readerConfig = New<TPhysicalChunkReaderConfig>();
             readerConfig->UseBlockCache = true;
             readerConfig->UseAsyncBlockCache = true;
 
-            auto reader = CreateReplicationReader(
+            auto reader = CreatePhysicalChunkReader(
                 std::move(readerConfig),
                 New<TRemoteReaderOptions>(),
                 ChunkReaderHost_,
                 FromProto<TChunkId>(chunkSpec.chunk_id()),
                 /*seedReplicas*/ {});
 
-            chunk.Reader = CreateReplicationReaderThrottlingAdapter(
+            chunk.Reader = CreatePhysicalChunkReaderThrottlingAdapter(
                 std::move(reader),
                 InThrottler_,
                 OutRpsThrottler_,

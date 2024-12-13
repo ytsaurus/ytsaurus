@@ -91,8 +91,8 @@ public:
 
     TString GetMediumName() const;
 
-    NChunkClient::TMediumDescriptor GetMediumDescriptor() const;
-    void SetMediumDescriptor(const NChunkClient::TMediumDescriptor& descriptor);
+    NChunkClient::TMediumDescriptorPtr GetMediumDescriptor() const;
+    void SetMediumDescriptor(const NChunkClient::TMediumDescriptorPtr& descriptor);
 
     void IncreaseSessionCount();
     void DecreaseSessionCount();

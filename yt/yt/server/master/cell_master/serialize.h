@@ -252,6 +252,7 @@ DEFINE_ENUM(EMasterReign,
     ((Int64InHistogramSnapshot)                                     (2745))  // babenko
     ((SecondaryIndexUnfoldedColumnApi)                              (2746))  // sabdenovch
     ((FixCompositeKeyDeserialization)                               (2747))  // ermolovd
+    ((OffshoreReplicas)                                             (2748))  // achulkov2
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
