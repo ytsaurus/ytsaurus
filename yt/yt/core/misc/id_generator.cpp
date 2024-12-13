@@ -11,6 +11,11 @@ TIdGenerator& TIdGenerator::operator=(const TIdGenerator& other)
     return *this;
 }
 
+ui64 TIdGenerator::Get() const
+{
+    return Current_.load();
+}
+
 ui64 TIdGenerator::Next()
 {
     return Current_++;

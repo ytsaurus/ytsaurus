@@ -16,6 +16,7 @@
 #include <yt/yt/ytlib/driver/config.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
@@ -71,7 +72,6 @@ public:
         INodePtr configNode;
         IDriverPtr driver;
 
-
         try {
 
             configNode = ConvertToNode(configDict);
@@ -110,6 +110,7 @@ public:
                             Logger);
 
                         nativeConnection->GetClusterDirectorySynchronizer()->Start();
+                        nativeConnection->GetMediumDirectorySynchronizer()->Start();
                         if (driverConfig->StartQueueConsumerRegistrationManager) {
                             nativeConnection->GetQueueConsumerRegistrationManager()->StartSync();
                         }

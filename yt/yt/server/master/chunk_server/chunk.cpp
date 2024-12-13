@@ -187,6 +187,12 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     } else {
         Save(context, false);
     }
+    if (OffshoreReplicasData_) {
+        Save(context, true);
+        Save(context, *OffshoreReplicasData_);
+    } else {
+        Save(context, false);
+    }
 
     TUniquePtrSerializer<>::Save(context, PerCellExportData_);
 
@@ -228,6 +234,10 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
 
     if (Load<bool>(context)) {
         MutableReplicasData()->Load(context);
+    }
+
+    if (Load<bool>(context)) {
+        MutableOffshoreReplicasData()->Load(context);
     }
 
     TUniquePtrSerializer<>::Load(context, PerCellExportData_);
@@ -307,6 +317,20 @@ void TChunk::AddReplica(
         }
     }
 }
+
+void TChunk::AddOffshoreReplica(
+    TMediumPtrWithReplicaInfo replica)
+{
+    YT_VERIFY(replica.GetPtr()->IsOffshore());
+
+    auto* data = MutableOffshoreReplicasData();
+    data->StoredReplicas.push_back(replica);
+}
+
+// void TChunk::ClearOffshoreReplicas()
+// {
+//     MutableOffshoreReplicasData()->StoredReplicas.clear();
+// }
 
 void TChunk::RemoveReplica(
     TChunkLocationPtrWithReplicaIndex replica,
@@ -842,6 +866,20 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Sav
     Save(context, LastSeenReplicas);
     Save(context, CurrentLastSeenReplicaIndex);
     Save(context, ApprovedReplicaCount);
+}
+
+void TChunk::TOffshoreReplicasData::Load(NCellMaster::TLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, StoredReplicas);
+}
+
+void TChunk::TOffshoreReplicasData::Save(NCellMaster::TSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, StoredReplicas);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

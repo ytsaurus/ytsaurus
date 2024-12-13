@@ -151,6 +151,8 @@ bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
             return false;
         }
 
+        auto offshoreReplicas = chunkReplicaFetcher->GetOffshoreChunkReplicas(chunk);
+
         auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(chunk);
         if (!replicasOrError.IsOK()) {
             return false;
@@ -159,6 +161,11 @@ bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
         const auto& replicas = replicasOrError.Value();
         ToProto(protoChunk->mutable_legacy_source_replicas(), replicas);
         ToProto(protoChunk->mutable_source_replicas(), replicas);
+
+        for (const auto& offshoreReplica : offshoreReplicas) {
+            protoChunk->add_source_replicas(ToProto(offshoreReplica));
+        }
+
         builder.Add(replicas);
 
         protoChunk->set_erasure_codec(ToProto(chunk->GetErasureCodec()));
@@ -1724,6 +1731,8 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
             medium->GetType());
         return false;
     }
+
+    // TODO(achulkov2): [PDuringReview] Allocate write targets for offshore chunks and allow them.
 
     auto targetNodes = chunkManager->AllocateWriteTargets(
         medium->AsDomestic(),

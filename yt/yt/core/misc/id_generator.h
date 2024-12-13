@@ -13,7 +13,11 @@ public:
     //! For persistence only.
     TIdGenerator& operator=(const TIdGenerator& other);
 
+    //! Return current value.
+    ui64 Get() const;
+    //! Return current value and advance generator.
     ui64 Next();
+    //! Reset generator to zero.
     void Reset();
 
     void Save(TStreamSaveContext& context) const;

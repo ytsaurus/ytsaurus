@@ -255,14 +255,16 @@ public:
     //! Returns the medium name.
     TString GetMediumName() const;
 
+    // TODO(achulkov2): [PLater] Validate stored medium to be domestic? For now, offshore media do cannot have chunk locations.
+
     //! Sets medium descriptor.
     //! #onInitialize indicates whether this method called before any data node heartbeat or on heartbeat response.
     void UpdateMediumDescriptor(
-        const NChunkClient::TMediumDescriptor& mediumDescriptor,
+        const NChunkClient::TMediumDescriptorPtr& mediumDescriptor,
         bool onInitialize);
 
     //! Returns the medium descriptor.
-    NChunkClient::TMediumDescriptor GetMediumDescriptor() const;
+    NChunkClient::TMediumDescriptorPtr GetMediumDescriptor() const;
 
     const NProfiling::TProfiler& GetProfiler() const;
 
@@ -561,7 +563,7 @@ private:
 
     TChunkLocationUuid Uuid_;
 
-    NThreading::TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
+    TAtomicIntrusivePtr<NChunkClient::TMediumDescriptor> MediumDescriptor_;
     NProfiling::TDynamicTagPtr MediumTag_;
     NProfiling::TGauge MediumFlag_;
 

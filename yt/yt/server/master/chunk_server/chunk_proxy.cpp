@@ -130,6 +130,9 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredMasterReplicas)
             .SetPresent(!isForeign));
+        // NB: Offshore replicas are not stored in sequoia and thus don't have to be opaque for now.
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredOffshoreReplicas)
+            .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredSequoiaReplicas)
             .SetPresent(!isForeign)
             .SetOpaque(true));
@@ -292,11 +295,14 @@ private:
         fluent.Item()
             .BeginAttributes()
                 .Item("medium").Value(medium->GetName())
+                .Item("medium_type").Value(medium->GetMediumType())
+                // NB(achulkov2): Will be useful when we get rid of medium indexes for offshore replicas.
+                .Item("medium_id").Value(medium->GetId())
                 .DoIf(location, [&] (TFluentMap fluent) {
                     fluent
                         .Item("location_uuid").Value(location->GetUuid());
                 })
-                .DoIf(node->IsDecommissioned(), [&] (TFluentMap fluent) {
+                .DoIf(node && node->IsDecommissioned(), [&] (TFluentMap fluent) {
                     fluent
                         .Item("decommissioned").Value(true);
                 })
@@ -309,7 +315,8 @@ private:
                         .Item("state").Value(replicaState);
                 })
             .EndAttributes()
-            .Value(node->GetDefaultAddress());
+            // Maybe not the cleanest approach, but good enough for now.
+            .Value(node ? node->GetDefaultAddress() : medium->GetName());
     };
 
     void BuildYsonReplicas(
@@ -337,6 +344,31 @@ private:
             });
     };
 
+    void BuildYsonOffshoreReplicas(
+        IYsonConsumer* consumer,
+        const IChunkManagerPtr& chunkManager,
+        TChunkId chunkId,
+        TMediumPtrWithReplicaInfoList offshoreReplicas)
+    {
+        SortBy(offshoreReplicas, [] (TMediumPtrWithReplicaInfo replica) {
+            return std::tuple(replica.GetReplicaIndex(), replica.GetPtr()->GetIndex());
+        });
+
+        BuildYsonFluently(consumer)
+            .DoListFor(offshoreReplicas, [&] (TFluentList fluent, TMediumPtrWithReplicaInfo replica) {
+                const auto* medium = replica.GetPtr();
+                SerializeReplica(
+                    fluent,
+                    chunkManager,
+                    chunkId,
+                    /*node*/ nullptr,
+                    /*location*/ nullptr,
+                    replica.GetReplicaIndex(),
+                    replica.GetReplicaState(),
+                    medium->GetIndex());
+            });
+    }
+
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -359,6 +391,17 @@ private:
                 auto masterReplicas = chunk->StoredReplicas();
                 TChunkLocationPtrWithReplicaInfoList replicaList(masterReplicas.begin(), masterReplicas.end());
                 BuildYsonReplicas(consumer, chunkManager, chunk->GetId(), replicaList);
+                return true;
+            }
+
+            case EInternedAttributeKey::StoredOffshoreReplicas: {
+                if (isForeign) {
+                    break;
+                }
+
+                auto offshoreReplicas = chunk->StoredOffshoreReplicas();
+                TMediumPtrWithReplicaInfoList offshoreReplicaList(offshoreReplicas.begin(), offshoreReplicas.end());
+                BuildYsonOffshoreReplicas(consumer, chunkManager, chunk->GetId(), offshoreReplicaList);
                 return true;
             }
 
@@ -1012,9 +1055,12 @@ private:
                     break;
                 }
 
+                // NB: No context switches here.
+                auto offshoreReplicas = chunkReplicaFetcher->GetOffshoreChunkReplicas({TEphemeralObjectPtr<TChunk>(chunk)});
+
                 return chunkReplicaFetcher->GetChunkReplicasAsync({TEphemeralObjectPtr<TChunk>(chunk)})
                     .Apply(BIND([=, this_ = MakeStrong(this)] (const TChunkLocationPtrWithReplicaInfoList& replicas) {
-                        auto statuses = chunkReplicator->ComputeChunkStatuses(chunk, replicas);
+                        auto statuses = chunkReplicator->ComputeChunkStatuses(chunk, replicas, offshoreReplicas);
 
                         return BuildYsonStringFluently().DoMapFor(
                             statuses.begin(),
@@ -1264,6 +1310,9 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
+        // NB: No context switches here.
+        auto offshoreReplicas = chunkReplicaFetcher->GetOffshoreChunkReplicas(chunk);
+
         // This is context switch, chunk may die.
         auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunk)
             .ValueOrThrow();
@@ -1274,6 +1323,9 @@ private:
         auto* chunkSpec = response->add_chunks();
         ToProto(chunkSpec->mutable_legacy_replicas(), replicas);
         ToProto(chunkSpec->mutable_replicas(), replicas);
+        for (const auto& offshoreReplica : offshoreReplicas) {
+            chunkSpec->add_replicas(ToProto(offshoreReplica));
+        }
         ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
         chunkSpec->set_erasure_codec(ToProto(chunk->GetErasureCodec()));
         chunkSpec->set_striped_erasure(chunk->GetStripedErasure());

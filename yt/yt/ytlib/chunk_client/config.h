@@ -29,6 +29,8 @@
 
 #include <yt/yt/library/erasure/public.h>
 
+#include <yt/yt/library/s3/config.h>
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -256,6 +258,23 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkTeleporterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! NB: This class is part of master snapshots, consider reign promotion when changing it.
+class TS3MediumConfig
+    : public NS3::TS3ConnectionConfig
+{
+    // TODO(achulkov2): [PLater] It makes more sense to store bucket here instead of TS3ConnectionConfig.
+
+    // TODO(achulkov2): [PDuringReview] Add prefix to be added to all keys.
+
+    REGISTER_YSON_STRUCT(TS3MediumConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TS3MediumConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -92,6 +92,7 @@ TSlotLocation::TSlotLocation(
         BIND(&TSlotLocation::UpdateSlotLocationStatistics, MakeWeak(this)),
         SlotManagerStaticConfig_->SlotLocationStatisticsUpdatePeriod))
     , LocationPath_(GetRealPath(Config_->Path))
+    , MediumDescriptor_(New<NChunkClient::TDomesticMediumDescriptor>())
 {
     ExecNodeProfiler().WithPrefix("/job_directory/artifacts")
         .WithTag("device_name", Config_->DeviceName)
@@ -806,12 +807,12 @@ TString TSlotLocation::GetMediumName() const
     return Config_->MediumName;
 }
 
-NChunkClient::TMediumDescriptor TSlotLocation::GetMediumDescriptor() const
+NChunkClient::TMediumDescriptorPtr TSlotLocation::GetMediumDescriptor() const
 {
-    return MediumDescriptor_.Load();
+    return MediumDescriptor_.Acquire();
 }
 
-void TSlotLocation::SetMediumDescriptor(const NChunkClient::TMediumDescriptor& descriptor)
+void TSlotLocation::SetMediumDescriptor(const NChunkClient::TMediumDescriptorPtr& descriptor)
 {
     MediumDescriptor_.Store(descriptor);
 }
@@ -1100,10 +1101,10 @@ void TSlotLocation::UpdateDiskResources()
                 Config_->MediumName);
 
             auto mediumDescriptor = GetMediumDescriptor();
-            if (mediumDescriptor.Index != NChunkClient::GenericMediumIndex) {
+            if (mediumDescriptor->GetIndex() != NChunkClient::GenericMediumIndex) {
                 DiskResources_.set_usage(diskUsage);
                 DiskResources_.set_limit(diskLimit);
-                DiskResources_.set_medium_index(mediumDescriptor.Index);
+                DiskResources_.set_medium_index(mediumDescriptor->GetIndex());
             }
         }
     } catch (const std::exception& ex) {

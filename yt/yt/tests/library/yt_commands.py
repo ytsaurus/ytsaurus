@@ -170,6 +170,7 @@ def init_drivers(clusters):
         drivers = {}
         for api_version in (3, 4):
             config = pycopy.deepcopy(config)
+            # assert type(config) is dict, f"AAAA, TYPE {type(config)}, CONFIG {config}"
             config["api_version"] = api_version
             drivers[api_version] = Driver(config=config)
         return drivers

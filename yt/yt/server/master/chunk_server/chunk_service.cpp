@@ -422,10 +422,13 @@ private:
                     auto replicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk)
                         .ValueOrThrow();
 
+                    auto offshoreReplicas = chunkReplicaFetcher->GetOffshoreChunkReplicas(ephemeralChunk);
+
                     BuildChunkSpec(
                         Bootstrap_,
                         chunk,
                         replicas,
+                        offshoreReplicas,
                         rowIndex,
                         /*tabletIndex*/ {},
                         /*lowerLimit*/ {},

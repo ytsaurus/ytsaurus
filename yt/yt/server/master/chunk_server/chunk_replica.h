@@ -218,6 +218,9 @@ using TChunkToLocationPtrWithReplicaInfoList = THashMap<TChunkId, TErrorOr<TChun
 using TChunkLocationPtrWithReplicaAndMediumIndex = TPtrWithReplicaAndMediumIndex<TChunkLocation>;
 using TChunkLocationPtrWithReplicaAndMediumIndexList = TCompactVector<TChunkLocationPtrWithReplicaAndMediumIndex, TypicalReplicaCount>;
 
+using TMediumPtrWithReplicaInfo = TPtrWithReplicaInfo<TMedium>;
+using TMediumPtrWithReplicaInfoList = TCompactVector<TMediumPtrWithReplicaInfo, 1>;
+
 using TChunkPtrWithReplicaInfo = TPtrWithReplicaInfo<TChunk>;
 using TChunkPtrWithReplicaIndex = TPtrWithReplicaIndex<TChunk>;
 using TChunkPtrWithReplicaAndMediumIndex = TPtrWithReplicaAndMediumIndex<TChunk>;
@@ -256,6 +259,13 @@ void ToProto(ui32* protoValue, TChunkLocationPtrWithReplicaInfo value);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void FormatValue(TStringBuilderBase* builder, TMediumPtrWithReplicaInfo value, TStringBuf spec);
+
+//! Serializes node id = OffshoreNodeId sentinel, replica index, medium index.
+void ToProto(ui64* protoValue, TMediumPtrWithReplicaInfo value);
+
+////////////////////////////////////////////////////////////////////////////////
+
 NChunkClient::TChunkIdWithIndex ToChunkIdWithIndex(TChunkPtrWithReplicaIndex chunkWithIndex);
 NChunkClient::TChunkIdWithIndexes ToChunkIdWithIndexes(TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes);
 
@@ -287,6 +297,12 @@ namespace NYT {
 
 template <>
 struct TProtoTraits<NChunkServer::TNodePtrWithReplicaAndMediumIndex>
+{
+    using TSerialized = ui64;
+};
+
+template <>
+struct TProtoTraits<NChunkServer::TMediumPtrWithReplicaInfo>
 {
     using TSerialized = ui64;
 };

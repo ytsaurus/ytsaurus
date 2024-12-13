@@ -880,6 +880,8 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
     auto nodeDescriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
 
     auto nodeId = FromProto<TNodeId>(request->node_id());
+    
+    ValidateFeasibleRealNodeId(nodeId);
 
     if (nodeId == InvalidNodeId) {
         THROW_ERROR_EXCEPTION(
@@ -982,6 +984,8 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
     if (request->has_last_job_id()) {
         lastJobId = FromProto<TJobId>(request->last_job_id());
     }
+
+    ValidateFeasibleRealNodeId(nodeId);
 
     if (nodeId == InvalidNodeId) {
         THROW_ERROR_EXCEPTION(
