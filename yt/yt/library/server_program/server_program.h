@@ -22,15 +22,12 @@ protected:
     //! the name of the main thread.
     void SetMainThreadName(const std::string& name);
 
-    const NLastGetopt::TOptsParseResult& GetOptsParseResult() const;
-
     virtual void DoStart() = 0;
 
 private:
     std::string MainThreadName_ = DefaultMainThreadName;
-    const NLastGetopt::TOptsParseResult* OptsParseResult_;
 
-    void DoRun(const NLastGetopt::TOptsParseResult& parseResult) final;
+    void DoRun() final;
     void Configure();
 };
 

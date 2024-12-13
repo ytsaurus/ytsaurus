@@ -10,7 +10,7 @@ class TProgram : public NYT::TProgram
 public:
     TProgram();
 
-    virtual void DoRun(const NLastGetopt::TOptsParseResult&) override;
+    virtual void DoRun() override;
 
 private:
     TConfig Config_;

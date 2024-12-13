@@ -243,7 +243,7 @@ public:
     }
 
 protected:
-    void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
+    void DoRun() override
     {
         // NB(eshcherbin): It usually doesn't make much sense running the simulator built in debug mode
         // but this occasionally still happens by mistake. Thus we now immediately crash unless debug
@@ -261,6 +261,7 @@ protected:
         EnablePhdrCache();
         RunMixinCallbacks();
 
+        const auto& parseResult = GetOptsParseResult();
         auto config = LoadConfig<TSchedulerSimulatorConfig>(/* configFilename */ parseResult.GetFreeArgs()[0]);
 
         ConfigureSingletons(config);
@@ -343,7 +344,7 @@ private:
 
     TLogger Logger = TLogger("Converter");
 
-    void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
+    void DoRun() override
     {
         TString destinationTemp(Destination_ + ".tmp");
 

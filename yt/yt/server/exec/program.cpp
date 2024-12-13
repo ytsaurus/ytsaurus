@@ -43,7 +43,7 @@ private:
     TFile ExecutorStderr_;
     TString JobId_;
 
-    void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) final
+    void DoRun() final
     {
         RunMixinCallbacks();
 

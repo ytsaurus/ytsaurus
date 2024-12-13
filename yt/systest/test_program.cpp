@@ -53,7 +53,7 @@ TProgram::TProgram()
     Config_.RegisterOptions(&Opts_);
 }
 
-void TProgram::DoRun(const NLastGetopt::TOptsParseResult&)
+void TProgram::DoRun()
 {
     NYT::Initialize();
     NYT::SetLogger(NYT::CreateStdErrLogger(NYT::ILogger::INFO));

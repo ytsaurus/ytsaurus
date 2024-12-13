@@ -106,7 +106,7 @@ private:
         Cout << "  Compression codec: " << ToString(FromProto<NCompression::ECodec>(miscExt.compression_codec())) << Endl;
     }
 
-    void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
+    void DoRun() override
     {
         auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, NYTree::INodePtr());
 

@@ -78,13 +78,13 @@ public:
     }
 
 protected:
-    void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
+    void DoRun() override
     {
         if (!CAFile_.empty()) {
             NYT::TSslContext::Get()->LoadCAFile(CAFile_);
         }
 
-        DoSingleRun(parseResult);
+        DoSingleRun();
 
         if (!Flood_) {
             return;
@@ -93,7 +93,7 @@ protected:
         NProfiling::TWallTimer timer;
         for (int index = 0; index < 1000; ++index) {
             timer.Restart();
-            DoSingleRun(parseResult);
+            DoSingleRun();
             auto elapsed = timer.GetElapsedTime();
             if (elapsed > TDuration::MilliSeconds(200)) {
                 Cout << Format("Attempt %v connected in %v", index, elapsed) << Endl;
@@ -101,7 +101,7 @@ protected:
         }
     }
 
-    void DoSingleRun(const NLastGetopt::TOptsParseResult& parseResult)
+    void DoSingleRun()
     {
         auto config = New<TBusClientConfig>();
         config->Address = Address_;
@@ -130,6 +130,7 @@ protected:
             handler->Terminate(errorOr);
         }));
 
+        const auto& parseResult = GetOptsParseResult();
         auto args = parseResult.GetFreeArgs();
         TSharedRefArrayBuilder arrayBuilder(args.size());
 
