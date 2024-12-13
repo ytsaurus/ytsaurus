@@ -187,6 +187,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_server/proto/sequoia_actions.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_chunk_session_client/proto/distributed_chunk_session_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/election/proto/election_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/exec_node_admin/proto/exec_node_admin_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.proto
@@ -394,6 +395,9 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/rpc_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/data_node_tracker_client/location_directory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_chunk_session_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/driver/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/election/cell_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/election/config.cpp
@@ -687,6 +691,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/distributed_chunk_session_client/proto/distributed_chunk_session_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/election/proto/election_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/exec_node_admin/proto/exec_node_admin_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.pb.h

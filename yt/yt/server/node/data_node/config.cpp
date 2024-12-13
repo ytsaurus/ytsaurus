@@ -928,6 +928,9 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("p2p", &TThis::P2P)
         .DefaultNew();
 
+    registrar.Parameter("distributed_chunk_session_service", &TThis::DistributedChunkSessionService)
+        .DefaultNew();
+
     registrar.Preprocessor([] (TThis* config) {
         config->ChunkMetaCache->Capacity = 1_GB;
         config->BlocksExtCache->Capacity = 1_GB;
