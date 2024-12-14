@@ -40,8 +40,6 @@ public:
             Config_ = config;
         }
 
-        NLogging::RegisterDynamicTableLogWriterFactory();
-
         ConfigureSingletons(static_cast<TSingletonsConfigPtr>(config));
 
         NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher);
