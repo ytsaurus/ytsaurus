@@ -448,6 +448,12 @@ class TSessionBase
     : public TRefCounted
 {
 protected:
+    struct TBlockInfo
+    {
+        i32 BlockIndex;
+        i64 BlockSize;
+    };
+
     struct TPeerProbeResult
     {
         bool NetThrottling;
@@ -457,6 +463,7 @@ protected:
         ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TPeerDescriptor> PeerDescriptors;
         TAllyReplicasInfo AllyReplicas;
         bool HasCompleteChunk;
+        std::vector<TBlockInfo> CachedBlocks;
     };
 
     using TErrorOrPeerProbeResult = TErrorOr<TPeerProbeResult>;
@@ -464,6 +471,15 @@ protected:
     template <class TRspPtr>
     static TPeerProbeResult ParseProbeResponse(const TRspPtr& rsp)
     {
+        std::vector<TBlockInfo> blockInfos;
+        blockInfos.reserve(rsp->cached_blocks_size());
+
+        for (int index = 0; index < rsp->cached_blocks_size(); index++) {
+            blockInfos.emplace_back(
+                rsp->cached_blocks()[index].block_index(),
+                rsp->cached_blocks()[index].block_size());
+        }
+
         return {
             .NetThrottling = rsp->net_throttling(),
             .DiskThrottling = rsp->disk_throttling(),
@@ -471,11 +487,15 @@ protected:
             .DiskQueueSize = rsp->disk_queue_size(),
             .PeerDescriptors = rsp->peer_descriptors(),
             .AllyReplicas = FromProto<TAllyReplicasInfo>(rsp->ally_replicas()),
-            .HasCompleteChunk = rsp->has_complete_chunk()
+            .HasCompleteChunk = rsp->has_complete_chunk(),
+            .CachedBlocks = std::move(blockInfos),
         };
     }
 
-    virtual bool UpdatePeerBlockMap(const TPeer& /*suggestorPeer*/, const TPeerProbeResult& /*probeResult*/)
+    virtual bool UpdatePeerBlockMap(
+        const TPeer& /*suggestorPeer*/,
+        const ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TPeerDescriptor>& /*peerDescriptors*/,
+        const TAllyReplicasInfo& /*allyReplicas*/)
     {
         // P2P is not supported by default.
         return false;
@@ -1162,7 +1182,7 @@ protected:
         auto peerAndProbeResultsOrError = WaitFor(DoProbeAndSelectBestPeers(candidates, blockIndexes));
         YT_VERIFY(peerAndProbeResultsOrError.IsOK());
 
-        return OnPeersProbed(std::move(peerAndProbeResultsOrError.Value()), count);
+        return OnPeersProbed(std::move(peerAndProbeResultsOrError.Value()), count, blockIndexes);
     }
 
     TFuture<TPeerList> AsyncProbeAndSelectBestPeers(
@@ -1183,7 +1203,7 @@ protected:
                 (TErrorOr<std::vector<std::pair<TPeer, TErrorOrPeerProbeResult>>>&& peerAndProbeResultsOrError)
             {
                 YT_VERIFY(peerAndProbeResultsOrError.IsOK());
-                return OnPeersProbed(std::move(peerAndProbeResultsOrError.Value()), count);
+                return OnPeersProbed(std::move(peerAndProbeResultsOrError.Value()), count, blockIndexes);
             }).AsyncVia(SessionInvoker_));
     }
 
@@ -1590,7 +1610,8 @@ private:
 
     TPeerList OnPeersProbed(
         std::vector<std::pair<TPeer, TErrorOrPeerProbeResult>> peerAndProbeResults,
-        int count)
+        int count,
+        const std::vector<int>& blockIndexes)
     {
         std::vector<std::pair<TPeer, TPeerProbeResult>> peerAndSuccessfulProbeResults;
         bool receivedNewPeers = false;
@@ -1608,7 +1629,7 @@ private:
 
             auto& probeResult = probeResultOrError.Value();
 
-            if (UpdatePeerBlockMap(peer, probeResult)) {
+            if (UpdatePeerBlockMap(peer, probeResult.PeerDescriptors, probeResult.AllyReplicas)) {
                 receivedNewPeers = true;
             }
 
@@ -1644,13 +1665,73 @@ private:
             return {};
         }
 
-        SortBy(
-            peerAndSuccessfulProbeResults,
-            [&] (const auto& peerAndSuccessfulProbeResult) {
-                const auto& [peer, probeResult] = peerAndSuccessfulProbeResult;
-                return
-                    ReaderConfig_->NetQueueSizeFactor * probeResult.NetQueueSize +
-                    ReaderConfig_->DiskQueueSizeFactor * probeResult.DiskQueueSize;
+        THashSet<int> requestedBlocksSet(blockIndexes.begin(), blockIndexes.end());
+        auto netQueueSizeFactor = ReaderConfig_->NetQueueSizeFactor;
+        auto diskQueueSizeFactor = ReaderConfig_->DiskQueueSizeFactor;
+        auto cachedBlockCountFactor = ReaderConfig_->CachedBlockCountFactor;
+        auto cachedBlockSizeFactor = ReaderConfig_->CachedBlockSizeFactor;
+
+        auto calculateCacheHits = [&] (const auto& cachedBlocks) -> std::pair<i32, i64> {
+            i32 cachedBlockCount = 0;
+            i64 cachedBlockSize = 0;
+
+            for (const auto& cachedBlock : cachedBlocks) {
+                if (requestedBlocksSet.contains(cachedBlock.BlockIndex)) {
+                    cachedBlockCount += 1;
+                    cachedBlockSize += cachedBlock.BlockSize;
+                }
+            }
+
+            return {cachedBlockCount, cachedBlockSize};
+        };
+
+        std::sort(
+            peerAndSuccessfulProbeResults.begin(),
+            peerAndSuccessfulProbeResults.end(),
+            [&] (const auto& first, const auto& second) {
+                const auto& [firstPeer, firstProbeResult] = first;
+                const auto& [secondPeer, secondProbeResult] = second;
+
+                auto firstNetQueueSize = firstProbeResult.NetQueueSize;
+                auto secondNetQueueSize = secondProbeResult.NetQueueSize;
+
+                auto firstDiskQueueSize = firstProbeResult.DiskQueueSize;
+                auto secondDiskQueueSize = secondProbeResult.DiskQueueSize;
+
+                auto netQueueSize = firstNetQueueSize + secondNetQueueSize;
+                auto diskQueueSize = firstDiskQueueSize + secondDiskQueueSize;
+
+                double firstHit = 0;
+                double secondHit = 0;
+
+                if (netQueueSize) {
+                    firstHit += (netQueueSizeFactor * firstNetQueueSize) / netQueueSize;
+                    secondHit += (netQueueSizeFactor * secondNetQueueSize) / netQueueSize;
+                }
+
+                if (diskQueueSize) {
+                    firstHit += (diskQueueSizeFactor * firstDiskQueueSize) / diskQueueSize;
+                    secondHit += (diskQueueSizeFactor * secondDiskQueueSize) / diskQueueSize;
+                }
+
+                auto [firstCachedBlockCount, firstCachedBlockSize] = calculateCacheHits(firstProbeResult.CachedBlocks);
+                auto [secondCachedBlockCount, secondCachedBlockSize] = calculateCacheHits(secondProbeResult.CachedBlocks);
+
+                auto cachedBlockCount = firstCachedBlockCount + secondCachedBlockCount;
+                auto cachedBlockSize = firstCachedBlockSize + secondCachedBlockSize;
+
+                if (cachedBlockSize != 0 && cachedBlockCount != 0) {
+                    auto firstBlockCountHit = (cachedBlockCountFactor * firstCachedBlockCount) / cachedBlockCount;
+                    auto secondBlockCountHit = (cachedBlockCountFactor * secondCachedBlockCount) / cachedBlockCount;
+
+                    auto firstBlockSizeHit = (cachedBlockSizeFactor * firstCachedBlockSize) / cachedBlockSize;
+                    auto secondBlockSizeHit = (cachedBlockSizeFactor * secondCachedBlockSize) / cachedBlockSize;
+
+                    firstHit -= firstBlockCountHit + firstBlockSizeHit;
+                    secondHit -= secondBlockCountHit + secondBlockSizeHit;
+                }
+
+                return firstHit < secondHit;
             });
 
         count = std::min(count, static_cast<int>(peerAndSuccessfulProbeResults.size()));
@@ -1799,16 +1880,19 @@ private:
             BIND(&TReadBlockSetSession::DoRequestBlocks, MakeStrong(this)));
     }
 
-    bool UpdatePeerBlockMap(const TPeer& suggestorPeer, const TPeerProbeResult& probeResult) override
+    bool UpdatePeerBlockMap(
+        const TPeer& suggestorPeer,
+        const ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TPeerDescriptor>& peerDescriptors,
+        const TAllyReplicasInfo& allyReplicas) override
     {
-        if (!ReaderConfig_->FetchFromPeers && !probeResult.PeerDescriptors.empty()) {
+        if (!ReaderConfig_->FetchFromPeers && !peerDescriptors.empty()) {
             YT_LOG_DEBUG("Peer suggestions received but ignored (SuggestorAddress: %v)",
                 suggestorPeer.Address);
             return false;
         }
 
         bool addedNewPeers = false;
-        for (const auto& peerDescriptor : probeResult.PeerDescriptors) {
+        for (const auto& peerDescriptor : peerDescriptors) {
             int blockIndex = peerDescriptor.block_index();
             for (auto protoPeerNodeId : peerDescriptor.node_ids()) {
                 auto peerNodeId = NNodeTrackerClient::TNodeId(protoPeerNodeId);
@@ -1852,8 +1936,8 @@ private:
             }
         }
 
-        if (probeResult.AllyReplicas) {
-            MaybeUpdateSeeds(probeResult.AllyReplicas);
+        if (allyReplicas) {
+            MaybeUpdateSeeds(allyReplicas);
         }
 
         if (addedNewPeers) {
@@ -2087,15 +2171,19 @@ private:
             BanPeer(peers[0].Address, false);
         }
 
-        auto probeResult = ParseProbeResponse(rsp);
+        auto netThrottling = rsp->net_throttling();
+        auto diskThrottling = rsp->disk_throttling();
 
-        UpdatePeerBlockMap(respondedPeer, probeResult);
+        UpdatePeerBlockMap(
+            respondedPeer,
+            rsp->peer_descriptors(),
+            FromProto<TAllyReplicasInfo>(rsp->ally_replicas()));
 
-        if (probeResult.NetThrottling || probeResult.DiskThrottling) {
+        if (netThrottling || diskThrottling) {
             YT_LOG_DEBUG("Peer is throttling (Address: %v, NetThrottling: %v, DiskThrottling: %v)",
                 respondedPeer.Address,
-                probeResult.NetThrottling,
-                probeResult.DiskThrottling);
+                netThrottling,
+                diskThrottling);
         }
 
         i64 bytesReceived = 0;
@@ -3289,10 +3377,13 @@ private:
         Promise_.TrySet(TrackMemory(SessionOptions_.MemoryUsageTracker, std::move(result)));
     }
 
-    bool UpdatePeerBlockMap(const TPeer& /*suggestorPeer*/, const TPeerProbeResult& probeResult) override
+    bool UpdatePeerBlockMap(
+        const TPeer& /*suggestorPeer*/,
+        const ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TPeerDescriptor>& /*peerDescriptors*/,
+        const TAllyReplicasInfo& allyReplicas) override
     {
-        if (probeResult.AllyReplicas) {
-            MaybeUpdateSeeds(probeResult.AllyReplicas);
+        if (allyReplicas) {
+            MaybeUpdateSeeds(allyReplicas);
         }
 
         return false;

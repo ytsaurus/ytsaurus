@@ -15,6 +15,18 @@ using TCachedBlock = TBlock;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TBlockInfo
+{
+    i32 BlockIndex;
+    i64 BlockSize;
+
+    bool operator < (const TBlockInfo& other) const;
+    operator size_t() const;
+    bool operator == (const TBlockInfo& other) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ICachedBlockCookie
 {
     virtual ~ICachedBlockCookie() = default;
@@ -68,8 +80,13 @@ struct IBlockCache
         const TBlockId& id,
         EBlockType type) = 0;
 
+    //! Remove blocks by chunk id.
+    virtual void RemoveChunkBlocks(const TChunkId& chunkId) = 0;
+
     //! Returns the set of supported block types.
     virtual EBlockType GetSupportedBlockTypes() const = 0;
+
+    virtual THashSet<TBlockInfo> GetCachedBlocksByChunkId(TChunkId chunkId, EBlockType type) = 0;
 
     //! Returns whether block type is supported by block cache that has nonzero capacity.
     virtual bool IsBlockTypeActive(EBlockType blockType) const = 0;

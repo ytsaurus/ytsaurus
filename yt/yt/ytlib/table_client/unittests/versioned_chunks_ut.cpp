@@ -222,6 +222,14 @@ public:
         return nullptr;
     }
 
+    void RemoveChunkBlocks(const TChunkId& /*chunkId*/) override
+    { }
+
+    THashSet<NChunkClient::TBlockInfo> GetCachedBlocksByChunkId(TChunkId /*chunkId*/, EBlockType /*type*/) override
+    {
+        return {};
+    }
+
 private:
     const IBlockCachePtr Underlying_;
     std::vector<TSharedMutableRef> UsedBlocks_;

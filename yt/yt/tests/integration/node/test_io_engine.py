@@ -158,6 +158,44 @@ class TestIoEngine(YTEnvSetup):
         wait(lambda: any(self.get_pending_read_memory(node) > 1024 for node in nodes))
 
     @authors("don-dron")
+    def test_coalecsing(self):
+        REPLICATION_FACTOR = 2
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "coalesced_read_max_gap_size": 1024*1024
+                    }
+                }
+            }
+        })
+
+        create(
+            "table",
+            "//tmp/test",
+            attributes={
+                "optimize_for": "lookup",
+                "replication_factor": REPLICATION_FACTOR,
+            })
+
+        ys = [{"a": "x" * 1024 * 2,
+               "b": "x" * 1024 * 2,
+               "c": "x" * 1024 * 2,
+               "d": "x" * 1024 * 2,
+               "e": "x" * 1024 * 2,
+               "f": "x" * 1024 * 2,
+               "h": "x" * 1024 * 2,
+               "g": "x" * 1024 * 2,
+               "i": "x" * 1024 * 2,
+               "j": "x" * 1024 * 2,
+               "k": "x" * 1024 * 2,
+               "l": "x" * 1024 * 2} for i in range(4)]
+        for i in range(4):
+            write_table("<append=%true>//tmp/test", ys)
+        read_table("//tmp/test")
+
+    @authors("don-dron")
     def test_io_engine_request_limit(self):
         path = "//tmp/table"
         create("table", path)

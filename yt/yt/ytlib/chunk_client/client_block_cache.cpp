@@ -9,6 +9,7 @@
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/misc/async_slru_cache.h>
 #include <yt/yt/core/misc/config.h>
@@ -18,6 +19,7 @@
 namespace NYT::NChunkClient {
 
 using namespace NNodeTrackerClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -134,7 +136,9 @@ public:
             profiler)
         , Type_(type)
         , MemoryUsageTracker_(std::move(memoryUsageTracker))
-    { }
+    {
+        ChunkShards_.reset(new TChunkShard[Config_->ShardCount]);
+    }
 
     void PutBlock(const TBlockId& id, const TBlock& block)
     {
@@ -179,6 +183,13 @@ public:
         }
     }
 
+    void RemoveBlock(const TBlockId& id)
+    {
+        if (IsEnabled()) {
+            TAsyncSlruCacheBase::TryRemove(id, /*forbidResurrection*/ true);
+        }
+    }
+
     std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
         const TBlockId& id,
         EBlockType type)
@@ -198,9 +209,55 @@ public:
         return type == Type_ && IsEnabled();
     }
 
+    THashSet<TBlockInfo> GetCachedBlocksByChunkId(TChunkId chunkId)
+    {
+        if (!IsEnabled()) {
+            return {};
+        }
+
+        auto* shard = GetChunkShardByKey(chunkId);
+        auto guard = ReaderGuard(shard->ShardLock);
+        return GetOrDefault(shard->ChunkToBlocks, chunkId, {});
+    }
+
 private:
+    struct TChunkShard
+    {
+        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ShardLock);
+        THashMap<TChunkId, THashSet<TBlockInfo>> ChunkToBlocks;
+    };
+
     const EBlockType Type_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
+
+    std::unique_ptr<TChunkShard[]> ChunkShards_;
+
+    TChunkShard* GetChunkShardByKey(const TChunkId& chunkId) const
+    {
+        return &ChunkShards_[THash<TChunkId>()(chunkId) & (Config_->ShardCount - 1)];
+    }
+
+    void OnAdded(const TAsyncBlockCacheEntryPtr& block) override
+    {
+        const auto& key = block->GetKey();
+        auto* shard = GetChunkShardByKey(key.ChunkId);
+        auto guard = WriterGuard(shard->ShardLock);
+        EmplaceOrCrash(
+            GetOrInsert(shard->ChunkToBlocks, key.ChunkId, [] { return THashSet<TBlockInfo>{}; }),
+            TBlockInfo{key.BlockIndex, GetWeight(block)});
+    }
+
+    void OnRemoved(const TAsyncBlockCacheEntryPtr& block) override
+    {
+        const auto& key = block->GetKey();
+        auto* shard = GetChunkShardByKey(key.ChunkId);
+        auto guard = WriterGuard(shard->ShardLock);
+        auto chunkSetIt = shard->ChunkToBlocks.find(key.ChunkId);
+        EraseOrCrash(chunkSetIt->second, TBlockInfo{key.BlockIndex, GetWeight(block)});
+        if (chunkSetIt->second.empty()) {
+            EraseOrCrash(shard->ChunkToBlocks, key.ChunkId);
+        }
+    }
 
     i64 GetWeight(const TAsyncBlockCacheEntryPtr& entry) const override
     {
@@ -230,13 +287,14 @@ public:
         const NProfiling::TProfiler& profiler)
         : MemoryUsageTracker_(std::move(memoryTracker))
         , SupportedBlockTypes_(supportedBlockTypes)
+        , StaticConfig_(std::move(config))
     {
         i64 capacity = 0;
-        auto initType = [&] (EBlockType type, TSlruCacheConfigPtr config) {
+        auto initType = [&] (EBlockType type, TSlruCacheConfigPtr slruConfig) {
             if (Any(SupportedBlockTypes_ & type)) {
                 auto cache = New<TPerTypeClientBlockCache>(
                     type,
-                    config,
+                    slruConfig,
                     profiler.WithPrefix("/" + FormatEnum(type)),
                     MemoryUsageTracker_);
                 EmplaceOrCrash(PerTypeCaches_, type, cache);
@@ -245,14 +303,35 @@ public:
                 EmplaceOrCrash(PerTypeCaches_, type, nullptr);
             }
         };
-        initType(EBlockType::CompressedData, config->CompressedData);
-        initType(EBlockType::UncompressedData, config->UncompressedData);
-        initType(EBlockType::HashTableChunkIndex, config->HashTableChunkIndex);
-        initType(EBlockType::XorFilter, config->XorFilter);
-        initType(EBlockType::ChunkFragmentsData, config->ChunkFragmentsData);
+        initType(EBlockType::CompressedData, StaticConfig_->CompressedData);
+        initType(EBlockType::UncompressedData, StaticConfig_->UncompressedData);
+        initType(EBlockType::HashTableChunkIndex, StaticConfig_->HashTableChunkIndex);
+        initType(EBlockType::XorFilter, StaticConfig_->XorFilter);
+        initType(EBlockType::ChunkFragmentsData, StaticConfig_->ChunkFragmentsData);
 
         // NB: We simply override the limit as underlying per-type caches are unaware of this cascading structure.
         MemoryUsageTracker_->SetLimit(capacity);
+    }
+
+    THashSet<TBlockInfo> GetCachedBlocksByChunkId(TChunkId chunkId, EBlockType type) override
+    {
+        THashSet<TBlockInfo> cachedBlocks = {};
+
+        if (const auto& cache = GetOrCrash(PerTypeCaches_, type)) {
+            auto blocks = cache->GetCachedBlocksByChunkId(chunkId);
+            cachedBlocks.insert(blocks.begin(), blocks.end());
+        }
+
+        if (!cachedBlocks.empty()) {
+            std::vector<TBlockId> blockIds;
+            blockIds.reserve(cachedBlocks.size());
+
+            for (const auto& block : cachedBlocks) {
+                blockIds.push_back(TBlockId(chunkId, block.BlockIndex));
+            }
+        }
+
+        return cachedBlocks;
     }
 
     void PutBlock(
@@ -275,6 +354,26 @@ public:
         } else {
             return TCachedBlock();
         }
+    }
+
+    void RemoveChunkBlocks(const TChunkId& chunkId) override
+    {
+        auto cleanupCaches = [&] (const auto& caches) {
+            for (const auto& [type, cache] : caches) {
+                THashSet<TBlockId> removedBlocks = {};
+
+                if (cache) {
+                    auto blocks = cache->GetCachedBlocksByChunkId(chunkId);
+                    for (const auto& blockInfo : blocks) {
+                        auto blockId = TBlockId{chunkId, blockInfo.BlockIndex};
+                        removedBlocks.insert(blockId);
+                        cache->RemoveBlock(blockId);
+                    }
+                }
+            }
+        };
+
+        cleanupCaches(PerTypeCaches_);
     }
 
     std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
@@ -303,9 +402,9 @@ public:
     void Reconfigure(const TBlockCacheDynamicConfigPtr& config) override
     {
         i64 newCapacity = 0;
-        auto reconfigureType = [&] (EBlockType type, TSlruCacheDynamicConfigPtr config) {
+        auto reconfigureType = [&] (EBlockType type, TSlruCacheDynamicConfigPtr slruConfig) {
             if (const auto& cache = GetOrCrash(PerTypeCaches_, type)) {
-                cache->Reconfigure(config);
+                cache->Reconfigure(slruConfig);
                 newCapacity += cache->GetCapacity();
             }
         };
@@ -321,8 +420,8 @@ public:
 
 private:
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
-
     const EBlockType SupportedBlockTypes_;
+    const TBlockCacheConfigPtr StaticConfig_;
 
     TCompactFlatMap<EBlockType, TPerTypeClientBlockCachePtr, TEnumTraits<EBlockType>::GetDomainSize()> PerTypeCaches_;
 };

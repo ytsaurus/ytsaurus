@@ -154,6 +154,14 @@ public:
         return BlockIndexToAccessStatistics_;
     }
 
+    void RemoveChunkBlocks(const TChunkId& /*chunkId*/) override
+    { }
+
+    THashSet<NChunkClient::TBlockInfo> GetCachedBlocksByChunkId(TChunkId /*chunkId*/, EBlockType /*type*/) override
+    {
+        return {};
+    }
+
 private:
     const bool Enabled_;
     const TChunkId ChunkId_;
