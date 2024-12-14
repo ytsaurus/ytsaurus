@@ -71,6 +71,8 @@
 #include <library/cpp/yt/threading/spin_lock.h>
 #include <library/cpp/yt/threading/traceless_guard.h>
 
+#include <library/cpp/yt/small_containers/compact_vector.h>
+
 #include <util/generic/algorithm.h>
 
 #include <atomic>
@@ -473,7 +475,7 @@ private:
         EExecutionSessionSubrequestType Type = EExecutionSessionSubrequestType::Undefined;
         IYPathServiceContextPtr RpcContext;
         std::unique_ptr<TMutation> Mutation;
-        std::optional<TObjectServiceCache::TCookie> CacheCookie;
+        std::optional<TObjectServiceCache::TCookie> ActiveCacheCookie;
         NRpc::NProto::TRequestHeader RequestHeader;
         const NYTree::NProto::TYPathHeaderExt* YPathExt = nullptr;
         const NObjectClient::NProto::TPrerequisitesExt* PrerequisitesExt = nullptr;
@@ -706,6 +708,7 @@ private:
             return;
         }
 
+        TCompactVector<std::pair<int, TFuture<TObjectServiceCacheEntryPtr>>, 4> pendingCacheSubscriptions;
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
             auto& subrequest = Subrequests_[subrequestIndex];
             const auto& requestHeader = subrequest.RequestHeader;
@@ -745,30 +748,31 @@ private:
                 refreshRevision);
 
             if (cookie.IsActive()) {
-                subrequest.CacheCookie.emplace(std::move(cookie));
-                continue;
+                subrequest.ActiveCacheCookie.emplace(std::move(cookie));
+            } else {
+                // NB: Postpone subscribing to the cookie to avoid races with CancelPendingCachedSubrequests.
+                pendingCacheSubscriptions.emplace_back(subrequestIndex, cookie.GetValue());
+                subrequest.Type = EExecutionSessionSubrequestType::Cache;
+                AcquireReplyLock();
             }
+        }
 
-            subrequest.Type = EExecutionSessionSubrequestType::Cache;
-
-            AcquireReplyLock();
-
-            cookie.GetValue()
-                .Subscribe(BIND([this, this_ = MakeStrong(this), subrequestIndex] (const TErrorOr<TObjectServiceCacheEntryPtr>& entryOrError) {
-                    auto& subrequest = Subrequests_[subrequestIndex];
-                    if (!entryOrError.IsOK()) {
-                        if (entryOrError.FindMatching(NYT::EErrorCode::Canceled)) {
-                            Reply(TError(NRpc::EErrorCode::TransientFailure, "Transient failure")
+        for (const auto& [subrequestIndex, future] : pendingCacheSubscriptions) {
+            future.Subscribe(BIND([this, this_ = MakeStrong(this), subrequestIndex] (const TErrorOr<TObjectServiceCacheEntryPtr>& entryOrError) {
+                auto& subrequest = Subrequests_[subrequestIndex];
+                if (!entryOrError.IsOK()) {
+                    if (entryOrError.FindMatching(NYT::EErrorCode::Canceled)) {
+                        Reply(TError(NRpc::EErrorCode::TransientFailure, "Transient failure")
                             << entryOrError);
-                        } else {
-                            Reply(entryOrError);
-                        }
-                        return;
+                    } else {
+                        Reply(entryOrError);
                     }
-                    const auto& entry = entryOrError.Value();
-                    subrequest.Revision = entry->GetRevision();
-                    OnSuccessfulSubresponse(&subrequest, entry->GetResponseMessage());
-                }));
+                    return;
+                }
+                const auto& entry = entryOrError.Value();
+                subrequest.Revision = entry->GetRevision();
+                OnSuccessfulSubresponse(&subrequest, entry->GetResponseMessage());
+            }));
         }
     }
 
@@ -1951,10 +1955,10 @@ private:
         subrequest->Completed.store(true);
         SomeSubrequestCompleted_.store(true);
 
-        if (subrequest->CacheCookie) {
+        if (subrequest->ActiveCacheCookie) {
             Owner_->Cache_->EndLookup(
                 RequestId_,
-                std::move(*subrequest->CacheCookie),
+                std::move(*subrequest->ActiveCacheCookie),
                 subrequest->ResponseMessage,
                 subrequest->Revision,
                 true);
@@ -1995,6 +1999,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TDelayedExecutor::CancelAndClear(BackoffAlarmCookie_);
+        CancelPendingCacheSubrequests();
 
         if (RpcContext_->IsCanceled()) {
             return;
@@ -2119,10 +2124,9 @@ private:
 
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
             auto& subrequest = Subrequests_[subrequestIndex];
-            if (subrequest.CacheCookie) {
-                auto& cookie = *subrequest.CacheCookie;
-                if (cookie.IsActive()) {
-                    cookie.Cancel(TError(NYT::EErrorCode::Canceled, "Cache request canceled"));
+            if (auto& cookie = subrequest.ActiveCacheCookie) {
+                if (cookie->IsActive()) {
+                    cookie->Cancel(TError(NYT::EErrorCode::Canceled, "Cache request canceled"));
                 }
             }
         }
