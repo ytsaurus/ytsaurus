@@ -81,6 +81,14 @@ public:
         return blockType == EBlockType::UncompressedData;
     }
 
+    void RemoveChunkBlocks(const TChunkId& /*chunkId*/) override
+    { }
+
+    THashSet<TBlockInfo> GetCachedBlocksByChunkId(TChunkId /*chunkId*/, EBlockType /*type*/) override
+    {
+        return {};
+    }
+
 private:
     const int StartBlockIndex_;
     const std::vector<TBlock>& Blocks_;

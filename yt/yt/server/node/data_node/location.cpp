@@ -271,6 +271,11 @@ TPendingIOGuard::~TPendingIOGuard()
     Release();
 }
 
+i64 TPendingIOGuard::GetSize() const
+{
+    return Size_;
+}
+
 TPendingIOGuard& TPendingIOGuard::operator=(TPendingIOGuard&& other)
 {
     if (this != &other) {

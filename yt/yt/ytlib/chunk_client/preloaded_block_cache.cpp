@@ -55,6 +55,14 @@ public:
         return blockType == EBlockType::UncompressedData;
     }
 
+    THashSet<TBlockInfo> GetCachedBlocksByChunkId(TChunkId /*chunkId*/, EBlockType /*type*/) override
+    {
+        return {};
+    }
+
+    void RemoveChunkBlocks(const TChunkId& /*chunkId*/) override
+    { }
+
     std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
         const NChunkClient::TBlockId& /*id*/,
         EBlockType /*type*/) override
