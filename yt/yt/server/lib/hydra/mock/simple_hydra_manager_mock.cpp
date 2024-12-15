@@ -2,6 +2,7 @@
 
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 #include <yt/yt/server/lib/hydra/mutation_context.h>
+#include <yt/yt/server/lib/hydra/snapshot_load_context.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
 

@@ -2,10 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/core/actions/future.h>
-
-#include <yt/yt/core/concurrency/public.h>
-
 #include <library/cpp/yt/logging/logger.h>
 
 namespace NYT::NHydra {
@@ -19,12 +15,6 @@ struct TSnapshotSaveContext
 
     //! Logger to use during snapshot construction.
     NLogging::TLogger Logger;
-};
-
-struct TSnapshotLoadContext
-{
-    //! Reader used for reading snapshot content.
-    NConcurrency::IAsyncZeroCopyInputStreamPtr Reader;
 };
 
 //! An abstract automaton replicated via Hydra.
