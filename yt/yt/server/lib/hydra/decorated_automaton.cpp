@@ -6,6 +6,7 @@
 #include "helpers.h"
 #include "serialize.h"
 #include "snapshot.h"
+#include "snapshot_load_context.h"
 #include "state_hash_checker.h"
 #include "epoch.h"
 
@@ -970,8 +971,9 @@ void TDecoratedAutomaton::LoadSnapshot(
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    YT_LOG_INFO("Started loading snapshot (SnapshotId: %v)",
-        snapshotId);
+    YT_LOG_INFO("Started loading snapshot (SnapshotId: %v, ReadOnly: %v)",
+        snapshotId,
+        readOnly);
 
     TWallTimer timer;
     auto finally = Finally([&] {
@@ -981,10 +983,13 @@ void TDecoratedAutomaton::LoadSnapshot(
     ClearState();
 
     try {
-        TSnapshotLoadContext context{
+        TSnapshotLoadContext snapshotLoadContext{
             .Reader = reader,
+            .ReadOnly = readOnly,
         };
-        Automaton_->LoadSnapshot(context);
+        TSnapshotLoadContextGuard snapshotLoadContextGuard(&snapshotLoadContext);
+
+        Automaton_->LoadSnapshot(snapshotLoadContext);
 
         // Snapshot preparation is a "mutation" that is executed before first mutation
         // in changelog.

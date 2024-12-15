@@ -1,32 +1,25 @@
 #include "multicell_manager.h"
 
+#include "alert_manager.h"
+#include "automaton.h"
+#include "bootstrap.h"
+#include "cell_statistics.h"
 #include "config.h"
 #include "config_manager.h"
-#include "bootstrap.h"
-#include "private.h"
-#include "automaton.h"
-#include "serialize.h"
 #include "hydra_facade.h"
+#include "private.h"
+#include "serialize.h"
 #include "world_initializer.h"
-#include "cell_statistics.h"
-#include "alert_manager.h"
 
-#include <yt/yt/core/ytree/ypath_client.h>
+#include <yt/yt/server/master/cell_master/proto/multicell_manager.pb.h>
 
-#include <yt/yt/core/concurrency/thread_affinity.h>
-#include <yt/yt/core/concurrency/periodic_executor.h>
-#include <yt/yt/core/concurrency/async_batcher.h>
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/chunk_replicator.h>
 
-#include <yt/yt/core/rpc/retrying_channel.h>
-#include <yt/yt/core/rpc/dispatcher.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/user.h>
 
-#include <yt/yt/client/object_client/helpers.h>
-
-#include <yt/yt/ytlib/hive/cell_directory.h>
-
-#include <yt/yt/ytlib/api/native/config.h>
-
-#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 #include <yt/yt/server/lib/hive/helpers.h>
@@ -34,17 +27,24 @@
 
 #include <yt/yt/server/lib/hydra/mutation.h>
 
-#include <yt/yt/server/master/security_server/security_manager.h>
-#include <yt/yt/server/master/security_server/user.h>
+#include <yt/yt/ytlib/api/native/config.h>
 
-#include <yt/yt/server/master/chunk_server/chunk_manager.h>
-#include <yt/yt/server/master/chunk_server/chunk_replicator.h>
-
-#include <yt/yt/server/master/cell_master/proto/multicell_manager.pb.h>
-
-#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/election/config.h>
+
+#include <yt/yt/ytlib/hive/cell_directory.h>
+
+#include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/core/concurrency/async_batcher.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
+#include <yt/yt/core/rpc/retrying_channel.h>
+#include <yt/yt/core/rpc/dispatcher.h>
+
+#include <yt/yt/core/ytree/ypath_client.h>
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
 
@@ -120,7 +120,6 @@ public:
         const auto& alertManager = Bootstrap_->GetAlertManager();
         alertManager->RegisterAlertSource(BIND_NO_PROPAGATE(&TMulticellManager::GetAlerts, MakeWeak(this)));
     }
-
 
     bool IsPrimaryMaster() const override
     {
@@ -220,7 +219,6 @@ public:
 
         return std::ssize(GetSecondaryCellTags());
     }
-
 
     void PostToMaster(
         const TCrossCellMessage& message,
@@ -363,7 +361,6 @@ public:
         return GetMasterEntry(cellTag)->Index;
     }
 
-
     TCellTag PickSecondaryChunkHostCell(double bias) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -459,7 +456,6 @@ public:
                 return it->second;
             }
         }
-
 
         const auto& cellDirectory = Bootstrap_->GetCellDirectory();
         auto cellId = GetCellId(cellTag);
@@ -574,7 +570,6 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-
     void OnAfterSnapshotLoaded() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -636,7 +631,6 @@ private:
         DynamicallyPropagated_.store(false);
         EverRegistered_ = false;
     }
-
 
     void LoadValues(TLoadContext& context)
     {
@@ -1281,7 +1275,6 @@ private:
         UpstreamSyncTimer_.Record(timer.GetElapsedTime());
     }
 
-
     TSerializedMessagePtr BuildHiveMessage(const TCrossCellMessage& crossCellMessage)
     {
         if (const auto* protoPtr = std::get_if<TCrossCellMessage::TProtoMessage>(&crossCellMessage.Payload)) {
@@ -1330,7 +1323,6 @@ private:
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         hiveManager->PostMessage(mailboxes, message, reliable);
     }
-
 
     const TDynamicMulticellManagerConfigPtr& GetDynamicConfig()
     {
