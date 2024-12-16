@@ -91,6 +91,7 @@ extend google.protobuf.FieldOptions
     repeated EWrapperFieldFlag.Enum flags = 56788;
     optional string column_name = 56789;
     optional string key_column_name = 56790;
+    optional uint64 max_inline_hunk_size = 56791;
 }
 
 extend google.protobuf.MessageOptions
