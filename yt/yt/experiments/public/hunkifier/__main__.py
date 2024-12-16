@@ -50,6 +50,10 @@ def hunkify(args, client):
         print("Enabling slim chunk format")
         client.set("{}/@optimize_for".format(args.table_path), "lookup")
         client.set("{}/@chunk_format".format(args.table_path), "table_versioned_slim")
+    if args.enable_columnar_format:
+        print("Enabling scan format")
+        client.set("{}/@optimize_for".format(args.table_path), "scan")
+        client.set("{}/@chunk_format".format(args.table_path), "table_versioned_columnar")
 
     client.mount_table(args.table_path, sync=True)
 
@@ -70,6 +74,7 @@ if __name__ == "__main__":
     parser.add_argument("--hunk-erasure-codec", type=str, help="Hunk erasure codec")
     parser.add_argument("--fragment-read-hedging-delay", type=int, help="Fragment read hedging delay")
     parser.add_argument("--enable-slim-format", help="Enable slim chunk format", action="store_true", dest="enable_slim_format")
+    parser.add_argument("--enable-columnar-format", help="Enables columnar format", action="store_true", dest="enable_columnar_format")
     parser.add_argument("--columns", help="Columns to hunkify", action="append")
 
     args = parser.parse_args()
