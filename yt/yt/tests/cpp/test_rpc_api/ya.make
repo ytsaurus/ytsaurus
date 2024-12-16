@@ -27,12 +27,8 @@ PEERDIR(
 
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/recipe/recipe.inc)
 
-
 SIZE(MEDIUM)
 
-
-IF (SANITIZER_TYPE)
-    REQUIREMENTS(ram:20)
-ENDIF()
+REQUIREMENTS(ram:20)
 
 END()
