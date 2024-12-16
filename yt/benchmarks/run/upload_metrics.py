@@ -22,7 +22,7 @@ class Metric:
     name: str
     labels: dict[str, str]
     type: MetricType
-    value: Any
+    value: int | float
 
 
 def nested_get(dic: dict[str, Any], keys: list[str]) -> Any:
@@ -68,12 +68,14 @@ class MetricUploader:
     def collect_metrics(self, query_info: dict[str, Any]) -> list[Metric]:
         metrics: list[Metric] = []
 
-        def add_metric(name: str, value: Any, metric_type: MetricType = MetricType.DGAUGE):
-            metrics.append(Metric(name=f"query.{name}", labels={}, type=metric_type, value=value))
+        def add_metric(name: str, value: int | float | None, metric_type: MetricType = MetricType.DGAUGE):
+            if value is not None:
+                metrics.append(Metric(name=f"query.{name}", labels={}, type=metric_type, value=value))
 
         def add_metric_from_path(name: str, path: str, metric_type: MetricType, proj=lambda x: x):
-            metric_value = nested_get(query_info, path.split('.'))
-            add_metric(name, proj(metric_value) if metric_value is not None else 0, metric_type)
+            metric_value = nested_get(query_info, path.split("."))
+            if metric_value is not None:
+                add_metric(name, proj(metric_value), metric_type)
 
         add_metric_from_path(
             "row_count",
@@ -84,8 +86,9 @@ class MetricUploader:
 
         query_start = datetime.fromisoformat(query_info["start_time"])
         query_finish = datetime.fromisoformat(query_info["finish_time"])
-
+        query_state = query_info["state"]
         add_metric("duration", (query_finish - query_start).total_seconds(), MetricType.DGAUGE)
+        add_metric("error", int(query_state not in ["completing", "completed"]), MetricType.IGAUGE)
 
         return metrics
 
