@@ -74,7 +74,7 @@ if __name__ == "__main__":
     parser.add_argument("--hunk-erasure-codec", type=str, help="Hunk erasure codec")
     parser.add_argument("--fragment-read-hedging-delay", type=int, help="Fragment read hedging delay")
     parser.add_argument("--enable-slim-format", help="Enable slim chunk format", action="store_true", dest="enable_slim_format")
-    parser.add_argument("--enable-columnar-format", help="Enables columnar format", action="store_true", dest="enable_columnar_format")
+    parser.add_argument("--enable-columnar-format", help="Enables columnar chunk format", action="store_true", dest="enable_columnar_format")
     parser.add_argument("--columns", help="Columns to hunkify", action="append")
 
     args = parser.parse_args()
