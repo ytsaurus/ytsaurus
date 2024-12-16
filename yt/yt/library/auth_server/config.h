@@ -154,8 +154,24 @@ DEFINE_REFCOUNTED_TYPE(TCachingCypressTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOAuthTokenAuthenticatorConfig
+class TOAuthAuthenticatorConfig
     : public virtual NYTree::TYsonStruct
+{
+public:
+    //! Creates a new user if it doesn't exist. User name is taken from the "Login" field.
+    bool CreateUserIfNotExists;
+
+    REGISTER_YSON_STRUCT(TOAuthAuthenticatorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TOAuthAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOAuthTokenAuthenticatorConfig
+    : public TOAuthAuthenticatorConfig
 {
 public:
     REGISTER_YSON_STRUCT(TOAuthTokenAuthenticatorConfig);
@@ -203,7 +219,7 @@ DEFINE_REFCOUNTED_TYPE(TBlackboxCookieAuthenticatorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOAuthCookieAuthenticatorConfig
-    : public virtual NYTree::TYsonStruct
+    : public TOAuthAuthenticatorConfig
 {
 public:
     REGISTER_YSON_STRUCT(TOAuthCookieAuthenticatorConfig);

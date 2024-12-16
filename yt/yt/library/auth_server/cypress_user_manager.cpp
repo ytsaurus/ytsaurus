@@ -43,6 +43,13 @@ public:
             options);
     }
 
+    TFuture<bool> CheckUserExists(const TString& name) override
+    {
+        YT_LOG_DEBUG("Checking if user exists (Name: %v)", name);
+
+        return Client_->NodeExists("//sys/users/" + name);
+    }
+
 private:
     const TCypressUserManagerConfigPtr Config_;
     const NApi::IClientPtr Client_;
@@ -61,26 +68,20 @@ ICypressUserManagerPtr CreateCypressUserManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachingCypressUserManager
-    : public ICypressUserManager
-    , public TAuthCache<TString, NObjectClient::TObjectId, std::monostate>
+class TCypressUserManagerCreateUserCache
+    : public TAuthCache<TString, NObjectClient::TObjectId, std::monostate>
 {
 public:
-    TCachingCypressUserManager(
-        TCachingCypressUserManagerConfigPtr config,
-        ICypressUserManagerPtr CypressUserManager,
+    TCypressUserManagerCreateUserCache(
+        TAuthCacheConfigPtr config,
+        ICypressUserManagerPtr cypressUserManager,
         NProfiling::TProfiler profiler)
-        : TAuthCache(config->Cache, std::move(profiler))
-        , CypressUserManager_(std::move(CypressUserManager))
+        : TAuthCache(std::move(config), std::move(profiler))
+        , CypressUserManager_(std::move(cypressUserManager))
     { }
 
-    TFuture<NObjectClient::TObjectId> CreateUser(const TString& name) override
-    {
-        return Get(name, std::monostate{});
-    }
-
 private:
-    const ICypressUserManagerPtr CypressUserManager_;
+    ICypressUserManagerPtr CypressUserManager_;
 
     TFuture<NObjectClient::TObjectId> DoGet(
         const TString& name,
@@ -88,6 +89,66 @@ private:
     {
         return CypressUserManager_->CreateUser(name);
     }
+};
+
+DECLARE_REFCOUNTED_CLASS(TCypressUserManagerCreateUserCache)
+DEFINE_REFCOUNTED_TYPE(TCypressUserManagerCreateUserCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCypressUserManagerCheckUserExistsCache
+    : public TAuthCache<TString, bool, std::monostate>
+{
+public:
+    TCypressUserManagerCheckUserExistsCache(
+        TAuthCacheConfigPtr config,
+        ICypressUserManagerPtr cypressUserManager,
+        NProfiling::TProfiler profiler)
+        : TAuthCache(std::move(config), std::move(profiler))
+        , CypressUserManager_(std::move(cypressUserManager))
+    { }
+
+private:
+    ICypressUserManagerPtr CypressUserManager_;
+
+    TFuture<bool> DoGet(
+        const TString& name,
+        const std::monostate& /*context*/) noexcept override
+    {
+        return CypressUserManager_->CheckUserExists(name);
+    }
+};
+
+DECLARE_REFCOUNTED_CLASS(TCypressUserManagerCheckUserExistsCache)
+DEFINE_REFCOUNTED_TYPE(TCypressUserManagerCheckUserExistsCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCachingCypressUserManager
+    : public ICypressUserManager
+{
+public:
+    TCachingCypressUserManager(
+        TCachingCypressUserManagerConfigPtr config,
+        ICypressUserManagerPtr cypressUserManager,
+        NProfiling::TProfiler profiler)
+        : CreateUserCache_(New<TCypressUserManagerCreateUserCache>(config->Cache, cypressUserManager, profiler.WithPrefix("/create_user")))
+        , CheckUserExistsCache_(New<TCypressUserManagerCheckUserExistsCache>(config->Cache, cypressUserManager, profiler.WithPrefix("/user_exists")))
+    { }
+
+    TFuture<NObjectClient::TObjectId> CreateUser(const TString& name) override
+    {
+        return CreateUserCache_->Get(name, std::monostate{});
+    }
+
+    TFuture<bool> CheckUserExists(const TString& name) override
+    {
+        return CheckUserExistsCache_->Get(name, std::monostate{});
+    }
+
+private:
+    TCypressUserManagerCreateUserCachePtr CreateUserCache_;
+    TCypressUserManagerCheckUserExistsCachePtr CheckUserExistsCache_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
