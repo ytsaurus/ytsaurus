@@ -5,6 +5,7 @@
 #include <yt/yt/library/profiling/impl.h>
 #include <yt/yt/library/profiling/producer.h>
 
+#include <yt/yt/library/profiling/solomon/config.h>
 #include <yt/yt/library/profiling/solomon/registry.h>
 #include <yt/yt/library/profiling/solomon/remote.h>
 
@@ -150,7 +151,9 @@ TTestMetricConsumer CollectSensors(TSolomonRegistryPtr impl, int subsample = 1, 
     TTestMetricConsumer testConsumer;
 
     TReadOptions options;
-    options.EnableSolomonAggregationWorkaround = enableHack;
+    options.ScrapeOptions = New<TScrapeOptions>();
+    options.ScrapeOptions->EnableAggregationWorkaround = enableHack;
+    options.ScrapeOptions->MarkAggregates = false;
     options.Times = {{{}, TInstant::Now()}};
     for (int j = subsample - 1; j >= 0; --j) {
         options.Times[0].first.push_back(impl->IndexOf(i - j));
@@ -170,6 +173,8 @@ TTestMetricConsumer ReadSensors(TSolomonRegistryPtr impl)
 
     TReadOptions options;
     options.Times = {{{impl->IndexOf(i - 1)}, TInstant::Now()}};
+    options.ScrapeOptions = New<TScrapeOptions>();
+    options.ScrapeOptions->MarkAggregates = false;
 
     impl->ReadSensors(options, &testConsumer);
     Cerr << "-------------------------------------" << Endl;

@@ -26,8 +26,6 @@
 #include <library/cpp/monlib/encode/spack/spack_v1.h>
 #include <library/cpp/monlib/encode/prometheus/prometheus.h>
 
-#include <library/cpp/cgiparam/cgiparam.h>
-
 #include <util/datetime/base.h>
 
 #include <util/stream/str.h>
@@ -37,6 +35,7 @@ namespace NYT::NProfiling {
 using namespace NConcurrency;
 using namespace NHttp;
 using namespace NYTree;
+using namespace NYson;
 using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -410,6 +409,8 @@ std::optional<std::string> TSolomonExporter::ReadSpack(const TReadOptions& optio
     return {};
 }
 
+// TODO(?): This method should share code with DoHandleShard.
+// This function is actually only used in ReadJson and ReadSpack, which are only used in tests.
 bool TSolomonExporter::ReadSensors(
     NMonitoring::IMetricEncoderPtr encoder,
     const TReadOptions& options,
@@ -424,13 +425,21 @@ bool TSolomonExporter::ReadSensors(
 
     // Read last value.
     auto readOptions = options;
+    // This sucks, but there is no convenient way to make a struct that is copied by
+    // value by default AND can be used as a base for a ref-counted yson struct.
+    if (options.ScrapeOptions) {
+        readOptions.ScrapeOptions = CloneYsonStruct(options.ScrapeOptions);
+    } else {
+        readOptions.ScrapeOptions = New<TScrapeOptions>();
+    }
+
     readOptions.Times.emplace_back(std::vector<int>{Registry_->IndexOf(Window_.back().first)}, TInstant::Zero());
     readOptions.EnableHistogramCompat = true;
 
     readOptions.SummaryPolicy |= Config_->GetSummaryPolicy();
     ValidateSummaryPolicy(readOptions.SummaryPolicy);
 
-    readOptions.MarkAggregates |= Config_->MarkAggregates;
+    readOptions.ScrapeOptions->MarkAggregates |= Config_->MarkAggregates;
     if (!readOptions.Host && Config_->Host) {
         readOptions.Host = Config_->Host;
     }
@@ -470,6 +479,41 @@ void TSolomonExporter::HandleShard(
 
     WaitFor(reply)
         .ThrowOnError();
+}
+
+TScrapeOptionsPtr TSolomonExporter::ParseScrapeOptions(
+    const TScrapeOptionsPtr& staticScrapeOptions,
+    const TCgiParameters& scrapeParameters,
+    bool isSolomonPull)
+{
+    auto options = CloneYsonStruct(staticScrapeOptions);
+
+    auto ysonParameters = CreateEphemeralAttributes();
+    for (const auto& [key, value] : scrapeParameters) {
+        ysonParameters->SetYson(key, TYsonString(value));
+    }
+
+    // NB: Defaults should have already been set.
+    // NB: This may throw various errors, that's OK and we should return them to the caller.
+    options->Load(ysonParameters->ToMap(), /*postprocess*/ true, /*setDefaults*/ false);
+
+    // This allows us to keep the old behaviour for pulls from Solomon vs other formats.
+    // NB: You *can* set these force-options manually in the request to override its static value.
+    if (options->ForceConvertCountersToRateGaugeForSolomon && isSolomonPull) {
+        options->ConvertCountersToRateGauge = true;
+    }
+
+    // NB: You *can* set these force-options manually in the request to override its static value.
+    if (options->ForceConvertCountersToDeltaGaugeForSolomon && isSolomonPull) {
+        options->ConvertCountersToDeltaGauge = true;
+    }
+
+    // NB: You *can* set these force-options manually in the request to override its static value.
+    if (options->ForceEnableAggregationWorkaroundForSolomon && isSolomonPull) {
+        options->EnableAggregationWorkaround = true;
+    }
+
+    return options;
 }
 
 void TSolomonExporter::DoHandleShard(
@@ -523,6 +567,8 @@ void TSolomonExporter::DoHandleShard(
 
         ValidatePeriodAndGrid(period, readGridStep, gridStep);
 
+        auto scrapeOptions = ParseScrapeOptions(Config_, params, outputEncodingContext.IsSolomonPull);
+
         auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&Lock_))
             .ValueOrThrow();
 
@@ -544,13 +590,15 @@ void TSolomonExporter::DoHandleShard(
         }
 
         auto solomonCluster = req->GetHeaders()->Find("X-Solomon-ClusterId");
-        YT_LOG_DEBUG("Processing sensor pull (Format: %v, Compression: %v, SolomonCluster: %v, Now: %v, Period: %v, Grid: %v)",
+        YT_LOG_DEBUG("Processing sensor pull (Format: %v, Compression: %v, IsSolomonPull: %v, SolomonCluster: %v, Now: %v, Period: %v, Grid: %v, ScrapeOptions: %v)",
             outputEncodingContext.Format,
             outputEncodingContext.Compression,
+            outputEncodingContext.IsSolomonPull,
             solomonCluster ? *solomonCluster : "",
             now,
             period,
-            readGridStep);
+            readGridStep,
+            ConvertToYsonString(scrapeOptions, EYsonFormat::Text));
 
         if (cacheKey) {
             auto cacheGuard = Guard(CacheLock_);
@@ -623,24 +671,16 @@ void TSolomonExporter::DoHandleShard(
         options.Host = Config_->Host;
         options.InstanceTags = std::vector<TTag>{Config_->InstanceTags.begin(), Config_->InstanceTags.end()};
 
-        if (Config_->ConvertCountersToRateForSolomon && outputEncodingContext.IsSolomonPull) {
-            options.ConvertCountersToRateGauge = true;
-            options.RenameConvertedCounters = Config_->RenameConvertedCounters;
+        options.ScrapeOptions = std::move(scrapeOptions);
 
-            options.RateDenominator = gridStep.SecondsFloat();
-            if (readGridStep) {
-                options.RateDenominator = readGridStep->SecondsFloat();
-            }
-        }
-        if (Config_->ConvertCountersToDeltaGauge && outputEncodingContext.IsSolomonPull) {
-            options.ConvertCountersToDeltaGauge = true;
+        // This parameter is only applicable when counters are converted to rates, but we can pass it unconditionally.
+        options.RateDenominator = gridStep.SecondsFloat();
+        if (readGridStep) {
+            options.RateDenominator = readGridStep->SecondsFloat();
         }
 
-        options.EnableSolomonAggregationWorkaround = outputEncodingContext.IsSolomonPull;
         options.Times = readWindow;
         options.SummaryPolicy = Config_->GetSummaryPolicy();
-        options.MarkAggregates = Config_->MarkAggregates;
-        options.StripSensorsNamePrefix = Config_->StripSensorsNamePrefix;
         options.LingerWindowSize = Config_->LingerTimeout / gridStep;
 
         if (name) {
@@ -694,7 +734,10 @@ void TSolomonExporter::DoHandleShard(
                 rsp->GetHeaders()->Remove("Content-Type");
                 rsp->GetHeaders()->Remove("Content-Encoding");
 
-                // Send only message. It should be displayed nicely in Solomon UI.
+                // Fill headers with full error for user-friendly debugging.
+                FillYTErrorHeaders(rsp, ex);
+
+                // Send only message in body. It should be displayed nicely in Solomon UI.
                 WaitFor(rsp->WriteBody(TSharedRef::FromString(TError(ex).GetMessage())))
                     .ThrowOnError();
             } catch (const std::exception& ex) {

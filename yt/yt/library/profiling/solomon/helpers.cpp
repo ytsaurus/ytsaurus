@@ -35,15 +35,6 @@ TOutputEncodingContext CreateOutputEncodingContextFromHeaders(const THeadersPtr&
         }
     }
 
-    if (auto isSolomonPull = headers->Find(IsSolomonPullHeaderName)) {
-        if (!TryFromString<bool>(*isSolomonPull, context.IsSolomonPull)) {
-            THROW_ERROR_EXCEPTION("Invalid value of %Qv header", IsSolomonPullHeaderName)
-                << TErrorAttribute("value", *isSolomonPull);
-        }
-    } else {
-        context.IsSolomonPull = context.Format == ::NMonitoring::EFormat::JSON || context.Format == ::NMonitoring::EFormat::SPACK;
-    }
-
     context.EncoderBuffer = std::make_shared<TStringStream>();
 
     switch (context.Format) {
@@ -68,6 +59,15 @@ TOutputEncodingContext CreateOutputEncodingContextFromHeaders(const THeadersPtr&
 
         default:
             THROW_ERROR_EXCEPTION("Unsupported format %Qv", ::NMonitoring::ContentTypeByFormat(context.Format));
+    }
+
+    if (auto isSolomonPull = headers->Find(IsSolomonPullHeaderName)) {
+        if (!TryFromString<bool>(*isSolomonPull, context.IsSolomonPull)) {
+            THROW_ERROR_EXCEPTION("Invalid value of %Qv header", IsSolomonPullHeaderName)
+                << TErrorAttribute("value", *isSolomonPull);
+        }
+    } else {
+        context.IsSolomonPull = (context.Format == ::NMonitoring::EFormat::JSON || context.Format == ::NMonitoring::EFormat::SPACK);
     }
 
     return context;

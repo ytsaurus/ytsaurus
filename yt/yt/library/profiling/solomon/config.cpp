@@ -17,6 +17,71 @@ void TShardConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TScrapeOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("convert_counters_to_rate_gauge", &TThis::ConvertCountersToRateGauge)
+        .Default(false);
+    // NB: Even though the aliases are similar to the options above, their intent is different and corresponds to the new option below.
+    registrar.Parameter("force_convert_counters_to_rate_gauge_for_solomon", &TThis::ForceConvertCountersToRateGaugeForSolomon)
+        .Alias("convert_counters_to_rate_for_solomon")
+        .Alias("convert_counters_to_rate")
+        .Default(true);
+
+    registrar.Parameter("convert_counters_to_delta_gauge", &TThis::ConvertCountersToDeltaGauge)
+        .Default(false);
+    registrar.Parameter("force_convert_counters_to_delta_gauge_for_solomon", &TThis::ForceConvertCountersToDeltaGaugeForSolomon)
+        .Default(false);
+
+    registrar.Parameter("rename_converted_counters", &TThis::RenameConvertedCounters)
+        .Default(true);
+
+    registrar.Parameter("enable_aggregation_workaround", &TThis::EnableAggregationWorkaround)
+        .Default(false);
+    // NB: Even though the alias is similar to the option above, its intent is different and corresponds to the new option below.
+    registrar.Parameter("force_enable_aggregation_workaround_for_solomon", &TThis::ForceEnableAggregationWorkaroundForSolomon)
+        .Alias("enable_solomon_aggregation_workaround")
+        .Default(true);
+
+    registrar.Parameter("mark_aggregates", &TThis::MarkAggregates)
+        .Default(true);
+
+    registrar.Parameter("strip_sensors_name_prefix", &TThis::StripSensorsNamePrefix)
+        .Default(false);
+
+    registrar.Parameter("sensor_component_delimiter", &TThis::SensorComponentDelimiter)
+        .Default(".");
+    registrar.Parameter("convert_sensor_component_names_to_camel_case", &TThis::ConvertSensorComponentNamesToCamelCase)
+        .Default(false);
+
+    registrar.Parameter("add_metric_type_label", &TThis::AddMetricTypeLabel)
+        .Default(false);
+
+    // We parse this config from GET-request parameters which also contains some other options.
+    // In order not to clash with them in the future, we forbid some parameter names that already
+    // have another meaning.
+    registrar.Preprocessor([] (TThis* config) {
+        auto registeredKeys = config->GetRegisteredKeys();
+        for (const auto& key : TThis::ForbiddenParameterNames) {
+            YT_VERIFY(!registeredKeys.contains(key));
+        }
+    });
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->ConvertCountersToRateGauge && config->ConvertCountersToDeltaGauge) {
+            THROW_ERROR_EXCEPTION("Options \"convert_counters_to_rate_gauge\" and \"convert_counters_to_delta_gauge\" cannot be both set to true");
+        }
+
+        for (auto c : config->SensorComponentDelimiter) {
+            if (!std::isalnum(c) && !std::strchr(SensorComponentDelimiterSpecialCharacterWhitelist, c)) {
+                THROW_ERROR_EXCEPTION("Character %Qv is not allowed in \"sensor_component_delimiter\"", c)
+                    << TErrorAttribute("delimiter", config->SensorComponentDelimiter);
+            }
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSolomonExporterConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("grid_step", &TThis::GridStep)
@@ -37,25 +102,11 @@ void TSolomonExporterConfig::Register(TRegistrar registrar)
     registrar.Parameter("encoding_thread_pool_polling_period", &TThis::EncodingThreadPoolPollingPeriod)
         .Default(TDuration::MilliSeconds(10));
 
-    registrar.Parameter("convert_counters_to_rate_for_solomon", &TThis::ConvertCountersToRateForSolomon)
-        .Alias("convert_counters_to_rate")
-        .Default(true);
-    registrar.Parameter("rename_converted_counters", &TThis::RenameConvertedCounters)
-        .Default(true);
-    registrar.Parameter("convert_counters_to_delta_gauge", &TThis::ConvertCountersToDeltaGauge)
-        .Default(false);
-
     registrar.Parameter("export_summary", &TThis::ExportSummary)
         .Default(false);
     registrar.Parameter("export_summary_as_max", &TThis::ExportSummaryAsMax)
         .Default(true);
     registrar.Parameter("export_summary_as_avg", &TThis::ExportSummaryAsAvg)
-        .Default(false);
-
-    registrar.Parameter("mark_aggregates", &TThis::MarkAggregates)
-        .Default(true);
-
-    registrar.Parameter("strip_sensors_name_prefix", &TThis::StripSensorsNamePrefix)
         .Default(false);
 
     registrar.Parameter("enable_self_profiling", &TThis::EnableSelfProfiling)
@@ -95,12 +146,6 @@ void TSolomonExporterConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TThis* config) {
         if (config->LingerTimeout.GetValue() % config->GridStep.GetValue() != 0) {
             THROW_ERROR_EXCEPTION("\"linger_timeout\" must be multiple of \"grid_step\"");
-        }
-    });
-
-    registrar.Postprocessor([] (TThis* config) {
-        if (config->ConvertCountersToRateForSolomon && config->ConvertCountersToDeltaGauge) {
-            THROW_ERROR_EXCEPTION("\"convert_counters_to_rate_for_solomon\" and \"convert_counters_to_delta_gauge\" both set to true");
         }
     });
 
