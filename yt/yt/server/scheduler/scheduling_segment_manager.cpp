@@ -174,7 +174,7 @@ void TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
                 bool meetsGangCriterion = operationState->IsGang || !Config_->AllowOnlyGangOperationsInLargeSegment;
                 auto allocationGpuDemand = operationState->AggregatedInitialMinNeededResources->GetGpu();
                 bool meetsAllocationGpuDemandCriterion = (allocationGpuDemand == LargeGpuAllocationGpuDemand);
-                return meetsGangCriterion && meetsAllocationGpuDemandCriterion
+                return (meetsGangCriterion || operationState->SingleAllocationVanillaOperation) && meetsAllocationGpuDemandCriterion
                     ? ESchedulingSegment::LargeGpu
                     : ESchedulingSegment::Default;
             }
