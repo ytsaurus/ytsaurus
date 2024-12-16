@@ -18,13 +18,6 @@ from . import common
     help="YT token. Fetched from file ~/.yt/token or from env var YT_TOKEN by default. "
     "See https://ytsaurus.tech/docs/user-guide/storage/auth for more information on how to get your token.",
 )
-@click.option(
-    "--artifact-path",
-    type=click.Path(file_okay=False, writable=True),
-    default="artifacts",
-    show_default=True,
-    help="Path to save artifacts into.",
-)
 @common.run_options
 def qt(
     queries: list[int],
