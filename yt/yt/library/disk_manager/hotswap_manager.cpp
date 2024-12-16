@@ -152,8 +152,6 @@ private:
     NThreading::TAtomicObject<TError> DiskIdsMismatchedAlert_;
     THashSet<std::string> OldDiskIds_;
 
-    DECLARE_THREAD_AFFINITY_SLOT(CheckThread);
-
 
     THotswapManagerImpl()
         // TODO(babenko): think of a better choice.
@@ -179,8 +177,6 @@ private:
 
     void OnDiskChangeCheck()
     {
-        VERIFY_THREAD_AFFINITY(CheckThread);
-
         auto diskInfosOrError = WaitFor(DiskInfoProvider_->GetYTDiskInfos());
 
         // Fast path.
