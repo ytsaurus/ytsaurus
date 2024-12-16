@@ -14,6 +14,7 @@ struct ICypressUserManager
     : public virtual TRefCounted
 {
     virtual TFuture<NObjectClient::TObjectId> CreateUser(const TString& name) = 0;
+    virtual TFuture<bool> CheckUserExists(const TString& name) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICypressUserManager)
