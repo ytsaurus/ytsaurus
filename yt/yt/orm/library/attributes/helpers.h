@@ -14,6 +14,7 @@ namespace protobuf {
 
     class Message;
     class FieldDescriptor;
+    class UnknownFieldSet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,6 +27,7 @@ namespace NProtoBuf {
 
 using Message = ::google::protobuf::Message;
 using FieldDescriptor = ::google::protobuf::FieldDescriptor;
+using UnknownFieldSet = ::google::protobuf::UnknownFieldSet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,6 +49,14 @@ NYTree::INodePtr ConvertProtobufToNode(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TErrorOr<std::pair<int, NYson::TYsonString>> LookupUnknownYsonFieldsItem(
+    NProtoBuf::UnknownFieldSet* unknownFields,
+    TStringBuf key);
+
+TString SerializeUnknownYsonFieldsItem(TStringBuf key, TStringBuf value);
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::unique_ptr<NYson::IYsonConsumer> CreateAttributesDetectingConsumer(std::function<void()> reporter);
 
 std::unique_ptr<NYson::IYsonConsumer> CreateAttributesRemovingConsumer(
@@ -62,16 +72,16 @@ DEFINE_ENUM(EListIndexType,
 
 struct TIndexParseResult
 {
-    i64 Index;
+    int Index;
     EListIndexType IndexType;
 
     void EnsureIndexType(EListIndexType indexType, TStringBuf path);
-    void EnsureIndexIsWithinBounds(i64 count, TStringBuf path);
-    bool IsOutOfBounds(i64 count);
+    void EnsureIndexIsWithinBounds(int count, TStringBuf path);
+    bool IsOutOfBounds(int count);
 };
 
 // Parses list index from 'end', 'begin', 'before:<index>', 'after:<index>' or Integer in [-count, count).
-TIndexParseResult ParseListIndex(TStringBuf token, i64 count);
+TIndexParseResult ParseListIndex(TStringBuf token, int count);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -238,6 +248,15 @@ TError AddScalarRepeatedFieldEntryFromString(
 TError AddDefaultScalarFieldEntryValue(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Put the new entry at |index| and slide everything forward. Makes a noop if index was pointing
+// after the last entry.
+void RotateLastEntryBeforeIndex(
+    NProtoBuf::Message* message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    int index);
 
 ////////////////////////////////////////////////////////////////////////////////
 

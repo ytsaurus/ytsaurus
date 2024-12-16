@@ -836,7 +836,7 @@ public:
             bool evaluatedColumnViolatesConstraints = false;
 
             for (auto columnId : ComputedColumnIds_) {
-                evaluator.EvaluateKey(boundRow, buffer, columnId);
+                evaluator.EvaluateKey(boundRow, buffer, columnId, /*preserveColumnId*/ false);
 
                 // Check if evaluated value outside constraints.
                 if (!TestValue(boundRow[columnId], constraintRow[columnId].Lower, constraintRow[columnId].Upper)) {

@@ -22,6 +22,7 @@ type Config struct {
 	ExtraEnvVars        map[string]string `yson:"extra_env_vars"`
 	LastActivityURLPath *string           `yson:"last_activity_url_path"`
 	Command             *string           `yson:"command"`
+	AdditionalFiles     []string          `yson:"additional_files"`
 }
 
 const (
@@ -77,6 +78,9 @@ func (c *Controller) buildCommand(speclet *Speclet) (command string, env map[str
 	for key, value := range c.config.ExtraEnvVars {
 		jupyterEnv[key] = value
 	}
+	for key, value := range speclet.EnvVars {
+		jupyterEnv[key] = value
+	}
 	return cmd, jupyterEnv
 }
 
@@ -97,6 +101,11 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	}
 
 	err = c.appendConfigs(ctx, oplet, &speclet, &filePaths)
+	if err != nil {
+		return
+	}
+
+	err = c.appendAdditionalFiles(&filePaths)
 	if err != nil {
 		return
 	}
@@ -186,6 +195,14 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 					MinValue:     0,
 					Description:  "Jupyt operation will be suspended in case of no activity for the specified time.",
 				},
+				{
+					Title:        "Environment variables",
+					Name:         "env_vars",
+					Type:         strawberry.TypeYson,
+					CurrentValue: speclet.EnvVars,
+					DefaultValue: map[string]string{},
+					Description:  "Additional environment variables to add to Jupyt.",
+				},
 			},
 		},
 		{
@@ -250,6 +267,18 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 		return nil
 	}
 	*filePaths = append(*filePaths, serverConfigYTPath)
+	return nil
+}
+
+func (c *Controller) appendAdditionalFiles(filePaths *[]ypath.Rich) error {
+	for _, additionalFilePath := range c.config.AdditionalFiles {
+		var richPath *ypath.Rich
+		richPath, err := ypath.Parse(additionalFilePath)
+		if err != nil {
+			return err
+		}
+		*filePaths = append(*filePaths, *richPath)
+	}
 	return nil
 }
 

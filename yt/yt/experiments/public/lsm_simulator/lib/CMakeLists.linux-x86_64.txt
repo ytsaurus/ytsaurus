@@ -19,6 +19,7 @@ add_library(public-lsm_simulator-lib)
 
 target_compile_options(public-lsm_simulator-lib PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(public-lsm_simulator-lib PUBLIC

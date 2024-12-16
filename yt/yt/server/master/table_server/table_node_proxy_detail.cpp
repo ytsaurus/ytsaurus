@@ -1,5 +1,6 @@
 #include "table_node_proxy_detail.h"
 
+#include "config.h"
 #include "helpers.h"
 #include "master_table_schema.h"
 #include "mount_config_attributes.h"
@@ -54,12 +55,12 @@
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/yt/ytlib/table_client/schema.h>
-
 #include <yt/yt/ytlib/tablet_client/backup.h>
 #include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/library/heavy_schema_validation/schema_validation.h>
+
+#include <yt/yt/library/query/secondary_index/schema.h>
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 #include <yt/yt/client/chaos_client/helpers.h>
@@ -97,6 +98,7 @@ using namespace NHydra;
 using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NQueryClient;
 using namespace NQueueClient;
 using namespace NSecurityServer;
 using namespace NTableClient;
@@ -2011,8 +2013,16 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         TObjectId SchemaId;
     } options;
 
+    auto offloadSchemaDestruction = Finally([&] () {
+        if (options.Schema) {
+            NRpc::TDispatcher::Get()
+                ->GetHeavyInvoker()
+                ->Invoke(BIND([schema = std::move(options.Schema)] { }));
+        }
+    });
+
     if (request->has_schema()) {
-        options.Schema = New<TTableSchema>(FromProto<TTableSchema>(request->schema()));
+        options.Schema = FromProto<TTableSchemaPtr>(request->schema());
     }
     if (request->has_dynamic()) {
         options.Dynamic = request->dynamic();
@@ -2030,13 +2040,19 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         options.SchemaId = FromProto<TObjectId>(request->schema_id());
     }
 
-    context->SetRequestInfo("Schema: %v, SchemaId: %v, Dynamic: %v, UpstreamReplicaId: %v, SchemaModification: %v, ReplicationProgress: %v",
-        options.Schema,
-        options.SchemaId,
+    auto maxSchemaMemoryUsageToLog = Bootstrap_
+        ->GetDynamicConfig()
+        ->TableManager
+        ->MaxSchemaMemoryUsageToLog;
+
+    context->SetRequestInfo("Dynamic: %v, UpstreamReplicaId: %v, SchemaModification: %v, ReplicationProgress: %v, SchemaId: %v, SchemaMemoryUsage: %v, Schema: %v",
         options.Dynamic,
         options.UpstreamReplicaId,
         options.SchemaModification,
-        options.ReplicationProgress);
+        options.ReplicationProgress,
+        options.SchemaId,
+        options.Schema ? options.Schema->GetMemoryUsage() : 0,
+        MakeTableSchemaTruncatedFormatter(options.Schema, maxSchemaMemoryUsageToLog));
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     const auto& tableManager = Bootstrap_->GetTableManager();

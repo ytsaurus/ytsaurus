@@ -1437,8 +1437,9 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_CLASS(TGangManagerConfig)
 DEFINE_REFCOUNTED_TYPE(TGangManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TVanillaTaskSpec
     : public TMandatoryUserJobSpec
@@ -1762,6 +1763,7 @@ public:
     bool SliceForeignChunks;
 
     std::optional<i64> ForeignTableLookupKeysThreshold;
+    std::optional<i64> ForeignTableLookupDataWeightThreshold;
 
     REGISTER_YSON_STRUCT(TReduceOperationSpec);
 
@@ -1991,7 +1993,7 @@ public:
     // COMPAT(yuryalekseev)
     bool AllowClusterConnection;
 
-    bool UseLocalThrottler;
+    bool UseRemoteThrottler;
 
     REGISTER_YSON_STRUCT(TRemoteCopyOperationSpec);
 

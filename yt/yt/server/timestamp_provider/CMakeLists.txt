@@ -19,6 +19,7 @@ add_library(yt-server-timestamp_provider)
 
 target_compile_options(yt-server-timestamp_provider PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(yt-server-timestamp_provider PUBLIC
@@ -31,7 +32,8 @@ target_link_libraries(yt-server-timestamp_provider PUBLIC
   yutil
   library-cpp-getopt
   yt-yt-ytlib
-  cpp-yt-phdr_cache
+  yt-library-program
+  yt-library-server_program
   ytserver
   server-lib-transaction_server
 )

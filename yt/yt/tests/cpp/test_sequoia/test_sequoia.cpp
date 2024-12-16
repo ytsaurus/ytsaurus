@@ -12,6 +12,7 @@
 namespace NYT::NCppTests {
 namespace {
 
+using namespace NApi;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NTransactionClient;
@@ -216,9 +217,12 @@ TEST_F(TSequoiaTest, TestRowLockConflict)
         nodeExistsCount)
         << Endl;
 
-    // NB: we cannot require |createdNodeCount| to be 1 here since all Sequoia
-    // tx can conflict with each other.
+    // TODO(kvk1920): implement per-request option to disable Sequoia retries
+    // and rewrite this test in the following way: if Sequoia retries are
+    // disabled we should observe lock conflicts here.
 
+    EXPECT_EQ(createdNodeCount, 1);
+    EXPECT_EQ(lockConflictCount, 0);
     EXPECT_EQ(createdNodeCount + lockConflictCount + nodeExistsCount, RequestCount);
 }
 
@@ -260,6 +264,95 @@ TEST_F(TSequoiaTest, CypressTransactionSimple)
     // All these transactions are expected to be aborted in TearDownTestCase().
     auto tx1 = StartCypressTransaction({.AutoAbort = false});
     auto tx2 = StartCypressTransaction({.ParentId = tx1->GetId(), .AutoAbort = false});
+}
+
+TEST_F(TSequoiaTest, ConcurrentCommitTx)
+{
+    constexpr auto ChildCount = 3;
+    constexpr auto LevelCount = 4;
+
+    auto barrierPromise = NewPromise<void>();
+    auto barrier = barrierPromise.ToFuture();
+    auto threadPool = CreateThreadPool(4, "ConcurrentTxCommit");
+
+    std::vector<ITransactionPtr> transactions{StartCypressTransaction()};
+    std::vector<TFuture<void>> commitFutures;
+
+    std::atomic<int> inFlightRequests = 0;
+    std::atomic<int> finishedRequests = 0;
+
+    auto scheduleCommit = [&] () {
+        YT_VERIFY(transactions.size() == commitFutures.size() + 1);
+
+        auto txIndex = transactions.size() - 1;
+
+        auto commitFuture = BIND([barrier, txIndex, &transactions, &inFlightRequests, &finishedRequests] {
+            WaitFor(barrier)
+                .ThrowOnError();
+
+            Cerr
+                << Format(
+                    "Request started (TransactionId: %v, InFlightRequestCount: %v)",
+                    transactions[txIndex]->GetId(),
+                    inFlightRequests.fetch_add(1, std::memory_order::relaxed) + 1)
+                << Endl;
+
+            auto finally = Finally([&] {
+                Cerr
+                    << Format(
+                        "Request finished (TransactionId: %v, InFlightRequestCount: %v, FinishedRequestCount: %v)",
+                        transactions[txIndex]->GetId(),
+                        inFlightRequests.fetch_sub(1, std::memory_order::relaxed) - 1,
+                        finishedRequests.fetch_add(1, std::memory_order::relaxed) + 1)
+                    << Endl;
+            });
+
+            WaitFor(transactions[txIndex]->Commit())
+                .ThrowOnError();
+        }).AsyncVia(threadPool->GetInvoker()).Run();
+
+        commitFutures.push_back(std::move(commitFuture));
+    };
+
+    scheduleCommit();
+
+    int lastLevelBegin = 0;
+    int lastLevelEnd = 1;
+    for (int _ : std::views::iota(1, LevelCount)) {
+        auto nextLevelBegin = lastLevelEnd;
+        for (int txIndex : std::views::iota(lastLevelBegin, lastLevelEnd)) {
+            for (int _ : std::views::iota(0, ChildCount)) {
+                transactions.emplace_back(StartCypressTransaction({.ParentId = transactions[txIndex]->GetId()}));
+                scheduleCommit();
+            }
+        }
+        lastLevelBegin = nextLevelBegin;
+        lastLevelEnd = transactions.size();
+    }
+
+    barrierPromise.Set();
+
+    WaitFor(AllSet(commitFutures))
+        .ThrowOnError();
+
+    // At least topmost tx should be committed.
+    EXPECT_TRUE(commitFutures.front().TryGet()->IsOK());
+
+    int committed = 0;
+    int alreadyAborted = 0;
+
+    for (const auto& commitFuture : commitFutures) {
+        auto result = *commitFuture.TryGet();
+        if (result.IsOK()) {
+            ++committed;
+        } else if (result.FindMatching([] (const TError& error) { return error.GetMessage().Contains("No such transaction"); })) {
+            ++alreadyAborted;
+        } else {
+            YT_LOG_FATAL(result, "Unexpected error");
+        }
+    }
+
+    Cerr << Format("All transactions finished (Committed: %v, AlreadyAborted: %v)", committed, alreadyAborted) << Endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

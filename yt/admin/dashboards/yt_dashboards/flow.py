@@ -83,13 +83,15 @@ def build_watermarks():
                 "System watermark",
                 MonitoringExpr(FlowController("yt.flow.controller.watermark_lag.system_timestamp"))
                     .alias("{{stream_id}}")
-                    .unit("UNIT_SECONDS"))
+                    .unit("UNIT_SECONDS")
+                    .precision(1))
             .cell(
                 "User watermarks",
                 MonitoringExpr(FlowController("yt.flow.controller.watermark_lag.user_timestamp"))
                     .all("user_timestamp_id")
                     .alias("{{stream_id}}/{{user_timestamp_id}}")
-                    .unit("UNIT_SECONDS"))
+                    .unit("UNIT_SECONDS")
+                    .precision(1))
     ).owner
 
 def build_lags():
@@ -144,20 +146,31 @@ def build_streams():
                     .unit("UNIT_BYTES_SI_PER_SECOND"))
     )
 
-def build_buffers():
+def build_computation_resources():
     return (Rowset()
         .stack(True)
-        .aggr("host")
         .all("computation_id")
         .row()
             .cell(
+                "Computation cpu usage",
+                MonitoringExpr(FlowController("yt.flow.controller.computation.cpu_usage"))
+                    .alias("{{computation_id}}")
+                    .unit("UNIT_PERCENT_UNIT"))
+            .cell(
+                "Computation memory usage",
+                MonitoringExpr(FlowController("yt.flow.controller.computation.memory_usage"))
+                    .alias("{{computation_id}}")
+                    .unit("UNIT_BYTES_SI"))
+            .cell(
                 "Input buffers size",
                 MonitoringExpr(FlowWorker("yt.flow.worker.buffer_state.computations.input_buffer_message_size"))
+                    .aggr("host")
                     .alias("{{computation_id}}")
                     .unit("UNIT_BYTES_SI"))
             .cell(
                 "Output buffers size",
                 MonitoringExpr(FlowWorker("yt.flow.worker.buffer_state.computations.output_buffer_message_size"))
+                    .aggr("host")
                     .alias("{{computation_id}}")
                     .unit("UNIT_BYTES_SI"))
     )
@@ -327,7 +340,7 @@ def build_pipeline():
     d.add(build_watermarks())
     d.add(build_lags())
     d.add(build_streams())
-    d.add(build_buffers())
+    d.add(build_computation_resources())
     d.add(build_partition_store_commits())
     d.add(build_heartbeats())
     d.add(build_epoch_timings())

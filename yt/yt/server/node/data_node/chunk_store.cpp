@@ -95,6 +95,15 @@ public:
         }
     }
 
+    void RemoveChunkFromCache(TChunkId chunkId) override
+    {
+        auto blockCache = Bootstrap_->GetBlockCache();
+
+        if (blockCache) {
+            blockCache->RemoveChunkBlocks(chunkId);
+        }
+    }
+
 private:
     NClusterNode::IBootstrapBase* const Bootstrap_;
 };
@@ -599,6 +608,7 @@ void TChunkStore::UnregisterChunk(const IChunkPtr& chunk)
         location->GetId());
 
     ChunkRemoved_.Fire(chunk);
+    ChunkStoreHost_->RemoveChunkFromCache(chunk->GetId());
 }
 
 TStoreLocationPtr TChunkStore::GetChunkLocationByUuid(TChunkLocationUuid locationUuid)
@@ -629,6 +639,7 @@ void TChunkStore::RemoveNonexistentChunk(TChunkId chunkId, TChunkLocationUuid lo
         chunkId,
         location->GetId());
     ChunkRemoved_.Fire(chunk);
+    ChunkStoreHost_->RemoveChunkFromCache(chunk->GetId());
 }
 
 TChunkStore::TChunkEntry TChunkStore::BuildChunkEntry(const IChunkPtr& chunk)

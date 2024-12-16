@@ -1,9 +1,10 @@
 #pragma once
 
-#include "execution_backend.h"
 #include "public.h"
 #include "routine_registry.h"
 #include "type_builder.h"
+
+#include <yt/yt/library/codegen_api/execution_backend.h>
 
 #include <yt/yt/core/actions/callback.h>
 

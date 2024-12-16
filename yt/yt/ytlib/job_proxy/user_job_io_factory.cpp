@@ -191,6 +191,32 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
         multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
 }
 
+std::optional<i64> GetChunkSpecRowCount(const NChunkClient::NProto::TChunkSpec& chunkSpec) {
+    if (chunkSpec.has_row_count_override()) {
+        return chunkSpec.row_count_override();
+    }
+    if (HasProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions())) {
+        const auto& misc = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
+        if (misc.has_row_count()) {
+            return misc.row_count();
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<i64> GetChunkSpecDataWeight(const NChunkClient::NProto::TChunkSpec& chunkSpec) {
+    if (chunkSpec.has_data_weight_override()) {
+        return chunkSpec.data_weight_override();
+    }
+    if (HasProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions())) {
+        const auto& misc = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
+        if (misc.has_data_weight()) {
+            return misc.data_weight();
+        }
+    }
+    return std::nullopt;
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -393,22 +419,28 @@ public:
         // We must always enable key widening to prevent out of range access of key prefixes in sorted merging/joining readers.
         options->EnableKeyWidening = true;
 
-        // Ff the primary table small, read it out completely into the memory to obtain
+        // If the primary table is small, read it out completely into the memory to obtain
         // join keys.
         i64 inputRowCount = 0;
+        i64 inputDataWeight = 0;
         for (const auto& inputSpec : jobSpecExt.input_table_specs()) {
             for (const auto& chunkSpec : inputSpec.chunk_specs()) {
-                if (chunkSpec.has_row_count_override()) {
-                    inputRowCount += chunkSpec.row_count_override();
-                    continue;
+                auto chunkSpecRowCount = GetChunkSpecRowCount(chunkSpec);
+                if (!chunkSpecRowCount) {
+                    // No estimate possible.
+                    inputRowCount = std::numeric_limits<decltype(inputRowCount)>::max();
+                    break;
                 }
-                if (HasProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions())) {
-                    const auto& misc = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
-                    inputRowCount += misc.row_count();
-                    continue;
+                inputRowCount += *chunkSpecRowCount;
+                auto chunkSpecDataWeight = GetChunkSpecDataWeight(chunkSpec);
+                if (!chunkSpecDataWeight) {
+                    inputDataWeight = std::numeric_limits<decltype(inputDataWeight)>::max();
+                    break;
                 }
-                // No estimate possible.
-                inputRowCount = std::numeric_limits<i64>::max();
+                inputDataWeight += *chunkSpecDataWeight;
+            }
+            if (inputRowCount == std::numeric_limits<decltype(inputRowCount)>::max() ||
+                inputDataWeight == std::numeric_limits<decltype(inputDataWeight)>::max()) {
                 break;
             }
         }
@@ -423,6 +455,7 @@ public:
 
         if (reduceJobSpecExt.has_foreign_table_lookup_keys_threshold() &&
             inputRowCount < reduceJobSpecExt.foreign_table_lookup_keys_threshold() &&
+            inputDataWeight < reduceJobSpecExt.foreign_table_lookup_data_weight_threshold() &&
             jobSpecExt.foreign_input_table_specsSize() > 0)
         {
             primaryKeyPrefixes.resize(jobSpecExt.input_table_specs_size());
@@ -430,6 +463,11 @@ public:
             // TODO(orlovorlov): surface it in `yt get-job` output that a preliminary
             // pass was performed.
 
+            YT_LOG_INFO(
+                "Starting preliminary pass to read all keys from primary table (ForeignTableCount: %v)",
+                jobSpecExt.foreign_input_table_specsSize());
+
+            NChunkClient::NProto::TDataStatistics statistics;
             for (int i = 0; i < jobSpecExt.input_table_specs_size(); i++) {
                 const auto& inputSpec = jobSpecExt.input_table_specs(i);
                 auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
@@ -452,6 +490,7 @@ public:
                     memoryManager);
 
                 primaryKeyPrefixes[i] = FetchReaderKeyPrefixes(reader, reduceJobSpecExt.join_key_column_count(), Buffer_);
+                statistics += reader->GetDataStatistics();
                 primaryRowCount += std::ssize(primaryKeyPrefixes[i]);
             }
             hintKeyPrefixes = THintKeyPrefixes{DedupRows(joinComparator, std::move(primaryKeyPrefixes))};
@@ -462,6 +501,12 @@ public:
                 "NumForeignTables: %v)",
                 inputRowCount, primaryRowCount, std::ssize(hintKeyPrefixes->HintPrefixes),
                 jobSpecExt.foreign_input_table_specsSize());
+
+            if (PreparationDataStatistics_) {
+                *PreparationDataStatistics_ += statistics;
+            } else {
+                PreparationDataStatistics_ = statistics;
+            }
         }
 
         std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
@@ -521,6 +566,10 @@ public:
             InterruptAtKeyEdge_);
     }
 
+    virtual std::optional<NChunkClient::NProto::TDataStatistics> GetPreparationDataStatistics() override {
+        return PreparationDataStatistics_;
+    }
+
 protected:
     i64 GetTotalReaderMemoryLimit() const override
     {
@@ -534,6 +583,7 @@ private:
     const bool InterruptAtKeyEdge_;
     NLogging::TLogger Logger;
     const TRowBufferPtr Buffer_;
+    std::optional<NChunkClient::NProto::TDataStatistics> PreparationDataStatistics_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -724,8 +774,6 @@ public:
                 MultiReaderMemoryManager_,
                 partitionTag);
         }
-
-        auto comparator = GetComparator(FromProto<TSortColumns>(reduceJobSpecExt.sort_columns()));
 
         return CreatePartitionSortReader(
             JobSpecHelper_->GetJobIOConfig()->TableReader,

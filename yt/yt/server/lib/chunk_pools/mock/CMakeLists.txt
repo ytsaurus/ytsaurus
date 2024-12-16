@@ -19,6 +19,7 @@ add_library(lib-chunk_pools-mock)
 
 target_compile_options(lib-chunk_pools-mock PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(lib-chunk_pools-mock PUBLIC

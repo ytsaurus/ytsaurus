@@ -2,7 +2,7 @@
 
 #include "auto_merge_task.h"
 #include "helpers.h"
-#include "input_transactions_manager.h"
+#include "input_transaction_manager.h"
 #include "job_helpers.h"
 #include "job_info.h"
 #include "sink.h"
@@ -486,7 +486,7 @@ void TOperationControllerBase::InitializeInputTransactions()
         }
     }
 
-    InputTransactions = New<TInputTransactionsManager>(
+    InputTransactions = New<TInputTransactionManager>(
         InputClient,
         New<TClusterResolver>(InputClient),
         OperationId,
@@ -1275,7 +1275,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
 
         LogProgress(/*force*/ true);
     } catch (const std::exception& ex) {
-        auto wrappedError = TError(EErrorCode::MaterializationFailed, "Materialization failed")
+        auto wrappedError = TError(NControllerAgent::EErrorCode::MaterializationFailed, "Materialization failed")
             << ex;
         YT_LOG_INFO(wrappedError);
         DoFailOperation(wrappedError);
@@ -1510,7 +1510,7 @@ bool TOperationControllerBase::IsTransactionNeeded(ETransactionType type) const
         case ETransactionType::Async:
             return IsLegacyIntermediateLivePreviewSupported() || IsLegacyOutputLivePreviewSupported() || GetStderrTablePath();
         case ETransactionType::Input:
-            // Input transaction is managed by InputTransactionsManager.
+            // Input transaction is managed by InputTransactionManager.
             YT_ABORT();
         case ETransactionType::Output:
         case ETransactionType::OutputCompletion:
@@ -1969,6 +1969,8 @@ std::vector<TOutputStreamDescriptorPtr> TOperationControllerBase::GetAutoMergeSt
         ValidateAccountPermission(Spec_->IntermediateDataAccount, EPermission::Use);
         intermediateDataAccount = Spec_->IntermediateDataAccount;
     }
+
+    YT_VERIFY(std::ssize(streamDescriptors) <= std::ssize(AutoMergeEnabled_));
 
     int autoMergeTaskTableIndex = 0;
     for (int index = 0; index < std::ssize(streamDescriptors); ++index) {
@@ -4474,7 +4476,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
         }
 
         DoFailOperation(TError(
-            EErrorCode::NoOnlineNodeToScheduleAllocation,
+            NControllerAgent::EErrorCode::NoOnlineNodeToScheduleAllocation,
             errorMessageBuilder.Flush(),
             TError::DisableFormat)
             << TErrorAttribute("other_trees_node_count", otherTreesNodeCount)
@@ -4526,7 +4528,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
         if (!Dominates(*CachedMaxAvailableExecNodeResources_, neededResources.ToJobResources())) {
             DoFailOperation(
                 TError(
-                    EErrorCode::NoOnlineNodeToScheduleAllocation,
+                    NControllerAgent::EErrorCode::NoOnlineNodeToScheduleAllocation,
                     "No online node can satisfy the resource demand")
                     << TErrorAttribute("task_name", task->GetTitle())
                     << TErrorAttribute("needed_resources", neededResources.ToJobResources())
@@ -5770,15 +5772,25 @@ TJobExperimentBasePtr TOperationControllerBase::GetJobExperiment()
     return JobExperiment_;
 }
 
-TJobId TOperationControllerBase::GenerateJobId(NScheduler::TAllocationId allocationId, TJobId previousJobId)
+std::expected<TJobId, EScheduleFailReason> TOperationControllerBase::GenerateJobId(NScheduler::TAllocationId allocationId, TJobId previousJobId)
 {
     auto jobIdGuid = previousJobId ? previousJobId.Underlying() : allocationId.Underlying();
 
     if (Config->JobIdUnequalToAllocationId || previousJobId) {
+        auto currentJobCount = jobIdGuid.Parts32[0] >> 24;
+
         jobIdGuid.Parts32[0] += 1 << 24;
 
-        // TODO(pogorelov): Handle overflow properly.
-        YT_VERIFY(jobIdGuid.Parts32[0] >> 24 != 0);
+        if (jobIdGuid.Parts32[0] >> 24 == 0 ||
+            currentJobCount >= Config->AllocationJobCountLimit.value_or(std::numeric_limits<ui32>::max()))
+        {
+            YT_LOG_DEBUG(
+                "Allocation job count reached limit (JobCount: %v, AllocationId: %v, PreviousJobId: %v)",
+                currentJobCount,
+                allocationId,
+                previousJobId);
+            return std::unexpected(EScheduleFailReason::AllocationJobCountReachedLimit);
+        }
 
         YT_LOG_DEBUG(
             "Generating new job id (JobId: %v, AllocationId: %v, PreviousJobId: %v)",
@@ -5850,21 +5862,21 @@ bool TOperationControllerBase::RestartJobInAllocation(TNonNullPtr<TAllocation> a
 
     YT_VERIFY(allocation->Joblet);
 
-    auto currentJobId = allocation->LastJobInfo.JobId;
+    const auto& joblet = allocation->Joblet;
+    auto currentJobId = joblet->JobId;
 
     {
-        const auto& joblet = allocation->Joblet;
         auto abortReason = EAbortReason::OperationIncarnationChanged;
+
         Host->AbortJob(joblet->JobId, abortReason, /*requestNewJob*/ true);
 
-        auto operationFinished = !OnJobAborted(joblet, std::make_unique<TAbortedJobSummary>(joblet->JobId, abortReason));
-        if (operationFinished) {
+        if (auto operationFinished = !OnJobAborted(joblet, std::make_unique<TAbortedJobSummary>(joblet->JobId, abortReason))) {
             YT_LOG_DEBUG("Operation finished during restarting jobs (JobId: %v)", joblet->JobId);
             return false;
         }
     }
 
-    if (!operationIsReviving) {
+    if (operationIsReviving) {
         YT_LOG_DEBUG(
             "No later job absence guaranteed, do not create new job immediately (AllocationId: %v, CurrentJobId: %v)",
             allocation->Id,
@@ -5873,13 +5885,21 @@ bool TOperationControllerBase::RestartJobInAllocation(TNonNullPtr<TAllocation> a
         return true;
     }
 
+    // NB(pogorelov): We abort job with requestNewJob even if we aren't able to schedule new job since:
+    // 1) Job aborting causes immedeate job releasing.
+    // 2) Job tracker doesn't expect running job releasing (intentionally).
+    // 3) We can't schedule new job before aborting old one.
+    // TODO(pogorelov): It could be fixed by defering job releasing untill the end of method, think about it.
     auto failReason = TryScheduleNextJob(*allocation, currentJobId);
-    YT_LOG_FATAL_IF(
-        failReason,
-        "Failed to restart job (AllocationId: %v, CurrentJobId: %v, FailReason: %v)",
-        allocation->Id,
-        currentJobId,
-        failReason);
+    if (failReason) {
+        YT_LOG_DEBUG(
+            "Failed to restart job, just aborting it (AllocationId: %v, CurrentJobId: %v, ScheduleNewJobFailReason: %v)",
+            allocation->Id,
+            currentJobId,
+            failReason);
+
+        allocation->NewJobsForbiddenReason = failReason;
+    }
 
     return true;
 }
@@ -7547,7 +7567,7 @@ void TOperationControllerBase::ParseInputQuery(
     }
 
     auto externalCGInfo = New<TExternalCGInfo>();
-    auto fetchFunctions = [&] (const std::vector<TString>& names, const TTypeInferrerMapPtr& typeInferrers) {
+    auto fetchFunctions = [&] (TRange<TString> names, const TTypeInferrerMapPtr& typeInferrers) {
         MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
 
         std::vector<TString> externalNames;
@@ -8950,7 +8970,7 @@ TJobletPtr TOperationControllerBase::GetJobletOrThrow(TJobId jobId) const
     auto joblet = FindJoblet(jobId);
     if (!joblet) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::NoSuchJob,
+            NControllerAgent::EErrorCode::NoSuchJob,
             "No such job %v",
             jobId);
     }
@@ -9357,7 +9377,7 @@ TJobStartInfo TOperationControllerBase::SafeSettleJob(TAllocationId allocationId
 
     if (auto state = State.load(); state != EControllerState::Running) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::OperationIsNotRunning,
+            NControllerAgent::EErrorCode::OperationIsNotRunning,
             "Operation controller is in %v state",
             state);
     }
@@ -9398,6 +9418,11 @@ TJobStartInfo TOperationControllerBase::SafeSettleJob(TAllocationId allocationId
     }
 
     if (!allocation.Joblet) {
+        THROW_ERROR_EXCEPTION_IF(
+            allocation.NewJobsForbiddenReason,
+            "Settling new job in allocation is forbidden, reason is %v",
+            *allocation.NewJobsForbiddenReason);
+
         YT_VERIFY(lastJobId);
         auto failReason = TryScheduleNextJob(allocation, GetLaterJobId(allocation.LastJobInfo.JobId, *lastJobId));
 
@@ -10435,7 +10460,7 @@ void TOperationControllerBase::ValidateSchemaInferenceMode(ESchemaInferenceMode 
 {
     YT_VERIFY(OutputTables_.size() == 1);
     if (OutputTables_[0]->Dynamic && schemaInferenceMode != ESchemaInferenceMode::Auto) {
-        THROW_ERROR_EXCEPTION("Only schema inference mode %Qv is allowed for dynamic table in output",
+        THROW_ERROR_EXCEPTION("Only schema inference mode %Qlv is allowed for dynamic table in output",
             ESchemaInferenceMode::Auto);
     }
 }
@@ -10578,23 +10603,13 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, RetainedJobWithStderrCount_);
     Persist(context, RetainedJobsCoreInfoCount_);
     Persist(context, RetainedJobCount_);
-
-    // COMPAT(pogorelov)
-    if (context.GetVersion() < ESnapshotVersion::DoNotPersistJobReleaseFlags) {
-        THashMap<TJobId, TReleaseJobFlags> jobIdToReleaseFlags;
-        Persist(context, jobIdToReleaseFlags);
-    }
-
     Persist(context, JobSpecCompletedArchiveCount_);
     Persist(context, FailedJobCount_);
     Persist(context, Sink_);
     Persist(context, AutoMergeTask_);
     Persist<TUniquePtrSerializer<>>(context, AutoMergeDirector_);
     Persist(context, DataFlowGraph_);
-    // COMPAT(galtsev)
-    if (context.GetVersion() >= ESnapshotVersion::NewLivePreview) {
-        Persist(context, *LivePreviews_);
-    }
+    Persist(context, *LivePreviews_);
     Persist(context, AvailableExecNodesObserved_);
     Persist(context, BannedNodeIds_);
     Persist(context, PathToOutputTable_);
@@ -10628,27 +10643,13 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
         InitUpdatingTables();
     }
 
-    // COMPAT(gepardo)
-    if (context.IsSave() && AutoMergeEnabled_.empty()) {
-        AutoMergeEnabled_.resize(OutputTables_.size(), false);
-    }
-
     Persist(context, AlertManager_);
-
     Persist(context, FastIntermediateMediumLimit_);
-
-    YT_VERIFY(context.GetVersion() >= ESnapshotVersion::JobExperiment);
     Persist(context, BaseLayer_);
     Persist(context, JobExperiment_);
+    Persist(context, InitialMinNeededResources_);
+    Persist(context, JobAbortsUntilOperationFailure_);
 
-    // COMPAT(eshcherbin)
-    if (context.GetVersion() >= ESnapshotVersion::InitialMinNeededResources) {
-        Persist(context, InitialMinNeededResources_);
-    }
-
-    if (context.GetVersion() >= ESnapshotVersion::JobAbortsUntilOperationFailure) {
-        Persist(context, JobAbortsUntilOperationFailure_);
-    }
     if (context.GetVersion() >= ESnapshotVersion::PersistMonitoringCounts) {
         Persist(context, MonitoredUserJobCount_);
         Persist(context, MonitoredUserJobAttemptCount_);

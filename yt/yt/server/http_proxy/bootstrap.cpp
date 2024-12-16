@@ -35,7 +35,7 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/ytlib/program/helpers.h>
+#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/ytlib/queue_client/registration_manager.h>
 
@@ -48,6 +48,7 @@
 #include <yt/yt/library/monitoring/monitoring_manager.h>
 
 #include <yt/yt/library/profiling/solomon/proxy.h>
+#include <yt/yt/library/profiling/solomon/registry.h>
 
 #include <yt/yt/library/program/build_attributes.h>
 
@@ -373,7 +374,7 @@ void TBootstrap::OnDynamicConfigChanged(
     const TProxyDynamicConfigPtr& /*oldConfig*/,
     const TProxyDynamicConfigPtr& newConfig)
 {
-    ReconfigureNativeSingletons(Config_, newConfig);
+    ReconfigureNativeSingletons(newConfig);
     ReconfigureMemoryLimits(newConfig->MemoryLimits);
 
     DynamicConfig_.Store(newConfig);

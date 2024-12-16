@@ -186,7 +186,12 @@ def verify_group_by(schema: Schema, key_table: str, data_table: str, output_tabl
     op_spec = {
         "job_count": spec.size.job_count,
         "title": "Verify group by",
+        "reducer": {},
     }
+
+    if spec.network_project is not None:
+        op_spec["reducer"]["network_project"] = spec.network_project
+
     if spec.get_read_user_slot_count() is not None:
         op_spec["scheduling_options_per_pool_tree"] = {
             "physical": {"resource_limits": {"user_slots": spec.get_read_user_slot_count()}}

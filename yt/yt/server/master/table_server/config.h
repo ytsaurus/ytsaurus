@@ -8,12 +8,25 @@ namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicTableManagerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    i64 MaxSchemaMemoryUsageToLog;
+
+    REGISTER_YSON_STRUCT(TDynamicTableManagerConfig)
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicTableManagerConfig)
+
 class TTableManagerConfig
     : public NYTree::TYsonStruct
 {
 public:
 
-    REGISTER_YSON_STRUCT(TTableManagerConfig);
+    REGISTER_YSON_STRUCT(TTableManagerConfig)
 
     static void Register(TRegistrar registrar);
 };

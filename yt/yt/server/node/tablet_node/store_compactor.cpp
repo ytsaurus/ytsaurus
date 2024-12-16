@@ -15,6 +15,7 @@
 #include "tablet_reader.h"
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
+#include "versioned_chunk_meta_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -416,8 +417,10 @@ protected:
 
     void CloseWriter(const IVersionedMultiChunkWriterPtr& writer)
     {
-        CloseFutures_.emplace_back(writer->Close());
+        CloseFutures_.push_back(writer->Close());
     }
+
+    virtual ETabletBackgroundActivity GetActivityKind() const = 0;
 
 private:
     std::vector<IVersionedMultiChunkWriterPtr> Writers_;
@@ -553,7 +556,7 @@ private:
 
     IVersionedChunkWriterPtr CreateUnderlyingWriterAdapter(IChunkWriterPtr underlyingWriter) const
     {
-        return CreateHunkEncodingVersionedWriter(
+        auto writer = CreateHunkEncodingVersionedWriter(
             CreateVersionedChunkWriter(
                 StoreWriterConfig_,
                 StoreWriterOptions_,
@@ -566,6 +569,37 @@ private:
             HunkChunkWriterStatistics_,
             TabletSnapshot_->DictionaryCompressionFactory,
             ChunkReadOptions_);
+        if (TabletSnapshot_->Settings.MountConfig->InsertMetaUponStoreUpdate) {
+            writer->GetMeta()->SubscribeMetaFinalized(BIND(
+                &TStoreCompactionSessionBase::OnChunkMetaFinalized,
+                MakeWeak(this),
+                writer));
+        }
+        return writer;
+    }
+
+    void OnChunkMetaFinalized(const IVersionedChunkWriterPtr& writer, const TRefCountedChunkMeta* finalizedMeta) const
+    {
+        auto enableNewScanReader =
+            TabletSnapshot_->Settings.MountConfig->EnableNewScanReaderForLookup ||
+            TabletSnapshot_->Settings.MountConfig->EnableNewScanReaderForSelect;
+
+        auto result = false;
+        if (auto chunkMetaManager = Bootstrap_->GetVersionedChunkMetaManager()) {
+            result = chunkMetaManager->InsertMeta(
+                TVersionedChunkMetaCacheKey{
+                    .ChunkId = writer->GetChunkId(),
+                    .TableSchemaKeyColumnCount = TabletSnapshot_->PhysicalSchema->GetKeyColumnCount(),
+                    .PreparedColumnarMeta = enableNewScanReader,
+                },
+                New<TRefCountedChunkMeta>(*finalizedMeta));
+        }
+
+        YT_LOG_DEBUG("Propagating versioned chunk meta cache upon chunk finalization"
+            "(Success: %v, ChunkId: %v, Activity: %Qlv)",
+            result,
+            writer->GetChunkId(),
+            GetActivityKind());
     }
 };
 
@@ -603,6 +637,11 @@ public:
             std::move(chunkReadOptions),
             std::move(logger))
     { }
+
+    ETabletBackgroundActivity GetActivityKind() const override
+    {
+        return ETabletBackgroundActivity::Partitioning;
+    }
 
     std::pair<TEdenPartitioningResult, TCompactionSessionFinalizeResult> Run(
         const IVersionedReaderPtr& reader,
@@ -794,6 +833,11 @@ public:
             std::move(chunkReadOptions),
             std::move(logger))
     { }
+
+    ETabletBackgroundActivity GetActivityKind() const override
+    {
+        return ETabletBackgroundActivity::Compaction;
+    }
 
     std::pair<TPartitionCompactionResult, TCompactionSessionFinalizeResult>
     Run(const IVersionedReaderPtr& reader, TCompactionTask* task)
@@ -1044,7 +1088,7 @@ private:
         const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
     {
         const auto& config = newNodeConfig->TabletNode->StoreCompactor;
-        ThreadPool_->Configure(config->ThreadPoolSize.value_or(Config_->ThreadPoolSize));
+        ThreadPool_->SetThreadCount(config->ThreadPoolSize.value_or(Config_->ThreadPoolSize));
         PartitioningSemaphore_->SetTotal(config->MaxConcurrentPartitionings.value_or(Config_->MaxConcurrentPartitionings));
         CompactionSemaphore_->SetTotal(config->MaxConcurrentCompactions.value_or(Config_->MaxConcurrentCompactions));
         PartitioningOrchid_->Reconfigure(config->Orchid);

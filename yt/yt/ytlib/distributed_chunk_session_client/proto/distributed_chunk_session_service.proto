@@ -1,0 +1,62 @@
+package NYT.NDistributedChunkSessionClient.NProto;
+
+import "yt/ytlib/chunk_client/proto/session_id.proto";
+
+import "yt_proto/yt/client/chunk_client/proto/chunk_meta.proto";
+import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
+import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartChunkSession
+{
+    required NYT.NChunkClient.NProto.TSessionId session_id = 1;
+    repeated NYT.NNodeTrackerClient.NProto.TNodeDescriptor chunk_replicas = 2;
+}
+
+message TRspStartChunkSession
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPingChunkSession
+{
+    required NYT.NChunkClient.NProto.TSessionId session_id = 1;
+    required int32 acknowledged_block_count = 2;
+}
+
+message TRspPingChunkSession
+{
+    required bool close_demanded = 1;
+
+    required int32 written_block_count = 2;
+
+    required NYT.NChunkClient.NProto.TMiscExt chunk_misc_meta = 3;
+
+    // Meta for blocks started from acknowledged_block_count.
+    repeated NYT.NTableClient.NProto.TDataBlockMeta data_block_metas = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSendBlocks
+{
+    required NYT.NChunkClient.NProto.TSessionId session_id = 1;
+
+    required NYT.NChunkClient.NProto.TMiscExt blocks_misc_meta = 2;
+
+    repeated NYT.NTableClient.NProto.TDataBlockMeta data_block_metas = 3;
+}
+
+message TRspSendBlocks
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFinishChunkSession
+{
+    required NYT.NChunkClient.NProto.TSessionId session_id = 1;
+}
+
+message TRspFinishChunkSession
+{ }

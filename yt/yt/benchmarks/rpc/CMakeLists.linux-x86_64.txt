@@ -45,7 +45,8 @@ target_link_libraries(rpc_benchmark PUBLIC
 )
 
 target_allocator(rpc_benchmark
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(rpc_benchmark PRIVATE

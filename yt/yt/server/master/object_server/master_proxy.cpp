@@ -48,6 +48,8 @@
 
 #include <yt/yt/core/ytree/helpers.h>
 
+#include <library/cpp/iterator/zip.h>
+
 namespace NYT::NObjectServer {
 
 using namespace NCellMaster;
@@ -521,8 +523,17 @@ private:
             ? transactionManager->GetTransactionOrThrow(transactionId)
             : nullptr;
 
+        auto onSubresponseCallback = [context, response] (TObjectId objectId, const TSharedRefArray& message) {
+            auto& attachments = context->Response().Attachments();
+            attachments.insert(attachments.end(), message.Begin(), message.End());
+            auto* subresponse = response->add_subresponses();
+            subresponse->set_part_count(message.size());
+            ToProto(subresponse->mutable_object_id(), objectId);
+        };
+
+        std::vector<TFuture<TSharedRefArray>> futures;
+        std::vector<TObjectId> objectIdsWithAsyncRequests;
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto& attachments = context->Response().Attachments();
         for (auto objectId : objectIds) {
             // It's impossible to clear response without wiping the whole context, so it has to be created anew for each node.
             auto subcontext = CreateYPathContext(templateRequest, Logger());
@@ -537,14 +548,44 @@ private:
                     objectId));
             }
 
-            const auto& subresponseMessage = subcontext->GetResponseMessage();
-            attachments.insert(attachments.end(), subresponseMessage.Begin(), subresponseMessage.End());
-            auto* subresponse = response->add_subresponses();
-            subresponse->set_part_count(subresponseMessage.size());
-            ToProto(subresponse->mutable_object_id(), objectId);
+            if (subcontext->IsReplied()) {
+                onSubresponseCallback(objectId, subcontext->GetResponseMessage());
+            } else {
+                // To avoid unnecessary conflicts, we populate the attachments only after
+                // all asynchronous requests are executed.
+                futures.push_back(subcontext->GetAsyncResponseMessage());
+                objectIdsWithAsyncRequests.push_back(objectId);
+            }
         }
 
-        context->Reply();
+        // Shortcut for synchronous response.
+        if (futures.empty()) {
+            context->Reply();
+        } else {
+            AllSet(std::move(futures))
+                .Subscribe(BIND([
+                    context,
+                    onSubresponseCallback,
+                    objectIds = std::move(objectIdsWithAsyncRequests)
+                ] (TErrorOr<std::vector<TErrorOr<TSharedRefArray>>> allSetResult) {
+                    if (!allSetResult.IsOK()) {
+                        context->Reply(allSetResult);
+                        return;
+                    }
+
+                    const auto& results = allSetResult.Value();
+                    for (const auto& [objectId, result] : Zip(objectIds, results)) {
+                        if (result.IsOK()) {
+                            onSubresponseCallback(objectId, result.Value());
+                        } else {
+                            auto message = CreateErrorResponseMessage(result);
+                            onSubresponseCallback(objectId, message);
+                        }
+                    }
+
+                    context->Reply();
+                }));
+        }
     }
 
     void ValidateVectorizedRead(const std::string& templateMethod, const std::vector<TObjectId>& objectIds)

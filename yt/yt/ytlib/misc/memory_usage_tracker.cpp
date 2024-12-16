@@ -163,7 +163,7 @@ private:
         YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock);
     };
 
-    std::array<TReferenceAddressMapShard, ReferenceAddressMapShardCount> ReferenceAddressToState_;
+    std::vector<TReferenceAddressMapShard> ReferenceAddressToState_;
 
     TEnumIndexedArray<EMemoryCategory, IMemoryUsageTrackerPtr> CategoryTrackers_;
     THashMap<TPoolTag, TEnumIndexedArray<EMemoryCategory, IMemoryUsageTrackerPtr>> PoolTrackers_;
@@ -290,6 +290,7 @@ TNodeMemoryTracker::TNodeMemoryTracker(
     , Profiler_(profiler.WithSparse())
     , TotalLimit_(totalLimit)
     , TotalFree_(totalLimit)
+    , ReferenceAddressToState_(ReferenceAddressMapShardCount)
 {
     profiler.AddFuncGauge("/total_limit", MakeStrong(this), [this] {
         return GetTotalLimit();

@@ -172,8 +172,8 @@ public:
 
     void Reconfigure(const TThreadPoolIOEngineConfigPtr& config)
     {
-        ReadThreadPool_->Configure(config->ReadThreadCount);
-        WriteThreadPool_->Configure(config->WriteThreadCount);
+        ReadThreadPool_->SetThreadCount(config->ReadThreadCount);
+        WriteThreadPool_->SetThreadCount(config->WriteThreadCount);
     }
 
 private:
@@ -240,8 +240,8 @@ public:
 
     void Reconfigure(const TThreadPoolIOEngineConfigPtr& config)
     {
-        ReadThreadPool_->Configure(config->ReadThreadCount);
-        WriteThreadPool_->Configure(config->WriteThreadCount);
+        ReadThreadPool_->SetThreadCount(config->ReadThreadCount);
+        WriteThreadPool_->SetThreadCount(config->WriteThreadCount);
     }
 
 private:

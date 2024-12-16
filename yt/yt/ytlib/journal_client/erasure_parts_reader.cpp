@@ -76,7 +76,9 @@ public:
             YT_LOG_DEBUG("Requesting replica meta (PartIndex: %v)",
                 partIndex);
             ++OutstandingReplicaCount_;
-            replica.MetaFuture = replica.Reader->GetMeta(Options_);
+            replica.MetaFuture = replica.Reader->GetMeta(IChunkReader::TGetMetaOptions{
+                .ClientOptions = Options_,
+            });
         }
 
         // NB: Only subscribe to futures once all data members are ready.

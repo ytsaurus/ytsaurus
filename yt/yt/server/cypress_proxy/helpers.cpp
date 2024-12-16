@@ -13,6 +13,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/yson/attribute_consumer.h>
+
 #include <library/cpp/yt/misc/variant.h>
 
 namespace NYT::NCypressProxy {
@@ -207,6 +209,18 @@ std::optional<TParsedReqCreate> TryParseReqCreate(ISequoiaServiceContextPtr cont
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ConsumeAttributes(NYson::IAsyncYsonConsumer* consumer, const IAttributeDictionaryPtr& attributes)
+{
+    NYson::TAttributeFragmentConsumer attributeConsumer(consumer);
+    for (const auto& [key, value] : attributes->ListPairs()) {
+        attributeConsumer.OnKeyedItem(key);
+        attributeConsumer.OnRaw(value);
+    }
+    attributeConsumer.Finish();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void FromProto(TCopyOptions* options, const TReqCopy& protoOptions)
 {
     options->Mode = FromProto<ENodeCloneMode>(protoOptions.mode());
@@ -224,7 +238,7 @@ void FromProto(
     TMultisetAttributesSubrequest* subrequest,
     const NYTree::NProto::TReqMultisetAttributes::TSubrequest& protoSubrequest)
 {
-    subrequest->Attribute = protoSubrequest.attribute();
+    subrequest->AttributeKey = protoSubrequest.attribute();
     subrequest->Value = NYson::TYsonString(protoSubrequest.value());
 }
 

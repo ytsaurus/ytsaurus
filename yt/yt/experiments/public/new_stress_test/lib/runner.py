@@ -72,6 +72,7 @@ def prepare_attributes(spec):
     attributes = {
         "chunk_format": spec.chunk_format,
         "erasure_codec": spec.erasure_codec,
+        "hunk_erasure_codec": spec.hunk_erasure_codec,
         "in_memory_mode": spec.in_memory_mode,
         "enable_lsm_verbose_logging": True,
         "chunk_writer": {"erasure_store_original_block_checksums": True},

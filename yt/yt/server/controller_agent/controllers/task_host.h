@@ -22,6 +22,8 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
+#include <expected>
+
 namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,7 +106,7 @@ struct ITaskHost
     virtual void RegisterCores(const TJobletPtr& joblet, const TJobSummary& summary) = 0;
 
     virtual void RegisterJoblet(const TJobletPtr& joblet) = 0;
-    virtual TJobId GenerateJobId(NScheduler::TAllocationId allocationId, TJobId previousJobId) = 0;
+    virtual std::expected<TJobId, EScheduleFailReason> GenerateJobId(NScheduler::TAllocationId allocationId, TJobId previousJobId) = 0;
 
     virtual std::optional<TJobMonitoringDescriptor> RegisterJobForMonitoring(TJobId jobId) = 0;
 

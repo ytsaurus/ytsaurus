@@ -19,6 +19,7 @@ add_executable(unittester-library-erasure)
 
 target_compile_options(unittester-library-erasure PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-library-erasure PUBLIC
@@ -34,7 +35,8 @@ target_link_libraries(unittester-library-erasure PUBLIC
 )
 
 target_allocator(unittester-library-erasure
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-library-erasure PRIVATE

@@ -14,6 +14,8 @@
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 
+#include <yt/yt/ytlib/scheduler/cluster_name.h>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,7 +48,7 @@ struct IBootstrap
 
     virtual const TSchedulerConnectorPtr& GetSchedulerConnector() const = 0;
 
-    virtual NConcurrency::IThroughputThrottlerPtr GetThrottler(EExecNodeThrottlerKind kind, EExecNodeThrottlerTraffic traffic = EExecNodeThrottlerTraffic::Bandwidth, std::optional<TString> remoteClusterName = std::nullopt) const = 0;
+    virtual NConcurrency::IThroughputThrottlerPtr GetThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType trafficType = EThrottlerTrafficType::Bandwidth, std::optional<NScheduler::TClusterName> remoteClusterName = std::nullopt) const = 0;
 
     virtual const NProfiling::TSolomonExporterPtr& GetJobProxySolomonExporter() const = 0;
 

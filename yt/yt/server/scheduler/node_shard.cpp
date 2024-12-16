@@ -73,17 +73,6 @@ void SetControllerAgentDescriptor(
     ToProto(proto->mutable_agent_id(), agentId);
 }
 
-void SetControllerAgentDescriptor(
-    const TControllerAgentPtr& agent,
-    NControllerAgent::NProto::TControllerAgentDescriptor* proto)
-{
-    SetControllerAgentDescriptor(
-        agent->GetId(),
-        agent->GetAgentAddresses(),
-        agent->GetIncarnationId(),
-        proto);
-}
-
 void SetControllerAgentIncarnationId(
     const TControllerAgentPtr& agent,
     NControllerAgent::NProto::TControllerAgentDescriptor* proto)
@@ -2154,11 +2143,7 @@ void TNodeShard::ProcessScheduledAndPreemptedAllocations(
 
         ToProto(startInfo->mutable_allocation_attributes(), allocation->AllocationAttributes());
 
-        if (Config_->SendFullControllerAgentDescriptorsForAllocations) {
-            SetControllerAgentDescriptor(agent, startInfo->mutable_controller_agent_descriptor());
-        } else {
-            SetControllerAgentIncarnationId(agent, startInfo->mutable_controller_agent_descriptor());
-        }
+        SetControllerAgentIncarnationId(agent, startInfo->mutable_controller_agent_descriptor());
     }
 
     for (const auto& preemptedAllocation : schedulingContext->PreemptedAllocations()) {
@@ -2351,11 +2336,7 @@ void TNodeShard::ProcessOperationInfoHeartbeat(
             continue;
         }
 
-        if (Config_->SendFullControllerAgentDescriptorsForAllocations) {
-            SetControllerAgentDescriptor(agent, protoOperationInfo->mutable_controller_agent_descriptor());
-        } else {
-            SetControllerAgentIncarnationId(agent, protoOperationInfo->mutable_controller_agent_descriptor());
-        }
+        SetControllerAgentIncarnationId(agent, protoOperationInfo->mutable_controller_agent_descriptor());
     }
 }
 
@@ -2385,10 +2366,6 @@ void TNodeShard::UpdateUnscheduledNodeCounters(const ISchedulingContextPtr& sche
 
 bool TNodeShard::ShouldSendRegisteredControllerAgents(TScheduler::TCtxNodeHeartbeat::TTypedRequest* request)
 {
-    if (Config_->AlwaysSendControllerAgentDescriptors) {
-        return true;
-    }
-
     THashSet<TIncarnationId> nodeAgentIncarnationIds;
     for (const auto& protoAgentDescriptor : request->registered_controller_agents()) {
         InsertOrCrash(

@@ -12,6 +12,8 @@
 
 #include <yt/yt/library/dynamic_config/config.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 #include <yt/yt/core/bus/tcp/config.h>
 
 namespace NYT::NCypressProxy {
@@ -20,6 +22,7 @@ namespace NYT::NCypressProxy {
 
 class TCypressProxyConfig
     : public TNativeServerConfig
+    , public TServerProgramConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;
@@ -78,8 +81,8 @@ public:
 
     bool EnablePerUserRequestWeightThrottling;
 
-    NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserReadRequestWeightThrottlerConfig;
-    NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserWriteRequestWeightThrottlerConfig;
+    NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserReadRequestWeightThrottler;
+    NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserWriteRequestWeightThrottler;
 
     REGISTER_YSON_STRUCT(TObjectServiceDynamicConfig);
 

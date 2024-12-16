@@ -53,11 +53,11 @@ DEFINE_REFCOUNTED_TYPE(IShellManager)
 ////////////////////////////////////////////////////////////////////////////////
 
 IShellManagerPtr CreatePortoShellManager(
-    const TShellManagerConfig& config,
+    TShellManagerConfig config,
     NContainers::IPortoExecutorPtr portoExecutor,
     NContainers::IInstancePtr rootInstance);
 
-IShellManagerPtr CreateShellManager(const TShellManagerConfig& config);
+IShellManagerPtr CreateShellManager(TShellManagerConfig config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

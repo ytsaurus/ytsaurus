@@ -13,6 +13,7 @@
 #include <yt/yt/server/lib/hydra/changelog.h>
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 #include <yt/yt/server/lib/hydra/snapshot.h>
+#include <yt/yt/server/lib/hydra/snapshot_load_context.h>
 #include <yt/yt/server/lib/hydra/local_hydra_janitor.h>
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra/private.h>

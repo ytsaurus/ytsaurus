@@ -228,6 +228,12 @@ SRCS(
 
     data_node_tracker_client/proto/data_node_tracker_service.proto
 
+    distributed_chunk_session_client/config.cpp
+    distributed_chunk_session_client/distributed_chunk_writer.cpp
+    distributed_chunk_session_client/distributed_chunk_session_controller.cpp
+
+    distributed_chunk_session_client/proto/distributed_chunk_session_service.proto
+
     driver/config.cpp
 
     election/cell_manager.cpp
@@ -338,7 +344,7 @@ SRCS(
     orchid/proto/orchid_service.proto
 
     program/config.cpp
-    program/helpers.cpp
+    program/native_singletons.cpp
 
     query_client/executor.cpp
     query_client/explain.cpp
@@ -730,6 +736,7 @@ PEERDIR(
     yt/yt/library/formats
     yt/yt/library/query/engine_api
     yt/yt/library/query/row_comparer_api
+    yt/yt/library/query/secondary_index
     yt/yt/library/web_assembly/api
     yt/yt/library/program
     yt/yt/library/vector_hdrf

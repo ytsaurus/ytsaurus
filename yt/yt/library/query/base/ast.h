@@ -91,8 +91,6 @@ struct TDoubleOrDotIntToken
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TStructMemberAccessor = TString;
-using TTupleItemIndexAccessor = i64;
 using TStructAndTupleMemberAccessorListItem = std::variant<TStructMemberAccessor, TTupleItemIndexAccessor>;
 using TStructAndTupleMemberAccessor = std::vector<TStructAndTupleMemberAccessorListItem>;
 
@@ -117,7 +115,7 @@ struct TReference
     TReference() = default;
 
     explicit TReference(
-        const std::string& columnName,
+        TStringBuf columnName,
         const std::optional<TString>& tableName = {},
         const TCompositeTypeMemberAccessor& compositeTypeAccessor = {})
         : ColumnName(columnName)
@@ -207,7 +205,7 @@ struct TReferenceExpression
 
     TReferenceExpression(
         const TSourceLocation& sourceLocation,
-        const std::string& columnName,
+        TStringBuf columnName,
         std::optional<TString> tableName = {},
         TCompositeTypeMemberAccessor compositeTypeAccessor = {})
         : TExpression(sourceLocation)
@@ -236,7 +234,7 @@ struct TAliasExpression
         TStringBuf name)
         : TExpression(sourceLocation)
         , Expression(expression)
-        , Name(TString(name))
+        , Name(name)
     { }
 };
 
@@ -412,10 +410,10 @@ struct TTableDescriptor
     TTableDescriptor() = default;
 
     explicit TTableDescriptor(
-        const NYPath::TYPath& path,
-        const std::optional<TString>& alias = std::nullopt)
-        : Path(path)
-        , Alias(alias)
+        NYPath::TYPath path,
+        std::optional<TString> alias = std::nullopt)
+        : Path(std::move(path))
+        , Alias(std::move(alias))
     { }
 };
 

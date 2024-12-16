@@ -2,7 +2,6 @@
 
 #include "hunk_lock_manager.h"
 #include "tablet.h"
-#include "transaction.h"
 #include "automaton.h"
 #include "hunks_serialization.h"
 #include "serialize.h"
@@ -12,6 +11,9 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
+
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
@@ -575,6 +577,8 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
             chunkMeta,
             TBlock::Wrap(blocks));
         auto tableReader = CreateSchemafulChunkReader(
+            // NB: Mock tablets have nullptr client.
+            Tablet_->GetClient() ? Tablet_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache() : nullptr,
             std::move(chunkState),
             New<TColumnarChunkMeta>(*chunkMeta),
             TChunkReaderConfig::GetDefault(),

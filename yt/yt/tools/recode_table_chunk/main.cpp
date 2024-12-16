@@ -22,6 +22,9 @@
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/config.h>
+
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/core/misc/fs.h>
@@ -103,7 +106,7 @@ private:
         Cout << "  Compression codec: " << ToString(FromProto<NCompression::ECodec>(miscExt.compression_codec())) << Endl;
     }
 
-    void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
+    void DoRun() override
     {
         auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, NYTree::INodePtr());
 
@@ -115,7 +118,7 @@ private:
 
         Cout << "Chunk id: " << ToString(ChunkReader_->GetChunkId()) << Endl;
 
-        InputChunkMeta_ = WaitFor(ChunkReader_->GetMeta(/*chunkReadOptions*/ {}))
+        InputChunkMeta_ = WaitFor(ChunkReader_->GetMeta(/*options*/ {}))
             .ValueOrThrow();
 
         InputChunkState_ = New<TChunkState>(TChunkState{
@@ -154,7 +157,7 @@ private:
 
     void DoRunVersioned()
     {
-        auto cachedVersionedChunkMeta = WaitFor(ChunkReader_->GetMeta(/*chunkReadOptions*/ {})
+        auto cachedVersionedChunkMeta = WaitFor(ChunkReader_->GetMeta(/*options*/ {})
             .Apply(BIND(
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,
@@ -162,6 +165,7 @@ private:
             .ValueOrThrow();
 
         auto tableReader = CreateVersionedChunkReader(
+            CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
             TChunkReaderConfig::GetDefault(),
             ChunkReader_,
             InputChunkState_,
@@ -204,6 +208,7 @@ private:
         }
 
         auto tableReader = CreateSchemalessRangeChunkReader(
+            CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
             InputChunkState_,
             New<TColumnarChunkMeta>(*InputChunkMeta_),
             TChunkReaderConfig::GetDefault(),

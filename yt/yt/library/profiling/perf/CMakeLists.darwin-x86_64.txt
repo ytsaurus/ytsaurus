@@ -12,11 +12,14 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+add_subdirectory(unittests)
+
 add_library(library-profiling-perf)
 
 
 target_compile_options(library-profiling-perf PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(library-profiling-perf PUBLIC
@@ -27,6 +30,7 @@ target_link_libraries(library-profiling-perf PUBLIC
 )
 
 target_sources(library-profiling-perf PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/perf/counters_other.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/perf/event_counter_profiler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/perf/event_counter_dummy.cpp
 )
 

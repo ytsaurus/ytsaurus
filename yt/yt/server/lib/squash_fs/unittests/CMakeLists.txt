@@ -19,6 +19,7 @@ add_executable(yt-yt-server-lib-squash_fs-unittests)
 
 target_compile_options(yt-yt-server-lib-squash_fs-unittests PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-yt-server-lib-squash_fs-unittests PUBLIC

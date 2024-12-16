@@ -220,7 +220,7 @@ public:
                 ChunkId_);
         }
 
-        YT_LOG_DEBUG("Reader initialized "
+        YT_LOG_DEBUG("Replication reader initialized "
             "(InitialSeedReplicas: %v, FetchPromPeers: %v, LocalDescriptor: %v, PopulateCache: %v, "
             "AllowFetchingSeedsFromMaster: %v, Networks: %v)",
             MakeFormattableView(InitialSeeds_, TChunkReplicaAddressFormatter(NodeDirectory_)),
@@ -241,7 +241,7 @@ public:
         int blockCount) override;
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
-        const TClientChunkReadOptions& options,
+        const TGetMetaOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override;
 
@@ -280,6 +280,12 @@ public:
         auto timePassed = TInstant::Now() - startTimestamp;
         return SlownessChecker_(bytesReceived, timePassed);
     }
+
+    //! Looks for chunk meta in ChunkMetaCache if the cache is enabled.
+    TFuture<TRefCountedChunkMetaPtr> FindMetaInCache(
+        std::optional<int> partitionTag,
+        const std::optional<std::vector<int>>& extensionTags,
+        const ICachedChunkMeta::TMetaFetchCallback& callback);
 
 private:
     friend class TRequestBatcher;
@@ -432,11 +438,6 @@ private:
         }
     }
 
-    //! Fallback for GetMeta when the chunk meta is missing in ChunkMetaCache or the cache is disabled.
-    TFuture<TRefCountedChunkMetaPtr> FetchMeta(
-        const TClientChunkReadOptions& options,
-        std::optional<int> partitionTag,
-        const std::optional<std::vector<int>>& extensionsTags);
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicationReader)
@@ -447,6 +448,12 @@ class TSessionBase
     : public TRefCounted
 {
 protected:
+    struct TBlockInfo
+    {
+        i32 BlockIndex;
+        i64 BlockSize;
+    };
+
     struct TPeerProbeResult
     {
         bool NetThrottling;
@@ -456,6 +463,7 @@ protected:
         ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TPeerDescriptor> PeerDescriptors;
         TAllyReplicasInfo AllyReplicas;
         bool HasCompleteChunk;
+        std::vector<TBlockInfo> CachedBlocks;
     };
 
     using TErrorOrPeerProbeResult = TErrorOr<TPeerProbeResult>;
@@ -463,6 +471,15 @@ protected:
     template <class TRspPtr>
     static TPeerProbeResult ParseProbeResponse(const TRspPtr& rsp)
     {
+        std::vector<TBlockInfo> blockInfos;
+        blockInfos.reserve(rsp->cached_blocks_size());
+
+        for (int index = 0; index < rsp->cached_blocks_size(); index++) {
+            blockInfos.emplace_back(
+                rsp->cached_blocks()[index].block_index(),
+                rsp->cached_blocks()[index].block_size());
+        }
+
         return {
             .NetThrottling = rsp->net_throttling(),
             .DiskThrottling = rsp->disk_throttling(),
@@ -470,11 +487,15 @@ protected:
             .DiskQueueSize = rsp->disk_queue_size(),
             .PeerDescriptors = rsp->peer_descriptors(),
             .AllyReplicas = FromProto<TAllyReplicasInfo>(rsp->ally_replicas()),
-            .HasCompleteChunk = rsp->has_complete_chunk()
+            .HasCompleteChunk = rsp->has_complete_chunk(),
+            .CachedBlocks = std::move(blockInfos),
         };
     }
 
-    virtual bool UpdatePeerBlockMap(const TPeer& /*suggestorPeer*/, const TPeerProbeResult& /*probeResult*/)
+    virtual bool UpdatePeerBlockMap(
+        const TPeer& /*suggestorPeer*/,
+        const ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TPeerDescriptor>& /*peerDescriptors*/,
+        const TAllyReplicasInfo& /*allyReplicas*/)
     {
         // P2P is not supported by default.
         return false;
@@ -1161,7 +1182,7 @@ protected:
         auto peerAndProbeResultsOrError = WaitFor(DoProbeAndSelectBestPeers(candidates, blockIndexes));
         YT_VERIFY(peerAndProbeResultsOrError.IsOK());
 
-        return OnPeersProbed(std::move(peerAndProbeResultsOrError.Value()), count);
+        return OnPeersProbed(std::move(peerAndProbeResultsOrError.Value()), count, blockIndexes);
     }
 
     TFuture<TPeerList> AsyncProbeAndSelectBestPeers(
@@ -1182,7 +1203,7 @@ protected:
                 (TErrorOr<std::vector<std::pair<TPeer, TErrorOrPeerProbeResult>>>&& peerAndProbeResultsOrError)
             {
                 YT_VERIFY(peerAndProbeResultsOrError.IsOK());
-                return OnPeersProbed(std::move(peerAndProbeResultsOrError.Value()), count);
+                return OnPeersProbed(std::move(peerAndProbeResultsOrError.Value()), count, blockIndexes);
             }).AsyncVia(SessionInvoker_));
     }
 
@@ -1589,7 +1610,8 @@ private:
 
     TPeerList OnPeersProbed(
         std::vector<std::pair<TPeer, TErrorOrPeerProbeResult>> peerAndProbeResults,
-        int count)
+        int count,
+        const std::vector<int>& blockIndexes)
     {
         std::vector<std::pair<TPeer, TPeerProbeResult>> peerAndSuccessfulProbeResults;
         bool receivedNewPeers = false;
@@ -1607,7 +1629,7 @@ private:
 
             auto& probeResult = probeResultOrError.Value();
 
-            if (UpdatePeerBlockMap(peer, probeResult)) {
+            if (UpdatePeerBlockMap(peer, probeResult.PeerDescriptors, probeResult.AllyReplicas)) {
                 receivedNewPeers = true;
             }
 
@@ -1643,13 +1665,73 @@ private:
             return {};
         }
 
-        SortBy(
-            peerAndSuccessfulProbeResults,
-            [&] (const auto& peerAndSuccessfulProbeResult) {
-                const auto& [peer, probeResult] = peerAndSuccessfulProbeResult;
-                return
-                    ReaderConfig_->NetQueueSizeFactor * probeResult.NetQueueSize +
-                    ReaderConfig_->DiskQueueSizeFactor * probeResult.DiskQueueSize;
+        THashSet<int> requestedBlocksSet(blockIndexes.begin(), blockIndexes.end());
+        auto netQueueSizeFactor = ReaderConfig_->NetQueueSizeFactor;
+        auto diskQueueSizeFactor = ReaderConfig_->DiskQueueSizeFactor;
+        auto cachedBlockCountFactor = ReaderConfig_->CachedBlockCountFactor;
+        auto cachedBlockSizeFactor = ReaderConfig_->CachedBlockSizeFactor;
+
+        auto calculateCacheHits = [&] (const auto& cachedBlocks) -> std::pair<i32, i64> {
+            i32 cachedBlockCount = 0;
+            i64 cachedBlockSize = 0;
+
+            for (const auto& cachedBlock : cachedBlocks) {
+                if (requestedBlocksSet.contains(cachedBlock.BlockIndex)) {
+                    cachedBlockCount += 1;
+                    cachedBlockSize += cachedBlock.BlockSize;
+                }
+            }
+
+            return {cachedBlockCount, cachedBlockSize};
+        };
+
+        std::sort(
+            peerAndSuccessfulProbeResults.begin(),
+            peerAndSuccessfulProbeResults.end(),
+            [&] (const auto& first, const auto& second) {
+                const auto& [firstPeer, firstProbeResult] = first;
+                const auto& [secondPeer, secondProbeResult] = second;
+
+                auto firstNetQueueSize = firstProbeResult.NetQueueSize;
+                auto secondNetQueueSize = secondProbeResult.NetQueueSize;
+
+                auto firstDiskQueueSize = firstProbeResult.DiskQueueSize;
+                auto secondDiskQueueSize = secondProbeResult.DiskQueueSize;
+
+                auto netQueueSize = firstNetQueueSize + secondNetQueueSize;
+                auto diskQueueSize = firstDiskQueueSize + secondDiskQueueSize;
+
+                double firstHit = 0;
+                double secondHit = 0;
+
+                if (netQueueSize) {
+                    firstHit += (netQueueSizeFactor * firstNetQueueSize) / netQueueSize;
+                    secondHit += (netQueueSizeFactor * secondNetQueueSize) / netQueueSize;
+                }
+
+                if (diskQueueSize) {
+                    firstHit += (diskQueueSizeFactor * firstDiskQueueSize) / diskQueueSize;
+                    secondHit += (diskQueueSizeFactor * secondDiskQueueSize) / diskQueueSize;
+                }
+
+                auto [firstCachedBlockCount, firstCachedBlockSize] = calculateCacheHits(firstProbeResult.CachedBlocks);
+                auto [secondCachedBlockCount, secondCachedBlockSize] = calculateCacheHits(secondProbeResult.CachedBlocks);
+
+                auto cachedBlockCount = firstCachedBlockCount + secondCachedBlockCount;
+                auto cachedBlockSize = firstCachedBlockSize + secondCachedBlockSize;
+
+                if (cachedBlockSize != 0 && cachedBlockCount != 0) {
+                    auto firstBlockCountHit = (cachedBlockCountFactor * firstCachedBlockCount) / cachedBlockCount;
+                    auto secondBlockCountHit = (cachedBlockCountFactor * secondCachedBlockCount) / cachedBlockCount;
+
+                    auto firstBlockSizeHit = (cachedBlockSizeFactor * firstCachedBlockSize) / cachedBlockSize;
+                    auto secondBlockSizeHit = (cachedBlockSizeFactor * secondCachedBlockSize) / cachedBlockSize;
+
+                    firstHit -= firstBlockCountHit + firstBlockSizeHit;
+                    secondHit -= secondBlockCountHit + secondBlockSizeHit;
+                }
+
+                return firstHit < secondHit;
             });
 
         count = std::min(count, static_cast<int>(peerAndSuccessfulProbeResults.size()));
@@ -1798,16 +1880,19 @@ private:
             BIND(&TReadBlockSetSession::DoRequestBlocks, MakeStrong(this)));
     }
 
-    bool UpdatePeerBlockMap(const TPeer& suggestorPeer, const TPeerProbeResult& probeResult) override
+    bool UpdatePeerBlockMap(
+        const TPeer& suggestorPeer,
+        const ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TPeerDescriptor>& peerDescriptors,
+        const TAllyReplicasInfo& allyReplicas) override
     {
-        if (!ReaderConfig_->FetchFromPeers && !probeResult.PeerDescriptors.empty()) {
+        if (!ReaderConfig_->FetchFromPeers && !peerDescriptors.empty()) {
             YT_LOG_DEBUG("Peer suggestions received but ignored (SuggestorAddress: %v)",
                 suggestorPeer.Address);
             return false;
         }
 
         bool addedNewPeers = false;
-        for (const auto& peerDescriptor : probeResult.PeerDescriptors) {
+        for (const auto& peerDescriptor : peerDescriptors) {
             int blockIndex = peerDescriptor.block_index();
             for (auto protoPeerNodeId : peerDescriptor.node_ids()) {
                 auto peerNodeId = NNodeTrackerClient::TNodeId(protoPeerNodeId);
@@ -1851,8 +1936,8 @@ private:
             }
         }
 
-        if (probeResult.AllyReplicas) {
-            MaybeUpdateSeeds(probeResult.AllyReplicas);
+        if (allyReplicas) {
+            MaybeUpdateSeeds(allyReplicas);
         }
 
         if (addedNewPeers) {
@@ -2086,15 +2171,19 @@ private:
             BanPeer(peers[0].Address, false);
         }
 
-        auto probeResult = ParseProbeResponse(rsp);
+        auto netThrottling = rsp->net_throttling();
+        auto diskThrottling = rsp->disk_throttling();
 
-        UpdatePeerBlockMap(respondedPeer, probeResult);
+        UpdatePeerBlockMap(
+            respondedPeer,
+            rsp->peer_descriptors(),
+            FromProto<TAllyReplicasInfo>(rsp->ally_replicas()));
 
-        if (probeResult.NetThrottling || probeResult.DiskThrottling) {
+        if (netThrottling || diskThrottling) {
             YT_LOG_DEBUG("Peer is throttling (Address: %v, NetThrottling: %v, DiskThrottling: %v)",
                 respondedPeer.Address,
-                probeResult.NetThrottling,
-                probeResult.DiskThrottling);
+                netThrottling,
+                diskThrottling);
         }
 
         i64 bytesReceived = 0;
@@ -2650,16 +2739,20 @@ class TGetMetaSession
 public:
     TGetMetaSession(
         TReplicationReader* reader,
-        const TClientChunkReadOptions& options,
+        const IChunkReader::TGetMetaOptions& options,
         const std::optional<int> partitionTag,
-        const std::optional<std::vector<int>>& extensionTags)
+        const std::optional<std::vector<int>>& extensionTags,
+        IThroughputThrottlerPtr bandwidthThrottler,
+        IThroughputThrottlerPtr rpsThrottler,
+        IThroughputThrottlerPtr mediumThrottler)
         : TSessionBase(
             reader,
-            options,
-            reader->BandwidthThrottler_,
-            reader->RpsThrottler_,
-            reader->MediumThrottler_,
+            options.ClientOptions,
+            std::move(bandwidthThrottler),
+            std::move(rpsThrottler),
+            std::move(mediumThrottler),
             GetCurrentInvoker())
+        , MetaSize_(options.MetaSize)
         , PartitionTag_(partitionTag)
         , ExtensionTags_(extensionTags)
     { }
@@ -2686,11 +2779,14 @@ public:
     }
 
 private:
+    const std::optional<i64> MetaSize_;
     const std::optional<int> PartitionTag_;
     const std::optional<std::vector<int>> ExtensionTags_;
 
     //! Promise representing the session.
     const TPromise<TRefCountedChunkMetaPtr> Promise_ = NewPromise<TRefCountedChunkMetaPtr>();
+
+    i64 BytesThrottled_ = 0;
 
 
     void NextPass() override
@@ -2716,6 +2812,7 @@ private:
             return;
         }
 
+        // NB: This is solely for testing purposes.
         if (ReaderConfig_->ChunkMetaCacheFailureProbability &&
             RandomNumber<double>() < *ReaderConfig_->ChunkMetaCacheFailureProbability)
         {
@@ -2748,6 +2845,15 @@ private:
         }
 
         YT_LOG_DEBUG("Requesting chunk meta (Addresses: %v)", peers);
+
+        if (ShouldThrottle(peers[0].Address, BytesThrottled_ == 0 && MetaSize_ > 0)) {
+            BytesThrottled_ = *MetaSize_;
+            if (!CombinedDataByteThrottler_->IsOverdraft()) {
+                CombinedDataByteThrottler_->Acquire(BytesThrottled_);
+            } else if (!SyncThrottle(CombinedDataByteThrottler_, BytesThrottled_)) {
+                return;
+            }
+        }
 
         TDataNodeServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(ReaderConfig_->MetaRpcTimeout);
@@ -2812,7 +2918,10 @@ private:
 
     void OnSessionSucceeded(NProto::TChunkMeta&& chunkMeta)
     {
-        YT_LOG_DEBUG("Chunk meta obtained");
+        YT_LOG_DEBUG("Chunk meta obtained (ThrottledBytes: %v, BytesReceived: %v)",
+            BytesThrottled_,
+            TotalBytesReceived_);
+
         Promise_.TrySet(New<TRefCountedChunkMeta>(std::move(chunkMeta)));
     }
 
@@ -2827,9 +2936,13 @@ private:
 
     void OnSessionFailed(bool fatal, const TError& error) override
     {
+        YT_LOG_DEBUG(error, "Get meta session failed (Fatal: %v)", fatal);
+
         if (fatal) {
             SetReaderFailed();
         }
+
+        ReleaseThrottledBytesExcess(BandwidthThrottler_, BytesThrottled_);
 
         Promise_.TrySet(error);
     }
@@ -2843,25 +2956,10 @@ private:
     }
 };
 
-TFuture<TRefCountedChunkMetaPtr> TReplicationReader::FetchMeta(
-    const TClientChunkReadOptions& options,
+TFuture<TRefCountedChunkMetaPtr> TReplicationReader::FindMetaInCache(
     std::optional<int> partitionTag,
-    const std::optional<std::vector<int>>& extensionTags)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    auto session = New<TGetMetaSession>(
-        this,
-        options,
-        partitionTag,
-        extensionTags);
-    return session->Run();
-}
-
-TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
-    const TClientChunkReadOptions& options,
-    std::optional<int> partitionTag,
-    const std::optional<std::vector<int>>& extensionTags)
+    const std::optional<std::vector<int>>& extensionTags,
+    const ICachedChunkMeta::TMetaFetchCallback& callback)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -2870,10 +2968,40 @@ TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
         return ChunkMetaCache_->Fetch(
             decodedChunkId,
             extensionTags,
-            BIND(&TReplicationReader::FetchMeta, MakeStrong(this), options, std::nullopt));
-    } else {
-        return FetchMeta(options, partitionTag, extensionTags);
+            callback);
     }
+
+    return {};
+}
+
+TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
+    const TGetMetaOptions& options,
+    std::optional<int> partitionTag,
+    const std::optional<std::vector<int>>& extensionTags)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto callback = BIND([
+        this,
+        this_ = MakeStrong(this),
+        options,
+        partitionTag
+    ] (const std::optional<std::vector<int>>& extensionTags) {
+        return New<TGetMetaSession>(
+            this,
+            options,
+            partitionTag,
+            extensionTags,
+            BandwidthThrottler_,
+            RpsThrottler_,
+            MediumThrottler_)
+            ->Run();
+    });
+
+    auto cacheFuture = FindMetaInCache(partitionTag, extensionTags, callback);
+    return cacheFuture
+        ? cacheFuture
+        : callback(extensionTags);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2985,6 +3113,8 @@ private:
 
     void OnSessionFailed(bool fatal, const TError& error) override
     {
+        YT_LOG_DEBUG(error, "Lookup rows session failed (Fatal: %v)", fatal);
+
         if (fatal) {
             SetReaderFailed();
         }
@@ -3247,10 +3377,13 @@ private:
         Promise_.TrySet(TrackMemory(SessionOptions_.MemoryUsageTracker, std::move(result)));
     }
 
-    bool UpdatePeerBlockMap(const TPeer& /*suggestorPeer*/, const TPeerProbeResult& probeResult) override
+    bool UpdatePeerBlockMap(
+        const TPeer& /*suggestorPeer*/,
+        const ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TPeerDescriptor>& /*peerDescriptors*/,
+        const TAllyReplicasInfo& allyReplicas) override
     {
-        if (probeResult.AllyReplicas) {
-            MaybeUpdateSeeds(probeResult.AllyReplicas);
+        if (allyReplicas) {
+            MaybeUpdateSeeds(allyReplicas);
         }
 
         return false;
@@ -3356,12 +3489,33 @@ public:
     }
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
-        const TClientChunkReadOptions& options,
+        const TGetMetaOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override
     {
-        // NB: No network throttling is applied within GetMeta request.
-        return UnderlyingReader_->GetMeta(options, partitionTag, extensionTags);
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto callback = BIND([
+            this,
+            this_ = MakeStrong(this),
+            options,
+            partitionTag
+        ] (const std::optional<std::vector<int>>& extensionTags) {
+            return New<TGetMetaSession>(
+                UnderlyingReader_.Get(),
+                options,
+                partitionTag,
+                extensionTags,
+                BandwidthThrottler_,
+                RpsThrottler_,
+                MediumThrottler_)
+                ->Run();
+        });
+
+        auto cacheFuture = UnderlyingReader_->FindMetaInCache(partitionTag, extensionTags, callback);
+        return cacheFuture
+            ? cacheFuture
+            : callback(extensionTags);
     }
 
     TFuture<TSharedRef> LookupRows(

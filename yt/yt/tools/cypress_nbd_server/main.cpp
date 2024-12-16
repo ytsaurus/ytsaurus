@@ -242,7 +242,7 @@ protected:
         return chunkSpecs;
     }
 
-    void DoRun(const NLastGetopt::TOptsParseResult&) override
+    void DoRun() override
     {
         auto singletonsConfig = New<TSingletonsConfig>();
         ConfigureSingletons(singletonsConfig);

@@ -9,7 +9,9 @@
 #include <yt/yt/library/program/program_config_mixin.h>
 #include <yt/yt/library/program/program_pdeathsig_mixin.h>
 #include <yt/yt/library/program/program_setsid_mixin.h>
-#include <yt/yt/ytlib/program/helpers.h>
+#include <yt/yt/library/program/helpers.h>
+
+#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/core/ytalloc/bindings.h>
 
@@ -33,7 +35,7 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClickHouseServerProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
     , public TProgramConfigMixin<TClickHouseServerBootstrapConfig>
@@ -49,8 +51,7 @@ private:
 
 public:
     TClickHouseServerProgram()
-        : TProgram()
-        , TProgramPdeathsigMixin(Opts_)
+        : TProgramPdeathsigMixin(Opts_)
         , TProgramSetsidMixin(Opts_)
         , TProgramConfigMixin(Opts_)
     {
@@ -85,10 +86,10 @@ public:
     }
 
 private:
-    virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
+    virtual void DoRun() override
     {
         HandleClickHouseVersion();
-        ValidateRequiredArguments(parseResult);
+        ValidateRequiredArguments();
 
         TThread::SetCurrentThreadName("Main");
 
@@ -97,17 +98,8 @@ private:
         // NB: ConfigureCrashHandler() is not called intentionally; crash handlers is set up in bootstrap.
         ConfigureExitZeroOnSigterm();
         ConfigureAllocator();
-
-        if (HandleSetsidOptions()) {
-            return;
-        }
-        if (HandlePdeathsigOptions()) {
-            return;
-        }
-
-        if (HandleConfigOptions()) {
-            return;
-        }
+        MlockFileMappings();
+        RunMixinCallbacks();
 
         PatchConfigFromEnv();
 
@@ -115,7 +107,6 @@ private:
         auto configNode = GetConfigNode();
 
         ConfigureNativeSingletons(config);
-        StartDiagnosticDump(config);
 
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems
@@ -180,15 +171,16 @@ private:
         }
     }
 
-    void ValidateRequiredArguments(const NLastGetopt::TOptsParseResult& parseResult)
+    void ValidateRequiredArguments()
     {
-        std::vector<TString> requiredArguments = {
+        const std::vector<TString> requiredArguments = {
             "instance-id",
             "clique-id",
         };
 
         bool missingRequiredArgument = false;
 
+        const auto& parseResult = GetOptsParseResult();
         for (const auto& argument: requiredArguments) {
             if (!parseResult.Has(argument)) {
                 missingRequiredArgument = true;

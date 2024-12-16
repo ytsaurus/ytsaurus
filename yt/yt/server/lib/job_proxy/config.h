@@ -4,8 +4,6 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/yt/server/lib/misc/cluster_throttlers_config.h>
-
 #include <yt/yt/server/lib/rpc_proxy/config.h>
 
 #include <yt/yt/ytlib/auth/config.h>
@@ -478,10 +476,6 @@ public:
     //! Apply the quota to the entire RootFs instead of the sandbox and tmp folders individually.
     bool EnableRootVolumeDiskQuota;
 
-    TString HeapDumpDirectory;
-
-    TClusterThrottlersConfigPtr ClusterThrottlersConfig;
-
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
 
     static void Register(TRegistrar registrar);
@@ -526,7 +520,7 @@ public:
 
     i64 AdaptiveRowCountUpperBound;
 
-    TString HeapDumpDirectory;
+    std::optional<TString> MemoryProfileDumpPath;
 
     REGISTER_YSON_STRUCT(TJobProxyDynamicConfig);
 

@@ -22,6 +22,10 @@ public:
     //! Register #finalizer callback that will be invoked during finalization.
     void RegisterFinalizer(std::function<void(TDeferredChunkMeta*)> finalizer);
 
+    //! Register #callback that will be called after meta is finalized.
+    //! This can be used to transfer meta directly to the subscriber.
+    void SubscribeMetaFinalized(TCallback<void(const TRefCountedChunkMeta*)> callback);
+
     //! Should be called exactly once; invokes all the registered finalizers.
     void Finalize();
 
@@ -30,6 +34,8 @@ public:
 
 private:
     std::vector<std::function<void(TDeferredChunkMeta*)>> Finalizers_;
+    std::vector<TCallback<void(const TRefCountedChunkMeta*)>> FinalizationSubscribers_;
+
     bool Finalized_ = false;
 };
 

@@ -36,249 +36,10 @@ namespace {
 using ::google::protobuf::Descriptor;
 using ::google::protobuf::FieldDescriptor;
 using ::google::protobuf::Message;
-using ::google::protobuf::Reflection;
-using ::google::protobuf::UnknownField;
-using ::google::protobuf::UnknownFieldSet;
-using ::google::protobuf::internal::WireFormatLite;
-using ::google::protobuf::io::CodedOutputStream;
-using ::google::protobuf::io::StringOutputStream;
-using ::google::protobuf::util::FieldComparator;
 using ::google::protobuf::util::MessageDifferencer;
 
 using namespace NYson;
 using namespace NYTree;
-
-constexpr int ProtobufMapKeyFieldNumber = 1;
-constexpr int ProtobufMapValueFieldNumber = 2;
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Returns [index of the item, its content].
-TErrorOr<std::pair<int, TYsonString>> LookupUnknownYsonFieldsItem(
-    UnknownFieldSet* unknownFields,
-    TStringBuf key)
-{
-    int count = unknownFields->field_count();
-    for (int index = 0; index < count; ++index) {
-        auto* field = unknownFields->mutable_field(index);
-        if (field->number() == UnknownYsonFieldNumber) {
-            if (field->type() != UnknownField::TYPE_LENGTH_DELIMITED) {
-                return TError(EErrorCode::InvalidData,
-                    "Unexpected type %v of item within yson unknown field set",
-                    static_cast<int>(field->type()));
-            }
-
-            UnknownFieldSet tmpItem;
-            if (!tmpItem.ParseFromString(field->length_delimited())) {
-                return TError(EErrorCode::InvalidData, "Cannot parse UnknownYsonFields item");
-            }
-
-            if (tmpItem.field_count() != 2) {
-                return TError(EErrorCode::InvalidData,
-                    "Unexpected field count %v in item within yson unknown field set",
-                    tmpItem.field_count());
-            }
-
-            auto* keyField = tmpItem.mutable_field(0);
-            auto* valueField = tmpItem.mutable_field(1);
-            if (keyField->number() != ProtobufMapKeyFieldNumber) {
-                std::swap(keyField, valueField);
-            }
-
-            if (keyField->number() != ProtobufMapKeyFieldNumber) {
-                return TError(EErrorCode::InvalidData,
-                    "Unexpected key tag %v of item within yson unknown field set",
-                    keyField->number());
-            }
-            if (keyField->type() != UnknownField::TYPE_LENGTH_DELIMITED) {
-                return TError(EErrorCode::InvalidData,
-                    "Unexpected key type %v of item within yson unknown field set",
-                    static_cast<int>(keyField->type()));
-            }
-
-            if (valueField->number() != ProtobufMapValueFieldNumber) {
-                return TError(EErrorCode::InvalidData,
-                    "Unexpected value tag %v of item within yson unknown field set",
-                    valueField->number());
-            }
-            if (valueField->type() != UnknownField::TYPE_LENGTH_DELIMITED) {
-                return TError(EErrorCode::InvalidData,
-                    "Unexpected value type %v of item within yson unknown field set",
-                    static_cast<int>(valueField->type()));
-            }
-
-            if (keyField->length_delimited() == key) {
-                return std::pair<int, TYsonString>{
-                    index,
-                    TYsonString(valueField->length_delimited())};
-            }
-        }
-    }
-    return TError(EErrorCode::MissingKey, "Unknown yson field not found");
-}
-
-TString SerializeUnknownYsonFieldsItem(TStringBuf key, TStringBuf value)
-{
-    TString output;
-    StringOutputStream outputStream(&output);
-    CodedOutputStream codedOutputStream(&outputStream);
-    codedOutputStream.WriteTag(
-        WireFormatLite::MakeTag(ProtobufMapKeyFieldNumber, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
-    codedOutputStream.WriteVarint64(key.length());
-    codedOutputStream.WriteRaw(key.data(), static_cast<int>(key.length()));
-    codedOutputStream.WriteTag(
-        WireFormatLite::MakeTag(ProtobufMapValueFieldNumber, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
-    codedOutputStream.WriteVarint64(value.length());
-    codedOutputStream.WriteRaw(value.data(), static_cast<int>(value.length()));
-    return output;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TClearVisitor final
-    : public TProtoVisitor<Message*, TClearVisitor>
-{
-    friend class TProtoVisitor<Message*, TClearVisitor>;
-
-protected:
-    void VisitWholeMessage(
-        Message* message,
-        EVisitReason reason)
-    {
-        if (PathComplete()) {
-            // Asterisk means clear all fields but keep the message present.
-            message->Clear();
-            return;
-        }
-
-        TProtoVisitor::VisitWholeMessage(message, reason);
-    }
-
-    void VisitWholeMapField(
-        Message* message,
-        const FieldDescriptor* fieldDescriptor,
-        EVisitReason reason)
-    {
-        if (PathComplete()) {
-            // User supplied a useless trailing asterisk. Avoid quadratic deletion.
-            VisitField(message, fieldDescriptor, EVisitReason::Manual);
-            return;
-        }
-
-        TProtoVisitor::VisitWholeMapField(message, fieldDescriptor, reason);
-    }
-
-    void VisitWholeRepeatedField(
-        Message* message,
-        const FieldDescriptor* fieldDescriptor,
-        EVisitReason reason)
-    {
-        if (PathComplete()) {
-            // User supplied a useless trailing asterisk. Avoid quadratic deletion.
-            VisitField(message, fieldDescriptor, EVisitReason::Manual);
-            return;
-        }
-
-        TProtoVisitor::VisitWholeRepeatedField(message, fieldDescriptor, reason);
-    }
-
-    void VisitUnrecognizedField(
-        Message* message,
-        const Descriptor* descriptor,
-        TString name,
-        EVisitReason reason)
-    {
-        auto* unknownFields = message->GetReflection()->MutableUnknownFields(message);
-
-        auto errorOrItem = LookupUnknownYsonFieldsItem(unknownFields, name);
-
-        if (errorOrItem.IsOK()) {
-            auto [index, value] = std::move(errorOrItem).Value();
-            if (PathComplete()) {
-                unknownFields->DeleteSubrange(index, 1);
-                return;
-            }
-
-            auto root = value
-                ? ConvertToNode(value)
-                : GetEphemeralNodeFactory()->CreateMap();
-            if (RemoveNodeByYPath(root, NYPath::TYPath{GetTokenizerInput()})) {
-                value = ConvertToYsonString(root);
-                auto* item = unknownFields->mutable_field(index)->mutable_length_delimited();
-                *item = SerializeUnknownYsonFieldsItem(name, value.AsStringBuf());
-                return;
-            }
-        }
-
-        TProtoVisitor::VisitUnrecognizedField(message, descriptor, std::move(name), reason);
-    }
-
-    void VisitField(
-        Message* message,
-        const FieldDescriptor* fieldDescriptor,
-        EVisitReason reason)
-    {
-        if (PathComplete()) {
-            auto* reflection = message->GetReflection();
-            if (!fieldDescriptor->has_presence() ||
-                reflection->HasField(*message, fieldDescriptor))
-            {
-                reflection->ClearField(message, fieldDescriptor);
-                return;
-            } // Else let the basic implementation of AllowMissing do the check.
-        }
-
-        TProtoVisitor::VisitField(message, fieldDescriptor, reason);
-    }
-
-    void VisitMapFieldEntry(
-        Message* message,
-        const FieldDescriptor* fieldDescriptor,
-        Message* entryMessage,
-        TString key,
-        EVisitReason reason)
-    {
-        if (PathComplete()) {
-            int index = LocateMapEntry(message, fieldDescriptor, entryMessage).Value();
-            DeleteRepeatedFieldEntry(message, fieldDescriptor, index);
-            return;
-        }
-
-        TProtoVisitor::VisitMapFieldEntry(
-            message,
-            fieldDescriptor,
-            entryMessage,
-            std::move(key),
-            reason);
-    }
-
-    void VisitRepeatedFieldEntry(
-        Message* message,
-        const FieldDescriptor* fieldDescriptor,
-        int index,
-        EVisitReason reason)
-    {
-        if (PathComplete()) {
-            DeleteRepeatedFieldEntry(message, fieldDescriptor, index);
-            return;
-        }
-
-        TProtoVisitor::VisitRepeatedFieldEntry(message, fieldDescriptor, index, reason);
-    }
-
-    void DeleteRepeatedFieldEntry(
-        Message* message,
-        const FieldDescriptor* fieldDescriptor,
-        int index)
-    {
-        auto* reflection = message->GetReflection();
-        int size = reflection->FieldSize(*message, fieldDescriptor);
-        for (++index; index < size; ++index) {
-            reflection->SwapElements(message, fieldDescriptor, index - 1, index);
-        }
-        reflection->RemoveLast(message, fieldDescriptor);
-    }
-}; // TClearVisitor
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -327,7 +88,7 @@ protected:
                     }
                 }
             } else if (CurrentValue_->GetType() != NYTree::ENodeType::Entity) {
-                Throw(EErrorCode::Unimplemented,
+                Throw(NAttributes::EErrorCode::Unimplemented,
                     "Cannot set a message from a yson node of type %v",
                     CurrentValue_->GetType());
             }
@@ -378,7 +139,7 @@ protected:
             int index;
             std::tie(index, value) = std::move(errorOrItem).Value();
             item = unknownFields->mutable_field(index)->mutable_length_delimited();
-        } else if (errorOrItem.GetCode() == EErrorCode::MissingKey) {
+        } else if (errorOrItem.GetCode() == NAttributes::EErrorCode::MissingKey) {
             if (PathComplete() || Recursive_) {
                 item = unknownFields->AddLengthDelimited(UnknownYsonFieldNumber);
             } else {
@@ -414,7 +175,7 @@ protected:
                         ConvertToYsonString(value)));
                 }
             } else if (CurrentValue_->GetType() != NYTree::ENodeType::Entity) {
-                Throw(EErrorCode::Unimplemented,
+                Throw(NAttributes::EErrorCode::Unimplemented,
                     "Cannot set an attribute dictionary from a yson node of type %v",
                     CurrentValue_->GetType());
             }
@@ -433,7 +194,7 @@ protected:
         if (error.IsOK()) {
             entry = reflection->MutableRepeatedMessage(message, fieldDescriptor, index);
             value = ValueOrThrow(GetAttributeDictionaryEntryValue(entry));
-        } else if (error.GetCode() == EErrorCode::MissingKey) {
+        } else if (error.GetCode() == NAttributes::EErrorCode::MissingKey) {
             ThrowOnError(AddAttributeDictionaryEntry(message, fieldDescriptor, key));
             RotateLastEntryBeforeIndex(message, fieldDescriptor, index);
             entry = reflection->MutableRepeatedMessage(message, fieldDescriptor, index);
@@ -473,7 +234,7 @@ protected:
                 // Falling back to a list of maps with explicit |key| and |value| fields.
                 VisitRepeatedField(message, fieldDescriptor, reason);
             } else if (CurrentValue_->GetType() != NYTree::ENodeType::Entity) {
-                Throw(EErrorCode::Unimplemented,
+                Throw(NAttributes::EErrorCode::Unimplemented,
                     "Cannot set a proto map from a yson node of type %v",
                     CurrentValue_->GetType());
             }
@@ -526,18 +287,18 @@ protected:
 
             if (CurrentValue_->GetType() == NYTree::ENodeType::List) {
                 for (const auto& [index, value] : Enumerate(CurrentValue_->AsList()->GetChildren())) {
-                    auto checkpoint = CheckpointBranchedTraversal(index);
+                    auto checkpoint = CheckpointBranchedTraversal(int(index));
                     TemporarilySetCurrentValue(checkpoint, value);
                     // This is a bunch of insertions at the end of the array. Index points at the
                     // end.
                     VisitRepeatedFieldEntryRelative(
                         message,
                         fieldDescriptor,
-                        index,
+                        int(index),
                         EVisitReason::Manual);
                 }
             } else if (CurrentValue_->GetType() != NYTree::ENodeType::Entity) {
-                Throw(EErrorCode::Unimplemented,
+                Throw(NAttributes::EErrorCode::Unimplemented,
                     "Cannot set a repeated proto field from a yson node of type %v",
                     CurrentValue_->GetType());
             }
@@ -638,25 +399,8 @@ protected:
     std::vector<std::pair<TString, INodePtr>> SortedMapChildren() const
     {
         auto children = CurrentValue_->AsMap()->GetChildren();
-        std::sort(
-            children.begin(),
-            children.end(),
-            [] (const auto& lhs, const auto& rhs) { return lhs.first < rhs.first; });
+        std::ranges::sort(children, std::less{}, &std::pair<std::string, INodePtr>::first);
         return {children.begin(), children.end()};
-    }
-
-    // Put the new entry at |index| and slide everything forward. Makes a noop if index was pointing
-    // after the last entry.
-    static void RotateLastEntryBeforeIndex(
-        Message* message,
-        const FieldDescriptor* fieldDescriptor,
-        int index)
-    {
-        const auto* reflection = message->GetReflection();
-        int last = reflection->FieldSize(*message, fieldDescriptor) - 1;
-        for (int pos = index; pos < last; ++pos) {
-            reflection->SwapElements(message, fieldDescriptor, pos, last);
-        }
     }
 }; // TSetVisitor
 
@@ -688,7 +432,7 @@ protected:
         EVisitReason reason,
         TError error)
     {
-        if (error.GetCode() == EErrorCode::Empty) {
+        if (error.GetCode() == NAttributes::EErrorCode::Empty) {
             // Both messages are null.
             return;
         }
@@ -704,11 +448,11 @@ protected:
         EVisitReason reason,
         TError error)
     {
-        if (error.GetCode() == EErrorCode::MissingKey) {
+        if (error.GetCode() == NAttributes::EErrorCode::MissingKey) {
             // Both fields are equally missing.
             return;
         }
-        if (error.GetCode() == EErrorCode::MismatchingKeys) {
+        if (error.GetCode() == NAttributes::EErrorCode::MismatchingKeys) {
             // One present, one missing.
             NotEqual();
             return;
@@ -754,28 +498,28 @@ protected:
         EVisitReason reason,
         TError error)
     {
-        if (error.GetCode() == EErrorCode::MismatchingSize) {
+        if (error.GetCode() == NAttributes::EErrorCode::MismatchingSize) {
             if (reason == EVisitReason::Path) {
                 // The caller wants to pinpoint a specific entry in two arrays of different sizes...
                 // let's try!
                 auto sizes = ValueOrThrow(TTraits::Combine(
                     TTraits::TSubTraits::GetRepeatedFieldSize(message.first, fieldDescriptor),
                     TTraits::TSubTraits::GetRepeatedFieldSize(message.second, fieldDescriptor),
-                    EErrorCode::MismatchingSize));
+                    NAttributes::EErrorCode::MismatchingSize));
 
                 // Negative index may result in different parsed values!
                 auto errorOrIndexParseResults = TTraits::Combine(
                     ParseCurrentListIndex(sizes.first),
                     ParseCurrentListIndex(sizes.second),
-                    EErrorCode::MismatchingSize);
+                    NAttributes::EErrorCode::MismatchingSize);
 
 
-                if (errorOrIndexParseResults.GetCode() == EErrorCode::MismatchingSize) {
+                if (errorOrIndexParseResults.GetCode() == NAttributes::EErrorCode::MismatchingSize) {
                     // Probably just one is out of bounds.
                     NotEqual();
                     return;
                 }
-                if (errorOrIndexParseResults.GetCode() == EErrorCode::OutOfBounds) {
+                if (errorOrIndexParseResults.GetCode() == NAttributes::EErrorCode::OutOfBounds) {
                     // Equally out of bounds.
                     return;
                 }
@@ -784,11 +528,11 @@ protected:
                 if (indexParseResults.first.IndexType != EListIndexType::Relative ||
                     indexParseResults.second.IndexType != EListIndexType::Relative)
                 {
-                    Throw(EErrorCode::MalformedPath,
+                    Throw(NAttributes::EErrorCode::MalformedPath,
                         "Unexpected relative path specifier %v",
                         GetToken());
                 }
-                AdvanceOver(ui64(indexParseResults.first.Index));
+                AdvanceOver(indexParseResults.first.Index);
 
                 if (fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE) {
                     auto next = TTraits::Combine(
@@ -830,7 +574,7 @@ protected:
         EVisitReason reason,
         TError error)
     {
-        if (error.GetCode() == EErrorCode::OutOfBounds) {
+        if (error.GetCode() == NAttributes::EErrorCode::OutOfBounds) {
             // Equally misplaced path. Would have been a size error if it were a mismatch.
             return;
         }
@@ -878,7 +622,7 @@ protected:
         EVisitReason reason,
         TError error)
     {
-        if (error.GetCode() == EErrorCode::MismatchingPresence) {
+        if (error.GetCode() == NAttributes::EErrorCode::MismatchingPresence) {
             if (!PathComplete()
                 && fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE)
             {
@@ -953,7 +697,9 @@ void ClearProtobufFieldByPath(
         message.Clear();
     } else {
         TClearVisitor visitor;
-        visitor.SetAllowMissing(skipMissing);
+        if (skipMissing) {
+            visitor.SetMissingFieldPolicy(EMissingFieldPolicy::Skip);
+        }
         visitor.SetAllowAsterisk(true);
         visitor.Visit(&message, path);
     }

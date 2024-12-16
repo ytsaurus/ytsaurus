@@ -32,8 +32,6 @@ using NTableClient::TTableWriterOptions;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
 class TShuffleWriter
     : public IRowBatchWriter
 {
@@ -42,8 +40,7 @@ public:
         : Writer_(std::move(writer))
         , Client_(std::move(client))
         , ShuffleHandle_(std::move(shuffleHandle))
-    {
-    }
+    { }
 
     bool Write(TRange<TUnversionedRow> rows) override
     {
@@ -68,16 +65,18 @@ public:
     }
 
 private:
-    ISchemalessMultiChunkWriterPtr Writer_;
-    TClientPtr Client_;
-    TShuffleHandlePtr ShuffleHandle_;
+    const ISchemalessMultiChunkWriterPtr Writer_;
+    const TClientPtr Client_;
+    const TShuffleHandlePtr ShuffleHandle_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TShuffleReader
     : public IRowBatchReader
 {
 public:
-    TShuffleReader(ISchemalessMultiChunkReaderPtr reader)
+    explicit TShuffleReader(ISchemalessMultiChunkReaderPtr reader)
         : Reader_(std::move(reader))
     { }
 
@@ -97,17 +96,15 @@ public:
     }
 
 private:
-    ISchemalessMultiChunkReaderPtr Reader_;
+    const ISchemalessMultiChunkReaderPtr Reader_;
 };
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TShuffleHandlePtr TClient::DoStartShuffle(
     const std::string& account,
     int partitionCount,
-    NObjectClient::TTransactionId parentTransactionId,
+    TTransactionId parentTransactionId,
     const TStartShuffleOptions& options)
 {
     auto channel = GetNativeConnection()->GetShuffleServiceChannelOrThrow();
@@ -119,8 +116,15 @@ TShuffleHandlePtr TClient::DoStartShuffle(
     req->set_account(account);
     req->set_partition_count(partitionCount);
     ToProto(req->mutable_parent_transaction_id(), parentTransactionId);
+    if (options.MediumName) {
+        req->set_medium_name(*options.MediumName);
+    }
+    if (options.ReplicationFactor) {
+        req->set_replication_factor(*options.ReplicationFactor);
+    }
 
-    auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
 
     return ConvertTo<TShuffleHandlePtr>(TYsonString(rsp->shuffle_handle()));
 }
@@ -159,7 +163,8 @@ std::vector<TChunkSpec> TClient::DoFetchShuffleChunks(
     req->set_shuffle_handle(ConvertToYsonString(shuffleHandle).ToString());
     req->set_partition_index(partitionIndex);
 
-    auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
 
     return FromProto<std::vector<TChunkSpec>>(rsp->chunk_specs());
 }
@@ -217,7 +222,17 @@ TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
     const std::string& partitionColumn,
     const TTableWriterConfigPtr& config)
 {
-    auto nameTable = TNameTable::FromKeyColumns({partitionColumn});
+    // The partition column index must be preserved for the partitioner.
+    // However, the row is partitioned after the row value ids are mapped to
+    // the chunk name table. As a result, the partition column id may differ
+    // from the one specified in the partitioner. To prevent this issue, it is
+    // necessary to specify the table schema with the partition column, as it
+    // guaranteed that the chunk name table always coincides with the column
+    // index in the schema (because the chunk name table is initialized from the
+    // schema columns).
+    auto schema = New<TTableSchema>(
+        std::vector{TColumnSchema(partitionColumn, ESimpleLogicalValueType::Int64)}, /*strict*/ false);
+    auto nameTable = TNameTable::FromSchema(*schema);
 
     auto partitioner = CreateColumnBasedPartitioner(
         shuffleHandle->PartitionCount,
@@ -226,12 +241,14 @@ TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
     auto options = New<TTableWriterOptions>();
     options->EvaluateComputedColumns = false;
     options->Account = shuffleHandle->Account;
+    options->ReplicationFactor = shuffleHandle->ReplicationFactor;
+    options->MediumName = shuffleHandle->MediumName;
 
     auto writer = CreatePartitionMultiChunkWriter(
         config,
         std::move(options),
         std::move(nameTable),
-        /*schema*/ New<TTableSchema>(),
+        std::move(schema),
         this,
         /*localHostName*/ "",
         CellTagFromId(shuffleHandle->TransactionId),

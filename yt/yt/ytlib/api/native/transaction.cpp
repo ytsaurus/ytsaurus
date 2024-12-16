@@ -915,9 +915,10 @@ private:
                                 std::make_move_iterator(rowPayloads.begin()),
                                 std::make_move_iterator(rowPayloads.end()));
                         }
+                        break;
                     }
                     default:
-                        continue;
+                        break;
                 }
             }
         }
@@ -1035,7 +1036,7 @@ private:
                         TTabletInfoPtr tabletInfo;
                         if (tableInfo->IsSorted()) {
                             if (evaluator) {
-                                evaluator->EvaluateKeys(capturedRow, rowBuffer);
+                                evaluator->EvaluateKeys(capturedRow, rowBuffer, /*preserveColumnsIds*/ false);
                             }
                             tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow, true);
                         } else {
@@ -1140,7 +1141,7 @@ private:
                                 /*validateDuplicateAndRequiredValueColumns*/ true,
                                 Options_.AllowMissingKeyColumns);
                             if (evaluator) {
-                                evaluator->EvaluateKeys(capturedRow, rowBuffer);
+                                evaluator->EvaluateKeys(capturedRow, rowBuffer, /*preserveColumnsIds*/ false);
                             }
                             row = capturedRow.ToTypeErasedRow();
                             tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow, true);

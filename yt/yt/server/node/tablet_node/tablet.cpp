@@ -120,7 +120,8 @@ void TCompressionDictionaryInfo::Load(TLoadContext& context)
 void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)
 {
     if (timestamp < tabletSnapshot->RetainedTimestamp) {
-        THROW_ERROR_EXCEPTION("Timestamp %v is less than tablet %v retained timestamp %v",
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::TimestampOutOfRange,
+            "Timestamp %v is less than tablet %v retained timestamp %v",
             timestamp,
             tabletSnapshot->TabletId,
             tabletSnapshot->RetainedTimestamp);
@@ -1630,6 +1631,11 @@ void TTablet::RemoveStore(IStorePtr store)
     GetTabletSizeProfiler().RemoveStore(store);
 }
 
+const NApi::NNative::IClientPtr TTablet::GetClient() const
+{
+    return Context_->GetClient();
+}
+
 IStorePtr TTablet::FindStore(TStoreId id)
 {
     auto it = StoreIdMap_.find(id);
@@ -2112,6 +2118,11 @@ void TTablet::TTabletSizeProfiler::RemoveHunkChunk(const THunkChunkPtr& hunkChun
     --TabletSizeMetrics_->HunkChunkCount;
 }
 
+i64 TTablet::TTabletSizeProfiler::GetDataWeight() const
+{
+    return TabletSizeMetrics_->DataWeight;
+}
+
 void TTablet::Initialize()
 {
     PhysicalSchema_ = IsPhysicallyLog() ? TableSchema_->ToReplicationLog() : TableSchema_;
@@ -2427,6 +2438,34 @@ int TTablet::ComputeDynamicStoreCount() const
     }
 
     return dynamicStoreCount;
+}
+
+i64 TTablet::ComputeDynamicStoreDataWeight() const
+{
+    i64 totalDataWeight = 0;
+
+    if (IsPhysicallySorted()) {
+        for (const auto& store : Eden_->Stores()) {
+            if (store->IsDynamic()) {
+                totalDataWeight += store->GetDataWeight();
+            }
+        }
+    } else {
+        for (auto it = StoreRowIndexMap_.crbegin(); it != StoreRowIndexMap_.crend(); ++it) {
+            if (it->second->IsDynamic()) {
+                totalDataWeight += it->second->GetDataWeight();
+            } else {
+                break;
+            }
+        }
+    }
+
+    return totalDataWeight;
+}
+
+i64 TTablet::GetTotalDataWeight()
+{
+    return ComputeDynamicStoreDataWeight() + GetTabletSizeProfiler().GetDataWeight();
 }
 
 TTablet::TTabletSizeProfiler TTablet::GetTabletSizeProfiler()

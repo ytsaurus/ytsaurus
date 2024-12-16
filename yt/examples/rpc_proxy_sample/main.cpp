@@ -270,7 +270,7 @@ protected:
         return config;
     }
 
-    void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
+    void DoRun() override
     {
         auto config = LoadConfig();
 

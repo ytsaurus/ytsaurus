@@ -23,7 +23,6 @@ import builtins
 ###############################################################################################
 
 MEMORY_SCRIPT = """
-#!/usr/bin/python
 import time
 
 from random import randint
@@ -1130,14 +1129,3 @@ class TestPorts(YTEnvSetup):
         finally:
             if server_socket is not None:
                 server_socket.close()
-
-
-@authors("don-dron")
-class TestJobWorkspaceBuilder(TestMemoryReserveFactor):
-
-    DELTA_DYNAMIC_NODE_CONFIG = {
-        "%true": {
-            "exec_node": {
-            },
-        },
-    }

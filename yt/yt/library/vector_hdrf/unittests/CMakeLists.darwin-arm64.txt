@@ -17,6 +17,7 @@ add_executable(unittester-fair-share-update)
 
 target_compile_options(unittester-fair-share-update PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-fair-share-update PUBLIC

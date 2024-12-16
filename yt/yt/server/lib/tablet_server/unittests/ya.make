@@ -1,7 +1,5 @@
 GTEST(unittester-server-lib-tablet_server)
 
-ALLOCATOR(YT)
-
 SRCS(
     replicated_table_tracker_ut.cpp
 )

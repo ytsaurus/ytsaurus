@@ -19,6 +19,7 @@ add_executable(cpp-integration-test-cypress-election)
 
 target_compile_options(cpp-integration-test-cypress-election PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(cpp-integration-test-cypress-election PUBLIC
@@ -36,7 +37,8 @@ target_link_libraries(cpp-integration-test-cypress-election PUBLIC
 )
 
 target_allocator(cpp-integration-test-cypress-election
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(cpp-integration-test-cypress-election PRIVATE

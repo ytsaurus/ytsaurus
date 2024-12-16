@@ -72,6 +72,10 @@ void TAllocation::Persist(const TPersistenceContext& context)
 
         Persist(context, LastJobInfo);
     }
+
+    if (context.GetVersion() >= ESnapshotVersion::NewJobsForbiddenReason) {
+        Persist(context, NewJobsForbiddenReason);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -180,25 +184,12 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, NodeDescriptor);
     Persist(context, StartTime);
     Persist(context, FinishTime);
-    // COMPAT(arkady-e1ppa)
-    if (context.GetVersion() >= ESnapshotVersion::NodeJobStartTimeInJoblet) {
-        Persist(context, NodeJobStartTime);
-    }
+    Persist(context, NodeJobStartTime);
     // COMPAT(pogorelov)
     if (context.GetVersion() >= ESnapshotVersion::WaitingForResourcesDuration) {
         Persist(context, WaitingForResourcesDuration);
     }
-    // COMPAT(pogorelov)
-    if (context.GetVersion() < ESnapshotVersion::JobStateInJoblet) {
-        bool isStarted;
-        Persist(context, isStarted);
-
-        if (isStarted) {
-            JobState = EJobState::Waiting;
-        }
-    } else {
-        Persist(context, JobState);
-    }
+    Persist(context, JobState);
     if (context.GetVersion() >= ESnapshotVersion::InterruptionReasonInJoblet) {
         Persist(context, InterruptionReason);
     }
@@ -242,11 +233,13 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, OutputStreamDescriptors);
     Persist(context, InputStreamDescriptors);
 
-    // COMPAT(pogorelov): Remove after all CAs are 24.2.
-    if (context.GetVersion() >= ESnapshotVersion::OperationIncarnationInJoblet) {
-        Persist(context, OperationIncarnation);
+    // COMPAT(pogorelov): Remove after all CAs are 25.1.
+    if (context.GetVersion() < ESnapshotVersion::OperationIncarnationIsStrongTypedef) {
+        TString operationIncarnationStr;
+        Persist(context, operationIncarnationStr);
+        OperationIncarnation = TOperationIncarnation(std::move(operationIncarnationStr));
     } else {
-        OperationIncarnation = "0";
+        Persist(context, OperationIncarnation);
     }
 
     if (context.IsLoad()) {

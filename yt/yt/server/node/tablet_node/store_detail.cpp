@@ -805,6 +805,14 @@ public:
             UnderlyingCache_->IsBlockTypeActive(blockType);
     }
 
+    void RemoveChunkBlocks(const TChunkId& /*chunkId*/) override
+    { }
+
+    THashSet<TBlockInfo> GetCachedBlocksByChunkId(TChunkId /*chunkId*/, EBlockType /*type*/) override
+    {
+        return {};
+    }
+
 private:
     const TWeakPtr<TChunkStoreBase> Owner_;
     const TInMemoryChunkDataPtr ChunkData_;
@@ -1114,6 +1122,7 @@ TFuture<TCachedVersionedChunkMetaPtr> TChunkStoreBase::GetCachedVersionedChunkMe
         chunkReader,
         Schema_,
         chunkReadOptions,
+        MiscExt_.meta_size(),
         prepareColumnarMeta)
         .Apply(BIND([
             =,

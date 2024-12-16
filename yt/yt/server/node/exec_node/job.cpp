@@ -316,6 +316,7 @@ TJob::TJob(
         JobType_))
     , Allocation_(std::move(allocation))
     , ResourceHolder_(Allocation_->GetResourceHolder())
+    , InitialResourceDemand_(ResourceHolder_->GetInitialResourceDemand())
     , ControllerAgentDescriptor_(std::move(agentDescriptor))
     , ControllerAgentConnector_(
         Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentDescriptor_))
@@ -1429,6 +1430,7 @@ TBriefJobInfo TJob::GetBriefInfo() const
         GetOperationId(),
         baseResourceUsage,
         additionalResourceUsage,
+        InitialResourceDemand_,
         std::move(jobPorts),
         JobEvents_,
         CoreInfos_,
@@ -2513,7 +2515,7 @@ void TJob::OnWaitingForCleanupTimeout()
     if (JobPhase_ == EJobPhase::WaitingForCleanup) {
         auto timeout = CommonConfig_->WaitingForJobCleanupTimeout;
 
-        auto error = TError(EErrorCode::JobCleanupTimeout, "Failed to wait for job cleanup within timeout")
+        auto error = TError(NExecNode::EErrorCode::JobCleanupTimeout, "Failed to wait for job cleanup within timeout")
             << TErrorAttribute("job_id", Id_)
             << TErrorAttribute("operation_id", OperationId_)
             << TErrorAttribute("waiting_for_job_cleanup_timeout", timeout);
@@ -3009,7 +3011,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             YT_VERIFY(jobProxyLogManager);
 
             *proxyConfig->StderrPath = jobProxyLogManager->AdjustLogPath(Id_, *proxyConfig->StderrPath);
-            YT_LOG_DEBUG("Job proxy stderr path is %v", *proxyConfig->StderrPath);
+            YT_LOG_DEBUG("Job proxy stderr path replaced (NewPath: %v)", *proxyConfig->StderrPath);
         }
     }
 
@@ -3019,7 +3021,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             YT_VERIFY(jobProxyLogManager);
 
             *proxyConfig->ExecutorStderrPath = jobProxyLogManager->AdjustLogPath(Id_, *proxyConfig->ExecutorStderrPath);
-            YT_LOG_DEBUG("Executor stderr path is %v", *proxyConfig->ExecutorStderrPath);
+            YT_LOG_DEBUG("Executor stderr path replaced (NewPath: %v)", *proxyConfig->ExecutorStderrPath);
 
         }
     }
@@ -3101,8 +3103,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyConfig->AbortOnUncaughtException = proxyDynamicConfig->AbortOnUncaughtException;
         proxyConfig->EnableStderrAndCoreLivePreview = proxyDynamicConfig->EnableStderrAndCoreLivePreview;
         proxyConfig->CheckUserJobOomKill = proxyDynamicConfig->CheckUserJobOomKill;
-        if (auto nodeConfig = ConvertToNode(proxyDynamicConfig->JobEnvironment)) {
-            proxyConfig->JobEnvironment = ConvertTo<TJobEnvironmentConfig>(PatchNode(ConvertToNode(proxyConfig->JobEnvironment), nodeConfig));
+        if (proxyDynamicConfig->JobEnvironment) {
+            proxyConfig->JobEnvironment.MergeWith(proxyDynamicConfig->JobEnvironment);
         }
 
         proxyConfig->TestingConfig = proxyDynamicConfig->TestingConfig;
@@ -3111,10 +3113,15 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyConfig->RetryingChannel = proxyDynamicConfig->RetryingChannel;
         proxyConfig->PipeReaderTimeoutThreshold = proxyDynamicConfig->PipeReaderTimeoutThreshold;
         proxyConfig->AdaptiveRowCountUpperBound = proxyDynamicConfig->AdaptiveRowCountUpperBound;
-        proxyConfig->HeapDumpDirectory = proxyDynamicConfig->HeapDumpDirectory;
 
         proxyConfig->EnableCudaProfileEventStreaming = proxyDynamicConfig->EnableCudaProfileEventStreaming;
         proxyConfig->JobTraceEventProcessor = proxyDynamicConfig->JobTraceEventProcessor;
+
+        if (proxyDynamicConfig->MemoryProfileDumpPath) {
+            proxyConfig->TCMalloc->HeapSizeLimit->MemoryProfileDumpPath = *proxyDynamicConfig->MemoryProfileDumpPath;
+            proxyConfig->TCMalloc->HeapSizeLimit->MemoryProfileDumpFilenameSuffix = ToString(GetId());
+            proxyConfig->TCMalloc->HeapSizeLimit->DumpMemoryProfileOnViolation = true;
+        }
     }
 
     proxyConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);
@@ -3133,8 +3140,6 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     proxyConfig->OperationsArchiveVersion = Bootstrap_->GetJobController()->GetOperationsArchiveVersion();
 
     proxyConfig->EnableRootVolumeDiskQuota = RootVolumeDiskQuotaEnabled_;
-
-    proxyConfig->ClusterThrottlersConfig = Bootstrap_->GetThrottlerManager()->GetClusterThrottlersConfig();
 
     return proxyConfig;
 }
@@ -3245,12 +3250,12 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
         }
 
         if (options.DiskSpaceLimit.has_value() && options.DiskSpaceLimit.value() <= 0) {
-            THROW_ERROR_EXCEPTION(EErrorCode::QuotaSettingFailed, "Set disk space limit must be greater than 0")
+            THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::QuotaSettingFailed, "Set disk space limit must be greater than 0")
                 << TErrorAttribute("disk_space_limit", options.DiskSpaceLimit.value());
         }
 
         if (options.InodeLimit.has_value() && options.InodeLimit.value() <= 0) {
-            THROW_ERROR_EXCEPTION(EErrorCode::QuotaSettingFailed, "Set inode limit must be greater than 0")
+            THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::QuotaSettingFailed, "Set inode limit must be greater than 0")
                 << TErrorAttribute("inode_limit", options.InodeLimit.value());
         }
     }

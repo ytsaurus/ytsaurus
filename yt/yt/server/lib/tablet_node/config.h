@@ -279,11 +279,15 @@ public:
 
     bool EnableReplicationProgressAdvanceToBarrier;
 
+    std::optional<i64> MaxOrderedTabletDataWeight;
+
     // For testing purposes only.
     TDuration SimulatedTabletSnapshotDelay;
     TDuration SimulatedStorePreloadDelay;
 
     NTableClient::TDictionaryCompressionConfigPtr ValueDictionaryCompression;
+
+    bool InsertMetaUponStoreUpdate;
 
     REGISTER_YSON_STRUCT(TCustomTableMountConfig);
 

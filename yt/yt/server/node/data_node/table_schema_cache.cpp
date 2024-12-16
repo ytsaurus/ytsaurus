@@ -26,7 +26,7 @@ TCachedTableSchemaWrapper::TCachedTableSchemaWrapper(
     : TSyncCacheValueBase(std::move(schemaCacheKey))
     , RequestTimeout_(requestTimeout)
     , SchemaSize_(schemaSize)
-    , NextRequestTime_(NProfiling::GetInstant())
+    , NextRequestTime_(GetInstant())
 {
     YT_VERIFY(SchemaSize_ > 0);
 }

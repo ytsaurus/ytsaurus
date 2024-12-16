@@ -32,6 +32,9 @@ void ClearProtobufFieldByPath(
     const NYPath::TYPath& path,
     bool skipMissing = false);
 
+template <class T>
+void ClearFieldByPath(T&& from, NYPath::TYPathBuf path);
+
 //! Sets the field that the `path` points to in the `message`.
 //! Throws an error if path is invalid, or there is a missing key along the path and `recursive` is false.
 void SetProtobufFieldByPath(

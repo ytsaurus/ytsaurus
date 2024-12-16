@@ -73,7 +73,7 @@ public:
     }
 
 protected:
-    void DoRun(const NLastGetopt::TOptsParseResult&) override
+    void DoRun() override
     {
         ConfigureCrashHandler();
 

@@ -2449,7 +2449,7 @@ def add_flow_parser(root_subparsers):
 
 
 def wait_pipeline_change(operation, state):
-    @copy_docstring_from(get_controller_logs)
+    @copy_docstring_from(operation)
     def wrapper(**kwargs):
         sync = kwargs.pop("sync")
 

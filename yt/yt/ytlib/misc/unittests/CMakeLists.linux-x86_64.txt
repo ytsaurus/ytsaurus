@@ -19,6 +19,7 @@ add_executable(unittester-ytlib-memory-trackers)
 
 target_compile_options(unittester-ytlib-memory-trackers PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-ytlib-memory-trackers PUBLIC
@@ -33,7 +34,8 @@ target_link_libraries(unittester-ytlib-memory-trackers PUBLIC
 )
 
 target_allocator(unittester-ytlib-memory-trackers
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-ytlib-memory-trackers PRIVATE

@@ -7,9 +7,9 @@
 #include "hydra_facade.h"
 #include "master_hydra_service.h"
 #include "multicell_manager.h"
-#include "persistent_state_transient_cache.h"
 #include "response_keeper_manager.h"
 #include "world_initializer.h"
+#include "world_initializer_cache.h"
 
 #include <yt/yt/server/master/chaos_server/chaos_manager.h>
 #include <yt/yt/server/master/chaos_server/chaos_service.h>
@@ -75,6 +75,7 @@
 #include <yt/yt/server/master/node_tracker_server/exec_node_tracker_service.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker_service.h>
+#include <yt/yt/server/master/node_tracker_server/node_tracker_cache.h>
 
 #include <yt/yt/server/master/object_server/object_manager.h>
 #include <yt/yt/server/master/object_server/object_service.h>
@@ -127,7 +128,7 @@
 #include <yt/yt/ytlib/auth/native_authenticating_channel.h>
 
 #include <yt/yt/library/program/build_attributes.h>
-#include <yt/yt/ytlib/program/helpers.h>
+#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/ytlib/election/config.h>
 #include <yt/yt/ytlib/election/cell_manager.h>
@@ -403,6 +404,11 @@ const ITabletNodeTrackerPtr& TBootstrap::GetTabletNodeTracker() const
     return TabletNodeTracker_;
 }
 
+const INodeTrackerCachePtr& TBootstrap::GetNodeTrackerCache() const
+{
+    return NodeTrackerCache_;
+}
+
 const ITransactionManagerPtr& TBootstrap::GetTransactionManager() const
 {
     return TransactionManager_;
@@ -453,14 +459,14 @@ const IEpochHistoryManagerPtr& TBootstrap::GetEpochHistoryManager() const
     return EpochHistoryManager_;
 }
 
-const IPersistentStateTransientCachePtr& TBootstrap::GetPersistentStateTransientCache() const
-{
-    return PersistentStateTransientCache_;
-}
-
 const IWorldInitializerPtr& TBootstrap::GetWorldInitializer() const
 {
     return WorldInitializer_;
+}
+
+const IWorldInitializerCachePtr& TBootstrap::GetWorldInitializerCache() const
+{
+    return WorldInitializerCache_;
 }
 
 const IObjectManagerPtr& TBootstrap::GetObjectManager() const
@@ -872,9 +878,9 @@ void TBootstrap::DoInitialize()
 
     MulticellManager_ = CreateMulticellManager(this);
 
-    PersistentStateTransientCache_ = CreatePersistentStateTransientCache(this);
-
     WorldInitializer_ = CreateWorldInitializer(this);
+
+    WorldInitializerCache_ = CreateWorldInitializerCache(this);
 
     IncumbentManager_ = CreateIncumbentManager(this);
 
@@ -923,6 +929,8 @@ void TBootstrap::DoInitialize()
     CellarNodeTracker_ = CreateCellarNodeTracker(this);
 
     TabletNodeTracker_ = CreateTabletNodeTracker(this);
+
+    NodeTrackerCache_ = CreateNodeTrackerCache();
 
     CypressManager_ = CreateCypressManager(this);
 
@@ -1296,7 +1304,7 @@ void TBootstrap::DoFinishDryRun()
 void TBootstrap::OnDynamicConfigChanged(const TDynamicClusterConfigPtr& /*oldConfig*/)
 {
     const auto& config = ConfigManager_->GetConfig();
-    ReconfigureNativeSingletons(Config_, config->CellMaster);
+    ReconfigureNativeSingletons(config->CellMaster);
 
     HydraFacade_->Reconfigure(config->CellMaster);
 }

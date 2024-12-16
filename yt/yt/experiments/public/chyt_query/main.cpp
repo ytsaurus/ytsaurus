@@ -46,7 +46,7 @@ public:
     }
 
 protected:
-    void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
+    void DoRun() override
     {
 
         auto pool = CreateThreadPool(2, "ChytQuery");

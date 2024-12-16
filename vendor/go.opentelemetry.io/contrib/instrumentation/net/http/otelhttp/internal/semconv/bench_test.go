@@ -14,7 +14,7 @@ import (
 var benchHTTPServerRequestResults []attribute.KeyValue
 
 // BenchmarkHTTPServerRequest allows comparison between different version of the HTTP server.
-// To use an alternative start this test with OTEL_HTTP_CLIENT_COMPATIBILITY_MODE set to the
+// To use an alternative start this test with OTEL_SEMCONV_STABILITY_OPT_IN set to the
 // version under test.
 func BenchmarkHTTPServerRequest(b *testing.B) {
 	// Request was generated from TestHTTPServerRequest request.
@@ -35,7 +35,7 @@ func BenchmarkHTTPServerRequest(b *testing.B) {
 		RemoteAddr: "127.0.0.1:38738",
 		RequestURI: "/",
 	}
-	serv := NewHTTPServer()
+	serv := NewHTTPServer(nil)
 
 	b.ReportAllocs()
 	b.ResetTimer()

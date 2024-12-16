@@ -17,6 +17,7 @@ add_executable(cpp_api_demo)
 
 target_compile_options(cpp_api_demo PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(cpp_api_demo PUBLIC
@@ -30,7 +31,8 @@ target_link_libraries(cpp_api_demo PUBLIC
 )
 
 target_allocator(cpp_api_demo
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(cpp_api_demo PRIVATE

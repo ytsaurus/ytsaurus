@@ -100,7 +100,7 @@ void TFairShareStrategyOperationControllerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_concurrent_schedule_allocation_exec_duration_throttling", &TThis::EnableConcurrentScheduleAllocationExecDurationThrottling)
         .Alias("enable_concurrent_schedule_job_exec_duration_throttling")
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("concurrent_controller_schedule_allocation_calls_regularization", &TThis::ConcurrentControllerScheduleAllocationCallsRegularization)
         .Alias("concurrent_controller_schedule_job_calls_regularization")
@@ -244,6 +244,60 @@ const THashSet<TString>& TFairShareStrategySchedulingSegmentsConfig::GetModules(
             return InfinibandClusters;
         default:
             YT_ABORT();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TGpuAllocationSchedulerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("initialization_timeout", &TThis::InitializationTimeout)
+        .Default(TDuration::Minutes(5));
+
+    registrar.Parameter("module_reconsideration_timeout", &TThis::ModuleReconsiderationTimeout)
+        .Default(TDuration::Minutes(20));
+
+    registrar.Parameter("preempt_for_large_operation_timeout", &TThis::PreemptForLargeOperationTimeout)
+        .Default(TDuration::Minutes(5));
+
+    registrar.Parameter("data_centers", &TThis::DataCenters)
+        .Default();
+
+    registrar.Parameter("infiniband_clusters", &TThis::InfinibandClusters)
+        .Default();
+
+    registrar.Parameter("module_assignment_heuristic", &TThis::ModuleAssignmentHeuristic)
+        .Default(ESchedulingSegmentModuleAssignmentHeuristic::MinRemainingFeasibleCapacity);
+
+    registrar.Parameter("module_preemption_heuristic", &TThis::ModulePreemptionHeuristic)
+        .Default(ESchedulingSegmentModulePreemptionHeuristic::Greedy);
+
+    registrar.Parameter("module_type", &TThis::ModuleType)
+        .Default(ESchedulingSegmentModuleType::DataCenter);
+
+    registrar.Parameter("enable_detailed_logs", &TThis::EnableDetailedLogs)
+        .Default(false);
+
+    registrar.Parameter("priority_module_assignment_timeout", &TThis::PriorityModuleAssignmentTimeout)
+        .Default(TDuration::Minutes(15));
+
+    registrar.Postprocessor([&] (TGpuAllocationSchedulerConfig* config) {
+        for (const auto& schedulingSegmentModule : config->DataCenters) {
+            ValidateDataCenterName(schedulingSegmentModule);
+        }
+        for (const auto& schedulingSegmentModule : config->InfinibandClusters) {
+            ValidateInfinibandClusterName(schedulingSegmentModule);
+        }
+    });
+}
+
+const THashSet<TString>& TGpuAllocationSchedulerConfig::GetModules() const
+{
+    switch (ModuleType) {
+        case ESchedulingSegmentModuleType::DataCenter:
+            return DataCenters;
+        case ESchedulingSegmentModuleType::InfinibandCluster:
+            return InfinibandClusters;
     }
 }
 
@@ -505,9 +559,6 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_user_default_parent_pool_map", &TThis::UseUserDefaultParentPoolMap)
         .Default(false);
 
-    registrar.Parameter("enable_resource_usage_snapshot", &TThis::EnableResourceUsageSnapshot)
-        .Default(true);
-
     registrar.Parameter("max_event_log_pool_batch_size", &TThis::MaxEventLogPoolBatchSize)
         .Default(1000);
 
@@ -703,9 +754,6 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("template_pool_tree_config_map", &TThis::TemplatePoolTreeConfigMap)
         .Default();
-
-    registrar.Parameter("enable_pool_trees_config_cache", &TThis::EnablePoolTreesConfigCache)
-        .Default(true);
 
     registrar.Parameter("scheduler_tree_alerts_update_period", &TThis::SchedulerTreeAlertsUpdatePeriod)
         .Default(TDuration::Seconds(1));
@@ -912,7 +960,7 @@ void TControllerAgentTrackerConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
 
     registrar.Parameter("enable_response_keeper", &TThis::EnableResponseKeeper)
-        .Default(false);
+        .Default(true);
 
     registrar.Preprocessor([&] (TControllerAgentTrackerConfig* config) {
         config->ResponseKeeper->EnableWarmup = false;
@@ -929,17 +977,8 @@ void TControllerAgentTrackerConfig::Register(TRegistrar registrar)
 
 void TResourceMeteringConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("enable_new_abc_format", &TThis::EnableNewAbcFormat)
-        .Default(true);
-
     registrar.Parameter("default_abc_id", &TThis::DefaultAbcId)
         .Default(-1);
-
-    registrar.Parameter("default_cloud_id", &TThis::DefaultCloudId)
-        .Default();
-
-    registrar.Parameter("default_folder_id", &TThis::DefaultFolderId)
-        .Default();
 
     registrar.Parameter("enable_separate_schema_for_allocation", &TThis::EnableSeparateSchemaForAllocation)
         .Default(false);
@@ -994,12 +1033,6 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("exec_node_descriptors_update_period", &TThis::ExecNodeDescriptorsUpdatePeriod)
         .Default(TDuration::Seconds(10));
 
-    // COMPAT(ignat): remove option after it will be deployed with `false` default value.
-    registrar.Parameter("always_send_controller_agent_descriptors", &TThis::AlwaysSendControllerAgentDescriptors)
-        .Default(false);
-    registrar.Parameter("send_full_controller_agent_descriptors_for_allocations", &TThis::SendFullControllerAgentDescriptorsForAllocations)
-        .Alias("send_full_controller_agent_descriptors_for_jobs")
-        .Default(true);
     registrar.Parameter("allocations_logging_period", &TThis::AllocationsLoggingPeriod)
         .Alias("jobs_logging_period")
         .Default(TDuration::Seconds(30));
@@ -1163,11 +1196,8 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Alias("schedule_job_duration_logging_threshold")
         .Default(TDuration::MilliSeconds(500));
 
-    registrar.Parameter("send_preemption_reason_in_node_heartbeat", &TThis::SendPreemptionReasonInNodeHeartbeat)
-        .Default(true);
-
     registrar.Parameter("consider_disk_quota_in_preemptive_scheduling_discount", &TThis::ConsiderDiskQuotaInPreemptiveSchedulingDiscount)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("update_last_metering_log_time", &TThis::UpdateLastMeteringLogTime)
         .Default(true);
@@ -1188,9 +1218,6 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("schedule_allocation_entry_check_period", &TThis::ScheduleAllocationEntryCheckPeriod)
         .Alias("schedule_job_entry_check_period")
         .Default(TDuration::Minutes(1));
-
-    registrar.Parameter("wait_for_agent_heartbeat_during_operation_unregistration_at_controller", &TThis::WaitForAgentHeartbeatDuringOperationUnregistrationAtController)
-        .Default(true);
 
     registrar.Parameter("crash_on_allocation_heartbeat_processing_exception", &TThis::CrashOnAllocationHeartbeatProcessingException)
         .Alias("crash_on_job_heartbeat_processing_exception")

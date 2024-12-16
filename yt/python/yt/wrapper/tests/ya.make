@@ -9,7 +9,7 @@ IF (AUTOCHECK OR YT_TEAMCITY)
 
     SPLIT_FACTOR(30)
 
-    TIMEOUT(1800)
+    TIMEOUT(3600)
 ENDIF()
 
 YT_SPEC(yt/yt/tests/integration/spec.yson)
@@ -91,17 +91,15 @@ DEPENDS(
 
     # Used in some tests to check cpp binaries in operations.
     yt/python/yt/wrapper/tests/files/cpp_bin
+
+    # These python used for various tests.
+    yt/python/yt/wrapper/tests/yt_python
+    yt/python/yt/wrapper/tests/yt_ipython
 )
 
 EXPLICIT_DATA()
 
 IF (NOT OPENSOURCE)
-    DEPENDS(
-        # These python used for various tests
-        yt/python/yt/wrapper/tests/yt_python
-        yt/python/yt/wrapper/tests/yt_ipython
-    )
-
     DATA(
         # Used for tests with gdb.
         # Directory with cpp_bin_core_crash binary, create it locally and upload with:

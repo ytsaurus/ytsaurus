@@ -5,14 +5,18 @@
 #include "spyt_discovery.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
+
 #include <yt/yt/ytlib/discovery_client/config.h>
+
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/helpers.h>
 #include <yt/yt/core/http/http.h>
+
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <yt/yt/core/json/json_writer.h>
@@ -20,7 +24,6 @@
 
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/caching_channel_factory.h>
-#include <yt/yt/core/rpc/public.h>
 
 #include <library/cpp/string_utils/base64/base64.h>
 

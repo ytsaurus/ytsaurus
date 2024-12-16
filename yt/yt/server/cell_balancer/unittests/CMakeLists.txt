@@ -19,6 +19,7 @@ add_executable(cell-balancer-unittests)
 
 target_compile_options(cell-balancer-unittests PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(cell-balancer-unittests PUBLIC

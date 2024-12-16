@@ -21,6 +21,7 @@ add_library(yt-server-cell_balancer)
 
 target_compile_options(yt-server-cell_balancer PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(yt-server-cell_balancer PUBLIC
@@ -33,11 +34,11 @@ target_link_libraries(yt-server-cell_balancer PUBLIC
   yutil
   library-cpp-getopt
   cpp-yt-phdr_cache
+  yt-library-server_program
   ytserver
   server-lib-cypress_election
   server-lib-tablet_server
   yt-server-master
-  yt-server-node
 )
 
 target_sources(yt-server-cell_balancer PRIVATE

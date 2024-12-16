@@ -62,6 +62,8 @@ struct TAllocation
 
     TLastJobInfo LastJobInfo;
 
+    std::optional<EScheduleFailReason> NewJobsForbiddenReason;
+
     void Persist(const TPersistenceContext& context);
 };
 
@@ -175,7 +177,7 @@ struct TJoblet
     NScheduler::TJobProfilerSpecPtr EnabledJobProfiler;
 
     // Used for restarting jobs in gang vanilla operations.
-    TString OperationIncarnation;
+    TOperationIncarnation OperationIncarnation;
 
     std::optional<TDuration> ArchiveTtl;
 

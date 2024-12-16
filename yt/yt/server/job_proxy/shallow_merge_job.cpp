@@ -29,6 +29,7 @@
 
 #include <yt/yt/client/object_client/public.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NJobProxy {
@@ -106,7 +107,7 @@ public:
         Host_->OnPrepared();
 
         if (Host_->GetJobSpecHelper()->GetJobTestingOptions()->ThrowInShallowMerge) {
-            THROW_ERROR_EXCEPTION(EErrorCode::ShallowMergeFailed, "Shallow merge is aborted");
+            THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::ShallowMergeFailed, "Shallow merge is aborted");
         }
 
         YT_LOG_INFO("Shallow merge is running");
@@ -116,7 +117,7 @@ public:
             AbsorbMetas();
         } catch (const std::exception& ex) {
             YT_LOG_INFO(TError(ex), "Error absorbing metas");
-            THROW_ERROR_EXCEPTION(EErrorCode::ShallowMergeFailed, "Shallow merge failed") << ex;
+            THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::ShallowMergeFailed, "Shallow merge failed") << ex;
         }
 
         YT_LOG_DEBUG("Shallow merging blocks");
@@ -302,7 +303,9 @@ private:
 
     TDeferredChunkMetaPtr GetChunkMeta(const IChunkReaderPtr& reader)
     {
-        auto result = WaitFor(reader->GetMeta(ChunkReadOptions_));
+        auto result = WaitFor(reader->GetMeta(IChunkReader::TGetMetaOptions{
+            .ClientOptions = ChunkReadOptions_,
+        }));
         if (!result.IsOK()) {
             FailedChunkIds_.push_back(reader->GetChunkId());
             THROW_ERROR_EXCEPTION("Failed to get chunk meta") << result;

@@ -2,7 +2,7 @@ GO_PROGRAM()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v0.26.0)
+VERSION(v0.28.0)
 
 SRCS(
     mkmerge.go

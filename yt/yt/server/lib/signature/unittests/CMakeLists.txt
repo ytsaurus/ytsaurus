@@ -19,6 +19,7 @@ add_executable(unittester-signature-service)
 
 target_compile_options(unittester-signature-service PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-signature-service PUBLIC

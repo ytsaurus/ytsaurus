@@ -35,6 +35,7 @@ add_library(yt-server-master)
 
 target_compile_options(yt-server-master PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(yt-server-master PUBLIC
@@ -46,6 +47,8 @@ target_link_libraries(yt-server-master PUBLIC
   contrib-libs-cxxsupp
   yutil
   library-cpp-getopt
+  cpp-yt-phdr_cache
+  yt-library-server_program
   yt-ytlib-distributed_throttler
   ytserver
   server-lib-cell_server
@@ -65,7 +68,6 @@ target_link_libraries(yt-server-master PUBLIC
   server-lib-transaction_supervisor
   server-lib-zookeeper_master
   server-lib-sequoia
-  cpp-yt-phdr_cache
   server-lib-scheduler
   server-lib-controller_agent
   contrib-libs-protobuf
@@ -84,10 +86,11 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/master_hydra_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multi_phase_cell_sync_session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/persistent_state_transient_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/response_keeper_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/snapshot_exporter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/world_initializer_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/world_initializer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/area_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/area_type_handler.cpp
@@ -282,6 +285,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/node_tracker_server/node_tracker_log.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/node_tracker_server/node_tracker_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/node_tracker_server/node_tracker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/node_tracker_server/node_tracker_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/node_tracker_server/node_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/node_tracker_server/node.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/node_tracker_server/public.cpp

@@ -9,6 +9,7 @@ SRCS(
     discovery_service.cpp
     dynamic_config_manager.cpp
     bundle_dynamic_config_manager.cpp
+    program.cpp
 )
 
 PEERDIR(
@@ -26,6 +27,7 @@ PEERDIR(
 
     yt/yt/library/auth_server
     yt/yt/library/dynamic_config
+    yt/yt/library/server_program
 
     library/cpp/yt/phdr_cache
 

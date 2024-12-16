@@ -19,6 +19,7 @@ add_library(server-lib-alert_manager)
 
 target_compile_options(server-lib-alert_manager PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(server-lib-alert_manager PUBLIC

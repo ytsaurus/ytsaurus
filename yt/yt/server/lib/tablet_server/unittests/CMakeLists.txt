@@ -33,7 +33,8 @@ target_link_libraries(unittester-server-lib-tablet_server PUBLIC
 )
 
 target_allocator(unittester-server-lib-tablet_server
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-server-lib-tablet_server PRIVATE

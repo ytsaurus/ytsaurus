@@ -187,6 +187,7 @@ message TMergeChunksJobSpecExt
     required TChunkMergerWriterOptions chunk_merger_writer_options = 6;
     repeated fixed64 target_replicas = 7;
     optional bool validate_shallow_merge = 8;
+    optional bool validate_chunk_meta_extensions = 9;
 }
 
 message TMergeChunksJobResultExt
@@ -199,6 +200,7 @@ message TMergeChunksJobResultExt
     optional bool deep_merge_fallback_occurred = 1;
 
     optional NYT.NProto.TError shallow_merge_validation_error = 2;
+    optional NYT.NProto.TError chunk_meta_validation_error = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

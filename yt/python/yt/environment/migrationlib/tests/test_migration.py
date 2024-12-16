@@ -93,6 +93,7 @@ class TestMigration(YTEnvSetup):
             target_version=1,
             shard_count=1,
             force=True,
+            retransform=False,
         )
         check_table_schema(table, self.TRANSFORMS[1][0].table_info)
         check_table_rows(table, self.DATA[1])
@@ -103,6 +104,7 @@ class TestMigration(YTEnvSetup):
             target_version=self.MIGRATION.get_latest_version(),
             shard_count=1,
             force=True,
+            retransform=False,
         )
         table = "//tmp/test_migration_path/test_table2"
         check_table_schema(table, self.TRANSFORMS[2][0].table_info)
@@ -207,6 +209,7 @@ class TestConversionFilterCallback(YTEnvSetup):
             target_version=2,
             shard_count=1,
             force=False,
+            retransform=False,
         )
 
         if "test_table" in ignored_tables:

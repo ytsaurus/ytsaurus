@@ -319,6 +319,7 @@ TSimpleOperationIo CreateSimpleOperationIo(
         TOperationPreparationContext(
             inputs,
             outputs,
+            preparer.GetClient()->GetRawClient(),
             preparer.GetContext(),
             preparer.GetClientRetryPolicy(),
             preparer.GetTransactionId()),
@@ -491,6 +492,7 @@ TSimpleOperationIo CreateSimpleOperationIoHelper(
         TOperationPreparationContext(
             structuredInputs,
             structuredOutputs,
+            preparer.GetClient()->GetRawClient(),
             preparer.GetContext(),
             preparer.GetClientRetryPolicy(),
             preparer.GetTransactionId()),
@@ -499,7 +501,12 @@ TSimpleOperationIo CreateSimpleOperationIoHelper(
         hints);
 
     TVector<TSmallJobFile> formatConfigList;
-    TFormatBuilder formatBuilder(preparer.GetClientRetryPolicy(), preparer.GetContext(), preparer.GetTransactionId(), options);
+    TFormatBuilder formatBuilder(
+        preparer.GetClient()->GetRawClient(),
+        preparer.GetClientRetryPolicy(),
+        preparer.GetContext(),
+        preparer.GetTransactionId(),
+        options);
 
     auto [inputFormat, inputFormatConfig] = formatBuilder.CreateFormat(
         structuredJob,
@@ -587,11 +594,12 @@ EOperationBriefState CheckOperation(
 
 void WaitForOperation(
     const IClientRetryPolicyPtr& clientRetryPolicy,
+    const IRawClientPtr& rawClient,
     const TClientContext& context,
     const TOperationId& operationId)
 {
     const TDuration checkOperationStateInterval =
-        UseLocalModeOptimization(context, clientRetryPolicy)
+        UseLocalModeOptimization(rawClient, context, clientRetryPolicy)
         ? Min(TDuration::MilliSeconds(100), context.Config->OperationTrackerPollPeriod)
         : context.Config->OperationTrackerPollPeriod;
 
@@ -760,10 +768,17 @@ void BuildUserJobFluently(
         .Item("redirect_stdout_to_stderr").Value(preparer.ShouldRedirectStdoutToStderr());
 }
 
-// Might return undefined value.
-TNode GetNirvanaBlockUrlFromContext()
+struct TNirvanaContext
 {
-    auto filePath = TString("/slot/sandbox/j/job_context.json");
+    TNode BlockUrl;
+    TNode Annotations;
+};
+
+// Try to detect if we are inside nirvana operation and reat nirvana job context.
+// Items of TNirvanaContext might be Undefined, if we are not inside nirvana context (or if nirvana context is unexpected)
+TNirvanaContext GetNirvanaContext()
+{
+    static const auto filePath = TString("/slot/sandbox/j/job_context.json");
     auto nvYtOperationId = GetEnv("NV_YT_OPERATION_ID");
     if (nvYtOperationId.empty()) {
         return {};
@@ -779,13 +794,20 @@ TNode GetNirvanaBlockUrlFromContext()
         YT_LOG_ERROR("Failed to load nirvana job context: %v", ex.what());
         return {};
     }
+
+    TNirvanaContext result;
+
     const auto* url = json.GetValueByPath("meta.blockURL");
-    if (!url || !url->IsString()) {
-        return {};
+    if (url && url->IsString()) {
+        result.BlockUrl = url->GetString();
+        result.BlockUrl.Attributes()["_type_tag"] = "url";
     }
 
-    TNode result = url->GetString();
-    result.Attributes()["_type_tag"] = "url";
+    const auto* annotations = json.GetValueByPath("meta.annotations");
+    if (annotations && annotations->IsMap()) {
+        result.Annotations = NodeFromJsonValue(*annotations);
+    }
+
     return result;
 }
 
@@ -806,9 +828,13 @@ void BuildCommonOperationPart(
 
     startedBySpec["binary"] = properties->BinaryPath;
     startedBySpec["binary_name"] = properties->BinaryName;
-    auto nirvanaBlockUrl = GetNirvanaBlockUrlFromContext();
-    if (!nirvanaBlockUrl.IsUndefined()) {
-        startedBySpec["nirvana_block_url"] = nirvanaBlockUrl;
+    auto nirvanaContext = GetNirvanaContext();
+    if (!nirvanaContext.BlockUrl.IsUndefined()) {
+        startedBySpec["nirvana_block_url"] = nirvanaContext.BlockUrl;
+    }
+
+    if (!nirvanaContext.Annotations.IsUndefined()) {
+        MergeNodes((*specNode)["annotations"], nirvanaContext.Annotations);
     }
 
     TString pool;
@@ -947,26 +973,32 @@ template <typename TSpec>
 void CreateDebugOutputTables(const TSpec& spec, const TOperationPreparer& preparer)
 {
     if (spec.StderrTablePath_.Defined()) {
-        NYT::NDetail::Create(
+        RequestWithRetry<void>(
             preparer.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
-            preparer.GetContext(),
-            TTransactionId(),
-            *spec.StderrTablePath_,
-            NT_TABLE,
-            TCreateOptions()
-                .IgnoreExisting(true)
-                .Recursive(true));
+            [&spec, &preparer] (TMutationId& mutationId) {
+                preparer.GetClient()->GetRawClient()->Create(
+                    mutationId,
+                    TTransactionId(),
+                    *spec.StderrTablePath_,
+                    NT_TABLE,
+                    TCreateOptions()
+                        .IgnoreExisting(true)
+                        .Recursive(true));
+            });
     }
     if (spec.CoreTablePath_.Defined()) {
-        NYT::NDetail::Create(
+        RequestWithRetry<void>(
             preparer.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
-            preparer.GetContext(),
-            TTransactionId(),
-            *spec.CoreTablePath_,
-            NT_TABLE,
-            TCreateOptions()
-                .IgnoreExisting(true)
-                .Recursive(true));
+            [&spec, &preparer] (TMutationId& mutationId) {
+                preparer.GetClient()->GetRawClient()->Create(
+                    mutationId,
+                    TTransactionId(),
+                    *spec.CoreTablePath_,
+                    NT_TABLE,
+                    TCreateOptions()
+                        .IgnoreExisting(true)
+                        .Recursive(true));
+            });
     }
 }
 
@@ -977,12 +1009,18 @@ void CreateOutputTable(
     Y_ENSURE(path.Path_, "Output table is not set");
     if (!path.Create_.Defined()) {
         // If `create` attribute is defined
-        Create(
+        RequestWithRetry<void>(
             preparer.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
-            preparer.GetContext(), preparer.GetTransactionId(), path.Path_, NT_TABLE,
-            TCreateOptions()
-                .IgnoreExisting(true)
-                .Recursive(true));
+            [&preparer, &path] (TMutationId& mutationId) {
+                preparer.GetClient()->GetRawClient()->Create(
+                    mutationId,
+                    preparer.GetTransactionId(),
+                    path.Path_,
+                    NT_TABLE,
+                    TCreateOptions()
+                        .IgnoreExisting(true)
+                        .Recursive(true));
+            });
     }
 }
 
@@ -1002,13 +1040,15 @@ void CheckInputTablesExist(
     Y_ENSURE(!paths.empty(), "Input tables are not set");
     for (auto& path : paths) {
         auto curTransactionId =  path.TransactionId_.GetOrElse(preparer.GetTransactionId());
+        auto exists = RequestWithRetry<bool>(
+            preparer.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
+            [&preparer, &curTransactionId, &path] (TMutationId /*mutationId*/) {
+                return preparer.GetClient()->GetRawClient()->Exists(
+                    curTransactionId,
+                    path.Path_);
+            });
         Y_ENSURE_EX(
-            path.Cluster_.Defined() ||
-            Exists(
-                preparer.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
-                preparer.GetContext(),
-                curTransactionId,
-                path.Path_),
+            path.Cluster_.Defined() || exists,
             TApiUsageError() << "Input table '" << path.Path_ << "' doesn't exist");
     }
 }
@@ -1615,6 +1655,7 @@ void ExecuteMapReduce(
     VerifyHasElements(structuredInputs, "inputs");
 
     TFormatBuilder formatBuilder(
+        preparer->GetClient()->GetRawClient(),
         preparer->GetClientRetryPolicy(),
         preparer->GetContext(),
         preparer->GetTransactionId(),
@@ -1639,6 +1680,7 @@ void ExecuteMapReduce(
             TOperationPreparationContext(
                 structuredInputs,
                 mapperOutput,
+                preparer->GetClient()->GetRawClient(),
                 preparer->GetContext(),
                 preparer->GetClientRetryPolicy(),
                 preparer->GetTransactionId()),
@@ -1708,6 +1750,7 @@ void ExecuteMapReduce(
                 TOperationPreparationContext(
                     inputs,
                     outputs,
+                    preparer->GetClient()->GetRawClient(),
                     preparer->GetContext(),
                     preparer->GetClientRetryPolicy(),
                     preparer->GetTransactionId()),
@@ -1773,6 +1816,7 @@ void ExecuteMapReduce(
             TOperationPreparationContext(
                 structuredInputs,
                 structuredOutputs,
+                preparer->GetClient()->GetRawClient(),
                 preparer->GetContext(),
                 preparer->GetClientRetryPolicy(),
                 preparer->GetTransactionId()),

@@ -14,6 +14,8 @@
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
+
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/cache_reader.h>
 #include <yt/yt/ytlib/chunk_client/block_tracking_chunk_reader.h>
@@ -78,6 +80,7 @@ using namespace NApi;
 using namespace NDataNode;
 using namespace NClusterNode;
 using namespace NQueryAgent;
+using namespace NQueryClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -558,6 +561,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     // timestamp resetting adapter.
     return wrapReaderWithPerformanceCounting(
         CreateVersionedChunkReader(
+            // NB: Mock tablets have nullptr client.
+            Tablet_->GetClient() ? Tablet_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache() : nullptr,
             std::move(backendReaders.ReaderConfig),
             std::move(backendReaders.ChunkReader),
             chunkState,
@@ -606,6 +611,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
     }
 
     return CreateCacheBasedVersionedChunkReader(
+        // NB: Mock tablets have nullptr client.
+        Tablet_->GetClient() ? Tablet_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache() : nullptr,
         ChunkId_,
         chunkState,
         chunkState->ChunkMeta,
@@ -621,6 +628,7 @@ class TSortedChunkStore::TSortedChunkStoreVersionedReader
 {
 public:
     TSortedChunkStoreVersionedReader(
+        const NApi::NNative::IClientPtr client,
         int skippedBefore,
         int skippedAfter,
         TSortedChunkStore* const chunk,
@@ -631,7 +639,8 @@ public:
         const TColumnFilter& columnFilter,
         const TClientChunkReadOptions& chunkReadOptions,
         std::optional<EWorkloadCategory> workloadCategory)
-        : SkippedBefore_(skippedBefore)
+        : Client_(client)
+        , SkippedBefore_(skippedBefore)
         , SkippedAfter_(skippedAfter)
     {
         InitializationFuture_ = InitializeUnderlyingReader(
@@ -698,6 +707,7 @@ public:
     }
 
 private:
+    const NApi::NNative::IClientPtr Client_;
     const int SkippedBefore_;
     const int SkippedAfter_;
 
@@ -975,6 +985,7 @@ private:
         MaybeWrapUnderlyingReader(
             chunk,
             CreateVersionedChunkReader(
+                Client_ ? Client_->GetNativeConnection()->GetColumnEvaluatorCache() : nullptr,
                 std::move(backendReaders.ReaderConfig),
                 std::move(backendReaders.ChunkReader),
                 std::move(chunkState),
@@ -1015,7 +1026,7 @@ private:
             underlyingReader = CreateTimestampResettingAdapter(
                 std::move(underlyingReader),
                 chunk->OverrideTimestamp_,
-                static_cast<EChunkFormat>(chunk->ChunkMeta_->format()));
+                FromProto<EChunkFormat>(chunk->ChunkMeta_->format()));
         }
 
         UnderlyingReader_ = CreateVersionedPerformanceCountingReader(
@@ -1096,6 +1107,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     }
 
     return New<TSortedChunkStoreVersionedReader>(
+        Tablet_->GetClient(),
         skippedBefore,
         skippedAfter,
         this,
@@ -1161,6 +1173,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
     }
 
     return CreateCacheBasedVersionedChunkReader(
+        // NB: Mock tablets have nullptr client.
+        Tablet_->GetClient() ? Tablet_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache() : nullptr,
         ChunkId_,
         chunkState,
         chunkState->ChunkMeta,
@@ -1264,7 +1278,7 @@ IVersionedReaderPtr TSortedChunkStore::MaybeWrapWithTimestampResettingAdapter(
         return CreateTimestampResettingAdapter(
             std::move(underlyingReader),
             OverrideTimestamp_,
-            static_cast<EChunkFormat>(ChunkMeta_->format()));
+            FromProto<EChunkFormat>(ChunkMeta_->format()));
     } else {
         return underlyingReader;
     }

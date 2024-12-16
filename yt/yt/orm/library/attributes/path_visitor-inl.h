@@ -57,6 +57,21 @@ struct TPathVisitorTraits<THashMap<TKey, TValue>>
     static constexpr bool IsMap = true;
 };
 
+template <typename TValue>
+struct TDefaultTraits
+{
+    static TValue Default()
+    {
+        return TValue{};
+    }
+
+    static const TValue& StaticDefault()
+    {
+        static TValue value{};
+        return value;
+    }
+};
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -158,7 +173,7 @@ void TPathVisitor<TSelf>::VisitVector(
                 EVisitReason::AfterPath);
             return;
         } else {
-            Self()->Throw(EErrorCode::Unimplemented, "Cannot handle whole vectors");
+            Self()->Throw(NAttributes::EErrorCode::Unimplemented, "Cannot handle whole vectors");
         }
     }
 
@@ -181,11 +196,11 @@ void TPathVisitor<TSelf>::VisitVector(
         }
 
         auto& indexParseResult = errorOrIndexParseResult.Value();
-        Self()->AdvanceOver(ui64(indexParseResult.Index));
+        Self()->AdvanceOver(indexParseResult.Index);
 
         switch (indexParseResult.IndexType) {
             case EListIndexType::Absolute:
-                Self()->VisitGeneric(target[indexParseResult.Index], EVisitReason::Path);
+                Self()->VisitVectorEntry(target, indexParseResult.Index, EVisitReason::Path);
                 break;
             case EListIndexType::Relative:
                 Self()->VisitVectorEntryRelative(
@@ -205,10 +220,20 @@ void TPathVisitor<TSelf>::VisitWholeVector(
     TVisitParam&& target,
     EVisitReason reason)
 {
-    for (size_t index = 0; !Self()->StopIteration_ && index < target.size(); ++index) {
+    for (int index = 0; !Self()->StopIteration_ && index < ssize(target); ++index) {
         auto checkpoint = Self()->CheckpointBranchedTraversal(index);
         Self()->VisitGeneric(target[index], reason);
     }
+}
+
+template <typename TSelf>
+template <typename TVisitParam>
+void TPathVisitor<TSelf>::VisitVectorEntry(
+    TVisitParam&& target,
+    int index,
+    EVisitReason reason)
+{
+    Self()->VisitGeneric(target[index], reason);
 }
 
 template <typename TSelf>
@@ -218,10 +243,25 @@ void TPathVisitor<TSelf>::VisitVectorEntryRelative(
     int index,
     EVisitReason reason)
 {
-    Y_UNUSED(target);
-    Y_UNUSED(reason);
+    switch (Self()->MissingFieldPolicy_) {
+        case EMissingFieldPolicy::Throw:
+            break;
+        case EMissingFieldPolicy::Skip:
+            break; // Relative index means container modification.
+        case EMissingFieldPolicy::Force:
+            using TVisitedValue = std::remove_reference_t<TVisitParam>;
+            if constexpr (std::is_const_v<TVisitedValue>) {
+                break; // Relative index means container modification.
+            } else {
+                target.insert(
+                    target.begin() + index,
+                    TDefaultTraits<typename TVisitedValue::value_type>::Default());
+                Self()->VisitGeneric(target[index], reason);
+                return;
+            }
+    }
 
-    Self()->Throw(EErrorCode::MalformedPath,
+    Self()->Throw(NAttributes::EErrorCode::MalformedPath,
         "Unexpected relative path specifier %v (producing an index of %v)",
         Self()->GetToken(),
         index);
@@ -235,10 +275,24 @@ void TPathVisitor<TSelf>::OnVectorIndexError(
     TError error)
 {
     Y_UNUSED(target);
-    Y_UNUSED(reason);
 
-    if (Self()->AllowMissing_ && error.GetCode() == EErrorCode::OutOfBounds) {
-        return;
+    if (error.GetCode() == NAttributes::EErrorCode::OutOfBounds) {
+        switch (Self()->MissingFieldPolicy_) {
+            case EMissingFieldPolicy::Throw:
+                break;
+            case EMissingFieldPolicy::Skip:
+                return;
+            case EMissingFieldPolicy::Force:
+                using TVisitedValue = std::remove_reference_t<TVisitParam>;
+                if constexpr (std::is_const_v<TVisitedValue>) {
+                    Self()->VisitGeneric(
+                        TDefaultTraits<typename TVisitedValue::value_type>::StaticDefault(),
+                        reason);
+                    return;
+                } else {
+                    break; // We don't modify containers with bad indices.
+                }
+        }
     }
 
     Self()->Throw(std::move(error));
@@ -257,7 +311,8 @@ void TPathVisitor<TSelf>::VisitMap(
                 EVisitReason::AfterPath);
             return;
         } else {
-            Self()->Throw(EErrorCode::Unimplemented, "Cannot handle whole message maps");
+            Self()->Throw(NAttributes::EErrorCode::Unimplemented,
+                "Cannot handle whole message maps");
         }
     }
 
@@ -279,7 +334,7 @@ void TPathVisitor<TSelf>::VisitMap(
             mapKey = key;
         } else {
             if (!TryFromString(key, mapKey)) {
-                Self()->Throw(EErrorCode::MalformedPath, "Invalid map key %v", key);
+                Self()->Throw(NAttributes::EErrorCode::MalformedPath, "Invalid map key %v", key);
             }
         }
 
@@ -293,7 +348,11 @@ void TPathVisitor<TSelf>::VisitMap(
             return;
         }
 
-        Self()->VisitGeneric(it->second, EVisitReason::Path);
+        Self()->VisitMapEntry(
+            std::forward<TVisitParam>(target),
+            std::move(it),
+            std::move(key),
+            EVisitReason::Path);
     }
 }
 
@@ -310,6 +369,20 @@ void TPathVisitor<TSelf>::VisitWholeMap(
 }
 
 template <typename TSelf>
+template <typename TVisitParam, typename TMapIterator>
+void TPathVisitor<TSelf>::VisitMapEntry(
+    TVisitParam&& target,
+    TMapIterator mapIterator,
+    TString key,
+    EVisitReason reason)
+{
+    Y_UNUSED(target);
+    Y_UNUSED(key);
+
+    Self()->VisitGeneric(mapIterator->second, reason);
+}
+
+template <typename TSelf>
 template <typename TVisitParam, typename TMapKey>
 void TPathVisitor<TSelf>::OnMapKeyError(
     TVisitParam&& target,
@@ -317,15 +390,25 @@ void TPathVisitor<TSelf>::OnMapKeyError(
     TString key,
     EVisitReason reason)
 {
-    Y_UNUSED(target);
-    Y_UNUSED(mapKey);
-    Y_UNUSED(reason);
-
-    if (Self()->AllowMissing_) {
-        return;
+    switch (Self()->MissingFieldPolicy_) {
+        case EMissingFieldPolicy::Throw:
+            break;
+        case EMissingFieldPolicy::Skip:
+            return;
+        case EMissingFieldPolicy::Force:
+            using TVisitedValue = std::remove_reference_t<TVisitParam>;
+            if constexpr (std::is_const_v<TVisitedValue>) {
+                Self()->VisitGeneric(
+                    TDefaultTraits<typename TVisitedValue::mapped_type>::StaticDefault(),
+                    reason);
+            } else {
+                target[mapKey] = TDefaultTraits<typename TVisitedValue::mapped_type>::Default();
+                Self()->VisitGeneric(target[mapKey], reason);
+            }
+            return;
     }
 
-    Self()->Throw(EErrorCode::MissingKey, "Key %v not found in map", key);
+    Self()->Throw(NAttributes::EErrorCode::MissingKey, "Key %v not found in map", key);
 }
 
 template <typename TSelf>
@@ -337,7 +420,7 @@ void TPathVisitor<TSelf>::VisitOther(
     Y_UNUSED(target);
     Y_UNUSED(reason);
 
-    Self()->Throw(EErrorCode::Unimplemented, "Cannot visit type %v", TypeName<TVisitParam>());
+    Self()->Throw(NAttributes::EErrorCode::Unimplemented, "Cannot visit type %v", TypeName<TVisitParam>());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -20,6 +20,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 #include <yt/yt/client/job_tracker_client/public.h>
 
 #include <yt/yt/client/ypath/rich.h>
@@ -577,8 +579,9 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_CLASS(TGangManagerConfig)
 DEFINE_REFCOUNTED_TYPE(TGangManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TVanillaOperationOptions
     : public TOperationOptions
@@ -725,7 +728,6 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_CLASS(TJobTrackerTestingOptions)
 DEFINE_REFCOUNTED_TYPE(TJobTrackerTestingOptions)
 
 class TJobTrackerConfig
@@ -778,6 +780,7 @@ class TDisallowRemoteOperationsConfig
 public:
     THashSet<TString> AllowedUsers;
     THashSet<TString> AllowedClusters;
+    THashSet<TString> AllowedForEveryoneClusters;
 
     REGISTER_YSON_STRUCT(TDisallowRemoteOperationsConfig);
 
@@ -1255,6 +1258,8 @@ public:
 
     bool EnableJobFailsTolerance;
 
+    std::optional<ui32> AllocationJobCountLimit;
+
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 
     static void Register(TRegistrar registrar);
@@ -1270,6 +1275,7 @@ DEFINE_REFCOUNTED_TYPE(TControllerAgentConfig)
 
 class TControllerAgentBootstrapConfig
     : public TNativeServerConfig
+    , public TServerProgramConfig
 {
 public:
     TControllerAgentConfigPtr ControllerAgent;

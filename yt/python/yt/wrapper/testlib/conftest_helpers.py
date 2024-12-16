@@ -71,6 +71,10 @@ def init_environment_for_test_session(request, mode, **kwargs):
         config["backend"] = "http"
         config["api_version"] = mode
 
+    if "config" in kwargs:
+        config.update(kwargs["config"])
+        del kwargs["config"]
+
     environment = YtTestEnvironment(
         get_tests_sandbox(),
         "TestYtWrapper" + mode.capitalize(),
@@ -151,6 +155,26 @@ def test_environment_with_framing(request):
 @pytest.fixture(scope="class", params=["v3", "v4", "native_v4", "rpc"])
 def test_environment_with_rpc(request):
     environment = init_environment_for_test_session(request, request.param)
+    return environment
+
+
+@pytest.fixture(scope="class", params=["v3", "v4"])
+def test_environment_with_authentication(request):
+    environment = init_environment_for_test_session(
+        request,
+        request.param,
+        delta_proxy_config={"auth": {"enable_authentication": True, "cypress_token_authenticator": {"secure": False}}},
+        env_options={
+            "create_admin_user": True,
+            "enable_auth": True,
+            "native_client_supported": True,
+        },
+        config={
+            "token": "toor",
+            "enable_token": True,
+        },
+    )
+    environment.env.create_client().set("//sys/tokens/toor", "root")  # toor
     return environment
 
 
@@ -318,6 +342,11 @@ def yt_env_with_framing(request, test_environment_with_framing):
 @pytest.fixture(scope="function")
 def yt_env_with_rpc(request, test_environment_with_rpc):
     return _yt_env(request, test_environment_with_rpc)
+
+
+@pytest.fixture(scope="function")
+def yt_env_with_authentication(request, test_environment_with_authentication):
+    return _yt_env(request, test_environment_with_authentication)
 
 
 @pytest.fixture(scope="function")

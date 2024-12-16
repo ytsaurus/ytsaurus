@@ -21,6 +21,7 @@ add_library(yt-server-job_proxy)
 
 target_compile_options(yt-server-job_proxy PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-server-job_proxy PUBLIC
@@ -56,6 +57,7 @@ target_sources(yt-server-job_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/merge_job.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/partition_job.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/partition_sort_job.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/remote_copy_job.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/shallow_merge_job.cpp

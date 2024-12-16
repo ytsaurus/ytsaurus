@@ -1567,17 +1567,12 @@ void TQueryProfiler::Profile(
             keyTypes.push_back(groupItem.Expression->GetWireType());
         }
 
-        bool allAggregatesFirst = true;
         for (const auto& aggregateItem : groupClause->AggregateItems) {
             Fold(EFoldingObjectType::AggregateItem);
             Fold(aggregateItem.AggregateFunction.c_str());
             Fold(aggregateItem.Name.c_str());
 
             const auto& aggregate = AggregateProfilers_->GetAggregate(aggregateItem.AggregateFunction);
-
-            if (!aggregate->IsFirst()) {
-                allAggregatesFirst = false;
-            }
 
             int argumentCount = aggregateItem.Arguments.size();
 
@@ -1675,7 +1670,7 @@ void TQueryProfiler::Profile(
             keyTypes,
             stateTypes,
             aggregatedTypes,
-            allAggregatesFirst,
+            query->GroupClause->AllAggregatesAreFirst(),
             mergeMode,
             groupClause->TotalsMode != ETotalsMode::None,
             // Input is ordered for ordered queries and bottom fragments if CommonPrefixWithPrimaryKey > 0.
@@ -1922,7 +1917,9 @@ void TQueryProfiler::Profile(
         schema = projectClause->GetTableSchema();
     }
 
-    bool considerLimit = query->IsOrdered() && (!query->GroupClause || query->IsFinal);
+    bool considerLimit = (query->Limit < std::numeric_limits<i64>::max()) &&
+        !query->OrderClause &&
+        (!query->GroupClause || query->IsFinal);
     Fold(considerLimit);
     if (considerLimit) {
         // Since we have already applied filters to queries with `having` at this stage,

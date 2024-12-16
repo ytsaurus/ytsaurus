@@ -20,6 +20,7 @@ add_library(yt-tools-scheduler_simulator)
 
 target_compile_options(yt-tools-scheduler_simulator PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-tools-scheduler_simulator PUBLIC

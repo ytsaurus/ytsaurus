@@ -832,7 +832,7 @@ private:
                 diskFamilyWhitelist->end(),
                 diskFamily))
         {
-            YT_LOG_ALERT("Inconsistent medium (LocationUuid: %v, DiskFamily: %v, Medium: %v, DiskFamilyWhitelist: %v)",
+            YT_LOG_ALERT("Inconsistent medium (LocationUuid: %v, Medium: %v, DiskFamily: %v, DiskFamilyWhitelist: %v)",
                 locationUuid,
                 medium->GetName(),
                 diskFamilyWhitelist,

@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
+
 #include <library/cpp/testing/gtest/gtest.h>
 
 namespace NYT::NScheduler {

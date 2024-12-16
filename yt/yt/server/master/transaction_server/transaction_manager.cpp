@@ -78,6 +78,8 @@
 #include <yt/yt/ytlib/transaction_client/proto/transaction_service.pb.h>
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
+#include <yt/yt/library/profiling/producer.h>
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 

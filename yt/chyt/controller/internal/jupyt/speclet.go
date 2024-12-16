@@ -11,9 +11,10 @@ type Speclet struct {
 	Memory *uint64 `yson:"memory"`
 	GPU    *uint64 `yson:"gpu"`
 
-	JupyterDockerImage   string         `yson:"jupyter_docker_image"`
-	IdleTimeout          *yson.Duration `yson:"idle_timeout" requires_restart:"false"`
-	EnableIdleSuspension bool           `yson:"enable_idle_suspension" requires_restart:"false"`
+	JupyterDockerImage   string            `yson:"jupyter_docker_image"`
+	IdleTimeout          *yson.Duration    `yson:"idle_timeout" requires_restart:"false"`
+	EnableIdleSuspension bool              `yson:"enable_idle_suspension" requires_restart:"false"`
+	EnvVars              map[string]string `yson:"env_vars"`
 }
 
 const (

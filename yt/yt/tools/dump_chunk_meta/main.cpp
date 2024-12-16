@@ -40,7 +40,7 @@ private:
         }
     }
 
-    void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
+    void DoRun() override
     {
         auto reader = New<TChunkFileReader>(
             CreateIOEngine(EIOEngineType::ThreadPool, NYTree::INodePtr()),
@@ -51,7 +51,7 @@ private:
             Cout << "ID: " << ToString(reader->GetChunkId()) << Endl;
         }
 
-        auto chunkMeta = reader->GetMeta(/*chunkReadOptions*/ {})
+        auto chunkMeta = reader->GetMeta(/*options*/ {})
             .Get()
             .ValueOrThrow();
 

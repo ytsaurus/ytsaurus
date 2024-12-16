@@ -630,6 +630,11 @@ std::optional<EScheduleFailReason> TTask::TryScheduleJob(
         return *failReason;
     }
 
+    auto jobIdOrError = TaskHost_->GenerateJobId(allocation.Id, previousJobId.value_or(TJobId()));
+    if (!jobIdOrError) {
+        return jobIdOrError.error();
+    }
+
     auto cookieInfoOrError = previousJobId
         ? GetOutputCookieInfoForNextJob(allocation)
         : GetOutputCookieInfoForFirstJob(allocation);
@@ -638,11 +643,12 @@ std::optional<EScheduleFailReason> TTask::TryScheduleJob(
     }
 
     auto cookieInfo = std::move(cookieInfoOrError.value());
+    auto jobId = jobIdOrError.value();
 
     auto result = TryScheduleJob(
         allocation,
         context,
-        TaskHost_->GenerateJobId(allocation.Id, previousJobId.value_or(TJobId())),
+        jobId,
         treeIsTentative,
         cookieInfo.OutputCookie,
         cookieInfo.CompetitionType);
@@ -1092,14 +1098,9 @@ void TTask::Persist(const TPersistenceContext& context)
     Persist(context, SpeculativeJobManager_);
     Persist(context, ProbingJobManager_);
 
-    // COMPAT(galtsev)
-    if (context.GetVersion() >= ESnapshotVersion::ProbingBaseLayer) {
-        Persist(context, ExperimentJobManager_);
-        if (context.GetVersion() >= ESnapshotVersion::ProbingBaseLayer && TaskHost_->GetSpec()->JobExperiment) {
-            ExperimentJobManager_.SetJobExperiment(TaskHost_->GetJobExperiment());
-        }
-    } else {
-        ExperimentJobManager_ = TExperimentJobManager(this, TaskHost_->GetSpec(), Logger);
+    Persist(context, ExperimentJobManager_);
+    if (TaskHost_->GetSpec()->JobExperiment) {
+        ExperimentJobManager_.SetJobExperiment(TaskHost_->GetJobExperiment());
     }
 
     Persist(context, StartTime_);

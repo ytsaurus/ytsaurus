@@ -546,7 +546,8 @@ protected:
 
         if (auto cachedItem = std::move(RowsFromCache_[WriteRowIndex_])) {
             if (Timestamp_ < cachedItem->RetainedTimestamp) {
-                THROW_ERROR_EXCEPTION("Timestamp %v is less than retained timestamp %v of cached row in tablet %v",
+                THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::TimestampOutOfRange,
+                    "Timestamp %v is less than retained timestamp %v of cached row in tablet %v",
                     Timestamp_,
                     cachedItem->RetainedTimestamp,
                     TabletId_);
@@ -2025,7 +2026,7 @@ void TTabletLookupSession<TPipeline>::LookupInPartitions(const TError& error)
         &TTabletLookupSession::FinishSession,
         MakeStrong(this))
         .Via(Invoker_));
-    SetSessionFuture(rowsetFuture.AsVoid());
+    SetSessionFuture(std::move(rowsetFuture).AsVoid());
 }
 
 template <class TPipeline>

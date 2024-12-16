@@ -1036,7 +1036,7 @@ private:
                     id,
                     archivePath,
                     tag);
-                THROW_ERROR_EXCEPTION(EErrorCode::LayerUnpackingFailed, "Layer unpacking failed")
+                THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::LayerUnpackingFailed, "Layer unpacking failed")
                     << ex;
             }
 
@@ -1071,7 +1071,7 @@ private:
                 << ex;
 
             auto innerError = TError(ex);
-            if (innerError.GetCode() == EErrorCode::LayerUnpackingFailed) {
+            if (innerError.GetCode() == NExecNode::EErrorCode::LayerUnpackingFailed) {
                 THROW_ERROR(error);
             }
 
@@ -1873,7 +1873,7 @@ private:
             listNodeOptions));
 
         if (!listNodeRspOrError.IsOK()) {
-            SetAlert(TError(EErrorCode::TmpfsLayerImportFailed, "Failed to list %v tmpfs layers directory %v",
+            SetAlert(TError(NExecNode::EErrorCode::TmpfsLayerImportFailed, "Failed to list %v tmpfs layers directory %v",
                 CacheName_,
                 Config_->LayersDirectoryPath)
                 << listNodeRspOrError);
@@ -1890,7 +1890,7 @@ private:
                 paths.insert(FromObjectId(id));
             }
         } catch (const std::exception& ex) {
-            SetAlert(TError(EErrorCode::TmpfsLayerImportFailed, "Tmpfs layers directory %v has invalid structure",
+            SetAlert(TError(NExecNode::EErrorCode::TmpfsLayerImportFailed, "Tmpfs layers directory %v has invalid structure",
                 Config_->LayersDirectoryPath)
                 << ex);
             return;
@@ -1933,7 +1933,7 @@ private:
 
         auto fetchResultsOrError = WaitFor(AllSucceeded(futures));
         if (!fetchResultsOrError.IsOK()) {
-            SetAlert(TError(EErrorCode::TmpfsLayerImportFailed, "Failed to fetch tmpfs layer descriptions")
+            SetAlert(TError(NExecNode::EErrorCode::TmpfsLayerImportFailed, "Failed to fetch tmpfs layer descriptions")
                 << fetchResultsOrError);
             return;
         }
@@ -1991,7 +1991,7 @@ private:
 
         auto newLayersOrError = WaitFor(AllSet(newLayerFutures));
         if (!newLayersOrError.IsOK()) {
-            SetAlert(TError(EErrorCode::TmpfsLayerImportFailed, "Failed to import new tmpfs layers")
+            SetAlert(TError(NExecNode::EErrorCode::TmpfsLayerImportFailed, "Failed to import new tmpfs layers")
                 << newLayersOrError);
             return;
         }
@@ -2001,7 +2001,7 @@ private:
         for (const auto& newLayerOrError : newLayersOrError.Value()) {
             if (!newLayerOrError.IsOK()) {
                 hasFailedLayer = true;
-                SetAlert(TError(EErrorCode::TmpfsLayerImportFailed, "Failed to import new %v tmpfs layer", CacheName_)
+                SetAlert(TError(NExecNode::EErrorCode::TmpfsLayerImportFailed, "Failed to import new %v tmpfs layer", CacheName_)
                     << newLayerOrError);
                 continue;
             }
@@ -2071,8 +2071,18 @@ public:
             ProfilingPeriod))
     {
         auto absorbLayer = BIND(
-            &TLayerCache::DownloadAndImportLayer,
-            MakeStrong(this));
+            [=, this, this_ = MakeWeak(this)] (
+                const TArtifactKey& artifactKey,
+                const TArtifactDownloadOptions& downloadOptions,
+                TGuid tag,
+                TLayerLocationPtr location)
+            {
+                if (auto cache = this_.Lock()) {
+                    return DownloadAndImportLayer(artifactKey, downloadOptions, tag, std::move(location));
+                } else {
+                    THROW_ERROR_EXCEPTION("Layer cache has been destroyed");
+                }
+            });
 
         RegularTmpfsLayerCache_ = New<TTmpfsLayerCache>(
             bootstrap,
@@ -2765,7 +2775,7 @@ public:
             options.VirtualSandboxData.has_value());
 
         if (DynamicConfigManager_->GetConfig()->ExecNode->VolumeManager->ThrowOnPrepareVolume) {
-            auto error = TError(EErrorCode::RootVolumePreparationFailed, "Throw on prepare volume");
+            auto error = TError(NExecNode::EErrorCode::RootVolumePreparationFailed, "Throw on prepare volume");
             YT_LOG_DEBUG(error, "Prepare volume (Tag: %v, ArtifactCount: %v, HasVirtualSandbox: %v)",
                 tag,
                 artifactKeys.size(),

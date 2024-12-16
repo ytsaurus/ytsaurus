@@ -72,6 +72,8 @@ void ToProto(NProto::TChunkReaderStatistics* protoChunkReaderStatistics, const T
     protoChunkReaderStatistics->set_session_count(chunkReaderStatistics->SessionCount.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_retry_count(chunkReaderStatistics->RetryCount.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_pass_count(chunkReaderStatistics->PassCount.load(std::memory_order::relaxed));
+    protoChunkReaderStatistics->set_block_count(chunkReaderStatistics->BlockCount.load(std::memory_order::relaxed));
+    protoChunkReaderStatistics->set_prefetched_block_count(chunkReaderStatistics->PrefetchedBlockCount.load(std::memory_order::relaxed));
 }
 
 void FromProto(TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, const NProto::TChunkReaderStatistics& protoChunkReaderStatistics)
@@ -95,6 +97,8 @@ void FromProto(TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, const NProto
     chunkReaderStatistics->SessionCount.store(protoChunkReaderStatistics.session_count(), std::memory_order::relaxed);
     chunkReaderStatistics->RetryCount.store(protoChunkReaderStatistics.retry_count(), std::memory_order::relaxed);
     chunkReaderStatistics->PassCount.store(protoChunkReaderStatistics.pass_count(), std::memory_order::relaxed);
+    chunkReaderStatistics->BlockCount.store(protoChunkReaderStatistics.block_count(), std::memory_order::relaxed);
+    chunkReaderStatistics->PrefetchedBlockCount.store(protoChunkReaderStatistics.prefetched_block_count(), std::memory_order::relaxed);
 }
 
 void UpdateFromProto(const TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, const NProto::TChunkReaderStatistics& protoChunkReaderStatistics)
@@ -117,6 +121,8 @@ void UpdateFromProto(const TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, 
     chunkReaderStatistics->SessionCount.fetch_add(protoChunkReaderStatistics.session_count(), std::memory_order::relaxed);
     chunkReaderStatistics->RetryCount.fetch_add(protoChunkReaderStatistics.retry_count(), std::memory_order::relaxed);
     chunkReaderStatistics->PassCount.fetch_add(protoChunkReaderStatistics.pass_count(), std::memory_order::relaxed);
+    chunkReaderStatistics->BlockCount.fetch_add(protoChunkReaderStatistics.block_count(), std::memory_order::relaxed);
+    chunkReaderStatistics->PrefetchedBlockCount.fetch_add(protoChunkReaderStatistics.prefetched_block_count(), std::memory_order::relaxed);
 }
 
 void DumpChunkReaderStatistics(
@@ -134,6 +140,8 @@ void DumpChunkReaderStatistics(
     jobStatistics->AddSample(prefixPath / "session_count"_L, chunkReaderStatisticsPtr->SessionCount.load(std::memory_order::relaxed));
     jobStatistics->AddSample(prefixPath / "retry_count"_L, chunkReaderStatisticsPtr->RetryCount.load(std::memory_order::relaxed));
     jobStatistics->AddSample(prefixPath / "pass_count"_L, chunkReaderStatisticsPtr->PassCount.load(std::memory_order::relaxed));
+    jobStatistics->AddSample(prefixPath / "block_count"_L, chunkReaderStatisticsPtr->BlockCount.load(std::memory_order::relaxed));
+    jobStatistics->AddSample(prefixPath / "prefetched_block_count"_L, chunkReaderStatisticsPtr->PrefetchedBlockCount.load(std::memory_order::relaxed));
 }
 
 void DumpTimingStatistics(
@@ -194,6 +202,8 @@ TChunkReaderStatisticsCounters::TChunkReaderStatisticsCounters(
         GetWaitTimeHistogramBounds()))
     , MetaWaitTimeHistogram_(histogramProfiler.GaugeHistogram("/meta_wait_time_histogram",
         GetWaitTimeHistogramBounds()))
+    , BlockCount_(profiler.Counter("/block_count"))
+    , PrefetchedBlockCount_(profiler.Counter("/prefetched_block_count"))
 { }
 
 void TChunkReaderStatisticsCounters::Increment(
@@ -228,6 +238,9 @@ void TChunkReaderStatisticsCounters::Increment(
 
     LoadTimeHistogram(chunkReaderStatistics->DataWaitTimeHistogram, DataWaitTimeHistogram_);
     LoadTimeHistogram(chunkReaderStatistics->MetaWaitTimeHistogram, MetaWaitTimeHistogram_);
+
+    BlockCount_.Increment(chunkReaderStatistics->BlockCount.load(std::memory_order::relaxed));
+    PrefetchedBlockCount_.Increment(chunkReaderStatistics->PrefetchedBlockCount.load(std::memory_order::relaxed));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

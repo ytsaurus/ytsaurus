@@ -19,6 +19,7 @@ add_library(yt-library-random)
 
 target_compile_options(yt-library-random PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-library-random PUBLIC

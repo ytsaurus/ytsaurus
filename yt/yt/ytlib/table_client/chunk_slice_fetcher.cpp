@@ -274,7 +274,7 @@ private:
 
             OnNodeFailed(nodeId, requestedChunkIndexes);
 
-            if (rspOrError.FindMatching(EErrorCode::IncomparableTypes)) {
+            if (rspOrError.FindMatching(NTableClient::EErrorCode::IncomparableTypes)) {
                 // Any exception thrown here interrupts fetching.
                 rspOrError.ThrowOnError();
             }
@@ -304,7 +304,7 @@ private:
             if (sliceResponse.has_error()) {
                 auto error = FromProto<TError>(sliceResponse.error());
 
-                if (error.FindMatching(EErrorCode::IncompatibleKeyColumns)) {
+                if (error.FindMatching(NTableClient::EErrorCode::IncompatibleKeyColumns)) {
                     // Any exception thrown here interrupts fetching.
                     error.ThrowOnError();
                 }

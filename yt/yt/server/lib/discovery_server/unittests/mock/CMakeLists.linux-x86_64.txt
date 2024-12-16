@@ -19,6 +19,7 @@ add_library(discovery_server-unittests-mock)
 
 target_compile_options(discovery_server-unittests-mock PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(discovery_server-unittests-mock PUBLIC

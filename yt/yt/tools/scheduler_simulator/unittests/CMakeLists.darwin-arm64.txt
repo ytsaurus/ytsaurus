@@ -17,6 +17,7 @@ add_executable(unittester-scheduler-simulator)
 
 target_compile_options(unittester-scheduler-simulator PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(unittester-scheduler-simulator PRIVATE
@@ -33,7 +34,7 @@ target_link_libraries(unittester-scheduler-simulator PUBLIC
 )
 
 target_allocator(unittester-scheduler-simulator
-  cpp-ytalloc-impl
+  system_allocator
 )
 
 target_link_options(unittester-scheduler-simulator PRIVATE

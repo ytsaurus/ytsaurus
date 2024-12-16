@@ -35,6 +35,9 @@
 
 #include <yt/yt/client/table_client/unittests/helpers/helpers.h>
 
+#include <yt/yt/library/query/engine_api/config.h>
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
 #include <yt/yt/core/compression/public.h>
@@ -219,6 +222,14 @@ public:
         return nullptr;
     }
 
+    void RemoveChunkBlocks(const TChunkId& /*chunkId*/) override
+    { }
+
+    THashSet<NChunkClient::TBlockInfo> GetCachedBlocksByChunkId(TChunkId /*chunkId*/, EBlockType /*type*/) override
+    {
+        return {};
+    }
+
 private:
     const IBlockCachePtr Underlying_;
     std::vector<TSharedMutableRef> UsedBlocks_;
@@ -354,7 +365,7 @@ protected:
     {
         WriteManyRows(testOptions);
 
-        auto chunkMeta = MemoryReader->GetMeta(/*chunkReadOptions*/ {})
+        auto chunkMeta = MemoryReader->GetMeta(/*options*/ {})
             .Apply(BIND(
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,
@@ -478,6 +489,7 @@ protected:
                     std::move(chunkFragmentReader));
             } else {
                 versionedReader = CreateVersionedChunkReader(
+                    CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
                     TChunkReaderConfig::GetDefault(),
                     MemoryReader,
                     std::move(chunkState),
@@ -531,7 +543,7 @@ TEST_F(TVersionedChunkLookupTest, TestIndexedMetadata)
         .ChunkFormat = EChunkFormat::TableVersionedIndexed
     });
 
-    auto chunkMeta = MemoryReader->GetMeta(/*chunkReadOptions*/ {})
+    auto chunkMeta = MemoryReader->GetMeta(/*options*/ {})
         .Get()
         .ValueOrThrow();
 
@@ -814,7 +826,7 @@ protected:
             columnFilter,
             GetTestOptions().UseNewReader);
 
-        auto chunkMeta = memoryReader->GetMeta(/*chunkReadOptions*/ {})
+        auto chunkMeta = memoryReader->GetMeta(/*options*/ {})
             .Apply(BIND(
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,
@@ -861,6 +873,7 @@ protected:
             if (GetTestOptions().CacheBased) {
                 chunkState->BlockCache = GetPreloadedBlockCache(memoryReader);
                 versionedReader = CreateCacheBasedVersionedChunkReader(
+                    CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
                     memoryReader->GetChunkId(),
                     std::move(chunkState),
                     std::move(chunkMeta),
@@ -871,6 +884,7 @@ protected:
                     produceAllVersions);
             } else {
                 versionedReader = CreateVersionedChunkReader(
+                    CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
                     TChunkReaderConfig::GetDefault(),
                     memoryReader,
                     std::move(chunkState),
@@ -927,7 +941,7 @@ protected:
             columnFilter,
             GetTestOptions().UseNewReader);
 
-        auto chunkMeta = memoryReader->GetMeta(/*chunkReadOptions*/ {})
+        auto chunkMeta = memoryReader->GetMeta(/*options*/ {})
             .Apply(BIND(
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,
@@ -1015,6 +1029,7 @@ protected:
             if (GetTestOptions().CacheBased) {
                 chunkState->BlockCache = GetPreloadedBlockCache(memoryReader);
                 versionedReader = CreateCacheBasedVersionedChunkReader(
+                    CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
                     memoryReader->GetChunkId(),
                     std::move(chunkState),
                     std::move(chunkMeta),
@@ -1025,6 +1040,7 @@ protected:
                     produceAllVersions);
             } else {
                 versionedReader = CreateVersionedChunkReader(
+                    CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
                     TChunkReaderConfig::GetDefault(),
                     memoryReader,
                     std::move(chunkState),
@@ -1047,7 +1063,7 @@ protected:
     {
         auto blockCache = GetPreloadedBlockCache(memoryReader);
 
-        auto chunkMeta = memoryReader->GetMeta(/*chunkReadOptions*/ {})
+        auto chunkMeta = memoryReader->GetMeta(/*options*/ {})
             .Apply(BIND(
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,

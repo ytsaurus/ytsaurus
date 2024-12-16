@@ -47,7 +47,7 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitMessage(TMessageParam message, 
     {
         const auto* fieldDescriptor = descriptor->FindFieldByName("attributes");
         if (!fieldDescriptor) {
-            Self()->Throw(EErrorCode::InvalidData, "Misplaced attribute_dictionary option");
+            Self()->Throw(NAttributes::EErrorCode::InvalidData, "Misplaced attribute_dictionary option");
         }
         Self()->VisitAttributeDictionary(message, fieldDescriptor, reason);
         return;
@@ -67,7 +67,7 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitRegularMessage(
             Self()->VisitWholeMessage(message, EVisitReason::AfterPath);
             return;
         } else {
-            Self()->Throw(EErrorCode::Unimplemented, "Cannot handle whole message fields");
+            Self()->Throw(NAttributes::EErrorCode::Unimplemented, "Cannot handle whole message fields");
         }
     }
 
@@ -117,8 +117,8 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitUnrecognizedField(
     Y_UNUSED(message);
     Y_UNUSED(reason);
 
-    if (!Self()->AllowMissing_) {
-        Self()->Throw(EErrorCode::MissingField,
+    if (Self()->MissingFieldPolicy_ != EMissingFieldPolicy::Skip) {
+        Self()->Throw(NAttributes::EErrorCode::MissingField,
             "Field %v not found in message %v",
             name,
             descriptor->full_name());
@@ -147,7 +147,7 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitAttributeDictionary(
     Y_UNUSED(fieldDescriptor);
     Y_UNUSED(reason);
 
-    Self()->Throw(EErrorCode::Unimplemented, "Cannot handle whole attribute dictionaries");
+    Self()->Throw(NAttributes::EErrorCode::Unimplemented, "Cannot handle whole attribute dictionaries");
 }
 
 template <typename TWrappedMessage, typename TSelf>
@@ -195,12 +195,12 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitPresentSingularField(
             TTraits::GetMessageFromSingularField(message, fieldDescriptor);
         Self()->VisitMessage(next, reason);
     } else if (!Self()->PathComplete()) {
-        Self()->Throw(EErrorCode::MalformedPath,
+        Self()->Throw(NAttributes::EErrorCode::MalformedPath,
             "Expected field %v to be a protobuf message, but got %v",
             fieldDescriptor->full_name(),
             fieldDescriptor->type_name());
     } else {
-        Self()->Throw(EErrorCode::Unimplemented, "Cannot handle singular scalar fields");
+        Self()->Throw(NAttributes::EErrorCode::Unimplemented, "Cannot handle singular scalar fields");
     }
 }
 
@@ -210,11 +210,21 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitMissingSingularField(
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     EVisitReason reason)
 {
-    Y_UNUSED(message);
-    Y_UNUSED(reason);
-
-    if (!Self()->AllowMissing_ && reason == EVisitReason::Path) {
-        Self()->Throw(EErrorCode::MissingField, "Missing field %v", fieldDescriptor->full_name());
+    switch (Self()->MissingFieldPolicy_) {
+        case EMissingFieldPolicy::Throw:
+            if (reason == EVisitReason::Path) {
+                Self()->Throw(NAttributes::EErrorCode::MissingField,
+                    "Missing field %v",
+                    fieldDescriptor->full_name());
+            } else {
+                return;
+            }
+        case EMissingFieldPolicy::Skip:
+            return;
+        case EMissingFieldPolicy::Force:
+            // This will visit the default value if const/create and visit one if mutable.
+            Self()->VisitPresentSingularField(message, fieldDescriptor, reason);
+            return;
     }
 }
 
@@ -245,7 +255,7 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitRepeatedField(
             Self()->VisitWholeRepeatedField(message, fieldDescriptor, EVisitReason::AfterPath);
             return;
         } else {
-            Self()->Throw(EErrorCode::Unimplemented, "Cannot handle whole repeated fields");
+            Self()->Throw(NAttributes::EErrorCode::Unimplemented, "Cannot handle whole repeated fields");
         }
     }
 
@@ -270,7 +280,7 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitRepeatedField(
             return;
         }
         auto& indexParseResult = errorOrIndexParseResult.Value();
-        Self()->AdvanceOver(ui64(indexParseResult.Index));
+        Self()->AdvanceOver(indexParseResult.Index);
 
         switch (indexParseResult.IndexType) {
             case EListIndexType::Absolute:
@@ -305,7 +315,7 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitWholeRepeatedField(
         return;
     }
 
-    for (ui64 index = 0; !StopIteration_ && index < ui64(errorOrSize.Value()); ++index) {
+    for (int index = 0; !StopIteration_ && index < errorOrSize.Value(); ++index) {
         auto checkpoint = Self()->CheckpointBranchedTraversal(index);
         Self()->VisitRepeatedFieldEntry(message, fieldDescriptor, index, reason);
     }
@@ -323,12 +333,12 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitRepeatedFieldEntry(
             TTraits::GetMessageFromRepeatedField(message, fieldDescriptor, index);
         Self()->VisitMessage(next, reason);
     } else if (!PathComplete()) {
-        Self()->Throw(EErrorCode::MalformedPath,
+        Self()->Throw(NAttributes::EErrorCode::MalformedPath,
             "Expected field %v to be a protobuf message, but got %v",
             fieldDescriptor->full_name(),
             fieldDescriptor->type_name());
     } else {
-        Self()->Throw(EErrorCode::Unimplemented, "Cannot handle repeated scalar fields");
+        Self()->Throw(NAttributes::EErrorCode::Unimplemented, "Cannot handle repeated scalar fields");
     }
 }
 
@@ -339,12 +349,19 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitRepeatedFieldEntryRelative(
     int index,
     EVisitReason reason)
 {
-    Y_UNUSED(message);
-    Y_UNUSED(fieldDescriptor);
-    Y_UNUSED(index);
-    Y_UNUSED(reason);
+    switch (Self()->MissingFieldPolicy_) {
+        case EMissingFieldPolicy::Throw:
+            break;
+        case EMissingFieldPolicy::Skip:
+            break; // Relative index means container modification.
+        case EMissingFieldPolicy::Force:
+            Self()->ThrowOnError(
+                TTraits::InsertRepeatedFieldEntry(message, fieldDescriptor, index));
+            Self()->VisitRepeatedFieldEntry(message, fieldDescriptor, index, reason);
+            return;
+    }
 
-    Self()->Throw(EErrorCode::MalformedPath,
+    Self()->Throw(NAttributes::EErrorCode::MalformedPath,
         "Unexpected relative path specifier %v",
         GetToken());
 }
@@ -370,12 +387,23 @@ void TProtoVisitor<TWrappedMessage, TSelf>::OnIndexError(
     EVisitReason reason,
     TError error)
 {
-    Y_UNUSED(message);
-    Y_UNUSED(fieldDescriptor);
-    Y_UNUSED(reason);
-
-    if (Self()->AllowMissing_ && error.GetCode() == EErrorCode::OutOfBounds) {
-        return;
+    if (error.GetCode() == NAttributes::EErrorCode::OutOfBounds) {
+        switch (Self()->MissingFieldPolicy_) {
+            case EMissingFieldPolicy::Throw:
+                break;
+            case EMissingFieldPolicy::Skip:
+                return;
+            case EMissingFieldPolicy::Force:
+                if constexpr (std::is_const_v<TMessageParam>) {
+                    if (fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE) {
+                        TMessageReturn next =
+                            TTraits::GetDefaultMessage(message, fieldDescriptor->message_type());
+                        Self()->VisitMessage(next, reason);
+                        return;
+                    }
+                }
+                break; // We don't modify containers with bad indices.
+        }
     }
 
     Self()->Throw(std::move(error));
@@ -394,7 +422,7 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitMapField(
             Self()->VisitWholeMapField(message, fieldDescriptor, EVisitReason::AfterPath);
             return;
         } else {
-            Self()->Throw(EErrorCode::Unimplemented, "Cannot handle whole map fields");
+            Self()->Throw(NAttributes::EErrorCode::Unimplemented, "Cannot handle whole map fields");
         }
     }
 
@@ -483,14 +511,38 @@ void TProtoVisitor<TWrappedMessage, TSelf>::OnKeyError(
     EVisitReason reason,
     TError error)
 {
-    Y_UNUSED(message);
-    Y_UNUSED(fieldDescriptor);
-    Y_UNUSED(keyMessage);
-    Y_UNUSED(key);
-    Y_UNUSED(reason);
-
-    if (Self()->AllowMissing_ && error.GetCode() == EErrorCode::MissingKey) {
-        return;
+    if (error.GetCode() == NAttributes::EErrorCode::MissingKey) {
+        switch (Self()->MissingFieldPolicy_) {
+            case EMissingFieldPolicy::Throw:
+                break;
+            case EMissingFieldPolicy::Skip:
+                return;
+            case EMissingFieldPolicy::Force:
+                if constexpr (std::is_const_v<TMessageParam>) {
+                    if (fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE) {
+                        TMessageReturn next =
+                            TTraits::GetDefaultMessage(message, fieldDescriptor->message_type());
+                        Self()->VisitMessage(next, reason);
+                    } else {
+                        Self()->Throw(
+                            NAttributes::EErrorCode::Unimplemented,
+                            "Cannot handle missing scalar map entries");
+                    }
+                } else {
+                    auto entry = Self()->ValueOrThrow(
+                        TTraits::InsertMapFieldEntry(
+                            message,
+                            fieldDescriptor,
+                            std::move(keyMessage)));
+                    Self()->VisitMapFieldEntry(
+                        message,
+                        fieldDescriptor,
+                        std::move(entry),
+                        std::move(key),
+                        reason);
+                }
+                return;
+        }
     }
 
     Self()->Throw(std::move(error));

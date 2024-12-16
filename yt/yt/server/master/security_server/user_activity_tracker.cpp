@@ -73,7 +73,7 @@ public:
 
         auto guard = Guard(Lock);
 
-        auto now = NProfiling::GetInstant();
+        auto now = GetInstant();
         NProto::TUserActivityStatisticsUpdate update;
         update.set_last_seen_time(NYT::ToProto(now));
         ToProto(update.mutable_user_id(), user->GetId());

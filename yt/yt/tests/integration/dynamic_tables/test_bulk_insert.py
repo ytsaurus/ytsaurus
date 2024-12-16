@@ -11,7 +11,7 @@ from yt_commands import (
     sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_reshard_table, sync_flush_table, sync_compact_table, get_account_disk_space,
     create_dynamic_table, raises_yt_error, sorted_dicts, print_debug,
-    disable_write_sessions_on_node, disable_tablet_cells_on_node)
+    disable_write_sessions_on_node, disable_tablet_cells_on_node, get_singular_chunk_id)
 
 from yt_type_helpers import make_schema
 import yt_error_codes
@@ -556,7 +556,7 @@ class TestBulkInsert(DynamicTablesBase):
 
         map(in_="//tmp/t_input", out="<append=true>//tmp/t_output", command="cat")
 
-        chunk_id = get("//tmp/t_output/@chunk_ids/0")
+        chunk_id = get_singular_chunk_id("//tmp/t_output")
         chunk_ts = get("#{}/@min_timestamp".format(chunk_id))
 
         new_ts = generate_timestamp()
@@ -896,7 +896,7 @@ class TestBulkInsert(DynamicTablesBase):
             spec=spec,
         )
 
-        chunk_id = get("//tmp/t_output/@chunk_ids/0")
+        chunk_id = get_singular_chunk_id("//tmp/t_output")
         assert block_size - 50 < get("#{}/@max_block_size".format(chunk_id)) < block_size + 50
 
     def test_no_user_transaction(self):

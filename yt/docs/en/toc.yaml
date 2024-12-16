@@ -354,12 +354,16 @@ items:
        - name: Problems
          when: audience == "public"
          items:
+         - name: Debugging MapReduce programs
+           href: user-guide/problems/mapreduce-debug.md
          - name: Jobshell and slow jobs
            href: user-guide/problems/jobshell-and-slowjobs.md
          - name: Slow read
            href: user-guide/problems/slow-read.md
          - name: Job statistics
            href: user-guide/problems/jobstatistics.md
+         - name: Debugging jobs locally
+           href: user-guide/problems/jobtool.md
        - name: Importing external data
          when: audience == "public"
          items:

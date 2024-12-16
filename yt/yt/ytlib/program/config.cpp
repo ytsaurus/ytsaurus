@@ -14,12 +14,6 @@ void TNativeSingletonsConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("native_authentication_manager", &TThis::NativeAuthenticationManager)
         .DefaultNew();
-    registrar.Parameter("enable_porto_resource_tracker", &TThis::EnablePortoResourceTracker)
-        .Default(false);
-    registrar.Parameter("pod_spec", &TThis::PodSpec)
-        .DefaultNew();
-    registrar.Parameter("hotswap_manager", &TThis::HotswapManager)
-        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

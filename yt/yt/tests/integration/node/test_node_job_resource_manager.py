@@ -146,27 +146,25 @@ class TestMemoryPressureAtJobProxy(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 3
 
-    @authors("renadeen")
-    def test_memory_pressure_detector_at_job_proxy(self):
-        update_nodes_dynamic_config({
-            "exec_node": {
-                "job_controller": {
-                    "job_proxy": {
-                        "job_environment": {
-                            "job_thrashing_detector": {
-                                "enabled": True,
-                                "check_period": 1000,
-                                "major_page_fault_count_threshold": 100,
-                                "limit_overflow_count_threshold_to_abort_job": 3,
-                            },
-                            "type": "testing",
-                            "testing_job_environment_scenario": "increasing_major_page_fault_count",
-                        }
-                    }
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "slot_manager": {
+                "job_environment": {
+                    "job_thrashing_detector": {
+                        "enabled": True,
+                        "check_period": 1000,
+                        "major_page_fault_count_threshold": 100,
+                        "limit_overflow_count_threshold_to_abort_job": 3,
+                    },
+                    "type": "testing",
+                    "testing_job_environment_scenario": "increasing_major_page_fault_count",
                 }
             },
-        })
+        }
+    }
 
+    @authors("renadeen")
+    def test_memory_pressure_detector_at_job_proxy(self):
         time.sleep(1)
         aborted_job_profiler = JobCountProfiler("aborted", tags={"tree": "default", "job_type": "vanilla", "abort_reason": "job_memory_thrashing"})
 

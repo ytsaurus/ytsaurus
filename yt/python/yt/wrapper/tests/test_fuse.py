@@ -51,6 +51,11 @@ class TestCachedYtClient(object):
         client = cypress_fuse.CachedYtClient(config=yt.config.config)
 
         real_attributes = dict(yt.get("//home/@"))
+        attribute_blacklist = ["wrong_door_sync", "wrong_door_async"]
+
+        for attribute in attribute_blacklist:
+            real_attributes.pop(attribute, None)
+
         for attribute in real_attributes:
             if isinstance(real_attributes[attribute], yt.yson.YsonEntity):
                 real_attributes[attribute] = yt.get("//home/@" + attribute)

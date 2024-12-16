@@ -19,6 +19,7 @@ add_executable(offline_read)
 
 target_compile_options(offline_read PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(offline_read PRIVATE
@@ -40,7 +41,8 @@ target_link_libraries(offline_read PUBLIC
 )
 
 target_allocator(offline_read
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(offline_read PRIVATE

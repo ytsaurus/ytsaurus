@@ -24,6 +24,9 @@
 
 #include <yt/yt/client/table_client/unittests/helpers/helpers.h>
 
+#include <yt/yt/library/query/engine_api/config.h>
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+
 #include <yt/yt/core/compression/public.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -170,6 +173,7 @@ protected:
             MemoryWriter_->GetBlocks());
 
         return CreateSchemalessRangeChunkReader(
+            CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
             chunkState,
             New<TColumnarChunkMeta>(*MemoryWriter_->GetChunkMeta()),
             TChunkReaderConfig::GetDefault(),

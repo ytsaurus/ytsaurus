@@ -92,6 +92,7 @@ using namespace NArrow;
 using namespace NAuth;
 using namespace NChaosClient;
 using namespace NChunkClient;
+using namespace NCodegen;
 using namespace NCompression;
 using namespace NConcurrency;
 using namespace NLogging;
@@ -2118,6 +2119,9 @@ private:
         if (request->has_preserve_owner()) {
             options.PreserveOwner = request->preserve_owner();
         }
+        if (request->has_preserve_acl()) {
+            options.PreserveAcl = request->preserve_acl();
+        }
         if (request->has_pessimistic_quota_check()) {
             options.PessimisticQuotaCheck = request->pessimistic_quota_check();
         }
@@ -3909,7 +3913,7 @@ private:
             options.SyntaxVersion = request->syntax_version();
         }
         if (request->has_execution_backend()) {
-            options.ExecutionBackend = static_cast<NApi::EExecutionBackend>(request->execution_backend());
+            options.ExecutionBackend = CheckedEnumCast<EExecutionBackend>(request->execution_backend());
         }
         if (request->has_versioned_read_options()) {
             FromProto(&options.VersionedReadOptions, request->versioned_read_options());
@@ -6631,6 +6635,12 @@ private:
             context,
             [client = std::move(client), request, parentTransactionId] () {
                 TStartShuffleOptions options;
+                if (request->has_medium_name()) {
+                    options.MediumName = request->medium_name();
+                }
+                if (request->has_replication_factor()) {
+                    options.ReplicationFactor = request->replication_factor();
+                }
                 return client->StartShuffle(
                     request->account(),
                     request->partition_count(),
@@ -6702,23 +6712,25 @@ private:
 
         auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
 
+        auto partitionColumn = request->partition_column();
+
         context->SetRequestInfo(
             "TransactionId: %v, CoordinatorAddress: %v, Account: %v, PartitionCount: %v, PartitionColumn: %v",
             shuffleHandle->TransactionId,
             shuffleHandle->CoordinatorAddress,
             shuffleHandle->Account,
             shuffleHandle->PartitionCount,
-            request->partition_column());
+            partitionColumn);
 
         auto writer = WaitFor(
-            client->CreateShuffleWriter(shuffleHandle, request->partition_column(), writerConfig))
+            client->CreateShuffleWriter(shuffleHandle, partitionColumn, writerConfig))
             .ValueOrThrow();
 
         auto decoder = CreateWireRowStreamDecoder(writer->GetNameTable());
 
         HandleOutputStreamingRequest(
             context,
-            [&] (TSharedRef block) {
+            [&] (const TSharedRef& block) {
                 NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
                 auto payloadRef = DeserializeRowStreamBlockEnvelope(block, &descriptor, nullptr);
 

@@ -70,10 +70,11 @@ static constexpr auto& Logger = TableClientLogger;
 namespace {
 
 DEFINE_ENUM(ECompressionSessionStage,
-    ((WaitingOnFuture)          (0))
-    ((FeedingSamples)           (1))
-    ((SessionIsFed)             (2))
-    ((SampledRowsAreWritten)    (3))
+    ((Initial)                  (0))
+    ((WaitingOnFuture)          (1))
+    ((FeedingSamples)           (2))
+    ((SessionIsFed)             (3))
+    ((SampledRowsAreWritten)    (4))
 );
 
 TRef GetValueRef(const TUnversionedValue& value)
@@ -928,6 +929,10 @@ public:
 
         if (CompressionContext_) {
             switch (CompressionContext_->SessionStage) {
+                case ECompressionSessionStage::Initial:
+                    CompressionContext_->SessionStage = ECompressionSessionStage::WaitingOnFuture;
+                    [[fallthrough]];
+
                 case ECompressionSessionStage::WaitingOnFuture:
                     if (CompressionContext_->SessionFuture.IsSet()) {
                         CompressionContext_->OnSessionFutureSet();
@@ -936,7 +941,7 @@ public:
                             return false;
                         }
                     }
-                    // No break intentionally.
+                    [[fallthrough]];
 
                 case ECompressionSessionStage::FeedingSamples:
                     CompressionContext_->FeedSamples(rows);
@@ -999,7 +1004,8 @@ public:
     TFuture<void> GetReadyEvent() override
     {
         if (CompressionContext_ &&
-            CompressionContext_->SessionStage == ECompressionSessionStage::WaitingOnFuture)
+            (CompressionContext_->SessionStage == ECompressionSessionStage::Initial ||
+             CompressionContext_->SessionStage == ECompressionSessionStage::WaitingOnFuture))
         {
             return CompressionContext_->SessionFuture.AsVoid();
         }
@@ -1016,6 +1022,10 @@ public:
     {
         if (CompressionContext_) {
             switch (CompressionContext_->SessionStage) {
+                case ECompressionSessionStage::Initial:
+                    CompressionContext_->SessionStage = ECompressionSessionStage::WaitingOnFuture;
+                    [[fallthrough]];
+
                 case ECompressionSessionStage::WaitingOnFuture:
                     return CompressionContext_->SessionFuture.Apply(BIND([
                         this,
@@ -1185,7 +1195,8 @@ public:
     TDeferredChunkMetaPtr GetMeta() const override
     {
         YT_VERIFY(!CompressionContext_ ||
-            CompressionContext_->SessionStage == ECompressionSessionStage::SampledRowsAreWritten);
+            CompressionContext_->SessionStage == ECompressionSessionStage::SampledRowsAreWritten ||
+            CompressionContext_->SessionStage == ECompressionSessionStage::Initial);
         return Underlying_->GetMeta();
     }
 
@@ -1203,6 +1214,7 @@ public:
     {
         auto statistics = Underlying_->GetCompressionStatistics();
         if (CompressionContext_ &&
+            CompressionContext_->SessionStage != ECompressionSessionStage::Initial &&
             CompressionContext_->SessionStage != ECompressionSessionStage::WaitingOnFuture)
         {
             statistics.AppendToValueDictionaryCompression(CompressionContext_->Session->GetCompressionTime());
@@ -1227,7 +1239,7 @@ private:
         std::vector<TMutableVersionedRow> SampledRows;
         TRowBufferPtr SampledRowBuffer = New<TRowBuffer>(TCompressionSamplesRowBufferTag());
 
-        ECompressionSessionStage SessionStage = ECompressionSessionStage::WaitingOnFuture;
+        ECompressionSessionStage SessionStage = ECompressionSessionStage::Initial;
 
 
         TCompressionContext(TFuture<IDictionaryCompressionSessionPtr> sessionFuture)

@@ -17,6 +17,7 @@ add_executable(unittester-yql-agent)
 
 target_compile_options(unittester-yql-agent PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-yql-agent PUBLIC

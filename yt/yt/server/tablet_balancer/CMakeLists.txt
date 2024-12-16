@@ -19,6 +19,7 @@ add_library(yt-server-tablet_balancer)
 
 target_compile_options(yt-server-tablet_balancer PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-server-tablet_balancer PUBLIC
@@ -28,6 +29,7 @@ target_link_libraries(yt-server-tablet_balancer PUBLIC
   cpp-yt-phdr_cache
   library-cpp-getopt
   yt-library-dynamic_config
+  yt-library-server_program
   yt-yt-ytlib
   yt-yt-core
   server-lib-admin

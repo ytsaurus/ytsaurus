@@ -105,6 +105,7 @@ add_library(yt-yt-ytlib)
 
 target_compile_options(yt-yt-ytlib PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(yt-yt-ytlib PUBLIC
@@ -143,6 +144,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   yt-library-formats
   library-query-engine_api
   library-query-row_comparer_api
+  library-query-secondary_index
   library-web_assembly-api
   yt-library-program
   yt-library-vector_hdrf
@@ -188,6 +190,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_server/proto/sequoia_actions.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_chunk_session_client/proto/distributed_chunk_session_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/election/proto/election_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/exec_node_admin/proto/exec_node_admin_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.proto
@@ -395,6 +398,9 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/rpc_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/data_node_tracker_client/location_directory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_chunk_session_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/driver/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/election/cell_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/election/config.cpp
@@ -461,7 +467,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/orchid/orchid_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/orchid/orchid_ypath_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/program/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/program/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/program/native_singletons.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/explain.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/functions_cache.cpp
@@ -688,6 +694,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/distributed_chunk_session_client/proto/distributed_chunk_session_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/election/proto/election_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/exec_node_admin/proto/exec_node_admin_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.pb.h
@@ -1541,6 +1548,7 @@ add_global_library_for(yt-yt-ytlib.global
 
 target_compile_options(yt-yt-ytlib.global PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(yt-yt-ytlib.global PUBLIC
@@ -1579,6 +1587,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   yt-library-formats
   library-query-engine_api
   library-query-row_comparer_api
+  library-query-secondary_index
   library-web_assembly-api
   yt-library-program
   yt-library-vector_hdrf

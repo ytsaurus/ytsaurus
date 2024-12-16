@@ -17,6 +17,7 @@ add_library(server-lib-squash_fs)
 
 target_compile_options(server-lib-squash_fs PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(server-lib-squash_fs PUBLIC

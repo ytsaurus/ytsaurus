@@ -47,6 +47,7 @@ public:
     TString GetLocalHostName() const override;
     IHedgingManagerRegistryPtr GetHedgingManagerRegistry() const override;
     ITabletWriteManagerHostPtr GetTabletWriteManagerHost() const override;
+    IVersionedChunkMetaManagerPtr GetVersionedChunkMetaManager() const override;
     TMockBackendChunkReadersHolderPtr GetBackendChunkReadersHolder() const;
 
 private:

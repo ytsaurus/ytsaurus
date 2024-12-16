@@ -18,7 +18,7 @@ SRCS(
     job_memory.cpp
     job_splitter.cpp
     helpers.cpp
-    input_transactions_manager.cpp
+    input_transaction_manager.cpp
     input_manager.cpp
     live_preview.cpp
     operation_controller_detail.cpp

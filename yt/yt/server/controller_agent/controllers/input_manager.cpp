@@ -1,7 +1,7 @@
 #include "input_manager.h"
 
 #include "helpers.h"
-#include "input_transactions_manager.h"
+#include "input_transaction_manager.h"
 #include "table.h"
 #include "task.h"
 
@@ -270,12 +270,12 @@ void TInputManager::InitializeClients(IClientPtr client)
 
 void TInputManager::InitializeStructures(
     IClientPtr client,
-    const TInputTransactionsManagerPtr& inputTransactionsManager)
+    const TInputTransactionManagerPtr& inputTransactionManager)
 {
-    YT_VERIFY(inputTransactionsManager);
+    YT_VERIFY(inputTransactionManager);
     InputTables_.clear();
     Clusters_.clear();
-    ClusterResolver_ = inputTransactionsManager->GetClusterResolver();
+    ClusterResolver_ = inputTransactionManager->GetClusterResolver();
 
     auto ensureCluster = [&](const auto& name) {
         if (!Clusters_.contains(name)) {
@@ -288,7 +288,7 @@ void TInputManager::InitializeStructures(
         auto clusterName = ClusterResolver_->GetClusterName(path);
         auto table = New<TInputTable>(
             path,
-            inputTransactionsManager->GetTransactionIdForObject(path));
+            inputTransactionManager->GetTransactionIdForObject(path));
         table->ColumnRenameDescriptors = path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors());
         table->ClusterName = clusterName;
         ensureCluster(clusterName);
@@ -297,7 +297,7 @@ void TInputManager::InitializeStructures(
         InputTables_.push_back(table);
     }
 
-    if (inputTransactionsManager->GetLocalInputTransactionId()) {
+    if (inputTransactionManager->GetLocalInputTransactionId()) {
         ensureCluster(LocalClusterName);
     }
 }
@@ -1449,6 +1449,31 @@ bool TInputManager::HasDynamicTableWithHunkChunks() const
         }
     }
     return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<NYTree::IAttributeDictionaryPtr> TInputManager::FetchSingleInputTableAttributes(
+    const std::optional<std::vector<TString>>& attributeKeys) const
+{
+    YT_VERIFY(InputTables_.size() == 1 && Clusters_.size() == 1);
+    const auto& table = InputTables_[0];
+    const auto& cluster = Clusters_.begin()->second;
+    auto proxy = CreateObjectServiceReadProxy(cluster->Client(), EMasterChannelKind::Follower);
+    auto req = TObjectYPathProxy::Get(table->GetObjectIdPath() + "/@");
+    SetTransactionId(req, *table->TransactionId);
+
+    if (attributeKeys) {
+        ToProto(req->mutable_attributes()->mutable_keys(), *attributeKeys);
+    }
+
+    return proxy.Execute(req).Apply(
+        BIND([table] (const TErrorOr<TObjectYPathProxy::TRspGetPtr>& rspOrError) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of input table %v",
+                table->GetPath());
+
+            return ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

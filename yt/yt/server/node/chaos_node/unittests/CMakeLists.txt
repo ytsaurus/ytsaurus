@@ -19,6 +19,7 @@ add_executable(unittester-chaos-node)
 
 target_compile_options(unittester-chaos-node PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-chaos-node PUBLIC

@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: tqdm
-Version: 4.67.0
+Version: 4.67.1
 Summary: Fast, Extensible Progress Meter
 Maintainer-email: tqdm developers <devs@tqdm.ml>
 License: MPL-2.0 AND MIT
@@ -72,15 +72,16 @@ Provides-Extra: dev
 Requires-Dist: pytest>=6; extra == "dev"
 Requires-Dist: pytest-cov; extra == "dev"
 Requires-Dist: pytest-timeout; extra == "dev"
-Requires-Dist: pytest-xdist; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.24; extra == "dev"
+Requires-Dist: nbval; extra == "dev"
 Provides-Extra: discord
 Requires-Dist: requests; extra == "discord"
-Provides-Extra: notebook
-Requires-Dist: ipywidgets>=6; extra == "notebook"
 Provides-Extra: slack
 Requires-Dist: slack-sdk; extra == "slack"
 Provides-Extra: telegram
 Requires-Dist: requests; extra == "telegram"
+Provides-Extra: notebook
+Requires-Dist: ipywidgets>=6; extra == "notebook"
 
 |Logo|
 

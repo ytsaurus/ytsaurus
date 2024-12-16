@@ -68,6 +68,9 @@ public:
     //! Interval between readonly checks.
     TDuration ReadOnlyCheckPeriod;
 
+    //! If true, trace contexts are sent with baggage.
+    bool SendTracingBaggage;
+
     TLogicalTimeRegistryConfigPtr LogicalTimeRegistry;
 
     REGISTER_YSON_STRUCT(THiveManagerConfig);

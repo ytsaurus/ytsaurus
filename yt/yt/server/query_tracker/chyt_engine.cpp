@@ -18,6 +18,7 @@
 
 #include <yt/yt/client/scheduler/public.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 

@@ -39,7 +39,7 @@ public:
 private:
     TString InputFile_;
 
-    void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
+    void DoRun() override
     {
         TFileInput input(InputFile_);
         TYsonPullParser parser(&input, EYsonType::ListFragment);

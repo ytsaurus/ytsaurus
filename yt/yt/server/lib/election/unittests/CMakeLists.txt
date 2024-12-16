@@ -19,6 +19,7 @@ add_executable(unittester-election)
 
 target_compile_options(unittester-election PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-election PUBLIC

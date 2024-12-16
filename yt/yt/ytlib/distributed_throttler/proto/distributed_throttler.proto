@@ -2,10 +2,13 @@ package NYT.NDistributedThrottler.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TThrottlerUsageRate
+message TThrottlerData
 {
     required string id = 1;
     required double usage_rate = 2;
+    optional double limit = 3;
+    optional int64 queue_byte_size = 4;
+    optional int64 queue_estimated_overrun_duration = 5;
 }
 
 message TThrottlerLimit
@@ -17,7 +20,7 @@ message TThrottlerLimit
 message TReqHeartbeat
 {
     required string member_id = 1;
-    repeated TThrottlerUsageRate throttlers = 2;
+    repeated TThrottlerData throttlers = 2;
 }
 
 message TRspHeartbeat

@@ -8,6 +8,7 @@
 
 #include <yt/yt/library/formats/format.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/json/json_parser.h>

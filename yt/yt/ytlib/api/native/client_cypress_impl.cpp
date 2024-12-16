@@ -654,6 +654,7 @@ private:
         options.PreserveModificationTime = true;
         options.PreserveExpirationTime = true;
         options.PreserveOwner = true;
+        options.PreserveAcl = true;
         options.Force = true;
         return options;
     }
@@ -798,7 +799,7 @@ private:
         options.PreserveExpirationTime = true;
         options.PreserveOwner = false;
         options.Force = true;
-        options.PreserveAcl = false;
+        options.PreserveAcl = true;
         return options;
     }
 

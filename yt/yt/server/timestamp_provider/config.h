@@ -2,9 +2,11 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/yt/core/bus/tcp/config.h>
+#include <yt/yt/library/server_program/config.h>
 
 #include <yt/yt/client/transaction_client/config.h>
+
+#include <yt/yt/core/bus/tcp/config.h>
 
 namespace NYT::NTimestampProvider {
 
@@ -12,6 +14,7 @@ namespace NYT::NTimestampProvider {
 
 class TTimestampProviderConfig
     : public TServerConfig
+    , public TServerProgramConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;

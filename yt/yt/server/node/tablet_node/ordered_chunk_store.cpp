@@ -5,6 +5,9 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 
@@ -264,6 +267,8 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
     });
 
     auto underlyingReader = CreateSchemafulChunkReader(
+        // NB: Mock tablets have nullptr client.
+        Tablet_->GetClient() ? Tablet_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache() : nullptr,
         chunkState,
         chunkMeta,
         std::move(backendReaders.ReaderConfig),
@@ -327,6 +332,8 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::TryCreateCacheBasedReader(
         chunkState->BlockCache);
 
     auto underlyingReader = CreateSchemafulChunkReader(
+        // NB: Mock tablets have nullptr client.
+        Tablet_->GetClient() ? Tablet_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache() : nullptr,
         chunkState,
         chunkState->ChunkMeta,
         GetReaderConfig(),

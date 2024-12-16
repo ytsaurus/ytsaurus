@@ -31,6 +31,7 @@ add_library(rpc-unittests-lib)
 
 target_compile_options(rpc-unittests-lib PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(rpc-unittests-lib PUBLIC

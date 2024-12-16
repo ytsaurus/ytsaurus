@@ -19,6 +19,7 @@ add_executable(unittester-core-ypath)
 
 target_compile_options(unittester-core-ypath PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-core-ypath PUBLIC
@@ -33,7 +34,8 @@ target_link_libraries(unittester-core-ypath PUBLIC
 )
 
 target_allocator(unittester-core-ypath
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-core-ypath PRIVATE

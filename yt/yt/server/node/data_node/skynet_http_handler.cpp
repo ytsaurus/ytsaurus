@@ -8,6 +8,9 @@
 
 #include <yt/yt/server/node/cluster_node/config.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
@@ -212,6 +215,7 @@ private:
         });
 
         auto schemalessReader = CreateSchemalessRangeChunkReader(
+            Bootstrap_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
             chunkState,
             New<TColumnarChunkMeta>(*chunkMeta),
             TChunkReaderConfig::GetDefault(),

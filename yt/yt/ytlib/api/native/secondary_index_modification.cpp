@@ -2,9 +2,7 @@
 #include "secondary_index_modification.h"
 #include "transaction.h"
 
-#include <yt/yt/ytlib/api/native/transaction.h>
-
-#include <yt/yt/ytlib/table_client/schema.h>
+#include <yt/yt/library/query/secondary_index/schema.h>
 
 #include <yt/yt/library/query/base/ast_visitors.h>
 

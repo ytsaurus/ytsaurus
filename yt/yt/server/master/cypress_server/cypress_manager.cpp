@@ -97,7 +97,6 @@
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
-#include <yt/yt/core/misc/singleton.h>
 #include <yt/yt/core/misc/sync_expiring_cache.h>
 
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
@@ -338,9 +337,13 @@ public:
         return Options_.PreserveOwner;
     }
 
-    bool ShouldPreserveAcl() const override
+    bool ShouldPreserveAcl(ENodeCloneMode cloneMode) const override
     {
-        return Options_.PreserveAcl;
+        // COMPAT(koloshmet)
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->CypressManager;
+        auto preserveAclDuringMove = cloneMode == ENodeCloneMode::Move && config->EnablePreserveAclDuringMove;
+
+        return preserveAclDuringMove || Options_.PreserveAcl;
     }
 
     TAccount* GetNewNodeAccount() const override
@@ -1078,6 +1081,7 @@ public:
         , AccessTracker_(New<TAccessTracker>(bootstrap))
         , ExpirationTracker_(New<TExpirationTracker>(bootstrap))
         , NodeMap_(TNodeMapTraits(this))
+        , TypeToHandler_(std::make_unique<TEnumIndexedArray<NObjectClient::EObjectType, INodeTypeHandlerPtr>>())
         , RecursiveResourceUsageCache_(New<TRecursiveResourceUsageCache>(
             BIND_NO_PROPAGATE(&TCypressManager::DoComputeRecursiveResourceUsage, MakeStrong(this)),
             std::nullopt,
@@ -1292,8 +1296,8 @@ public:
 
         auto type = handler->GetObjectType();
         YT_VERIFY(IsVersionedType(type));
-        YT_VERIFY(!TypeToHandler_[type]);
-        TypeToHandler_[type] = handler;
+        YT_VERIFY(!(*TypeToHandler_)[type]);
+        (*TypeToHandler_)[type] = handler;
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TNodeTypeHandler>(this, handler));
@@ -1307,7 +1311,7 @@ public:
             return NullTypeHandler;
         }
 
-        return TypeToHandler_[type];
+        return (*TypeToHandler_)[type];
     }
 
     const INodeTypeHandlerPtr& GetHandler(EObjectType type) override
@@ -2731,7 +2735,7 @@ private:
     using TNameToAccessControlObjectNamespace = THashMap<TString, TAccessControlObjectNamespace*>;
     TNameToAccessControlObjectNamespace NameToAccessControlObjectNamespaceMap_;
 
-    TEnumIndexedArray<NObjectClient::EObjectType, INodeTypeHandlerPtr> TypeToHandler_;
+    std::unique_ptr<TEnumIndexedArray<NObjectClient::EObjectType, INodeTypeHandlerPtr>> TypeToHandler_;
 
     TNodeId RootNodeId_;
     TCypressMapNode* RootNode_ = nullptr;

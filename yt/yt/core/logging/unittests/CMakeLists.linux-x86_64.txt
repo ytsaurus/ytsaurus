@@ -19,6 +19,7 @@ add_executable(unittester-core-logging)
 
 target_compile_options(unittester-core-logging PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-core-logging PUBLIC
@@ -34,7 +35,8 @@ target_link_libraries(unittester-core-logging PUBLIC
 )
 
 target_allocator(unittester-core-logging
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-core-logging PRIVATE

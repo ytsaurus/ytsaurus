@@ -1555,6 +1555,10 @@ private:
             readRows,
             readDataWeight);
 
+        auto counters = tabletSnapshot->TableProfiler->GetFetchTableRowsCounters(GetProfilingUser(NRpc::GetCurrentAuthenticationIdentity()));
+        counters->DataWeight.Increment(readDataWeight);
+        counters->RowCount.Increment(readRows);
+
         return {
             .RowCount = readRows,
             .DataWeight = readDataWeight,

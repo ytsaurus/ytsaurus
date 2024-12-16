@@ -1,0 +1,14 @@
+#pragma once
+
+#include "public.h"
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ConfigureNativeSingletons(const TNativeSingletonsConfigPtr& config);
+void ReconfigureNativeSingletons(const TNativeSingletonsDynamicConfigPtr& dynamicConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT

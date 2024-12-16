@@ -11,6 +11,9 @@
 #include <yt/yt/server/node/tablet_node/sorted_dynamic_comparer.h>
 #include <yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h>
 
@@ -126,7 +129,7 @@ public:
         NProfiling::TWallTimer metaWaitTimer;
         const auto& chunkMetaManager = Bootstrap_->GetVersionedChunkMetaManager();
 
-        auto metaFuture = chunkMetaManager->GetMeta(UnderlyingChunkReader_, TableSchema_, Options_);
+        auto metaFuture = chunkMetaManager->GetMeta(UnderlyingChunkReader_, TableSchema_, Options_, /*metaSize*/ {});
         if (metaFuture.IsSet()) {
             const auto& metaOrError = metaFuture.Get();
             return metaOrError.IsOK()
@@ -274,6 +277,7 @@ private:
             }
         } else {
             reader = CreateVersionedChunkReader(
+                Bootstrap_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
                 TChunkReaderConfig::GetDefault(),
                 UnderlyingChunkReader_,
                 chunkState,

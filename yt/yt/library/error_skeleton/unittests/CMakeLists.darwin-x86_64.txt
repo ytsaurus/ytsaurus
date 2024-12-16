@@ -17,6 +17,7 @@ add_executable(unittester-library-error-skeleton)
 
 target_compile_options(unittester-library-error-skeleton PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-library-error-skeleton PUBLIC
@@ -30,7 +31,7 @@ target_link_libraries(unittester-library-error-skeleton PUBLIC
 )
 
 target_allocator(unittester-library-error-skeleton
-  cpp-ytalloc-impl
+  system_allocator
 )
 
 target_link_options(unittester-library-error-skeleton PRIVATE

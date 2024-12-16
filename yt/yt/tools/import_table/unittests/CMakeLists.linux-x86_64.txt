@@ -19,6 +19,7 @@ add_executable(yt-yt-tools-import_table-unittests)
 
 target_compile_options(yt-yt-tools-import_table-unittests PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-yt-tools-import_table-unittests PUBLIC
@@ -38,7 +39,8 @@ target_link_libraries(yt-yt-tools-import_table-unittests PUBLIC
 )
 
 target_allocator(yt-yt-tools-import_table-unittests
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(yt-yt-tools-import_table-unittests PRIVATE

@@ -614,7 +614,7 @@ TFuture<TRefCountedChunkMetaPtr> GetPlacementMeta(
     const TClientChunkReadOptions& options)
 {
     return reader->GetMeta(
-        options,
+        IChunkReader::TGetMetaOptions{ .ClientOptions = options },
         /*partitionTag*/ std::nullopt,
         std::vector<int>{ TProtoExtensionTag<NProto::TErasurePlacementExt>::Value });
 }

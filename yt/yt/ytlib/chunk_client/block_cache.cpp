@@ -2,11 +2,30 @@
 
 #include <yt/yt/core/actions/future.h>
 
-#include <yt/yt/core/misc/singleton.h>
+#include <library/cpp/yt/memory/leaky_ref_counted_singleton.h>
+
+#include <util/digest/multi.h>
 
 namespace NYT::NChunkClient {
 
 using namespace NNodeTrackerClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TBlockInfo::operator < (const TBlockInfo& other) const
+{
+    return std::tie(BlockIndex, BlockSize) < std::tie(other.BlockIndex, BlockSize);
+}
+
+TBlockInfo::operator size_t() const
+{
+    return MultiHash(BlockIndex, BlockSize);
+}
+
+bool TBlockInfo::operator == (const TBlockInfo& other) const
+{
+    return BlockIndex == other.BlockIndex && BlockSize == other.BlockSize;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,6 +127,14 @@ public:
     EBlockType GetSupportedBlockTypes() const override
     {
         return EBlockType::None;
+    }
+
+    void RemoveChunkBlocks(const TChunkId& /*chunkId*/) override
+    { }
+
+    THashSet<TBlockInfo> GetCachedBlocksByChunkId(TChunkId /*chunkId*/, EBlockType /*type*/) override
+    {
+        return {};
     }
 
     bool IsBlockTypeActive(EBlockType /*blockType*/) const override

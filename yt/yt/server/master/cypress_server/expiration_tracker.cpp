@@ -339,8 +339,10 @@ void TExpirationTracker::OnCheck()
                     break;
                 }
 
-                InsertOrCrash(shard.ExpiredNodes, trunkNode);
-                trunkNodesToRemove.push_back(trunkNode);
+                if (IsObjectAlive(trunkNode)) {
+                    InsertOrCrash(shard.ExpiredNodes, trunkNode);
+                    trunkNodesToRemove.push_back(trunkNode);
+                }
             }
 
             if (trunkNode->GetExpirationTimeIterator() && *trunkNode->GetExpirationTimeIterator() == it) {

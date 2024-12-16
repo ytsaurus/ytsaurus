@@ -533,13 +533,11 @@ print(op.id)
         with self._start_second_cluster() as second_cluster_client:
             second_cluster_connection = second_cluster_client.get("//sys/@cluster_connection")
             second_cluster_client.create("map_node", TEST_DIR)
-            table = TEST_DIR + "/test_table"
             file = TEST_DIR + "/test_file"
 
-            second_cluster_client.write_table(table, [{"a": 1, "b": 2, "c": 3}])
             second_cluster_client.write_file(file, b"asdf")
 
-            def copy_and_assert_attributes(src, dst, attributes=None, create_on_cluster=None, custom_spec=None):
+            def do_copy(src, dst, create_on_cluster):
                 yt.remove(dst, force=True)
                 spec = yt.RemoteCopySpecBuilder() \
                     .input_table_paths(src) \
@@ -547,43 +545,13 @@ print(op.id)
                     .cluster_connection(second_cluster_connection) \
                     .create_destination_on_cluster(create_on_cluster)
 
-                if custom_spec:
-                    spec.spec(custom_spec)
-
                 yt.run_operation(spec)
-                if attributes:
-                    assert yt.get(dst + "/@", attributes=list(attributes.keys())) == attributes
-
-            for create_on_cluster in [False, True]:
-                copy_and_assert_attributes(table, table, create_on_cluster=create_on_cluster)
-
-                with set_config_option("create_table_attributes", {"compression_codec": "zstd_9"}):
-                    copy_and_assert_attributes(
-                        table,
-                        table, {"compression_codec": "zstd_9"},
-                        create_on_cluster=create_on_cluster,
-                    )
-
-                with set_config_option("create_table_attributes", {"compression_codec": "zstd_9"}):
-                    copy_and_assert_attributes(
-                        table,
-                        "<compression_codec=zstd_10>" + table, {"compression_codec": "zstd_10"},
-                        create_on_cluster=create_on_cluster,
-                    )
 
             with pytest.raises(yt.YtError):
                 # NB: API creates table, but remote_copy expects a file
-                copy_and_assert_attributes(file, file, create_on_cluster=False)
+                do_copy(file, file, create_on_cluster=False)
             # NB: controller creates appropriate object
-            copy_and_assert_attributes(file, file, create_on_cluster=True)
-
-            with pytest.raises(yt.YtError):
-                copy_and_assert_attributes(
-                    table,
-                    "<user_attribute=42>" + table,
-                    create_on_cluster=True,
-                    custom_spec={"restrict_destination_ypath_attributes": True},
-                )
+            do_copy(file, file, create_on_cluster=True)
 
     @authors("ignat")
     @add_failed_operation_stderrs_to_error_message

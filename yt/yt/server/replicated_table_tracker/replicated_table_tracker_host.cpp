@@ -283,7 +283,8 @@ void TReplicatedTableTrackerHost::RequestStateUpdates()
         updateActionCount += responseOrError.Value()->update_actions_size();
     }
 
-    if (!loadFromSnapshot && snapshotCount != 0 && snapshotCount < std::ssize(futures)) {
+    auto cellCount = std::ssize(secondaryCellTags) + 1;
+    if (!loadFromSnapshot && snapshotCount != 0 && snapshotCount < cellCount) {
         RequestLoadingFromSnapshot();
         THROW_ERROR_EXCEPTION("%v responses unexpectedly contain snapshot; will load from snapshot",
             snapshotCount);

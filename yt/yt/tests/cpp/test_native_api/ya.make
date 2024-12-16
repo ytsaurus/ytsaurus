@@ -2,8 +2,6 @@ GTEST(cpp-integration-test-native-api)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
-ALLOCATOR(YT)
-
 SRCS(
     test_native_api.cpp
 )

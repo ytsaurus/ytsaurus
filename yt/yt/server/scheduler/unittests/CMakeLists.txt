@@ -19,6 +19,7 @@ add_executable(unittester-scheduler)
 
 target_compile_options(unittester-scheduler PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-scheduler PUBLIC
@@ -53,6 +54,7 @@ target_sources(unittester-scheduler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/fair_share_strategy_operation_controller_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/fair_share_tree_element_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/fair_share_tree_allocation_scheduler_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/gpu_allocation_scheduler_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/job_metrics_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/scheduler_helpers_ut.cpp
 )

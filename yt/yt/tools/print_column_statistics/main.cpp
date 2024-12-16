@@ -48,7 +48,7 @@ int main(int argc, char** argv)
             NullChunkId,
             fileName);
 
-        auto chunkMeta = reader->GetMeta(/* chunkReadOptions */ {})
+        auto chunkMeta = reader->GetMeta(/*options*/ {})
             .Get()
             .ValueOrThrow();
 

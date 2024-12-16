@@ -397,7 +397,7 @@ public:
                         coreInfo.size());
                 }
                 if (UserJobSpec_.fail_job_on_core_dump()) {
-                    innerErrors.push_back(TError(EErrorCode::UserJobProducedCoreFiles, "User job produced core files")
+                    innerErrors.push_back(TError(NJobProxy::EErrorCode::UserJobProducedCoreFiles, "User job produced core files")
                         << TErrorAttribute("core_infos", coreResult.CoreInfos));
                 }
             }
@@ -431,7 +431,7 @@ public:
 
         auto jobError = innerErrors.empty()
             ? TError()
-            : TError(EErrorCode::UserJobFailed, "User job failed") << std::move(innerErrors);
+            : TError(NJobProxy::EErrorCode::UserJobFailed, "User job failed") << std::move(innerErrors);
 
         ToProto(result.mutable_error(), jobError);
         // TODO(arkady-e1ppa): Consider leaving the field empty if exit code is not set.
@@ -1050,7 +1050,7 @@ private:
     void ValidatePrepared()
     {
         if (!Prepared_) {
-            THROW_ERROR_EXCEPTION(EErrorCode::JobNotPrepared, "Cannot operate on job: job has not been prepared yet");
+            THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::JobNotPrepared, "Cannot operate on job: job has not been prepared yet");
         }
     }
 

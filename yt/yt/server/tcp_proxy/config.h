@@ -8,6 +8,8 @@
 
 #include <yt/yt/library/dynamic_config/public.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 namespace NYT::NTcpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,6 +33,7 @@ DEFINE_REFCOUNTED_TYPE(TRouterConfig)
 
 class TTcpProxyConfig
     : public TNativeServerConfig
+    , public TServerProgramConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;

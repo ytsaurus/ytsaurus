@@ -19,6 +19,7 @@ add_executable(unittester-core-bus)
 
 target_compile_options(unittester-core-bus PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-core-bus PUBLIC
@@ -34,7 +35,8 @@ target_link_libraries(unittester-core-bus PUBLIC
 )
 
 target_allocator(unittester-core-bus
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-core-bus PRIVATE

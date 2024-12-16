@@ -30,6 +30,7 @@ PEERDIR(
     library/cpp/getopt
 
     yt/yt/library/dynamic_config
+    yt/yt/library/server_program
 
     yt/yt/ytlib
 

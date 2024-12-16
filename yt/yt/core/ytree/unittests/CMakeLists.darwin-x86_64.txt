@@ -38,6 +38,7 @@ add_executable(unittester-core-ytree)
 
 target_compile_options(unittester-core-ytree PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-core-ytree PUBLIC
@@ -53,7 +54,7 @@ target_link_libraries(unittester-core-ytree PUBLIC
 )
 
 target_allocator(unittester-core-ytree
-  cpp-ytalloc-impl
+  system_allocator
 )
 
 target_link_options(unittester-core-ytree PRIVATE

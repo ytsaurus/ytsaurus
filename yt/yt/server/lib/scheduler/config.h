@@ -33,6 +33,8 @@
 
 #include <yt/yt/library/program/public.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -200,6 +202,42 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategySchedulingSegmentsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TGpuAllocationSchedulerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TDuration InitializationTimeout;
+
+    TDuration ModuleReconsiderationTimeout;
+
+    TDuration PreemptForLargeOperationTimeout;
+
+    THashSet<TString> DataCenters;
+
+    THashSet<TString> InfinibandClusters;
+
+    ESchedulingSegmentModuleAssignmentHeuristic ModuleAssignmentHeuristic;
+
+    ESchedulingSegmentModulePreemptionHeuristic ModulePreemptionHeuristic;
+
+    // TODO(omgronny): Refactor modules config.
+    ESchedulingSegmentModuleType ModuleType;
+
+    bool EnableDetailedLogs;
+
+    TDuration PriorityModuleAssignmentTimeout;
+
+    const THashSet<TString>& GetModules() const;
+
+    REGISTER_YSON_STRUCT(TGpuAllocationSchedulerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGpuAllocationSchedulerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -394,8 +432,6 @@ public:
 
     bool UseUserDefaultParentPoolMap;
 
-    bool EnableResourceUsageSnapshot;
-
     int MaxEventLogPoolBatchSize;
     int MaxEventLogOperationBatchSize;
 
@@ -527,8 +563,6 @@ public:
 
     //! Template pool tree configs.
     THashMap<TString, TPoolTreesTemplateConfigPtr> TemplatePoolTreeConfigMap;
-
-    bool EnablePoolTreesConfigCache;
 
     TDuration SchedulerTreeAlertsUpdatePeriod;
 
@@ -756,16 +790,8 @@ class TResourceMeteringConfig
     : public NYTree::TYsonStruct
 {
 public:
-    //! Enables new format for abc_id.
-    //! It enables writing abc_id as integer and disable writing could_id and folder_id.
-    bool EnableNewAbcFormat;
-
     //! Default ABC id for use in resource metering
     int DefaultAbcId;
-
-    //! Default id for all metering records.
-    TString DefaultCloudId;
-    TString DefaultFolderId;
 
     //! Enable separate schemas for guarantees and allocations.
     bool EnableSeparateSchemaForAllocation;
@@ -818,10 +844,6 @@ public:
     TDuration NodesInfoLoggingPeriod;
 
     TDuration ExecNodeDescriptorsUpdatePeriod;
-
-    bool AlwaysSendControllerAgentDescriptors;
-
-    bool SendFullControllerAgentDescriptorsForAllocations;
 
     //! Allocations running on node are logged periodically or when they change their state.
     TDuration AllocationsLoggingPeriod;
@@ -962,8 +984,6 @@ public:
     //! Minimum amount of resources to continue schedule allocation attempts.
     std::optional<TJobResourcesConfigPtr> MinSpareAllocationResourcesOnNode;
 
-    bool SendPreemptionReasonInNodeHeartbeat;
-
     bool ConsiderDiskQuotaInPreemptiveSchedulingDiscount;
 
     //! Duration of ScheduleAllocation call to log this result.
@@ -981,8 +1001,6 @@ public:
     TDuration ScheduleAllocationEntryCheckPeriod;
 
     NRpc::TResponseKeeperConfigPtr OperationServiceResponseKeeper;
-
-    bool WaitForAgentHeartbeatDuringOperationUnregistrationAtController;
 
     bool CrashOnAllocationHeartbeatProcessingException;
 
@@ -1005,9 +1023,9 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerConfig)
 
 class TSchedulerBootstrapConfig
     : public TNativeServerConfig
+    , public TServerProgramConfig
 {
 public:
-
     NScheduler::TSchedulerConfigPtr Scheduler;
 
     //! Known scheduler addresses.

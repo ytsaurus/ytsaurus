@@ -2518,9 +2518,9 @@ def get_recursive_disk_space(path):
     return disk_space.get("default", 0)
 
 
-def get_account_disk_space(account):
+def get_account_disk_space(account, medium="default"):
     disk_space = get("//sys/accounts/{0}/@resource_usage/disk_space_per_medium".format(account))
-    return disk_space.get("default", 0)
+    return disk_space.get(medium, 0)
 
 
 def get_account_committed_disk_space(account):

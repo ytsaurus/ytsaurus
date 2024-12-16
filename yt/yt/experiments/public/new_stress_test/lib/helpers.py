@@ -126,45 +126,50 @@ def sync_switch_bundle_options(tablet_cell_bundle, account, acl):
 
     wait(_check_cells_are_healthy)
 
-def sync_compact_table(path):
+def sync_compact_table(path, compaction_path, get_chunks, get_remaining_chunks):
     logger.info("Compacting table %s", path)
-    chunks = set(yt.get(path + "/@chunk_ids"))
-    yt.set(path + "/@forced_compaction_revision", 1)
+    chunks = get_chunks(path)
+    yt.set(path + "/@" + compaction_path, 1)
     yt.remount_table(path)
     iter = 0
     while True:
-        new_chunks = set(yt.get(path + "/@chunk_ids"))
-        intersection = chunks.intersection(new_chunks)
-        if not intersection:
+        new_chunks = get_chunks(path)
+        remaining_chunks = get_remaining_chunks(chunks, new_chunks)
+        if not remaining_chunks:
             return
         sleep(0.5)
         iter += 1
         if iter % 10 == 0:
             logger.info("Still compacting table %s, iter = %s, %s of %s chunks remaining",
-                path, iter, len(intersection), len(chunks))
-            if iter >= 100 and len(intersection) < 5:
-                logger.info("Chunks yet to compact: %s", ", ".join(intersection))
+                path, iter, len(remaining_chunks), len(chunks))
+            if iter >= 100 and len(remaining_chunks) < 5:
+                logger.info("Chunks yet to compact: %s", ", ".join(remaining_chunks))
 
-def compact_chunk_views(path):
+def get_chunk_views(path):
     root_chunk_list_id = yt.get(path + "/@chunk_list_id")
     root_tree = yt.get("#{}/@tree".format(root_chunk_list_id))
 
-    def _has_chunk_view(tree):
+    chunk_views = set()
+
+    def _find_chunk_views(tree):
         type = tree.attributes.get("type")
         if type == "chunk_list":
             for child in tree:
-                if _has_chunk_view(child):
-                    return True
-            return False
+                _find_chunk_views(child)
         elif type == "chunk_view":
-            return True
-        elif type == "dynamic_store":
-            return False
-        return False
+            chunk_views.add(tree.attributes.get("id"))
 
-    if _has_chunk_view(root_tree):
+    _find_chunk_views(root_tree)
+    return chunk_views
+
+def compact_chunk_views(path):
+    if get_chunk_views(path):
         logger.info("Table %s contains chunk views, will compact", path)
-        sync_compact_table(path)
+        sync_compact_table(
+            path,
+            compaction_path="forced_chunk_view_compaction_revision",
+            get_chunks=lambda table_path: get_chunk_views(table_path),
+            get_remaining_chunks=lambda _, after: after)
 
 def remove_existing(paths, force):
     for path in paths:

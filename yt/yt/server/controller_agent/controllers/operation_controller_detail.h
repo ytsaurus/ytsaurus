@@ -46,7 +46,7 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
-#include <library/cpp/yt/misc/non_null_ptr.h>
+#include <library/cpp/yt/memory/non_null_ptr.h>
 
 #include <optional>
 
@@ -478,7 +478,7 @@ public:
     void InitializeJobExperiment();
     TJobExperimentBasePtr GetJobExperiment() override;
 
-    TJobId GenerateJobId(NScheduler::TAllocationId allocationId, TJobId previousJobId) override;
+    std::expected<TJobId, EScheduleFailReason> GenerateJobId(NScheduler::TAllocationId allocationId, TJobId previousJobId) override;
 
     TJobletPtr CreateJoblet(
         TTask* task,
@@ -564,7 +564,7 @@ protected:
     int UnavailableIntermediateChunkCount = 0;
 
     // NB: Transaction objects are ephemeral and should not be saved to snapshot.
-    TInputTransactionsManagerPtr InputTransactions;
+    TInputTransactionManagerPtr InputTransactions;
     NApi::ITransactionPtr AsyncTransaction;
     NApi::ITransactionPtr OutputTransaction;
     NApi::ITransactionPtr DebugTransaction;

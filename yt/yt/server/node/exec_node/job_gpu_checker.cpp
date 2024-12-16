@@ -67,7 +67,7 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
                 "Path to %lv GPU check binary is not a file",
                 Context_.GpuCheckType);
 
-            THROW_ERROR_EXCEPTION(EErrorCode::GpuCheckCommandIncorrect, "Path to GPU check binary is not a file")
+            THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::GpuCheckCommandIncorrect, "Path to GPU check binary is not a file")
                 << TErrorAttribute("path", Context_.GpuCheckBinaryPath)
                 << testFileResultOrError;
         }

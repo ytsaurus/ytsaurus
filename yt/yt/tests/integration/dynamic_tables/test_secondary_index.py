@@ -110,8 +110,10 @@ UNIQUE_KEY_VALUE_PAIR_INDEX_SCHEMA = [
 class TestSecondaryIndexBase(DynamicTablesBase):
     NUM_SECONDARY_MASTER_CELLS = 2
 
-    def _mount(self, *tables, cell_count=1):
+    def _sync_create_cells(self, cell_count=1):
         sync_create_cells(cell_count)
+
+    def _mount(self, *tables):
         for table in tables:
             sync_mount_table(table)
 
@@ -151,6 +153,7 @@ class TestSecondaryIndexBase(DynamicTablesBase):
         index_id, _ = self._create_secondary_index(table_path, index_table_path, kind, **kwargs)
 
         if mount:
+            self._sync_create_cells()
             self._mount(table_path, index_table_path)
 
         return table_id, index_table_id, index_id, None
@@ -167,10 +170,11 @@ class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
         super(TestSecondaryIndexReplicatedBase, self).setup_method(method)
         self.REPLICA_DRIVER = get_driver(cluster=self.REPLICA_CLUSTER_NAME)
 
-    def _mount(self, *tables, cell_count=1):
+    def _sync_create_cells(self, cell_count=1):
         sync_create_cells(cell_count)
         sync_create_cells(cell_count, driver=self.REPLICA_DRIVER)
 
+    def _mount(self, *tables):
         for table in tables:
             sync_mount_table(table)
             sync_mount_table(table + "_replica", driver=self.REPLICA_DRIVER)
@@ -236,6 +240,7 @@ class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
         index_id, collocation_id = self._create_secondary_index(table_path, index_table_path, kind, **kwargs)
 
         if mount:
+            self._sync_create_cells()
             self._mount(table_path, index_table_path)
 
         return table_id, index_table_id, index_id, collocation_id
@@ -319,6 +324,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         self._create_table("//tmp/table", PRIMARY_SCHEMA)
         self._create_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA)
 
+        self._sync_create_cells()
         self._mount("//tmp/table")
         with raises_yt_error("Cannot create index on a mounted table"):
             self._create_secondary_index()
@@ -414,6 +420,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
     def test_simple(self):
         self._create_table("//tmp/table", PRIMARY_SCHEMA)
         self._create_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA)
+        self._sync_create_cells()
         self._mount("//tmp/table", "//tmp/index_table")
 
         table_rows = [
@@ -436,6 +443,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
     def test_with_alias(self):
         self._create_table("//tmp/table", PRIMARY_SCHEMA)
         self._create_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA)
+        self._sync_create_cells()
         self._mount("//tmp/table", "//tmp/index_table")
 
         table_rows = [{"keyA": 0, "keyB": "alpha", "valueA": 100, "valueB": False}]
@@ -456,74 +464,74 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
     def test_join_on_all_shared_columns(self):
         self._create_table("//tmp/table", PRIMARY_SCHEMA)
         self._create_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA)
+        self._sync_create_cells()
         self._mount("//tmp/table", "//tmp/index_table")
 
         table_rows = [{"keyA": 0, "keyB": "alpha", "valueA": 100}]
         insert_rows("//tmp/table", table_rows)
         insert_rows("//tmp/index_table", table_rows + [{"keyA": 0, "keyB": "alpha", "valueA": 200}])
 
-        expected = list(select_rows("keyA, keyB, valueA from [//tmp/table]"))
-        actual = list(select_rows("keyA, keyB, valueA from [//tmp/table] with index [//tmp/index_table]"))
+        expected = select_rows("keyA, keyB, valueA from [//tmp/table]")
+        actual = select_rows("keyA, keyB, valueA from [//tmp/table] with index [//tmp/index_table]")
         assert actual == expected
 
-        if not issubclass(self.__class__, TestSecondaryIndexSelect):
-            # TODO(sabdenovch): explain query does not support replicated tables ATM.
-            plan = explain_query("keyA, keyB, valueA from [//tmp/table] with index [//tmp/index_table] where valueA = 100")
-            assert plan["query"]["constraints"] == "Constraints:\n100: <universe>"
+        plan = explain_query("keyA, keyB, valueA from [//tmp/table] with index [//tmp/index_table] where valueA = 100")
+        assert plan["query"]["constraints"] == "Constraints:\n100: <universe>"
 
     @authors("sabdenovch")
     def test_unfolding(self):
-        self._create_table("//tmp/table", PRIMARY_SCHEMA_WITH_LIST)
-        self._create_table("//tmp/index_table", UNFOLDING_INDEX_SCHEMA)
-        self._mount("//tmp/table", "//tmp/index_table")
+        self._create_basic_tables(
+            table_schema=PRIMARY_SCHEMA_WITH_LIST,
+            index_schema=UNFOLDING_INDEX_SCHEMA,
+            kind="unfolding",
+            mount=True,
+            attributes={
+                "unfolded_column": "value"
+            },
+        )
 
         insert_rows("//tmp/table", [
             {"key": 0, "value": [14, 13, 12]},
             {"key": 1, "value": [11, 12]},
             {"key": 2, "value": [13, 11]},
-            {"key": 3, "value": None},
-        ])
-        insert_rows("//tmp/index_table", [
-            {"value": 1, "key": 1},
-            {"value": 1, "key": 2},
-            {"value": 2, "key": 0},
-            {"value": 2, "key": 1},
-            {"value": 3, "key": 0},
-            {"value": 3, "key": 2},
-            {"value": 4, "key": 0},
+            {"key": 3, "value": [None, 12]},
+            {"key": 4, "value": None},
         ])
 
-        self._unmount("//tmp/table", "//tmp/index_table")
-        self._create_secondary_index("//tmp/table", "//tmp/index_table", kind="unfolding", attributes={
-            "unfolded_column": "value"
-        })
-        self._mount("//tmp/table", "//tmp/index_table", cell_count=0)
+        query = """
+            key, value from [//tmp/table] with index [//tmp/index_table]
+            where list_contains(value, 12)
+        """
+        rows = select_rows(query)
+        expected = select_rows("key, value from [//tmp/table] where list_contains(value, 12)")
+        assert_items_equal(sorted_dicts(rows), sorted_dicts(expected))
+        assert explain_query(query)["query"]["constraints"] != "Constraints: <universe>"
 
-        expected_table_rows = [
-            {"key": 0, "value": [14, 13, 12]},
-            {"key": 1, "value": [11, 12]},
-        ]
-        rows = select_rows("key, value "
-                           "from [//tmp/table] with index [//tmp/index_table] "
-                           "where list_contains(value, 2)")
-        assert_items_equal(sorted_dicts(rows), sorted_dicts(expected_table_rows))
+        query = """
+            key, first(to_any(value)) as value from [//tmp/table] with index [//tmp/index_table]
+            where list_contains(value, 12) or list_contains(value, 13)
+            group by key
+        """
+        rows = select_rows(query)
+        expected = select_rows("""
+            key, value from [//tmp/table]
+            where list_contains(value, 12) or list_contains(value, 13)
+        """)
+        assert_items_equal(sorted_dicts(rows), sorted_dicts(expected))
+        assert explain_query(query)["query"]["constraints"] != "Constraints: <universe>"
 
-        expected_table_rows = [
-            {"key": 0, "value": [14, 13, 12]},
-            {"key": 1, "value": [11, 12]},
-            {"key": 2, "value": [13, 11]},
-        ]
-        rows = select_rows("key, first(to_any(value)) as value "
-                           "from [//tmp/table] with index [//tmp/index_table] "
-                           "where list_contains(value, 2) or list_contains(value, 3) "
-                           "group by key")
-        assert_items_equal(sorted_dicts(rows), sorted_dicts(expected_table_rows))
-
-        rows = select_rows("key, first(to_any(value)) as value "
-                           "from [//tmp/table] with index [//tmp/index_table] "
-                           "where value in (1, 4) "
-                           "group by key")
-        assert_items_equal(sorted_dicts(rows), sorted_dicts(expected_table_rows))
+        query = """
+            key, first(to_any(value)) as value from [//tmp/table] with index [//tmp/index_table]
+            where value in (#, 11, 14)
+            group by key
+        """
+        rows = select_rows(query)
+        expected = select_rows("""
+            key, value from [//tmp/table]
+            where list_contains(value, 11) or list_contains(value, 14) or list_contains(value, #)
+        """)
+        assert_items_equal(sorted_dicts(rows), sorted_dicts(expected))
+        assert explain_query(query)["query"]["constraints"] != "Constraints: <universe>"
 
     @authors("sabdenovch")
     @pytest.mark.parametrize("table_schema", (PRIMARY_SCHEMA, PRIMARY_SCHEMA_WITH_EXPRESSION))
@@ -531,6 +539,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
     def test_secondary_index_different_evaluated_columns(self, table_schema, index_table_schema):
         self._create_table("//tmp/table", table_schema)
         self._create_table("//tmp/index_table", index_table_schema)
+        self._sync_create_cells()
         self._mount("//tmp/table", "//tmp/index_table")
 
         table_rows = [{"keyA": 1, "keyB": "alpha"}]
@@ -665,6 +674,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
 
         create_secondary_index("//tmp/table", "//tmp/index_table_auxiliary", kind="full_sync")
 
+        self._sync_create_cells(1)
         self._mount("//tmp/table", "//tmp/index_table", "//tmp/index_table_auxiliary")
 
         N = 8
@@ -1019,6 +1029,7 @@ class TestSecondaryIndexReplicatedSelect(TestSecondaryIndexReplicatedBase, TestS
                 "max_sync_replica_count": 2,
             },
         )
+        self._sync_create_cells(1)
         self._mount(table_path, index_table_path)
 
         replica_id = create_table_replica(

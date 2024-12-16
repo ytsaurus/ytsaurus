@@ -1171,7 +1171,7 @@ TEST_F(TFairShareUpdateTest, TestNestedPromisedGuaranteeFairSharePools)
 
     auto checkErrors = [&] (const auto& errors) {
         for (const auto& error : errors) {
-            if (error.FindMatching(EErrorCode::NestedPromisedGuaranteeFairSharePools)) {
+            if (error.FindMatching(NVectorHdrf::EErrorCode::NestedPromisedGuaranteeFairSharePools)) {
                 return true;
             }
         }

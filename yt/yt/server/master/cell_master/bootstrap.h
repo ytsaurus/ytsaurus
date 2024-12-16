@@ -125,6 +125,7 @@ public:
     const NNodeTrackerServer::IExecNodeTrackerPtr& GetExecNodeTracker() const;
     const NCellServer::ICellarNodeTrackerPtr& GetCellarNodeTracker() const;
     const NTabletServer::ITabletNodeTrackerPtr& GetTabletNodeTracker() const;
+    const NNodeTrackerServer::INodeTrackerCachePtr& GetNodeTrackerCache() const;
     const NTransactionServer::ITransactionManagerPtr& GetTransactionManager() const;
     const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const;
     const NTransactionSupervisor::ITransactionLeaseTrackerThreadPoolPtr& GetTransactionLeaseTrackerThreadPool() const;
@@ -135,8 +136,8 @@ public:
     const NCypressServer::IGraftingManagerPtr& GetGraftingManager() const;
     const IHydraFacadePtr& GetHydraFacade() const;
     const IEpochHistoryManagerPtr& GetEpochHistoryManager() const;
-    const IPersistentStateTransientCachePtr& GetPersistentStateTransientCache() const;
     const IWorldInitializerPtr& GetWorldInitializer() const;
+    const IWorldInitializerCachePtr& GetWorldInitializerCache() const;
     const NObjectServer::IObjectManagerPtr& GetObjectManager() const;
     const NObjectServer::IObjectServicePtr& GetObjectService() const;
     const NObjectServer::IYsonInternRegistryPtr& GetYsonInternRegistry() const;
@@ -216,6 +217,7 @@ protected:
     NNodeTrackerServer::IExecNodeTrackerPtr ExecNodeTracker_;
     NCellServer::ICellarNodeTrackerPtr CellarNodeTracker_;
     NTabletServer::ITabletNodeTrackerPtr TabletNodeTracker_;
+    NNodeTrackerServer::INodeTrackerCachePtr NodeTrackerCache_;
     NTransactionServer::ITransactionManagerPtr TransactionManager_;
     NTimestampServer::TTimestampManagerPtr TimestampManager_;
     NTransactionClient::ITimestampProviderPtr TimestampProvider_;
@@ -228,8 +230,8 @@ protected:
     NCypressServer::ISequoiaActionsExecutorPtr SequoiaActionsExecutor_;
     IHydraFacadePtr HydraFacade_;
     IEpochHistoryManagerPtr EpochHistoryManager_;
-    IPersistentStateTransientCachePtr PersistentStateTransientCache_;
     IWorldInitializerPtr WorldInitializer_;
+    IWorldInitializerCachePtr WorldInitializerCache_;
     IResponseKeeperManagerPtr ResponseKeeperManager_;
     NObjectServer::IObjectManagerPtr ObjectManager_;
     NObjectServer::IObjectServicePtr ObjectService_;

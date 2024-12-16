@@ -1,9 +1,10 @@
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
+from .test_ordered_dynamic_tables import TestOrderedDynamicTablesBase
 
 from yt_commands import (
     authors, print_debug, wait, create, get, set, create_user,
     create_tablet_cell_bundle, remove_tablet_cell,
-    insert_rows, select_rows, lookup_rows, sync_create_cells,
+    insert_rows, select_rows, lookup_rows, sync_create_cells, pull_queue,
     sync_mount_table, sync_flush_table, generate_uuid, sync_reshard_table)
 
 from yt_helpers import profiler_factory
@@ -365,3 +366,39 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
                      hunk_count=0,
                      total_hunk_length=0,
                      hunk_chunk_count=0)
+
+
+class TestOrderedDynamicTablesProfiling(TestOrderedDynamicTablesBase):
+    DELTA_NODE_CONFIG = {"cluster_connection": {"timestamp_provider": {"update_period": 100}}}
+
+    @authors("nadya73")
+    def test_queue_profiling(self):
+        sync_create_cells(1)
+
+        table_path = "//tmp/{}".format(generate_uuid())
+        self._create_simple_table(table_path, dynamic_store_auto_flush_period=None)
+        sync_mount_table(table_path)
+
+        table_profiling = self._get_table_profiling(table_path)
+
+        assert table_profiling.get_counter("fetch_table_rows/row_count") == 0
+        assert table_profiling.get_counter("fetch_table_rows/data_weight") == 0
+
+        assert table_profiling.get_counter("write/row_count") == 0
+        assert table_profiling.get_counter("write/data_weight") == 0
+
+        rows = [{"a": 1}, {"a": 2}]
+        insert_rows(table_path, rows)
+
+        wait(
+            lambda: table_profiling.get_counter("write/row_count") == 2
+        )
+        assert table_profiling.get_counter("write/data_weight") == 18
+
+        read_rows = pull_queue(table_path, offset=0, partition_index=0)
+        assert len(read_rows) == 2
+
+        wait(
+            lambda: table_profiling.get_counter("fetch_table_rows/row_count") == 2
+        )
+        assert table_profiling.get_counter("fetch_table_rows/data_weight") == 50

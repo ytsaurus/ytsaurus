@@ -475,8 +475,7 @@ public:
 
         auto operation = FindOperation(idOrAlias);
         if (!operation) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::NoSuchOperation,
+            THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::NoSuchOperation,
                 "No such operation %v",
                 idOrAlias);
         }
@@ -639,8 +638,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (static_cast<int>(IdToOperation_.size()) >= Config_->MaxOperationCount) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::TooManyOperations,
+            THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::TooManyOperations,
                 "Limit for the total number of concurrent operations %v has been reached",
                 Config_->MaxOperationCount);
         }
@@ -790,8 +788,7 @@ public:
             .ThrowOnError();
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
-            return MakeFuture(TError(
-                EErrorCode::InvalidOperationState,
+            return MakeFuture(TError(NScheduler::EErrorCode::InvalidOperationState,
                 "Cannot suspend operation in %Qlv state",
                 operation->GetState()));
         }
@@ -821,8 +818,7 @@ public:
             .ThrowOnError();
 
         if (!operation->GetSuspended()) {
-            return MakeFuture(TError(
-                EErrorCode::InvalidOperationState,
+            return MakeFuture(TError(NScheduler::EErrorCode::InvalidOperationState,
                 "Operation is in %Qlv state",
                 operation->GetState()));
         }
@@ -858,8 +854,7 @@ public:
         }
 
         if (operation->GetState() != EOperationState::Running) {
-            return MakeFuture(TError(
-                EErrorCode::InvalidOperationState,
+            return MakeFuture(TError(NScheduler::EErrorCode::InvalidOperationState,
                 "Operation is in %Qlv state",
                 operation->GetState()));
         }
@@ -1030,7 +1025,7 @@ public:
         bool hasAcl = update->Acl || !operation->GetRuntimeParameters()->Acl.Entries.empty();
         bool hasAcoName = update->AcoName || operation->GetRuntimeParameters()->AcoName;
         if (hasAcl && hasAcoName) {
-            THROW_ERROR_EXCEPTION(EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
+            THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
         }
 
         // NB(eshcherbin): We don't want to allow operation pool changes during materialization or revival
@@ -1388,16 +1383,7 @@ public:
             return NLogging::LogStructuredEventFluently(SchedulerResourceMeteringLogger(), NLogging::ELogLevel::Info)
                 .Item("schema").Value(schema)
                 .Item("id").Value(TGuid::Create())
-                .DoIf(Config_->ResourceMetering->EnableNewAbcFormat, [&] (TFluentMap fluent) {
-                    fluent
-                        .Item("abc_id").Value(key.AbcId);
-                })
-                .DoIf(!Config_->ResourceMetering->EnableNewAbcFormat, [&] (TFluentMap fluent) {
-                    fluent
-                        .Item("abc_id").Value(ToString(key.AbcId))
-                        .Item("cloud_id").Value(Config_->ResourceMetering->DefaultCloudId)
-                        .Item("folder_id").Value(Config_->ResourceMetering->DefaultFolderId);
-                })
+                .Item("abc_id").Value(key.AbcId)
                 .Item("usage").BeginMap()
                     .Item("quantity").Value(usageQuantity)
                     .Item("unit").Value("milliseconds")
@@ -2091,7 +2077,7 @@ private:
         TotalResourceUsageProfiler_.Stop();
 
         {
-            auto error = TError(EErrorCode::MasterDisconnected, "Master disconnected");
+            auto error = TError(NScheduler::EErrorCode::MasterDisconnected, "Master disconnected");
             for (const auto& [operationId, operation] : IdToOperation_) {
                 if (!operation->IsFinishedState()) {
                     // This awakes those waiting for start promise.
@@ -2193,7 +2179,7 @@ private:
 
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_pool_trees");
         if (!rspOrError.IsOK()) {
-            THROW_ERROR(rspOrError.Wrap(EErrorCode::WatcherHandlerFailed, "Error getting pool trees"));
+            THROW_ERROR(rspOrError.Wrap(NScheduler::EErrorCode::WatcherHandlerFailed, "Error getting pool trees"));
         }
 
         auto poolTreesYson = TYsonString(rspOrError.Value()->value());
@@ -2301,7 +2287,7 @@ private:
             return;
         }
         if (!rspOrError.IsOK()) {
-            THROW_ERROR(rspOrError.Wrap(EErrorCode::WatcherHandlerFailed, "Error getting scheduler configuration"));
+            THROW_ERROR(rspOrError.Wrap(NScheduler::EErrorCode::WatcherHandlerFailed, "Error getting scheduler configuration"));
         }
 
         auto newConfig = CloneYsonStruct(InitialConfig_);
@@ -2311,12 +2297,12 @@ private:
             try {
                 newConfig->Load(configFromCypress, /*validate*/ true, /*setDefaults*/ false);
             } catch (const std::exception& ex) {
-                auto error = TError(EErrorCode::WatcherHandlerFailed, "Error updating scheduler configuration")
+                auto error = TError(NScheduler::EErrorCode::WatcherHandlerFailed, "Error updating scheduler configuration")
                     << ex;
                 THROW_ERROR(error);
             }
         } catch (const std::exception& ex) {
-            auto error = TError(EErrorCode::WatcherHandlerFailed, "Error parsing updated scheduler configuration")
+            auto error = TError(NScheduler::EErrorCode::WatcherHandlerFailed, "Error parsing updated scheduler configuration")
                 << ex;
             THROW_ERROR(error);
         }
@@ -2365,9 +2351,9 @@ private:
 
             EventLogWriter_->UpdateConfig(Config_->EventLog);
 
-            OrchidWorkerPool_->Configure(Config_->OrchidWorkerThreadCount);
-            FairShareUpdatePool_->Configure(Config_->FairShareUpdateThreadCount);
-            BackgroundThreadPool_->Configure(Config_->BackgroundThreadCount);
+            OrchidWorkerPool_->SetThreadCount(Config_->OrchidWorkerThreadCount);
+            FairShareUpdatePool_->SetThreadCount(Config_->FairShareUpdateThreadCount);
+            BackgroundThreadPool_->SetThreadCount(Config_->BackgroundThreadCount);
 
             ExperimentsAssigner_.UpdateExperimentConfigs(Config_->Experiments);
         }
@@ -2770,7 +2756,7 @@ private:
 
             operation->SetStateAndEnqueueEvent(EOperationState::Pending);
         } catch (const std::exception& ex) {
-            auto wrappedError = TError(EErrorCode::OperationFailedToPrepare, "Operation has failed to prepare")
+            auto wrappedError = TError(NScheduler::EErrorCode::OperationFailedToPrepare, "Operation has failed to prepare")
                 << ex;
             OnOperationFailed(operation, wrappedError);
             return;
@@ -3117,9 +3103,7 @@ private:
         auto unregisterFuture = controller->Unregister();
         std::vector<TFuture<void>> futures = {unregisterFuture.As<void>()};
         // NB(eshcherbin): We wait for full heartbeat to ensure that allocation metrics have been fully collected. See: YT-12207.
-        if (Config_->WaitForAgentHeartbeatDuringOperationUnregistrationAtController) {
-            futures.push_back(controller->GetFullHeartbeatProcessed());
-        }
+        futures.push_back(controller->GetFullHeartbeatProcessed());
 
         // Failure is intentionally ignored.
         Y_UNUSED(WaitFor(AllSet(futures)));

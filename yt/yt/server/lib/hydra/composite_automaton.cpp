@@ -6,6 +6,7 @@
 #include "hydra_manager.h"
 #include "mutation_context.h"
 #include "snapshot.h"
+#include "snapshot_load_context.h"
 #include "serialize.h"
 
 #include <yt/yt/server/lib/hydra/dry_run/public.h>

@@ -19,6 +19,7 @@ add_executable(offline_read_fmt_write)
 
 target_compile_options(offline_read_fmt_write PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(offline_read_fmt_write PRIVATE
@@ -39,7 +40,8 @@ target_link_libraries(offline_read_fmt_write PUBLIC
 )
 
 target_allocator(offline_read_fmt_write
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(offline_read_fmt_write PRIVATE

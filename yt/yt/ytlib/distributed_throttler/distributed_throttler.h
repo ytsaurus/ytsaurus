@@ -25,6 +25,9 @@ struct IDistributedThrottlerFactory
         TDuration throttleRpcTimeout = DefaultThrottleRpcTimeout) = 0;
 
     virtual void Reconfigure(TDistributedThrottlerConfigPtr config) = 0;
+
+    //! Only the leader has non empty throttler usages collected over all members.
+    virtual std::shared_ptr<const THashMap<TThrottlerId, TThrottlerUsage>> GetThrottlerToTotalUsage() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDistributedThrottlerFactory)

@@ -19,6 +19,7 @@ add_executable(unittester-library-auth)
 
 target_compile_options(unittester-library-auth PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-library-auth PUBLIC
@@ -35,7 +36,8 @@ target_link_libraries(unittester-library-auth PUBLIC
 )
 
 target_allocator(unittester-library-auth
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-library-auth PRIVATE

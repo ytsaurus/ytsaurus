@@ -11,7 +11,7 @@
 set -eux
 shopt -s expand_aliases
 
-build_python_udfs="no"
+build_python_udfs="yes"
 
 print_usage() {
     cat << EOF
@@ -49,12 +49,14 @@ mkdir -p $YQL_BUILD_PATH
 # Build yql agent binary.
 ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/yt/yql/agent/bin
 
+# Build mrjob binary.
+${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/yt/yql/tools/mrjob
+
 # Build required binaries and libraries.
-for path in "ydb/library/yql/tools/mrjob" \
-            "ydb/library/yql/yt/dynamic" \
+for path in "ydb/library/yql/yt/dynamic" \
             "ydb/library/yql/yt/dq_vanilla_job" \
             "ydb/library/yql/yt/dq_vanilla_job.lite" \
-            "ydb/library/yql/udfs/logs/dsv"
+            "yql/essentials/udfs/logs/dsv"
 do
     ${YDB_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YDB_SOURCE_PATH}/$path
 done
@@ -84,8 +86,8 @@ for udf_name in compress_base \
                 url_base \
                 yson2
 do
-    ${YDB_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses -DSTRIP=yes --output=${YQL_BUILD_PATH} ${YDB_SOURCE_PATH}/ydb/library/yql/udfs/common/${udf_name}
-    strip --remove-section=.gnu_debuglink ${YDB_SOURCE_PATH}/ydb/library/yql/udfs/common/${udf_name}/*.so
+    ${YDB_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses -DSTRIP=yes --output=${YQL_BUILD_PATH} ${YDB_SOURCE_PATH}/yql/essentials/udfs/common/${udf_name}
+    strip --remove-section=.gnu_debuglink ${YDB_SOURCE_PATH}/yql/essentials/udfs/common/${udf_name}/*.so
 done
 
 if [ "$build_python_udfs" == "yes" ]; then

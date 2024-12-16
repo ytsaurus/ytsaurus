@@ -417,6 +417,8 @@ private:
 
         auto repairChunk = RemoteCopyJobSpecExt_.repair_erasure_chunks();
 
+        bool isStriped = FromProto<bool>(inputChunkSpec.striped_erasure());
+
         auto unavailablePartPolicy = repairChunk
             ? EUnavailablePartPolicy::CreateNullReader
             : EUnavailablePartPolicy::Crash;
@@ -463,16 +465,15 @@ private:
             targetReplicas);
         YT_VERIFY(readers.size() == writers.size());
 
-        auto erasurePlacementExt = GetProtoExtension<TErasurePlacementExt>(chunkMeta->extensions());
+        auto stripedErasurePlacementExt = FindProtoExtension<TStripedErasurePlacementExt>(chunkMeta->extensions());
+        auto erasurePlacementExt = FindProtoExtension<TErasurePlacementExt>(chunkMeta->extensions());
 
-        int parityPartBlockCount = 0;
-        for (int count : erasurePlacementExt.parity_block_count_per_stripe()) {
-            parityPartBlockCount += count;
+        i64 totalChunkSize;
+        if (isStriped) {
+            totalChunkSize = CalculateStripedErasureChunkTotalSize(*stripedErasurePlacementExt, chunkMeta, erasureCodec);
+        } else {
+            totalChunkSize = CalculateErasureChunkTotalSize(*erasurePlacementExt, chunkMeta);
         }
-
-        // Compute an upper bound for total size.
-        i64 totalChunkSize = GetProtoExtension<TMiscExt>(chunkMeta->extensions()).compressed_data_size() +
-            parityPartBlockCount * erasurePlacementExt.parity_block_size() * erasurePlacementExt.parity_part_count();
 
         TotalSize_ += totalChunkSize;
 
@@ -483,20 +484,10 @@ private:
             const auto& writer = writers[index];
 
             std::vector<i64> blockSizes;
-            if (index < erasureCodec->GetDataPartCount()) {
-                int blockCount = erasurePlacementExt.part_infos(index).block_sizes_size();
-                for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
-                    blockSizes.push_back(
-                        erasurePlacementExt.part_infos(index).block_sizes(blockIndex));
-                }
+            if (isStriped) {
+                blockSizes = GetStripedErasureChunkPartBlockSizes(*stripedErasurePlacementExt, index);
             } else {
-                for (int stripeIndex = 0; stripeIndex < erasurePlacementExt.parity_block_count_per_stripe_size(); stripeIndex++) {
-                    blockSizes.insert(
-                        blockSizes.end(),
-                        erasurePlacementExt.parity_block_count_per_stripe(stripeIndex),
-                        erasurePlacementExt.parity_block_size());
-                    blockSizes.back() = erasurePlacementExt.parity_last_block_size_per_stripe(stripeIndex);
-                }
+                blockSizes = GetErasureChunkPartBlockSizes(*erasurePlacementExt, erasureCodec, index);
             }
 
             auto attachDebugAttributes = [inputChunkId, index] (const TError& error) {
@@ -612,23 +603,97 @@ private:
         }
 
         if (!erasedPartIndices.empty()) {
-            YT_VERIFY(!inputChunkSpec.use_proxying_data_node_service());
+            if (!isStriped) {
+                YT_VERIFY(!inputChunkSpec.use_proxying_data_node_service());
 
-            RepairErasureChunk(
-                outputSessionId,
-                erasureCodec,
-                erasedPartIndices,
-                &writers,
-                targetReplicas);
+                RepairErasureChunk(
+                    outputSessionId,
+                    erasureCodec,
+                    erasedPartIndices,
+                    &writers,
+                    targetReplicas);
+            } else {
+                YT_LOG_INFO("Not all parts were copied successfully, "
+                    "chunk should be repaired on the destination cluster "
+                    "(ErasedPartCount: %v, InputChunkId: %v, OutputChunkId: %v)",
+                    std::ssize(erasedPartIndices),
+                    inputChunkId,
+                    outputSessionId.ChunkId);
+            }
         } else {
             YT_LOG_INFO("All parts were copied successfully (ChunkId: %v)", inputChunkId);
         }
 
         ChunkFinalizationResults_.push_back(BIND(&TRemoteCopyJob::FinalizeErasureChunk, MakeStrong(this))
             .AsyncVia(GetRemoteCopyInvoker())
-            .Run(writers, chunkMeta, outputSessionId, inputChunkId));
+            .Run(writers, chunkMeta, outputSessionId, inputChunkId, {erasedPartIndices.begin(), erasedPartIndices.end()}));
 
         DoFinishCopyChunk(chunkMeta, totalChunkSize);
+    }
+
+    i64 CalculateStripedErasureChunkTotalSize(
+        const TStripedErasurePlacementExt& placementExt,
+        const TDeferredChunkMetaPtr& chunkMeta,
+        ICodec* erasureCodec)
+    {
+        i64 parityPartsSize = 0;
+        auto firstParityBlockIndex = erasureCodec->GetDataPartCount();
+        for (auto index = firstParityBlockIndex; index < placementExt.part_infos_size(); ++index) {
+            for (auto size : placementExt.get_idx_part_infos(index).segment_sizes()) {
+                parityPartsSize += size;
+            }
+        }
+
+        // Compute an upper bound for total size.
+        return GetProtoExtension<TMiscExt>(chunkMeta->extensions()).compressed_data_size() + parityPartsSize;
+    }
+
+    i64 CalculateErasureChunkTotalSize(const TErasurePlacementExt& placementExt, const TDeferredChunkMetaPtr& chunkMeta)
+    {
+        int parityPartBlockCount = 0;
+        for (int count : placementExt.parity_block_count_per_stripe()) {
+            parityPartBlockCount += count;
+        }
+
+        // Compute an upper bound for total size.
+        return GetProtoExtension<TMiscExt>(chunkMeta->extensions()).compressed_data_size() +
+            parityPartBlockCount * placementExt.parity_block_size() * placementExt.parity_part_count();
+    }
+
+    std::vector<i64> GetStripedErasureChunkPartBlockSizes(
+        const TStripedErasurePlacementExt& placementExt,
+        i64 partIndex)
+    {
+        std::vector<i64> blockSizes;
+        YT_VERIFY(placementExt.part_infos(partIndex).segment_sizes_size() == placementExt.segment_block_counts_size());
+        for (auto segmentSize : placementExt.part_infos(partIndex).segment_sizes()) {
+            blockSizes.push_back(segmentSize);
+        }
+        return blockSizes;
+    }
+
+    std::vector<i64> GetErasureChunkPartBlockSizes(
+        const TErasurePlacementExt& placementExt,
+        ICodec* erasureCodec,
+        i64 partIndex)
+    {
+        std::vector<i64> blockSizes;
+        if (partIndex < erasureCodec->GetDataPartCount()) {
+            int blockCount = placementExt.part_infos(partIndex).block_sizes_size();
+            for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
+                blockSizes.push_back(
+                    placementExt.part_infos(partIndex).block_sizes(blockIndex));
+            }
+        } else {
+            for (int stripeIndex = 0; stripeIndex < placementExt.parity_block_count_per_stripe_size(); stripeIndex++) {
+                blockSizes.insert(
+                    blockSizes.end(),
+                    placementExt.parity_block_count_per_stripe(stripeIndex),
+                    placementExt.parity_block_size());
+                blockSizes.back() = placementExt.parity_last_block_size_per_stripe(stripeIndex);
+            }
+        }
+        return blockSizes;
     }
 
     //! Waits until enough parts were copied to perform repair.
@@ -754,7 +819,8 @@ private:
         const std::vector<IChunkWriterPtr>& writers,
         const TDeferredChunkMetaPtr& chunkMeta,
         NChunkClient::TSessionId outputSessionId,
-        TChunkId inputChunkId)
+        TChunkId inputChunkId,
+        THashSet<int> erasedPartIndices)
     {
         TChunkInfo chunkInfo;
         TChunkReplicaWithLocationList writtenReplicas;
@@ -763,7 +829,12 @@ private:
         for (int index = 0; index < static_cast<int>(writers.size()); ++index) {
             diskSpace += writers[index]->GetChunkInfo().disk_space();
             auto replicas = writers[index]->GetWrittenChunkReplicasInfo().Replicas;
+            if (replicas.empty()) {
+                YT_VERIFY(erasedPartIndices.contains(index));
+                continue;
+            }
             YT_VERIFY(replicas.size() == 1);
+
             writtenReplicas.emplace_back(
                 replicas.front().GetNodeId(),
                 index,
@@ -854,7 +925,8 @@ private:
         const TRefCountedChunkMetaPtr& inputChunkMeta,
         TChunkId inputChunkId)
     {
-        YT_LOG_INFO("Confirming output chunk (ChunkId: %v)",
+        YT_LOG_INFO("Confirming output chunk (InputChunkId: %v, OutputChunkId: %v)",
+            inputChunkId,
             outputSessionId.ChunkId);
 
         static const THashSet<int> masterMetaTags {
@@ -967,7 +1039,7 @@ private:
                 endBlockIndex += 1;
             }
 
-            if (RemoteCopyJobSpecExt_.use_local_throttler()) {
+            if (RemoteCopyJobSpecExt_.use_remote_throttler()) {
                 ReadBlocksOptions_.EstimatedSize = sizeToRead;
             }
 
@@ -1016,7 +1088,9 @@ private:
         asyncResults.reserve(readers.size());
         for (const auto& reader : readers) {
             if (reader) {
-                asyncResults.push_back(reader->GetMeta(ReadBlocksOptions_.ClientOptions));
+                asyncResults.push_back(reader->GetMeta(IChunkReader::TGetMetaOptions{
+                    .ClientOptions = ReadBlocksOptions_.ClientOptions,
+                }));
             }
         }
 
@@ -1038,16 +1112,18 @@ private:
 
     TChunkReaderHostPtr MakeChunkReaderHost()
     {
-        auto bandwidthThrottler = Host_->GetInBandwidthThrottler();
-        if (RemoteCopyJobSpecExt_.has_remote_cluster_name()) {
-            auto throttler = Host_->GetInBandwidthThrottler(RemoteCopyJobSpecExt_.remote_cluster_name());
-            if (throttler) {
-                bandwidthThrottler = throttler;
-            }
+        YT_LOG_DEBUG("Creating chunk reader host (RemoteClusterName: %v, UseRemoteThrottler: %v)",
+            RemoteCopyJobSpecExt_.remote_cluster_name(),
+            RemoteCopyJobSpecExt_.use_remote_throttler());
+
+        auto clusterName = LocalClusterName;
+        if (RemoteCopyJobSpecExt_.has_remote_cluster_name() && RemoteCopyJobSpecExt_.use_remote_throttler()) {
+            clusterName = TClusterName(RemoteCopyJobSpecExt_.remote_cluster_name());
         }
 
-        YT_LOG_DEBUG("MakeChunkReaderHost (RemoteClusterName: %v)",
-            RemoteCopyJobSpecExt_.remote_cluster_name());
+        auto bandwidthThrottlerFactory = BIND([this, this_ = MakeWeak(this)](const TClusterName& clusterName) {
+            return Host_->GetInBandwidthThrottler(clusterName);
+        });
 
         return New<TChunkReaderHost>(
             RemoteClient_,
@@ -1055,11 +1131,11 @@ private:
             Host_->GetReaderBlockCache(),
             /*chunkMetaCache*/ nullptr,
             /*nodeStatusDirectory*/ nullptr,
-            std::move(bandwidthThrottler),
+            bandwidthThrottlerFactory(clusterName),
             Host_->GetOutRpsThrottler(),
             /*mediumThrottler*/ GetUnlimitedThrottler(),
             Host_->GetTrafficMeter(),
-            Host_->GetInBandwidthThrottlers());
+            std::move(bandwidthThrottlerFactory));
     }
 
     void ReplaceHunkChunkIds(const TDeferredChunkMetaPtr& chunkMeta)

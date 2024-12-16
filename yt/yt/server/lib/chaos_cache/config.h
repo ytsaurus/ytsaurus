@@ -16,7 +16,6 @@ class TChaosCacheConfig
 public:
     NChaosClient::TReplicationCardsWatcherConfigPtr ReplicationCardsWatcher;
     TDuration UnwatchedCardExpirationDelay;
-    bool EnableWatching;
 
     REGISTER_YSON_STRUCT(TChaosCacheConfig);
 

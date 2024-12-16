@@ -1421,6 +1421,12 @@ class YTEnvSetup(object):
             orchids.append("//sys/scheduler/orchid/scheduler")
             _wait_for_configs(orchids)
 
+        if not self.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index) and \
+                self.get_param("USE_SEQUOIA", cluster_index) and \
+                any("sequoia_node_host" in roles for roles in self.get_param("MASTER_CELL_DESCRIPTORS", cluster_index).values()):
+            wait(lambda: yt_commands.create("rootstock", "//check_cell_role", force=True, driver=driver), ignore_exceptions=True)
+            yt_commands.remove("//check_cell_role", force=True)
+
         if self.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index) and not self._is_ground_cluster(cluster_index):
             assert self.get_param("USE_SEQUOIA", cluster_index)
             # NB: Sometimes roles will not be applied to cells yet, which can lead to an error. Just retrying helps.

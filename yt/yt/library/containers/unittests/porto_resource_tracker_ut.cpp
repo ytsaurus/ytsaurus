@@ -11,6 +11,8 @@
 #include <yt/yt/library/containers/porto_resource_tracker.h>
 #include <yt/yt/library/containers/instance.h>
 
+#include <library/cpp/yt/memory/leaky_ref_counted_singleton.h>
+
 #include <util/system/platform.h>
 #include <util/system/env.h>
 

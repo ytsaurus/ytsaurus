@@ -130,6 +130,10 @@
 
 #include <yt/yt/client/tablet_client/public.h>
 
+#include <yt/yt/library/erasure/impl/codec.h>
+
+#include <yt/yt/library/profiling/solomon/sensor.h>
+
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/parallel_runner.h>
@@ -137,8 +141,6 @@
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
-
-#include <yt/yt/library/erasure/impl/codec.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -2917,11 +2919,6 @@ private:
         TNode* node,
         const std::vector<TChunk*>& chunks)
     {
-        const auto& dynamicConfig = GetDynamicConfig()->AllyReplicaManager;
-        if (!dynamicConfig->EnableAllyReplicaAnnouncement) {
-            return;
-        }
-
         auto isSequoia = chunks.empty() ? false : chunks[0]->IsSequoia();
         for (auto* chunk : chunks) {
             YT_VERIFY(chunk->IsSequoia() == isSequoia);
@@ -2955,6 +2952,7 @@ private:
                 request->set_lazy(true);
                 ++LazyAllyReplicasAnnounced_;
             } else if (!IsExactlyReplicatedByApprovedReplicas(chunk)) {
+                const auto& dynamicConfig = GetDynamicConfig()->AllyReplicaManager;
                 request->set_delay(ToProto(
                     dynamicConfig->UnderreplicatedChunkAnnouncementRequestDelay));
                 ++DelayedAllyReplicasAnnounced_;
@@ -2967,21 +2965,12 @@ private:
             onChunk(chunk, false);
         }
 
-        if (dynamicConfig->EnableEndorsements) {
-            if (clusterIsStableEnough) {
-                auto currentRevision = GetCurrentMutationContext()->GetVersion().ToRevision();
-                for (auto& [chunk, revision] : node->ReplicaEndorsements()) {
-                    revision = currentRevision;
-                    onChunk(chunk, true);
-                }
+        if (clusterIsStableEnough) {
+            auto currentRevision = GetCurrentMutationContext()->GetVersion().ToRevision();
+            for (auto& [chunk, revision] : node->ReplicaEndorsements()) {
+                revision = currentRevision;
+                onChunk(chunk, true);
             }
-        } else if (!node->ReplicaEndorsements().empty()) {
-            YT_LOG_DEBUG("Discarded endorsements from node "
-                "since endorsements are not enabled (NodeId: %v, Address: %v, EndorsementCount: %v)",
-                node->GetId(),
-                node->GetDefaultAddress(),
-                node->ReplicaEndorsements().size());
-            DiscardEndorsements(node);
         }
     }
 
@@ -3040,10 +3029,6 @@ private:
 
     void RegisterEndorsement(TChunk* chunk)
     {
-        if (!GetDynamicConfig()->AllyReplicaManager->EnableEndorsements) {
-            return;
-        }
-
         TNode* nodeWithMaxId = nullptr;
 
         for (auto replica : chunk->StoredReplicas()) {

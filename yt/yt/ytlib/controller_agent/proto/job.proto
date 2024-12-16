@@ -708,6 +708,7 @@ message TReduceJobSpecExt
     optional NTableClient.NProto.TSortColumnsExt sort_columns = 5;
 
     optional int64 foreign_table_lookup_keys_threshold = 6;
+    optional int64 foreign_table_lookup_data_weight_threshold = 8 [default = 268435456];
 
     optional bool disable_sorted_input = 7 [default = false];
 }
@@ -745,7 +746,7 @@ message TRemoteCopyJobSpecExt
 
     optional string remote_cluster_name = 8;
 
-    optional bool use_local_throttler = 9;
+    optional bool use_remote_throttler = 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

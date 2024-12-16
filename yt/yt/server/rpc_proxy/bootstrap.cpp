@@ -38,7 +38,7 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/yt/ytlib/program/helpers.h>
+#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
 
@@ -51,6 +51,8 @@
 #include <yt/yt/library/auth_server/authentication_manager.h>
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
+
+#include <yt/yt/library/profiling/solomon/registry.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
@@ -431,7 +433,7 @@ void TBootstrap::OnDynamicConfigChanged(
     const TProxyDynamicConfigPtr& /*oldConfig*/,
     const TProxyDynamicConfigPtr& newConfig)
 {
-    ReconfigureNativeSingletons(Config_, newConfig);
+    ReconfigureNativeSingletons(newConfig);
 
     TraceSampler_->UpdateConfig(newConfig->Tracing);
 

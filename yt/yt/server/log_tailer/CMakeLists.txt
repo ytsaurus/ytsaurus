@@ -21,6 +21,7 @@ add_library(yt-server-log_tailer)
 
 target_compile_options(yt-server-log_tailer PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-server-log_tailer PUBLIC
@@ -40,5 +41,6 @@ target_sources(yt-server-log_tailer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/log_tailer/log_rotator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/log_tailer/log_tailer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/log_tailer/log_writer_liveness_checker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/log_tailer/program.cpp
 )
 

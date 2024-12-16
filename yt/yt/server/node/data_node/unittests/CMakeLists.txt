@@ -19,6 +19,7 @@ add_executable(unittester-data-node)
 
 target_compile_options(unittester-data-node PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-data-node PUBLIC

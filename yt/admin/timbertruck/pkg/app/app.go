@@ -66,7 +66,6 @@ import (
 	"runtime/pprof"
 	"slices"
 	"syscall"
-	"time"
 
 	"golang.org/x/sys/unix"
 	"gopkg.in/yaml.v3"
@@ -122,9 +121,11 @@ func NewApp[UserConfigType any]() (app App, userConfig *UserConfigType, err erro
 	var configPath string
 	var oneShotConfigPath string
 	var version bool
+	var isRestart bool
 	flag.BoolVar(&version, "version", false, "print version and exit")
 	flag.StringVar(&configPath, "config", "", "path to configuration, timbertruck will be launched as daemon")
 	flag.StringVar(&oneShotConfigPath, "one-shot-config", "", "path to task configuration, timbertruck executes tasks and exits")
+	flag.BoolVar(&isRestart, "is-restart", false, "indicates that the timbertruck daemon process has been restarted")
 	flag.Parse()
 
 	if version {
@@ -171,7 +172,7 @@ func NewApp[UserConfigType any]() (app App, userConfig *UserConfigType, err erro
 				return
 			}
 		}
-		app, err = newDaemonApp(*appConfig)
+		app, err = newDaemonApp(*appConfig, isRestart)
 	} else if oneShotConfigPath != "" {
 		err = readConfiguration(oneShotConfigPath, userConfig)
 		if err != nil {
@@ -208,7 +209,7 @@ type daemonApp struct {
 	adminPanel  *adminPanel
 }
 
-func newDaemonApp(config Config) (app *daemonApp, err error) {
+func newDaemonApp(config Config, isRestart bool) (app *daemonApp, err error) {
 	app = &daemonApp{
 		config: config,
 	}
@@ -237,11 +238,11 @@ func newDaemonApp(config Config) (app *daemonApp, err error) {
 		return
 	}
 
-	solomonRegistryOptions := solomon.NewRegistryOpts()
-	if config.AdminPanel != nil && config.AdminPanel.MonitoringTags != nil {
-		solomonRegistryOptions.SetTags(config.AdminPanel.MonitoringTags)
+	app.metrics, err = createMetricsRegistry(config.AdminPanel)
+	if err != nil {
+		err = fmt.Errorf("failed to create metrics registry: %w", err)
+		return
 	}
-	app.metrics = solomon.NewRegistry(solomonRegistryOptions)
 
 	var logFile io.Writer = os.Stderr
 	if config.LogFile != "" {
@@ -262,19 +263,10 @@ func newDaemonApp(config Config) (app *daemonApp, err error) {
 	misc.SetLogrotatingLogger(app.logger)
 	misc.LogLoggingStarted(app.logger)
 
-	var prevExitIsClean bool
-	prevExitIsClean, app.errorExitDetectorClose, err = errorExitDetector(app.logger, config.WorkDir)
-	if err != nil {
-		return
-	}
-	errorExitMetrics := app.metrics.IntGauge("tt.application.error_exit")
-	if prevExitIsClean {
-		errorExitMetrics.Set(0)
-	} else {
-		errorExitMetrics.Set(1)
-		time.AfterFunc(5*time.Minute, func() {
-			errorExitMetrics.Set(0)
-		})
+	restartCounter := app.metrics.Counter("tt.application.restart_count")
+	restartCounter.Add(0)
+	if isRestart {
+		restartCounter.Inc()
 	}
 
 	app.ctx, app.cancelFunc = context.WithCancel(context.Background())
@@ -340,6 +332,29 @@ func (app *daemonApp) Fatalf(format string, a ...any) {
 
 func (app *daemonApp) Metrics() metrics.Registry {
 	return app.metrics
+}
+
+func createMetricsRegistry(config *AdminPanelConfig) (*solomon.Registry, error) {
+	if config == nil {
+		return solomon.NewRegistry(nil), nil
+	}
+	solomonRegistryOptions := solomon.NewRegistryOpts()
+
+	if config.MonitoringTags != nil {
+		solomonRegistryOptions.SetTags(config.MonitoringTags)
+	}
+
+	metricsFormat := config.MetricsFormat
+	switch config.MetricsFormat {
+	case "":
+		metricsFormat = string(solomon.StreamSpack)
+	case string(solomon.StreamJSON), string(solomon.StreamSpack):
+	default:
+		return nil, fmt.Errorf("unsupported metrics format: %s", metricsFormat)
+	}
+	solomonRegistryOptions.SetStreamFormat(solomon.StreamFormat(metricsFormat))
+
+	return solomon.NewRegistry(solomonRegistryOptions), nil
 }
 
 func createPidFile(path string) (close func(), err error) {

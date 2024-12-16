@@ -35,7 +35,7 @@ private:
     TString OutputFile_;
 
 
-    void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
+    void DoRun() override
     {
         auto snapshotIOQueue = New<TActionQueue>("SnapshotIO");
         auto snapshotIOInvoker = snapshotIOQueue->GetInvoker();

@@ -30,7 +30,7 @@
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
-#include <yt/yt/ytlib/program/helpers.h>
+#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
@@ -268,7 +268,7 @@ private:
         const TMasterCacheDynamicConfigPtr& /*oldConfig*/,
         const TMasterCacheDynamicConfigPtr& newConfig)
     {
-        ReconfigureNativeSingletons(Config_, newConfig);
+        ReconfigureNativeSingletons(newConfig);
     }
 };
 

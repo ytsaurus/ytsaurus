@@ -21,8 +21,9 @@ class VariationPolicy(Enum):
 
 
 class Variable():
-    def __init__(self, modes, policy=VariationPolicy.Variate):
+    def __init__(self, modes, policy=VariationPolicy.Variate, weights=None):
         self.modes = list(modes)
+        self.weights = [1] * len(self.modes) if weights is None else weights
         if isinstance(policy, str):
             policy = VariationPolicy[policy]
         assert isinstance(policy, VariationPolicy)
@@ -38,7 +39,7 @@ class Variable():
         if self.policy == VariationPolicy.Variate:
             return self.modes[index]
         else:
-            return random.choice(self.modes)
+            return random.choices(self.modes, weights=self.weights)[0]
 
     def __repr__(self):
         modes = ", ".join(map(str, self.modes))
@@ -177,6 +178,7 @@ spec_template = {
     "chunk_format": Variable(["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"], VariationPolicy.PickRandom),
     "in_memory_mode": Variable(["none", "compressed", "uncompressed"], VariationPolicy.PickRandom),
     "erasure_codec": Variable(["none"], VariationPolicy.PickRandom),
+    "hunk_erasure_codec": Variable(["none"], VariationPolicy.PickRandom),
     "compression_codec": None,
     "enable_tablet_balancer": False,
     "network_project": None,
@@ -266,6 +268,7 @@ simple_sorted_spec = merge_specs(spec_template, {
     "chunk_format": Variable(["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"], VariationPolicy.PickRandom),
     "in_memory_mode": "none",
     "erasure_codec": "none",
+    "hunk_erasure_codec": "none",
 
     "size": {
         "tablet_count": 1,
@@ -288,6 +291,7 @@ simple_ordered_spec = merge_specs(spec_template, {
     "chunk_format": Variable(["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"], VariationPolicy.PickRandom),
     "in_memory_mode": "none",
     "erasure_codec": "none",
+    "hunk_erasure_codec": "none",
 
     "size": {
         "tablet_count": 1,
@@ -307,6 +311,7 @@ indexed_sorted_spec = merge_specs(spec_template, {
     "chunk_format": "table_versioned_indexed",
     "in_memory_mode": "none",
     "erasure_codec": "none",
+    "hunk_erasure_codec": "none",
     "compression_codec": "none",
 
     "size": {
@@ -331,6 +336,7 @@ secondary_index_sorted_spec = merge_specs(spec_template, {
     "chunk_format": Variable(["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"], VariationPolicy.PickRandom),
     "in_memory_mode": "none",
     "erasure_codec": "none",
+    "hunk_erasure_codec": "none",
     "compression_codec": "none",
 
     "size": {
@@ -507,6 +513,11 @@ def spec_from_yson(preset, mixins, yson_dict):
     def _unroll_variables(obj):
         if isinstance(obj, yson.YsonList) and obj.attributes.get("any"):
             return Variable(obj, policy=VariationPolicy.PickRandom)
+        elif isinstance(obj, yson.YsonList) and "weighted_any" in obj.attributes:
+            weights = obj.attributes["weighted_any"]
+            assert isinstance(weights, yson.YsonList)
+            assert len(weights) == len(obj)
+            return Variable(obj, policy=VariationPolicy.PickRandom, weights=weights)
         elif isinstance(obj, dict):
             return {k: _unroll_variables(v) for k, v in obj.items()}
         else:

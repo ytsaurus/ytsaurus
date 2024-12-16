@@ -17,6 +17,8 @@ RECURSE(
     grpc_proxy_python_sample
     grpc_test
     gwp_asan_test
+    http_server
+    hunkifier
     hydra_stress_test
     in_memory_nbd_server
     log_compression
@@ -31,5 +33,4 @@ RECURSE(
     uring
     value_dictionary_compression
     ytserver_dummy
-    http_server
 )

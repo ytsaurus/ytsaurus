@@ -20,7 +20,7 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/ytlib/program/helpers.h>
+#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/client/kafka/packet.h>
 
@@ -271,10 +271,10 @@ private:
         const TKafkaProxyDynamicConfigPtr& /*oldConfig*/,
         const TKafkaProxyDynamicConfigPtr& newConfig)
     {
-        ReconfigureNativeSingletons(Config_, newConfig);
+        ReconfigureNativeSingletons(newConfig);
 
-        Poller_->Reconfigure(newConfig->PollerThreadCount);
-        Acceptor_->Reconfigure(newConfig->AcceptorThreadCount);
+        Poller_->SetThreadCount(newConfig->PollerThreadCount);
+        Acceptor_->SetThreadCount(newConfig->AcceptorThreadCount);
     }
 };
 

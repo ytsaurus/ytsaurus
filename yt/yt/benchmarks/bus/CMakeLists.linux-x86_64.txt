@@ -28,7 +28,8 @@ target_link_libraries(benchmark_bus PUBLIC
 )
 
 target_allocator(benchmark_bus
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(benchmark_bus PRIVATE

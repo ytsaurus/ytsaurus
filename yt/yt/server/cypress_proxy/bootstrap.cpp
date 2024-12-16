@@ -29,7 +29,7 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/ytlib/program/helpers.h>
+#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/ytlib/sequoia_client/lazy_client.h>
 
@@ -353,7 +353,7 @@ private:
         const TCypressProxyDynamicConfigPtr& /*oldConfig*/,
         const TCypressProxyDynamicConfigPtr& newConfig)
     {
-        ReconfigureNativeSingletons(Config_, newConfig);
+        ReconfigureNativeSingletons(newConfig);
 
         ObjectService_->Reconfigure(newConfig->ObjectService);
         ResponseKeeper_->Reconfigure(newConfig->ResponseKeeper);

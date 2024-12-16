@@ -207,7 +207,7 @@ private:
                 YT_LOG_DEBUG("Remote snapshot reader opened");
             } catch (const TErrorException& ex) {
                 if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
-                    THROW_ERROR_EXCEPTION(EErrorCode::NoSuchSnapshot, "Error opening remote snapshot for reading")
+                    THROW_ERROR_EXCEPTION(NHydra::EErrorCode::NoSuchSnapshot, "Error opening remote snapshot for reading")
                         << TErrorAttribute("snapshot_path", Path_)
                         << ex;
                 } else {

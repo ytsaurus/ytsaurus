@@ -2,8 +2,6 @@ GTEST(unittester-scheduler-simulator)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
-ALLOCATOR(YT)
-
 IF (SANITIZER_TYPE)
     SIZE(MEDIUM)
 ENDIF()

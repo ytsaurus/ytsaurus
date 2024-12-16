@@ -19,6 +19,7 @@ add_executable(versioned_block_format)
 
 target_compile_options(versioned_block_format PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(versioned_block_format PUBLIC

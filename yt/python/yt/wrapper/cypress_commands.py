@@ -224,7 +224,7 @@ def copy(source_path, destination_path,
 
 def move(source_path, destination_path,
          recursive=None, force=None,
-         preserve_account=None, preserve_owner=None,
+         preserve_account=None, preserve_owner=None, preserve_acl=None,
          preserve_expiration_time=None, preserve_expiration_timeout=None,
          preserve_creation_time=None, preserve_modification_time=None,
          pessimistic_quota_check=None, enable_cross_cell_copying=None, client=None):
@@ -237,6 +237,7 @@ def move(source_path, destination_path,
     :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
     :param bool preserve_account: preserve account.
     :param bool preserve_owner: preserve owner.
+    :param bool preserve_acl: preserve acl.
     :param bool preserve_expiration_time: preserve expiration time.
     :param bool preserve_expiration_timeout: preserve expiration timeout.
     :param bool preserve_creation_time: preserve creation time.
@@ -255,6 +256,7 @@ def move(source_path, destination_path,
     set_param(params, "force", force)
     set_param(params, "preserve_account", preserve_account)
     set_param(params, "preserve_owner", preserve_owner)
+    set_param(params, "preserve_acl", preserve_acl)
     set_param(params, "preserve_expiration_time", preserve_expiration_time)
     set_param(params, "preserve_expiration_timeout", preserve_expiration_timeout)
     set_param(params, "preserve_creation_time", preserve_creation_time)

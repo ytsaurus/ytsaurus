@@ -63,7 +63,7 @@ void TMemoryWatchdog::DoCheckMemoryUsage()
         if (memory > Config_->OperationControllerMemoryLimit) {
             YT_LOG_DEBUG("Aborting operation due to exceeded memory (OperationId: %v)", operationId);
 
-            auto error = TError(EErrorCode::OperationControllerMemoryLimitExceeded,
+            auto error = TError(NControllerAgent::EErrorCode::OperationControllerMemoryLimitExceeded,
                 "Operation controller memory usage exceeds memory limit, probably input of the operation "
                 "is too large, try splitting the operation into smaller ones")
                 << TErrorAttribute("operation_controller_memory_usage", memory)

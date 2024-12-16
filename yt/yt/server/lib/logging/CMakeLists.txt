@@ -21,6 +21,7 @@ add_library(server-lib-logging)
 
 target_compile_options(server-lib-logging PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(server-lib-logging PUBLIC

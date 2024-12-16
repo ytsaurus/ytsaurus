@@ -118,7 +118,7 @@ Table 1 shows some general `Ytsaurus` settings. Full description: [YtsaurusSpec]
 | **Field** | **Type** | **Description** |
 | ------------------- | --------------- | ------------------------------------------------------------ |
 | `coreImage` | `string` | Image for the main server components (for example, `ghcr.io/ytsaurus/ytsaurus:stable-{{yt-server-version}}-relwithdebinfo`). |
-| `uiImage` | `string` | An image for the UI like `ytsaurus/ui:stable`. |
+| `uiImage` | `string` | Image for the UI (for example, `ghcr.io/ytsaurus/ui:stable`). |
 | `imagePullSecrets` | `array<LocalObjectReference>` | Secrets needed to pull images from a private registry. Learn more [here](https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/). |
 | `configOverrides` | `optional<LocalObjectReference>` | A ConfigMap for overriding generated static configs. It should only be used in rare cases. |
 | `adminCredentials` | `optional<LocalObjectReference>` | A secret with the login/password for the admin account. |
@@ -155,7 +155,7 @@ At the first step, select the main Docker image for the server components.
 
 Most of the server components are released from a separate (release) branch. Currently, the latest stable branch is `stable/{{yt-stable-branch}}`. We strongly recommend using an image compiled from a stable release branch.
 
-The names of Docker images built from the release branch follow the format `ytsaurus/ytsaurus:stable-{{yt-stable-branch}}.N` or `ytsaurus/ytsaurus:stable-{{yt-stable-branch}}.N-relwithdebinfo`. The difference between the images is that all the binary files in the second one are built with debug symbols.
+The names of Docker images built from the release branch follow the format `ghcr.io/ytsaurus/ytsaurus:stable-{{yt-stable-branch}}.N` or `ghcr.io/ytsaurus/ytsaurus:stable-{{yt-stable-branch}}.N-relwithdebinfo`. The difference between the images is that all the binary files in the second one are built with debug symbols.
 
 If the server components crash, the stack trace is printed to the stderr components, and a `coredump` is retrieved from the K8s node (if this is configured in your K8s cluster). This provides detailed information on what exactly happened to the component. With that in mind, we recommend using `relwithdebinfo` images even though they take up more space. Without debug symbols, the {{product-name}} team probably won't be able to help you if you encounter any problems.
 
@@ -178,7 +178,7 @@ The `image` for each component is taken primarily from the component's image fie
 | `schedulers` | [ghcr.io/ytsaurus/ytsaurus](https://github.com/ytsaurus/ytsaurus/pkgs/container/ytsaurus) | `stable-{{yt-server-version}}-relwithdebinfo` |
 | `controllerAgents` | [ghcr.io/ytsaurus/ytsaurus](https://github.com/ytsaurus/ytsaurus/pkgs/container/ytsaurus) | `stable-{{yt-server-version}}-relwithdebinfo` |
 | `queryTrackers` | [ghcr.io/ytsaurus/query-tracker](https://github.com/ytsaurus/ytsaurus/pkgs/container/query-tracker) | `{{qt-version}}-relwithdebinfo` |
-| `yqlAgents` | [ghcr.io/ytsaurus/query-tracker](https://github.com/ytsaurus/ytsaurus/pkgs/container/query-tracker) | `{{qt-version}}-relwithdebinfo` |
+| `yqlAgents` | [ghcr.io/ytsaurus/query-tracker](https://github.com/ytsaurus/ytsaurus/pkgs/container/query-tracker) | `{{qt-version}}` |
 | `strawberry` | [ghcr.io/ytsaurus/strawberry](https://github.com/ytsaurus/ytsaurus/pkgs/container/strawberry) | `{{strawberry-version}}` |
 | `ui` | [ghcr.io/ytsaurus/ui](https://github.com/ytsaurus/ytsaurus-ui/pkgs/container/ui) | `stable` |
 
@@ -191,9 +191,9 @@ A proper logging configuration is essential for diagnosing problems and facilita
 
 There are recommendations for disk layout and location configuration on a separate [page](../../admin-guide/locations.md).
 
-## Job environment
+## Operation execution environment {#job-environment}
 
-`Exec Nodes` are able to execute jobs in isolated containers to handle operation option `docker_image`. Required configurations are located in sections `jobResources` and `jobEnvironment` in [ExecNodeSpec](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/docs/api.md#execnodesspec). See sample [cluster config](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_cri.yaml).
+`Exec nodes` can run jobs in isolated containers to handle the `docker_image` operation option. You can find the required settings under `jobResources` and `jobEnvironment` in [ExecNodeSpec](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/docs/api.md#execnodesspec). See the sample [cluster configuration](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_cri.yaml).
 
 ## Setting up tablet cell bundles
 

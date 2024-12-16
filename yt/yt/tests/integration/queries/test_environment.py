@@ -161,6 +161,6 @@ class TestMigration(YTEnvSetup):
         ]
 
         for table in tables:
-            assert get(f"//sys/query_tracker/{table}/@min_data_ttl") == 0
+            assert get(f"//sys/query_tracker/{table}/@min_data_ttl") == 60000
             assert get(f"//sys/query_tracker/{table}/@merge_rows_on_flush")
             assert get(f"//sys/query_tracker/{table}/@auto_compaction_period") == 3600000

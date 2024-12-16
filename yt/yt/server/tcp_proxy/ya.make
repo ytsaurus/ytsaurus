@@ -20,9 +20,10 @@ PEERDIR(
     yt/yt/ytlib
 
     yt/yt/library/dynamic_config
+    yt/yt/library/program
+    yt/yt/library/server_program
 
     library/cpp/getopt
-    library/cpp/yt/phdr_cache
 )
 
 END()

@@ -17,7 +17,7 @@ SRCS(
     cell_master/master_hydra_service.cpp
     cell_master/multi_phase_cell_sync_session.cpp
     cell_master/multicell_manager.cpp
-    cell_master/persistent_state_transient_cache.cpp
+    cell_master/program.cpp
     cell_master/proto/alert_manager.proto
     cell_master/proto/epoch_history_manager.proto
     cell_master/proto/multicell_manager.proto
@@ -25,6 +25,7 @@ SRCS(
     cell_master/response_keeper_manager.cpp
     cell_master/serialize.cpp
     cell_master/snapshot_exporter.cpp
+    cell_master/world_initializer_cache.cpp
     cell_master/world_initializer.cpp
 
     cell_server/area_proxy.cpp
@@ -241,6 +242,7 @@ SRCS(
     node_tracker_server/node_tracker_log.cpp
     node_tracker_server/node_tracker_service.cpp
     node_tracker_server/node_tracker.cpp
+    node_tracker_server/node_tracker_cache.cpp
     node_tracker_server/node_type_handler.cpp
     node_tracker_server/node.cpp
     node_tracker_server/proto/node_tracker.proto
@@ -424,6 +426,8 @@ SRCS(
 
 PEERDIR(
     library/cpp/getopt
+    library/cpp/yt/phdr_cache
+    yt/yt/library/server_program
     yt/yt/ytlib/distributed_throttler
     yt/yt/server/lib
     yt/yt/server/lib/cell_server
@@ -443,8 +447,6 @@ PEERDIR(
     yt/yt/server/lib/transaction_supervisor
     yt/yt/server/lib/zookeeper_master
     yt/yt/server/lib/sequoia
-
-    library/cpp/yt/phdr_cache
 
     # TODO(max42): eliminate.
     yt/yt/server/lib/scheduler

@@ -53,7 +53,7 @@ private:
     std::optional<int> LastRecordIndex_;
 
 
-    void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
+    void DoRun() override
     {
         auto ioEngineConfigNode = GetEphemeralNodeFactory()->CreateMap();
 

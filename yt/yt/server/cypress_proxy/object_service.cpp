@@ -93,7 +93,7 @@ public:
 
     void Reconfigure(const TObjectServiceDynamicConfigPtr& config) override
     {
-        ThreadPool_->Configure(config->ThreadPoolSize);
+        ThreadPool_->SetThreadCount(config->ThreadPoolSize);
     }
 
     IServicePtr GetService() override
@@ -139,8 +139,8 @@ private:
         TRequestQueuePtr CreateQueueForKey(const TKey& userNameAndWorkloadType) override
         {
             const auto& throttlerConfig = userNameAndWorkloadType.second == EUserWorkloadType::Read
-                ? Owner_->GetDynamicConfig()->DefaultPerUserReadRequestWeightThrottlerConfig
-                : Owner_->GetDynamicConfig()->DefaultPerUserWriteRequestWeightThrottlerConfig;
+                ? Owner_->GetDynamicConfig()->DefaultPerUserReadRequestWeightThrottler
+                : Owner_->GetDynamicConfig()->DefaultPerUserWriteRequestWeightThrottler;
             auto queueName = GetRequestQueueNameForKey(userNameAndWorkloadType);
             auto throttlerId = GetDistributedWeightThrottlerId(queueName);
 
@@ -204,26 +204,25 @@ private:
         const TCypressProxyDynamicConfigPtr& oldConfig,
         const TCypressProxyDynamicConfigPtr& newConfig)
     {
-        const auto& objectServiceConfig = newConfig->ObjectService;
         const auto& oldObjectServiceConfig = oldConfig->ObjectService;
+        const auto& newObjectServiceConfig = newConfig->ObjectService;
 
-        ThrottlerFactory_->Reconfigure(objectServiceConfig->DistributedThrottler);
+        ThrottlerFactory_->Reconfigure(newObjectServiceConfig->DistributedThrottler);
 
         // Request queue provider's default configs are irrelevant in case of
         // distributed throttler, but we set it anyway here just in case.
         RequestQueueProvider_->UpdateDefaultConfigs({
-            objectServiceConfig->DefaultPerUserWriteRequestWeightThrottlerConfig,
+            newObjectServiceConfig->DefaultPerUserWriteRequestWeightThrottler,
             /*BytesThrottlerConfig*/ InfiniteRequestThrottlerConfig});
 
-        if (objectServiceConfig->EnablePerUserRequestWeightThrottling != oldObjectServiceConfig->EnablePerUserRequestWeightThrottling)
-        {
+        if (newObjectServiceConfig->EnablePerUserRequestWeightThrottling != oldObjectServiceConfig->EnablePerUserRequestWeightThrottling) {
             RequestQueueProvider_->UpdateThrottlingEnabledFlags(
-                objectServiceConfig->EnablePerUserRequestWeightThrottling,
+                newObjectServiceConfig->EnablePerUserRequestWeightThrottling,
                 /*enableBytesThrottling*/ false);
             RequestQueueProvider_->ReconfigureAllQueues();
 
-            YT_LOG_DEBUG("Per user request weight throttling was %v",
-                objectServiceConfig->EnablePerUserRequestWeightThrottling ? "enabled" : "disabled");
+            YT_LOG_DEBUG("Per-user request weight throttling was %v",
+                newObjectServiceConfig->EnablePerUserRequestWeightThrottling ? "enabled" : "disabled");
         }
     }
 };

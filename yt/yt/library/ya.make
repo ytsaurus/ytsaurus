@@ -5,6 +5,7 @@ RECURSE(
     backtrace_introspector
     clickhouse_discovery
     codegen
+    codegen_api
     column_converters
     containers
     coredumper
@@ -23,6 +24,8 @@ RECURSE(
     process
     profiling
     program
+    server_program
+    stockpile
     quantile_digest
     query
     random
@@ -31,6 +34,7 @@ RECURSE(
     skiff_ext
     sparse_coredump
     syncmap
+    tcmalloc
     tracing
     vector_hdrf
     web_assembly

@@ -70,6 +70,7 @@ def get_master_config():
 """)
 
 
+# COMPAT(koloshmet) cypress_manager/enable_preserve_acl_during_move
 def get_dynamic_master_config():
     return yson.loads(b"""
 {
@@ -118,6 +119,7 @@ def get_dynamic_master_config():
         expiration_backoff_time = 200;
         scion_removal_period = 1000;
         virtual_map_read_offload_batch_size = 2;
+        enable_preserve_acl_during_move = %false;
     };
 
     transaction_manager = {
@@ -207,9 +209,6 @@ def get_scheduler_config():
         static_orchid_cache_update_period = 100;
         operation_to_agent_assignment_backoff = 100;
         orchid_keys_update_period = 100;
-
-        always_send_controller_agent_descriptors = %false;
-        send_full_controller_agent_descriptors_for_allocations = %false;
 
         min_needed_resources_update_period = 100;
 

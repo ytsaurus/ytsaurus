@@ -172,6 +172,7 @@ def parse_args():
         builder.add_argument("mode", choices=["iterative", "stateless_write", "compare_replicas"])
         builder.add_argument("chunk_format", type=parse_string_variable, metavar="VARIABLE", help="chunk formats (table_versioned_simple/table_versioned_columnar/...)")
         builder.add_argument("erasure_codec", type=parse_string_variable, metavar="VARIABLE", help="erasure codecs (none/lrc_12_2_2/...)")
+        builder.add_argument("hunk_erasure_codec", type=parse_string_variable, metavar="VARIABLE", help="hunk erasure codecs (none/isa_reed_solomon_6_3/...)")
         builder.add_argument("compression_codec", type=parse_string_variable, metavar="VARIABLE", help="compression codecs (none/lz4/...)")
         builder.add_argument("in_memory_mode", type=parse_string_variable, metavar="VARIABLE", help="in memory modes (none/compressed/uncompressed)")
         builder.add_argument("skip_flush", action="store_true", help="do not flush the table on each iteration before map-reduce")

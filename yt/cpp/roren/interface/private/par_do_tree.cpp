@@ -276,7 +276,6 @@ private:
     {
         TFnAttributes result;
         result.SetIsPure(true); // Empty tree is pure.
-        result.SetKeyLockMode(TFnAttributes::EKeyLockMode::NoLock); // Empty tree has no lock mode.
         for (const auto& node : parDoNodeList) {
             const auto& currentAttributes = node.ParDo->GetFnAttributes();
             TFnAttributesOps::Merge(result, currentAttributes);

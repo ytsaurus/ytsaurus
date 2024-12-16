@@ -17,6 +17,7 @@ add_executable(lsm-sim)
 
 target_compile_options(lsm-sim PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(lsm-sim PUBLIC
@@ -26,7 +27,7 @@ target_link_libraries(lsm-sim PUBLIC
 )
 
 target_allocator(lsm-sim
-  cpp-ytalloc-impl
+  system_allocator
 )
 
 target_link_options(lsm-sim PRIVATE

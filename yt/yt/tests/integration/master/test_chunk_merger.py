@@ -1634,11 +1634,13 @@ class TestShallowMergeValidation(YTEnvSetup):
     }
 
     @authors("gritukan")
-    def test_validation_failed(self):
+    @pytest.mark.parametrize("fail_validation", ["fail_shallow_merge_validation", "fail_chunk_meta_validation"])
+    def test_validation_failed(self, fail_validation):
+        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
         update_nodes_dynamic_config({
             "data_node": {
                 "merge_chunks_job": {
-                    "fail_shallow_merge_validation": True,
+                    fail_validation: True,
                 },
             },
         })

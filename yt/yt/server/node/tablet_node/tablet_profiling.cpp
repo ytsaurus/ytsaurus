@@ -15,12 +15,13 @@
 #include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
 #include <yt/yt/ytlib/table_client/config.h>
 
-#include <yt/yt/core/misc/singleton.h>
-
 #include <yt/yt/library/profiling/sensor.h>
+
 #include <yt/yt/library/syncmap/map.h>
 
 #include <library/cpp/yt/farmhash/farm_hash.h>
+
+#include <library/cpp/yt/memory/leaky_ref_counted_singleton.h>
 
 namespace NYT::NTabletNode {
 
@@ -126,6 +127,13 @@ TPullRowsCounters::TPullRowsCounters(const NProfiling::TProfiler& profiler)
     , WastedRowCount(profiler.Counter("/pull_rows/needless_row_count"))
     , ChunkReaderStatisticsCounters(profiler.WithPrefix("/pull_rows/chunk_reader_statistics"))
     , MemoryUsage(profiler.Counter("/pull_rows/memory_usage"))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFetchTableRowsCounters::TFetchTableRowsCounters(const NProfiling::TProfiler& profiler)
+    : DataWeight(profiler.Counter("/fetch_table_rows/data_weight"))
+    , RowCount(profiler.Counter("/fetch_table_rows/row_count"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -792,6 +800,11 @@ TTabletServiceCounters* TTableProfiler::GetTabletServiceCounters(const std::opti
 TPullRowsCounters* TTableProfiler::GetPullRowsCounters(const std::optional<std::string>& userTag)
 {
     return PullRowsCounters_.Get(Disabled_, userTag, Profiler_);
+}
+
+TFetchTableRowsCounters* TTableProfiler::GetFetchTableRowsCounters(const std::optional<std::string>& userTag)
+{
+    return FetchTableRowsCounters_.Get(Disabled_, userTag, Profiler_);
 }
 
 TReplicaCounters TTableProfiler::GetReplicaCounters(const std::string& cluster)

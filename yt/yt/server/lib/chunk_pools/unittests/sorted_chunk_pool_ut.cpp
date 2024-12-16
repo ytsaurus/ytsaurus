@@ -3063,6 +3063,38 @@ TEST_F(TSortedChunkPoolTest, JoinReduceForeignChunkSlicing)
     EXPECT_EQ(2u, stripeLists[0]->Stripes[0]->DataSlices.size());
 }
 
+TEST_F(TSortedChunkPoolTest, UnsuccessfulSplitMarksJobUnsplittable)
+{
+    InitTables(
+        /*isForeign*/ {false},
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+    InitTables(
+        {true, false, false} /*isForeign*/,
+        {false, false, false} /*isTeleportable*/,
+        {false, false, false} /*isVersioned*/);
+
+    DataSizePerJob_ = 2_KB;
+    InitJobConstraints();
+
+    auto chunk = CreateChunk(
+        BuildRow({0}),
+        BuildRow({0}),
+        0,
+        /*size*/ 1_KB,
+        TLegacyKey(),
+        TLegacyKey(),
+        /*rowCount*/ 1);
+
+    CreateChunkPool();
+
+    AddChunk(chunk);
+
+    ChunkPool_->Finish();
+
+    CheckUnsuccessfulSplitMarksJobUnsplittable(ChunkPool_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortedChunkPoolTestRandomized

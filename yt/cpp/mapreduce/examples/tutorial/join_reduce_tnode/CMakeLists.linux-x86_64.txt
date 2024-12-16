@@ -19,6 +19,7 @@ add_executable(join_reduce_tnode)
 
 target_compile_options(join_reduce_tnode PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(join_reduce_tnode PUBLIC

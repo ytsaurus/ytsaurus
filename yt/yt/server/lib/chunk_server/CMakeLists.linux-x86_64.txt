@@ -35,6 +35,7 @@ add_library(server-lib-chunk_server)
 
 target_compile_options(server-lib-chunk_server PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(server-lib-chunk_server PUBLIC

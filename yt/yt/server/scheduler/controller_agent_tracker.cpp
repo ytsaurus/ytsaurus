@@ -21,6 +21,7 @@
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/lease_manager.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
@@ -433,7 +434,7 @@ public:
         Config_ = SchedulerConfig_->ControllerAgentTracker;
         AtomicConfig_.Store(Config_);
 
-        MessageOffloadThreadPool_->Configure(Config_->MessageOffloadThreadCount);
+        MessageOffloadThreadPool_->SetThreadCount(Config_->MessageOffloadThreadCount);
     }
 
     const IResponseKeeperPtr& GetResponseKeeper() const

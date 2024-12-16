@@ -21,15 +21,18 @@ public:
     void EvaluateKey(
         TMutableRow fullRow,
         const TRowBufferPtr& buffer,
-        int index) const;
+        int index,
+        bool preserveColumnId) const;
 
     void EvaluateKeys(
         TMutableRow fullRow,
-        const TRowBufferPtr& buffer) const;
+        const TRowBufferPtr& buffer,
+        bool preserveColumnsIds) const;
 
     void EvaluateKeys(
         NTableClient::TMutableVersionedRow fullRow,
-        const TRowBufferPtr& buffer) const;
+        const TRowBufferPtr& buffer,
+        bool preserveColumnsIds) const;
 
     const std::vector<int>& GetReferenceIds(int index) const;
     TConstExpressionPtr GetExpression(int index) const;

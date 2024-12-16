@@ -27,6 +27,8 @@
 
 #include <yt/yt/core/misc/random.h>
 
+#include <yt/yt/core/concurrency/thread_pool.h>
+
 #include <util/random/shuffle.h>
 
 namespace NYT::NTabletBalancer {
@@ -139,6 +141,7 @@ private:
         std::deque<TError> RetryableErrors;
     };
 
+    std::atomic_flag IsActive_ = ATOMIC_FLAG_INIT;
     IBootstrap* const Bootstrap_;
     const TStandaloneTabletBalancerConfigPtr Config_;
     const IInvokerPtr ControlInvoker_;
@@ -278,6 +281,10 @@ void TTabletBalancer::Start()
     YT_LOG_INFO("Starting tablet balancer instance (Period: %v)",
         DynamicConfig_.Acquire()->Period.value_or(Config_->Period));
 
+    if (IsActive_.test_and_set()) {
+        YT_LOG_WARNING("Trying to start tablet balancer instance which is already active");
+    }
+
     GroupsToMoveOnNextIteration_.clear();
     FirstIterationStartTime_ = TruncatedNow();
 
@@ -293,6 +300,8 @@ void TTabletBalancer::Stop()
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
     YT_LOG_INFO("Stopping tablet balancer instance");
+
+    IsActive_.clear();
 
     YT_UNUSED_FUTURE(PollExecutor_->Stop());
     ActionManager_->Stop();
@@ -352,7 +361,7 @@ void TTabletBalancer::BalancerIteration()
                 bundleName);
 
             SaveRetryableBundleError(bundleName, TError(
-                EErrorCode::IncorrectConfig,
+                NTabletBalancer::EErrorCode::IncorrectConfig,
                 "Bundle has unparsable tablet balancer config"));
             continue;
         }
@@ -387,7 +396,7 @@ void TTabletBalancer::BalancerIteration()
             YT_LOG_ERROR(result, "Failed to update meta registry (BundleName: %v)", bundleName);
 
             SaveRetryableBundleError(bundleName, TError(
-                EErrorCode::StatisticsFetchFailed,
+                NTabletBalancer::EErrorCode::StatisticsFetchFailed,
                 "Failed to update meta registry")
                 << result);
             continue;
@@ -402,7 +411,7 @@ void TTabletBalancer::BalancerIteration()
             YT_LOG_ERROR(result, "Fetch statistics failed (BundleName: %v)", bundleName);
 
             SaveRetryableBundleError(bundleName, TError(
-                EErrorCode::StatisticsFetchFailed,
+                NTabletBalancer::EErrorCode::StatisticsFetchFailed,
                 "Fetch statistics failed")
                 << result);
             continue;
@@ -542,6 +551,12 @@ THashSet<TGroupName> TTabletBalancer::GetBalancingGroups(const TTabletCellBundle
 IYPathServicePtr TTabletBalancer::GetOrchidService()
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+    if (!IsActive_.test()) {
+        YT_LOG_DEBUG("Removing errors by ttl for inactive instance");
+
+        RemoveBundleErrorsByTtl(DynamicConfig_.Acquire()->BundleErrorsTtl);
+    }
 
     return IYPathService::FromProducer(BIND(&TTabletBalancer::BuildOrchid, MakeWeak(this)))
         ->Via(ControlInvoker_);
@@ -705,7 +720,7 @@ bool TTabletBalancer::DidBundleBalancingTimeHappen(
             groupTag.first,
             groupTag.second);
         SaveFatalBundleError(bundle->Name, TError(
-            EErrorCode::ScheduleFormulaEvaluationFailed,
+            NTabletBalancer::EErrorCode::ScheduleFormulaEvaluationFailed,
             "Failed to evaluate tablet balancer schedule formula for group %Qv",
             groupTag.second)
             << ex);
@@ -787,7 +802,7 @@ void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundleState)
         for (auto descriptor : descriptors) {
             if (!TryScheduleActionCreation(groupTag, descriptor)) {
                 SaveFatalBundleError(groupTag.first, TError(
-                    EErrorCode::GroupActionLimitExceeded,
+                    NTabletBalancer::EErrorCode::GroupActionLimitExceeded,
                     "Group %Qv has exceeded the limit for creating actions. "
                     "Failed to schedule in-memory move action",
                     groupTag.second)
@@ -847,7 +862,7 @@ void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState)
         for (auto descriptor : descriptors) {
             if (!TryScheduleActionCreation(groupTag, descriptor)) {
                 SaveFatalBundleError(groupTag.first, TError(
-                    EErrorCode::GroupActionLimitExceeded,
+                    NTabletBalancer::EErrorCode::GroupActionLimitExceeded,
                     "Group %Qv has exceeded the limit for creating actions. "
                     "Failed to schedule ordinary move action",
                     groupTag.second)
@@ -922,7 +937,7 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
         for (auto descriptor : descriptors) {
             if (!TryScheduleActionCreation(groupTag, descriptor)) {
                 SaveFatalBundleError(groupTag.first, TError(
-                    EErrorCode::GroupActionLimitExceeded,
+                    NTabletBalancer::EErrorCode::GroupActionLimitExceeded,
                     "Group %Qv has exceeded the limit for creating actions. "
                     "Failed to schedule parameterized move action",
                     groupTag.second)
@@ -981,7 +996,7 @@ void TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleStatePtr& bund
             groupConfig->Parameterized->Metric);
 
         SaveFatalBundleError(bundle->Name, TError(
-            EErrorCode::ParameterizedBalancingFailed,
+            NTabletBalancer::EErrorCode::ParameterizedBalancingFailed,
             "Parameterized move balancing for group %Qv failed",
             groupName)
             << ex);
@@ -1010,7 +1025,7 @@ void TTabletBalancer::TryBalanceViaReshardParameterized(
             groupConfig->Parameterized->Metric);
 
         SaveFatalBundleError(bundle->Name, TError(
-            EErrorCode::ParameterizedBalancingFailed,
+            NTabletBalancer::EErrorCode::ParameterizedBalancingFailed,
             "Parameterized reshard balancing for group %Qv failed",
             groupName)
             << ex);
@@ -1097,7 +1112,7 @@ void TTabletBalancer::ExecuteReshardIteration(
 
     auto saveLimitExceededError = [&] (const TReshardDescriptor& descriptor, auto limit) {
         SaveFatalBundleError(groupTag.first, TError(
-            EErrorCode::GroupActionLimitExceeded,
+            NTabletBalancer::EErrorCode::GroupActionLimitExceeded,
             "Group %Qv has exceeded the limit for creating actions. "
             "Failed to schedule reshard action",
             groupTag.second)

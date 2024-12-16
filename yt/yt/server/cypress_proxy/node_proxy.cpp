@@ -42,6 +42,7 @@
 #include <yt/yt/core/ypath/helpers.h>
 
 #include <yt/yt/core/yson/writer.h>
+#include <yt/yt/core/yson/async_writer.h>
 
 #include <yt/yt/core/ytree/exception_helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
@@ -1181,7 +1182,7 @@ private:
             , AccessTrackingOptions_(std::move(options))
         {
             YT_VERIFY(Session_);
-            YT_VERIFY(TypeFromId(nodeId) == EObjectType::SequoiaMapNode);
+            YT_VERIFY(IsSequoiaCompositeNodeType(TypeFromId(nodeId)));
         }
 
         void OnMyBeginAttributes() override
@@ -1199,7 +1200,7 @@ private:
             std::vector<TMultisetAttributesSubrequest> subrequests;
             for (auto& [key, value] : Attributes_->ListPairs()) {
                 subrequests.push_back({
-                    .Attribute = std::move(key),
+                    .AttributeKey = std::move(key),
                     .Value = std::move(value),
                 });
             }
@@ -1280,6 +1281,12 @@ private:
             : TAttributeFilter();
 
         auto limit = YT_PROTO_OPTIONAL(*request, limit);
+
+        if (limit && limit < 0) {
+            THROW_ERROR_EXCEPTION("Limit is negative")
+                << TErrorAttribute("limit", limit);
+        }
+
         // NB: This is an arbitrary value, it can be freely changed.
         // TODO(h0pless): Think about moving global limit to dynamic config.
         i64 responseSizeLimit = limit ? *limit : 100'000;
@@ -1390,10 +1397,10 @@ private:
 
         writer.Flush();
 
+        response->set_value(stream.Str());
+
         MaybeTouchCurrentNode(TYPathProxy::Get, context);
         // Should not throw after this point.
-
-        response->set_value(stream.Str());
 
         context->Reply();
     }
@@ -1523,21 +1530,76 @@ private:
             limit,
             attributeFilter);
 
+        if (limit && limit < 0) {
+            THROW_ERROR_EXCEPTION("Limit is negative")
+                << TErrorAttribute("limit", limit);
+        }
+
+        TAsyncYsonWriter writer;
+
         auto children = WaitFor(SequoiaSession_->FetchChildren(Id_))
             .ValueOrThrow();
+
+        if (limit && std::ssize(children) > limit) {
+            children.resize(*limit);
+
+            writer.OnBeginAttributes();
+            writer.OnKeyedItem("incomplete");
+            writer.OnBooleanScalar(true);
+            writer.OnEndAttributes();
+        }
+
+        THashMap<TNodeId, IAttributeDictionaryPtr> nodeIdToAttributes;
+        if (attributeFilter) {
+            // Form a template.
+            auto requestTemplate = TYPathProxy::Get("/@");
+            ToProto(requestTemplate->mutable_attributes(), attributeFilter);
+
+            std::vector<TNodeId> childNodeIds;
+            for (const auto& child : children) {
+                childNodeIds.push_back(child.ChildId);
+            }
+
+            auto vectorizedBatcher = TMasterYPathProxy::CreateGetBatcher(
+                Bootstrap_->GetNativeRootClient(),
+                requestTemplate,
+                childNodeIds);
+
+            auto nodeIdToRspOrError = WaitFor(vectorizedBatcher.Invoke())
+                .ValueOrThrow();
+
+            for (auto [nodeId, rspOrError] : nodeIdToRspOrError) {
+                if (!rspOrError.IsOK()) {
+                    // TODO(kvk1920): See the similar |TMapLikeNodeProxy::GetSelf| comment.
+                    THROW_ERROR_EXCEPTION("Error getting requested information from master")
+                        << rspOrError;
+                }
+                EmplaceOrCrash(
+                    nodeIdToAttributes,
+                    nodeId,
+                    ConvertToAttributes(TYsonStringBuf(rspOrError.Value()->value())));
+            }
+        }
+
+        writer.OnBeginList();
+        for (const auto& child : children) {
+            writer.OnListItem();
+            if (attributeFilter) {
+                const auto& attributes = GetOrCrash(nodeIdToAttributes, child.ChildId);
+                ConsumeAttributes(&writer, attributes);
+            }
+            writer.OnStringScalar(child.ChildKey);
+        }
+        writer.OnEndList();
+
+        auto result = WaitForFast(writer.Finish())
+            .ValueOrThrow();
+        response->set_value(result.ToString());
 
         MaybeTouchCurrentNode(TYPathProxy::List, context);
         // Should not throw after this point.
 
-        response->set_value(BuildYsonStringFluently()
-            .BeginList()
-                .DoFor(children, [&] (TFluentList fluent, const auto& child) {
-                    fluent
-                        .Item().Value(child.ChildKey);
-                })
-            .EndList().ToString());
-
-        FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ false);
+        context->Reply();
     }
 };
 

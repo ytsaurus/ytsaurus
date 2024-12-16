@@ -19,6 +19,7 @@ add_library(yt-server-discovery_server)
 
 target_compile_options(yt-server-discovery_server PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(yt-server-discovery_server PUBLIC
@@ -30,8 +31,9 @@ target_link_libraries(yt-server-discovery_server PUBLIC
   contrib-libs-cxxsupp
   yutil
   library-cpp-getopt
-  yt-yt-ytlib
   cpp-yt-phdr_cache
+  yt-library-server_program
+  yt-yt-ytlib
   ytserver
   server-lib-discovery_server
 )

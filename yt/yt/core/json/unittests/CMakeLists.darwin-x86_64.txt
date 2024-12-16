@@ -17,6 +17,7 @@ add_executable(unittester-core-json)
 
 target_compile_options(unittester-core-json PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-core-json PUBLIC
@@ -30,7 +31,7 @@ target_link_libraries(unittester-core-json PUBLIC
 )
 
 target_allocator(unittester-core-json
-  cpp-ytalloc-impl
+  system_allocator
 )
 
 target_link_options(unittester-core-json PRIVATE

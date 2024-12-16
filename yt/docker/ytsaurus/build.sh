@@ -108,7 +108,7 @@ elif [[ "${component}" == "query-tracker" ]]; then
     ytserver_all="${ytsaurus_build_path}/yt/yt/server/all/ytserver-all"
     ytserver_yql_agent="${yql_build_path}/yt/yql/agent/bin/ytserver-yql-agent"
     init_query_tracker_state="${ytsaurus_source_path}/yt/python/yt/environment/init_query_tracker_state.py"
-    mrjob="${yql_build_path}/ydb/library/yql/tools/mrjob/mrjob"
+    mrjob="${ytsaurus_source_path}/yt/yql/tools/mrjob/mrjob"
     dq_vanilla_job="${yql_build_path}/ydb/library/yql/yt/dq_vanilla_job/dq_vanilla_job"
     dq_vanilla_job_lite="${yql_build_path}/ydb/library/yql/yt/dq_vanilla_job.lite/dq_vanilla_job.lite"
 
@@ -145,7 +145,7 @@ elif [[ "${component}" == "local" ]]; then
 
     ytserver_yql_agent="${yql_build_path}/yt/yql/agent/bin/ytserver-yql-agent"
     init_query_tracker_state="${ytsaurus_source_path}/yt/python/yt/environment/init_query_tracker_state.py"
-    mrjob="${yql_build_path}/ydb/library/yql/tools/mrjob/mrjob"
+    mrjob="${ytsaurus_source_path}/yt/yql/tools/mrjob/mrjob"
     dq_vanilla_job="${yql_build_path}/ydb/library/yql/yt/dq_vanilla_job/dq_vanilla_job"
     dq_vanilla_job_lite="${yql_build_path}/ydb/library/yql/yt/dq_vanilla_job.lite/dq_vanilla_job.lite"
 

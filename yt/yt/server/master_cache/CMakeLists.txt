@@ -19,6 +19,7 @@ add_library(yt-server-master_cache)
 
 target_compile_options(yt-server-master_cache PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(yt-server-master_cache PUBLIC
@@ -32,6 +33,7 @@ target_link_libraries(yt-server-master_cache PUBLIC
   library-cpp-getopt
   cpp-yt-phdr_cache
   yt-library-dynamic_config
+  yt-library-server_program
   yt-yt-ytlib
   ytserver
   server-lib-chaos_cache

@@ -75,13 +75,20 @@ public:
         TCypressKeyWriterConfigPtr config,
         NApi::IClientPtr client);
 
+    //! Initialize() should be called at least once before all other calls.
+    TFuture<void> Initialize();
+
     [[nodiscard]] TOwnerId GetOwner() override;
 
     TFuture<void> RegisterKey(const TKeyInfoPtr& keyInfo) override;
 
 private:
+    TFuture<void> DoRegister(const TKeyInfoPtr& keyInfo);
+
     TCypressKeyWriterConfigPtr Config_;
     NApi::IClientPtr Client_;
+
+    TFuture<void> Initialization_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressKeyWriter)

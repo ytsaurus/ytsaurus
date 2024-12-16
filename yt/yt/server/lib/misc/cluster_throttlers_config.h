@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/distributed_throttler/public.h>
 
+#include <yt/yt/core/concurrency/public.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <util/generic/string.h>
@@ -23,6 +25,7 @@ class TClusterThrottlersConfig
 public:
     NDistributedThrottler::TDistributedThrottlerConfigPtr DistributedThrottler;
     THashMap<TString, TClusterLimitsConfigPtr> ClusterLimits;
+    TDuration UpdatePeriod;
     bool Enabled;
 
     REGISTER_YSON_STRUCT(TClusterThrottlersConfig);
@@ -38,8 +41,8 @@ class TClusterLimitsConfig
     : public NYTree::TYsonStruct
 {
 public:
-    TLimitConfigPtr Bandwidth;
-    TLimitConfigPtr Rps;
+    NConcurrency::TThroughputThrottlerConfigPtr Bandwidth;
+    NConcurrency::TThroughputThrottlerConfigPtr Rps;
 
     REGISTER_YSON_STRUCT(TClusterLimitsConfig);
 
@@ -50,25 +53,8 @@ DEFINE_REFCOUNTED_TYPE(TClusterLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLimitConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    std::optional<i64> Limit;
-
-    REGISTER_YSON_STRUCT(TLimitConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TLimitConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Get //sys/cluster_throttlers configuration file as YSON.
 TFuture<NYT::NYson::TYsonString> GetClusterThrottlersYson(NApi::NNative::IClientPtr client);
-//! Get //sys/cluster_throttlers configuration file as config.
-TClusterThrottlersConfigPtr GetClusterThrottlersConfig(NApi::NNative::IClientPtr client);
 //! Return true if two configs are the same.
 bool AreClusterThrottlersConfigsEqual(TClusterThrottlersConfigPtr lhs, TClusterThrottlersConfigPtr rhs);
 

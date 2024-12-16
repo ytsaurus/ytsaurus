@@ -19,6 +19,7 @@ add_executable(unittester-tablet-balancer-lib)
 
 target_compile_options(unittester-tablet-balancer-lib PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-tablet-balancer-lib PUBLIC
@@ -34,7 +35,8 @@ target_link_libraries(unittester-tablet-balancer-lib PUBLIC
 )
 
 target_allocator(unittester-tablet-balancer-lib
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-tablet-balancer-lib PRIVATE

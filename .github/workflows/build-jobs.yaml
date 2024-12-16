@@ -198,9 +198,9 @@ jobs:
           ninja liburl_udf.so
           ninja libyqlplugin.so
           ninja libyson2_udf.so
-          ninja mrjob
 
           cd ../build_${{ matrix.build-type }}
+          ninja mrjob
           ninja ytserver-yql-agent
 
   ya-make_build:
@@ -292,6 +292,8 @@ jobs:
           SCRIPT_FLAGS=""
           if [ "${{ inputs.build-yql-python-udfs }}" == "true" ]; then
             SCRIPT_FLAGS="${SCRIPT_FLAGS} --build-python-udfs yes"
+          else
+            SCRIPT_FLAGS="${SCRIPT_FLAGS} --build-python-udfs no"
           fi
 
           ../ytsaurus/ytsaurus/yt/docker/ya-build/query-tracker/build_yql_agent.sh ${SCRIPT_FLAGS}

@@ -143,9 +143,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_VERIFY(Bootstrap_->IsConnected());
+        YT_VERIFY(IsConnected());
 
-        auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
+        auto masterChannel = GetMasterChannel(cellTag);
         TNodeTrackerServiceProxy proxy(std::move(masterChannel));
 
         auto heartbeat = proxy.Heartbeat();
@@ -252,7 +252,7 @@ public:
             MasterConnectionInvoker_);
     }
 
-    NRpc::IChannelPtr GetMasterChannel(TCellTag cellTag) override
+    IChannelPtr GetMasterChannel(TCellTag cellTag) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -354,7 +354,7 @@ protected:
         return future.Get();
     }
 private:
-    NClusterNode::IBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     const TMasterConnectorConfigPtr Config_;
 

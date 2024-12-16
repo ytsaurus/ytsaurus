@@ -1716,7 +1716,7 @@ TBuilderCtx::ResolveNestedTypesResult TBuilderCtx::ResolveNestedTypes(
 
     for (const auto& item : reference.CompositeTypeAccessor.NestedStructOrTupleItemAccessor) {
         Visit(item,
-            [&] (const NAst::TStructMemberAccessor& structMember) {
+            [&] (const TStructMemberAccessor& structMember) {
                 if (current->GetMetatype() != ELogicalMetatype::Struct) {
                     THROW_ERROR_EXCEPTION("Member %Qv is not found", structMember)
                         << TErrorAttribute("source", NAst::FormatReference(reference));
@@ -1734,7 +1734,7 @@ TBuilderCtx::ResolveNestedTypesResult TBuilderCtx::ResolveNestedTypes(
                 THROW_ERROR_EXCEPTION("Member %Qv is not found", structMember)
                     << TErrorAttribute("source", NAst::FormatReference(reference));
             },
-            [&] (const NAst::TTupleItemIndexAccessor& itemIndex) {
+            [&] (const TTupleItemIndexAccessor& itemIndex) {
                 if (current->GetMetatype() != ELogicalMetatype::Tuple) {
                     THROW_ERROR_EXCEPTION("Member %Qv is not found", itemIndex)
                         << TErrorAttribute("source", NAst::FormatReference(reference));
@@ -2717,6 +2717,19 @@ TConstProjectClausePtr BuildProjectClause(
     return projectClause;
 }
 
+void DropLimitClauseWhenGroupByOne(const TQueryPtr& query)
+{
+    if (!query->OrderClause &&
+        query->GroupClause &&
+        std::ssize(query->GroupClause->GroupItems) == 1 &&
+        query->GroupClause->GroupItems[0].Expression->As<TLiteralExpression>() &&
+        query->Limit != UnorderedReadHint &&
+        query->Limit != 0)
+    {
+        query->Limit = UnorderedReadHint;
+    }
+}
+
 void PrepareQuery(
     const TQueryPtr& query,
     const NAst::TQuery& ast,
@@ -2857,6 +2870,8 @@ void PrepareQuery(
         // Select all columns.
         builder.PopulateAllColumns();
     }
+
+    DropLimitClauseWhenGroupByOne(query);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3040,7 +3055,7 @@ NAst::TParser::token::yytokentype GetStrayToken(EParseMode mode)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void DefaultFetchFunctions(const std::vector<TString>& /*names*/, const TTypeInferrerMapPtr& typeInferrers)
+void DefaultFetchFunctions(TRange<TString> /*names*/, const TTypeInferrerMapPtr& typeInferrers)
 {
     MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
 }
@@ -3399,7 +3414,6 @@ TJoinClausePtr BuildArrayJoinClause(
 std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TString& source,
-    const TFunctionsFetcher& functionsFetcher,
     TYsonStringBuf placeholderValues,
     int syntaxVersion,
     IMemoryUsageTrackerPtr memoryTracker)
@@ -3407,14 +3421,12 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     return PreparePlanFragment(
         callbacks,
         *ParseSource(source, EParseMode::Query, placeholderValues, syntaxVersion),
-        functionsFetcher,
-        memoryTracker);
+        std::move(memoryTracker));
 }
 
 std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TParsedSource& parsedSource,
-    const TFunctionsFetcher& functionsFetcher,
     IMemoryUsageTrackerPtr memoryTracker)
 {
     auto query = New<TQuery>(TGuid::Create());
@@ -3427,7 +3439,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     auto functionNames = ExtractFunctionNames(ast, aliasMap);
 
     auto functions = New<TTypeInferrerMap>();
-    functionsFetcher(functionNames, functions);
+    callbacks->FetchFunctions(functionNames, functions);
 
     const auto& table = ast.Table;
 

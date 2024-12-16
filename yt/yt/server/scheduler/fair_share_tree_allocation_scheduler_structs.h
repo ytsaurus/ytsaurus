@@ -68,6 +68,7 @@ struct TFairShareTreeAllocationSchedulerOperationState final
 
     // Initialized after operation's materialization, but should not be modified after that.
     std::optional<TJobResources> AggregatedInitialMinNeededResources;
+    bool SingleAllocationVanillaOperation = false;
 
     std::optional<ESchedulingSegment> SchedulingSegment;
     TSchedulingSegmentModule SchedulingSegmentModule;

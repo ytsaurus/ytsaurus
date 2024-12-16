@@ -41,9 +41,9 @@
 
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
 
-#include <yt/yt/ytlib/table_client/schema.h>
-
 #include <yt/yt/library/heavy_schema_validation/schema_validation.h>
+
+#include <yt/yt/library/query/secondary_index/schema.h>
 
 #include <yt/yt/library/query/base/query_preparer.h>
 

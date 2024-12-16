@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.29.0)
+VERSION(v1.32.0)
 
 SRCS(
     handler.go
@@ -15,6 +15,7 @@ SRCS(
 )
 
 GO_TEST_SRCS(
+    alternate_meter_test.go
     benchmark_test.go
     handler_test.go
     instruments_test.go

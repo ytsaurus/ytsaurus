@@ -33,6 +33,7 @@ add_executable(unittester-tablet-node)
 
 target_compile_options(unittester-tablet-node PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-tablet-node PUBLIC

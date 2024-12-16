@@ -39,6 +39,7 @@ private:
 
     NClusterNode::TJobResources BaseResourceUsage_;
     NClusterNode::TJobResources AdditionalResourceUsage_;
+    NClusterNode::TJobResources InitialResourceDemand_;
 
     std::vector<int> JobPorts_;
 
@@ -64,6 +65,7 @@ private:
         TOperationId operationId,
         const NClusterNode::TJobResources& baseResourceUsage,
         const NClusterNode::TJobResources& additionalResourceUsage,
+        const NClusterNode::TJobResources& initialResourceDemand,
         const std::vector<int>& jobPorts,
         const TJobEvents& jobEvents,
         const NControllerAgent::TCoreInfos& jobCoreInfos,

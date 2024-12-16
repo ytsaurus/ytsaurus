@@ -19,6 +19,7 @@ add_executable(unittester-query-tracker-proxy)
 
 target_compile_options(unittester-query-tracker-proxy PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-query-tracker-proxy PUBLIC

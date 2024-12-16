@@ -424,8 +424,8 @@ public:
 
         Bootstrap_->OnDynamicConfigChanged(Config_);
 
-        ControllerThreadPool_->Configure(Config_->ControllerThreadCount);
-        ChunkScraperThreadPool_->Configure(Config_->ChunkScraperThreadCount);
+        ControllerThreadPool_->SetThreadCount(Config_->ControllerThreadCount);
+        ChunkScraperThreadPool_->SetThreadCount(Config_->ChunkScraperThreadCount);
 
         JobTracker_->UpdateConfig(Config_);
 
@@ -1464,6 +1464,7 @@ private:
                     case EAgentToSchedulerOperationEventType::Suspended:
                     case EAgentToSchedulerOperationEventType::BannedInTentativeTree:
                         flushJobMetricsOperationIds.insert(event.OperationId);
+                        break;
                     default:
                         break;
                 }
@@ -1473,6 +1474,7 @@ private:
                     case EAgentToSchedulerOperationEventType::Aborted:
                     case EAgentToSchedulerOperationEventType::Failed:
                         finishedOperationIds.insert(event.OperationId);
+                        break;
                     default:
                         break;
                 }

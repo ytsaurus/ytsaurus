@@ -19,6 +19,7 @@ add_executable(dump-chunk-meta)
 
 target_compile_options(dump-chunk-meta PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(dump-chunk-meta PUBLIC

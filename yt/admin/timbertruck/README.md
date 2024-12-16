@@ -48,6 +48,12 @@ admin_panel:
   # Default metric tags.
   monitoring_tags: {cluster: hume}
 
+  # OPTIONAL.
+  # Metrics stream format.
+  # Possible values: 'spack', 'json'. 
+  # Default value is 'spack'.
+  metrics_format: spack
+
 # List of json log files to send (i.e. logs where each line of file is JSON).
 json_logs:
 -
@@ -95,8 +101,8 @@ text_logs:
 
 #### Metrics
 
-`tt.application.error_exit`
-: sets to 1 for few minutes if timbertruck restarts after error exit, 0 otherwise
+`tt.application.restart_count`
+: number of timbertruck daemon restarts
 
 `tt.application.error_log_count`
 : number of errors in logs

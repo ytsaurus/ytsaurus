@@ -17,6 +17,7 @@ add_library(yt-library-safe_assert INTERFACE)
 
 target_compile_options(yt-library-safe_assert INTERFACE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-library-safe_assert INTERFACE
@@ -32,6 +33,7 @@ add_global_library_for(yt-library-safe_assert.global
 
 target_compile_options(yt-library-safe_assert.global PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-library-safe_assert.global PUBLIC

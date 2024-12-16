@@ -127,6 +127,7 @@ using namespace NIO;
 using namespace NTracing;
 using namespace NJournalClient;
 using namespace NYTree;
+using namespace NQueryClient;
 
 using NChunkClient::TChunkReaderStatistics;
 using NYT::ToProto;
@@ -1270,6 +1271,7 @@ private:
     const TMergeChunksJobDynamicConfigPtr DynamicConfig_;
 
     bool DeepMergeFallbackOccurred_ = false;
+    TError ChunkMetaValidationError_;
     TError ShallowMergeValidationError_;
     EChunkMergerMode MergeMode_;
     IMultiReaderMemoryManagerPtr MultiReaderMemoryManager_;
@@ -1299,6 +1301,7 @@ private:
     {
     public:
         TMergeChunkReader(
+            IColumnEvaluatorCachePtr columnEvaluatorCache,
             NTableClient::TChunkReaderConfigPtr readerConfig,
             std::vector<TChunkReadContext> contexts,
             TTableSchemaPtr schema,
@@ -1306,7 +1309,8 @@ private:
             bool permuteRows,
             IBlockCachePtr blockCache,
             IMultiReaderMemoryManagerPtr memoryManager)
-            : ReaderConfig_(std::move(readerConfig))
+            : ColumnEvaluatorCache_(std::move(columnEvaluatorCache))
+            , ReaderConfig_(std::move(readerConfig))
             , Contexts_(std::move(contexts))
             , Schema_(std::move(schema))
             , NameTable_(std::move(nameTable))
@@ -1367,6 +1371,7 @@ private:
         }
 
     private:
+        const IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
         const NTableClient::TChunkReaderConfigPtr ReaderConfig_;
         const std::vector<TChunkReadContext> Contexts_;
         const TTableSchemaPtr Schema_;
@@ -1388,6 +1393,7 @@ private:
             });
 
             ChunkReader_ = CreateSchemalessRangeChunkReader(
+                ColumnEvaluatorCache_,
                 std::move(chunkState),
                 New<TColumnarChunkMeta>(*context.Meta),
                 ReaderConfig_,
@@ -1411,11 +1417,17 @@ private:
             jobResultExt->set_deep_merge_fallback_occurred(DeepMergeFallbackOccurred_);
         }
         ToProto(jobResultExt->mutable_shallow_merge_validation_error(), ShallowMergeValidationError_);
+        ToProto(jobResultExt->mutable_chunk_meta_validation_error(), ChunkMetaValidationError_);
 
-        if (!ShallowMergeValidationError_.IsOK()) {
-            YT_LOG_ALERT(ShallowMergeValidationError_, "Shallow merge validation failed");
-            THROW_ERROR ShallowMergeValidationError_;
-        }
+        auto validateError = [this, this_ = MakeStrong(this)] (auto error, auto message) {
+            if (!error.IsOK()) {
+                YT_LOG_ALERT(error, "%v", message);
+                THROW_ERROR error;
+            }
+        };
+
+        validateError(ShallowMergeValidationError_, "Shallow merge validation failed");
+        validateError(ChunkMetaValidationError_, "Chunk meta validation failed");
     }
 
     TFuture<void> DoRun() override
@@ -1632,6 +1644,10 @@ private:
             }
         }
 
+        if (JobSpecExt_.validate_chunk_meta_extensions()) {
+            ChunkMetaValidationError_ = ValidateChunkMeta(writer);
+        }
+
         WaitFor(writer->Close())
             .ThrowOnError();
 
@@ -1695,6 +1711,7 @@ private:
             YT_VERIFY(MultiReaderMemoryManager_);
 
             TMergeChunkReader chunkReader(
+                Bootstrap_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
                 DynamicConfig_->Reader,
                 InputChunkReadContexts_,
                 Schema_,
@@ -1784,12 +1801,21 @@ private:
 
     TDeferredChunkMetaPtr GetChunkMeta(IChunkReaderPtr reader, const TClientChunkReadOptions& options)
     {
-        auto result = WaitFor(reader->GetMeta(options));
+        auto result = WaitFor(reader->GetMeta(IChunkReader::TGetMetaOptions{ .ClientOptions = options }));
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Merge job failed");
 
         auto deferredChunkMeta = New<TDeferredChunkMeta>();
         deferredChunkMeta->CopyFrom(*result.Value());
         return deferredChunkMeta;
+    }
+
+    TError ValidateChunkMeta(const IMetaAggregatingWriterPtr& writer)
+    {
+        if (DynamicConfig_->FailChunkMetaValidation) {
+            return TError("Testing error");
+        }
+
+        return writer->FinalizeAndValidateChunkMeta();
     }
 
     TError ValidateShallowMerge(
@@ -1824,6 +1850,7 @@ private:
         auto readerConfig = DynamicConfig_->Reader;
 
         TMergeChunkReader outputChunkReader(
+            Bootstrap_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
             readerConfig,
             {outputChunkReadContext},
             Schema_,
@@ -1835,6 +1862,7 @@ private:
         // NB: #InputChunkReadContexts_ could be already used during merge.
         PrepareInputChunkReadContexts();
         TMergeChunkReader inputChunksReader(
+            Bootstrap_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
             readerConfig,
             InputChunkReadContexts_,
             Schema_,
@@ -2091,12 +2119,12 @@ private:
                 /*band*/ 0,
                 /*instant*/ {},
                 {Format("Reincarnate chunk %v", OldChunkId_)}),
-            .MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker()
+            .MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker(),
         };
 
         auto oldChunkMeta = New<TDeferredChunkMeta>();
         {
-            auto result = WaitFor(remoteReader->GetMeta(readerOptions));
+            auto result = WaitFor(remoteReader->GetMeta(IChunkReader::TGetMetaOptions{ .ClientOptions = readerOptions }));
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Reincarnation job failed");
 
             oldChunkMeta->CopyFrom(*result.Value());
@@ -2227,6 +2255,7 @@ private:
                 /*produceAllVersions*/ true);
         } else {
             reader = CreateVersionedChunkReader(
+                Bootstrap_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
                 NTableClient::TChunkReaderConfig::GetDefault(),
                 std::move(remoteReader),
                 oldChunkState,
@@ -2266,6 +2295,7 @@ private:
         TChunkStatePtr oldChunkState)
     {
         auto reader = CreateSchemalessRangeChunkReader(
+            Bootstrap_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
             oldChunkState,
             New<TColumnarChunkMeta>(*oldChunkMeta),
             NTableClient::TChunkReaderConfig::GetDefault(),

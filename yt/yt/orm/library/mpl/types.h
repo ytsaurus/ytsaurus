@@ -132,7 +132,7 @@ struct TTypes
     using Map = TTypes<TMapper<Ts>...>;
 
     template <NDetail::CStaticPredicate<Ts...> TPredicate>
-    using Filter = NDetail::TTypesFilterImpl<TTypes>::TRun<TPredicate, Ts...>;
+    using Filter = NDetail::TTypesFilterImpl<TTypes>::TRun<TPredicate, Ts...>::T;
 
     template <NDetail::CStaticPredicate<Ts...> TPredicate>
     using SuchThat = NDetail::TTypesSuchThatImpl<TPredicate, Ts...>::T;

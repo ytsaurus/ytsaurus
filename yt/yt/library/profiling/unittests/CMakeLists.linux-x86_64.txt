@@ -21,6 +21,7 @@ add_executable(yt-yt-library-profiling-unittests)
 
 target_compile_options(yt-yt-library-profiling-unittests PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-yt-library-profiling-unittests PUBLIC
@@ -64,7 +65,6 @@ target_sources(yt-yt-library-profiling-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/tag_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/cube_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/exporter_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/perf_counter_ut.cpp
 )
 
 

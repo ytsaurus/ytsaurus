@@ -61,8 +61,9 @@ public:
     }
 
 protected:
-    void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
+    void DoRun() override
     {
+        const auto& parseResult = GetOptsParseResult();
         auto args = parseResult.GetFreeArgs();
 
         Cerr << "Retries = " << Retries << Endl;

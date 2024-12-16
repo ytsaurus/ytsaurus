@@ -82,7 +82,7 @@ private:
             i64 dataSize = partitionsExt->uncompressed_data_sizes()[partitionIndex];
 
             if (rowCount > 0) {
-                result.emplace_back(New<TInputChunkSlice>(chunk));
+                result.push_back(New<TInputChunkSlice>(chunk));
                 result.back()->OverrideSize(rowCount, dataSize);
             }
         }

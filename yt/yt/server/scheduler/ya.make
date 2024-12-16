@@ -36,6 +36,7 @@ SRCS(
     persistent_fair_share_tree_allocation_scheduler_state.cpp
     persistent_scheduler_state.cpp
     pools_config_parser.cpp
+    program.cpp
     resource_tree.cpp
     resource_tree_element.cpp
     scheduler.cpp
@@ -43,11 +44,15 @@ SRCS(
     scheduling_context.cpp
     scheduling_context_detail.cpp
     scheduling_segment_manager.cpp
+    gpu_allocation_scheduler.cpp
+    gpu_allocation_scheduler_structs.cpp
     serialize.cpp
 )
 
 PEERDIR(
     library/cpp/getopt
+    library/cpp/yt/phdr_cache
+
     yt/yt/server/lib
     yt/yt/server/lib/scheduler
 
@@ -56,7 +61,7 @@ PEERDIR(
     yt/yt/server/lib/controller_agent
 
     yt/yt/library/numeric
-    library/cpp/yt/phdr_cache
+    yt/yt/library/server_program
 )
 
 END()

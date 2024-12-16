@@ -108,7 +108,7 @@ TReaderData::TReaderData(const IIOEnginePtr& ioEngine, TTableSchemaPtr /*schema*
 
     ChunkReader = GetChunkReader(ioEngine, chunkFileName);
 
-    auto meta = WaitFor(ChunkReader->GetMeta(/*chunkReadOptions*/ {}))
+    auto meta = WaitFor(ChunkReader->GetMeta(/*options*/ {}))
         .ValueOrThrow();
 
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
@@ -297,6 +297,7 @@ IVersionedReaderPtr CreateChunkReader(
 
         if (options.NoBlockFetcher) {
             return NTableClient::CreateCacheBasedVersionedChunkReader(
+                CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>()),
                 readerData.ChunkReader->GetChunkId(),
                 chunkState,
                 std::move(readerData.ChunkMeta),
@@ -307,6 +308,7 @@ IVersionedReaderPtr CreateChunkReader(
                 options.ProduceAllVersions);
         } else {
             return CreateVersionedChunkReader(
+                CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>()),
                 TChunkReaderConfig::GetDefault(),
                 std::move(readerData.ChunkReader),
                 chunkState,
@@ -357,7 +359,7 @@ TTableSchemaPtr GetMergedSchema(const IIOEnginePtr& ioEngine, const std::vector<
 
     for (const auto& chunkFileName : chunkFileNames) {
         auto chunkReader = GetChunkReader(ioEngine, chunkFileName);
-        auto meta = WaitFor(chunkReader->GetMeta(/*chunkReadOptions*/ {}))
+        auto meta = WaitFor(chunkReader->GetMeta(/*options*/ {}))
             .ValueOrThrow();
         schemas.push_back(GetSchemaFromChunkMeta(*meta));
     }

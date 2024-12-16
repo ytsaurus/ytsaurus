@@ -56,12 +56,26 @@ struct TProtoVisitorTraits
         const NProtoBuf::FieldDescriptor* fieldDescriptor,
         int index);
 
+    // For each message, inserts an entry before the indicated index in the indicated repeated
+    // field.
+    static TError InsertRepeatedFieldEntry(
+        TMessageParam message,
+        const NProtoBuf::FieldDescriptor* fieldDescriptor,
+        int index);
+
     // For each message, locates the map entry that has the same key field as the supplied
     // prototype. Returns the entry(ies) if the presence of the entry is consistent in all maps.
     static TErrorOr<TMessageReturn> GetMessageFromMapFieldEntry(
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor,
         const NProtoBuf::Message* keyMessage);
+
+    // For each message, inserts the map entry (message with pre-populated key). Returns the
+    // wrap of freshly inserted messages.
+    static TErrorOr<TMessageReturn> InsertMapFieldEntry(
+        TMessageParam message,
+        const NProtoBuf::FieldDescriptor* fieldDescriptor,
+        std::unique_ptr<NProtoBuf::Message> keyMessage);
 
     // For each message, loads all entries into a vector and sorts them by key. If all maps are
     // consistent (have the same keys), returns the map entries organized by the string
@@ -70,6 +84,12 @@ struct TProtoVisitorTraits
     static TErrorOr<TMapReturn> GetMessagesFromWholeMapField(
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor);
+
+    // Returns the default message for the given descriptor. The message param is only needed to
+    // indicate the shape of the returned value (e.g., size of a vector).
+    static TMessageReturn GetDefaultMessage(
+        TMessageParam message,
+        const NProtoBuf::Descriptor* descriptor);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

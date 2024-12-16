@@ -10,8 +10,6 @@
 
 #include <yt/yt/server/scheduler/public.h>
 
-#include <yt/yt/ytlib/program/helpers.h>
-
 #include <yt/yt/client/job_tracker_client/public.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
@@ -19,6 +17,7 @@
 
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/program_pdeathsig_mixin.h>
+#include <yt/yt/library/program/helpers.h>
 
 #include <yt/yt/core/logging/public.h>
 #include <yt/yt/core/logging/config.h>
@@ -228,7 +227,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerSimulatorProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramPdeathsigMixin
 {
 public:
@@ -244,7 +243,7 @@ public:
     }
 
 protected:
-    void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
+    void DoRun() override
     {
         // NB(eshcherbin): It usually doesn't make much sense running the simulator built in debug mode
         // but this occasionally still happens by mistake. Thus we now immediately crash unless debug
@@ -260,15 +259,12 @@ protected:
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
+        RunMixinCallbacks();
 
-        if (HandlePdeathsigOptions()) {
-            return;
-        }
-
+        const auto& parseResult = GetOptsParseResult();
         auto config = LoadConfig<TSchedulerSimulatorConfig>(/* configFilename */ parseResult.GetFreeArgs()[0]);
 
         ConfigureSingletons(config);
-        StartDiagnosticDump(config);
 
         {
             auto httpServer = NHttp::CreateServer(config->CreateMonitoringHttpServerConfig());
@@ -348,7 +344,7 @@ private:
 
     TLogger Logger = TLogger("Converter");
 
-    void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
+    void DoRun() override
     {
         TString destinationTemp(Destination_ + ".tmp");
 

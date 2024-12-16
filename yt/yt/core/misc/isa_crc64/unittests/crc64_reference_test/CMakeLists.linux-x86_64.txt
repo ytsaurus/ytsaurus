@@ -19,6 +19,7 @@ add_executable(crc64_reference_test)
 
 target_compile_options(crc64_reference_test PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 

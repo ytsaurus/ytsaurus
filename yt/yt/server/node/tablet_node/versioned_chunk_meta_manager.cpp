@@ -74,6 +74,7 @@ public:
         const IChunkReaderPtr& chunkReader,
         const TTableSchemaPtr& schema,
         const TClientChunkReadOptions& chunkReadOptions,
+        std::optional<i64> metaSize,
         bool prepareColumnarMeta) override
     {
         TVersionedChunkMetaCacheKey key{
@@ -86,7 +87,10 @@ public:
         auto cookie = BeginInsert(key);
         if (cookie.IsActive()) {
             // TODO(savrus,psushin) Move call to dispatcher?
-            future = chunkReader->GetMeta(chunkReadOptions)
+            future = chunkReader->GetMeta(IChunkReader::TGetMetaOptions{
+                .ClientOptions = chunkReadOptions,
+                .MetaSize = metaSize,
+            })
                 .Apply(BIND(
                     &TCachedVersionedChunkMeta::Create,
                     prepareColumnarMeta,
@@ -112,6 +116,24 @@ public:
         return future
             .ToUncancelable()
             .ToImmediatelyCancelable();
+    }
+
+    bool InsertMeta(
+        const TVersionedChunkMetaCacheKey& key,
+        const NChunkClient::TRefCountedChunkMetaPtr& meta) override
+    {
+        auto cookie = BeginInsert(key);
+        if (!cookie.IsActive()) {
+            return false;
+        }
+
+        auto cachedMeta = TCachedVersionedChunkMeta::Create(
+            key.PreparedColumnarMeta,
+            MemoryUsageTracker_,
+            meta);
+        auto result = New<TVersionedChunkMetaCacheEntry>(key, std::move(cachedMeta));
+        cookie.EndInsert(result);
+        return true;
     }
 
     void Touch(const TVersionedChunkMetaCacheEntryPtr& entry) override

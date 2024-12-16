@@ -39,24 +39,27 @@ namespace NYT::NTableClient {
 
 using namespace NConcurrency;
 using namespace NChunkClient;
+using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemafulUnversionedReaderPtr CreateSchemafulChunkReader(
+    const IColumnEvaluatorCachePtr& columnEvaluatorCache,
     const TChunkStatePtr& chunkState,
     const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,
-    NChunkClient::IChunkReaderPtr chunkReader,
+    IChunkReaderPtr chunkReader,
     const TClientChunkReadOptions& chunkReadOptions,
     const TTableSchemaPtr& resultSchema,
     const TSortColumns& sortColumns,
-    const NChunkClient::TReadRange& readRange)
+    const TReadRange& readRange)
 {
     switch (chunkMeta->GetChunkFormat()) {
         case EChunkFormat::TableUnversionedColumnar:
         case EChunkFormat::TableUnversionedSchemalessHorizontal: {
             auto createSchemalessReader = [=] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
                 return CreateSchemalessRangeChunkReader(
+                    columnEvaluatorCache,
                     chunkState,
                     chunkMeta,
                     std::move(config),

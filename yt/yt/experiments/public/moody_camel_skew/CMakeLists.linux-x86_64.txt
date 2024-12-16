@@ -19,6 +19,7 @@ add_executable(moody_camel_skew)
 
 target_compile_options(moody_camel_skew PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(moody_camel_skew PUBLIC

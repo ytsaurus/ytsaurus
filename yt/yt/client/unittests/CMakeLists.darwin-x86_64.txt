@@ -26,6 +26,7 @@ add_executable(unittester-client)
 
 target_compile_options(unittester-client PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-client PUBLIC
@@ -46,7 +47,7 @@ target_link_libraries(unittester-client PUBLIC
 )
 
 target_allocator(unittester-client
-  cpp-ytalloc-impl
+  system_allocator
 )
 
 target_link_options(unittester-client PRIVATE

@@ -19,6 +19,7 @@ add_executable(offline_controller)
 
 target_compile_options(offline_controller PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(offline_controller PUBLIC
@@ -35,7 +36,8 @@ target_link_libraries(offline_controller PUBLIC
 )
 
 target_allocator(offline_controller
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(offline_controller PRIVATE

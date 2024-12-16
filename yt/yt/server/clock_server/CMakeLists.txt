@@ -19,12 +19,14 @@ add_library(yt-server-clock_server)
 
 target_compile_options(yt-server-clock_server PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-server-clock_server PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  yt-library-server_program
   ytserver
   server-lib-hydra
   server-lib-hive
@@ -37,5 +39,6 @@ target_sources(yt-server-clock_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/clock_server/cluster_clock/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/clock_server/cluster_clock/hydra_facade.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/clock_server/cluster_clock/serialize.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/clock_server/cluster_clock/program.cpp
 )
 

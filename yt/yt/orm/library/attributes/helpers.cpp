@@ -27,6 +27,14 @@ using namespace NYson;
 using NProtoBuf::EnumValueDescriptor;
 using NProtoBuf::FieldDescriptor;
 using NProtoBuf::Message;
+using NProtoBuf::UnknownField;
+using NProtoBuf::UnknownFieldSet;
+using NProtoBuf::io::CodedOutputStream;
+using NProtoBuf::io::StringOutputStream;
+using NProtoBuf::internal::WireFormatLite;
+
+constexpr int ProtobufMapKeyFieldNumber = 1;
+constexpr int ProtobufMapValueFieldNumber = 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,6 +75,88 @@ NYTree::INodePtr ConvertProtobufToNode(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Returns [index of the item, its content].
+TErrorOr<std::pair<int, TYsonString>> LookupUnknownYsonFieldsItem(
+    UnknownFieldSet* unknownFields,
+    TStringBuf key)
+{
+    int count = unknownFields->field_count();
+    for (int index = 0; index < count; ++index) {
+        auto* field = unknownFields->mutable_field(index);
+        if (field->number() == UnknownYsonFieldNumber) {
+            if (field->type() != UnknownField::TYPE_LENGTH_DELIMITED) {
+                return TError(NAttributes::EErrorCode::InvalidData,
+                    "Unexpected type %v of item within yson unknown field set",
+                    static_cast<int>(field->type()));
+            }
+
+            UnknownFieldSet tmpItem;
+            if (!tmpItem.ParseFromString(field->length_delimited())) {
+                return TError(NAttributes::EErrorCode::InvalidData, "Cannot parse UnknownYsonFields item");
+            }
+
+            if (tmpItem.field_count() != 2) {
+                return TError(NAttributes::EErrorCode::InvalidData,
+                    "Unexpected field count %v in item within yson unknown field set",
+                    tmpItem.field_count());
+            }
+
+            auto* keyField = tmpItem.mutable_field(0);
+            auto* valueField = tmpItem.mutable_field(1);
+            if (keyField->number() != ProtobufMapKeyFieldNumber) {
+                std::swap(keyField, valueField);
+            }
+
+            if (keyField->number() != ProtobufMapKeyFieldNumber) {
+                return TError(NAttributes::EErrorCode::InvalidData,
+                    "Unexpected key tag %v of item within yson unknown field set",
+                    keyField->number());
+            }
+            if (keyField->type() != UnknownField::TYPE_LENGTH_DELIMITED) {
+                return TError(NAttributes::EErrorCode::InvalidData,
+                    "Unexpected key type %v of item within yson unknown field set",
+                    static_cast<int>(keyField->type()));
+            }
+
+            if (valueField->number() != ProtobufMapValueFieldNumber) {
+                return TError(NAttributes::EErrorCode::InvalidData,
+                    "Unexpected value tag %v of item within yson unknown field set",
+                    valueField->number());
+            }
+            if (valueField->type() != UnknownField::TYPE_LENGTH_DELIMITED) {
+                return TError(NAttributes::EErrorCode::InvalidData,
+                    "Unexpected value type %v of item within yson unknown field set",
+                    static_cast<int>(valueField->type()));
+            }
+
+            if (keyField->length_delimited() == key) {
+                return std::pair<int, TYsonString>{
+                    index,
+                    TYsonString(valueField->length_delimited())};
+            }
+        }
+    }
+    return TError(NAttributes::EErrorCode::MissingKey, "Unknown yson field not found");
+}
+
+TString SerializeUnknownYsonFieldsItem(TStringBuf key, TStringBuf value)
+{
+    TString output;
+    StringOutputStream outputStream(&output);
+    CodedOutputStream codedOutputStream(&outputStream);
+    codedOutputStream.WriteTag(
+        WireFormatLite::MakeTag(ProtobufMapKeyFieldNumber, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+    codedOutputStream.WriteVarint64(key.length());
+    codedOutputStream.WriteRaw(key.data(), static_cast<int>(key.length()));
+    codedOutputStream.WriteTag(
+        WireFormatLite::MakeTag(ProtobufMapValueFieldNumber, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+    codedOutputStream.WriteVarint64(value.length());
+    codedOutputStream.WriteRaw(value.data(), static_cast<int>(value.length()));
+    return output;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TIndexParseResult::EnsureIndexType(EListIndexType indexType, TStringBuf path)
 {
     THROW_ERROR_EXCEPTION_UNLESS(IndexType == indexType,
@@ -75,7 +165,7 @@ void TIndexParseResult::EnsureIndexType(EListIndexType indexType, TStringBuf pat
         indexType);
 }
 
-void TIndexParseResult::EnsureIndexIsWithinBounds(i64 count, TStringBuf path)
+void TIndexParseResult::EnsureIndexIsWithinBounds(int count, TStringBuf path)
 {
     THROW_ERROR_EXCEPTION_IF(IsOutOfBounds(count),
         "Repeated field index at %Qv must be in range [-%v, %v), but got %v",
@@ -85,7 +175,7 @@ void TIndexParseResult::EnsureIndexIsWithinBounds(i64 count, TStringBuf path)
         Index);
 }
 
-bool TIndexParseResult::IsOutOfBounds(i64 count)
+bool TIndexParseResult::IsOutOfBounds(int count)
 {
     return Index < 0 || Index > count || (Index == count && IndexType == EListIndexType::Absolute);
 }
@@ -237,10 +327,10 @@ std::unique_ptr<NYson::IYsonConsumer> CreateAttributesRemovingConsumer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TIndexParseResult ParseListIndex(TStringBuf token, i64 count)
+TIndexParseResult ParseListIndex(TStringBuf token, int count)
 {
     auto parseAbsoluteIndex = [count] (TStringBuf token) {
-        i64 index = NYPath::ParseListIndex(token);
+        int index = NYPath::ParseListIndex(token);
         if (index < 0) {
             index += count;
         }
@@ -279,7 +369,7 @@ TIndexParseResult ParseListIndex(TStringBuf token, i64 count)
 
 // The error coalescing makes sure the top-level error code is either common to all errors or is the
 // mismatch code. This is important for comparisons.
-void ReduceErrors(TError& base, TError incoming, EErrorCode mismatchErrorCode)
+void ReduceErrors(TError& base, TError incoming, NAttributes::EErrorCode mismatchErrorCode)
 {
     if (base.IsOK()) {
         YT_VERIFY(!incoming.IsOK());
@@ -445,7 +535,7 @@ TErrorOr<int> LocateMapEntry(
         }
     }
 
-    return TError(EErrorCode::MissingKey, "Key not found in map");
+    return TError(NAttributes::EErrorCode::MissingKey, "Key not found in map");
 }
 
 TErrorOr<TString> MapKeyFieldToString(
@@ -466,7 +556,7 @@ TErrorOr<TString> MapKeyFieldToString(
         case FieldDescriptor::CppType::CPPTYPE_STRING:
             return reflection->GetString(*message, keyFieldDescriptor);
         default:
-            return TError(EErrorCode::InvalidData,
+            return TError(NAttributes::EErrorCode::InvalidData,
                 "Fields of type %v are not supported as map keys",
                 keyFieldDescriptor->type_name());
     }
@@ -510,7 +600,7 @@ TError SetScalarField(
         case NYTree::ENodeType::Entity:
             return SetDefaultScalarFieldValue(message, fieldDescriptor);
         default:
-            return TError(EErrorCode::Unimplemented,
+            return TError(NAttributes::EErrorCode::Unimplemented,
                 "Cannot convert yson value of type %v to a proto field",
                 value->GetType());
     }
@@ -536,7 +626,7 @@ TError SetScalarRepeatedFieldEntry(
         case NYTree::ENodeType::Entity:
             return SetDefaultScalarRepeatedFieldEntryValue(message, fieldDescriptor, index);
         default:
-            return TError(EErrorCode::Unimplemented,
+            return TError(NAttributes::EErrorCode::Unimplemented,
                 "Cannot convert yson value of type %v to a proto field",
                 value->GetType());
     }
@@ -561,7 +651,7 @@ TError AddScalarRepeatedFieldEntry(
         case NYTree::ENodeType::Entity:
             return AddDefaultScalarFieldEntryValue(message, fieldDescriptor);
         default:
-            return TError(EErrorCode::Unimplemented,
+            return TError(NAttributes::EErrorCode::Unimplemented,
                 "Cannot convert yson value of type %v to a proto field",
                 value->GetType());
     }
@@ -602,14 +692,14 @@ std::pair<int, TError> FindAttributeDictionaryEntry(
         if (entryKey > key) {
             return {
                 i,
-                TError(EErrorCode::MissingKey, "Attribute dictionary does not contain the key")
+                TError(NAttributes::EErrorCode::MissingKey, "Attribute dictionary does not contain the key")
             };
         }
     }
 
     return {
         size,
-        TError(EErrorCode::MissingKey, "Attribute dictionary does not contain the key")
+        TError(NAttributes::EErrorCode::MissingKey, "Attribute dictionary does not contain the key")
     };
 }
 
@@ -711,7 +801,7 @@ const EnumValueDescriptor* LookupEnumValue(
 #define _CAST(snakeType) \
     auto optionalCastValue = TryCheckedIntegralCast<snakeType>(value); \
     if (!optionalCastValue) { \
-        return TError(EErrorCode::InvalidData, \
+        return TError(NAttributes::EErrorCode::InvalidData, \
             "Value %v does not fit in " #snakeType, \
             value); \
     } \
@@ -721,7 +811,7 @@ const EnumValueDescriptor* LookupEnumValue(
 #define _CAST_FROM_STRING(snakeType) \
     snakeType castValue; \
     if (!TryFromString(value, castValue)) { \
-        return TError(EErrorCode::InvalidData, \
+        return TError(NAttributes::EErrorCode::InvalidData, \
             "Cannot convert %v to a " #snakeType, \
             value); \
     } \
@@ -730,7 +820,7 @@ const EnumValueDescriptor* LookupEnumValue(
 #define _CAST_ENUM() \
     const auto* enumValue = LookupEnumValue(fieldDescriptor, value); \
     if (!enumValue) { \
-        return TError(EErrorCode::InvalidData, \
+        return TError(NAttributes::EErrorCode::InvalidData, \
             "Failed to convert %v to a %v enum", \
             value, \
             fieldDescriptor->enum_type()->full_name()); \
@@ -851,7 +941,7 @@ const EnumValueDescriptor* LookupEnumValue(
 
 #define END_SWITCH(snakeType) \
         default: \
-            return TError(EErrorCode::InvalidData, \
+            return TError(NAttributes::EErrorCode::InvalidData, \
                 "Cannot convert " #snakeType " to a proto field of type %v", \
                 fieldDescriptor->type_name()); \
     } \
@@ -1143,6 +1233,7 @@ TError AddScalarRepeatedFieldEntryFromString(
         CASE_ADD_ENUM();
     END_SWITCH(TString);
 }
+
 TError AddDefaultScalarFieldEntryValue(
     Message* message,
     const FieldDescriptor* fieldDescriptor)
@@ -1158,6 +1249,20 @@ TError AddDefaultScalarFieldEntryValue(
         CASE_ADD_DEFAULT(string, String, STRING);
         CASE_ADD_DEFAULT(enum, Enum, ENUM);
     END_SWITCH(default);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void RotateLastEntryBeforeIndex(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    int index)
+{
+    const auto* reflection = message->GetReflection();
+    int last = reflection->FieldSize(*message, fieldDescriptor) - 1;
+    for (int pos = index; pos < last; ++pos) {
+        reflection->SwapElements(message, fieldDescriptor, pos, last);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

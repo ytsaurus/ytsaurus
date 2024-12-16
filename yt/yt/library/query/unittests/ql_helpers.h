@@ -67,7 +67,19 @@ class TPrepareCallbacksMock
     : public IPrepareCallbacks
 {
 public:
+    explicit TPrepareCallbacksMock(TConstTypeInferrerMapPtr typeInferrers = GetBuiltinTypeInferrers())
+        : TypeInferrers_(std::move(typeInferrers))
+    { }
+
     MOCK_METHOD(TFuture<TDataSplit>, GetInitialSplit, (const TYPath&), (override));
+
+    void FetchFunctions(TRange<TString>, const TTypeInferrerMapPtr& typeInferrers) override
+    {
+        MergeFrom(typeInferrers.Get(), *TypeInferrers_);
+    }
+
+private:
+    TConstTypeInferrerMapPtr TypeInferrers_;
 };
 
 TKeyColumns GetSampleKeyColumns();

@@ -146,6 +146,9 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
     registrar.Parameter("shallow_merge_validation_probability", &TThis::ShallowMergeValidationProbability)
         .Default(0);
 
+    registrar.Parameter("enable_chunk_meta_extensions_validation", &TThis::EnableChunkMetaExtensionsValidation)
+        .Default(true);
+
     registrar.Parameter("reschedule_merge_on_success", &TThis::RescheduleMergeOnSuccess)
         .Default(false)
         .DontSerializeDefault();
@@ -353,12 +356,6 @@ void TDynamicChunkTreeBalancerConfig::Register(TRegistrar registrar)
 
 void TDynamicAllyReplicaManagerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("enable_ally_replica_announcement", &TThis::EnableAllyReplicaAnnouncement)
-        .Default(false);
-
-    registrar.Parameter("enable_endorsements", &TThis::EnableEndorsements)
-        .Default(false);
-
     registrar.Parameter("underreplicated_chunk_announcement_request_delay", &TThis::UnderreplicatedChunkAnnouncementRequestDelay)
         .Default(TDuration::Seconds(60));
 
@@ -748,12 +745,14 @@ void TDynamicChunkServiceConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_per_user_request_bytes_throttling", &TThis::EnablePerUserRequestBytesThrottling)
         .Default(false);
 
-    registrar.Parameter("default_request_weight_throttler_config", &TThis::DefaultRequestWeightThrottlerConfig)
+    registrar.Parameter("default_request_weight_throttler_config", &TThis::DefaultRequestWeightThrottler)
         .DefaultNew();
 
-    registrar.Parameter("default_per_user_request_weight_throttler_config", &TThis::DefaultPerUserRequestWeightThrottlerConfig)
+    registrar.Parameter("default_per_user_request_weight_throttler", &TThis::DefaultPerUserRequestWeightThrottler)
+        .Alias("default_per_user_request_weight_throttler_config")
         .DefaultNew();
-    registrar.Parameter("default_per_user_request_bytes_throttler_config", &TThis::DefaultPerUserRequestBytesThrottlerConfig)
+    registrar.Parameter("default_per_user_request_bytes_throttler", &TThis::DefaultPerUserRequestBytesThrottler)
+        .Alias("default_per_user_request_bytes_throttler_config")
         .DefaultNew();
 }
 

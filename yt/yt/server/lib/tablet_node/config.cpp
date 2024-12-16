@@ -54,7 +54,7 @@ void TRowDigestCompactionConfig::Register(TRegistrar registrar)
         .Default(0.5);
     registrar.Parameter("max_timestamps_per_value", &TThis::MaxTimestampsPerValue)
         .GreaterThanOrEqual(1)
-        .Default(8192);
+        .Default(8'192);
 }
 
 bool operator==(const TRowDigestCompactionConfig& lhs, const TRowDigestCompactionConfig& rhs)
@@ -97,13 +97,13 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_dynamic_store_row_count", &TThis::MaxDynamicStoreRowCount)
         .GreaterThan(0)
-        .Default(1000000);
+        .Default(1'000'000);
     registrar.Parameter("max_dynamic_store_value_count", &TThis::MaxDynamicStoreValueCount)
         .GreaterThan(0)
-        .Default(1000000000);
+        .Default(1'000'000'000);
     registrar.Parameter("max_dynamic_store_timestamp_count", &TThis::MaxDynamicStoreTimestampCount)
         .GreaterThan(0)
-        .Default(10000000)
+        .Default(10'000'000)
         // NB: This limit is really important; please consult babenko@
         // before changing it.
         .LessThanOrEqual(SoftRevisionsPerDynamicStoreLimit);
@@ -133,7 +133,7 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
 
     registrar.Parameter("max_partition_count", &TThis::MaxPartitionCount)
-        .Default(10240)
+        .Default(10'240)
         .GreaterThan(0);
 
     registrar.Parameter("min_partitioning_data_size", &TThis::MinPartitioningDataSize)
@@ -194,7 +194,7 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .Default(20);
 
     registrar.Parameter("max_stores_per_tablet", &TThis::MaxStoresPerTablet)
-        .Default(10000)
+        .Default(10'000)
         .GreaterThan(0);
     registrar.Parameter("max_eden_stores_per_tablet", &TThis::MaxEdenStoresPerTablet)
         .Default(100)
@@ -233,9 +233,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("min_replication_log_ttl", &TThis::MinReplicationLogTtl)
         .Default(TDuration::Minutes(5));
     registrar.Parameter("max_timestamps_per_replication_commit", &TThis::MaxTimestampsPerReplicationCommit)
-        .Default(10000);
+        .Default(10'000);
     registrar.Parameter("max_rows_per_replication_commit", &TThis::MaxRowsPerReplicationCommit)
-        .Default(90000);
+        .Default(90'000);
     registrar.Parameter("max_data_weight_per_replication_commit", &TThis::MaxDataWeightPerReplicationCommit)
         .Default(128_MB);
     registrar.Parameter("max_replication_batch_span", &TThis::MaxReplicationBatchSpan)
@@ -361,6 +361,10 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_replication_progress_advance_to_barrier", &TThis::EnableReplicationProgressAdvanceToBarrier)
         .Default(true);
 
+    registrar.Parameter("max_ordered_tablet_data_weight", &TThis::MaxOrderedTabletDataWeight)
+        .GreaterThan(0)
+        .Default();
+
     registrar.Parameter("simulated_tablet_snapshot_delay", &TThis::SimulatedTabletSnapshotDelay)
         .Default()
         .DontSerializeDefault();
@@ -371,6 +375,10 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("value_dictionary_compression", &TThis::ValueDictionaryCompression)
         .DefaultNew();
+
+    registrar.Parameter("insert_meta_upon_store_update", &TThis::InsertMetaUponStoreUpdate)
+        .Default(true)
+        .DontSerializeDefault();
 
     registrar.Postprocessor([&] (TCustomTableMountConfig* config) {
         if (config->MaxDynamicStoreRowCount > config->MaxDynamicStoreValueCount) {
@@ -418,7 +426,7 @@ void TTransactionManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("barrier_check_period", &TThis::BarrierCheckPeriod)
         .Default(TDuration::MilliSeconds(100));
     registrar.Parameter("max_aborted_transaction_pool_size", &TThis::MaxAbortedTransactionPoolSize)
-        .Default(1000);
+        .Default(1'000);
     registrar.Parameter("reject_incorrect_clock_cluster_tag", &TThis::RejectIncorrectClockClusterTag)
         .Default(false);
 }
@@ -661,7 +669,7 @@ TInMemoryManagerConfigPtr TInMemoryManagerConfig::ApplyDynamic(
     UpdateYsonStructField(
         config->EnablePreliminaryNetworkThrottling,
         dynamicConfig->EnablePreliminaryNetworkThrottling);
-
+    config->Postprocess();
     return config;
 }
 
@@ -723,7 +731,7 @@ void TPartitionBalancerConfig::Register(TRegistrar registrar)
         .Default(10)
         .GreaterThanOrEqual(3);
     registrar.Parameter("max_partitioning_sample_count", &TThis::MaxPartitioningSampleCount)
-        .Default(1000)
+        .Default(1'000)
         .GreaterThanOrEqual(10);
     registrar.Parameter("max_concurrent_samplings", &TThis::MaxConcurrentSamplings)
         .GreaterThan(0)
@@ -741,7 +749,7 @@ TPartitionBalancerConfigPtr TPartitionBalancerConfig::ApplyDynamic(
     UpdateYsonStructField(config->MinPartitioningSampleCount, dynamicConfig->MinPartitioningSampleCount);
     UpdateYsonStructField(config->MaxPartitioningSampleCount, dynamicConfig->MaxPartitioningSampleCount);
     UpdateYsonStructField(config->SplitRetryDelay, dynamicConfig->SplitRetryDelay);
-
+    config->Postprocess();
     return config;
 }
 
@@ -866,7 +874,7 @@ void TServiceMethodConfig::Register(TRegistrar registrar)
     registrar.Parameter("method", &TThis::Method)
         .Default();
     registrar.Parameter("max_window", &TThis::MaxWindow)
-        .Default(1024);
+        .Default(1'024);
     registrar.Parameter("waiting_timeout_fraction", &TThis::WaitingTimeoutFraction)
         .Default(0.5);
 }
@@ -903,7 +911,7 @@ void TStatisticsReporterConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable", &TThis::Enable)
         .Default(false);
     registrar.Parameter("max_tablets_per_transaction", &TThis::MaxTabletsPerTransaction)
-        .Default(10000)
+        .Default(10'000)
         .GreaterThan(0);
     registrar.Parameter("report_backoff_time", &TThis::ReportBackoffTime)
         .Default(TDuration::Seconds(30));

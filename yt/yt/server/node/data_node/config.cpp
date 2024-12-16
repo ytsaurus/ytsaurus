@@ -652,6 +652,8 @@ void TMergeChunksJobDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("fail_shallow_merge_validation", &TThis::FailShallowMergeValidation)
         .Default(false);
+    registrar.Parameter("fail_chunk_meta_validation", &TThis::FailChunkMetaValidation)
+        .Default(false);
 
     registrar.Parameter("read_memory_limit", &TThis::ReadMemoryLimit)
         .Default(1_GB);
@@ -924,6 +926,9 @@ void TDataNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("p2p", &TThis::P2P)
+        .DefaultNew();
+
+    registrar.Parameter("distributed_chunk_session_service", &TThis::DistributedChunkSessionService)
         .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {

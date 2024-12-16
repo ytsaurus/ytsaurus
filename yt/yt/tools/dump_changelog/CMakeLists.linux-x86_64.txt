@@ -19,6 +19,7 @@ add_executable(dump-changelog)
 
 target_compile_options(dump-changelog PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(dump-changelog PUBLIC

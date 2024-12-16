@@ -43,6 +43,7 @@ SRCS(
     snapshot_discovery.cpp
     snapshot_download.cpp
     snapshot_store_thunk.cpp
+    snapshot_load_context.cpp
     state_hash_checker.cpp
     unbuffered_file_changelog.cpp
 

@@ -35,7 +35,7 @@ public:
                 "hex-encoded first part of a message (as may be seen in a snapshot dump)");
     }
 
-    void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
+    void DoRun() override
     {
         auto message = BuildMessage();
         auto messageType = GetMessageType(message);

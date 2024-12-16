@@ -17,18 +17,20 @@ add_library(yt-server-scheduler)
 
 target_compile_options(yt-server-scheduler PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-server-scheduler PUBLIC
   contrib-libs-cxxsupp
   yutil
   library-cpp-getopt
+  cpp-yt-phdr_cache
   ytserver
   server-lib-scheduler
   server-lib-transaction_server
   server-lib-controller_agent
   yt-library-numeric
-  cpp-yt-phdr_cache
+  yt-library-server_program
 )
 
 target_sources(yt-server-scheduler PRIVATE
@@ -65,6 +67,7 @@ target_sources(yt-server-scheduler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/persistent_fair_share_tree_allocation_scheduler_state.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/persistent_scheduler_state.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/pools_config_parser.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/resource_tree.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/resource_tree_element.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduler.cpp
@@ -72,6 +75,8 @@ target_sources(yt-server-scheduler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_context_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_segment_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/gpu_allocation_scheduler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/gpu_allocation_scheduler_structs.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/serialize.cpp
 )
 

@@ -19,6 +19,7 @@ add_executable(unittester-core-http)
 
 target_compile_options(unittester-core-http PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-core-http PUBLIC
@@ -37,7 +38,8 @@ target_link_libraries(unittester-core-http PUBLIC
 )
 
 target_allocator(unittester-core-http
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-core-http PRIVATE

@@ -19,6 +19,7 @@ add_executable(unittester-core-concurrency)
 
 target_compile_options(unittester-core-concurrency PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-core-concurrency PUBLIC
@@ -34,7 +35,8 @@ target_link_libraries(unittester-core-concurrency PUBLIC
 )
 
 target_allocator(unittester-core-concurrency
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-core-concurrency PRIVATE

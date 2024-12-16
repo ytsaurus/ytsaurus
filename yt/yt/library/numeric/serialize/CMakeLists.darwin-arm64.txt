@@ -19,6 +19,7 @@ add_library(library-numeric-serialize INTERFACE)
 
 target_compile_options(library-numeric-serialize INTERFACE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(library-numeric-serialize INTERFACE

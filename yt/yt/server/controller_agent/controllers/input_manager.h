@@ -163,7 +163,7 @@ public:
     void InitializeClients(NApi::NNative::IClientPtr client);
     void InitializeStructures(
         NApi::NNative::IClientPtr client,
-        const TInputTransactionsManagerPtr& inputTransactionsManager);
+        const TInputTransactionManagerPtr& inputTransactionManager);
 
     const std::vector<TInputTablePtr>& GetInputTables() const;
 
@@ -224,6 +224,10 @@ public:
         int maxSampleSize) const;
 
     bool HasDynamicTableWithHunkChunks() const;
+
+    // NB: Asserts that there is only one input table.
+    TFuture<NYTree::IAttributeDictionaryPtr> FetchSingleInputTableAttributes(
+        const std::optional<std::vector<TString>>& attributeKeys) const;
 
 private:
     // NB: InputManager does not outlive its host.

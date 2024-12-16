@@ -2,8 +2,6 @@ GTEST(cpp-integration-test-cypress-election)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
-ALLOCATOR(YT)
-
 SRCS(
     test_cypress_election.cpp
 )

@@ -775,6 +775,11 @@ private:
             return Owner_;
         }
 
+        IVersionedChunkMetaManagerPtr GetVersionedChunkMetaManager() const override
+        {
+            return Owner_->Bootstrap_->GetVersionedChunkMetaManager();
+        }
+
     private:
         TTabletManager* const Owner_;
     };
@@ -1788,7 +1793,7 @@ private:
                         tablet->GetLoggingTag());
                     return;
                 }
-                // No break intentionally.
+                [[fallthrough]];
             }
 
             case ETabletState::UnmountFlushing: {

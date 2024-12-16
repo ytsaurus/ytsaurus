@@ -149,7 +149,7 @@ func NewValidateJSONTransform(logger *slog.Logger) pipelines.Transform[[]byte, [
 // This transform filters out lines that are not valid yson.
 func NewValidateYSONTransform(logger *slog.Logger) pipelines.Transform[[]byte, []byte] {
 	return pipelines.NewFuncTransform(func(ctx context.Context, meta pipelines.RowMeta, in []byte, emit pipelines.EmitFunc[[]byte]) {
-		if err := yson.Valid(in); err != nil {
+		if err := yson.ValidListFragment(in); err != nil {
 			logger.Warn("found invalid yson", "offset", meta.Begin.LogicalOffset)
 			return
 		}

@@ -69,6 +69,8 @@
 
 #include <yt/yt/library/erasure/public.h>
 
+#include <yt/yt/library/profiling/producer.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/rpc/response_keeper.h>
@@ -1522,7 +1524,7 @@ TObject* TObjectManager::CreateObject(
     switch (object->GetLifeStage()) {
         case EObjectLifeStage::RemovalPreCommitted:
             object->SetLifeStage(EObjectLifeStage::RemovalStarted);
-            /*fallthrough*/
+            [[fallthrough]];
 
         case EObjectLifeStage::RemovalStarted:
             CheckRemovingObjectRefCounter(object);
@@ -1737,11 +1739,6 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
                 trunkNode->GetRevision());
         }
     }
-
-    YT_LOG_DEBUG("Successfully validated prerequisites (AuthenticationIdentity: %v, Transactions: %v, Revisions: %v)",
-        GetCurrentAuthenticationIdentity(),
-        prerequisites.transactions(),
-        prerequisites.revisions());
 }
 
 TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(

@@ -33,6 +33,15 @@ YT_DEFINE_ERROR_ENUM(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// How to proceed when the path leads into missing fields.
+DEFINE_ENUM(EMissingFieldPolicy,
+    (Throw)  // Throw an error.
+    (Skip)   // Quietly return.
+    (Force)  // Visit the field anyway (visit the default if const/populate the field if mutable).
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <typename TWrappedMessage>
 struct TProtoVisitorTraits;
 

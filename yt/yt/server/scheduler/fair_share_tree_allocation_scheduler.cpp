@@ -321,6 +321,16 @@ const EOperationSchedulingPriorityList& GetDescendingSchedulingPriorities()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsSingleAllocationVanillaOperation(const TSchedulerOperationElement* element)
+{
+    const auto& maybeVanillaTaskSpecs = element->GetMaybeBriefVanillaTaskSpecMap();
+    return maybeVanillaTaskSpecs &&
+        (size(*maybeVanillaTaskSpecs) == 1) &&
+        (maybeVanillaTaskSpecs->begin()->second.JobCount == 1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -929,9 +939,7 @@ TScheduleAllocationsContext::TScheduleAllocationsContext(
         }))
     , SsdPriorityPreemptionMedia_(TreeSnapshot_->SchedulingSnapshot()->SsdPriorityPreemptionMedia())
     , SchedulingInfoLoggingEnabled_(schedulingInfoLoggingEnabled)
-    , DynamicAttributesListSnapshot_(TreeSnapshot_->TreeConfig()->EnableResourceUsageSnapshot
-        ? TreeSnapshot_->SchedulingSnapshot()->GetDynamicAttributesListSnapshot()
-        : nullptr)
+    , DynamicAttributesListSnapshot_(TreeSnapshot_->SchedulingSnapshot()->GetDynamicAttributesListSnapshot())
     , StrategyHost_(strategyHost)
     , ScheduleAllocationsDeadlineReachedCounter_(scheduleAllocationsDeadlineReachedCounter)
     , Logger(logger)
@@ -2739,6 +2747,7 @@ void TFairShareTreeAllocationScheduler::OnOperationMaterialized(const TScheduler
     auto operationId = element->GetOperationId();
     const auto& operationState = GetOperationState(operationId);
     operationState->AggregatedInitialMinNeededResources = element->GetAggregatedInitialMinNeededResources();
+    operationState->SingleAllocationVanillaOperation = IsSingleAllocationVanillaOperation(element);
 
     SchedulingSegmentManager_.InitOrUpdateOperationSchedulingSegment(operationId, operationState);
 }
@@ -2749,14 +2758,11 @@ TError TFairShareTreeAllocationScheduler::CheckOperationSchedulingInSeveralTrees
 
     const auto& operationState = GetOperationState(element->GetOperationId());
 
-    const auto& maybeVanillaTaskSpecs = element->GetMaybeBriefVanillaTaskSpecMap();
-    bool singleJobVanillaOperation = maybeVanillaTaskSpecs &&
-        (size(*maybeVanillaTaskSpecs) == 1) &&
-        (maybeVanillaTaskSpecs->begin()->second.JobCount == 1);
+    bool singleAllocationVanillaOperation = IsSingleAllocationVanillaOperation(element);
 
     auto segment = operationState->SchedulingSegment;
     if (IsModuleAwareSchedulingSegment(*segment) &&
-        (!singleJobVanillaOperation || !Config_->AllowSingleJobLargeGpuOperationsInMultipleTrees))
+        (!singleAllocationVanillaOperation || !Config_->AllowSingleJobLargeGpuOperationsInMultipleTrees))
     {
         // NB: This error will be propagated to operation's failure only if operation is launched in several trees.
         return TError(

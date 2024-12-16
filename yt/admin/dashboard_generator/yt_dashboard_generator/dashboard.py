@@ -103,15 +103,19 @@ class Rowset(Taggable):
         my_second_sensor: host=man1-1234, stack=True
     """
 
-    def __init__(self):
+    def __init__(self, name=None):
         self.begin_values = []
         self.end_values = []
         self.rows = []
         self.cell_per_row = None
+        self.name = name
 
     def set_cell_per_row(self, value):
         self.cell_per_row = value
         return self
+
+    def set_name(self, name):
+        self.name = name
 
     def value(self, key, value):
         if self.rows:
@@ -156,6 +160,7 @@ class Dashboard(Taggable):
         self.cell_per_row = None
         self.parameters = None
         self.serializer_options = {}
+        self.dashboard_tags = []
 
     def value(self, key, value):
         self.has_set_values = True
@@ -212,6 +217,9 @@ class Dashboard(Taggable):
         if self.parameters is None:
             self.parameters = []
         self.parameters.append({"name": name, "title": title, "args": args, "backends": backends})
+
+    def add_dashboard_tags(self, *tags):
+        self.dashboard_tags.extend(tags)
 
     def set_grafana_serializer_options(self, options):
         self.serializer_options["grafana"] = options

@@ -21,12 +21,14 @@ add_library(server-lib-misc)
 
 target_compile_options(server-lib-misc PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(server-lib-misc PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  yt-yt-core
   yt-yt-ytlib
   yt-ytlib-distributed_throttler
   yt-library-coredumper
@@ -61,12 +63,14 @@ add_global_library_for(server-lib-misc.global
 
 target_compile_options(server-lib-misc.global PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(server-lib-misc.global PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  yt-yt-core
   yt-yt-ytlib
   yt-ytlib-distributed_throttler
   yt-library-coredumper

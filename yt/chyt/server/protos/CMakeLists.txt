@@ -33,6 +33,7 @@ add_library(chyt-server-protos)
 
 target_compile_options(chyt-server-protos PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(chyt-server-protos PUBLIC

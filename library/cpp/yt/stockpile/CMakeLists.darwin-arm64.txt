@@ -17,11 +17,16 @@ add_library(cpp-yt-stockpile)
 
 target_compile_options(cpp-yt-stockpile PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(cpp-yt-stockpile PUBLIC
   contrib-libs-cxxsupp
   yutil
+  cpp-yt-misc
+  cpp-yt-threading
+  cpp-yt-logging
+  cpp-yt-memory
 )
 
 target_sources(cpp-yt-stockpile PRIVATE

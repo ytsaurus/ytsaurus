@@ -19,6 +19,7 @@ add_executable(upload_chunk)
 
 target_compile_options(upload_chunk PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(upload_chunk PUBLIC

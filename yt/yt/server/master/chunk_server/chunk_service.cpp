@@ -186,7 +186,7 @@ private:
                 if (weightThrottlingEnabled) {
                     auto weightThrottlerConfig = user->GetChunkServiceUserRequestWeightThrottlerConfig();
                     if (!weightThrottlerConfig) {
-                        weightThrottlerConfig = chunkServiceConfig->DefaultPerUserRequestWeightThrottlerConfig;
+                        weightThrottlerConfig = chunkServiceConfig->DefaultPerUserRequestWeightThrottler;
                     }
                     queue->ConfigureWeightThrottler(weightThrottlerConfig);
                 } else {
@@ -196,7 +196,7 @@ private:
                 if (bytesThrottlingEnabled) {
                     auto bytesThrottlerConfig = user->GetChunkServiceUserRequestBytesThrottlerConfig();
                     if (!bytesThrottlerConfig) {
-                        bytesThrottlerConfig = chunkServiceConfig->DefaultPerUserRequestBytesThrottlerConfig;
+                        bytesThrottlerConfig = chunkServiceConfig->DefaultPerUserRequestBytesThrottler;
                     }
                     queue->ConfigureBytesThrottler(bytesThrottlerConfig);
                 } else {
@@ -235,7 +235,7 @@ private:
 
         try {
             auto* methodInfo = GetMethodInfoOrThrow(RPC_SERVICE_METHOD_DESC(ExecuteBatch).Method);
-            auto weightThrottlerConfig = chunkServiceConfig->DefaultRequestWeightThrottlerConfig;
+            auto weightThrottlerConfig = chunkServiceConfig->DefaultRequestWeightThrottler;
             auto* requestQueue = methodInfo->GetDefaultRequestQueue();
             requestQueue->ConfigureWeightThrottler(weightThrottlerConfig);
         } catch (const std::exception& ex) {
@@ -251,17 +251,17 @@ private:
                 // Either an epoch change or irrelevant modification to the config.
 
                 queueProvider->UpdateDefaultConfigs({
-                    chunkServiceConfig->DefaultPerUserRequestWeightThrottlerConfig,
-                    chunkServiceConfig->DefaultPerUserRequestBytesThrottlerConfig});
+                    chunkServiceConfig->DefaultPerUserRequestWeightThrottler,
+                    chunkServiceConfig->DefaultPerUserRequestBytesThrottler});
                 // Crucial on epoch change for guaranteeing up-to-date configuration.
                 shouldReconfigureQueues = true;
             } else {
-                if (oldChunkServiceConfig->DefaultPerUserRequestWeightThrottlerConfig != chunkServiceConfig->DefaultPerUserRequestWeightThrottlerConfig ||
-                    oldChunkServiceConfig->DefaultPerUserRequestBytesThrottlerConfig != chunkServiceConfig->DefaultPerUserRequestBytesThrottlerConfig)
+                if (oldChunkServiceConfig->DefaultPerUserRequestWeightThrottler != chunkServiceConfig->DefaultPerUserRequestWeightThrottler ||
+                    oldChunkServiceConfig->DefaultPerUserRequestBytesThrottler != chunkServiceConfig->DefaultPerUserRequestBytesThrottler)
                 {
                     queueProvider->UpdateDefaultConfigs({
-                        chunkServiceConfig->DefaultPerUserRequestWeightThrottlerConfig,
-                        chunkServiceConfig->DefaultPerUserRequestBytesThrottlerConfig});
+                        chunkServiceConfig->DefaultPerUserRequestWeightThrottler,
+                        chunkServiceConfig->DefaultPerUserRequestBytesThrottler});
                     shouldReconfigureQueues = true;
                 }
 

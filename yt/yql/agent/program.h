@@ -5,11 +5,15 @@
 #include <yt/yt/library/program/program_config_mixin.h>
 #include <yt/yt/library/program/program_pdeathsig_mixin.h>
 #include <yt/yt/library/program/program_setsid_mixin.h>
-#include <yt/yt/ytlib/program/helpers.h>
+#include <yt/yt/library/program/helpers.h>
+
+#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
 
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
+
+#include <library/cpp/yt/mlock/mlock.h>
 
 #include <library/cpp/yt/mlock/mlock.h>
 
@@ -20,7 +24,7 @@ namespace NYT::NYqlAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYqlAgentProgram
-    : public TProgram
+    : public virtual TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
     , public TProgramConfigMixin<TYqlAgentServerConfig>
@@ -33,7 +37,7 @@ public:
     { }
 
 protected:
-    void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
+    void DoRun() override
     {
         TThread::SetCurrentThreadName("Main");
 
@@ -44,22 +48,13 @@ protected:
         // We intentionally omit EnablePhdrCache() because not only YQL is loaded as a shared library, but also
         // YQL UDFs, and they may be user-provided in runtime for particular query.
         ConfigureAllocator({});
-
-        if (HandleSetsidOptions()) {
-            return;
-        }
-        if (HandlePdeathsigOptions()) {
-            return;
-        }
-        if (HandleConfigOptions()) {
-            return;
-        }
+        MlockFileMappings();
+        RunMixinCallbacks();
 
         auto config = GetConfig();
         auto configNode = GetConfigNode();
 
         ConfigureNativeSingletons(config);
-        StartDiagnosticDump(config);
 
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems

@@ -610,7 +610,7 @@ private:
             }
         }
 
-        TableReplicatorThreadPool_->Configure(
+        TableReplicatorThreadPool_->SetThreadCount(
             newConfig->TabletNode->TabletManager->ReplicatorThreadPoolSize.value_or(
                 GetConfig()->TabletNode->TabletManager->ReplicatorThreadPoolSize));
         ColumnEvaluatorCache_->Configure(newConfig->TabletNode->ColumnEvaluatorCache);
@@ -639,22 +639,22 @@ private:
         const TBundleDynamicConfigPtr& bundleConfig,
         const TClusterNodeDynamicConfigPtr& nodeConfig)
     {
-        TabletFetchThreadPool_->Configure(
+        TabletFetchThreadPool_->SetThreadCount(
             nodeConfig->QueryAgent->FetchThreadPoolSize.value_or(GetConfig()->QueryAgent->FetchThreadPoolSize));
-        TableRowFetchThreadPool_->Configure(
+        TableRowFetchThreadPool_->SetThreadCount(
             nodeConfig->QueryAgent->TableRowFetchThreadPoolSize.value_or(GetConfig()->QueryAgent->TableRowFetchThreadPoolSize));
 
         {
             auto fallbackQueryThreadCount = nodeConfig->QueryAgent->QueryThreadPoolSize.value_or(
                 GetConfig()->QueryAgent->QueryThreadPoolSize);
-            QueryThreadPool_->Configure(
+            QueryThreadPool_->SetThreadCount(
                 bundleConfig->CpuLimits->QueryThreadPoolSize.value_or(fallbackQueryThreadCount));
         }
 
         {
             auto fallbackLookupThreadCount = nodeConfig->QueryAgent->LookupThreadPoolSize.value_or(
                 GetConfig()->QueryAgent->LookupThreadPoolSize);
-            TabletLookupThreadPool_->Configure(
+            TabletLookupThreadPool_->SetThreadCount(
                 bundleConfig->CpuLimits->LookupThreadPoolSize.value_or(fallbackLookupThreadCount));
         }
     }

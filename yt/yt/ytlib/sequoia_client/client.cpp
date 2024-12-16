@@ -1,5 +1,6 @@
 #include "client.h"
 
+#include "helpers.h"
 #include "table_descriptor.h"
 #include "transaction.h"
 
@@ -48,10 +49,11 @@ public:
             GetSequoiaTablePath(NativeRootClient_, tableDescriptor),
             tableDescriptor->GetRecordDescriptor()->GetNameTable(),
             std::move(keys),
-            options);
+            options)
+            .ApplyUnique(BIND(MaybeWrapSequoiaRetriableError<TUnversionedLookupRowsResult>));
     }
 
-    TFuture<NApi::TSelectRowsResult> SelectRows(
+    TFuture<TSelectRowsResult> SelectRows(
         ESequoiaTable table,
         const TSelectRowsQuery& query,
         NTransactionClient::TTimestamp timestamp) override
@@ -80,7 +82,9 @@ public:
         options.AllowFullScan = false;
         options.Timestamp = timestamp;
 
-        return GroundRootClient_->SelectRows(builder.Build(), options);
+        return GroundRootClient_
+            ->SelectRows(builder.Build(), options)
+            .ApplyUnique(BIND(MaybeWrapSequoiaRetriableError<TSelectRowsResult>));
     }
 
     TFuture<ISequoiaTransactionPtr> StartTransaction(

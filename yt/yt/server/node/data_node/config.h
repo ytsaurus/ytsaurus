@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/hydra/config.h>
 
+#include <yt/yt/server/lib/distributed_chunk_session/config.h>
+
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/server/lib/io/config.h>
@@ -687,6 +689,7 @@ public:
 
     // Testing options.
     bool FailShallowMergeValidation;
+    bool FailChunkMetaValidation;
     bool TrackWriterMemory;
 
     i64 ReadMemoryLimit;
@@ -1024,6 +1027,9 @@ public:
 
     //! Config for the new P2P implementation.
     TP2PConfigPtr P2P;
+
+    //! Distributed chunk session service config.
+    NDistributedChunkSession::TDistributedChunkSessionServiceConfigPtr DistributedChunkSessionService;
 
     i64 GetCacheCapacity() const;
 

@@ -591,6 +591,76 @@ class TestTableCommands(object):
         check_rows_equality(rows, table_data)
 
 
+@pytest.mark.usefixtures("yt_env_with_authentication")
+class TestTableCommandsWithAuthorization(object):
+
+    @authors("denvr")
+    def test_omit_columns(self):
+        table = TEST_DIR + "/table_columns"
+        yt.create("user", attributes={"name": "user1"})
+        wait(lambda: yt.get("//sys/users/user1/@life_stage") == "creation_committed")
+        yt.set("//sys/tokens/sometoken", "user1")
+        yt.create(
+            "table",
+            table,
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "string"},
+                    {"name": "b", "type": "string"},
+                    {"name": "c", "type": "string"},
+                ],
+                "acl": [
+                    {
+                        "action": "deny",
+                        "subjects": ["user1"],
+                        "permissions": ["read"],
+                        "inheritance_mode": "object_and_descendants",
+                        "columns": ["a"],
+                    },
+                    {
+                        "action": "deny",
+                        "subjects": ["user1"],
+                        "permissions": ["read"],
+                        "inheritance_mode": "object_and_descendants",
+                        "columns": ["b"],
+                    },
+                ],
+            },
+        )
+
+        yt.write_table(
+            table,
+            [
+                {"a": "a", "b": "b", "c": "c"},
+                {"a": "a", "b": "b_new", "c": "c_new"},
+            ]
+        )
+
+        assert list(yt.read_table(table)) == [{"a": "a", "b": "b", "c": "c"}, {"a": "a", "b": "b_new", "c": "c_new"},]
+        assert list(yt.read_table(table + "{b,c}")) == [{"b": "b", "c": "c"}, {"b": "b_new", "c": "c_new"},]
+
+        client_config = deepcopy(yt.config.config)
+        client_config.update({"token": "sometoken", "enable_token": True})
+        client = yt.YtClient(config=client_config)
+        assert client.get_user_name() == "user1"
+        with pytest.raises(yt.YtResponseError) as ex_info:
+            result = client.read_table(table)
+        assert "Error getting basic attributes of user objects" in ex_info.value.error["message"]
+        with pytest.raises(yt.YtResponseError) as ex_info:
+            result = client.read_table(table+"{b,c}")
+        assert "Error getting basic attributes of user objects" in ex_info.value.error["message"]
+
+        result = client.read_table(table, omit_inaccessible_columns=True)
+        assert list(result) == [{"c": "c"}, {"c": "c_new"},]
+
+        result = client.read_table(table+"{b,c}", omit_inaccessible_columns=True)
+        assert list(result) == [{"c": "c"}, {"c": "c_new"},]
+
+        client.config["read_omit_inaccessible_columns"] = True
+        result = client.read_table(table+"{b,c}")
+        assert list(result) == [{"c": "c"}, {"c": "c_new"},]
+
+
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestTableCommandsControlAttributes(object):
     @authors("ignat", "asaitgalin")

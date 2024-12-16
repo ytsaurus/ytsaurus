@@ -17,6 +17,7 @@ add_library(core-rpc-http)
 
 target_compile_options(core-rpc-http PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(core-rpc-http PUBLIC

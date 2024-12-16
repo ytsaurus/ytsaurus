@@ -19,6 +19,7 @@ add_executable(unittester-ytlib)
 
 target_compile_options(unittester-ytlib PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(unittester-ytlib PRIVATE
@@ -44,7 +45,8 @@ target_link_libraries(unittester-ytlib PUBLIC
 )
 
 target_allocator(unittester-ytlib
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-ytlib PRIVATE

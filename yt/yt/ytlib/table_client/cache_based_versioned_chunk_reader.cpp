@@ -3,14 +3,11 @@
 #include "cached_versioned_chunk_meta.h"
 #include "chunk_column_mapping.h"
 #include "chunk_lookup_hash_table.h"
-#include "chunk_meta_extensions.h"
-#include "chunk_reader_base.h"
 #include "chunk_state.h"
-#include "config.h"
+#include "hunks.h"
 #include "schemaless_block_reader.h"
 #include "versioned_block_reader.h"
 #include "versioned_chunk_reader.h"
-#include "hunks.h"
 
 #include <yt/yt/ytlib/chunk_client/block.h>
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
@@ -45,6 +42,7 @@ using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
+using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -459,6 +457,7 @@ private:
 };
 
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
+    const IColumnEvaluatorCachePtr& columnEvaluatorCache,
     TChunkId chunkId,
     const TChunkStatePtr& chunkState,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
@@ -477,6 +476,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
             chunkId,
             chunkState->BlockCache);
         return CreateVersionedChunkReader(
+            columnEvaluatorCache,
             TChunkReaderConfig::GetDefault(),
             std::move(underlyingReader),
             chunkState,
@@ -685,6 +685,7 @@ private:
 };
 
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
+    const IColumnEvaluatorCachePtr& columnEvaluatorCache,
     TChunkId chunkId,
     const TChunkStatePtr& chunkState,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
@@ -703,6 +704,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
             chunkId,
             chunkState->BlockCache);
         return CreateVersionedChunkReader(
+            columnEvaluatorCache,
             TChunkReaderConfig::GetDefault(),
             std::move(underlyingReader),
             chunkState,

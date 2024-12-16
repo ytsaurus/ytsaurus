@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/discovery_client/public.h>
 
+#include <yt/yt/ytlib/scheduler/cluster_name.h>
+
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 namespace NYT::NExecNode {
@@ -22,12 +24,10 @@ class IThrottlerManager
 public:
     virtual NConcurrency::IThroughputThrottlerPtr GetOrCreateThrottler(
         EExecNodeThrottlerKind kind,
-        EExecNodeThrottlerTraffic traffic,
-        std::optional<TString> remoteClusterName) = 0;
+        EThrottlerTrafficType trafficType,
+        std::optional<NScheduler::TClusterName> remoteClusterName) = 0;
 
     virtual void Reconfigure(NClusterNode::TClusterNodeDynamicConfigPtr dynamicConfig) = 0;
-
-    virtual TClusterThrottlersConfigPtr GetClusterThrottlersConfig() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IThrottlerManager)

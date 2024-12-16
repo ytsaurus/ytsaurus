@@ -34,7 +34,7 @@ public:
     // Does not throw when visiting absent fields.
     DEFINE_BYVAL_RW_PROPERTY(bool, VisitEverythingAfterPath, false);
     // Do not throw if the path leads into a missing field/key/index.
-    DEFINE_BYVAL_RW_PROPERTY(bool, AllowMissing, false);
+    DEFINE_BYVAL_RW_PROPERTY(EMissingFieldPolicy, MissingFieldPolicy, EMissingFieldPolicy::Throw);
     // Visit all fields/entries when the path has a "*".
     DEFINE_BYVAL_RW_PROPERTY(bool, AllowAsterisk, false);
 
@@ -47,7 +47,7 @@ protected:
     // Advances tokenizer over a slash unless it's optional here.
     void SkipSlash();
 
-    using TToken = std::variant<ui64, TStringBuf>;
+    using TToken = std::variant<int, ui64, TStringBuf>;
 
     // Pushes the token onto the current path.
     void Push(TToken token);
@@ -125,7 +125,7 @@ private:
 /// Construction kit for pain-free (hopefully) path-guided traversals.
 //
 // 1. Make your own visitor by subclassing a CRTP specialization of TPathVisitor and also
-//    TPathVisitorUtil. Make if final to let the compiler inline stuff.
+//    TPathVisitorUtil. Make it final to let the compiler inline stuff.
 //
 // 2. Set policy flags of TPathVisitorUtil in the constructor or at call site.
 //
@@ -158,6 +158,9 @@ private:
 //
 // The base implementation provides for directed traversal of a path in a tree of vectors and maps.
 //
+// There is rudimentary support for populating missing path entries with the |Force| missing field
+// policy.
+//
 // The use case is writing generic code in ORM attributes that calls Visit and just works.
 
 template <typename TSelf>
@@ -185,6 +188,10 @@ protected:
     template <typename TVisitParam>
     void VisitWholeVector(TVisitParam&& target, EVisitReason reason);
 
+    // The path called for an absolute index in a vector.
+    template <typename TVisitParam>
+    void VisitVectorEntry(TVisitParam&& target, int index, EVisitReason reason);
+
     // The path called for a relative index (insertion before the index) in a vector.
     template <typename TVisitParam>
     void VisitVectorEntryRelative(TVisitParam&& target, int index, EVisitReason reason);
@@ -201,6 +208,14 @@ protected:
     // Called for asterisks and visits after the path.
     template <typename TVisitParam>
     void VisitWholeMap(TVisitParam&& target, EVisitReason reason);
+
+    // The key was found in the map.
+    template <typename TVisitParam, typename TMapIterator>
+    void VisitMapEntry(
+        TVisitParam&& target,
+        TMapIterator mapIterator,
+        TString key,
+        EVisitReason reason);
 
     // The key was not found in the map.
     template <typename TVisitParam, typename TMapKey>

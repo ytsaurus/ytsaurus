@@ -21,6 +21,7 @@ add_executable(ytserver-all)
 
 target_compile_options(ytserver-all PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(ytserver-all PUBLIC

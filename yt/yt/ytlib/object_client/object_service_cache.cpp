@@ -223,7 +223,7 @@ void TObjectServiceCache::TCache::OnRemoved(const TObjectServiceCacheEntryPtr& e
 
     TMemoryTrackingAsyncSlruCacheBase::OnRemoved(entry);
     if (auto owner = Owner_.Lock()) {
-        owner->OnAdded(entry);
+        owner->OnRemoved(entry);
     }
 }
 

@@ -538,7 +538,7 @@ class TestJournals(TestJournalsBase):
     def test_data_node_orchid(self):
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed("//tmp/j", PAYLOAD)
-        chunk_id = get("//tmp/j/@chunk_ids/0")
+        chunk_id = get_singular_chunk_id("//tmp/j")
         replica = get("#{}/@last_seen_replicas/0".format(chunk_id))
         orchid = get("//sys/cluster_nodes/{}/orchid/data_node/stored_chunks/{}".format(replica, chunk_id))
         assert "location" in orchid

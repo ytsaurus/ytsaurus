@@ -19,6 +19,7 @@ add_executable(writer)
 
 target_compile_options(writer PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(writer PUBLIC

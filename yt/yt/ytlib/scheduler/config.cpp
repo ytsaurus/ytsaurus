@@ -1,8 +1,6 @@
 #include "config.h"
 #include "job_resources.h"
 
-#include "yt/yt/core/misc/error.h"
-
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
@@ -20,10 +18,13 @@
 #include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/helpers.h>
 
+#include <yt/yt/client/chunk_client/public.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/misc/adjusted_exponential_moving_average.h>
 #include <yt/yt/core/misc/config.h>
+#include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/fs.h>
 
 #include <util/string/split.h>
@@ -32,11 +33,12 @@
 
 namespace NYT::NScheduler {
 
-using namespace NYson;
-using namespace NYTree;
+using namespace NChunkClient;
 using namespace NSecurityClient;
 using namespace NTableClient;
 using namespace NTransactionClient;
+using namespace NYTree;
+using namespace NYson;
 
 using NVectorHdrf::EIntegralGuaranteeType;
 
@@ -631,7 +633,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("intermediate_compression_codec", &TThis::IntermediateCompressionCodec)
         .Default(NCompression::ECodec::Lz4);
     registrar.Parameter("intermediate_data_replication_factor", &TThis::IntermediateDataReplicationFactor)
-        .Default(2);
+        .Default(DefaultIntermediateDataReplicationFactor);
     registrar.Parameter("intermediate_min_data_replication_factor", &TThis::IntermediateMinDataReplicationFactor)
         .Default(1);
     registrar.Parameter("intermediate_data_sync_on_close", &TThis::IntermediateDataSyncOnClose)
@@ -913,10 +915,10 @@ void TOperationSpecBase::Register(TRegistrar registrar)
                 THROW_ERROR_EXCEPTION("Cannot use \"add_authenticated_user_to_acl\" with aco");
             }
             if (spec->Acl) {
-                THROW_ERROR_EXCEPTION(EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
+                THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
             }
             if (spec->Owners) {
-                THROW_ERROR_EXCEPTION(EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
+                THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
             }
         }
 
@@ -1331,7 +1333,7 @@ void TVanillaTaskSpec::Register(TRegistrar registrar)
 void TQueryFilterOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_chunk_filter", &TThis::EnableChunkFilter)
-        .Default(true);
+        .Default(false);
     registrar.Parameter("enable_row_filter", &TThis::EnableRowFilter)
         .Default(true);
 }
@@ -1540,6 +1542,8 @@ void TReduceOperationSpec::Register(TRegistrar registrar)
     registrar.Parameter("foreign_table_lookup_keys_threshold", &TThis::ForeignTableLookupKeysThreshold)
         .Default();
 
+    registrar.Parameter("foreign_table_lookup_data_weight_threshold", &TThis::ForeignTableLookupDataWeightThreshold)
+        .Default();
 
     registrar.Postprocessor([] (TReduceOperationSpec* spec) {
         NTableClient::ValidateSortColumns(spec->JoinBy);
@@ -1885,7 +1889,7 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
         }
 
         if (spec->ReduceBy.empty() && spec->SortBy.empty()) {
-            THROW_ERROR_EXCEPTION("At least one of the \"sort_by\" or \"reduce_by\" fields shold be specified");
+            THROW_ERROR_EXCEPTION("At least one of the \"sort_by\" or \"reduce_by\" fields should be specified");
         }
 
         if (spec->HasNontrivialMapper()) {
@@ -2033,7 +2037,7 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("allow_cluster_connection", &TThis::AllowClusterConnection)
         .Default(true);
-    registrar.Parameter("use_local_throttler", &TThis::UseLocalThrottler)
+    registrar.Parameter("use_remote_throttler", &TThis::UseRemoteThrottler)
         .Default(false);
 
     registrar.Preprocessor([] (TRemoteCopyOperationSpec* spec) {
@@ -2631,10 +2635,10 @@ void Deserialize(TOperationRuntimeParameters& parameters, INodePtr node)
 
     if (parameters.AcoName) {
         if (!parameters.Acl.Entries.empty()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
+            THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
         }
         if (!parameters.Owners.empty()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
+            THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
         }
     }
     ValidateOperationAcl(parameters.Acl);
@@ -2687,7 +2691,7 @@ void TOperationRuntimeParametersUpdate::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TOperationRuntimeParametersUpdate* update) {
         if (update->Acl) {
             if (update->AcoName) {
-                THROW_ERROR_EXCEPTION(EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
+                THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
             }
             ValidateOperationAcl(*update->Acl);
         }

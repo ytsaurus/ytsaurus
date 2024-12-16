@@ -8,17 +8,17 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, print_debug, wait, create, get, set, remove,
-    exists, create_user,
+    exists, create_user, disable_tablet_cells_on_node,
     make_ace, insert_rows, select_rows, lookup_rows, delete_rows, alter_table, read_table, write_table, merge,
     remote_copy, sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_reshard_table, sync_flush_table, sync_compact_table, remount_table,
     multicell_sleep, set_node_banned, set_nodes_banned, set_all_nodes_banned, sorted_dicts,
-    raises_yt_error, get_driver,
+    raises_yt_error, get_driver, ls, disable_write_sessions_on_node,
     create_pool, update_pool_tree_config_option,
     update_controller_agent_config,
-    write_file, wait_for_nodes, read_file)
+    write_file, wait_for_nodes, read_file, get_singular_chunk_id)
 
-from yt_helpers import skip_if_no_descending, skip_if_old
+from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_component_old
 from yt_type_helpers import make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type
 import yt_error_codes
 
@@ -32,6 +32,12 @@ from functools import partial
 import time
 import builtins
 
+HUNK_COMPATIBLE_CHUNK_FORMATS = [
+    "table_versioned_simple",
+    "table_versioned_columnar",
+    "table_versioned_slim",
+    "table_versioned_indexed",
+]
 
 ##################################################################
 
@@ -382,7 +388,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             set("//tmp/t1/@erasure_codec", "reed_solomon_6_3", driver=self.remote_driver)
             write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
 
-            chunk_id = get("//tmp/t1/@chunk_ids/0", driver=self.remote_driver)
+            chunk_id = get_singular_chunk_id("//tmp/t1", driver=self.remote_driver)
             chunk_replicas = get("#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver)
             node = list(str(r) for r in chunk_replicas if r.attributes["index"] == 0)[0]
 
@@ -595,6 +601,55 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                 authenticated_user="u",
             )
 
+    @authors("coteeq")
+    @pytest.mark.parametrize("copy_user_attributes", [True, False])
+    @pytest.mark.parametrize("object_type", ["table", "file"])
+    def test_copy_basic_attributes(self, copy_user_attributes, object_type):
+        skip_if_component_old(self.Env, (24, 2), "controller-agent")
+        create(object_type, "//tmp/t_in", driver=self.remote_driver)
+        create(object_type, "//tmp/t_out")
+
+        set("//tmp/t_in/@custom_attr", "attr_value", driver=self.remote_driver)
+
+        ypath_attrs = [
+            "compression_codec=lz4",
+            "erasure_codec=reed_solomon_6_3",
+        ]
+        if object_type == "table":
+            ypath_attrs.append("optimize_for=lookup")
+            write_table(f"<{';'.join(ypath_attrs)}>//tmp/t_in", [{"column": "value"}], driver=self.remote_driver)
+        else:
+            write_file(f"<{';'.join(ypath_attrs)}>//tmp/t_in", b"asdf", driver=self.remote_driver)
+
+        # Verify that attributes are set
+        assert get("//tmp/t_in/@compression_codec", driver=self.remote_driver) == "lz4"
+        assert get(
+            "#{chunk_id}/@compression_codec".format(
+                chunk_id=get_singular_chunk_id("//tmp/t_in", driver=self.remote_driver)
+            ),
+            driver=self.remote_driver,
+        ) == "lz4"
+
+        remote_copy(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                "copy_attributes": copy_user_attributes,
+                "attribute_keys": ["custom_attr", "compression_codec"],
+            },
+        )
+
+        if copy_user_attributes:
+            assert get("//tmp/t_out/@custom_attr") == "attr_value"
+        else:
+            assert not exists("//tmp/t_out/@custom_attr")
+
+        assert get("//tmp/t_out/@compression_codec") == "lz4"
+        assert get("//tmp/t_out/@erasure_codec") == "reed_solomon_6_3"
+        if object_type == "table":
+            assert get("//tmp/t_out/@optimize_for") == "lookup"
+
     @authors("asaitgalin", "ignat")
     def test_copy_attributes(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
@@ -701,7 +756,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
             multicell_sleep()
 
-            chunk_id = get("//tmp/t1/@chunk_ids/0", driver=self.remote_driver)
+            chunk_id = get_singular_chunk_id("//tmp/t1", driver=self.remote_driver)
 
             def run_operation():
                 op = remote_copy(
@@ -723,7 +778,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             def check_everything():
                 assert get("//tmp/t2/@chunk_count") == 1
                 if self.Env.get_component_version("ytserver-job-proxy").abi > (21, 3):
-                    new_chunk_id = get("//tmp/t2/@chunk_ids/0")
+                    new_chunk_id = get_singular_chunk_id("//tmp/t2")
                     new_chunk_replicas = get("#{}/@stored_replicas".format(new_chunk_id))
                     replicas = [str(r) for r in new_chunk_replicas]
                     assert len(replicas) == 9 and len({r for r in replicas}) == 9
@@ -1331,10 +1386,10 @@ class TestSchedulerRemoteCopyDynamicTablesBase(TestSchedulerRemoteCopyCommandsBa
 
         create("table", path, driver=driver, attributes=attributes)
 
-    def _check_all_read_methods(self, source_path, dest_path, keys, rows, source_driver=None, dest_driver=None):
+    def _check_all_read_methods(self, source_path, dest_path, keys, rows, source_driver=None, dest_driver=None, lookup_source_result=None):
         assert read_table(dest_path, driver=dest_driver) == rows
         assert (
-            lookup_rows(source_path, keys, versioned=True, driver=source_driver) ==
+            lookup_source_result if lookup_source_result is not None else lookup_rows(source_path, keys, versioned=True, driver=source_driver) ==
             lookup_rows(dest_path, keys, versioned=True, driver=dest_driver)
         )
         assert_items_equal(select_rows(f"* from [{dest_path}]", driver=dest_driver), rows)
@@ -1388,8 +1443,8 @@ class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyDynamicTablesB
         )
 
         assert read_table("//tmp/t2") == rows
-        src_chunk = get("//tmp/t1/@chunk_ids/0", driver=self.remote_driver)
-        dst_chunk = get("//tmp/t2/@chunk_ids/0")
+        src_chunk = get_singular_chunk_id("//tmp/t1", driver=self.remote_driver)
+        dst_chunk = get_singular_chunk_id("//tmp/t2")
         attr_list = [
             "optimize_for",
             "table_chunk_format",
@@ -1599,7 +1654,7 @@ class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyDynamicTablesB
         )
 
         assert read_table("//tmp/t2") == [{"key": 1, "value": "foo"}]
-        chunk_id = get("//tmp/t2/@chunk_ids/0")
+        chunk_id = get_singular_chunk_id("//tmp/t2")
         assert get("#{}/@erasure_codec".format(chunk_id)) == "reed_solomon_6_3"
 
     @authors("ifsmirnov")
@@ -1858,6 +1913,136 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
 ##################################################################
 
 
+class TestSchedulerRemoteCopyDynamicTablesErasure(TestSchedulerRemoteCopyDynamicTablesBase):
+    NUM_NODES = 12
+    ENABLE_HUNKS_REMOTE_COPY = True
+
+    @authors("alexelexa")
+    @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
+    @pytest.mark.parametrize("available", [False, True])
+    @pytest.mark.parametrize("with_repair", [False, True])
+    def test_remote_copy_erasure_hunks(self, chunk_format, available, with_repair):
+        self._nodes = ls("//sys/cluster_nodes")
+        assert len(self._nodes) == self.NUM_NODES
+
+        reason = "separate tablet and data nodes"
+        disable_write_sessions_on_node(self._nodes[0], reason=reason)
+        for node in self._nodes[1:]:
+            disable_tablet_cells_on_node(node, reason=reason)
+
+        SCHEMA = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string", "max_inline_hunk_size": 10},
+        ]
+
+        for path, driver in [("//tmp/t1", self.remote_driver), ("//tmp/t2", None)]:
+            self._create_sorted_table(
+                path,
+                schema=SCHEMA,
+                enable_dynamic_store_read=False,
+                hunk_chunk_writer={
+                    "desired_block_size": 50,
+                },
+                chunk_format=chunk_format,
+                hunk_erasure_codec="isa_reed_solomon_6_3",
+                replication_factor=4,
+                driver=driver)
+
+            if chunk_format == "table_versioned_indexed":
+                set(f"{path}/@compression_codec", "none", driver=driver)
+                set(f"{path}/@mount_config/enable_hash_chunk_index_for_lookup", True, driver=driver)
+
+            sync_create_cells(1, driver=driver)
+            set("//sys/@config/chunk_manager/enable_chunk_replicator", False, driver=driver)
+
+        sync_mount_table("//tmp/t1", driver=self.remote_driver)
+        keys = [{"key": i} for i in range(11)]
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(11)]
+        insert_rows("//tmp/t1", rows, driver=self.remote_driver)
+        assert_items_equal(select_rows("* from [//tmp/t1]", driver=self.remote_driver), rows)
+        assert_items_equal(lookup_rows("//tmp/t1", keys, driver=self.remote_driver), rows)
+        sync_unmount_table("//tmp/t1", driver=self.remote_driver)
+        sync_mount_table("//tmp/t1", driver=self.remote_driver)
+
+        hunk_chunk_ids = self._get_chunk_ids("//tmp/t1", "hunk", driver=self.remote_driver)
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = hunk_chunk_ids[0]
+
+        lookup_source_result = lookup_rows("//tmp/t1", keys, versioned=True, driver=self.remote_driver)
+
+        def _set_ban_for_chunk_parts(part_indices, banned_flag, chunk_id, driver=None):
+            chunk_replicas = get("#{}/@stored_replicas".format(chunk_id), driver=driver)
+
+            nodes_to_ban = []
+            for part_index in part_indices:
+                nodes = list(str(r) for r in chunk_replicas if r.attributes["index"] == part_index)
+                nodes_to_ban += nodes
+
+            set_nodes_banned(nodes_to_ban, banned_flag, driver=driver)
+
+        sync_unmount_table("//tmp/t1", driver=self.remote_driver)
+
+        def run_operation():
+            op = remote_copy(
+                track=False,
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={
+                    "testing": {"delay_inside_materialize": 10000},
+                    "cluster_name": self.REMOTE_CLUSTER_NAME,
+                    "max_failed_job_count": 1,
+                    "delay_in_copy_chunk": 1000,
+                    "erasure_chunk_repair_delay": 100,
+                    "repair_erasure_chunks": with_repair,
+                    "chunk_availability_policy": "repairable"
+                },
+            )
+            wait(lambda: op.get_state() == "materializing")
+            return op
+
+        if not available:
+            op = run_operation()
+            _set_ban_for_chunk_parts([0, 1, 2, 8], True, hunk_chunk_id, driver=self.remote_driver)
+            wait(lambda: get("//sys/data_missing_chunks/@count", driver=self.remote_driver) > 0)
+            wait(lambda: get("//sys/parity_missing_chunks/@count", driver=self.remote_driver) > 0)
+
+            wait(lambda: op.get_job_count("aborted") > 0)
+            op.abort()
+            return
+
+        assert get("//sys/data_missing_chunks/@count", driver=self.remote_driver) == 0
+
+        list_of_banned_nodes = []
+        if with_repair:
+            list_of_banned_nodes = [0, 1, 4]
+            _set_ban_for_chunk_parts(list_of_banned_nodes, True, hunk_chunk_id, driver=self.remote_driver)
+            wait(lambda: get("//sys/data_missing_chunks/@count", driver=self.remote_driver) > 0)
+
+        run_operation().track()
+
+        sync_mount_table("//tmp/t2")
+
+        def check():
+            self._check_all_read_methods(
+                "//tmp/t1",
+                "//tmp/t2",
+                keys,
+                rows,
+                source_driver=self.remote_driver,
+                dest_driver=None,
+                lookup_source_result=lookup_source_result)
+
+        check()
+
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", True)
+        wait(lambda: get("//sys/data_missing_chunks/@count") == 0)
+        wait(lambda: get("//sys/parity_missing_chunks/@count") == 0)
+
+        check()
+
+##################################################################
+
+
 class TestSchedulerRemoteCopyDynamicTablesMulticell(TestSchedulerRemoteCopyDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2
 
@@ -1905,9 +2090,9 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         }
     }
 
-    CHUNK_COUNT = 2
+    CHUNK_COUNT = 3
     BANDWIDTH_LIMIT = 10 ** 6
-    THROTTLER_JITTER_MULTIPLIER = 0.5
+    THROTTLER_JITTER_MULTIPLIER = 0.7
     DATA_WEIGHT_SIZE_PER_CHUNK = 10 ** 7
 
     # Setup //sys/cluster_throttlers on local cluster.
@@ -1940,8 +2125,13 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         remove('//sys/cluster_throttlers', force=True)
         create('document', '//sys/cluster_throttlers')
 
+    # Setup malformed //sys/cluster_throttlers on local cluster.
+    def setup_malformed_cluster_throttlers(self):
+        remove('//sys/cluster_throttlers', force=True)
+        set('//sys/cluster_throttlers', '{ malformed_config ')
+
     @authors("yuryalekseev")
-    def test_non_empty_table(self):
+    def test_cluster_throttlers(self):
         self.setup_cluster_throttlers()
 
         # Restart exe nodes to initialize cluster throttlers after //sys/cluster_throttlers setup.
@@ -1979,6 +2169,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
                     },
                 },
                 "job_count": 1,
+                "use_remote_throttler": True,
             },
         )
 
@@ -1992,8 +2183,12 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         assert not get("//tmp/local_table/@sorted")
 
     @authors("yuryalekseev")
-    def test_empty_cluster_throttlers(self):
-        self.setup_empty_cluster_throttlers()
+    @pytest.mark.parametrize("config", ["empty", "malformed"])
+    def test_absent_cluster_throttlers(self, config):
+        if config == "empty":
+            self.setup_empty_cluster_throttlers()
+        if config == "malformed":
+            self.setup_malformed_cluster_throttlers()
 
         # Restart exe nodes to initialize cluster throttlers after //sys/cluster_throttlers setup.
         with Restarter(self.Env, NODES_SERVICE):
@@ -2030,6 +2225,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
                     },
                 },
                 "job_count": 1,
+                "use_remote_throttler": True,
             },
         )
 

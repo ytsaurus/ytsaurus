@@ -237,6 +237,8 @@ class TestCypress(YTEnvSetup):
         set("//tmp/map", {"a": 1, "b": 2, "c": 3}, force=True)
         assert ls("//tmp/map") == ["a", "b", "c"]
 
+        assert ls("//tmp/map", max_size=1).attributes["incomplete"]
+
         set("//tmp/map", {"a": 1}, force=True)
         assert ls("//tmp/map", max_size=1) == ["a"]
 
@@ -351,6 +353,15 @@ class TestCypress(YTEnvSetup):
             set("//tmp/t/@", [])
         with pytest.raises(YtError):
             set("//tmp/t/@", [1, 2, 3])
+
+    @authors("danilalexeev")
+    def test_error_reading_attributes(self):
+        set("//tmp", b"{foo=<attr=100>1;bar=2}", is_raw=True, force=True)
+        for func in [get, ls]:
+            with raises_yt_error("Error reading the attribute"):
+                func("//tmp", attributes=["attr", "wrong_door_sync"])
+            with raises_yt_error("Error reading the attribute"):
+                func("//tmp", attributes=["attr", "wrong_door_async"])
 
     @authors("ifsmirnov")
     def test_reserved_attributes(self):
@@ -932,8 +943,8 @@ class TestCypress(YTEnvSetup):
         acl = [make_ace("deny", "guest", "write")]
         set("//tmp/t1/@acl", acl)
         move("//tmp/t1", "//tmp/t2")
-        assert not get("//tmp/t2/@inherit_acl")
-        assert_items_equal(get("//tmp/t2/@acl"), acl)
+        assert get("//tmp/t2/@inherit_acl")
+        assert_items_equal(get("//tmp/t2/@acl"), [])
 
     @authors("ignat")
     def test_move_simple1(self):
@@ -1112,12 +1123,15 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/a", attributes={"keys": ["type"]}) == expected
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_list_with_attributes(self):
         set("//tmp/a/b", {}, recursive=True, force=True)
         expected = [yson.to_yson_type("b", attributes={"type": "map_node"})]
         assert ls("//tmp/a", attributes=["type"]) == expected
         assert ls("//tmp/a", attributes={"keys": ["type"]}) == expected
+
+        set("//tmp/a/c", b"<attr=100>{}", is_raw=True)
+        expected = ["b", yson.to_yson_type("c", attributes={"attr": 100})]
+        assert sorted(ls("//tmp/a", attributes=["attr"])) == sorted(expected)
 
     @authors("kiselyovp")
     def test_get_with_attributes_objects(self):
@@ -1127,7 +1141,6 @@ class TestCypress(YTEnvSetup):
         )
 
     @authors("max42")
-    @not_implemented_in_sequoia
     def test_attribute_path_filtering(self):
         schema = [{"name": "x", "type": "int64"}, {"name": "y", "type": "int64"}]
         attributes = {"schema": schema, "custom": {"foo": 42, "bar": 57}}
@@ -1803,7 +1816,6 @@ class TestCypress(YTEnvSetup):
         assert get("//sys/replica_temporarily_unavailable_chunks/@count") == 0
 
     @authors("ignat")
-    @not_implemented_in_sequoia
     def test_list_attributes(self):
         create("map_node", "//tmp/map", attributes={"user_attr1": 10})
         set("//tmp/map/@user_attr2", "abc")
@@ -1822,7 +1834,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/file/@user_attributes") == {}
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_opaque_attribute_keys(self):
         create("table", "//tmp/t")
         assert "compression_statistics" in get("//tmp/t/@opaque_attribute_keys")
@@ -3636,9 +3647,12 @@ class TestCypress(YTEnvSetup):
         acl = [make_ace("deny", "guest", "write")]
         set("//tmp/t1/@acl", acl)
         copy("//tmp/t1", "//tmp/t2", preserve_acl=True)
+        move("//tmp/t1", "//tmp/t3", preserve_acl=True)
 
         assert not get("//tmp/t2/@inherit_acl")
+        assert not get("//tmp/t3/@inherit_acl")
         assert_items_equal(get("//tmp/t2/@acl"), acl)
+        assert_items_equal(get("//tmp/t3/@acl"), acl)
 
     @authors("avmatrosov")
     @not_implemented_in_sequoia
@@ -3648,11 +3662,18 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/test")
 
         set("//tmp/t1/@inherit_acl", False)
-        acl = [make_ace("allow", "u", "read")]
+        acl = [make_ace("allow", "u", "read"), make_ace("allow", "u", "remove")]
         set("//tmp/t1/@acl", acl)
 
-        with pytest.raises(YtError):
+        access_denied = 'Access denied for user "u": "administer" permission for node //tmp/test is not allowed'
+        with pytest.raises(YtError, match=access_denied):
             copy("//tmp/t1", "//tmp/test/t2", preserve_acl=True, authenticated_user="u")
+        with pytest.raises(YtError, match=access_denied):
+            move("//tmp/t1", "//tmp/test/t2", preserve_acl=True, authenticated_user="u")
+
+        # COMPAT(koloshmet)
+        set("//sys/@config/cypress_manager/enable_preserve_acl_during_move", True)
+        move("//tmp/t1", "//tmp/test/t2", authenticated_user="u")
 
     @authors("avmatrosov")
     @not_implemented_in_sequoia
@@ -4043,6 +4064,15 @@ class TestCypress(YTEnvSetup):
 
         wait(lambda: get("//tmp/t/@touch_time", suppress_access_tracking=suppress_access_tracking) > time_0)
 
+    @authors("kvk1920")
+    def test_yt23706(self):
+        create("map_node", "//tmp/m")
+        set("//tmp/m/@attr", {"a": {}})
+        with raises_yt_error("Duplicate key"):
+            set("//tmp/m/@attr/a", b"{b = c; b = c}", is_raw=True)
+        # Shouldn't crash.
+        get("//tmp")
+
 
 ##################################################################
 
@@ -4242,9 +4272,12 @@ class TestCypressPortal(TestCypressMulticell):
         acl = [make_ace("deny", "guest", "write")]
         set("//tmp/t1/@acl", acl)
         copy("//tmp/t1", "//portals/p/t2", preserve_acl=True)
+        move("//tmp/t1", "//portals/p/t3", preserve_acl=True)
 
         assert not get("//portals/p/t2/@inherit_acl")
+        assert not get("//portals/p/t3/@inherit_acl")
         assert_items_equal(get("//portals/p/t2/@acl"), acl)
+        assert_items_equal(get("//portals/p/t3/@acl"), acl)
 
 ################################################################################
 

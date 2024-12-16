@@ -38,7 +38,7 @@ DECLARE_REFCOUNTED_STRUCT(TOutputTable)
 DECLARE_REFCOUNTED_STRUCT(TIntermediateTable)
 
 DECLARE_REFCOUNTED_CLASS(TClusterResolver)
-DECLARE_REFCOUNTED_CLASS(TInputTransactionsManager)
+DECLARE_REFCOUNTED_CLASS(TInputTransactionManager)
 DECLARE_REFCOUNTED_CLASS(TInputCluster)
 DECLARE_REFCOUNTED_CLASS(TInputManager)
 DECLARE_REFCOUNTED_STRUCT(IInputManagerHost)
@@ -55,6 +55,8 @@ DECLARE_REFCOUNTED_STRUCT(TBriefJobStatistics)
 DECLARE_REFCOUNTED_CLASS(TScheduleAllocationStatistics)
 
 DECLARE_REFCOUNTED_CLASS(TJobExperimentBase)
+
+YT_DEFINE_STRONG_TYPEDEF(TOperationIncarnation, std::string)
 
 class TAutoMergeDirector;
 struct TJobNodeDescriptor;

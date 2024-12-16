@@ -496,8 +496,8 @@ void TIOEngineBase::Reconfigure(const NYTree::INodePtr& node)
 {
     auto realConfig = NYTree::UpdateYsonStruct(StaticConfig_, node);
 
-    AuxThreadPool_->Configure(realConfig->AuxThreadCount);
-    FsyncThreadPool_->Configure(realConfig->FsyncThreadCount);
+    AuxThreadPool_->SetThreadCount(realConfig->AuxThreadCount);
+    FsyncThreadPool_->SetThreadCount(realConfig->FsyncThreadCount);
 
     Config_.Store(realConfig);
 

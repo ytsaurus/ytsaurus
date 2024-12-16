@@ -194,6 +194,8 @@ TString FormatToMime(const NFormats::TFormat& format)
             return "application/json";
         case EFormatType::Arrow:
             return "application/vnd.apache.arrow.stream";
+        case EFormatType::Yaml:
+            return "application/x-yaml";
         default:
             THROW_ERROR_EXCEPTION("Cannot determine mime-type for format")
                 << TErrorAttribute("format", format);

@@ -185,6 +185,8 @@ public:
     //! Fraction (in percents) of shallow merge jobs for which validation is run.
     int ShallowMergeValidationProbability;
 
+    bool EnableChunkMetaExtensionsValidation;
+
     bool RescheduleMergeOnSuccess;
     bool AllowSettingChunkMergerMode;
 
@@ -401,17 +403,6 @@ class TDynamicAllyReplicaManagerConfig
     : public NYTree::TYsonStruct
 {
 public:
-    //! Enables scheduling of ally replica announce requests and endorsements.
-    bool EnableAllyReplicaAnnouncement;
-
-    //! If |false|, ally replica endorsements will not be stored.
-    /*!
-     *  WARNING: setting this from |true| to |false| will trigger immediate
-     *  cleanup of existing endorsement queues and may stall automaton thread
-     *  for a while.
-     */
-    bool EnableEndorsements;
-
     //! When a chunk is not fully replicated by approved replicas, its new replicas
     //! still announce replicas to allies but with a certain delay.
     TDuration UnderreplicatedChunkAnnouncementRequestDelay;
@@ -743,10 +734,10 @@ public:
     bool EnablePerUserRequestWeightThrottling;
     bool EnablePerUserRequestBytesThrottling;
 
-    NConcurrency::TThroughputThrottlerConfigPtr DefaultRequestWeightThrottlerConfig;
+    NConcurrency::TThroughputThrottlerConfigPtr DefaultRequestWeightThrottler;
 
-    NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserRequestWeightThrottlerConfig;
-    NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserRequestBytesThrottlerConfig;
+    NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserRequestWeightThrottler;
+    NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserRequestBytesThrottler;
 
     REGISTER_YSON_STRUCT(TDynamicChunkServiceConfig);
 

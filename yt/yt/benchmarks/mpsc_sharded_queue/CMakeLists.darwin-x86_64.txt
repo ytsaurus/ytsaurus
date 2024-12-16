@@ -17,6 +17,7 @@ add_executable(mpsc_sharded_queue)
 
 target_compile_options(mpsc_sharded_queue PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(mpsc_sharded_queue PUBLIC
@@ -28,7 +29,8 @@ target_link_libraries(mpsc_sharded_queue PUBLIC
 )
 
 target_allocator(mpsc_sharded_queue
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 
 target_link_options(mpsc_sharded_queue PRIVATE

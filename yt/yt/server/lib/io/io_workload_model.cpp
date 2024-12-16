@@ -292,6 +292,7 @@ public:
             Invoker_,
             BIND(&TWorkloadModelManager::OnLatenciesReportingRound, MakeWeak(this)),
             RequestLatenciesModelingPeriod))
+        , Model_(std::make_unique<TPerCpuWorkloadModel>())
     {
         YT_LOG_DEBUG("Initialized workload model manager");
 
@@ -307,12 +308,12 @@ public:
 
     void RegisterRead(IIOEngine::TReadRequest request, EWorkloadCategory category, TDuration requestTime)
     {
-        Model_.RegisterRead(request.Size, category, requestTime);
+        Model_->RegisterRead(request.Size, category, requestTime);
     }
 
     void RegisterWrite(IIOEngine::TWriteRequest request, EWorkloadCategory category, TDuration requestTime)
     {
-        Model_.RegisterWrite(GetByteSize(request.Buffers), category, requestTime);
+        Model_->RegisterWrite(GetByteSize(request.Buffers), category, requestTime);
     }
 
     DEFINE_SIGNAL(void(const TRequestSizes&), RequestSizesSignal);
@@ -328,13 +329,13 @@ private:
     const TPeriodicExecutorPtr ModelCreationRoundExecutor_;
     const TPeriodicExecutorPtr LatenciesMeasuringExecutor_;
 
-    TPerCpuWorkloadModel Model_;
+    std::unique_ptr<TPerCpuWorkloadModel> Model_;
 
     void OnModelCreationRound()
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        auto model = Model_.ReleaseSizes();
+        auto model = Model_->ReleaseSizes();
 
         YT_LOG_DEBUG("Observed IO request sizes (Reads: %v, Writes: %v)",
             model.Reads,
@@ -347,7 +348,7 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        auto latencies = Model_.ReleaseLatencies();
+        auto latencies = Model_->ReleaseLatencies();
 
         RequestLatenciesSignal_.Fire(latencies);
     }

@@ -17,6 +17,7 @@ add_executable(unittester-core-net)
 
 target_compile_options(unittester-core-net PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(unittester-core-net PUBLIC
@@ -31,7 +32,7 @@ target_link_libraries(unittester-core-net PUBLIC
 )
 
 target_allocator(unittester-core-net
-  cpp-ytalloc-impl
+  system_allocator
 )
 
 target_link_options(unittester-core-net PRIVATE

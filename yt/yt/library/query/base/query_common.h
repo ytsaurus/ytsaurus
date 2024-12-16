@@ -11,7 +11,7 @@
 
 #include <yt/yt/client/misc/workload.h>
 
-#include <yt/yt/library/codegen/execution_backend.h>
+#include <yt/yt/library/codegen_api/execution_backend.h>
 
 namespace NYT::NQueryClient {
 
@@ -142,14 +142,16 @@ struct TDataSource
 
 struct TQueryBaseOptions
 {
+    TReadSessionId ReadSessionId;
+
     i64 InputRowLimit = std::numeric_limits<i64>::max();
     i64 OutputRowLimit = std::numeric_limits<i64>::max();
+    size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
+
+    NCodegen::EExecutionBackend ExecutionBackend = NCodegen::EExecutionBackend::Native;
 
     bool EnableCodeCache = true;
     bool UseCanonicalNullRelations = false;
-    NCodegen::EExecutionBackend ExecutionBackend = NCodegen::EExecutionBackend::Native;
-    TReadSessionId ReadSessionId;
-    size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
     bool MergeVersionedRows = true;
 };
 
@@ -160,18 +162,24 @@ struct TQueryOptions
         .Timestamp = NTransactionClient::SyncLastCommittedTimestamp,
         .RetentionTimestamp = NTransactionClient::NullTimestamp,
     };
+
+    std::optional<TString> ExecutionPool;
+    TWorkloadDescriptor WorkloadDescriptor;
+
+    std::optional<bool> UseLookupCache;
+
+    ui64 RangeExpansionLimit = 0;
+
+    TInstant Deadline = TInstant::Max();
+
+    i64 MinRowCountPerSubquery = 100'000;
+    int MaxSubqueries = std::numeric_limits<int>::max();
+
     bool VerboseLogging = false;
     bool AllowFullScan = true;
     bool SuppressAccessTracking = false;
     // COMPAT(lukyan)
     bool NewRangeInference = true;
-    int MaxSubqueries = std::numeric_limits<int>::max();
-    i64 MinRowCountPerSubquery = 100'000;
-    std::optional<bool> UseLookupCache;
-    ui64 RangeExpansionLimit = 0;
-    TWorkloadDescriptor WorkloadDescriptor;
-    TInstant Deadline = TInstant::Max();
-    std::optional<TString> ExecutionPool;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

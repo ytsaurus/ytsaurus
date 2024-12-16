@@ -33,6 +33,7 @@ add_library(server-lib-table_server)
 
 target_compile_options(server-lib-table_server PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(server-lib-table_server PUBLIC

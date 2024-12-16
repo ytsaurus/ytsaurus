@@ -46,7 +46,12 @@ struct IVersionedChunkMetaManager
         const NChunkClient::IChunkReaderPtr& chunkReader,
         const NTableClient::TTableSchemaPtr& schema,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+        std::optional<i64> metaSize,
         bool prepareColumnarMeta = false) = 0;
+
+    virtual bool InsertMeta(
+        const TVersionedChunkMetaCacheKey& key,
+        const NChunkClient::TRefCountedChunkMetaPtr& meta) = 0;
 
     virtual void Touch(const TVersionedChunkMetaCacheEntryPtr& entry) = 0;
 

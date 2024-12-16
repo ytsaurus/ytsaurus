@@ -47,7 +47,7 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/ytlib/program/helpers.h>
+#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
@@ -206,18 +206,6 @@ TJobProxy::TJobProxy(
     } else {
         WarnForUnrecognizedOptions(Logger(), Config_);
     }
-
-    if (Config_->HeapDumpDirectory) {
-        YT_LOG_INFO(
-            "Heap dump directory supplied. Enabling TCMalloc limit handler (HeapDumpDirectory: %v)",
-            Config_->HeapDumpDirectory);
-        EnableTCMallocLimitHandler(TTCMallocLimitHandlerOptions{
-            .HeapDumpDirectory = Config_->HeapDumpDirectory,
-            .FilenameSuffix = NYT::ToString(JobId_),
-        });
-    } else {
-        YT_LOG_INFO("No heap dump directory supplied. TCMalloc limit handler is disabled");
-    }
 }
 
 TString TJobProxy::GetPreparationPath() const
@@ -293,17 +281,28 @@ TTrafficMeterPtr TJobProxy::GetTrafficMeter() const
     return TrafficMeter_;
 }
 
-const THashMap<TString, IThroughputThrottlerPtr>& TJobProxy::GetInBandwidthThrottlers() const
+IThroughputThrottlerPtr TJobProxy::GetInBandwidthThrottler(const TClusterName& clusterName) const
 {
-    return InBandwidthThrottlers_;
-}
-
-IThroughputThrottlerPtr TJobProxy::GetInBandwidthThrottler(const TString& clusterName) const
-{
-    if (auto it = InBandwidthThrottlers_.find(clusterName); it != InBandwidthThrottlers_.end()) {
-        return it->second;
+    auto it = InBandwidthThrottlers_.find(clusterName);
+    if (it == InBandwidthThrottlers_.end()) {
+        NConcurrency::IThroughputThrottlerPtr throttler;
+        if (Config_->JobThrottler) {
+            // Throttling is enabled.
+            throttler = CreateInJobBandwidthThrottler(
+                Config_->JobThrottler,
+                SupervisorChannel_,
+                GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
+                JobId_,
+                clusterName,
+                Logger);
+        } else {
+            // Throttling is disabled.
+            throttler = GetUnlimitedThrottler();
+        }
+        it = InBandwidthThrottlers_.emplace(clusterName, std::move(throttler)).first;
     }
-    return IThroughputThrottlerPtr();
+
+    return it->second;
 }
 
 IThroughputThrottlerPtr TJobProxy::GetOutBandwidthThrottler() const
@@ -872,7 +871,8 @@ TJobResult TJobProxy::RunJob()
             NNet::TAddressResolver::Get()->PurgeCache();
         }
 
-        SupervisorProxy_ = std::make_unique<TSupervisorServiceProxy>(supervisorChannel);
+        SupervisorChannel_ = supervisorChannel;
+        SupervisorProxy_ = std::make_unique<TSupervisorServiceProxy>(SupervisorChannel_);
         SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
 
         RetrieveJobSpec();
@@ -891,49 +891,32 @@ TJobResult TJobProxy::RunJob()
         if (Config_->JobThrottler) {
             YT_LOG_INFO("Job throttling enabled");
 
-            // Empty cluster name stands for absent cluster.
-            THashSet<TString> clusterNames({""});
-            if (Config_->ClusterThrottlersConfig) {
-                YT_LOG_INFO("Received cluster throttlers config (Config: %v)",
-                     NYson::ConvertToYsonString(*Config_->ClusterThrottlersConfig, NYson::EYsonFormat::Text));
-
-                for (const auto& [clusterName, _] : Config_->ClusterThrottlersConfig->ClusterLimits) {
-                    YT_VERIFY(clusterNames.insert(clusterName).second);
-                }
-            }
-
-            InBandwidthThrottlers_ = CreateInJobBandwidthThrottlers(
-                Config_->JobThrottler,
-                supervisorChannel,
-                GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
-                JobId_,
-                std::move(clusterNames),
-                Logger);
+            // InBandwidthThrottlers are created on demand.
 
             OutBandwidthThrottler_ = CreateOutJobBandwidthThrottler(
                 Config_->JobThrottler,
-                supervisorChannel,
+                SupervisorChannel_,
                 GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
                 JobId_,
                 Logger);
 
             OutRpsThrottler_ = CreateOutJobRpsThrottler(
                 Config_->JobThrottler,
-                supervisorChannel,
+                SupervisorChannel_,
                 GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
                 JobId_,
                 Logger);
 
             UserJobContainerCreationThrottler_ = CreateUserJobContainerCreationThrottler(
                 Config_->JobThrottler,
-                supervisorChannel,
+                SupervisorChannel_,
                 GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
                 JobId_);
         } else {
             YT_LOG_INFO("Job throttling disabled");
 
-            // Empty cluster name stands for absent cluster.
-            InBandwidthThrottlers_[""] = GetUnlimitedThrottler();
+            // InBandwidthThrottlers are created on demand.
+
             OutBandwidthThrottler_ = GetUnlimitedThrottler();
             OutRpsThrottler_ = GetUnlimitedThrottler();
             UserJobContainerCreationThrottler_ = GetUnlimitedThrottler();
@@ -1424,6 +1407,7 @@ void TJobProxy::UpdateResourceUsage()
     resourceUsage->set_cpu(CpuGuarantee_);
     resourceUsage->set_network(NetworkUsage_);
     resourceUsage->set_memory(RequestedMemoryReserve_);
+    // TODO(pogorelov): Looks like reordering could happen here. Fix it.
     req->Invoke().Subscribe(BIND(&TJobProxy::OnResourcesUpdated, MakeWeak(this), RequestedMemoryReserve_.load()));
 }
 
@@ -1543,17 +1527,21 @@ NApi::NNative::IClientPtr TJobProxy::GetClient() const
 
 TChunkReaderHostPtr TJobProxy::GetChunkReaderHost() const
 {
+    auto bandwidthThrottlerFactory = BIND([this, this_ = MakeWeak(this)](const TClusterName& clusterName) {
+        return GetInBandwidthThrottler(clusterName);
+    });
+
     return New<TChunkReaderHost>(
         Client_,
         LocalDescriptor_,
         ReaderBlockCache_,
         /*chunkMetaCache*/ nullptr,
         /*nodeStatusDirectory*/ nullptr,
-        GetInBandwidthThrottler(),
+        bandwidthThrottlerFactory(LocalClusterName),
         GetOutRpsThrottler(),
         /*mediumThrottler*/ GetUnlimitedThrottler(),
         GetTrafficMeter(),
-        GetInBandwidthThrottlers());
+        std::move(bandwidthThrottlerFactory));
 }
 
 IBlockCachePtr TJobProxy::GetReaderBlockCache() const
@@ -1732,7 +1720,7 @@ void TJobProxy::FillJobResult(TJobResult* jobResult)
             if (jobResult->error().code() == 0) {
                 ToProto(
                     jobResult->mutable_error(),
-                    TError(EErrorCode::InterruptionFailed, "Job did not read anything"));
+                    TError(NJobProxy::EErrorCode::InterruptionFailed, "Job did not read anything"));
             }
         }
     }
@@ -1742,7 +1730,7 @@ void TJobProxy::FillJobResult(TJobResult* jobResult)
         const auto& userJobSpec = jobSpecExt.user_job_spec();
         if (userJobSpec.has_restart_exit_code()) {
             auto error = FromProto<TError>(jobResult->error());
-            if (auto userJobFailedError = error.FindMatching(EErrorCode::UserJobFailed)) {
+            if (auto userJobFailedError = error.FindMatching(NJobProxy::EErrorCode::UserJobFailed)) {
                 auto processFailedError = userJobFailedError->FindMatching(EProcessErrorCode::NonZeroExitCode);
                 if (processFailedError && processFailedError->Attributes().Get<int>("exit_code", 0) == userJobSpec.restart_exit_code()) {
                     YT_LOG_INFO("Job exited with code that indicates job restart (ExitCode: %v)",

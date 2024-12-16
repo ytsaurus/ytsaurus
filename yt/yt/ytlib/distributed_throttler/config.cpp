@@ -24,7 +24,7 @@ void TDistributedThrottlerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("leader_update_period", &TThis::LeaderUpdatePeriod)
         .Default(TDuration::Seconds(10));
-    registrar.Parameter("local_throttlers_attribute_update_period", &TThis::LocalThrottlersAttributeUpdatePeriod)
+    registrar.Parameter("throttlers_attributes_update_period", &TThis::ThrottlersAttributesUpdatePeriod)
         .Default(TDuration::Seconds(20));
 
     registrar.Parameter("throttler_expiration_time", &TThis::ThrottlerExpirationTime)

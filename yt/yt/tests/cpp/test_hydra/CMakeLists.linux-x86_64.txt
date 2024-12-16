@@ -19,6 +19,7 @@ add_executable(cpp-integration-test-hydra)
 
 target_compile_options(cpp-integration-test-hydra PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(cpp-integration-test-hydra PUBLIC
@@ -36,7 +37,8 @@ target_link_libraries(cpp-integration-test-hydra PUBLIC
 )
 
 target_allocator(cpp-integration-test-hydra
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(cpp-integration-test-hydra PRIVATE

@@ -155,6 +155,7 @@ public:
     //! Returns true unless overcommit occurred.
     bool SetBaseResourceUsage(NClusterNode::TJobResources newResourceUsage);
     bool UpdateAdditionalResourceUsage(NClusterNode::TJobResources additionalResourceUsageDelta);
+    bool RestoreResources() noexcept;
 
     IMemoryUsageTrackerPtr GetAdditionalMemoryUsageTracker(EMemoryCategory memoryCategory);
 
@@ -168,6 +169,8 @@ public:
     NClusterNode::TJobResources GetResourceLimits() const noexcept;
 
     NClusterNode::TJobResources GetFreeResources() const noexcept;
+
+    NClusterNode::TJobResources GetInitialResourceDemand() const noexcept;
 
     void UpdateResourceDemand(
         const NClusterNode::TJobResources& jobResources,
@@ -202,9 +205,9 @@ private:
 
     NClusterNode::TJobResources BaseResourceUsage_;
     NClusterNode::TJobResources AdditionalResourceUsage_;
-    // COMPAT(arkady-e1ppa): Merge this struct with BaseResourceUsage
-    // when scheduler and node are 24.2.
+
     NScheduler::TAllocationAttributes AllocationAttributes_;
+    const NClusterNode::TJobResources InitialResourceDemand_;
 
     std::vector<int> Ports_;
 
@@ -229,6 +232,7 @@ private:
         TGuid Id;
         NClusterNode::TJobResources BaseResourceUsage;
         NClusterNode::TJobResources AdditionalResourceUsage;
+        NClusterNode::TJobResources InitialResourceDemand;
         EResourcesConsumerType ResourcesConsumerType;
     };
 

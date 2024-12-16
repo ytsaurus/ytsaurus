@@ -33,6 +33,7 @@ add_executable(prepare_operation)
 
 target_compile_options(prepare_operation PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(prepare_operation PUBLIC

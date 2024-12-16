@@ -133,7 +133,7 @@ public:
             InitPerCellData(cellTag, Bootstrap_->GetMasterAddressesOrThrow(cellTag));
         }
 
-        Shuffle(JobTrackerAddresses_.begin(), JobTrackerAddresses_.end());
+        ShuffleRange(JobTrackerAddresses_);
 
         Bootstrap_->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
         Bootstrap_->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
@@ -161,13 +161,11 @@ public:
     }
 
     TDataNodeTrackerServiceProxy::TReqFullHeartbeatPtr BuildFullHeartbeatRequest(
+        TDataNodeTrackerServiceProxy proxy,
         TNodeId nodeId,
         TCellTag cellTag)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-
-        auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
-        TDataNodeTrackerServiceProxy proxy(std::move(masterChannel));
 
         auto req = proxy.FullHeartbeat();
         req->SetRequestCodec(NCompression::ECodec::Lz4);
@@ -225,13 +223,11 @@ public:
     }
 
     TDataNodeTrackerServiceProxy::TReqIncrementalHeartbeatPtr BuildIncrementalHeartbeatRequest(
+        TDataNodeTrackerServiceProxy proxy,
         TNodeId nodeId,
         TCellTag cellTag)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
-        TDataNodeTrackerServiceProxy proxy(std::move(masterChannel));
 
         auto req = proxy.IncrementalHeartbeat();
         req->SetRequestCodec(NCompression::ECodec::Lz4);
@@ -562,16 +558,20 @@ protected:
         THeartbeatRspFuture variantResult;
         auto state = GetMasterConnectorState(cellTag);
         EmplaceOrCrash(CellTagToMasterConnectorState_, cellTag, state);
+
+        auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
+        TDataNodeTrackerServiceProxy proxy(std::move(masterChannel));
+
         switch (state) {
             case EMasterConnectorState::Registered: {
-                auto future = InvokeFullHeartbeatRequest(cellTag);
+                auto future = InvokeFullHeartbeatRequest(std::move(proxy), cellTag);
                 variantResult = future;
                 EmplaceOrCrash(CellTagToVariantHeartbeatRspFuture_, cellTag, std::move(variantResult));
                 return future.AsVoid();
             }
 
             case EMasterConnectorState::Online: {
-                auto future = InvokeIncrementalHeartbeatRequest(cellTag);
+                auto future = InvokeIncrementalHeartbeatRequest(std::move(proxy), cellTag);
                 variantResult = future;
                 EmplaceOrCrash(CellTagToVariantHeartbeatRspFuture_, cellTag, std::move(variantResult));
                 return future.AsVoid();
@@ -879,6 +879,11 @@ private:
                 delta->State = EMasterConnectorState::Registered;
             }
         }
+
+        {
+            auto guard = NThreading::WriterGuard(JobTrackerAddressesLock_);
+            ShuffleRange(JobTrackerAddresses_);
+        }
     }
 
     void OnDynamicConfigChanged(
@@ -1023,7 +1028,9 @@ private:
         }
     }
 
-    TFuture<TDataNodeRspFullHeartbeat> InvokeFullHeartbeatRequest(TCellTag cellTag)
+    TFuture<TDataNodeRspFullHeartbeat> InvokeFullHeartbeatRequest(
+        TDataNodeTrackerServiceProxy proxy,
+        TCellTag cellTag)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1038,7 +1045,7 @@ private:
 
         // Full heartbeat construction can take a while; offload it RPC Heavy thread pool.
         auto req = WaitFor(
-            BIND(&TMasterConnector::BuildFullHeartbeatRequest, MakeStrong(this), nodeId, cellTag)
+            BIND(&TMasterConnector::BuildFullHeartbeatRequest, MakeStrong(this), std::move(proxy), nodeId, cellTag)
                 .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
                 .Run())
             .ValueOrThrow();
@@ -1059,13 +1066,15 @@ private:
         return req->Invoke();
     }
 
-    TFuture<TDataNodeRspIncrementalHeartbeat> InvokeIncrementalHeartbeatRequest(TCellTag cellTag)
+    TFuture<TDataNodeRspIncrementalHeartbeat> InvokeIncrementalHeartbeatRequest(
+        TDataNodeTrackerServiceProxy proxy,
+        TCellTag cellTag)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto nodeId = Bootstrap_->GetNodeId();
 
-        auto req = BuildIncrementalHeartbeatRequest(nodeId, cellTag);
+        auto req = BuildIncrementalHeartbeatRequest(std::move(proxy), nodeId, cellTag);
 
         YT_LOG_INFO("Sending incremental data node heartbeat to master (CellTag: %v, %v)",
             cellTag,
@@ -1236,6 +1245,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto* cellTagData = GetCellTagData(cellTag);
+        // Nothing is ever deleted from ChunksDelta, therefore it is safe to return raw pointer.
         return cellTagData->ChunksDelta.get();
     }
 

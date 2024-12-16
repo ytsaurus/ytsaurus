@@ -1820,7 +1820,7 @@ private:
             return;
         }
 
-        PendingFutures_.push_back(pendingFuture);
+        PendingFutures_.emplace_back(std::move(pendingFuture));
     }
 };
 

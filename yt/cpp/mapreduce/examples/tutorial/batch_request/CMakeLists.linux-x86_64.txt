@@ -19,6 +19,7 @@ add_executable(batch_request)
 
 target_compile_options(batch_request PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(batch_request PUBLIC

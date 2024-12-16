@@ -54,6 +54,9 @@ def build_user_load():
             .row()
                 .cell("Table lookup unmerged row count rate", top_rate("lookup", "unmerged_row_count"))
                 .cell("Table select unmerged row count rate", top_rate("select", "unmerged_row_count"))
+            .row()
+                .cell("Fetch table rows data weight rate", top_rate("fetch_table_rows", "data_weight").unit("UNIT_BYTES_SI"))
+                .cell("Fetch table rows row count rate", top_rate("fetch_table_rows", "row_count"))
             ).owner
 
 
@@ -230,15 +233,32 @@ def build_bundle_controller():
                         MonitoringExpr(bc("offline_node_count")).alias("offline nodes")
                     ).stack(True))
             .row()
-                .cell("Inflight request count", MultiSensor(
+                .cell("Inflight tablet node request count", MultiSensor(
                         MonitoringExpr(bc("inflight_node_allocations_count")).alias("inflight node allocations"),
                         MonitoringExpr(bc("inflight_node_deallocations_count")).alias("inflight node deallocations"),
                         MonitoringExpr(bc("inflight_cell_removal_count")).alias("inflight cell removal")
                     ).stack(True))
-                .cell("Inflight request age", MultiSensor(
+                .cell("Inflight tablet node request age", MultiSensor(
                         MonitoringExpr(bc("node_allocation_request_age")).alias("node allocation age max"),
                         MonitoringExpr(bc("node_deallocation_request_age")).alias("node deallocation age max"),
                         MonitoringExpr(bc("removing_cells_age")).alias("cell removal age max")
+                    ).stack(False))
+            .row()
+                .cell("Target rpc proxy count", MonitoringExpr(bc("target_rpc_proxy_count")
+                    .all("instance_size")).alias("target proxy count of size '{{instance_size}}'"))
+                .cell("Alive rpc proxy count", MultiSensor(
+                        MonitoringExpr(bc("alive_rpc_proxy_count")
+                            .all("instance_size")).alias("alive bundle proxies of size '{{instance_size}}'"),
+                        MonitoringExpr(bc("using_spare_proxy_count")).alias("assigned spare proxies")
+                    ).stack(True))
+            .row()
+                .cell("Inflight rpc proxy request count", MultiSensor(
+                        MonitoringExpr(bc("inflight_proxy_allocation_counter")).alias("inflight proxy allocations"),
+                        MonitoringExpr(bc("inflight_proxy_deallocation_counter")).alias("inflight proxy deallocations"),
+                    ).stack(True))
+                .cell("Inflight rpc proxy request age", MultiSensor(
+                        MonitoringExpr(bc("proxy_allocation_request_age")).alias("proxy allocation age max"),
+                        MonitoringExpr(bc("proxy_deallocation_request_age")).alias("proxy deallocation age max"),
                     ).stack(False))
             ).owner
 

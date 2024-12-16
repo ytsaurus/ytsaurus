@@ -187,7 +187,7 @@ int THorizontalBlockReader::GetKeyColumnCount() const
     return SortOrders_.Size();
 }
 
-TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
+TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memoryPool, bool remap)
 {
     int totalValueCount = ValueCount_ + std::ssize(KeyWideningOptions_.InsertedColumnIds) + ExtraColumnCount_;
     auto row = TMutableUnversionedRow::Allocate(memoryPool, totalValueCount);
@@ -212,7 +212,7 @@ TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memory
             }
         }
 
-        auto remappedId = ChunkToReaderIdMapping_[value.Id];
+        auto remappedId = remap ? ChunkToReaderIdMapping_[value.Id] : value.Id;
         if (remappedId >= 0) {
             value = DecodeAnyValue(value);
             value.Id = remappedId;

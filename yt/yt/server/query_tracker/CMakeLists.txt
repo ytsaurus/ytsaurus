@@ -21,6 +21,7 @@ add_library(yt-server-query_tracker)
 
 target_compile_options(yt-server-query_tracker PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(yt-server-query_tracker PUBLIC
@@ -33,6 +34,7 @@ target_link_libraries(yt-server-query_tracker PUBLIC
   yt-library-dynamic_config
   yt-library-clickhouse_discovery
   yt-library-coredumper
+  yt-library-server_program
   server-lib-admin
   server-lib-alert_manager
   server-lib-cypress_election
@@ -56,6 +58,7 @@ target_sources(yt-server-query_tracker PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/query_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/query_tracker_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/mock_engine.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/ql_engine.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/spyt_discovery.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/spyt_engine.cpp

@@ -33,6 +33,7 @@ add_library(server-lib-hydra)
 
 target_compile_options(server-lib-hydra PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(server-lib-hydra PUBLIC
@@ -92,6 +93,7 @@ target_sources(server-lib-hydra PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/snapshot_discovery.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/snapshot_download.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/snapshot_store_thunk.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/snapshot_load_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/state_hash_checker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/unbuffered_file_changelog.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/hydra/proto/hydra_service.pb.h

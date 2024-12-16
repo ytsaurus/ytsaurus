@@ -60,18 +60,10 @@ void TLivePreview::Persist(const TPersistenceContext& context)
 
     Persist<TSetSerializer<TDefaultSerializer, TUnsortedTag>>(context, Chunks_);
     Persist(context, NodeDirectory_);
-
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= ESnapshotVersion::VirtualTableSchema) {
-        Persist(context, *Schema_);
-    }
-
-    // COMPAT(galtsev)
-    if (context.GetVersion() >= ESnapshotVersion::LivePreviewAnnotation) {
-        Persist(context, OperationId_);
-        Persist(context, Name_);
-        Persist(context, Path_);
-    }
+    Persist(context, *Schema_);
+    Persist(context, OperationId_);
+    Persist(context, Name_);
+    Persist(context, Path_);
 
     if (context.IsLoad()) {
         Initialize();

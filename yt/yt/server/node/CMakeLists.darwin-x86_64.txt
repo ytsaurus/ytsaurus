@@ -34,6 +34,7 @@ add_library(yt-server-node)
 
 target_compile_options(yt-server-node PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_include_directories(yt-server-node PUBLIC
@@ -54,6 +55,7 @@ target_link_libraries(yt-server-node PUBLIC
   yt-library-containers
   library-containers-cri
   yt-library-gpu
+  yt-library-server_program
   yt-ytlib-distributed_throttler
   server-node-cellar_node
   server-node-chaos_node
@@ -71,6 +73,7 @@ target_link_libraries(yt-server-node PUBLIC
   server-lib-misc
   server-lib-nbd
   server-lib-rpc
+  server-lib-distributed_chunk_session
   server-lib-controller_agent
   library-cpp-getopt
   cpp-yt-phdr_cache
@@ -84,6 +87,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/node_resource_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/master_connector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/master_heartbeat_reporter_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/ally_replica_manager.cpp

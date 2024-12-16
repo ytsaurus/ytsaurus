@@ -87,13 +87,13 @@ public:
         }
 
         if (JobProxyMemoryProfile_) {
-            auto profile = ConvertAllocationProfile(std::move(*JobProxyMemoryProfilingToken_).Stop());
+            auto profile = TCMallocProfileToProtoProfile(std::move(*JobProxyMemoryProfilingToken_).Stop());
             SymbolizeProfile(&profile, JobProxyMemoryProfilerSpec_);
             JobProxyMemoryProfile_->Blob = SerializeProfile(profile);
         }
 
         if (JobProxyPeakMemoryProfile_) {
-            auto profile = ReadHeapProfile(tcmalloc::ProfileType::kPeakHeap);
+            auto profile = CaptureHeapProfile(tcmalloc::ProfileType::kPeakHeap);
             SymbolizeProfile(&profile, JobProxyPeakMemoryProfilerSpec_);
             JobProxyPeakMemoryProfile_->Blob = SerializeProfile(profile);
         }
@@ -262,6 +262,13 @@ private:
     static TString GetProfileTypeString(const TJobProfilerSpecPtr& spec)
     {
         return Format("%lv_%lv", spec->Binary, spec->Type);
+    }
+
+    static TString SerializeProfile(const NYTProf::NProto::Profile& profile)
+    {
+        TStringStream stream;
+        WriteCompressedProfile(&stream, profile);
+        return stream.Str();
     }
 };
 

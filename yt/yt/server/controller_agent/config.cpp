@@ -639,6 +639,8 @@ void TDisallowRemoteOperationsConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("allowed_clusters", &TThis::AllowedClusters)
         .Default();
+    registrar.Parameter("allowed_for_everyone_clusters", &TThis::AllowedForEveryoneClusters)
+        .Default();
 }
 
 void TControllerAgentConfig::Register(TRegistrar registrar)
@@ -1218,6 +1220,10 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_job_fails_tolerance", &TThis::EnableJobFailsTolerance)
         .Default(false);
+
+    registrar.Parameter("allocation_job_count_limit", &TThis::AllocationJobCountLimit)
+        .Default()
+        .GreaterThan(0);
 
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->ChunkLocationThrottler->Limit = 10'000;

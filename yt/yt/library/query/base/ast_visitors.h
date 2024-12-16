@@ -99,62 +99,6 @@ struct TRewriter
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TListContainsTransformer
-    : public TRewriter<TListContainsTransformer>
-{
-    using TBase = TRewriter<TListContainsTransformer>;
-
-    const TReference& RepeatedIndexedColumn;
-    const TReference& UnfoldedIndexerColumn;
-
-    TListContainsTransformer(
-        TAstHead* head,
-        const TReference& repeatedIndexedColumn,
-        const TReference& unfoldedIndexerColumn);
-
-    TExpressionPtr OnFunction(TFunctionExpressionPtr function);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TInTransformer
-    : public TRewriter<TInTransformer>
-{
-    using TBase = TRewriter<TInTransformer>;
-
-    const TReference& RepeatedIndexedColumn;
-    const TReference& UnfoldedIndexerColumn;
-
-    TInTransformer(
-        TAstHead* head,
-        const TReference& repeatedIndexedColumn,
-        const TReference& unfoldedIndexerColumn);
-
-    TExpressionPtr OnIn(TInExpressionPtr inExpr);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTableReferenceReplacer
-    : public TRewriter<TTableReferenceReplacer>
-{
-    using TBase = TRewriter<TTableReferenceReplacer>;
-
-    const THashSet<std::string> ReplacedColumns;
-    const std::optional<TString>& OldAlias;
-    const std::optional<TString>& NewAlias;
-
-    TTableReferenceReplacer(
-        TAstHead* head,
-        THashSet<std::string> replacedColumns,
-        const std::optional<TString>& oldAlias,
-        const std::optional<TString>& newAlias);
-
-    TExpressionPtr OnReference(TReferenceExpressionPtr reference);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TReferenceHarvester
     : public TAstVisitor<TReferenceHarvester>
 {

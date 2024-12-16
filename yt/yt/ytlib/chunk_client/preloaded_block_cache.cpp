@@ -55,6 +55,14 @@ public:
         return blockType == EBlockType::UncompressedData;
     }
 
+    THashSet<TBlockInfo> GetCachedBlocksByChunkId(TChunkId /*chunkId*/, EBlockType /*type*/) override
+    {
+        return {};
+    }
+
+    void RemoveChunkBlocks(const TChunkId& /*chunkId*/) override
+    { }
+
     std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
         const NChunkClient::TBlockId& /*id*/,
         EBlockType /*type*/) override
@@ -69,7 +77,7 @@ private:
 
 IBlockCachePtr GetPreloadedBlockCache(IChunkReaderPtr chunkReader)
 {
-    auto meta = NConcurrency::WaitFor(chunkReader->GetMeta(/*chunkReadOptions*/ {}))
+    auto meta = NConcurrency::WaitFor(chunkReader->GetMeta(/*options*/ {}))
         .ValueOrThrow();
 
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());

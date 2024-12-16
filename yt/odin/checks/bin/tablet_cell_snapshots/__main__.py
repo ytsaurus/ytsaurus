@@ -38,27 +38,39 @@ def run_check(yt_client, logger, options, states):
         if not cell_ids_to_check:
             return changelog_count_by_cell
 
-        changelog_disk_space_by_cell_id = {}
-        for cell_id in cell_ids_to_check:
-            changelog_disk_space_by_cell_id[cell_id] = \
-                yt_batch_client.list("//sys/tablet_cells/{}/changelogs".format(cell_id), attributes=["resource_usage"])
+        def process_storage(storage_path):
+            changelog_disk_space_by_cell_id = {}
+            for cell_id in cell_ids_to_check:
+                changelog_disk_space_by_cell_id[cell_id] = \
+                    yt_batch_client.list("{}/{}/changelogs".format(storage_path, cell_id), attributes=["resource_usage"])
 
-        run_and_log_time(
-            functools.partial(yt_batch_client.commit_batch),
-            "fetching changelogs disk space usage over {} cells".format(len(cell_ids_to_check)),
-            logger)
+            run_and_log_time(
+                functools.partial(yt_batch_client.commit_batch),
+                "fetching changelogs disk space usage over {} cells".format(len(cell_ids_to_check)),
+                logger)
 
-        for cell_id in changelog_disk_space_by_cell_id:
-            results = changelog_disk_space_by_cell_id[cell_id].get_result()
-            considered_ids = set(range(max_snapshot_ids[cell_id] + 1, max_changelog_ids[cell_id] + 1))
-            for result in results:
-                if int(result) in considered_ids:
-                    if result.attributes["resource_usage"]["disk_space"] > MAX_CHANGELOG_DISK_SPACE_TO_SKIP:
-                        changelog_count_by_cell[cell_id] += 1
+            for cell_id, response in changelog_disk_space_by_cell_id.items():
+                if not response.is_ok:
+                    # Path is probably missing.
+                    continue
 
-            changelog_count_by_cell[cell_id] = max(
-                changelog_count_by_cell[cell_id],
-                max_changelog_ids[cell_id] - max_snapshot_ids[cell_id] - MAX_SKIPPED_CHANGELOG_COUNT)
+                results = response.get_result()
+                considered_ids = set(range(max_snapshot_ids[cell_id] + 1, max_changelog_ids[cell_id] + 1))
+                for result in results:
+                    if int(result) in considered_ids:
+                        if result.attributes["resource_usage"]["disk_space"] > MAX_CHANGELOG_DISK_SPACE_TO_SKIP:
+                            changelog_count_by_cell[cell_id] += 1
+
+                changelog_count_by_cell[cell_id] = max(
+                    changelog_count_by_cell[cell_id],
+                    max_changelog_ids[cell_id] - max_snapshot_ids[cell_id] - MAX_SKIPPED_CHANGELOG_COUNT)
+
+        # COMPAT(danilalexeev): YT-21862.
+        is_virtaul_map = yt_client.get("//sys/tablet_cells/@type") == "virtual_tablet_cell_map"
+
+        process_storage("//sys/tablet_cells")
+        if not is_virtaul_map:
+            process_storage("//sys/hydra_persistence/tablet_cells")
 
         return changelog_count_by_cell
 

@@ -59,6 +59,16 @@ static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "JobResourceManager");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool AreNonDiskResourcesEqual(TJobResources lhs, TJobResources rhs)
+{
+    lhs.DiskSpaceRequest = rhs.DiskSpaceRequest = 0;
+    lhs.InodeRequest = rhs.InodeRequest = 0;
+
+    return lhs == rhs;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TResourceHolder::TAcquiredResources
 {
 public:
@@ -573,12 +583,12 @@ public:
         TJobResources releasingResources;
 
         YT_VERIFY(resourceHolder->State_ == EResourcesState::Pending);
-        const auto& resources = resourceHolder->BaseResourceUsage_;
+        const auto& resourceDemand = resourceHolder->InitialResourceDemand_;
         {
             auto guard = WriterGuard(ResourcesLock_);
 
             pendingResources =
-                ResourceUsages_[EResourcesState::Pending] += resources;
+                ResourceUsages_[EResourcesState::Pending] += resourceDemand;
             acquiredResources = ResourceUsages_[EResourcesState::Acquired];
             releasingResources = ResourceUsages_[EResourcesState::Releasing];
 
@@ -588,7 +598,7 @@ public:
 
         YT_LOG_DEBUG(
             "Resource holder registered (ResourceDemand: %v, PendingResources: %v, AcquiredResources: %v, ReleasingResources %v)",
-            resources,
+            resourceDemand,
             pendingResources,
             acquiredResources,
             releasingResources);
@@ -726,7 +736,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        const auto neededResources = resourceHolder->GetResourceUsage();
+        const auto neededResources = resourceHolder->InitialResourceDemand_;
         const auto& allocationAttributes = resourceHolder->AllocationAttributes_;
 
         const auto& Logger = resourceHolder->GetLogger();
@@ -859,21 +869,16 @@ public:
             }
         }
 
-        try {
-            if (neededResources.UserSlots > 0) {
-                YT_VERIFY(Bootstrap_->IsExecNode());
+        if (neededResources.UserSlots > 0) {
+            YT_VERIFY(Bootstrap_->IsExecNode());
 
-                userSlot = AcquireUserSlot(neededResources, allocationAttributes);
-            }
+            userSlot = AcquireUserSlot(neededResources, allocationAttributes);
+        }
 
-            if (neededResources.Gpu > 0) {
-                YT_VERIFY(Bootstrap_->IsExecNode());
+        if (neededResources.Gpu > 0) {
+            YT_VERIFY(Bootstrap_->IsExecNode());
 
-                gpuSlots = AcquireGpuSlots(neededResources);
-            }
-        } catch (const std::exception& ex) {
-            // Provide job abort.
-            THROW_ERROR_EXCEPTION(ex);
+            gpuSlots = AcquireGpuSlots(neededResources);
         }
 
         resourceAcquisitionFailedGuard.Release();
@@ -1262,9 +1267,10 @@ private:
                 resourceHoldersInfo,
                 [] (auto fluent, const auto& resourceHolderInfo) {
                     fluent.Item(ToString(resourceHolderInfo.Id)).BeginMap()
-                        .Item("resources_counsumer_type").Value(resourceHolderInfo.ResourcesConsumerType)
                         .Item("base_resource_usage").Value(resourceHolderInfo.BaseResourceUsage)
                         .Item("additional_resource_usage").Value(resourceHolderInfo.AdditionalResourceUsage)
+                        .Item("initial_resource_demand").Value(resourceHolderInfo.InitialResourceDemand)
+                        .Item("resources_counsumer_type").Value(resourceHolderInfo.ResourcesConsumerType)
                     .EndMap();
                 })
         .EndMap();
@@ -1600,6 +1606,7 @@ TResourceHolder::TResourceHolder(
     , ResourceManagerImpl_(static_cast<TJobResourceManager::TImpl*>(jobResourceManager))
     , BaseResourceUsage_(resources)
     , AdditionalResourceUsage_(ZeroJobResources())
+    , InitialResourceDemand_(resources)
 {
     Register();
 }
@@ -1759,12 +1766,45 @@ bool TResourceHolder::SetBaseResourceUsage(TJobResources newResourceUsage)
 {
     auto guard = WriterGuard(ResourcesLock_);
 
+    if (!HasStarted_) {
+        YT_LOG_DEBUG(
+            "Resource holder is not started yet, skipping update (ResourceUsage: %v, ResourcesState: %v)",
+            newResourceUsage,
+            State_);
+
+        // TODO(pogorelov): Uncomment when UpdateResourceDemande will be removed
+        // auto error = VerifyEquals(BaseResourceUsage_, InitialResourceDemand_, "Resources are unequal");
+        // YT_LOG_FATAL_UNLESS(
+        //     error.IsOK(),
+        //     error,
+        //     "Base resource usage is not the same as initial resource demand");
+
+        auto error = VerifyEquals(InitialResourceDemand_, newResourceUsage, "Resources are unequal");
+        YT_LOG_FATAL_UNLESS(
+            error.IsOK(),
+            error,
+            "Trying to set unexpected resources value");
+
+        return false;
+    }
+
+    YT_LOG_FATAL_IF(
+        State_ == EResourcesState::Released,
+        "Can not set resource usage when resources are released");
+
     YT_VERIFY(newResourceUsage.UserSlots == BaseResourceUsage_.UserSlots);
     YT_VERIFY(newResourceUsage.Gpu == BaseResourceUsage_.Gpu);
 
-    YT_LOG_FATAL_IF(
-        !HasStarted_ || State_ == EResourcesState::Released,
-        "Resource holder is neither acquired nor releasing");
+    // COMPAT(pogorelov): Remove when UpdateResourceDemand is removed.
+    if (AreNonDiskResourcesEqual(newResourceUsage, BaseResourceUsage_)) {
+        YT_LOG_DEBUG(
+            "New resource usage is equal to previous, skipping update (ResourceUsage: %v, ResourcesState: %v)",
+            BaseResourceUsage_,
+            State_);
+
+        // If there is an overdraft, some other call to DoSetResourceUsage will return true.
+        return false;
+    }
 
     return DoSetResourceUsage(
         newResourceUsage,
@@ -1791,6 +1831,11 @@ bool TResourceHolder::UpdateAdditionalResourceUsage(TJobResources additionalReso
         });
 }
 
+bool TResourceHolder::RestoreResources() noexcept
+{
+    return SetBaseResourceUsage(InitialResourceDemand_);
+}
+
 IMemoryUsageTrackerPtr TResourceHolder::GetAdditionalMemoryUsageTracker(EMemoryCategory memoryCategory)
 {
     return New<TJobMemoryUsageTracker>(MakeStrong(this), memoryCategory);
@@ -1804,6 +1849,11 @@ TJobResources TResourceHolder::GetResourceLimits() const noexcept
 TJobResources TResourceHolder::GetFreeResources() const noexcept
 {
     return ResourceManagerImpl_->GetFreeResources();
+}
+
+TJobResources TResourceHolder::GetInitialResourceDemand() const noexcept
+{
+    return InitialResourceDemand_;
 }
 
 void TResourceHolder::UpdateResourceDemand(
@@ -1911,6 +1961,7 @@ TResourceHolder::TResourceHolderInfo TResourceHolder::BuildResourceHolderInfo() 
         .Id = Id_,
         .BaseResourceUsage = baseResourceUsage,
         .AdditionalResourceUsage = additionalResourceUsage,
+        .InitialResourceDemand = InitialResourceDemand_,
         .ResourcesConsumerType = ResourcesConsumerType,
     };
 }

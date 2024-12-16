@@ -17,6 +17,7 @@ add_library(server-controller_agent-controllers)
 
 target_compile_options(server-controller_agent-controllers PRIVATE
   -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
 )
 
 target_link_libraries(server-controller_agent-controllers PUBLIC
@@ -45,7 +46,7 @@ target_sources(server-controller_agent-controllers PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/job_memory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/job_splitter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/input_transactions_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/input_transaction_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/input_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/live_preview.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/operation_controller_detail.cpp

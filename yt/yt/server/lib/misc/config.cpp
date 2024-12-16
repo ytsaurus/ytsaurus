@@ -1,7 +1,10 @@
 #include "config.h"
 
 #include <yt/yt/library/coredumper/config.h>
+
 #include <yt/yt/library/program/config.h>
+
+#include <yt/yt/library/profiling/solomon/config.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
@@ -36,6 +39,8 @@ void TServerConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("core_dumper", &TThis::CoreDumper)
         .Default();
+    registrar.Parameter("solomon_exporter", &TThis::SolomonExporter)
+        .DefaultNew();
 
     registrar.Parameter("rpc_port", &TThis::RpcPort)
         .Default(0)
@@ -60,8 +65,9 @@ void TServerConfig::Register(TRegistrar registrar)
             config->BusServer->Port = config->RpcPort;
         }
 
-        if (!config->TCMalloc->HeapSizeLimit->DumpMemoryProfilePath && config->CoreDumper) {
-            config->TCMalloc->HeapSizeLimit->DumpMemoryProfilePath = config->CoreDumper->Path;
+        // TODO(babenko): consider configuring memory_profile_dump_path in ytcfgen
+        if (!config->TCMalloc->HeapSizeLimit->MemoryProfileDumpPath && config->CoreDumper) {
+            config->TCMalloc->HeapSizeLimit->MemoryProfileDumpPath = config->CoreDumper->Path;
         }
     });
 }

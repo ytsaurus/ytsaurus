@@ -96,7 +96,8 @@ public:
         TChunkVector inputChunks,
         NChunkClient::NProto::TChunkMergerWriterOptions chunkMergerWriterOptions,
         TNodePtrWithReplicaAndMediumIndexList targetReplicas,
-        bool validateShallowMerge);
+        bool validateShallowMerge,
+        bool validateChunkMetaExtensions);
 
     bool FillJobSpec(NCellMaster::TBootstrap* bootstrap, NProto::TJobSpec* jobSpec) const override;
 
@@ -104,6 +105,7 @@ private:
     const TChunkVector InputChunks_;
     const NChunkClient::NProto::TChunkMergerWriterOptions ChunkMergerWriterOptions_;
     const bool ValidateShallowMerge_;
+    const bool ValidateChunkMetaExtensions_;
 
     static NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(const TChunkVector& inputChunks);
 };
