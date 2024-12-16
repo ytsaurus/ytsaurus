@@ -7,10 +7,12 @@ PY_SRCS(
     __main__.py
     common.py
     qt_run.py
+    upload_metrics.py
 )
 
 PEERDIR(
     contrib/python/click
+    contrib/python/httpx
     yt/python/client
     yt/python/yt
     yt/python/yt/wrapper

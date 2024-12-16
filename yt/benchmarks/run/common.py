@@ -220,7 +220,7 @@ def run_options(func):
         type=click.Choice(list(QuerySource)),
         default="resources",
         show_default=True,
-        help="Where to load the queries from: resfs or filesystem."
+        help="Where to load the queries from: resfs or filesystem.",
     )
     @click.option(
         "--query-path",
@@ -234,7 +234,7 @@ def run_options(func):
         type=str,
         default="queries_optimized",
         show_default=True,
-        help="Path to load the optimized queries from."
+        help="Path to load the optimized queries from.",
     )
     @click.option(
         "--proxy",
