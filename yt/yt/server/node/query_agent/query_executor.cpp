@@ -1379,7 +1379,8 @@ private:
                     rowCountInPartition += store->GetRowCount();
                 }
 
-                ui64 rowCountPerSampleRange = rowCountInPartition / (paritionSampleKeys.size() + 1);
+                ui64 rowCountPerSampleRange = std::max<ui64>(rowCountInPartition / (paritionSampleKeys.size() + 1), 1);
+                YT_VERIFY(rowCountPerSampleRange > 0);
 
                 if (QueryOptions_.VerboseLogging) {
                     YT_LOG_DEBUG("Processing partition (PartitionIndex: %v, InitialRanges: %v, SamplePrefixes: %v, Weights: %v, RowCountPerSampleRange: %v)",
@@ -1400,6 +1401,8 @@ private:
                         TKeyRef upperSampleBound = sampleIt == sampleKeyPrefixes.end() ? ToKeyRef(MaxKey()) : *sampleIt;
 
                         auto weight = weights[sampleIt - sampleKeyPrefixes.begin()] * rowCountPerSampleRange;
+
+                        YT_VERIFY(weight > 0);
                         totalWeight += weight;
                         if (maxWeight < weight) {
                             maxWeight = weight;
@@ -1507,6 +1510,15 @@ private:
 
                         tabletBoundsGroup.front().PartitionBounds.front().Bounds.front().first = lowerBound;
                         tabletBoundsGroup.back().PartitionBounds.back().Bounds.back().second = upperBound;
+
+                        for (const auto& boundsGroup : tabletBoundsGroup) {
+                            for (const auto& partitionBounds : boundsGroup.PartitionBounds) {
+                                for (const auto& bound : partitionBounds.Bounds) {
+                                    YT_QL_CHECK(bound.first <= bound.second);
+                                }
+                            }
+                        }
+
                         groupedReadRanges.push_back(std::move(tabletBoundsGroup));
 
                         // Initialize new group.
@@ -1520,7 +1532,7 @@ private:
             }
         }
 
-        // Last group is flushed here.
+        // Last group must be flushed and empty here.
         YT_VERIFY(
             tabletBoundsGroup.empty() ||
             tabletBoundsGroup.back().PartitionBounds.empty() ||
