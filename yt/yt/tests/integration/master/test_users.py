@@ -668,7 +668,7 @@ class TestUsers(YTEnvSetup):
             revoke_token("u", t1_hash, "a", authenticated_user="u")
         with raises_yt_error("Provided token is not recognized"):
             revoke_token("v", t1_hash, "v", authenticated_user="v")
-        with raises_yt_error("Token revokation can be performed"):
+        with raises_yt_error("Token revocation can be performed"):
             revoke_token("u", t1_hash, "v", authenticated_user="v")
         assert_items_equal(list_user_tokens("u"), [t1_hash, t2_hash])
 

@@ -244,7 +244,7 @@ void TClient::DoRevokeToken(
     }
 
     ValidateAuthenticationCommandPermissions(
-        "Token revokation",
+        "Token revocation",
         tokenUser,
         passwordSha256,
         options);
@@ -355,7 +355,7 @@ void TClient::ValidateAuthenticationCommandPermissions(
     if (!canAdminister) {
         if (Options_.User != user) {
             THROW_ERROR_EXCEPTION(
-                "%v can be performed either by user theirselves "
+                "%v can be performed either by user themselves "
                 "or by a user having %Qlv permission on the user",
                 action,
                 EPermission::Administer)

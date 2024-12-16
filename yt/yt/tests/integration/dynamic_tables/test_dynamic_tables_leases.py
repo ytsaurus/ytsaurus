@@ -442,7 +442,7 @@ class TestDynamicTablesLeases(YTEnvSetup):
                 else:
                     assert get(f"#{tx}/@leases_state") == "active"
 
-            # Double revokation start should not break anything.
+            # Double revocation start should not break anything.
             with raises_yt_error("Testing error"):
                 abort_transaction(ltx)
 
