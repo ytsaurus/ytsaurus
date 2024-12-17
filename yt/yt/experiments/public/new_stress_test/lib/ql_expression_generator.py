@@ -1,94 +1,250 @@
-from .schema import Column, TInt64, TBoolean, TDouble, TString, TUint64#, TAny
-
 import yt.yson as yson
 
-from enum import Enum
-from typing import List, Dict, Any
+import enum
 import random
 
-MAXIMUM_DEPTH = 5
-ALL_TYPES = (
-    TUint64,
-    TInt64,
-    TDouble,
-    TString,
-    # TAny,
-    TBoolean,
-)
+from typing import List, Tuple, Union, Any
+
+################################################################################
+
+INT = {"type": "int64"}
+UINT = {"type": "uint64"}
+BOOLEAN = {"type": "boolean"}
+STRING = {"type": "string"}
+DOUBLE = {"type": "double"}
+
+SCALAR_TYPES = (INT, UINT, BOOLEAN, STRING, DOUBLE)
+
+STRING_LENGTH = 12
+
+ALPHABET = "abcdefghijklmnopqrstuvwxyz"
+
+DEF_NULL_PROB = 0.05
+
+TType = dict
+TColumn = dict
+TSchema = List[TColumn]
+TTypes = Tuple[dict]
+TRow = dict
+
+################################################################################
+
+class Grail:
+    def drink(self) -> Any:
+        assert False, "virtual method"
+
+class NumericGrail(Grail):
+    def __init__(self, min_v, max_v, cardinality: int, t: type):
+        if issubclass(t, int):
+            assert max_v - min_v > 3 * cardinality
+
+        self.pool = set()
+        while len(self.pool) < cardinality:
+            self.pool.add(t(min_v + (max_v - min_v) * random.random()))
+
+        self.pool = list(self.pool)
+
+    def drink(self):
+        return random.choice(self.pool)
+
+class BooleanGrail(Grail):
+    def __init__(self, true_weight=0.5, false_weight=0.5):
+        self.true_chance = true_weight / (true_weight + false_weight)
+
+    def drink(self):
+        return random.random() < self.true_chance
+
+class StringGrail(Grail):
+    def __init__(self, seed: str = ALPHABET, min_len: int = 0, max_len: int = 50):
+        self.seed = seed
+        self.min_len = min_len
+        self.max_len = max_len
+
+    def drink(self):
+        l = random.randint(self.min_len, self.max_len)
+        return "".join(self.seed[random.randint(0, len(self.seed) - 1)] for _ in range(l))
+
+class OptionalGrail(Grail):
+    def __init__(self, grail: Grail, null_probability=DEF_NULL_PROB):
+        self.null_probability = null_probability
+        self.grail = grail
+
+    def drink(self):
+        return None if random.random() < self.null_probability else self.grail.drink()
+
+class OptionalShelf():
+    def __init__(self, null_probability=DEF_NULL_PROB):
+        self.null_probability = null_probability
+
+    def take(self, grail: Grail):
+        return OptionalGrail(grail, self.null_probability)
+
+class ListGrail(Grail):
+    def __init__(self, grail: Grail, min_list_len:int=0, max_list_len:int=5):
+        assert min_list_len <= max_list_len
+        self.min_list_len = min_list_len
+        self.max_list_len = max_list_len
+        self.grail = grail
+
+    def drink(self):
+        tuple_len = random.randrange(self.min_list_len, self.max_list_len)
+        return [self.grail.drink() for _ in range(tuple_len)]
+
+class ListShelf():
+    def __init__(self, min_list_len:int=0, max_list_len:int=5):
+        assert min_list_len <= max_list_len
+        self.min_list_len = min_list_len
+        self.max_list_len = max_list_len
+
+    def take(self, grail: Grail):
+        return ListGrail(grail, )
+
+################################################################################
+
+DEFAULT_GRAILS = {
+    "int64": NumericGrail(-2**63, 2**63, 1000, yson.YsonInt64),
+    "uint64": NumericGrail(0, 2**64 - 1, 1000, yson.YsonUint64),
+    "boolean": BooleanGrail(),
+    "string": StringGrail(seed=ALPHABET, min_len=0, max_len=2),
+    "double": NumericGrail(-100.0, 100.0, 1000, yson.YsonDouble),
+}
+DEFAULT_SHELVES = {
+    "optional": OptionalShelf(),
+    "list": ListShelf(),
+}
+
+class Treasury:
+    def __init__(self, grails:dict=DEFAULT_GRAILS, shelves:dict=DEFAULT_SHELVES):
+        self.grails = grails
+        self.shelves = shelves
+
+        assert len(grails.keys() & shelves.keys()) == 0
+
+    def raid(self, type: TType) -> Grail:
+        if "type_v3" in type:
+            return self._get_from_v3(type["type_v3"])
+        grail = self.grails[type["type"]]
+        required = type.get("required", False)
+        if not required:
+            return self.shelves["optional"].take(grail)
+        return grail
+
+    def _get_from_v3(self, type: Union[TType, str]):
+        if isinstance(type, str):
+            return self.grails[type]
+        type_name = type["type_name"]
+        subgrail = self._get_from_v3(type["item"])
+        return self.shelves[type_name].take(subgrail)
+
+def get_scalar(type: TType) -> str:
+    if "type" in type:
+        return type["type"]
+    v3 = type["type_v3"]
+    if isinstance(v3, str):
+        return v3
+    if v3["type_name"] == "optional":
+        return v3["item"]
+    return None
+
+def is_compatible(typeA: TType, typeB: TType) -> bool:
+    scalar = get_scalar(typeB)
+    if get_scalar(typeA) != scalar:
+        return False
+    if scalar is not None:
+        return True
+    return typeA["type_v3"] == typeB["type_v3"]
+
+################################################################################
 
 class IExpression:
     def __init__(self):
-        self.type = None
+        self.type: TType
         assert False, "abstract"
-    def eval(self, _):
+    def eval(self, row: TRow):
         assert False, "abstract"
-    def __str__(self):
+    def __str__(self) -> str:
         assert False, "abstract"
-    def make_random(columns, desired_type, depth):
+
+    @staticmethod
+    def make_random(schema: TSchema, desired_type: TType, depth: int, max_depth: int) -> 'IExpression':
         assert False, "abstract"
-    def get_out_types(columns):
+    @staticmethod
+    def get_out_types(schema: TSchema) -> TTypes:
         assert False, "abstract"
+
+################################################################################
 
 class Reference(IExpression):
-    def __init__(self, column: Column):
+    def __init__(self, column: TColumn):
         self.column = column
-        self.type = column.type
+        self.type = {}
+        if "type" in self.column:
+            self.type["type"] = self.column["type"]
+        if "type_v3" in self.column:
+            self.type["type_v3"] = self.column["type_v3"]
 
     def __str__(self):
-        return self.column.name
+        return self.column["name"]
 
-    def eval(self, row):
-        return row.get(self.column.name, None)
+    def eval(self, row: TRow):
+        return row.get(self.column["name"], None)
 
-    def make_random(columns: List[Column], desired_type: yson.YsonType, depth: int):
-        candidates = tuple(col for col in columns if col.type == desired_type)
-        assert candidates
+    @staticmethod
+    def make_random(schema: TSchema, desired_type: TType, depth: int, max_depth: int) -> 'Reference':
+        candidates = tuple(col for col in schema if is_compatible(col, desired_type))
+        assert candidates, f"Cannot form reference of the desired type {desired_type}"
         return Reference(random.choice(candidates))
 
-    def get_out_types(columns: List[Column]):
-        return tuple(col.type for col in columns)
+    @staticmethod
+    def get_out_types(schema: TSchema) -> TTypes:
+        return tuple(schema)
+
+################################################################################
 
 class Literal(IExpression):
-    def make_null(desired_type):
-        lit = Literal(yson.YsonInt64(1))
-        lit.type = desired_type
-        lit.value = None
-        return lit
-
-    def __init__(self, value: yson.YsonType):
+    def __init__(self, value, ty_pe: TType):
         self.value = value
-        if isinstance(value, yson.YsonUint64):
-            self.type = TUint64
-        elif isinstance(value, yson.YsonInt64):
-            self.type = TInt64
-        elif isinstance(value, yson.YsonDouble):
-            self.type = TDouble
-        elif isinstance(value, yson.YsonString):
-            self.type = TString
-        elif isinstance(value, yson.YsonBoolean):
-            self.type = TBoolean
-        # elif isinstance(value, yson.YsonType):
-        #     self.type = TAny
+        self.type = ty_pe
+        if value is None:
+            return
+        if isinstance(value, bool):
+            assert is_compatible(ty_pe, BOOLEAN),\
+                f"type mismatch {value} does not represent {ty_pe}"
+        elif isinstance(value, float):
+            assert is_compatible(ty_pe, DOUBLE),\
+                f"type mismatch {value} does not represent {ty_pe}"
+        elif isinstance(value, str):
+            assert is_compatible(ty_pe, STRING),\
+                f"type mismatch {value} does not represent {ty_pe}"
+        elif isinstance(value, int):
+            assert is_compatible(ty_pe, INT) or is_compatible(ty_pe, UINT),\
+                f"type mismatch value {value}, {type(value)} does not represent {ty_pe}"
         else:
-            assert False, "unsupported value"
+            assert False, f"unsupported value {value} of {type(value)}"
 
     def __str__(self):
         if self.value is None:
             return "#"
-        if self.type == TUint64:
-            return f"{self.value}u"
+        if is_compatible(self.type, UINT):
+            return str(self.value) + "u"
+        if is_compatible(self.type, STRING):
+            return f"\"{self.value}\""
         return str(self.value)
 
-    def eval(self, _):
+    def eval(self, row: TRow):
         return self.value
 
-    def make_random(columns: List[Column], desired_type: type, depth: int):
-        return Literal(desired_type.random())
+    @staticmethod
+    def make_random(schema: TSchema, desired_type: TType, depth: int, max_depth: int):
+        return Literal(Treasury().raid(desired_type).drink(), desired_type)
 
-    def get_out_types(columns: List[Column]):
-        return ALL_TYPES
+    @staticmethod
+    def get_out_types(schema: TSchema) -> TTypes:
+        return SCALAR_TYPES
 
-class UnaryOp(Enum):
+################################################################################
+
+class UnaryOp(enum.Enum):
     Plus = 1
     Minus = 2
     BitNot = 3
@@ -96,10 +252,11 @@ class UnaryOp(Enum):
 
 class Unary(IExpression):
     def __init__(self, op: UnaryOp, operand: IExpression):
+        scalar = get_scalar(operand.type)
         if op == UnaryOp.Plus or op == UnaryOp.Minus or op == UnaryOp.BitNot:
-            assert operand.type == TInt64 or operand.type == TUint64
+            assert scalar == "int64" or scalar == "uint64", f"got {scalar}"
         elif op == UnaryOp.Not:
-            assert operand.type == TBoolean
+            assert scalar == "boolean", f"got {scalar}"
         else:
             assert False, "unreachable"
         self.op = op
@@ -114,11 +271,11 @@ class Unary(IExpression):
         elif self.op == UnaryOp.BitNot:
             return f"~({self.operand})"
         elif self.op == UnaryOp.Not:
-            return f"!({self.operand})"
+            return f"not ({self.operand})"
         else:
             assert False, "unreachable"
 
-    def eval(self, row: Dict[str, Any]):
+    def eval(self, row: TRow):
         op_eval = self.operand.eval(row)
         if op_eval is None:
             return None
@@ -127,9 +284,10 @@ class Unary(IExpression):
         elif self.op == UnaryOp.Minus:
             return -op_eval
         elif self.op == UnaryOp.BitNot:
-            if self.type == TUint64:
+            scalar = get_scalar(self.type)
+            if scalar == "uint64":
                 return 2**64 - op_eval - 1
-            elif self.type == TInt64:
+            elif scalar == "int64":
                 return - op_eval - 1
             else:
                 assert False, "unreachable"
@@ -138,20 +296,24 @@ class Unary(IExpression):
         else:
             assert False, "unreachable"
 
-    def make_random(columns: List[Column], desired_type: type, depth: int):
-        operand = make_random_expression(columns, desired_type, depth + 1)
-        op = UnaryOp.Not if desired_type == TBoolean else random.choice([UnaryOp.BitNot, UnaryOp.Minus, UnaryOp.Plus])
+    @staticmethod
+    def make_random(schema: TSchema, desired_type: TType, depth: int, max_depth: int):
+        operand = make_random_expression(schema, desired_type, depth + 1)
+        op = UnaryOp.Not if is_compatible(desired_type, BOOLEAN) else random.choice([UnaryOp.BitNot, UnaryOp.Minus, UnaryOp.Plus])
 
         return Unary(op, operand)
 
-    def get_out_types(columns: List[Column]):
-        return (TInt64, TUint64, TBoolean)
+    @staticmethod
+    def get_out_types(schema: TSchema) -> TTypes:
+        return (INT, UINT, BOOLEAN)
 
-class BinaryOp(Enum):
+################################################################################
+
+class BinaryOp(enum.Enum):
     Plus = 1
     Minus = 2
     Multiply = 3
-    Divide = 4
+    # Divide = 4
 
     Modulo = 5
     # LeftShift = 6
@@ -177,7 +339,7 @@ class Binary(IExpression):
         BinaryOp.Plus : "+",
         BinaryOp.Minus : "-",
         BinaryOp.Multiply : "*",
-        BinaryOp.Divide : "/",
+        # BinaryOp.Divide : "/",
         BinaryOp.Modulo : "%",
         # BinaryOp.LeftShift : "<<",
         # BinaryOp.RightShift : ">>",
@@ -195,28 +357,30 @@ class Binary(IExpression):
     }
 
     def __init__(self, op: BinaryOp, lhs: IExpression, rhs: IExpression):
-        assert lhs.type == rhs.type
+        assert is_compatible(lhs.type, rhs.type)
         t = lhs.type
-        if op in (BinaryOp.Plus, BinaryOp.Minus, BinaryOp.Multiply, BinaryOp.Divide):
-            assert t in (TInt64, TUint64, TDouble)
+        if op in (
+            BinaryOp.Plus,
+            BinaryOp.Minus,
+            BinaryOp.Multiply,
+            # BinaryOp.Divide,
+        ):
+            assert is_compatible(t, INT) or is_compatible(t, UINT) or is_compatible(t, DOUBLE)
             self.type = t
         elif op in (BinaryOp.And, BinaryOp.Or):
-            assert t == TBoolean
-            self.type = TBoolean
+            assert is_compatible(t, BOOLEAN)
+            self.type = BOOLEAN
         elif op in (BinaryOp.Modulo, BinaryOp.BitAnd, BinaryOp.BitOr,
             # BinaryOp.LeftShift, BinaryOp.RightShift
         ):
-            assert t in (TInt64, TUint64)
+            assert is_compatible(t, INT) or is_compatible(t, UINT)
             self.type = t
         elif op in (BinaryOp.Equal, BinaryOp.NotEqual, BinaryOp.Less, BinaryOp.Greater, BinaryOp.LessOrEqual, BinaryOp.GreaterOrEqual):
-            assert t in (
-                TInt64, TUint64, TDouble, TBoolean, TString,
-                # TAny,
-            )
-            self.type = TBoolean
+            assert any([is_compatible(t, x) for x in SCALAR_TYPES])
+            self.type = BOOLEAN
         elif op == BinaryOp.Concatenate:
-            assert t == TString
-            self.type = TString
+            assert is_compatible(t, STRING)
+            self.type = STRING
         else:
             assert False, "unreachable"
         self.op = op
@@ -226,7 +390,7 @@ class Binary(IExpression):
     def __str__(self):
         return f"({self.lhs}) {Binary.OP_TO_SIGN[self.op]} ({self.rhs})"
 
-    def eval_arithmetic(self, lhs: yson.YsonType, rhs: yson.YsonType):
+    def eval_arithmetic(self, lhs, rhs):
         if lhs is None or rhs is None:
             return None
         res = None
@@ -236,25 +400,27 @@ class Binary(IExpression):
             res = lhs - rhs
         elif self.op == BinaryOp.Multiply:
             res = lhs * rhs
-        elif self.op == BinaryOp.Divide:
-            if self.type == TDouble:
-                res = lhs / rhs
-            elif (lhs >= 0) != (rhs >= 0) and lhs % rhs:
-                return lhs // rhs + 1
-            else:
-                return lhs // rhs
+        # elif self.op == BinaryOp.Divide:
+        #     if is_compatible(self.type, DOUBLE):
+        #         res = lhs / rhs
+        #     elif (lhs >= 0) != (rhs >= 0) and lhs % rhs:
+        #         return lhs // rhs + 1
+        #     else:
+        #         return lhs // rhs
         else:
             assert False, "unreachable"
 
-        if self.type == TInt64:
+        if is_compatible(self.type, INT):
             res = res & 0xFFFFFFFFFFFFFFFF
             res -= 2 ** 63
-        elif self.type == TUint64:
+        elif is_compatible(self.type, UINT):
             res = res & 0xFFFFFFFFFFFFFFFF
+        else:
+            assert False, "unreachable"
 
         return res
 
-    def eval_logical(self, lhs: yson.YsonType, rhs: yson.YsonType):
+    def eval_logical(self, lhs, rhs):
         if lhs is None:
             lhs = False
         if rhs is None:
@@ -265,7 +431,7 @@ class Binary(IExpression):
             return lhs or rhs
         assert False, "unreachable"
 
-    def eval_equality(self, lhs: yson.YsonType, rhs: yson.YsonType):
+    def eval_equality(self, lhs, rhs):
         if lhs is None:
             if rhs is None:
                 return self.op == BinaryOp.Equal
@@ -277,7 +443,7 @@ class Binary(IExpression):
 
 
     def eval_relation(self, lhs, rhs):
-        def eval_less(lhs: yson.YsonType, rhs: yson.YsonType):
+        def eval_less(lhs, rhs):
             if lhs is None:
                 return rhs is not None
             if rhs is None:
@@ -294,7 +460,7 @@ class Binary(IExpression):
         else:
             assert False, "unreachable"
 
-    # def eval_shift(self, lhs: yson.YsonType, rhs: yson.YsonType):
+    # def eval_shift(self, lhs, rhs):
     #     if lhs is None or rhs is None:
     #         return None
     #     rhs = rhs & 63
@@ -311,7 +477,7 @@ class Binary(IExpression):
     #         res -= 2 ** 64
     #     return res
 
-    def eval_bit_logic(self, lhs: yson.YsonType, rhs: yson.YsonType):
+    def eval_bit_logic(self, lhs, rhs):
         if lhs is None or rhs is None:
             return None
         if self.op == BinaryOp.BitAnd:
@@ -320,10 +486,15 @@ class Binary(IExpression):
             return lhs | rhs
         assert False, "unreachable"
 
-    def eval(self, row: Dict[str, Any]):
+    def eval(self, row: TRow):
         lhs_eval = self.lhs.eval(row)
         rhs_eval = self.rhs.eval(row)
-        if self.op in (BinaryOp.Plus, BinaryOp.Minus, BinaryOp.Divide, BinaryOp.Multiply):
+        if self.op in (
+            BinaryOp.Plus,
+            BinaryOp.Minus,
+            # BinaryOp.Divide,
+            BinaryOp.Multiply,
+        ):
             return self.eval_arithmetic(lhs_eval, rhs_eval)
         if self.op in (BinaryOp.And, BinaryOp.Or):
             return self.eval_logical(lhs_eval, rhs_eval)
@@ -341,51 +512,52 @@ class Binary(IExpression):
             return lhs_eval + rhs_eval
         assert False, "unreachable"
 
-    def make_random(columns: List[Column], desired_type: type, depth: int):
+    @staticmethod
+    def make_random(schema: TSchema, desired_type: TType, depth: int, max_depth: int):
         op = None
         lhs = None
         rhs = None
         arg_type = None
-        if desired_type == TBoolean:
+        if is_compatible(desired_type, BOOLEAN):
             fate = random.random()
             if fate < 0.33:
                 op = random.choice([BinaryOp.And, BinaryOp.Or])
-                arg_type = TBoolean
+                arg_type = BOOLEAN
             elif fate < 0.66:
                 op = random.choice([BinaryOp.Equal, BinaryOp.NotEqual])
-                arg_type = random.choice([
-                    TInt64, TUint64, TDouble, TBoolean, TString,
-                    # TAny,
-                ])
+                arg_type = random.choice(SCALAR_TYPES)
             else:
                 op = random.choice([BinaryOp.Less, BinaryOp.Greater, BinaryOp.LessOrEqual, BinaryOp.GreaterOrEqual])
-                arg_type = random.choice([
-                    TInt64, TUint64, TDouble, TBoolean, TString,
-                    # TAny,
-                ])
-        elif desired_type in (TInt64, TUint64):
+                arg_type = random.choice(SCALAR_TYPES)
+        elif is_compatible(desired_type, INT) or is_compatible(desired_type, UINT):
             op = random.choice([
-                BinaryOp.Plus, BinaryOp.Minus, BinaryOp.Multiply, BinaryOp.Divide,
-                # BinaryOp.LeftShift, BinaryOp.RightShift,
+                BinaryOp.Plus, BinaryOp.Minus, BinaryOp.Multiply,
+                # BinaryOp.LeftShift, BinaryOp.RightShift, BinaryOp.Divide,
                 BinaryOp.BitAnd, BinaryOp.BitOr
             ])
             arg_type = desired_type
-        elif desired_type == TDouble:
-            op = random.choice([BinaryOp.Plus, BinaryOp.Minus, BinaryOp.Multiply, BinaryOp.Divide])
+        elif is_compatible(desired_type, DOUBLE):
+            op = random.choice([
+                BinaryOp.Plus, BinaryOp.Minus, BinaryOp.Multiply,
+                # BinaryOp.Divide,
+            ])
             arg_type = desired_type
-        elif desired_type == TString:
+        elif is_compatible(desired_type, STRING):
             op = BinaryOp.Concatenate
             arg_type = desired_type
         else:
             assert "unreachable"
 
-        lhs = make_random_expression(columns, arg_type, depth + 1)
-        rhs = make_random_expression(columns, arg_type, depth + 1)
+        lhs = make_random_expression(schema, arg_type, depth + 1, max_depth)
+        rhs = make_random_expression(schema, arg_type, depth + 1, max_depth)
 
         return Binary(op, lhs, rhs)
 
-    def get_out_types(columns: List[Column]):
-        return (TInt64, TUint64, TBoolean, TDouble, TString)
+    @staticmethod
+    def get_out_types(schema: TSchema) -> TTypes:
+        return SCALAR_TYPES
+
+################################################################################
 
 class In(IExpression):
     def __init__(self, expr: IExpression, values: List[Literal]):
@@ -393,26 +565,30 @@ class In(IExpression):
         assert values
         self.expr = expr
         self.values = values
-        self.type = TBoolean
+        self.type = BOOLEAN
 
     def __str__(self):
-        return f"({self.expr}) IN ({", ".join([str(v) for v in self.values])})"
+        return f"({self.expr}) IN ({','.join([str(v) for v in self.values])})"
 
-    def eval(self, row: Dict[str, Any]):
+    def eval(self, row: TRow):
         expr_eval = self.expr.eval(row)
         return expr_eval in [v.eval(row) for v in self.values]
 
-    def make_random(columns: List[Column], desired_type: type, depth: int):
-        assert desired_type == TBoolean
-        arg_type = random.choice([TInt64, TUint64, TBoolean, TString, TDouble])
+    @staticmethod
+    def make_random(schema: TSchema, desired_type: TType, depth: int, max_depth: int):
+        assert is_compatible(desired_type, BOOLEAN)
+        arg_type = random.choice(SCALAR_TYPES)
 
-        expr = make_random_expression(columns, arg_type, depth + 1)
+        expr = make_random_expression(schema, arg_type, depth + 1, max_depth)
         value_count = random.randint(1, 5)
-        values = [Literal.make_random(columns, arg_type, depth + 1) for _ in range(value_count)]
+        values = [Literal.make_random(schema, arg_type, depth + 1, max_depth) for _ in range(value_count)]
         return In(expr, values)
 
-    def get_out_types(columns: List[Column]):
-        return (TBoolean,)
+    @staticmethod
+    def get_out_types(schema: TSchema) -> TTypes:
+        return tuple(BOOLEAN)
+
+################################################################################
 
 class Transform(IExpression):
     def __init__(self, expr: IExpression, start: List[Literal], end: List[Literal], default:Literal = None):
@@ -431,13 +607,13 @@ class Transform(IExpression):
         self.default = default
 
     def __str__(self):
-        return "TRANSFORM("+\
-            f"{self.expr}, "+\
-            f"({", ".join([str(s) for s in self.start])}), "+\
-            f"({", ".join([str(e) for e in self.end])})" +\
-            f", {self.default})" if self.default else ")"
+        return ("TRANSFORM(" +
+            f"{self.expr}, " +
+            f"({', '.join([str(s) for s in self.start])}), "+
+            f"({', '.join([str(e) for e in self.end])})" +
+            f", {self.default})" if self.default else ")")
 
-    def eval(self, row: dict):
+    def eval(self, row: TRow):
         expr_eval = self.expr.eval(row)
         match = [i for i in range(len(self.start)) if expr_eval == self.start[i].eval(row)]
         if match:
@@ -445,36 +621,159 @@ class Transform(IExpression):
         else:
             return self.default.eval(row)
 
-    def make_random(columns: List[Column], desired_type: type, depth: int):
-        arg_type = random.choice([TInt64, TUint64, TBoolean, TString, TDouble])
-        expr = make_random_expression(columns, arg_type, depth + 1)
+    @staticmethod
+    def make_random(schema: TSchema, desired_type: TType, depth: int, max_depth: int):
+        arg_type = random.choice(SCALAR_TYPES)
+        expr = make_random_expression(schema, arg_type, depth + 1, max_depth)
 
         value_count = random.randint(1, 5)
-        start = [Literal.make_random(columns, arg_type, depth + 1) for _ in range(value_count)]
-        end = [Literal.make_random(columns, desired_type, depth + 1) for _ in range(value_count)]
+        start = [Literal.make_random(schema, arg_type, depth + 1, max_depth) for _ in range(value_count)]
+        end = [Literal.make_random(schema, desired_type, depth + 1, max_depth) for _ in range(value_count)]
 
-        default = make_random_expression(columns, desired_type, depth + 1)
+        default = make_random_expression(schema, desired_type, depth + 1, max_depth)
         return Transform(expr, start, end, default)
 
-    def get_out_types(columns: List[Column]):
-        return (TBoolean, TInt64, TUint64, TString, TDouble)
+    @staticmethod
+    def get_out_types(schema: TSchema) -> TTypes:
+        return SCALAR_TYPES
 
-def get_random_expression_kind(columns: List[Column], desired_type: type, depth: int) -> type:
-    if depth >= MAXIMUM_DEPTH:
+################################################################################
+
+class Function(IExpression):
+    SUPPORTED = set((
+        "numeric_to_string",
+        "int64",
+        "uint64",
+        "double",
+        # Excluded for being prone to throwing
+        # "parse_int64",
+        # "parse_uint64",
+        # "parse_double",
+        "if",
+    ))
+
+    def __init__(self, args: List[IExpression], name: str, type: TType):
+        assert name in Function.SUPPORTED
+        self.name = name
+        self.args = args
+        self.type = type
+
+    def __str__(self):
+        return f"{self.name}({', '.join(map(str, self.args))})"
+
+    def eval(self, row: TRow):
+        assert len(self.args) >= 1
+
+        arg = self.args[0].eval(row)
+        if arg is None:
+            return None
+
+        if self.name == "numeric_to_string":
+            assert isinstance(arg, float) or isinstance(arg, int)
+            return str(arg)
+        elif self.name == "int64" or self.name == "uint64":
+            assert isinstance(arg, float) or isinstance(arg, int)
+            return int(arg)
+        elif self.name == "double":
+            assert isinstance(arg, float) or isinstance(arg, int)
+            return float(arg)
+        elif self.name == "if":
+            return self.args[1].eval(row) if arg else self.args[2].eval(row)
+        else:
+            assert False, "unreachable"
+
+    @staticmethod
+    def make_random(schema: TSchema, desired_type: TType, depth: int, max_depth: int):
+        if is_compatible(desired_type, INT):
+            name = random.choice(["int64", "if"])
+        elif is_compatible(desired_type, UINT):
+            name = random.choice(["uint64", "if"])
+        elif is_compatible(desired_type, DOUBLE):
+            name = random.choice(["double", "if"])
+        elif is_compatible(desired_type, STRING):
+            name = random.choice(["numeric_to_string", "if"])
+        elif is_compatible(desired_type, BOOLEAN):
+            name = "if"
+        args = []
+        if name in ("numeric_to_string", "int64", "uint64", "double"):
+            args.append(make_random_expression(schema, random.choice([INT, UINT, DOUBLE]), depth + 1, max_depth))
+        elif name == "if":
+            args = [
+                make_random_predicate(schema, depth + 1, max_depth),
+                make_random_expression(schema, desired_type, depth + 1, max_depth),
+                make_random_expression(schema, desired_type, depth + 1, max_depth),
+            ]
+        else:
+            assert False, "unreachable"
+        return Function(args, name, desired_type)
+
+    @staticmethod
+    def get_out_types(schema: TSchema) -> TTypes:
+        return SCALAR_TYPES
+
+################################################################################
+
+def is_terminal(kind: type):
+    return kind in (Reference, Literal)
+
+def get_random_expression_kind(schema: TSchema, desired_type: TType, depth:int, max_depth:int) -> type:
+    if depth >= max_depth:
         return random.choice([
             kind for kind in (Literal, Reference)
-            if desired_type in kind.get_out_types(columns)
+            if any([is_compatible(desired_type, t) for t in kind.get_out_types(schema)])
         ])
-    return random.choice([
-        kind for kind in (
+    kind_weight_list = [
+        (kind, depth / max_depth if is_terminal(kind) else 1 - depth / max_depth)
+        for kind in (
+            Reference,
+            Literal,
             Unary,
             Binary,
+            Function,
             # In,
             # Transform
         )
-        if desired_type in kind.get_out_types(columns)
-    ])
+        if any([is_compatible(desired_type, t) for t in kind.get_out_types(schema)])
+    ]
+    kinds, weights = zip(*kind_weight_list)
+    return random.choices(kinds, weights=weights)[0]
 
-def make_random_expression(columns: List[Column], desired_type: type, depth:int = 0) -> IExpression:
-    kind = get_random_expression_kind(columns, desired_type, depth)
-    return kind.make_random(columns, desired_type, depth)
+def make_random_expression(schema: TSchema, desired_type: type, depth: int=0, max_depth: int=5) -> IExpression:
+    kind = get_random_expression_kind(schema, desired_type, depth, max_depth)
+    return kind.make_random(schema, desired_type, depth, max_depth)
+
+def make_random_predicate(schema: TSchema, depth: int=0, max_depth: int=5) -> IExpression:
+    kind = get_random_expression_kind(schema, BOOLEAN, depth, max_depth)
+    return kind.make_random(schema, BOOLEAN, depth, max_depth)
+
+################################################################################
+
+def main():
+    schema = [
+        {"name": "v1", "type": "int64"},
+        {"name": "v2", "type": "double"},
+        {"name": "v3", "type": "string"},
+        {"name": "v4", "type": "uint64"},
+        {"name": "v5", "type": "boolean"},
+        {"name": "v6", "type": "any", "type_v3": {
+            "type_name": "list",
+            "item": {
+                "type_name": "optional",
+                "item": "uint64",
+            },
+        }},
+        {"name": "v7", "type": "any", "type_v3": {
+            "type_name": "optional",
+            "item": {
+                "type_name": "list",
+                "item": "int64",
+            },
+        }},
+    ]
+
+    expression = make_random_expression(schema, {"type_v3": {"type_name": "optional", "item": "int64"}})
+
+    print(str(expression))
+
+if __name__ == "__main__":
+    main()

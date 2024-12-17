@@ -158,7 +158,7 @@ def set_random_replication_modes(replicas, spec):
 
 
 def run_compare_replicas(table_path, spec, attributes, args):
-    schema = Schema.from_spec(sorted=True, spec=spec)
+    schema = Schema.from_spec(spec)
     create_replicated_table(table_path, schema, attributes, spec)
     replicas = initialize_replicas(table_path, schema, attributes, spec)
 

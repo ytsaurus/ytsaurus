@@ -14,12 +14,6 @@ from .lookup import verify_lookup
 from .reshard import reshard_multiple_times
 from .process_runner import process_runner
 from .schema import Schema
-from .secondary_index import (
-    make_random_secondary_index_schema,
-    verify_insert_secondary_index,
-    verify_select_secondary_index,
-    FilterMapper,
-    SYSTEM_EMPTY_COLUMN_NAME)
 
 import yt.wrapper as yt
 import random
@@ -128,9 +122,14 @@ def write_to_dynamic_table(registry, attributes, schema, index_schema, aggregate
                 for column in index_schema.columns
                 if column.name != SYSTEM_EMPTY_COLUMN_NAME
             ]
-            with yt.TempTable(attributes=attributes) as tmp:
-                yt.run_map(FilterMapper(index_schema.yson()), registry.base, tmp)
-                yt.run_sort(tmp, registry.index, sort_by=index_schema.get_key_column_names())
+            yt.run_sort(
+                yt.TablePath(
+                    registry.base,
+                    columns=filter(
+                        lambda name: name != SYSTEM_EMPTY_COLUMN_NAME,
+                        index_schema.get_column_names())),
+                registry.index,
+                sort_by=index_schema.get_key_column_names())
 
             yt.alter_table(registry.index, dynamic=True)
             set_dynamic_table_attributes(registry.index, spec)
@@ -142,15 +141,6 @@ def write_to_dynamic_table(registry, attributes, schema, index_schema, aggregate
 
         # YT-18930
         yt.set(registry.base + "/@chunk_format", spec.chunk_format)
-
-        if spec.index:
-            yt.set(registry.index + "/@chunk_format", spec.chunk_format)
-            yt.create("secondary_index", attributes={
-                "table_path": registry.base,
-                "index_table_path": registry.index,
-                "kind": spec.index.kind,
-            })
-            mount_table(registry.index)
 
         mount_table(registry.base)
 
@@ -199,12 +189,6 @@ def create_tables(registry, schema, index_schema, attributes, spec, force):
                 skip_mount=True,
                 spec=spec)
 
-            yt.create("secondary_index", attributes={
-                "table_path": registry.base,
-                "index_table_path": registry.index,
-                "kind": spec.index.kind,
-            })
-
             set_dynamic_table_attributes(registry.index, spec)
             yt.reshard_table(registry.index, index_schema.get_pivot_keys(), sync=True)
 
@@ -216,13 +200,8 @@ def test_sorted_tables(base_path, spec, attributes, force):
     table_path = base_path + "/sorted_table"
     attributes = copy.deepcopy(attributes)
     registry = Registry(table_path)
-    schema = Schema.from_spec(sorted=True, spec=spec)
+    schema = Schema.from_spec(spec)
     schema.create_pivot_keys(spec.size.tablet_count)
-    if spec.index:
-        index_schema = make_random_secondary_index_schema(schema)
-        index_schema.create_pivot_keys(spec.size.tablet_count)
-    else:
-        index_schema = None
 
     logger.info("Schema data weight is %s", schema.data_weight())
 
@@ -293,12 +272,6 @@ def test_sorted_tables(base_path, spec, attributes, force):
                 })
             logger.info("Replace original table with the copied one")
             yt.move(registry.base + ".copy", registry.base, force=True)
-            if spec.index:
-                yt.create("secondary_index", attributes={
-                    "table_path": registry.base,
-                    "index_table_path": registry.index,
-                    "kind": spec.index.kind,
-                })
             mount_table(registry.base)
 
         # Verify lookups.
@@ -338,23 +311,6 @@ def test_sorted_tables(base_path, spec, attributes, force):
                     registry.result + ".partial_select",
                     key_columns[:-1],
                     spec)
-
-        # Verify secondary index
-        if spec.index and not spec.testing.skip_verify:
-            verify_insert_secondary_index(
-                registry.base,
-                schema,
-                registry.index,
-                index_schema,
-                registry.dump + ".secondary_index",
-                registry.index + ".insert_mismatch")
-            if  not spec.testing.skip_select:
-                verify_select_secondary_index(
-                    registry.base,
-                    schema,
-                    registry.index,
-                    index_schema.key_columns[0],
-                    registry.index + ".select_mismatch")
 
         if not spec.skip_flush:
             sync_flush_table(registry.base)
