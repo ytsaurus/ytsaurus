@@ -666,7 +666,7 @@ private:
 
         auto req = proxy.Execute();
         req->SetRequestCodec(NCompression::ECodec::Lz4);
-        // TODO(babenko): set proper band
+        req->SetMultiplexingBand(NRpc::EMultiplexingBand::Interactive);
         if (options.Deadline != TInstant::Max()) {
             req->SetTimeout(options.Deadline - Now());
         }
