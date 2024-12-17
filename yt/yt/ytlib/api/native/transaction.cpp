@@ -2191,7 +2191,8 @@ private:
                     coordinatorCellIds);
 
                 if (coordinatorCellIds.empty()) {
-                    THROW_ERROR_EXCEPTION("Coordinators are not available")
+                    THROW_ERROR_EXCEPTION(NTransactionClient::EErrorCode::ChaosCoordinatorsAreNotAvailable,
+                        "Coordinators are not available")
                         << TErrorAttribute("replication_card_id", replicationCardId);
                 }
 
