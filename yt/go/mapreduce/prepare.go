@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"time"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/tink/go/keyset"
@@ -229,9 +230,33 @@ func (p *prepare) start(opts []OperationOption) (*operation, error) {
 		}
 	}
 
-	id, err := p.mr.operationStartClient().StartOperation(p.ctx, p.spec.Type, p.spec, startOperationOptions)
+	id, err := p.startOperation(startOperationOptions)
 	if err != nil {
 		return nil, err
 	}
-	return &operation{yc: p.mr.yc, ctx: p.ctx, opID: id}, nil
+	return &operation{yc: p.mr.yc, ctx: p.ctx, opID: *id}, nil
+}
+
+func (p *prepare) startOperation(opts *yt.StartOperationOptions) (*yt.OperationID, error) {
+	expBackoff := backoff.WithContext(backoff.NewExponentialBackOff(), p.ctx)
+	for {
+		id, err := p.mr.operationStartClient().StartOperation(p.ctx, p.spec.Type, p.spec, opts)
+		if err == nil {
+			return &id, nil
+		}
+		if !(p.mr.config.ShouldRetryTooManyOperationsError && yterrors.ContainsErrorCode(err, yterrors.CodeTooManyOperations)) {
+			return nil, err
+		}
+
+		b := expBackoff.NextBackOff()
+		if b == backoff.Stop {
+			return nil, err
+		}
+
+		select {
+		case <-time.After(b):
+		case <-p.ctx.Done():
+			return nil, p.ctx.Err()
+		}
+	}
 }
