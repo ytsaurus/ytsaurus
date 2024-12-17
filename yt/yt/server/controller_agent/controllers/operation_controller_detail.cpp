@@ -9428,10 +9428,11 @@ TJobStartInfo TOperationControllerBase::SafeSettleJob(TAllocationId allocationId
 
         YT_ASSERT(failReason || allocation.Joblet);
 
-        THROW_ERROR_EXCEPTION_IF(
-            failReason,
-            "Failed to schedule new job in allocation with reason %v",
-            *failReason);
+        if (failReason) {
+            THROW_ERROR_EXCEPTION(
+                "Failed to schedule new job in allocation")
+                << TErrorAttribute("fail_reason", *failReason);
+        }
     }
 
     // We hold strong ref to not accidentally use object, destroyed during context switch.
