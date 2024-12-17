@@ -87,6 +87,11 @@ func (l *Level) Set(v string) error {
 	return nil
 }
 
+// Type implements spf13/pflag.Value interface
+func (l *Level) Type() string {
+	return "string"
+}
+
 // ParseLevel parses log level from string. Returns ErrUnknownLevel for unknown log level.
 func ParseLevel(l string) (Level, error) {
 	switch strings.ToLower(l) {
