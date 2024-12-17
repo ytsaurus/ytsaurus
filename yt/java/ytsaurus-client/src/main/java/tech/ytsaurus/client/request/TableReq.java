@@ -28,7 +28,7 @@ public abstract class TableReq<
         return path;
     }
 
-    public <R extends com.google.protobuf.GeneratedMessageV3.Builder<R>>
+    public <R extends com.google.protobuf.AbstractMessage.Builder<R>>
     R writeTo(R builder) {
         if (tabletRangeOptions != null) {
             builder.setField(
@@ -95,7 +95,7 @@ public abstract class TableReq<
             return Objects.requireNonNull(path);
         }
 
-        public <R extends com.google.protobuf.GeneratedMessageV3.Builder<R>>
+        public <R extends com.google.protobuf.AbstractMessage.Builder<R>>
         R writeTo(R builder) {
             if (tabletRangeOptions != null) {
                 builder.setField(
