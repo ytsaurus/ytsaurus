@@ -104,10 +104,12 @@ public:
 
         YT_VERIFY(JobSpecExt_.output_table_specs_size() == 1);
         const auto& outputSpec = JobSpecExt_.output_table_specs(0);
-        auto outputSchema = TTableSchema::FromSortColumns(sortColumns);
+        TTableSchemaPtr outputSchema;
         if (outputSpec.has_table_schema()) {
             DeserializeFromWireProto(&outputSchema, outputSpec.table_schema());
             outputSchema = outputSchema->ToSorted(sortColumns);
+        } else {
+            outputSchema = TTableSchema::FromSortColumns(sortColumns);
         }
 
         auto transactionId = FromProto<TTransactionId>(JobSpecExt_.output_transaction_id());

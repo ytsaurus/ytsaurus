@@ -3780,29 +3780,139 @@ for key, count in counts.items():
         )
 
         tasks = get(op.get_path() + "/@progress/tasks")
-        tasks_count = {
+        job_count_per_task = {
             task["job_type"]: task["job_counter"]["total"]
             for task in tasks
         }
 
-        assert tasks_count["partition"] >= 2
+        assert job_count_per_task["partition"] >= 2
 
         if with_intermediate_sort:
-            assert {name for name in tasks_count} == {
+            assert {name for name in job_count_per_task} == {
                 "partition",
                 "intermediate_sort",
                 "sorted_reduce"
             }
 
-            assert tasks_count["intermediate_sort"] >= 1
-            assert tasks_count["sorted_reduce"] >= 1
+            assert job_count_per_task["intermediate_sort"] >= 1
+            assert job_count_per_task["sorted_reduce"] >= 1
         else:
-            assert {name for name in tasks_count} == {
+            assert {name for name in job_count_per_task} == {
                 "partition",
                 "partition_reduce",
             }
 
-            assert tasks_count["partition_reduce"] >= 1
+            assert job_count_per_task["partition_reduce"] >= 1
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("sort_by_index_first", [True, False])
+    @pytest.mark.parametrize("sort_order", ["descending", "ascending"])
+    @pytest.mark.parametrize(
+        "with_intermediate_sort", [True, False],
+    )
+    def test_sort_by_table_index(self, sort_by_index_first, sort_order, with_intermediate_sort):
+        self.skip_if_compat()
+        if with_intermediate_sort and sort_order == "descending":
+            self.skip_if_legacy_sorted_pool()
+
+        reducer = b"""
+import json
+import sys
+
+table_index = None
+
+for line in sys.stdin:
+    row = json.loads(line)
+    if "$attributes" in row:
+        table_index = row["$attributes"]["table_index"]
+    else:
+        assert table_index is not None
+        assert "table_index" not in row
+        row["table_index"] = table_index
+        print(json.dumps(row))
+"""
+
+        create("table", "//tmp/t_in_1")
+        create("table", "//tmp/t_in_2")
+        create("table", "//tmp/t_in_3")
+
+        column_names = ["x", "table_index", "y"] if sort_by_index_first else ["x", "y", "table_index"]
+
+        create(
+            "table",
+            "//tmp/t_out",
+            attributes={
+                "schema": [
+                    {"name": name, "type": "int64", "sort_order": sort_order} for name in column_names
+                ]
+            },
+        )
+
+        for i in range(54):
+            write_table("<append=%true>//tmp/t_in_1", [{"x": i % 3, "y": i % 9}])
+            write_table("<append=%true>//tmp/t_in_2", [{"x": i % 3, "y": i % 9}])
+            write_table("<append=%true>//tmp/t_in_3", [{"x": i % 3, "y": i % 9}])
+
+        create("file", "//tmp/reducer.py")
+        write_file("//tmp/reducer.py", reducer)
+
+        sort_by = [
+            {"name": name.replace("table_index", "$table_index"), "sort_order": sort_order, "type": "int64"}
+            for name in column_names
+        ]
+
+        pivot_keys = [[1], [2]] if sort_order == "ascending" else [[1], [0]]
+
+        # Testing with reduce_combiner_command is unnecessary because a nontrivial
+        # reduce combiner is not permitted with multiple intermediate streams.
+        op = map_reduce(
+            in_=["//tmp/t_in_1", "//tmp/t_in_2", "//tmp/t_in_3"],
+            out="//tmp/t_out",
+            reduce_by=["x"],
+            sort_by=sort_by,
+            reducer_command="python reducer.py",
+            reducer_file=["//tmp/reducer.py"],
+            spec={
+                "sort_job_io": {
+                    "table_writer": {
+                        "desired_chunk_size": 1,
+                        "desired_chunk_weight": 1,
+                        "block_size": 1
+                    },
+                    "buffer_row_count": 1,
+                },
+                "map_job_io": {"table_writer": {"desired_chunk_size": 1, "block_size": 1}},
+                "pivot_keys": pivot_keys,
+                "reducer": {
+                    "format": "json",
+                },
+                "data_size_per_reduce_job": 1,
+                "data_size_per_sort_job": 50 if with_intermediate_sort else 500000,
+            },
+        )
+
+        tasks = get(op.get_path() + "/@progress/tasks")
+        job_count_per_task = {
+            task["job_type"]: task["job_counter"]["total"]
+            for task in tasks
+        }
+
+        if with_intermediate_sort:
+            assert {name for name in job_count_per_task} == {
+                "partition",
+                "intermediate_sort",
+                "sorted_reduce"
+            }
+
+            assert job_count_per_task["intermediate_sort"] >= 1
+            assert job_count_per_task["sorted_reduce"] == 3
+        else:
+            assert {name for name in job_count_per_task} == {
+                "partition",
+                "partition_reduce",
+            }
+
+            assert job_count_per_task["partition_reduce"] == 3
 
 
 ##################################################################
