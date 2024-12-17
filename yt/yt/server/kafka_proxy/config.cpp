@@ -63,6 +63,8 @@ void TKafkaProxyDynamicConfig::Register(TRegistrar registrar)
         .Default(2);
     registrar.Parameter("acceptor_thread_count", &TThis::AcceptorThreadCount)
         .Default(2);
+    registrar.Parameter("local_host_name", &TThis::LocalHostName)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
