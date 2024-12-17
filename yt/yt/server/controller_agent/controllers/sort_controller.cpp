@@ -4022,8 +4022,12 @@ private:
         return true;
     }
 
-    TLogicalTypePtr InferColumnType(const std::vector<TInputTablePtr>& tables, TStringBuf keyColumn)
+    static TLogicalTypePtr InferColumnType(const std::vector<TInputTablePtr>& tables, TStringBuf keyColumn)
     {
+        if (keyColumn == TableIndexColumnName) {
+            return SimpleLogicalType(ESimpleLogicalValueType::Int64);
+        }
+
         auto chooseMostGenericOrThrow = [&] (const auto& lhs, const auto& rhs) {
             auto [compatibilityRhs, errorRhs] = CheckTypeCompatibility(lhs, rhs);
             if (compatibilityRhs == ESchemaCompatibility::FullyCompatible) {
@@ -4101,7 +4105,12 @@ private:
                     }
                     auto optionalAnyType = OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any));
                     for (const auto& sortColumn : sortColumns) {
-                        if (!schema->FindColumn(sortColumn.Name)) {
+                        if (schema->FindColumn(sortColumn.Name)) {
+                            continue;
+                        }
+                        if (sortColumn.Name == TableIndexColumnName) {
+                            columns.push_back(TColumnSchema(sortColumn.Name, SimpleLogicalType(ESimpleLogicalValueType::Int64)));
+                        } else {
                             columns.push_back(TColumnSchema(sortColumn.Name, optionalAnyType));
                         }
                     }
@@ -4122,7 +4131,13 @@ private:
         }
 
         if (IntermediateStreamSchemas_.size() > 1) {
-            chunkSchemaColumns.emplace_back(TableIndexColumnName, ESimpleLogicalValueType::Int64);
+            bool isTableIndexColumnSpecified = AnyOf(chunkSchemaColumns, [] (const TColumnSchema& column) {
+                return column.Name() == TableIndexColumnName;
+            });
+
+            if (!isTableIndexColumnSpecified) {
+                chunkSchemaColumns.emplace_back(TableIndexColumnName, ESimpleLogicalValueType::Int64);
+            }
         }
         IntermediateChunkSchema_ = New<TTableSchema>(std::move(chunkSchemaColumns), /*strict*/ false);
     }
