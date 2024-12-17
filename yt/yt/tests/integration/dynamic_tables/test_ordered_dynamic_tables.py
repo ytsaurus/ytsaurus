@@ -1403,7 +1403,12 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
 
-        def get_table_data_weight():
+        average_row_size = 79
+
+        def _make_rows(index=0):
+            return [{"a": i, "c": chr(ord('a') + index) * 70} for i in range(100)]
+
+        def _get_table_data_weight():
             address = get_tablet_leader_address(tablet_id)
             tablet_data = self._find_tablet_orchid(address, tablet_id)
             stores = tablet_data["stores"].values()
@@ -1411,25 +1416,23 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
             size = 0
             for store in stores:
                 if store["store_state"] == "persistent":
-                    size += store["uncompressed_data_size"]
+                    size += store["row_count"] * average_row_size
                 elif store["store_state"] == "active_dynamic":
                     size += store["pool_capacity"]
             return size
 
-        def make_rows(index=0):
-            return [{"a": i, "c": chr(ord('a') + index) * 70} for i in range(100)]
-
-        insert_rows("//tmp/t", make_rows())
+        insert_rows("//tmp/t", _make_rows())
         sync_flush_table("//tmp/t")
 
-        for i in range(13):
-            assert get_table_data_weight() < max_data_weight
-            insert_rows("//tmp/t", make_rows(i))
+        index = 1
+        while _get_table_data_weight() < max_data_weight:
+            insert_rows("//tmp/t", _make_rows(index))
+            index += 1
 
-        assert get_table_data_weight() >= max_data_weight
+        assert _get_table_data_weight() >= max_data_weight
 
         with raises_yt_error():
-            insert_rows("//tmp/t", make_rows(13))
+            insert_rows("//tmp/t", _make_rows(index))
 
 
 class TestOrderedDynamicTablesMulticell(TestOrderedDynamicTables):
