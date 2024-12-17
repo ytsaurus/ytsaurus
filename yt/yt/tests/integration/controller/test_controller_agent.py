@@ -1334,6 +1334,10 @@ class TestAllocationJobLimit(YTEnvSetup):
 
     @authors("pogorelov")
     def test_limit(self):
+        profiler = profiler_factory().at_scheduler()
+        normally_finished_allocation_counter = profiler.with_tags({"aborted": "false"}).counter("scheduler/allocations/finished_allocation_count")
+        aborted_allocation_counter = profiler.with_tags({"aborted": "true"}).counter("scheduler/allocations/finished_allocation_count")
+
         update_controller_agent_config("allocation_job_count_limit", 1)
 
         create("table", "//tmp/t_in")
@@ -1353,10 +1357,7 @@ class TestAllocationJobLimit(YTEnvSetup):
             spec={"data_size_per_job": 1},
         )
 
-        job_ids = wait_breakpoint()
-        assert len(job_ids) == 1
-
-        job_id1 = job_ids[0]
+        job_id1, = wait_breakpoint()
 
         print_debug("job_id1: ", job_id1)
 
@@ -1364,10 +1365,10 @@ class TestAllocationJobLimit(YTEnvSetup):
 
         release_breakpoint(job_id=job_id1)
 
-        job_ids = wait_breakpoint()
-        assert len(job_ids) == 1
+        job_id2, = wait_breakpoint()
 
-        job_id2 = job_ids[0]
+        wait(lambda: normally_finished_allocation_counter.get_delta() == 1)
+        assert aborted_allocation_counter.get_delta() == 0
 
         print_debug("job_id2: ", job_id2)
 

@@ -216,9 +216,13 @@ private:
     std::atomic<int> JobReporterWriteFailuresCount_ = 0;
     std::atomic<int> JobReporterQueueIsTooLargeNodeCount_ = 0;
 
-    using TAllocationCounterKey = std::tuple<EAllocationState, TString>;
-    using TAllocationCounter = THashMap<TAllocationCounterKey, std::pair<i64, NProfiling::TGauge>>;
-    TAllocationCounter AllocationCounter_;
+    using TRunningAllocationCounterKey = std::tuple<EAllocationState, TString>;
+    using TRunningAllocationCounter = THashMap<TRunningAllocationCounterKey, std::pair<i64, NProfiling::TGauge>>;
+    TRunningAllocationCounter RunningAllocationCounter_;
+
+    using TFinishedAllocationCounterKey = std::tuple</*aborted*/ bool, TString>;
+    using TFinishedAllocationCounter = THashMap<TFinishedAllocationCounterKey, NProfiling::TCounter>;
+    TFinishedAllocationCounter FinishedAllocationCounter_;
 
     NProfiling::TCounter HardConcurrentHeartbeatLimitReachedCounter_;
     NProfiling::TCounter SoftConcurrentHeartbeatLimitReachedCounter_;
@@ -363,7 +367,8 @@ private:
         EAbortReason abortReason);
     void OnAllocationRunning(const TAllocationPtr& allocation, NProto::TAllocationStatus* status);
 
-    void UpdateProfilingCounter(const TAllocationPtr& allocation, int value);
+    void UpdateRunningAllocationProfilingCounter(const TAllocationPtr& allocation, int value);
+    void IncrementFinishedAllocationProfilingCounter(const TAllocationPtr& allocation, bool aborted);
 
     void SetAllocationState(const TAllocationPtr& allocation, EAllocationState state);
 
@@ -408,7 +413,7 @@ private:
 
     void RemoveOperationScheduleAllocationEntries(TOperationId operationId);
 
-    void SetFinishedState(const TAllocationPtr& allocation);
+    void SetFinishedState(const TAllocationPtr& allocation, bool aborted);
 
     void ProcessOperationInfoHeartbeat(
         const TScheduler::TCtxNodeHeartbeat::TTypedRequest* request,

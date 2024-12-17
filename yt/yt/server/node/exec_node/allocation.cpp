@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
+#include <yt/yt/core/misc/error_helpers.h>
+
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_service.h>
@@ -391,6 +393,16 @@ void TAllocation::OnSettledJobReceived(
     TForbidContextSwitchGuard guard;
 
     if (!jobInfoOrError.IsOK()) {
+        if (auto maybeFailReason = FindAttributeRecursive<EScheduleFailReason>(jobInfoOrError, "fail_reason")) {
+            YT_LOG_INFO(
+                jobInfoOrError,
+                "Job was not settled in allocation; completing allocation (ScheduleJobFailReason: %v)",
+                *maybeFailReason);
+
+            Complete();
+            return;
+        }
+
         auto error = TError("Failed to get job spec")
             << jobInfoOrError;
 
