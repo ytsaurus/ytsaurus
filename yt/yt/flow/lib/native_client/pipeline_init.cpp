@@ -32,9 +32,7 @@ IAttributeDictionaryPtr GetInputMessagesTableAttributes()
     auto attributes = CreateDynamicTableAttributes(TTableSchema(
         std::vector{
             TColumnSchema("computation_id", EValueType::String, ESortOrder::Ascending),
-            // TODO(mikari): remove after https://st.yandex-team.ru/YT-21785
-            TColumnSchema("key_hash", EValueType::Uint64, ESortOrder::Ascending),
-            TColumnSchema("key", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("key", EValueType::Any, ESortOrder::Ascending),
             TColumnSchema("message_id", EValueType::String, ESortOrder::Ascending),
             TColumnSchema("system_timestamp", EValueType::Uint64),
         },
@@ -86,9 +84,7 @@ IAttributeDictionaryPtr GetTimerMessagesTableAttributes()
     return CreateDynamicTableAttributes(TTableSchema(
         std::vector{
             TColumnSchema("computation_id", EValueType::String, ESortOrder::Ascending),
-            // TODO(mikari): remove after https://st.yandex-team.ru/YT-21785
-            TColumnSchema("key_hash", EValueType::Uint64, ESortOrder::Ascending),
-            TColumnSchema("key", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("key", EValueType::Any, ESortOrder::Ascending),
             TColumnSchema("message_id", EValueType::String, ESortOrder::Ascending),
             TColumnSchema("message", EValueType::String),
             TColumnSchema("system_timestamp", EValueType::Uint64),
