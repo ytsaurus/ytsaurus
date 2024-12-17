@@ -1,5 +1,6 @@
 RECURSE(
     mrjob
+    ytrun
 )
 
 IF (NOT OPENSOURCE)
