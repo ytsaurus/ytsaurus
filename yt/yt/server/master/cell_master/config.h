@@ -405,7 +405,7 @@ public:
     NSchedulerPoolServer::TDynamicSchedulerPoolManagerConfigPtr SchedulerPoolManager;
     NSequoiaServer::TDynamicSequoiaManagerConfigPtr SequoiaManager;
     NSequoiaServer::TDynamicGroundUpdateQueueManagerConfigPtr GroundUpdateQueueManager;
-    NIncumbentServer::TDynamicIncumbentManagerConfigPtr IncumbentManager;
+    NIncumbentServer::TIncumbentManagerDynamicConfigPtr IncumbentManager;
     TDynamicQueueAgentServerConfigPtr QueueAgentServer;
     NHydra::TDynamicDistributedHydraManagerConfigPtr HydraManager;
 

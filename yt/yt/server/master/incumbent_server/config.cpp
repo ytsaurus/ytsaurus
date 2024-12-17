@@ -52,7 +52,7 @@ void TIncumbentSchedulerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDynamicIncumbentManagerConfig::Register(TRegistrar registrar)
+void TIncumbentManagerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("scheduler", &TThis::Scheduler)
         .DefaultNew();
