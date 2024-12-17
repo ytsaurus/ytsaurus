@@ -275,6 +275,8 @@ private:
 
         Poller_->SetThreadCount(newConfig->PollerThreadCount);
         Acceptor_->SetThreadCount(newConfig->AcceptorThreadCount);
+
+        Server_->OnDynamicConfigChanged(newConfig);
     }
 };
 

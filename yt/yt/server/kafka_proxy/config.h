@@ -68,6 +68,8 @@ public:
     int PollerThreadCount;
     int AcceptorThreadCount;
 
+    std::optional<TString> LocalHostName;
+
     REGISTER_YSON_STRUCT(TKafkaProxyDynamicConfig);
 
     static void Register(TRegistrar registrar);
