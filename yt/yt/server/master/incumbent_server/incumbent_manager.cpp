@@ -101,7 +101,7 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    TDynamicIncumbentManagerConfigPtr Config_;
+    TIncumbentManagerDynamicConfigPtr Config_;
 
     // Leader state.
     struct TPeerState

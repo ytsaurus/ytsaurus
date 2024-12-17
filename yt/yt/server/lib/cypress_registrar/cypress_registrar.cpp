@@ -60,7 +60,7 @@ public:
 
     void Start(TCallback<IAttributeDictionaryPtr()> attributeFactory) override
     {
-        YT_LOG_INFO("Starting cypress registrar (UpdatePeriod: %v)",
+        YT_LOG_INFO("Starting Cypress registrar (UpdatePeriod: %v)",
             Config_->UpdatePeriod);
 
         YT_VERIFY(!Started_);

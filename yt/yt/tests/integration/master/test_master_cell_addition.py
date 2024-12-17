@@ -55,7 +55,7 @@ class TestMasterCellAdditionBase(YTEnvSetup):
 
             assert secondary_master_cells_to_start >= 0
 
-            # NB: the last secondary cell on primary is not started here.
+            # NB: The last secondary master cell on primary cluster is not started here.
             for cell_index in range(secondary_master_cells_to_start):
                 env.start_master_cell(cell_index + 1)
 
@@ -163,7 +163,7 @@ class TestMasterCellAdditionBase(YTEnvSetup):
     def _do_for_cell(self, cell_index, callback):
         return callback(get_driver(cell_index))
 
-    def _execute_checks_with_cell_addition(self, downtime=True):
+    def _execute_checks_with_cell_addition(self, downtime):
         checker_names = [attr for attr in dir(self) if attr.startswith('check_') and inspect.ismethod(getattr(self, attr))]
 
         print_debug("Checkers: ", checker_names)
@@ -192,11 +192,14 @@ class TestMasterCellAdditionBase(YTEnvSetup):
 
 class TestMasterCellAdditionBaseChecks(TestMasterCellAdditionBase):
     NUM_SECONDARY_MASTER_CELLS = 3
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
 
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
-            "update_period": 1000
-        }
+            "update_period": 1000,
+        },
     }
 
     DELTA_DRIVER_CONFIG = {
@@ -204,10 +207,6 @@ class TestMasterCellAdditionBaseChecks(TestMasterCellAdditionBase):
             "sync_cells_with_secondary_masters": False,
         },
     }
-
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-    NUM_CONTROLLER_AGENTS = 1
 
     def check_media(self):
         create_domestic_medium("ssd")
@@ -330,7 +329,7 @@ class TestMasterCellAdditionBaseChecks(TestMasterCellAdditionBase):
             lambda driver: get("//sys/tablet_cell_bundles/default/@areas/custom/node_tag_filter", driver=driver) == "custom",
         )
 
-        # cleanup just in case
+        # Cleanup just in case.
         remove_area(custom_area_id)
         set("//sys/tablet_cell_bundles/default/@node_tag_filter", "")
 
@@ -485,7 +484,7 @@ class TestMasterCellAdditionBaseChecks(TestMasterCellAdditionBase):
         _check_basic_map_reduce()
 
 
-class TestMasterCellAdditionWithNodesDowntime(TestMasterCellAdditionBaseChecks):
+class TestMasterCellAdditionWithDowntime(TestMasterCellAdditionBaseChecks):
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
@@ -506,10 +505,10 @@ class TestMasterCellAdditionWithNodesDowntime(TestMasterCellAdditionBaseChecks):
 
     @authors("shakurov")
     def test_add_new_cell(self):
-        self._execute_checks_with_cell_addition()
+        self._execute_checks_with_cell_addition(downtime=True)
 
 
-class TestMasterCellAdditionWithoutNodesDowntime(TestMasterCellAdditionBaseChecks):
+class TestMasterCellAdditionWithoutDowntime(TestMasterCellAdditionBaseChecks):
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
@@ -520,8 +519,8 @@ class TestMasterCellAdditionWithoutNodesDowntime(TestMasterCellAdditionBaseCheck
         "multicell_manager" : {
             "cell_descriptors" : {
                 "13": {"roles": []},
-            }
-        }
+            },
+        },
     }
 
     @authors("shakurov", "cherepashka")
@@ -541,8 +540,8 @@ class TestMasterCellAdditionChaosMultiClusterBaseChecks(TestMasterCellAdditionBa
 
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
-            "update_period": 1000
-        }
+            "update_period": 1000,
+        },
     }
 
     DELTA_DRIVER_CONFIG = {
@@ -651,7 +650,7 @@ class TestMasterCellAdditionChaosMultiClusterBaseChecks(TestMasterCellAdditionBa
         assert_true_for_all_cells(self.Env, _check)
 
 
-class TestMasterCellAdditionChaosMultiClusterWithNodesDowntime(TestMasterCellAdditionChaosMultiClusterBaseChecks):
+class TestMasterCellAdditionChaosMultiClusterWithDowntime(TestMasterCellAdditionChaosMultiClusterBaseChecks):
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
@@ -667,10 +666,10 @@ class TestMasterCellAdditionChaosMultiClusterWithNodesDowntime(TestMasterCellAdd
             "full_sync_period": 200,
         })
 
-        self._execute_checks_with_cell_addition()
+        self._execute_checks_with_cell_addition(downtime=True)
 
 
-class TestMasterCellAdditionChaosMultiClusterWithoutNodesDowntime(TestMasterCellAdditionChaosMultiClusterBaseChecks):
+class TestMasterCellAdditionChaosMultiClusterWithoutDowntime(TestMasterCellAdditionChaosMultiClusterBaseChecks):
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
@@ -681,8 +680,8 @@ class TestMasterCellAdditionChaosMultiClusterWithoutNodesDowntime(TestMasterCell
         "multicell_manager" : {
             "cell_descriptors" : {
                 "13": {"roles": []},
-            }
-        }
+            },
+        },
     }
 
     @authors("ponasenko-rs", "cherepashka")
@@ -702,28 +701,28 @@ class TestDynamicMasterCellPropagation(TestMasterCellAdditionBase):
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
 
+    NUM_SECONDARY_MASTER_CELLS = 3
+    NUM_NODES = 6
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
-            "update_period": 1000
-        }
+            "update_period": 1000,
+        },
     }
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "multicell_manager" : {
             "cell_descriptors" : {
                 "13": {"roles": []},
-            }
-        }
+            },
+        },
     }
 
     DELTA_NODE_CONFIG = {
         "exec_node_is_not_data_node": True,
     }
-
-    NUM_SECONDARY_MASTER_CELLS = 3
-    NUM_NODES = 6
-    NUM_SCHEDULERS = 1
-    NUM_CONTROLLER_AGENTS = 1
 
     @classmethod
     def modify_node_config(cls, config, cluster_index):
@@ -803,22 +802,22 @@ class TestMasterCellDynamicPropagationDuringRegistration(TestMasterCellAdditionB
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
 
+    NUM_SECONDARY_MASTER_CELLS = 3
+    NUM_NODES = 1
+
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
-            "update_period": 1000
-        }
+            "update_period": 1000,
+        },
     }
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "multicell_manager" : {
             "cell_descriptors" : {
                 "13": {"roles": []},
-            }
-        }
+            },
+        },
     }
-
-    NUM_SECONDARY_MASTER_CELLS = 3
-    NUM_NODES = 1
 
     @authors("cherepashka")
     def test_registration_after_synchronization(self):
