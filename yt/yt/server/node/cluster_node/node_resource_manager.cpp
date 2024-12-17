@@ -66,6 +66,7 @@ void FormatResources(
 {
     builder->AppendFormat(
         "UserSlots: %v/%v, Cpu: %v/%v, VCpu: %v/%v, Gpu: %v/%v, UserMemory: %v/%v, SystemMemory: %v/%v, Network: %v/%v, "
+        "DiskSpace: %v/%v, Inodes: %v/%v, "
         "ReplicationSlots: %v/%v, ReplicationDataSize: %v/%v, "
         "RemovalSlots: %v/%v, "
         "RepairSlots: %v/%v, RepairDataSize: %v/%v, "
@@ -92,6 +93,10 @@ void FormatResources(
         FormatMemoryUsage(limits.SystemMemory),
         // Network
         usage.Network,
+        FormatMemoryUsage(usage.DiskSpaceRequest),
+        FormatMemoryUsage(limits.DiskSpaceRequest),
+        usage.InodeRequest,
+        limits.InodeRequest,
         limits.Network,
         // Replication slots
         usage.ReplicationSlots,
@@ -155,6 +160,7 @@ void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TS
     builder->AppendFormat(
         "{"
         "UserSlots: %v, Cpu: %v, VCpu: %v, Gpu: %v, UserMemory: %v, SystemMemory: %v, Network: %v, "
+        "DiskSpace: %v, Inodes: %v, "
         "ReplicationSlots: %v, ReplicationDataSize: %v, "
         "RemovalSlots: %v, "
         "RepairSlots: %v, RepairDataSize: %v, "
@@ -170,6 +176,8 @@ void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TS
         FormatMemoryUsage(resources.UserMemory),
         FormatMemoryUsage(resources.SystemMemory),
         resources.Network,
+        FormatMemoryUsage(resources.DiskSpaceRequest),
+        resources.InodeRequest,
         resources.ReplicationSlots,
         FormatMemoryUsage(resources.ReplicationDataSize),
         resources.RemovalSlots,
