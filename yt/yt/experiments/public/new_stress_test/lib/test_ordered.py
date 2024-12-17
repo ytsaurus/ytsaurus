@@ -239,7 +239,7 @@ def test_ordered_tables(base_path, spec, attributes, args):
     attributes.pop("chunk_format", None)
 
     registry = Registry(table_path)
-    schema = Schema.from_spec(sorted=False, spec=spec)
+    schema = Schema.from_spec(spec)
 
     logger.info("Schema data weight is %s", schema.data_weight())
 

@@ -30,7 +30,6 @@ PY_SRCS(
     replication_helpers.py
     runner.py
     schema.py
-    secondary_index.py
     select.py
     spec.py
     stateless_write.py

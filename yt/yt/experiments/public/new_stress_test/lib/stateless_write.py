@@ -93,7 +93,7 @@ def run_stateless_writer(path, spec, attributes, args):
     attributes = copy.deepcopy(attributes)
     is_sorted = spec.table_type == "sorted"
     tablet_count = spec.size.tablet_count
-    schema = Schema.from_spec(sorted=is_sorted, spec=spec)
+    schema = Schema.from_spec(spec)
     schema.create_pivot_keys(tablet_count)
 
     spec.write_user_slots_per_node = 8
