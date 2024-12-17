@@ -107,6 +107,7 @@ private:
     const TMaxComparer MaxComparer_;
     const size_t RowSize_;
     const IMemoryChunkProviderPtr MemoryChunkProvider_;
+    const i64 Limit_;
 
     TExpressionContext RowsContext_;
 
@@ -114,7 +115,6 @@ private:
     std::vector<int> StringLikeValueEmptyContextIds_;
 
     TVectorOverMemoryChunkProvider<TRowAndBuffer> Heap_;
-    i64 Limit_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

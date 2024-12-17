@@ -1112,6 +1112,8 @@ public:
     // Returns tagged pointer when incoming row is inserted and is new.
     Y_FORCE_INLINE const TPIValue* InsertIntermediateWhenCombinedWithOrderOp(TPIValue* row);
 
+    i64 GetGroupedRowCount() const;
+
 private:
     TExpressionContext Context_;
     TExpressionContext AggregatedContext_;
@@ -1476,6 +1478,11 @@ const TPIValue* TGroupByClosure::InsertIntermediateWhenCombinedWithOrderOp(TPIVa
     return nullptr;
 }
 
+i64 TGroupByClosure::GetGroupedRowCount() const
+{
+    return GroupedRowCount_;
+}
+
 template <typename TFlushFunction>
 void TGroupByClosure::FlushWithBatching(
     const TExecutionContext* /*context*/,
@@ -1704,6 +1711,8 @@ void GroupOpHelper(
     closure.SetClosingSegment();
 
     closure.Flush(context, EStreamTag::Totals); // Dummy tag.
+
+    context->Statistics->TotalGroupedRowCount += closure.GetGroupedRowCount();
 
     YT_VERIFY(closure.IsFlushed());
 }
