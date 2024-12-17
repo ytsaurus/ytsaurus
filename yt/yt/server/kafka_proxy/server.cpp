@@ -88,6 +88,7 @@ public:
         , Poller_(std::move(poller))
         , Acceptor_(std::move(acceptor))
         , Listener_(std::move(listener))
+        , DynamicConfig_(New<TKafkaProxyDynamicConfig>())
     {
         RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoApiVersions, Unretained(this)));
         RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoMetadata, Unretained(this)));
@@ -120,6 +121,11 @@ public:
         Handlers_[requestType] = std::move(handler);
     }
 
+    void OnDynamicConfigChanged(const TKafkaProxyDynamicConfigPtr& config) override
+    {
+        DynamicConfig_.Store(config);
+    }
+
 private:
     const TKafkaProxyConfigPtr Config_;
 
@@ -131,8 +137,9 @@ private:
     const IPollerPtr Acceptor_;
     const IListenerPtr Listener_;
 
-    std::atomic<bool> Started_ = false;
+    TAtomicIntrusivePtr<TKafkaProxyDynamicConfig> DynamicConfig_;
 
+    std::atomic<bool> Started_ = false;
 
     struct TConnectionState final
     {
@@ -152,6 +159,17 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ConnectionMapLock_);
 
     TEnumIndexedArray<ERequestType, THandler> Handlers_;
+
+    TKafkaProxyDynamicConfigPtr GetDynamicConfig() const
+    {
+        return DynamicConfig_.Acquire();
+    }
+
+    TString GetLocalHostName() const
+    {
+        auto dynamicConfig = GetDynamicConfig();
+        return dynamicConfig->LocalHostName ? *dynamicConfig->LocalHostName : NNet::GetLocalHostName();
+    }
 
     void AsyncAcceptConnection()
     {
@@ -534,7 +552,7 @@ private:
         response.Brokers = std::vector<TRspMetadataBroker>{
             TRspMetadataBroker{
                 .NodeId = 0,
-                .Host = NNet::GetLocalHostName(),
+                .Host = GetLocalHostName(),
                 .Port = Config_->Port,
                 .Rack = "1",
             },
@@ -585,7 +603,7 @@ private:
 
         TRspFindCoordinator response;
         response.NodeId = 0;
-        response.Host = NNet::GetLocalHostName();
+        response.Host = GetLocalHostName();
         response.Port = Config_->Port;
 
         return response;
