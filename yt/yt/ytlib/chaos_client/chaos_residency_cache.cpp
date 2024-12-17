@@ -356,7 +356,7 @@ public:
 private:
     const TIntrusivePtr<TChaosResidencyMasterCache> Owner_;
 
-    TFuture<IChannelPtr> EnsureChaosCellChannel(IConnectionPtr connection, TCellTag cellTag)
+    TFuture<IChannelPtr> EnsureChaosCellChannel(IConnectionPtr connection, TCellTag /* cellTag */)
     {
         auto cellDirectoryPtr = connection->GetCellDirectory();
         auto channel = cellDirectoryPtr->FindChannelByCellTag(CellTag_);
@@ -366,7 +366,7 @@ private:
             return synchronizer->Sync().Apply(BIND([
                 cellTag = CellTag_,
                 cellDirectoryPtr = std::move(cellDirectoryPtr)
-            ] (const TErrorOr<void>& syncResult) {
+            ] (const TErrorOr<void>& /* syncResult */) {
                 return cellDirectoryPtr->FindChannelByCellTag(cellTag);
             }));
         }
