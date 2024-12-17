@@ -48,6 +48,9 @@ type Config struct {
 	//
 	// backoff.NewExponentialBackOff will be used by default.
 	UploadSelfBackoff backoff.BackOff
+	// ShouldRetryTooManyOperationsError determines whether the StartOperation
+	// that caused the yterrors.CodeTooManyOperations error should be retried.
+	ShouldRetryTooManyOperationsError bool
 }
 
 func DefaultConfig() *Config {
