@@ -27,6 +27,11 @@ struct make_unsigned : public std::make_unsigned<T> {};
 template <class T>
 struct make_signed : public std::make_signed<T> {};
 
+#if defined(__SIZEOF_FLOAT128__)
+template <>
+struct is_arithmetic<__float128> : public std::true_type {};
+#endif
+
 #ifdef BOOST_HAS_INT128
 
 template <>
