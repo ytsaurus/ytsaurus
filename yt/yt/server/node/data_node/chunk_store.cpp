@@ -745,12 +745,41 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
     std::vector<int> candidateIndices;
     candidateIndices.reserve(Locations_.size());
 
+    TStoreLocationPtr throttledLocation;
+    TError throttledLocationError;
+
     int minCount = std::numeric_limits<int>::max();
     for (int index = 0; index < std::ssize(Locations_); ++index) {
         const auto& location = Locations_[index];
         if (!CanStartNewSession(location, sessionId.MediumIndex)) {
             continue;
         }
+
+        auto memoryLimitFractionForStartingNewSessions = location->GetMemoryLimitFractionForStartingNewSessions();
+        auto usedMemory = location->GetUsedMemory(EIODirection::Write);
+        auto memoryLimit = location->GetWriteMemoryLimit() * memoryLimitFractionForStartingNewSessions;
+        if (memoryLimitFractionForStartingNewSessions &&
+            usedMemory > memoryLimit)
+        {
+            throttledLocation = location;
+            throttledLocationError = TError("Session cannot be started due to lack of memory")
+                << TErrorAttribute("location_id", location->GetId())
+                << TErrorAttribute("used_memory", usedMemory)
+                << TErrorAttribute("memory_limit", memoryLimit);
+            continue;
+        }
+
+        auto sessionCount = location->GetSessionCount();
+        auto sessionCountLimit = location->GetSessionCountLimit();
+        if (sessionCount >= sessionCountLimit) {
+            throttledLocation = location;
+            throttledLocationError = TError("Session cannot be started due to lack of memory")
+                << TErrorAttribute("location_id", location->GetId())
+                << TErrorAttribute("session_count", sessionCount)
+                << TErrorAttribute("session_count_limit", sessionCountLimit);
+            continue;
+        }
+
         if (options.PlacementId) {
             candidateIndices.push_back(index);
         } else {
@@ -766,9 +795,17 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
     }
 
     if (candidateIndices.empty()) {
-        THROW_ERROR_EXCEPTION(
+        auto error = TError(
             NChunkClient::EErrorCode::NoLocationAvailable,
-            "No write location is available");
+            "No write location is available")
+            << TErrorAttribute("session_id", ToString(sessionId));
+
+        if (throttledLocation) {
+            throttledLocation->ReportThrottledWrite();
+            error <<= throttledLocationError;
+        }
+
+        THROW_ERROR_EXCEPTION(error);
     }
 
     TStoreLocationPtr location;
@@ -816,18 +853,6 @@ bool TChunkStore::CanStartNewSession(
     }
 
     if (location->GetMediumDescriptor().Index != mediumIndex) {
-        return false;
-    }
-
-    auto memoryLimitFractionForStartingNewSessions = location->GetMemoryLimitFractionForStartingNewSessions();
-    if (memoryLimitFractionForStartingNewSessions &&
-        location->GetUsedMemory(EIODirection::Write) >
-        location->GetWriteMemoryLimit() * memoryLimitFractionForStartingNewSessions)
-    {
-        return false;
-    }
-
-    if (location->GetSessionCount() >= location->GetSessionCountLimit()) {
         return false;
     }
 
