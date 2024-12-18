@@ -595,7 +595,7 @@ private:
                 New<TRefCountedChunkMeta>(*finalizedMeta));
         }
 
-        YT_LOG_DEBUG("Propagating versioned chunk meta cache upon chunk finalization"
+        YT_LOG_DEBUG("Propagating versioned chunk meta cache upon chunk finalization "
             "(Success: %v, ChunkId: %v, Activity: %Qlv)",
             result,
             writer->GetChunkId(),

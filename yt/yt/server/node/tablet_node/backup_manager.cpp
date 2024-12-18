@@ -650,7 +650,7 @@ private:
             auto currentTimestamp = timestampByClusterTag(clusterTag);
 
             if (tablet->GetDynamicStoreCount() >= DynamicStoreCountLimit) {
-                YT_LOG_DEBUG("Backup rejected since dynamic store count limit is exceeded"
+                YT_LOG_DEBUG("Backup rejected since dynamic store count limit is exceeded "
                     "(%v, DynamicStoreCount: %v, Limit: %v)",
                     tablet->GetLoggingTag(),
                     tablet->GetDynamicStoreCount(),
