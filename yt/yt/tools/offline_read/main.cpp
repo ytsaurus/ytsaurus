@@ -294,6 +294,7 @@ void PrintMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
     auto maybeVersionedRowDigestExt = FindProtoExtension<NTableClient::NProto::TVersionedRowDigestExt>(meta->extensions());
     auto maybeHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(meta->extensions());
     auto maybeHunkChunkMetasExt = FindProtoExtension<NTableClient::NProto::THunkChunkMetasExt>(meta->extensions());
+    auto maybeColumnMetaExts = FindProtoExtension<NTableClient::NProto::TColumnMetaExt>(meta->extensions());
 
     TTableSchema schema;
     if (maybeKeyColumnsExt) {
@@ -354,6 +355,20 @@ void PrintMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
         Cout << "    Offset: " << block.offset() << Endl;
         Cout << "    Checksum: " << block.checksum() << Endl;
         ++i;
+    }
+
+    if (maybeColumnMetaExts) {
+        for (const auto& columnSchema: schema.Columns()) {
+            auto columnIndex = schema.GetColumnIndex(columnSchema);
+            const auto& segments = maybeColumnMetaExts->columns(columnIndex).segments();
+            Cout << "  Column " << columnSchema.Name() << " (" << segments.size() << " blocks):" << Endl;
+
+            for (const auto& segment: segments) {
+                Cout << "    Index: " << segment.block_index() << Endl;
+                Cout << "      Uncompressed size: " << segment.size() << Endl;
+                Cout << "      RowCount: " << segment.row_count() << Endl;
+            }
+        }
     }
 
     if (maybeSystemBlocksMeta) {
