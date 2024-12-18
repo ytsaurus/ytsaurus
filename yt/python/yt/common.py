@@ -363,10 +363,6 @@ class YtError(Exception):
         """Probably lock conflict in Sequoia tables."""
         return self.contains_code(6002)
 
-    def is_query_not_found(self):
-        """Query not found."""
-        return self.contains_code(3901)
-
 
 class YtResponseError(YtError):
     """Represents an error in YT response."""
