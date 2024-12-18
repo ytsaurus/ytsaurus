@@ -644,7 +644,7 @@ std::optional<EScheduleFailReason> TTask::TryScheduleJob(
     auto cookieInfo = std::move(cookieInfoOrError.value());
     auto jobId = jobIdOrError.value();
 
-    auto result =  TryScheduleJob(
+    auto result = TryScheduleJob(
         allocation,
         context,
         jobId,

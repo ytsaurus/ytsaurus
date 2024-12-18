@@ -1088,6 +1088,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("enable_versioned_remote_copy", &TThis::EnableVersionedRemoteCopy)
         .Default(false);
+    registrar.Parameter("enable_hunks_remote_copy", &TThis::EnableHunksRemoteCopy)
+        .Default(false);
 
     registrar.Parameter("default_enable_porto", &TThis::DefaultEnablePorto)
         .Default(NScheduler::EEnablePorto::None);

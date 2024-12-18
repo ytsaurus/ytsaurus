@@ -112,6 +112,10 @@ void TInputTable::Persist(const TPersistenceContext& context)
 
     using NYT::Persist;
     Persist(context, Chunks);
+    // COMPAT(alexelexa)
+    if (context.GetVersion() >= ESnapshotVersion::RemoteCopyDynamicTableWithHunks) {
+        Persist(context, HunkChunks);
+    }
     Persist(context, Comparator);
     Persist(context, SchemaMode);
     Persist(context, Dynamic);
@@ -164,12 +168,24 @@ void TOutputTable::Persist(const TPersistenceContext& context)
     Persist(context, DataStatistics);
     // NB: Scheduler snapshots need not be stable.
     Persist(context, OutputChunkTreeIds);
+    // COMPAT(alexelexa)
+    if (context.GetVersion() >= ESnapshotVersion::RemoteCopyDynamicTableWithHunks) {
+        Persist(context, OutputHunkChunkListId);
+    }
     Persist(context, EffectiveAcl);
     Persist(context, WriterConfig);
     Persist(context, Dynamic);
     Persist(context, PivotKeys);
     Persist(context, TabletChunkListIds);
+    // COMPAT(alexelexa)
+    if (context.GetVersion() >= ESnapshotVersion::RemoteCopyDynamicTableWithHunks) {
+        Persist(context, TabletHunkChunkListIds);
+    }
     Persist(context, OutputChunks);
+    // COMPAT(alexelexa)
+    if (context.GetVersion() >= ESnapshotVersion::RemoteCopyDynamicTableWithHunks) {
+        Persist(context, OutputHunkChunks);
+    }
     Persist(context, TableIndex);
 }
 

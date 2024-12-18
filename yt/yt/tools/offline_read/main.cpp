@@ -240,6 +240,25 @@ void PrintHunkChunkRefsExt(const THunkChunkRefsExt& refs)
     }
 }
 
+void PrintHunkChunkMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
+{
+    auto chunkId = TChunkId::FromString(NFS::GetFileName(TString(chunkFileName)));
+    auto chunkReader = GetChunkReader(ioEngine, chunkFileName);
+    auto meta = chunkReader->GetMeta(/*chunkReadOptions*/{})
+        .Get()
+        .ValueOrThrow();
+    auto hunkMiscExt = GetProtoExtension<NTableClient::NProto::THunkChunkMiscExt>(meta->extensions());
+    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
+
+    Cout << "Chunk: " << ToString(chunkFileName) << Endl;
+    Cout << "  Id: " << ToString(chunkId) << Endl;
+    Cout << "  Chunk format: " << ToString(FromProto<EChunkFormat>(meta->format())) << Endl;
+    Cout << "  Codec: " << ToString(NCompression::ECodec(miscExt.compression_codec())) << Endl;
+    Cout << "  Hunk chunk misc ext: " << Endl;
+    Cout << "    Hunk count: " << ToString(FromProto<i64>(hunkMiscExt.hunk_count())) << Endl;
+    Cout << "    Total hunk length: " << ToString(FromProto<i64>(hunkMiscExt.total_hunk_length())) << Endl;
+}
+
 void PrintMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
 {
     auto chunkId = TChunkId::FromString(NFS::GetFileName(TString(chunkFileName)));
@@ -247,6 +266,12 @@ void PrintMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
     auto meta = chunkReader->GetMeta(/*chunkReadOptions*/{})
         .Get()
         .ValueOrThrow();
+
+    if (FromProto<EChunkFormat>(meta->format()) == EChunkFormat::HunkDefault) {
+        PrintHunkChunkMeta(ioEngine, chunkFileName);
+        return;
+    }
+
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
     auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions());
     auto blocksMeta =  GetProtoExtension<TDataBlockMetaExt>(meta->extensions());
@@ -282,6 +307,11 @@ void PrintMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
     Cout << "  Eden: " << miscExt.eden() << Endl;
     Cout << "  System block count (from misc ext): " << miscExt.system_block_count() << Endl;
     Cout << "  Schema: " << ConvertToYsonString(schema, EYsonFormat::Text).AsStringBuf() << Endl;
+
+    if (miscExt.has_erasure_codec()) {
+        Cout << "  Erasure codec: " << ToString(FromProto<NYT::NErasure::ECodec>(miscExt.erasure_codec())) << Endl;
+    }
+
     if (maybeVersionedRowDigestExt) {
         TVersionedRowDigest digest;
         FromProto(&digest, *maybeVersionedRowDigestExt);

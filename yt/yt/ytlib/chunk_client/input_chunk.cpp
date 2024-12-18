@@ -131,6 +131,11 @@ bool TInputChunkBase::IsFile() const
     return ChunkFormat_ == EChunkFormat::FileDefault;
 }
 
+bool TInputChunkBase::IsHunk() const
+{
+    return ChunkFormat_ == EChunkFormat::HunkDefault;
+}
+
 // Intentionally used.
 void TInputChunkBase::CheckOffsets()
 {
@@ -177,6 +182,10 @@ TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec, std::optional<int>
         ? std::make_unique<NTableClient::NProto::THeavyColumnStatisticsExt>(
             GetProtoExtension<NTableClient::NProto::THeavyColumnStatisticsExt>(chunkSpec.chunk_meta().extensions()))
         : nullptr)
+    , HunkChunkRefsExt_(HasProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(chunkSpec.chunk_meta().extensions())
+        ? std::make_unique<NTableClient::NProto::THunkChunkRefsExt>(
+            GetProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(chunkSpec.chunk_meta().extensions()))
+        : nullptr)
 {
     if (IsSortedDynamicStore()) {
         BoundaryKeys_ = std::make_unique<TOwningBoundaryKeys>();
@@ -222,10 +231,13 @@ void TInputChunk::RegisterMetadata(auto&& registrar)
         .template Serializer<TUniquePtrSerializer<>>()();
     PHOENIX_REGISTER_FIELD(6, HeavyColumnarStatisticsExt_)
         .template Serializer<TUniquePtrSerializer<>>()();
-
     // COMPAT(achulkov2)
     PHOENIX_REGISTER_FIELD(7, BlockSelectivityFactor_)
         .SinceVersion(static_cast<int>(NControllerAgent::ESnapshotVersion::ChunkSliceStatistics))();
+    // COMPAT(alexelexa)
+    PHOENIX_REGISTER_FIELD(8, HunkChunkRefsExt_)
+        .SinceVersion(static_cast<int>(NControllerAgent::ESnapshotVersion::RemoteCopyDynamicTableWithHunks))
+        .template Serializer<TUniquePtrSerializer<>>()();
 }
 
 size_t TInputChunk::SpaceUsed() const
@@ -416,7 +428,7 @@ void FormatValue(TStringBuilderBase* builder, const TInputChunkPtr& inputChunk, 
         "{ChunkId: %v, Replicas: %v, TableIndex: %v, ErasureCodec: %v, StripedErasure: %v, TableRowIndex: %v, "
         "RangeIndex: %v, ChunkIndex: %v, TabletIndex: %v, ChunkFormat: %v, UncompressedDataSize: %v, RowCount: %v, "
         "CompressedDataSize: %v, DataWeight: %v, MaxBlockSize: %v, LowerLimit: %v, UpperLimit: %v, "
-        "BoundaryKeys: {%v}, PartitionsExt: {%v}}",
+        "BoundaryKeys: {%v}, PartitionsExt: {%v}, HunkChunkRefsExt: {%v}}",
         inputChunk->GetChunkId(),
         inputChunk->GetReplicaList(),
         inputChunk->GetTableIndex(),
@@ -435,7 +447,8 @@ void FormatValue(TStringBuilderBase* builder, const TInputChunkPtr& inputChunk, 
         inputChunk->LowerLimit() ? std::make_optional(*inputChunk->LowerLimit()) : std::nullopt,
         inputChunk->UpperLimit() ? std::make_optional(*inputChunk->UpperLimit()) : std::nullopt,
         inputChunk->BoundaryKeys() ? boundaryKeys : "",
-        inputChunk->PartitionsExt() ? inputChunk->PartitionsExt()->ShortDebugString() : "");
+        inputChunk->PartitionsExt() ? inputChunk->PartitionsExt()->ShortDebugString() : "",
+        inputChunk->HunkChunkRefsExt() ? inputChunk->HunkChunkRefsExt()->ShortDebugString() : "");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

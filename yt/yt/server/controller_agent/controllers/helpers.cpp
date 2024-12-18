@@ -524,4 +524,18 @@ bool IsBulkInsertAllowedForUser(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool HasCompressionDictionaries(
+    const IAttributeDictionaryPtr& tableAttributes)
+{
+    auto dictionaryCompressionNode =
+        tableAttributes->Get<IMapNodePtr>("mount_config")->FindChild("value_dictionary_compression");
+    if (dictionaryCompressionNode) {
+        auto compressionDictionaryEnabled = dictionaryCompressionNode->AsMap()->FindChild("enable");
+        return compressionDictionaryEnabled && compressionDictionaryEnabled->AsBoolean()->GetValue();
+    }
+    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent::NControllers

@@ -64,6 +64,7 @@ struct TInputTable
 
     //! Number of chunks in the whole table (without range selectors).
     std::vector<NChunkClient::TInputChunkPtr> Chunks;
+    std::vector<NChunkClient::TInputChunkPtr> HunkChunks;
     NTableClient::TColumnRenameDescriptors ColumnRenameDescriptors;
     //! Comparator corresponding to the input table sort order.
     //! Used around read limits using keys.
@@ -114,6 +115,7 @@ struct TOutputTable
 
     // Chunk list for appending the output.
     NChunkClient::TChunkListId OutputChunkListId;
+    NChunkClient::TChunkListId OutputHunkChunkListId;
 
     // Last key of the table for checking sort order.
     NTableClient::TKey LastKey;
@@ -127,6 +129,7 @@ struct TOutputTable
     //! * integer key (e.g. in remote copy);
     //! * boundary keys (when the output is sorted).
     std::vector<std::pair<NChunkPools::TChunkStripeKey, NChunkClient::TChunkTreeId>> OutputChunkTreeIds;
+    std::vector<std::pair<NChunkPools::TChunkStripeKey, NChunkClient::TChunkTreeId>> OutputHunkChunkTreeIds;
 
     NYson::TYsonString EffectiveAcl;
 
@@ -137,8 +140,10 @@ struct TOutputTable
     bool Dynamic = false;
     std::vector<NTableClient::TLegacyOwningKey> PivotKeys;
     std::vector<NChunkClient::TChunkListId> TabletChunkListIds;
+    std::vector<NChunkClient::TChunkListId> TabletHunkChunkListIds;
 
     std::vector<NChunkClient::TInputChunkPtr> OutputChunks;
+    std::vector<NChunkClient::TInputChunkPtr> OutputHunkChunks;
 
     int TableIndex;
 

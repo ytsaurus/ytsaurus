@@ -1171,6 +1171,7 @@ public:
 
     bool EnableBulkInsertForEveryone;
     bool EnableVersionedRemoteCopy;
+    bool EnableHunksRemoteCopy;
 
     NScheduler::EEnablePorto DefaultEnablePorto;
 

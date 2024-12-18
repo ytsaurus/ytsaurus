@@ -124,7 +124,6 @@ public:
             Persist(context, task);
             OrderedTasks_.emplace_back(std::move(task));
         }
-
         Persist(context, OrderedOutputRequired_);
         Persist(context, IsExplicitJobCount_);
     }
@@ -184,6 +183,24 @@ protected:
             return TotalOutputRowCount_;
         }
 
+    protected:
+        TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        {
+            auto result = TTask::OnJobCompleted(joblet, jobSummary);
+            if (jobSummary.TotalOutputDataStatistics) {
+                TotalOutputRowCount_ += jobSummary.TotalOutputDataStatistics->row_count();
+            }
+
+            TChunkStripeKey key = 0;
+            if (Controller_->OrderedOutputRequired_) {
+                key = TOutputOrder::TEntry(joblet->OutputCookie);
+            }
+
+            RegisterOutput(jobSummary, joblet->ChunkListIds, joblet, key, /*processEmptyStripes*/ true);
+
+            return result;
+        }
+
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedTask, 0xaba78384);
 
@@ -241,23 +258,6 @@ protected:
         {
             jobSpec->CopyFrom(Controller_->JobSpecTemplate_);
             BuildInputOutputJobSpec(joblet, jobSpec);
-        }
-
-        TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
-        {
-            auto result = TTask::OnJobCompleted(joblet, jobSummary);
-            if (jobSummary.TotalOutputDataStatistics) {
-                TotalOutputRowCount_ += jobSummary.TotalOutputDataStatistics->row_count();
-            }
-
-            TChunkStripeKey key = 0;
-            if (Controller_->OrderedOutputRequired_) {
-                key = TOutputOrder::TEntry(joblet->OutputCookie);
-            }
-
-            RegisterOutput(jobSummary, joblet->ChunkListIds, joblet, key, /*processEmptyStripes*/ true);
-
-            return result;
         }
 
         TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
@@ -415,23 +415,30 @@ protected:
         return chunkStripe;
     }
 
+    virtual int AddInputSlices()
+    {
+        int sliceCount = 0;
+        TPeriodicYielder yielder(PrepareYieldPeriod);
+        for (auto& slice : CollectPrimaryInputDataSlices(InputSliceDataWeight_)) {
+            ValidateInputDataSlice(slice);
+            GetSingleOrderedTask()->AddInput(CreateChunkStripe(std::move(slice)));
+            ++sliceCount;
+            yielder.TryYield();
+        }
+
+        return sliceCount;
+    }
+
     void ProcessInputs()
     {
         YT_PROFILE_TIMING("/operations/merge/input_processing_time") {
             YT_LOG_INFO("Processing inputs");
 
-            TPeriodicYielder yielder(PrepareYieldPeriod);
-
-            GetSingleOrderedTask()->SetIsInput(true);
-
-            int sliceCount = 0;
-            for (auto& slice : CollectPrimaryInputDataSlices(InputSliceDataWeight_)) {
-                ValidateInputDataSlice(slice);
-                GetSingleOrderedTask()->AddInput(CreateChunkStripe(std::move(slice)));
-                ++sliceCount;
-                yielder.TryYield();
+            for (auto& task : OrderedTasks_) {
+                task->SetIsInput(true);
             }
 
+            auto sliceCount = AddInputSlices();
             YT_LOG_INFO("Processed inputs (Slices: %v)", sliceCount);
         }
     }
@@ -465,7 +472,7 @@ protected:
 
     TOutputOrderPtr GetOutputOrder() const override
     {
-        return OrderedTasks_.back()->GetChunkPoolOutput()->GetOutputOrder();
+        return GetSingleOrderedTask()->GetChunkPoolOutput()->GetOutputOrder();
     }
 
     void CustomMaterialize() override
@@ -484,18 +491,23 @@ protected:
             }
         }
 
-        OrderedTasks_.emplace_back(New<TOrderedTask>(this));
-        for (auto& task : OrderedTasks_) {
+        CreateTasks();
+        for (const auto& task : OrderedTasks_) {
             RegisterTask(task);
         }
 
         ProcessInputs();
 
-        for (auto& task : OrderedTasks_) {
+        for (const auto& task : OrderedTasks_) {
             FinishTaskInput(task);
         }
 
         FinishPreparation();
+    }
+
+    virtual void CreateTasks()
+    {
+        OrderedTasks_.emplace_back(New<TOrderedTask>(this));
     }
 
     TOrderedChunkPoolOptions GetOrderedChunkPoolOptions()
@@ -513,7 +525,7 @@ protected:
 
     TDataFlowGraph::TVertexDescriptor GetOutputLivePreviewVertexDescriptor() const override
     {
-        return OrderedTasks_.back()->GetVertexDescriptor();
+        return GetSingleOrderedTask()->GetVertexDescriptor();
     }
 
     TError GetUseChunkSliceStatisticsError() const override
@@ -1193,7 +1205,177 @@ public:
         Persist(context, Options_);
         Persist<TAttributeDictionarySerializer>(context, InputTableAttributes_);
         Persist(context, Networks_);
+        // COMPAT(alexelexa)
+        if (context.GetVersion() >= ESnapshotVersion::RemoteCopyDynamicTableWithHunks) {
+            Persist(context, HunkChunkIdMapping_);
+        }
     }
+
+protected:
+    class TRemoteCopyTaskBase;
+    using TRemoteCopyTaskBasePtr = TIntrusivePtr<TRemoteCopyTaskBase>;
+    using TRemoteCopyTaskBaseWeakPtr = TWeakPtr<TRemoteCopyTaskBase>;
+
+    class TRemoteCopyTaskBase
+        : public TOrderedTask
+    {
+    public:
+        TRemoteCopyTaskBase()
+            : TOrderedTask()
+            , Controller_(nullptr)
+            , IsInitializationCompleted_(false)
+        { }
+
+        TRemoteCopyTaskBase(TRemoteCopyController* controller)
+            : TOrderedTask(controller)
+            , Controller_(controller)
+            , IsInitializationCompleted_(false)
+        { }
+
+        void Persist(const TPersistenceContext& context) override
+        {
+            TOrderedTask::Persist(context);
+
+            using NYT::Persist;
+            Persist(context, Controller_);
+            Persist(context, Dependencies_);
+            Persist(context, Dependents_);
+            Persist(context, IsInitializationCompleted_);
+        }
+
+        void FinishInitialization()
+        {
+            IsInitializationCompleted_ = true;
+        }
+
+        void AddDependency(TRemoteCopyTaskBasePtr dependency)
+        {
+            YT_VERIFY(!IsInitializationCompleted_);
+            dependency->AddDependent(MakeStrong(this));
+            Dependencies_.emplace_back(std::move(dependency));
+        }
+
+    protected:
+        TRemoteCopyController* Controller_;
+
+    private:
+        // On which it depends.
+        std::vector<TRemoteCopyTaskBaseWeakPtr> Dependencies_;
+        // Which depends on it.
+        std::vector<TRemoteCopyTaskBasePtr> Dependents_;
+        bool IsInitializationCompleted_;
+
+        void AddDependent(TRemoteCopyTaskBasePtr dependent)
+        {
+            YT_VERIFY(!IsInitializationCompleted_);
+            Dependents_.emplace_back(std::move(dependent));
+        }
+
+        void RemoveDependency(TRemoteCopyTaskBaseWeakPtr dependency)
+        {
+            YT_VERIFY(IsInitializationCompleted_);
+            auto dependencyIt = std::find(Dependencies_.begin(), Dependencies_.end(), dependency);
+            YT_VERIFY(dependencyIt != Dependencies_.end());
+            Dependencies_.erase(dependencyIt);
+
+            UpdateState();
+        }
+
+        TCompositePendingJobCount GetPendingJobCount() const override
+        {
+            YT_VERIFY(IsInitializationCompleted_);
+
+            if (std::ssize(Dependencies_) > 0) {
+                return {};
+            }
+            return TOrderedTask::GetPendingJobCount();
+        }
+
+        void UpdateState()
+        {
+            Controller_->UpdateTask(this);
+
+            if (Dependencies_.empty()) {
+                Controller_->FillJobSpecHunkChunkIdMapping();
+            }
+        }
+
+        void RemoveDependents()
+        {
+            YT_VERIFY(IsInitializationCompleted_);
+            for (auto& dependant : Dependents_) {
+                dependant->RemoveDependency(MakeWeak(this));
+            }
+        }
+
+        void OnTaskCompleted() override
+        {
+            ValidateAllDataHaveBeenCopied();
+            RemoveDependents();
+        }
+
+        virtual void ValidateAllDataHaveBeenCopied()
+        { }
+    };
+
+    class TRemoteCopyTask
+        : public TRemoteCopyTaskBase
+    {
+    public:
+        TRemoteCopyTask()
+            : TRemoteCopyTaskBase()
+        { }
+
+        TRemoteCopyTask(TRemoteCopyController* controller)
+            : TRemoteCopyTaskBase(controller)
+        { }
+
+    private:
+        DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyTask, 0xaba78385);
+    };
+
+    using TRemoteCopyTaskPtr = TIntrusivePtr<TRemoteCopyTask>;
+
+    class TRemoteCopyHunkTask
+        : public TRemoteCopyTaskBase
+    {
+    public:
+        TRemoteCopyHunkTask()
+            : TRemoteCopyTaskBase()
+        { }
+
+        TRemoteCopyHunkTask(TRemoteCopyController* controller)
+            : TRemoteCopyTaskBase(controller)
+        { }
+
+        TString GetTitle() const override
+        {
+            return "HunkRemoteCopy";
+        }
+
+        TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        {
+            auto& jobResultExt = jobSummary.GetJobResultExt();
+            THashMap<TChunkId, TChunkId> newHunkChunkIdMapping;
+            for (const auto& mapping : jobResultExt.hunk_chunk_id_mapping()) {
+                EmplaceOrCrash(
+                    newHunkChunkIdMapping,
+                    FromProto<TChunkId>(mapping.input_hunk_chunk_id()),
+                    FromProto<TChunkId>(mapping.output_hunk_chunk_id()));
+            }
+            Controller_->UpdateHunkChunkIdMapping(newHunkChunkIdMapping);
+
+            return TOrderedTask::OnJobCompleted(joblet, jobSummary);
+        }
+
+    private:
+        DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyHunkTask, 0xaba78386);
+
+        void ValidateAllDataHaveBeenCopied() override
+        {
+            Controller_->ValidateHunkChunksConsistency();
+        }
+    };
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController, 0xaa8829a9);
@@ -1292,6 +1474,11 @@ private:
     std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         return {Spec_->OutputTablePath};
+    }
+
+    TDataFlowGraph::TVertexDescriptor GetOutputLivePreviewVertexDescriptor() const override
+    {
+        return OrderedTasks_.back()->GetVertexDescriptor();
     }
 
     void PrepareOutputTables() override
@@ -1394,11 +1581,17 @@ private:
 
         bool hasDynamicInputTable = false;
         bool hasDynamicOutputTable = false;
+        bool hasStaticTableWithHunkChunks = false;
         for (const auto& table : InputManager->GetInputTables()) {
             hasDynamicInputTable |= table->Dynamic;
+            hasStaticTableWithHunkChunks |= !table->Dynamic && !table->HunkChunks.empty();
         }
         for (const auto& table : OutputTables_) {
             hasDynamicOutputTable |= table->Dynamic;
+        }
+
+        if (hasStaticTableWithHunkChunks) {
+            THROW_ERROR_EXCEPTION("Static table with hunk chunks cannot be copied");
         }
 
         if (hasDynamicInputTable) {
@@ -1416,6 +1609,69 @@ private:
         }
 
         TOrderedControllerBase::CustomMaterialize();
+    }
+
+    void CreateTasks() override
+    {
+        bool hasDynamicTableWithHunkChunks = InputManager->HasDynamicTableWithHunkChunks();
+
+        // Tasks order in OrderedTasks matters.
+        // 1. The task of copying hunk chunks (if any);
+        // 2. The task of copying regular chunks.
+
+        auto task = New<TRemoteCopyTask>(this);
+        if (hasDynamicTableWithHunkChunks) {
+            auto hunkTask = New<TRemoteCopyHunkTask>(this);
+            task->AddDependency(hunkTask);
+            hunkTask->FinishInitialization();
+            OrderedTasks_.emplace_back(std::move(hunkTask));
+        }
+
+        task->FinishInitialization();
+        OrderedTasks_.emplace_back(std::move(task));
+    }
+
+    int AddInputSlices() override
+    {
+        TPeriodicYielder yielder(PrepareYieldPeriod);
+
+        auto slices = [&] (std::vector<TLegacyDataSlicePtr>&& slices) -> std::vector<std::vector<TLegacyDataSlicePtr>> {
+            if (!HasHunkChunks()) {
+                return {std::move(slices)};
+            }
+
+            std::vector<TLegacyDataSlicePtr> hunkChunkSlices;
+            std::vector<TLegacyDataSlicePtr> chunkSlices;
+            for (auto& slice : slices) {
+                ValidateInputDataSlice(slice);
+                if (slice->GetSingleUnversionedChunk()->IsHunk()) {
+                    hunkChunkSlices.emplace_back(std::move(slice));
+                } else {
+                    chunkSlices.emplace_back(std::move(slice));
+                }
+            }
+            return {hunkChunkSlices, chunkSlices};
+        } (CollectPrimaryInputDataSlices(InputSliceDataWeight_));
+
+        YT_VERIFY(std::ssize(slices) == std::ssize(OrderedTasks_));
+
+        int sliceCount = 0;
+        for (int index = 0; index < std::ssize(OrderedTasks_); ++index) {
+            sliceCount += std::ssize(slices[index]);
+            for (auto& slice : slices[index]) {
+                OrderedTasks_[index]->AddInput(CreateChunkStripe(std::move(slice)));
+                yielder.TryYield();
+            }
+        }
+        return sliceCount;
+    }
+
+    bool HasHunkChunks() const
+    {
+        // If there are any hunk chunks than the task of copying hunk chunks will be created,
+        // as well as the task of copying regular chunks, which is always created.
+        // Then there will be at least two tasks.
+        return std::ssize(OrderedTasks_) > 1;
     }
 
     void CustomCommit() override
@@ -1492,13 +1748,6 @@ private:
         remoteCopyJobSpecExt->set_delay_in_copy_chunk(ToProto<i64>(Spec_->DelayInCopyChunk));
         remoteCopyJobSpecExt->set_erasure_chunk_repair_delay(ToProto<i64>(Spec_->ErasureChunkRepairDelay));
         remoteCopyJobSpecExt->set_repair_erasure_chunks(Spec_->RepairErasureChunks);
-
-        // TODO(alexelex): For the future, now it is always empty: YT-20044
-        for (const auto& mapping : HunkChunkIdMapping_) {
-            auto* protoMapping = remoteCopyJobSpecExt->add_hunk_chunk_id_mapping();
-            ToProto(protoMapping->mutable_input_hunk_chunk_id(), mapping.first);
-            ToProto(protoMapping->mutable_output_hunk_chunk_id(), mapping.second);
-        }
     }
 
     NNative::IConnectionPtr GetRemoteConnection() const
@@ -1583,9 +1832,39 @@ private:
     {
         return Options_->CpuLimit;
     }
+
+    void UpdateHunkChunkIdMapping(const THashMap<TChunkId, TChunkId>& newMapping)
+    {
+        for (const auto& mapping : newMapping) {
+            EmplaceOrCrash(
+                HunkChunkIdMapping_,
+                mapping.first,
+                mapping.second);
+        }
+    }
+
+    void ValidateHunkChunksConsistency() const
+    {
+        YT_VERIFY(HunkChunkIdMapping_.size() == InputManager->GetInputTables()[0]->HunkChunks.size());
+    }
+
+    void FillJobSpecHunkChunkIdMapping()
+    {
+        auto* remoteCopyJobSpecExt = JobSpecTemplate_.MutableExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
+
+        for (const auto& mapping : HunkChunkIdMapping_) {
+            auto* protoMapping = remoteCopyJobSpecExt->add_hunk_chunk_id_mapping();
+            ToProto(protoMapping->mutable_input_hunk_chunk_id(), mapping.first);
+            ToProto(protoMapping->mutable_output_hunk_chunk_id(), mapping.second);
+        }
+    }
+
+    PHOENIX_DECLARE_FRIEND();
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController::TRemoteCopyTask);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController::TRemoteCopyHunkTask);
 
 IOperationControllerPtr CreateRemoteCopyController(
     TControllerAgentConfigPtr config,

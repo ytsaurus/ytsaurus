@@ -221,6 +221,8 @@ public:
         i64 sampleCount,
         int maxSampleSize) const;
 
+    bool HasDynamicTableWithHunkChunks() const;
+
 private:
     // NB: InputManager does not outlive its host.
     IInputManagerHost* Host_;
@@ -284,7 +286,9 @@ private:
     const TInputClusterPtr& GetClusterOrCrash(NChunkClient::TChunkId chunkId) const;
     const TInputClusterPtr& GetClusterOrCrash(const TInputChunkDescriptor& chunkDescriptor) const;
 
-    NChunkClient::TMasterChunkSpecFetcherPtr CreateChunkSpecFetcher(const TInputClusterPtr& cluster) const;
+    NChunkClient::TMasterChunkSpecFetcherPtr CreateChunkSpecFetcher(
+        const TInputClusterPtr& cluster,
+        bool fetchHunkChunks = false) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputManager)
