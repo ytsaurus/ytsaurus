@@ -14,8 +14,10 @@ using namespace NYson;
 
 TProgramDescribeStructuredLogsMixin::TProgramDescribeStructuredLogsMixin(NLastGetopt::TOpts& opts)
 {
-    opts.AddLongOption("describe-structured-logs", "describe existing structured logs")
-        .StoreTrue(&DescribeStructuredLogs_)
+    opts.AddLongOption(
+        "describe-structured-logs",
+        "Describes existing structured logs")
+        .SetFlag(&DescribeStructuredLogsFlag_)
         .Optional();
 
     RegisterMixinCallback([&] { Handle(); });
@@ -23,7 +25,7 @@ TProgramDescribeStructuredLogsMixin::TProgramDescribeStructuredLogsMixin(NLastGe
 
 void TProgramDescribeStructuredLogsMixin::Handle()
 {
-    if (DescribeStructuredLogs_) {
+    if (DescribeStructuredLogsFlag_) {
         TYsonWriter writer(&Cout, EYsonFormat::Pretty);
         TStructuredCategoryRegistry::Get()->DumpCategories(&writer);
         Cout << Endl;

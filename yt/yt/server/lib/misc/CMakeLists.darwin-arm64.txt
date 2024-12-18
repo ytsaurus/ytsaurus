@@ -35,7 +35,6 @@ target_link_libraries(server-lib-misc PUBLIC
 target_sources(server-lib-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/address_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/archive_reporter.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/cluster_connection.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/cluster_throttlers_config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/disk_health_checker.cpp

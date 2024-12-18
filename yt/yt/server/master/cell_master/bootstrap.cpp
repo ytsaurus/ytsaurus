@@ -634,10 +634,9 @@ void TBootstrap::Run()
         .Run()
         .Get()
         .ThrowOnError();
-    Sleep(TDuration::Max());
 }
 
-void TBootstrap::LoadSnapshotOrThrow(
+void TBootstrap::LoadSnapshot(
     const TString& fileName,
     bool dump)
 {
@@ -648,7 +647,7 @@ void TBootstrap::LoadSnapshotOrThrow(
         .ThrowOnError();
 }
 
-void TBootstrap::ReplayChangelogsOrThrow(std::vector<TString> changelogFileNames)
+void TBootstrap::ReplayChangelogs(std::vector<TString> changelogFileNames)
 {
     BIND(&TBootstrap::DoReplayChangelogs, this, Passed(std::move(changelogFileNames)))
         .AsyncVia(GetControlInvoker())
@@ -657,7 +656,7 @@ void TBootstrap::ReplayChangelogsOrThrow(std::vector<TString> changelogFileNames
         .ThrowOnError();
 }
 
-void TBootstrap::BuildSnapshotOrThrow()
+void TBootstrap::BuildSnapshot()
 {
     BIND(&TBootstrap::DoBuildSnapshot, this)
         .AsyncVia(GetControlInvoker())
@@ -666,7 +665,7 @@ void TBootstrap::BuildSnapshotOrThrow()
         .ThrowOnError();
 }
 
-void TBootstrap::FinishDryRunOrThrow()
+void TBootstrap::FinishDryRun()
 {
     BIND(&TBootstrap::DoFinishDryRun, this)
         .AsyncVia(GetControlInvoker())

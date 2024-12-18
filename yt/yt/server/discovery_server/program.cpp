@@ -12,7 +12,7 @@ namespace NYT::NClusterDiscoveryServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterDiscoveryServerProgram
-    : public TServerProgram<NClusterDiscoveryServer::TClusterDiscoveryServerConfig>
+    : public TServerProgram<TClusterDiscoveryServerConfig>
 {
 public:
     TClusterDiscoveryServerProgram()
@@ -23,17 +23,11 @@ public:
 protected:
     void DoStart() override
     {
-        auto config = GetConfig();
-
-        ConfigureSingletons(config);
-
-        // TODO(babenko): This memory leak is intentional.
-        // We should avoid destroying bootstrap since some of the subsystems
-        // may be holding a reference to it and continue running some actions in background threads.
-        auto* bootstrap = NClusterDiscoveryServer::CreateBootstrap(std::move(config)).release();
+        auto* bootstrap = NClusterDiscoveryServer::CreateBootstrap(GetConfig()).release();
         DoNotOptimizeAway(bootstrap);
         bootstrap->Initialize();
         bootstrap->Run();
+        SleepForever();
     }
 };
 

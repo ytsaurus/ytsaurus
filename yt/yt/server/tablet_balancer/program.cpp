@@ -3,8 +3,6 @@
 #include "bootstrap.h"
 #include "config.h"
 
-#include <yt/yt/ytlib/program/native_singletons.h>
-
 #include <yt/yt/library/server_program/server_program.h>
 
 namespace NYT::NTabletBalancer {
@@ -20,17 +18,13 @@ public:
         SetMainThreadName("TabletBalancer");
     }
 
-protected:
+private:
     void DoStart() final
     {
-        auto config = GetConfig();
-
-        ConfigureNativeSingletons(config);
-
-        auto configNode = GetConfigNode();
-
-        auto* bootstrap = CreateBootstrap(std::move(config), std::move(configNode)).release();
+        auto* bootstrap = CreateBootstrap(GetConfig(), GetConfigNode()).release();
+        DoNotOptimizeAway(bootstrap);
         bootstrap->Run();
+        SleepForever();
     }
 };
 

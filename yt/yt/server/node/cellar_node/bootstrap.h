@@ -12,13 +12,13 @@ namespace NYT::NCellarNode {
 
 struct IBootstrapDryRunBase
 {
-    virtual void LoadSnapshotOrThrow(
+    virtual void LoadSnapshot(
         const TString& fileName,
         NHydra::NProto::TSnapshotMeta meta = {},
         bool dump = false) = 0;
-    virtual void ReplayChangelogsOrThrow(std::vector<TString> changelogFileNames) = 0;
-    virtual void BuildSnapshotOrThrow() = 0;
-    virtual void FinishDryRunOrThrow() = 0;
+    virtual void ReplayChangelogs(std::vector<TString> changelogFileNames) = 0;
+    virtual void BuildSnapshot() = 0;
+    virtual void FinishDryRun() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

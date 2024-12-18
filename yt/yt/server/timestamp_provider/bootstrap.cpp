@@ -84,7 +84,6 @@ public:
             .Run()
             .Get()
             .ThrowOnError();
-        Sleep(TDuration::Max());
     }
 
 private:

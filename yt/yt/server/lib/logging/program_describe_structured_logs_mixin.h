@@ -13,7 +13,7 @@ protected:
     explicit TProgramDescribeStructuredLogsMixin(NLastGetopt::TOpts& opts);
 
 private:
-    bool DescribeStructuredLogs_ = false;
+    bool DescribeStructuredLogsFlag_ = false;
 
     void Handle();
 };

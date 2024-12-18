@@ -19,13 +19,17 @@ public:
     TToolsProgram()
     {
         Opts_
-            .AddLongOption("tool-name", "tool name to execute")
+            .AddLongOption(
+                "tool-name",
+                "Tool name to execute")
             .StoreResult(&ToolName_)
-            .RequiredArgument("NAME");
+            .RequiredArgument("STRING");
         Opts_
-            .AddLongOption("tool-spec", "tool specification")
+            .AddLongOption(
+                "tool-spec",
+                "Tool specification (in YSON format)")
             .StoreResult(&ToolSpec_)
-            .RequiredArgument("SPEC");
+            .RequiredArgument("YSON");
     }
 
 protected:

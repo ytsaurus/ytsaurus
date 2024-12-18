@@ -98,7 +98,6 @@ public:
             .Run()
             .Get()
             .ThrowOnError();
-        Sleep(TDuration::Max());
     }
 
     const NApi::NNative::IClientPtr& GetClient() override

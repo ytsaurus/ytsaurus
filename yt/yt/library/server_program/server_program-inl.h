@@ -6,9 +6,13 @@
 
 #include "config.h"
 
+#include <yt/yt/ytlib/program/native_singletons.h>
+
 #include <yt/yt/library/containers/porto_resource_tracker.h>
 
 #include <yt/yt/library/disk_manager/hotswap_manager.h>
+
+#include <yt/yt/library/program/helpers.h>
 
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
 
@@ -21,11 +25,11 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TConfig, class TDynamicConfig>
-TServerProgram<TConfig, TDynamicConfig>::TServerProgram(bool requireConfigArgument)
+TServerProgram<TConfig, TDynamicConfig>::TServerProgram()
     : TProgram()
     , TProgramPdeathsigMixin(Opts_)
     , TProgramSetsidMixin(Opts_)
-    , TProgramConfigMixin<TConfig, TDynamicConfig>(Opts_, requireConfigArgument)
+    , TProgramConfigMixin<TConfig, TDynamicConfig>(Opts_)
 { }
 
 template <class TConfig, class TDynamicConfig>
@@ -35,11 +39,30 @@ void TServerProgram<TConfig, TDynamicConfig>::SetMainThreadName(const std::strin
 }
 
 template <class TConfig, class TDynamicConfig>
+void TServerProgram<TConfig, TDynamicConfig>::ValidateOpts()
+{ }
+
+template <class TConfig, class TDynamicConfig>
+void TServerProgram<TConfig, TDynamicConfig>::TweakConfig()
+{ }
+
+template <class TConfig, class TDynamicConfig>
+void TServerProgram<TConfig, TDynamicConfig>::SleepForever()
+{
+    Sleep(TDuration::Max());
+    YT_ABORT();
+}
+
+template <class TConfig, class TDynamicConfig>
 void TServerProgram<TConfig, TDynamicConfig>::DoRun()
 {
     TThread::SetCurrentThreadName(MainThreadName_.c_str());
 
     RunMixinCallbacks();
+
+    ValidateOpts();
+
+    TweakConfig();
 
     Configure();
 
@@ -64,6 +87,13 @@ void TServerProgram<TConfig, TDynamicConfig>::Configure()
     MlockFileMappings();
 
     auto config = this->GetConfig();
+
+    // TODO(babenko): refactor
+    if constexpr (std::is_base_of_v<TNativeSingletonsConfig, TConfig>) {
+        ConfigureNativeSingletons(config);
+    } else {
+        ConfigureSingletons(config);
+    }
 
     if (config->EnablePortoResourceTracker) {
         NContainers::EnablePortoResourceTracker(config->PodSpec);

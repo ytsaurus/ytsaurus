@@ -434,8 +434,6 @@ void TBootstrap::Run()
     if (ZookeeperBootstrap_) {
         ZookeeperBootstrap_->Run();
     }
-
-    Sleep(TDuration::Max());
 }
 
 const IInvokerPtr& TBootstrap::GetControlInvoker() const

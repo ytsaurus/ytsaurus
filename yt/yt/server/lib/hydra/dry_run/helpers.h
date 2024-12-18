@@ -1,12 +1,12 @@
 #pragma once
 
-#include <yt/yt/library/program/public.h>
+#include <yt/yt/core/logging/public.h>
 
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ConfigureDryRunLogging(const TSingletonsConfigPtr& config);
+NLogging::TLogManagerConfigPtr CreateDryRunLoggingConfig();
 
 ////////////////////////////////////////////////////////////////////////////////
 

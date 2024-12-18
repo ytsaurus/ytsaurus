@@ -28,6 +28,6 @@ target_link_libraries(lib-hydra-dry_run PUBLIC
 
 target_sources(lib-hydra-dry_run PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/dry_run/journal_as_local_file_read_only_changelog.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/dry_run/utils.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/dry_run/helpers.cpp
 )
 
