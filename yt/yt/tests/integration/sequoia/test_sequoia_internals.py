@@ -478,7 +478,7 @@ class TestSequoiaInternals(YTEnvSetup):
         assert get("//cypress/l2&/@broken")
         remove("//cypress", force=True, recursive=True)
 
-    @authors("kvk1920", "gritukan")
+    @authors("kvk1920")
     def test_create_map_node(self):
         m_id = create("map_node", "//tmp/m")
         set(f"#{m_id}/@foo", "bar")

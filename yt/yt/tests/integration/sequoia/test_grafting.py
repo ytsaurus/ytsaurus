@@ -70,13 +70,13 @@ class TestGrafting(YTEnvSetup):
 
         wait(lambda: resolve_sequoia_path("//tmp/r") is None)
 
-    @authors("gritukan")
+    @authors("kvk1920", "gritukan")
     def test_cannot_create_rootstock_in_transaction(self):
         tx = start_transaction()
         with pytest.raises(YtError):
             create("rootstock", "//tmp/p", tx=tx)
 
-    @authors("gritukan")
+    @authors("kvk1920", "gritukan")
     def test_cannot_copy_move_rootstock(self):
         create("rootstock", "//tmp/r")
         with pytest.raises(YtError):

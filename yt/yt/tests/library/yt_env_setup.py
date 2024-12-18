@@ -1423,8 +1423,15 @@ class YTEnvSetup(object):
 
         if not self.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index) and \
                 self.get_param("USE_SEQUOIA", cluster_index) and \
-                any("sequoia_node_host" in roles for roles in self.get_param("MASTER_CELL_DESCRIPTORS", cluster_index).values()):
-            wait(lambda: yt_commands.create("rootstock", "//check_cell_role", force=True, driver=driver), ignore_exceptions=True)
+                not self._is_ground_cluster(cluster_index) and \
+                self.get_param("NUM_CYPRESS_PROXIES", cluster_index) > 0 and \
+                any("sequoia_node_host" in roles for roles in self.MASTER_CELL_DESCRIPTORS.values()):
+            wait(lambda: yt_commands.create(
+                "rootstock",
+                "//check_cell_role",
+                force=True,
+                driver=driver),
+                ignore_exceptions=True)
             yt_commands.remove("//check_cell_role", force=True)
 
         if self.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index) and not self._is_ground_cluster(cluster_index):
