@@ -244,15 +244,13 @@ protected:
 
     void DoEndCopy(
         TJournalNode* node,
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        IAttributeDictionary* inheritedAttributes) override
+        TEndCopyContext* context) override
     {
         using NYT::Load;
         node->SetReadQuorum(Load<int>(*context));
         node->SetWriteQuorum(Load<int>(*context));
 
-        TBase::DoEndCopy(node, context, factory, inheritedAttributes);
+        TBase::DoEndCopy(node, context);
     }
 
     void HandleTransactionFinished(TJournalNode* branchedNode)

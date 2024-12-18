@@ -1,3 +1,4 @@
+NoSuchMethod = 103
 Unavailable = 105
 TooManyOperations = 202
 MaxFailedJobsLimitExceeded = 215

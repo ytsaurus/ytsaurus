@@ -577,22 +577,30 @@ class TestAccessLogPortal(TestAccessLog):
         doc_id = create("document", "//tmp/access_log/doc")
 
         create("portal_entrance", "//portals/p1", attributes={"exit_cell_tag": 12})
+        portal_exit_id = get("//portals/p1/@id")
         moved_doc_id = move("//tmp/access_log/doc", "//portals/p1/doc")
+
         log_list.append(
             {
-                "method": "BeginCopy",
+                "method": "LockCopySource",
                 "type": "document",
                 "id": doc_id,
                 "path": "//tmp/access_log/doc",
             })
         log_list.append(
             {
-                "method": "EndCopy",
+                "method": "LockCopyDestination",
+                "type": "portal_exit",
+                "id": portal_exit_id,
+                "path": "//portals/p1",
+            })
+        log_list.append(
+            {
+                "method": "AssembleTreeCopy",
                 "type": "document",
                 "id": moved_doc_id,
                 "path": "//portals/p1/doc",
-            }
-        )
+            })
 
         self._validate_entries_against_log(log_list, cell_tag_to_directory={
             11: "//tmp/access_log",

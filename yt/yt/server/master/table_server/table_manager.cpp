@@ -513,7 +513,7 @@ public:
         auto sharedTableSchema = New<TTableSchema>(tableSchema);
 
         TMasterTableSchema* schema;
-        if (isNative){
+        if (isNative) {
             auto it = EmplaceOrCrash(
                 NativeTableSchemaToObjectMap_,
                 std::move(sharedTableSchema),

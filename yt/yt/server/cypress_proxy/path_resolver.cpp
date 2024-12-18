@@ -124,8 +124,7 @@ bool ShouldFollowLink(TYPathBuf unresolvedSuffix, TStringBuf method)
         "Create",
         "Set",
         "Copy",
-        "BeginCopy",
-        "EndCopy",
+        "LockCopySource",
     };
 
     return std::end(MethodsWithoutRedirection) == std::find(

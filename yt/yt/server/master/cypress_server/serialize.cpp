@@ -56,51 +56,9 @@ void TBeginCopyContext::RegisterSchema(TMasterTableSchemaId schemaId)
     SchemaId_ = schemaId;
 }
 
-void TBeginCopyContext::RegisterExternalCellTag(TCellTag cellTag)
-{
-    YT_ASSERT(!ExternalCellTag_);
-    ExternalCellTag_ = cellTag;
-}
-
-void TBeginCopyContext::RegisterPortalRoot(TNodeId portalRootId)
-{
-    PortalRootId_ = portalRootId;
-}
-
-void TBeginCopyContext::RegisterAsOpaque(const NYPath::TYPath& path)
-{
-    YT_ASSERT(!Path_ && !path.empty());
-    Path_ = path;
-}
-
-void TBeginCopyContext::RegisterChild(TCypressNode* child)
-{
-    Children_.push_back(child);
-}
-
-std::optional<NTableServer::TMasterTableSchemaId> TBeginCopyContext::GetSchemaId() const
+NTableServer::TMasterTableSchemaId TBeginCopyContext::GetSchemaId() const
 {
     return SchemaId_;
-}
-
-std::optional<NObjectClient::TCellTag> TBeginCopyContext::GetExternalCellTag() const
-{
-    return ExternalCellTag_;
-}
-
-std::optional<NCypressClient::TNodeId> TBeginCopyContext::GetPortalRootId() const
-{
-    return PortalRootId_;
-}
-
-std::optional<NYPath::TYPath> TBeginCopyContext::GetPathIfOpaque() const
-{
-    return Path_;
-}
-
-const std::vector<TCypressNode*>& TBeginCopyContext::GetChildren() const
-{
-    return Children_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,12 +67,14 @@ TEndCopyContext::TEndCopyContext(
     TBootstrap* bootstrap,
     ENodeCloneMode mode,
     TRef data,
-    const THashMap<NTableServer::TMasterTableSchemaId, NTableServer::TMasterTableSchema*>& schemaIdToSchema)
+    NTableServer::TMasterTableSchemaId schemaId,
+    TNodeId inplaceLoadTargetNodeId)
     : TEntityStreamLoadContext(&Stream_)
     , Mode_(mode)
+    , InplaceLoadTargetNodeId_(inplaceLoadTargetNodeId)
     , Bootstrap_(bootstrap)
-    , SchemaIdToSchema_(schemaIdToSchema)
     , Stream_(data.Begin(), data.Size())
+    , SchemaId_(schemaId)
 { }
 
 template <>
@@ -138,13 +98,13 @@ TMedium* TEndCopyContext::GetObject(TObjectId id)
 template <>
 TTabletCellBundle* TEndCopyContext::GetObject(TObjectId id)
 {
-    return Bootstrap_->GetTabletManager()->GetTabletCellBundleOrThrow(id);
+    return Bootstrap_->GetTabletManager()->GetTabletCellBundleOrThrow(id, true);
 }
 
 template <>
 TChaosCellBundle* TEndCopyContext::GetObject(TObjectId id)
 {
-    return Bootstrap_->GetChaosManager()->GetChaosCellBundleOrThrow(id);
+    return Bootstrap_->GetChaosManager()->GetChaosCellBundleOrThrow(id, true);
 }
 
 template <>
@@ -154,9 +114,10 @@ const TSecurityTagsRegistryPtr& TEndCopyContext::GetInternRegistry() const
     return securityManager->GetSecurityTagsRegistry();
 }
 
-TMasterTableSchema* TEndCopyContext::GetSchema(TMasterTableSchemaId schemaId) const
+TMasterTableSchema* TEndCopyContext::GetSchema() const
 {
-    return GetOrCrash(SchemaIdToSchema_, schemaId);
+    const auto& tableManager = Bootstrap_->GetTableManager();
+    return tableManager->GetMasterTableSchema(SchemaId_);
 }
 
 void TEndCopyContext::RegisterChild(const std::string& key, TNodeId childId)

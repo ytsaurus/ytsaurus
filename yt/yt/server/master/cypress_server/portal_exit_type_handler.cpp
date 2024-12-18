@@ -69,9 +69,7 @@ private:
 
     void DoEndCopy(
         TPortalExitNode* /*trunkNode*/,
-        TEndCopyContext* /*context*/,
-        ICypressNodeFactory* /*factory*/,
-        IAttributeDictionary* /*inheritedAttributes*/) override
+        TEndCopyContext* /*context*/) override
     {
         // Should not actually happen.
         THROW_ERROR_EXCEPTION("Portal exits cannot be materialized during cross-cell cloning");

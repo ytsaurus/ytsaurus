@@ -159,7 +159,7 @@ public:
                 // 7) direct acl
 
                 auto effectiveInheritableAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
-                GatherInheritableAttributes(node->GetParent(), &effectiveInheritableAttributes->Attributes());
+                GatherInheritableAttributes(node->GetParent(), &effectiveInheritableAttributes->MutableAttributes());
                 ToProto(portalExitInfo->mutable_effective_inheritable_attributes(), *effectiveInheritableAttributes);
 
                 auto effectiveAcl = securityManager->GetEffectiveAcl(node);

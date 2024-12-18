@@ -347,7 +347,8 @@ TCellProxyBase::TResolveResult TCellProxyBase::ResolveSelf(const TYPath& path, c
         method == "Exists" ||
         method == "Create" ||
         method == "Copy" ||
-        method == "EndCopy")
+        method == "LockCopyDestination" ||
+        method == "AssembleTreeCopy")
     {
         return TResolveResultHere{path};
     } else {

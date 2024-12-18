@@ -108,11 +108,9 @@ private:
 
     void DoEndCopy(
         TLinkNode* trunkNode,
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        NYTree::IAttributeDictionary* inheritedAttributes) override
+        TEndCopyContext* context) override
     {
-        TBase::DoEndCopy(trunkNode, context, factory, inheritedAttributes);
+        TBase::DoEndCopy(trunkNode, context);
 
         using NYT::Load;
         trunkNode->SetTargetPath(Load<NYTree::TYPath>(*context));

@@ -651,17 +651,15 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBeginCopy(
     Save(*context, node->GetHunkPrimaryMediumIndex());
     Save(*context, node->HunkReplication());
 
-    context->RegisterExternalCellTag(node->GetExternalCellTag());
+    context->SetExternalCellTag(node->GetExternalCellTag());
 }
 
 template <class TChunkOwner>
 void TChunkOwnerTypeHandler<TChunkOwner>::DoEndCopy(
     TChunkOwner* trunkNode,
-    TEndCopyContext* context,
-    ICypressNodeFactory* factory,
-    IAttributeDictionary* inheritedAttributes)
+    TEndCopyContext* context)
 {
-    TBase::DoEndCopy(trunkNode, context, factory, inheritedAttributes);
+    TBase::DoEndCopy(trunkNode, context);
 
     using NYT::Load;
 

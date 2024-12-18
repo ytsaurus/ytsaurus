@@ -535,7 +535,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
             THROW_ERROR_EXCEPTION("Dynamic tables do not support cross-cell copying");
         }
 
-        if (!node->SecondaryIndices().empty() || node->GetIndexTo()) {
+        if (!node->GetTrunkNode()->SecondaryIndices().empty() || node->GetTrunkNode()->GetIndexTo()) {
             THROW_ERROR_EXCEPTION("Cannot cross-cell copy neither a table with a secondary index nor an index table itself");
         }
     }
@@ -561,12 +561,10 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
 template <class TImpl>
 void TTableNodeTypeHandlerBase<TImpl>::DoEndCopy(
     TImpl* node,
-    TEndCopyContext* context,
-    ICypressNodeFactory* factory,
-    IAttributeDictionary* inheritedAttributes)
+    TEndCopyContext* context)
 {
-    TTabletOwnerTypeHandler::DoEndCopy(node, context, factory, inheritedAttributes);
-    TSchemafulNodeTypeHandler::DoEndCopy(node, context, factory, inheritedAttributes);
+    TTabletOwnerTypeHandler::DoEndCopy(node, context);
+    TSchemafulNodeTypeHandler::DoEndCopy(node, context);
 
     // TODO(babenko): support copying dynamic tables
 
@@ -748,9 +746,7 @@ void TReplicatedTableNodeTypeHandler::DoBeginCopy(
 
 void TReplicatedTableNodeTypeHandler::DoEndCopy(
     TReplicatedTableNode* /*node*/,
-    TEndCopyContext* /*context*/,
-    ICypressNodeFactory* /*factory*/,
-    IAttributeDictionary* /*inheritedAttributes*/)
+    TEndCopyContext* /*context*/)
 {
     // TODO(babenko): support cross-cell copy for replicated tables
     THROW_ERROR_EXCEPTION("Replicated tables do not support cross-cell copying");

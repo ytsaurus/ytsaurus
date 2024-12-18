@@ -221,16 +221,19 @@ struct TMasterTableSchemaRefSerializer
     {
         YT_VERIFY(object);
 
+        // NB: Each BeginCopyContext contains a single node,
+        // thus no more than one schema should be saved.
+        YT_VERIFY(!context.GetSchemaId());
+
         auto id = object->GetId();
         context.RegisterSchema(id);
-        NYT::Save(context, id);
     }
 
     template <class T>
     static void Load(NCypressServer::TEndCopyContext& context, T& object)
     {
-        auto schemaId = NYT::Load<NTableServer::TMasterTableSchemaId>(context);
-        object = context.GetSchema(schemaId);
+        // NB: See comment in Save.
+        object = context.GetSchema();
     }
 };
 

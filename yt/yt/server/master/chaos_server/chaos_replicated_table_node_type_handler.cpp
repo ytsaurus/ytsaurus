@@ -263,11 +263,9 @@ private:
 
     void DoEndCopy(
         TChaosReplicatedTableNode* trunkNode,
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        IAttributeDictionary* inheritedAttributes) override
+        TEndCopyContext* context) override
     {
-        TBase::DoEndCopy(trunkNode, context, factory, inheritedAttributes);
+        TBase::DoEndCopy(trunkNode, context);
 
         using NYT::Load;
 
