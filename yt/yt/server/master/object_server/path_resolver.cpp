@@ -249,8 +249,9 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
                  Method_ == "Set" ||
                  Method_ == "Create" ||
                  Method_ == "Copy" ||
-                 Method_ == "BeginCopy" ||
-                 Method_ == "EndCopy"))
+                 Method_ == "LockCopySource" ||
+                 Method_ == "LockCopyDestination" ||
+                 Method_ == "AssembleTreeCopy"))
             {
                 return makeCurrentLocalObjectResult();
             }

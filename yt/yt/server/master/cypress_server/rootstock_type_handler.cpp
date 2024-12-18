@@ -130,9 +130,7 @@ private:
 
     void DoEndCopy(
         TRootstockNode* /*trunkNode*/,
-        TEndCopyContext* /*context*/,
-        ICypressNodeFactory* /*factory*/,
-        IAttributeDictionary* /*inheritedAttributes*/) override
+        TEndCopyContext* /*context*/) override
     {
         THROW_ERROR_EXCEPTION("Cross-cell copying of rootstocks is not supported");
     }

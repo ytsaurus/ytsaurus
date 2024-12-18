@@ -94,11 +94,9 @@ void TTabletOwnerTypeHandlerBase<TImpl>::DoBeginCopy(
 template <class TImpl>
 void TTabletOwnerTypeHandlerBase<TImpl>::DoEndCopy(
     TImpl* node,
-    TEndCopyContext* context,
-    ICypressNodeFactory* factory,
-    IAttributeDictionary* inheritedAttributes)
+    TEndCopyContext* context)
 {
-    TBase::DoEndCopy(node, context, factory, inheritedAttributes);
+    TBase::DoEndCopy(node, context);
 
     const auto& tabletManager = this->GetBootstrap()->GetTabletManager();
 

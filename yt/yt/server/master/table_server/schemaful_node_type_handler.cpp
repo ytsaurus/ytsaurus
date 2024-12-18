@@ -103,11 +103,9 @@ void TSchemafulNodeTypeHandlerBase<TImpl>::DoBeginCopy(
 template <class TImpl>
 void TSchemafulNodeTypeHandlerBase<TImpl>::DoEndCopy(
     TImpl* schemafulNode,
-    NCypressServer::TEndCopyContext* context,
-    NCypressServer::ICypressNodeFactory* factory,
-    IAttributeDictionary* inheritedAttributes)
+    NCypressServer::TEndCopyContext* context)
 {
-    TBase::DoEndCopy(schemafulNode, context, factory, inheritedAttributes);
+    TBase::DoEndCopy(schemafulNode, context);
 
     const auto& tableManager = this->GetBootstrap()->GetTableManager();
     auto* schema = Load<TMasterTableSchema*>(*context);

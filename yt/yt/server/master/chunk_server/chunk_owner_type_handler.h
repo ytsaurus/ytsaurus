@@ -75,9 +75,7 @@ protected:
         NCypressServer::TBeginCopyContext* context) override;
     void DoEndCopy(
         TChunkOwner* trunkNode,
-        NCypressServer::TEndCopyContext* context,
-        NCypressServer::ICypressNodeFactory* factory,
-        NYTree::IAttributeDictionary* inheritedAttributes) override;
+        NCypressServer::TEndCopyContext* context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

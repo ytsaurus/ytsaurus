@@ -2494,7 +2494,7 @@ public:
             : nullptr;
     }
 
-    TTabletCellBundle* GetTabletCellBundleOrThrow(TTabletCellBundleId id)
+    TTabletCellBundle* GetTabletCellBundleOrThrow(TTabletCellBundleId id, bool activeLifeStageOnly)
     {
         auto* cellBundle = FindTabletCellBundle(id);
         if (!cellBundle) {
@@ -2503,6 +2503,12 @@ public:
                 "No such tablet cell bundle %v",
                 id);
         }
+
+        if (activeLifeStageOnly) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->ValidateObjectLifeStage(cellBundle);
+        }
+
         return cellBundle;
     }
 
@@ -7800,9 +7806,9 @@ TTabletCell* TTabletManager::GetTabletCellOrThrow(TTabletCellId id)
     return Impl_->GetTabletCellOrThrow(id);
 }
 
-TTabletCellBundle* TTabletManager::GetTabletCellBundleOrThrow(TTabletCellBundleId id)
+TTabletCellBundle* TTabletManager::GetTabletCellBundleOrThrow(TTabletCellBundleId id, bool activeLifeStageOnly)
 {
-    return Impl_->GetTabletCellBundleOrThrow(id);
+    return Impl_->GetTabletCellBundleOrThrow(id, activeLifeStageOnly);
 }
 
 TTabletCellBundle* TTabletManager::FindTabletCellBundle(TTabletCellBundleId id)

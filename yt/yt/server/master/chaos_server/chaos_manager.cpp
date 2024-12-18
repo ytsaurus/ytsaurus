@@ -194,7 +194,7 @@ public:
             : nullptr;
     }
 
-    TChaosCellBundle* GetChaosCellBundleOrThrow(TChaosCellBundleId id) override
+    TChaosCellBundle* GetChaosCellBundleOrThrow(TChaosCellBundleId id, bool activeLifeStageOnly) override
     {
         auto* bundle = FindChaosCellBundle(id);
         if (!bundle) {
@@ -203,6 +203,12 @@ public:
                 "No such chaos cell bundle %v",
                 id);
         }
+
+        if (activeLifeStageOnly) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->ValidateObjectLifeStage(bundle);
+        }
+
         return bundle;
     }
 

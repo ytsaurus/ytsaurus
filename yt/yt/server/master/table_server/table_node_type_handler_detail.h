@@ -56,9 +56,7 @@ protected:
         NCypressServer::TBeginCopyContext* context) override;
     void DoEndCopy(
         TImpl* node,
-        NCypressServer::TEndCopyContext* context,
-        NCypressServer::ICypressNodeFactory* factory,
-        NYTree::IAttributeDictionary* inheritedAttributes) override;
+        NCypressServer::TEndCopyContext* context) override;
 
     std::optional<std::vector<std::string>> DoListColumns(TImpl* node) const override;
 };
@@ -132,9 +130,7 @@ protected:
         NCypressServer::TBeginCopyContext* context) override;
     void DoEndCopy(
         TReplicatedTableNode* node,
-        NCypressServer::TEndCopyContext* context,
-        NCypressServer::ICypressNodeFactory* factory,
-        NYTree::IAttributeDictionary* inheritedAttributes) override;
+        NCypressServer::TEndCopyContext* context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

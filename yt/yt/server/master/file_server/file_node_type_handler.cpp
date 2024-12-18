@@ -128,11 +128,9 @@ protected:
 
     void DoEndCopy(
         TFileNode* node,
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        IAttributeDictionary* inheritedAttributes) override
+        TEndCopyContext* context) override
     {
-        TBase::DoEndCopy(node, context, factory, inheritedAttributes);
+        TBase::DoEndCopy(node, context);
 
         using NYT::Load;
         node->SetMD5Hasher(Load<std::optional<TMD5Hasher>>(*context));

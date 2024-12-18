@@ -1027,7 +1027,7 @@ def abort_transaction(tx, **kwargs):
 
 def abort_all_transactions():
     topmost_transactions = ls("//sys/topmost_transactions")
-    for i in range(len(topmost_transactions) / 100 + 1):
+    for i in range(len(topmost_transactions) // 100 + 1):
         start = i * 100
         end = min(len(topmost_transactions), (i + 1) * 100)
         if start >= end:

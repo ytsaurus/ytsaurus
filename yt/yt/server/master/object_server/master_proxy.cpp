@@ -14,6 +14,7 @@
 #include <yt/yt/server/master/chunk_server/domestic_medium.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/node_proxy_detail.h>
 
 #include <yt/yt/server/master/maintenance_tracker_server/maintenance_request.h>
 #include <yt/yt/server/master/maintenance_tracker_server/maintenance_tracker.h>
@@ -44,6 +45,8 @@
 
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
+#include <yt/yt/core/misc/range_formatters.h>
+
 #include <yt/yt/core/rpc/message.h>
 
 #include <yt/yt/core/ytree/helpers.h>
@@ -61,6 +64,7 @@ using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NRpc;
 using namespace NSecurityServer;
+using namespace NTableServer;
 using namespace NYson;
 using namespace NYTree;
 
@@ -88,6 +92,8 @@ private:
         DISPATCH_YPATH_SERVICE_METHOD(CheckPermissionByAcl);
         DISPATCH_YPATH_SERVICE_METHOD(AddMaintenance);
         DISPATCH_YPATH_SERVICE_METHOD(RemoveMaintenance);
+        DISPATCH_YPATH_SERVICE_METHOD(MaterializeCopyPrerequisites);
+        DISPATCH_YPATH_SERVICE_METHOD(MaterializeNode);
         DISPATCH_YPATH_SERVICE_METHOD(VectorizedRead);
         DISPATCH_YPATH_SERVICE_METHOD(GetOrRegisterTableSchema);
         return TBase::DoInvoke(context);
@@ -463,27 +469,164 @@ private:
         context->Reply();
     }
 
-    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetOrRegisterTableSchema)
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, MaterializeCopyPrerequisites)
     {
         DeclareMutating();
-        context->SetRequestInfo(
-            "Schema: %v, TransactionId: %v",
-            request->schema(),
-            request->transaction_id());
 
-        auto schema = FromProto<NTableClient::TTableSchemaPtr>(request->schema());
+        auto transactionId = NCypressClient::GetTransactionId(context);
 
-        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        // Using (essentially) two for loops here because schema can be quite heavy,
+        // and storing them in a vector is costly.
+        context->SetRequestInfo("TransactionId: %v, SchemaCount: %v, OldSchemaIds: %v",
+            transactionId,
+            request->schema_id_to_schema_mapping_size(),
+            std::views::transform(
+                request->schema_id_to_schema_mapping(),
+                [] (const auto& entry) {
+                    return FromProto<TMasterTableSchemaId>(entry.schema_id());
+                }));
+
+        // Doing this just to offload schema destruction to other thread.
+        std::vector<NTableClient::TTableSchema> processedSchemas;
+        processedSchemas.reserve(request->schema_id_to_schema_mapping_size());
+        auto offloadSchemaDestruction = Finally([&] {
+            NRpc::TDispatcher::Get()->GetHeavyInvoker()
+                ->Invoke(BIND([processedSchemas = std::move(processedSchemas)] { }));
+        });
+
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
 
+        response->mutable_updated_schema_id_mapping()->Reserve(request->schema_id_to_schema_mapping_size());
         const auto& tableManager = Bootstrap_->GetTableManager();
-        auto result = tableManager->GetOrCreateNativeMasterTableSchema(*schema, transaction);
-        ToProto(response->mutable_schema_id(), result->GetId());
+        for (auto entry : request->schema_id_to_schema_mapping()) {
+            auto oldSchemaId = FromProto<TMasterTableSchemaId>(entry.schema_id());
+            // Out of love for paranoia.
+            YT_VERIFY(oldSchemaId);
 
-        context->SetResponseInfo(
-            "SchemaId: %v",
-            result->GetId());
+            auto schema = FromProto<NTableClient::TTableSchema>(entry.schema());
+
+            // NB: schema lifetime is managed by cross-cell copy transaction.
+            auto masterTableSchema = tableManager->GetOrCreateNativeMasterTableSchema(schema, transaction);
+
+            auto* rspEntry = response->add_updated_schema_id_mapping();
+            ToProto(rspEntry->mutable_old_schema_id(), oldSchemaId);
+            ToProto(rspEntry->mutable_new_schema_id(), masterTableSchema->GetId());
+
+            processedSchemas.push_back(std::move(schema));
+        }
+
+        context->SetResponseInfo("SchemaIdMapping: %v",
+            MakeShrunkFormattableView(
+                response->updated_schema_id_mapping(),
+                [] (
+                    TStringBuilderBase* builder,
+                    const auto& entry
+                ) {
+                    auto oldId = FromProto<TMasterTableSchemaId>(entry.old_schema_id());
+                    auto newId = FromProto<TMasterTableSchemaId>(entry.new_schema_id());
+                    builder->AppendFormat("%v -> %v", oldId, newId);
+                },
+                /*limit*/ 100));
+
+        context->Reply();
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, MaterializeNode)
+    {
+        DeclareMutating();
+
+        auto transactionId = NCypressClient::GetTransactionId(context);
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
+
+        const auto& serializedNode = request->serialized_node();
+        auto mode = FromProto<NCypressClient::ENodeCloneMode>(request->mode());
+        auto newAccountId = request->has_new_account_id()
+            ? std::make_optional(FromProto<TAccountId>(request->new_account_id()))
+            : std::nullopt;
+        bool preserveCreationTime = request->preserve_creation_time();
+        bool preserveExpirationTime = request->preserve_expiration_time();
+        bool preserveExpirationTimeout = request->preserve_expiration_timeout();
+        bool preserveOwner = request->preserve_owner();
+        auto pessimisticQuotaCheck = request->pessimistic_quota_check();
+        auto existingNodeId = FromProto<NCypressServer::TNodeId>(request->existing_node_id());
+
+        context->SetRequestInfo(
+            "DataSize: %v, Mode: %v, TransactionId: %v, PreserveAccount: %v, PreserveCreationTime: %v, PreserveExpirationTime: %v, "
+            "PreserveExpirationTimeout: %v, PreserveOwner: %v, PessimisticQuotaCheck: %v, ExistingNodeId: %v",
+            serializedNode.data().size(),
+            mode,
+            transactionId,
+            !newAccountId.has_value(),
+            preserveCreationTime,
+            preserveExpirationTime,
+            preserveExpirationTimeout,
+            preserveOwner,
+            pessimisticQuotaCheck,
+            existingNodeId);
+
+        auto version = request->version();
+        if (version != NCellMaster::GetCurrentReign()) {
+            THROW_ERROR_EXCEPTION("Invalid node metadata format version: expected %v, actual %v",
+                NCellMaster::GetCurrentReign(),
+                version);
+        }
+
+        // Presence of a new account means that user does not want to preserve an old one.
+        TAccount* account = nullptr;
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        if (newAccountId) {
+            account = securityManager->GetAccountOrThrow(*newAccountId);
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->ValidateObjectLifeStage(account);
+        }
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto factory = cypressManager->CreateNodeFactory(
+            /*shard*/ nullptr, // Shard will be set when assembling the tree.
+            transaction,
+            account,
+            NCypressServer::TNodeFactoryOptions{
+                .PreserveAccount = !newAccountId.has_value(),
+                .PreserveCreationTime = preserveCreationTime,
+                .PreserveModificationTime = true, // Modification time will be changed when assembling subtree, if needed.
+                .PreserveExpirationTime = preserveExpirationTime,
+                .PreserveExpirationTimeout = preserveExpirationTimeout,
+                .PreserveOwner = preserveOwner,
+                .PreserveAcl = true, // Same as modification time.
+                .PessimisticQuotaCheck = pessimisticQuotaCheck
+            },
+            /*serviceTrunkNode*/ nullptr,
+            /*unresolvedSuffix*/ {}); // Unused during copy, relevant only for "create".
+
+        NCypressServer::TEndCopyContext copyContext(
+            Bootstrap_,
+            mode,
+            TRef::FromString(serializedNode.data()),
+            FromProto<TMasterTableSchemaId>(serializedNode.schema_id()),
+            existingNodeId);
+
+        auto inheritedAttributes = request->has_inherited_attributes_override()
+            ? FromProto(request->inherited_attributes_override())
+            : New<NCypressServer::TInheritedAttributeDictionary>(Bootstrap_);
+
+        auto* node = factory->EndCopyNode(inheritedAttributes.Get(), &copyContext);
+
+        // TODO(h0pless): When expanding list of inherited attributes re-calculated during copy, some trivial
+        // setter code should be written somewhere here.
+        // Since only chunk_merger_mode is supported right now it's fine to leave it as-is.
+        factory->Commit();
+
+        response->mutable_old_node_id()->CopyFrom(serializedNode.node_id());
+        ToProto(response->mutable_new_node_id(), node->GetId());
+
+        auto oldId = FromProto<NCypressServer::TNodeId>(serializedNode.node_id());
+        context->SetResponseInfo("OldId: %v, NewId: %v, TransactionId: %v, Account: %v",
+            oldId,
+            node->GetId(),
+            transactionId,
+            node->Account()->GetName());
 
         context->Reply();
     }
@@ -593,6 +736,7 @@ private:
         static const int MaxVectorizedReadRequestSize = 100;
         static const THashSet<std::string> VectorizedReadMethodWhitelist = {
             "Get",
+            "SerializeNode",
         };
 
         THROW_ERROR_EXCEPTION_UNLESS(
@@ -605,6 +749,31 @@ private:
                 objectIds.size(),
                 MaxVectorizedReadRequestSize);
         }
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetOrRegisterTableSchema)
+    {
+        DeclareMutating();
+        context->SetRequestInfo(
+            "Schema: %v, TransactionId: %v",
+            request->schema(),
+            request->transaction_id());
+
+        auto schema = FromProto<NTableClient::TTableSchemaPtr>(request->schema());
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
+
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        auto result = tableManager->GetOrCreateNativeMasterTableSchema(*schema, transaction);
+        ToProto(response->mutable_schema_id(), result->GetId());
+
+        context->SetResponseInfo(
+            "SchemaId: %v",
+            result->GetId());
+
+        context->Reply();
     }
 };
 

@@ -181,7 +181,7 @@ public:
         , UnresolvedPathSuffix_(std::move(unresolvedPathSuffix))
     {
         YT_VERIFY(Bootstrap_);
-        YT_VERIFY(Account_);
+        YT_VERIFY(Account_ || options.PreserveAccount);
     }
 
     ~TNodeFactory() override
@@ -198,12 +198,6 @@ public:
             for (auto* node : CreatedNodes_) {
                 transactionManager->StageNode(Transaction_, node);
             }
-        }
-
-        YT_VERIFY(CreatedOpaqueChildren_.empty() || Transaction_);
-
-        for (auto* child : CreatedOpaqueChildren_) {
-            transactionManager->StageNode(Transaction_, child);
         }
 
         const auto& portalManager = Bootstrap_->GetPortalManager();
@@ -632,15 +626,19 @@ public:
         return clonedNode;
     }
 
-    TCypressNode* EndCopyNodeCore(
-        TCypressNode* trunkNode,
-        TEndCopyContext* context,
-        TNodeId sourceNodeId,
-        IAttributeDictionary* inheritedAttributes)
+    TCypressNode* EndCopyNode(
+        IAttributeDictionary* inheritedAttributes,
+        TEndCopyContext* context) override
     {
+        // See BeginCopyCore.
+        using NYT::Load;
+        auto sourceNodeId = Load<TNodeId>(*context);
+
         const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* clonedTrunkNode = cypressManager->EndCopyNode(context, this, sourceNodeId);
+
         auto* clonedNode = cypressManager->LockNode(
-            trunkNode,
+            clonedTrunkNode,
             Transaction_,
             ELockMode::Exclusive,
             false,
@@ -664,8 +662,8 @@ public:
             }
 
             TMasterTableSchemaId schemaId;
-            if (IsTableType(trunkNode->GetType())) {
-                auto* table = trunkNode->As<TTableNode>();
+            if (IsTableType(clonedTrunkNode->GetType())) {
+                auto* table = clonedTrunkNode->As<TTableNode>();
                 auto* schema = table->GetSchema();
                 schemaId = schema->GetId();
             }
@@ -687,49 +685,6 @@ public:
         return clonedNode;
     }
 
-    TCypressNode* EndCopyNode(
-        IAttributeDictionary* inheritedAttributes,
-        TEndCopyContext* context) override
-    {
-        // See BeginCopyCore.
-        using NYT::Load;
-        auto sourceNodeId = Load<TNodeId>(*context);
-
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* clonedTrunkNode = cypressManager->EndCopyNode(context, this, sourceNodeId, inheritedAttributes);
-
-        if (context->IsOpaqueChild()) {
-            if (!Transaction_) {
-                const auto& objectManager = Bootstrap_->GetObjectManager();
-                const auto& handler = objectManager->GetHandler(clonedTrunkNode);
-                handler->ZombifyObject(clonedTrunkNode);
-                handler->DestroyObject(clonedTrunkNode);
-
-                THROW_ERROR_EXCEPTION("Opaque child cannot be created without transaction");
-            }
-
-            RegisterCreatedOpaqueChild(clonedTrunkNode);
-            return clonedTrunkNode;
-        }
-
-        return EndCopyNodeCore(clonedTrunkNode, context, sourceNodeId, inheritedAttributes);
-    }
-
-    TCypressNode* EndCopyNodeInplace(
-        TCypressNode* trunkNode,
-        IAttributeDictionary* inheritedAttributes,
-        TEndCopyContext* context) override
-    {
-        // See BeginCopyCore.
-        using NYT::Load;
-        auto sourceNodeId = Load<TNodeId>(*context);
-
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->EndCopyNodeInplace(trunkNode, context, this, sourceNodeId, inheritedAttributes);
-
-        return EndCopyNodeCore(trunkNode, context, sourceNodeId, inheritedAttributes);
-    }
-
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
     TCypressShard* const Shard_;
@@ -740,7 +695,6 @@ private:
     const TYPath UnresolvedPathSuffix_;
 
     std::vector<TCypressNode*> CreatedNodes_;
-    std::vector<TCypressNode*> CreatedOpaqueChildren_;
     std::vector<TObject*> StagedObjects_;
 
     struct TCreatedPortalEntrance
@@ -790,13 +744,6 @@ private:
         YT_ASSERT(trunkNode->IsTrunk());
         StageNode(trunkNode);
         CreatedNodes_.push_back(trunkNode);
-    }
-
-    void RegisterCreatedOpaqueChild(TCypressNode* opaqueChild)
-    {
-        YT_ASSERT(opaqueChild->IsTrunk());
-        StageNode(opaqueChild);
-        CreatedOpaqueChildren_.push_back(opaqueChild);
     }
 
     template <class T>
@@ -1490,51 +1437,28 @@ public:
     TCypressNode* EndCopyNode(
         TEndCopyContext* context,
         ICypressNodeFactory* factory,
-        TNodeId sourceNodeId,
-        IAttributeDictionary* inheritedAttributes) override
+        TNodeId sourceNodeId) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(context);
         YT_VERIFY(factory);
-        YT_VERIFY(inheritedAttributes);
 
         // See BeginCopyCore.
         auto type = Load<EObjectType>(*context);
         ValidateCreatedNodeTypePermission(type);
 
-        const auto& handler = GetHandler(type);
-        return handler->EndCopy(context, factory, sourceNodeId, inheritedAttributes);
-    }
-
-    void EndCopyNodeInplace(
-        TCypressNode* trunkNode,
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        TNodeId sourceNodeId,
-        IAttributeDictionary* inheritedAttributes) override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(context);
-        YT_VERIFY(factory);
-        YT_VERIFY(inheritedAttributes);
-        YT_VERIFY(trunkNode->IsTrunk());
-
-        // See BeginCopyCore.
-        auto type = Load<EObjectType>(*context);
-        if (type != trunkNode->GetType() &&
-           !(type == EObjectType::MapNode && trunkNode->GetType() == EObjectType::PortalExit))
-        {
-            THROW_ERROR_EXCEPTION("Cannot inplace copy node %v of type %Qlv to node %v of type %Qlv",
+        auto externalCellTag = Load<TCellTag>(*context);
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (externalCellTag == multicellManager->GetCellTag()) {
+            THROW_ERROR_EXCEPTION("Cannot copy node %v to cell %v since the latter is its external cell",
                 sourceNodeId,
-                type,
-                trunkNode->GetId(),
-                trunkNode->GetType());
+                externalCellTag);
         }
+        context->SetExternalCellTag(externalCellTag);
 
         const auto& handler = GetHandler(type);
-        return handler->EndCopyInplace(trunkNode, context, factory, sourceNodeId, inheritedAttributes);
+        return handler->EndCopy(context, factory);
     }
-
 
     TCypressMapNode* GetRootNode() const override
     {

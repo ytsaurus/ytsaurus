@@ -136,16 +136,13 @@ private:
         using NYT::Save;
         auto exitId = MakePortalExitNodeId(node->GetId(), node->GetExitCellTag());
         Save(*context, exitId);
-        context->RegisterPortalRoot(exitId);
     }
 
     void DoEndCopy(
         TPortalEntranceNode* trunkNode,
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        IAttributeDictionary* inheritedAttributes) override
+        TEndCopyContext* context) override
     {
-        TBase::DoEndCopy(trunkNode, context, factory, inheritedAttributes);
+        TBase::DoEndCopy(trunkNode, context);
 
         // TODO(babenko): cross-cell copying of portals
         THROW_ERROR_EXCEPTION("Cross-cell copying of portals is not supported");

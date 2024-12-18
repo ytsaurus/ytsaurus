@@ -83,22 +83,52 @@ message TRspCopy
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// COMPAT(h0pless): Remove when BeginCopy uses newer format.
-message TSerializedTree
+message TReqLockCopyDestination
 {
-    required int32 version = 1;
-    required bytes data = 2;
-    optional int32 codec_id = 3; // ECodec
+    required bool force = 1 [default = false];
+    required bool ignore_existing = 2 [default = false];
+    required bool lock_existing = 3 [default = false];
+    required bool inplace = 4 [default = false];
+    required bool preserve_acl = 5 [default = false];
 }
 
-// COMPAT(h0pless): Remove when BeginCopy uses newer format.
-message TRegisteredSchema
+message TRspLockCopyDestination
 {
-    required int32 key = 1; // TEntitySerializationKey
-    required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
+    required uint32 native_cell_tag = 1;
+    optional NYT.NProto.TGuid account_id = 2;
+    optional NYT.NYTree.NProto.TAttributeDictionary effective_inheritable_attributes = 3;
+    optional NYT.NProto.TGuid existing_node_id = 4;
 }
 
-message TReqBeginCopy
+////////////////////////////////////////////////////////////////////////////////
+
+message TNodeIdToChildren
+{
+    message TChildInfo
+    {
+        required NYT.NProto.TGuid id = 1;
+        required string key = 2;
+    }
+
+    required NYT.NProto.TGuid node_id = 1;
+    repeated TChildInfo children = 2;
+}
+
+message TReqLockCopySource
+{
+    required int32 mode = 1; // ENodeCloneMode
+}
+
+message TRspLockCopySource
+{
+    required int32 version = 1; // EMasterReign
+    required NYT.NProto.TGuid root_node_id = 2;
+    repeated TNodeIdToChildren node_id_to_children = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSerializeNode
 {
     required int32 mode = 1; // ENodeCloneMode
 }
@@ -107,10 +137,81 @@ message TSerializedNode
 {
     required NYT.NProto.TGuid node_id = 1;
     required bytes data = 2;
+
     // Needed to decide where this node in particular can be copied to.
     optional uint32 external_cell_tag = 3;
+    optional NYT.NProto.TGuid schema_id = 4;
 }
 
+message TRspSerializeNode
+{
+    required TSerializedNode serialized_node = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCalculateInheritedAttributes
+{
+    required NYT.NYTree.NProto.TAttributeDictionary dst_attributes = 1;
+}
+
+message TRspCalculateInheritedAttributes
+{
+    message TNodeToAttributeDelta
+    {
+        required NYT.NProto.TGuid node_id = 1;
+        required NYT.NYTree.NProto.TAttributeDictionary attributes = 2;
+    }
+
+    repeated TNodeToAttributeDelta node_to_attribute_deltas = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAssembleTreeCopy
+{
+    required NYT.NProto.TGuid root_node_id = 1;
+    repeated TNodeIdToChildren node_id_to_children = 2;
+    required bool inplace = 3;
+
+    optional bool preserve_modification_time = 4 [default = false];
+    optional bool preserve_acl = 5 [default = false];
+    optional bool recursive = 6 [default = false];
+    optional bool force = 7 [default = false];
+    optional bool ignore_existing = 8 [default = false];
+    optional bool lock_existing = 9 [default = false];
+    optional bool pessimistic_quota_check = 10 [default = true];
+}
+
+message TRspAssembleTreeCopy
+{
+    required NYT.NProto.TGuid node_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy. Remove after migration to new cross-cell copy is live.
+message TSerializedTree
+{
+    required int32 version = 1;
+    required bytes data = 2;
+    optional int32 codec_id = 3; // ECodec
+}
+
+// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy. Remove after migration to new cross-cell copy is live.
+message TRegisteredSchema
+{
+    required int32 key = 1; // TEntitySerializationKey
+    required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
+}
+
+// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy. Remove after migration to new cross-cell copy is live.
+message TReqBeginCopy
+{
+    required int32 mode = 1; // ENodeCloneMode
+}
+
+// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy. Remove after migration to new cross-cell copy is live.
 message TRspBeginCopy
 {
     required int32 version = 7; // EMasterReign
@@ -132,6 +233,7 @@ message TRspBeginCopy
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy. Remove after migration to new cross-cell copy is live.
 // Cf. TReqCopy.
 message TReqEndCopy
 {
@@ -162,11 +264,11 @@ message TReqEndCopy
     repeated TSchemaIdToSchemaMapping schema_id_to_schema = 20;
     required int32 version = 21; // EMasterReign
 
-    // COMPAT(h0pless): Remove when BeginCopy uses newer format.
     required TSerializedTree serialized_tree = 10;
     repeated TRegisteredSchema schemas = 17;
 }
 
+// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy. Remove after migration to new cross-cell copy is live.
 message TRspEndCopy
 {
     required NYT.NProto.TGuid node_id = 1;

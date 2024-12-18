@@ -1,6 +1,6 @@
 #pragma once
 
-#include "type_handler.h"
+#include "cypress_manager.h"
 #include "node.h"
 #include "private.h"
 
@@ -21,6 +21,8 @@
 #include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
 
 #include <yt/yt/server/lib/tablet_node/public.h>
+
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
@@ -70,21 +72,10 @@ protected:
 
     void DestroyCorePrologue(TCypressNode* node);
 
-    bool BeginCopyCore(
+    void BeginCopyCore(
         TCypressNode* node,
         TBeginCopyContext* context);
     TCypressNode* EndCopyCore(
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        TNodeId sourceNodeId,
-        bool* needCustomEndCopy);
-    void EndCopyInplaceCore(
-        TCypressNode* trunkNode,
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        TNodeId sourceNodeId);
-    bool LoadInplace(
-        TCypressNode* trunkNode,
         TEndCopyContext* context,
         ICypressNodeFactory* factory);
 
@@ -227,36 +218,18 @@ public:
         TCypressNode* node,
         TBeginCopyContext* context) override
     {
-        if (BeginCopyCore(node, context)) {
-            DoBeginCopy(node->As<TImpl>(), context);
-        }
+        BeginCopyCore(node, context);
+        DoBeginCopy(node->As<TImpl>(), context);
     }
 
     TCypressNode* EndCopy(
         TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        TNodeId sourceNodeId,
-        NYTree::IAttributeDictionary* inheritedAttributes) override
+        ICypressNodeFactory* factory) override
     {
-        bool needCustomEndCopy;
-        auto* trunkNode = EndCopyCore(context, factory, sourceNodeId, &needCustomEndCopy);
-
-        if (needCustomEndCopy) {
-            DoEndCopy(trunkNode->template As<TImpl>(), context, factory, inheritedAttributes);
-        }
+        auto* trunkNode = EndCopyCore(context, factory);
+        DoEndCopy(trunkNode->template As<TImpl>(), context);
 
         return trunkNode;
-    }
-
-    void EndCopyInplace(
-        TCypressNode* trunkNode,
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        TNodeId sourceNodeId,
-        NYTree::IAttributeDictionary* inheritedAttributes) override
-    {
-        EndCopyInplaceCore(trunkNode, context, factory, sourceNodeId);
-        DoEndCopy(trunkNode->template As<TImpl>(), context, factory, inheritedAttributes);
     }
 
     std::unique_ptr<TCypressNode> Branch(
@@ -416,9 +389,7 @@ protected:
 
     virtual void DoEndCopy(
         TImpl* /*trunkNode*/,
-        TEndCopyContext* /*context*/,
-        ICypressNodeFactory* /*factory*/,
-        NYTree::IAttributeDictionary* /*inheritedAttributes*/)
+        TEndCopyContext* /*context*/)
     { }
 
     virtual void DoBranch(
@@ -647,11 +618,9 @@ protected:
 
     void DoEndCopy(
         TScalarNode<TValue>* trunkNode,
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        NYTree::IAttributeDictionary* inheritedAttributes) override
+        TEndCopyContext* context) override
     {
-        TBase::DoEndCopy(trunkNode, context, factory, inheritedAttributes);
+        TBase::DoEndCopy(trunkNode, context);
 
         using NYT::Load;
         Load(*context, trunkNode->Value());
@@ -702,6 +671,11 @@ DEFINE_ENUM(ENodeMaterializationReason,
 #define FOR_EACH_INHERITABLE_DURING_COPY_ATTRIBUTE(process) \
     process(ChunkMergerMode, chunk_merger_mode)
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TInheritedAttributeDictionary;
+using TConstInheritedAttributeDictionaryPtr = TIntrusivePtr<const TInheritedAttributeDictionary>;
+
 class TCompositeNodeBase
     : public TCypressNode
 {
@@ -741,7 +715,10 @@ private:
         TVersionedBuiltinAttribute<NChunkClient::EChunkMergerMode> ChunkMergerMode;
 
         void Persist(const NCellMaster::TPersistenceContext& context) requires (!Transient);
-        void Persist(const NCypressServer::TCopyPersistenceContext& context) requires (!Transient);
+
+        // NB: on source cell attributes are serialized as transient to avoid references.
+        // On destination cell attributes are changed to persistent using ToPersist method.
+        void Persist(const NCypressServer::TCopyPersistenceContext& context) requires Transient;
 
         // Are all attributes not null?
         bool AreFull() const;
@@ -759,9 +736,17 @@ public:
     using TTransientAttributes = TAttributes</*Transient*/ true>;
     using TPersistentAttributes = TAttributes</*Transient*/ false>;
 
+    virtual bool CompareInheritableAttributes(
+        const TTransientAttributes& attributes,
+        ENodeMaterializationReason reason = ENodeMaterializationReason::Create) const;
+
+    virtual TConstInheritedAttributeDictionaryPtr MaybePatchInheritableAttributes(
+        const TConstInheritedAttributeDictionaryPtr& attributes,
+        ENodeMaterializationReason reason = ENodeMaterializationReason::Create) const;
+
     virtual void FillInheritableAttributes(
         TTransientAttributes* attributes,
-        ENodeMaterializationReason mode = ENodeMaterializationReason::Create) const;
+        ENodeMaterializationReason reason = ENodeMaterializationReason::Create) const;
 
 #define XX(camelCaseName, snakeCaseName) \
 public: \
@@ -793,11 +778,42 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A set of inheritable attributes represented as an attribute dictionary.
+//! If a setter for a non-inheritable attribute is called, falls back to an ephemeral dictionary.
+class TInheritedAttributeDictionary
+    : public NYTree::IAttributeDictionary
+{
+public:
+    explicit TInheritedAttributeDictionary(NCellMaster::TBootstrap* bootstrap);
+
+    explicit TInheritedAttributeDictionary(const TConstInheritedAttributeDictionaryPtr& other);
+
+    explicit TInheritedAttributeDictionary(
+        const NCellMaster::TBootstrap* bootstrap,
+        NYTree::IAttributeDictionaryPtr&& attributes);
+
+    std::vector<TString> ListKeys() const override;
+    std::vector<TKeyValuePair> ListPairs() const override;
+    NYson::TYsonString FindYson(TStringBuf key) const override;
+    void SetYson(const TString& key, const NYson::TYsonString& value) override;
+    bool Remove(const TString& key) override;
+
+    TCompositeNodeBase::TTransientAttributes& MutableAttributes();
+    const TCompositeNodeBase::TTransientAttributes& Attributes() const;
+
+private:
+    const NCellMaster::TBootstrap* Bootstrap_;
+    TCompositeNodeBase::TTransientAttributes InheritedAttributes_;
+    NYTree::IAttributeDictionaryPtr Fallback_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Traverse all ancestors and collect inheritable attributes.
 void GatherInheritableAttributes(
     const TCypressNode* node,
     TCompositeNodeBase::TTransientAttributes* attributes,
-    ENodeMaterializationReason mode = ENodeMaterializationReason::Create);
+    ENodeMaterializationReason reason = ENodeMaterializationReason::Create);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -836,9 +852,7 @@ protected:
         TBeginCopyContext* context) override;
     void DoEndCopy(
         TImpl* trunkNode,
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        NYTree::IAttributeDictionary* inheritedAttributes) override;
+        TEndCopyContext* context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1001,9 +1015,7 @@ protected:
         TBeginCopyContext* context) override;
     void DoEndCopy(
         TImpl* trunkNode,
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        NYTree::IAttributeDictionary* inheritedAttributes) override;
+        TEndCopyContext* context) override;
 };
 
 using TCypressMapNodeTypeHandler = TCypressMapNodeTypeHandlerImpl<TCypressMapNode>;
@@ -1057,9 +1069,7 @@ protected:
         TBeginCopyContext* context) override;
     void DoEndCopy(
         TImpl* trunkNode,
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        NYTree::IAttributeDictionary* inheritedAttributes) override;
+        TEndCopyContext* context) override;
 };
 
 using TSequoiaMapNodeTypeHandler = TSequoiaMapNodeTypeHandlerImpl<TSequoiaMapNode>;
@@ -1140,9 +1150,7 @@ private:
         TBeginCopyContext* context) override;
     void DoEndCopy(
         TListNode* trunkNode,
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        NYTree::IAttributeDictionary* inheritedAttributes) override;
+        TEndCopyContext* context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
