@@ -34,6 +34,7 @@ using NTableClient::TRowBatchReadOptions;
 using NTableClient::CreateEmptyVersionedRowBatch;
 
 using NTableClient::TTableSchemaPtr;
+using NTableClient::TTableSchema;
 
 using NTableClient::TChunkColumnMapping;
 using NTableClient::TChunkColumnMappingPtr;
@@ -60,7 +61,8 @@ TCompactVector<EValueType, 16> GetKeyTypes(const TTableSchemaPtr& tableSchema)
 }
 
 TCompactVector<TValueSchema, 32> GetValuesSchema(
-    const TTableSchemaPtr& tableSchema,
+    const TTableSchema& tableSchema,
+    const TTableSchema& chunkSchema,
     TRange<TColumnIdMapping> valueIdMapping)
 {
     TCompactVector<TValueSchema, 32> valueSchema;
@@ -68,13 +70,14 @@ TCompactVector<TValueSchema, 32> GetValuesSchema(
     // Use raw data pointer because TCompactVector has branch in index operator.
     auto* valueSchemaData = valueSchema.data();
 
-    const auto& schemaColumns = tableSchema->Columns();
+    const auto& schemaColumns = tableSchema.Columns();
     for (const auto& idMapping : valueIdMapping) {
         auto type = schemaColumns[idMapping.ReaderSchemaIndex].GetWireType();
         *valueSchemaData++ = TValueSchema{
             ui16(idMapping.ReaderSchemaIndex),
             type,
-            schemaColumns[idMapping.ReaderSchemaIndex].Aggregate().has_value()};
+            chunkSchema.Columns()[idMapping.ChunkSchemaIndex].Aggregate().has_value(),
+        };
     }
 
     return valueSchema;
@@ -709,7 +712,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     readerStatistics->CreateColumnBlockHoldersTime = getDurationAndReset();
 
     auto keyTypes = GetKeyTypes(tableSchema);
-    auto valueSchema = GetValuesSchema(tableSchema, valuesIdMapping);
+    auto valueSchema = GetValuesSchema(*tableSchema, *chunkSchema, valuesIdMapping);
     readerStatistics->GetTypesFromSchemaTime = getDurationAndReset();
 
     TCompactVector<TColumnBase, 32> columnInfos;
