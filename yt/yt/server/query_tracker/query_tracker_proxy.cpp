@@ -191,13 +191,16 @@ ESecurityAction CheckAccessControl(
         return NSecurityClient::ESecurityAction::Deny;
     }
 
+    TCheckPermissionOptions checkPermissionOptions;
+    checkPermissionOptions.ReadFrom = EMasterChannelKind::Cache;
+    checkPermissionOptions.SuccessStalenessBound = TDuration::Minutes(1);
     for (const auto& accessControlObject: *accessControlObjectList) {
         auto path = Format(
             "%v/%v/principal",
             QueriesAcoNamespacePath,
             NYPath::ToYPathLiteral(accessControlObject));
 
-        auto securityAction = WaitFor(client->CheckPermission(user, path, permission))
+        auto securityAction = WaitFor(client->CheckPermission(user, path, permission, checkPermissionOptions))
             .ValueOrThrow()
             .Action;
 
@@ -363,9 +366,13 @@ std::vector<TString> GetAcosForSubjects(const THashSet<TString>& subjects, bool 
 
 void VerifyAllAccessControlObjectsExist(const std::vector<TString>& accessControlObjects, const IClientPtr& client)
 {
+    TNodeExistsOptions nodeExistsOptions;
+    nodeExistsOptions.ReadFrom = EMasterChannelKind::Cache;
+    nodeExistsOptions.SuccessStalenessBound = TDuration::Minutes(1);
+
     std::vector<TFuture<bool>> futures;
     for (const auto& accessControlObject : accessControlObjects) {
-        futures.push_back(client->NodeExists(Format("%v/%v", QueriesAcoNamespacePath, ToYPathLiteral(accessControlObject)))
+        futures.push_back(client->NodeExists(Format("%v/%v", QueriesAcoNamespacePath, ToYPathLiteral(accessControlObject)), nodeExistsOptions)
             .Apply(BIND([accessControlObject] (const TErrorOr<bool>& rspOrError) {
                 if (!rspOrError.IsOK()) {
                     THROW_ERROR_EXCEPTION("Failed to check whether access control object %Qv exists", accessControlObject)
