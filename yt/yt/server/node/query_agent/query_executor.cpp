@@ -106,18 +106,22 @@ TRange<TRow> GetSampleKeys(const NTabletNode::TPartitionSnapshotPtr& shard)
     return shard->SampleKeys->Keys;
 }
 
-std::pair<std::vector<TKeyRef>, std::vector<int>> GetSampleKeysForPrefix(TRange<TLegacyKey> keys, int prefixSize)
+std::pair<std::vector<TKeyRef>, std::vector<int>> GetSampleKeysForPrefix(TRange<TLegacyKey> keys, int prefixSize, TLegacyKey startKey)
 {
     std::vector<TKeyRef> samplePrefixes;
     std::vector<int> weights;
     weights.push_back(1);
 
+    // Filter out prefixes outside partition's pivot keys.
+    auto previousKey = ToKeyRef(startKey, std::min<int>(startKey.GetCount(), prefixSize));
+
     for (auto key : keys) {
         auto current = ToKeyRef(key, prefixSize);
 
-        if (samplePrefixes.empty() || CompareValueRanges(samplePrefixes.back(), current) != 0) {
+        if (CompareValueRanges(previousKey, current) != 0) {
             samplePrefixes.push_back(current);
             weights.push_back(1);
+            previousKey = current;
         } else {
             ++weights.back();
         }
@@ -1345,7 +1349,10 @@ private:
                     auto maxKeyWidth = paritionSampleKeys.Empty() ? keyWidth : paritionSampleKeys.Front().GetCount();
 
                     auto optimalKeyWidth = ExponentialSearch(keyWidth, maxKeyWidth, [&] (size_t keyWidth) {
-                        std::tie(sampleKeyPrefixes, weights) = GetSampleKeysForPrefix(paritionSampleKeys, keyWidth);
+                        std::tie(sampleKeyPrefixes, weights) = GetSampleKeysForPrefix(
+                            paritionSampleKeys,
+                            keyWidth,
+                            (*partitionIt)->PivotKey);
 
                         int maxWeight = 0;
                         for (auto weight : weights) {
@@ -1364,7 +1371,10 @@ private:
                         return maxWeight * maxWeight > std::ssize(paritionSampleKeys);
                     });
 
-                    std::tie(sampleKeyPrefixes, weights) = GetSampleKeysForPrefix(paritionSampleKeys, optimalKeyWidth);
+                    std::tie(sampleKeyPrefixes, weights) = GetSampleKeysForPrefix(
+                        paritionSampleKeys,
+                        optimalKeyWidth,
+                        (*partitionIt)->PivotKey);
 
                     if (QueryOptions_.VerboseLogging) {
                         YT_LOG_DEBUG("Prepared sample key prefixes (KeyWidth: %v, OptimalKeyWidth: %v)", keyWidth, optimalKeyWidth);
