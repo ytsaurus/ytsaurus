@@ -125,9 +125,10 @@ private:
         YT_LOG_DEBUG("System call \"madvise\" failed: %v", strerror(errno));
         switch (errno) {
             case ENOMEM:
+            case EPERM:
                 if (adjustedBufferSize / 2 >= PageSize_) {
                     // Immediately make an attempt to reclaim half as much.
-                    adjustedBufferSize = adjustedBufferSize / 2;
+                    adjustedBufferSize = 0.9 * adjustedBufferSize;
                 } else {
                     // Unless there is not even a single reclaimable page.
                     Sleep(Options_.Period);
