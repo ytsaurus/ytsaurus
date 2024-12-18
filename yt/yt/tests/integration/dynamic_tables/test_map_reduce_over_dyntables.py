@@ -619,7 +619,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
         sync_mount_table(input)
 
         def check_all_operations(checker, only_input_query=False):
-            checker(map, command="cat")
+            checker(map, command="cat", mode="ordered")
             checker(merge, mode="ordered")
             if not only_input_query:
                 checker(reduce, reduce_by="k", command="cat")
