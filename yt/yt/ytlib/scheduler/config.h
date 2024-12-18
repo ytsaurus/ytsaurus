@@ -1208,6 +1208,9 @@ public:
     //! starting with "YT_" such as "YT_JOB_ID"
     bool IgnoreYTVariablesInShellEnvironment;
 
+    //! If |false|, scheduler will ignore offloading settings defined for ancestor pools.
+    bool AllowOffloading;
+
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
     static void Register(TRegistrar registrar);
