@@ -200,7 +200,7 @@ TSharedRef TBlobChunkBase::WrapBlockWithDelayedReferenceHolder(TSharedRef rawRef
 
 void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_INVOKER_AFFINITY(session->Invoker);
 
     if (session->Finished.exchange(true)) {
         return;
@@ -236,7 +236,7 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
 
 void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const TError& error)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_INVOKER_AFFINITY(session->Invoker);
 
     if (session->Finished.exchange(true)) {
         return;
@@ -436,13 +436,13 @@ void TBlobChunkBase::OnBlocksExtLoaded(
             } else {
                 FailSession(session, error);
             }
-        }));
+        }).Via(session->Invoker));
 
     session->SessionPromise.OnCanceled(BIND([session] (const TError& error) {
         FailSession(
             session,
             TError(NYT::EErrorCode::Canceled, "Session canceled") << error);
-    }));
+    }).Via(session->Invoker));
 }
 
 void TBlobChunkBase::DoReadSession(
@@ -663,14 +663,18 @@ void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
         additionalMemory += entry.EndOffset - entry.BeginOffset;
     }
 
-    session->LocationMemoryGuard.IncreaseSize(additionalMemory);
+    if (session->LocationMemoryGuard) {
+        session->LocationMemoryGuard.IncreaseSize(additionalMemory);
+    }
 
-    auto pendingIOGuardNewSize = session->PendingIOGuard.GetSize() + additionalMemory;
-    session->PendingIOGuard = Location_->AcquirePendingIO(
-        TMemoryUsageTrackerGuard::Acquire(Location_->GetReadMemoryTracker(), pendingIOGuardNewSize),
-        EIODirection::Read,
-        session->Options.WorkloadDescriptor,
-        pendingIOGuardNewSize);
+    if (session->PendingIOGuard) {
+        auto pendingIOGuardNewSize = session->PendingIOGuard.GetSize() + additionalMemory;
+        session->PendingIOGuard = Location_->AcquirePendingIO(
+            TMemoryUsageTrackerGuard::Acquire(Location_->GetReadMemoryTracker(), pendingIOGuardNewSize),
+            EIODirection::Read,
+            session->Options.WorkloadDescriptor,
+            pendingIOGuardNewSize);
+    }
 
     YT_LOG_DEBUG(
         "Started reading blob chunk blocks (BlockIds: %v:%v-%v, "
@@ -767,8 +771,7 @@ void TBlobChunkBase::OnBlocksRead(
     i64 usefulBlockSize = 0;
     int usefulBlockCount = 0;
 
-    for (int entryIndex = beginEntryIndex; entryIndex < endEntryIndex; ++entryIndex) {
-        auto& entry = session->Entries[entryIndex];
+    auto takeBlock = [&] (auto& entry) {
         if (!entry.Cached) {
             auto relativeBlockIndex = entry.BlockIndex - firstBlockIndex;
             auto block = blocks[relativeBlockIndex];
@@ -783,21 +786,15 @@ void TBlobChunkBase::OnBlocksRead(
                 entry.Cookie->SetBlock(TCachedBlock(std::move(block)));
             }
         }
+    };
+
+    for (int entryIndex = beginEntryIndex; entryIndex < endEntryIndex; ++entryIndex) {
+        auto& entry = session->Entries[entryIndex];
+        takeBlock(entry);
     }
 
     for (auto& [blockIndex, entry] : blockIndexToEntry) {
-        if (!entry.Cached) {
-            auto relativeBlockIndex = entry.BlockIndex - firstBlockIndex;
-            auto block = blocks[relativeBlockIndex];
-
-            YT_VERIFY(entry.Block);
-
-            ++usefulBlockCount;
-            usefulBlockSize += block.Size();
-            if (entry.Cookie) {
-                entry.Cookie->SetBlock(TCachedBlock(std::move(block)));
-            }
-        }
+        takeBlock(entry);
     }
 
     auto populateCacheTime = populateCacheTimer.GetElapsedTime();
@@ -916,8 +913,12 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
 
     // Check for fast path.
     if (allCached || !options.FetchFromDisk) {
-        CompleteSession(session);
-        return session->SessionPromise.ToFuture();
+        return BIND([=, this, this_ = MakeStrong(this)] (const TReadBlockSetSessionPtr session) {
+            CompleteSession(session);
+            return session->SessionPromise.ToFuture();
+        })
+            .AsyncVia(session->Invoker)
+            .Run(session);
     }
 
     // Need blocks ext.
@@ -950,7 +951,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
                 } else {
                     FailSession(session, cachedBlocksExtOrError);
                 }
-            }));
+            }).Via(session->Invoker));
     }
 
     return session->SessionPromise.ToFuture();
