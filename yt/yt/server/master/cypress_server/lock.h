@@ -149,7 +149,7 @@ struct TCypressNodeLockingState
     static const TCypressNodeLockingState Empty;
 };
 
-static_assert(sizeof(TCypressNodeLockingState) == 144, "Think twice before increasing this size");
+YT_STATIC_ASSERT_SIZEOF_SANITY(TCypressNodeLockingState, 144);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -193,7 +193,7 @@ public:
     void Load(NCellMaster::TLoadContext& context);
 };
 
-static_assert(sizeof(TLock) == 216, "Think twice before increasing this size");
+YT_STATIC_ASSERT_SIZEOF_SANITY(TLock, 216);
 
 ////////////////////////////////////////////////////////////////////////////////
 
