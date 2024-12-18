@@ -305,7 +305,10 @@ void TBootstrap::OnDynamicConfigChanged(
     if (QueryTracker_) {
         QueryTracker_->Reconfigure(newConfig->QueryTracker);
     }
-    ComponentStateChecker_->SetPeriod(newConfig->QueryTracker->StateCheckPeriod);
+
+    if (ComponentStateChecker_) {
+        ComponentStateChecker_->SetPeriod(newConfig->QueryTracker->StateCheckPeriod);
+    }
 
     if (QueryTrackerProxy_) {
         QueryTrackerProxy_->Reconfigure(newConfig->QueryTracker->ProxyConfig);
