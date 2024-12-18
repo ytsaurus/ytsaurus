@@ -357,7 +357,7 @@ private:
         auto* sourceNode = cypressManager->FindNode(TVersionedNodeId(sourceNodeId));
         auto* destinationNode = cypressManager->FindNode(TVersionedNodeId(destinationNodeId));
         if (!sourceNode || !destinationNode) {
-            YT_LOG_INFO("Failed to copy synchronizable portal attributes; %v node does not exist"
+            YT_LOG_INFO("Failed to copy synchronizable portal attributes; %v node does not exist "
                 "(TransactionId: %v, SourceNodeId: %v, DestinationNodeId: %v)",
                 sourceNode ? "destination" : "source",
                 transaction->GetId(),

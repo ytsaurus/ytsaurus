@@ -911,7 +911,7 @@ private:
         auto* replicationCard = FindReplicationCard(replicationCardId);
 
         if (!replicationCard) {
-            YT_LOG_ALERT("Trying to remove emigrated replication card but it does not exist"
+            YT_LOG_ALERT("Trying to remove emigrated replication card but it does not exist "
                 "(ReplicationCardId: %v)",
                 replicationCardId);
             return;
@@ -1307,7 +1307,7 @@ private:
             }
 
             if (auto it = replicationCard->Coordinators().find(coordinatorCellId); !it || it->second.State != EShortcutState::Granting) {
-                YT_LOG_WARNING("Got grant shortcut response but shortcut is not waiting for it"
+                YT_LOG_WARNING("Got grant shortcut response but shortcut is not waiting for it "
                     "(ReplicationCardId: %v, Era: %v, CoordinatorCellId: %v, ShortcutState: %v)",
                     replicationCardId,
                     era,
@@ -1360,7 +1360,7 @@ private:
             }
 
             if (auto it = replicationCard->Coordinators().find(coordinatorCellId); it && it->second.State != EShortcutState::Revoking) {
-                YT_LOG_WARNING("Got revoke shortcut response but shortcut is not waiting for it"
+                YT_LOG_WARNING("Got revoke shortcut response but shortcut is not waiting for it "
                     "(ReplicationCardId: %v, Era: %v CoordinatorCellId: %v, ShortcutState: %v)",
                     replicationCard->GetId(),
                     replicationCard->GetEra(),
