@@ -421,7 +421,7 @@ public:
             .ValueOrThrow();
 
         AppendUdfDescriptors(typeInferrers, ExternalCGInfo_, externalNames, descriptors);
-    };
+    }
 
     TExternalCGInfoPtr GetExternalCGInfo() const
     {
@@ -1456,7 +1456,7 @@ TDuration TClient::CheckPermissionsForQuery(
             .Object = FromObjectId(id),
             .User = Options_.GetAuthenticatedUser(),
             .Permission = EPermission::Read,
-            .Columns = std::move(columns)
+            .Columns = std::move(columns),
         });
     };
     addTableForPermissionCheck(dataSource.ObjectId, query->Schema);
