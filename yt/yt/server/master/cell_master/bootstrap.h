@@ -174,15 +174,11 @@ public:
 
     void Initialize();
     void Run();
-    void LoadSnapshotOrThrow(
-        const TString& fileName,
-        bool dump);
 
-    void ReplayChangelogsOrThrow(std::vector<TString> changelogFileNames);
-
-    void BuildSnapshotOrThrow();
-
-    void FinishDryRunOrThrow();
+    void LoadSnapshot(const TString& fileName, bool dump);
+    void ReplayChangelogs(std::vector<TString> changelogFileNames);
+    void BuildSnapshot();
+    void FinishDryRun();
 
 protected:
     const TCellMasterConfigPtr Config_;

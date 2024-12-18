@@ -22,7 +22,9 @@ public:
     TLogTailerProgram()
         : TProgramConfigMixin(Opts_, false)
     {
-        Opts_.AddLongOption("monitoring-port", "ytserver monitoring port")
+        Opts_.AddLongOption(
+            "monitoring-port",
+            "Server monitoring port")
             .DefaultValue(10242)
             .StoreResult(&MonitoringPort_);
         Opts_.SetFreeArgsMin(0);

@@ -273,8 +273,6 @@ public:
             .Run()
             .Get()
             .ThrowOnError();
-
-        Sleep(TDuration::Max());
     }
 
     const IMasterConnectorPtr& GetMasterConnector() const override

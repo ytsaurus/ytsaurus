@@ -108,7 +108,6 @@ public:
             .Run()
             .Get()
             .ThrowOnError();
-        Sleep(TDuration::Max());
     }
 
     const TCypressProxyConfigPtr& GetConfig() const override

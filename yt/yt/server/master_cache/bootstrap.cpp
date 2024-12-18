@@ -97,7 +97,6 @@ public:
             .Run()
             .Get()
             .ThrowOnError();
-        Sleep(TDuration::Max());
     }
 
     const TMasterCacheConfigPtr& GetConfig() const override

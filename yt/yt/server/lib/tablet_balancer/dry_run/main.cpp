@@ -16,24 +16,31 @@ int main(int argc, const char** argv)
         opts.AddHelpOption();
 
         TString modeName;
-        opts.AddLongOption("mode", "choose balancing type from [parameterized"
-                           " | reshard | in_memory_move | ordinary_move]")
+        opts.AddLongOption(
+            "mode",
+            "Choose balancing type from [parameterized | reshard | in_memory_move | ordinary_move]")
             .RequiredArgument("mode")
             .StoreResult(&modeName);
 
         TString loadFromFile;
-        opts.AddLongOption("snapshot-path", "path to bundle snapshot in special format")
+        opts.AddLongOption(
+            "snapshot-path",
+            "Path to bundle snapshot in special format")
             .RequiredArgument("filename")
             .StoreResult(&loadFromFile);
 
         TString groupName;
-        opts.AddLongOption("group-name", "used only for parameterized balancing")
+        opts.AddLongOption(
+            "group-name",
+            "Used only for parameterized balancing")
             .Optional()
             .RequiredArgument("group-name")
             .StoreResult(&groupName);
 
         TString parameterizedConfig;
-        opts.AddLongOption("parameterized-config", "used only for parameterized balancing")
+        opts.AddLongOption(
+            "parameterized-config",
+            "Used only for parameterized balancing")
             .Optional()
             .RequiredArgument("parameterized-config")
             .StoreResult(&parameterizedConfig);
@@ -52,8 +59,7 @@ int main(int argc, const char** argv)
             bundle,
             groupName,
             parameterizedConfig);
-
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR("Dry run failed with an error: %v", ex.what());
+        YT_LOG_ERROR(ex, "Dry run failed");
     }
 }

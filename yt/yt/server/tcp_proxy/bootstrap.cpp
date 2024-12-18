@@ -91,7 +91,6 @@ public:
             .Run()
             .Get()
             .ThrowOnError();
-        Sleep(TDuration::Max());
     }
 
     const TTcpProxyConfigPtr& GetConfig() const override

@@ -102,7 +102,6 @@ public:
             .Run()
             .Get()
             .ThrowOnError();
-        Sleep(TDuration::Max());
     }
 
     const TKafkaProxyConfigPtr& GetConfig() const override

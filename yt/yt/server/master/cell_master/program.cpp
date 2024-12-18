@@ -5,11 +5,9 @@
 #include "serialize.h"
 #include "snapshot_exporter.h"
 
-#include <yt/yt/server/lib/hydra/dry_run/utils.h>
+#include <yt/yt/server/lib/hydra/dry_run/helpers.h>
 
 #include <yt/yt/library/server_program/server_program.h>
-
-#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/core/misc/fs.h>
 
@@ -28,97 +26,169 @@ public:
     TCellMasterProgram()
     {
         Opts_
-            .AddLongOption("dump-snapshot", "dump master snapshot and exit")
-            .StoreMappedResult(&SnapshotPath_, &CheckPathExistsArgMapper)
+            .AddLongOption(
+                "dump-snapshot",
+                "Dumps master snapshot\n"
+                "Expects path to snapshot")
+            .Handler0([&] { DumpSnapshotFlag_ = true; })
+            .StoreMappedResult(&LoadSnapshotPath_, &CheckPathExistsArgMapper)
             .RequiredArgument("SNAPSHOT");
         Opts_
-            .AddLongOption("export-snapshot", "export master snapshot\nexpects path to snapshot")
-            .StoreMappedResult(&SnapshotPath_, &CheckPathExistsArgMapper)
+            .AddLongOption(
+                "export-snapshot",
+                "Exports master snapshot\n"
+                "Expects path to snapshot")
+            .Handler0([&] { ExportSnapshotFlag_ = true; })
+            .StoreMappedResult(&LoadSnapshotPath_, &CheckPathExistsArgMapper)
             .RequiredArgument("SNAPSHOT");
         Opts_
-            .AddLongOption("export-config", "user config for master snapshot exporting\nexpects yson which may have keys "
-                           "'attributes', 'first_key', 'last_key', 'types', 'job_index', 'job_count'")
-            .StoreResult(&ExportSnapshotConfig_)
-            .RequiredArgument("CONFIG_YSON");
+            .AddLongOption(
+                "export-config",
+                "Path to config file (in YSON format) for master snapshot export")
+            .Handler0([&] { ExportConfigFlag_ = true; })
+            .StoreResult(&ExportConfigPath_)
+            .RequiredArgument("FILE");
         Opts_
-            .AddLongOption("validate-snapshot", "load master snapshot in a dry run mode")
-            .StoreMappedResult(&SnapshotPath_, &CheckPathExistsArgMapper)
+            .AddLongOption(
+                "validate-snapshot",
+                "Loads master snapshot in a dry run mode\n"
+                "Expects path to snapshot")
+            .Handler0([&] { ValidateSnapshotFlag_ = true; })
+            .StoreMappedResult(&LoadSnapshotPath_, &CheckPathExistsArgMapper)
             .RequiredArgument("SNAPSHOT");
         Opts_
-            .AddLongOption("replay-changelogs", "replay one or more consecutive master changelogs\n"
-                           "Usually used in conjunction with 'validate-snapshot' option to apply changelogs over a specific snapshot")
-            .SplitHandler(&ChangelogFileNames_, ' ')
+            .AddLongOption(
+                "replay-changelogs",
+                "Replays one or more consecutive master changelogs\n"
+                "Expects space-separated paths to changelogs\n"
+                "Typically used in conjunction with 'validate-snapshot' option to apply changelogs over a specific snapshot")
+            .Handler0([&] { ReplayChangelogsFlag_ = true; })
+            .SplitHandler(&ReplayChangelogsPaths_, ' ')
             .RequiredArgument("CHANGELOG");
         Opts_
-            .AddLongOption("build-snapshot", "save resulting state in a snapshot\n"
-                                             "Path to a directory can be specified here\n"
-                                             "By default snapshot will be saved in the working directory")
-            .StoreResult(&SnapshotBuildDirectory_)
-            .OptionalArgument("DIRECTORY");
+            .AddLongOption(
+                "build-snapshot",
+                "Saves final state into snapshot\n"
+                "Expects path to snapshot directory")
+            .Handler0([&] { BuildSnapshotFlag_ = true; })
+            .StoreResult(&BuildSnapshotPath_)
+            .RequiredArgument("DIRECTORY");
         Opts_
-            .AddLongOption("skip-tvm-service-env-validation", "don't validate tvm service files")
-            .SetFlag(&SkipTvmServiceEnvValidation_)
+            .AddLongOption(
+                "skip-tvm-service-env-validation",
+                "Do not validate TVM service files")
+            .SetFlag(&SkipTvmServiceEnvValidationFlag_)
             .NoArgument();
         Opts_
-            .AddLongOption("sleep-after-initialize", "sleep for 10s after calling TBootstrap::Initialize()")
-            .SetFlag(&SleepAfterInitialize_)
-            .NoArgument();
-        Opts_
-            .AddLongOption("compatibility-info", "Print master binary compatibility info and exit")
-            .SetFlag(&PrintCompatibilityInfo_)
+            .AddLongOption(
+                "compatibility-info",
+                "Prints master binary compatibility info")
+            .SetFlag(&PrintCompatibilityInfoFlag_)
             .NoArgument();
 
-        SetMainThreadName("CellMaster");
+        SetMainThreadName("Master");
     }
 
 private:
-    TString SnapshotPath_;
-    TString ExportSnapshotConfig_;
-    std::vector<TString> ChangelogFileNames_;
-    TString SnapshotBuildDirectory_;
-    bool SkipTvmServiceEnvValidation_ = false;
-    bool SleepAfterInitialize_ = false;
-    bool PrintCompatibilityInfo_;
+    bool DumpSnapshotFlag_ = false;
+    bool ValidateSnapshotFlag_ = false;
+    bool ExportSnapshotFlag_ = false;
+    TString LoadSnapshotPath_;
+    bool ExportConfigFlag_ = false;
+    TString ExportConfigPath_;
+    bool ReplayChangelogsFlag_ = false;
+    std::vector<TString> ReplayChangelogsPaths_;
+    bool BuildSnapshotFlag_ = false;
+    TString BuildSnapshotPath_;
+    bool SkipTvmServiceEnvValidationFlag_ = false;
+    bool PrintCompatibilityInfoFlag_ = false;
 
-    void DoStart() final
+    bool IsDumpSnapshotMode() const
     {
-        auto config = GetConfig();
+        return DumpSnapshotFlag_;
+    }
 
-        const auto& parseResult = GetOptsParseResult();
-        auto dumpSnapshot = parseResult.Has("dump-snapshot");
-        auto exportSnapshot = parseResult.Has("export-snapshot");
-        auto validateSnapshot = parseResult.Has("validate-snapshot");
-        auto printCompatibilityInfo = parseResult.Has("compatibility-info");
-        auto replayChangelogs = parseResult.Has("replay-changelogs");
-        auto buildSnapshot = parseResult.Has("build-snapshot");
+    bool IsValidateSnapshotMode() const
+    {
+        return ValidateSnapshotFlag_;
+    }
 
-        if (dumpSnapshot + validateSnapshot + exportSnapshot + printCompatibilityInfo  > 1) {
+    bool IsLoadSnapshotMode() const
+    {
+        return IsDumpSnapshotMode() || IsValidateSnapshotMode();
+    }
+
+    bool IsExportSnapshotMode() const
+    {
+        return ExportSnapshotFlag_;
+    }
+
+    bool IsReplayChangelogsMode() const
+    {
+        return ReplayChangelogsFlag_;
+    }
+
+    bool IsBuildSnapshotMode() const
+    {
+        return BuildSnapshotFlag_;
+    }
+
+    bool IsDryRunMode() const
+    {
+        return
+            IsLoadSnapshotMode() ||
+            IsReplayChangelogsMode() ||
+            IsBuildSnapshotMode();
+    }
+
+    bool IsPrintCompatibilityInfoMode() const
+    {
+        return PrintCompatibilityInfoFlag_;
+    }
+
+    void ValidateOpts() final
+    {
+        if (static_cast<int>(IsDumpSnapshotMode()) +
+            static_cast<int>(IsValidateSnapshotMode()) +
+            static_cast<int>(IsExportSnapshotMode()) +
+            static_cast<int>(IsPrintCompatibilityInfoMode()) > 1)
+        {
             THROW_ERROR_EXCEPTION("Options 'dump-snapshot', 'validate-snapshot', 'export-snapshot' and 'compatibility-info' are mutually exclusive");
         }
 
-        if ((dumpSnapshot || exportSnapshot) && replayChangelogs) {
+        if ((IsDumpSnapshotMode() || IsExportSnapshotMode()) && IsReplayChangelogsMode()) {
             THROW_ERROR_EXCEPTION("Option 'replay-changelogs' can not be used with 'dump-snapshot' or 'export-snapshot'");
         }
 
-        if (buildSnapshot && !replayChangelogs && !validateSnapshot) {
+        if (IsBuildSnapshotMode() && !IsReplayChangelogsMode() && !IsValidateSnapshotMode()) {
             THROW_ERROR_EXCEPTION("Option 'build-snapshot' can only be used with 'validate-snapshot' or 'replay-changelog'");
         }
 
-        if (PrintCompatibilityInfo_) {
-            DoPrintCompatibilityInfo();
+        if (ExportSnapshotFlag_ && !ExportConfigFlag_) {
+            THROW_ERROR_EXCEPTION("Option 'export-snapshot' requires 'export-config' to be set");
         }
 
-        auto loadSnapshot = dumpSnapshot || validateSnapshot || exportSnapshot;
-        auto isDryRun = loadSnapshot || replayChangelogs;
+        if (IsReplayChangelogsMode()) {
+            auto changelogDirectory = NFS::GetDirectoryName(ReplayChangelogsPaths_.front());
+            for (const auto& fileName : ReplayChangelogsPaths_) {
+                THROW_ERROR_EXCEPTION_IF(
+                    changelogDirectory != NFS::GetDirectoryName(fileName),
+                    "Changelogs must be located in one directory");
+            }
+        }
+    }
 
-        if (isDryRun) {
-            NBus::TTcpDispatcher::Get()->DisableNetworking();
+    void TweakConfig() final
+    {
+        auto config = GetConfig();
+
+        if (IsDryRunMode()) {
             config->DryRun->EnableHostNameValidation = false;
             config->DryRun->EnableDryRun = true;
             config->Logging->ShutdownGraceTimeout = TDuration::Seconds(10);
             config->Snapshots->Path = NFS::GetDirectoryName(".");
 
-            if (SkipTvmServiceEnvValidation_) {
+            if (SkipTvmServiceEnvValidationFlag_) {
                 const auto& nativeAuthenticationManager = config->NativeAuthenticationManager;
                 nativeAuthenticationManager->EnableValidation = false;
                 nativeAuthenticationManager->EnableSubmission = false;
@@ -126,63 +196,64 @@ private:
             }
         }
 
-        if (replayChangelogs) {
-            auto changelogDirectory = NFS::GetDirectoryName(ChangelogFileNames_.front());
-            for (const auto& fileName : ChangelogFileNames_) {
-                THROW_ERROR_EXCEPTION_IF(
-                    changelogDirectory != NFS::GetDirectoryName(fileName),
-                    "Changelogs must be located in one directory");
-            }
-        }
-
-        if (dumpSnapshot) {
+        if (IsDumpSnapshotMode()) {
             config->HydraManager->SnapshotBackgroundThreadCount = 0;
             config->Logging = NLogging::TLogManagerConfig::CreateSilent();
-        } else if (validateSnapshot) {
-            NHydra::ConfigureDryRunLogging(config);
-        } else if (exportSnapshot) {
+        }
+
+        if (IsValidateSnapshotMode()) {
+            config->Logging = NHydra::CreateDryRunLoggingConfig();
+        }
+
+        if (IsExportSnapshotMode()) {
             config->Logging = NLogging::TLogManagerConfig::CreateQuiet();
         }
 
-        if (buildSnapshot && !SnapshotBuildDirectory_.empty()) {
-            config->Snapshots->Path = NFS::GetRealPath(SnapshotBuildDirectory_);
+        if (IsBuildSnapshotMode()) {
+            config->Snapshots->Path = NFS::GetRealPath(BuildSnapshotPath_);
+        }
+    }
+
+    void DoStart() final
+    {
+        if (IsPrintCompatibilityInfoMode()) {
+            DoPrintCompatibilityInfo();
+            return;
         }
 
-        ConfigureNativeSingletons(config);
-
-        // TODO(babenko): This memory leak is intentional.
-        // We should avoid destroying bootstrap since some of the subsystems
-        // may be holding a reference to it and continue running some actions in background threads.
-        auto* bootstrap = new NCellMaster::TBootstrap(std::move(config));
+        auto* bootstrap = new NCellMaster::TBootstrap(GetConfig());
         DoNotOptimizeAway(bootstrap);
         bootstrap->Initialize();
 
-        if (SleepAfterInitialize_) {
-            NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::Seconds(10));
-        }
+        if (IsDryRunMode()) {
+            NBus::TTcpDispatcher::Get()->DisableNetworking();
 
-        if (!isDryRun) {
-            bootstrap->Run();
-        } else {
-            if (loadSnapshot) {
-                bootstrap->LoadSnapshotOrThrow(SnapshotPath_, dumpSnapshot);
+            if (IsLoadSnapshotMode()) {
+                bootstrap->LoadSnapshot(LoadSnapshotPath_, IsDumpSnapshotMode());
             }
-            if (exportSnapshot) {
+
+            if (IsExportSnapshotMode()) {
                 // TODO (h0pless): maybe rename this to ExportState
-                ExportSnapshot(bootstrap, ExportSnapshotConfig_);
+                ExportSnapshot(bootstrap, ExportConfigPath_);
             }
-            if (replayChangelogs) {
-                bootstrap->ReplayChangelogsOrThrow(std::move(ChangelogFileNames_));
+
+            if (IsReplayChangelogsMode()) {
+                bootstrap->ReplayChangelogs(ReplayChangelogsPaths_);
             }
-            if (buildSnapshot) {
-                bootstrap->BuildSnapshotOrThrow();
+
+            if (IsBuildSnapshotMode()) {
+                bootstrap->BuildSnapshot();
             }
-            bootstrap->FinishDryRunOrThrow();
+
+            bootstrap->FinishDryRun();
+
+            // XXX(babenko): ASAN complains about memory leak on graceful exit.
+            // Must try to resolve them later.
+            AbortProcessSilently(EProcessExitCode::OK);
         }
 
-        // XXX(babenko): ASAN complains about memory leak on graceful exit.
-        // Must try to resolve them later.
-        AbortProcessSilently(EProcessExitCode::OK);
+        bootstrap->Run();
+        SleepForever();
     }
 
     void DoPrintCompatibilityInfo()
@@ -194,8 +265,6 @@ private:
             .EndMap();
         NYson::Serialize(info, &writer);
         Cout << Endl;
-
-        Exit(EProcessExitCode::OK);
     }
 };
 

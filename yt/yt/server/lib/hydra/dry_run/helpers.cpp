@@ -1,6 +1,4 @@
-#include "utils.h"
-
-#include <yt/yt/library/program/config.h>
+#include "helpers.h"
 
 #include <yt/yt/core/logging/config.h>
 
@@ -10,9 +8,9 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ConfigureDryRunLogging(const TSingletonsConfigPtr& config)
+NLogging::TLogManagerConfigPtr CreateDryRunLoggingConfig()
 {
-    config->Logging = NLogging::TLogManagerConfig::CreateQuiet();
+    auto config = NLogging::TLogManagerConfig::CreateQuiet();
 
     auto silentRule = New<NLogging::TRuleConfig>();
     silentRule->MinLevel = NLogging::ELogLevel::Debug;
@@ -21,8 +19,10 @@ void ConfigureDryRunLogging(const TSingletonsConfigPtr& config)
     auto fileWriterConfig = New<NLogging::TFileLogWriterConfig>();
     fileWriterConfig->FileName = "/dev/null";
 
-    config->Logging->Rules.push_back(silentRule);
-    config->Logging->Writers.emplace("dev_null", ConvertTo<IMapNodePtr>(fileWriterConfig));
+    config->Rules.push_back(silentRule);
+    config->Writers.emplace("dev_null", ConvertTo<IMapNodePtr>(fileWriterConfig));
+
+    return config;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

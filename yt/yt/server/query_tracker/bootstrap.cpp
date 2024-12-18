@@ -121,8 +121,6 @@ void TBootstrap::Run()
         .Run()
         .Get()
         .ThrowOnError();
-
-    Sleep(TDuration::Max());
 }
 
 void TBootstrap::DoRun()

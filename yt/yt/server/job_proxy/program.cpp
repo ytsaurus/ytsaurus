@@ -46,19 +46,27 @@ public:
         , TProgramSetsidMixin(Opts_)
     {
         Opts_
-            .AddLongOption("operation-id", "operation id")
+            .AddLongOption(
+                "operation-id",
+                "Operation id")
             .StoreMappedResultT<TString>(&OperationId_, &TJobProxyProgram::CheckOperationIdArgMapper)
             .RequiredArgument("ID");
         Opts_
-            .AddLongOption("job-id", "job id")
+            .AddLongOption(
+                "job-id",
+                "Job id")
             .StoreMappedResultT<TString>(&JobId_, &TJobProxyProgram::CheckJobIdArgMapper)
             .RequiredArgument("ID");
         Opts_
-            .AddLongOption("stderr-path", "stderr path")
+            .AddLongOption(
+                "stderr-path",
+                "Stderr path")
             .StoreResult(&StderrPath_)
             .Optional();
         Opts_
-            .AddLongOption("do-not-close-descriptors", "disable machinery to close desctiptors on startup")
+            .AddLongOption(
+                "do-not-close-descriptors",
+                "Do not close descriptors on startup")
             .NoArgument()
             .SetFlag(&DoNotCloseDescriptors_)
             .Optional();
