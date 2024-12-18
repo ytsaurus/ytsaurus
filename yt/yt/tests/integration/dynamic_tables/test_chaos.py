@@ -20,7 +20,8 @@ from yt_commands import (
     get_in_sync_replicas, generate_timestamp, MaxTimestamp, raises_yt_error,
     create_table_replica, sync_enable_table_replica, get_tablet_infos, get_table_mount_info, set_node_banned,
     suspend_chaos_cells, resume_chaos_cells, merge, add_maintenance, remove_maintenance,
-    sync_freeze_table, lock, get_tablet_errors, create_tablet_cell_bundle, create_area, link)
+    sync_freeze_table, lock, get_tablet_errors, create_tablet_cell_bundle, create_area, link,
+    execute_batch, make_batch_request)
 
 from yt_type_helpers import make_schema
 
@@ -3631,6 +3632,7 @@ class TestChaos(ChaosTestBase):
         clusters = self.get_cluster_names()
         crt1, card1, replicas1, replica_ids1 = _create_supertable("//tmp/a", clusters, clusters[0])
         crt2, card2, replicas2, replica_ids2 = _create_supertable("//tmp/b", clusters, clusters[1])
+        crt3, card3, replicas3, replica_ids3 = _create_supertable("//tmp/c", clusters, clusters[2])
 
         collocation_options = {
             "preferred_sync_replica_clusters": [clusters[0]]
@@ -3646,23 +3648,36 @@ class TestChaos(ChaosTestBase):
         self._sync_migrate_replication_cards(cell_id, [card1], dst_cell_id)
 
         address = get("#{0}/@peers/0/address".format(dst_cell_id))
-        collocation_path = "//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}/chaos_manager/replication_card_collocations/{2}".format(address, dst_cell_id, collocation_id)
+        collocation_path = f"//sys/cluster_nodes/{address}/orchid/chaos_cells/{dst_cell_id}/chaos_manager/replication_card_collocations/{collocation_id}"
         collocation = get(collocation_path)
         assert_items_equal(collocation["options"], collocation_options)
 
-        alter_replication_card(card2, replication_card_collocation_id=collocation_id)
+        execute_batch(
+            [
+                make_batch_request(
+                    "alter_replication_card",
+                    replication_card_id=card,
+                    replication_card_collocation_id=collocation_id
+                ) for card in [card2, card3]
+            ]
+        )
+
         assert get(f"#{card2}/@replication_card_collocation_id") == collocation_id
+        assert get(f"#{card3}/@replication_card_collocation_id") == collocation_id
         wait(lambda: card2 in get(f"#{collocation_id}/@replication_card_ids"))
+        wait(lambda: card3 in get(f"#{collocation_id}/@replication_card_ids"))
 
         collocation = get(collocation_path)
         assert collocation["state"] == "normal"
-        assert collocation["size"] == 2
+        assert collocation["size"] == 3
         assert card1 in collocation["replication_card_ids"]
         assert card2 in collocation["replication_card_ids"]
+        assert card3 in collocation["replication_card_ids"]
 
         # Workaround for YT-22791.
         alter_replication_card(card1, enable_replicated_table_tracker=True)
         alter_replication_card(card2, enable_replicated_table_tracker=True)
+        alter_replication_card(card3, enable_replicated_table_tracker=True)
 
         def _get_sync_replica_clusters(crt):
             def valid(replica):
@@ -3670,7 +3685,9 @@ class TestChaos(ChaosTestBase):
             return list(builtins.set(replica["cluster_name"] for replica in get("{0}/@replicas".format(crt)).values() if valid(replica)))
 
         wait(lambda: _get_sync_replica_clusters("//tmp/a-crt") == _get_sync_replica_clusters("//tmp/b-crt"))
+        wait(lambda: _get_sync_replica_clusters("//tmp/a-crt") == _get_sync_replica_clusters("//tmp/c-crt"))
         assert _get_sync_replica_clusters("//tmp/b-crt") == [clusters[0]]
+        assert _get_sync_replica_clusters("//tmp/c-crt") == [clusters[0]]
 
     @authors("savrus")
     @pytest.mark.parametrize("method", ["alter", "remove"])

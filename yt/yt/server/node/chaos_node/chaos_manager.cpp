@@ -788,7 +788,6 @@ private:
 
             collocation->SetState(EReplicationCardCollocationState::Immigrating);
             collocation->SetSize(collocation->GetSize() + 1);
-            UnbindReplicationCardCollocationFromRTT(collocation);
         } else {
             THROW_ERROR_EXCEPTION("Unexpected chaos cell: neigther replication card nor collocation")
                 << TErrorAttribute("replication_card_cell_id", replicationCardCellId)
@@ -847,7 +846,6 @@ private:
             YT_VERIFY(collocation->GetState() == EReplicationCardCollocationState::Immigrating);
             if (std::ssize(collocation->ReplicationCards()) == collocation->GetSize()) {
                 collocation->SetState(EReplicationCardCollocationState::Normal);
-                BindReplicationCardCollocationToRTT(collocation);
             }
         }
 
@@ -2516,15 +2514,6 @@ private:
         }
 
         FireReplicationCardCollocationUpdated(collocation);
-    }
-
-    void UnbindReplicationCardCollocationFromRTT(TReplicationCardCollocation* collocation)
-    {
-        for (auto* replicationCard : collocation->ReplicationCards()) {
-            UnbindReplicationCardFromRTT(replicationCard);
-        }
-
-        ReplicationCollocationDestroyed_.Fire(collocation->GetId());
     }
 
     void BindReplicationCardToRTT(TReplicationCard* replicationCard)
