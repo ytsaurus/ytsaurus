@@ -306,7 +306,7 @@ def test_environment_with_increased_memory(request):
     environment = init_environment_for_test_session(
         request,
         request.param,
-        env_options=dict(jobs_resource_limits={"memory": 16 * GB}),
+        env_options=dict(jobs_resource_limits={"memory": 8 * GB}),
     )
 
     return environment
