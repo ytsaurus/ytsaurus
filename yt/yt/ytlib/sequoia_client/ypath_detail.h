@@ -49,7 +49,7 @@ public:
     const TUnderlying& Underlying() const &;
     TUnderlying&& Underlying() &&;
 
-    static constexpr TStringBuf Separator = "/";
+    static constexpr char Separator = '/';
 
 protected:
     TUnderlying Path_;
@@ -69,7 +69,7 @@ class TYPathBaseImpl<false, TUnderlying>
     : public TYPathBase<false, TUnderlying>
 {
 public:
-    TYPathBaseImpl() = default;
+    TYPathBaseImpl();
 
     [[nodiscard]] bool IsEmpty() const;
 
@@ -190,12 +190,13 @@ public:
 private:
     const TYPathBaseImpl* Owner_ = nullptr;
     ptrdiff_t Offset_ = 0;
-    NYPath::TTokenizer Tokenizer_;
     TYPathBuf Current_;
 
     friend class TSegmentView;
 
     TIterator(const TYPathBaseImpl* owner, ptrdiff_t offset);
+
+    NYPath::TTokenizer GetTokenizer() const;
 
     void Increment();
     void UpdateCurrent();

@@ -126,7 +126,7 @@ void TYPathBase<Absolute, TUnderlying>::Validate() const
             THROW_ERROR_EXCEPTION("Path %v does not start with a valid root-designator", Path_);
         }
     } else if (!Path_.empty()) {
-        NYPath::TTokenizer tokenizer(Path_);
+        auto tokenizer = NYPath::TTokenizer(Path_);
         tokenizer.Advance();
         tokenizer.Skip(NYPath::ETokenType::Ampersand);
         if (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
@@ -144,7 +144,7 @@ ptrdiff_t TYPathBase<Absolute, TUnderlying>::FindLastSegment() const
         if (checkUnescaped && *it != '\\') {
             break;
         }
-        checkUnescaped = TString(*it) == Separator;
+        checkUnescaped = (*it == Separator);
         ++it;
     }
     return Path_.rend() - it;
@@ -157,6 +157,11 @@ TUnderlying* TYPathBase<Absolute, TUnderlying>::UnsafeMutableUnderlying() noexce
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <class TUnderlying>
+TYPathBaseImpl<false, TUnderlying>::TYPathBaseImpl()
+    : TBase(TStringBuf{})
+{ }
 
 template <class TUnderlying>
 bool TYPathBaseImpl<false, TUnderlying>::IsEmpty() const
@@ -264,7 +269,7 @@ template <class TUnderlying>
 typename TYPathBaseImpl<false, TUnderlying>::TSegmentView::TIterator TYPathBaseImpl<false, TUnderlying>::TSegmentView::TIterator::operator++(int)
 {
     auto result = *this;
-    (*this)++;
+    ++(*this);
     return result;
 }
 
@@ -272,34 +277,51 @@ template <class TUnderlying>
 TYPathBaseImpl<false, TUnderlying>::TSegmentView::TIterator::TIterator(const TYPathBaseImpl* owner, ptrdiff_t offset)
     : Owner_(owner), Offset_(offset)
 {
-    auto suffix = TStringBuf(Owner_->Underlying()).Skip(Offset_);
-    Tokenizer_.Reset(suffix);
-    Tokenizer_.Advance();
     UpdateCurrent();
+}
+
+template <class TUnderlying>
+NYPath::TTokenizer TYPathBaseImpl<false, TUnderlying>::TSegmentView::TIterator::GetTokenizer() const
+{
+    auto suffix = TStringBuf(Owner_->Underlying(), Offset_);
+    auto tokenizer = NYPath::TTokenizer(suffix);
+    tokenizer.Advance();
+    return tokenizer;
 }
 
 template <class TUnderlying>
 void TYPathBaseImpl<false, TUnderlying>::TSegmentView::TIterator::Increment()
 {
     Offset_ += Current_.Underlying().size();
-    if (Tokenizer_.Skip(NYPath::ETokenType::Slash)) {
-        ++Offset_;
-    }
 }
 
 template <class TUnderlying>
 void TYPathBaseImpl<false, TUnderlying>::TSegmentView::TIterator::UpdateCurrent()
 {
-    size_t currentSize = 0;
-    bool consumeRootDesignator = Offset_ == 0;
-    while ((Tokenizer_.GetType() != NYPath::ETokenType::Slash || consumeRootDesignator) &&
-        Tokenizer_.GetType() != NYPath::ETokenType::EndOfStream)
-    {
-        consumeRootDesignator = false;
-        currentSize += Tokenizer_.GetToken().size();
-        Tokenizer_.Advance();
+    auto tokenizer = GetTokenizer();
+    switch (tokenizer.GetType()) {
+        case NYPath::ETokenType::Ampersand:
+            Current_ = TYPathBuf(tokenizer.GetToken());
+            break;
+        case NYPath::ETokenType::EndOfStream:
+            break;
+        case NYPath::ETokenType::Slash: {
+            size_t currentSize = 1;
+            tokenizer.Skip(NYPath::ETokenType::Slash);
+            while (tokenizer.GetType() != NYPath::ETokenType::Slash &&
+                tokenizer.GetType() != NYPath::ETokenType::Ampersand &&
+                tokenizer.GetType() != NYPath::ETokenType::EndOfStream)
+            {
+                currentSize += tokenizer.GetToken().size();
+                tokenizer.Advance();
+            }
+            Current_ = TYPathBuf(TStringBuf(Owner_->Path_, Offset_, currentSize));
+            break;
+        }
+        default:
+            tokenizer.ThrowUnexpected();
     }
-    Current_ = TYPathBuf(Owner_->Path_, Offset_, currentSize);
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

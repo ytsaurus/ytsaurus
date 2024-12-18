@@ -78,6 +78,7 @@ target_sources(unittester-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/tablet_request_batcher_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/transaction_helpers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/protobuf_helpers_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/ypath_ut.cpp
 )
 
 
