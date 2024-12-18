@@ -109,7 +109,7 @@ void TReplicationCard::Load(TLoadContext& context)
         Load(context, Collocation_);
     }
     // COMPAT(savrus)
-    if (context.GetVersion() >= EChaosReign::AttachDistibutedCollocation) {
+    if (context.GetVersion() >= EChaosReign::AttachDistributedCollocation) {
         Load(context, AwaitingCollocationId_);
     }
 }
