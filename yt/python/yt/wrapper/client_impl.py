@@ -2513,11 +2513,13 @@ class YtClient(ClientState):
         :param files: a YSON list of files, each of which is represented by a map with keys "name", "content", "type". Field "type" is one of "raw_inline_data", "url"
         :type files: list or None
         :param stage: query tracker stage, defaults to "production"
-        :type stage: str
+        :type stage: str or None
         :param annotations: a dictionary of annotations
         :type annotations: dict or None
         :param access_control_objects: list access control object names
         :type access_control_objects: list or None
+        :param sync: if True, wait for query to finish, otherwise return immediately
+        :type sync: bool
 
         """
         return client_api.run_query(

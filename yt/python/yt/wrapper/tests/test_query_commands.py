@@ -11,7 +11,7 @@ from yt.wrapper.testlib.helpers import wait
 # By using the mock engine we can keep this suite fast and not depending on heavy engines like YQL or CHYT.
 
 @pytest.mark.usefixtures("yt_env", "yt_query_tracker")
-class TestQueryCommands(object):
+class TestQueryCommands:
     ERROR = {"code": 42, "message": "Mock query execution error", "attributes": {"some_attr": "some_value"}}
     ROWSET1 = {
         "schema": [{"name": "foo", "type": "int64"}, {"name": "bar", "type": "string"}],
