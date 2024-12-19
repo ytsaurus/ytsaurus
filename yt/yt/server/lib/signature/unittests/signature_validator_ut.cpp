@@ -149,16 +149,32 @@ TEST_F(TSignatureValidatorTest, ValidateInvalidSignature)
     TStringStream ss;
     TYsonWriter writer(&ss, EYsonFormat::Text);
 
-    writer.OnBeginMap();
-    BuildYsonMapFragmentFluently(&writer)
-        .Item("header").Value("abacaba")
-        .Item("payload").Value(Payload.ToString())
-        .Item("signature").Value(TString(SignatureSize, 'a'));
-    writer.OnEndMap();
-    writer.Flush();
+    {
+        writer.OnBeginMap();
+        BuildYsonMapFragmentFluently(&writer)
+            .Item("header").Value("abacaba")
+            .Item("payload").Value(Payload.ToString())
+            .Item("signature").Value(TString(SignatureSize, 'a'));
+        writer.OnEndMap();
+        writer.Flush();
 
-    // Invalid header.
-    EXPECT_FALSE(RunValidate(ConvertTo<TSignaturePtr>(TYsonString(ss.Str()))));
+        // Invalid header.
+        EXPECT_FALSE(RunValidate(ConvertTo<TSignaturePtr>(TYsonString(ss.Str()))));
+        ss.Clear();
+    }
+
+    {
+        writer.OnBeginMap();
+        BuildYsonMapFragmentFluently(&writer)
+            .Item("header").Value("abacaba")
+            .Item("payload").Value(Payload.ToString())
+            .Item("signature").Value("123456789");
+        writer.OnEndMap();
+        writer.Flush();
+
+        // Invalid signature length.
+        EXPECT_FALSE(RunValidate(ConvertTo<TSignaturePtr>(TYsonString(ss.Str()))));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
