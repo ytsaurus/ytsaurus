@@ -687,6 +687,27 @@ void TPoolTreesTemplateConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TOperationStuckCheckOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("period", &TThis::Period)
+        .Default(TDuration::Minutes(1));
+
+    registrar.Parameter("safe_timeout", &TThis::SafeTimeout)
+        .Default(TDuration::Minutes(60));
+
+    registrar.Parameter("limiting_ancestor_safe_timeout", &TThis::LimitingAncestorSafeTimeout)
+        .Default(TDuration::Minutes(5));
+
+    registrar.Parameter("min_schedule_allocation_attempts", &TThis::MinScheduleAllocationAttempts)
+        .Default(1000);
+
+    registrar.Parameter("deactivation_reasons", &TThis::DeactivationReasons)
+        .Default({EDeactivationReason::ScheduleAllocationFailed, EDeactivationReason::MinNeededResourcesUnsatisfied})
+        .ResetOnLoad();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TFairShareStrategyConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("fair_share_update_period", &TThis::FairShareUpdatePeriod)
@@ -715,25 +736,27 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("operation_hangup_check_period", &TThis::OperationHangupCheckPeriod)
         .Alias("operation_unschedulable_check_period")
-        .Default(TDuration::Minutes(1));
+        .Default();
 
     registrar.Parameter("operation_hangup_safe_timeout", &TThis::OperationHangupSafeTimeout)
         .Alias("operation_unschedulable_safe_timeout")
-        .Default(TDuration::Minutes(60));
+        .Default();
 
     registrar.Parameter("operation_hangup_min_schedule_allocation_attempts", &TThis::OperationHangupMinScheduleAllocationAttempts)
         .Alias("operation_hangup_min_schedule_job_attempts")
         .Alias("operation_unschedulable_min_schedule_job_attempts")
-        .Default(1000);
+        .Default();
 
     registrar.Parameter("operation_hangup_deactivation_reasons", &TThis::OperationHangupDeactivationReasons)
         .Alias("operation_unschedulable_deactivation_reasons")
-        .Default({EDeactivationReason::ScheduleAllocationFailed, EDeactivationReason::MinNeededResourcesUnsatisfied})
-        .ResetOnLoad();
+        .Default();
 
     registrar.Parameter("operation_hangup_due_to_limiting_ancestor_safe_timeout", &TThis::OperationHangupDueToLimitingAncestorSafeTimeout)
         .Alias("operation_unschedulable_due_to_limiting_ancestor_safe_timeout")
-        .Default(TDuration::Minutes(5));
+        .Default();
+
+    registrar.Parameter("operation_stuck_check", &TThis::OperationStuckCheck)
+        .DefaultNew();
 
     registrar.Parameter("max_operation_count", &TThis::MaxOperationCount)
         .Default(5000)
@@ -773,6 +796,29 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
                 THROW_ERROR_EXCEPTION("\"template_pool_tree_config_map\" has equal priority for templates")
                     << TErrorAttribute("template_names", std::array{it->second, TStringBuf{name}});
             }
+        }
+    });
+
+    // COMPAT(eshcherbin)
+    registrar.Postprocessor([&] (TFairShareStrategyConfig* config) {
+        if (config->OperationHangupCheckPeriod) {
+            config->OperationStuckCheck->Period = *config->OperationHangupCheckPeriod;
+        }
+
+        if (config->OperationHangupSafeTimeout) {
+            config->OperationStuckCheck->SafeTimeout = *config->OperationHangupSafeTimeout;
+        }
+
+        if (config->OperationHangupMinScheduleAllocationAttempts) {
+            config->OperationStuckCheck->MinScheduleAllocationAttempts = *config->OperationHangupMinScheduleAllocationAttempts;
+        }
+
+        if (config->OperationHangupDeactivationReasons) {
+            config->OperationStuckCheck->DeactivationReasons = *config->OperationHangupDeactivationReasons;
+        }
+
+        if (config->OperationHangupDueToLimitingAncestorSafeTimeout) {
+            config->OperationStuckCheck->LimitingAncestorSafeTimeout = *config->OperationHangupDueToLimitingAncestorSafeTimeout;
         }
     });
 }
