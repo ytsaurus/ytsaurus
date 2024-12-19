@@ -506,7 +506,7 @@ public:
         DoBuildOperationProgress(&IFairShareTree::BuildBriefOperationProgress, operationId, fluent);
     }
 
-    std::vector<std::pair<TOperationId, TError>> GetHungOperations() override
+    std::vector<std::pair<TOperationId, TError>> GetStuckOperations() override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -517,26 +517,21 @@ public:
                 continue;
             }
 
-            bool hasNonHungTree = false;
+            bool hasTreeWithProgress = false;
             TError operationError("Operation scheduling is stuck");
 
             for (const auto& treePoolPair : operationState->TreeIdToPoolNameMap()) {
                 const auto& treeName = treePoolPair.first;
-                auto error = GetTree(treeName)->CheckOperationIsHung(
-                    operationId,
-                    Config_->OperationHangupSafeTimeout,
-                    Config_->OperationHangupMinScheduleAllocationAttempts,
-                    Config_->OperationHangupDeactivationReasons,
-                    Config_->OperationHangupDueToLimitingAncestorSafeTimeout);
+                auto error = GetTree(treeName)->CheckOperationIsStuck(operationId, Config_->OperationStuckCheck);
                 if (error.IsOK()) {
-                    hasNonHungTree = true;
+                    hasTreeWithProgress = true;
                     break;
                 } else {
                     operationError.MutableInnerErrors()->push_back(error);
                 }
             }
 
-            if (!hasNonHungTree) {
+            if (!hasTreeWithProgress) {
                 result.emplace_back(operationId, operationError);
             }
         }

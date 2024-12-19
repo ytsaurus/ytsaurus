@@ -1036,7 +1036,9 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             "fair_share_update_period": 100,
             "fair_share_profiling_period": 100,
             "operations_update_period": 100,
-            "operation_hangup_check_period": 100,
+            "operation_stuck_check": {
+                "period": 100,
+            },
         },
     }
 
@@ -1777,7 +1779,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_module_reset_with_fail_on_job_restart(self):
-        update_scheduler_config("operation_hangup_check_period", 1000000000)
+        update_scheduler_config("operation_stuck_check", {"period": 1000000000})
 
         create_pool("large_gpu_other", attributes={"allow_normal_preemption": False})
         set("//sys/pools/large_gpu/@strong_guarantee_resources", {"gpu": 70})

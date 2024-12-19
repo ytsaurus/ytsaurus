@@ -513,6 +513,33 @@ DEFINE_REFCOUNTED_TYPE(TPoolTreesTemplateConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TOperationStuckCheckOptions
+    : public NYTree::TYsonStruct
+{
+public:
+    TDuration Period;
+
+    //! During this timeout after activation operation can not be considered as stuck.
+    TDuration SafeTimeout;
+
+    //! Operation that has less than this number of schedule allocation calls can not be considered as stuck.
+    int MinScheduleAllocationAttempts;
+
+    //! Reasons that are considered as unsuccessful in schedule allocation attempts.
+    THashSet<EDeactivationReason> DeactivationReasons;
+
+    //! During this timeout after activation operation can not be considered stuck due to limiting ancestor.
+    TDuration LimitingAncestorSafeTimeout;
+
+    REGISTER_YSON_STRUCT(TOperationStuckCheckOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TOperationStuckCheckOptions);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFairShareStrategyConfig
     : public TFairShareStrategyOperationControllerConfig
 {
@@ -535,20 +562,14 @@ public:
     //! Limit on number of operations in cluster.
     int MaxOperationCount;
 
-    //! Unschedulable operations check period.
-    TDuration OperationHangupCheckPeriod;
+    // COMPAT(eshcherbin)
+    std::optional<TDuration> OperationHangupCheckPeriod;
+    std::optional<TDuration> OperationHangupSafeTimeout;
+    std::optional<int> OperationHangupMinScheduleAllocationAttempts;
+    std::optional<THashSet<EDeactivationReason>> OperationHangupDeactivationReasons;
+    std::optional<TDuration> OperationHangupDueToLimitingAncestorSafeTimeout;
 
-    //! During this timeout after activation operation can not be considered as unschedulable.
-    TDuration OperationHangupSafeTimeout;
-
-    //! Operation that has less than this number of schedule allocation calls can not be considered as unschedulable.
-    int OperationHangupMinScheduleAllocationAttempts;
-
-    //! Reasons that consider as unsuccessful in schedule allocation attempts.
-    THashSet<EDeactivationReason> OperationHangupDeactivationReasons;
-
-    //! During this timeout after activation operation can not be considered as unschedulable due to limiting ancestor.
-    TDuration OperationHangupDueToLimitingAncestorSafeTimeout;
+    TOperationStuckCheckOptionsPtr OperationStuckCheck;
 
     //! List of operation types which should be disabled in tentative tree by default.
     THashSet<EOperationType> OperationsWithoutTentativePoolTrees;
