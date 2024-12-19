@@ -387,6 +387,7 @@ class TestJournals(TestJournalsBase):
 
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
+    @pytest.mark.timeout(120)
     def test_simulated_failures_truncate(self, enable_chunk_preallocation):
         set("//sys/@config/chunk_manager/enable_chunk_sealer", True)
         set("//sys/@config/chunk_manager/chunk_refresh_period", 50)
@@ -503,6 +504,7 @@ class TestJournals(TestJournalsBase):
     @authors("babenko")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     @pytest.mark.parametrize("seal_mode", ["client-side", "master-side"])
+    @pytest.mark.timeout(120)
     def test_simulated_failures(self, enable_chunk_preallocation, seal_mode):
         set("//sys/@config/chunk_manager/enable_chunk_sealer", seal_mode == "master-side")
         set("//sys/@config/chunk_manager/chunk_refresh_period", 50)
