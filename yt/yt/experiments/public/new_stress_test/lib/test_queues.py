@@ -5,8 +5,8 @@ from .schema import TInt64, Schema
 from .verify import verify_output
 from .table_creation import create_dynamic_table
 from .create_data import create_ordered_data
-from .write_data import write_ordered_data
-from .select import verify_select
+from .write_data import write_queue_data
+from .pull_queue_consumer import verify_pull_queue_consumer
 from .process_runner import process_runner
 
 import yt.wrapper as yt
@@ -23,6 +23,8 @@ class Registry(object):
         self.result = base + ".result"
         self.dump = base + ".dump"
         self.tablet_size = base + ".tablet_size"
+        self.consumer = base + ".consumer"
+        self.producer = base + ".producer"
 
     def make_iter_tables(self, iteration):
         self.iter_data = self.base + ".iter.{}".format(iteration)
@@ -33,6 +35,7 @@ def create_tablet_size_table(table, tablet_count):
     if not yt.exists(table):
         attributes = {
             "dynamic": True,
+            "enable_dynamic_store_read": True,
             "schema": [
                 {"name": "tablet_index", "type": "uint64", "sort_order": "ascending"},
                 {"name": "size", "type": "uint64"},
@@ -48,31 +51,9 @@ def create_tablet_size_table(table, tablet_count):
 
     yt.insert_rows(table, [{"tablet_index": tablet_index, "size": 0} for tablet_index in range(tablet_count)])
 
-
-def create_indexes_table(table):
-    logger.info("Create indexes table")
-    if not yt.exists(table):
-        attributes = {
-            "dynamic": True,
-            "schema": [
-                {"name": "tablet_index", "type": "int64", "sort_order": "ascending"},
-                {"name": "row_index", "type": "int64", "sort_order": "ascending"},
-                {"name": "null_column", "type": "entity"},
-            ],
-        }
-        yt.create("table", table, attributes=attributes)
-
-    try:
-        yt.mount_table(table, sync=True)
-    except:
-        time.sleep(5)
-        yt.mount_table(table, sync=True)
-
-
 def get_tablet_chunk_list_ids(table):
     root_chunk_list_id = yt.get(table + "/@chunk_list_id")
     return yt.get("#{}/@child_ids".format(root_chunk_list_id))
-
 
 def create_tables(registry, schema, attributes, spec, args):
     if not spec.testing.skip_generation:
@@ -82,6 +63,9 @@ def create_tables(registry, schema, attributes, spec, args):
 
     remove_existing([registry.result, registry.dump], args.force)
     yt.create("table", registry.result)
+
+    yt.create("queue_consumer", registry.consumer)
+    yt.create("queue_producer", registry.producer)
 
     # TODO: unless something?
     create_tablet_size_table(registry.tablet_size, spec.size.tablet_count)
@@ -95,6 +79,9 @@ def create_tables(registry, schema, attributes, spec, args):
             sorted=False,
             dynamic=True,
             spec=spec)
+
+    yt.register_queue_consumer(registry.base, registry.consumer, vital=False)
+
 
 def check_tablet_sizes(table, tablet_size_table, tablet_count):
     logger.info("Checking tablet sizes")
@@ -168,6 +155,7 @@ def trim_and_update(registry, tablet_trimmed_row_count, tablet_count):
             current_row_count, current_row_count + first_chunk_size))
         current_row_count += expected_tablet_sizes[tablet_index] - first_chunk_size
 
+
 def add_data(
     schema, data_table_schema, registry, tablet_count,
     tablet_trimmed_row_count, spec, args
@@ -185,11 +173,11 @@ def add_data(
 
         yt.run_merge([registry.data, registry.iter_data], registry.data, mode="sorted")
 
-    # XXX: do aggregate and update make any sense in insert_rows?
     if not spec.testing.skip_write:
-        write_ordered_data(
+        write_queue_data(
             schema,
             registry.iter_data,
+            registry.producer,
             registry.base,
             registry.tablet_size,
             tablet_count,
@@ -197,73 +185,16 @@ def add_data(
             spec,
             args)
 
-# XXX: revisit
-class UpdateIndexesMapper():
-    def __init__(self, tablet_count, partial_sums, tablet_trimmed_row_count):
-        self.tablet_count = tablet_count
-        self.partial_sums = partial_sums
-        self.tablet_trimmed_row_count = tablet_trimmed_row_count
-    def __call__(self, record):
-        if record["tablet_index"] >= self.tablet_count:
-            record["row_index"] += self.partial_sums[record["tablet_index"] - self.tablet_count + 1] + \
-                self.tablet_trimmed_row_count[self.tablet_count - 1] - \
-                self.tablet_trimmed_row_count[record["tablet_index"]]
-            record["tablet_index"] = self.tablet_count - 1
-        yield record
 
-def update_data_indexes(data_table, tablet_size_table, tablet_count, tablet_trimmed_row_count,
-                        new_tablet_count):
-# XXX: revisit
-    logger.info("Update row_index and tablet_index columns in data table")
-    if tablet_count > new_tablet_count:
-        tablet_sizes = get_tablet_sizes(tablet_size_table, tablet_count, new_tablet_count - 1)
-
-        partial_sums = [0]
-        for size in tablet_sizes:
-            partial_sums.append(partial_sums[-1] + size)
-        yt.insert_rows(tablet_size_table, [{"tablet_index": new_tablet_count - 1, "size": partial_sums[-1]}])
-
-        logger.info("Cumulative sums on sizes of resharded tablets: " + " ".join(list(map(str, partial_sums))))
-
-        yt.run_map(
-            UpdateIndexesMapper(new_tablet_count, partial_sums, tablet_trimmed_row_count),
-            data_table,
-            data_table,
-            ordered=True,
-        )
-
-    elif tablet_count < new_tablet_count:
-        yt.insert_rows(tablet_size_table, [
-            {"tablet_index": tablet_index, "size": 0} for tablet_index in range(tablet_count, new_tablet_count)
-        ])
-
-def do_reshard(registry, current_tablet_count, new_tablet_count,
-    tablet_trimmed_row_count, spec
-):
-    logger.info("Resharding table %s into %s tablets", registry.base, new_tablet_count)
-    unmount_table(registry.base)
-    yt.reshard_table(registry.base, tablet_count=new_tablet_count, sync=True)
-    mount_table(registry.base)
-
-    update_data_indexes(
-        registry.data,
-        registry.tablet_size,
-        current_tablet_count,
-        tablet_trimmed_row_count,
-        new_tablet_count)
-
-    for tablet_index in range(new_tablet_count, current_tablet_count):
-        tablet_trimmed_row_count[tablet_index] = 0
-
-def test_ordered_tables(base_path, spec, attributes, args):
-    table_path = base_path + "/ordered_table"
+def test_queues(base_path, spec, attributes, args):
+    table_path = base_path + "/queue"
     attributes = copy.deepcopy(attributes)
 
     # XXX
     attributes.pop("chunk_format", None)
 
     registry = Registry(table_path)
-    schema = Schema.from_spec(spec)
+    schema = Schema.from_spec(sorted=False, spec=spec)
 
     logger.info("Schema data weight is %s", schema.data_weight())
 
@@ -300,31 +231,20 @@ def test_ordered_tables(base_path, spec, attributes, args):
         sync_flush_table(registry.base)
 
         if not spec.testing.skip_verify:
-            verify_select(
+            verify_pull_queue_consumer(
                 data_table_schema,
-                registry.data,
-                registry.data,
+                current_tablet_count,
+                registry.tablet_size,
+                registry.iter_data,
                 registry.base,
-                registry.dump + ".select",
-                registry.result + ".select",
-                ["$tablet_index", "$row_index"],
-                spec,
-                data_key_columns=["tablet_index", "row_index"],
-                keys_key_columns=["tablet_index", "row_index"])
+                registry.consumer,
+                registry.dump + ".pull_queue_consumer",
+                registry.result + ".pull_queue_consumer",
+                spec)
             process_runner.join_processes()
 
         if spec.ordered.trim and iteration % 2 == 1:
             trim_and_update(registry, tablet_trimmed_row_count, current_tablet_count)
-
-        if spec.reshard:
-            new_tablet_count = random.randint(1, spec.size.tablet_count)
-            do_reshard(
-                registry,
-                current_tablet_count,
-                new_tablet_count,
-                tablet_trimmed_row_count,
-                spec)
-            current_tablet_count = new_tablet_count
 
         logger.info("Checking stuff for %s", registry.base)
         check_tablet_sizes(registry.base, registry.tablet_size, current_tablet_count)

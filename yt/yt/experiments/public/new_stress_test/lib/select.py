@@ -9,6 +9,8 @@ from yt.wrapper.common import generate_uuid
 from yt.wrapper.http_helpers import get_proxy_url
 import yt.yson as yson
 
+import sys
+
 MAX_ROWS_PER_REQUEST = 10000
 
 @yt.reduce_aggregator
@@ -18,6 +20,7 @@ class SelectReducer(JobBase):
         self.key_columns = key_columns
         self.data_key_columns = data_key_columns or key_columns
         self.table = table
+
     def __call__(self, row_groups):
         client = self.create_client()
 
@@ -60,7 +63,7 @@ class SelectReducer(JobBase):
 
 
 @process_runner.run_in_process()
-def verify_select(schema, key_table, data_table, table, dump_table, result_table, key_columns, spec, data_key_columns=None):
+def verify_select(schema, keys_table, data_table, table, dump_table, result_table, key_columns, spec, data_key_columns=None, keys_key_columns=None):
     logger.info("Verify select for key %s" % (key_columns))
 
     # XXX: revisit name data_key_columns
@@ -75,6 +78,9 @@ def verify_select(schema, key_table, data_table, table, dump_table, result_table
 
     if data_key_columns is None:
         data_key_columns = key_columns
+
+    if keys_key_columns is None:
+        keys_key_columns = key_columns
 
     if not check_bool(schema, data_key_columns):
         logger.info("Disabled since all keys are boolean")
@@ -96,9 +102,9 @@ def verify_select(schema, key_table, data_table, table, dump_table, result_table
 
     op = client.run_reduce(
         SelectReducer(table, spec, key_columns, data_key_columns),
-        key_table,
+        keys_table,
         dump_table,
-        reduce_by=key_columns,
+        reduce_by=keys_key_columns,
         spec=op_spec,
         sync=False)
     run_operation_and_wrap_error(op, "Select")

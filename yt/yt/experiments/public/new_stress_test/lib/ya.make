@@ -26,6 +26,7 @@ PY_SRCS(
     parser.py
     parser_impl.py
     process_runner.py
+    pull_queue_consumer.py
     reshard.py
     replication_helpers.py
     runner.py
@@ -36,6 +37,7 @@ PY_SRCS(
     table_creation.py
     test_compare_replicas.py
     test_ordered.py
+    test_queues.py
     test_sorted.py
     verify.py
     write_data.py
