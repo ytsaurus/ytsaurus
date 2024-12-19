@@ -136,17 +136,13 @@ void TColumnarStatisticsFetcher::OnResponse(
                 OnChunkFailed(nodeId, chunkIndex, error);
             }
         } else {
-            if (subresponse.has_columnar_statistics()) {
-                FromProto(&statistics, subresponse.columnar_statistics(), &subresponse.large_columnar_statistics(), Chunks_[chunkIndex]->GetTotalRowCount());
-            } else {
-                // COMPAT(denvid): Delete this with deleting deprecated fields from TRspGetColumnarStatistics.TSubresponse.
-                statistics.ColumnDataWeights = NYT::FromProto<std::vector<i64>>(subresponse.column_data_weights());
-                YT_VERIFY(statistics.ColumnDataWeights.size() == GetColumnStableNames(chunkIndex).size());
-                if (subresponse.has_timestamp_total_weight()) {
-                    statistics.TimestampTotalWeight = subresponse.timestamp_total_weight();
-                }
-                statistics.ChunkRowCount = Chunks_[chunkIndex]->GetTotalRowCount();
-            }
+            // Ensure that either `error` or 'columnar_statistics' is present in the subresponse.
+            YT_VERIFY(subresponse.has_columnar_statistics());
+            FromProto(
+                &statistics,
+                subresponse.columnar_statistics(),
+                &subresponse.large_columnar_statistics(),
+                Chunks_[chunkIndex]->GetTotalRowCount());
         }
         if (Options_.StoreChunkStatistics) {
             ChunkStatistics_[chunkIndex] = statistics;

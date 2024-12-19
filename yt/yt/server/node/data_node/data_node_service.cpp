@@ -2461,21 +2461,6 @@ private:
                 ToProto(subresponse->mutable_large_columnar_statistics(), largeStatistics);
             }
 
-            // COMPAT(denvid): legacy response fields. Remove once all clusters are 23.2+.
-
-            subresponse->mutable_column_data_weights()->Reserve(columnStableNames.size());
-            for (const auto& columnName : columnStableNames) {
-                auto id = nameTable->FindId(columnName.Underlying());
-                if (id && *id < columnarStatisticsExt.column_data_weights().size()) {
-                    subresponse->add_column_data_weights(columnarStatisticsExt.column_data_weights(*id));
-                } else {
-                    subresponse->add_column_data_weights(0);
-                }
-            }
-            if (columnarStatisticsExt.has_timestamp_total_weight()) {
-                subresponse->set_timestamp_total_weight(columnarStatisticsExt.timestamp_total_weight());
-            }
-
             YT_LOG_DEBUG("Columnar statistics extracted from chunk meta (ChunkId: %v)", chunkId);
         } catch (const std::exception& ex) {
             auto error = TError("Error fetching columnar statistics for chunk %v", chunkId) << ex;
