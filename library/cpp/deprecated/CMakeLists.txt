@@ -13,3 +13,6 @@
 # changes in this file.
 
 add_subdirectory(atomic)
+add_subdirectory(enum_codegen)
+add_subdirectory(split)
+add_subdirectory(kmp)

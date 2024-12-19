@@ -21,6 +21,8 @@ get_built_tool_path(
   enum_parser
 )
 
+add_subdirectory(global)
+
 add_library(library-cpp-logger)
 
 

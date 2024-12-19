@@ -14,3 +14,6 @@
 
 add_subdirectory(result_format)
 add_subdirectory(issue)
+add_subdirectory(udf)
+add_subdirectory(decimal)
+add_subdirectory(types)

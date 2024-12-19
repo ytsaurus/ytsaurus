@@ -25,6 +25,7 @@ add_subdirectory(prometheus)
 add_subdirectory(buffered)
 add_subdirectory(spack)
 add_subdirectory(json)
+add_subdirectory(text)
 
 add_library(cpp-monlib-encode)
 
