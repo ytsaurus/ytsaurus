@@ -19,11 +19,7 @@ using namespace NYTree;
 TEST(TSignatureTest, DeserializeSerialize)
 {
     // SignatureSize bytes.
-    TYsonString ysonOK(
-        R"({"header"="header";"payload"="payload";"signature"=")" +
-        TString(SignatureSize, 'X') +
-        R"(";})"
-    );
+    TYsonString ysonOK(R"({"header"="header";"payload"="payload";"signature"="signature";})"_sb);
 
     TSignaturePtr signature;
     EXPECT_NO_THROW(signature = ConvertTo<TSignaturePtr>(ysonOK));
@@ -36,12 +32,6 @@ TEST(TSignatureTest, DeserializeSerialize)
 
 TEST(TSignatureTest, DeserializeFail)
 {
-    {
-        TYsonString ysonFail(
-            R"({"header"="header";"payload"="payload";"signature"="abacaba";})"_sb
-        );
-        EXPECT_THROW_WITH_SUBSTRING(ConvertTo<TSignaturePtr>(ysonFail), "incorrect signature size");
-    }
     {
         TYsonString ysonFail(
             R"({"header"="header";"buddy"="payload";"signature"="abacaba";})"_sb

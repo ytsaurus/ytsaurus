@@ -102,7 +102,8 @@ TSignaturePtr TSignatureGenerator::Sign(TYsonString&& payload) const
                 GetKeyId(KeyPair_->KeyInfo()->Meta()));
         }
 
-        KeyPair_->Sign(toSign, result->Signature_);
+        result->Signature_.resize(SignatureSize);
+        KeyPair_->Sign(toSign, std::span<std::byte, SignatureSize>(result->Signature_));
     }
 
     YT_LOG_TRACE(

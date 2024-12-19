@@ -2,13 +2,11 @@
 
 #include "public.h"
 
-#include "crypto.h"
-
 #include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/core/ytree/public.h>
 
-#include <array>
+#include <vector>
 
 namespace NYT::NSignature {
 
@@ -22,7 +20,7 @@ public:
 private:
     NYson::TYsonString Header_;
     NYson::TYsonString Payload_;
-    std::array<std::byte, SignatureSize> Signature_;
+    std::vector<std::byte> Signature_;
 
     friend class TSignatureGenerator;
     friend class TSignatureValidator;

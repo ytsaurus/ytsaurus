@@ -43,11 +43,7 @@ void Deserialize(TSignature& signature, INodePtr node)
 
     auto signatureString = mapNode->GetChildValueOrThrow<TString>("signature");
     auto signatureBytes = std::as_bytes(std::span(TStringBuf(signatureString)));
-    if (signatureBytes.size() != SignatureSize) {
-        THROW_ERROR_EXCEPTION("Received incorrect signature size")
-            << TErrorAttribute("received", signatureString.size())
-            << TErrorAttribute("expected", SignatureSize);
-    }
+    signature.Signature_.resize(signatureBytes.size());
 
     std::copy(signatureBytes.begin(), signatureBytes.end(), signature.Signature_.begin());
 }
