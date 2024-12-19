@@ -6,9 +6,10 @@
 
 #include <yt/yt/server/lib/signature/config.h>
 #include <yt/yt/server/lib/signature/key_pair.h>
-#include <yt/yt/server/lib/signature/signature.h>
 #include <yt/yt/server/lib/signature/signature_header.h>
 #include <yt/yt/server/lib/signature/signature_preprocess.h>
+
+#include <yt/yt/client/signature/signature.h>
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
 

@@ -9,7 +9,6 @@ SRCS(
     helpers.cpp
     key_info_ut.cpp
     key_pair_ut.cpp
-    signature_ut.cpp
     signature_header_ut.cpp
     signature_generator_ut.cpp
     signature_validator_ut.cpp

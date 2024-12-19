@@ -12,8 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
 add_executable(unittester-signature-service)
 
 
@@ -23,43 +21,28 @@ target_compile_options(unittester-signature-service PRIVATE
 )
 
 target_link_libraries(unittester-signature-service PUBLIC
-  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
-  client-unittests-mock
   yt-core-test_framework
-  server-lib-signature
+  yt-yt-client
 )
 
 target_allocator(unittester-signature-service
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
+  system_allocator
 )
 
 target_link_options(unittester-signature-service PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
+  -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
+  -framework
+  CoreFoundation
 )
 
 target_sources(unittester-signature-service PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/cypress_key_store_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/key_info_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/key_pair_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/signature_header_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/signature_generator_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/signature_validator_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/signature_preprocess_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/signature/unittests/signature_ut.cpp
 )
 
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/client/signature/public.h>
+
 #include <library/cpp/yt/memory/ref_counted.h>
 
 #include <library/cpp/yt/misc/guid.h>
@@ -20,7 +22,6 @@ DECLARE_REFCOUNTED_STRUCT(TSignatureValidatorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TKeyInfo)
-DECLARE_REFCOUNTED_CLASS(TSignature)
 DECLARE_REFCOUNTED_CLASS(TSignatureGenerator)
 DECLARE_REFCOUNTED_CLASS(TSignatureValidator)
 

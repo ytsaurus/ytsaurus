@@ -1,6 +1,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/lib/signature/signature.h>
+#include <yt/yt/client/signature/signature.h>
 
 #include <yt/yt/core/yson/string.h>
 

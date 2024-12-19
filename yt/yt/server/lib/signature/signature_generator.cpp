@@ -4,9 +4,10 @@
 #include "key_info.h"
 #include "key_store.h"
 #include "private.h"
-#include "signature.h"
 #include "signature_header.h"
 #include "signature_preprocess.h"
+
+#include <yt/yt/client/signature/signature.h>
 
 #include <yt/yt/core/misc/error.h>
 
