@@ -736,8 +736,8 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
     std::vector<int> candidateIndices;
     candidateIndices.reserve(Locations_.size());
 
-    TStoreLocationPtr throttledLocation;
-    TError throttledLocationError;
+    std::vector<TStoreLocationPtr> throttledLocations;
+    std::vector<TError> throttledLocationErrors;
 
     int minCount = std::numeric_limits<int>::max();
     for (int index = 0; index < std::ssize(Locations_); ++index) {
@@ -752,22 +752,22 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
         if (memoryLimitFractionForStartingNewSessions &&
             usedMemory > memoryLimit)
         {
-            throttledLocation = location;
-            throttledLocationError = TError("Session cannot be started due to lack of memory")
+            throttledLocations.push_back(location);
+            throttledLocationErrors.push_back(TError("Session cannot be started due to lack of memory")
                 << TErrorAttribute("location_id", location->GetId())
                 << TErrorAttribute("used_memory", usedMemory)
-                << TErrorAttribute("memory_limit", memoryLimit);
+                << TErrorAttribute("memory_limit", memoryLimit));
             continue;
         }
 
         auto sessionCount = location->GetSessionCount();
         auto sessionCountLimit = location->GetSessionCountLimit();
         if (sessionCount >= sessionCountLimit) {
-            throttledLocation = location;
-            throttledLocationError = TError("Session cannot be started due to lack of memory")
+            throttledLocations.push_back(location);
+            throttledLocationErrors.push_back(TError("Session cannot be started because of too many concurrent sessions")
                 << TErrorAttribute("location_id", location->GetId())
                 << TErrorAttribute("session_count", sessionCount)
-                << TErrorAttribute("session_count_limit", sessionCountLimit);
+                << TErrorAttribute("session_count_limit", sessionCountLimit));
             continue;
         }
 
@@ -791,9 +791,11 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             "No write location is available")
             << TErrorAttribute("session_id", ToString(sessionId));
 
-        if (throttledLocation) {
-            throttledLocation->ReportThrottledWrite();
-            error <<= throttledLocationError;
+        if (!throttledLocations.empty()) {
+            auto size = throttledLocations.size();
+            auto index = RandomNumber(size);
+            throttledLocations[index]->ReportThrottledWrite();
+            error <<= throttledLocationErrors[index];
         }
 
         THROW_ERROR_EXCEPTION(error);
