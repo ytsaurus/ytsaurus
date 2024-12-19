@@ -626,16 +626,16 @@ public:
         return clonedNode;
     }
 
-    TCypressNode* EndCopyNode(
+    TCypressNode* MaterializeNode(
         IAttributeDictionary* inheritedAttributes,
-        TEndCopyContext* context) override
+        TMaterializeNodeContext* context) override
     {
-        // See BeginCopyCore.
+        // See SerializeNodeCore.
         using NYT::Load;
         auto sourceNodeId = Load<TNodeId>(*context);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* clonedTrunkNode = cypressManager->EndCopyNode(context, this, sourceNodeId);
+        auto* clonedTrunkNode = cypressManager->MaterializeNode(context, this, sourceNodeId);
 
         auto* clonedNode = cypressManager->LockNode(
             clonedTrunkNode,
@@ -651,7 +651,7 @@ public:
         if (clonedNode->IsExternal()) {
             auto transactionId = Transaction_->GetId();
 
-            // NB: source node has been locked during BeginCopy, from source node's native cell.
+            // NB: source node has been locked during LockCopySource, from source node's native cell.
             // Make sure to use correct transaction for copying.
             auto sourceNodeNativeCellTag = CellTagFromId(sourceNodeId);
             auto sourceNodeExternalizedTransactionId = transactionId;
@@ -1434,8 +1434,8 @@ public:
             inheritedAttributes);
     }
 
-    TCypressNode* EndCopyNode(
-        TEndCopyContext* context,
+    TCypressNode* MaterializeNode(
+        TMaterializeNodeContext* context,
         ICypressNodeFactory* factory,
         TNodeId sourceNodeId) override
     {
@@ -1443,7 +1443,7 @@ public:
         YT_VERIFY(context);
         YT_VERIFY(factory);
 
-        // See BeginCopyCore.
+        // See SerializeNodeCore.
         auto type = Load<EObjectType>(*context);
         ValidateCreatedNodeTypePermission(type);
 
@@ -1457,7 +1457,7 @@ public:
         context->SetExternalCellTag(externalCellTag);
 
         const auto& handler = GetHandler(type);
-        return handler->EndCopy(context, factory);
+        return handler->MaterializeNode(context, factory);
     }
 
     TCypressMapNode* GetRootNode() const override

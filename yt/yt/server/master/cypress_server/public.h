@@ -98,9 +98,9 @@ using TBooleanNodeTypeHandler = TScalarNodeTypeHandler<bool>;
 
 struct TCreateNodeContext;
 
-class TBeginCopyContext;
-class TEndCopyContext;
-using TCopyPersistenceContext = TCustomPersistenceContext<TBeginCopyContext, TEndCopyContext>;
+class TSerializeNodeContext;
+class TMaterializeNodeContext;
+using TCopyPersistenceContext = TCustomPersistenceContext<TSerializeNodeContext, TMaterializeNodeContext>;
 
 DECLARE_REFCOUNTED_CLASS(TCypressManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicCypressManagerConfig)

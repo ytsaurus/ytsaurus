@@ -70,14 +70,14 @@ void TTabletOwnerTypeHandlerBase<TImpl>::DoClone(
 }
 
 template <class TImpl>
-void TTabletOwnerTypeHandlerBase<TImpl>::DoBeginCopy(
+void TTabletOwnerTypeHandlerBase<TImpl>::DoSerializeNode(
     TImpl* node,
-    TBeginCopyContext* context)
+    TSerializeNodeContext* context)
 {
-    TBase::DoBeginCopy(node, context);
+    TBase::DoSerializeNode(node, context);
 
     const auto& tabletManager = this->GetBootstrap()->GetTabletManager();
-    tabletManager->ValidateBeginCopyTabletOwner(node, context->GetMode());
+    tabletManager->ValidateSerializeTabletOwner(node, context->GetMode());
 
     using NYT::Save;
 
@@ -87,16 +87,16 @@ void TTabletOwnerTypeHandlerBase<TImpl>::DoBeginCopy(
 
     Save(*context, trunkNode->HasCustomTabletOwnerAttributes());
     if (trunkNode->HasCustomTabletOwnerAttributes()) {
-        trunkNode->GetCustomTabletOwnerAttributes()->BeginCopy(context);
+        trunkNode->GetCustomTabletOwnerAttributes()->SerializeNode(context);
     }
 }
 
 template <class TImpl>
-void TTabletOwnerTypeHandlerBase<TImpl>::DoEndCopy(
+void TTabletOwnerTypeHandlerBase<TImpl>::DoMaterializeNode(
     TImpl* node,
-    TEndCopyContext* context)
+    TMaterializeNodeContext* context)
 {
-    TBase::DoEndCopy(node, context);
+    TBase::DoMaterializeNode(node, context);
 
     const auto& tabletManager = this->GetBootstrap()->GetTabletManager();
 
@@ -110,7 +110,7 @@ void TTabletOwnerTypeHandlerBase<TImpl>::DoEndCopy(
 
     if (Load<bool>(*context)) {
         node->InitializeCustomTabletOwnerAttributes();
-        node->GetCustomTabletOwnerAttributes()->EndCopy(context);
+        node->GetCustomTabletOwnerAttributes()->MaterializeNode(context);
     }
 }
 

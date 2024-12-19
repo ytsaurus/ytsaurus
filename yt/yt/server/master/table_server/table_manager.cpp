@@ -290,7 +290,7 @@ public:
     {
         if (!schema) {
             // During cross-shard copying of an opaque table, it is materialized
-            // by EndCopy (non-inplace) without any schema.
+            // by MaterializeNode (non-inplace) without any schema.
             return;
         }
 

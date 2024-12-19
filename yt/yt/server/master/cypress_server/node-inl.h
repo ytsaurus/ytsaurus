@@ -101,7 +101,7 @@ void TVersionedBuiltinAttribute<T>::Persist(const NCellMaster::TPersistenceConte
 }
 
 template <class T>
-void TVersionedBuiltinAttribute<T>::Save(TBeginCopyContext& context) const
+void TVersionedBuiltinAttribute<T>::Save(TSerializeNodeContext& context) const
 {
     using NYT::Save;
     if constexpr (TVersionedBuiltinAttributeTraits<T>::IsPointer) {
@@ -116,7 +116,7 @@ void TVersionedBuiltinAttribute<T>::Save(TBeginCopyContext& context) const
 }
 
 template <class T>
-void TVersionedBuiltinAttribute<T>::Load(TEndCopyContext& context)
+void TVersionedBuiltinAttribute<T>::Load(TMaterializeNodeContext& context)
 {
     using NYT::Load;
     if constexpr (TVersionedBuiltinAttributeTraits<T>::IsPointer) {

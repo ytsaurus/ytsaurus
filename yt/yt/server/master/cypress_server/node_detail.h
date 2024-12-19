@@ -72,11 +72,11 @@ protected:
 
     void DestroyCorePrologue(TCypressNode* node);
 
-    void BeginCopyCore(
+    void SerializeNodeCore(
         TCypressNode* node,
-        TBeginCopyContext* context);
-    TCypressNode* EndCopyCore(
-        TEndCopyContext* context,
+        TSerializeNodeContext* context);
+    TCypressNode* MaterializeNodeCore(
+        TMaterializeNodeContext* context,
         ICypressNodeFactory* factory);
 
     void BranchCorePrologue(
@@ -214,20 +214,20 @@ public:
         NObjectServer::TObject::RecreateAsGhost(typedNode);
     }
 
-    void BeginCopy(
+    void SerializeNode(
         TCypressNode* node,
-        TBeginCopyContext* context) override
+        TSerializeNodeContext* context) override
     {
-        BeginCopyCore(node, context);
-        DoBeginCopy(node->As<TImpl>(), context);
+        SerializeNodeCore(node, context);
+        DoSerializeNode(node->As<TImpl>(), context);
     }
 
-    TCypressNode* EndCopy(
-        TEndCopyContext* context,
+    TCypressNode* MaterializeNode(
+        TMaterializeNodeContext* context,
         ICypressNodeFactory* factory) override
     {
-        auto* trunkNode = EndCopyCore(context, factory);
-        DoEndCopy(trunkNode->template As<TImpl>(), context);
+        auto* trunkNode = MaterializeNodeCore(context, factory);
+        DoMaterializeNode(trunkNode->template As<TImpl>(), context);
 
         return trunkNode;
     }
@@ -382,14 +382,14 @@ protected:
         const NSequoiaClient::ISequoiaTransactionPtr& /*transaction*/) noexcept
     { }
 
-    virtual void DoBeginCopy(
+    virtual void DoSerializeNode(
         TImpl* /*node*/,
-        TBeginCopyContext* /*context*/)
+        TSerializeNodeContext* /*context*/)
     { }
 
-    virtual void DoEndCopy(
+    virtual void DoMaterializeNode(
         TImpl* /*trunkNode*/,
-        TEndCopyContext* /*context*/)
+        TMaterializeNodeContext* /*context*/)
     { }
 
     virtual void DoBranch(
@@ -606,21 +606,21 @@ protected:
         clonedTrunkNode->Value() = sourceNode->Value();
     }
 
-    void DoBeginCopy(
+    void DoSerializeNode(
         TScalarNode<TValue>* node,
-        TBeginCopyContext* context) override
+        TSerializeNodeContext* context) override
     {
-        TBase::DoBeginCopy(node, context);
+        TBase::DoSerializeNode(node, context);
 
         using NYT::Save;
         Save(*context, node->Value());
     }
 
-    void DoEndCopy(
+    void DoMaterializeNode(
         TScalarNode<TValue>* trunkNode,
-        TEndCopyContext* context) override
+        TMaterializeNodeContext* context) override
     {
-        TBase::DoEndCopy(trunkNode, context);
+        TBase::DoMaterializeNode(trunkNode, context);
 
         using NYT::Load;
         Load(*context, trunkNode->Value());
@@ -847,12 +847,12 @@ protected:
         TImpl* originatingNode,
         TImpl* branchedNode) override;
 
-    void DoBeginCopy(
+    void DoSerializeNode(
         TImpl* node,
-        TBeginCopyContext* context) override;
-    void DoEndCopy(
+        TSerializeNodeContext* context) override;
+    void DoMaterializeNode(
         TImpl* trunkNode,
-        TEndCopyContext* context) override;
+        TMaterializeNodeContext* context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1010,12 +1010,12 @@ protected:
         TImpl* originatingNode,
         TImpl* branchedNode) override;
 
-    void DoBeginCopy(
+    void DoSerializeNode(
         TImpl* node,
-        TBeginCopyContext* context) override;
-    void DoEndCopy(
+        TSerializeNodeContext* context) override;
+    void DoMaterializeNode(
         TImpl* trunkNode,
-        TEndCopyContext* context) override;
+        TMaterializeNodeContext* context) override;
 };
 
 using TCypressMapNodeTypeHandler = TCypressMapNodeTypeHandlerImpl<TCypressMapNode>;
@@ -1064,12 +1064,12 @@ protected:
         TImpl* originatingNode,
         TImpl* branchedNode) override;
 
-    void DoBeginCopy(
+    void DoSerializeNode(
         TImpl* node,
-        TBeginCopyContext* context) override;
-    void DoEndCopy(
+        TSerializeNodeContext* context) override;
+    void DoMaterializeNode(
         TImpl* trunkNode,
-        TEndCopyContext* context) override;
+        TMaterializeNodeContext* context) override;
 };
 
 using TSequoiaMapNodeTypeHandler = TSequoiaMapNodeTypeHandlerImpl<TSequoiaMapNode>;
@@ -1145,12 +1145,12 @@ private:
         TListNode* originatingNode,
         TListNode* branchedNode) override;
 
-    void DoBeginCopy(
+    void DoSerializeNode(
         TListNode* node,
-        TBeginCopyContext* context) override;
-    void DoEndCopy(
+        TSerializeNodeContext* context) override;
+    void DoMaterializeNode(
         TListNode* trunkNode,
-        TEndCopyContext* context) override;
+        TMaterializeNodeContext* context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

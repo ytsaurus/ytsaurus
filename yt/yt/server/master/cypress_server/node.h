@@ -78,8 +78,8 @@ class TVersionedBuiltinAttribute
 public:
     void Persist(const NCellMaster::TPersistenceContext& context);
 
-    void Save(TBeginCopyContext& context) const;
-    void Load(TEndCopyContext& context);
+    void Save(TSerializeNodeContext& context) const;
+    void Load(TMaterializeNodeContext& context);
 
 public:
     TVersionedBuiltinAttribute() noexcept = default;

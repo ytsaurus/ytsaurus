@@ -54,8 +54,8 @@ private:
         void Load(NCellMaster::TLoadContext& context);
 
         void CopyFrom(const TTabletOwnerAttributes* other);
-        void BeginCopy(NCypressServer::TBeginCopyContext* context) const;
-        void EndCopy(NCypressServer::TEndCopyContext* context);
+        void SerializeNode(NCypressServer::TSerializeNodeContext* context) const;
+        void MaterializeNode(NCypressServer::TMaterializeNodeContext* context);
     };
 
 public:

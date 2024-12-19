@@ -618,9 +618,9 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
 }
 
 template <class TChunkOwner>
-void TChunkOwnerTypeHandler<TChunkOwner>::DoBeginCopy(
+void TChunkOwnerTypeHandler<TChunkOwner>::DoSerializeNode(
     TChunkOwner* node,
-    TBeginCopyContext* context)
+    TSerializeNodeContext* context)
 {
     if (!node->IsExternal()) {
         // TODO(babenko): support cross-cell copying for non-external nodes
@@ -629,7 +629,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBeginCopy(
             cypressManager->GetNodePath(node->GetTrunkNode(), context->GetTransaction()));
     }
 
-    TBase::DoBeginCopy(node, context);
+    TBase::DoSerializeNode(node, context);
 
     using NYT::Save;
 
@@ -655,11 +655,11 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBeginCopy(
 }
 
 template <class TChunkOwner>
-void TChunkOwnerTypeHandler<TChunkOwner>::DoEndCopy(
+void TChunkOwnerTypeHandler<TChunkOwner>::DoMaterializeNode(
     TChunkOwner* trunkNode,
-    TEndCopyContext* context)
+    TMaterializeNodeContext* context)
 {
-    TBase::DoEndCopy(trunkNode, context);
+    TBase::DoMaterializeNode(trunkNode, context);
 
     using NYT::Load;
 

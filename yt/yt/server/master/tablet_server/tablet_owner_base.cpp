@@ -65,14 +65,14 @@ void TTabletOwnerBase::TTabletOwnerAttributes::CopyFrom(const TTabletOwnerAttrib
     InMemoryMode = other->InMemoryMode;
 }
 
-void TTabletOwnerBase::TTabletOwnerAttributes::BeginCopy(NCypressServer::TBeginCopyContext* context) const
+void TTabletOwnerBase::TTabletOwnerAttributes::SerializeNode(NCypressServer::TSerializeNodeContext* context) const
 {
     using NYT::Save;
 
     Save(*context, InMemoryMode);
 }
 
-void TTabletOwnerBase::TTabletOwnerAttributes::EndCopy(NCypressServer::TEndCopyContext* context)
+void TTabletOwnerBase::TTabletOwnerAttributes::MaterializeNode(NCypressServer::TMaterializeNodeContext* context)
 {
     using NYT::Load;
 

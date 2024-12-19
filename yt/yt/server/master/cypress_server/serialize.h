@@ -56,11 +56,11 @@ private:
 
 // TODO(h0pless): IntroduceNewPipelineForCrossCellCopy.
 // Rename this to SerializeNodeContext in a separate PR. Just to make sure that diff is more readable.
-class TBeginCopyContext
+class TSerializeNodeContext
     : public TEntityStreamSaveContext
 {
 public:
-    TBeginCopyContext(
+    TSerializeNodeContext(
         NTransactionServer::TTransaction* transaction,
         ENodeCloneMode mode,
         const TCypressNode* rootNode);
@@ -86,11 +86,11 @@ private:
 
 // TODO(h0pless): IntroduceNewPipelineForCrossCellCopy.
 // Rename this to MaterializeNodeContext in a separate PR. Just to make sure that diff is more readable.
-class TEndCopyContext
+class TMaterializeNodeContext
     : public TEntityStreamLoadContext
 {
 public:
-    TEndCopyContext(
+    TMaterializeNodeContext(
         NCellMaster::TBootstrap* bootstrap,
         ENodeCloneMode mode,
         TRef data,

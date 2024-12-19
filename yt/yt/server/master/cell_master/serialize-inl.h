@@ -47,7 +47,7 @@ struct TRawNonversionedObjectPtrSerializer
     }
 
     template <class T>
-    static void Save(NCypressServer::TBeginCopyContext& context, T* object)
+    static void Save(NCypressServer::TSerializeNodeContext& context, T* object)
     {
         using NYT::Save;
         if (object && !NObjectServer::IsObjectAlive(object)) {
@@ -76,7 +76,7 @@ struct TRawNonversionedObjectPtrSerializer
     }
 
     template <class T>
-    static void Load(NCypressServer::TEndCopyContext& context, T*& object)
+    static void Load(NCypressServer::TMaterializeNodeContext& context, T*& object)
     {
         using NYT::Load;
         using TObject = typename std::remove_pointer<T>::type;
@@ -217,11 +217,11 @@ struct TMasterTableSchemaRefSerializer
     }
 
     template <class T>
-    static void Save(NCypressServer::TBeginCopyContext& context, T object)
+    static void Save(NCypressServer::TSerializeNodeContext& context, T object)
     {
         YT_VERIFY(object);
 
-        // NB: Each BeginCopyContext contains a single node,
+        // NB: Each SerializeNodeContext contains a single node,
         // thus no more than one schema should be saved.
         YT_VERIFY(!context.GetSchemaId());
 
@@ -230,7 +230,7 @@ struct TMasterTableSchemaRefSerializer
     }
 
     template <class T>
-    static void Load(NCypressServer::TEndCopyContext& context, T& object)
+    static void Load(NCypressServer::TMaterializeNodeContext& context, T& object)
     {
         // NB: See comment in Save.
         object = context.GetSchema();

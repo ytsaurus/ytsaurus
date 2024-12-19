@@ -2036,9 +2036,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, SerializeNode)
     auto* node = GetThisImpl();
     ValidatePermission(node, EPermissionCheckScope::This, EPermission::FullRead);
 
-    TBeginCopyContext nodeLocalContext(Transaction_, mode, node);
+    TSerializeNodeContext nodeLocalContext(Transaction_, mode, node);
     const auto& handler = Bootstrap_->GetCypressManager()->GetHandler(node->GetTrunkNode());
-    handler->BeginCopy(node, &nodeLocalContext);
+    handler->SerializeNode(node, &nodeLocalContext);
 
     auto data = nodeLocalContext.Finish();
     auto mergedData = data.size() == 1
@@ -2452,7 +2452,7 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
                 recursive);
         }
     } else if (clonedTrunkNode->GetReachable()) {
-        // Due to the EndCopyInplace verb specifics a subtree becomes immediately visible in trunk.
+        // Due to the MaterializeNode with inplace flag specifics a subtree becomes immediately visible in trunk.
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SetReachableSubtreeNodes(clonedTrunkNode, /*transaction*/ nullptr, /*includeRoot*/ false);
     } else {

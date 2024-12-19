@@ -1961,7 +1961,7 @@ public:
             account);
     }
 
-    void ValidateBeginCopyTabletOwner(
+    void ValidateSerializeTabletOwner(
         TTabletOwnerBase* sourceNode,
         ENodeCloneMode mode)
     {
@@ -1974,13 +1974,13 @@ public:
         }
 
         if (IsTableType(sourceNode->GetType())) {
-            ValidateBeginCopyTable(sourceNode->As<TTableNode>(), mode);
+            ValidateSerializeTable(sourceNode->As<TTableNode>(), mode);
         } else {
             YT_ABORT();
         }
     }
 
-    void ValidateBeginCopyTable(
+    void ValidateSerializeTable(
         TTableNode* sourceTable,
         ENodeCloneMode mode)
     {
@@ -7750,11 +7750,11 @@ void TTabletManager::ValidateCloneTabletOwner(
         account);
 }
 
-void TTabletManager::ValidateBeginCopyTabletOwner(
+void TTabletManager::ValidateSerializeTabletOwner(
     TTabletOwnerBase* sourceNode,
     ENodeCloneMode mode)
 {
-    return Impl_->ValidateBeginCopyTabletOwner(
+    return Impl_->ValidateSerializeTabletOwner(
         sourceNode,
         mode);
 }

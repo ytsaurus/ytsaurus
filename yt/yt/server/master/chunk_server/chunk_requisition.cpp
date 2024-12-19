@@ -113,7 +113,7 @@ void TChunkReplication::TEntry::Load(NCellMaster::TLoadContext& context)
     Load(context, Policy_);
 }
 
-void TChunkReplication::TEntry::Save(NCypressServer::TBeginCopyContext& context) const
+void TChunkReplication::TEntry::Save(NCypressServer::TSerializeNodeContext& context) const
 {
     using NYT::Save;
 
@@ -121,7 +121,7 @@ void TChunkReplication::TEntry::Save(NCypressServer::TBeginCopyContext& context)
     Save(context, Policy_);
 }
 
-void TChunkReplication::TEntry::Load(NCypressServer::TEndCopyContext& context)
+void TChunkReplication::TEntry::Load(NCypressServer::TMaterializeNodeContext& context)
 {
     using NYT::Load;
 
@@ -151,14 +151,14 @@ void TChunkReplication::Load(NCellMaster::TLoadContext& context)
     Load(context, Vital_);
 }
 
-void TChunkReplication::Save(NCypressServer::TBeginCopyContext& context) const
+void TChunkReplication::Save(NCypressServer::TSerializeNodeContext& context) const
 {
     using NYT::Save;
     Save(context, Entries_);
     Save(context, Vital_);
 }
 
-void TChunkReplication::Load(NCypressServer::TEndCopyContext& context)
+void TChunkReplication::Load(NCypressServer::TMaterializeNodeContext& context)
 {
     using NYT::Load;
     Load(context, Entries_);
