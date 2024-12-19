@@ -27,8 +27,8 @@ struct TChunkOwnerDataStatistics
     void Load(NCellMaster::TLoadContext& context);
 
     // TODO(cherepashka): delete copy paste after compat is removed.
-    void Save(NCypressServer::TBeginCopyContext& context) const;
-    void Load(NCypressServer::TEndCopyContext& context);
+    void Save(NCypressServer::TSerializeNodeContext& context) const;
+    void Load(NCypressServer::TMaterializeNodeContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

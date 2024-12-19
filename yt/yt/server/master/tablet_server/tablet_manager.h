@@ -82,7 +82,7 @@ public:
         TTabletOwnerBase* sourceNode,
         NCypressServer::ENodeCloneMode mode,
         NSecurityServer::TAccount* account);
-    void ValidateBeginCopyTabletOwner(
+    void ValidateSerializeTabletOwner(
         TTabletOwnerBase* sourceNode,
         NCypressServer::ENodeCloneMode mode);
 

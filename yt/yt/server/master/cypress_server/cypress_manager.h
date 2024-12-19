@@ -112,8 +112,8 @@ public:
         TNodeId hintId = NCypressClient::NullObjectId) = 0;
 
     //! Deserializes a node and registers its clone.
-    virtual TCypressNode* EndCopyNode(
-        TEndCopyContext* context,
+    virtual TCypressNode* MaterializeNode(
+        TMaterializeNodeContext* context,
         ICypressNodeFactory* factory,
         TNodeId sourceNodeId) = 0;
 

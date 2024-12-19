@@ -45,8 +45,8 @@ struct TMasterMemoryLimits
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
-    void Save(NCypressServer::TBeginCopyContext& context) const;
-    void Load(NCypressServer::TEndCopyContext& context);
+    void Save(NCypressServer::TSerializeNodeContext& context) const;
+    void Load(NCypressServer::TMaterializeNodeContext& context);
 
     bool operator==(const TMasterMemoryLimits& that) const noexcept = default;
 };

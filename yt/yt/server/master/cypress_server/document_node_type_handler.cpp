@@ -88,21 +88,21 @@ private:
         return !AreNodesEqual(branchedNode->GetValue(), originatingNode->GetValue());
     }
 
-    void DoBeginCopy(
+    void DoSerializeNode(
         TDocumentNode* node,
-        TBeginCopyContext* context) override
+        TSerializeNodeContext* context) override
     {
-        TBase::DoBeginCopy(node, context);
+        TBase::DoSerializeNode(node, context);
 
         using NYT::Save;
         Save(*context, ConvertToYsonString(node->GetValue()));
     }
 
-    void DoEndCopy(
+    void DoMaterializeNode(
         TDocumentNode* trunkNode,
-        TEndCopyContext* context) override
+        TMaterializeNodeContext* context) override
     {
-        TBase::DoEndCopy(trunkNode, context);
+        TBase::DoMaterializeNode(trunkNode, context);
 
         using NYT::Load;
         trunkNode->SetValue(ConvertToNode(Load<TYsonString>(*context)));

@@ -600,7 +600,7 @@ private:
             /*serviceTrunkNode*/ nullptr,
             /*unresolvedSuffix*/ {}); // Unused during copy, relevant only for "create".
 
-        NCypressServer::TEndCopyContext copyContext(
+        NCypressServer::TMaterializeNodeContext copyContext(
             Bootstrap_,
             mode,
             TRef::FromString(serializedNode.data()),
@@ -611,7 +611,7 @@ private:
             ? FromProto(request->inherited_attributes_override())
             : New<NCypressServer::TInheritedAttributeDictionary>(Bootstrap_);
 
-        auto* node = factory->EndCopyNode(inheritedAttributes.Get(), &copyContext);
+        auto* node = factory->MaterializeNode(inheritedAttributes.Get(), &copyContext);
 
         // TODO(h0pless): When expanding list of inherited attributes re-calculated during copy, some trivial
         // setter code should be written somewhere here.

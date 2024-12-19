@@ -143,9 +143,9 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCorePrologue(TCypressNode* n
     securityManager->ResetAccount(node);
 }
 
-void TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
+void TNontemplateCypressNodeTypeHandlerBase::SerializeNodeCore(
     TCypressNode* node,
-    TBeginCopyContext* context)
+    TSerializeNodeContext* context)
 {
     using NYT::Save;
 
@@ -154,10 +154,10 @@ void TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
         erasedType = EObjectType::MapNode;
     }
 
-    // These are loaded in TCypressManager::TNodeFactory::EndCopyNode.
+    // These are loaded in TCypressManager::TNodeFactory::MaterializeNode.
     Save(*context, node->GetId());
 
-    // These are loaded in TCypressManager::EndCopyNode.
+    // These are loaded in TCypressManager::MaterializeNode.
     Save(*context, erasedType);
     Save(*context, node->GetExternalCellTag());
 
@@ -181,11 +181,11 @@ void TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
     Save(*context, SortHashMapByKeys(keyToAttribute));
 }
 
-TCypressNode* TNontemplateCypressNodeTypeHandlerBase::EndCopyCore(
-    TEndCopyContext* context,
+TCypressNode* TNontemplateCypressNodeTypeHandlerBase::MaterializeNodeCore(
+    TMaterializeNodeContext* context,
     ICypressNodeFactory* factory)
 {
-    // See BeginCopyCore.
+    // See SerializeNodeCore.
    TCypressNode* trunkNode = nullptr;
     if (auto targetNodeId = context->GetInplaceLoadTargetNodeId()) {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -1067,11 +1067,11 @@ bool TCompositeNodeTypeHandler<TImpl>::HasBranchedChangesImpl(
 }
 
 template <class TImpl>
-void TCompositeNodeTypeHandler<TImpl>::DoBeginCopy(
+void TCompositeNodeTypeHandler<TImpl>::DoSerializeNode(
     TImpl* node,
-    TBeginCopyContext* context)
+    TSerializeNodeContext* context)
 {
-    TBase::DoBeginCopy(node, context);
+    TBase::DoSerializeNode(node, context);
 
     using NYT::Save;
     TCompositeNodeBase::TTransientAttributes attributes;
@@ -1084,11 +1084,11 @@ void TCompositeNodeTypeHandler<TImpl>::DoBeginCopy(
 }
 
 template <class TImpl>
-void TCompositeNodeTypeHandler<TImpl>::DoEndCopy(
+void TCompositeNodeTypeHandler<TImpl>::DoMaterializeNode(
     TImpl* trunkNode,
-    TEndCopyContext* context)
+    TMaterializeNodeContext* context)
 {
-    TBase::DoEndCopy(trunkNode, context);
+    TBase::DoMaterializeNode(trunkNode, context);
 
     using NYT::Load;
     if (Load<bool>(*context)) {
@@ -1562,11 +1562,11 @@ bool TCypressMapNodeTypeHandlerImpl<TImpl>::HasBranchedChangesImpl(
 }
 
 template <class TImpl>
-void TCypressMapNodeTypeHandlerImpl<TImpl>::DoBeginCopy(
+void TCypressMapNodeTypeHandlerImpl<TImpl>::DoSerializeNode(
     TImpl* node,
-    TBeginCopyContext* context)
+    TSerializeNodeContext* context)
 {
-    TBase::DoBeginCopy(node, context);
+    TBase::DoSerializeNode(node, context);
 
     using NYT::Save;
 
@@ -1587,11 +1587,11 @@ void TCypressMapNodeTypeHandlerImpl<TImpl>::DoBeginCopy(
 }
 
 template <class TImpl>
-void TCypressMapNodeTypeHandlerImpl<TImpl>::DoEndCopy(
+void TCypressMapNodeTypeHandlerImpl<TImpl>::DoMaterializeNode(
     TImpl* trunkNode,
-    TEndCopyContext* context)
+    TMaterializeNodeContext* context)
 {
-    TBase::DoEndCopy(trunkNode, context);
+    TBase::DoMaterializeNode(trunkNode, context);
 
     using NYT::Load;
 
@@ -1778,17 +1778,17 @@ bool TSequoiaMapNodeTypeHandlerImpl<TImpl>::HasBranchedChangesImpl(
 }
 
 template <class TImpl>
-void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoBeginCopy(
+void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoSerializeNode(
     TImpl* /*node*/,
-    TBeginCopyContext* /*context*/)
+    TSerializeNodeContext* /*context*/)
 {
     ThrowSequoiaNodeCloningNotImplemented();
 }
 
 template <class TImpl>
-void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoEndCopy(
+void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoMaterializeNode(
     TImpl* /*trunkNode*/,
-    TEndCopyContext* /*context*/)
+    TMaterializeNodeContext* /*context*/)
 {
     ThrowSequoiaNodeCloningNotImplemented();
 }
@@ -1960,16 +1960,16 @@ bool TListNodeTypeHandler::HasBranchedChangesImpl(TListNode* originatingNode, TL
     return branchedNode->IndexToChild() != originatingNode->IndexToChild();
 }
 
-void TListNodeTypeHandler::DoBeginCopy(
+void TListNodeTypeHandler::DoSerializeNode(
     TListNode* /*node*/,
-    TBeginCopyContext* /*context*/)
+    TSerializeNodeContext* /*context*/)
 {
     THROW_ERROR_EXCEPTION("List nodes are deprecated and do not support cross-cell copying");
 }
 
-void TListNodeTypeHandler::DoEndCopy(
+void TListNodeTypeHandler::DoMaterializeNode(
     TListNode* trunkNode,
-    TEndCopyContext* /*context*/)
+    TMaterializeNodeContext* /*context*/)
 {
     YT_LOG_ALERT("Recieved EndCopy command for list node, despite BeginCopy being disabled for this type (ListNodeId: %v)",
         trunkNode->GetId());

@@ -42,8 +42,8 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    void Save(NCypressServer::TBeginCopyContext& context) const;
-    void Load(NCypressServer::TEndCopyContext& context);
+    void Save(NCypressServer::TSerializeNodeContext& context) const;
+    void Load(NCypressServer::TMaterializeNodeContext& context);
 
     friend void Serialize(const TDetailedMasterMemory& detailedMasterMemory, NYson::IYsonConsumer* consumer);
     friend void Deserialize(TDetailedMasterMemory& detailedMasterMemory, NYTree::INodePtr node);

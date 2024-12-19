@@ -35,7 +35,7 @@ void TMasterMemoryLimits::Load(NCellMaster::TLoadContext& context)
     Load(context, PerCell.AsUnderlying());
 }
 
-void TMasterMemoryLimits::Save(NCypressServer::TBeginCopyContext& context) const
+void TMasterMemoryLimits::Save(NCypressServer::TSerializeNodeContext& context) const
 {
     using NYT::Save;
 
@@ -45,7 +45,7 @@ void TMasterMemoryLimits::Save(NCypressServer::TBeginCopyContext& context) const
     Save(context, PerCell.AsUnderlying());
 }
 
-void TMasterMemoryLimits::Load(NCypressServer::TEndCopyContext& context)
+void TMasterMemoryLimits::Load(NCypressServer::TMaterializeNodeContext& context)
 {
     using NYT::Load;
 
