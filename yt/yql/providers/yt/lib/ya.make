@@ -14,6 +14,7 @@ RECURSE(
     schema
     skiff
     url_mapper
+    ut_common
     yson_helpers
     yt_download
     yt_rpc_helpers
