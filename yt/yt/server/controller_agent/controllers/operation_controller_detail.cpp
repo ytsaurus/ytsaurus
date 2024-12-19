@@ -6463,10 +6463,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
 
         FetchTableSchemas(
             OutputClient,
-            UpdatingTables_,
-            BIND([this] (const TOutputTablePtr& table) { return GetTransactionForOutputTable(table)->GetId(); }),
-            /*fetchFromExternalCells*/ false,
-            /*fetchSchemasById*/ GetConfig()->FetchSchemasFromExternalCellTags);
+            UpdatingTables_);
     }
 
     for (const auto& [table, attributes] : tableAttributes) {

@@ -1253,9 +1253,6 @@ public:
 
     bool FailOperationOnErrorsInLivePreview;
 
-    // COMPAT(h0pless): This is a panic button to facilitate the rollout of 24.2
-    bool FetchSchemasFromExternalCellTags;
-
     bool EnableJobFailsTolerance;
 
     std::optional<ui32> AllocationJobCountLimit;

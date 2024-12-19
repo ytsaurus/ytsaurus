@@ -874,10 +874,7 @@ void TInputManager::FetchInputTablesAttributes()
                 BIND([client = cluster->Client(), tables = cluster->InputTables()] {
                     FetchTableSchemas(
                         client,
-                        tables,
-                        BIND([] (const TInputTablePtr& table) { return table->ExternalTransactionId; }),
-                        /*fetchFromExternalCells*/ true,
-                        /*fetchSchemasById*/ false);
+                        tables);
                 })
                     .AsyncVia(GetCurrentInvoker())
                     .Run());
