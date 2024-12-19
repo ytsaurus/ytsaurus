@@ -2,6 +2,8 @@ from .job_base import JobBase
 from .logger import logger
 from .helpers import run_operation_and_wrap_error
 
+from yt.wrapper.common import generate_uuid
+
 import yt.wrapper as yt
 import yt.yson as yson
 
@@ -204,8 +206,6 @@ class OrderedWriterReducer(JobBase):
         batch = []
 
         def do_flush():
-            start_row_index = batch[0]["row_index"]
-
             with client.Transaction(type="tablet") as tx:
                 params["transaction_id"] = tx.transaction_id
                 tablet_size_params["transaction_id"] = tx.transaction_id
@@ -215,10 +215,10 @@ class OrderedWriterReducer(JobBase):
                 ), yson_type="list_fragment"))
 
                 for row in batch:
+                    row["$tablet_index"] = tablet_index
                     if "tablet_index" not in self.schema.get_column_names():
                         row.pop("tablet_index")
                         row.pop("row_index")
-                    row["$tablet_index"] = tablet_index
 
                 self.make_request("insert_rows", params, self.prepare(batch), client)
 
@@ -277,6 +277,120 @@ def write_ordered_data(
             fake_output,
             reduce_by=["tablet_index", "row_index"],
             spec=op_spec)
+
+##################################################################
+
+@yt.reduce_aggregator
+class QueueProducerWriterReducer(JobBase):
+    def __init__(self, schema, producer_table, queue_table, tablet_size_table, insertion_batch_size, spec):
+        super(QueueProducerWriterReducer, self).__init__(spec)
+        self.tablet_size_table = tablet_size_table
+        self.insertion_batch_size = insertion_batch_size
+        self.producer_table = producer_table
+        self.queue_table = queue_table
+        self.schema = schema
+
+    def __call__(self, records):
+        client = self.create_client()
+        session_id = generate_uuid()
+        params = {
+            "producer_path": self.producer_table,
+            "queue_path": self.queue_table,
+            "session_id": session_id,
+            "epoch": 0,
+            "input_format": "yson",
+            "output_format": "yson",
+        }
+        tablet_size_params = copy.deepcopy(params)
+        tablet_size_params["path"] = self.tablet_size_table
+
+        tablet_index = None
+        batch = []
+
+        create_queue_producer_session_params = {
+            "producer_path": self.producer_table,
+            "queue_path": self.queue_table,
+            "session_id": session_id,
+        }
+        self.make_request("create_queue_producer_session", create_queue_producer_session_params, data=None, client=client)
+
+        def do_flush():
+            with client.Transaction(type="tablet") as tx:
+                params["transaction_id"] = tx.transaction_id
+                tablet_size_params["transaction_id"] = tx.transaction_id
+
+                tablet_info = next(yson.loads(self.make_request(
+                    "lookup_rows", tablet_size_params, self.prepare([{"tablet_index": tablet_index}]), client,
+                ), yson_type="list_fragment"))
+
+                for row in batch:
+                    row["$tablet_index"] = tablet_index
+                    row["$sequence_number"] = row["row_index"]
+                    if "tablet_index" not in self.schema.get_column_names():
+                        row.pop("tablet_index")
+                        row.pop("row_index")
+
+                self.make_request("push_queue_producer", params, self.prepare(batch), client)
+
+                tablet_info["size"] += len(batch)
+                self.make_request("insert_rows", tablet_size_params, self.prepare(tablet_info), client)
+                print("Pushed {} rows".format(len(batch)), file=sys.stderr)
+            print("Committed tx", file=sys.stderr)
+
+        def flush():
+            if not batch:
+                return
+            for attempt in range(1, self.retry_count + 1):
+                try:
+                    do_flush()
+                    del batch[:]
+                    return
+                except yt.YtError as e:
+                    print(e)
+                    print("Attempt", attempt, file=sys.stderr)
+                    print(str(error), file=sys.stderr)
+                    print("\n" + "=" * 80 + "\n\n", file=sys.stderr)
+                    sleep(random.randint(1, self.retry_interval))
+            raise RuntimeError("Failed to write batch")
+
+        for key, rows in records:
+            row = next(rows)
+            if row["tablet_index"] != tablet_index:
+                flush()
+                tablet_index = row["tablet_index"]
+            if tablet_index is None:
+                tablet_index = row["tablet_index"]
+            batch.append(row)
+            if len(batch) >= self.insertion_batch_size:
+                flush()
+
+        flush()
+
+        if False:
+            yield None
+
+
+def write_queue_data(
+    schema, data_table, producer_table, queue_table, tablet_size_table, tablet_count, offsets, spec, args):
+
+    logger.info("Write data into queue table via queue_producer")
+
+    pivot_keys = [(tablet_index, offsets[tablet_index]) for tablet_index in range(1, tablet_count)]
+    logger.info("Pivot keys for queue producer writer: %s", pivot_keys)
+    op_spec = {"reducer": {"memory_limit": 5*2**30}}
+    if pivot_keys:
+        op_spec["pivot_keys"] = pivot_keys
+    else:
+        op_spec["job_count"] = 1
+
+    with yt.TempTable() as fake_output:
+        yt.run_reduce(
+            QueueProducerWriterReducer(schema, producer_table, queue_table, tablet_size_table, spec.ordered.insertion_batch_size, spec),
+            data_table,
+            fake_output,
+            reduce_by=["tablet_index", "row_index"],
+            spec=op_spec)
+
 
 ##################################################################
 

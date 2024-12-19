@@ -2,6 +2,7 @@
 
 from .logger import logger
 from .test_ordered import test_ordered_tables
+from .test_queues import test_queues
 from .test_sorted import test_sorted_tables
 from .stateless_write import run_stateless_writer
 from .test_compare_replicas import run_compare_replicas
@@ -109,8 +110,10 @@ def run_with_spec(base_path, spec, args):
         logger.iteration = None
         if spec.table_type == "sorted":
             test_sorted_tables(base_path, spec, attributes, args.force)
-        else:
+        elif spec.table_type == "ordered":
             test_ordered_tables(base_path, spec, attributes, args)
+        elif spec.table_type == "queues":
+            test_queues(base_path, spec, attributes, args)
     elif spec.mode == "stateless_write":
         assert False
         run_stateless_writer(base_path, spec, attributes, args)
