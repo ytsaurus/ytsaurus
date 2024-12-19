@@ -7,12 +7,12 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, print_debug, wait, create, get, set, remove,
-    exists, create_user,
+    exists, create_user, disable_tablet_cells_on_node,
     make_ace, insert_rows, select_rows, lookup_rows, delete_rows, alter_table, read_table, write_table, merge,
     remote_copy, sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_reshard_table, sync_flush_table, sync_compact_table, remount_table,
     multicell_sleep, set_node_banned, set_nodes_banned, set_all_nodes_banned, sorted_dicts,
-    raises_yt_error, get_driver,
+    raises_yt_error, get_driver, ls, disable_write_sessions_on_node,
     create_pool, update_pool_tree_config_option,
     update_controller_agent_config,
     write_file, read_file)
@@ -31,6 +31,12 @@ from functools import partial
 import time
 import builtins
 
+HUNK_COMPATIBLE_CHUNK_FORMATS = [
+    "table_versioned_simple",
+    "table_versioned_columnar",
+    "table_versioned_slim",
+    "table_versioned_indexed",
+]
 
 ##################################################################
 
@@ -1330,10 +1336,10 @@ class TestSchedulerRemoteCopyDynamicTablesBase(TestSchedulerRemoteCopyCommandsBa
 
         create("table", path, driver=driver, attributes=attributes)
 
-    def _check_all_read_methods(self, source_path, dest_path, keys, rows, source_driver=None, dest_driver=None):
+    def _check_all_read_methods(self, source_path, dest_path, keys, rows, source_driver=None, dest_driver=None, lookup_source_result=None):
         assert read_table(dest_path, driver=dest_driver) == rows
         assert (
-            lookup_rows(source_path, keys, versioned=True, driver=source_driver) ==
+            lookup_source_result if lookup_source_result is not None else lookup_rows(source_path, keys, versioned=True, driver=source_driver) ==
             lookup_rows(dest_path, keys, versioned=True, driver=dest_driver)
         )
         assert_items_equal(select_rows(f"* from [{dest_path}]", driver=dest_driver), rows)
@@ -1853,6 +1859,136 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
         delete_rows("//tmp/t2", [{"key": i} for i in range(1, 8, 2)])
         assert_items_equal(select_rows("* from [//tmp/t2]"), [{"key": i, "value": hunk_value(i)} for i in range(0, 8, 2)])
 
+
+##################################################################
+
+
+class TestSchedulerRemoteCopyDynamicTablesErasure(TestSchedulerRemoteCopyDynamicTablesBase):
+    NUM_NODES = 12
+    ENABLE_HUNKS_REMOTE_COPY = True
+
+    @authors("alexelexa")
+    @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
+    @pytest.mark.parametrize("available", [False, True])
+    @pytest.mark.parametrize("with_repair", [False, True])
+    def test_remote_copy_erasure_hunks(self, chunk_format, available, with_repair):
+        self._nodes = ls("//sys/cluster_nodes")
+        assert len(self._nodes) == self.NUM_NODES
+
+        reason = "separate tablet and data nodes"
+        disable_write_sessions_on_node(self._nodes[0], reason=reason)
+        for node in self._nodes[1:]:
+            disable_tablet_cells_on_node(node, reason=reason)
+
+        SCHEMA = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string", "max_inline_hunk_size": 10},
+        ]
+
+        for path, driver in [("//tmp/t1", self.remote_driver), ("//tmp/t2", None)]:
+            self._create_sorted_table(
+                path,
+                schema=SCHEMA,
+                enable_dynamic_store_read=False,
+                hunk_chunk_writer={
+                    "desired_block_size": 50,
+                },
+                chunk_format=chunk_format,
+                hunk_erasure_codec="isa_reed_solomon_6_3",
+                replication_factor=4,
+                driver=driver)
+
+            if chunk_format == "table_versioned_indexed":
+                set(f"{path}/@compression_codec", "none", driver=driver)
+                set(f"{path}/@mount_config/enable_hash_chunk_index_for_lookup", True, driver=driver)
+
+            sync_create_cells(1, driver=driver)
+            set("//sys/@config/chunk_manager/enable_chunk_replicator", False, driver=driver)
+
+        sync_mount_table("//tmp/t1", driver=self.remote_driver)
+        keys = [{"key": i} for i in range(11)]
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(11)]
+        insert_rows("//tmp/t1", rows, driver=self.remote_driver)
+        assert_items_equal(select_rows("* from [//tmp/t1]", driver=self.remote_driver), rows)
+        assert_items_equal(lookup_rows("//tmp/t1", keys, driver=self.remote_driver), rows)
+        sync_unmount_table("//tmp/t1", driver=self.remote_driver)
+        sync_mount_table("//tmp/t1", driver=self.remote_driver)
+
+        hunk_chunk_ids = self._get_chunk_ids("//tmp/t1", "hunk", driver=self.remote_driver)
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = hunk_chunk_ids[0]
+
+        lookup_source_result = lookup_rows("//tmp/t1", keys, versioned=True, driver=self.remote_driver)
+
+        def _set_ban_for_chunk_parts(part_indices, banned_flag, chunk_id, driver=None):
+            chunk_replicas = get("#{}/@stored_replicas".format(chunk_id), driver=driver)
+
+            nodes_to_ban = []
+            for part_index in part_indices:
+                nodes = list(str(r) for r in chunk_replicas if r.attributes["index"] == part_index)
+                nodes_to_ban += nodes
+
+            set_nodes_banned(nodes_to_ban, banned_flag, driver=driver)
+
+        sync_unmount_table("//tmp/t1", driver=self.remote_driver)
+
+        def run_operation():
+            op = remote_copy(
+                track=False,
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={
+                    "testing": {"delay_inside_materialize": 10000},
+                    "cluster_name": self.REMOTE_CLUSTER_NAME,
+                    "max_failed_job_count": 1,
+                    "delay_in_copy_chunk": 1000,
+                    "erasure_chunk_repair_delay": 100,
+                    "repair_erasure_chunks": with_repair,
+                    "chunk_availability_policy": "repairable"
+                },
+            )
+            wait(lambda: op.get_state() == "materializing")
+            return op
+
+        if not available:
+            op = run_operation()
+            _set_ban_for_chunk_parts([0, 1, 2, 8], True, hunk_chunk_id, driver=self.remote_driver)
+            wait(lambda: get("//sys/data_missing_chunks/@count", driver=self.remote_driver) > 0)
+            wait(lambda: get("//sys/parity_missing_chunks/@count", driver=self.remote_driver) > 0)
+
+            wait(lambda: op.get_job_count("aborted") > 0)
+            op.abort()
+            return
+
+        assert get("//sys/data_missing_chunks/@count", driver=self.remote_driver) == 0
+
+        list_of_banned_nodes = []
+        if with_repair:
+            list_of_banned_nodes = [0, 1, 4]
+            _set_ban_for_chunk_parts(list_of_banned_nodes, True, hunk_chunk_id, driver=self.remote_driver)
+            wait(lambda: get("//sys/data_missing_chunks/@count", driver=self.remote_driver) > 0)
+
+        run_operation().track()
+
+        sync_mount_table("//tmp/t2")
+
+        def check():
+            self._check_all_read_methods(
+                "//tmp/t1",
+                "//tmp/t2",
+                keys,
+                rows,
+                source_driver=self.remote_driver,
+                dest_driver=None,
+                lookup_source_result=lookup_source_result)
+
+        check()
+
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", True)
+        wait(lambda: get("//sys/data_missing_chunks/@count") == 0)
+        wait(lambda: get("//sys/parity_missing_chunks/@count") == 0)
+
+        check()
 
 ##################################################################
 
