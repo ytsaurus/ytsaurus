@@ -27,8 +27,6 @@ target_link_libraries(yt-lib-ut_common PUBLIC
   yutil
   yql-essentials-core
   essentials-core-expr_nodes
-  yql-dq-proto
-  yql-dq-expr_nodes
 )
 
 target_sources(yt-lib-ut_common PRIVATE
