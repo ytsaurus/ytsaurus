@@ -21,6 +21,8 @@ get_built_tool_path(
   rescompiler
 )
 
+add_subdirectory(time)
+
 add_library(library-query-engine)
 
 
@@ -54,6 +56,7 @@ target_link_libraries(library-query-engine PUBLIC
   library-query-engine_api
   library-query-misc
   library-query-proto
+  query-engine-time
   yt-yt-client
   cpp-yt-memory
   cpp-xdelta3-state
@@ -111,6 +114,7 @@ target_link_libraries(library-query-engine.global PUBLIC
   library-query-engine_api
   library-query-misc
   library-query-proto
+  query-engine-time
   yt-yt-client
   cpp-yt-memory
   cpp-xdelta3-state
@@ -792,10 +796,10 @@ add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/dates_merged.bc
   DEPENDS
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/dates.c.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/dates.cpp.bc
   COMMAND
   ${LLVMLINK}
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/dates.c.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/dates.cpp.bc
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/dates_merged.bc
 )
@@ -810,7 +814,7 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/dates_merged.bc
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/dates_optimized.bc
-  -internalize-public-api-list=format_timestamp#timestamp_floor_hour#timestamp_floor_day#timestamp_floor_week#timestamp_floor_month#timestamp_floor_year
+  -internalize-public-api-list=format_timestamp#timestamp_floor_hour#timestamp_floor_day#timestamp_floor_week#timestamp_floor_month#timestamp_floor_year#format_timestamp_localtime#timestamp_floor_hour_localtime#timestamp_floor_day_localtime#timestamp_floor_week_localtime#timestamp_floor_month_localtime#timestamp_floor_year_localtime
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
 
@@ -1155,6 +1159,14 @@ llvm_compile_cxx(library-query-engine.global
 llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/yson_length.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/yson_length.cpp.bc
+  ${CLANGPLUSPLUS}
+  -Wno-unknown-warning-option
+  -emit-llvm
+)
+
+llvm_compile_cxx(library-query-engine.global
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/dates.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/dates.cpp.bc
   ${CLANGPLUSPLUS}
   -Wno-unknown-warning-option
   -emit-llvm
@@ -1589,14 +1601,6 @@ llvm_compile_c(library-query-engine.global
 llvm_compile_c(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/length.c
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/length.c.bc
-  ${CLANGC}
-  -Wno-unknown-warning-option
-  -emit-llvm
-)
-
-llvm_compile_c(library-query-engine.global
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/dates.c
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/dates.c.bc
   ${CLANGC}
   -Wno-unknown-warning-option
   -emit-llvm
