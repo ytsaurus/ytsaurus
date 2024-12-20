@@ -25,8 +25,6 @@ IF (OS_LINUX)
     RECURSE(server)
 ENDIF()
 
-IF (NOT SANITIZER_TYPE)
-    RECURSE(
-        tests
-    )
-ENDIF()
+RECURSE(
+    tests
+)
