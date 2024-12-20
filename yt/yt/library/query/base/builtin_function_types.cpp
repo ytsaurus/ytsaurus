@@ -253,6 +253,12 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
             primitive));
     }
 
+    result->emplace("avg", New<TAggregateFunctionTypeInferrer>(
+        sumConstraints,
+        std::vector<TType>{summable},
+        EValueType::String,
+        EValueType::Double));
+
     TTypeInferrerFunctionRegistryBuilder builder{result.Get()};
     RegisterBuiltinFunctions(&builder);
 
