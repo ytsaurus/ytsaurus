@@ -227,6 +227,7 @@ void TChunkLocation::Save(NCellMaster::TSaveContext& context) const
     Save(context, State_);
     Save(context, MediumOverride_);
     Save(context, Statistics_);
+    Save(context, LastSeenTime_);
 }
 
 void TChunkLocation::Load(NCellMaster::TLoadContext& context)
@@ -243,6 +244,12 @@ void TChunkLocation::Load(NCellMaster::TLoadContext& context)
     Load(context, State_);
     Load(context, MediumOverride_);
     Load(context, Statistics_);
+    // COMPAT(koloshmet)
+    if (context.GetVersion() >= EMasterReign::DanglingLocationsCleaning) {
+        Load(context, LastSeenTime_);
+    } else {
+        LastSeenTime_ = TInstant::Max();
+    }
 
     ResetDestroyedReplicasIterator();
 }

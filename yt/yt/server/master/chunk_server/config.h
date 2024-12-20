@@ -289,6 +289,29 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChunkReincarnatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDanglingLocationCleanerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    static constexpr int DefaultMaxLocationsToCleanPerIteration = 10;
+
+    // COMPAT(koloshmet)
+    std::optional<TInstant> DefaultLastSeenTime;
+
+    TDuration CleanupPeriod;
+    TDuration ExpirationTimeout;
+    int MaxLocationsToCleanPerIteration;
+    bool Enable;
+
+    REGISTER_YSON_STRUCT(TDanglingLocationCleanerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDanglingLocationCleanerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicDataNodeTrackerConfig
     : public NYTree::TYsonStruct
 {
@@ -296,6 +319,8 @@ public:
     int MaxConcurrentFullHeartbeats;
 
     int MaxConcurrentIncrementalHeartbeats;
+
+    TDanglingLocationCleanerConfigPtr DanglingLocationCleaner;
 
     REGISTER_YSON_STRUCT(TDynamicDataNodeTrackerConfig);
 

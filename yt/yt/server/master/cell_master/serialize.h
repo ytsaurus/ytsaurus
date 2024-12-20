@@ -199,6 +199,7 @@ DEFINE_ENUM(EMasterReign,
     ((PreserveAclFlagForMove)                                       (2809))  // koloshmet
     ((RemoveDrtDisableOptions)                                      (2810))  // ponasenko-rs
     ((IntroduceNewPipelineForCrossCellCopy)                         (2811))  // h0pless
+    ((DanglingLocationsCleaning)                                    (2812))  // koloshmet
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

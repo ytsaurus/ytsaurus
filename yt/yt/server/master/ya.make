@@ -135,6 +135,7 @@ SRCS(
     chunk_server/proto/chunk_manager.proto
     chunk_server/proto/chunk_merger.proto
     chunk_server/proto/chunk_reincarnator.proto
+    chunk_server/proto/data_node_tracker.proto
     chunk_server/proto/master_cell_chunk_statistics_collector.proto
     chunk_server/public.cpp
     chunk_server/incumbency_epoch.cpp
