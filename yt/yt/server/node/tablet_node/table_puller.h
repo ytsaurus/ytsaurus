@@ -25,6 +25,7 @@ ITablePullerPtr CreateTablePuller(
     TTabletManagerConfigPtr config,
     TTablet* tablet,
     NApi::NNative::IConnectionPtr localConnection,
+    IAlienClusterClientCachePtr replicatorClientCache,
     ITabletSlotPtr slot,
     ITabletSnapshotStorePtr tabletSnapshotStore,
     IInvokerPtr workerInvoker,
