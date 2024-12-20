@@ -1,7 +1,7 @@
 from conftest_lib.conftest import mock_server  # noqa
 
 from yt_env_setup import YTEnvSetup
-from yt_commands import authors, create_user
+from yt_commands import authors, create_user, remove_user, wait
 from yt.environment.helpers import OpenPortIterator
 
 import pytest
@@ -35,15 +35,37 @@ def auth_config(port):
                 },
             ],
         },
-        "oauth_cookie_authenticator": {},
-        "oauth_token_authenticator": {},
-        "cypress_user_manager": {},
+        "oauth_cookie_authenticator": {
+            "cache": {
+                "cache_ttl": "5s",
+                "optimistic_cache_ttl": "1m",
+                "error_ttl": "1s",
+            },
+        },
+        "oauth_token_authenticator": {
+            "cache": {
+                "cache_ttl": "5s",
+                "optimistic_cache_ttl": "1m",
+                "error_ttl": "1s",
+            },
+        },
+        "cypress_user_manager": {
+            "cache": {
+                "cache_ttl": "5s",
+                "optimistic_cache_ttl": "1m",
+                "error_ttl": "1s",
+            },
+        },
     }
 
 
 class TestOAuthBase(YTEnvSetup):
+    NUM_MASTERS = 1
+
     ENABLE_HTTP_PROXY = True
+    NUM_HTTP_PROXIES = 1
     DELTA_PROXY_CONFIG = {}
+    DELTA_PROXY_AUTH_CONFIG = {}
 
     @classmethod
     def setup_class(cls):
@@ -52,6 +74,7 @@ class TestOAuthBase(YTEnvSetup):
         cls.mock_server_port = next(cls.open_port_iterator)
 
         cls.DELTA_PROXY_CONFIG["auth"] = auth_config(cls.mock_server_port)
+        cls.DELTA_PROXY_CONFIG["auth"].update(cls.DELTA_PROXY_AUTH_CONFIG)
         super(TestOAuthBase, cls).setup_class()
 
     # This is annoying, but we set blackbox_token_authenticator in default_config for
@@ -94,14 +117,18 @@ class TestOAuthBase(YTEnvSetup):
         rsp.raise_for_status()
         return rsp
 
+    def _wait_allow(self, token=None, cookie=None, user=None):
+        wait(lambda: self._make_request(token, cookie, user).ok)
+
     def _check_deny(self, token=None, cookie=None, user=None):
         rsp = self._make_request(token, cookie, user)
         return rsp.status_code == 401
 
-
-class TestOAuth(TestOAuthBase):
     @pytest.fixture(autouse=True)
     def setup_route(self, mock_server):  # noqa
+        mock_server.bad_then_good_token_counter = 0
+        mock_server.good_then_bad_token_counter = 0
+
         @mock_server.handler("/user_info")
         def user_info_handler(request, **kwargs):
             auth_header = request.headers.get("authorization")
@@ -117,11 +144,27 @@ class TestOAuth(TestOAuthBase):
             if bearer_token == "Bearer retry_token":
                 return mock_server.make_response(json={"error": "server error"}, status=500)
 
+            if bearer_token == "Bearer bad_then_good_token":
+                mock_server.bad_then_good_token_counter += 1
+                if mock_server.bad_then_good_token_counter == 1:
+                    return mock_server.make_response(json={"error": "invalid token"}, status=403)
+                else:
+                    return mock_server.make_response(json={"login": user, "sub": "42"})
+
+            if bearer_token == "Bearer good_then_bad_token":
+                mock_server.good_then_bad_token_counter += 1
+                if mock_server.good_then_bad_token_counter == 1:
+                    return mock_server.make_response(json={"login": user, "sub": "42"})
+                else:
+                    return mock_server.make_response(json={"error": "invalid token"}, status=403)
+
             if bearer_token != "Bearer good_token":
                 return mock_server.make_response(json={"error": "invalid token"}, status=403)
 
             return mock_server.make_response(json={"login": user, "sub": "42"})
 
+
+class TestOAuth(TestOAuthBase):
     @authors("kaikash", "ignat")
     def test_http_proxy_invalid_token(self):
         assert self._check_deny()
@@ -169,3 +212,101 @@ class TestOAuth(TestOAuthBase):
         check_user("john@@third-company.fr", "third-company-john")
         check_user("fourth@fourth-company.com", "fourth@fourth-company.com")
         check_user("fifth", "fifth")
+
+    @authors("aleksandr.gaev")
+    def test_cache_invalidation_bad_then_good_token(self):
+        assert self._check_deny(token="bad_then_good_token")
+        self._wait_allow(token="bad_then_good_token")
+
+    @authors("aleksandr.gaev")
+    def test_cache_invalidation_bad_then_good_cookie(self):
+        assert self._check_deny(cookie="bad_then_good_token")
+        self._wait_allow(cookie="bad_then_good_token")
+
+    @authors("aleksandr.gaev")
+    def test_cache_invalidation_good_then_bad_token(self):
+        assert self._check_allow(token="good_then_bad_token")
+        wait(lambda: self._check_deny(token="good_then_bad_token"))
+
+    @authors("aleksandr.gaev")
+    def test_cache_invalidation_good_then_bad_cookie(self):
+        assert self._check_allow(cookie="good_then_bad_token")
+        wait(lambda: self._check_deny(cookie="good_then_bad_token"))
+
+
+class TestOAuthWithDisabledUserCreation(TestOAuthBase):
+    DELTA_PROXY_AUTH_CONFIG = {
+        "oauth_cookie_authenticator": {
+            "cache": {
+                "cache_ttl": "5s",
+                "optimistic_cache_ttl": "1m",
+                "error_ttl": "1s",
+            },
+            "create_user_if_not_exists": False,
+        },
+        "oauth_token_authenticator": {
+            "cache": {
+                "cache_ttl": "5s",
+                "optimistic_cache_ttl": "1m",
+                "error_ttl": "1s",
+            },
+            "create_user_if_not_exists": False,
+        },
+    }
+
+    @authors("aleksandr.gaev")
+    def test_unknown_user(self):
+        assert self._check_deny(token="bad_token", user="unknown_user")
+        assert self._check_deny(cookie="bad_token", user="unknown_user")
+
+        assert self._check_deny(token="good_token", user="unknown_user")
+        assert self._check_deny(cookie="good_token", user="unknown_user")
+
+    @authors("aleksandr.gaev")
+    def test_known_user(self):
+        create_user("known_user")
+
+        assert self._check_deny(token="bad_token", user="known_user")
+        assert self._check_deny(cookie="bad_token", user="known_user")
+
+        rsp = self._check_allow(token="good_token", user="known_user")
+        data = rsp.json()
+        assert data["login"] == "known_user"
+        assert data["realm"] == "oauth:token"
+
+        rsp = self._check_allow(cookie="good_token", user="known_user")
+        data = rsp.json()
+        assert data["login"] == "known_user"
+        assert data["realm"] == "oauth:cookie"
+
+    @authors("aleksandr.gaev")
+    def test_user_cache_invalidation(self):
+        assert self._check_deny(token="bad_token", user="new_user")
+        assert self._check_deny(cookie="bad_token", user="new_user")
+        assert self._check_deny(token="good_token", user="new_user")
+        assert self._check_deny(cookie="good_token", user="new_user")
+
+        create_user("new_user")
+
+        assert self._check_deny(token="bad_token", user="new_user")
+        assert self._check_deny(cookie="bad_token", user="new_user")
+
+        self._wait_allow(token="good_token", user="new_user")
+        rsp = self._check_allow(token="good_token", user="new_user")
+        data = rsp.json()
+        assert data["login"] == "new_user"
+        assert data["realm"] == "oauth:token"
+
+        self._wait_allow(cookie="good_token", user="new_user")
+        rsp = self._check_allow(cookie="good_token", user="new_user")
+        data = rsp.json()
+        assert data["login"] == "new_user"
+        assert data["realm"] == "oauth:cookie"
+
+        remove_user("new_user")
+
+        assert self._check_deny(token="bad_token", user="new_user")
+        assert self._check_deny(cookie="bad_token", user="new_user")
+
+        wait(lambda: self._check_deny(token="good_token", user="new_user"))
+        wait(lambda: self._check_deny(cookie="good_token", user="new_user"))
