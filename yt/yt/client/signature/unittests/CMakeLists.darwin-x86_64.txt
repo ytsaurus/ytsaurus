@@ -12,15 +12,15 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_executable(unittester-signature-service)
+add_executable(unittester-client-signature)
 
 
-target_compile_options(unittester-signature-service PRIVATE
+target_compile_options(unittester-client-signature PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
 )
 
-target_link_libraries(unittester-signature-service PUBLIC
+target_link_libraries(unittester-client-signature PUBLIC
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
@@ -30,11 +30,11 @@ target_link_libraries(unittester-signature-service PUBLIC
   yt-yt-client
 )
 
-target_allocator(unittester-signature-service
+target_allocator(unittester-client-signature
   system_allocator
 )
 
-target_link_options(unittester-signature-service PRIVATE
+target_link_options(unittester-client-signature PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
@@ -42,21 +42,21 @@ target_link_options(unittester-signature-service PRIVATE
   CoreFoundation
 )
 
-target_sources(unittester-signature-service PRIVATE
+target_sources(unittester-client-signature PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/signature/unittests/signature_ut.cpp
 )
 
 
 add_test(
   NAME
-  unittester-signature-service
+  unittester-client-signature
   COMMAND
-  unittester-signature-service
+  unittester-client-signature
 )
 
 set_property(
   TEST
-  unittester-signature-service
+  unittester-client-signature
   PROPERTY
   LABELS
   SMALL
@@ -64,16 +64,16 @@ set_property(
 
 set_property(
   TEST
-  unittester-signature-service
+  unittester-client-signature
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(unittester-signature-service)
+vcs_info(unittester-client-signature)
 
 set_property(
   TEST
-  unittester-signature-service
+  unittester-client-signature
   PROPERTY
   PROCESSORS
   1
