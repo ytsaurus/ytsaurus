@@ -2,8 +2,7 @@ pragma AnsiInForEmptyOrNullableItemsCollections;
 pragma AnsiOptionalAs;
 pragma CompactForDistinct;
 pragma TablePathPrefix = "home/tpcds/3Tb";
-pragma config.flags("OptimizerFlags", "FilterPushdownEnableMultiusage",
-                    "EarlyExpandSkipNull","FieldSubsetEnableMultiusage", "PushdownComplexFiltersOverAggregate", "ExtractCommonPredicatesFromLogicalOps");
+pragma config.flags("OptimizerFlags", "FilterPushdownEnableMultiusage", "EarlyExpandSkipNull","FieldSubsetEnableMultiusage", "PushdownComplexFiltersOverAggregate", "ExtractCommonPredicatesFromLogicalOps");
 pragma yt.AutoMerge = "disabled";
 pragma yt.DataSizePerJob = "16M";
 pragma yt.DataSizePerMapJob = "24M";
@@ -18,8 +17,7 @@ pragma yt.QueryCacheMode = "disable";
 pragma yt.SchedulingTagFilter = "%true";
 pragma yt.TableContentLocalExecution;
 pragma yt.UseNewPredicateExtraction="true";
+pragma yt.MaxExtraJobMemoryToFuseOperations="3G"
 pragma yt.LookupJoinMaxRows="2000";
 pragma yt.MaxKeyRangeCount="2000";
 pragma yt.MaxExtraJobMemoryToFuseOperations="3G";
-pragma CostBasedOptimizer="native";
-pragma yt.ExtendedStatsMaxChunkCount="100000";
