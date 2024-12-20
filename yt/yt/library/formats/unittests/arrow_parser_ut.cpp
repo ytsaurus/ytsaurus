@@ -208,15 +208,25 @@ std::string MakeMapArrow(const std::vector<std::vector<int32_t>>& key, const std
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
-std::string MakeDictionaryArrow()
+std::string MakeDictionaryArrow(bool addExtraValues = false)
 {
     auto* pool = arrow::default_memory_pool();
 
     arrow::DictionaryBuilder<arrow::Int32Type> dictionaryBuilder(pool);
 
     std::vector<int32_t> values = {1, 2, 1};
+
     for (auto value : values) {
         Verify(dictionaryBuilder.Append(value));
+    }
+
+    if (addExtraValues) {
+        arrow::Int32Builder builder;
+        Verify(builder.Append(3));
+        Verify(builder.Append(4));
+        Verify(builder.Append(5));
+        auto intArray = *builder.Finish();
+        Verify(dictionaryBuilder.InsertMemoValues(*intArray));
     }
 
     auto arrowSchema = arrow::schema({arrow::field("integer", dictionaryBuilder.type())});
@@ -326,6 +336,27 @@ std::string MakeDecimalListArrow(std::vector<TString> values)
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
+void TestArrowParserWithDictionary(bool addExtraValues = false)
+{
+    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+        TColumnSchema("integer", EValueType::Int64)
+    });
+
+    TCollectingValueConsumer collectedRows(tableSchema);
+
+    auto parser = CreateParserForArrow(&collectedRows);
+
+    auto data = MakeDictionaryArrow(addExtraValues);
+    parser->Read(data);
+    parser->Finish();
+
+    ASSERT_EQ(collectedRows.Size(), 3u);
+
+    ASSERT_EQ(GetInt64(collectedRows.GetRowValue(0, "integer")), 1);
+    ASSERT_EQ(GetInt64(collectedRows.GetRowValue(1, "integer")), 2);
+    ASSERT_EQ(GetInt64(collectedRows.GetRowValue(2, "integer")), 1);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TArrowParserTest, Simple)
@@ -372,23 +403,8 @@ TEST(TArrowParserTest, Optional)
 
 TEST(TArrowParserTest, Dictionary)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
-        TColumnSchema("integer", EValueType::Int64)
-    });
-
-    TCollectingValueConsumer collectedRows(tableSchema);
-
-    auto parser = CreateParserForArrow(&collectedRows);
-
-    auto data = MakeDictionaryArrow();
-    parser->Read(data);
-    parser->Finish();
-
-    ASSERT_EQ(collectedRows.Size(), 3u);
-
-    ASSERT_EQ(GetInt64(collectedRows.GetRowValue(0, "integer")), 1);
-    ASSERT_EQ(GetInt64(collectedRows.GetRowValue(1, "integer")), 2);
-    ASSERT_EQ(GetInt64(collectedRows.GetRowValue(2, "integer")), 1);
+    TestArrowParserWithDictionary(false);
+    TestArrowParserWithDictionary(true);
 }
 
 TEST(TArrowParserTest, Bool)
