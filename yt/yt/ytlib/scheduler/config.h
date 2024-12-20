@@ -1709,8 +1709,7 @@ class TSortedMergeOperationSpec
 public:
     REGISTER_YSON_STRUCT(TSortedMergeOperationSpec);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeOperationSpec, 0x213a54d6);

@@ -1488,6 +1488,18 @@ void TUnorderedMergeOperationSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSortedMergeOperationSpec::Register(TRegistrar registrar)
+{
+    registrar.Postprocessor([] (TSortedMergeOperationSpec* spec) {
+        auto unrecognized = spec->GetRecursiveUnrecognized();
+        THROW_ERROR_EXCEPTION_IF(
+            unrecognized->FindChild("input_query") != nullptr,
+            "\"input_query\" is not supported in a sorted merge operation; consider using ordered merge instead");
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TEraseOperationSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("table_path", &TThis::TablePath);
