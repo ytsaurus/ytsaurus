@@ -884,6 +884,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("ignore_yt_variables_in_shell_environment", &TThis::IgnoreYtVariablesInShellEnvironment)
         .Default(false);
 
+    registrar.Parameter("allow_offloading", &TThis::AllowOffloading)
+        .Default(true);
+
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             spec->UnavailableChunkTactics == EUnavailableChunkAction::Skip)
