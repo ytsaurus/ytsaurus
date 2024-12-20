@@ -58,6 +58,7 @@ PEERDIR(
     yt/yt/library/query/engine_api
     yt/yt/library/query/misc
     yt/yt/library/query/proto
+    yt/yt/library/query/engine/time
     yt/yt/client
     library/cpp/yt/memory
     library/cpp/xdelta3/state
@@ -275,7 +276,7 @@ LLVM_BC(
 )
 
 LLVM_BC(
-    udf/dates.c
+    udf/dates.cpp
     NAME dates
     SYMBOLS
         format_timestamp
@@ -284,6 +285,12 @@ LLVM_BC(
         timestamp_floor_week
         timestamp_floor_month
         timestamp_floor_year
+        format_timestamp_localtime
+        timestamp_floor_hour_localtime
+        timestamp_floor_day_localtime
+        timestamp_floor_week_localtime
+        timestamp_floor_month_localtime
+        timestamp_floor_year_localtime
 )
 
 LLVM_BC(

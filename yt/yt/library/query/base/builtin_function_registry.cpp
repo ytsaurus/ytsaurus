@@ -276,22 +276,30 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         "dict_sum",
         ECallingConvention::UnversionedValue);
 
-    builder->RegisterFunction(
+    for (const auto& name : std::vector<std::string>{
         "format_timestamp",
-        std::vector<TType>{EValueType::Int64, EValueType::String},
-        EValueType::String,
-        "dates",
-        ECallingConvention::Simple);
+        "format_timestamp_localtime",
+    }) {
+        builder->RegisterFunction(
+            name,
+            std::vector<TType>{EValueType::Int64, EValueType::String},
+            EValueType::String,
+            "dates",
+            ECallingConvention::Simple);
+    }
 
-    std::vector<TString> timestampFloorFunctions = {
+    for (const auto& name : std::vector<std::string>{
         "timestamp_floor_hour",
         "timestamp_floor_day",
         "timestamp_floor_week",
         "timestamp_floor_month",
-        "timestamp_floor_year"
-    };
-
-    for (const auto& name : timestampFloorFunctions) {
+        "timestamp_floor_year",
+        "timestamp_floor_hour_localtime",
+        "timestamp_floor_day_localtime",
+        "timestamp_floor_week_localtime",
+        "timestamp_floor_month_localtime",
+        "timestamp_floor_year_localtime",
+    }) {
         builder->RegisterFunction(
             name,
             std::vector<TType>{EValueType::Int64},
