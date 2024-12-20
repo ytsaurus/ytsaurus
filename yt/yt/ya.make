@@ -6,6 +6,7 @@ RECURSE(
     experiments
     library
     python
+    scripts
     tools
     ytlib
 )
@@ -17,7 +18,6 @@ IF (NOT OPENSOURCE)
         orm
         packages/tests_package
         utilities
-        scripts
     )
 ENDIF()
 
