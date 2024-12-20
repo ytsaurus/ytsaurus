@@ -1,12 +1,13 @@
 #include "oauth_cookie_authenticator.h"
 
 #include "config.h"
-#include "cookie_authenticator.h"
 #include "cypress_user_manager.h"
 #include "helpers.h"
 #include "oauth_service.h"
 #include "private.h"
 #include "token_authenticator.h"
+
+#include <yt/yt/client/security_client/public.h>
 
 #include <yt/yt/core/crypto/crypto.h>
 
@@ -81,13 +82,29 @@ private:
 
     TErrorOr<TAuthenticationResult> OnGetUserInfoImpl(const TOAuthUserInfoResult& userInfo)
     {
-        auto result = WaitFor(UserManager_->CreateUser(userInfo.Login));
-        if (!result.IsOK()) {
-            auto error = TError("Failed to create user")
-                << TErrorAttribute("name", userInfo.Login)
-                << std::move(result);
-            YT_LOG_WARNING(error);
-            return error;
+        if (Config_->CreateUserIfNotExists) {
+            auto result = WaitFor(UserManager_->CreateUser(userInfo.Login));
+            if (!result.IsOK()) {
+                auto error = TError("Failed to create user")
+                    << TErrorAttribute("name", userInfo.Login)
+                    << std::move(result);
+                YT_LOG_WARNING(error);
+                return error;
+            }
+        } else {
+            auto result = WaitFor(UserManager_->CheckUserExists(userInfo.Login));
+            if (!result.IsOK()) {
+                auto error = TError("Failed to verify if user exists")
+                    << TErrorAttribute("name", userInfo.Login)
+                    << std::move(result);
+                YT_LOG_WARNING(error);
+                return error;
+            } else if (!result.Value()) {
+                YT_LOG_DEBUG("User does not exist (Name: %v)", userInfo.Login);
+                auto error = TError(NRpc::EErrorCode::InvalidCredentials, "User does not exist")
+                    << TErrorAttribute("name", userInfo.Login);
+                return error;
+            }
         }
 
         return TAuthenticationResult{

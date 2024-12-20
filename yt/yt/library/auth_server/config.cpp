@@ -98,6 +98,14 @@ void TCachingCypressTokenAuthenticatorConfig::Register(TRegistrar /*registrar*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TOAuthAuthenticatorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("create_user_if_not_exists", &TThis::CreateUserIfNotExists)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TOAuthTokenAuthenticatorConfig::Register(TRegistrar /*registrar*/)
 { }
 
