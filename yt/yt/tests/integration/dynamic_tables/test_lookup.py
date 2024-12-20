@@ -1437,8 +1437,6 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         assert get(path) == 52
 
         node = get_tablet_leader_address(get("//tmp/t/@tablets/0/tablet_id"))
-        memory_used = get(f"//sys/cluster_nodes/{node}/@statistics/memory/lookup_rows_cache/used")
-        print("XXX", memory_used)
         sync_unmount_table("//tmp/t")
         wait(lambda: get(f"//sys/cluster_nodes/{node}/@statistics/memory/lookup_rows_cache/used") == 0)
 

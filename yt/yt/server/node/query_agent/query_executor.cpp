@@ -586,8 +586,6 @@ private:
 
     TClientChunkReadOptions ChunkReadOptions_;
 
-    THazardPtrReclaimGuard HazardPtrReclaimGuard_;
-
     using TSubreaderCreator = std::function<ISchemafulUnversionedReaderPtr()>;
 
     TDataSource GetPrefixReadItems(TRange<TabletReadItems> dataSplits, size_t keyPrefix)
