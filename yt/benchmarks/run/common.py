@@ -1,6 +1,7 @@
 import click
 import functools
 import json
+import logging
 
 from importlib import resources
 from importlib.resources.abc import Traversable
@@ -23,47 +24,113 @@ def root_path(query_source: QuerySource) -> Path | Traversable:
     return ROOT_RESOURCE if query_source == QuerySource.RESOURCES else Path()
 
 
-def make_query(
-    index: int,
-    optimized: bool,
-    query_prefix: str,
-    optimized_prefix: str,
+class RunnableQuery:
+    index: int
+    optimized: bool
+    pragmas: str
+
+    def __init__(self, path: str, index: int, optimized: bool, pragmas: str):
+        self.path = path
+        self.index = index
+        self.optimized = optimized
+        self.pragmas = pragmas
+
+    def get_title(self, prefix: str = ""):
+        result = prefix + f"TPC-DS {self.index}"
+        if self.optimized:
+            result = result + " (manually optimized)"
+        return result
+
+
+def combine_pragma_settings(
+    default_pragmas_text: str,
+    pragma_add: list[str],
+    pragma_file: str | None,
+    pragma_preset: list[str]
+) -> str:
+    result = default_pragmas_text
+    if pragma_file:
+        with open(pragma_file, "r") as file:
+            result = file.read()
+
+    if pragma_preset:
+        result = ""
+        for preset in pragma_preset:
+            result += (ROOT_RESOURCE / "pragmas" / f"{preset}.sql").read_text() + "\n"
+
+    for pragma in pragma_add:
+        result += "pragma " + pragma + ";\n"
+
+    return result
+
+
+def get_runnable_queries(
+    queries: list[int],
+    optimized: bool | None,
+    query_path: str,
+    optimized_path: str,
     query_source: QuerySource,
     pragma_add: list[str],
     pragma_file: str | None,
-    pragma_preset: list[str],
-) -> str:
-    if pragma_file:
-        with open(pragma_file, "r") as file:
-            pragmas = file.read()
+    pragma_preset: list[str]
+) -> list[RunnableQuery]:
+
+    original_queries = list_all_queries(query_path, query_source)
+    optimized_queries = list_all_queries(optimized_path, query_source)
+    runset = []
+
+    original_pragmas = combine_pragma_settings(
+        (ROOT_RESOURCE / "pragmas" / "default.sql").read_text() + "\n",
+        pragma_add,
+        pragma_file,
+        pragma_preset
+    )
+
+    optimized_pragmas = combine_pragma_settings(
+        (ROOT_RESOURCE / "pragmas" / "optimized.sql").read_text() + "\n",
+        pragma_add,
+        pragma_file,
+        pragma_preset
+    )
+
+    if queries:
+        if not optimized:
+            unknown_queries = set(queries).difference(original_queries)
+            if unknown_queries:
+                logging.warning("Unknown original queries %s" % str(list(unknown_queries)))
+            runset = runset + [RunnableQuery(query_path, num, False, original_pragmas) for num in set(original_queries).intersection(queries)]
+        if optimized is None or optimized:
+            unknown_queries = set(queries).difference(optimized_queries)
+            if unknown_queries:
+                logging.warning("Unknown optimized queries %s" % str(list(unknown_queries)))
+            runset = runset + [RunnableQuery(optimized_path, num, True, optimized_pragmas) for num in set(optimized_queries).intersection(queries)]
     else:
-        pragmas = ""
-        for preset in pragma_preset:
-            pragmas += (ROOT_RESOURCE / "pragmas" / f"{preset}.sql").read_text() + "\n"
+        if optimized is None or (isinstance(optimized, bool) and not optimized):
+            runset = runset + [RunnableQuery(query_path, num, False, original_pragmas) for num in original_queries]
+        if optimized is None or optimized:
+            runset = runset + [RunnableQuery(optimized_path, num, True, optimized_pragmas) for num in optimized_queries]
 
-    for pragma in pragma_add:
-        pragmas += "pragma " + pragma + ";\n"
+    return runset
 
+
+def make_query(
+    runnable: RunnableQuery,
+    query_path: str,
+    optimized_path: str,
+    query_source: QuerySource,
+) -> str:
     query_body = None
-    query_name = f"{index:02d}.sql"
+    query_name = f"{runnable.index:02d}.sql"
     path = root_path(query_source)
-    query_path = None
-    optimized_path = None
-    try:
-        query_path = path / query_prefix / query_name
-        optimized_path = path / optimized_prefix / query_name
-    except FileNotFoundError:
-        pass
-    if query_path is not None and query_path.is_file():
-        if optimized and optimized_path is not None and optimized_path.is_file():
-            query_body = optimized_path.read_text()
-        else:
-            query_body = query_path.read_text()
 
-    if query_body is None:
-        raise RuntimeError(f"Query with index {index} is not present in benchmark")
+    if runnable.optimized:
+        optimized_path = path / optimized_path / query_name
+        query_body = optimized_path.read_text()
+    else:
+        original_path = path / query_path / query_name
+        query_body = original_path.read_text()
 
-    return pragmas + "\n" + query_body
+    return runnable.pragmas + "\n" + query_body
 
 
 def list_all_queries(query_prefix: str, query_source: QuerySource) -> list[int]:
@@ -167,10 +234,10 @@ class ArtifactLogger:
         with (self.launch_path / "launch.json").open("w") as f:
             json.dump(info, f)
 
-    def start_query(self, query: int):
+    def start_query(self, runnable: RunnableQuery):
         if not self.launch_path:
             return
-        self.query_path = self.launch_path / "queries" / str(query)
+        self.query_path = self.launch_path / runnable.query_path / str(runnable.index)
         self.query_path.mkdir(parents=True)
 
     def dump_query(self, query: str):
@@ -206,13 +273,12 @@ def run_options(func):
         "-q",
         "--queries",
         type=IntList(),
-        default=list_all_queries("queries", QuerySource.RESOURCES),
         help="Comma-separated query index (or index range) list (by default all .sql files are loaded)",
     )
     @click.option(
-        "--optimized/--no-optimized",
-        default=False,
-        show_default=True,
+        "--optimized/--original",
+        required=False,
+        default=None,
         help="Use optimized queries when they are available.",
     )
     @click.option(
@@ -257,8 +323,7 @@ def run_options(func):
     @click.option(
         "--pragma-preset",
         multiple=True,
-        default=["default"],
-        show_default=True,
+        default=None,
         type=click.Choice(list_all_pragma_presets(), case_sensitive=False),
         help="Add a predefined set of pragma configurations from built-in preset.",
     )

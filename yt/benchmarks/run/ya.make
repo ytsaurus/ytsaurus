@@ -30,7 +30,7 @@ ALL_RESOURCE_FILES(
     public_pragmas
 )
 
-IF (NOT OPENSOURCE) 
+IF (NOT OPENSOURCE)
     PY_SRCS(
         yql_run.py
     )
@@ -38,7 +38,7 @@ IF (NOT OPENSOURCE)
     PEERDIR(
         yql/library/python
     )
-    
+
     ALL_RESOURCE_FILES(
         PREFIX yt/benchmarks/run/pragmas STRIP private_pragmas
         sql
