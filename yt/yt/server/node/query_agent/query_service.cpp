@@ -353,7 +353,7 @@ private:
 
         YT_LOG_DEBUG("Query deserialized (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
-            "ReadSessionId: %v, MemoryLimitPerNode: %v, DataRangeCount: %v)",
+            "ReadSessionId: %v, MemoryLimitPerNode: %v, DataRangeCount: %v, TableId: %v)",
             query->Id,
             queryOptions.InputRowLimit,
             queryOptions.OutputRowLimit,
@@ -363,7 +363,8 @@ private:
             queryOptions.WorkloadDescriptor,
             queryOptions.ReadSessionId,
             queryOptions.MemoryLimitPerNode,
-            dataSources.size());
+            dataSources.size(),
+            dataSources.begin()->ObjectId);
 
         if (RejectUponThrottlerOverdraft_.load(std::memory_order::relaxed)) {
             TClientChunkReadOptions chunkReadOptions{
