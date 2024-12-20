@@ -1,5 +1,6 @@
 #include "bootstrap.h"
 
+#include "alien_cluster_client_cache.h"
 #include "backing_store_cleaner.h"
 #include "chunk_replica_cache_pinger.h"
 #include "compression_dictionary_builder.h"
@@ -311,6 +312,11 @@ public:
             GetConfig()->TabletNode->CompressionDictionaryCache,
             this);
 
+        ReplicatorClientCache_ = CreateAlienClusterClientCache(
+            GetConnection(),
+            NApi::TClientOptions::FromUser(NSecurityClient::ReplicatorUserName),
+            GetConfig()->TabletNode->AlienClusterClientCacheEvictionPeriod);
+
         InitializeOverloadController();
 
         GetRpcServer()->RegisterService(CreateQueryService(GetConfig()->QueryAgent, this));
@@ -555,6 +561,11 @@ public:
         return CompressionDictionaryManager_;
     }
 
+    const IAlienClusterClientCachePtr& GetReplicatorClientCache() const override
+    {
+        return ReplicatorClientCache_;
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -595,6 +606,7 @@ private:
     IErrorManagerPtr ErrorManager_;
     ICompressionDictionaryManagerPtr CompressionDictionaryManager_;
     TOverloadControllerPtr OverloadController_;
+    IAlienClusterClientCachePtr ReplicatorClientCache_;
 
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,

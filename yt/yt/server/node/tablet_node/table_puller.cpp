@@ -1,5 +1,7 @@
 #include "table_puller.h"
 
+#include "alien_cluster_client_cache_base.h"
+#include "alien_cluster_client_cache.h"
 #include "chaos_agent.h"
 #include "tablet.h"
 #include "tablet_slot.h"
@@ -138,6 +140,46 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPerFiberClusterClientCache
+    : public TAlienClusterClientCacheBase
+{
+public:
+    explicit TPerFiberClusterClientCache(
+        IAlienClusterClientCachePtr underlying)
+    : TAlienClusterClientCacheBase(underlying->GetEvictionPeriod())
+    , Underlying_(std::move(underlying))
+    { }
+
+    const NNative::IClientPtr& GetClient(const std::string& clusterName)
+    {
+        CheckAndRemoveExpired(TInstant::Now(), false);
+
+        auto entryIt = CachedClients_.find(clusterName);
+        if (entryIt == CachedClients_.end()) {
+            if (auto client = Underlying_->GetClient(clusterName)) {
+                return EmplaceOrCrash(CachedClients_, clusterName, std::move(client))->second;
+            }
+
+            return NullClient;
+        }
+
+        if (entryIt->second->GetConnection()->IsTerminated()) {
+            if (entryIt->second = Underlying_->GetClient(clusterName); !entryIt->second) {
+                CachedClients_.erase(entryIt);
+                return NullClient;
+            }
+        }
+
+        return entryIt->second;
+    }
+
+private:
+    inline static const NNative::IClientPtr NullClient = nullptr;
+    const IAlienClusterClientCachePtr Underlying_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTablePuller
     : public ITablePuller
 {
@@ -146,6 +188,7 @@ public:
         TTabletManagerConfigPtr config,
         TTablet* tablet,
         NNative::IConnectionPtr localConnection,
+        IAlienClusterClientCachePtr replicatorClientCache,
         ITabletSlotPtr slot,
         ITabletSnapshotStorePtr tabletSnapshotStore,
         IInvokerPtr workerInvoker,
@@ -175,6 +218,7 @@ public:
         , ChaosAgent_(tablet->GetChaosAgent())
         , BannedReplicaTracker_(Logger)
         , LastReplicationProgressAdvance_(*tablet->RuntimeData()->ReplicationProgress.Acquire())
+        , ReplicatorClientCache_(std::move(replicatorClientCache))
     { }
 
     void Enable() override
@@ -222,6 +266,7 @@ private:
     ui64 ReplicationRound_ = 0;
     TReplicationProgress LastReplicationProgressAdvance_;
     TInstant NextPermittedTimeForProgressBehindAlert_ = Now();
+    TPerFiberClusterClientCache ReplicatorClientCache_;
 
     TFuture<void> FiberFuture_;
 
@@ -613,12 +658,11 @@ private:
         {
             TEventTimerGuard timerGuard(counters->PullRowsTime);
 
-            auto alienConnection = LocalConnection_->GetClusterDirectory()->FindConnection(clusterName);
-            if (!alienConnection) {
+            const auto& alienClient = ReplicatorClientCache_.GetClient(clusterName);
+            if (!alienClient) {
                 THROW_ERROR_EXCEPTION("Queue replica cluster %Qv is not known", clusterName)
                     << HardErrorAttribute;
             }
-            auto alienClient = alienConnection->CreateClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
 
             TPullRowsOptions options;
             options.TabletRowsPerRead = TabletRowsPerRead;
@@ -892,6 +936,7 @@ ITablePullerPtr CreateTablePuller(
     TTabletManagerConfigPtr config,
     TTablet* tablet,
     NNative::IConnectionPtr localConnection,
+    IAlienClusterClientCachePtr replicatorClientCache,
     ITabletSlotPtr slot,
     ITabletSnapshotStorePtr tabletSnapshotStore,
     IInvokerPtr workerInvoker,
@@ -902,6 +947,7 @@ ITablePullerPtr CreateTablePuller(
         std::move(config),
         tablet,
         std::move(localConnection),
+        std::move(replicatorClientCache),
         std::move(slot),
         std::move(tabletSnapshotStore),
         std::move(workerInvoker),
