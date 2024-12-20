@@ -29,7 +29,7 @@ struct heap_merge_emulate
 {
     struct dummy_reserver
     {
-        static void reserve( Heap1& lhs, std::size_t required_size )
+        static void reserve( Heap1& /*lhs*/, std::size_t /*required_size*/ )
         {}
     };
 

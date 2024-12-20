@@ -106,18 +106,18 @@ struct size_holder< false, SizeType >
     {}
 
 #ifndef BOOST_NO_CXX11_RVALUE_REFERENCES
-    size_holder( size_holder&& rhs ) BOOST_NOEXCEPT
+    size_holder( size_holder&& ) BOOST_NOEXCEPT
     {}
 
-    size_holder( size_holder const& rhs ) BOOST_NOEXCEPT
+    size_holder( size_holder const& ) BOOST_NOEXCEPT
     {}
 
-    size_holder& operator=( size_holder&& rhs ) BOOST_NOEXCEPT
+    size_holder& operator=( size_holder&& ) BOOST_NOEXCEPT
     {
         return *this;
     }
 
-    size_holder& operator=( size_holder const& rhs ) BOOST_NOEXCEPT
+    size_holder& operator=( size_holder const& ) BOOST_NOEXCEPT
     {
         return *this;
     }
