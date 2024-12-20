@@ -85,11 +85,11 @@ x=10   y=20
 
 Используя `--format "<format=text>yson" --control-attributes '{enable_row_index=%true}'` можно узнать номер первой строки в заказанном диапазоне.
 
-## Команды upload и download
+## Команды write-file и read-file
 
 ```bash
-$ cat binary | yt upload //tmp/yt_cli_examples/binary --executable
-$ yt download //tmp/yt_cli_examples/binary > binary_copy
+$ cat binary | yt write-file //tmp/yt_cli_examples/binary --executable
+$ yt read-file //tmp/yt_cli_examples/binary > binary_copy
 $ diff binary binary_copy
 ```
 
