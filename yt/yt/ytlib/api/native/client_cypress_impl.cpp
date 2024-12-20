@@ -252,6 +252,7 @@ protected:
         }
     }
 
+    // COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
     struct TSerializedSubtree
     {
         TSerializedSubtree() = default;
@@ -2551,6 +2552,7 @@ void TClient::DoExternalizeNode(
     return externalizer.Run();
 }
 
+// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
 void TClient::DoInternalizeNode(
     const TYPath& /*path*/,
     const TInternalizeNodeOptions& /*options*/)
