@@ -353,7 +353,7 @@ private:
 
         YT_LOG_DEBUG("Query deserialized (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
-            "ReadSesisonId: %v, MemoryLimitPerNode: %v, DataRangeCount: %v)",
+            "ReadSessionId: %v, MemoryLimitPerNode: %v, DataRangeCount: %v)",
             query->Id,
             queryOptions.InputRowLimit,
             queryOptions.OutputRowLimit,
