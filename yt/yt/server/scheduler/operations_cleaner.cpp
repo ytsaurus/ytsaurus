@@ -55,6 +55,7 @@
 namespace NYT::NScheduler {
 
 using namespace NConcurrency;
+using namespace NCypressClient;
 using namespace NYTree;
 using namespace NYson;
 using namespace NObjectClient;
@@ -112,6 +113,7 @@ const std::vector<TString>& TArchiveOperationRequest::GetAttributeKeys()
         "experiment_assignments",
         "controller_features",
         "provided_spec",
+        "temporary_token_node_id",
     };
 
     return attributeKeys;
@@ -598,7 +600,7 @@ public:
         : Config_(std::move(config))
         , Bootstrap_(bootstrap)
         , Host_(host)
-        , RemoveBatcher_(New<TNonblockingBatcher<TOperationId>>(
+        , RemoveBatcher_(New<TNonblockingBatcher<TRemoveOperationRequest>>(
             TBatchSizeLimiter(Config_->RemoveBatchSize),
             Config_->RemoveBatchTimeout))
         , ArchiveBatcher_(New<TNonblockingBatcher<TOperationId>>(
@@ -682,15 +684,15 @@ public:
             }).Via(GetCancelableInvoker()));
     }
 
-    void SubmitForRemoval(std::vector<TOperationId> operationIds)
+    void SubmitForRemoval(std::vector<TRemoveOperationRequest> requests)
     {
         if (!IsEnabled()) {
             return;
         }
 
-        GetCancelableInvoker()->Invoke(BIND([this, this_ = MakeStrong(this), operationIds = std::move(operationIds)] {
-            for (auto operationId : operationIds) {
-                EnqueueForRemoval(operationId);
+        GetCancelableInvoker()->Invoke(BIND([this, this_ = MakeStrong(this), requests = std::move(requests)] {
+            for (auto request : requests) {
+                EnqueueForRemoval(request);
             }
         }));
     }
@@ -780,6 +782,8 @@ public:
             result.FullSpec = initializationAttributes->FullSpec;
         }
 
+        result.DependentNodeIds = operation->GetDependentNodeIds();
+
         return result;
     }
 
@@ -835,6 +839,10 @@ public:
         result.TaskNames = attributes.FindYson("task_names");
         result.ControllerFeatures = attributes.FindYson("controller_features");
 
+        if (auto temporaryTokenNodeId = attributes.Find<TNodeId>("temporary_token_node_id")) {
+            result.DependentNodeIds = std::vector{*temporaryTokenNodeId};
+        }
+
         return result;
     }
 
@@ -860,9 +868,13 @@ private:
     std::multimap<TInstant, TOperationId> ArchiveTimeToOperationIdMap_;
     THashMap<TOperationId, TArchiveOperationRequest> OperationMap_;
 
-    TIntrusivePtr<TNonblockingBatcher<TOperationId>> RemoveBatcher_;
+    // Removals might be issued for operations without an entry in OperationMap_,
+    // so we need to store the complete removal request in the queue.
+    TIntrusivePtr<TNonblockingBatcher<TRemoveOperationRequest>> RemoveBatcher_;
+    // We can store plain operation ids here because operations going
+    // through archivation have a corresponding entry in OperationMap_.
     TIntrusivePtr<TNonblockingBatcher<TOperationId>> ArchiveBatcher_;
-    std::deque<std::pair<TOperationId, TInstant>> LockedOperationQueue_;
+    std::deque<std::pair<TRemoveOperationRequest, TInstant>> LockedOperationQueue_;
 
     std::deque<TOperationAlertEvent> OperationAlertEventQueue_;
     TInstant LastOperationAlertEventSendTime_;
@@ -1184,13 +1196,13 @@ private:
             enqueuedForArchivationCount);
     }
 
-    void EnqueueForRemoval(TOperationId operationId)
+    void EnqueueForRemoval(TRemoveOperationRequest request)
     {
         YT_ASSERT_INVOKER_AFFINITY(GetUncancelableInvoker());
 
-        YT_LOG_DEBUG("Operation enqueued for removal (OperationId: %v)", operationId);
+        YT_LOG_DEBUG("Operation enqueued for removal (OperationId: %v, DependentNodeIds: %v)", request.Id, request.DependentNodeIds);
         RemovePending_++;
-        RemoveBatcher_->Enqueue(operationId);
+        RemoveBatcher_->Enqueue(request);
     }
 
     void EnqueueForArchivation(TOperationId operationId)
@@ -1209,7 +1221,9 @@ private:
         if (IsOperationArchivationEnabled()) {
             EnqueueForArchivation(operationId);
         } else {
-            EnqueueForRemoval(operationId);
+            // This method is only called for operations that went through the SubmitForArchivation
+            // pipeline, so it is safe to assume that it is present in OperationMap_.
+            EnqueueForRemoval(GetRequest(operationId));
         }
     }
 
@@ -1435,7 +1449,9 @@ private:
             }
 
             for (auto operationId : batch) {
-                EnqueueForRemoval(operationId);
+                // All of these operations went through the SubmitForArchivation pipeline,
+                // so it is safe to assume that it is present in OperationMap_.
+                EnqueueForRemoval(GetRequest(operationId));
             }
 
             ArchivePending_ -= batch.size();
@@ -1444,15 +1460,22 @@ private:
         ScheduleArchiveOperations();
     }
 
-    void DoRemoveOperations(std::vector<TOperationId> operationIds)
+    void DoRemoveOperations(std::vector<TRemoveOperationRequest> requests)
     {
-        YT_LOG_DEBUG("Removing operations from Cypress (OperationCount: %v)", operationIds.size());
+        YT_LOG_DEBUG("Removing operations from Cypress (OperationCount: %v)", requests.size());
 
         ProcessWaitingLockedOperations();
 
-        std::vector<TOperationId> failedOperationIds;
-        std::vector<TOperationId> removedOperationIds;
-        std::vector<TOperationId> operationIdsToRemove;
+        // These requests will be requeued and retried later.
+        std::vector<TRemoveOperationRequest> failedRequests;
+        // List of requests for which all dependent nodes and the operation node were removed successfully.
+        std::vector<TRemoveOperationRequest> successfulRequests;
+
+        // Intermediate list of requests used to remove dependent nodes first.
+        // If all dependent nodes are removed successfully, the request is moved to the final removal list below.
+        std::vector<TRemoveOperationRequest> requestsWithDependentNodesToRemove;
+        // Intermediate list of requests for which there are no operation node locks and all dependent nodes were removed, if present.
+        std::vector<TRemoveOperationRequest> requestsWithOperationNodeToRemove;
 
         int lockedOperationCount = 0;
         int failedToRemoveOperationCount = 0;
@@ -1464,8 +1487,8 @@ private:
                 EMasterChannelKind::Follower);
             auto batchReq = proxy.ExecuteBatch();
 
-            for (auto operationId : operationIds) {
-                auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@lock_count");
+            for (auto removeOperationRequest : requests) {
+                auto req = TYPathProxy::Get(GetOperationPath(removeOperationRequest.Id) + "/@lock_count");
                 batchReq->AddRequest(req, "get_lock_count");
             }
 
@@ -1474,7 +1497,7 @@ private:
             if (batchRspOrError.IsOK()) {
                 const auto& batchRsp = batchRspOrError.Value();
                 auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_lock_count");
-                YT_VERIFY(std::ssize(rsps) == std::ssize(operationIds));
+                YT_VERIFY(std::ssize(rsps) == std::ssize(requests));
 
                 auto now = TInstant::Now();
                 for (int index = 0; index < std::ssize(rsps); ++index) {
@@ -1487,44 +1510,130 @@ private:
                         }
                     }
 
-                    auto operationId = operationIds[index];
+                    auto removeOperationRequest = requests[index];
                     if (isLocked) {
-                        LockedOperationQueue_.emplace_back(std::move(operationId), now);
+                        LockedOperationQueue_.emplace_back(std::move(removeOperationRequest), now);
                         ++lockedOperationCount;
+                    } else if (!removeOperationRequest.DependentNodeIds.empty()) {
+                        requestsWithDependentNodesToRemove.push_back(std::move(removeOperationRequest));
                     } else {
-                        operationIdsToRemove.push_back(operationId);
+                        requestsWithOperationNodeToRemove.push_back(std::move(removeOperationRequest));
                     }
                 }
             } else {
                 YT_LOG_WARNING(
                     batchRspOrError,
                     "Failed to get lock count for operations from Cypress (OperationCount: %v)",
-                    operationIds.size());
+                    requests.size());
 
-                failedOperationIds = operationIds;
+                failedRequests = requests;
 
-                failedToRemoveOperationCount = std::ssize(operationIds);
+                failedToRemoveOperationCount = std::ssize(requests);
+            }
+        }
+
+        // Remove dependent nodes from operations that have them.
+        // If all dependent nodes are removed successfully, the operation node itself will be removed in the next step.
+        // Otherwise, the whole removal process for the operation will be retried later.
+        {
+            auto proxy = CreateObjectServiceWriteProxy(Client_);
+            // TODO(achulkov2): Split into subbatches as it is done below if we ever need it.
+            auto batchReq = proxy.ExecuteBatch();
+
+            i64 totalDependentNodeCount = 0;
+            for (const auto& operationId : requestsWithDependentNodesToRemove) {
+                YT_VERIFY(!operationId.DependentNodeIds.empty());
+
+                for (const auto& dependentNodeId : operationId.DependentNodeIds) {
+                    ++totalDependentNodeCount;
+                    auto req = TYPathProxy::Remove(FromObjectId(dependentNodeId));
+                    req->set_force(true);
+                    batchReq->AddRequest(req);
+                }
+            }
+
+            YT_LOG_DEBUG(
+                "Removing dependent nodes from operations (OperationCount: %v, DependentNodeCount: %v)",
+                requestsWithDependentNodesToRemove.size(),
+                totalDependentNodeCount);
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+
+            i64 allDependentNodesRemovedRequestCount = 0;
+
+            if (batchRspOrError.IsOK()) {
+                auto responses = batchRspOrError.Value()->GetResponses();
+                YT_VERIFY(std::ssize(responses) == totalDependentNodeCount);
+
+                int batchSubrequestIndex = 0;
+                for (const auto& operationRemoveRequest : requestsWithDependentNodesToRemove) {
+                    bool removedAllDependentNodes = true;
+                    for (auto dependentNodeId : operationRemoveRequest.DependentNodeIds) {
+                        const auto& response = responses[batchSubrequestIndex++];
+
+                        if (response.IsOK()) {
+                            continue;
+                        }
+
+                        YT_LOG_DEBUG(
+                            response,
+                            "Failed to remove dependent node from Cypress (OperationId: %v, DependentNodeId: %v)",
+                            operationRemoveRequest.Id,
+                            dependentNodeId);
+                        failedRequests.push_back(operationRemoveRequest);
+                        removedAllDependentNodes = false;
+                        break;
+                    }
+
+                    if (removedAllDependentNodes) {
+                        ++allDependentNodesRemovedRequestCount;
+                        requestsWithOperationNodeToRemove.push_back(operationRemoveRequest);
+                    }
+                }
+
+                YT_LOG_DEBUG(
+                    "Successfully removed dependent nodes from operations (OperationCount: %v, AllDependentNodesRemovedRequestCount: %v, FailedToRemoveAllDependentNodesRequestCount: %v)",
+                    requestsWithDependentNodesToRemove.size(),
+                    allDependentNodesRemovedRequestCount,
+                    requestsWithDependentNodesToRemove.size() - allDependentNodesRemovedRequestCount);
+            } else {
+                YT_LOG_WARNING(
+                    batchRspOrError,
+                    "Failed to remove dependent nodes for operations from Cypress (OperationCount: %v)",
+                    std::ssize(requestsWithDependentNodesToRemove));
+
+                failedRequests.insert(
+                    failedRequests.end(),
+                    requestsWithDependentNodesToRemove.begin(),
+                    requestsWithDependentNodesToRemove.end());
+
+                failedToRemoveOperationCount += std::ssize(requestsWithDependentNodesToRemove);
             }
         }
 
         // Perform actual remove.
-        if (!operationIdsToRemove.empty()) {
+        if (!requestsWithOperationNodeToRemove.empty()) {
             int subbatchSize = Config_->RemoveSubbatchSize;
+
+            YT_LOG_DEBUG(
+                "Removing operation nodes from Cypress (OperationCount: %v, SubbatchSize: %v)",
+                requestsWithOperationNodeToRemove.size(),
+                subbatchSize);
 
             auto proxy = CreateObjectServiceWriteProxy(Client_);
 
             std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> responseFutures;
 
-            int subbatchCount = DivCeil(static_cast<int>(std::ssize(operationIdsToRemove)), subbatchSize);
+            int subbatchCount = DivCeil(static_cast<int>(std::ssize(requestsWithOperationNodeToRemove)), subbatchSize);
 
             std::vector<int> subbatchSizes;
             for (int subbatchIndex = 0; subbatchIndex < subbatchCount; ++subbatchIndex) {
                 auto batchReq = proxy.ExecuteBatch();
 
                 int startIndex = subbatchIndex * subbatchSize;
-                int endIndex = std::min(static_cast<int>(std::ssize(operationIdsToRemove)), startIndex + subbatchSize);
+                int endIndex = std::min(static_cast<int>(std::ssize(requestsWithOperationNodeToRemove)), startIndex + subbatchSize);
                 for (int index = startIndex; index < endIndex; ++index) {
-                    auto req = TYPathProxy::Remove(GetOperationPath(operationIdsToRemove[index]));
+                    auto req = TYPathProxy::Remove(GetOperationPath(requestsWithOperationNodeToRemove[index].Id));
                     req->set_recursive(true);
                     batchReq->AddRequest(req, "remove_operation");
                 }
@@ -1538,7 +1647,7 @@ private:
 
             for (int subbatchIndex = 0; subbatchIndex < subbatchCount; ++subbatchIndex) {
                 int startIndex = subbatchIndex * subbatchSize;
-                int endIndex = std::min(static_cast<int>(std::ssize(operationIdsToRemove)), startIndex + subbatchSize);
+                int endIndex = std::min(static_cast<int>(std::ssize(requestsWithOperationNodeToRemove)), startIndex + subbatchSize);
 
                 const auto& batchRspOrError = responseResults[subbatchIndex];
                 if (batchRspOrError.IsOK()) {
@@ -1547,18 +1656,18 @@ private:
                     YT_VERIFY(std::ssize(rsps) == endIndex - startIndex);
 
                     for (int index = startIndex; index < endIndex; ++index) {
-                        auto operationId = operationIdsToRemove[index];
+                        auto removeRequest = requestsWithOperationNodeToRemove[index];
 
                         auto rsp = rsps[index - startIndex];
                         if (rsp.IsOK()) {
-                            removedOperationIds.push_back(operationId);
+                            successfulRequests.push_back(removeRequest);
                         } else {
                             YT_LOG_DEBUG(
                                 rsp,
                                 "Failed to remove finished operation from Cypress (OperationId: %v)",
-                                operationId);
+                                removeRequest.Id);
 
-                            failedOperationIds.push_back(operationId);
+                            failedRequests.push_back(removeRequest);
 
                             ++failedToRemoveOperationCount;
                         }
@@ -1570,22 +1679,22 @@ private:
                         endIndex - startIndex);
 
                     for (int index = startIndex; index < endIndex; ++index) {
-                        failedOperationIds.push_back(operationIdsToRemove[index]);
+                        failedRequests.push_back(requestsWithOperationNodeToRemove[index]);
                         ++failedToRemoveOperationCount;
                     }
                 }
             }
         }
 
-        YT_VERIFY(std::ssize(operationIds) == std::ssize(failedOperationIds) + std::ssize(removedOperationIds) + lockedOperationCount);
-        int removedCount = std::ssize(removedOperationIds);
+        YT_VERIFY(std::ssize(requests) == std::ssize(failedRequests) + std::ssize(successfulRequests) + lockedOperationCount);
+        int removedCount = std::ssize(successfulRequests);
 
-        RemovedOperationCounter_.Increment(std::ssize(removedOperationIds));
-        RemoveOperationErrorCounter_.Increment(std::ssize(failedOperationIds) + lockedOperationCount);
+        RemovedOperationCounter_.Increment(std::ssize(successfulRequests));
+        RemoveOperationErrorCounter_.Increment(std::ssize(failedRequests) + lockedOperationCount);
 
-        ProcessRemovedOperations(removedOperationIds);
+        ProcessRemovedOperations(successfulRequests);
 
-        for (auto operationId : failedOperationIds) {
+        for (auto operationId : failedRequests) {
             RemoveBatcher_->Enqueue(operationId);
         }
 
@@ -1824,19 +1933,19 @@ private:
         return GetOrCrash(OperationMap_, operationId);
     }
 
-    void ProcessRemovedOperations(const std::vector<TOperationId>& removedOperationIds)
+    void ProcessRemovedOperations(const std::vector<TRemoveOperationRequest>& removedOperationRequests)
     {
-        std::vector<TArchiveOperationRequest> removedOperationRequests;
-        removedOperationRequests.reserve(removedOperationIds.size());
-        for (const auto& operationId : removedOperationIds) {
-            auto it = OperationMap_.find(operationId);
+        std::vector<TArchiveOperationRequest> removedOperationArchiveRequests;
+        removedOperationArchiveRequests.reserve(removedOperationRequests.size());
+        for (const auto& request : removedOperationRequests) {
+            auto it = OperationMap_.find(request.Id);
             if (it != OperationMap_.end()) {
-                removedOperationRequests.emplace_back(std::move(it->second));
+                removedOperationArchiveRequests.emplace_back(std::move(it->second));
                 OperationMap_.erase(it);
             }
         }
 
-        OperationsRemovedFromCypress_.Fire(removedOperationRequests);
+        OperationsRemovedFromCypress_.Fire(removedOperationArchiveRequests);
     }
 
     void SendOperationAlerts()
@@ -1948,9 +2057,9 @@ void TOperationsCleaner::SubmitForArchivation(std::vector<TOperationId> operatio
     Impl_->SubmitForArchivation(std::move(operationIds));
 }
 
-void TOperationsCleaner::SubmitForRemoval(std::vector<TOperationId> operationIds)
+void TOperationsCleaner::SubmitForRemoval(std::vector<TRemoveOperationRequest> requests)
 {
-    Impl_->SubmitForRemoval(std::move(operationIds));
+    Impl_->SubmitForRemoval(std::move(requests));
 }
 
 void TOperationsCleaner::UpdateConfig(const TOperationsCleanerConfigPtr& config)

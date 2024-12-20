@@ -674,6 +674,7 @@ public:
             std::move(preprocessedSpec.TrimmedAnnotations),
             std::move(preprocessedSpec.BriefVanillaTaskSpecs),
             secureVault,
+            /*temporaryTokenNodeId*/ NullObjectId,
             runtimeParameters,
             std::move(baseAcl),
             user,
@@ -2657,6 +2658,29 @@ private:
                 << startError;
             operation->SetStarted(wrappedError);
             return;
+        }
+
+        if (operation->Spec()->IssueTemporaryToken) {
+            try {
+                // We check this first, so that we don't create a token in vain.
+                auto secureVault = operation->GetSecureVault();
+                if (secureVault && secureVault->FindChild(operation->Spec()->TemporaryTokenEnvironmentVariableName)) {
+                    THROW_ERROR_EXCEPTION("Temporary token environment variable %Qv already exists in secure vault", operation->Spec()->TemporaryTokenEnvironmentVariableName);
+                }
+
+                auto temporaryToken = WaitFor(MasterConnector_->IssueTemporaryOperationToken(operation))
+                    .ValueOrThrow();
+                // NB: This modifies secure vault contents.
+                operation->SetTemporaryToken(temporaryToken.Token);
+                operation->SetTemporaryTokenNodeId(temporaryToken.TokenNodeId);
+            } catch (const std::exception& ex) {
+                auto wrappedError = TError("Failed to issue temporary token for operation %v",
+                    operation->GetId())
+                    << ex;
+                operation->SetStarted(wrappedError);
+                UnregisterOperation(operation);
+                return;
+            }
         }
 
         try {

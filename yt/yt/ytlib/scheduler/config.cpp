@@ -711,6 +711,12 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("enable_secure_vault_variables_in_job_shell", &TThis::EnableSecureVaultVariablesInJobShell)
         .Default(true);
 
+    registrar.Parameter("issue_temporary_token", &TThis::IssueTemporaryToken)
+        .Default(false);
+
+    registrar.Parameter("temporary_token_environment_variable_name", &TThis::TemporaryTokenEnvironmentVariableName)
+        .Default("YT_TOKEN");
+
     registrar.Parameter("suspend_operation_if_account_limit_exceeded", &TThis::SuspendOperationIfAccountLimitExceeded)
         .Default(false);
 

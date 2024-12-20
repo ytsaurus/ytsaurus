@@ -234,6 +234,10 @@ public:
     // sensitive information.
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, SecureVault);
 
+    //! Stores the id of the Cypress node corresponding to the temporary
+    //! token issued for the operation, if any.
+    DEFINE_BYVAL_RW_PROPERTY(NCypressClient::TNodeId, TemporaryTokenNodeId, NCypressClient::NullObjectId);
+
     DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(std::optional<TInstant>, FinishTime);
 
     //! List of events that happened to operation.
@@ -414,6 +418,14 @@ public:
     // Aborts all transactions except user and "completion" transactions.
     TFuture<void> AbortCommonTransactions();
 
+    //! Adds token to secure vault according to the operation spec.
+    //! Requires that the operation is in `Starting` state, token issuance is request in spec,
+    //! and that the secure vault does not contain the key specified in the operation spec.
+    void SetTemporaryToken(const TString& token);
+
+    //! Returns a list of Cypress nodes which must be deleted alongside the operation node.
+    std::vector<NCypressClient::TNodeId> GetDependentNodeIds() const;
+
     TOperation(
         TOperationId operationId,
         EOperationType type,
@@ -425,6 +437,7 @@ public:
         NYson::TYsonString trimmedAnnotations,
         std::optional<TBriefVanillaTaskSpecMap> briefVanillaTaskSpecs,
         NYTree::IMapNodePtr secureVault,
+        NCypressClient::TNodeId temporaryTokenNodeId,
         TOperationRuntimeParametersPtr runtimeParameters,
         NSecurityClient::TSerializableAccessControlList baseAcl,
         const std::string& authenticatedUser,
@@ -475,6 +488,11 @@ private:
 
     //! Aggregated minimum needed resources at the start of the operation.
     std::optional<TJobResources> AggregatedInitialMinNeededResources_;
+
+    //! Adds key-value pair to secure vault. Returns true if the entry was added.
+    //! May only be called while operation is in `Starting` state.
+    //! NB: Be careful with this method with respect to secure vault persistence in Cypress.
+    bool AddSecureVaultEntry(const TString& key, const NYTree::INodePtr& value);
 };
 
 #undef DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH
