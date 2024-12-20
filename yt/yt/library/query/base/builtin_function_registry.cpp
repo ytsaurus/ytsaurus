@@ -253,15 +253,6 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         ECallingConvention::UnversionedValue);
 
     builder->RegisterAggregate(
-        "avg",
-        std::unordered_map<TTypeParameter, TUnionType>(),
-        EValueType::Int64,
-        EValueType::Double,
-        EValueType::String,
-        "avg",
-        ECallingConvention::UnversionedValue);
-
-    builder->RegisterAggregate(
         "cardinality",
         std::unordered_map<TTypeParameter, TUnionType>(),
         std::vector{

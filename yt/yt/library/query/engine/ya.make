@@ -134,16 +134,6 @@ LLVM_BC(
 )
 
 LLVM_BC(
-    udf/avg.c
-    NAME avg
-    SYMBOLS
-        avg_init
-        avg_update
-        avg_merge
-        avg_finalize
-)
-
-LLVM_BC(
     udf/concat.c
     NAME concat
     SYMBOLS

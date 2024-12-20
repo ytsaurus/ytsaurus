@@ -508,6 +508,8 @@ public:
 
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 Value* CodegenCompare(
     TCGBaseContext& builder,
     EValueType type,
@@ -557,6 +559,149 @@ Value* CodegenCopyString(TCGBaseContext& builder, Value* buffer, Value* data, Va
         llvm::Align(1),
         length);
     return permanentData;
+}
+
+TCGValue PackValues(
+    TCGBaseContext& builder,
+    Value* buffer,
+    const std::vector<TCGValue>& args,
+    const std::vector<EValueType>& argTypes,
+    TCGValue* reuseState = nullptr)
+{
+    YT_VERIFY(args.size() == argTypes.size());
+
+    Value* stateSize;
+    Value* permanentData;
+
+    if (reuseState == nullptr) {
+        stateSize = builder->getInt32(0);
+
+        for (int index = 0; index < std::ssize(args); ++index) {
+            switch (argTypes[index]) {
+                case EValueType::Any:
+                case EValueType::Composite:
+                case EValueType::String:
+                    stateSize = builder->CreateAdd(stateSize, args[index].GetLength());
+                    stateSize = builder->CreateAdd(stateSize, builder->getInt32(4));
+                    break;
+                case EValueType::Int64:
+                case EValueType::Uint64:
+                case EValueType::Double:
+                case EValueType::Boolean:
+                    stateSize = builder->CreateAdd(stateSize, builder->getInt32(8));
+                    break;
+                default:
+                    YT_UNIMPLEMENTED();
+            }
+        }
+
+        permanentData = builder->CreateCall(
+            builder.Module->GetRoutine("AllocateBytes"),
+            {buffer, builder->CreateZExt(stateSize, builder->getInt64Ty())});
+    } else {
+        stateSize = reuseState->GetLength();
+        permanentData = reuseState->GetTypedData(builder);
+    }
+
+    Value* iterator = permanentData;
+
+    for (int index = 0; index < std::ssize(args); ++index) {
+        switch (argTypes[index]) {
+            case EValueType::Any:
+            case EValueType::Composite:
+            case EValueType::String:
+                builder->CreateStore(args[index].GetLength(), iterator);
+                iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, builder->getInt64(4));
+                builder->CreateMemCpy(
+                    iterator,
+                    llvm::Align(1),
+                    args[index].GetTypedData(builder),
+                    llvm::Align(1),
+                    args[index].GetLength());
+                iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, args[index].GetLength());
+                break;
+            case EValueType::Double:
+                builder->CreateStore(
+                    builder->CreateZExt(args[index].GetTypedData(builder), builder->getDoubleTy()),
+                    iterator);
+                iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, builder->getInt32(8));
+                break;
+            case EValueType::Int64:
+            case EValueType::Uint64:
+            case EValueType::Boolean:
+                builder->CreateStore(
+                    builder->CreateZExt(args[index].GetTypedData(builder), builder->getInt64Ty()),
+                    iterator);
+                iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, builder->getInt32(8));
+                break;
+            default:
+                YT_UNIMPLEMENTED();
+        }
+    }
+
+    return TCGValue::Create(
+        builder,
+        builder->getFalse(),
+        stateSize,
+        permanentData,
+        EValueType::String);
+}
+
+std::vector<TCGValue> UnpackValues(TCGBaseContext& builder, TCGValue span, const std::vector<EValueType>& argTypes)
+{
+    std::vector<TCGValue> inplaceData;
+
+    Value* iterator = span.GetTypedData(builder);
+
+    for (int index = 0; index < std::ssize(argTypes); ++index) {
+        switch (argTypes[index]) {
+            case EValueType::Any:
+            case EValueType::Composite:
+            case EValueType::String: {
+                Value* length = builder->CreateLoad(builder->getInt32Ty(), iterator);
+                iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, builder->getInt32(4));
+                inplaceData.push_back(
+                    TCGValue::Create(
+                        builder,
+                        builder->getFalse(),
+                        length,
+                        iterator,
+                        argTypes[index]));
+                iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, length);
+                break;
+            }
+            case EValueType::Double: {
+                Value *primitive = builder->CreateLoad(builder->getDoubleTy(), iterator);
+                iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, builder->getInt32(8));
+                inplaceData.push_back(
+                    TCGValue::Create(
+                        builder,
+                        builder->getFalse(),
+                        nullptr,
+                        primitive,
+                        argTypes[index]));
+                break;
+            }
+            case EValueType::Int64:
+            case EValueType::Uint64:
+            case EValueType::Boolean: {
+                Value* primitive = builder->CreateLoad(builder->getInt64Ty(), iterator);
+                iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, builder->getInt32(8));
+                inplaceData.push_back(
+                    TCGValue::Create(
+                        builder,
+                        builder->getFalse(),
+                        nullptr,
+                        primitive,
+                        argTypes[index]));
+                break;
+            }
+            default:
+                YT_UNIMPLEMENTED();
+        }
+    }
+
+    return inplaceData;
 }
 
 class TSimpleAggregateCodegen
@@ -769,24 +914,22 @@ private:
     const std::string Function_;
 };
 
-class TArgMinMaxAggregateCodegen
+class TComplexAggregateCodegen
     : public IAggregateCodegen
 {
 public:
-    explicit TArgMinMaxAggregateCodegen(const std::string& function)
+    explicit TComplexAggregateCodegen(const std::string& function)
         : Function_(function)
     { }
 
     TCodegenAggregate Profile(
         std::vector<EValueType> argumentTypes,
         EValueType stateType,
-        EValueType /*resultType*/,
+        EValueType resultType,
         const std::string& name,
         NCodegen::EExecutionBackend /*executionBackend*/,
         llvm::FoldingSetNodeID* id) const override
     {
-        YT_VERIFY(argumentTypes.size() == 2 && stateType == EValueType::String);
-
         if (id) {
             id->AddString(ToStringRef(Function_ + "_aggregate"));
         }
@@ -797,9 +940,15 @@ public:
             argumentTypes,
             name
         ] (TCGBaseContext& builder, Value* buffer, TCGValue aggregate, std::vector<TCGValue> newValues) {
-            YT_VERIFY(newValues.size() == 2);
+            YT_VERIFY(!newValues.empty());
 
-            Value* anyArgIsNull = builder->CreateOr(newValues[0].GetIsNull(builder), newValues[1].GetIsNull(builder));
+            // TODO(sabdenovch): Only check the last argument for null and support nulls in Pack/Unpack;
+            // compatibility might be an issue.
+            Value* anyArgIsNull = newValues[0].GetIsNull(builder);
+
+            for (int index = 1; index < std::ssize(newValues); ++index) {
+                anyArgIsNull = builder->CreateOr(anyArgIsNull, newValues[index].GetIsNull(builder));
+            }
 
             return CodegenIf<TCGBaseContext, TCGValue>(
                 builder,
@@ -824,15 +973,21 @@ public:
                                 argumentTypes);
                         });
                 },
-                [aggregate] (TCGBaseContext& /*builder*/) {
+                [&] (TCGBaseContext& /*builder*/) {
                     return aggregate;
                 });
         };
+
+        auto stateComponentTypes = argumentTypes;
+        if (Function_ == "avg") {
+            stateComponentTypes.insert(stateComponentTypes.begin(), EValueType::Int64);
+        }
 
         auto merge = [
             this,
             this_ = MakeStrong(this),
             argumentTypes,
+            stateComponentTypes,
             name
         ] (TCGBaseContext& builder, Value* buffer, TCGValue aggState, TCGValue dstAggState) {
             return CodegenIf<TCGBaseContext, TCGValue>(
@@ -852,8 +1007,8 @@ public:
                                 UnpackValues(
                                     builder,
                                     dstAggState,
-                                    argumentTypes),
-                                argumentTypes);
+                                    stateComponentTypes),
+                                stateComponentTypes);
                         },
                         [&] (TCGBaseContext& builder) {
                             return MergeTwoAggStates(builder, buffer, aggState, dstAggState, argumentTypes);
@@ -877,9 +1032,18 @@ public:
             this,
             this_ = MakeStrong(this),
             name,
-            argumentTypes
+            argumentTypes,
+            resultType
         ] (TCGBaseContext& builder, Value* buffer, TCGValue aggState) {
-            return Finalize(builder, buffer, aggState, argumentTypes);
+            return CodegenIf<TCGBaseContext, TCGValue>(
+                builder,
+                aggState.GetIsNull(builder),
+                [&] (TCGBaseContext& builder) {
+                    return TCGValue::CreateNull(builder, resultType);
+                },
+                [&] (TCGBaseContext& builder) {
+                    return Finalize(builder, buffer, aggState, argumentTypes);
+                });
         };
 
         return codegenAggregate;
@@ -896,7 +1060,10 @@ public:
         const std::vector<TCGValue>& newValues,
         const std::vector<EValueType>& argumentTypes) const
     {
-        if (Function_ == "argmin" || Function_ == "argmax") {
+        if (Function_ == "avg") {
+            auto counter = TCGValue::Create(builder, builder->getFalse(), nullptr, builder->getInt64(1), EValueType::Int64);
+            return PackValues(builder, buffer, {counter, newValues[0]}, {EValueType::Int64, argumentTypes[0]});
+        } else if (Function_ == "argmin" || Function_ == "argmax") {
             return PackValues(builder, buffer, newValues, argumentTypes);
         } else {
             YT_UNIMPLEMENTED();
@@ -951,6 +1118,30 @@ public:
                 [&] (TCGBaseContext& /*builder*/){
                     return aggregate;
                 });
+        } else if (Function_ == "avg") {
+            auto types = std::vector{EValueType::Int64, argumentTypes[0]};
+
+            auto unpackedValues = UnpackValues(builder, aggregate, types);
+
+            unpackedValues[0] = TCGValue::Create(
+                builder,
+                builder->getFalse(),
+                /*length*/ nullptr,
+                builder->CreateAdd(unpackedValues[0].GetData(), builder->getInt64(1)),
+                types[0]);
+
+            auto* sum = argumentTypes[0] == EValueType::Double
+                ? builder->CreateFAdd(unpackedValues[1].GetTypedData(builder), newValues[0].GetTypedData(builder))
+                : builder->CreateAdd(unpackedValues[1].GetTypedData(builder), newValues[0].GetTypedData(builder));
+
+            unpackedValues[1] = TCGValue::Create(
+                builder,
+                builder->getFalse(),
+                /*length*/ nullptr,
+                sum,
+                argumentTypes[0]);
+
+            return PackValues(builder, buffer, unpackedValues, types, &aggregate);
         } else {
             YT_UNIMPLEMENTED();
         }
@@ -964,8 +1155,8 @@ public:
         const std::vector<EValueType>& argumentTypes) const
     {
         if (Function_ == "argmin" || Function_ == "argmax") {
-            std::vector<TCGValue> dataUnpacked = UnpackValues(builder, aggState, argumentTypes);
-            std::vector<TCGValue> dstDataUnpacked = UnpackValues(builder, dstAggState, argumentTypes);
+            auto dataUnpacked = UnpackValues(builder, aggState, argumentTypes);
+            auto dstDataUnpacked = UnpackValues(builder, dstAggState, argumentTypes);
 
             Value* compareResult = CodegenCompare(
                 builder,
@@ -988,6 +1179,31 @@ public:
                 [&] (TCGBaseContext& /*builder*/) {
                     return PackValues(builder, buffer, dstDataUnpacked, argumentTypes);
                 });
+        } else if (Function_ == "avg") {
+            auto types = std::vector{EValueType::Int64, argumentTypes[0]};
+
+            auto unpackedValues = UnpackValues(builder, aggState, types);
+            auto unpackedDstValues = UnpackValues(builder, dstAggState, types);
+
+            unpackedValues[0] = TCGValue::Create(
+                builder,
+                builder->getFalse(),
+                /*length*/ nullptr,
+                builder->CreateAdd(unpackedValues[0].GetData(), unpackedDstValues[0].GetData()),
+                types[0]);
+
+            auto* sum = types[1] == EValueType::Double
+                ? builder->CreateFAdd(unpackedValues[1].GetTypedData(builder), unpackedDstValues[1].GetTypedData(builder))
+                : builder->CreateAdd(unpackedValues[1].GetTypedData(builder), unpackedDstValues[1].GetTypedData(builder));
+
+            unpackedValues[1] = TCGValue::Create(
+                builder,
+                builder->getFalse(),
+                /*length*/ nullptr,
+                sum,
+                types[1]);
+
+            return PackValues(builder, buffer, unpackedValues, types);
         } else {
             YT_UNIMPLEMENTED();
         }
@@ -1001,6 +1217,39 @@ public:
     {
         if (Function_ == "argmin" || Function_ == "argmax") {
             return UnpackValues(builder, aggState, argumentTypes).front();
+        } else if (Function_ == "avg") {
+            auto types = std::vector{EValueType::Int64, argumentTypes[0]};
+            auto state = UnpackValues(builder, aggState, types);
+
+            Value* counterFp = builder->CreateCast(
+                llvm::Instruction::CastOps::SIToFP,
+                state[0].GetData(),
+                builder->getDoubleTy());
+
+            Value* sumFp = state[1].GetTypedData(builder);
+
+            switch (argumentTypes[0]) {
+                case EValueType::Int64:
+                    sumFp = builder->CreateCast(
+                        llvm::Instruction::CastOps::SIToFP,
+                        sumFp,
+                        builder->getDoubleTy());
+                    break;
+                case EValueType::Uint64:
+                    sumFp = builder->CreateCast(
+                        llvm::Instruction::CastOps::UIToFP,
+                        sumFp,
+                        builder->getDoubleTy());
+                    break;
+                case EValueType::Double:
+                    break;
+                default:
+                    YT_ABORT();
+            }
+
+            auto avg = builder->CreateFDiv(sumFp, counterFp);
+
+            return TCGValue::Create(builder, builder->getFalse(), nullptr, avg, EValueType::Double);
         } else {
             YT_UNIMPLEMENTED();
         }
@@ -1017,152 +1266,6 @@ private:
             }
         }
         return true;
-    }
-
-    static TCGValue PackValues(
-        TCGBaseContext& builder,
-        Value* buffer,
-        const std::vector<TCGValue>& args,
-        const std::vector<EValueType>& argTypes,
-        TCGValue* reuseState = nullptr)
-    {
-        YT_VERIFY(args.size() == argTypes.size());
-
-        Value* stateSize;
-        Value* permanentData;
-
-        if (reuseState == nullptr) {
-            stateSize = builder->getInt32(0);
-
-            for (int index = 0; index < std::ssize(args); ++index) {
-                switch (argTypes[index]) {
-                    case EValueType::Any:
-                    case EValueType::Composite:
-                    case EValueType::String:
-                        stateSize = builder->CreateAdd(stateSize, args[index].GetLength());
-                        stateSize = builder->CreateAdd(stateSize, builder->getInt32(4));
-                        break;
-                    case EValueType::Int64:
-                    case EValueType::Uint64:
-                    case EValueType::Double:
-                    case EValueType::Boolean:
-                        stateSize = builder->CreateAdd(stateSize, builder->getInt32(8));
-                        break;
-                    default:
-                        YT_UNIMPLEMENTED();
-                }
-            }
-
-            permanentData = builder->CreateCall(
-                builder.Module->GetRoutine("AllocateBytes"),
-                {buffer, builder->CreateZExt(stateSize, builder->getInt64Ty())});
-        } else {
-            stateSize = reuseState->GetLength();
-            permanentData = reuseState->GetTypedData(builder);
-        }
-
-        Value* iterator = permanentData;
-
-        for (int index = 0; index < std::ssize(args); ++index) {
-            switch (argTypes[index]) {
-                case EValueType::Any:
-                case EValueType::Composite:
-                case EValueType::String:
-                    builder->CreateStore(args[index].GetLength(), iterator);
-                    iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, builder->getInt64(4));
-                    builder->CreateMemCpy(
-                        iterator,
-                        llvm::Align(1),
-                        args[index].GetTypedData(builder),
-                        llvm::Align(1),
-                        args[index].GetLength());
-                    iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, args[index].GetLength());
-                    break;
-                case EValueType::Double:
-                    builder->CreateStore(
-                        builder->CreateZExt(args[index].GetTypedData(builder), builder->getDoubleTy()),
-                        iterator);
-                    iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, builder->getInt32(8));
-                    break;
-                case EValueType::Int64:
-                case EValueType::Uint64:
-                case EValueType::Boolean:
-                    builder->CreateStore(
-                        builder->CreateZExt(args[index].GetTypedData(builder), builder->getInt64Ty()),
-                        iterator);
-                    iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, builder->getInt32(8));
-                    break;
-                default:
-                    YT_UNIMPLEMENTED();
-            }
-        }
-
-        return TCGValue::Create(
-            builder,
-            builder->getFalse(),
-            stateSize,
-            permanentData,
-            EValueType::String);
-    }
-
-    static std::vector<TCGValue> UnpackValues(
-        TCGBaseContext& builder,
-        TCGValue span,
-        const std::vector<EValueType>& argTypes)
-    {
-        std::vector<TCGValue> inplaceData;
-
-        Value* iterator = span.GetTypedData(builder);
-
-        for (int index = 0; index < std::ssize(argTypes); ++index) {
-            switch (argTypes[index]) {
-                case EValueType::Any:
-                case EValueType::Composite:
-                case EValueType::String: {
-                    Value* length = builder->CreateLoad(builder->getInt32Ty(), iterator);
-                    iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, builder->getInt32(4));
-                    inplaceData.push_back(
-                        TCGValue::Create(
-                            builder,
-                            builder->getFalse(),
-                            length,
-                            iterator,
-                            argTypes[index]));
-                    iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, length);
-                    break;
-                }
-                case EValueType::Double: {
-                    Value *primitive = builder->CreateLoad(builder->getDoubleTy(), iterator);
-                    iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, builder->getInt32(8));
-                    inplaceData.push_back(
-                        TCGValue::Create(
-                            builder,
-                            builder->getFalse(),
-                            nullptr,
-                            primitive,
-                            argTypes[index]));
-                    break;
-                }
-                case EValueType::Int64:
-                case EValueType::Uint64:
-                case EValueType::Boolean: {
-                    Value* primitive = builder->CreateLoad(builder->getInt64Ty(), iterator);
-                    iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, builder->getInt32(8));
-                    inplaceData.push_back(
-                        TCGValue::Create(
-                            builder,
-                            builder->getFalse(),
-                            nullptr,
-                            primitive,
-                            argTypes[index]));
-                    break;
-                }
-                default:
-                    YT_UNIMPLEMENTED();
-            }
-        }
-
-        return inplaceData;
     }
 };
 
@@ -1342,8 +1445,8 @@ TConstAggregateProfilerMapPtr CreateBuiltinAggregateProfilers()
         result->emplace(name, New<NBuiltins::TSimpleAggregateCodegen>(name));
     }
 
-    for (const auto& name : {"argmin", "argmax"}) {
-        result->emplace(name, New<NBuiltins::TArgMinMaxAggregateCodegen>(name));
+    for (const auto& name : {"argmin", "argmax", "avg"}) {
+        result->emplace(name, New<NBuiltins::TComplexAggregateCodegen>(name));
     }
 
     TProfilerFunctionRegistryBuilder builder{nullptr, result.Get()};
