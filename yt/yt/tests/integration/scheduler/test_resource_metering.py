@@ -49,12 +49,17 @@ class TestResourceMetering(YTEnvSetup):
         }
     }
 
+    GUARANTEE_SCHEMA = "yt.scheduler.pools.compute_guarantee.v1"
+    ALLOCATION_SCHEMA = "yt.scheduler.pools.compute_allocation.v1"
+
+    ALLOCATION_PRECISION = 0.15
+
     @classmethod
     def setup_class(cls):
         super(TestResourceMetering, cls).setup_class()
         set("//sys/@cluster_name", "my_cluster")
 
-    def _extract_metering_records_from_log(self, last=True, schema=None):
+    def _extract_metering_records_from_log(self, schema, last=True):
         """ Returns dict from metering key to last record with this key. """
         scheduler_log_file = os.path.join(self.path_to_run, "logs/scheduler-0.json.log")
         scheduler_address = ls("//sys/scheduler/instances")[0]
@@ -68,7 +73,7 @@ class TestResourceMetering(YTEnvSetup):
             if "abc_id" not in entry:
                 continue
 
-            if schema is not None and entry["schema"] != schema:
+            if entry["schema"] != schema:
                 continue
 
             key = (
@@ -85,21 +90,30 @@ class TestResourceMetering(YTEnvSetup):
 
         return reports
 
-    def _validate_metering_records(self, root_key, desired_metering_data, event_key_to_last_record, precision=None):
+    def _validate_metering_records(self, root_key, desired_metering_data, event_key_to_last_record, schema):
         if root_key not in event_key_to_last_record:
             assert False, "Root key is missing"
 
         for key, desired_data in desired_metering_data.items():
             for resource_key, desired_value in desired_data.items():
+                assert key in event_key_to_last_record
                 tags, usage = event_key_to_last_record.get(key, ({}, {}))
+
                 observed_value = get_by_composite_key(tags, resource_key.split("/"), default=0)
-                if isinstance(desired_value, int):
-                    observed_value = int(observed_value)
-                is_equal = False
-                if precision is None:
+
+                if schema == self.GUARANTEE_SCHEMA or isinstance(desired_value, str):
                     is_equal = observed_value == desired_value
+                elif schema == self.ALLOCATION_SCHEMA:
+                    # Update period equal 100ms, metering period is 1000ms, so we expected the error to be less than or equal to 10%.
+                    precision = 0.15
+                    max_value = max(observed_value, desired_value)
+                    if max_value < precision:
+                        is_equal = True
+                    else:
+                        is_equal = abs(observed_value - desired_value) / max(observed_value, desired_value) < precision
                 else:
-                    is_equal = abs(observed_value - desired_value) < precision
+                    assert "Unknown schema '{}'".format(schema)
+
                 assert is_equal, "Value mismatch (abc_key: {}, resource_key: {}, observed: {}, desired: {})"\
                     .format(key, resource_key, observed_value, desired_value)
 
@@ -182,38 +196,55 @@ class TestResourceMetering(YTEnvSetup):
 
         root_key = (42, "yggdrasil", "<Root>")
 
-        desired_metering_data = {
+        desired_guarantee_metering_data = {
             root_key: {
                 "strong_guarantee_resources/cpu": 4,
                 "resource_flow/cpu": 0,
                 "burst_guarantee_resources/cpu": 0,
-                # Aggregated from op4 in abcless pool.
-                "allocated_resources/cpu": 1,
             },
             (1, "yggdrasil", "pixies"): {
                 "strong_guarantee_resources/cpu": 2,
                 "resource_flow/cpu": 0,
                 "burst_guarantee_resources/cpu": 0,
-                # Aggregated from op3 in misilrou pool.
-                "allocated_resources/cpu": 1},
+            },
             (2, "yggdrasil", "francis"): {
                 "strong_guarantee_resources/cpu": 1,
                 "resource_flow/cpu": 0,
                 "burst_guarantee_resources/cpu": 0,
-                "allocated_resources/cpu": 2,
             },
             (3, "yggdrasil", "nidhogg"): {
                 "strong_guarantee_resources/cpu": 0,
                 "resource_flow/cpu": 5,
                 "burst_guarantee_resources/cpu": 6,
+            },
+        }
+
+        desired_allocation_metering_data = {
+            root_key: {
+                # Aggregated from op4 in abcless pool.
+                "allocated_resources/cpu": 1,
+            },
+            (1, "yggdrasil", "pixies"): {
+                # Aggregated from op3 in misilrou pool.
+                "allocated_resources/cpu": 1,
+            },
+            (2, "yggdrasil", "francis"): {
+                "allocated_resources/cpu": 2,
+            },
+            (3, "yggdrasil", "nidhogg"): {
                 "allocated_resources/cpu": 1,
             },
         }
 
         @wait_no_assert
-        def check_structured():
-            event_key_to_last_record = self._extract_metering_records_from_log()
-            return self._validate_metering_records(root_key, desired_metering_data, event_key_to_last_record)
+        def check_expected_guarantee_records():
+            event_key_to_last_record = self._extract_metering_records_from_log(schema=self.GUARANTEE_SCHEMA)
+            return self._validate_metering_records(root_key, desired_guarantee_metering_data, event_key_to_last_record, schema=self.GUARANTEE_SCHEMA)
+
+        @wait_no_assert
+        def check_expected_allocation_records():
+            event_key_to_last_record = self._extract_metering_records_from_log(schema=self.ALLOCATION_SCHEMA)
+            return self._validate_metering_records(root_key, desired_allocation_metering_data, event_key_to_last_record, schema=self.ALLOCATION_SCHEMA)
 
     @authors("ignat")
     def test_metering_tags(self):
@@ -244,18 +275,28 @@ class TestResourceMetering(YTEnvSetup):
 
         root_key = (42, "default", "<Root>")
 
-        desired_metering_data = {
+        desired_guarantee_metering_data = {
             root_key: {
                 "strong_guarantee_resources/cpu": 0,
                 "resource_flow/cpu": 0,
                 "burst_guarantee_resources/cpu": 0,
-                "allocated_resources/cpu": 0,
                 "my_tag": "my_value",
             },
             (1, "default", "my_pool"): {
                 "strong_guarantee_resources/cpu": 4,
                 "resource_flow/cpu": 0,
                 "burst_guarantee_resources/cpu": 0,
+                "my_tag": "my_value",
+                "pool_tag": "pool_value",
+            },
+        }
+
+        desired_allocation_metering_data = {
+            root_key: {
+                "allocated_resources/cpu": 0,
+                "my_tag": "my_value",
+            },
+            (1, "default", "my_pool"): {
                 "allocated_resources/cpu": 0,
                 "my_tag": "my_value",
                 "pool_tag": "pool_value",
@@ -263,9 +304,14 @@ class TestResourceMetering(YTEnvSetup):
         }
 
         @wait_no_assert
-        def check_structured():
-            event_key_to_last_record = self._extract_metering_records_from_log()
-            return self._validate_metering_records(root_key, desired_metering_data, event_key_to_last_record)
+        def check_expected_guarantee_records():
+            event_key_to_last_record = self._extract_metering_records_from_log(schema=self.GUARANTEE_SCHEMA)
+            return self._validate_metering_records(root_key, desired_guarantee_metering_data, event_key_to_last_record, schema=self.GUARANTEE_SCHEMA)
+
+        @wait_no_assert
+        def check_expected_allocation_records():
+            event_key_to_last_record = self._extract_metering_records_from_log(schema=self.ALLOCATION_SCHEMA)
+            return self._validate_metering_records(root_key, desired_allocation_metering_data, event_key_to_last_record, schema=self.ALLOCATION_SCHEMA)
 
     @authors("ignat")
     def test_resource_metering_at_root(self):
@@ -328,37 +374,53 @@ class TestResourceMetering(YTEnvSetup):
 
         root_key = (42, "default", "<Root>")
 
-        desired_metering_data = {
+        desired_guarantee_metering_data = {
             root_key: {
                 "strong_guarantee_resources/cpu": 3,  # 2 from pool_without_abc, and 1 from pool_with_abc_at_children
                 "resource_flow/cpu": 3,  # 3 from pool_with_abc_at_children
                 "burst_guarantee_resources/cpu": 0,
-                "allocated_resources/cpu": 0,
             },
             (1, "default", "pool_with_abc"): {
                 "strong_guarantee_resources/cpu": 4,
                 "resource_flow/cpu": 0,
                 "burst_guarantee_resources/cpu": 0,
-                "allocated_resources/cpu": 0,
             },
             (2, "default", "strong_guarantees_pool"): {
                 "strong_guarantee_resources/cpu": 1,
                 "resource_flow/cpu": 0,
                 "burst_guarantee_resources/cpu": 0,
-                "allocated_resources/cpu": 0,
             },
             (3, "default", "integral_guarantees_pool"): {
                 "strong_guarantee_resources/cpu": 0,
                 "resource_flow/cpu": 2,
                 "burst_guarantee_resources/cpu": 0,
+            },
+        }
+
+        desired_allocation_metering_data = {
+            root_key: {
+                "allocated_resources/cpu": 0,
+            },
+            (1, "default", "pool_with_abc"): {
+                "allocated_resources/cpu": 0,
+            },
+            (2, "default", "strong_guarantees_pool"): {
+                "allocated_resources/cpu": 0,
+            },
+            (3, "default", "integral_guarantees_pool"): {
                 "allocated_resources/cpu": 0,
             },
         }
 
         @wait_no_assert
-        def check_structured():
-            event_key_to_last_record = self._extract_metering_records_from_log()
-            return self._validate_metering_records(root_key, desired_metering_data, event_key_to_last_record)
+        def check_expected_guarantee_records():
+            event_key_to_last_record = self._extract_metering_records_from_log(schema=self.GUARANTEE_SCHEMA)
+            return self._validate_metering_records(root_key, desired_guarantee_metering_data, event_key_to_last_record, schema=self.GUARANTEE_SCHEMA)
+
+        @wait_no_assert
+        def check_expected_allocation_records():
+            event_key_to_last_record = self._extract_metering_records_from_log(schema=self.ALLOCATION_SCHEMA)
+            return self._validate_metering_records(root_key, desired_allocation_metering_data, event_key_to_last_record, schema=self.ALLOCATION_SCHEMA)
 
     @authors("ignat")
     def test_metering_with_revive(self):
@@ -383,14 +445,12 @@ class TestResourceMetering(YTEnvSetup):
                 "strong_guarantee_resources/cpu": 0,
                 "resource_flow/cpu": 0,
                 "burst_guarantee_resources/cpu": 0,
-                "allocated_resources/cpu": 0,
                 "my_tag": "my_value",
             },
             (1, "default", "my_pool"): {
                 "strong_guarantee_resources/cpu": 4,
                 "resource_flow/cpu": 0,
                 "burst_guarantee_resources/cpu": 0,
-                "allocated_resources/cpu": 0,
                 "my_tag": "my_value",
                 "pool_tag": "pool_value",
             },
@@ -398,8 +458,8 @@ class TestResourceMetering(YTEnvSetup):
 
         @wait_no_assert
         def check_expected_tags():
-            event_key_to_last_record = self._extract_metering_records_from_log()
-            return self._validate_metering_records(root_key, desired_metering_data, event_key_to_last_record)
+            event_key_to_last_record = self._extract_metering_records_from_log(schema=self.GUARANTEE_SCHEMA)
+            return self._validate_metering_records(root_key, desired_metering_data, event_key_to_last_record, schema=self.GUARANTEE_SCHEMA)
 
         wait(lambda: exists("//sys/scheduler/@last_metering_log_time"))
 
@@ -407,7 +467,7 @@ class TestResourceMetering(YTEnvSetup):
             time.sleep(8)
 
         def check_expected_usage():
-            event_key_to_records = self._extract_metering_records_from_log(last=False)
+            event_key_to_records = self._extract_metering_records_from_log(schema=self.GUARANTEE_SCHEMA, last=False)
             has_long_record = False
             for tags, usage in event_key_to_records[root_key]:
                 print_debug(tags, usage)
@@ -424,14 +484,14 @@ class TestResourceMetering(YTEnvSetup):
             "my_pool",
             pool_tree="default",
             attributes={
-                "strong_guarantee_resources": {"cpu": 4},
+                "strong_guarantee_resources": {"cpu": 4.0},
                 "abc": {"id": 1, "slug": "my", "name": "MyService"},
                 "metering_tags": {"pool_tag": "pool_value"},
             },
             wait_for_orchid=False,
         )
 
-        metering_count_sensor = profiler_factory().at_scheduler().counter("scheduler/metering/record_count")
+        metering_count_sensor = profiler_factory().at_scheduler().counter("scheduler/metering/guarantees/record_count")
 
         wait(lambda: metering_count_sensor.get_delta() > 0)
 
@@ -481,11 +541,10 @@ class TestResourceMetering(YTEnvSetup):
 
         @wait_no_assert
         def check_expected_guarantee_records():
-            event_key_to_last_record = self._extract_metering_records_from_log(schema="yt.scheduler.pools.compute_guarantee.v1")
-            return self._validate_metering_records(root_key, desired_guarantees_metering_data, event_key_to_last_record)
+            event_key_to_last_record = self._extract_metering_records_from_log(schema=self.GUARANTEE_SCHEMA)
+            return self._validate_metering_records(root_key, desired_guarantees_metering_data, event_key_to_last_record, schema=self.GUARANTEE_SCHEMA)
 
         @wait_no_assert
         def check_expected_allocation_records():
-            event_key_to_last_record = self._extract_metering_records_from_log(schema="yt.scheduler.pools.compute_allocation.v1")
-            # Update period equal 100ms, metering period is 1000ms, so we expected the error to be less than or equal to 10%.
-            self._validate_metering_records(root_key, desired_allocation_metering_data, event_key_to_last_record, precision=0.15)
+            event_key_to_last_record = self._extract_metering_records_from_log(schema=self.ALLOCATION_SCHEMA)
+            self._validate_metering_records(root_key, desired_allocation_metering_data, event_key_to_last_record, schema=self.ALLOCATION_SCHEMA)
