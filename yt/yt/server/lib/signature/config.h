@@ -41,4 +41,18 @@ DEFINE_REFCOUNTED_TYPE(TSignatureValidatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TKeyRotatorConfig
+    : public NYTree::TYsonStruct
+{
+    TDuration KeyRotationInterval;
+
+    REGISTER_YSON_STRUCT(TKeyRotatorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TKeyRotatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NSignature

@@ -38,6 +38,7 @@ target_sources(server-lib-signature PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/crypto.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/key_info.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/key_pair.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/key_rotator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/signature_generator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/signature_header.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/signature_preprocess.cpp
