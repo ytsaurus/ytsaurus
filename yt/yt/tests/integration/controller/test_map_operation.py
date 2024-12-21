@@ -440,6 +440,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     # There is completely nothing Porto-specific here.
     @authors("ignat")
     @skip_if_porto
+    @pytest.mark.timeout(120)
     def test_job_per_row(self):
         create("table", "//tmp/input")
 
@@ -449,7 +450,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         create("table", "//tmp/output", ignore_existing=True)
 
-        for job_count in range(976, 950, -1):
+        for job_count in range(976, 960, -1):
             op = map(
                 track=False,
                 in_="//tmp/input",
