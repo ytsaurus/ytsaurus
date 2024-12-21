@@ -4,6 +4,8 @@
 
 #include <yt/yt/library/dynamic_config/config.h>
 
+#include <yt/yt/library/auth_server/config.h>
+
 namespace NYT::NKafkaProxy {
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -24,6 +24,7 @@ target_link_libraries(server-node-cellar_node PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
+  library-profiling-solomon
 )
 
 target_sources(server-node-cellar_node PRIVATE

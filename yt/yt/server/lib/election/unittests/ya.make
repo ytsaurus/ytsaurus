@@ -12,6 +12,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/yt/server/lib/election
+    yt/yt/library/profiling/solomon
 )
 
 SIZE(MEDIUM)

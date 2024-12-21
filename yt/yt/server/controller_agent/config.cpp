@@ -1295,6 +1295,8 @@ void TControllerAgentBootstrapConfig::Register(TRegistrar registrar)
         ->AsMap());
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
+    registrar.Parameter("heap_profiler", &TThis::HeapProfiler)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

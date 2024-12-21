@@ -49,6 +49,8 @@
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/caching_channel_factory.h>
 
+#include <yt/yt/core/bus/tcp/config.h>
+
 #include <Common/DateLUT.h>
 #include <Common/Exception.h>
 #include <Common/StringUtils/StringUtils.h>

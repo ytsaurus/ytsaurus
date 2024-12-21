@@ -27,8 +27,9 @@ NApi::IClientPtr CreateRpcClient(const TNetworkConfig& config) {
 
     auto singletonsConfig = New<TRpcConfig>();
     if (config.Ipv4) {
-        singletonsConfig->AddressResolver->EnableIPv4 = true;
-        singletonsConfig->AddressResolver->EnableIPv6 = false;
+        auto addressResolverConfig = singletonsConfig->GetSingletonConfig<NNet::TAddressResolverConfig>();
+        addressResolverConfig->EnableIPv4 = true;
+        addressResolverConfig->EnableIPv6 = false;
     }
     ConfigureSingletons(singletonsConfig);
 

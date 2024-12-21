@@ -54,6 +54,7 @@ target_link_libraries(yt-server-node PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  core-service_discovery-yp
   library-query-engine
   library-query-row_comparer
   library-dns_over_rpc-server
@@ -61,6 +62,9 @@ target_link_libraries(yt-server-node PUBLIC
   yt-library-containers
   library-containers-cri
   yt-library-gpu
+  library-tracing-jaeger
+  yt-library-tcmalloc
+  yt-library-monitoring
   yt-library-server_program
   yt-ytlib-distributed_throttler
   server-node-cellar_node

@@ -26,6 +26,7 @@
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
+#include <yt/yt/core/logging/config.h>
 #include <yt/yt/core/logging/log_manager.h>
 
 #include <library/cpp/getopt/last_getopt.h>

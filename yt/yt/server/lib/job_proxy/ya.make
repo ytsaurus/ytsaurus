@@ -14,6 +14,7 @@ PEERDIR(
     yt/yt/core
     yt/yt/library/dns_over_rpc/client
     yt/yt/library/containers/cri
+    yt/yt/library/stockpile
     yt/yt/server/lib/misc
     yt/yt/server/lib/rpc_proxy
 )

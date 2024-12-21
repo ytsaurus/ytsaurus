@@ -24,8 +24,7 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/yt/ytlib/program/config.h>
-
+#include <yt/yt/library/program/config.h>
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/helpers.h>
 

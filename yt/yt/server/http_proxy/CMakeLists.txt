@@ -36,6 +36,9 @@ target_link_libraries(yt-server-http_proxy PUBLIC
   yt-library-ytprof
   yt-library-containers
   yt-library-server_program
+  library-profiling-solomon
+  library-tracing-jaeger
+  yt-library-monitoring
   yt-core-https
   ytserver
   server-lib-chunk_pools

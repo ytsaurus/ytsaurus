@@ -49,6 +49,7 @@ target_link_libraries(yt-server-master PUBLIC
   library-cpp-getopt
   cpp-yt-phdr_cache
   yt-library-server_program
+  yt-library-monitoring
   yt-ytlib-distributed_throttler
   ytserver
   server-lib-cell_server

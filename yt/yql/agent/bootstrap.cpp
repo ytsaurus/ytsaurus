@@ -27,7 +27,7 @@
 
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
-#include <yt/yt/ytlib/program/native_singletons.h>
+#include <yt/yt/library/program/helpers.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
@@ -289,7 +289,7 @@ void TBootstrap::OnDynamicConfigChanged(
     const TYqlAgentServerDynamicConfigPtr& oldConfig,
     const TYqlAgentServerDynamicConfigPtr& newConfig)
 {
-    ReconfigureNativeSingletons(newConfig);
+    ReconfigureSingletons(newConfig);
 
     YT_VERIFY(YqlAgent_);
 

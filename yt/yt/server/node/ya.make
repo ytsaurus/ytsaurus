@@ -192,6 +192,8 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/core/service_discovery/yp
+
     yt/yt/library/query/engine
     yt/yt/library/query/row_comparer
     yt/yt/library/dns_over_rpc/server
@@ -199,6 +201,9 @@ PEERDIR(
     yt/yt/library/containers
     yt/yt/library/containers/cri
     yt/yt/library/gpu
+    yt/yt/library/tracing/jaeger
+    yt/yt/library/tcmalloc
+    yt/yt/library/monitoring
     yt/yt/library/server_program
 
     yt/yt/ytlib/distributed_throttler

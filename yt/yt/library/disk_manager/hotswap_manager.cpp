@@ -9,6 +9,8 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+
+#include <yt/yt/core/misc/configurable_singleton_def.h>
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_service.h>
 
@@ -109,7 +111,8 @@ public:
         auto guard = Guard(ConfigLock_);
 
         if (!Configured_) {
-            THROW_ERROR_EXCEPTION("Hotswap dispatcher is not configured yet");
+            YT_LOG_INFO("Hotswap dispatcher is not configured yet; reconfiguration ignored");
+            return;
         }
 
         DiskManagerProxy_->Reconfigure(dynamicConfig->DiskManagerProxy);

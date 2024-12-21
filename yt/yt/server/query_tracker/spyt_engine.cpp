@@ -14,6 +14,7 @@
 #include <yt/yt/core/http/helpers.h>
 #include <yt/yt/core/http/http.h>
 
+#include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>

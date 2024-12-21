@@ -6,6 +6,7 @@ PEERDIR(
     yt/yt/server/lib/user_job
 
     yt/yt/library/program
+    yt/yt/library/process
 
     yt/yt/core
 )

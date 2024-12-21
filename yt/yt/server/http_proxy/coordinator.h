@@ -18,6 +18,8 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <library/cpp/yt/threading/atomic_object.h>
+
 namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,6 +40,8 @@ struct TLiveness
 
 DEFINE_REFCOUNTED_TYPE(TLiveness)
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TProxyEntry
     : public NYTree::TYsonStruct
 {
@@ -57,6 +61,8 @@ struct TProxyEntry
 };
 
 DEFINE_REFCOUNTED_TYPE(TProxyEntry)
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TCoordinatorProxy
     : public TRefCounted

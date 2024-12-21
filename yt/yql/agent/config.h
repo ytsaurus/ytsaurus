@@ -212,7 +212,7 @@ DEFINE_REFCOUNTED_TYPE(TYqlAgentServerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYqlAgentServerDynamicConfig
-    : public TNativeSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     TYqlAgentDynamicConfigPtr YqlAgent;

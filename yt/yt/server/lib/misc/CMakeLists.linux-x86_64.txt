@@ -33,6 +33,7 @@ target_link_libraries(server-lib-misc PUBLIC
   yt-ytlib-distributed_throttler
   yt-library-coredumper
   yt-library-process
+  yt-library-tcmalloc
   yt-library-ytprof
   library-ytprof-allocation_tag_profiler
   library-cpp-porto
@@ -74,6 +75,7 @@ target_link_libraries(server-lib-misc.global PUBLIC
   yt-ytlib-distributed_throttler
   yt-library-coredumper
   yt-library-process
+  yt-library-tcmalloc
   yt-library-ytprof
   library-ytprof-allocation_tag_profiler
   library-cpp-porto

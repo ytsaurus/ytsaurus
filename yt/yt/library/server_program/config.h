@@ -16,7 +16,7 @@ struct TServerProgramConfig
     bool EnablePortoResourceTracker;
     NContainers::TPodSpecConfigPtr PodSpec;
 
-    NDiskManager::THotswapManagerConfigPtr HotswapManager;
+    bool EnableRefCountedTrackerProfiling;
 
     REGISTER_YSON_STRUCT(TServerProgramConfig)
 

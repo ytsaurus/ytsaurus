@@ -12,8 +12,7 @@ PEERDIR(
     yt/yt/library/program
     yt/yt/library/containers
     yt/yt/library/disk_manager
-    # TODO(babenko): drop after singleton refactoring
-    yt/yt/ytlib
+    yt/yt/library/stockpile # for stockpile singleton
 )
 
 END()

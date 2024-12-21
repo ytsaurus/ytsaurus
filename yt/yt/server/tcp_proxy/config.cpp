@@ -4,6 +4,8 @@
 
 #include <yt/yt/library/dynamic_config/config.h>
 
+#include <yt/yt/core/net/config.h>
+
 namespace NYT::NTcpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////

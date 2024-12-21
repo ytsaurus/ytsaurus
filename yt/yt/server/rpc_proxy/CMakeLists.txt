@@ -39,6 +39,8 @@ target_link_libraries(yt-server-rpc_proxy PUBLIC
   yt-library-auth_server
   yt-library-dynamic_config
   yt-library-server_program
+  library-profiling-solomon
+  library-tracing-jaeger
   cpp-yt-phdr_cache
   library-cpp-getopt
 )

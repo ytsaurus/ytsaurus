@@ -30,6 +30,7 @@ target_link_libraries(unittester-election PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   server-lib-election
+  library-profiling-solomon
 )
 
 target_allocator(unittester-election

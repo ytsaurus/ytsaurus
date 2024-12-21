@@ -16,6 +16,10 @@
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 
+#include <yt/yt/core/logging/config.h>
+
+#include <yt/yt/core/net/config.h>
+
 #include <yt/yql/plugin/bridge/plugin.h>
 
 namespace NYT::NYqlAgent {
@@ -187,14 +191,14 @@ public:
 
         auto singletonsConfigDefaultLogging = CloneYsonStruct(SingletonsConfig_);
         // Compressed logs are broken if plugin tries to open and write to them.
-        singletonsConfigDefaultLogging->Logging = TLogManagerConfig::CreateDefault();
+        singletonsConfigDefaultLogging->SetSingletonConfig(TLogManagerConfig::CreateDefault());
 
         auto singletonsConfigString = singletonsConfigDefaultLogging
             ? ConvertToYsonString(singletonsConfigDefaultLogging)
             : EmptyMap;
 
         if (!Config_->DqManagerConfig->AddressResolver) {
-            Config_->DqManagerConfig->AddressResolver = SingletonsConfig_->AddressResolver;
+            Config_->DqManagerConfig->AddressResolver = SingletonsConfig_->GetSingletonConfig<NNet::TAddressResolverConfig>();
         }
 
         THashSet<TString> presentClusters;

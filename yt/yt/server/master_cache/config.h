@@ -10,8 +10,6 @@
 
 #include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/yt/ytlib/program/config.h>
-
 #include <yt/yt/core/bus/tcp/public.h>
 
 #include <yt/yt/library/dynamic_config/public.h>
@@ -49,7 +47,7 @@ DEFINE_REFCOUNTED_TYPE(TMasterCacheConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterCacheDynamicConfig
-    : public TNativeSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     NObjectClient::TCachingObjectServiceDynamicConfigPtr CachingObjectService;
