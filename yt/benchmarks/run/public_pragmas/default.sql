@@ -1,6 +1,6 @@
 pragma AnsiInForEmptyOrNullableItemsCollections;
 pragma AnsiOptionalAs;
-pragma CompactForDistinct;
+pragma CompactGroupBy; -- TODO(pavook): replace to CompactForDistinct on cluster update.
 pragma TablePathPrefix = "home/tpcds/3Tb";
 pragma config.flags("OptimizerFlags", "FilterPushdownEnableMultiusage",
                     "EarlyExpandSkipNull","FieldSubsetEnableMultiusage", "PushdownComplexFiltersOverAggregate", "ExtractCommonPredicatesFromLogicalOps");

@@ -58,12 +58,15 @@ class MetricUploader:
             self.api_client.close()
             self.api_client = None
 
-    def collect_labels(self, query_index: int, query_info: dict[str, Any]) -> dict[str, Any]:
-        return {
+    def collect_labels(self, query_index: int, query_info: dict[str, Any], query_type: str | None) -> dict[str, Any]:
+        labels = {
             "query_index": query_index,
             "query_title": query_info["annotations"]["title"],
             "query_engine": query_info["engine"],
         }
+        if query_type is not None:
+            labels["query_type"] = query_type
+        return labels
 
     def collect_metrics(self, query_info: dict[str, Any]) -> list[Metric]:
         metrics: list[Metric] = []
@@ -92,10 +95,10 @@ class MetricUploader:
 
         return metrics
 
-    def process_query(self, query_index: int, query_info: dict[str, Any]):
+    def process_query(self, query_index: int, query_info: dict[str, Any], query_type: str | None):
         if not self.api_client:
             return
-        labels = self.collect_labels(query_index, query_info)
+        labels = self.collect_labels(query_index, query_info, query_type)
         metrics = self.collect_metrics(query_info)
         dict_metrics = [asdict(metric) for metric in metrics]
         json_data = {"labels": labels, "metrics": dict_metrics, "ts": query_info["start_time"]}
@@ -119,9 +122,12 @@ def upload_metrics(artifact_path: str, monitoring_endpoint: str, monitoring_toke
     """Extract metrics about the launch (or launches) from the artifacts and upload them to Monitoring."""
 
     with MetricUploader(monitoring_endpoint, monitoring_token) as uploader:
-        for query_file in Path(artifact_path).glob("**/queries/*/info.json"):
+        for query_file in Path(artifact_path).glob("**/queries/**/info.json"):
             print(f"Uploading metrics from {query_file}", file=sys.stderr)
             with query_file.open() as f:
                 query_index = int(query_file.parent.name)
                 query_info = json.load(f)
-                uploader.process_query(query_index, query_info)
+                query_type = None
+                if query_file.parent.parent != "queries":
+                    query_type = query_file.parent.parent.name
+                uploader.process_query(query_index, query_info, query_type)

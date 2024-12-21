@@ -29,8 +29,7 @@ class RunnableQuery:
     optimized: bool
     pragmas: str
 
-    def __init__(self, path: str, index: int, optimized: bool, pragmas: str):
-        self.path = path
+    def __init__(self, index: int, optimized: bool, pragmas: str):
         self.index = index
         self.optimized = optimized
         self.pragmas = pragmas
@@ -98,17 +97,17 @@ def get_runnable_queries(
             unknown_queries = set(queries).difference(original_queries)
             if unknown_queries:
                 logging.warning("Unknown original queries %s" % str(list(unknown_queries)))
-            runset = runset + [RunnableQuery(query_path, num, False, original_pragmas) for num in set(original_queries).intersection(queries)]
+            runset += [RunnableQuery(num, False, original_pragmas) for num in set(original_queries).intersection(queries)]
         if optimized is None or optimized:
             unknown_queries = set(queries).difference(optimized_queries)
             if unknown_queries:
                 logging.warning("Unknown optimized queries %s" % str(list(unknown_queries)))
-            runset = runset + [RunnableQuery(optimized_path, num, True, optimized_pragmas) for num in set(optimized_queries).intersection(queries)]
+            runset += [RunnableQuery(num, True, optimized_pragmas) for num in set(optimized_queries).intersection(queries)]
     else:
-        if optimized is None or (isinstance(optimized, bool) and not optimized):
-            runset = runset + [RunnableQuery(query_path, num, False, original_pragmas) for num in original_queries]
+        if not optimized:
+            runset += [RunnableQuery(num, False, original_pragmas) for num in original_queries]
         if optimized is None or optimized:
-            runset = runset + [RunnableQuery(optimized_path, num, True, optimized_pragmas) for num in optimized_queries]
+            runset += [RunnableQuery(num, True, optimized_pragmas) for num in optimized_queries]
 
     return runset
 
@@ -121,15 +120,14 @@ def make_query(
 ) -> str:
     query_body = None
     query_name = f"{runnable.index:02d}.sql"
-    path = root_path(query_source)
+    path_root = root_path(query_source)
 
     if runnable.optimized:
-        optimized_path = path / optimized_path / query_name
-        query_body = optimized_path.read_text()
+        path = path_root / optimized_path / query_name
     else:
-        original_path = path / query_path / query_name
-        query_body = original_path.read_text()
+        path = path_root / query_path / query_name
 
+    query_body = path.read_text()
     return runnable.pragmas + "\n" + query_body
 
 
@@ -234,10 +232,11 @@ class ArtifactLogger:
         with (self.launch_path / "launch.json").open("w") as f:
             json.dump(info, f)
 
-    def start_query(self, runnable: RunnableQuery):
+    def start_query(self, query: RunnableQuery):
         if not self.launch_path:
             return
-        self.query_path = self.launch_path / runnable.query_path / str(runnable.index)
+        query_type = "optimized" if query.optimized else "original"
+        self.query_path = self.launch_path / "queries" / query_type / str(query.index)
         self.query_path.mkdir(parents=True)
 
     def dump_query(self, query: str):
