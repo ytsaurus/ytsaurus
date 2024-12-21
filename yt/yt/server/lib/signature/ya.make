@@ -7,6 +7,7 @@ SRCS(
     crypto.cpp
     key_info.cpp
     key_pair.cpp
+    key_rotator.cpp
     signature_generator.cpp
     signature_header.cpp
     signature_preprocess.cpp
