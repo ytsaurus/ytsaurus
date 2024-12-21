@@ -71,19 +71,15 @@ func (p *adminPanel) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	var buffer bytes.Buffer
 	_, err := p.metrics.Stream(ctx, &buffer)
 	if err != nil {
-		logger.Error("Error serializing metrics", "error", err)
-		w.Header().Set(headers.ContentTypeKey, headers.TypeTextPlain.String())
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = io.WriteString(w, fmt.Sprintf("error serializing metrics: %v", err))
-	} else {
-		contentType := headers.TypeApplicationXSolomonSpack.String()
-		if p.config.MetricsFormat == string(solomon.StreamJSON) {
-			contentType = headers.TypeApplicationJSON.String()
-		}
-		w.Header().Set(headers.ContentTypeKey, contentType)
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(buffer.Bytes())
+		logger.Warn("Error serializing metrics", "error", err)
+		return
 	}
+	contentType := headers.TypeApplicationXSolomonSpack.String()
+	if p.config.MetricsFormat == string(solomon.StreamJSON) {
+		contentType = headers.TypeApplicationJSON.String()
+	}
+	w.Header().Set(headers.ContentTypeKey, contentType)
+	_, _ = w.Write(buffer.Bytes())
 }
 
 func (p *adminPanel) handleLogError(w http.ResponseWriter, r *http.Request) {
