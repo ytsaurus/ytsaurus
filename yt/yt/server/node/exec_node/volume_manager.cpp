@@ -1043,7 +1043,7 @@ private:
             auto config = New<TGetDirectorySizesAsRootConfig>();
             config->Paths = {layerDirectory};
             config->IgnoreUnavailableFiles = true;
-            config->DeduplicateByINodes = false;
+            config->DeduplicateByINodes = true;
 
             layerSize = RunTool<TGetDirectorySizesAsRootTool>(config).front();
             YT_LOG_DEBUG("Calculated layer size (LayerId: %v, Size: %v, Tag: %v)",
