@@ -155,6 +155,11 @@ class TestHttpProxy(HttpProxyTestBase):
         assert "version" in service
         assert "start_time" in service
 
+    @authors("nadya73")
+    def test_discover_proxies(self):
+        rsp = requests.get(self._get_proxy_address() + "/api/v4/discover_proxies?type=http&address_type=internal_rpc")
+        assert rsp.status_code == 400
+
     @authors("levysotsky")
     def test_hosts(self):
         proxy = ls("//sys/http_proxies")[0]
