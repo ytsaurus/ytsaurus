@@ -191,7 +191,7 @@ DEFINE_REFCOUNTED_TYPE(TQueryTrackerServerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryTrackerServerDynamicConfig
-    : public TNativeSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     NAlertManager::TAlertManagerDynamicConfigPtr AlertManager;

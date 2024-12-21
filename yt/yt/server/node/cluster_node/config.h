@@ -404,6 +404,8 @@ public:
     std::optional<TString> Rack;
     std::optional<TString> DataCenter;
 
+    THeapProfilerConfigPtr HeapProfiler;
+
     NHttp::TServerConfigPtr CreateSkynetHttpServerConfig();
 
     REGISTER_YSON_STRUCT(TClusterNodeConfig);
@@ -416,7 +418,7 @@ DEFINE_REFCOUNTED_TYPE(TClusterNodeConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterNodeDynamicConfig
-    : public TNativeSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     static constexpr bool EnableHazard = true;

@@ -26,6 +26,7 @@ PEERDIR(
     yt/yt/ytlib/distributed_throttler
     yt/yt/library/coredumper
     yt/yt/library/process
+    yt/yt/library/tcmalloc
     yt/yt/library/ytprof
     yt/yt/library/ytprof/allocation_tag_profiler
 )

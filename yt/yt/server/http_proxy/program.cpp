@@ -11,7 +11,13 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
+#include <yt/yt/library/program/helpers.h>
+
 #include <yt/yt/library/profiling/solomon/config.h>
+
+#include <yt/yt/library/auth_server/config.h>
+
+#include <yt/yt/core/logging/config.h>
 
 namespace NYT::NHttpProxy {
 

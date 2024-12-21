@@ -364,6 +364,9 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("data_center", &TThis::DataCenter)
         .Default();
 
+    registrar.Parameter("heap_profiler", &TThis::HeapProfiler)
+        .DefaultNew();
+
     registrar.Postprocessor([] (TThis* config) {
         NNodeTrackerClient::ValidateNodeTags(config->Tags);
 
@@ -437,8 +440,9 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
             config->MasterConnector->SyncDirectoriesOnConnect = config->DataNode->SyncDirectoriesOnConnect;
         }
 
-        if (!config->TcpDispatcher->NetworkBandwidth) {
-            config->TcpDispatcher->NetworkBandwidth = config->NetworkBandwidth;
+        auto dispatcherConfig = config->GetSingletonConfig<NBus::TTcpDispatcherConfig>();
+        if (!dispatcherConfig->NetworkBandwidth) {
+            dispatcherConfig->NetworkBandwidth = config->NetworkBandwidth;
         }
 
         if (!config->Rack && config->DataCenter) {

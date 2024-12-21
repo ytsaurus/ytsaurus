@@ -7,11 +7,15 @@
 
 #include <yt/yt/server/lib/hydra/dry_run/helpers.h>
 
+#include <yt/yt/ytlib/auth/config.h>
+
 #include <yt/yt/library/server_program/server_program.h>
 
 #include <yt/yt/core/misc/fs.h>
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
+
+#include <yt/yt/core/logging/config.h>
 
 #include <library/cpp/yt/system/exit.h>
 
@@ -185,28 +189,29 @@ private:
         if (IsDryRunMode()) {
             config->DryRun->EnableHostNameValidation = false;
             config->DryRun->EnableDryRun = true;
-            config->Logging->ShutdownGraceTimeout = TDuration::Seconds(10);
+            auto loggingConfig = config->GetSingletonConfig<NLogging::TLogManagerConfig>();
+            loggingConfig->ShutdownGraceTimeout = TDuration::Seconds(10);
             config->Snapshots->Path = NFS::GetDirectoryName(".");
 
             if (SkipTvmServiceEnvValidationFlag_) {
-                const auto& nativeAuthenticationManager = config->NativeAuthenticationManager;
-                nativeAuthenticationManager->EnableValidation = false;
-                nativeAuthenticationManager->EnableSubmission = false;
-                nativeAuthenticationManager->TvmService = nullptr;
+                auto authManagerConfig = config->GetSingletonConfig<NAuth::TNativeAuthenticationManagerConfig>();
+                authManagerConfig->EnableValidation = false;
+                authManagerConfig->EnableSubmission = false;
+                authManagerConfig->TvmService = nullptr;
             }
         }
 
         if (IsDumpSnapshotMode()) {
             config->HydraManager->SnapshotBackgroundThreadCount = 0;
-            config->Logging = NLogging::TLogManagerConfig::CreateSilent();
+            config->SetSingletonConfig(NLogging::TLogManagerConfig::CreateSilent());
         }
 
         if (IsValidateSnapshotMode()) {
-            config->Logging = NHydra::CreateDryRunLoggingConfig();
+            config->SetSingletonConfig(NHydra::CreateDryRunLoggingConfig());
         }
 
         if (IsExportSnapshotMode()) {
-            config->Logging = NLogging::TLogManagerConfig::CreateQuiet();
+            config->SetSingletonConfig(NLogging::TLogManagerConfig::CreateQuiet());
         }
 
         if (IsBuildSnapshotMode()) {

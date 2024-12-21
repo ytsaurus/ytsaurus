@@ -2,6 +2,8 @@
 
 #include <yt/yt/core/yson/public.h>
 
+#include <library/cpp/yt/misc/strong_typedef.h>
+
 namespace NYT::NOrm::NAttributes {
 
 ////////////////////////////////////////////////////////////////////////////////

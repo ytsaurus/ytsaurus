@@ -11,6 +11,7 @@ SRCS(
 
 PEERDIR(
     yt/yt/ytlib
+    yt/yt/library/profiling/solomon
 )
 
 END()

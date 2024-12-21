@@ -2,6 +2,8 @@
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/helpers.h>
 
+#include <yt/yt/library/tcmalloc/config.h>
+
 #include <library/cpp/yt/string/enum.h>
 
 #include <yt/yt/core/misc/error.h>
@@ -37,7 +39,9 @@ protected:
         ConfigureCrashHandler();
 
         auto singletonsConfig = New<TSingletonsConfig>();
-        singletonsConfig->TCMalloc->GuardedSamplingRate = GuardedSamplingRate_;
+        auto tcmallocConfig = singletonsConfig->GetSingletonConfig<NTCMalloc::TTCMallocConfig>();
+        tcmallocConfig->GuardedSamplingRate = GuardedSamplingRate_;
+
         ConfigureSingletons(singletonsConfig);
 
         constexpr i64 MaxSanitizedAllocationSize = 256_KB;

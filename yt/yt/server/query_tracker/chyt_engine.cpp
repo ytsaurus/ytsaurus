@@ -26,6 +26,8 @@
 #include <yt/yt/core/rpc/caching_channel_factory.h>
 #include <yt/yt/core/rpc/public.h>
 
+#include <yt/yt/core/bus/tcp/config.h>
+
 #include <yt/yt/core/ytree/attributes.h>
 #include <yt/yt/core/ytree/node.h>
 

@@ -11,8 +11,8 @@ void TServerProgramConfig::Register(TRegistrar registrar)
     registrar.Parameter("pod_spec", &TThis::PodSpec)
         .DefaultNew();
 
-    registrar.Parameter("hotswap_manager", &TThis::HotswapManager)
-        .Default();
+    registrar.Parameter("enable_ref_counted_tracker_profiling", &TThis::EnableRefCountedTrackerProfiling)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

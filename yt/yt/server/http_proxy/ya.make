@@ -38,6 +38,9 @@ PEERDIR(
     yt/yt/library/ytprof
     yt/yt/library/containers
     yt/yt/library/server_program
+    yt/yt/library/profiling/solomon
+    yt/yt/library/tracing/jaeger
+    yt/yt/library/monitoring
     yt/yt/core/https
     yt/yt/server/lib
     yt/yt/server/lib/chunk_pools

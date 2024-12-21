@@ -19,6 +19,7 @@
 #include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/library/program/build_attributes.h>
+#include <yt/yt/library/program/helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -32,8 +33,6 @@
 #include <yt/yt/library/monitoring/monitoring_manager.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
-
-#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
 
@@ -252,7 +251,7 @@ const NRpc::IAuthenticatorPtr& TBootstrap::GetNativeAuthenticator() const
 
 void TBootstrap::OnDynamicConfigChanged(const TSchedulerConfigPtr& config)
 {
-    ReconfigureNativeSingletons(config);
+    ReconfigureSingletons(config);
 
     RpcServer_->OnDynamicConfigChanged(config->RpcServer);
 }

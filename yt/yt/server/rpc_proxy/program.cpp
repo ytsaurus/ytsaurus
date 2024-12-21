@@ -6,6 +6,10 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
+#include <yt/yt/library/program/helpers.h>
+
+#include <yt/yt/core/logging/config.h>
+
 namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////

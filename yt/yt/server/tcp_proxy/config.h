@@ -71,7 +71,7 @@ DEFINE_REFCOUNTED_TYPE(TRouterDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTcpProxyDynamicConfig
-    : public TNativeSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     int PollerThreadCount;

@@ -13,6 +13,7 @@
 
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
+#include <yt/yt/library/program/helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
@@ -30,8 +31,6 @@
 #include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/ytlib/security_client/public.h>
-
-#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
@@ -267,7 +266,7 @@ const IAuthenticatorPtr& TBootstrap::GetNativeAuthenticator() const
 
 void TBootstrap::OnDynamicConfigChanged(const TControllerAgentConfigPtr& config)
 {
-    ReconfigureNativeSingletons(config);
+    ReconfigureSingletons(config);
 
     RpcServer_->OnDynamicConfigChanged(config->RpcServer);
 }

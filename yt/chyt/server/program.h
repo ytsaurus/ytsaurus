@@ -11,17 +11,15 @@
 #include <yt/yt/library/program/program_setsid_mixin.h>
 #include <yt/yt/library/program/helpers.h>
 
-#include <yt/yt/ytlib/program/native_singletons.h>
-
-#include <yt/yt/core/ytalloc/bindings.h>
+#include <yt/yt/core/net/config.h>
 
 #include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
+
+#include <yt/yt/core/bus/tcp/config.h>
 
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
 
 #include <library/cpp/yt/mlock/mlock.h>
-
-#include <library/cpp/ytalloc/api/ytalloc.h>
 
 #include <util/system/env.h>
 #include <util/system/hostname.h>
@@ -106,7 +104,7 @@ private:
         auto config = GetConfig();
         auto configNode = GetConfigNode();
 
-        ConfigureNativeSingletons(config);
+        ConfigureSingletons(config);
 
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems
@@ -133,7 +131,8 @@ private:
             // In MTN there may be no reasonable FQDN;
             // hostname returns something human-readable, but barely resolvable.
             // COMPAT(max42): move to launcher in future.
-            config->AddressResolver->ResolveHostNameIntoFqdn = false;
+            auto addressResolverConfig = config->GetSingletonConfig<NNet::TAddressResolverConfig>();
+            addressResolverConfig->ResolveHostNameIntoFqdn = false;
             HttpPort_ = 10042;
             TcpPort_ = 10043;
             MonitoringPort_ = 10142;

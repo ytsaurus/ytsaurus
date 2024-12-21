@@ -9,6 +9,8 @@
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
+#include <yt/yt/core/logging/config.h>
+
 namespace NYT::NClusterClock {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,11 +73,11 @@ private:
         auto config = GetConfig();
 
         if (IsDumpSnapshotMode()) {
-            config->Logging = NLogging::TLogManagerConfig::CreateSilent();
+            config->SetSingletonConfig(NLogging::TLogManagerConfig::CreateSilent());
         }
 
         if (IsValidateSnapshotMode()) {
-            config->Logging = NLogging::TLogManagerConfig::CreateQuiet();
+            config->SetSingletonConfig(NLogging::TLogManagerConfig::CreateQuiet());
         }
     }
 

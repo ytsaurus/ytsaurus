@@ -6,8 +6,6 @@
 
 #include "config.h"
 
-#include <yt/yt/ytlib/program/native_singletons.h>
-
 #include <yt/yt/library/containers/porto_resource_tracker.h>
 
 #include <yt/yt/library/disk_manager/hotswap_manager.h>
@@ -17,6 +15,8 @@
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
 
 #include <library/cpp/yt/mlock/mlock.h>
+
+#include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
 
 #include <util/system/thread.h>
 
@@ -88,19 +88,14 @@ void TServerProgram<TConfig, TDynamicConfig>::Configure()
 
     auto config = this->GetConfig();
 
-    // TODO(babenko): refactor
-    if constexpr (std::is_base_of_v<TNativeSingletonsConfig, TConfig>) {
-        ConfigureNativeSingletons(config);
-    } else {
-        ConfigureSingletons(config);
-    }
+    ConfigureSingletons(config);
 
     if (config->EnablePortoResourceTracker) {
         NContainers::EnablePortoResourceTracker(config->PodSpec);
     }
 
-    if (config->HotswapManager) {
-        NDiskManager::THotswapManager::Configure(config->HotswapManager);
+    if (config->EnableRefCountedTrackerProfiling) {
+        EnableRefCountedTrackerProfiling();
     }
 }
 
