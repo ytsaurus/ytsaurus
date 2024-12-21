@@ -65,7 +65,13 @@ func newAdminPanel(logger *slog.Logger, metrics *solomon.Registry, config AdminP
 func (p *adminPanel) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	logger := p.requestLogger(r)
 
-	ctx, cancelF := context.WithTimeout(r.Context(), time.Second*10)
+	ctx := r.Context()
+	if ctx.Err() != nil {
+		logger.Warn("Request context was canceled", "error", ctx.Err())
+		return
+	}
+
+	ctx, cancelF := context.WithTimeout(ctx, time.Second*10)
 	defer cancelF()
 
 	var buffer bytes.Buffer
