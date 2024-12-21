@@ -579,7 +579,7 @@ private:
             replicationCardId,
             *replicationCard);
 
-        BindReplicationCardToRTT(replicationCard);
+        BindReplicationCardToRtt(replicationCard);
 
         auto clientReplicationCard = replicationCard->ConvertToClientCard(MinimalFetchOptions);
         ReplicationCardWatcher_->RegisterReplicationCard(replicationCardId, clientReplicationCard, timestamp);
@@ -856,7 +856,7 @@ private:
         UpdateReplicationCardCollocation(
             replicationCard,
             /*collocation*/ nullptr);
-        UnbindReplicationCardFromRTT(replicationCard);
+        UnbindReplicationCardFromRtt(replicationCard);
         ReplicationCardMap_.Remove(replicationCardId);
         MigratedReplicationCardRemover_->ConfirmRemoval(replicationCardId);
 
@@ -1452,7 +1452,7 @@ private:
             auto replicationCard = GetReplicationCardOrThrow(replicationCardId);
             replicationCard->Migration().ImmigratedToCellId = migrateToCellId;
             UpdateReplicationCardState(replicationCard, EReplicationCardState::RevokingShortcutsForMigration);
-            UnbindReplicationCardFromRTT(replicationCard);
+            UnbindReplicationCardFromRtt(replicationCard);
         }
     }
 
@@ -1556,7 +1556,7 @@ private:
                 /*migration*/ true);
 
             if (!collocation) {
-                BindReplicationCardToRTT(replicationCard);
+                BindReplicationCardToRtt(replicationCard);
             }
 
             HandleReplicationCardStateTransition(replicationCard);
@@ -2289,14 +2289,16 @@ private:
                 replicationCard->GetCollocation()->GetId(),
                 collocation->GetId());
 
-            YT_LOG_ALERT_IF(collocation && collocation->GetState() != EReplicationCardCollocationState::Immigrating,
+            YT_LOG_ALERT_IF(
+                collocation && collocation->GetState() != EReplicationCardCollocationState::Immigrating,
                 "Unexpected replication card collocation state during migration "
                 "(ReplicationCardId: %v, NewCollocationId: %v, NewCollocationState: %v)",
                 replicationCard->GetId(),
                 collocation->GetId(),
                 collocation->GetState());
 
-            YT_LOG_ALERT_IF(oldCollocation && oldCollocation->GetState() != EReplicationCardCollocationState::Emigrating,
+            YT_LOG_ALERT_IF(
+                oldCollocation && oldCollocation->GetState() != EReplicationCardCollocationState::Emigrating,
                 "Unexpected replication card collocation state during migration "
                 "(ReplicationCardId: %v, OldCollocationId: %v, OldCollocationState: %v)",
                 replicationCard->GetId(),
@@ -2304,7 +2306,8 @@ private:
                 oldCollocation->GetState());
         }
 
-        YT_LOG_DEBUG("Updating replication card collocation (ReplicationCardId: %v, OldCollocationId: %v, NewCollocationId: %v)",
+        YT_LOG_DEBUG("Updating replication card collocation "
+            "(ReplicationCardId: %v, OldCollocationId: %v, NewCollocationId: %v)",
             replicationCard->GetId(),
             oldCollocation ? oldCollocation->GetId() : TGuid(),
             collocation ? collocation->GetId() : TGuid());
@@ -2333,7 +2336,7 @@ private:
                 FireReplicationCardCollocationUpdated(collocation);
             } else if (std::ssize(collocation->ReplicationCards()) == collocation->GetSize()) {
                 collocation->SetState(EReplicationCardCollocationState::Normal);
-                BindReplicationCardCollocationToRTT(collocation);
+                BindReplicationCardCollocationToRtt(collocation);
             }
 
             YT_LOG_DEBUG("Updated replication card collocation (Migration: %v, ReplicationCardId: %v,"
@@ -2397,16 +2400,16 @@ private:
         });
     }
 
-    void BindReplicationCardCollocationToRTT(TReplicationCardCollocation* collocation)
+    void BindReplicationCardCollocationToRtt(TReplicationCardCollocation* collocation)
     {
         for (auto* replicationCard : collocation->ReplicationCards()) {
-            BindReplicationCardToRTT(replicationCard);
+            BindReplicationCardToRtt(replicationCard);
         }
 
         FireReplicationCardCollocationUpdated(collocation);
     }
 
-    void BindReplicationCardToRTT(TReplicationCard* replicationCard)
+    void BindReplicationCardToRtt(TReplicationCard* replicationCard)
     {
         ReplicatedTableCreated_.Fire(TReplicatedTableData{
             .Id = replicationCard->GetId(),
@@ -2418,7 +2421,7 @@ private:
         }
     }
 
-    void UnbindReplicationCardFromRTT(TReplicationCard* replicationCard)
+    void UnbindReplicationCardFromRtt(TReplicationCard* replicationCard)
     {
         for (const auto& [replicaId, _] : replicationCard->Replicas()) {
             ReplicaDestroyed_.Fire(replicaId);
