@@ -1282,6 +1282,34 @@ TEST_F(TRefineKeyRangeTest, InColumnPermutation)
     EXPECT_EQ(YsonToKey("5;0;" _MAX_), result[1].second);
 }
 
+TEST_F(TRefineKeyRangeTest, InColumnPermutation2)
+{
+    auto schema = New<TTableSchema>(std::vector{
+        TColumnSchema("k", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("l", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("a", EValueType::Int64)
+    });
+
+    auto expr = PrepareExpression(
+        "(a, l) in ((0, 5), (1, 3)) and k = 1",
+        *schema);
+
+    auto rowBuffer = New<TRowBuffer>();
+    auto result = GetRangesFromExpression(
+        rowBuffer,
+        schema->GetKeyColumnNames(),
+        expr,
+        std::pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
+
+    EXPECT_EQ(2u, result.size());
+
+    EXPECT_EQ(YsonToKey("1;3"), result[0].first);
+    EXPECT_EQ(YsonToKey("1;3;" _MAX_), result[0].second);
+
+    EXPECT_EQ(YsonToKey("1;5"), result[1].first);
+    EXPECT_EQ(YsonToKey("1;5;" _MAX_), result[1].second);
+}
+
 TEST_F(TRefineKeyRangeTest, Any)
 {
     auto expr = PrepareExpression(
