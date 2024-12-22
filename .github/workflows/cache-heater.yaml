@@ -2,8 +2,8 @@ name: Cache heater
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 0,2,4,6,8,10,12,14,16,18,20,22 * * *'
+  # schedule:
+  #   - cron: '0 0,2,4,6,8,10,12,14,16,18,20,22 * * *'
 
 concurrency:
   group: ${{ github.workflow }}
@@ -70,12 +70,42 @@ jobs:
           cat ./ydb/build/internal/ya.conf | grep -v bazel | grep -v "dist_cache" > ./patched.ya.conf
           cp ./patched.ya.conf ./ydb/build/internal/ya.conf
 
+  build-strawberry:
+    name: Build Strawberry controller
+    needs:
+      - start-vm
+      - checkout
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      build-strawberry: true
+    secrets:
+      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
+    uses: ./.github/workflows/build-jobs.yaml
+
+  build-cmake:
+    name: Build with cmake
+    needs:
+      - start-vm
+      - checkout
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      cpp-build-system: cmake
+      build-ytsaurus: true
+      build-chyt: ${{ github.ref_name == 'main' }}
+      build-python: true
+    secrets:
+      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
+    uses: ./.github/workflows/build-jobs.yaml
+
   build:
     name: Build
     needs:
       - start-vm
       - checkout
       - patch-ya-conf
+      - build-cmake
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
@@ -86,7 +116,8 @@ jobs:
       build-yql-python-udfs: false
       update-remote-cache: true
     secrets:
-      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
+      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
   stop-vm:
@@ -106,19 +137,19 @@ jobs:
           label: ${{ needs.start-vm.outputs.label }}
           instance-id: ${{ needs.start-vm.outputs.instance-id }}
 
-  send-notifications:
-    name: Send notifications
-    needs:
-      - stop-vm
-    runs-on: ubuntu-latest
-    if: ${{ failure() }}
-    steps:
-      - name: Send telegram message
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_TOKEN }}
-          disable_web_page_preview: true
-          format: markdown
-          message: |
-            Cache heater failed
+  # send-notifications:
+  #   name: Send notifications
+  #   needs:
+  #     - stop-vm
+  #   runs-on: ubuntu-latest
+  #   if: ${{ failure() }}
+  #   steps:
+  #     - name: Send telegram message
+  #       uses: appleboy/telegram-action@master
+  #       with:
+  #         to: ${{ secrets.TELEGRAM_CHAT_ID }}
+  #         token: ${{ secrets.TELEGRAM_TOKEN }}
+  #         disable_web_page_preview: true
+  #         format: markdown
+  #         message: |
+  #           Cache heater failed
