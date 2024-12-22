@@ -70,6 +70,19 @@ jobs:
           cat ./ydb/build/internal/ya.conf | grep -v bazel | grep -v "dist_cache" > ./patched.ya.conf
           cp ./patched.ya.conf ./ydb/build/internal/ya.conf
 
+  build-strawberry:
+    name: Build Strawberry controller
+    needs:
+      - start-vm
+      - checkout
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      build-strawberry: true
+    secrets:
+      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
+    uses: ./.github/workflows/build-jobs.yaml
+
   build-cmake:
     name: Build with cmake
     needs:
