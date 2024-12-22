@@ -105,13 +105,11 @@ target_link_libraries(clickhouse-src-Common PUBLIC
   restricted-boost-context
   restricted-boost-convert
   restricted-boost-dynamic_bitset
-  restricted-boost-filesystem
   restricted-boost-geometry
   restricted-boost-heap
   restricted-boost-multi_index
   restricted-boost-program_options
   restricted-boost-system
-  restricted-boost-tti
   contrib-restricted-cityhash-1.0.2
   dragonbox
   contrib-restricted-fast_float
