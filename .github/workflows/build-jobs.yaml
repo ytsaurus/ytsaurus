@@ -44,8 +44,11 @@ on:
         type: boolean
 
     secrets:
-      YA_YT_TOKEN:
-        required: true
+      BUILD_CACHE_BAZEL_USERNAME:
+        required: false
+      BUILD_CACHE_BAZEL_PASSWORD:
+        required: false
+      
 
 jobs:
   venv:
@@ -207,8 +210,6 @@ jobs:
     needs: venv
     runs-on: ${{ inputs.runs-on-value }}
     timeout-minutes: 480
-    env:
-      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
     if: ${{ inputs.cpp-build-system == 'ya-make' }}
     strategy:
       matrix:
@@ -217,10 +218,10 @@ jobs:
       - name: Calculate variables
         id: vars
         run: |
-          BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --yt-dir=//home/devtools/cache --yt-proxy=${{ vars.CI_YT_PROXY }} --yt-store --yt-store-threads 8"
+          BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --bazel-remote-store --bazel-remote-base-uri=http://${{ vars.BUILD_CACHE_BAZEL_HOST }}"
 
           if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
-            BUILD_FLAGS="${BUILD_FLAGS} --yt-put --yt-max-store-size=2500000000000 --yt-store-refresh-on-read"
+            BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-put --bazel-remote-username=${{ secrets.BUILD_CACHE_BAZEL_USERNAME }} --bazel-remote-password=${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}"
           fi
 
           STRIP_VALUE=no
@@ -287,7 +288,7 @@ jobs:
           export YTSAURUS_SOURCE_PATH="$(realpath $(pwd)/../ytsaurus/ytsaurus)"
           export YDB_SOURCE_PATH="$(realpath $(pwd)/../ytsaurus/ydb)"
           export YQL_BUILD_PATH="."
-          export BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }} --no-bazel-remote-store"
+          export BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
 
           SCRIPT_FLAGS=""
           if [ "${{ inputs.build-yql-python-udfs }}" == "true" ]; then
@@ -298,7 +299,7 @@ jobs:
 
           ../ytsaurus/ytsaurus/yt/docker/ya-build/query-tracker/build_yql_agent.sh ${SCRIPT_FLAGS}
 
-      - name: Clear cache extra space (ya-make, ${{ matrix.build-type }})
-        if: ${{ inputs.update-remote-cache }}
-        run: |
-          ../ytsaurus/ytsaurus/ya gc dist_cache --yt-proxy=${{ vars.CI_YT_PROXY }} --yt-dir=//home/devtools/cache --yt-max-store-size=1500000000000 --yt-put >> $GITHUB_OUTPUT
+      # - name: Clear cache extra space (ya-make, ${{ matrix.build-type }})
+      #   if: ${{ inputs.update-remote-cache }}
+      #   run: |
+      #     ../ytsaurus/ytsaurus/ya gc dist_cache --yt-proxy=${{ vars.CI_YT_PROXY }} --yt-dir=//home/devtools/cache --yt-max-store-size=1500000000000 --yt-put >> $GITHUB_OUTPUT
