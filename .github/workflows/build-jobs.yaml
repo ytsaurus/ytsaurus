@@ -111,7 +111,7 @@ jobs:
 
           ccache --set-config base_dir="$(realpath ..)"
           ccache --set-config remote_only=true
-          ccache --set-config remote_storage="${{ vars.CCACHE_REMOTE_STORAGE }}"
+          ccache --set-config remote_storage=http://${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}:${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}@${{ vars.BUILD_CACHE_BAZEL_HOST }}|layout=bazel
 
       - name: Configure YQL agent (${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}
@@ -143,7 +143,7 @@ jobs:
 
           ccache --set-config base_dir="$(realpath ..)"
           ccache --set-config remote_only=true
-          ccache --set-config remote_storage="${{ vars.CCACHE_REMOTE_STORAGE }}"
+          ccache --set-config remote_storage=http://${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}:${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}@${{ vars.BUILD_CACHE_BAZEL_HOST }}|layout=bazel
 
       - name: Build Python packages (cmake, ${{ matrix.build-type }})
         if: ${{ inputs.build-python }}

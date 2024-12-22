@@ -70,12 +70,29 @@ jobs:
           cat ./ydb/build/internal/ya.conf | grep -v bazel | grep -v "dist_cache" > ./patched.ya.conf
           cp ./patched.ya.conf ./ydb/build/internal/ya.conf
 
+  build-cmake:
+    name: Build with cmake
+    needs:
+      - start-vm
+      - checkout
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      cpp-build-system: cmake
+      build-ytsaurus: true
+      build-chyt: ${{ github.ref_name == 'main' }}
+      build-python: true
+    secrets:
+      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
+    uses: ./.github/workflows/build-jobs.yaml
+
   build:
     name: Build
     needs:
       - start-vm
       - checkout
       - patch-ya-conf
+      - build-cmake
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
