@@ -87,7 +87,7 @@ for udf_name in compress_base \
                 yson2
 do
     ${YDB_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses -DSTRIP=yes --output=${YQL_BUILD_PATH} ${YDB_SOURCE_PATH}/yql/essentials/udfs/common/${udf_name}
-    strip --remove-section=.gnu_debuglink ${YDB_SOURCE_PATH}/yql/essentials/udfs/common/${udf_name}/*.so
+    strip --remove-section=.gnu_debuglink ${YDB_SOURCE_PATH}/yql/essentials/udfs/common/${udf_name}/*.so | true
 done
 
 if [ "$build_python_udfs" == "yes" ]; then
