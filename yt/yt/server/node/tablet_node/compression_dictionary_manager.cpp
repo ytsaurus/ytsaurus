@@ -391,6 +391,7 @@ public:
 
     EDictionaryCompressionPolicy GetPolicy() const
     {
+        YT_VERIFY(!GetKey().IsDecompression);
         return Policy_;
     }
 
@@ -518,7 +519,6 @@ public:
                 while (entryIndex < std::ssize(entries)) {
                     const auto& compressionEntry = entries[entryIndex];
                     const auto& decompressionEntry = entries[entryIndex + 1];
-                    YT_VERIFY(compressionEntry->GetPolicy() == decompressionEntry->GetPolicy());
                     YT_VERIFY(compressionEntry->GetKey().ChunkId == decompressionEntry->GetKey().ChunkId);
                     entryIndex += 2;
 
