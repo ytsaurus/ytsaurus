@@ -451,6 +451,19 @@ For information about images usage, read the [YFM documentation](https://diplodo
    ```
 6. Navigate to the `ytsaurus-doc-output` folder and then go to the `ru` or `en` directory, depending on the documentation language you want to check. When opening the `index.html` file, the main page of the documentation will be shown.
 
+   You can also run the [build-and-serve.sh](./build-and-serve.sh) script in the `ytsaurus/yt/docs` folder to build the documentation and run an HTTP server locally. It will print URLs you can use to access the documentation.
+
+   ```bash
+   $ bash build-and-serve.sh ytsaurus-doc-output
+
+   Checking YFM installed...
+   ...
+   Starting HTTP server, open the links in your browser:
+
+   - http://localhost:8888/en (English)
+   - http://localhost:8888/ru (Russian)
+   ```
+
 ## Need Help?
 
 If you need any help, don't hesitate to ask questions in YTsaurus community chats:
