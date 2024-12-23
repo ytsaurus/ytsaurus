@@ -34,6 +34,7 @@ target_link_libraries(essentials-parser-pg_catalog PUBLIC
   essentials-public-issue
   cpp-digest-md5
   parser-pg_catalog-proto
+  essentials-utils-log
 )
 
 target_sources(essentials-parser-pg_catalog PRIVATE
@@ -53,6 +54,7 @@ target_link_libraries(essentials-parser-pg_catalog.global PUBLIC
   essentials-public-issue
   cpp-digest-md5
   parser-pg_catalog-proto
+  essentials-utils-log
 )
 
 target_sources(essentials-parser-pg_catalog.global PRIVATE

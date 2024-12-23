@@ -35,6 +35,7 @@ target_link_libraries(core-services-mounts PUBLIC
   library-cpp-resource
   essentials-core-user_data
   yql-essentials-core
+  essentials-utils-log
 )
 
 target_sources(core-services-mounts PRIVATE
@@ -58,6 +59,7 @@ target_link_libraries(core-services-mounts.global PUBLIC
   library-cpp-resource
   essentials-core-user_data
   yql-essentials-core
+  essentials-utils-log
 )
 
 target_sources(core-services-mounts.global PRIVATE
