@@ -18,6 +18,8 @@
 
 #include <library/cpp/monlib/encode/format.h>
 
+#include <library/cpp/cgiparam/cgiparam.h>
+
 namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,6 +133,10 @@ private:
         const NHttp::IRequestPtr& req,
         const NHttp::IResponseWriterPtr& rsp);
 
+    static TScrapeOptionsPtr ParseScrapeOptions(
+        const TScrapeOptionsPtr& staticScrapeOptions,
+        const TCgiParameters& parameters,
+        bool isSolomonPull);
     void ValidatePeriodAndGrid(std::optional<TDuration> period, std::optional<TDuration> readGridStep, TDuration gridStep);
 
     TErrorOr<TReadWindow> SelectReadWindow(TInstant now, TDuration period, std::optional<TDuration> readGridStep, TDuration gridStep);

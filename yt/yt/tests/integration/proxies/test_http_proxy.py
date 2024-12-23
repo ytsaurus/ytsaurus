@@ -607,6 +607,14 @@ class TestSolomonProxy(HttpProxyTestBase):
         with raises_yt_error("Could not pull sensors from any endpoint"):
             self.get_sensors(params={"period": "5s"})
 
+    @authors("achulkov2")
+    def test_parameter_forwarding(self):
+        # Scrape parameters should be forwarded to individual endpoints.
+        sensors = self.get_sensors(params={"convert_sensor_component_names_to_camel_case": "true"})
+        build_version_sensors = self.filter_sensors(sensors, sensor_name="Build.Version")
+        # Sensors for schedulers are not returned, since they are declared public.
+        assert len(build_version_sensors) == 3
+
 
 class HttpProxyAccessCheckerTestBase(HttpProxyTestBase):
     DELTA_PROXY_CONFIG = {

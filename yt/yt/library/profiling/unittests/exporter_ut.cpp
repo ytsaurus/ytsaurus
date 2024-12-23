@@ -219,7 +219,8 @@ TEST(TSolomonExporterTest, ReadSensorsStripSensorsOption)
 
     // With Strip option
     TReadOptions options;
-    options.StripSensorsNamePrefix = true;
+    options.ScrapeOptions = New<TScrapeOptions>();
+    options.ScrapeOptions->StripSensorsNamePrefix = true;
     out = exporter->ReadJson(options, "/uptime/");
     ASSERT_TRUE(out);
 

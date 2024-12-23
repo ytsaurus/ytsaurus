@@ -8,6 +8,7 @@ namespace NYT::NProfiling {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(TShardConfig)
+DECLARE_REFCOUNTED_STRUCT(TScrapeOptions)
 DECLARE_REFCOUNTED_STRUCT(TSolomonExporterConfig)
 DECLARE_REFCOUNTED_STRUCT(TSolomonProxyConfig)
 

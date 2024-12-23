@@ -1,6 +1,8 @@
 #include "cube.h"
 #include "remote.h"
+#include "config.h"
 
+#include <util/string/split.h>
 #include <yt/yt/library/profiling/summary.h>
 #include <yt/yt/library/profiling/tag.h>
 #include <yt/yt/library/profiling/histogram_snapshot.h>
@@ -179,59 +181,88 @@ int TCube<T>::ReadSensors(
     TTagWriter* tagWriter,
     ::NMonitoring::IMetricConsumer* consumer) const
 {
+    const auto& scrapeOptions = options.ScrapeOptions;
+
     YT_VERIFY(CheckSummaryPolicy(options.SummaryPolicy));
 
     int sensorsEmitted = 0;
 
-    auto prepareNameLabel = [&] (std::optional<TStringBuf> suffix) {
-        std::string sensorName;
-        sensorName.reserve(name.size() + (suffix ? suffix->size() : 0));
+    auto getNameLabel = [&] (std::optional<TStringBuf> suffix) {
+        static constexpr char TokenDelimiter = '/';
+
+        // Let's not change anything if rename is disabled.
+        // XXX(achulkov2): Does anyone actually use this? I can't find any usages.
         if (options.DisableSensorsRename) {
-            sensorName += name;
-        } else if (options.StripSensorsNamePrefix) {
-            auto delimiterPos = name.find_last_of('/');
-            if (std::string::npos == delimiterPos) {
-                sensorName.assign(name);
-            } else {
-                sensorName.assign(name, delimiterPos + 1);
-            }
-        } else {
-            if (name[0] != '/') {
-                sensorName.push_back(name[0]);
-            }
-            for (size_t i = 1; i < name.size(); ++i) {
-                if (name[i] == '/') {
-                    sensorName.push_back('.');
-                } else {
-                    sensorName.push_back(name[i]);
-                }
-            }
-            if (sensorName.back() == '.') {
-                sensorName.pop_back();
+            return name;
+        }
+
+        std::string_view potentiallyStrippedName = name;
+
+        // First, we strip the prefix (everything before last /), if requested.
+        if (scrapeOptions->StripSensorsNamePrefix) {
+            auto delimiterPos = potentiallyStrippedName.find_last_of(TokenDelimiter);
+            if (delimiterPos != std::string::npos) {
+                potentiallyStrippedName = potentiallyStrippedName.substr(delimiterPos + 1);
             }
         }
 
+        // Now we normalize the sensor name in two ways: by replacing / with the delimiter
+        // provided in options and by converting metric path tokens to camel case if requested.
+        std::string normalizedSensorName;
+        normalizedSensorName.reserve(name.size() + (suffix ? suffix->size() : 0));
+
+        std::vector<std::string_view> tokens;
+        StringSplitter(potentiallyStrippedName).Split(TokenDelimiter).SkipEmpty().Collect(&tokens);
+
+        // The suffix should not contain a leading delimiter.
         if (suffix) {
-            sensorName += *suffix;
+            tokens.push_back(*suffix);
         }
 
-        return consumer->PrepareLabel("sensor", sensorName);
+        bool firstToken = true;
+        for (auto token : tokens) {
+            if (firstToken) {
+                firstToken = false;
+            } else {
+                normalizedSensorName += scrapeOptions->SensorComponentDelimiter;
+            }
+
+            if (scrapeOptions->ConvertSensorComponentNamesToCamelCase) {
+                normalizedSensorName += UnderscoreCaseToCamelCase(token);
+            } else {
+                normalizedSensorName += token;
+            }
+        }
+
+        return normalizedSensorName;
+    };
+
+    auto prepareNameLabel = [&] (std::optional<TStringBuf> suffix) {
+        return consumer->PrepareLabel("sensor", getNameLabel(suffix));
     };
 
     auto nameLabel = prepareNameLabel({});
-    auto sumNameLabel = prepareNameLabel(".sum");
-    auto minNameLabel = prepareNameLabel(".min");
-    auto maxNameLabel = prepareNameLabel(".max");
-    auto avgNameLabel = prepareNameLabel(".avg");
-    auto rateNameLabel = prepareNameLabel(".rate");
+    auto sumNameLabel = prepareNameLabel("sum");
+    auto minNameLabel = prepareNameLabel("min");
+    auto maxNameLabel = prepareNameLabel("max");
+    auto avgNameLabel = prepareNameLabel("avg");
+    auto rateNameLabel = prepareNameLabel("rate");
+    auto deltaNameLabel = prepareNameLabel("delta");
+
     auto globalHostLabel = consumer->PrepareLabel("host", "");
     auto hostLabel = consumer->PrepareLabel("host", options.Host.value_or(""));
     auto ytAggrLabel = consumer->PrepareLabel("yt_aggr", "1");
 
     // Set allowAggregate to true to aggregate by host.
     // Currently Monitoring supports only sum aggregation.
-    auto writeLabels = [&] (const auto& tagIds, std::pair<ui32, ui32> nameLabel, bool allowAggregate) {
+    auto writeLabels = [&] (const auto& tagIds, std::pair<ui32, ui32> nameLabel, ::NMonitoring::EMetricType metricType, bool allowAggregate) {
         consumer->OnLabelsBegin();
+
+        if (scrapeOptions->AddMetricTypeLabel) {
+            // This should almost always be a cache hit.
+            auto metricTypeLabel = consumer->PrepareLabel("metric_type", ToString(metricType));
+            consumer->OnLabel(metricTypeLabel.first, metricTypeLabel.second);
+        }
 
         consumer->OnLabel(nameLabel.first, nameLabel.second);
 
@@ -243,7 +274,7 @@ int TCube<T>::ReadSensors(
 
         TCompactVector<bool, 8> replacedInstanceTags(options.InstanceTags.size());
 
-        if (allowAggregate && options.MarkAggregates && !options.Global) {
+        if (allowAggregate && scrapeOptions->MarkAggregates && !options.Global) {
             consumer->OnLabel(ytAggrLabel.first, ytAggrLabel.second);
         }
 
@@ -304,7 +335,7 @@ int TCube<T>::ReadSensors(
     };
 
     for (const auto& [tagIds, window] : Projections_) {
-        if (options.EnableSolomonAggregationWorkaround && skipByHack(window)) {
+        if (scrapeOptions->EnableAggregationWorkaround && skipByHack(window)) {
             continue;
         }
 
@@ -312,7 +343,7 @@ int TCube<T>::ReadSensors(
 
         bool empty = true;
         for (const auto& [indices, time] : options.Times) {
-            if (!options.EnableSolomonAggregationWorkaround && skipSparse(window, indices)) {
+            if (!scrapeOptions->EnableAggregationWorkaround && skipSparse(window, indices)) {
                 continue;
             }
 
@@ -324,9 +355,13 @@ int TCube<T>::ReadSensors(
 
         auto rangeValues = [&, window=&window] (auto cb) {
             for (const auto& [indices, time] : options.Times) {
-                if (!options.EnableSolomonAggregationWorkaround && skipSparse(*window, indices)) {
+                if (!scrapeOptions->EnableAggregationWorkaround && skipSparse(*window, indices)) {
                     continue;
                 }
+
+                // Indices form a sub-window, which is typically either corresponds to readGridStep seconds
+                // in terms of the solomon exporter, or contains just a single index of the latest timestamp
+                // to read.
 
                 T value{};
                 for (auto index : indices) {
@@ -355,7 +390,7 @@ int TCube<T>::ReadSensors(
             {
                 if (Any(options.SummaryPolicy & policyBit)) {
                     consumer->OnMetricBegin(type);
-                    writeLabels(tagIds, omitSuffix ? nameLabel : specificNameLabel, aggregate);
+                    writeLabels(tagIds, omitSuffix ? nameLabel : specificNameLabel, type, aggregate);
 
                     rangeValues(cb);
 
@@ -419,8 +454,9 @@ int TCube<T>::ReadSensors(
 
                     if (empty) {
                         empty = false;
-                        consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
-                        writeLabels(tagIds, omitSuffix ? nameLabel : avgNameLabel, false);
+                        auto metricType = NMonitoring::EMetricType::GAUGE;
+                        consumer->OnMetricBegin(metricType);
+                        writeLabels(tagIds, omitSuffix ? nameLabel : avgNameLabel, metricType, false);
                     }
 
                     sensorCount += 1;
@@ -435,27 +471,41 @@ int TCube<T>::ReadSensors(
         };
 
         if constexpr (std::is_same_v<T, i64> || std::is_same_v<T, TDuration>) {
-            if (options.ConvertCountersToRateGauge || options.ConvertCountersToDeltaGauge) {
-                consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
-            } else {
-                consumer->OnMetricBegin(NMonitoring::EMetricType::RATE);
+            auto metricType = scrapeOptions->ConvertCountersToRateGauge || scrapeOptions->ConvertCountersToDeltaGauge
+                ? NMonitoring::EMetricType::GAUGE
+                // Underlying encoding options for each format might be different, e.g. this becomes a COUNTER in prometheus.
+                : NMonitoring::EMetricType::RATE;
+
+            consumer->OnMetricBegin(metricType);
+
+            auto counterNameLabel = nameLabel;
+            if (scrapeOptions->RenameConvertedCounters && scrapeOptions->ConvertCountersToRateGauge) {
+                counterNameLabel = rateNameLabel;
+            }
+            if (scrapeOptions->RenameConvertedCounters && scrapeOptions->ConvertCountersToDeltaGauge) {
+                counterNameLabel = deltaNameLabel;
             }
 
-            writeLabels(tagIds, (options.ConvertCountersToRateGauge && options.RenameConvertedCounters) ? rateNameLabel : nameLabel, true);
+            writeLabels(
+                tagIds,
+                counterNameLabel,
+                metricType,
+                /*allowAggregate*/ true);
 
             rangeValues([&, window=&window] (auto value, auto time, const auto& indices) {
                 sensorCount += 1;
-                if (options.ConvertCountersToRateGauge) {
+                if (scrapeOptions->ConvertCountersToRateGauge) {
                     if (options.RateDenominator < 0.1) {
                         THROW_ERROR_EXCEPTION("Invalid rate denominator");
                     }
 
+                    // Rate denominator corresponds to the size of the indices sub-window in seconds.
                     if constexpr (std::is_same_v<T, i64>) {
                         consumer->OnDouble(time, value / options.RateDenominator);
                     } else {
                         consumer->OnDouble(time, value.SecondsFloat() / options.RateDenominator);
                     }
-                } else if (options.ConvertCountersToDeltaGauge) {
+                } else if (scrapeOptions->ConvertCountersToDeltaGauge) {
                     if constexpr (std::is_same_v<T, i64>) {
                         consumer->OnDouble(time, value);
                     } else {
@@ -464,6 +514,8 @@ int TCube<T>::ReadSensors(
                 } else {
                     // TODO(prime@): RATE is incompatible with windowed read.
                     if constexpr (std::is_same_v<T, i64>) {
+                        // This is effectively the sum of all values up until the specified index, which
+                        // is just the value of the counter for the specified index. Same below.
                         consumer->OnInt64(time, Rollup(*window, indices.back()));
                     } else {
                         consumer->OnDouble(time, Rollup(*window, indices.back()).SecondsFloat());
@@ -473,9 +525,10 @@ int TCube<T>::ReadSensors(
 
             consumer->OnMetricEnd();
         } else if constexpr (std::is_same_v<T, double>) {
-            consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
+            auto metricType = NMonitoring::EMetricType::GAUGE;
+            consumer->OnMetricBegin(metricType);
 
-            writeLabels(tagIds, nameLabel, true);
+            writeLabels(tagIds, nameLabel, metricType, /*allowAggregate*/ true);
 
             rangeValues([&, window=&window] (auto /* value */, auto time, const auto& indices) {
                 if (options.DisableDefault && !window->HasValue[indices.back()]) {
@@ -506,15 +559,16 @@ int TCube<T>::ReadSensors(
                     static_cast<ui64>(value.Count()));
             });
         } else if constexpr (std::is_same_v<T, TTimeHistogramSnapshot>) {
-            consumer->OnMetricBegin(NMonitoring::EMetricType::HIST);
+            auto metricType = NMonitoring::EMetricType::HIST;
+            consumer->OnMetricBegin(metricType);
 
-            writeLabels(tagIds, nameLabel, true);
+            writeLabels(tagIds, nameLabel, metricType, /*allowAggregate*/ true);
 
             rangeValues([&, window=&window] (auto value, auto time, const auto& indices) {
                 size_t n = value.Bounds.size();
                 auto hist = NMonitoring::TExplicitHistogramSnapshot::New(n + 1);
 
-                if (options.ConvertCountersToRateGauge || options.EnableHistogramCompat) {
+                if (scrapeOptions->ConvertCountersToRateGauge || options.EnableHistogramCompat) {
                     if (options.RateDenominator < 0.1) {
                         THROW_ERROR_EXCEPTION("Invalid rate denominator");
                     }
@@ -546,9 +600,10 @@ int TCube<T>::ReadSensors(
 
             consumer->OnMetricEnd();
         } else if constexpr (std::is_same_v<T, TGaugeHistogramSnapshot>) {
-            consumer->OnMetricBegin(NMonitoring::EMetricType::HIST);
+            auto metricType = NMonitoring::EMetricType::HIST;
+            consumer->OnMetricBegin(metricType);
 
-            writeLabels(tagIds, nameLabel, true);
+            writeLabels(tagIds, nameLabel, metricType, /*allowAggregate*/ true);
 
             rangeValues([&] (auto value, auto time, const auto& /*indices*/) {
                 size_t n = value.Bounds.size();
@@ -569,9 +624,10 @@ int TCube<T>::ReadSensors(
 
             consumer->OnMetricEnd();
         } else if constexpr (std::is_same_v<T, TRateHistogramSnapshot>) {
-            consumer->OnMetricBegin(NMonitoring::EMetricType::HIST);
+            auto metricType = NMonitoring::EMetricType::HIST;
+            consumer->OnMetricBegin(metricType);
 
-            writeLabels(tagIds, nameLabel, true);
+            writeLabels(tagIds, nameLabel, metricType, /*allowAggregate*/ true);
 
             rangeValues([&] (auto value, auto time, const auto& /*indices*/) {
                 size_t n = value.Bounds.size();

@@ -1,5 +1,6 @@
 #include "proxy.h"
 #include "private.h"
+#include "config.h"
 
 #include <yt/yt/core/http/http.h>
 #include <yt/yt/core/http/server.h>
@@ -143,13 +144,29 @@ THeadersPtr TSolomonProxy::PreparePullHeaders(const THeadersPtr& reqHeaders, con
     return pullHeaders;
 }
 
+bool TSolomonProxy::IsWhitelistedParameter(const TString& parameterName)
+{
+    return std::find(ForwardParameterWhitelist.begin(), ForwardParameterWhitelist.end(), parameterName) != ForwardParameterWhitelist.end();
+}
+
 TCgiParameters TSolomonProxy::PreparePullParameters(const TCgiParameters& parameters)
 {
     TCgiParameters pullParameters;
-    for (const auto& forwardParamater : ForwardParameterWhitelist) {
-        if (auto valueIt = parameters.find(forwardParamater); valueIt != parameters.end()) {
+
+    auto forwardParameter = [&] (const TString& name) {
+        if (auto valueIt = parameters.find(name); valueIt != parameters.end()) {
             pullParameters.insert(*valueIt);
         }
+    };
+
+    for (const auto& parameterName : ForwardParameterWhitelist) {
+        forwardParameter(parameterName);
+    }
+
+    // Don't know how to do this without an allocation.
+    auto potentialScrapeOptions = New<TScrapeOptions>();
+    for (const auto& parameterName : potentialScrapeOptions->GetRegisteredKeys()) {
+        forwardParameter(parameterName);
     }
 
     return pullParameters;

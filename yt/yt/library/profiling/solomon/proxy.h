@@ -107,6 +107,7 @@ private:
     //! For safety we only proxy whitelisted headers.
     static NHttp::THeadersPtr PreparePullHeaders(const NHttp::THeadersPtr& reqHeaders, const TOutputEncodingContext& outputContext);
     //! For safety we only proxy whitelisted parameters.
+    static bool IsWhitelistedParameter(const TString& name);
     static TCgiParameters PreparePullParameters(const TCgiParameters& parameters);
 };
 

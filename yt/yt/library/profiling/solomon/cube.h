@@ -1,5 +1,6 @@
 #pragma once
 
+#include "public.h"
 #include "private.h"
 #include "tag_registry.h"
 
@@ -23,18 +24,15 @@ struct TReadOptions
 
     std::function<bool(const std::string&)> SensorFilter;
 
-    bool ConvertCountersToRateGauge = false;
-    bool ConvertCountersToDeltaGauge = false;
-    bool RenameConvertedCounters = true;
+    // NB: Be careful when modifying this field, as you might be modifying
+    // a shared object. If you need to modify it, make a deep copy first.
+    // TODO(achulkov2): Ideally, it should be a lite YSON struct, but I do
+    // not know how to use such structs as bases for ref-counted YSON structs.
+    TScrapeOptionsPtr ScrapeOptions;
+
     double RateDenominator = 1.0;
+
     bool EnableHistogramCompat = false;
-
-    bool EnableSolomonAggregationWorkaround = false;
-
-    // Direct summary export is not supported by solomon, yet.
-    ESummaryPolicy SummaryPolicy = ESummaryPolicy::Default;
-
-    bool MarkAggregates = false;
 
     std::optional<std::string> Host;
 
@@ -45,6 +43,8 @@ struct TReadOptions
     bool DisableSensorsRename = false;
     bool DisableDefault = false;
 
+    ESummaryPolicy SummaryPolicy = ESummaryPolicy::Default;
+
     int LingerWindowSize = 0;
 
     // Used only in ReadRecentSensorValue.
@@ -52,9 +52,6 @@ struct TReadOptions
 
     // Only makes sense with ExportSummaryAsMax and ReadAllProjections.
     bool SummaryAsMaxForAllTime = false;
-
-    // Drop all prefix before last '/'.
-    bool StripSensorsNamePrefix = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
