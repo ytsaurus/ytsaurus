@@ -2,6 +2,7 @@
 #include "private.h"
 #include "bootstrap.h"
 #include "config.h"
+#include "yt/yt/library/profiling/solomon/helpers.h"
 
 #include <yt/yt/server/node/cellar_node/bootstrap.h>
 #include <yt/yt/server/node/cellar_node/bundle_dynamic_config_manager.h>
@@ -591,6 +592,7 @@ void TNodeResourceManager::UpdateLimits()
 
     YT_LOG_DEBUG("Updating node resource limits");
 
+    UpdateProfilingCategory();
     UpdateMemoryFootprint();
     UpdateMemoryLimits();
     UpdateJobsCpuLimit();
@@ -657,6 +659,13 @@ void TNodeResourceManager::UpdateMemoryLimits()
         SelfMemoryGuarantee_ = selfMemoryGuarantee;
         SelfMemoryGuaranteeUpdated_.Fire(SelfMemoryGuarantee_);
     }
+}
+
+void TNodeResourceManager::UpdateProfilingCategory()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    Bootstrap_->GetNodeMemoryUsageTracker()->UpdateUsage(EMemoryCategory::Profiling, GetCountersBytesAlive());
 }
 
 void TNodeResourceManager::UpdateMemoryFootprint()
