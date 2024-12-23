@@ -17,6 +17,5 @@
     "games/admin": "games/admin/pyproject.toml",
     "games/backend": "games/admin/pyproject.toml",
     "quality/antifraud/security": "quality/antifraud/security/pyproject.toml",
-    "hrtech/backend/events_crm": "hrtech/backend/events_crm/pyproject.toml",
     "ml/dod": "ml/dod/pyproject.toml"
 }
