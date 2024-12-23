@@ -1,8 +1,8 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait, create, ls, get, set, copy, move,
-    remove, exists,
+    authors, get_active_primary_master_follower_address, is_active_primary_master_follower,
+    is_active_primary_master_leader, switch_leader, wait, create, ls, get, set, copy, move, remove, exists,
     create_account, remove_account, transfer_account_resources, create_user, create_domestic_medium,
     write_file, write_table, merge, sync_create_cells, sync_mount_table,  make_ace, ping_transaction,
     sync_unmount_table, sync_reshard_table, get_singular_chunk_id, lock, insert_rows, alter_table,
@@ -4657,6 +4657,21 @@ class TestAccountsProfiling(YTEnvSetup):
         values = profiler.gauge(gauge_name).get_all()
         assert (values == []) != should_report
 
+    def _switch_leader_back_and_forth(self):
+        old_leader_rpc_address = get_active_primary_master_leader_address(self)
+        new_leader_rpc_address = get_active_primary_master_follower_address(self)
+        cell_id = get("//sys/@cell_id")
+
+        switch_leader(cell_id, new_leader_rpc_address)
+        wait(lambda: is_active_primary_master_leader(new_leader_rpc_address))
+        wait(lambda: is_active_primary_master_follower(old_leader_rpc_address))
+
+        sleep(5)
+
+        switch_leader(cell_id, old_leader_rpc_address)
+        wait(lambda: is_active_primary_master_leader(old_leader_rpc_address))
+        wait(lambda: is_active_primary_master_follower(new_leader_rpc_address))
+
     @authors("h0pless")
     def test_account_profiling_buckets(self):
         set("//sys/@config/incumbent_manager/scheduler/incumbents/security_manager/use_followers", False)
@@ -4674,6 +4689,16 @@ class TestAccountsProfiling(YTEnvSetup):
 
         create_account("industrial_furnace_hater")
         sleep(1.5)
+        assert gauge_value == gauge.get()
+
+        self._switch_leader_back_and_forth()
+
+        sleep(1.5)
+        leader_address = get_active_primary_master_leader_address(self)
+        leader_profiler = profiler_factory().at_primary_master(leader_address)
+
+        sleep(1.5)
+        gauge = leader_profiler.gauge("accounts/node_count_limit", fixed_tags={"account": "sys"})
         assert gauge_value == gauge.get()
 
     @authors("h0pless")
