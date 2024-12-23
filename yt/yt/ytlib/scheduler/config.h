@@ -1967,6 +1967,8 @@ public:
     NYPath::TRichYPath OutputTablePath;
     bool CopyAttributes;
     std::optional<std::vector<TString>> AttributeKeys;
+    // COMPAT(coteeq): Gentle runtime switch.
+    bool ForceCopySystemAttributes;
 
     // Specifies how many chunks to read/write concurrently.
     int Concurrency;

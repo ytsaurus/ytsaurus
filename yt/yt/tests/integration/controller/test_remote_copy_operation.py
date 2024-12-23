@@ -637,6 +637,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                 "cluster_name": self.REMOTE_CLUSTER_NAME,
                 "copy_attributes": copy_user_attributes,
                 "attribute_keys": ["custom_attr", "compression_codec"],
+                "force_copy_system_attributes": True,
             },
         )
 
@@ -649,6 +650,43 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         assert get("//tmp/t_out/@erasure_codec") == "reed_solomon_6_3"
         if object_type == "table":
             assert get("//tmp/t_out/@optimize_for") == "lookup"
+
+    # COMPAT(coteeq): This is a test for the runtime switch flag
+    @authors("coteeq")
+    @pytest.mark.parametrize("copy_user_attributes", [True, False])
+    def test_no_copy_basic_attributes_by_default(self, copy_user_attributes):
+        skip_if_component_old(self.Env, (24, 2), "controller-agent")
+        create("table", "//tmp/t_in", driver=self.remote_driver)
+        create("table", "//tmp/t_out")
+
+        set("//tmp/t_in/@custom_attr", "attr_value", driver=self.remote_driver)
+
+        attributes = {
+            "compression_codec": "none",
+            "erasure_codec": "reed_solomon_6_3",
+            "optimize_for": "scan",
+        }
+
+        write_attributes = ';'.join(f"{k}={v}" for k, v in attributes.items())
+        write_table(f"<{write_attributes}>//tmp/t_in", [{"column": "value"}], driver=self.remote_driver)
+
+        for attr, value in attributes.items():
+            assert get("//tmp/t_in/@" + attr, driver=self.remote_driver) == value
+
+        remote_copy(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                "copy_attributes": copy_user_attributes
+            },
+        )
+
+        assert exists("//tmp/t_out/@custom_attr") == copy_user_attributes
+
+        assert get("//tmp/t_out/@compression_codec") == "lz4"  # NB: lz4 is the default
+        assert get("//tmp/t_out/@erasure_codec") == "none"
+        assert get("//tmp/t_out/@optimize_for") == "lookup"
 
     @authors("asaitgalin", "ignat")
     def test_copy_attributes(self):
