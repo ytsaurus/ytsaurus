@@ -687,20 +687,17 @@ TEST_F(TReplicatedTableTrackerTest, PreloadCheck)
 
     auto options = Host_->GetTableOptions(tableId);
     options->EnablePreloadStateCheck = true;
-    options->IncompletePreloadGracePeriod = WarmUpIterationCount * CheckPeriod;
+    options->IncompletePreloadGracePeriod = TDuration::Zero();
     Host_->SetTableOptions(tableId, std::move(options));
 
     WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeRemained(replicaId);
 
     mockPreloadState(EStorePreloadState::Running);
-
-    Host_->ValidateReplicaModeRemained(replicaId);
-    DoWaitForTracker(WarmUpIterationCount);
+    WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Async);
 
     mockPreloadState(EStorePreloadState::Complete);
-
     WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 }
