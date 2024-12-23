@@ -68,11 +68,13 @@ TKeyInfoPtr TSignatureGenerator::KeyInfo() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSignaturePtr TSignatureGenerator::Sign(TYsonString&& payload) const
+void TSignatureGenerator::Sign(const TSignaturePtr& signature) const
 {
+    // Make sure that we are not overwriting an existing signature.
+    YT_VERIFY(!signature->Header_);
+
     auto signatureId = TGuid::Create();
     auto now = Now();
-    TSignaturePtr result = New<TSignature>();
     TSignatureHeader header;
 
     {
@@ -91,10 +93,9 @@ TSignaturePtr TSignatureGenerator::Sign(TYsonString&& payload) const
             .ExpiresAt = now + Config_->SignatureExpirationDelta,
         };
 
-        result->Header_ = ConvertToYsonString(header, EYsonFormat::Binary);
-        result->Payload_ = std::move(payload);
+        signature->Header_ = ConvertToYsonString(header, EYsonFormat::Binary);
 
-        auto toSign = PreprocessSignature(result->Header_, result->Payload_);
+        auto toSign = PreprocessSignature(signature->Header_, signature->Payload_);
 
         if (!IsKeyPairMetadataValid(KeyPair_->KeyInfo()->Meta())) {
             YT_LOG_WARNING(
@@ -103,21 +104,19 @@ TSignaturePtr TSignatureGenerator::Sign(TYsonString&& payload) const
                 GetKeyId(KeyPair_->KeyInfo()->Meta()));
         }
 
-        result->Signature_.resize(SignatureSize);
-        KeyPair_->Sign(toSign, std::span<std::byte, SignatureSize>(result->Signature_));
+        signature->Signature_.resize(SignatureSize);
+        KeyPair_->Sign(toSign, std::span<std::byte, SignatureSize>(signature->Signature_));
     }
 
     YT_LOG_TRACE(
         "Created signature (SignatureId: %v, Header: %v, Payload: %v)",
         signatureId,
         header,
-        ConvertToYsonString(result->Payload_, EYsonFormat::Text).ToString());
+        ConvertToYsonString(signature->Payload_, EYsonFormat::Text).ToString());
 
     YT_LOG_DEBUG(
         "Created signature (SignatureId: %v)",
         signatureId);
-
-    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
