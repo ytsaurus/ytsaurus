@@ -62,7 +62,8 @@ TEST_F(TSignatureGeneratorTest, SimpleSign)
     WaitFor(Gen->Rotate()).ThrowOnError();
 
     auto data = ConvertToYsonString("MyImportantData");
-    TSignaturePtr signature = Gen->Sign(TYsonString(data));
+    auto signature = New<TSignature>(TYsonString(data));
+    Gen->Sign(signature);
     EXPECT_EQ(signature->Payload(), data);
 
     auto signatureYson = ConvertToNode(ConvertToYsonString(signature));
@@ -101,7 +102,8 @@ TEST_F(TSignatureGeneratorTest, UninitializedSign)
     EXPECT_TRUE(Store->Data.empty());
 
     auto data = NYson::ConvertToYsonString("MyImportantData");
-    EXPECT_THROW_WITH_SUBSTRING(std::ignore = Gen->Sign(std::move(data)), "uninitialized generator");
+    auto signature = New<TSignature>(TYsonString(data));
+    EXPECT_THROW_WITH_SUBSTRING(Gen->Sign(signature), "uninitialized generator");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
