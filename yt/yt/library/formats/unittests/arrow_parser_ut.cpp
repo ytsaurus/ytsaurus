@@ -128,7 +128,7 @@ std::string MakeIntAndStringArrow(const std::vector<int8_t>& data, const std::ve
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
-std::string MakeIntListArray(const std::vector<std::optional<std::vector<int32_t>>>& data)
+std::string MakeIntListArrow(const std::vector<std::optional<std::vector<int32_t>>>& data)
 {
     auto* pool = arrow::default_memory_pool();
     auto valueBuilder = std::make_shared<arrow::Int32Builder>(pool);
@@ -156,7 +156,7 @@ std::string MakeIntListArray(const std::vector<std::optional<std::vector<int32_t
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
-std::string MakeStringListArray(const std::vector<std::vector<std::string>>& data)
+std::string MakeStringListArrow(const std::vector<std::vector<std::string>>& data)
 {
     auto* pool = arrow::default_memory_pool();
 
@@ -181,7 +181,7 @@ std::string MakeStringListArray(const std::vector<std::vector<std::string>>& dat
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
-std::string MakeMapArray(const std::vector<std::vector<int32_t>>& key, const std::vector<std::vector<int32_t>>& value)
+std::string MakeMapArrow(const std::vector<std::vector<int32_t>>& key, const std::vector<std::vector<int32_t>>& value)
 {
     auto* pool = arrow::default_memory_pool();
 
@@ -208,15 +208,25 @@ std::string MakeMapArray(const std::vector<std::vector<int32_t>>& key, const std
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
-std::string MakeDictionaryArray()
+std::string MakeDictionaryArrow(bool addExtraValues = false)
 {
     auto* pool = arrow::default_memory_pool();
 
     arrow::DictionaryBuilder<arrow::Int32Type> dictionaryBuilder(pool);
 
     std::vector<int32_t> values = {1, 2, 1};
+
     for (auto value : values) {
         Verify(dictionaryBuilder.Append(value));
+    }
+
+    if (addExtraValues) {
+        arrow::Int32Builder builder;
+        Verify(builder.Append(3));
+        Verify(builder.Append(4));
+        Verify(builder.Append(5));
+        auto intArray = *builder.Finish();
+        Verify(dictionaryBuilder.InsertMemoValues(*intArray));
     }
 
     auto arrowSchema = arrow::schema({arrow::field("integer", dictionaryBuilder.type())});
@@ -231,7 +241,7 @@ std::string MakeDictionaryArray()
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
-std::string MakeStructArray(const std::vector<std::string>& stringData, const std::vector<int64_t>& intData)
+std::string MakeStructArrow(const std::vector<std::string>& stringData, const std::vector<int64_t>& intData)
 {
     auto* pool = arrow::default_memory_pool();
 
@@ -306,6 +316,27 @@ std::string MakeDecimalArrows(std::vector<TString> values, std::vector<std::tupl
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
+void TestArrowParserWithDictionary(bool addExtraValues = false)
+{
+    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+        TColumnSchema("integer", EValueType::Int64)
+    });
+
+    TCollectingValueConsumer collectedRows(tableSchema);
+
+    auto parser = CreateParserForArrow(&collectedRows);
+
+    auto data = MakeDictionaryArrow(addExtraValues);
+    parser->Read(data);
+    parser->Finish();
+
+    ASSERT_EQ(collectedRows.Size(), 3u);
+
+    ASSERT_EQ(GetInt64(collectedRows.GetRowValue(0, "integer")), 1);
+    ASSERT_EQ(GetInt64(collectedRows.GetRowValue(1, "integer")), 2);
+    ASSERT_EQ(GetInt64(collectedRows.GetRowValue(2, "integer")), 1);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TArrowParserTest, Simple)
@@ -352,23 +383,8 @@ TEST(TArrowParserTest, Optional)
 
 TEST(TArrowParserTest, Dictionary)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
-        TColumnSchema("integer", EValueType::Int64)
-    });
-
-    TCollectingValueConsumer collectedRows(tableSchema);
-
-    auto parser = CreateParserForArrow(&collectedRows);
-
-    auto data = MakeDictionaryArray();
-    parser->Read(data);
-    parser->Finish();
-
-    ASSERT_EQ(collectedRows.Size(), 3u);
-
-    ASSERT_EQ(GetInt64(collectedRows.GetRowValue(0, "integer")), 1);
-    ASSERT_EQ(GetInt64(collectedRows.GetRowValue(1, "integer")), 2);
-    ASSERT_EQ(GetInt64(collectedRows.GetRowValue(2, "integer")), 1);
+    TestArrowParserWithDictionary(false);
+    TestArrowParserWithDictionary(true);
 }
 
 TEST(TArrowParserTest, Bool)
@@ -439,7 +455,7 @@ TEST(TArrowParserTest, ListOfIntegers)
 
     auto parser = CreateParserForArrow(&collectedRows);
 
-    auto data = MakeIntListArray({std::vector{1, 2, 3}, std::nullopt, std::vector{4, 5}});
+    auto data = MakeIntListArrow({std::vector{1, 2, 3}, std::nullopt, std::vector{4, 5}});
     parser->Read(data);
     parser->Finish();
 
@@ -462,7 +478,7 @@ TEST(TArrowParserTest, ListOfStrings)
 
     auto parser = CreateParserForArrow(&collectedRows);
 
-    auto data = MakeStringListArray({{"foo", "bar"}, {"42", "universe"}});
+    auto data = MakeStringListArrow({{"foo", "bar"}, {"42", "universe"}});
     parser->Read(data);
     parser->Finish();
 
@@ -487,7 +503,7 @@ TEST(TArrowParserTest, Map)
 
     auto parser = CreateParserForArrow(&collectedRows);
 
-    auto data = MakeMapArray({{1, 3}, {3}}, {{2, 2}, {2}});
+    auto data = MakeMapArrow({{1, 3}, {3}}, {{2, 2}, {2}});
     parser->Read(data);
     parser->Finish();
 
@@ -534,7 +550,7 @@ TEST(TArrowParserTest, Struct)
 
     auto parser = CreateParserForArrow(&collectedRows);
 
-    parser->Read(MakeStructArray({"one", "two"}, {1, 2}));
+    parser->Read(MakeStructArrow({"one", "two"}, {1, 2}));
     parser->Finish();
 
     auto firstNode = GetComposite(collectedRows.GetRowValue(0, "struct"));
