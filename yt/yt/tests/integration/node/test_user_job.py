@@ -16,7 +16,7 @@ from yt_commands import (
     write_file, read_table, remote_copy, get_driver,
     write_table, map, abort_op, sort,
     vanilla, run_test_vanilla, abort_job, get_job_spec,
-    list_jobs, get_job, get_job_stderr, get_operation, get_operation_cypress_path,
+    list_jobs, get_job, get_job_stderr, get_operation,
     sync_create_cells, get_singular_chunk_id,
     update_nodes_dynamic_config, set_node_banned, check_all_stderrs,
     assert_statistics, assert_statistics_v2, extract_statistic_v2,
@@ -2132,14 +2132,14 @@ class TestTemporaryTokens(YTEnvSetup):
 
         command = with_breakpoint(f"""
             export YT_PROXY={self.Env.get_proxy_address()};
-            curl -X POST \"http://$YT_PROXY/api/v3/create?path=//tmp/created_from_operation&type=map_node\" \\
+            curl -X POST \"http://$YT_PROXY/api/v4/create?path=//tmp/created_from_operation&type=map_node\" \\
                 -H \"Accept: application/json\" -H \"Authorization: OAuth $YT_SECURE_VAULT_YT_TOKEN\" \\
                 >&2;
             BREAKPOINT;
         """)
 
         op = run_test_vanilla(spec={"max_failed_job_count": 1, "issue_temporary_token": True}, command=command, authenticated_user="alice")
-        op_path = get_operation_cypress_path(op.id)
+        op_path = op.get_path()
 
         wait_breakpoint()
 
@@ -2170,7 +2170,7 @@ class TestTemporaryTokens(YTEnvSetup):
 
         command = f"""
             export YT_PROXY={self.Env.get_proxy_address()};
-            curl -X POST \"http://$YT_PROXY/api/v3/create?path=//tmp/created_from_operation_$YT_SECURE_VAULT_NODE_SUFFIX&type=map_node\" \\
+            curl -X POST \"http://$YT_PROXY/api/v4/create?path=//tmp/created_from_operation_$YT_SECURE_VAULT_NODE_SUFFIX&type=map_node\" \\
                 -H \"Accept: application/json\" -H \"Authorization: OAuth $YT_SECURE_VAULT_ANOTHER_YT_TOKEN\" \\
                 >&2;
         """
@@ -2210,7 +2210,7 @@ class TestTemporaryTokens(YTEnvSetup):
         command = with_breakpoint(f"""
             BREAKPOINT;
             export YT_PROXY={self.Env.get_proxy_address()};
-            curl -X POST \"http://$YT_PROXY/api/v3/create?path=//tmp/created_from_operation&type=map_node\" \\
+            curl -X POST \"http://$YT_PROXY/api/v4/create?path=//tmp/created_from_operation&type=map_node\" \\
                 -H \"Accept: application/json\" -H \"Authorization: OAuth $YT_SECURE_VAULT_YT_TOKEN\" \\
                 >&2;
         """, breakpoint_name="first_breakpoint")
@@ -2236,7 +2236,7 @@ class TestTemporaryTokens(YTEnvSetup):
 
         op.track()
 
-        wait(lambda: not exists(get_operation_cypress_path(op.id)))
+        wait(lambda: not exists(op.get_path()))
 
         # Token should still be removed, token node id is persisted through revival
         assert not list_user_tokens("alice")
@@ -2260,10 +2260,7 @@ class TestTemporaryTokens(YTEnvSetup):
             return_response=True,
             authenticated_user="alice")
 
-        # Give enough time for the token to be issued.
-        time.sleep(1)
-
-        assert len(list_user_tokens("alice")) == 1
+        wait(lambda: len(list_user_tokens("alice")) == 1)
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass

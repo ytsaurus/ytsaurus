@@ -96,7 +96,7 @@ TOperation::TOperation(
     TYsonString trimmedAnnotations,
     std::optional<TBriefVanillaTaskSpecMap> briefVanillaTaskSpecs,
     IMapNodePtr secureVault,
-    TNodeId temporaryTokenNodeId,
+    std::optional<TNodeId> temporaryTokenNodeId,
     TOperationRuntimeParametersPtr runtimeParameters,
     NSecurityClient::TSerializableAccessControlList baseAcl,
     const std::string& authenticatedUser,
@@ -631,8 +631,8 @@ void TOperation::SetTemporaryToken(const TString& token)
 
 std::vector<TNodeId> TOperation::GetDependentNodeIds() const
 {
-    if (TemporaryTokenNodeId_ != NullObjectId) {
-        return {TemporaryTokenNodeId_};
+    if (TemporaryTokenNodeId_) {
+        return {*TemporaryTokenNodeId_};
     }
 
     return {};

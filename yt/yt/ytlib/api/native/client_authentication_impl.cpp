@@ -176,7 +176,7 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
 
     return TIssueTokenResult{
         .Token = token,
-        .TokenNodeId = rspOrError.Value(),
+        .NodeId = rspOrError.Value(),
     };
 }
 

@@ -236,7 +236,7 @@ public:
                 operationId);
 
             if (operation->Spec()->IssueTemporaryToken) {
-                YT_VERIFY(operation->GetTemporaryTokenNodeId() != NullObjectId);
+                YT_VERIFY(operation->GetTemporaryTokenNodeId());
             }
 
             {
@@ -258,7 +258,10 @@ public:
                         })
                         .Item("acl").Value(MakeOperationArtifactAcl(operation->BaseAcl()))
                         .Item("has_secure_vault").Value(static_cast<bool>(operation->GetSecureVault()))
-                        .Item("temporary_token_node_id").Value(operation->GetTemporaryTokenNodeId())
+                        .DoIf(static_cast<bool>(operation->GetTemporaryTokenNodeId()), [&] (auto fluent) {
+                            fluent
+                                .Item("temporary_token_node_id").Value(*operation->GetTemporaryTokenNodeId());
+                        })
                         .Item("need_to_clear_temporary_token_expiration_timeout").Value(operation->Spec()->IssueTemporaryToken)
                     .EndAttributes()
                     .BeginMap().EndMap();
@@ -308,7 +311,7 @@ public:
                     operation->GetAuthenticatedUser(),
                     operationId);
 
-                WaitFor(ClearTokenExpirationTimeout(operation->GetTemporaryTokenNodeId()))
+                WaitFor(ClearTokenExpirationTimeout(*operation->GetTemporaryTokenNodeId()))
                     .ThrowOnError();
 
                 YT_LOG_DEBUG(
@@ -1095,8 +1098,8 @@ private:
 
                 // We need to collect these nodes from attributes manually, because we might fail operations before re-creating the actual operation object.
                 std::vector<TNodeId> dependentNodeIds;
-                if (auto temporaryTokenNodeId = attributesNode->Get<TNodeId>("temporary_token_node_id", NullObjectId); temporaryTokenNodeId != NullObjectId) {
-                    dependentNodeIds.push_back(temporaryTokenNodeId);
+                if (auto temporaryTokenNodeId = attributesNode->Find<TNodeId>("temporary_token_node_id")) {
+                    dependentNodeIds.push_back(*temporaryTokenNodeId);
                 }
 
                 IMapNodePtr secureVault;
@@ -1382,7 +1385,7 @@ private:
                 std::move(preprocessedSpec.TrimmedAnnotations),
                 std::move(preprocessedSpec.BriefVanillaTaskSpecs),
                 secureVault,
-                attributes.Get<TNodeId>("temporary_token_node_id", NullObjectId),
+                attributes.Find<TNodeId>("temporary_token_node_id"),
                 runtimeParameters,
                 std::move(baseAcl),
                 user,

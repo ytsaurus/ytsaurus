@@ -236,7 +236,7 @@ public:
 
     //! Stores the id of the Cypress node corresponding to the temporary
     //! token issued for the operation, if any.
-    DEFINE_BYVAL_RW_PROPERTY(NCypressClient::TNodeId, TemporaryTokenNodeId, NCypressClient::NullObjectId);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<NCypressClient::TNodeId>, TemporaryTokenNodeId);
 
     DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(std::optional<TInstant>, FinishTime);
 
@@ -437,7 +437,7 @@ public:
         NYson::TYsonString trimmedAnnotations,
         std::optional<TBriefVanillaTaskSpecMap> briefVanillaTaskSpecs,
         NYTree::IMapNodePtr secureVault,
-        NCypressClient::TNodeId temporaryTokenNodeId,
+        std::optional<NCypressClient::TNodeId> temporaryTokenNodeId,
         TOperationRuntimeParametersPtr runtimeParameters,
         NSecurityClient::TSerializableAccessControlList baseAcl,
         const std::string& authenticatedUser,
