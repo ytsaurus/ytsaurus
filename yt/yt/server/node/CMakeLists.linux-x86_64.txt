@@ -54,6 +54,7 @@ target_link_libraries(yt-server-node PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  core-service_discovery-yp
   library-query-engine
   library-query-row_comparer
   library-dns_over_rpc-server
@@ -61,6 +62,9 @@ target_link_libraries(yt-server-node PUBLIC
   yt-library-containers
   library-containers-cri
   yt-library-gpu
+  library-tracing-jaeger
+  yt-library-tcmalloc
+  yt-library-monitoring
   yt-library-server_program
   yt-ytlib-distributed_throttler
   server-node-cellar_node
@@ -173,6 +177,8 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/query_agent/session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/query_agent/session_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/query_agent/tablet_replication_log_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/alien_cluster_client_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/alien_cluster_client_cache_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/automaton.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/background_activity_orchid.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/backing_store_cleaner.cpp

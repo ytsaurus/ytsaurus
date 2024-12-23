@@ -2349,6 +2349,32 @@ class TestOffloadingPools(YTEnvSetup):
         release_breakpoint()
         op.track()
 
+    @authors("renadeen")
+    def test_disable_offloading(self):
+        create_pool("primary_pool", pool_tree="default")
+        set("//sys/pools/primary_pool/@offloading_settings", {
+            "offload_tree": {"pool": "offload_pool"}
+        })
+
+        create_custom_pool_tree_with_one_node("offload_tree")
+        create_pool("offload_pool", pool_tree="offload_tree")
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            spec={
+                "pool": "primary_pool",
+                "allow_offloading": False,
+            },
+            job_count=3,
+        )
+        wait(lambda: op.get_job_count("running") == 2)
+
+        op_offloading_pool_tree_path = scheduler_orchid_operation_path(op.id, "offload_tree")
+        assert not exists(op_offloading_pool_tree_path + "/pool")
+
+        release_breakpoint()
+        op.track()
+
 
 ##################################################################
 

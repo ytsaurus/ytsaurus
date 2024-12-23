@@ -14,6 +14,12 @@
 
 find_package(linux-headers-generic REQUIRED)
 
+add_subdirectory(fetch)
+add_subdirectory(log)
+add_subdirectory(backtrace)
+add_subdirectory(memory_profiling)
+add_subdirectory(threading)
+
 add_library(yql-essentials-utils)
 
 

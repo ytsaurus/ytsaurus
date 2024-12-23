@@ -83,8 +83,6 @@ public:
             .Run()
             .Get()
             .ThrowOnError();
-
-        Sleep(TDuration::Max());
     }
 
     const TReplicatedTableTrackerServerConfigPtr& GetServerConfig() const override

@@ -516,12 +516,12 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
 }
 
 template <class TImpl>
-void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
+void TTableNodeTypeHandlerBase<TImpl>::DoSerializeNode(
     TImpl* node,
-    TBeginCopyContext* context)
+    TSerializeNodeContext* context)
 {
-    TTabletOwnerTypeHandler::DoBeginCopy(node, context);
-    TSchemafulNodeTypeHandler::DoBeginCopy(node, context);
+    TTabletOwnerTypeHandler::DoSerializeNode(node, context);
+    TSchemafulNodeTypeHandler::DoSerializeNode(node, context);
 
     if (node->IsDynamic()) {
         // This is just a precaution. Copying dynamic tables should be fine: yes,
@@ -535,7 +535,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
             THROW_ERROR_EXCEPTION("Dynamic tables do not support cross-cell copying");
         }
 
-        if (!node->SecondaryIndices().empty() || node->GetIndexTo()) {
+        if (!node->GetTrunkNode()->SecondaryIndices().empty() || node->GetTrunkNode()->GetIndexTo()) {
             THROW_ERROR_EXCEPTION("Cannot cross-cell copy neither a table with a secondary index nor an index table itself");
         }
     }
@@ -554,19 +554,17 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
     auto* trunkNode = node->GetTrunkNode();
     Save(*context, trunkNode->HasCustomDynamicTableAttributes());
     if (trunkNode->HasCustomDynamicTableAttributes()) {
-        trunkNode->GetCustomDynamicTableAttributes()->BeginCopy(context);
+        trunkNode->GetCustomDynamicTableAttributes()->SerializeNode(context);
     }
 }
 
 template <class TImpl>
-void TTableNodeTypeHandlerBase<TImpl>::DoEndCopy(
+void TTableNodeTypeHandlerBase<TImpl>::DoMaterializeNode(
     TImpl* node,
-    TEndCopyContext* context,
-    ICypressNodeFactory* factory,
-    IAttributeDictionary* inheritedAttributes)
+    TMaterializeNodeContext* context)
 {
-    TTabletOwnerTypeHandler::DoEndCopy(node, context, factory, inheritedAttributes);
-    TSchemafulNodeTypeHandler::DoEndCopy(node, context, factory, inheritedAttributes);
+    TTabletOwnerTypeHandler::DoMaterializeNode(node, context);
+    TSchemafulNodeTypeHandler::DoMaterializeNode(node, context);
 
     // TODO(babenko): support copying dynamic tables
 
@@ -580,7 +578,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoEndCopy(
 
     if (Load<bool>(*context)) {
         node->InitializeCustomDynamicTableAttributes();
-        node->GetCustomDynamicTableAttributes()->EndCopy(context);
+        node->GetCustomDynamicTableAttributes()->MaterializeNode(context);
     }
 
     // TODO(achulkov2): Add corresponding test once copying dynamic tables is supported. Please ping me :)
@@ -738,19 +736,17 @@ void TReplicatedTableNodeTypeHandler::DoClone(
     }
 }
 
-void TReplicatedTableNodeTypeHandler::DoBeginCopy(
+void TReplicatedTableNodeTypeHandler::DoSerializeNode(
     TReplicatedTableNode* /*node*/,
-    TBeginCopyContext* /*context*/)
+    TSerializeNodeContext* /*context*/)
 {
     // TODO(babenko): support cross-cell copy for replicated tables
     THROW_ERROR_EXCEPTION("Replicated tables do not support cross-cell copying");
 }
 
-void TReplicatedTableNodeTypeHandler::DoEndCopy(
+void TReplicatedTableNodeTypeHandler::DoMaterializeNode(
     TReplicatedTableNode* /*node*/,
-    TEndCopyContext* /*context*/,
-    ICypressNodeFactory* /*factory*/,
-    IAttributeDictionary* /*inheritedAttributes*/)
+    TMaterializeNodeContext* /*context*/)
 {
     // TODO(babenko): support cross-cell copy for replicated tables
     THROW_ERROR_EXCEPTION("Replicated tables do not support cross-cell copying");

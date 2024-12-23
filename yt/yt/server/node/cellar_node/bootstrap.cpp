@@ -235,7 +235,7 @@ public:
         }
     }
 
-    void LoadSnapshotOrThrow(
+    void LoadSnapshot(
         const TString& fileName,
         NHydra::NProto::TSnapshotMeta meta = {},
         bool dumpSnapshot = false) override
@@ -247,7 +247,7 @@ public:
             .ThrowOnError();
     }
 
-    void ReplayChangelogsOrThrow(std::vector<TString> changelogFileNames) override
+    void ReplayChangelogs(std::vector<TString> changelogFileNames) override
     {
         BIND(&TBootstrap::DoReplayChangelogs, this, Passed(std::move(changelogFileNames)))
             .AsyncVia(GetControlInvoker())
@@ -256,7 +256,7 @@ public:
             .ThrowOnError();
     }
 
-    void BuildSnapshotOrThrow() override
+    void BuildSnapshot() override
     {
         BIND(&TBootstrap::DoBuildSnapshot, this)
             .AsyncVia(GetControlInvoker())
@@ -265,7 +265,7 @@ public:
             .ThrowOnError();
     }
 
-    void FinishDryRunOrThrow() override
+    void FinishDryRun() override
     {
         BIND(&TBootstrap::DoFinishDryRun, this)
             .AsyncVia(GetControlInvoker())

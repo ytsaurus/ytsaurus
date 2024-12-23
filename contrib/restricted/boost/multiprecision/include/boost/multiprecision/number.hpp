@@ -51,7 +51,7 @@ class number
    static constexpr expression_template_option et = ExpressionTemplates;
 
    BOOST_MP_FORCEINLINE constexpr number() noexcept(noexcept(Backend())) {}
-   BOOST_MP_FORCEINLINE constexpr number(const number& e) noexcept(noexcept(Backend(std::declval<Backend const&>()))) : m_backend(e.m_backend) {}
+   BOOST_MP_FORCEINLINE constexpr number(const number& e) noexcept(noexcept(Backend(std::declval<Backend const&>()))) = default;
    template <class V>
    BOOST_MP_FORCEINLINE BOOST_MP_CXX14_CONSTEXPR number(const V& v, 
       typename std::enable_if<
@@ -372,11 +372,7 @@ class number
    }
 
    BOOST_MP_FORCEINLINE BOOST_MP_CXX14_CONSTEXPR number& operator=(const number& e)
-       noexcept(noexcept(std::declval<Backend&>() = std::declval<Backend const&>()))
-   {
-      m_backend = e.m_backend;
-      return *this;
-   }
+       noexcept(noexcept(std::declval<Backend&>() = std::declval<Backend const&>())) = default;
 
    template <class V>
    BOOST_MP_FORCEINLINE BOOST_MP_CXX14_CONSTEXPR typename std::enable_if<std::is_convertible<V, self_type>::value, number<Backend, ExpressionTemplates>&>::type
@@ -451,14 +447,9 @@ class number
 
    // rvalues:
    BOOST_MP_FORCEINLINE constexpr number(number&& r)
-       noexcept(noexcept(Backend(std::declval<Backend>())))
-       : m_backend(static_cast<Backend&&>(r.m_backend))
-   {}
-   BOOST_MP_FORCEINLINE BOOST_MP_CXX14_CONSTEXPR number& operator=(number&& r) noexcept(noexcept(std::declval<Backend&>() = std::declval<Backend>()))
-   {
-      m_backend = static_cast<Backend&&>(r.m_backend);
-      return *this;
-   }
+       noexcept(noexcept(Backend(std::declval<Backend>()))) = default;
+   BOOST_MP_FORCEINLINE BOOST_MP_CXX14_CONSTEXPR number& operator=(number&& r) noexcept(noexcept(std::declval<Backend&>() = std::declval<Backend>())) = default;
+
    template <class Other, expression_template_option ET>
    BOOST_MP_FORCEINLINE BOOST_MP_CXX14_CONSTEXPR number(number<Other, ET>&& val,
                                                         typename std::enable_if<(std::is_convertible<Other, Backend>::value && !detail::is_restricted_conversion<Other, Backend>::value)>::type* = nullptr)

@@ -79,26 +79,6 @@ Setting the `enable_key_guarantee=%false` option in Reduce with foreign tables c
 
 We recommend using the Reduce operation with the `enable_key_guarantee=%false` option.
 
-## Working with large keys — reduce_combiner
-
-The reduce phase has a special data processing stage for dealing with large keys. This stage's jobs are called **reduce_combiner** jobs. They run on parts of "large" partitions and facilitate a partial Reduce without waiting for all partition parts to get sorted and for Reduce with the final Merge to start. As input, reduce jobs running on partitions like that receive merged outputs of several `reduce_combiner` jobs.
-
-`Reduce_combiner` is triggered if the partition size exceeds `data_size_per_sort_job`. The amount of data in `reduce_combiner` equals `data_size_per_sort_job`. The default value for `data_size_per_sort_job` is set in the scheduler configuration, but can be overridden via an operation's specification (in bytes).
-
-`Reduce_combiner` can also be forced by setting `force_reduce_combiners` to `%true`.
-`Reduce_combiner` receives a sorted stream of records as input (like a regular reducer). There are several restrictions on the `reduce_combiner` output:
-
-* output must be sorted.
-* `reduce_combiner` must not change keys — columns specified in the specification's `sort_by` field (if not specified — `reduce_by`).
-* there must only be one output table, as in the case of the mapper in the `MapReduce` operation;
-   This means that any commutative and associative reducer can be used as `reduce_combiner` in its original form.
-
-Starting an operation with `reduce_combiner` may look like this:
-
-```
-yt map-reduce --reduce-combiner cat --reducer cat --reduce-by cookies --src //statbox/access-log/2013-05-15 --dst //tmp/asd --format dsv
-```
-
 ## Example specification
 
 ```yaml

@@ -7,6 +7,10 @@
 
 #include <yt/yt/library/program/helpers.h>
 
+#include <yt/yt/core/bus/tcp/dispatcher.h>
+
+#include <yt/yt/core/logging/config.h>
+
 namespace NYT::NClusterClock {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,54 +22,93 @@ public:
     TClusterClockProgram()
     {
         Opts_
-            .AddLongOption("dump-snapshot", "dump master snapshot and exit")
-            .StoreMappedResult(&DumpSnapshot_, &CheckPathExistsArgMapper)
+            .AddLongOption(
+                "dump-snapshot",
+                "Dumps clock snapshot\n"
+                "Expects path to snapshot")
+            .Handler0([&] { DumpSnapshotFlag_ = true; })
+            .StoreMappedResult(&LoadSnapshotPath_, &CheckPathExistsArgMapper)
             .RequiredArgument("SNAPSHOT");
         Opts_
-            .AddLongOption("validate-snapshot", "validate master snapshot and exit")
-            .StoreMappedResult(&ValidateSnapshot_, &CheckPathExistsArgMapper)
+            .AddLongOption(
+                "validate-snapshot",
+                "Loads clock snapshot in a dry run mode\n"
+                "Expects path to snapshot")
+            .Handler0([&] { ValidateSnapshotFlag_ = true; })
+            .StoreMappedResult(&LoadSnapshotPath_, &CheckPathExistsArgMapper)
             .RequiredArgument("SNAPSHOT");
 
-        SetMainThreadName("ClusterClock");
-    }
-
-protected:
-    void DoStart() final
-    {
-        auto config = GetConfig();
-        auto configNode = GetConfigNode();
-
-        const auto& parseResult = GetOptsParseResult();
-        bool dumpSnapshot = parseResult.Has("dump-snapshot");
-        bool validateSnapshot = parseResult.Has("validate-snapshot");
-
-        if (dumpSnapshot) {
-            config->Logging = NLogging::TLogManagerConfig::CreateSilent();
-        } else if (validateSnapshot) {
-            config->Logging = NLogging::TLogManagerConfig::CreateQuiet();
-        }
-
-        ConfigureSingletons(config);
-
-        // TODO(babenko): This memory leak is intentional.
-        // We should avoid destroying bootstrap since some of the subsystems
-        // may be holding a reference to it and continue running some actions in background threads.
-        auto* bootstrap = new NClusterClock::TBootstrap(std::move(config), std::move(configNode));
-        DoNotOptimizeAway(bootstrap);
-        bootstrap->Initialize();
-
-        if (dumpSnapshot) {
-            bootstrap->TryLoadSnapshot(DumpSnapshot_, true);
-        } else if (validateSnapshot) {
-            bootstrap->TryLoadSnapshot(ValidateSnapshot_, false);
-        } else {
-            bootstrap->Run();
-        }
+        SetMainThreadName("Clock");
     }
 
 private:
-    TString DumpSnapshot_;
-    TString ValidateSnapshot_;
+    bool IsDumpSnapshotMode() const
+    {
+        return DumpSnapshotFlag_;
+    }
+
+    bool IsValidateSnapshotMode() const
+    {
+        return ValidateSnapshotFlag_;
+    }
+
+    bool IsDryRunMode() const
+    {
+        return
+            IsDumpSnapshotMode() ||
+            IsValidateSnapshotMode();
+    }
+
+    void ValidateOpts() final
+    {
+        if (static_cast<int>(IsDumpSnapshotMode()) +
+            static_cast<int>(IsValidateSnapshotMode()) > 1)
+        {
+            THROW_ERROR_EXCEPTION("Options 'dump-snapshot' and 'validate-snapshot' are mutually exclusive");
+        }
+    }
+
+    void TweakConfig() final
+    {
+        auto config = GetConfig();
+
+        if (IsDumpSnapshotMode()) {
+            config->SetSingletonConfig(NLogging::TLogManagerConfig::CreateSilent());
+        }
+
+        if (IsValidateSnapshotMode()) {
+            config->SetSingletonConfig(NLogging::TLogManagerConfig::CreateQuiet());
+        }
+    }
+
+    void DoStart() final
+    {
+        auto* bootstrap = new NClusterClock::TBootstrap(GetConfig(), GetConfigNode());
+        DoNotOptimizeAway(bootstrap);
+        bootstrap->Initialize();
+
+        if (IsDryRunMode()) {
+            NBus::TTcpDispatcher::Get()->DisableNetworking();
+
+            if (IsDumpSnapshotMode()) {
+                bootstrap->TryLoadSnapshot(LoadSnapshotPath_, true);
+                return;
+            }
+
+            if (IsValidateSnapshotMode()) {
+                bootstrap->TryLoadSnapshot(LoadSnapshotPath_, false);
+                return;
+            }
+        }
+
+        bootstrap->Run();
+        SleepForever();
+    }
+
+private:
+    bool DumpSnapshotFlag_ = false;
+    bool ValidateSnapshotFlag_ = false;
+    TString LoadSnapshotPath_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

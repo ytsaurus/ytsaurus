@@ -69,6 +69,9 @@ struct IDataNodeTracker
 
     virtual const TChunkLocationUuidMap& ChunkLocationUuidMap() const = 0;
     virtual const TChunkLocationUuidMap& ChunkLocationUuidMapShard(int shardIndex) const = 0;
+
+    // COMPAT(koloshmet)
+    virtual TInstant GetChunkLocationLastSeenTime(const TChunkLocation& location) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDataNodeTracker)

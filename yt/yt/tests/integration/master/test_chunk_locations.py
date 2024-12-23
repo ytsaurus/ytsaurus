@@ -139,6 +139,53 @@ class TestChunkLocationsMulticell(TestChunkLocations):
 ##################################################################
 
 
+class TestDanglingChunkLocationsCleaning(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 3
+
+    PATCHED_NODE_CONFIGS = []
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        cls.PATCHED_NODE_CONFIGS.append(config)
+
+    @authors("koloshmet")
+    def test_clean_dangling_locations(self):
+        wait(lambda: len(ls("//sys/chunk_locations")) == self.NUM_NODES)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            for node_config in self.PATCHED_NODE_CONFIGS:
+                node_config["data_node"]["store_locations"][0]["reset_uuid"] = True
+            self.Env.rewrite_node_configs()
+
+        def location_stats():
+            locations = ls("//sys/chunk_locations", attributes=["state"])
+            return len(locations), sum(1 for location in locations if location.attributes["state"] == "dangling")
+
+        wait(lambda: location_stats() == (self.NUM_NODES * 2, self.NUM_NODES))
+
+        cleaning_limit = 2
+
+        location_cleaner = "//sys/@config/chunk_manager/data_node_tracker/dangling_location_cleaner/{}"
+        set(location_cleaner.format("cleanup_period"), 1000)
+        set(location_cleaner.format("expiration_timeout"), 2000)
+        set(location_cleaner.format("max_locations_to_clean_per_iteration"), cleaning_limit)
+        set(location_cleaner.format("enable"), True)
+
+        wait(lambda: location_stats() == (self.NUM_NODES * 2 - cleaning_limit, self.NUM_NODES - cleaning_limit))
+
+        wait(lambda: location_stats() == (self.NUM_NODES, 0))
+
+
+##################################################################
+
+
+class TestDanglingChunkLocationsCleaningMulticell(TestDanglingChunkLocationsCleaning):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+##################################################################
+
+
 class TestPerLocationNodeDisposal(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_NODES = 6

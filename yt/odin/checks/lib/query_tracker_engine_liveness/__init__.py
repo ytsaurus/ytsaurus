@@ -18,8 +18,13 @@ TABLE_EXPIRATION_TIMEOUT_MILLISECONDS = 360 * 1000
 
 
 def get_query_state(yt_client, query_id, stage):
-    query = yt_client.get_query(query_id, attributes=["state", "error"], stage=stage)
+    query = yt_client.get_query(query_id, attributes=["state"], stage=stage)
     return query["state"]
+
+
+def get_query_progress(yt_client, query_id, stage):
+    query = yt_client.get_query(query_id, attributes=["progress"], stage=stage)
+    return query["progress"]
 
 
 def check_failed_state(state):
@@ -62,6 +67,7 @@ def run_check_impl(
     engine,
     query,
     data,
+    progress_check=None,
     settings={},
 ):
     temp_path = TEMP_PATH
@@ -96,13 +102,21 @@ def run_check_impl(
             result_bytes = query_tracker_client.read_query_result(query_id, 0, stage=stage, raw=True, format="yson").read()
             result = list(yson.loads(result_bytes, yson_type="list_fragment"))
 
-            if result != data.result_data:
+            progress_is_ok = True
+            if progress_check:
+                progress = get_query_progress(query_tracker_client, query_id, stage)
+                progress_is_ok, error = progress_check(query_id, progress)
+                if not progress_is_ok:
+                    check_result = states.UNAVAILABLE_STATE
+                    logger.error(error)
+
+            if progress_is_ok and result != data.result_data:
                 check_result = states.UNAVAILABLE_STATE
                 logger.error("Query %s returned an incorrect result; expected:\n%s\nreceived:\n%s", query_id, data.result_data, result)
-            elif query_execution_time > soft_timeout:
+            elif progress_is_ok and query_execution_time > soft_timeout:
                 check_result = states.PARTIALLY_AVAILABLE_STATE
                 logger.error("Query %s finished correctly, but took more than %d seconds to complete", query_id, soft_timeout)
-            else:
+            elif progress_is_ok:
                 check_result = states.FULLY_AVAILABLE_STATE
                 logger.info("Query %s finished correctly", query_id)
 

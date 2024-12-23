@@ -121,18 +121,16 @@ private:
         return false;
     }
 
-    void DoBeginCopy(
+    void DoSerializeNode(
         TRootstockNode* /*node*/,
-        TBeginCopyContext* /*context*/) override
+        TSerializeNodeContext* /*context*/) override
     {
         THROW_ERROR_EXCEPTION("Cross-cell copying of rootstocks is not supported");
     }
 
-    void DoEndCopy(
+    void DoMaterializeNode(
         TRootstockNode* /*trunkNode*/,
-        TEndCopyContext* /*context*/,
-        ICypressNodeFactory* /*factory*/,
-        IAttributeDictionary* /*inheritedAttributes*/) override
+        TMaterializeNodeContext* /*context*/) override
     {
         THROW_ERROR_EXCEPTION("Cross-cell copying of rootstocks is not supported");
     }

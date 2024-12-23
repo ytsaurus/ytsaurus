@@ -331,39 +331,11 @@ indexed_sorted_spec = merge_specs(spec_template, {
     "replicated": Opaque(),
 })
 
-secondary_index_sorted_spec = merge_specs(spec_template, {
-    "table_type": "sorted",
-    "chunk_format": Variable(["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"], VariationPolicy.PickRandom),
-    "in_memory_mode": "none",
-    "erasure_codec": "none",
-    "hunk_erasure_codec": "none",
-    "compression_codec": "none",
-
-    "size": {
-        "tablet_count": 2,
-    },
-
-    "prepare_table_via_alter": False,
-
-    "sorted": {
-        "enable_lookup_hash_table": False,
-        "enable_data_node_lookup": False,
-        "write_policy": "insert_rows",
-    },
-    "ordered": None,
-    "index": {
-        "kind": "full_sync"
-    },
-    "replicated": Opaque(),
-    "mapreduce": False,
-})
-
 presets = {
     "full": spec_template,
     "simple_sorted": simple_sorted_spec,
     "simple_ordered": simple_ordered_spec,
     "indexed_sorted": indexed_sorted_spec,
-    "secondary_index_sorted": secondary_index_sorted_spec,
 }
 
 ##################################################################
@@ -478,7 +450,10 @@ class Spec():
     # Helpers for accessing attributes that may be calculated implicitly.
     def get_write_user_slot_count(self):
         if self.size.write_user_slot_count is not None:
-            return self.size.write_user_slot_count
+            return self.size.write_user_slot_count,
+
+
+
         if self.size.bundle_node_count is not None:
             return self.size.bundle_node_count * self.write_user_slots_per_node
         return None

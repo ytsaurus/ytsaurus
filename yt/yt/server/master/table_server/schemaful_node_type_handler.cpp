@@ -90,24 +90,22 @@ void TSchemafulNodeTypeHandlerBase<TImpl>::DoClone(
 }
 
 template <class TImpl>
-void TSchemafulNodeTypeHandlerBase<TImpl>::DoBeginCopy(
+void TSchemafulNodeTypeHandlerBase<TImpl>::DoSerializeNode(
     TImpl* schemafulNode,
-    NCypressServer::TBeginCopyContext* context)
+    NCypressServer::TSerializeNodeContext* context)
 {
-    TBase::DoBeginCopy(schemafulNode, context);
+    TBase::DoSerializeNode(schemafulNode, context);
 
     Save(*context, schemafulNode->GetSchema());
     Save(*context, schemafulNode->GetSchemaMode());
 }
 
 template <class TImpl>
-void TSchemafulNodeTypeHandlerBase<TImpl>::DoEndCopy(
+void TSchemafulNodeTypeHandlerBase<TImpl>::DoMaterializeNode(
     TImpl* schemafulNode,
-    NCypressServer::TEndCopyContext* context,
-    NCypressServer::ICypressNodeFactory* factory,
-    IAttributeDictionary* inheritedAttributes)
+    NCypressServer::TMaterializeNodeContext* context)
 {
-    TBase::DoEndCopy(schemafulNode, context, factory, inheritedAttributes);
+    TBase::DoMaterializeNode(schemafulNode, context);
 
     const auto& tableManager = this->GetBootstrap()->GetTableManager();
     auto* schema = Load<TMasterTableSchema*>(*context);

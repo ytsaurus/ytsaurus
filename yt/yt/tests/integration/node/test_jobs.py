@@ -308,11 +308,8 @@ class TestAllocationWithTwoJobs(YTEnvSetup):
 
     @authors("pogorelov")
     def test_simple(self):
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
-
-        set("//tmp/t_in" + "/@replication_factor", 1)
-        set("//tmp/t_out" + "/@replication_factor", 1)
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
 
         write_table("//tmp/t_in", [{"foo": "bar"}] * 2)
 

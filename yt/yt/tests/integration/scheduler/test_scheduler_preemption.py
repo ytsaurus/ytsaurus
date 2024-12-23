@@ -606,7 +606,7 @@ class TestSchedulerPreemption(YTEnvSetup):
     @authors("eshcherbin")
     def test_job_preemption_order(self):
         update_scheduler_config("min_spare_allocation_resources_on_node", {"cpu": 0.5, "user_slots": 1}, wait_for_orchid=False)
-        update_scheduler_config("operation_hangup_check_period", 1000000000)
+        update_scheduler_config("operation_stuck_check", {"period": 1000000000})
 
         create_pool("production", attributes={"strong_guarantee_resources": {"cpu": 3.0}})
         create_pool(
@@ -1004,7 +1004,9 @@ class TestPreemptionPriorityScope(YTEnvSetup):
         "scheduler": {
             "running_allocations_update_period": 10,
             "fair_share_update_period": 100,
-            "operation_hangup_check_period": 1000000000,
+            "operation_stuck_check": {
+                "period": 1000000000,
+            },
         },
     }
 
@@ -1643,7 +1645,7 @@ class TestIncreasedStarvationToleranceForFullySatisfiedDemand(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_increase_for_operation(self):
-        update_scheduler_config("operation_hangup_check_period", 1000000000)
+        update_scheduler_config("operation_stuck_check", {"period": 1000000000})
 
         create_pool("regular_pool", attributes={"strong_guarantee_resources": {"cpu": 1.0}})
         create_pool("starving_pool", attributes={"strong_guarantee_resources": {"cpu": 9.0}})
@@ -1660,7 +1662,7 @@ class TestIncreasedStarvationToleranceForFullySatisfiedDemand(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_no_increase_for_pool(self):
-        update_scheduler_config("operation_hangup_check_period", 1000000000)
+        update_scheduler_config("operation_stuck_check", {"period": 1000000000})
 
         create_pool("pool")
 
@@ -1857,7 +1859,7 @@ class TestSsdPriorityPreemption(BaseTestDiskPreemption):
     def _run_sleeping_vanilla_with_unpreemptible_jobs_at_ssd_nodes(self):
         # NB: Needed to disable sanity checks.
         update_controller_agent_config("safe_online_node_count", TestSsdPriorityPreemption.NUM_NODES + 1)
-        update_scheduler_config("operation_hangup_check_period", 1000000000)
+        update_scheduler_config("operation_stuck_check", {"period": 1000000000})
 
         nodes = ls("//sys/cluster_nodes")
         for node in nodes:

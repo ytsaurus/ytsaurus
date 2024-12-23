@@ -13,6 +13,8 @@ SRCS(
 
 PEERDIR(
     yt/yt/library/server_program
+    yt/yt/library/monitoring
+
     yt/yt/server/lib
     yt/yt/server/lib/hydra
     yt/yt/server/lib/hive

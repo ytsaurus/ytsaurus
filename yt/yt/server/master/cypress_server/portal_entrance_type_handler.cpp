@@ -127,25 +127,22 @@ private:
         return false;
     }
 
-    void DoBeginCopy(
+    void DoSerializeNode(
         TPortalEntranceNode* node,
-        TBeginCopyContext* context) override
+        TSerializeNodeContext* context) override
     {
-        TBase::DoBeginCopy(node, context);
+        TBase::DoSerializeNode(node, context);
 
         using NYT::Save;
         auto exitId = MakePortalExitNodeId(node->GetId(), node->GetExitCellTag());
         Save(*context, exitId);
-        context->RegisterPortalRoot(exitId);
     }
 
-    void DoEndCopy(
+    void DoMaterializeNode(
         TPortalEntranceNode* trunkNode,
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        IAttributeDictionary* inheritedAttributes) override
+        TMaterializeNodeContext* context) override
     {
-        TBase::DoEndCopy(trunkNode, context, factory, inheritedAttributes);
+        TBase::DoMaterializeNode(trunkNode, context);
 
         // TODO(babenko): cross-cell copying of portals
         THROW_ERROR_EXCEPTION("Cross-cell copying of portals is not supported");

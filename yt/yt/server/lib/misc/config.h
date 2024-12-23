@@ -6,11 +6,11 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/ytlib/program/config.h>
-
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/library/profiling/solomon/public.h>
+
+#include <yt/yt/library/program/config.h>
 
 #include <yt/yt/core/net/address.h>
 
@@ -60,7 +60,6 @@ DEFINE_REFCOUNTED_TYPE(TServerConfig)
 
 class TNativeServerConfig
     : public TServerConfig
-    , public TNativeSingletonsConfig
 {
 public:
     NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;

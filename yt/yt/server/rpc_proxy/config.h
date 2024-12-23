@@ -157,6 +157,8 @@ public:
 
     bool EnableShuffleService;
 
+    THeapProfilerConfigPtr HeapProfiler;
+
     REGISTER_YSON_STRUCT(TProxyConfig);
 
     static void Register(TRegistrar registrar);
@@ -167,7 +169,7 @@ DEFINE_REFCOUNTED_TYPE(TProxyConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProxyDynamicConfig
-    : public TNativeSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     TApiServiceDynamicConfigPtr Api;

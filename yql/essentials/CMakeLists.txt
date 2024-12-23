@@ -14,3 +14,12 @@
 
 add_subdirectory(public)
 add_subdirectory(utils)
+add_subdirectory(ast)
+add_subdirectory(core)
+add_subdirectory(parser)
+add_subdirectory(protos)
+add_subdirectory(minikql)
+add_subdirectory(types)
+add_subdirectory(sql)
+add_subdirectory(providers)
+add_subdirectory(udfs)

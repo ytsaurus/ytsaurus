@@ -567,9 +567,7 @@ message TRspGetColumnarStatistics
     {
         optional NYT.NProto.TError error = 1;
 
-        // COMPAT(denvid): These fields are deprecated and should be removed once all clusters are 23.2+.
-        repeated int64 column_data_weights = 2;
-        optional int64 timestamp_total_weight = 3;
+        reserved 2, 3;
 
         optional NYT.NTableClient.NProto.TColumnarStatisticsExt columnar_statistics = 4;
         optional NYT.NTableClient.NProto.TLargeColumnarStatisticsExt large_columnar_statistics = 5;

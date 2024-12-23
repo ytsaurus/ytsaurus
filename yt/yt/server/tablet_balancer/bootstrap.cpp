@@ -84,8 +84,6 @@ public:
             .Run()
             .Get()
             .ThrowOnError();
-
-        Sleep(TDuration::Max());
     }
 
     const NNative::IClientPtr& GetClient() const override

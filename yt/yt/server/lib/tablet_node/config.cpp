@@ -1125,6 +1125,9 @@ void TTabletNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("tablet_snapshot_eviction_timeout", &TThis::TabletSnapshotEvictionTimeout)
         .Default(TDuration::Seconds(5));
 
+    registrar.Parameter("alien_cluster_client_cache_eviction_period", &TThis::AlienClusterClientCacheEvictionPeriod)
+        .Default(TDuration::Days(1));
+
     registrar.Parameter("column_evaluator_cache", &TThis::ColumnEvaluatorCache)
         .DefaultNew();
 

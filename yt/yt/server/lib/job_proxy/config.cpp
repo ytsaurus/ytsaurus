@@ -2,6 +2,8 @@
 
 #include <yt/yt/library/profiling/solomon/config.h>
 
+#include <yt/yt/library/stockpile/config.h>
+
 namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -393,7 +395,8 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
         config->SolomonExporter->EnableSelfProfiling = false;
         config->SolomonExporter->WindowSize = 1;
 
-        config->Stockpile->ThreadCount = 0;
+        auto stockpileConfig = config->GetSingletonConfig<TStockpileConfig>();
+        stockpileConfig->ThreadCount = 0;
     });
 }
 

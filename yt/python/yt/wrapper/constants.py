@@ -6,8 +6,8 @@ try:
         OAUTH_URL,
         UI_ADDRESS_PATTERN,
         SKYNET_MANAGER_URL,
-        GETTINGSTARTED_DOC_URL,
         TUTORIAL_DOC_URL,
+        DOC_ROOT_URL,
         YSON_PACKAGE_INSTALLATION_TEXT,
         RPC_PACKAGE_INSTALLATION_TEXT,
         PICKLING_DL_ENABLE_AUTO_COLLECTION,
@@ -20,8 +20,8 @@ except ImportError:
     OAUTH_URL = ""
     UI_ADDRESS_PATTERN = ""
     SKYNET_MANAGER_URL = "{cluster_name}"
-    GETTINGSTARTED_DOC_URL = "<TODO>"
-    TUTORIAL_DOC_URL = "<TODO>"
+    DOC_ROOT_URL = "https://ytsaurus.tech/docs/en"
+    TUTORIAL_DOC_URL = "https://ytsaurus.tech/docs/en/overview/try-yt"
     YSON_PACKAGE_INSTALLATION_TEXT = 'as pip package "ytsaurus-yson"'
     RPC_PACKAGE_INSTALLATION_TEXT = 'as pip package "ytsaurus-rpc-driver"'
     PICKLING_DL_ENABLE_AUTO_COLLECTION = True

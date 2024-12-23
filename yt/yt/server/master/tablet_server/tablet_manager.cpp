@@ -1961,7 +1961,7 @@ public:
             account);
     }
 
-    void ValidateBeginCopyTabletOwner(
+    void ValidateSerializeTabletOwner(
         TTabletOwnerBase* sourceNode,
         ENodeCloneMode mode)
     {
@@ -1974,13 +1974,13 @@ public:
         }
 
         if (IsTableType(sourceNode->GetType())) {
-            ValidateBeginCopyTable(sourceNode->As<TTableNode>(), mode);
+            ValidateSerializeTable(sourceNode->As<TTableNode>(), mode);
         } else {
             YT_ABORT();
         }
     }
 
-    void ValidateBeginCopyTable(
+    void ValidateSerializeTable(
         TTableNode* sourceTable,
         ENodeCloneMode mode)
     {
@@ -2494,7 +2494,7 @@ public:
             : nullptr;
     }
 
-    TTabletCellBundle* GetTabletCellBundleOrThrow(TTabletCellBundleId id)
+    TTabletCellBundle* GetTabletCellBundleOrThrow(TTabletCellBundleId id, bool activeLifeStageOnly)
     {
         auto* cellBundle = FindTabletCellBundle(id);
         if (!cellBundle) {
@@ -2503,6 +2503,12 @@ public:
                 "No such tablet cell bundle %v",
                 id);
         }
+
+        if (activeLifeStageOnly) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->ValidateObjectLifeStage(cellBundle);
+        }
+
         return cellBundle;
     }
 
@@ -7744,11 +7750,11 @@ void TTabletManager::ValidateCloneTabletOwner(
         account);
 }
 
-void TTabletManager::ValidateBeginCopyTabletOwner(
+void TTabletManager::ValidateSerializeTabletOwner(
     TTabletOwnerBase* sourceNode,
     ENodeCloneMode mode)
 {
-    return Impl_->ValidateBeginCopyTabletOwner(
+    return Impl_->ValidateSerializeTabletOwner(
         sourceNode,
         mode);
 }
@@ -7800,9 +7806,9 @@ TTabletCell* TTabletManager::GetTabletCellOrThrow(TTabletCellId id)
     return Impl_->GetTabletCellOrThrow(id);
 }
 
-TTabletCellBundle* TTabletManager::GetTabletCellBundleOrThrow(TTabletCellBundleId id)
+TTabletCellBundle* TTabletManager::GetTabletCellBundleOrThrow(TTabletCellBundleId id, bool activeLifeStageOnly)
 {
-    return Impl_->GetTabletCellBundleOrThrow(id);
+    return Impl_->GetTabletCellBundleOrThrow(id, activeLifeStageOnly);
 }
 
 TTabletCellBundle* TTabletManager::FindTabletCellBundle(TTabletCellBundleId id)

@@ -736,7 +736,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        const auto neededResources = resourceHolder->InitialResourceDemand_;
+        // COMPAT(pogorelov): Use InitialResourceDemand_ when UpdateResourceDemand is removed.
+        // const auto neededResources = resourceHolder->InitialResourceDemand_;
+        const auto neededResources = resourceHolder->GetResourceUsage();
         const auto& allocationAttributes = resourceHolder->AllocationAttributes_;
 
         const auto& Logger = resourceHolder->GetLogger();

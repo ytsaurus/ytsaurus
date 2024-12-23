@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include<yt/yt/client/cypress_client/public.h>
+#include <yt/yt/client/cypress_client/public.h>
 
 #include <yt/yt/core/ytree/attribute_filter.h>
 #include <yt/yt/core/ytree/ypath_proxy.h>

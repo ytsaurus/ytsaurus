@@ -110,7 +110,7 @@ DEFINE_REFCOUNTED_TYPE(TSequoiaResponseKeeperDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressProxyDynamicConfig
-    : public TNativeSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     TObjectServiceDynamicConfigPtr ObjectService;

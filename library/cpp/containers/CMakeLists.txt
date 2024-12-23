@@ -13,5 +13,9 @@
 # changes in this file.
 
 add_subdirectory(absl_flat_hash)
-add_subdirectory(stack_array)
 add_subdirectory(paged_vector)
+add_subdirectory(stack_array)
+add_subdirectory(sorted_vector)
+add_subdirectory(stack_vector)
+add_subdirectory(2d_array)
+add_subdirectory(intrusive_rb_tree)

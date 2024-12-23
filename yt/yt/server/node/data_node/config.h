@@ -635,9 +635,6 @@ class TRemoveChunkJobDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    // COMPAT(danilalexeev)
-    bool WaitForIncrementalHeartbeatBarrier;
-
     std::optional<TDuration> DelayBeforeStartRemoveChunk;
 
     REGISTER_YSON_STRUCT(TRemoveChunkJobDynamicConfig);

@@ -58,6 +58,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/bus/tcp/config.h>
+
 namespace NYT::NCellMaster {
 
 using namespace NObjectClient;

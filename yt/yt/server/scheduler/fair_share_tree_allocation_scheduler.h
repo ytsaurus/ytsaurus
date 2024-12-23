@@ -646,14 +646,12 @@ public:
         TInstant now,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const;
 
-    static TError CheckOperationIsHung(
+    static TError CheckOperationIsStuck(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
         const TSchedulerOperationElement* element,
         TInstant now,
         TInstant activationTime,
-        TDuration safeTimeout,
-        int minScheduleAllocationCallAttempts,
-        const THashSet<EDeactivationReason>& deactivationReasons);
+        const TOperationStuckCheckOptionsPtr& options);
 
     static void BuildOperationProgress(
         const TFairShareTreeSnapshotPtr& treeSnapshot,

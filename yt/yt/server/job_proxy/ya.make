@@ -34,6 +34,7 @@ SRCS(
 PEERDIR(
     library/cpp/getopt
     library/cpp/yt/phdr_cache
+    library/cpp/yt/mlock
     yt/yt/server/lib
 
     # TODO(levysotsky): Remove together with renaming code in job proxy.
@@ -47,6 +48,8 @@ PEERDIR(
     yt/yt/server/lib/user_job
     yt/yt/library/sparse_coredump
     yt/yt/library/query/row_comparer
+    yt/yt/library/profiling/solomon
+    yt/yt/library/tracing/jaeger
 )
 
 END()

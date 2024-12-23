@@ -3,9 +3,10 @@
 #include "key_info.h"
 #include "key_store.h"
 #include "private.h"
-#include "signature.h"
 #include "signature_preprocess.h"
 #include "signature_header.h"
+
+#include <yt/yt/client/signature/signature.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
@@ -72,7 +73,7 @@ TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature)
                 signature = std::move(signature)
             ] (const TKeyInfoPtr& keyInfo) {
                 if (!keyInfo) {
-                    YT_LOG_DEBUG(
+                    YT_LOG_WARNING(
                         "Key not found (SignatureId: %v, Issuer: %v, KeyPair: %v)",
                         signatureId,
                         keyIssuer,
@@ -82,17 +83,26 @@ TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature)
 
                 auto toSign = PreprocessSignature(signature->Header_, signature->Payload());
 
-                if (!keyInfo->Verify(toSign, signature->Signature_)) {
-                    YT_LOG_DEBUG("Cryptographic verification failed (SignatureId: %v)", signatureId);
+                if (signature->Signature_.size() != SignatureSize) {
+                    YT_LOG_WARNING(
+                        "Signature size mismatch (SignatureId: %v, ReceivedSize: %v, ExpectedSize: %v)",
+                        signatureId,
+                        signature->Signature_.size(),
+                        SignatureSize);
+                    return false;
+                }
+                std::span<const std::byte, SignatureSize> signatureSpan(signature->Signature_);
+                if (!keyInfo->Verify(toSign, signatureSpan)) {
+                    YT_LOG_WARNING("Cryptographic verification failed (SignatureId: %v)", signatureId);
                     return false;
                 }
 
                 if (!std::visit(TMetadataCheckVisitor{}, header)) {
-                    YT_LOG_DEBUG("Metadata check failed (SignatureId: %v)", signatureId);
+                    YT_LOG_WARNING("Metadata check failed (SignatureId: %v)", signatureId);
                     return false;
                 }
 
-                YT_LOG_TRACE("Successfully validated (SignatureId: %v)", signatureId);
+                YT_LOG_DEBUG("Successfully validated (SignatureId: %v)", signatureId);
                 return true;
             }));
 }

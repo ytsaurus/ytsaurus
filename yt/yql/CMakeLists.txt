@@ -14,3 +14,5 @@
 
 add_subdirectory(agent)
 add_subdirectory(plugin)
+add_subdirectory(tests)
+add_subdirectory(providers)

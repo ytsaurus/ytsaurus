@@ -16,10 +16,6 @@
     "intranet/yandex_directory/": "intranet/yandex_directory/pyproject.toml",
     "games/admin": "games/admin/pyproject.toml",
     "games/backend": "games/admin/pyproject.toml",
-    "yandex360/backend/b2b_platform": "yandex360/backend/b2b_platform/pyproject.toml",
     "quality/antifraud/security": "quality/antifraud/security/pyproject.toml",
-    "dj/services/inspire": "dj/services/inspire/pyproject.toml",
-    "hrtech/backend/events_crm": "hrtech/backend/events_crm/pyproject.toml",
-    "ml/dod": "ml/dod/pyproject.toml",
-    "intranet/crt/monolith": "intranet/crt/monolith/pyproject.toml"
+    "ml/dod": "ml/dod/pyproject.toml"
 }

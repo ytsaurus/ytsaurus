@@ -11,6 +11,8 @@
 
 #include <yt/yt/library/query/base/private.h>
 
+#include <yt/yt/library/query/engine/time/dates.h>
+
 #include <yt/yt/library/query/engine_api/position_independent_value.h>
 #include <yt/yt/library/query/engine_api/position_independent_value_transfer.h>
 
@@ -3855,6 +3857,12 @@ struct RegisterLLVMRoutine
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define REGISTER_TIME_ROUTINE(routine) \
+    REGISTER_ROUTINE(routine); \
+    REGISTER_ROUTINE(routine ## Localtime)
+
+////////////////////////////////////////////////////////////////////////////////
+
 REGISTER_ROUTINE(WriteRow);
 REGISTER_ROUTINE(InsertGroupRow);
 REGISTER_ROUTINE(ScanOpHelper);
@@ -3932,6 +3940,13 @@ REGISTER_ROUTINE(CompareYsonValuesHelper);
 REGISTER_ROUTINE(HashYsonValueHelper);
 REGISTER_ROUTINE(CompareAny);
 REGISTER_ROUTINE(ValidateYsonHelper);
+REGISTER_TIME_ROUTINE(TimestampFloorHour);
+REGISTER_TIME_ROUTINE(TimestampFloorDay);
+REGISTER_TIME_ROUTINE(TimestampFloorWeek);
+REGISTER_TIME_ROUTINE(TimestampFloorMonth);
+REGISTER_TIME_ROUTINE(TimestampFloorQuarter);
+REGISTER_TIME_ROUTINE(TimestampFloorYear);
+REGISTER_ROUTINE(FormatTimestamp);
 
 REGISTER_ROUTINE(memcmp);
 REGISTER_ROUTINE(gmtime_r);

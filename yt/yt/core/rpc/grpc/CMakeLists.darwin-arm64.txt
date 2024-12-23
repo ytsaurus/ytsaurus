@@ -82,3 +82,34 @@ target_proto_addincls(core-rpc-grpc
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
+add_global_library_for(core-rpc-grpc.global
+  core-rpc-grpc)
+
+
+target_compile_options(core-rpc-grpc.global PRIVATE
+  -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
+)
+
+target_include_directories(core-rpc-grpc.global PUBLIC
+  ${PROJECT_BINARY_DIR}/yt
+)
+
+target_include_directories(core-rpc-grpc.global PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc
+)
+
+target_link_libraries(core-rpc-grpc.global PUBLIC
+  contrib-libs-cxxsupp
+  yutil
+  yt-yt-core
+  contrib-libs-grpc
+  cpp-string_utils-quote
+  contrib-libs-protobuf
+)
+
+target_sources(core-rpc-grpc.global PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/grpc/configure_dispatcher.cpp
+)
+

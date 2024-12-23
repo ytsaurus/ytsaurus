@@ -29,4 +29,13 @@ void TSignatureValidatorConfig::Register(TRegistrar /*registrar*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TKeyRotatorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("key_rotation_interval", &TThis::KeyRotationInterval)
+        .Default(TDuration::Days(1))
+        .GreaterThan(TDuration::MilliSeconds(100));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NSignature

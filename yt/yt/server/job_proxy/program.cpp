@@ -11,8 +11,6 @@
 #include <yt/yt/library/program/program_setsid_mixin.h>
 #include <yt/yt/library/program/helpers.h>
 
-#include <yt/yt/ytlib/program/native_singletons.h>
-
 #include <yt/yt/server/lib/job_proxy/config.h>
 
 #include <yt/yt/core/misc/fs.h>
@@ -46,19 +44,27 @@ public:
         , TProgramSetsidMixin(Opts_)
     {
         Opts_
-            .AddLongOption("operation-id", "operation id")
+            .AddLongOption(
+                "operation-id",
+                "Operation id")
             .StoreMappedResultT<TString>(&OperationId_, &TJobProxyProgram::CheckOperationIdArgMapper)
             .RequiredArgument("ID");
         Opts_
-            .AddLongOption("job-id", "job id")
+            .AddLongOption(
+                "job-id",
+                "Job id")
             .StoreMappedResultT<TString>(&JobId_, &TJobProxyProgram::CheckJobIdArgMapper)
             .RequiredArgument("ID");
         Opts_
-            .AddLongOption("stderr-path", "stderr path")
+            .AddLongOption(
+                "stderr-path",
+                "Stderr path")
             .StoreResult(&StderrPath_)
             .Optional();
         Opts_
-            .AddLongOption("do-not-close-descriptors", "disable machinery to close desctiptors on startup")
+            .AddLongOption(
+                "do-not-close-descriptors",
+                "Do not close descriptors on startup")
             .NoArgument()
             .SetFlag(&DoNotCloseDescriptors_)
             .Optional();
@@ -96,7 +102,7 @@ protected:
 
         auto config = GetConfig();
 
-        ConfigureNativeSingletons(config);
+        ConfigureSingletons(config);
 
         auto jobProxy = New<TJobProxy>(std::move(config), OperationId_, JobId_);
         jobProxy->Run();

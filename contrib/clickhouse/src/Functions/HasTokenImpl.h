@@ -51,8 +51,8 @@ struct HasTokenImpl
         {
             if (res_null)
             {
-                std::fill(res.begin(), res.end(), 0);
-                std::fill(res_null->getData().begin(), res_null->getData().end(), true);
+                std::ranges::fill(res, 0);
+                std::ranges::fill(res_null->getData(), true);
                 return;
             }
             else if (has_separator)
@@ -66,7 +66,7 @@ struct HasTokenImpl
         size_t pattern_size = pattern.size();
         Searcher searcher(pattern.data(), pattern_size, end - pos);
         if (res_null)
-            std::fill(res_null->getData().begin(), res_null->getData().end(), false);
+            std::ranges::fill(res_null->getData(), false);
 
         /// The current index in the array of strings.
         size_t i = 0;

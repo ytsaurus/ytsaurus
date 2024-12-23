@@ -82,6 +82,8 @@
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/producer.h>
 
+#include <yt/yt/library/tcmalloc/config.h>
+
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
@@ -105,6 +107,8 @@
 
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
+
+#include <yt/yt/core/logging/config.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
@@ -2908,56 +2912,56 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto proxyConfig = CloneYsonStruct(Bootstrap_->GetJobProxyConfigTemplate());
+    auto proxyInternalConfig = CloneYsonStruct(Bootstrap_->GetJobProxyConfigTemplate());
     auto localDescriptor = Bootstrap_->GetLocalDescriptor();
-    proxyConfig->DataCenter = localDescriptor.GetDataCenter();
-    proxyConfig->Rack = localDescriptor.GetRack();
-    proxyConfig->Addresses = localDescriptor.Addresses();
+    proxyInternalConfig->DataCenter = localDescriptor.GetDataCenter();
+    proxyInternalConfig->Rack = localDescriptor.GetRack();
+    proxyInternalConfig->Addresses = localDescriptor.Addresses();
 
-    proxyConfig->LocalHostName = Bootstrap_->GetLocalHostName();
+    proxyInternalConfig->LocalHostName = Bootstrap_->GetLocalHostName();
 
-    proxyConfig->BusServer = GetUserSlot()->GetBusServerConfig();
+    proxyInternalConfig->BusServer = GetUserSlot()->GetBusServerConfig();
 
-    proxyConfig->TmpfsManager = New<TTmpfsManagerConfig>();
-    proxyConfig->TmpfsManager->TmpfsPaths = TmpfsPaths_;
+    proxyInternalConfig->TmpfsManager = New<TTmpfsManagerConfig>();
+    proxyInternalConfig->TmpfsManager->TmpfsPaths = TmpfsPaths_;
 
-    proxyConfig->MemoryTracker = New<TMemoryTrackerConfig>();
+    proxyInternalConfig->MemoryTracker = New<TMemoryTrackerConfig>();
     if (UserJobSpec_) {
-        proxyConfig->MemoryTracker->IncludeMemoryMappedFiles = UserJobSpec_->include_memory_mapped_files();
-        proxyConfig->MemoryTracker->UseSMapsMemoryTracker = UserJobSpec_->use_smaps_memory_tracker();
+        proxyInternalConfig->MemoryTracker->IncludeMemoryMappedFiles = UserJobSpec_->include_memory_mapped_files();
+        proxyInternalConfig->MemoryTracker->UseSMapsMemoryTracker = UserJobSpec_->use_smaps_memory_tracker();
     } else {
-        proxyConfig->MemoryTracker->IncludeMemoryMappedFiles = true;
-        proxyConfig->MemoryTracker->UseSMapsMemoryTracker = false;
+        proxyInternalConfig->MemoryTracker->IncludeMemoryMappedFiles = true;
+        proxyInternalConfig->MemoryTracker->UseSMapsMemoryTracker = false;
     }
 
     if (UserJobSpec_ && UserJobSpec_->set_container_cpu_limit()) {
-        proxyConfig->ContainerCpuLimit = UserJobSpec_->container_cpu_limit();
-        if (*proxyConfig->ContainerCpuLimit <= 0) {
-            proxyConfig->ContainerCpuLimit = Allocation_->GetRequestedCpu();
+        proxyInternalConfig->ContainerCpuLimit = UserJobSpec_->container_cpu_limit();
+        if (*proxyInternalConfig->ContainerCpuLimit <= 0) {
+            proxyInternalConfig->ContainerCpuLimit = Allocation_->GetRequestedCpu();
         }
     }
 
     if (UserJobSpec_ && UserJobSpec_->slot_container_memory_limit()) {
-        proxyConfig->SlotContainerMemoryLimit = UserJobSpec_->slot_container_memory_limit();
+        proxyInternalConfig->SlotContainerMemoryLimit = UserJobSpec_->slot_container_memory_limit();
     }
 
-    proxyConfig->MemoryTracker->MemoryStatisticsCachePeriod = proxyConfig->MemoryTracker->UseSMapsMemoryTracker
+    proxyInternalConfig->MemoryTracker->MemoryStatisticsCachePeriod = proxyInternalConfig->MemoryTracker->UseSMapsMemoryTracker
         ? CommonConfig_->SMapsMemoryTrackerCachePeriod
         : CommonConfig_->MemoryTrackerCachePeriod;
 
-    proxyConfig->JobTestingOptions = JobTestingOptions_;
-    proxyConfig->SlotIndex = GetUserSlot()->GetSlotIndex();
-    proxyConfig->SlotPath = GetUserSlot()->GetSlotPath();
+    proxyInternalConfig->JobTestingOptions = JobTestingOptions_;
+    proxyInternalConfig->SlotIndex = GetUserSlot()->GetSlotIndex();
+    proxyInternalConfig->SlotPath = GetUserSlot()->GetSlotPath();
 
     if (RootVolume_) {
-        proxyConfig->RootPath = RootVolume_->GetPath();
+        proxyInternalConfig->RootPath = RootVolume_->GetPath();
     } else {
         // Pass docker image if root volume is not materialized yet.
-        proxyConfig->DockerImage = DockerImage_;
+        proxyInternalConfig->DockerImage = DockerImage_;
     }
 
     if (RootVolume_ || DockerImage_) {
-        proxyConfig->Binds = GetRootFsBinds();
+        proxyInternalConfig->Binds = GetRootFsBinds();
 
         for (const auto& artifact : Artifacts_) {
             // Artifact is passed into the job via bind.
@@ -2980,14 +2984,15 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
                 bind->InternalPath = targetPath;
                 bind->ReadOnly = true;
 
-                proxyConfig->Binds.push_back(std::move(bind));
+                proxyInternalConfig->Binds.push_back(std::move(bind));
             }
         }
     }
 
-    const auto& jobProxyConfig = Bootstrap_->GetConfig()->ExecNode->JobProxy;
+    const auto& proxyConfig = Bootstrap_->GetConfig()->ExecNode->JobProxy;
 
-    proxyConfig->Logging->UpdateWriters([&] (const IMapNodePtr& writerConfigNode) {
+    auto logManagerConfig = proxyInternalConfig->GetSingletonConfig<NLogging::TLogManagerConfig>();
+    logManagerConfig->UpdateWriters([&] (const IMapNodePtr& writerConfigNode) {
         auto writerConfig = ConvertTo<NLogging::TLogWriterConfigPtr>(writerConfigNode);
         if (writerConfig->Type != NLogging::TFileLogWriterConfig::WriterType) {
             return writerConfigNode;
@@ -2995,7 +3000,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
         auto fileLogWriterConfig = ConvertTo<NLogging::TFileLogWriterConfigPtr>(writerConfigNode);
 
-        if (jobProxyConfig->JobProxyLogging->Mode == EJobProxyLoggingMode::PerJobDirectory) {
+        if (proxyConfig->JobProxyLogging->Mode == EJobProxyLoggingMode::PerJobDirectory) {
             const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
             YT_VERIFY(jobProxyLogManager);
 
@@ -3005,36 +3010,36 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         return ConvertTo<IMapNodePtr>(fileLogWriterConfig);
     });
 
-    if (proxyConfig->StderrPath) {
-        if (jobProxyConfig->JobProxyLogging->Mode == EJobProxyLoggingMode::PerJobDirectory) {
+    if (proxyInternalConfig->StderrPath) {
+        if (proxyConfig->JobProxyLogging->Mode == EJobProxyLoggingMode::PerJobDirectory) {
             const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
             YT_VERIFY(jobProxyLogManager);
 
-            *proxyConfig->StderrPath = jobProxyLogManager->AdjustLogPath(Id_, *proxyConfig->StderrPath);
-            YT_LOG_DEBUG("Job proxy stderr path replaced (NewPath: %v)", *proxyConfig->StderrPath);
+            *proxyInternalConfig->StderrPath = jobProxyLogManager->AdjustLogPath(Id_, *proxyInternalConfig->StderrPath);
+            YT_LOG_DEBUG("Job proxy stderr path replaced (NewPath: %v)", *proxyInternalConfig->StderrPath);
         }
     }
 
-    if (proxyConfig->ExecutorStderrPath) {
-        if (jobProxyConfig->JobProxyLogging->Mode == EJobProxyLoggingMode::PerJobDirectory) {
+    if (proxyInternalConfig->ExecutorStderrPath) {
+        if (proxyConfig->JobProxyLogging->Mode == EJobProxyLoggingMode::PerJobDirectory) {
             const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
             YT_VERIFY(jobProxyLogManager);
 
-            *proxyConfig->ExecutorStderrPath = jobProxyLogManager->AdjustLogPath(Id_, *proxyConfig->ExecutorStderrPath);
-            YT_LOG_DEBUG("Executor stderr path replaced (NewPath: %v)", *proxyConfig->ExecutorStderrPath);
+            *proxyInternalConfig->ExecutorStderrPath = jobProxyLogManager->AdjustLogPath(Id_, *proxyInternalConfig->ExecutorStderrPath);
+            YT_LOG_DEBUG("Executor stderr path replaced (NewPath: %v)", *proxyInternalConfig->ExecutorStderrPath);
 
         }
     }
 
     for (const auto& slot : GetGpuSlots()) {
-        proxyConfig->GpuIndexes.push_back(slot->GetDeviceIndex());
+        proxyInternalConfig->GpuIndexes.push_back(slot->GetDeviceIndex());
     }
 
     // COMPAT(artemagafonov): RootFS is always writable, so the flag should be removed after the update of all nodes.
-    proxyConfig->MakeRootFSWritable = true;
+    proxyInternalConfig->MakeRootFSWritable = true;
 
     // TODO(ignat): add option to disable fuse within exec node.
-    proxyConfig->EnableFuse = UserJobSpec_ && UserJobSpec_->enable_fuse();
+    proxyInternalConfig->EnableFuse = UserJobSpec_ && UserJobSpec_->enable_fuse();
 
     std::vector<TIP6Address> ipAddresses;
     ipAddresses.reserve(ResolvedNodeAddresses_.size());
@@ -3048,23 +3053,23 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
                 .ToIP6Address();
             networkAddress->Name = addressName;
 
-            proxyConfig->NetworkAddresses.push_back(networkAddress);
+            proxyInternalConfig->NetworkAddresses.push_back(networkAddress);
             ipAddresses.push_back(networkAddress->Address);
         }
 
-        if (proxyConfig->NetworkAddresses.empty()) {
+        if (proxyInternalConfig->NetworkAddresses.empty()) {
             THROW_ERROR_EXCEPTION("No IPv6 node addresses were resolved");
         }
 
         if (UserJobSpec_ && UserJobSpec_->has_enable_nat64()) {
-            proxyConfig->EnableNat64 = UserJobSpec_->enable_nat64();
+            proxyInternalConfig->EnableNat64 = UserJobSpec_->enable_nat64();
         }
 
         if (UserJobSpec_ && UserJobSpec_->has_disable_network()) {
-            proxyConfig->DisableNetwork = UserJobSpec_->disable_network();
+            proxyInternalConfig->DisableNetwork = UserJobSpec_->disable_network();
         }
 
-        proxyConfig->HostName = Format("slot_%v.%v",
+        proxyInternalConfig->HostName = Format("slot_%v.%v",
             GetUserSlot()->GetSlotIndex(),
             Bootstrap_->GetConfig()->Addresses[0].second);
     } else {
@@ -3096,52 +3101,55 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     }
 
     if (auto proxyDynamicConfig = Bootstrap_->GetJobController()->GetJobProxyDynamicConfig()) {
-        proxyConfig->Jaeger = proxyConfig->Jaeger->ApplyDynamic(proxyDynamicConfig->Jaeger);
-        proxyConfig->EnableJobShellSeccopm = proxyDynamicConfig->EnableJobShellSeccopm;
-        proxyConfig->UsePortoKillForSignalling = proxyDynamicConfig->UsePortoKillForSignalling;
-        proxyConfig->ForceIdleCpuPolicy = proxyDynamicConfig->ForceIdleCpuPolicy;
-        proxyConfig->AbortOnUncaughtException = proxyDynamicConfig->AbortOnUncaughtException;
-        proxyConfig->EnableStderrAndCoreLivePreview = proxyDynamicConfig->EnableStderrAndCoreLivePreview;
-        proxyConfig->CheckUserJobOomKill = proxyDynamicConfig->CheckUserJobOomKill;
+        if (auto jaegerConfig = proxyInternalConfig->TryGetSingletonConfig<NTracing::TJaegerTracerConfig>()) {
+            proxyInternalConfig->SetSingletonConfig(jaegerConfig->ApplyDynamic(proxyDynamicConfig->Jaeger));
+        }
+        proxyInternalConfig->EnableJobShellSeccopm = proxyDynamicConfig->EnableJobShellSeccopm;
+        proxyInternalConfig->UsePortoKillForSignalling = proxyDynamicConfig->UsePortoKillForSignalling;
+        proxyInternalConfig->ForceIdleCpuPolicy = proxyDynamicConfig->ForceIdleCpuPolicy;
+        proxyInternalConfig->AbortOnUncaughtException = proxyDynamicConfig->AbortOnUncaughtException;
+        proxyInternalConfig->EnableStderrAndCoreLivePreview = proxyDynamicConfig->EnableStderrAndCoreLivePreview;
+        proxyInternalConfig->CheckUserJobOomKill = proxyDynamicConfig->CheckUserJobOomKill;
         if (proxyDynamicConfig->JobEnvironment) {
-            proxyConfig->JobEnvironment.MergeWith(proxyDynamicConfig->JobEnvironment);
+            proxyInternalConfig->JobEnvironment.MergeWith(proxyDynamicConfig->JobEnvironment);
         }
 
-        proxyConfig->TestingConfig = proxyDynamicConfig->TestingConfig;
+        proxyInternalConfig->TestingConfig = proxyDynamicConfig->TestingConfig;
 
-        proxyConfig->UseRetryingChannels = proxyDynamicConfig->UseRetryingChannels;
-        proxyConfig->RetryingChannel = proxyDynamicConfig->RetryingChannel;
-        proxyConfig->PipeReaderTimeoutThreshold = proxyDynamicConfig->PipeReaderTimeoutThreshold;
-        proxyConfig->AdaptiveRowCountUpperBound = proxyDynamicConfig->AdaptiveRowCountUpperBound;
+        proxyInternalConfig->UseRetryingChannels = proxyDynamicConfig->UseRetryingChannels;
+        proxyInternalConfig->RetryingChannel = proxyDynamicConfig->RetryingChannel;
+        proxyInternalConfig->PipeReaderTimeoutThreshold = proxyDynamicConfig->PipeReaderTimeoutThreshold;
+        proxyInternalConfig->AdaptiveRowCountUpperBound = proxyDynamicConfig->AdaptiveRowCountUpperBound;
 
-        proxyConfig->EnableCudaProfileEventStreaming = proxyDynamicConfig->EnableCudaProfileEventStreaming;
-        proxyConfig->JobTraceEventProcessor = proxyDynamicConfig->JobTraceEventProcessor;
+        proxyInternalConfig->EnableCudaProfileEventStreaming = proxyDynamicConfig->EnableCudaProfileEventStreaming;
+        proxyInternalConfig->JobTraceEventProcessor = proxyDynamicConfig->JobTraceEventProcessor;
 
         if (proxyDynamicConfig->MemoryProfileDumpPath) {
-            proxyConfig->TCMalloc->HeapSizeLimit->MemoryProfileDumpPath = *proxyDynamicConfig->MemoryProfileDumpPath;
-            proxyConfig->TCMalloc->HeapSizeLimit->MemoryProfileDumpFilenameSuffix = ToString(GetId());
-            proxyConfig->TCMalloc->HeapSizeLimit->DumpMemoryProfileOnViolation = true;
+            auto tcmallocConfig = proxyInternalConfig->GetSingletonConfig<NTCMalloc::TTCMallocConfig>();
+            tcmallocConfig->HeapSizeLimit->MemoryProfileDumpPath = *proxyDynamicConfig->MemoryProfileDumpPath;
+            tcmallocConfig->HeapSizeLimit->MemoryProfileDumpFilenameSuffix = ToString(GetId());
+            tcmallocConfig->HeapSizeLimit->DumpMemoryProfileOnViolation = true;
         }
     }
 
-    proxyConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);
+    proxyInternalConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);
     if (!JobSpecExt_.enable_prefetching_job_throttler()) {
-        proxyConfig->JobThrottler->BandwidthPrefetch->Enable = false;
-        proxyConfig->JobThrottler->RpsPrefetch->Enable = false;
+        proxyInternalConfig->JobThrottler->BandwidthPrefetch->Enable = false;
+        proxyInternalConfig->JobThrottler->RpsPrefetch->Enable = false;
     }
     YT_LOG_DEBUG(
         "Initialize prefetching job throttler (DynamicConfigEnable: %v, JobSpecEnable: %v, PrefetchEnable: %v)",
         CommonConfig_->JobThrottler->BandwidthPrefetch->Enable,
         JobSpecExt_.enable_prefetching_job_throttler(),
-        proxyConfig->JobThrottler->BandwidthPrefetch->Enable);
+        proxyInternalConfig->JobThrottler->BandwidthPrefetch->Enable);
 
-    proxyConfig->StatisticsOutputTableCountLimit = CommonConfig_->StatisticsOutputTableCountLimit;
+    proxyInternalConfig->StatisticsOutputTableCountLimit = CommonConfig_->StatisticsOutputTableCountLimit;
 
-    proxyConfig->OperationsArchiveVersion = Bootstrap_->GetJobController()->GetOperationsArchiveVersion();
+    proxyInternalConfig->OperationsArchiveVersion = Bootstrap_->GetJobController()->GetOperationsArchiveVersion();
 
-    proxyConfig->EnableRootVolumeDiskQuota = RootVolumeDiskQuotaEnabled_;
+    proxyInternalConfig->EnableRootVolumeDiskQuota = RootVolumeDiskQuotaEnabled_;
 
-    return proxyConfig;
+    return proxyInternalConfig;
 }
 
 NCri::TCriAuthConfigPtr TJob::BuildDockerAuthConfig()

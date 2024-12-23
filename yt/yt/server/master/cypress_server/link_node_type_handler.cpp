@@ -96,23 +96,21 @@ private:
         return branchedNode->GetTargetPath() != originatingNode->GetTargetPath();
     }
 
-    void DoBeginCopy(
+    void DoSerializeNode(
         TLinkNode* node,
-        TBeginCopyContext* context) override
+        TSerializeNodeContext* context) override
     {
-        TBase::DoBeginCopy(node, context);
+        TBase::DoSerializeNode(node, context);
 
         using NYT::Save;
         Save(*context, node->GetTargetPath());
     }
 
-    void DoEndCopy(
+    void DoMaterializeNode(
         TLinkNode* trunkNode,
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        NYTree::IAttributeDictionary* inheritedAttributes) override
+        TMaterializeNodeContext* context) override
     {
-        TBase::DoEndCopy(trunkNode, context, factory, inheritedAttributes);
+        TBase::DoMaterializeNode(trunkNode, context);
 
         using NYT::Load;
         trunkNode->SetTargetPath(Load<NYTree::TYPath>(*context));

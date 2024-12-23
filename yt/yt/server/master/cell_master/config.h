@@ -338,7 +338,7 @@ DEFINE_REFCOUNTED_TYPE(TCellMasterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicCellMasterConfig
-    : public TNativeSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     TDuration MutationTimeCommitPeriod;
@@ -405,7 +405,7 @@ public:
     NSchedulerPoolServer::TDynamicSchedulerPoolManagerConfigPtr SchedulerPoolManager;
     NSequoiaServer::TDynamicSequoiaManagerConfigPtr SequoiaManager;
     NSequoiaServer::TDynamicGroundUpdateQueueManagerConfigPtr GroundUpdateQueueManager;
-    NIncumbentServer::TDynamicIncumbentManagerConfigPtr IncumbentManager;
+    NIncumbentServer::TIncumbentManagerDynamicConfigPtr IncumbentManager;
     TDynamicQueueAgentServerConfigPtr QueueAgentServer;
     NHydra::TDynamicDistributedHydraManagerConfigPtr HydraManager;
 

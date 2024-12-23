@@ -393,7 +393,9 @@ class TestOrderedDynamicTablesProfiling(TestOrderedDynamicTablesBase):
         wait(
             lambda: table_profiling.get_counter("write/row_count") == 2
         )
-        assert table_profiling.get_counter("write/data_weight") == 18
+        wait(
+            lambda: table_profiling.get_counter("write/data_weight") == 18
+        )
 
         read_rows = pull_queue(table_path, offset=0, partition_index=0)
         assert len(read_rows) == 2
@@ -401,4 +403,6 @@ class TestOrderedDynamicTablesProfiling(TestOrderedDynamicTablesBase):
         wait(
             lambda: table_profiling.get_counter("fetch_table_rows/row_count") == 2
         )
-        assert table_profiling.get_counter("fetch_table_rows/data_weight") == 50
+        wait(
+            lambda: table_profiling.get_counter("fetch_table_rows/data_weight") == 50
+        )

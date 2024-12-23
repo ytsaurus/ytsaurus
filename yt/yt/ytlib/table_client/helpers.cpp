@@ -580,7 +580,7 @@ void TReaderVirtualValues::FillColumns(
 
 NProto::THeavyColumnStatisticsExt GetHeavyColumnStatisticsExt(
     const TColumnarStatistics& columnarStatistics,
-    const std::function<TColumnStableName(int index)>& geTColumnStableNameByIndex,
+    const std::function<TColumnStableName(int index)>& getColumnStableNameByIndex,
     int columnCount,
     int maxHeavyColumns)
 {
@@ -608,7 +608,7 @@ NProto::THeavyColumnStatisticsExt GetHeavyColumnStatisticsExt(
         maxColumnDataWeight = std::max<i64>(maxColumnDataWeight, dataWeight);
         columnStatistics.push_back(TColumnStatistics{
             .DataWeight = dataWeight,
-            .StableName = geTColumnStableNameByIndex(columnIndex),
+            .StableName = getColumnStableNameByIndex(columnIndex),
         });
     }
 

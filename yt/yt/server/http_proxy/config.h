@@ -318,6 +318,8 @@ public:
     //! Configuration for solomon proxy, which allows collecting merged metrics from other YT components through HTTP proxies.
     TSolomonProxyConfigPtr SolomonProxy;
 
+    THeapProfilerConfigPtr HeapProfiler;
+
     REGISTER_YSON_STRUCT(TProxyConfig);
 
     static void Register(TRegistrar registrar);
@@ -332,7 +334,7 @@ DEFINE_REFCOUNTED_TYPE(TProxyConfig)
 // NOTE: config might me unavalable. Users must handle such cases
 // gracefully.
 class TProxyDynamicConfig
-    : public TNativeSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     TApiDynamicConfigPtr Api;

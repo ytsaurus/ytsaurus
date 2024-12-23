@@ -13,6 +13,7 @@ SRCS(
 
 PEERDIR(
     yt/yt/library/query/engine
+    yt/yt/library/monitoring
 
     yt/yt/core
     yt/yt/ytlib

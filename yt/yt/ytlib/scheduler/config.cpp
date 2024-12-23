@@ -886,6 +886,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("ignore_yt_variables_in_shell_environment", &TThis::IgnoreYTVariablesInShellEnvironment)
         .Default(false);
 
+    registrar.Parameter("allow_offloading", &TThis::AllowOffloading)
+        .Default(true);
+
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             spec->UnavailableChunkTactics == EUnavailableChunkAction::Skip)
@@ -1481,6 +1484,18 @@ void TUnorderedMergeOperationSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("single_chunk_teleport_strategy", &TThis::SingleChunkTeleportStrategy)
         .Default(ESingleChunkTeleportStrategy::Enabled);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSortedMergeOperationSpec::Register(TRegistrar registrar)
+{
+    registrar.Postprocessor([] (TSortedMergeOperationSpec* spec) {
+        auto unrecognized = spec->GetRecursiveUnrecognized();
+        THROW_ERROR_EXCEPTION_IF(
+            unrecognized->FindChild("input_query") != nullptr,
+            "\"input_query\" is not supported in a sorted merge operation; consider using ordered merge instead");
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

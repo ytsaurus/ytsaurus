@@ -28,6 +28,7 @@ target_link_libraries(yt-server-exec PUBLIC
   yutil
   server-lib-user_job
   yt-library-program
+  yt-library-process
   yt-yt-core
 )
 

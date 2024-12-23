@@ -51,6 +51,9 @@ target_link_libraries(yt-chyt-server PUBLIC
   yt-yt-ytlib
   yt-library-clickhouse_discovery
   yt-library-clickhouse_functions
+  yt-library-monitoring
+  library-tracing-jaeger
+  cpp-yt-mlock
   contrib-clickhouse-src
   clickhouse-base-base
   contrib-deprecated-clickhouse_data_streams_compat
@@ -166,6 +169,9 @@ target_link_libraries(yt-chyt-server.global PUBLIC
   yt-yt-ytlib
   yt-library-clickhouse_discovery
   yt-library-clickhouse_functions
+  yt-library-monitoring
+  library-tracing-jaeger
+  cpp-yt-mlock
   contrib-clickhouse-src
   clickhouse-base-base
   contrib-deprecated-clickhouse_data_streams_compat

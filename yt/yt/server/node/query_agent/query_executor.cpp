@@ -106,18 +106,22 @@ TRange<TRow> GetSampleKeys(const NTabletNode::TPartitionSnapshotPtr& shard)
     return shard->SampleKeys->Keys;
 }
 
-std::pair<std::vector<TKeyRef>, std::vector<int>> GetSampleKeysForPrefix(TRange<TLegacyKey> keys, int prefixSize)
+std::pair<std::vector<TKeyRef>, std::vector<int>> GetSampleKeysForPrefix(TRange<TLegacyKey> keys, int prefixSize, TLegacyKey startKey)
 {
     std::vector<TKeyRef> samplePrefixes;
     std::vector<int> weights;
     weights.push_back(1);
 
+    // Filter out prefixes outside partition's pivot keys.
+    auto previousKey = ToKeyRef(startKey, std::min<int>(startKey.GetCount(), prefixSize));
+
     for (auto key : keys) {
         auto current = ToKeyRef(key, prefixSize);
 
-        if (samplePrefixes.empty() || CompareValueRanges(samplePrefixes.back(), current) != 0) {
+        if (CompareValueRanges(previousKey, current) != 0) {
             samplePrefixes.push_back(current);
             weights.push_back(1);
+            previousKey = current;
         } else {
             ++weights.back();
         }
@@ -581,8 +585,6 @@ private:
     TTabletSnapshotCache TabletSnapshots_;
 
     TClientChunkReadOptions ChunkReadOptions_;
-
-    THazardPtrReclaimGuard HazardPtrReclaimGuard_;
 
     using TSubreaderCreator = std::function<ISchemafulUnversionedReaderPtr()>;
 
@@ -1345,7 +1347,10 @@ private:
                     auto maxKeyWidth = paritionSampleKeys.Empty() ? keyWidth : paritionSampleKeys.Front().GetCount();
 
                     auto optimalKeyWidth = ExponentialSearch(keyWidth, maxKeyWidth, [&] (size_t keyWidth) {
-                        std::tie(sampleKeyPrefixes, weights) = GetSampleKeysForPrefix(paritionSampleKeys, keyWidth);
+                        std::tie(sampleKeyPrefixes, weights) = GetSampleKeysForPrefix(
+                            paritionSampleKeys,
+                            keyWidth,
+                            (*partitionIt)->PivotKey);
 
                         int maxWeight = 0;
                         for (auto weight : weights) {
@@ -1364,7 +1369,10 @@ private:
                         return maxWeight * maxWeight > std::ssize(paritionSampleKeys);
                     });
 
-                    std::tie(sampleKeyPrefixes, weights) = GetSampleKeysForPrefix(paritionSampleKeys, optimalKeyWidth);
+                    std::tie(sampleKeyPrefixes, weights) = GetSampleKeysForPrefix(
+                        paritionSampleKeys,
+                        optimalKeyWidth,
+                        (*partitionIt)->PivotKey);
 
                     if (QueryOptions_.VerboseLogging) {
                         YT_LOG_DEBUG("Prepared sample key prefixes (KeyWidth: %v, OptimalKeyWidth: %v)", keyWidth, optimalKeyWidth);
@@ -1379,7 +1387,8 @@ private:
                     rowCountInPartition += store->GetRowCount();
                 }
 
-                ui64 rowCountPerSampleRange = rowCountInPartition / (paritionSampleKeys.size() + 1);
+                ui64 rowCountPerSampleRange = std::max<ui64>(rowCountInPartition / (paritionSampleKeys.size() + 1), 1);
+                YT_VERIFY(rowCountPerSampleRange > 0);
 
                 if (QueryOptions_.VerboseLogging) {
                     YT_LOG_DEBUG("Processing partition (PartitionIndex: %v, InitialRanges: %v, SamplePrefixes: %v, Weights: %v, RowCountPerSampleRange: %v)",
@@ -1400,6 +1409,8 @@ private:
                         TKeyRef upperSampleBound = sampleIt == sampleKeyPrefixes.end() ? ToKeyRef(MaxKey()) : *sampleIt;
 
                         auto weight = weights[sampleIt - sampleKeyPrefixes.begin()] * rowCountPerSampleRange;
+
+                        YT_VERIFY(weight > 0);
                         totalWeight += weight;
                         if (maxWeight < weight) {
                             maxWeight = weight;
@@ -1507,6 +1518,15 @@ private:
 
                         tabletBoundsGroup.front().PartitionBounds.front().Bounds.front().first = lowerBound;
                         tabletBoundsGroup.back().PartitionBounds.back().Bounds.back().second = upperBound;
+
+                        for (const auto& boundsGroup : tabletBoundsGroup) {
+                            for (const auto& partitionBounds : boundsGroup.PartitionBounds) {
+                                for (const auto& bound : partitionBounds.Bounds) {
+                                    YT_QL_CHECK(bound.first <= bound.second);
+                                }
+                            }
+                        }
+
                         groupedReadRanges.push_back(std::move(tabletBoundsGroup));
 
                         // Initialize new group.
@@ -1520,7 +1540,7 @@ private:
             }
         }
 
-        // Last group is flushed here.
+        // Last group must be flushed and empty here.
         YT_VERIFY(
             tabletBoundsGroup.empty() ||
             tabletBoundsGroup.back().PartitionBounds.empty() ||

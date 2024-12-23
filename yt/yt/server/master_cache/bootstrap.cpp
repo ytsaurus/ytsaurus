@@ -15,6 +15,8 @@
 
 #include <yt/yt/library/monitoring/http_integration.h>
 
+#include <yt/yt/library/program/helpers.h>
+
 #include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 
@@ -29,8 +31,6 @@
 #include <yt/yt/ytlib/api/native/helpers.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
-
-#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
@@ -97,7 +97,6 @@ public:
             .Run()
             .Get()
             .ThrowOnError();
-        Sleep(TDuration::Max());
     }
 
     const TMasterCacheConfigPtr& GetConfig() const override
@@ -268,7 +267,7 @@ private:
         const TMasterCacheDynamicConfigPtr& /*oldConfig*/,
         const TMasterCacheDynamicConfigPtr& newConfig)
     {
-        ReconfigureNativeSingletons(newConfig);
+        ReconfigureSingletons(newConfig);
     }
 };
 

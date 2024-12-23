@@ -146,7 +146,9 @@ TString TApiTestBase::ClusterName_;
 
 void TDynamicTablesTestBase::TearDownTestCase()
 {
-    SyncUnmountTable(Table_);
+    if (Table_) {
+        SyncUnmountTable(Table_);
+    }
 
     WaitFor(Client_->RemoveNode(TYPath("//tmp/*")))
         .ThrowOnError();

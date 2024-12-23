@@ -37,6 +37,8 @@
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/caching_channel_factory.h>
 
+#include <yt/yt/core/bus/tcp/config.h>
+
 #include <library/cpp/string_utils/base64/base64.h>
 
 #include <library/cpp/cgiparam/cgiparam.h>

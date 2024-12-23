@@ -74,7 +74,7 @@ void TChunkOwnerDataStatistics::Load(TLoadContext& context)
     }
 }
 
-void TChunkOwnerDataStatistics::Save(TBeginCopyContext& context) const
+void TChunkOwnerDataStatistics::Save(TSerializeNodeContext& context) const
 {
     using NYT::Save;
 
@@ -87,7 +87,7 @@ void TChunkOwnerDataStatistics::Save(TBeginCopyContext& context) const
     Save(context, DataWeight);
 }
 
-void TChunkOwnerDataStatistics::Load(TEndCopyContext& context)
+void TChunkOwnerDataStatistics::Load(TMaterializeNodeContext& context)
 {
     using NYT::Load;
 

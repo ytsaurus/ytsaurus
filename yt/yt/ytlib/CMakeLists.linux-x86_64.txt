@@ -146,6 +146,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   library-query-row_comparer_api
   library-query-secondary_index
   library-web_assembly-api
+  library-profiling-solomon
   yt-library-program
   yt-library-vector_hdrf
   yt-ytlib-discovery_client
@@ -466,8 +467,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/orchid/orchid_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/orchid/orchid_ypath_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/program/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/program/native_singletons.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/explain.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/functions_cache.cpp
@@ -1589,6 +1588,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   library-query-row_comparer_api
   library-query-secondary_index
   library-web_assembly-api
+  library-profiling-solomon
   yt-library-program
   yt-library-vector_hdrf
   yt-ytlib-discovery_client
@@ -1599,7 +1599,9 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
 )
 
 target_sources(yt-yt-ytlib.global PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/auth/configure_native_authentication_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_meta_extensions.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/configure_dispatcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/job_spec_extensions.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_meta_extensions.cpp
 )

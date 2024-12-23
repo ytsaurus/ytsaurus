@@ -32,6 +32,8 @@ PEERDIR(
     yt/yt/server/lib/hive
     yt/yt/server/lib/chaos_node
     yt/yt/server/lib/transaction_supervisor
+    yt/yt/library/server_program
+    yt/yt/library/profiling/solomon
 )
 
 END()

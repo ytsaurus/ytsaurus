@@ -154,12 +154,9 @@ struct IFairShareTree
 
     virtual const TString& GetId() const = 0;
 
-    virtual TError CheckOperationIsHung(
+    virtual TError CheckOperationIsStuck(
         TOperationId operationId,
-        TDuration safeTimeout,
-        int minScheduleAllocationCallAttempts,
-        const THashSet<EDeactivationReason>& deactivationReasons,
-        TDuration limitingAncestorSafeTimeout) = 0;
+        const TOperationStuckCheckOptionsPtr& options) = 0;
 
     virtual void ProcessActivatableOperations() = 0;
     virtual void TryRunAllPendingOperations() = 0;

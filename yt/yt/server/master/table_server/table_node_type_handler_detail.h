@@ -51,14 +51,12 @@ protected:
         NCypressServer::ICypressNodeFactory* factory,
         NCypressServer::ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
-    void DoBeginCopy(
+    void DoSerializeNode(
         TImpl* node,
-        NCypressServer::TBeginCopyContext* context) override;
-    void DoEndCopy(
+        NCypressServer::TSerializeNodeContext* context) override;
+    void DoMaterializeNode(
         TImpl* node,
-        NCypressServer::TEndCopyContext* context,
-        NCypressServer::ICypressNodeFactory* factory,
-        NYTree::IAttributeDictionary* inheritedAttributes) override;
+        NCypressServer::TMaterializeNodeContext* context) override;
 
     std::optional<std::vector<std::string>> DoListColumns(TImpl* node) const override;
 };
@@ -127,14 +125,12 @@ protected:
         NCypressServer::ICypressNodeFactory* factory,
         NCypressServer::ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
-    void DoBeginCopy(
+    void DoSerializeNode(
         TReplicatedTableNode* node,
-        NCypressServer::TBeginCopyContext* context) override;
-    void DoEndCopy(
+        NCypressServer::TSerializeNodeContext* context) override;
+    void DoMaterializeNode(
         TReplicatedTableNode* node,
-        NCypressServer::TEndCopyContext* context,
-        NCypressServer::ICypressNodeFactory* factory,
-        NYTree::IAttributeDictionary* inheritedAttributes) override;
+        NCypressServer::TMaterializeNodeContext* context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

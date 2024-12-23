@@ -259,7 +259,8 @@ private:
                 }
 
                 if (*replicationEra != era) {
-                    THROW_ERROR_EXCEPTION("Replication era mismatch: expected %v, got %v",
+                    THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::TabletReplicationEraMismatch,
+                        "Replication era mismatch: expected %v, got %v",
                         era,
                         *replicationEra);
                 }

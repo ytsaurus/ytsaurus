@@ -2,15 +2,15 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, raises_yt_error, wait, create, ls, get, set, copy, move, remove, link,
-    exists, concatenate, create_account, create_user, create_tablet_cell_bundle, remove_tablet_cell_bundle,
-    make_ace, check_permission, start_transaction, abort_transaction, commit_transaction,
-    lock, externalize,
-    internalize, select_rows, read_file, write_file, read_table,
-    write_table, map,
-    sync_create_cells, create_dynamic_table, insert_rows, lookup_rows,
-    sync_mount_table, sync_unmount_table, sync_freeze_table,
-    get_singular_chunk_id, cluster_resources_equal, get_driver,
-    generate_uuid, )
+    exists, concatenate, create_account, create_user, create_tablet_cell_bundle,
+    remove_tablet_cell_bundle, make_ace, check_permission, start_transaction,
+    abort_transaction, commit_transaction, lock, externalize, internalize, select_rows,
+    read_file, write_file, read_table, write_table, map, sync_create_cells,
+    create_dynamic_table, insert_rows, lookup_rows, sync_mount_table, sync_unmount_table,
+    sync_freeze_table, get_singular_chunk_id, cluster_resources_equal, get_driver,
+    generate_uuid, abort_all_transactions)
+
+import yt_error_codes
 
 from yt_helpers import get_current_time
 
@@ -20,9 +20,9 @@ import yt.yson as yson
 
 from datetime import timedelta
 import pytest
+import random
 
-from time import sleep
-
+import time
 
 ##################################################################
 
@@ -59,10 +59,10 @@ class TestPortals(YTEnvSetup):
 
         create("file", "//tmp/p1/f", attributes={"external_cell_tag": 13})
 
-        with pytest.raises(YtError, match="Cross-cell \"copy\"/\"move\" command is explicitly disabled by request options"):
+        with raises_yt_error("Cross-cell \"copy\"/\"move\" command is explicitly disabled by request options"):
             copy("//tmp/p1/f", "//tmp/p2/f", enable_cross_cell_copying=False)
 
-        with pytest.raises(YtError, match="Cross-cell \"copy\"/\"move\" command is explicitly disabled by request options"):
+        with raises_yt_error("Cross-cell \"copy\"/\"move\" command is explicitly disabled by request options"):
             move("//tmp/p1/f", "//tmp/p2/f2", enable_cross_cell_copying=False)
 
     @authors("babenko")
@@ -500,121 +500,6 @@ class TestPortals(YTEnvSetup):
 
     @authors("babenko")
     @pytest.mark.parametrize("in_tx", [False, True])
-    def test_cross_cell_copy(self, in_tx):
-        create_account("a")
-        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
-        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 12})
-
-        create("map_node", "//tmp/p1/m", attributes={"account": "a"})
-        create("document", "//tmp/p1/m/d", attributes={"value": {"hello": "world"}})
-
-        create("file", "//tmp/p1/m/f", attributes={"external_cell_tag": 13})
-        assert get("//tmp/p1/m/f/@account") == "a"
-        FILE_PAYLOAD = b"PAYLOAD"
-        write_file("//tmp/p1/m/f", FILE_PAYLOAD)
-
-        wait(lambda: get("//sys/accounts/a/@resource_usage/chunk_count") == 1)
-
-        create(
-            "table",
-            "//tmp/p1/m/t1",
-            attributes={
-                "external_cell_tag": 13,
-                "optimize_for": "scan",
-                "account": "tmp",
-            },
-        )
-        assert get("//tmp/p1/m/t1/@account") == "tmp"
-        TABLE_PAYLOAD = [{"key": "value"}]
-        write_table("//tmp/p1/m/t1", TABLE_PAYLOAD)
-
-        # Will be copied while unmounted.
-        create_dynamic_table(
-            "//tmp/p1/m/t2",
-            external_cell_tag=13,
-            optimize_for="scan",
-            account="tmp",
-            schema=[
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "string"},
-            ])
-        assert get("//tmp/p1/m/t2/@account") == "tmp"
-        sync_create_cells(1)
-        sync_mount_table("//tmp/p1/m/t2")
-        insert_rows("//tmp/p1/m/t2", [{"key": 42, "value": "hello"}])
-        sync_unmount_table("//tmp/p1/m/t2")
-
-        # Will be copied while frozen.
-        create_dynamic_table(
-            "//tmp/p1/m/t3",
-            external_cell_tag=13,
-            optimize_for="scan",
-            account="tmp",
-            schema=[
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "string"},
-            ])
-        assert get("//tmp/p1/m/t3/@account") == "tmp"
-        sync_create_cells(1)
-        sync_mount_table("//tmp/p1/m/t3")
-        insert_rows("//tmp/p1/m/t3", [{"key": 42, "value": "hello"}])
-        sync_freeze_table("//tmp/p1/m/t3")
-
-        if in_tx:
-            tx = start_transaction()
-        else:
-            tx = "0-0-0-0"
-
-        copy("//tmp/p1/m", "//tmp/p2/m", preserve_account=True, tx=tx)
-
-        assert get("//tmp/p2/m/@key", tx=tx) == "m"
-        assert get("//tmp/p2/m/@type", tx=tx) == "map_node"
-        assert get("//tmp/p2/m/@account", tx=tx) == "a"
-        assert get("//tmp/p2/m/d/@type", tx=tx) == "document"
-        assert get("//tmp/p2/m/d", tx=tx) == {"hello": "world"}
-
-        assert get("//tmp/p2/m/f/@type", tx=tx) == "file"
-        assert get("//tmp/p2/m/f/@resource_usage", tx=tx) == get("//tmp/p1/m/f/@resource_usage")
-        assert get("//tmp/p2/m/f/@uncompressed_data_size", tx=tx) == len(FILE_PAYLOAD)
-        assert read_file("//tmp/p2/m/f", tx=tx) == FILE_PAYLOAD
-        assert read_table("//tmp/p2/m/t1", tx=tx) == TABLE_PAYLOAD
-        assert get("//tmp/p2/m/t2/@dynamic", tx=tx)
-        assert get("//tmp/p2/m/t3/@dynamic", tx=tx)
-
-        assert get("//sys/accounts/a/@resource_usage/chunk_count") == 1
-
-        if in_tx:
-            commit_transaction(tx)
-
-        sync_mount_table("//tmp/p2/m/t2")
-        assert lookup_rows("//tmp/p2/m/t2", [{"key": 42}]) == [{"key": 42, "value": "hello"}]
-        sync_mount_table("//tmp/p2/m/t3")
-        assert lookup_rows("//tmp/p2/m/t3", [{"key": 42}]) == [{"key": 42, "value": "hello"}]
-
-        create_account("b")
-        set("//tmp/p2/m/f/@account", "b")
-        wait(
-            lambda: get("//sys/accounts/a/@resource_usage/chunk_count") == 1
-            and get("//sys/accounts/b/@resource_usage/chunk_count") == 1
-        )
-
-        chunk_ids = get("//tmp/p2/m/f/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
-
-        assert_items_equal(get("#{}/@owning_nodes".format(chunk_id)), ["//tmp/p1/m/f", "//tmp/p2/m/f"])
-
-        remove("//tmp/p1/m/f")
-        remove("//tmp/p2/m/f")
-
-        wait(lambda: not exists("#" + chunk_id))
-
-        # XXX(babenko): cleanup is weird
-        remove("//tmp/p1")
-        remove("//tmp/p2")
-
-    @authors("babenko")
-    @pytest.mark.parametrize("in_tx", [False, True])
     def test_cross_cell_move(self, in_tx):
         create_account("a")
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
@@ -678,6 +563,7 @@ class TestPortals(YTEnvSetup):
         with pytest.raises(YtError):
             set("//tmp/p1&/@opaque", False)
 
+    # This test seems broken
     @authors("shakurov", "h0pless")
     def test_cross_cell_move_opaque_with_user_attribute(self):
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
@@ -711,27 +597,6 @@ class TestPortals(YTEnvSetup):
         remove("//tmp/p1")
 
     @authors("babenko")
-    def test_cross_cell_copy_removed_account(self):
-        create_account("a")
-        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
-        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 12})
-
-        create("file", "//tmp/p1/f", attributes={"external_cell_tag": 13, "account": "a"})
-
-        remove("//sys/accounts/a")
-        wait(lambda: get("//sys/accounts/a/@life_stage") == "removal_pre_committed")
-
-        with pytest.raises(YtError):
-            copy("//tmp/p1/f", "//tmp/p2/f", preserve_account=True)
-
-        remove("//tmp/p1/f")
-        wait(lambda: not exists("//sys/accounts/a"))
-
-        # XXX(babenko): cleanup is weird
-        remove("//tmp/p1")
-        remove("//tmp/p2")
-
-    @authors("babenko")
     def test_cross_cell_copy_removed_bundle(self):
         create_tablet_cell_bundle("b")
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
@@ -755,31 +620,6 @@ class TestPortals(YTEnvSetup):
         # XXX(babenko): cleanup is weird
         remove("//tmp/p1")
         remove("//tmp/p2")
-
-    @authors("shakurov")
-    def test_cross_cell_copy_expiration(self):
-        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
-        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 12})
-
-        expiration_time = str(get_current_time() + timedelta(seconds=3))
-        create(
-            "table",
-            "//tmp/p1/t1",
-            attributes={"external_cell_tag": 13, "expiration_time": expiration_time},
-        )
-        copy("//tmp/p1/t1", "//tmp/p2/t1", preserve_expiration_time=True)
-
-        create(
-            "table",
-            "//tmp/p1/t2",
-            attributes={"external_cell_tag": 13, "expiration_timeout": 3000},
-        )
-        copy("//tmp/p1/t2", "//tmp/p2/t2", preserve_expiration_timeout=True)
-
-        wait(
-            lambda: not exists("//tmp/p2/t1") and not exists("//tmp/p2/t2", suppress_expiration_timeout_renewal=True),
-            sleep_backoff=0.5,
-            timeout=5)
 
     @authors("babenko")
     def test_create_portal_in_tx_commit(self):
@@ -1051,148 +891,6 @@ class TestPortals(YTEnvSetup):
         assert read_file("//tmp/m2/f") == FILE_PAYLOAD
 
     @authors("babenko")
-    def test_internalize_node(self):
-        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
-        create_account("a")
-        create_account("b")
-        set("//sys/accounts/b/@resource_limits/tablet_count", 10)
-        create_account("c")
-        create_user("u")
-
-        create("portal_entrance", "//tmp/m", attributes={"exit_cell_tag": 11})
-        set("//tmp/m/@attr", "value")
-        set("//tmp/m&/@acl", [make_ace("allow", "u", "write")])
-        shard_id = get("//tmp/m/@shard_id")
-
-        TABLE_PAYLOAD = [{"key": "value"}]
-        create(
-            "table",
-            "//tmp/m/t1",
-            attributes={
-                "external": True,
-                "external_cell_tag": 13,
-                "account": "a",
-                "attr": "t1",
-            },
-        )
-        write_table("//tmp/m/t1", TABLE_PAYLOAD)
-
-        create_dynamic_table(
-            "//tmp/m/t2",
-            external_cell_tag=13,
-            optimize_for="scan",
-            schema=[
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "string"},
-            ],
-            account="b",
-            attr="t2",
-        )
-        sync_create_cells(1)
-        sync_mount_table("//tmp/m/t2")
-        insert_rows("//tmp/m/t2", [{"key": 42, "value": "hello"}])
-        sync_unmount_table("//tmp/m/t2")
-
-        FILE_PAYLOAD = b"PAYLOAD"
-        create(
-            "file",
-            "//tmp/m/f",
-            attributes={
-                "external": True,
-                "external_cell_tag": 13,
-                "account": "c",
-                "attr": "f",
-            },
-        )
-        write_file("//tmp/m/f", FILE_PAYLOAD)
-
-        create("document", "//tmp/m/d", attributes={"value": {"hello": "world"}})
-        ct = get("//tmp/m/d/@creation_time")
-        mt = get("//tmp/m/d/@modification_time")
-
-        create(
-            "map_node",
-            "//tmp/m/m",
-            attributes={"account": "a", "compression_codec": "brotli_8"},
-        )
-
-        create(
-            "table",
-            "//tmp/m/et",
-            attributes={
-                "external_cell_tag": 13,
-                "expiration_time": "2100-01-01T00:00:00.000000Z",
-            },
-        )
-
-        create(
-            "map_node",
-            "//tmp/m/acl1",
-            attributes={"inherit_acl": True, "acl": [make_ace("deny", "u", "read")]},
-        )
-        create(
-            "map_node",
-            "//tmp/m/acl2",
-            attributes={"inherit_acl": False, "acl": [make_ace("deny", "u", "read")]},
-        )
-
-        explicit_acl = get("//tmp/m/@acl")
-        # NB: Getting @acl actually occur on primary cell, but for @effective_acl we need to wait for synchronization.
-        wait(lambda: get("//tmp/m/@effective_acl") == get("//tmp/m&/@effective_acl"))
-        root_acl = get("//tmp/m/@effective_acl")
-        acl1 = get("//tmp/m/acl1/@acl")
-        acl2 = get("//tmp/m/acl2/@acl")
-
-        ORCHID_MANIFEST = {"address": "someaddress"}
-        create("orchid", "//tmp/m/orchid", attributes={"manifest": ORCHID_MANIFEST})
-
-        internalize("//tmp/m")
-
-        wait(lambda: not exists("#" + shard_id))
-
-        assert get("//tmp/m/@inherit_acl")
-        assert get("//tmp/m/@effective_acl") == root_acl
-        assert get("//tmp/m/@acl") == explicit_acl
-
-        assert get("//tmp/m/acl1/@inherit_acl")
-        assert get("//tmp/m/acl1/@acl") == acl1
-
-        assert not get("//tmp/m/acl2/@inherit_acl")
-        assert get("//tmp/m/acl2/@acl") == acl2
-
-        assert get("//tmp/m/@type") == "map_node"
-        assert get("//tmp/m/@attr") == "value"
-
-        assert read_table("//tmp/m/t1") == TABLE_PAYLOAD
-        assert get("//tmp/m/t1/@account") == "a"
-        assert get("//tmp/m/t1/@attr") == "t1"
-
-        sync_mount_table("//tmp/m/t2")
-        assert lookup_rows("//tmp/m/t2", [{"key": 42}]) == [{"key": 42, "value": "hello"}]
-        sync_unmount_table("//tmp/m/t2")
-        assert get("//tmp/m/t2/@account") == "b"
-        assert get("//tmp/m/t2/@attr") == "t2"
-
-        assert read_file("//tmp/m/f") == FILE_PAYLOAD
-        assert get("//tmp/m/f/@account") == "c"
-        assert get("//tmp/m/f/@attr") == "f"
-
-        assert get("//tmp/m/d") == {"hello": "world"}
-        assert get("//tmp/m/d/@creation_time") == ct
-        assert get("//tmp/m/d/@modification_time") == mt
-
-        assert get("//tmp/m/m/@account") == "a"
-        assert get("//tmp/m/m/@compression_codec") == "brotli_8"
-
-        assert get("//tmp/m/et/@expiration_time") == "2100-01-01T00:00:00.000000Z"
-
-        assert get("//tmp/m/orchid/@type") == "orchid"
-        assert get("//tmp/m/orchid/@manifest") == ORCHID_MANIFEST
-
-        assert get("//tmp/m/t1/@shard_id") == get("//tmp/@shard_id")
-        assert get("//tmp/m/t2/@shard_id") == get("//tmp/@shard_id")
-
-    @authors("babenko")
     def test_bulk_insert_yt_11194(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
 
@@ -1290,79 +988,12 @@ class TestPortals(YTEnvSetup):
             table_path = "//tmp/m1" + table_directory + "/table"
             assert read_table(table_path) == [{"key": table_directory}]
 
-    @authors("gritukan")
-    def test_granular_internalize(self):
-        create(
-            "portal_entrance",
-            "//tmp/p1",
-            attributes={"exit_cell_tag": 11, "opaque": True},
-        )
-        create("map_node", "//tmp/p1/m21", attributes={"opaque": True})
-        create("map_node", "//tmp/p1/m22", attributes={"opaque": True})
-        create("map_node", "//tmp/p1/m21/m31", attributes={"opaque": True})
-        create("map_node", "//tmp/p1/m21/m32", attributes={"opaque": True})
-        create("map_node", "//tmp/p1/m22/m33", attributes={"opaque": True})
-        create("map_node", "//tmp/p1/m22/m34", attributes={"opaque": True})
-
-        for table_directory in ["/m21/m31", "/m21/m32", "/m22/m33", "/m22/m34"]:
-            table_path = "//tmp/p1" + table_directory + "/table"
-            create(
-                "table",
-                table_path,
-                attributes={"external": True, "external_cell_tag": 12},
-            )
-            write_table(table_path, [{"key": table_directory}])
-
-        internalize("//tmp/p1")
-
-        for table_directory in ["/m21/m31", "/m21/m32", "/m22/m33", "/m22/m34"]:
-            table_path = "//tmp/p1" + table_directory + "/table"
-            assert read_table(table_path) == [{"key": table_directory}]
-
-    @authors("gritukan")
-    def test_granular_cross_cell_copy(self):
-        create(
-            "portal_entrance",
-            "//tmp/p1",
-            attributes={"exit_cell_tag": 11, "opaque": True},
-        )
-        create(
-            "portal_entrance",
-            "//tmp/p2",
-            attributes={"exit_cell_tag": 12, "opaque": True},
-        )
-
-        create("map_node", "//tmp/p1/m1", attributes={"opaque": True})
-        create("map_node", "//tmp/p1/m1/m21", attributes={"opaque": True})
-        create("map_node", "//tmp/p1/m1/m22", attributes={"opaque": True})
-        create("map_node", "//tmp/p1/m1/m21/m31", attributes={"opaque": True})
-        create("map_node", "//tmp/p1/m1/m21/m32", attributes={"opaque": True})
-        create("map_node", "//tmp/p1/m1/m22/m33", attributes={"opaque": True})
-        create("map_node", "//tmp/p1/m1/m22/m34", attributes={"opaque": True})
-
-        for document_dir in ["/m21/m31", "/m21/m32", "/m22/m33", "/m22/m34"]:
-            document_path = "//tmp/p1/m1" + document_dir + "/doc"
-            create("document", document_path, attributes={"value": document_dir})
-
-        copy("//tmp/p1/m1", "//tmp/p2/m1")
-
-        for document_dir in ["/m21/m31", "/m21/m32", "/m22/m33", "/m22/m34"]:
-            document_path = "//tmp/p1/m1" + document_dir + "/doc"
-            assert get(document_path) == document_dir
-
     @authors("shakurov")
     def test_link_not_externalizable(self):
         create("map_node", "//tmp/m")
         link("//tmp/m", "//tmp/l")
-        with pytest.raises(YtError):
+        with raises_yt_error("A link node cannot be externalized; consider externalizing its target instead"):
             externalize("//tmp/l", 11)
-
-    @authors("shakurov")
-    def test_link_not_internalizable(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
-        link("//tmp/p", "//tmp/l")
-        with pytest.raises(YtError):
-            internalize("//tmp/l")
 
     @authors("shakurov")
     @pytest.mark.parametrize("remove_source", [False, True])
@@ -1511,24 +1142,6 @@ class TestPortals(YTEnvSetup):
             create("map_node", "//tmp/t", ignore_existing=True)
 
     @authors("kvk1920")
-    def test_cross_cell_copy_with_prerequisite_transaction_ids(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
-        create("table", "//tmp/t", attributes={"external_cell_tag": 12})
-
-        write_table("//tmp/t", {"a": "b"})
-        tx = start_transaction()
-        copy("//tmp/t", "//tmp/p/t", prerequisite_transaction_ids=[tx])
-        commit_transaction(tx)
-
-        assert exists("//tmp/p/t")
-        assert read_table("//tmp/p/t") == [{"a": "b"}]
-
-        with raises_yt_error("Prerequisite check failed"):
-            copy("//tmp/t", "//tmp/p/t2", prerequisite_transaction_ids=[tx])
-
-        assert not exists("//tmp/p/t2")
-
-    @authors("kvk1920")
     def test_inheritable_attributes_synchronization(self):
         set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
         set("//sys/@config/cypress_manager/enable_portal_exit_effective_inherited_attributes", True)
@@ -1655,19 +1268,11 @@ class TestPortals(YTEnvSetup):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11}, tx=tx1)
 
     @authors("h0pless")
-    def test_attribute_inheritance_doesnt_crash(self):
-        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
-        set("//sys/@config/cypress_manager/enable_inherit_attributes_during_copy", True)
-
-        create("map_node", "//tmp/my_dir/node", recursive=True)
-        set("//tmp/my_dir/node/@chunk_merger_mode", "auto")
-
-        copy("//tmp/my_dir", "//tmp/p1/other_dir")
-        # Just don't crash
-        sleep(5)
-
-        # XXX(babenko): cleanup is weird
-        remove("//tmp/p1")
+    def test_internalize_deprication(self):
+        create("portal_entrance", "//tmp/portal", attributes={"exit_cell_tag": 11})
+        with raises_yt_error("Node internalization is deprecated and is no longer possible."):
+            internalize("//tmp/m")
+        remove("//tmp/portal")
 
 
 ##################################################################
@@ -1792,3 +1397,873 @@ class TestResolveCache(YTEnvSetup):
 
 
 ################################################################################
+
+class TestCrossCellCopy(YTEnvSetup):
+    NUM_TEST_PARTITIONS = 2
+
+    NUM_MASTERS = 3
+    NUM_NODES = 3
+    NUM_SECONDARY_MASTER_CELLS = 3
+    USE_DYNAMIC_TABLES = True
+    ENABLE_BULK_INSERT = True
+    NUM_SCHEDULERS = 1
+
+    FILE_PAYLOAD = b"FILE PAYLOAD SOME BYTES AND STUFF"
+    TABLE_PAYLOAD = [{"key": 42, "value": "the answer"}]
+
+    COMMAND = "copy"
+
+    AVAILABLE_ACCOUNTS = [
+        "george",
+        "geoff",
+        "geronimo",
+        "golem",
+    ]
+
+    AVAILABLE_USERS = [
+        "john",
+        "jim",
+        "jason",
+        "jolem",
+    ]
+
+    PRESERVABLE_ATTRIBUTES = {
+        "account": False,
+        "creation_time": False,
+        "modification_time": False,
+        "expiration_time": False,
+        "expiration_timeout": False,
+        "owner": False,
+        "acl": False,
+    }
+
+    # These attributes can change or be the same depending on the context.
+    CONTEXT_DEPENDENT_ATTRIBUTES = [
+        "tablet_state",
+        "actual_tablet_state",
+        "expected_tablet_state",
+        "unflushed_timestamp",
+    ]
+
+    # These attributes have to change when cross-cell copying.
+    EXPECTED_ATTRIBUTE_CHANGES = [
+        "access_time",
+        "access_counter",
+
+        # Changed due to cell change:
+        "id",
+        "native_cell_tag",
+        "parent_id",
+        "shard_id",
+        "schema_id",
+        "cow_cookie",
+
+        # Changed due to test design:
+        "revision",
+        "attribute_revision",
+        "native_content_revision",
+        "content_revision",
+    ]
+
+    def setup_method(self, method):
+        super(TestCrossCellCopy, self).setup_method(method)
+
+        # Setting defaults for meta state.
+        self.PRESERVABLE_ATTRIBUTES = {
+            "account": False,
+            "creation_time": False,
+            "modification_time": False,
+            "expiration_time": False,
+            "expiration_timeout": False,
+            "owner": False,
+            "acl": False,
+        }
+        self.SRC_ATTRIBUTES = {}
+
+        for account in self.AVAILABLE_ACCOUNTS:
+            create_account(account, ignore_existing=True)
+        for user in self.AVAILABLE_USERS:
+            create_user(user, ignore_existing=True)
+        create("portal_entrance", "//tmp/portal", attributes={"exit_cell_tag": 11})
+
+    def teardown_method(self, method):
+        abort_all_transactions()
+        # XXX(babenko): cleanup is weird
+        remove("//tmp/portal")
+        super(TestCrossCellCopy, self).teardown_method(method)
+
+    def _validate_attribute_consistency_for_node(self, src_path, dst_path, tx):
+        src_attributes = get(f"{src_path}/@", tx=tx) if self.COMMAND == "copy" else self.SRC_ATTRIBUTES[src_path]
+        dst_attributes = get(f"{dst_path}/@", tx=tx)
+
+        for attribute_key in src_attributes.keys():
+            # Preservable attributes should be tested directly.
+            if attribute_key in self.CONTEXT_DEPENDENT_ATTRIBUTES or attribute_key in self.PRESERVABLE_ATTRIBUTES.keys():
+                # This if was added for move command, because pre-move we get data from under a tx, but post-move we look at it without a tx.
+                # Maybe it can be avoided. Think about it.
+                if attribute_key in dst_attributes:
+                    del dst_attributes[attribute_key]
+                continue
+
+            src_attribute_value = src_attributes[attribute_key]
+            dst_attribute_value = dst_attributes[attribute_key]
+
+            assert (src_attribute_value != dst_attribute_value) == (attribute_key in self.EXPECTED_ATTRIBUTE_CHANGES)
+            del dst_attributes[attribute_key]
+
+        assert len(dst_attributes) == 0
+
+    def _validate_preservable_attributes(self, src_path, dst_path, tx):
+        src_attributes = get(f"{src_path}/@", tx=tx) if self.COMMAND == "copy" else self.SRC_ATTRIBUTES[src_path]
+        dst_attributes = get(f"{dst_path}/@", tx=tx)
+
+        for attribute_key, equality_expected in self.PRESERVABLE_ATTRIBUTES.items():
+            if equality_expected:
+                if attribute_key not in src_attributes.keys():
+                    assert attribute_key not in dst_attributes.keys()
+                else:
+                    assert src_attributes[attribute_key] == dst_attributes[attribute_key]
+            elif attribute_key in dst_attributes.keys():
+                assert src_attributes[attribute_key] != dst_attributes[attribute_key]
+
+    def _populate_preservable_attributes(self, path, tx):
+        set(f"{path}/@account", random.choice(self.AVAILABLE_ACCOUNTS))
+        user = random.choice(self.AVAILABLE_USERS)
+        set(f"{path}/@owner", user)
+        set(f"{path}/@acl", [
+            make_ace("allow", user, "read"),
+            make_ace("allow", user, "write"),
+            ])
+        set(f"{path}/@expiration_time", f"{random.randint(2050, 2150)}-01-01T00:00:00.000000Z", tx=tx)
+        set(f"{path}/@expiration_timeout", random.randint(2800000, 3200000), tx=tx)
+        # Creation and modification difference is easy to spot without setting anything.
+
+    def create_map_node(self, path, tx="0-0-0-0"):
+        create(
+            "map_node",
+            path,
+            attributes={"account": random.choice(self.AVAILABLE_ACCOUNTS)},
+            tx=tx)
+
+    def create_file(self, path, tx="0-0-0-0"):
+        create(
+            "file",
+            path,
+            attributes={
+                "account": random.choice(self.AVAILABLE_ACCOUNTS),
+                "external_cell_tag": 13
+            },
+            tx=tx)
+        write_file(path, self.FILE_PAYLOAD, tx=tx)
+
+    def create_table(self, path, tx="0-0-0-0"):
+        create(
+            "table",
+            path,
+            attributes={
+                "external_cell_tag": 13,
+                "optimize_for": "scan",
+                "account": random.choice(self.AVAILABLE_ACCOUNTS),
+            },
+            tx=tx)
+        write_table(path, self.TABLE_PAYLOAD, tx=tx)
+
+    def create_document(self, path, tx="0-0-0-0"):
+        create(
+            "document",
+            path,
+            attributes={
+                "account": random.choice(self.AVAILABLE_ACCOUNTS),
+                "value": {"hello": "world", "greetings": "sun"}
+            },
+            tx=tx)
+
+    def create_unmounted_table(self, path, tx="0-0-0-0"):
+        create_dynamic_table(
+            path,
+            external_cell_tag=13,
+            optimize_for="scan",
+            account="tmp",  # This is the account with enough quota.
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ])
+        sync_create_cells(1)
+        sync_mount_table(path)
+        insert_rows(path, self.TABLE_PAYLOAD)
+        sync_unmount_table(path)
+
+    def create_frozen_table(self, path, tx="0-0-0-0"):
+        create_dynamic_table(
+            path,
+            external_cell_tag=13,
+            optimize_for="scan",
+            account="tmp",  # This is the account with enough quota.
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ])
+        sync_create_cells(1)
+        sync_mount_table(path)
+        insert_rows(path, self.TABLE_PAYLOAD)
+        sync_freeze_table(path)
+
+    def create_subtree(self, path, tx="0-0-0-0"):
+        # starting_path
+        # |-- map_node
+        # |   |-- table
+        # |   |-- file
+        # |   |-- document
+        # |   `-- nested_map_node
+        # |       `-- other_table
+        # `-- top_level_table
+
+        create("map_node", path, force=True, tx=tx)  # Ensure starting_path is created and empty.
+
+        self.create_map_node(f"{path}/map_node", tx=tx)
+        self.create_table(f"{path}/map_node/table", tx=tx)
+        self.create_file(f"{path}/map_node/file", tx=tx)
+        self.create_document(f"{path}/map_node/document", tx=tx)
+        self.create_map_node(f"{path}/map_node/nested_map_node", tx=tx)
+        self.create_table(f"{path}/map_node/nested_map_node/other_table", tx=tx)
+        self.create_table(f"{path}/top_level_table", tx=tx)
+
+    def populate_preservable_attributes_subtree(self, path, tx):
+        self._populate_preservable_attributes(path, tx=tx)
+        self._populate_preservable_attributes(f"{path}/map_node", tx=tx)
+        for node in ls(f"{path}/map_node", tx=tx):
+            self._populate_preservable_attributes(f"{path}/map_node/{node}", tx=tx)
+        self._populate_preservable_attributes(f"{path}/map_node/nested_map_node/other_table", tx=tx)
+        self._populate_preservable_attributes(f"{path}/top_level_table", tx=tx)
+
+    def _iterate_over_subtree_and_validate_attributes(
+            self,
+            src_path,
+            dst_path,
+            validation_function,
+            tx="0-0-0-0"):
+        paths_to_check = [[src_path, dst_path]]
+
+        # This is copy + paste, maybe improve this later? But it requires a lot of python magic.
+        while len(paths_to_check) > 0:
+            current_src_path, current_dst_path = paths_to_check.pop(0)
+            validation_function(current_src_path, current_dst_path, tx=tx)
+
+            # Document supports "ls" command, but we don't actually want to check it's contents with it.
+            if get(f"{current_dst_path}/@type", tx=tx) == "document":
+                continue
+
+            # Some other nodes don't support "ls" command.
+            try:
+                for child_node in ls(current_dst_path, tx=tx):
+                    next_src_path = f"{current_src_path}/{child_node}"
+                    next_dst_path = f"{current_dst_path}/{child_node}"
+                    paths_to_check.append([next_src_path, next_dst_path])
+            except YtError as err:
+                if err.contains_code(yt_error_codes.NoSuchMethod):
+                    continue
+                else:
+                    raise err
+
+    def validate_subtree_attribute_consistency(self, src_path, dst_path, tx="0-0-0-0"):
+        self._iterate_over_subtree_and_validate_attributes(
+            src_path,
+            dst_path,
+            self._validate_attribute_consistency_for_node,
+            tx=tx)
+
+    def validate_subtree_preservable_attribute_consistency(self, src_path, dst_path, tx):
+        self._iterate_over_subtree_and_validate_attributes(
+            src_path,
+            dst_path,
+            self._validate_preservable_attributes,
+            tx=tx)
+
+    def validate_copy_base(self, src_path, dst_path, tx="0-0-0-0"):
+        # TODO(h0pless): Fix this!
+        if self.COMMAND == "copy":
+            assert get(src_path, tx=tx) == get(dst_path, tx=tx)
+
+    def validate_map_node_copy(self, path, tx="0-0-0-0"):
+        return
+
+    def validate_file_copy(self, path, tx="0-0-0-0"):
+        assert read_file(path, tx=tx) == self.FILE_PAYLOAD
+
+    def validate_table_copy(self, path, tx="0-0-0-0"):
+        assert read_table(path, tx=tx) == self.TABLE_PAYLOAD
+
+    def populate_preservable_attributes_table(self, path, tx):
+        self._populate_preservable_attributes(path, tx=tx)
+
+    def validate_document_copy(self, path, tx="0-0-0-0"):
+        assert get(path, tx=tx) == {"hello": "world", "greetings": "sun"}
+
+    def validate_unmounted_table_copy(self, path, tx="0-0-0-0"):
+        sync_mount_table(path)
+        assert lookup_rows(path, [{"key": 42}]) == self.TABLE_PAYLOAD
+
+    def validate_frozen_table_copy(self, path, tx="0-0-0-0"):
+        sync_mount_table(path)
+        assert lookup_rows(path, [{"key": 42}]) == self.TABLE_PAYLOAD
+
+    def write_user_attribute(self, path, tx="0-0-0-0"):
+        set(f"{path}/@my_personal_attribute", "is_here", tx=tx)
+
+    def _preserve_src_state(self, src_path, tx):
+        paths_to_check = [src_path]
+
+        while len(paths_to_check) > 0:
+            next_path = paths_to_check.pop(0)
+            attributes = get(f"{next_path}/@", tx=tx)
+            self.SRC_ATTRIBUTES[next_path] = attributes
+
+            # Document supports "ls" command, but we don't actually want to check it's contents with it.
+            if attributes["type"] == "document":
+                continue
+
+            # Some other nodes don't support "ls" command.
+            try:
+                for child_node in ls(next_path, tx=tx):
+                    paths_to_check.append(f"{next_path}/{child_node}")
+            except YtError as err:
+                if err.contains_code(yt_error_codes.NoSuchMethod):
+                    continue
+                else:
+                    raise err
+
+    def execute_command(self, src_path, dst_path, tx="0-0-0-0", **kwargs):
+        if self.COMMAND == "move":
+            self._preserve_src_state(src_path, tx=tx)
+            move(src_path, dst_path, tx=tx, **kwargs)
+        else:
+            copy(src_path, dst_path, tx=tx, **kwargs)
+
+    @authors("h0pless")
+    def test_subtree_size_flag(self):
+        set("//sys/@config/cypress_manager/cross_cell_copy_max_subtree_size", 1)
+        self.create_subtree("//tmp/dir")
+
+        with raises_yt_error("Subtree is too large for cross-cell copy"):
+            copy("//tmp/dir", "//tmp/portal/dir")
+
+    @authors("h0pless")
+    @pytest.mark.parametrize("node_type", ["map_node", "file", "table", "document", "unmounted_table", "frozen_table"])
+    def test_single_node(self, node_type):
+        if node_type == "frozen_table" and self.COMMAND == "move":
+            pytest.skip()
+
+        src_path = f"//tmp/{node_type}"
+        dst_path = f"//tmp/portal/{node_type}"
+
+        create_node = getattr(self, f"create_{node_type}")
+        create_node(src_path)
+        self.write_user_attribute(src_path)
+
+        self.execute_command(src_path, dst_path)
+
+        self.validate_copy_base(src_path, dst_path)
+        validate_node_copy = getattr(self, f"validate_{node_type}_copy")
+        validate_node_copy(dst_path)
+
+    @authors("h0pless")
+    @pytest.mark.parametrize("use_tx", [True, False])
+    def test_subtree(self, use_tx):
+        create("portal_entrance", "//tmp/other_portal", attributes={"exit_cell_tag": 12})
+        src_path = "//tmp/portal/dir"
+        dst_path = "//tmp/other_portal/dir"
+
+        tx = "0-0-0-0"
+        if use_tx:
+            tx = start_transaction()
+            self.CONTEXT_DEPENDENT_ATTRIBUTES.append("ref_counter")
+            self.CONTEXT_DEPENDENT_ATTRIBUTES.append("update_mode")
+
+        self.create_subtree(src_path, tx=tx)
+        self.execute_command(src_path, dst_path, tx=tx)
+
+        self.validate_copy_base(src_path, dst_path, tx=tx)
+        self.validate_subtree_attribute_consistency(src_path, dst_path, tx=tx)
+
+        if use_tx:
+            if self.COMMAND == "copy":
+                assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "update_mode"
+                assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "ref_counter"
+            else:
+                self.CONTEXT_DEPENDENT_ATTRIBUTES.append("versioned_resource_usage")
+
+            commit_transaction(tx)
+
+            self.validate_copy_base(src_path, dst_path)
+            self.validate_subtree_attribute_consistency(src_path, dst_path)
+
+            if self.COMMAND != "copy":
+                assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "versioned_resource_usage"
+
+        # XXX(babenko): cleanup is weird
+        remove("//tmp/other_portal")
+
+    @authors("h0pless")
+    @pytest.mark.parametrize("subtree_type", ["subtree", "table"])
+    @pytest.mark.parametrize("use_tx", [True, False])
+    @pytest.mark.parametrize("should_preserve", [True, False])
+    def test_preservable_attributes(self, subtree_type, use_tx, should_preserve):
+        path = "//tmp/parent"
+        dst_path = "//tmp/portal/parent"
+
+        create_subtree = getattr(self, f"create_{subtree_type}")
+        create_subtree(path)
+
+        tx = start_transaction() if use_tx else "0-0-0-0"
+        populate_attributes = getattr(self, f"populate_preservable_attributes_{subtree_type}")
+        populate_attributes(path, tx=tx)
+
+        create_user("not_john")
+        user = "not_john"
+        # Preserving is trickier than not preserving.
+        if should_preserve:
+            # In order to preserve ACL user has to have "administer" permission for the parent node.
+            administer_permission = make_ace("allow", user, "administer")
+            set("//sys/@config/cypress_manager/portal_synchronization_period", 100)
+            set("//tmp/portal&/@acl", [
+                administer_permission,
+            ])
+            wait(lambda: administer_permission in get("//tmp/portal/@acl"))
+
+            # In order to preserve account user has to have "use" permission for the account.
+            for account in self.AVAILABLE_ACCOUNTS:
+                set(f"//sys/accounts/{account}/@acl/end", make_ace("allow", user, "use"))
+
+        self.execute_command(
+            path,
+            dst_path,
+            tx=tx,
+            authenticated_user=user,
+            preserve_account=should_preserve,
+            preserve_creation_time=should_preserve,
+            preserve_modification_time=should_preserve,
+            preserve_expiration_time=should_preserve,
+            preserve_expiration_timeout=should_preserve,
+            preserve_owner=should_preserve,
+            preserve_acl=should_preserve)
+
+        self.PRESERVABLE_ATTRIBUTES = {
+            "account": should_preserve,
+            "creation_time": should_preserve,
+            "modification_time": should_preserve,
+            "expiration_time": should_preserve,
+            "expiration_timeout": should_preserve,
+            "owner": should_preserve,
+            "acl": should_preserve,
+        }
+        self.validate_subtree_preservable_attribute_consistency(path, dst_path, tx=tx)
+
+        if use_tx:
+            commit_transaction(tx)
+            self.validate_subtree_preservable_attribute_consistency(path, dst_path, tx="0-0-0-0")
+
+    # Maybe move set to the test below to save up on time?
+    @authors("h0pless")
+    def test_opaque_subtree(self):
+        src_path = "//tmp/subtree"
+        dst_path = "//tmp/portal/subtree"
+
+        self.create_subtree(src_path)
+        set(f"{src_path}/map_node/@opaque", True)
+        self.execute_command(src_path, dst_path)
+
+        self.validate_copy_base(src_path, dst_path)
+        self.validate_subtree_attribute_consistency(src_path, dst_path)
+
+    @authors("h0pless")
+    @pytest.mark.parametrize("is_redundant", [True, False])
+    def test_copy_recursive(self, is_redundant):
+        src_path = "//tmp/subtree"
+        if is_redundant:
+            dst_path = "//tmp/portal/subtree"
+        else:
+            dst_path = "//tmp/portal/some/arbitrary/long/path/that/has/to/be/created/during/copy/of/the/aforementioned/subtree"
+
+        self.create_subtree(src_path)
+        self.execute_command(src_path, dst_path, recursive=True)
+
+        self.validate_copy_base(src_path, dst_path)
+        self.validate_subtree_attribute_consistency(src_path, dst_path)
+
+    @authors("h0pless")
+    @pytest.mark.parametrize("is_redundant", [True, False])
+    def test_copy_force(self, is_redundant):
+        src_path = "//tmp/subtree"
+        dst_path = "//tmp/portal/subtree"
+
+        if not is_redundant:
+            self.create_table(dst_path)
+
+        self.create_subtree(src_path)
+        self.execute_command(src_path, dst_path, force=True)
+
+        self.validate_copy_base(src_path, dst_path)
+        self.validate_subtree_attribute_consistency(src_path, dst_path)
+
+    @authors("h0pless")
+    def test_accounting(self):
+        src_path = "//tmp/table"
+        dst_path = "//tmp/portal/table"
+        self.create_table(src_path)
+        account = get(f"{src_path}/@account")
+        wait(lambda: get(f"//sys/accounts/{account}/@resource_usage/chunk_count") == 1)
+
+        self.execute_command(src_path, dst_path, preserve_account=True)
+        assert get(f"//sys/accounts/{account}/@resource_usage/chunk_count") == 1
+
+        create_account("jack")
+        set(f"{dst_path}/@account", "jack")
+        original_account_expected_usage = 1 if self.COMMAND == "copy" else 0
+        wait(
+            lambda: get(f"//sys/accounts/{account}/@resource_usage/chunk_count") == original_account_expected_usage and
+            get("//sys/accounts/jack/@resource_usage/chunk_count") == 1
+        )
+
+        chunk_ids = get("//tmp/portal/table/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+        expected_owning_nodes = [dst_path]
+        if self.COMMAND == "copy":
+            expected_owning_nodes.append(src_path)
+        assert_items_equal(get(f"#{chunk_id}/@owning_nodes"), expected_owning_nodes)
+
+        remove(src_path, force=True)
+        remove(dst_path)
+        wait(lambda: not exists("#" + chunk_id))
+
+    @authors("kvk1920")
+    def test_prerequisite_transaction_ids(self):
+        src_path = "//tmp/table"
+        dst_path = "//tmp/portal/table"
+        self.create_table(src_path)
+
+        tx = start_transaction()
+        abort_transaction(tx)
+        with raises_yt_error("Prerequisite check failed"):
+            self.execute_command(src_path, dst_path, prerequisite_transaction_ids=[tx])
+
+        tx = start_transaction()
+        self.execute_command(src_path, dst_path, prerequisite_transaction_ids=[tx])
+        assert exists(dst_path)
+        self.validate_table_copy(dst_path)
+        remove(dst_path)
+
+    @authors("h0pless")
+    @pytest.mark.parametrize("enable_inheritance", [True, False])
+    @pytest.mark.parametrize("use_tx", [True, False])
+    def test_inheritable_attributes(self, enable_inheritance, use_tx):
+        #                                                 portal_exit               attribute = A
+        # starting_node         attribute = NONE          `-- starting_node         attribute = NONE
+        # |-- map_node          attribute = B                 |-- map_node          attribute = B
+        # |   |-- table_keep_b  attribute = B      COPY       |   |-- table_keep_b  attribute = B
+        # |   `-- table_c_to_b  attribute = C       ->        |   `-- table_c_to_b  attribute = B
+        # |-- table_c_to_a      attribute = C                 |-- table_c_to_a      attribute = A
+        # `-- table_none_to_a   attribute = NONE              `-- table_none_to_a   attribute = A
+
+        # This permutation does not test anything meaningful, it's fine to just skip it.
+        if use_tx and not enable_inheritance:
+            pytest.skip()
+
+        # For the sake of simplicity I used "chunk_merger_mode". Later this test can be expanded.
+        attribute_not_found = "Attribute \"chunk_merger_mode\" is not found"
+        set("//sys/@config/cypress_manager/enable_inherit_attributes_during_copy", enable_inheritance)
+
+        src_path = "//tmp/starting_node"
+        dst_parent = "//tmp/portal"
+        dst_path = f"{dst_parent}/starting_node"
+
+        A = "auto"
+        B = "deep"
+        C = "shallow"
+
+        tx = start_transaction() if use_tx else "0-0-0-0"
+
+        set(f"{dst_parent}/@chunk_merger_mode", A)
+
+        self.create_map_node(src_path)
+        with raises_yt_error(attribute_not_found):
+            get(f"{src_path}/@chunk_merger_mode")
+
+        self.create_map_node(f"{src_path}/map_node")
+        set(f"{src_path}/map_node/@chunk_merger_mode", B, tx=tx)
+
+        self.create_table(f"{src_path}/map_node/table_keep_b", tx=tx)
+        assert get(f"{src_path}/map_node/table_keep_b/@chunk_merger_mode", tx=tx) == B
+
+        self.create_table(f"{src_path}/map_node/table_c_to_b", tx=tx)
+        set(f"{src_path}/map_node/table_c_to_b/@chunk_merger_mode", C, tx=tx)
+
+        self.create_table(f"{src_path}/table_c_to_a")
+        set(f"{src_path}/table_c_to_a/@chunk_merger_mode", C, tx=tx)
+
+        self.create_table(f"{src_path}/table_none_to_a")
+        assert get(f"{src_path}/table_none_to_a/@chunk_merger_mode") == "none"
+
+        self.execute_command(src_path, dst_path, tx=tx)
+
+        if self.COMMAND == "copy":
+            # Validate source hasn't changed.
+            with raises_yt_error(attribute_not_found):
+                get(f"{src_path}/@chunk_merger_mode", tx=tx)
+            assert get(f"{src_path}/map_node/@chunk_merger_mode", tx=tx) == B
+            assert get(f"{src_path}/map_node/table_keep_b/@chunk_merger_mode", tx=tx) == B
+            assert get(f"{src_path}/map_node/table_c_to_b/@chunk_merger_mode", tx=tx) == C
+            assert get(f"{src_path}/table_c_to_a/@chunk_merger_mode", tx=tx) == C
+            assert get(f"{src_path}/table_none_to_a/@chunk_merger_mode", tx=tx) == "none"
+
+        # Validate destination is correct.
+        # These should have the same attribute value.
+        assert get(f"{dst_parent}/@chunk_merger_mode", tx=tx) == A
+        with raises_yt_error(attribute_not_found):
+            get(f"{dst_path}/@chunk_merger_mode", tx=tx)
+        assert get(f"{dst_path}/map_node/@chunk_merger_mode", tx=tx) == B
+        assert get(f"{dst_path}/map_node/table_keep_b/@chunk_merger_mode", tx=tx) == B
+        # These might change, depending on config.
+        expected_value = B if enable_inheritance else C
+        assert get(f"{dst_path}/map_node/table_c_to_b/@chunk_merger_mode", tx=tx) == expected_value
+        expected_value = A if enable_inheritance else C
+        assert get(f"{dst_path}/table_c_to_a/@chunk_merger_mode", tx=tx) == expected_value
+        expected_value = A if enable_inheritance else "none"
+        assert get(f"{dst_path}/table_none_to_a/@chunk_merger_mode", tx=tx) == expected_value
+
+    @authors("h0pless")
+    def test_many_transactions_in_subtree(self):
+        # Transaction hierarchy:
+        # topmost_tx
+        # |-- grandparent_tx
+        # |   `-- parent_tx < -- intentionally unused
+        # |       `-- child_tx
+        # |           `-- grandchild_tx
+        # `-- great_uncle_tx
+
+        topmost_tx = start_transaction()
+        grandparent_tx = start_transaction(tx=topmost_tx)
+        parent_tx = start_transaction(tx=grandparent_tx)
+        child_tx = start_transaction(tx=parent_tx)
+        grandchild_tx = start_transaction(tx=child_tx)
+        great_uncle_tx = start_transaction(tx=topmost_tx)
+
+        # Tree that should be copied / moved.
+        # trunk_map_node
+        # |-- grandparent_tx_map_node
+        # |   |-- grandparent_tx_table
+        # |   `-- child_tx_table
+        # |-- other_trunk_map_node
+        # |   `-- topmost_tx_table
+        # `-- great_uncle_table
+
+        src_path = "//tmp/trunk_map_node"
+        dst_path = "//tmp/portal/trunk_map_node"
+
+        create("map_node", src_path)
+        create("map_node", f"{src_path}/grandparent_tx_map_node", tx=grandparent_tx)
+        create("map_node", f"{src_path}/grandparent_tx_map_node/grandparent_tx_table", tx=grandparent_tx)
+        create("map_node", f"{src_path}/grandparent_tx_map_node/child_tx_table", tx=child_tx)
+        create("map_node", f"{src_path}/other_trunk_map_node")
+        create("map_node", f"{src_path}/other_trunk_map_node/topmost_tx_table", tx=topmost_tx)
+        create("map_node", f"{src_path}/great_uncle_table", tx=great_uncle_tx)
+
+        if self.COMMAND != "copy":
+            abort_transaction(great_uncle_tx)  # This leads to a lock conflict, which is reasonable.
+
+        self.execute_command(src_path, dst_path, tx=grandchild_tx)
+
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("ref_counter")
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("update_mode")
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("lock_count")
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("lock_mode")
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("resource_usage")
+
+        self.validate_copy_base(src_path, dst_path, tx=grandchild_tx)
+        self.validate_subtree_attribute_consistency(src_path, dst_path, tx=grandchild_tx)
+
+        assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "resource_usage"
+        assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "lock_mode"
+        assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "lock_count"
+        assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "update_mode"
+        assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "ref_counter"
+
+    # Maybe these two tests are redundant, considering the preservable attributes test.
+    @authors("shakurov")
+    def test_expiration_time(self):
+        expiration_time = str(get_current_time() + timedelta(seconds=3))
+        src_path = "//tmp/table"
+        dst_path = "//tmp/portal/table"
+        self.create_table(src_path)
+        set(f"{src_path}/@expiration_time", expiration_time)
+        self.execute_command(src_path, dst_path, preserve_expiration_time=True)
+        wait(
+            lambda: not exists(dst_path),
+            sleep_backoff=0.5,
+            timeout=5)
+
+    @authors("shakurov")
+    def test_expiration_timeout(self):
+        src_path = "//tmp/table"
+        dst_path = "//tmp/portal/table"
+        self.create_table(src_path)
+        set(f"{src_path}/@expiration_timeout", 3000)
+        self.execute_command(src_path, dst_path, preserve_expiration_timeout=True)
+
+        wait(
+            lambda: not exists(dst_path, suppress_expiration_timeout_renewal=True),
+            sleep_backoff=0.5,
+            timeout=5)
+
+    @authors("babenko")
+    def test_removed_account(self):
+        src_path = "//tmp/file"
+        dst_parent_path = "//tmp/portal"
+        dst_path = f"{dst_parent_path}/file"
+
+        self.create_file(src_path)
+        account = get(f"{src_path}/@account")
+
+        remove(f"//sys/accounts/{account}")
+        wait(lambda: get(f"//sys/accounts/{account}/@life_stage") == "removal_started")
+
+        with raises_yt_error():
+            self.execute_command(src_path, dst_path, preserve_account=True)
+
+        self.execute_command(src_path, dst_path)
+        assert get(f"{dst_parent_path}/@account") == get(f"{dst_path}/@account")
+
+        remove(src_path, force=True)
+        wait(lambda: not exists(f"//sys/accounts/{account}"))
+
+    # IMPROPER USES
+    @authors("h0pless")
+    def test_force_not_set(self):
+        src_path = "//tmp/table"
+        dst_path = "//tmp/portal/existing_node"
+
+        tx = start_transaction()
+
+        self.create_table(src_path)
+        self.create_map_node(dst_path, tx=tx)
+
+        # Conflict because of locks.
+        with raises_yt_error("Cannot take lock for child \"existing_node\" of node //tmp/portal since this child is locked by concurrent transaction"):
+            self.execute_command(src_path, dst_path)
+
+        # Force was not used.
+        with raises_yt_error(f"Node {dst_path} already exists"):
+            self.execute_command(src_path, dst_path, tx=tx)
+
+        commit_transaction(tx)
+        # Force was not used.
+        with raises_yt_error(f"Node {dst_path} already exists"):
+            self.execute_command(src_path, dst_path)
+
+    @authors("h0pless")
+    def test_recursive_not_set(self):
+        src_path = "//tmp/table"
+        dst_path = "//tmp/portal/listen/its/hard/to/come/up/with/funny/paths/every/time/table"
+
+        self.create_table(src_path)
+
+        with raises_yt_error():
+            self.execute_command(src_path, dst_path)
+
+    @authors("h0pless")
+    def test_non_external_table(self):
+        src_path = "//tmp/table"
+        dst_path = "//tmp/portal/table"
+
+        tabl_id = create("table", src_path, attributes={"external_cell_tag": 11})
+
+        with raises_yt_error(f"Cannot copy node {tabl_id} to cell 11 since the latter is its external cell"):
+            self.execute_command(src_path, dst_path)
+
+    @authors("h0pless")
+    def test_cant_copy_to_root(self):
+        src_path = "//tmp/portal/table"
+        self.create_table(src_path)
+        with raises_yt_error("Node / cannot be replaced"):
+            self.execute_command(src_path, "/", force=True)
+
+    @authors("h0pless")
+    def test_cant_copy_subtree_with_portal(self):
+        with raises_yt_error("Cannot clone a portal"):
+            self.execute_command("//tmp", "//home/other")
+
+
+################################################################################
+
+
+class TestCrossCellMove(TestCrossCellCopy):
+    COMMAND = "move"
+
+    # These attributes can change or be the same depending on the context.
+    CONTEXT_DEPENDENT_ATTRIBUTES = [
+        "tablet_state",
+        "actual_tablet_state",
+        "expected_tablet_state",
+        "unflushed_timestamp",
+
+        "access_counter",
+        "lock_count",
+        "lock_mode",
+
+        "schema_duplicate_count",  # Figure out if this is ok.
+    ]
+
+    # These attributes have to change when cross-cell copying.
+    EXPECTED_ATTRIBUTE_CHANGES = [
+        "access_time",
+
+        # Changed due to cell change:
+        "id",
+        "native_cell_tag",
+        "parent_id",
+        "shard_id",
+        "schema_id",
+        "cow_cookie",
+
+        # Changed due to test design:
+        "revision",
+        "attribute_revision",
+        "native_content_revision",
+        "content_revision",
+    ]
+
+
+################################################################################
+
+
+# NB: CheckInvariants() complexity is at least O(|Cypress nodes|) which is too
+# slow in this case.
+class TestPortalsWithoutInvariantChecking(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 0
+    NUM_SECONDARY_MASTER_CELLS = 3
+
+    DELTA_MASTER_CONFIG = {
+        "hydra_manager": {
+            "invariants_check_probability": None,
+        }
+    }
+
+    @authors("h0pless")
+    @pytest.mark.timeout(150)
+    def test_copy_large_subtree(self):
+        set("//sys/accounts/tmp/@resource_limits/node_count", 10000000)
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 12})
+
+        for node_count in [1000, 5000, 10000]:
+            subtree = {str(i): {} for i in range(node_count)}
+            set(f"//tmp/p1/large_subtree_{node_count}", subtree, force=True)
+
+            copy(f"//tmp/p1/large_subtree_{node_count}", f"//tmp/p2/large_subtree_{node_count}")
+
+            time.sleep(5)  # Just don't crash...
+
+        # XXX(babenko): cleanup is weird
+        remove("//tmp/p1")
+        remove("//tmp/p2")

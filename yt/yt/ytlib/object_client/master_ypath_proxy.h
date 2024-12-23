@@ -2,6 +2,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
+
 #include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
 
 #include <yt/yt/core/ytree/ypath_proxy.h>
@@ -37,6 +39,10 @@ struct TMasterYPathProxy
 
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, GetOrRegisterTableSchema);
 
+    // Used during cross-cell copy.
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, MaterializeCopyPrerequisites);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, MaterializeNode);
+
     template <class TRequest, class TResponse>
     class TVectorizedRequestBatcher;
 
@@ -44,6 +50,7 @@ struct TMasterYPathProxy
     DEFINE_YPATH_PROXY_METHOD(NProto, VectorizedRead);
 
     DECLARE_VECTORIZED_REQUEST_BATCHER(NYT::NYTree::NProto, Get);
+    DECLARE_VECTORIZED_REQUEST_BATCHER(NYT::NCypressClient::NProto, SerializeNode);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

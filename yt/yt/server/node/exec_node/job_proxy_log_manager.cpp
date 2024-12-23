@@ -297,7 +297,7 @@ private:
     TString GetNewLogFileNameToDump(TStringBuf newLogWriterName)
     {
         const auto& jobProxyConfigTemplate = Bootstrap_->GetJobProxyConfigTemplate();
-        const auto& jobProxyLoggingConfig = jobProxyConfigTemplate->Logging;
+        auto jobProxyLoggingConfig = jobProxyConfigTemplate->GetSingletonConfig<NLogging::TLogManagerConfig>();
 
         auto jobProxyLogWriterConfigIt = jobProxyLoggingConfig->Writers.find(newLogWriterName);
         if (jobProxyLogWriterConfigIt == jobProxyLoggingConfig->Writers.end()) {

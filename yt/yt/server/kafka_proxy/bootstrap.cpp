@@ -20,8 +20,6 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/ytlib/program/native_singletons.h>
-
 #include <yt/yt/client/kafka/packet.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
@@ -34,6 +32,7 @@
 
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
+#include <yt/yt/library/program/helpers.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
 
@@ -102,7 +101,6 @@ public:
             .Run()
             .Get()
             .ThrowOnError();
-        Sleep(TDuration::Max());
     }
 
     const TKafkaProxyConfigPtr& GetConfig() const override
@@ -271,10 +269,12 @@ private:
         const TKafkaProxyDynamicConfigPtr& /*oldConfig*/,
         const TKafkaProxyDynamicConfigPtr& newConfig)
     {
-        ReconfigureNativeSingletons(newConfig);
+        ReconfigureSingletons(newConfig);
 
         Poller_->SetThreadCount(newConfig->PollerThreadCount);
         Acceptor_->SetThreadCount(newConfig->AcceptorThreadCount);
+
+        Server_->OnDynamicConfigChanged(newConfig);
     }
 };
 

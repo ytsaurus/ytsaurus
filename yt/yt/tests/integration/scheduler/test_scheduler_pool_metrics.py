@@ -655,7 +655,7 @@ class TestPoolMetrics(YTEnvSetup):
     @authors("eshcherbin")
     def test_operation_count_by_preemption_priority(self):
         # For operations with strange tag filters to have non-zero fair share and starve.
-        update_scheduler_config("operation_hangup_check_period", 1000000000)
+        update_scheduler_config("operation_stuck_check", {"period": 1000000000})
         update_controller_agent_config("safe_scheduler_online_time", 1000000000)
         update_pool_tree_config(
             "default",
@@ -760,7 +760,9 @@ class TestImproperlyPreemptedResources(YTEnvSetup):
             "fair_share_update_period": 100,
             "profiling_update_period": 100,
             "fair_share_profiling_period": 100,
-            "operation_hangup_check_period": 1000000000,
+            "operation_stuck_check": {
+                "period": 1000000000,
+            },
         },
     }
 

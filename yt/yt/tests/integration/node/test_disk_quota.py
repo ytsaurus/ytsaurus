@@ -8,7 +8,8 @@ from yt_commands import (
     create_account_resource_usage_lease, update_controller_agent_config,
     abort_job, run_test_vanilla, extract_statistic_v2 as extract_statistic,
     with_breakpoint, wait_breakpoint, wait_no_assert,
-    raises_yt_error, write_file)
+    raises_yt_error, write_file, print_debug,
+)
 
 from yt.common import YtError, update
 
@@ -906,7 +907,15 @@ class TestDefaultDiskMediumWithUnspecifiedMediumPorto(YTEnvSetup, DiskMediumTest
         op2 = start_op(None, 2, track=False)
         op3 = start_op(None, 3, track=False)
 
-        wait(lambda: sum([op.get_job_count("running") for op in (op1, op2, op3)]) == 2)
+        def check(op1, op2, op3):
+            job_count1 = op1.get_job_count("running")
+            job_count2 = op2.get_job_count("running")
+            job_count3 = op3.get_job_count("running")
+            print_debug("job_count1: {} job_count2: {} job_count3: {}".format(job_count1, job_count2, job_count3))
+
+            return job_count1 + job_count2 + job_count3 == 2
+
+        wait(lambda: check(op1, op2, op3))
 
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 1

@@ -70,14 +70,12 @@ protected:
         NCypressServer::ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
 
-    void DoBeginCopy(
+    void DoSerializeNode(
         TChunkOwner* node,
-        NCypressServer::TBeginCopyContext* context) override;
-    void DoEndCopy(
+        NCypressServer::TSerializeNodeContext* context) override;
+    void DoMaterializeNode(
         TChunkOwner* trunkNode,
-        NCypressServer::TEndCopyContext* context,
-        NCypressServer::ICypressNodeFactory* factory,
-        NYTree::IAttributeDictionary* inheritedAttributes) override;
+        NCypressServer::TMaterializeNodeContext* context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

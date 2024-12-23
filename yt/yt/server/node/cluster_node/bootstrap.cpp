@@ -100,6 +100,7 @@
 #include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/library/program/build_attributes.h>
+#include <yt/yt/library/program/helpers.h>
 
 #include <yt/yt/library/profiling/solomon/registry.h>
 
@@ -137,8 +138,6 @@
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
-
-#include <yt/yt/ytlib/program/native_singletons.h>
 
 #include <yt/yt/client/misc/workload.h>
 
@@ -273,8 +272,6 @@ public:
             .Run()
             .Get()
             .ThrowOnError();
-
-        Sleep(TDuration::Max());
     }
 
     const IMasterConnectorPtr& GetMasterConnector() const override
@@ -1405,7 +1402,7 @@ private:
         const TClusterNodeDynamicConfigPtr& oldConfig,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
-        ReconfigureNativeSingletons(newConfig);
+        ReconfigureSingletons(newConfig);
 
         StorageHeavyThreadPool_->SetThreadCount(
             newConfig->DataNode->StorageHeavyThreadCount.value_or(Config_->DataNode->StorageHeavyThreadCount));

@@ -82,7 +82,7 @@ public:
         TTabletOwnerBase* sourceNode,
         NCypressServer::ENodeCloneMode mode,
         NSecurityServer::TAccount* account);
-    void ValidateBeginCopyTabletOwner(
+    void ValidateSerializeTabletOwner(
         TTabletOwnerBase* sourceNode,
         NCypressServer::ENodeCloneMode mode);
 
@@ -164,7 +164,7 @@ public:
     void OnNodeStorageParametersUpdated(NChunkServer::TChunkOwnerBase* node);
 
     TTabletCellBundle* FindTabletCellBundle(TTabletCellBundleId id);
-    TTabletCellBundle* GetTabletCellBundleOrThrow(TTabletCellBundleId id);
+    TTabletCellBundle* GetTabletCellBundleOrThrow(TTabletCellBundleId id, bool activeLifeStageOnly);
     TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const std::string& name, bool activeLifeStageOnly);
     TTabletCellBundle* GetDefaultTabletCellBundle();
     void SetTabletCellBundle(TTabletOwnerBase* table, TTabletCellBundle* cellBundle);

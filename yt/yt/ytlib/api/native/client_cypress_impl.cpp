@@ -22,6 +22,7 @@
 
 #include <yt/yt/ytlib/object_client/config.h>
 #include <yt/yt/ytlib/object_client/helpers.h>
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
@@ -43,6 +44,7 @@
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/core/ypath/helpers.h>
+#include <yt/yt/core/ypath/tokenizer.h>
 
 #include <util/generic/algorithm.h>
 
@@ -118,6 +120,7 @@ void SetCopyNodeRequestParameters(
     req->set_mode(ToProto(ENodeCloneMode::Move));
 }
 
+// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
 void SetBeginCopyNodeRequestParameters(
     const TCypressYPathProxy::TReqBeginCopyPtr& req,
     const TCopyNodeOptions& /*options*/)
@@ -125,6 +128,7 @@ void SetBeginCopyNodeRequestParameters(
     req->set_mode(ToProto(ENodeCloneMode::Copy));
 }
 
+// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
 void SetBeginCopyNodeRequestParameters(
     const TCypressYPathProxy::TReqBeginCopyPtr& req,
     const TMoveNodeOptions& /*options*/)
@@ -132,6 +136,21 @@ void SetBeginCopyNodeRequestParameters(
     req->set_mode(ToProto(ENodeCloneMode::Move));
 }
 
+void SetLockCopySourceRequestParameters(
+    const TCypressYPathProxy::TReqLockCopySourcePtr& req,
+    const TCopyNodeOptions& /*options*/)
+{
+    req->set_mode(ToProto(ENodeCloneMode::Copy));
+}
+
+void SetLockCopySourceRequestParameters(
+    const TCypressYPathProxy::TReqLockCopySourcePtr& req,
+    const TMoveNodeOptions& /*options*/)
+{
+    req->set_mode(ToProto(ENodeCloneMode::Move));
+}
+
+// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
 void SetEndCopyNodeRequestParameters(
     const TCypressYPathProxy::TReqEndCopyPtr& req,
     const TCopyNodeOptions& options)
@@ -140,12 +159,78 @@ void SetEndCopyNodeRequestParameters(
     req->set_mode(ToProto(ENodeCloneMode::Copy));
 }
 
+// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
 void SetEndCopyNodeRequestParameters(
     const TCypressYPathProxy::TReqEndCopyPtr& req,
     const TMoveNodeOptions& options)
 {
     SetMoveNodeBaseRequestParameters(req, options);
     req->set_mode(ToProto(ENodeCloneMode::Move));
+}
+
+void SetLockCopyDestinationRequestParametersBase(
+    const TCypressYPathProxy::TReqLockCopyDestinationPtr& req,
+    const TCopyNodeOptionsBase& options)
+{
+    req->set_preserve_acl(options.PreserveAcl);
+    req->set_force(options.Force);
+}
+
+void SetLockCopyDestinationRequestParameters(
+    const TCypressYPathProxy::TReqLockCopyDestinationPtr& req,
+    const TCopyNodeOptions& options)
+{
+    SetLockCopyDestinationRequestParametersBase(req, options);
+    req->set_ignore_existing(options.IgnoreExisting);
+    req->set_lock_existing(options.LockExisting);
+}
+
+void SetLockCopyDestinationRequestParameters(
+    const TCypressYPathProxy::TReqLockCopyDestinationPtr& req,
+    const TMoveNodeOptions& options)
+{
+    SetLockCopyDestinationRequestParametersBase(req, options);
+}
+
+void SetSerializeNodeRequestParameters(
+    const TCypressYPathProxy::TReqSerializeNodePtr& req,
+    const TCopyNodeOptions& /*options*/)
+{
+    req->set_mode(ToProto(ENodeCloneMode::Copy));
+}
+
+void SetSerializeNodeRequestParameters(
+    const TCypressYPathProxy::TReqSerializeNodePtr& req,
+    const TMoveNodeOptions& /*options*/)
+{
+    req->set_mode(ToProto(ENodeCloneMode::Move));
+}
+
+void SetAssembleTreeCopyRequestParametersCore(
+    const TCypressYPathProxy::TReqAssembleTreeCopyPtr& req,
+    const TCopyNodeOptionsBase& options)
+{
+    req->set_preserve_modification_time(options.PreserveModificationTime);
+    req->set_preserve_acl(options.PreserveAcl);
+    req->set_force(options.Force);
+    req->set_recursive(options.Recursive);
+    req->set_pessimistic_quota_check(options.PessimisticQuotaCheck);
+}
+
+void SetAssembleTreeCopyRequestParameters(
+    const TCypressYPathProxy::TReqAssembleTreeCopyPtr& req,
+    const TCopyNodeOptions& options)
+{
+    SetAssembleTreeCopyRequestParametersCore(req, options);
+    req->set_ignore_existing(options.IgnoreExisting);
+    req->set_lock_existing(options.LockExisting);
+}
+
+void SetAssembleTreeCopyRequestParameters(
+    const TCypressYPathProxy::TReqAssembleTreeCopyPtr& req,
+    const TMoveNodeOptions& options)
+{
+    SetAssembleTreeCopyRequestParametersCore(req, options);
 }
 
 class TCrossCellExecutor
@@ -167,13 +252,14 @@ protected:
         }
     }
 
+    // COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
     struct TSerializedSubtree
     {
         TSerializedSubtree() = default;
 
         TSerializedSubtree(
             TYPath path,
-            i32 version,
+            int version,
             NProtoBuf::RepeatedPtrField<NCypressClient::NProto::TSerializedNode> serializedNodes,
             NProtoBuf::RepeatedPtrField<NYT::NProto::TGuid> schemaIds)
             : Path(std::move(path))
@@ -194,7 +280,7 @@ protected:
 
         //! Relative to tree root path to subtree root.
         TYPath Path;
-        i32 Version;
+        int Version;
 
         //! Serialized subtree.
         NProtoBuf::RepeatedPtrField<NCypressClient::NProto::TSerializedNode> SerializedNodes;
@@ -221,12 +307,37 @@ protected:
 
     TNodeId SrcNodeId_;
     TYPath ResolvedSrcNodePath_;
-    TNodeId DstNodeId_;
+    TNodeId DstNodeId_ = NullObjectId;
+    TCellTag DstCellTag_ = InvalidCellTag;
 
-    std::vector<TCellTag> ExternalCellTags_;
-    std::vector<TMasterTableSchemaId> SchemaIds_;
+    THashSet<TCellTag> ExternalCellTags_;
 
     THashMap<TMasterTableSchemaId, TTableSchema> SchemaIdToSchema_;
+    THashMap<TMasterTableSchemaId, TMasterTableSchemaId> SrcToDstSchemaIdMapping_;
+    THashSet<TMasterTableSchemaId> SchemaIds_;
+
+    THashMap<TNodeId, TCypressYPathProxy::TRspSerializeNodePtr> NodeIdToSerializedData_;
+    THashMap<TNodeId, TNodeId> SrcToDstNodeIdMapping_;
+
+    IAttributeDictionaryPtr DstInheritableAttributes_;
+    THashMap<TNodeId, IAttributeDictionaryPtr> NodeToInheritedAttributesOverride_;
+
+    TAccountId NewAccountId_;
+
+    struct TNodeIdToChildren
+    {
+        struct TChildInfo
+        {
+            TString Key;
+            TNodeId Id;
+        };
+
+        TNodeId NodeId;
+        std::vector<TChildInfo> Children;
+    };
+    std::vector<TNodeIdToChildren> NodeIdToChildrenMapping_;
+
+    int ProtocolVersion_ = -1;
 
     // COMPAT(h0pless): RefactorCrossCellCopyInPreparationForSequoia.
     bool UseNewerCrossCellCopyProtocol_ = false;
@@ -257,7 +368,7 @@ protected:
     }
 
     template <class TOptions>
-    void BeginCopy(const TYPath& srcPath, const TOptions& options, bool allowRootLink)
+    [[nodiscard]] bool BeginCopy(const TYPath& srcPath, const TOptions& options, bool allowRootLink)
     {
         if (allowRootLink) {
             ResolveSourceNode(srcPath);
@@ -284,8 +395,16 @@ protected:
             batchReq->AddRequest(req);
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError),
-                "Error requesting serialized subtree for %v", subtreePath);
+            auto cumulativeError = GetCumulativeError(batchRspOrError);
+            if (!cumulativeError.IsOK()) {
+                for (const auto& innerError : cumulativeError.InnerErrors()) {
+                    THROW_ERROR_EXCEPTION_IF(
+                        innerError.GetCode() != NObjectClient::EErrorCode::BeginCopyDeprecated,
+                        TError("Error requesting serialized subtree for %v", subtreePath)
+                            << cumulativeError);
+                }
+                return false;
+            }
 
             const auto& batchRsp = batchRspOrError.Value();
 
@@ -332,9 +451,7 @@ protected:
             YT_VERIFY(relativePath);
 
             if (UseNewerCrossCellCopyProtocol_) {
-                for (auto schemaId : rsp->schema_ids()) {
-                    SchemaIds_.push_back(FromProto<TMasterTableSchemaId>(schemaId));
-                }
+                SchemaIds_ = FromProto<THashSet<TMasterTableSchemaId>>(rsp->schema_ids());
 
                 SerializedSubtrees_.emplace_back(
                     *relativePath,
@@ -349,7 +466,7 @@ protected:
             }
 
             for (auto cellTag : externalCellTags) {
-                ExternalCellTags_.push_back(cellTag);
+                ExternalCellTags_.emplace(cellTag);
             }
 
             for (const auto& opaqueChildPath : opaqueChildPaths) {
@@ -357,7 +474,188 @@ protected:
             }
         }
 
-        SortUnique(ExternalCellTags_);
+        FetchMasterTableSchemas();
+        return true;
+    }
+
+    // Returns a flag signaling if copy should continue.
+    // In essence returns false iff "ignore_existing" option was set and node exists.
+    template <class TOptions>
+    [[nodiscard]] bool LockCopyDestination(const TYPath& dstPath, const TOptions& options)
+    {
+        YT_LOG_DEBUG("Locking destination (DestinationPath: %v)",
+            dstPath);
+
+        auto proxy = CreateObjectServiceWriteProxy(Client_);
+
+        auto batchReq = proxy.ExecuteBatch();
+        auto req = TCypressYPathProxy::LockCopyDestination(dstPath);
+        SetTransactionId(req, Transaction_->GetId());
+        SetLockCopyDestinationRequestParameters(req, options);
+        batchReq->AddRequest(req);
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            GetCumulativeError(batchRspOrError),
+            "Error locking destination node");
+        const auto& batchRsp = batchRspOrError.Value();
+        auto rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspLockCopyDestination>(0);
+        const auto& rsp = rspOrError.Value();
+        if (rsp->has_existing_node_id()) {
+            DstNodeId_ = FromProto<TNodeId>(rsp->existing_node_id());
+            YT_LOG_DEBUG("Destination node already exists (NodeId: %v)",
+                DstNodeId_);
+            return false;
+        }
+
+        DstInheritableAttributes_ = ConvertToAttributes(rsp->effective_inheritable_attributes());
+        if (DstCellTag_ == InvalidCellTag) {
+            DstCellTag_ = FromProto<TCellTag>(rsp->native_cell_tag());
+        }
+
+        if (options.PreserveAccount) {
+            YT_VERIFY(!NewAccountId_);
+        } else {
+            NewAccountId_ = FromProto<TAccountId>(rsp->account_id());
+        }
+
+        YT_LOG_DEBUG("Locked destination node (DstCellTag: %v, AccountId: %v, EffectiveInheritableAttributes: %v)",
+            DstCellTag_,
+            NewAccountId_,
+            DstInheritableAttributes_->ListPairs());
+
+        return true;
+    }
+
+    template <class TOptions>
+    void LockCopySource(const TOptions& options, bool allowRootLink)
+    {
+        // TODO(h0pless): Here we rely on BeginCopy to call ResolveSourceNode if needed.
+        // Once BeginCopy will be deleted, make sure that ResolvedSrcNodePath_ is set correctly.
+        auto proxy = CreateObjectServiceWriteProxy(Client_);
+
+        YT_LOG_DEBUG("Locking source tree (Path: %v)", ResolvedSrcNodePath_);
+
+        auto batchReq = proxy.ExecuteBatch();
+        auto req = TCypressYPathProxy::LockCopySource(ResolvedSrcNodePath_);
+        GenerateMutationId(req);
+        SetTransactionId(req, Transaction_->GetId());
+        SetLockCopySourceRequestParameters(req, options);
+        batchReq->AddRequest(req);
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError),
+            "Error locking source tree for %v", ResolvedSrcNodePath_);
+
+        const auto& batchRsp = batchRspOrError.Value();
+
+        auto rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspLockCopySource>(0);
+        const auto& rsp = rspOrError.Value();
+
+        auto subtreeRootId = FromProto<TNodeId>(rsp->root_node_id());
+
+        if (!allowRootLink) {
+            // This looks bizzare, but it has to be written because:
+            // 1. Externalize call uses the same API as the "copy" command;
+            // 2. It's ok to call cross-cell copy command on symlinks;
+            // 3. It's not ok to attempt to externalize a symlink;
+            // 4. ResolveSourceNode sets a correct value to SrcNodeId_ and to ResolvedSrcNodePath_;
+            // 5. Because of (3) ResolveSourceNode is not being called for externalize, and ResolvedSrcNodePath_
+            // gets set to the path, specified by the user.
+            // Now we have ID of the source node, it's time to set it.
+            // TODO(h0pless): When refactoring this file, think about doing some check on master-side.
+            // It will allow to throw an error from there and remove this weird if statement here.
+            SrcNodeId_ = subtreeRootId;
+        } else {
+            YT_VERIFY(SrcNodeId_ == subtreeRootId);
+        }
+
+        NodeIdToChildrenMapping_.reserve(rsp->node_id_to_children_size());
+        for (const auto& entry : rsp->node_id_to_children()) {
+            auto& nodeIdToChildren = NodeIdToChildrenMapping_.emplace_back();
+            nodeIdToChildren.NodeId = FromProto<TNodeId>(entry.node_id());
+            nodeIdToChildren.Children.reserve(entry.children_size());
+            for (const auto& child : entry.children()) {
+                nodeIdToChildren.Children.push_back({
+                    .Key = child.key(),
+                    .Id = FromProto<TNodeId>(child.id())});
+            }
+        }
+
+        // If src node cannot have children, then push it into the container.
+        if (NodeIdToChildrenMapping_.empty()) {
+            NodeIdToChildrenMapping_.push_back({
+                .NodeId = SrcNodeId_,
+                .Children = {}});
+        }
+
+        ProtocolVersion_ = rsp->version();
+
+        YT_LOG_DEBUG("Source tree locked (RootNodeId: %v, Path: %v, NodeIdToChildrenMappingSize: %v)",
+            subtreeRootId,
+            ResolvedSrcNodePath_,
+            NodeIdToChildrenMapping_.size());
+    }
+
+    template <class TOptions>
+    void GetSerializedNodes(const TOptions& options)
+    {
+        std::vector<TNodeId> nodesToFetch;
+        // Every node except root node and leaf nodes is mentioned twice.
+        // This adds every node exactly once.
+        nodesToFetch.push_back(NodeIdToChildrenMapping_[0].NodeId);
+        for (const auto& nodeMetadata : NodeIdToChildrenMapping_) {
+            for (auto child : nodeMetadata.Children) {
+                nodesToFetch.push_back(child.Id);
+            }
+        }
+
+        YT_LOG_DEBUG("Getting serialized nodes (NodeCount: %v)",
+            nodesToFetch.size());
+
+        auto requestTemplate = TCypressYPathProxy::SerializeNode();
+        SetSerializeNodeRequestParameters(requestTemplate, options);
+        SetTransactionId(requestTemplate, Transaction_->GetId());
+
+        auto vectorizedBatcher = TMasterYPathProxy::CreateSerializeNodeBatcher(
+            Client_,
+            requestTemplate,
+            nodesToFetch);
+
+        auto nodeIdToRspOrError = WaitFor(vectorizedBatcher.Invoke())
+            .ValueOrThrow();
+        for (const auto& [nodeId, rspOrError] : nodeIdToRspOrError) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting serialized nodes from master");
+            EmplaceOrCrash(NodeIdToSerializedData_, nodeId, rspOrError.Value());
+        }
+
+        // COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy. Sanity check.
+        // Safe to remove when this protocol is tested.
+        YT_ASSERT(SchemaIds_.empty());
+        YT_ASSERT(ExternalCellTags_.empty());
+
+        for (const auto& [_, data] : NodeIdToSerializedData_) {
+            if (auto schemaId = YT_PROTO_OPTIONAL(data->serialized_node(), schema_id, TMasterTableSchemaId)) {
+                SchemaIds_.emplace(*schemaId);
+            }
+
+            if (auto cellTag = YT_PROTO_OPTIONAL(data->serialized_node(), external_cell_tag, TCellTag)) {
+                ExternalCellTags_.emplace(*cellTag);
+            }
+        }
+
+        auto dataSize = std::accumulate(
+            NodeIdToSerializedData_.begin(),
+            NodeIdToSerializedData_.end(),
+            i64(0),
+            [] (i64 size, const std::pair<TNodeId, TCypressYPathProxy::TRspSerializeNodePtr>& value) {
+                return size + std::ssize(value.second->serialized_node().data());
+            });
+
+        YT_LOG_DEBUG("Finished getting serialized nodes (NodeCount: %v, DataSize: %v)",
+            NodeIdToSerializedData_.size(),
+            dataSize);
+
         FetchMasterTableSchemas();
     }
 
@@ -367,14 +665,14 @@ protected:
             return;
         }
 
-        SortUnique(SchemaIds_);
+        YT_LOG_DEBUG("Fetching table schemas used in the subtree");
 
         auto proxy = CreateObjectServiceReadProxy(Client_, EMasterChannelKind::Follower);
 
         auto batchReq = proxy.ExecuteBatch();
         for (const auto& schemaId : SchemaIds_) {
             auto serializedId = FromObjectId(schemaId);
-            auto req = TCypressYPathProxy::Get(serializedId);
+            auto req = TYPathProxy::Get(serializedId);
             SetTransactionId(req, Transaction_->GetId());
             batchReq->AddRequest(req, serializedId);
         }
@@ -386,12 +684,44 @@ protected:
         const auto& batchRsp = batchRspOrError.Value();
 
         for (const auto& schemaId: SchemaIds_) {
-            auto rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspGet>(FromObjectId(schemaId));
+            auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(FromObjectId(schemaId));
             auto rsp = rspOrError.Value();
             auto schemaYson = TYsonString(rsp->value());
 
             EmplaceOrCrash(SchemaIdToSchema_, schemaId, ConvertTo<TTableSchema>(schemaYson));
         }
+
+        YT_LOG_DEBUG("Finished fetching schemas (SchemaCount: %v)",
+            SchemaIdToSchema_.size());
+    }
+
+    void CalculateInheritedAttributes(const TYPath& srcPath)
+    {
+        YT_LOG_DEBUG("Calculating attributes inherited during copy");
+
+        auto proxy = CreateObjectServiceReadProxy(Client_, EMasterChannelKind::Follower);
+
+        auto batchReq = proxy.ExecuteBatch();
+        auto req = TCypressYPathProxy::CalculateInheritedAttributes(srcPath);
+
+        ToProto(req->mutable_dst_attributes(), *DstInheritableAttributes_);
+        SetTransactionId(req, Transaction_->GetId());
+        batchReq->AddRequest(req);
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError),
+            "Error calculating inherited attributes for %v", srcPath);
+
+        const auto& batchRsp = batchRspOrError.Value();
+        auto rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspCalculateInheritedAttributes>(0);
+        const auto& rsp = rspOrError.Value();
+        for (const auto& entry : rsp->node_to_attribute_deltas()) {
+            auto nodeId = FromProto<TNodeId>(entry.node_id());
+            EmplaceOrCrash(NodeToInheritedAttributesOverride_, nodeId, FromProto(entry.attributes()));
+        }
+
+        YT_LOG_DEBUG("Finished calculating attributes inherited during copy (OverrideCount: %v)",
+            NodeToInheritedAttributesOverride_.size());
     }
 
     void ResolveSourceNode(const TYPath& srcPath)
@@ -471,6 +801,156 @@ protected:
         }
 
         YT_LOG_DEBUG("Serialized subtrees materialized (RootNodeId: %v)",
+            DstNodeId_);
+    }
+
+    void MaterializeCopyPrerequisites()
+    {
+        if (SchemaIdToSchema_.empty()) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Started materializing copy prerequisites (SchemaCount: %v)",
+            SchemaIdToSchema_.size());
+
+        auto proxy = CreateObjectServiceWriteProxy(Client_, DstCellTag_);
+        auto batchReq = proxy.ExecuteBatch();
+        auto req = TMasterYPathProxy::MaterializeCopyPrerequisites();
+        GenerateMutationId(req);
+        SetTransactionId(req, Transaction_->GetId());
+        for (const auto& [schemaId, schema] : SchemaIdToSchema_) {
+            auto* subreq = req->add_schema_id_to_schema_mapping();
+            ToProto(subreq->mutable_schema_id(), schemaId);
+            ToProto(subreq->mutable_schema(), schema);
+        }
+        batchReq->AddRequest(req);
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError),
+            "Failed to materialize copy prerequisites (table schemas) on destination");
+
+        auto rspOrError = batchRspOrError.Value()->GetResponse<TMasterYPathProxy::TRspMaterializeCopyPrerequisites>(0);
+        auto rsp = rspOrError.Value();
+
+        for (auto entry : rsp->updated_schema_id_mapping()) {
+            auto oldSchemaId = FromProto<TMasterTableSchemaId>(entry.old_schema_id());
+            auto newSchemaId = FromProto<TMasterTableSchemaId>(entry.new_schema_id());
+            EmplaceOrCrash(SrcToDstSchemaIdMapping_, oldSchemaId, newSchemaId);
+        }
+
+        // Freeing up some space, materialized schemas are not needed anymore.
+        SchemaIdToSchema_.clear();
+
+        YT_LOG_DEBUG("Finished materializing prerequisites (SrcToDstSchemaIdMapping: %v)",
+            SrcToDstSchemaIdMapping_);
+    }
+
+    template <class TOptions>
+    void MaterializeNodes(const TOptions& options, std::optional<TNodeId> portalExitId = std::nullopt)
+    {
+        YT_LOG_DEBUG("Started materializing nodes (DstCellTag: %v)",
+            DstCellTag_);
+
+        auto proxy = CreateObjectServiceWriteProxy(Client_, DstCellTag_);
+        auto batchReq = proxy.ExecuteBatch();
+        for (const auto& [nodeId, data] : NodeIdToSerializedData_) {
+            auto req = TMasterYPathProxy::MaterializeNode();
+            SetTransactionId(req, Transaction_->GetId());
+            GenerateMutationId(req);
+
+            auto* serializedNode = req->mutable_serialized_node();
+            serializedNode->CopyFrom(data->serialized_node());
+            req->set_version(ProtocolVersion_);
+
+            if (portalExitId && nodeId == SrcNodeId_) {
+                ToProto(req->mutable_existing_node_id(), *portalExitId);
+            }
+
+            if (auto inheritedAttributesOverrideIt = NodeToInheritedAttributesOverride_.find(FromProto<TNodeId>(serializedNode->node_id()));
+                inheritedAttributesOverrideIt != NodeToInheritedAttributesOverride_.end()) {
+                ToProto(req->mutable_inherited_attributes_override(), *inheritedAttributesOverrideIt->second);
+            }
+
+            if (serializedNode->has_schema_id()) {
+                auto oldSchemaId = FromProto<TMasterTableSchemaId>(serializedNode->schema_id());
+                auto newSchemaId = GetOrCrash(SrcToDstSchemaIdMapping_, oldSchemaId);
+                ToProto(serializedNode->mutable_schema_id(), newSchemaId);
+            }
+
+            if (!options.PreserveAccount) {
+                ToProto(req->mutable_new_account_id(), NewAccountId_);
+            }
+
+            req->set_preserve_creation_time(options.PreserveCreationTime);
+            req->set_preserve_expiration_time(options.PreserveExpirationTime);
+            req->set_preserve_expiration_timeout(options.PreserveExpirationTimeout);
+            req->set_preserve_owner(options.PreserveOwner);
+            req->set_pessimistic_quota_check(options.PessimisticQuotaCheck);
+            req->set_enable_cross_cell_copying(options.EnableCrossCellCopying);
+
+            batchReq->AddRequest(req);
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError),
+            "Failed to materialize nodes on destination");
+
+        auto rspsOrError = batchRspOrError.Value()->GetResponses<TMasterYPathProxy::TRspMaterializeNode>();
+        for (auto rspOrError : rspsOrError) {
+            auto rsp = rspOrError.Value();
+            auto oldNodeId = FromProto<TNodeId>(rsp->old_node_id());
+            auto newNodeId = FromProto<TNodeId>(rsp->new_node_id());
+            EmplaceOrCrash(SrcToDstNodeIdMapping_, oldNodeId, newNodeId);
+        }
+
+        YT_LOG_DEBUG("Nodes materialized (SrcToDstNodeIdMapping: %v)",
+            SrcToDstNodeIdMapping_);
+    }
+
+    template <class TOptions>
+    void AssembleTreeCopy(const TYPath& dstPath, const TOptions& options, bool inplace = false)
+    {
+        YT_LOG_DEBUG("Assembling tree copy (Inplace: %v)",
+            inplace);
+
+        auto proxy = CreateObjectServiceWriteProxy(Client_);
+        auto batchReq = proxy.ExecuteBatch();
+        auto req = TCypressYPathProxy::AssembleTreeCopy(dstPath);
+        SetTransactionId(req, Transaction_->GetId());
+        GenerateMutationId(req);
+
+        auto rootNodeId = GetOrCrash(SrcToDstNodeIdMapping_, SrcNodeId_);
+        ToProto(req->mutable_root_node_id(), rootNodeId);
+
+        req->set_inplace(inplace);
+
+        for (const auto& nodeIdToChildren : NodeIdToChildrenMapping_) {
+            auto updatedNodeId = GetOrCrash(SrcToDstNodeIdMapping_, nodeIdToChildren.NodeId);
+
+            auto* entry = req->add_node_id_to_children();
+            ToProto(entry->mutable_node_id(), updatedNodeId);
+
+            for (auto child : nodeIdToChildren.Children) {
+                auto updatedChildId = GetOrCrash(SrcToDstNodeIdMapping_, child.Id);
+                auto* childEntry = entry->add_children();
+                childEntry->set_key(child.Key);
+                ToProto(childEntry->mutable_id(), updatedChildId);
+            }
+        }
+
+        SetAssembleTreeCopyRequestParameters(req, options);
+        batchReq->AddRequest(req);
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError),
+            "Failed to assemble tree copy on destination");
+
+        const auto& batchRsp = batchRspOrError.Value();
+        const auto& rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspAssembleTreeCopy>(0);
+        const auto& rsp = rspOrError.Value();
+        DstNodeId_ = FromProto<TNodeId>(rsp->node_id());
+
+        YT_LOG_DEBUG("Finished assembling tree copy (DstNodeId: %v)",
             DstNodeId_);
     }
 
@@ -567,9 +1047,30 @@ public:
         StartTransaction(
             Format("Clone %v to %v", SrcPath_, DstPath_),
             Options_);
-        BeginCopy(SrcPath_, Options_, true);
+
+        auto useNewCopyPipeline = !BeginCopy(SrcPath_, Options_, true);
+        if (useNewCopyPipeline) {
+            YT_LOG_DEBUG("BeginCopy is deprecated, switching to the new copy pipeline");
+            if (!LockCopyDestination(DstPath_, Options_)) {
+                YT_VERIFY(DstNodeId_);
+                return DstNodeId_;
+            }
+
+            LockCopySource(Options_, true);
+            GetSerializedNodes(Options_);
+            CalculateInheritedAttributes(SrcPath_);
+        }
+
         SyncExternalCellsWithSourceNodeCell();
-        EndCopy(DstPath_, Options_, false);
+
+        if (useNewCopyPipeline) {
+            MaterializeCopyPrerequisites();
+            MaterializeNodes(Options_);
+            AssembleTreeCopy(DstPath_, Options_);
+        } else {
+            EndCopy(DstPath_, Options_, false);
+        }
+
         if constexpr(std::is_assignable_v<TOptions, TMoveNodeOptions>) {
             RemoveSource();
         }
@@ -614,25 +1115,46 @@ public:
                 path,
                 cellTag))
         , Path_(std::move(path))
-        , CellTag_(cellTag)
         , Options_(options)
-    { }
+    {
+        DstCellTag_ = cellTag;
+    }
 
     void Run()
     {
         YT_LOG_DEBUG("Node externalization started");
         StartTransaction(
-            Format("Externalize %v to %v", Path_, CellTag_),
+            Format("Externalize %v to %v", Path_, DstCellTag_),
             Options_);
         RequestAclAndAnnotation();
-        BeginCopy(Path_, GetOptions(), false);
+
+        auto useNewCopyPipeline = !BeginCopy(Path_, GetOptions(), false);
+        if (useNewCopyPipeline) {
+            YT_LOG_DEBUG("BeginCopy is deprecated, switching to the new copy pipeline");
+            auto shouldContinue = LockCopyDestination(Path_, GetOptions());
+            YT_VERIFY(shouldContinue);
+
+            LockCopySource(GetOptions(), false);
+            GetSerializedNodes(GetOptions());
+            CalculateInheritedAttributes(Path_);
+        }
+
         SyncExternalCellsWithSourceNodeCell();
+
         if (TypeFromId(SrcNodeId_) != EObjectType::MapNode) {
             THROW_ERROR_EXCEPTION("%v is not a map node", Path_);
         }
-        CreatePortal();
-        SyncExitCellWithEntranceCell();
-        EndCopy(Path_, GetOptions(), /*inplace*/ true);
+
+        auto portalExitId = CreatePortal();
+
+        if (useNewCopyPipeline) {
+            MaterializeCopyPrerequisites();
+            MaterializeNodes(GetOptions(), portalExitId);
+            SyncExitCellWithEntranceCell();
+            AssembleTreeCopy(Path_, GetOptions(), /*inplace*/ true);
+        } else {
+            EndCopy(Path_, GetOptions(), /*inplace*/ true);
+        }
         SyncExternalCellsWithClonedNodeCell();
         CommitTransaction();
         YT_LOG_DEBUG("Node externalization completed");
@@ -640,7 +1162,6 @@ public:
 
 private:
     const TYPath Path_;
-    const TCellTag CellTag_;
     const TExternalizeNodeOptions Options_;
     TYsonString Acl_;
     TYsonString InheritAcl_;
@@ -689,12 +1210,12 @@ private:
         YT_LOG_DEBUG("Root @acl, @inherit_acl and @annotation received");
     }
 
-    void CreatePortal()
+    TNodeId CreatePortal()
     {
         YT_LOG_DEBUG("Creating portal");
 
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("exit_cell_tag", CellTag_);
+        attributes->Set("exit_cell_tag", DstCellTag_);
         attributes->Set("inherit_acl", InheritAcl_);
         attributes->Set("annotation", Annotation_);
         attributes->Set("acl", Acl_);
@@ -709,7 +1230,14 @@ private:
             options));
         THROW_ERROR_EXCEPTION_IF_FAILED(nodeIdOrError, "Error creating portal");
 
-        YT_LOG_DEBUG("Portal created");
+        auto portalEntranceId = nodeIdOrError.Value();
+        auto portalExitId = ReplaceCellTagInId(ReplaceTypeInId(portalEntranceId, EObjectType::PortalExit), DstCellTag_);
+
+        YT_LOG_DEBUG("Portal created (EntranceId: %v, ExitId: %v)",
+            portalEntranceId,
+            portalExitId);
+
+        return portalExitId;
     }
 
     void SyncExitCellWithEntranceCell()
@@ -719,106 +1247,12 @@ private:
         const auto& connection = Client_->GetNativeConnection();
         auto future = connection->SyncHiveCellWithOthers(
             {connection->GetMasterCellId(CellTagFromId(SrcNodeId_))},
-            connection->GetMasterCellId(CellTag_));
+            connection->GetMasterCellId(DstCellTag_));
 
         auto error = WaitFor(future);
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error synchronizing exit cell with entrance cell");
 
         YT_LOG_DEBUG("Exit cell synchronized with entrance cell");
-    }
-};
-
-class TNodeInternalizer
-    : public TCrossCellExecutor
-{
-public:
-    TNodeInternalizer(
-        TClientPtr client,
-        TYPath path,
-        const TInternalizeNodeOptions& options,
-        const NLogging::TLogger& logger)
-        : TCrossCellExecutor(
-            std::move(client),
-            logger.WithTag("Path: %v", path))
-        , Path_(std::move(path))
-        , Options_(options)
-    { }
-
-    void Run()
-    {
-        YT_LOG_DEBUG("Node internalization started");
-
-        StartTransaction(
-            Format("Internalize %v", Path_),
-            Options_);
-
-        BeginCopy(Path_, GetOptions(), false);
-
-        SyncExternalCellsWithSourceNodeCell();
-        if (TypeFromId(SrcNodeId_) != EObjectType::PortalExit) {
-            THROW_ERROR_EXCEPTION("%v is not a portal", Path_);
-        }
-
-        auto clonedNodeId = CreateMapNode();
-
-        EndCopy(Path_ + "&", GetOptions(), true);
-
-        SyncExternalCellsWithClonedNodeCell();
-
-        // NB: This can be racy, but the situation when user sets acl while the node is being internalized is rare enough
-        // so we don't want to overcomplicate the code here.
-        auto aclOrError = WaitFor(Client_->GetNode(FromObjectId(SrcNodeId_) + "/@acl", {}));
-        THROW_ERROR_EXCEPTION_IF_FAILED(aclOrError, "Error getting root effective ACL");
-
-        CommitTransaction();
-
-        auto rootEffectiveAcl =  aclOrError.Value();
-        WaitFor(Client_->SetNode(FromObjectId(clonedNodeId) + "/@acl", rootEffectiveAcl, {}))
-            .ThrowOnError();
-
-        YT_LOG_DEBUG("Node internalization completed");
-    }
-
-private:
-    const TYPath Path_;
-    const TInternalizeNodeOptions Options_;
-
-    TNodeId GetEntranceNodeId()
-    {
-        auto nodeIdOrError = WaitFor(Transaction_->GetNode(Path_ + "/@entrance_node_id"));
-        auto nodeId = ConvertTo<TNodeId>(nodeIdOrError.ValueOrThrow());
-        return nodeId;
-    }
-
-    static TMoveNodeOptions GetOptions()
-    {
-        TMoveNodeOptions options;
-        options.PreserveAccount = true;
-        options.PreserveCreationTime = true;
-        options.PreserveModificationTime = true;
-        options.PreserveExpirationTime = true;
-        options.PreserveOwner = false;
-        options.Force = true;
-        options.PreserveAcl = true;
-        return options;
-    }
-
-    TNodeId CreateMapNode()
-    {
-        YT_LOG_DEBUG("Creating map node");
-
-        TCreateNodeOptions options;
-        options.Force = true;
-
-        auto nodeIdOrError = WaitFor(Transaction_->CreateNode(
-            Path_ + "&",
-            EObjectType::MapNode,
-            options));
-        THROW_ERROR_EXCEPTION_IF_FAILED(nodeIdOrError, "Error creating map node");
-
-        YT_LOG_DEBUG("Map node created (NodeId: %v)", nodeIdOrError.Value());
-
-        return nodeIdOrError.Value();
     }
 };
 
@@ -2118,16 +2552,12 @@ void TClient::DoExternalizeNode(
     return externalizer.Run();
 }
 
+// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
 void TClient::DoInternalizeNode(
-    const TYPath& path,
-    const TInternalizeNodeOptions& options)
+    const TYPath& /*path*/,
+    const TInternalizeNodeOptions& /*options*/)
 {
-    TNodeInternalizer internalizer(
-        this,
-        path,
-        options,
-        Logger);
-    return internalizer.Run();
+    THROW_ERROR_EXCEPTION("Node internalization is deprecated and is no longer possible.");
 }
 
 TObjectId TClient::DoCreateObject(

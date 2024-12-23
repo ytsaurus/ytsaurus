@@ -28,6 +28,7 @@ target_link_libraries(yt-library-server_program PUBLIC
   yt-library-program
   yt-library-containers
   yt-library-disk_manager
+  yt-library-stockpile
 )
 
 target_sources(yt-library-server_program PRIVATE

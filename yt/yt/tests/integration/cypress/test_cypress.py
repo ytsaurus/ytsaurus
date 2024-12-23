@@ -2921,7 +2921,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("h0pless")
     @not_implemented_in_sequoia
-    def test_inheritable_attributes_attribute(self):
+    def test_effective_inheritable_attributes_attribute(self):
         create("map_node", "//tmp/grandparent")
         set("//tmp/grandparent/@compression_codec", "zlib_9")
         set("//tmp/grandparent/@chunk_merger_mode", "auto")
@@ -3450,22 +3450,23 @@ class TestCypress(YTEnvSetup):
         copy("//tmp/test_node", "//tmp/copy2", tx=tx1)
         assert not exists("//tmp/copy0/child", tx=tx1)
 
-    @authors("aleksandra-zh")
+    @authors("aleksandra-zh", "h0pless")
     @not_implemented_in_sequoia
     def test_preserve_owner_under_tx_yt_15292(self):
-        create_user("u")
+        create_user("oliver")
+        create_user("pavel")
+        create_user("ivan")
+        tx = start_transaction(authenticated_user="ivan")
 
-        tx = start_transaction(authenticated_user="u")
-
-        create("table", "//tmp/t", authenticated_user="u", tx=tx)
-        copy("//tmp/t", "//tmp/t1", authenticated_user="u", tx=tx)
-        copy("//tmp/t", "//tmp/t2", authenticated_user="u", tx=tx, preserve_owner=True)
+        create("table", "//tmp/t", authenticated_user="oliver", tx=tx)
+        copy("//tmp/t", "//tmp/t1", authenticated_user="pavel", tx=tx)
+        copy("//tmp/t", "//tmp/t2", authenticated_user="pavel", tx=tx, preserve_owner=True)
 
         commit_transaction(tx)
 
-        assert get("//tmp/t/@owner") == "u"
-        assert get("//tmp/t1/@owner") == "u"
-        assert get("//tmp/t2/@owner") == "u"
+        assert get("//tmp/t/@owner") == "oliver"
+        assert get("//tmp/t1/@owner") == "pavel"
+        assert get("//tmp/t2/@owner") == "oliver"
 
     @authors("shakurov")
     @not_implemented_in_sequoia
@@ -4146,7 +4147,7 @@ class TestCypressPortal(TestCypressMulticell):
 
         # This will provoke a rollback.
         set("//sys/@config/cypress_manager/max_locks_per_transaction_subtree", 0)
-        with raises_yt_error("Cannot create \"exclusive\" lock for node"):
+        with raises_yt_error("Cannot create \"shared\" lock for node"):
             copy("//tmp/t", "//portals/p/t")
 
         remove("//sys/@config/cypress_manager/max_locks_per_transaction_subtree")

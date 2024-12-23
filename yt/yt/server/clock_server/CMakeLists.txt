@@ -27,6 +27,7 @@ target_link_libraries(yt-server-clock_server PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-library-server_program
+  yt-library-monitoring
   ytserver
   server-lib-hydra
   server-lib-hive

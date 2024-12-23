@@ -353,7 +353,7 @@ private:
 
         YT_LOG_DEBUG("Query deserialized (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
-            "ReadSesisonId: %v, MemoryLimitPerNode: %v, DataRangeCount: %v)",
+            "ReadSessionId: %v, MemoryLimitPerNode: %v, DataRangeCount: %v, TableId: %v)",
             query->Id,
             queryOptions.InputRowLimit,
             queryOptions.OutputRowLimit,
@@ -363,7 +363,8 @@ private:
             queryOptions.WorkloadDescriptor,
             queryOptions.ReadSessionId,
             queryOptions.MemoryLimitPerNode,
-            dataSources.size());
+            dataSources.size(),
+            dataSources.begin()->ObjectId);
 
         if (RejectUponThrottlerOverdraft_.load(std::memory_order::relaxed)) {
             TClientChunkReadOptions chunkReadOptions{
@@ -377,6 +378,9 @@ private:
                 chunkReadOptions,
                 Bootstrap_);
         }
+
+        Bootstrap_->GetInThrottler(queryOptions.WorkloadDescriptor.Category)->Acquire(
+            request->ByteSizeLong());
 
         // Grab the invoker provided by GetExecuteInvoker.
         auto invoker = GetCurrentInvoker();
@@ -461,7 +465,7 @@ private:
         if (tabletCount != std::ssize(request->Attachments())) {
             THROW_ERROR_EXCEPTION("Wrong number of attachments: expected %v, got %v",
                 tabletCount,
-                request->mount_revisions_size());
+                std::ssize(request->Attachments()));
         }
 
         const auto& requestHeaderExt = context->RequestHeader().GetExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
@@ -495,6 +499,9 @@ private:
                 chunkReadOptions,
                 Bootstrap_);
         }
+
+        Bootstrap_->GetInThrottler(EWorkloadCategory::UserInteractive)->Acquire(
+            request->ByteSizeLong());
 
         auto lookupSession = CreateLookupSession(
             inMemoryMode,

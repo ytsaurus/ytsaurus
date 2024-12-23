@@ -792,7 +792,7 @@ DEFINE_REFCOUNTED_TYPE(TDisallowRemoteOperationsConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TControllerAgentConfig
-    : public TNativeSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     //! Number of chunk lists to be allocated when an operation starts.
@@ -1253,9 +1253,6 @@ public:
 
     bool FailOperationOnErrorsInLivePreview;
 
-    // COMPAT(h0pless): This is a panic button to facilitate the rollout of 24.2
-    bool FetchSchemasFromExternalCellTags;
-
     bool EnableJobFailsTolerance;
 
     std::optional<ui32> AllocationJobCountLimit;
@@ -1286,6 +1283,8 @@ public:
     NYTree::IMapNodePtr CypressAnnotations;
 
     bool AbortOnUnrecognizedOptions;
+
+    THeapProfilerConfigPtr HeapProfiler;
 
     REGISTER_YSON_STRUCT(TControllerAgentBootstrapConfig);
 

@@ -10,9 +10,13 @@
 
 #include <yt/yt/library/disk_manager/hotswap_manager.h>
 
+#include <yt/yt/library/program/helpers.h>
+
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
 
 #include <library/cpp/yt/mlock/mlock.h>
+
+#include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
 
 #include <util/system/thread.h>
 
@@ -21,11 +25,11 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TConfig, class TDynamicConfig>
-TServerProgram<TConfig, TDynamicConfig>::TServerProgram(bool requireConfigArgument)
+TServerProgram<TConfig, TDynamicConfig>::TServerProgram()
     : TProgram()
     , TProgramPdeathsigMixin(Opts_)
     , TProgramSetsidMixin(Opts_)
-    , TProgramConfigMixin<TConfig, TDynamicConfig>(Opts_, requireConfigArgument)
+    , TProgramConfigMixin<TConfig, TDynamicConfig>(Opts_)
 { }
 
 template <class TConfig, class TDynamicConfig>
@@ -35,11 +39,30 @@ void TServerProgram<TConfig, TDynamicConfig>::SetMainThreadName(const std::strin
 }
 
 template <class TConfig, class TDynamicConfig>
+void TServerProgram<TConfig, TDynamicConfig>::ValidateOpts()
+{ }
+
+template <class TConfig, class TDynamicConfig>
+void TServerProgram<TConfig, TDynamicConfig>::TweakConfig()
+{ }
+
+template <class TConfig, class TDynamicConfig>
+void TServerProgram<TConfig, TDynamicConfig>::SleepForever()
+{
+    Sleep(TDuration::Max());
+    YT_ABORT();
+}
+
+template <class TConfig, class TDynamicConfig>
 void TServerProgram<TConfig, TDynamicConfig>::DoRun()
 {
     TThread::SetCurrentThreadName(MainThreadName_.c_str());
 
     RunMixinCallbacks();
+
+    ValidateOpts();
+
+    TweakConfig();
 
     Configure();
 
@@ -65,12 +88,14 @@ void TServerProgram<TConfig, TDynamicConfig>::Configure()
 
     auto config = this->GetConfig();
 
+    ConfigureSingletons(config);
+
     if (config->EnablePortoResourceTracker) {
         NContainers::EnablePortoResourceTracker(config->PodSpec);
     }
 
-    if (config->HotswapManager) {
-        NDiskManager::THotswapManager::Configure(config->HotswapManager);
+    if (config->EnableRefCountedTrackerProfiling) {
+        EnableRefCountedTrackerProfiling();
     }
 }
 

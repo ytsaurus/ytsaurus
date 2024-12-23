@@ -12,6 +12,7 @@ PEERDIR(
     yt/yt/library/program
     yt/yt/library/containers
     yt/yt/library/disk_manager
+    yt/yt/library/stockpile # for stockpile singleton
 )
 
 END()

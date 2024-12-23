@@ -55,13 +55,9 @@ struct ICypressNodeFactory
         ENodeCloneMode mode,
         NYTree::IAttributeDictionary* inheritedAttributes,
         TNodeId hintId = NCypressClient::NullObjectId) = 0;
-    virtual TCypressNode* EndCopyNode(
+    virtual TCypressNode* MaterializeNode(
         NYTree::IAttributeDictionary* inheritedAttributes,
-        TEndCopyContext* context) = 0;
-    virtual TCypressNode* EndCopyNodeInplace(
-        TCypressNode* trunkNode,
-        NYTree::IAttributeDictionary* inheritedAttributes,
-        TEndCopyContext* context) = 0;
+        TMaterializeNodeContext* context) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

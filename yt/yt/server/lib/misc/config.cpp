@@ -6,6 +6,8 @@
 
 #include <yt/yt/library/profiling/solomon/config.h>
 
+#include <yt/yt/library/tcmalloc/config.h>
+
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/config.h>
@@ -66,8 +68,9 @@ void TServerConfig::Register(TRegistrar registrar)
         }
 
         // TODO(babenko): consider configuring memory_profile_dump_path in ytcfgen
-        if (!config->TCMalloc->HeapSizeLimit->MemoryProfileDumpPath && config->CoreDumper) {
-            config->TCMalloc->HeapSizeLimit->MemoryProfileDumpPath = config->CoreDumper->Path;
+        auto tcmallocConfig = config->GetSingletonConfig<NTCMalloc::TTCMallocConfig>();
+        if (!tcmallocConfig->HeapSizeLimit->MemoryProfileDumpPath && config->CoreDumper) {
+            tcmallocConfig->HeapSizeLimit->MemoryProfileDumpPath = config->CoreDumper->Path;
         }
     });
 }

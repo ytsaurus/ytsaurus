@@ -1,8 +1,7 @@
 #ifndef BOOST_QVM_QUAT_TRAITS
 #define BOOST_QVM_QUAT_TRAITS
 
-// Copyright 2008-2022 Emil Dotchevski and Reverge Studios, Inc.
-
+// Copyright 2008-2024 Emil Dotchevski and Reverge Studios, Inc.
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -79,7 +78,7 @@ typename enable_if_c<
     void>::type
 write_quat_element_idx( int i, Q & q, typename quat_traits<Q>::scalar_type s )
     {
-    quat_traits<Q>::template write_element_idx(i, q) = s;
+    quat_traits<Q>::write_element_idx(i, q) = s;
     }
 
 template <class Q>
@@ -89,7 +88,7 @@ typename enable_if_c<
     void>::type
 write_vec_element_idx( int i, Q & q, typename quat_traits<Q>::scalar_type s )
     {
-    quat_traits<Q>::template write_element_idx(i, q, s);
+    quat_traits<Q>::write_element_idx(i, q, s);
     }
 
 } }

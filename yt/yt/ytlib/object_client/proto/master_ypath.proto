@@ -3,10 +3,11 @@ package NYT.NObjectClient.NProto;
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
 import "yt_proto/yt/client/cell_master/proto/cell_directory.proto";
-import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
 import "yt_proto/yt/client/hive/proto/cluster_directory.proto";
+import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt/ytlib/chunk_client/proto/medium_directory.proto";
+import "yt/ytlib/cypress_client/proto/cypress_ypath.proto";
 import "yt/ytlib/object_client/proto/user_directory.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -137,6 +138,62 @@ message TRspRemoveMaintenance
     repeated TRemovedMaintenanceCountPerTarget removed_maintenance_counts_per_target = 10;
 
     reserved 1 to 6, 8;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqMaterializeCopyPrerequisites
+{
+    message TSchemaIdToSchema
+    {
+        required NYT.NProto.TGuid schema_id = 1;
+        required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
+    }
+
+    repeated TSchemaIdToSchema schema_id_to_schema_mapping = 1;
+}
+
+message TRspMaterializeCopyPrerequisites
+{
+    message TUpdatedSchemaIdMapping
+    {
+        required NYT.NProto.TGuid old_schema_id = 1;
+        required NYT.NProto.TGuid new_schema_id = 2;
+    }
+
+    repeated TUpdatedSchemaIdMapping updated_schema_id_mapping = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqMaterializeNode
+{
+    required NYT.NCypressClient.NProto.TSerializedNode serialized_node = 1;
+
+    required int32 mode = 2; // ENodeCloneMode
+    required int32 version = 3; // EMasterReign
+
+    // Used when turning map_node -> scion / portal or vice versa.
+    optional NYT.NProto.TGuid existing_node_id = 4;
+
+    optional NYT.NYTree.NProto.TAttributeDictionary inherited_attributes_override = 5;
+
+    // If empty - preserve account of the source node.
+    optional NYT.NProto.TGuid new_account_id = 6;
+
+    optional bool preserve_creation_time = 7 [default = false];
+    optional bool preserve_expiration_time = 8 [default = false];
+    optional bool preserve_expiration_timeout = 9 [default = false];
+    optional bool preserve_owner = 10 [default = false];
+
+    optional bool pessimistic_quota_check = 11 [default = true];
+    optional bool enable_cross_cell_copying = 12 [default = true];
+}
+
+message TRspMaterializeNode
+{
+    required NYT.NProto.TGuid old_node_id = 1;
+    required NYT.NProto.TGuid new_node_id = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

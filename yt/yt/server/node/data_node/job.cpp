@@ -483,28 +483,7 @@ private:
             return VoidFuture;
         }
 
-        // Usually, when subscribing, there are more free fibers than when calling wait for,
-        // and the lack of free fibers during a forced context switch leads to the creation
-        // of a new fiber and an increase in the number of stacks.
-        auto resultFuture = chunkStore->RemoveChunk(chunk, DynamicConfig_->DelayBeforeStartRemoveChunk);
-
-        if (DynamicConfig_->WaitForIncrementalHeartbeatBarrier) {
-            return resultFuture
-                .Apply(BIND([
-                        this,
-                        this_ = MakeStrong(this),
-                        masterConnector = Bootstrap_->GetMasterConnector(),
-                        chunkId = ChunkId_
-                    ] {
-                        // Wait for the removal notification to be delivered to master.
-                        // Cf. YT-6532.
-                        auto cellTag = CellTagFromId(chunkId);
-                        YT_LOG_INFO("Waiting for heartbeat barrier (CellTag: %v)", cellTag);
-                        return masterConnector->GetHeartbeatBarrier(cellTag);
-                    }));
-        } else {
-            return resultFuture;
-        }
+        return chunkStore->RemoveChunk(chunk, DynamicConfig_->DelayBeforeStartRemoveChunk);
     }
 };
 

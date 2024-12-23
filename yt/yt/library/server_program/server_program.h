@@ -19,13 +19,18 @@ class TServerProgram
     , public TProgramConfigMixin<TConfig, TDynamicConfig>
 {
 protected:
-    explicit TServerProgram(bool requireConfigArgument = true);
+    TServerProgram();
 
     //! Typically invoked in the constructor of the dervied class to configure
     //! the name of the main thread.
     void SetMainThreadName(const std::string& name);
 
+    virtual void ValidateOpts();
+    virtual void TweakConfig();
+
     virtual void DoStart() = 0;
+
+    [[noreturn]] void SleepForever();
 
 private:
     std::string MainThreadName_ = DefaultMainThreadName;

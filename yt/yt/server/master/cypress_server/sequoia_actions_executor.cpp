@@ -490,7 +490,7 @@ private:
         auto destinationNodeId = FromProto<TNodeId>(request->dst_id());
         auto destinationParentId = FromProto<TNodeId>(request->dst_parent_id());
 
-        // TODO(h0pless): Think about trowing an error if this cell is not sequoia_node_host anymore.
+        // TODO(h0pless): Think about throwing an error if this cell is not sequoia_node_host anymore.
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* sourceNode = cypressManager->GetNodeOrThrow(TVersionedNodeId(sourceNodeId));
 
