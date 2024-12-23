@@ -1522,7 +1522,7 @@ public:
         if constexpr (std::is_same_v<ToType, UInt128>) /// backward-compatible
         {
             if constexpr (std::endian::native == std::endian::big)
-                std::for_each(col_to->getData().begin(), col_to->getData().end(), transformEndianness<std::endian::little, std::endian::native, ToType>);
+                std::ranges::for_each(col_to->getData(), transformEndianness<std::endian::little, std::endian::native, ToType>);
 
             auto col_to_fixed_string = ColumnFixedString::create(sizeof(UInt128));
             const auto & data = col_to->getData();

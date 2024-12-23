@@ -78,7 +78,6 @@ target_link_libraries(clickhouse-src-Parsers PUBLIC
   restricted-boost-heap
   restricted-boost-multi_index
   restricted-boost-program_options
-  restricted-boost-system
   contrib-restricted-cityhash-1.0.2
   dragonbox
   contrib-restricted-magic_enum

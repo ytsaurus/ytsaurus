@@ -52,7 +52,6 @@ PEERDIR(
     contrib/restricted/boost/heap
     contrib/restricted/boost/multi_index
     contrib/restricted/boost/program_options
-    contrib/restricted/boost/system
     contrib/restricted/cityhash-1.0.2
     contrib/restricted/dragonbox
     contrib/restricted/fast_float

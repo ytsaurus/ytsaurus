@@ -26,6 +26,7 @@ PEERDIR(
     contrib/libs/farmhash
     contrib/libs/fastops/fastops
     contrib/libs/fmt
+    contrib/libs/icu
     contrib/libs/libc_compat
     contrib/libs/libdivide
     contrib/libs/lz4
@@ -65,7 +66,6 @@ PEERDIR(
     contrib/restricted/boost/heap
     contrib/restricted/boost/multi_index
     contrib/restricted/boost/program_options
-    contrib/restricted/boost/system
     contrib/restricted/cityhash-1.0.2
     contrib/restricted/clickhouse-deps/morton-nd
     contrib/restricted/dragonbox
