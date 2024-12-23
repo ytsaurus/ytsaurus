@@ -408,7 +408,7 @@ private:
         std::for_each(thread_frame_pointers.rbegin(), thread_frame_pointers.rend(),
             [this](const StackTrace::FramePointers & frame_pointers)
             {
-                if (size_t size = std::find(frame_pointers.begin(), frame_pointers.end(), nullptr) - frame_pointers.begin())
+                if (size_t size = std::ranges::find(frame_pointers, nullptr) - frame_pointers.begin())
                 {
                     LOG_FATAL(log, "========================================");
                     WriteBufferFromOwnString bare_stacktrace;
