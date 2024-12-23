@@ -232,6 +232,7 @@ private:
     void ParseSimpleNumeric(FuncType makeUnversionedValueFunc)
     {
         auto array = std::static_pointer_cast<ArrayType>(Array_);
+        YT_VERIFY(array->length() <= std::ssize(*RowValues_));
         for (int rowIndex = 0; rowIndex < array->length(); ++rowIndex) {
             if (array->IsNull(rowIndex)) {
                 (*RowValues_)[rowIndex] = MakeUnversionedNullValue(ColumnId_);
@@ -245,6 +246,7 @@ private:
     arrow::Status ParseStringLikeArray(auto makeUnversionedValueFunc)
     {
         auto array = std::static_pointer_cast<ArrayType>(Array_);
+        YT_VERIFY(array->length() <= std::ssize(*RowValues_));
         for (int rowIndex = 0; rowIndex < array->length(); ++rowIndex) {
             if (array->IsNull(rowIndex)) {
                 (*RowValues_)[rowIndex] = MakeUnversionedNullValue(ColumnId_);
@@ -282,6 +284,7 @@ private:
     arrow::Status ParseBoolean()
     {
         auto array = std::static_pointer_cast<arrow::BooleanArray>(Array_);
+        YT_VERIFY(array->length() <= std::ssize(*RowValues_));
         for (int rowIndex = 0; rowIndex < array->length(); rowIndex++) {
             if (array->IsNull(rowIndex)) {
                 (*RowValues_)[rowIndex] = MakeUnversionedNullValue(ColumnId_);
@@ -295,6 +298,7 @@ private:
     arrow::Status ParseNull()
     {
         auto array = std::static_pointer_cast<arrow::NullArray>(Array_);
+        YT_VERIFY(array->length() <= std::ssize(*RowValues_));
         for (int rowIndex = 0; rowIndex < array->length(); rowIndex++) {
             (*RowValues_)[rowIndex] = MakeUnversionedNullValue(ColumnId_);
         }
@@ -808,19 +812,21 @@ void PrepareArrayForSimpleLogicalType(
 {
     CheckMatchingArrowTypes(columnType, column);
     if (column->type()->id() == arrow::Type::DICTIONARY) {
-        auto dictionaryColumn = std::static_pointer_cast<arrow::DictionaryArray>(column);
-        TUnversionedRowValues dictionaryValues(rowsValues[columnIndex].size());
-        auto dictionaryValuesColumn = dictionaryColumn->dictionary();
-        CheckMatchingArrowTypes(columnType, dictionaryValuesColumn);
+        auto dictionaryArrayColumn = std::static_pointer_cast<arrow::DictionaryArray>(column);
+        auto dictionary = dictionaryArrayColumn->dictionary();
+        TUnversionedRowValues dictionaryValues(dictionary->length());
+        CheckMatchingArrowTypes(columnType, dictionary);
 
-        TArraySimpleVisitor visitor(columnType, columnId, dictionaryValuesColumn, bufferForStringLikeValues, &dictionaryValues);
-        ThrowOnError(dictionaryColumn->dictionary()->type()->Accept(&visitor));
+        TArraySimpleVisitor visitor(columnType, columnId, dictionary, bufferForStringLikeValues, &dictionaryValues);
+        ThrowOnError(dictionaryArrayColumn->dictionary()->type()->Accept(&visitor));
 
         for (int offset = 0; offset < std::ssize(rowsValues[columnIndex]); offset++) {
-            if (dictionaryColumn->IsNull(offset)) {
+            if (dictionaryArrayColumn->IsNull(offset)) {
                 rowsValues[columnIndex][offset] = MakeUnversionedNullValue(columnId);
             } else {
-                rowsValues[columnIndex][offset] = dictionaryValues[dictionaryColumn->GetValueIndex(offset)];
+                auto dictionaryValueIndex = dictionaryArrayColumn->GetValueIndex(offset);
+                YT_VERIFY(dictionaryValueIndex < std::ssize(dictionaryValues));
+                rowsValues[columnIndex][offset] = dictionaryValues[dictionaryValueIndex];
             }
         }
     } else {
