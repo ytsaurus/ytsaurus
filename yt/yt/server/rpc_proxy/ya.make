@@ -28,6 +28,7 @@ PEERDIR(
     yt/yt/library/auth_server
     yt/yt/library/dynamic_config
     yt/yt/library/server_program
+    yt/yt/library/monitoring
     yt/yt/library/profiling/solomon
     yt/yt/library/tracing/jaeger
 
