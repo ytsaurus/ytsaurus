@@ -86,9 +86,10 @@ func (a *AggregateFunction) UnmarshalText(text []byte) error {
 }
 
 const (
-	AggregateSum AggregateFunction = "sum"
-	AggregateMin AggregateFunction = "min"
-	AggregateMax AggregateFunction = "max"
+	AggregateSum   AggregateFunction = "sum"
+	AggregateMin   AggregateFunction = "min"
+	AggregateMax   AggregateFunction = "max"
+	AggregateFirst AggregateFunction = "first"
 )
 
 // Column specifies schema of a single column.

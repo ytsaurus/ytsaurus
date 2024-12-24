@@ -300,11 +300,13 @@ public:
         add_keyword_method("dump_skiff", &TYsonModule::DumpSkiff, "Dumps Skiff to stream");
 
         add_keyword_method("dump_parquet", &TYsonModule::DumpParquet, "Dumps Parquet to file from Arrow stream");
-        add_keyword_method("async_dump_parquet", &TYsonModule::AsyncDumpParquet, "Dumps Parquet to file from Arrow stream");
+        add_keyword_method("async_dump_parquet", &TYsonModule::AsyncDumpParquet, "Dumps Parquet to file from Arrow stream asynchronously");
 
         add_keyword_method("upload_parquet", &TYsonModule::UploadParquet, "Uploads Parquet from file as Arrow to stream");
 
         add_keyword_method("dump_orc", &TYsonModule::DumpORC, "Dumps ORC to file from Arrow stream");
+        add_keyword_method("async_dump_orc", &TYsonModule::AsyncDumpOrc, "Dumps ORC to file from Arrow stream asynchronously");
+
         add_keyword_method("upload_orc", &TYsonModule::UploadORC, "Uploads ORC from file as Arrow to stream");
 
         add_keyword_method("load_skiff_structured", &TYsonModule::LoadSkiffStructured, "Loads Skiff rows from stream in structured form");
@@ -490,6 +492,13 @@ public:
         auto args = args_;
         auto kwargs = kwargs_;
         return NPython::AsyncDumpParquet(args, kwargs);
+    }
+
+    Py::Object AsyncDumpOrc(const Py::Tuple& args_, const Py::Dict& kwargs_)
+    {
+        auto args = args_;
+        auto kwargs = kwargs_;
+        return NPython::AsyncDumpOrc(args, kwargs);
     }
 
     Py::Object UploadParquet(const Py::Tuple& args_, const Py::Dict& kwargs_)

@@ -14,8 +14,5 @@
     "taxi/tplatform/uservices/": "taxi/tplatform/uservices/pyproject.toml",
     "taxi/uservices/": "taxi/uservices/pyproject.toml",
     "intranet/yandex_directory/": "intranet/yandex_directory/pyproject.toml",
-    "games/admin": "games/admin/pyproject.toml",
-    "games/backend": "games/admin/pyproject.toml",
-    "quality/antifraud/security": "quality/antifraud/security/pyproject.toml",
-    "ml/dod": "ml/dod/pyproject.toml"
+    "games/admin": "games/admin/pyproject.toml"
 }

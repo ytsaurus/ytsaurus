@@ -713,19 +713,30 @@ class YtClient(ClientState):
 
     def dump_orc(
             self,
-            table, output_file):
+            table,
+            output_file=None, output_path=None, enable_several_files=False, unordered=False):
         """
         Dump table with a strict schema as `ORC <https://orc.apache.org/>` file
 
         :param table: table
         :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
-        :param output_file: path to output file
+        :param output_file: path to output file, this option is deprecated, please use output_path
         :type output_file: str
+        :param output_path: If option enable_several_files is disabled, you need to put the path to the file here,
+        otherwise the path to the directory where the files in the orc format will be placed
+        :type output_path: str
+        :param enable_several_files: allowing orc to be written to multiple files,
+        only makes sense for better acceleration in parallel mode
+        :type enable_several_files: bool
+        :param unordered: if the option is set to false, the order will be as in the original table
+        :type unordered: bool
 
         """
         return client_api.dump_orc(
-            table, output_file,
-            client=self)
+            table,
+            client=self,
+            output_file=output_file, output_path=output_path, enable_several_files=enable_several_files,
+            unordered=unordered)
 
     def dump_parquet(
             self,

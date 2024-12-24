@@ -87,7 +87,7 @@ class YtTestEnvironment(object):
         self.sandbox_dir = os.path.join(sandbox_path, self.uniq_dir_name)
         self.core_path = os.path.join(sandbox_path, "_cores")
         if not os.path.exists(self.core_path):
-            os.makedirs(self.core_path)
+            os.makedirs(self.core_path, exist_ok=True)
 
         self.binaries_path = None
 
@@ -97,7 +97,7 @@ class YtTestEnvironment(object):
         prepare_dir = os.path.join(get_work_path(), suffix)
 
         if not os.path.exists(prepare_dir):
-            os.makedirs(prepare_dir)
+            os.makedirs(prepare_dir, exist_ok=True)
 
         self.binaries_path = arcadia_interop.prepare_yt_environment(
             prepare_dir,

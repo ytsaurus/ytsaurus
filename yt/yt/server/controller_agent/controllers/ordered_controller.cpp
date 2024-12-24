@@ -1204,6 +1204,10 @@ public:
         Persist(context, Spec_);
         Persist(context, Options_);
         Persist<TAttributeDictionarySerializer>(context, InputTableAttributes_);
+        if (InputTableAttributes_ && InputTableAttributes_->ListKeys().empty()) {
+            YT_VERIFY(context.IsLoad());
+            InputTableAttributes_.Reset();
+        }
         Persist(context, Networks_);
         // COMPAT(alexelexa)
         if (context.GetVersion() >= ESnapshotVersion::RemoteCopyDynamicTableWithHunks) {
@@ -1559,6 +1563,10 @@ private:
 
     std::vector<TString> BuildSystemAttributeKeys() const
     {
+        if (!Spec_->ForceCopySystemAttributes) {
+            return {};
+        }
+
         std::vector<TString> keys{
             "compression_codec",
             "erasure_codec",
@@ -1573,6 +1581,10 @@ private:
 
     void FetchInputTableAttributes()
     {
+        if (!Spec_->ForceCopySystemAttributes && !Spec_->CopyAttributes) {
+            return;
+        }
+
         auto attributesFuture = InputManager->FetchSingleInputTableAttributes(
             Spec_->CopyAttributes
                 ? std::nullopt
@@ -1613,6 +1625,10 @@ private:
             }
         } else if (hasDynamicOutputTable) {
             THROW_ERROR_EXCEPTION("Static table cannot be copied into a dynamic table");
+        }
+
+        if (InputTableAttributes_) {
+            YT_VERIFY(Spec_->CopyAttributes || Spec_->ForceCopySystemAttributes);
         }
 
         TOrderedControllerBase::CustomMaterialize();
@@ -1683,6 +1699,8 @@ private:
 
     std::vector<TString> BuildOutputTableAttributeKeys() const
     {
+        YT_VERIFY(Spec_->CopyAttributes || Spec_->ForceCopySystemAttributes);
+
         auto systemAttributeKeys = BuildSystemAttributeKeys();
         auto attributeKeys = systemAttributeKeys;
         if (Spec_->CopyAttributes) {
@@ -1713,7 +1731,7 @@ private:
     {
         TOperationControllerBase::CustomCommit();
 
-        // COMPAT(coteeq): InputTableAttributes_ is always defined from now on.
+        // COMPAT(coteeq)
         if (InputTableAttributes_) {
             const auto& path = Spec_->OutputTablePath.GetPath();
 

@@ -1,14 +1,15 @@
+IF (NOT EXPORT_CMAKE)
+
 RECURSE(
     agent
     plugin
+    providers
+    tools
 )
 
-IF(NOT EXPORT_CMAKE)
-    RECURSE_FOR_TESTS(
-        providers
-        tools
-    )
-ENDIF()
+RECURSE_FOR_TESTS(
+    tests
+)
 
 IF (NOT OPENSOURCE)
     RECURSE(
@@ -16,6 +17,4 @@ IF (NOT OPENSOURCE)
     )
 ENDIF()
 
-# TODO(gritukan): These tests will be broken in open source after this commit,
-# but we are going to implement test infrastructure for YQL in the next commit.
-RECURSE_FOR_TESTS(tests)
+ENDIF()

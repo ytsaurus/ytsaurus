@@ -7448,7 +7448,7 @@ private:
                     break;
 
                 case ENodeCloneMode::Move:
-                    if (trunkNode->IsPhysicallyLog()) {
+                    if (trunkNode->IsReplicated()) {
                         THROW_ERROR_EXCEPTION("Cannot move a table of type %Qlv",
                             trunkNode->GetType());
                     }

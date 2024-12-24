@@ -907,26 +907,41 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t0"},
             {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t1"},
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r1"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/ta"}
         ]
 
         cell_id = self._sync_create_chaos_bundle_and_cell()
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+        create("chaos_replicated_table", "//tmp/crt", attributes={
+            "replication_card_id": card_id,
+            "chaos_cell_bundle": "c"
+        })
 
         values = [{"key": 0, "value": "0"}]
         insert_rows(replicas[0]["replica_path"], values)
         assert lookup_rows(replicas[1]["replica_path"], [{"key": 0}]) == values
 
-        self._sync_alter_replica(card_id, replicas, replica_ids, 1, mode="async")
+        def _move_replica(new_replica_path: str, replica_index: int, driver):
+            is_sync = replicas[replica_index]["mode"] == "sync"
+            if is_sync:
+                self._sync_alter_replica(card_id, replicas, replica_ids, replica_index, mode="async")
 
-        sync_unmount_table(replicas[1]["replica_path"])
-        new_replica_path = "//tmp/t2"
-        alter_table_replica(replica_ids[1], replica_path=new_replica_path)
-        move(replicas[1]["replica_path"], new_replica_path)
-        replicas[1]["replica_path"] = new_replica_path
-        sync_mount_table(replicas[1]["replica_path"])
+            sync_unmount_table(replicas[replica_index]["replica_path"], driver=driver)
 
-        self._sync_alter_replica(card_id, replicas, replica_ids, 1, mode="sync")
+            alter_table_replica(replica_ids[replica_index], replica_path=new_replica_path)
+            move(replicas[replica_index]["replica_path"], new_replica_path, driver=driver)
+            replicas[replica_index]["replica_path"] = new_replica_path
+
+            sync_mount_table(replicas[replica_index]["replica_path"], driver=driver)
+            if is_sync:
+                self._sync_alter_replica(card_id, replicas, replica_ids, replica_index, mode="sync")
+
+        primary_driver = get_driver(cluster="primary")
+        remove_0_driver = get_driver(cluster="remote_0")
+
+        # Moving data replica.
+        _move_replica("//tmp/t2", 1, primary_driver)
 
         values1 = [{"key": 1, "value": "1"}]
         insert_rows(replicas[0]["replica_path"], values1)
@@ -934,8 +949,30 @@ class TestChaos(ChaosTestBase):
         assert lookup_rows(replicas[1]["replica_path"], [{"key": 1}]) == values1
         assert lookup_rows(replicas[1]["replica_path"], [{"key": 0}]) == values
 
+        # Duplicated paths in replication card are prohibited.
         with pytest.raises(YtResponseError):
             alter_table_replica(replica_ids[1], replica_path=replicas[0]["replica_path"])
+
+        # Moving queue replicas.
+        self._sync_alter_replica(card_id, replicas, replica_ids, 3, mode="sync")
+        _move_replica("//tmp/r2", 2, remove_0_driver)
+        self._sync_alter_replica(card_id, replicas, replica_ids, 3, mode="async")
+        _move_replica("//tmp/r3", 3, remove_0_driver)
+
+        values2 = [{"key": 2, "value": "2"}]
+        insert_rows(replicas[0]["replica_path"], values2)
+        timestamp = generate_timestamp()
+
+        assert lookup_rows(replicas[0]["replica_path"], [{"key": 2}]) == values2
+        assert lookup_rows(replicas[1]["replica_path"], [{"key": 2}]) == values2
+        assert lookup_rows(replicas[0]["replica_path"], [{"key": 1}]) == values1
+        assert lookup_rows(replicas[1]["replica_path"], [{"key": 1}]) == values1
+        assert lookup_rows(replicas[1]["replica_path"], [{"key": 0}]) == values
+
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[4]}/replication_lag_timestamp") > timestamp)
+        assert lookup_rows(replicas[4]["replica_path"], [{"key": 2}]) == values2
+        assert lookup_rows(replicas[4]["replica_path"], [{"key": 1}]) == values1
+        assert lookup_rows(replicas[4]["replica_path"], [{"key": 0}]) == values
 
     @authors("savrus")
     @pytest.mark.parametrize("content", ["data", "queue", "both"])
@@ -3122,7 +3159,8 @@ class TestChaos(ChaosTestBase):
 
         wait(lambda: select_rows("key, value from [//tmp/q0]") == data_values)
 
-        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[0]}/replication_lag_timestamp") > primary_commit_timestamp)
+        for replica_id in replica_ids:
+            wait(lambda: get(f"//tmp/crt/@replicas/{replica_id}/replication_lag_timestamp") > primary_commit_timestamp)
 
         ts = generate_timestamp()
 
