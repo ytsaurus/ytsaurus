@@ -161,6 +161,7 @@ CHECKS_LIST = [
     "queue_api",
     "queue_agent_alerts",
     "query_tracker_alerts",
+    "query_tracker_dq_liveness",
     "query_tracker_yql_liveness",
     "query_tracker_chyt_liveness",
     "query_tracker_ql_liveness",
