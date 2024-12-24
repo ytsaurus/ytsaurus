@@ -1,8 +1,6 @@
 from .conftest import authors
 from .helpers import wait
 
-from yt.wrapper.driver import get_api_version
-
 import yt.wrapper as yt
 
 import pytest
@@ -121,10 +119,6 @@ class TestChaosCommands(object):
     @authors("ponasenko-rs")
     @pytest.mark.parametrize("method", ["alter", "remove"])
     def test_replication_card_collocation_removed(self, method):
-        # alter_replication_card has only v4 option.
-        if get_api_version() == "v3" and method == "alter":
-            pytest.skip()
-
         cell_id = self._sync_create_chaos_bundle_and_cell()
         yt.set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
 
@@ -137,9 +131,8 @@ class TestChaosCommands(object):
         crt1, card1 = _create("//tmp/a")
         crt2, card2 = _create("//tmp/b")
 
-        if get_api_version() != "v3":
-            with pytest.raises(yt.YtError, match="is not a member of any collocation"):
-                yt.alter_replication_card(card1, collocation_options={"preferred_sync_replica_clusters": ["primary"]})
+        with pytest.raises(yt.YtError, match="is not a member of any collocation"):
+            yt.alter_replication_card(card1, collocation_options={"preferred_sync_replica_clusters": ["primary"]})
 
         collocation_id = yt.create("replication_card_collocation", None, attributes={
             "type": "replication",
