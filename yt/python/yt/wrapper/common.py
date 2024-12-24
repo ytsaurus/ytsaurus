@@ -292,14 +292,15 @@ def generate_uuid(generator=None):
     return "-".join([get_int() for _ in range(4)])
 
 
+def make_traceparent(trace_id, span_id, is_debug=False, is_sampled=False):
+    return "00-%032x-%016x-%d%d" % (trace_id, span_id, int(is_debug), int(is_sampled))
+
+
 def generate_traceparent(generator=None):
     if generator is None:
         generator = random
 
-    def get_int():
-        return generator.randint(0, 2**64 - 1)
-
-    return "00-%016x%016x-%016x-01" % (get_int(), get_int(), get_int())
+    return make_traceparent(generator.randint(2**128 - 1), generator.randint(2**64 - 1), is_sampled=True)
 
 
 def get_home_dir():
