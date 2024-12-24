@@ -454,7 +454,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
     @authors("eshcherbin")
     def test_apply_specified_resource_limits_to_demand(self):
-        update_scheduler_config("operation_hangup_safe_timeout", 100000000)
+        update_scheduler_config("operation_stuck_check", {"safe_timeout": 100000000})
 
         create_pool("pool", attributes={"resource_limits": {"cpu": 0}})
 
@@ -1702,7 +1702,7 @@ class TestInferWeightFromGuarantees(YTEnvSetup):
 ##################################################################
 
 
-class TestSchedulerHangingOperations(YTEnvSetup):
+class TestSchedulerStuckOperations(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1710,10 +1710,12 @@ class TestSchedulerHangingOperations(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "fair_share_update_period": 100,
-            "operation_hangup_check_period": 100,
-            "operation_hangup_safe_timeout": 5000,
-            "operation_hangup_min_schedule_job_attempts": 10,
-            "operation_hangup_due_to_limiting_ancestor_safe_timeout": 5000,
+            "operation_stuck_check": {
+                "period": 100,
+                "safe_timeout": 5000,
+                "min_schedule_job_attempts": 10,
+                "limiting_ancestor_safe_timeout": 5000,
+            },
         }
     }
 
@@ -1732,7 +1734,7 @@ class TestSchedulerHangingOperations(YTEnvSetup):
         config["job_resource_manager"]["resource_limits"]["user_slots"] = 2
 
     def setup_method(self, method):
-        super(TestSchedulerHangingOperations, self).setup_method(method)
+        super(TestSchedulerStuckOperations, self).setup_method(method)
         # TODO(eshcherbin): Remove this after tree config is reset correctly in yt_env_setup.
         set("//sys/pool_trees/default/@config/enable_limiting_ancestor_check", True)
         wait(lambda: get(scheduler_orchid_pool_tree_config_path("default") + "/enable_limiting_ancestor_check"))
@@ -1832,11 +1834,7 @@ class TestSchedulerHangingOperations(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_skip_limiting_ancestor_check_on_node_shortage(self):
-        set("//sys/scheduler/config/operation_hangup_safe_timeout", 100000000)
-        wait(
-            lambda: get(scheduler_orchid_path() + "/scheduler/config/operation_hangup_safe_timeout"),
-            100000000,
-        )
+        update_scheduler_config("operation_stuck_check", {"safe_timeout": 100000000})
 
         set("//sys/pool_trees/default/@config/nodes_filter", "!custom")
         create_pool_tree("custom_tree", config={"nodes_filter": "custom"})
@@ -1889,8 +1887,7 @@ class TestSchedulerHangingOperations(YTEnvSetup):
     @authors("eshcherbin")
     def test_no_fail_if_min_needed_resources_are_laggy(self):
         set("//sys/scheduler/config/min_needed_resources_update_period", 1000)
-        set("//sys/scheduler/config/operation_hangup_safe_timeout", 100000000)
-        wait(lambda: get(scheduler_orchid_path() + "/scheduler/config/operation_hangup_safe_timeout") == 100000000)
+        update_scheduler_config("operation_stuck_check", {"safe_timeout": 100000000})
 
         data = [{"foo": str(i - (i % 2)), "bar": i} for i in range(8)]
         create("table", "//tmp/in")

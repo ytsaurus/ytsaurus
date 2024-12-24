@@ -72,6 +72,9 @@ public:
         return false;
     }
 
+    void RemoveChunkFromCache(TChunkId /*chunkId*/) override
+    { }
+
 private:
     const INodeMemoryTrackerPtr MemoryUsageTracker_ = CreateNodeMemoryTracker(1_GBs);
 };

@@ -35,8 +35,6 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/ytlib/program/native_singletons.h>
-
 #include <yt/yt/ytlib/queue_client/registration_manager.h>
 
 #include <yt/yt/library/auth_server/authentication_manager.h>
@@ -51,6 +49,7 @@
 #include <yt/yt/library/profiling/solomon/registry.h>
 
 #include <yt/yt/library/program/build_attributes.h>
+#include <yt/yt/library/program/helpers.h>
 
 #include <yt/yt/client/driver/driver.h>
 #include <yt/yt/client/driver/config.h>
@@ -72,6 +71,8 @@
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 
 #include <yt/yt/core/rpc/bus/server.h>
+
+#include <yt/yt/core/bus/tcp/config.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
@@ -374,7 +375,7 @@ void TBootstrap::OnDynamicConfigChanged(
     const TProxyDynamicConfigPtr& /*oldConfig*/,
     const TProxyDynamicConfigPtr& newConfig)
 {
-    ReconfigureNativeSingletons(newConfig);
+    ReconfigureSingletons(newConfig);
     ReconfigureMemoryLimits(newConfig->MemoryLimits);
 
     DynamicConfig_.Store(newConfig);
@@ -434,8 +435,6 @@ void TBootstrap::Run()
     if (ZookeeperBootstrap_) {
         ZookeeperBootstrap_->Run();
     }
-
-    Sleep(TDuration::Max());
 }
 
 const IInvokerPtr& TBootstrap::GetControlInvoker() const

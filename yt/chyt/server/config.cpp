@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/api/client.h>
 
+#include <yt/yt/library/tracing/jaeger/tracer.h>
+
 #include <yt/yt/library/re2/re2.h>
 
 namespace NYT::NClickHouseServer {
@@ -694,9 +696,10 @@ void TClickHouseServerBootstrapConfig::Register(TRegistrar registrar)
         .Default(100);
 
     registrar.Preprocessor([] (TThis* config) {
-        config->Jaeger->ServiceName = "clickhouse_server";
-        config->Jaeger->CollectorChannelConfig = New<NRpc::NGrpc::TChannelConfig>();
-        config->Jaeger->CollectorChannelConfig->Address = "yt.c.jaeger.yandex-team.ru:14250";
+        auto jaegerConfig = config->GetSingletonConfig<NTracing::TJaegerTracerConfig>();
+        jaegerConfig->ServiceName = "clickhouse_server";
+        jaegerConfig->CollectorChannelConfig = New<NRpc::NGrpc::TChannelConfig>();
+        jaegerConfig->CollectorChannelConfig->Address = "yt.c.jaeger.yandex-team.ru:14250";
     });
 
     registrar.Postprocessor([] (TThis* config) {

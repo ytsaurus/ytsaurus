@@ -9,6 +9,7 @@ SRCS(
     patch_unwrapping_consumer_ut.cpp
     scalar_attribute_ut.cpp
     unwrapping_consumer_ut.cpp
+    wire_string_ut.cpp
     yson_builder_ut.cpp
 )
 

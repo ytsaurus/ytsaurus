@@ -8,6 +8,7 @@ SRCS(
 
 PEERDIR(
     yt/yt/library/program
+    yt/yt/library/tcmalloc
     library/cpp/getopt
 )
 

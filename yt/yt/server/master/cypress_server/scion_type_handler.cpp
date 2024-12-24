@@ -54,18 +54,16 @@ private:
         TCypressNodeTypeHandlerBase::DoDestroy(node);
     }
 
-    void DoBeginCopy(
+    void DoSerializeNode(
         TScionNode* /*node*/,
-        TBeginCopyContext* /*context*/) override
+        TSerializeNodeContext* /*context*/) override
     {
         THROW_ERROR_EXCEPTION("Cross-cell copying of scions is not supported");
     }
 
-    void DoEndCopy(
+    void DoMaterializeNode(
         TScionNode* /*trunkNode*/,
-        TEndCopyContext* /*context*/,
-        ICypressNodeFactory* /*factory*/,
-        NYTree::IAttributeDictionary* /*inheritedAttributes*/) override
+        TMaterializeNodeContext* /*context*/) override
     {
         THROW_ERROR_EXCEPTION("Cross-cell copying of scions is not supported");
     }

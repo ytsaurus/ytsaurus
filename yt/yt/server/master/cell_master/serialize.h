@@ -197,6 +197,10 @@ DEFINE_ENUM(EMasterReign,
     ((ScanFormatIsDefaultForDynamicTables)                          (2807))  // sabdenovch
     ((EnumsAndChunkReplicationReductionsInTTableNode)               (2808))  // cherepashka
     ((PreserveAclFlagForMove)                                       (2809))  // koloshmet
+    ((RemoveDrtDisableOptions)                                      (2810))  // ponasenko-rs
+    ((IntroduceNewPipelineForCrossCellCopy)                         (2811))  // h0pless
+    ((DanglingLocationsCleaning)                                    (2812))  // koloshmet
+    ((AllowToMoveReplicationLogTables)                              (2813))  // osidorkin
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

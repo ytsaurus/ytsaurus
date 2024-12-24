@@ -134,7 +134,7 @@ void TClusterResourceLimits::Load(NCellMaster::TLoadContext& context)
     Load(context, MasterMemory_);
 }
 
-void TClusterResourceLimits::Save(NCypressServer::TBeginCopyContext& context) const
+void TClusterResourceLimits::Save(NCypressServer::TSerializeNodeContext& context) const
 {
     using NYT::Save;
     Save(context, static_cast<int>(DiskSpace_.size()));
@@ -149,7 +149,7 @@ void TClusterResourceLimits::Save(NCypressServer::TBeginCopyContext& context) co
     Save(context, MasterMemory_);
 }
 
-void TClusterResourceLimits::Load(NCypressServer::TEndCopyContext& context)
+void TClusterResourceLimits::Load(NCypressServer::TMaterializeNodeContext& context)
 {
     using NYT::Load;
     auto mediumCount = Load<int>(context);

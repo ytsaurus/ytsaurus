@@ -885,6 +885,14 @@ public:
         return Any(GetSupportedBlockTypes() & blockType);
     }
 
+    void RemoveChunkBlocks(const TChunkId& /*chunkId*/) override
+    { }
+
+    THashSet<TBlockInfo> GetCachedBlocksByChunkId(TChunkId /*chunkId*/, EBlockType /*type*/) override
+    {
+        return {};
+    }
+
     TFuture<void> Finish(const std::vector<TChunkInfo>& chunkInfos) override
     {
         bool expected = false;
@@ -1074,6 +1082,14 @@ public:
     bool IsBlockTypeActive(EBlockType /*blockType*/) const override
     {
         return false;
+    }
+
+    void RemoveChunkBlocks(const TChunkId& /*chunkId*/) override
+    { }
+
+    THashSet<TBlockInfo> GetCachedBlocksByChunkId(TChunkId /*chunkId*/, EBlockType /*type*/) override
+    {
+        return {};
     }
 
     TFuture<void> Finish(const std::vector<TChunkInfo>& /*chunkInfos*/) override

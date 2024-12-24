@@ -805,6 +805,14 @@ public:
             UnderlyingCache_->IsBlockTypeActive(blockType);
     }
 
+    void RemoveChunkBlocks(const TChunkId& /*chunkId*/) override
+    { }
+
+    THashSet<TBlockInfo> GetCachedBlocksByChunkId(TChunkId /*chunkId*/, EBlockType /*type*/) override
+    {
+        return {};
+    }
+
 private:
     const TWeakPtr<TChunkStoreBase> Owner_;
     const TInMemoryChunkDataPtr ChunkData_;

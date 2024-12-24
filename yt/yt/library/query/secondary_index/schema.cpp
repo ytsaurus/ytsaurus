@@ -168,7 +168,7 @@ const TColumnSchema& FindUnfoldedColumnAndValidate(const TTableSchema& tableSche
         }
 
         THROW_ERROR_EXCEPTION_IF(unfoldedColumn,
-            "Expected a single unfolded column, found at least two: %v, %v",
+            "Expected a single unfolded column, found at least two: %Qv, %Qv",
             unfoldedColumn->Name(),
             indexColumn.Name());
 

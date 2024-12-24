@@ -107,7 +107,11 @@ void LogAccess(
     const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
 
     const auto& targetSuffix = GetRequestTargetYPath(context->RequestHeader());
-    auto targetSuffixIsForDestinationPath = context->GetMethod() == "Move" || context->GetMethod() == "Copy";
+    auto targetSuffixIsForDestinationPath =
+        context->GetMethod() == "Move" ||
+        context->GetMethod() == "Copy" ||
+        context->GetMethod() == "LockCopyDestination" ||
+        context->GetMethod() == "AssembleTreeCopy";
 
     auto doPath = [&] (auto fluent, TYPathBuf path, bool appendTargetSuffix) {
         if (!appendTargetSuffix) {

@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/discovery_server/config.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 #include <yt/yt/core/bus/tcp/config.h>
 
 namespace NYT::NClusterDiscoveryServer {
@@ -14,6 +16,7 @@ namespace NYT::NClusterDiscoveryServer {
 
 class TClusterDiscoveryServerConfig
     : public TServerConfig
+    , public TServerProgramConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;

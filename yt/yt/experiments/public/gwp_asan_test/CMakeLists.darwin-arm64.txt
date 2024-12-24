@@ -24,6 +24,7 @@ target_link_libraries(gwp_asan_test PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-library-program
+  yt-library-tcmalloc
   library-cpp-getopt
 )
 

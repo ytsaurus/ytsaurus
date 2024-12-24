@@ -288,6 +288,24 @@ bool TDynamicChunkReincarnatorConfig::ShouldRescheduleAfterChange(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDanglingLocationCleanerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+    registrar.Parameter("cleanup_period", &TThis::CleanupPeriod)
+        .Default(TDuration::Seconds(60));
+    registrar.Parameter("expiration_timeout", &TThis::ExpirationTimeout)
+        .Default(TDuration::Days(30));
+    registrar.Parameter("max_locations_to_clean_per_iteration", &TThis::MaxLocationsToCleanPerIteration)
+        .Default(TThis::DefaultMaxLocationsToCleanPerIteration)
+        .GreaterThan(0);
+    // COMPAT(koloshmet)
+    registrar.Parameter("default_last_seen_time", &TThis::DefaultLastSeenTime)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_concurrent_full_heartbeats", &TThis::MaxConcurrentFullHeartbeats)
@@ -296,6 +314,8 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_concurrent_incremental_heartbeats", &TThis::MaxConcurrentIncrementalHeartbeats)
         .Default(10)
         .GreaterThan(0);
+    registrar.Parameter("dangling_location_cleaner", &TThis::DanglingLocationCleaner)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -356,12 +376,6 @@ void TDynamicChunkTreeBalancerConfig::Register(TRegistrar registrar)
 
 void TDynamicAllyReplicaManagerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("enable_ally_replica_announcement", &TThis::EnableAllyReplicaAnnouncement)
-        .Default(false);
-
-    registrar.Parameter("enable_endorsements", &TThis::EnableEndorsements)
-        .Default(false);
-
     registrar.Parameter("underreplicated_chunk_announcement_request_delay", &TThis::UnderreplicatedChunkAnnouncementRequestDelay)
         .Default(TDuration::Seconds(60));
 

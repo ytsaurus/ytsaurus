@@ -11,10 +11,16 @@
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 
+#include <yt/yt/server/master/chaos_server/chaos_manager.h>
+
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
+
 #include <yt/yt/server/master/maintenance_tracker_server/cluster_proxy_node.h>
 
 #include <yt/yt/server/master/security_server/account.h>
 #include <yt/yt/server/master/security_server/user.h>
+
+#include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
 #include <yt/yt/server/master/object_server/yson_intern_registry.h>
 
@@ -24,15 +30,16 @@
 
 namespace NYT::NCypressServer {
 
-using namespace NYTree;
-using namespace NYson;
-using namespace NSecurityServer;
-using namespace NTransactionServer;
 using namespace NCellMaster;
+using namespace NChaosServer;
+using namespace NChunkServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
-using namespace NChaosServer;
+using namespace NSecurityServer;
 using namespace NTabletServer;
+using namespace NTransactionServer;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,9 +143,9 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCorePrologue(TCypressNode* n
     securityManager->ResetAccount(node);
 }
 
-bool TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
+void TNontemplateCypressNodeTypeHandlerBase::SerializeNodeCore(
     TCypressNode* node,
-    TBeginCopyContext* context)
+    TSerializeNodeContext* context)
 {
     using NYT::Save;
 
@@ -147,19 +154,18 @@ bool TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
         erasedType = EObjectType::MapNode;
     }
 
-    // These are loaded in TCypressManager::TNodeFactory::EndCopyNode.
+    // These are loaded in TCypressManager::TNodeFactory::MaterializeNode.
     Save(*context, node->GetId());
 
-    // These are loaded in TCypressManager::EndCopyNode.
+    // These are loaded in TCypressManager::MaterializeNode.
     Save(*context, erasedType);
-
-    // These are loaded in EndCopyCore.
     Save(*context, node->GetExternalCellTag());
 
     // These are loaded in type handler.
     Save(*context, node->Account().Get());
     Save(*context, node->GetTotalResourceUsage());
-    Save(*context, node->Acd());
+    // NB: ACDs can not be set under transaction.
+    Save(*context, node->GetTrunkNode()->Acd());
     Save(*context, node->GetOpaque());
     Save(*context, node->TryGetAnnotation());
     Save(*context, node->GetCreationTime());
@@ -167,85 +173,34 @@ bool TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
     Save(*context, node->TryGetExpirationTime());
     Save(*context, node->TryGetExpirationTimeout());
 
-    // User attributes
+    // User attributes.
     auto keyToAttribute = GetNodeAttributes(
         Bootstrap_->GetCypressManager(),
         node->GetTrunkNode(),
         node->GetTransaction());
     Save(*context, SortHashMapByKeys(keyToAttribute));
-
-    // For externalizable nodes, lock the source to ensure it survives until EndCopy.
-    if (node->GetExternalCellTag() != NotReplicatedCellTagSentinel) {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->LockNode(
-            node->GetTrunkNode(),
-            context->GetTransaction(),
-            context->GetMode() == ENodeCloneMode::Copy ? ELockMode::Snapshot : ELockMode::Exclusive);
-    }
-
-    bool opaqueChild = false;
-    const auto& cypressManager = Bootstrap_->GetCypressManager();
-    if (node->GetOpaque() && node != context->GetRootNode()) {
-        context->RegisterAsOpaque(cypressManager->GetNodePath(node, context->GetTransaction()));
-        opaqueChild = true;
-    }
-    Save(*context, opaqueChild);
-
-    return !opaqueChild;
 }
 
-TCypressNode* TNontemplateCypressNodeTypeHandlerBase::EndCopyCore(
-    TEndCopyContext* context,
-    ICypressNodeFactory* factory,
-    TNodeId sourceNodeId,
-    bool* needCustomEndCopy)
-{
-    // See BeginCopyCore.
-    auto externalCellTag = Load<TCellTag>(*context);
-
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    if (externalCellTag == multicellManager->GetCellTag()) {
-        THROW_ERROR_EXCEPTION("Cannot copy node %v to cell %v since the latter is its external cell",
-            sourceNodeId,
-            externalCellTag);
-    }
-
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    auto clonedId = objectManager->GenerateId(GetObjectType());
-    auto* clonedTrunkNode = factory->InstantiateNode(clonedId, externalCellTag);
-
-    *needCustomEndCopy = LoadInplace(clonedTrunkNode, context, factory);
-
-    return clonedTrunkNode;
-}
-
-void TNontemplateCypressNodeTypeHandlerBase::EndCopyInplaceCore(
-    TCypressNode* trunkNode,
-    TEndCopyContext* context,
-    ICypressNodeFactory* factory,
-    TNodeId sourceNodeId)
-{
-    // See BeginCopyCore.
-    auto externalCellTag = Load<TCellTag>(*context);
-    if (externalCellTag != trunkNode->GetExternalCellTag()) {
-        THROW_ERROR_EXCEPTION("Cannot inplace copy node %v to node %v since external cell tags do not match: %v != %v",
-            sourceNodeId,
-            trunkNode->GetId(),
-            externalCellTag,
-            trunkNode->GetExternalCellTag());
-    }
-
-    LoadInplace(trunkNode, context, factory);
-
-    // NB: OpaqueChild flag is set during LoadInplace.
-    YT_VERIFY(!context->IsOpaqueChild());
-}
-
-bool TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
-    TCypressNode* trunkNode,
-    TEndCopyContext* context,
+TCypressNode* TNontemplateCypressNodeTypeHandlerBase::MaterializeNodeCore(
+    TMaterializeNodeContext* context,
     ICypressNodeFactory* factory)
 {
+    // See SerializeNodeCore.
+   TCypressNode* trunkNode = nullptr;
+    if (auto targetNodeId = context->GetInplaceLoadTargetNodeId()) {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        // You might wonder if trying to load data into an existing trunk node is a bad idea. Especially, since in the case when
+        // externalization fails after the data is partially loaded, the node can end up in a weird state
+        // with some changes rolled back and some not. You would be correct. The only saving grace is that
+        // this code should only be called for node externalization, which creates the node in question inside of a transaction.
+        // Thus, when transaction is aborted we also should destroy the node and actually roll all of the changes back.
+        trunkNode = cypressManager->GetNodeOrThrow({targetNodeId, NullTransactionId});
+    } else {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto clonedId = objectManager->GenerateId(GetObjectType());
+        trunkNode = factory->InstantiateNode(clonedId, context->GetExternalCellTag());
+    }
+
     auto* sourceAccount = Load<TAccount*>(*context);
     auto sourceResourceUsage = Load<TClusterResources>(*context);
 
@@ -325,12 +280,7 @@ bool TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
         }
     }
 
-    auto opaqueChild = Load<bool>(*context);
-
-    // Doing this to prevent premature locking (and, thus, branching) during EndCopyNode.
-    context->SetOpaqueChild(opaqueChild);
-
-    return !opaqueChild;
+    return trunkNode;
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::BranchCorePrologue(
@@ -583,7 +533,7 @@ void TCompositeNodeBase::TAttributes<Transient>::Persist(const NCellMaster::TPer
 
 template <bool Transient>
 void TCompositeNodeBase::TAttributes<Transient>::Persist(const NCypressServer::TCopyPersistenceContext& context)
-    requires (!Transient)
+    requires Transient
 {
     using NYT::Persist;
 #define XX(camelCaseName, snakeCaseName) \
@@ -677,7 +627,56 @@ const TCompositeNodeBase::TPersistentAttributes* TCompositeNodeBase::FindAttribu
     return Attributes_.get();
 }
 
-void TCompositeNodeBase::FillInheritableAttributes(TTransientAttributes* attributes, ENodeMaterializationReason mode) const
+bool TCompositeNodeBase::CompareInheritableAttributes(
+    const TTransientAttributes& attributes,
+    ENodeMaterializationReason reason) const
+{
+    if (!HasInheritableAttributes()) {
+        return attributes.AreEmpty();
+    }
+
+#define XX(camelCaseName, snakeCaseName) \
+    if (TryGet##camelCaseName() != attributes.camelCaseName.ToOptional()) { \
+        return false; \
+    }
+
+    if (reason == ENodeMaterializationReason::Copy) {
+        FOR_EACH_INHERITABLE_DURING_COPY_ATTRIBUTE(XX)
+    } else {
+        FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+    }
+#undef XX
+
+    return true;
+}
+
+TConstInheritedAttributeDictionaryPtr TCompositeNodeBase::MaybePatchInheritableAttributes(
+    const TConstInheritedAttributeDictionaryPtr& attributes,
+    ENodeMaterializationReason reason) const
+{
+    if (CompareInheritableAttributes(attributes->Attributes())) {
+        return attributes;
+    }
+
+    auto updatedInheritedAttributeDictionary = New<TInheritedAttributeDictionary>(attributes);
+    auto& underlyingAttributes = updatedInheritedAttributeDictionary->MutableAttributes();
+
+#define XX(camelCaseName, snakeCaseName) \
+    if (auto inheritedValue = TryGet##camelCaseName()) { \
+        underlyingAttributes.camelCaseName.Set(*inheritedValue); \
+    }
+
+    if (reason == ENodeMaterializationReason::Copy) {
+        FOR_EACH_INHERITABLE_DURING_COPY_ATTRIBUTE(XX)
+    } else {
+        FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+    }
+#undef XX
+
+    return updatedInheritedAttributeDictionary;
+}
+
+void TCompositeNodeBase::FillInheritableAttributes(TTransientAttributes* attributes, ENodeMaterializationReason reason) const
 {
 #define XX(camelCaseName, snakeCaseName) \
     if (!attributes->camelCaseName.IsSet()) { \
@@ -687,7 +686,7 @@ void TCompositeNodeBase::FillInheritableAttributes(TTransientAttributes* attribu
     }
 
     if (HasInheritableAttributes()) {
-        if (mode == ENodeMaterializationReason::Copy) {
+        if (reason == ENodeMaterializationReason::Copy) {
             FOR_EACH_INHERITABLE_DURING_COPY_ATTRIBUTE(XX)
         } else {
             FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
@@ -775,14 +774,246 @@ void TCompositeNodeBase::Remove##camelCaseName() \
 }
 
 FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+#undef XX
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void GatherInheritableAttributes(const TCypressNode* node, TCompositeNodeBase::TTransientAttributes* attributes, ENodeMaterializationReason mode)
+void GatherInheritableAttributes(
+    const TCypressNode* node,
+    TCompositeNodeBase::TTransientAttributes* attributes,
+    ENodeMaterializationReason reason)
 {
     for (auto* ancestor = node; ancestor && !attributes->AreFull(); ancestor = ancestor->GetParent()) {
-        ancestor->As<TCompositeNodeBase>()->FillInheritableAttributes(attributes, mode);
+        ancestor->As<TCompositeNodeBase>()->FillInheritableAttributes(attributes, reason);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TInheritedAttributeDictionary::TInheritedAttributeDictionary(TBootstrap* bootstrap)
+    : Bootstrap_(bootstrap)
+{ }
+
+TInheritedAttributeDictionary::TInheritedAttributeDictionary(
+    const TBootstrap* bootstrap,
+    NYTree::IAttributeDictionaryPtr&& attributes)
+    : Bootstrap_(bootstrap)
+{
+    for (const auto& [key, value] : attributes->ListPairs()){
+        SetYson(key, value);
+    }
+}
+
+TInheritedAttributeDictionary::TInheritedAttributeDictionary(const TConstInheritedAttributeDictionaryPtr& other)
+    : TInheritedAttributeDictionary(
+        other->Bootstrap_,
+        other->Clone())
+{ }
+
+std::vector<TString> TInheritedAttributeDictionary::ListKeys() const
+{
+    std::vector<TString> result;
+#define XX(camelCaseName, snakeCaseName) \
+    if (InheritedAttributes_.camelCaseName.IsSet()) {  \
+        result.push_back(#snakeCaseName); \
+    }
+
+    FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+#undef XX
+
+    if (Fallback_) {
+        auto fallbackKeys = Fallback_->ListKeys();
+        result.insert(result.end(), fallbackKeys.begin(), fallbackKeys.end());
+        SortUnique(result);
+    }
+
+    return result;
+}
+
+std::vector<IAttributeDictionary::TKeyValuePair> TInheritedAttributeDictionary::ListPairs() const
+{
+    return ListAttributesPairs(*this);
+}
+
+TYsonString TInheritedAttributeDictionary::FindYson(TStringBuf key) const
+{
+#define XX(camelCaseName, snakeCaseName) \
+    if (key == #snakeCaseName) { \
+        auto optionalValue = InheritedAttributes_.camelCaseName.ToOptional(); \
+        return optionalValue ? ConvertToYsonString(*optionalValue) : TYsonString(); \
+    } \
+
+    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
+#undef XX
+
+    if (key == EInternedAttributeKey::PrimaryMedium.Unintern()) {
+        auto optionalPrimaryMediumIndex = InheritedAttributes_.PrimaryMediumIndex.ToOptional();
+        if (!optionalPrimaryMediumIndex) {
+            return {};
+        }
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto* medium = chunkManager->GetMediumByIndex(*optionalPrimaryMediumIndex);
+        return ConvertToYsonString(medium->GetName());
+    }
+
+    if (key == EInternedAttributeKey::HunkPrimaryMedium.Unintern()) {
+        auto optionalHunkPrimaryMediumIndex = InheritedAttributes_.HunkPrimaryMediumIndex.ToOptional();
+        if (!optionalHunkPrimaryMediumIndex) {
+            return {};
+        }
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto* medium = chunkManager->GetMediumByIndex(*optionalHunkPrimaryMediumIndex);
+        return ConvertToYsonString(medium->GetName());
+    }
+
+    if (key == EInternedAttributeKey::Media.Unintern()) {
+        auto optionalReplication = InheritedAttributes_.Media.ToOptional();
+        if (!optionalReplication) {
+            return {};
+        }
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        return ConvertToYsonString(TSerializableChunkReplication(*optionalReplication, chunkManager));
+    }
+
+    if (key == EInternedAttributeKey::HunkMedia.Unintern()) {
+        auto optionalReplication = InheritedAttributes_.HunkMedia.ToOptional();
+        if (!optionalReplication) {
+            return {};
+        }
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        return ConvertToYsonString(TSerializableChunkReplication(*optionalReplication, chunkManager));
+    }
+
+    if (key == EInternedAttributeKey::TabletCellBundle.Unintern()) {
+        auto optionalCellBundle = InheritedAttributes_.TabletCellBundle.ToOptional();
+        if (!optionalCellBundle) {
+            return {};
+        }
+        YT_VERIFY(*optionalCellBundle);
+        return ConvertToYsonString((*optionalCellBundle)->GetName());
+    }
+
+    if (key == EInternedAttributeKey::ChaosCellBundle.Unintern()) {
+        auto optionalCellBundle = InheritedAttributes_.ChaosCellBundle.ToOptional();
+        if (!optionalCellBundle) {
+            return {};
+        }
+        YT_VERIFY(*optionalCellBundle);
+        return ConvertToYsonString((*optionalCellBundle)->GetName());
+    }
+
+    return Fallback_ ? Fallback_->FindYson(key) : TYsonString();
+}
+
+void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonString& value)
+{
+#define XX(camelCaseName, snakeCaseName) \
+    if (key == #snakeCaseName) { \
+        if (key == EInternedAttributeKey::CompressionCodec.Unintern()) { \
+            const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager; \
+            ValidateCompressionCodec( \
+                value, \
+                chunkManagerConfig->ForbiddenCompressionCodecs, \
+                chunkManagerConfig->ForbiddenCompressionCodecNameToAlias); \
+        } \
+        if (key == EInternedAttributeKey::ErasureCodec.Unintern()) { \
+            ValidateErasureCodec( \
+                value, \
+                Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ForbiddenErasureCodecs); \
+        } \
+        using TAttr = decltype(InheritedAttributes_.camelCaseName)::TValue; \
+        InheritedAttributes_.camelCaseName.Set(ConvertTo<TAttr>(value)); \
+        return; \
+    }
+
+    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
+#undef XX
+
+    if (key == EInternedAttributeKey::PrimaryMedium.Unintern()) {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto mediumName = ConvertTo<std::string>(value);
+        auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
+        InheritedAttributes_.PrimaryMediumIndex.Set(medium->GetIndex());
+        return;
+    }
+
+    if (key == EInternedAttributeKey::HunkPrimaryMedium.Unintern()) {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto mediumName = ConvertTo<std::string>(value);
+        auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
+        InheritedAttributes_.HunkPrimaryMediumIndex.Set(medium->GetIndex());
+        return;
+    }
+
+    if (key == EInternedAttributeKey::Media.Unintern()) {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
+        TChunkReplication replication;
+        replication.SetVital(true);
+        serializableReplication.ToChunkReplication(&replication, chunkManager);
+        InheritedAttributes_.Media.Set(replication);
+        return;
+    }
+
+    if (key == EInternedAttributeKey::HunkMedia.Unintern()) {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
+        TChunkReplication replication;
+        replication.SetVital(true);
+        serializableReplication.ToChunkReplication(&replication, chunkManager);
+        InheritedAttributes_.HunkMedia.Set(replication);
+        return;
+    }
+
+    if (key == EInternedAttributeKey::TabletCellBundle.Unintern()) {
+        auto bundleName = ConvertTo<std::string>(value);
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        auto* bundle = tabletManager->GetTabletCellBundleByNameOrThrow(bundleName, true /*activeLifeStageOnly*/);
+        InheritedAttributes_.TabletCellBundle.Set(bundle);
+        return;
+    }
+
+    if (key == EInternedAttributeKey::ChaosCellBundle.Unintern()) {
+        auto bundleName = ConvertTo<std::string>(value);
+        const auto& chaosManager = Bootstrap_->GetChaosManager();
+        auto* bundle = chaosManager->GetChaosCellBundleByNameOrThrow(bundleName, true /*activeLifeStageOnly*/);
+        InheritedAttributes_.ChaosCellBundle.Set(bundle);
+        return;
+    }
+
+    if (!Fallback_) {
+        Fallback_ = CreateEphemeralAttributes();
+    }
+
+    Fallback_->SetYson(key, value);
+}
+
+bool TInheritedAttributeDictionary::Remove(const TString& key)
+{
+#define XX(camelCaseName, snakeCaseName) \
+    if (key == #snakeCaseName) { \
+        InheritedAttributes_.camelCaseName.Reset(); \
+        return true; \
+    }
+
+    FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+#undef XX
+
+    if (Fallback_) {
+        return Fallback_->Remove(key);
+    }
+
+    return false;
+}
+
+TCompositeNodeBase::TTransientAttributes& TInheritedAttributeDictionary::MutableAttributes()
+{
+    return InheritedAttributes_;
+}
+
+const TCompositeNodeBase::TTransientAttributes& TInheritedAttributeDictionary::Attributes() const
+{
+    return InheritedAttributes_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -836,33 +1067,34 @@ bool TCompositeNodeTypeHandler<TImpl>::HasBranchedChangesImpl(
 }
 
 template <class TImpl>
-void TCompositeNodeTypeHandler<TImpl>::DoBeginCopy(
+void TCompositeNodeTypeHandler<TImpl>::DoSerializeNode(
     TImpl* node,
-    TBeginCopyContext* context)
+    TSerializeNodeContext* context)
 {
-    TBase::DoBeginCopy(node, context);
+    TBase::DoSerializeNode(node, context);
 
     using NYT::Save;
-    const auto* attributes = node->FindAttributes();
-    Save(*context, attributes != nullptr);
-    if (attributes) {
-        Save(*context, *attributes);
+    TCompositeNodeBase::TTransientAttributes attributes;
+    // NB: Using ENodeMaterializationReason::Create here, since we need a full list of attributes for each node.
+    node->FillInheritableAttributes(&attributes, ENodeMaterializationReason::Create);
+    Save(*context, !attributes.AreEmpty());
+    if (!attributes.AreEmpty()) {
+        Save(*context, attributes);
     }
 }
 
 template <class TImpl>
-void TCompositeNodeTypeHandler<TImpl>::DoEndCopy(
+void TCompositeNodeTypeHandler<TImpl>::DoMaterializeNode(
     TImpl* trunkNode,
-    TEndCopyContext* context,
-    ICypressNodeFactory* factory,
-    NYTree::IAttributeDictionary* inheritedAttributes)
+    TMaterializeNodeContext* context)
 {
-    TBase::DoEndCopy(trunkNode, context, factory, inheritedAttributes);
+    TBase::DoMaterializeNode(trunkNode, context);
 
     using NYT::Load;
     if (Load<bool>(*context)) {
-        auto attributes = Load<TCompositeNodeBase::TPersistentAttributes>(*context);
-        trunkNode->SetAttributes(&attributes);
+        auto attributes = Load<TCompositeNodeBase::TTransientAttributes>(*context);
+        auto persistentAttributes = attributes.ToPersistent();
+        trunkNode->SetAttributes(&persistentAttributes);
     }
 }
 
@@ -1330,11 +1562,11 @@ bool TCypressMapNodeTypeHandlerImpl<TImpl>::HasBranchedChangesImpl(
 }
 
 template <class TImpl>
-void TCypressMapNodeTypeHandlerImpl<TImpl>::DoBeginCopy(
+void TCypressMapNodeTypeHandlerImpl<TImpl>::DoSerializeNode(
     TImpl* node,
-    TBeginCopyContext* context)
+    TSerializeNodeContext* context)
 {
-    TBase::DoBeginCopy(node, context);
+    TBase::DoSerializeNode(node, context);
 
     using NYT::Save;
 
@@ -1351,24 +1583,21 @@ void TCypressMapNodeTypeHandlerImpl<TImpl>::DoBeginCopy(
     for (const auto& [key, child] : SortHashMapByKeys(keyToChildMap)) {
         Save(*context, key);
         Save(*context, child->GetId());
-        context->RegisterChild(child);
     }
 }
 
 template <class TImpl>
-void TCypressMapNodeTypeHandlerImpl<TImpl>::DoEndCopy(
+void TCypressMapNodeTypeHandlerImpl<TImpl>::DoMaterializeNode(
     TImpl* trunkNode,
-    TEndCopyContext* context,
-    ICypressNodeFactory* factory,
-    IAttributeDictionary* inheritedAttributes)
+    TMaterializeNodeContext* context)
 {
-    TBase::DoEndCopy(trunkNode, context, factory, inheritedAttributes);
+    TBase::DoMaterializeNode(trunkNode, context);
 
     using NYT::Load;
 
     size_t size = TSizeSerializer::Load(*context);
     for (size_t index = 0; index < size; ++index) {
-        auto key = Load<TString>(*context);
+        auto key = Load<std::string>(*context);
         auto childId = Load<TNodeId>(*context);
         context->RegisterChild(std::move(key), childId);
     }
@@ -1549,19 +1778,17 @@ bool TSequoiaMapNodeTypeHandlerImpl<TImpl>::HasBranchedChangesImpl(
 }
 
 template <class TImpl>
-void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoBeginCopy(
+void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoSerializeNode(
     TImpl* /*node*/,
-    TBeginCopyContext* /*context*/)
+    TSerializeNodeContext* /*context*/)
 {
     ThrowSequoiaNodeCloningNotImplemented();
 }
 
 template <class TImpl>
-void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoEndCopy(
+void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoMaterializeNode(
     TImpl* /*trunkNode*/,
-    TEndCopyContext* /*context*/,
-    ICypressNodeFactory* /*factory*/,
-    IAttributeDictionary* /*inheritedAttributes*/)
+    TMaterializeNodeContext* /*context*/)
 {
     ThrowSequoiaNodeCloningNotImplemented();
 }
@@ -1733,18 +1960,16 @@ bool TListNodeTypeHandler::HasBranchedChangesImpl(TListNode* originatingNode, TL
     return branchedNode->IndexToChild() != originatingNode->IndexToChild();
 }
 
-void TListNodeTypeHandler::DoBeginCopy(
+void TListNodeTypeHandler::DoSerializeNode(
     TListNode* /*node*/,
-    TBeginCopyContext* /*context*/)
+    TSerializeNodeContext* /*context*/)
 {
     THROW_ERROR_EXCEPTION("List nodes are deprecated and do not support cross-cell copying");
 }
 
-void TListNodeTypeHandler::DoEndCopy(
+void TListNodeTypeHandler::DoMaterializeNode(
     TListNode* trunkNode,
-    TEndCopyContext* /*context*/,
-    ICypressNodeFactory* /*factory*/,
-    IAttributeDictionary* /*inheritedAttributes*/)
+    TMaterializeNodeContext* /*context*/)
 {
     YT_LOG_ALERT("Recieved EndCopy command for list node, despite BeginCopy being disabled for this type (ListNodeId: %v)",
         trunkNode->GetId());

@@ -54,6 +54,10 @@
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
+#include <yt/yt/core/service_discovery/yp/config.h>
+
+#include <yt/yt/core/logging/config.h>
+
 namespace NYT::NExecNode {
 
 using namespace NApi;
@@ -258,7 +262,7 @@ public:
         return SchedulerConnector_;
     }
 
-    IThroughputThrottlerPtr GetThrottler(EExecNodeThrottlerKind kind, EExecNodeThrottlerTrafficType trafficType, std::optional<TClusterName> remoteClusterName) const override
+    IThroughputThrottlerPtr GetThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType trafficType, std::optional<TClusterName> remoteClusterName) const override
     {
         return ThrottlerManager_->GetOrCreateThrottler(kind, trafficType, std::move(remoteClusterName));
     }
@@ -354,15 +358,20 @@ private:
 
         JobProxyConfigTemplate_ = New<NJobProxy::TJobProxyInternalConfig>();
 
-        // Singletons.
-        JobProxyConfigTemplate_->FiberManager = CloneYsonStruct(GetConfig()->FiberManager);
-        JobProxyConfigTemplate_->AddressResolver = CloneYsonStruct(GetConfig()->AddressResolver);
-        JobProxyConfigTemplate_->AddressResolver->LocalHostNameOverride = NNet::ReadLocalHostName();
+        JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->GetSingletonConfig<TFiberManagerConfig>());
 
-        JobProxyConfigTemplate_->RpcDispatcher = GetConfig()->RpcDispatcher;
-        JobProxyConfigTemplate_->TcpDispatcher = GetConfig()->TcpDispatcher;
-        JobProxyConfigTemplate_->YPServiceDiscovery = GetConfig()->YPServiceDiscovery;
-        JobProxyConfigTemplate_->ChunkClientDispatcher = GetConfig()->ChunkClientDispatcher;
+        {
+            auto config = CloneYsonStruct(GetConfig()->GetSingletonConfig<NNet::TAddressResolverConfig>());
+            config->LocalHostNameOverride = NNet::ReadLocalHostName();
+            JobProxyConfigTemplate_->SetSingletonConfig(std::move(config));
+        }
+
+        JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->GetSingletonConfig<NRpc::TDispatcherConfig>());
+        JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->GetSingletonConfig<NBus::TTcpDispatcherConfig>());
+        JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->TryGetSingletonConfig<NServiceDiscovery::NYP::TServiceDiscoveryConfig>());
+        JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->GetSingletonConfig<NChunkClient::TDispatcherConfig>());
+        JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyLogging->LogManagerTemplate);
+        JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyJaeger);
 
         JobProxyConfigTemplate_->ClusterConnection = GetConfig()->ClusterConnection->Clone();
         JobProxyConfigTemplate_->OriginalClusterConnection = JobProxyConfigTemplate_->ClusterConnection->Clone();
@@ -381,8 +390,6 @@ private:
 
         JobProxyConfigTemplate_->JobEnvironment = SlotManager_->GetJobEnvironmentConfig();
 
-        JobProxyConfigTemplate_->Logging = GetConfig()->ExecNode->JobProxy->JobProxyLogging->LogManagerTemplate;
-        JobProxyConfigTemplate_->Jaeger = GetConfig()->ExecNode->JobProxy->JobProxyJaeger;
         JobProxyConfigTemplate_->StderrPath = GetConfig()->ExecNode->JobProxy->JobProxyLogging->JobProxyStderrPath;
         JobProxyConfigTemplate_->ExecutorStderrPath = GetConfig()->ExecNode->JobProxy->JobProxyLogging->ExecutorStderrPath;
         JobProxyConfigTemplate_->TestRootFS = GetConfig()->ExecNode->JobProxy->TestRootFS;
@@ -404,7 +411,7 @@ private:
             JobProxyConfigTemplate_->TvmBridge->SelfTvmId = tvmService->GetSelfTvmId();
         }
 
-        JobProxyConfigTemplate_->DnsOverRpcResolver = CloneYsonStruct(GetConfig()->ExecNode->JobProxy->JobProxyDnsOverRpcResolver);
+        JobProxyConfigTemplate_->DnsOverRpcResolver = GetConfig()->ExecNode->JobProxy->JobProxyDnsOverRpcResolver;
     }
 
     void OnDynamicConfigChanged(

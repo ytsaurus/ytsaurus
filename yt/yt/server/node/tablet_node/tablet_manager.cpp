@@ -1,5 +1,6 @@
 #include "tablet_manager.h"
 
+#include "alien_cluster_client_cache.h"
 #include "private.h"
 #include "automaton.h"
 #include "bootstrap.h"
@@ -4197,6 +4198,7 @@ private:
             Config_,
             tablet,
             Bootstrap_->GetClient()->GetNativeConnection(),
+            Bootstrap_->GetReplicatorClientCache(),
             Slot_,
             Bootstrap_->GetTabletSnapshotStore(),
             CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),

@@ -23,6 +23,7 @@ PEERDIR(
 
     yt/yt/library/dynamic_config
     yt/yt/library/server_program
+    yt/yt/library/monitoring
 
     yt/yt/ytlib
     yt/yt/core

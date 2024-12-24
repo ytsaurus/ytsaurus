@@ -195,6 +195,12 @@ message TRspProbeChunkSet
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TProbeBlockSetBlockInfo
+{
+    required int32 block_index = 1;
+    required int64 block_size = 2;
+}
+
 message TReqProbeBlockSet
 {
     required NYT.NProto.TGuid chunk_id = 1;
@@ -212,6 +218,7 @@ message TRspProbeBlockSet
     required int64 net_queue_size = 4;
     required bool disk_throttling = 5;
     required int64 disk_queue_size = 6;
+    repeated TProbeBlockSetBlockInfo cached_blocks = 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -560,9 +567,7 @@ message TRspGetColumnarStatistics
     {
         optional NYT.NProto.TError error = 1;
 
-        // COMPAT(denvid): These fields are deprecated and should be removed once all clusters are 23.2+.
-        repeated int64 column_data_weights = 2;
-        optional int64 timestamp_total_weight = 3;
+        reserved 2, 3;
 
         optional NYT.NTableClient.NProto.TColumnarStatisticsExt columnar_statistics = 4;
         optional NYT.NTableClient.NProto.TLargeColumnarStatisticsExt large_columnar_statistics = 5;

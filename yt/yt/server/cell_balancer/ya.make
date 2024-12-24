@@ -26,6 +26,7 @@ SRCS(
 PEERDIR(
     library/cpp/getopt
     library/cpp/yt/phdr_cache
+    yt/yt/library/monitoring
     yt/yt/library/server_program
     yt/yt/server/lib
     yt/yt/server/lib/cypress_election

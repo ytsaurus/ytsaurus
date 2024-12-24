@@ -159,7 +159,7 @@ public:
                 // 7) direct acl
 
                 auto effectiveInheritableAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
-                GatherInheritableAttributes(node->GetParent(), &effectiveInheritableAttributes->Attributes());
+                GatherInheritableAttributes(node->GetParent(), &effectiveInheritableAttributes->MutableAttributes());
                 ToProto(portalExitInfo->mutable_effective_inheritable_attributes(), *effectiveInheritableAttributes);
 
                 auto effectiveAcl = securityManager->GetEffectiveAcl(node);
@@ -357,7 +357,7 @@ private:
         auto* sourceNode = cypressManager->FindNode(TVersionedNodeId(sourceNodeId));
         auto* destinationNode = cypressManager->FindNode(TVersionedNodeId(destinationNodeId));
         if (!sourceNode || !destinationNode) {
-            YT_LOG_INFO("Failed to copy synchronizable portal attributes; %v node does not exist"
+            YT_LOG_INFO("Failed to copy synchronizable portal attributes; %v node does not exist "
                 "(TransactionId: %v, SourceNodeId: %v, DestinationNodeId: %v)",
                 sourceNode ? "destination" : "source",
                 transaction->GetId(),

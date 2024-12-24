@@ -298,11 +298,11 @@ public:
             Config_->SchedulingTagFilterExpireTimeout,
             GetBackgroundInvoker());
 
-        StrategyHungOperationsChecker_ = New<TPeriodicExecutor>(
+        StrategyStuckOperationsChecker_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(EControlQueue::OperationsPeriodicActivity),
-            BIND(&TImpl::CheckHungOperations, MakeWeak(this)),
-            Config_->OperationHangupCheckPeriod);
-        StrategyHungOperationsChecker_->Start();
+            BIND(&TImpl::CheckStuckOperations, MakeWeak(this)),
+            Config_->OperationStuckCheck->Period);
+        StrategyStuckOperationsChecker_->Start();
 
         ExperimentAssignmentErrorChecker_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(EControlQueue::Default),
@@ -1756,7 +1756,7 @@ private:
     TPeriodicExecutorPtr NodesInfoLoggingExecutor_;
     TPeriodicExecutorPtr UpdateExecNodeDescriptorsExecutor_;
     TPeriodicExecutorPtr JobReporterWriteFailuresChecker_;
-    TPeriodicExecutorPtr StrategyHungOperationsChecker_;
+    TPeriodicExecutorPtr StrategyStuckOperationsChecker_;
     TPeriodicExecutorPtr ExperimentAssignmentErrorChecker_;
     TPeriodicExecutorPtr OrphanedOperationQueueScanPeriodExecutor_;
     TPeriodicExecutorPtr TransientOperationQueueScanPeriodExecutor_;
@@ -2332,7 +2332,7 @@ private:
             NodesInfoLoggingExecutor_->SetPeriod(Config_->NodesInfoLoggingPeriod);
             UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->ExecNodeDescriptorsUpdatePeriod);
             JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterIssuesCheckPeriod);
-            StrategyHungOperationsChecker_->SetPeriod(Config_->OperationHangupCheckPeriod);
+            StrategyStuckOperationsChecker_->SetPeriod(Config_->OperationStuckCheck->Period);
             ExperimentAssignmentErrorChecker_->SetPeriod(Config_->ExperimentAssignmentErrorCheckPeriod);
 
             if (OrphanedOperationQueueScanPeriodExecutor_) {
@@ -2502,11 +2502,11 @@ private:
         SetSchedulerAlert(ESchedulerAlertType::JobsArchivation, resultError);
     }
 
-    void CheckHungOperations()
+    void CheckStuckOperations()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        for (const auto& [operationId, error] : Strategy_->GetHungOperations()) {
+        for (const auto& [operationId, error] : Strategy_->GetStuckOperations()) {
             if (auto operation = FindOperation(operationId)) {
                 OnOperationFailed(operation, error);
             }

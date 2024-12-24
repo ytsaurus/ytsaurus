@@ -216,7 +216,7 @@ void TTableNode::TDynamicTableAttributes::CopyFrom(const TDynamicTableAttributes
     *MountConfigStorage = *other->MountConfigStorage;
 }
 
-void TTableNode::TDynamicTableAttributes::BeginCopy(TBeginCopyContext* context) const
+void TTableNode::TDynamicTableAttributes::SerializeNode(TSerializeNodeContext* context) const
 {
     using NYT::Save;
 
@@ -228,7 +228,7 @@ void TTableNode::TDynamicTableAttributes::BeginCopy(TBeginCopyContext* context) 
     Save(*context, ConvertToYsonString(MountConfigStorage));
 }
 
-void TTableNode::TDynamicTableAttributes::EndCopy(TEndCopyContext* context)
+void TTableNode::TDynamicTableAttributes::MaterializeNode(TMaterializeNodeContext* context)
 {
     using NYT::Load;
 

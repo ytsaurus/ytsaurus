@@ -85,11 +85,11 @@ The `--format` option is mandatory and regulates the [format](../../../user-guid
 
 Using `  --format "<format=text>yson" --control-attributes '{enable_row_index=%true}'`, you can find out the number of the first row in the ordered range.
 
-## The upload and download commands
+## The write-file and read-file commands
 
 ```bash
-cat binary | yt upload //tmp/yt_cli_examples/binary --executable
-yt download //tmp/yt_cli_examples/binary > binary_copy
+cat binary | yt write-file //tmp/yt_cli_examples/binary --executable
+yt read-file //tmp/yt_cli_examples/binary > binary_copy
 diff binary binary_copy
 ```
 

@@ -62,12 +62,16 @@ public:
                     method == "Set" ||
                     method == "Create" ||
                     method == "Copy" ||
-                    method == "EndCopy")
+                    method == "LockCopyDestination" ||
+                    method == "AssembleTreeCopy")
                 {
                     return TResolveResultHere{path};
-                } else if (method == "BeginCopy") {
+                } else if (method == "LockCopySource") {
                     THROW_ERROR_EXCEPTION("A link node cannot be externalized; consider externalizing its target instead");
                 } else {
+                    // TODO(h0pless): re-examine this code when implementing Cypress to Sequoia copy.
+                    // I think it's fine to allow people to use a link as a destination in cross-cell copy.
+                    // Correct me if you think I'm wrong.
                     return propagate();
                 }
             }

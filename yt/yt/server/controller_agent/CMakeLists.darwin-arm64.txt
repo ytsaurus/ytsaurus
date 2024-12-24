@@ -26,6 +26,7 @@ target_link_libraries(yt-server-controller_agent PUBLIC
   contrib-libs-cxxsupp
   yutil
   cpp-yt-phdr_cache
+  yt-library-monitoring
   yt-library-ytprof
   yt-library-server_program
   ytserver

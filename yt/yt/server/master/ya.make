@@ -135,6 +135,7 @@ SRCS(
     chunk_server/proto/chunk_manager.proto
     chunk_server/proto/chunk_merger.proto
     chunk_server/proto/chunk_reincarnator.proto
+    chunk_server/proto/data_node_tracker.proto
     chunk_server/proto/master_cell_chunk_statistics_collector.proto
     chunk_server/public.cpp
     chunk_server/incumbency_epoch.cpp
@@ -427,8 +428,12 @@ SRCS(
 PEERDIR(
     library/cpp/getopt
     library/cpp/yt/phdr_cache
+
     yt/yt/library/server_program
+    yt/yt/library/monitoring
+
     yt/yt/ytlib/distributed_throttler
+
     yt/yt/server/lib
     yt/yt/server/lib/cell_server
     yt/yt/server/lib/cellar_agent

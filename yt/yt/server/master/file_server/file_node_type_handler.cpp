@@ -116,23 +116,21 @@ protected:
         clonedTrunkNode->SetMD5Hasher(sourceNode->GetMD5Hasher());
     }
 
-    void DoBeginCopy(
+    void DoSerializeNode(
         TFileNode* node,
-        TBeginCopyContext* context) override
+        TSerializeNodeContext* context) override
     {
-        TBase::DoBeginCopy(node, context);
+        TBase::DoSerializeNode(node, context);
 
         using NYT::Save;
         Save(*context, node->GetMD5Hasher());
     }
 
-    void DoEndCopy(
+    void DoMaterializeNode(
         TFileNode* node,
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        IAttributeDictionary* inheritedAttributes) override
+        TMaterializeNodeContext* context) override
     {
-        TBase::DoEndCopy(node, context, factory, inheritedAttributes);
+        TBase::DoMaterializeNode(node, context);
 
         using NYT::Load;
         node->SetMD5Hasher(Load<std::optional<TMD5Hasher>>(*context));

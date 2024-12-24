@@ -5,35 +5,25 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
-#include <yt/yt/library/program/program_config_mixin.h>
-
-#include <yt/yt/ytlib/program/native_singletons.h>
-
 namespace NYT::NReplicatedTableTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReplicatedTableTrackerProgram
-    : public TServerProgram
-    , public TProgramConfigMixin<TReplicatedTableTrackerServerConfig>
+    : public TServerProgram<TReplicatedTableTrackerServerConfig>
 {
 public:
     TReplicatedTableTrackerProgram()
-        : TProgramConfigMixin(Opts_)
     {
-        SetMainThreadName("RttMain");
+        SetMainThreadName("Rtt");
     }
 
     void DoStart() final
     {
-        auto config = GetConfig();
-
-        ConfigureNativeSingletons(config);
-
-        auto configNode = GetConfigNode();
-
-        auto* bootstrap = CreateBootstrap(std::move(config), std::move(configNode)).release();
+        auto* bootstrap = CreateBootstrap(GetConfig(), GetConfigNode()).release();
+        DoNotOptimizeAway(bootstrap);
         bootstrap->Run();
+        SleepForever();
     }
 };
 

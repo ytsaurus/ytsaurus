@@ -37,6 +37,9 @@ struct IServer
     using TTypedHandler = TCallback<TResponse(TConnectionId, const TRequest&, const NLogging::TLogger&)>;
     template <class TRequest, class TResponse>
     void RegisterTypedHandler(TTypedHandler<TRequest, TResponse> handler);
+
+    // Update kafka proxy dynamic config.
+    virtual void OnDynamicConfigChanged(const TKafkaProxyDynamicConfigPtr& config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IServer);

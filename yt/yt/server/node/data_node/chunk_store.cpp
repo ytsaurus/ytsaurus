@@ -95,6 +95,15 @@ public:
         }
     }
 
+    void RemoveChunkFromCache(TChunkId chunkId) override
+    {
+        auto blockCache = Bootstrap_->GetBlockCache();
+
+        if (blockCache) {
+            blockCache->RemoveChunkBlocks(chunkId);
+        }
+    }
+
 private:
     NClusterNode::IBootstrapBase* const Bootstrap_;
 };
@@ -599,6 +608,7 @@ void TChunkStore::UnregisterChunk(const IChunkPtr& chunk)
         location->GetId());
 
     ChunkRemoved_.Fire(chunk);
+    ChunkStoreHost_->RemoveChunkFromCache(chunk->GetId());
 }
 
 TStoreLocationPtr TChunkStore::GetChunkLocationByUuid(TChunkLocationUuid locationUuid)
@@ -629,6 +639,7 @@ void TChunkStore::RemoveNonexistentChunk(TChunkId chunkId, TChunkLocationUuid lo
         chunkId,
         location->GetId());
     ChunkRemoved_.Fire(chunk);
+    ChunkStoreHost_->RemoveChunkFromCache(chunk->GetId());
 }
 
 TChunkStore::TChunkEntry TChunkStore::BuildChunkEntry(const IChunkPtr& chunk)
@@ -734,12 +745,41 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
     std::vector<int> candidateIndices;
     candidateIndices.reserve(Locations_.size());
 
+    std::vector<TStoreLocationPtr> throttledLocations;
+    std::vector<TError> throttledLocationErrors;
+
     int minCount = std::numeric_limits<int>::max();
     for (int index = 0; index < std::ssize(Locations_); ++index) {
         const auto& location = Locations_[index];
         if (!CanStartNewSession(location, sessionId.MediumIndex)) {
             continue;
         }
+
+        auto memoryLimitFractionForStartingNewSessions = location->GetMemoryLimitFractionForStartingNewSessions();
+        auto usedMemory = location->GetUsedMemory(EIODirection::Write);
+        auto memoryLimit = location->GetWriteMemoryLimit() * memoryLimitFractionForStartingNewSessions;
+        if (memoryLimitFractionForStartingNewSessions &&
+            usedMemory > memoryLimit)
+        {
+            throttledLocations.push_back(location);
+            throttledLocationErrors.push_back(TError("Session cannot be started due to lack of memory")
+                << TErrorAttribute("location_id", location->GetId())
+                << TErrorAttribute("used_memory", usedMemory)
+                << TErrorAttribute("memory_limit", memoryLimit));
+            continue;
+        }
+
+        auto sessionCount = location->GetSessionCount();
+        auto sessionCountLimit = location->GetSessionCountLimit();
+        if (sessionCount >= sessionCountLimit) {
+            throttledLocations.push_back(location);
+            throttledLocationErrors.push_back(TError("Session cannot be started because of too many concurrent sessions")
+                << TErrorAttribute("location_id", location->GetId())
+                << TErrorAttribute("session_count", sessionCount)
+                << TErrorAttribute("session_count_limit", sessionCountLimit));
+            continue;
+        }
+
         if (options.PlacementId) {
             candidateIndices.push_back(index);
         } else {
@@ -755,9 +795,19 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
     }
 
     if (candidateIndices.empty()) {
-        THROW_ERROR_EXCEPTION(
+        auto error = TError(
             NChunkClient::EErrorCode::NoLocationAvailable,
-            "No write location is available");
+            "No write location is available")
+            << TErrorAttribute("session_id", ToString(sessionId));
+
+        if (!throttledLocations.empty()) {
+            auto size = throttledLocations.size();
+            auto index = RandomNumber(size);
+            throttledLocations[index]->ReportThrottledWrite();
+            error <<= throttledLocationErrors[index];
+        }
+
+        THROW_ERROR_EXCEPTION(error);
     }
 
     TStoreLocationPtr location;
@@ -805,18 +855,6 @@ bool TChunkStore::CanStartNewSession(
     }
 
     if (location->GetMediumDescriptor().Index != mediumIndex) {
-        return false;
-    }
-
-    auto memoryLimitFractionForStartingNewSessions = location->GetMemoryLimitFractionForStartingNewSessions();
-    if (memoryLimitFractionForStartingNewSessions &&
-        location->GetUsedMemory(EIODirection::Write) >
-        location->GetWriteMemoryLimit() * memoryLimitFractionForStartingNewSessions)
-    {
-        return false;
-    }
-
-    if (location->GetSessionCount() >= location->GetSessionCountLimit()) {
         return false;
     }
 

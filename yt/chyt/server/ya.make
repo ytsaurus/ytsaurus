@@ -20,6 +20,9 @@ PEERDIR(
     yt/yt/ytlib
     yt/yt/library/clickhouse_discovery
     yt/yt/library/clickhouse_functions
+    yt/yt/library/monitoring
+    yt/yt/library/tracing/jaeger
+    library/cpp/yt/mlock
     contrib/clickhouse/src
     contrib/clickhouse/base/base
     contrib/deprecated/clickhouse_data_streams_compat

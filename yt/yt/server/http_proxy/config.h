@@ -19,6 +19,8 @@
 
 #include <yt/yt/library/dynamic_config/config.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 #include <yt/yt/library/auth_server/public.h>
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
@@ -265,6 +267,7 @@ DEFINE_REFCOUNTED_TYPE(TProxyMemoryLimitsConfig)
 
 class TProxyConfig
     : public TNativeServerConfig
+    , public TServerProgramConfig
 {
 public:
     int Port;
@@ -315,6 +318,8 @@ public:
     //! Configuration for solomon proxy, which allows collecting merged metrics from other YT components through HTTP proxies.
     TSolomonProxyConfigPtr SolomonProxy;
 
+    THeapProfilerConfigPtr HeapProfiler;
+
     REGISTER_YSON_STRUCT(TProxyConfig);
 
     static void Register(TRegistrar registrar);
@@ -329,7 +334,7 @@ DEFINE_REFCOUNTED_TYPE(TProxyConfig)
 // NOTE: config might me unavalable. Users must handle such cases
 // gracefully.
 class TProxyDynamicConfig
-    : public TNativeSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     TApiDynamicConfigPtr Api;

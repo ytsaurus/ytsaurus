@@ -28,6 +28,7 @@ SRCS(
     tablet_request_batcher_ut.cpp
     transaction_helpers_ut.cpp
     protobuf_helpers_ut.cpp
+    ypath_ut.cpp
 )
 
 ADDINCL(

@@ -132,6 +132,7 @@ private:
         int blocksToRead,
         int beginEntryIndex,
         int endEntryIndex,
+        THashMap<int, TReadBlockSetSession::TBlockEntry> blockIndexToEntry,
         const TErrorOr<std::vector<NChunkClient::TBlock>>& blocksOrError);
 
     //! Returns `true` if chunk was written with `sync_on_close` option.

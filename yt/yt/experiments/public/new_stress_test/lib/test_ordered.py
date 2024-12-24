@@ -8,7 +8,6 @@ from .create_data import create_ordered_data
 from .write_data import write_ordered_data
 from .select import verify_select
 from .process_runner import process_runner
-from .reshard import reshard_table
 
 import yt.wrapper as yt
 import copy
@@ -27,6 +26,7 @@ class Registry(object):
 
     def make_iter_tables(self, iteration):
         self.iter_data = self.base + ".iter.{}".format(iteration)
+
 
 def create_tablet_size_table(table, tablet_count):
     logger.info("Create tablet size table")
@@ -48,9 +48,31 @@ def create_tablet_size_table(table, tablet_count):
 
     yt.insert_rows(table, [{"tablet_index": tablet_index, "size": 0} for tablet_index in range(tablet_count)])
 
+
+def create_indexes_table(table):
+    logger.info("Create indexes table")
+    if not yt.exists(table):
+        attributes = {
+            "dynamic": True,
+            "schema": [
+                {"name": "tablet_index", "type": "int64", "sort_order": "ascending"},
+                {"name": "row_index", "type": "int64", "sort_order": "ascending"},
+                {"name": "null_column", "type": "entity"},
+            ],
+        }
+        yt.create("table", table, attributes=attributes)
+
+    try:
+        yt.mount_table(table, sync=True)
+    except:
+        time.sleep(5)
+        yt.mount_table(table, sync=True)
+
+
 def get_tablet_chunk_list_ids(table):
     root_chunk_list_id = yt.get(table + "/@chunk_list_id")
     return yt.get("#{}/@child_ids".format(root_chunk_list_id))
+
 
 def create_tables(registry, schema, attributes, spec, args):
     if not spec.testing.skip_generation:
@@ -71,7 +93,7 @@ def create_tables(registry, schema, attributes, spec, args):
             attributes,
             spec.size.tablet_count,
             sorted=False,
-            dynamic=not spec.prepare_table_via_alter,
+            dynamic=True,
             spec=spec)
 
 def check_tablet_sizes(table, tablet_size_table, tablet_count):
@@ -90,6 +112,7 @@ def check_tablet_sizes(table, tablet_size_table, tablet_count):
                 expected_sizes[tablet_index],
                 chunk_row_count)
 
+
 def check_trimmed_rows(table, tablet_trimmed_row_count, tablet_count):
     logger.info("Checking trimmed rows")
     for tablet_index in range(tablet_count):
@@ -100,6 +123,7 @@ def check_trimmed_rows(table, tablet_trimmed_row_count, tablet_count):
                 tablet_index,
                 tablet_trimmed_row_count[tablet_index],
                 actual_trimmed_row_count)
+
 
 def trim_and_update(registry, tablet_trimmed_row_count, tablet_count):
     logger.info("Trimming first chunk of each tablet")
@@ -239,7 +263,7 @@ def test_ordered_tables(base_path, spec, attributes, args):
     attributes.pop("chunk_format", None)
 
     registry = Registry(table_path)
-    schema = Schema.from_spec(sorted=False, spec=spec)
+    schema = Schema.from_spec(spec)
 
     logger.info("Schema data weight is %s", schema.data_weight())
 
@@ -275,21 +299,22 @@ def test_ordered_tables(base_path, spec, attributes, args):
 
         sync_flush_table(registry.base)
 
-        if spec.ordered.trim:
-            trim_and_update(registry, tablet_trimmed_row_count, current_tablet_count)
-
         if not spec.testing.skip_verify:
             verify_select(
                 data_table_schema,
+                registry.data,
                 registry.data,
                 registry.base,
                 registry.dump + ".select",
                 registry.result + ".select",
                 ["$tablet_index", "$row_index"],
                 spec,
-                args,
-                data_key_columns=["tablet_index", "row_index"])
+                data_key_columns=["tablet_index", "row_index"],
+                keys_key_columns=["tablet_index", "row_index"])
             process_runner.join_processes()
+
+        if spec.ordered.trim and iteration % 2 == 1:
+            trim_and_update(registry, tablet_trimmed_row_count, current_tablet_count)
 
         if spec.reshard:
             new_tablet_count = random.randint(1, spec.size.tablet_count)

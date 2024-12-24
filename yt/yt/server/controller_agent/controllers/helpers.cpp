@@ -421,18 +421,8 @@ bool HasJobUniquenessRequirements(
 template <class TTablePtr>
 void FetchTableSchemas(
     const NApi::NNative::IClientPtr& client,
-    const std::vector<TTablePtr>& tables,
-    TCallback<TTransactionId(const TTablePtr&)> tableToTransactionId,
-    bool fetchFromExternalCells,
-    bool fetchSchemasById)
+    const std::vector<TTablePtr>& tables)
 {
-    // COMPAT(h0pless): Remove this once fetchSchemasById is true by default.
-    auto tableToCellTag = [&] (const TTablePtr& table) {
-        return fetchFromExternalCells || fetchSchemasById
-            ? table->ExternalCellTag
-            : CellTagFromId(table->ObjectId);
-    };
-
     THashMap<TGuid, std::vector<TTablePtr>> schemaIdToTables;
     THashMap<TCellTag, std::vector<TGuid>> cellTagToSchemaIds;
     for (const auto& table : tables) {
@@ -442,7 +432,7 @@ void FetchTableSchemas(
 
     for (const auto& [schemaId, tablesWithIdenticalSchema] : schemaIdToTables) {
         YT_VERIFY(!tablesWithIdenticalSchema.empty());
-        auto cellTag = tableToCellTag(tablesWithIdenticalSchema.front());
+        auto cellTag = tablesWithIdenticalSchema.front()->ExternalCellTag;
         cellTagToSchemaIds[cellTag].push_back(schemaId);
     }
 
@@ -454,14 +444,8 @@ void FetchTableSchemas(
         // NB: Schemas can be accessed by ID without the use of transactions, thus no need to specify one here.
         for (const auto& schemaId : schemaIds) {
             auto table = schemaIdToTables[schemaId][0];
-            auto req = fetchSchemasById
-                ? TTableYPathProxy::Get(FromObjectId(schemaId))
-                : TTableYPathProxy::Get(table->GetObjectIdPath() + "/@schema");
+            auto req = TTableYPathProxy::Get(FromObjectId(schemaId));
             AddCellTagToSyncWith(req, table->ObjectId);
-
-            if (!fetchSchemasById) {
-                SetTransactionId(req, tableToTransactionId(table));
-            }
 
             req->Tag() = schemaId;
             batchReq->AddRequest(req);
@@ -494,17 +478,11 @@ void FetchTableSchemas(
 
 template void FetchTableSchemas(
     const NNative::IClientPtr& client,
-    const std::vector<TInputTablePtr>& tables,
-    TCallback<TTransactionId(const TInputTablePtr&)> tableToTransactionId,
-    bool fetchFromExternalCells,
-    bool fetchSchemasById);
+    const std::vector<TInputTablePtr>& tables);
 
 template void FetchTableSchemas(
     const NNative::IClientPtr& client,
-    const std::vector<TOutputTablePtr>& tables,
-    TCallback<TTransactionId(const TOutputTablePtr&)> tableToTransactionId,
-    bool fetchFromExternalCells,
-    bool fetchSchemasById);
+    const std::vector<TOutputTablePtr>& tables);
 
 ////////////////////////////////////////////////////////////////////////////////
 

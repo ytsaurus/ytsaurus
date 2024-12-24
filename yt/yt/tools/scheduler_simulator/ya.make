@@ -17,6 +17,7 @@ SRCS(
 
 PEERDIR(
     yt/yt/server/scheduler
+    yt/yt/library/monitoring
 )
 
 END()

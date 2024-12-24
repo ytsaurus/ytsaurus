@@ -78,6 +78,8 @@ public:
 
     std::optional<i64> VirtualMapReadOffloadBatchSize;
 
+    int CrossCellCopyMaxSubtreeSize;
+
     // COMPAT(cherepashka)
     bool EnableInheritAttributesDuringCopy;
 

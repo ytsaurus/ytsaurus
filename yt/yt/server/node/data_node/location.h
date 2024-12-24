@@ -159,6 +159,8 @@ public:
 
     TPendingIOGuard& operator=(TPendingIOGuard&& other);
 
+    i64 GetSize() const;
+
     explicit operator bool() const;
 
 private:

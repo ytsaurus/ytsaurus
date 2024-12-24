@@ -1,6 +1,9 @@
 #pragma once
 
-#include <yt/yt/core/misc/public.h>
+#include <yt/yt/core/misc/configurable_singleton_decl.h>
+#include <yt/yt/core/misc/error_code.h>
+
+#include <library/cpp/yt/memory/ref_counted.h>
 
 namespace NYT::NDiskManager {
 
@@ -69,6 +72,8 @@ DECLARE_REFCOUNTED_STRUCT(THotswapManagerDynamicConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IDiskManagerProxy)
 DECLARE_REFCOUNTED_STRUCT(IDiskInfoProvider)
+
+YT_DECLARE_RECONFIGURABLE_SINGLETON(THotswapManagerConfig, THotswapManagerDynamicConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

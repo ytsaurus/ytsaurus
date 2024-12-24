@@ -15,23 +15,11 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EChaosReign,
-    ((LetTheChaosBegin)             (300001)) // savrus
-    ((CurrentTimestamp)             (300002)) // savrus
-    ((RemoveCommitted)              (300003)) // savrus
-    ((Migration)                    (300004)) // savrus
-    ((ReplicatedTableOptions)       (300005)) // savrus
-    ((SupportQueueReplicasInRTT)    (300006)) // akozhikhov
-    ((ReplicationCardCollocation)   (300007)) // savrus
-    ((AllowAlterInCataclysm)        (300008)) // savrus
-    ((ChaosCellSuspension)          (300009)) // savrus
-    ((RevokeFromSuspended)          (300010)) // savrus
-    ((RemoveMigratedCards)          (300011)) // ponasenko-rs
-    ((ConfirmMigrations)            (300012)) // ponasenko-rs
     ((SaneTxActionAbort)            (300013)) // kvk1920
     ((SaneTxActionAbortFix)         (300014)) // kvk1920
     ((ClockClusterTagValidation)    (300015)) // osidorkin
     ((CollocationOptions)           (300016)) // akozhikhov
-    ((AttachDistibutedCollocation)  (300017)) // savrus
+    ((AttachDistributedCollocation) (300017)) // savrus
 );
 
 static_assert(TEnumTraits<EChaosReign>::IsMonotonic, "Chaos reign enum is not monotonic");

@@ -47,8 +47,6 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/ytlib/program/native_singletons.h>
-
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
@@ -73,6 +71,7 @@
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/yt/library/program/program.h>
+#include <yt/yt/library/program/helpers.h>
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
 

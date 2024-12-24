@@ -77,6 +77,7 @@ SRCS(
     api/native/proto/transaction_actions.proto  # COMPAT(kvk1920)
 
     auth/config.cpp
+    GLOBAL auth/configure_native_authentication_manager.cpp
     auth/native_authenticating_channel.cpp
     auth/native_authentication_manager.cpp
     auth/native_authenticator.cpp
@@ -140,6 +141,7 @@ SRCS(
     chunk_client/client_block_cache.cpp
     chunk_client/combine_data_slices.cpp
     chunk_client/config.cpp
+    GLOBAL chunk_client/configure_dispatcher.cpp
     chunk_client/confirming_writer.cpp
     chunk_client/data_sink.cpp
     chunk_client/data_slice_descriptor.cpp
@@ -227,6 +229,12 @@ SRCS(
     data_node_tracker_client/location_directory.cpp
 
     data_node_tracker_client/proto/data_node_tracker_service.proto
+
+    distributed_chunk_session_client/config.cpp
+    distributed_chunk_session_client/distributed_chunk_writer.cpp
+    distributed_chunk_session_client/distributed_chunk_session_controller.cpp
+
+    distributed_chunk_session_client/proto/distributed_chunk_session_service.proto
 
     driver/config.cpp
 
@@ -336,9 +344,6 @@ SRCS(
     orchid/orchid_ypath_service.cpp
 
     orchid/proto/orchid_service.proto
-
-    program/config.cpp
-    program/native_singletons.cpp
 
     query_client/executor.cpp
     query_client/explain.cpp
@@ -732,6 +737,7 @@ PEERDIR(
     yt/yt/library/query/row_comparer_api
     yt/yt/library/query/secondary_index
     yt/yt/library/web_assembly/api
+    yt/yt/library/profiling/solomon
     yt/yt/library/program
     yt/yt/library/vector_hdrf
     yt/yt/ytlib/discovery_client

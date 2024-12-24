@@ -56,7 +56,7 @@ target_sources(unittester-signature-service PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/key_info_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/key_pair_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/signature_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/key_rotator_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/signature_header_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/signature_generator_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/signature_validator_ut.cpp

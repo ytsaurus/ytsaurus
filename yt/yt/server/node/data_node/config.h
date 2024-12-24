@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/hydra/config.h>
 
+#include <yt/yt/server/lib/distributed_chunk_session/config.h>
+
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/server/lib/io/config.h>
@@ -633,9 +635,6 @@ class TRemoveChunkJobDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    // COMPAT(danilalexeev)
-    bool WaitForIncrementalHeartbeatBarrier;
-
     std::optional<TDuration> DelayBeforeStartRemoveChunk;
 
     REGISTER_YSON_STRUCT(TRemoveChunkJobDynamicConfig);
@@ -1025,6 +1024,9 @@ public:
 
     //! Config for the new P2P implementation.
     TP2PConfigPtr P2P;
+
+    //! Distributed chunk session service config.
+    NDistributedChunkSession::TDistributedChunkSessionServiceConfigPtr DistributedChunkSessionService;
 
     i64 GetCacheCapacity() const;
 

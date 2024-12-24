@@ -29,8 +29,6 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/ytlib/program/native_singletons.h>
-
 #include <yt/yt/ytlib/sequoia_client/lazy_client.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
@@ -41,6 +39,7 @@
 
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
+#include <yt/yt/library/program/helpers.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
 
@@ -108,7 +107,6 @@ public:
             .Run()
             .Get()
             .ThrowOnError();
-        Sleep(TDuration::Max());
     }
 
     const TCypressProxyConfigPtr& GetConfig() const override
@@ -353,7 +351,7 @@ private:
         const TCypressProxyDynamicConfigPtr& /*oldConfig*/,
         const TCypressProxyDynamicConfigPtr& newConfig)
     {
-        ReconfigureNativeSingletons(newConfig);
+        ReconfigureSingletons(newConfig);
 
         ObjectService_->Reconfigure(newConfig->ObjectService);
         ResponseKeeper_->Reconfigure(newConfig->ResponseKeeper);

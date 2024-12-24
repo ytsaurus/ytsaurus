@@ -13,7 +13,7 @@ from yt.wrapper.cli_helpers import (
     write_silently, print_to_output, run_main, ParseStructuredArgument, populate_argument_help, SUBPARSER_KWARGS,
     add_subparser, parse_arguments, parse_data, output_format, dump_data, add_argument, add_structured_argument,
     YT_STRUCTURED_DATA_FORMAT, YT_ARGUMENTS_FORMAT)
-from yt.wrapper.constants import GETTINGSTARTED_DOC_URL, TUTORIAL_DOC_URL
+from yt.wrapper.constants import DOC_ROOT_URL, TUTORIAL_DOC_URL
 from yt.wrapper.default_config import get_default_config, RemotePatchableValueBase
 from yt.wrapper.admin_commands import add_switch_leader_parser
 from yt.wrapper.dirtable_commands import add_dirtable_parsers
@@ -111,7 +111,7 @@ $ export YT_PROXY=<cluster_host>
 $  yt create table //tmp/sepulki
 >> [...] Access denied: "write" permission for node //tmp is not allowed by any matching ACE [...]
 
-Oops! Forgotten token. Follow {gettingstarted_doc_url}
+Oops! Forgotten token. Follow {doc_root_url}/user-guide/storage/auth
 
 $  yt create table //tmp/sepulki
 >> 1-2-3-4
@@ -160,17 +160,17 @@ $ echo '{{host=abc.com}}' | yt lookup-rows //my/dynamic/table
 >> {{"host"="abc.com";"last_seen_time": "2017-04-10T12:35:10"}}
 
 See also:
-    YT CLI client           https://ytsaurus.tech/docs/en/api/cli/cli
+    YT CLI client           {doc_root_url}/api/cli/cli
 
-    user documentation      https://ytsaurus.tech/docs/en/
-    access to the system    {gettingstarted_doc_url}
+    user documentation      {doc_root_url}
+    access to the system    {doc_root_url}/user-guide/storage/auth
     tutorial                {tutorial_doc_url}
-    command specification   https://ytsaurus.tech/docs/en/api/commands
-    ACL                     https://ytsaurus.tech/docs/en/user-guide/storage/access-control
-    transactions            https://ytsaurus.tech/docs/en/user-guide/storage/transactions
+    command specification   {doc_root_url}/api/commands
+    ACL                     {doc_root_url}/user-guide/storage/access-control
+    transactions            {doc_root_url}/user-guide/storage/transactions
 '''.format(
-    gettingstarted_doc_url=GETTINGSTARTED_DOC_URL,
-    tutorial_doc_url=TUTORIAL_DOC_URL,
+    doc_root_url=DOC_ROOT_URL,
+    tutorial_doc_url=TUTORIAL_DOC_URL
 )
 
 

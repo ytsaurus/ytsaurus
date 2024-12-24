@@ -2397,8 +2397,10 @@ TEST_P(TEvaluateExpressionTest, Basic)
     auto buffer = New<TRowBuffer>();
     TUnversionedValue result{};
     bool enableWebAssembly = true;
-    // TODO(dtorilov): build and link is_finite udf
-    if (auto function = expr->As<TFunctionExpression>(); function && function->FunctionName == "is_finite") {
+    // TODO(dtorilov): build and link is_finite and *_localtime udf
+    if (auto function = expr->As<TFunctionExpression>();
+        function && (function->FunctionName == "is_finite" || function->FunctionName.ends_with("_localtime")))
+    {
         enableWebAssembly = false;
     }
     EvaluateExpression(expr, rowString, schema, &result, buffer, enableWebAssembly);
@@ -2749,7 +2751,27 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple<const char*, const char*, TUnversionedValue>(
             "i1=1446325284",
             "timestamp_floor_year(i1)",
-            MakeInt64(1420070400))
+            MakeInt64(1420070400)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=1446329284",
+            "timestamp_floor_hour_localtime(i1)",
+            MakeInt64(1446328800)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=1446329284",
+            "timestamp_floor_day_localtime(i1)",
+            MakeInt64(1446325200)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=1446329284",
+            "timestamp_floor_week_localtime(i1)",
+            MakeInt64(1445806800)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=1446329284",
+            "timestamp_floor_month_localtime(i1)",
+            MakeInt64(1446325200)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=1446329284",
+            "timestamp_floor_year_localtime(i1)",
+            MakeInt64(1420059600))
 ));
 
 class TFormatTimestampExpressionTest

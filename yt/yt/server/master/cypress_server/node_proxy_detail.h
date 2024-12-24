@@ -69,78 +69,16 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Unlock);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Copy);
+
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, LockCopyDestination);
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, LockCopySource);
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, SerializeNode);
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, CalculateInheritedAttributes);
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, AssembleTreeCopy);
+
+    // COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, BeginCopy);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, EndCopy);
-
-    class TBeginCopySubtreeSession
-    {
-    public:
-        TBeginCopySubtreeSession(
-            NTransactionServer::TTransaction* transaction,
-            ENodeCloneMode mode,
-            TCypressNode* rootNode,
-            const ICypressManagerPtr& cypressManager);
-
-        void Run();
-
-        std::vector<NTableServer::TMasterTableSchemaId> GetSchemaIds();
-        NObjectClient::TCellTagList GetExternalCellTags();
-
-        const std::vector<std::pair<TCypressNode*, TSharedRef>>& Finish();
-
-        DEFINE_BYVAL_RO_PROPERTY(NTransactionServer::TTransaction*, Transaction);
-        DEFINE_BYVAL_RO_PROPERTY(ENodeCloneMode, Mode);
-        DEFINE_BYVAL_RO_PROPERTY(const TCypressNode*, SubtreeRootNode);
-        DEFINE_BYREF_RO_PROPERTY(std::vector<TNodeId>, PortalRootIds);
-        DEFINE_BYREF_RO_PROPERTY(std::vector<NYPath::TYPath>, OpaqueChildPaths);
-
-    private:
-        const ICypressManagerPtr& CypressManager_;
-
-        std::queue<TCypressNode*> NodesToCopy_;
-        std::vector<std::pair<TCypressNode*, TSharedRef>> NodeToData_;
-
-        std::vector<NObjectClient::TCellTag> ExternalCellTags_;
-        std::vector<NTableServer::TMasterTableSchemaId> SchemaIds_;
-
-        void FinishNodeCopy(TBeginCopyContext& nodeLocalContext, TCypressNode* node);
-    };
-
-    class TEndCopySubtreeSession
-    {
-    public:
-        TEndCopySubtreeSession(
-            NCellMaster::TBootstrap* bootstrap,
-            NTransactionServer::TTransaction* transaction,
-            ENodeCloneMode mode,
-            NHydra::TReign version,
-            std::vector<std::pair<TNodeId, TRef>> nodeIdToData,
-            THashMap<NTableServer::TMasterTableSchemaId, NTableServer::TMasterTableSchema*> schemaIdToSchema);
-
-        DEFINE_BYVAL_RO_PROPERTY(ENodeCloneMode, Mode);
-
-        // Presence of an existing node signifies that first node should be loaded inplace.
-        TCypressNode* Run(
-            ICypressNodeFactory* factory,
-            TCypressNode* existingNode = nullptr,
-            NYTree::IAttributeDictionary* inheritedAttributes = nullptr);
-
-    private:
-        NCellMaster::TBootstrap* const Bootstrap_;
-        NTransactionServer::TTransaction* Transaction_ = nullptr;
-        NHydra::TReign Version_;
-
-        THashMap<TCypressNode*, std::vector<std::pair<std::string, TNodeId>>> NodeToChildren_;
-        THashMap<TNodeId, TCypressNode*> OldIdToNode_;
-
-        std::vector<std::pair<TNodeId, TRef>> NodeIdToData_;
-        THashMap<NTableServer::TMasterTableSchemaId, NTableServer::TMasterTableSchema*> SchemaIdToSchema_;
-
-        TCypressNode* SubtreeRootNode_ = nullptr;
-
-        void FinishNodeCopy(TEndCopyContext& nodeLocalContext, TCypressNode* clonedNode, TNodeId oldNodeId);
-        void AssembleTree();
-    };
 
     class TCustomAttributeDictionary
         : public NYTree::IAttributeDictionary
@@ -320,11 +258,14 @@ private:
         const TLockRequest& request = ELockMode::Exclusive,
         bool recursive = false);
 
+    TNodeFactoryOptions GetFactoryOptionsAndLog(const TCtxAssembleTreeCopyPtr& context) const;
+    TNodeFactoryOptions GetFactoryOptionsAndLog(const TCtxCopyPtr& context) const;
+
     template <class TContextPtr, class TClonedTreeBuilder>
     void CopyCore(
         const TContextPtr& context,
-        bool inplace,
-        const TClonedTreeBuilder& clonedTreeBuilder);
+        const TClonedTreeBuilder& clonedTreeBuilder,
+        bool inplace = false);
 
     void ValidateAccessTransaction();
 };
@@ -365,30 +306,6 @@ private:
     void SetMedia(const NChunkServer::TSerializableChunkReplication& serializableReplication);
     void SetHunkMedia(const NChunkServer::TSerializableChunkReplication& serializableReplication);
     void ThrowReplicationFactorMismatch(int mediumIndex) const;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! A set of inheritable attributes represented as an attribute dictionary.
-//! If a setter for a non-inheritable attribute is called, falls back to an ephemeral dictionary.
-class TInheritedAttributeDictionary
-    : public NYTree::IAttributeDictionary
-{
-public:
-    explicit TInheritedAttributeDictionary(NCellMaster::TBootstrap* bootstrap);
-
-    std::vector<TString> ListKeys() const override;
-    std::vector<TKeyValuePair> ListPairs() const override;
-    NYson::TYsonString FindYson(TStringBuf key) const override;
-    void SetYson(const TString& key, const NYson::TYsonString& value) override;
-    bool Remove(const TString& key) override;
-
-    TCompositeNodeBase::TTransientAttributes& Attributes();
-
-private:
-    const NCellMaster::TBootstrap* Bootstrap_;
-    TCompositeNodeBase::TTransientAttributes InheritedAttributes_;
-    NYTree::IAttributeDictionaryPtr Fallback_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

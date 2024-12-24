@@ -200,7 +200,7 @@ TSharedRef TBlobChunkBase::WrapBlockWithDelayedReferenceHolder(TSharedRef rawRef
 
 void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_INVOKER_AFFINITY(session->Invoker);
 
     if (session->Finished.exchange(true)) {
         return;
@@ -236,7 +236,7 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
 
 void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const TError& error)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_INVOKER_AFFINITY(session->Invoker);
 
     if (session->Finished.exchange(true)) {
         return;
@@ -436,13 +436,13 @@ void TBlobChunkBase::OnBlocksExtLoaded(
             } else {
                 FailSession(session, error);
             }
-        }));
+        }).Via(session->Invoker));
 
     session->SessionPromise.OnCanceled(BIND([session] (const TError& error) {
         FailSession(
             session,
             TError(NYT::EErrorCode::Canceled, "Session canceled") << error);
-    }));
+    }).Via(session->Invoker));
 }
 
 void TBlobChunkBase::DoReadSession(
@@ -514,6 +514,13 @@ void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
         beginEntryIndex,
         firstBlockIndex);
 
+    THashMap<int, TReadBlockSetSession::TBlockEntry> blockIndexToEntry;
+
+    i64 readSize = previousEntry->EndOffset - previousEntry->BeginOffset;
+
+    const auto& blocksExt = session->BlocksExt;
+    const auto& blockCache = session->Options.BlockCache;
+
     while (endEntryIndex < session->EntryCount) {
         const auto& entry = session->Entries[endEntryIndex];
         if (entry.Cached) {
@@ -542,22 +549,151 @@ void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
                 entry.BeginOffset,
                 entry.BlockIndex - previousEntry->BlockIndex - 1,
                 readGapSize);
+            for (int index = previousEntry->BlockIndex + 1; index < entry.BlockIndex; index++) {
+                const auto& info = blocksExt->Blocks[index];
+
+                auto blockId = TBlockId(Id_, index);
+                auto cookie = blockCache->GetBlockCookie(blockId, EBlockType::CompressedData);
+
+                EmplaceOrCrash(blockIndexToEntry, index, TReadBlockSetSession::TBlockEntry{
+                    .BlockIndex = index,
+                    .Cached = !cookie->IsActive(),
+                    .Cookie = std::move(cookie),
+                    .BeginOffset = info.Offset,
+                    .EndOffset = info.Offset + info.Size,
+                });
+
+                readSize += info.Size;
+            }
         }
 
+        readSize += entry.EndOffset - entry.BeginOffset;
         previousEntry = &entry;
         ++endEntryIndex;
     }
+
     int blocksToRead = previousEntry->BlockIndex - firstBlockIndex + 1;
 
+    int leftBlock = firstBlockIndex;
+    int rightBlock = previousEntry->BlockIndex;
+
+    if (readSize < Location_->GetCoalescedReadMaxGapSize()) {
+        auto diff = Location_->GetCoalescedReadMaxGapSize() - readSize;
+        auto cachedBlocks = blockCache->GetCachedBlocksByChunkId(Id_, NChunkClient::EBlockType::CompressedData);
+
+        THashSet<int> cachedBlockIndexes;
+        cachedBlockIndexes.reserve(cachedBlocks.size());
+
+        for (const auto& info : cachedBlocks) {
+            cachedBlockIndexes.emplace(info.BlockIndex);
+        }
+
+        int leftSize = 0;
+        int rightSize = 0;
+
+        while (leftSize < diff) {
+            if (leftBlock - 1 >= 0) {
+                leftBlock--;
+                leftSize += blocksExt->Blocks[leftBlock].Size;
+            } else {
+                break;
+            }
+        }
+
+        while (rightSize < diff) {
+            if (rightBlock + 1 < std::ssize(blocksExt->Blocks)) {
+                rightBlock++;
+                rightSize += blocksExt->Blocks[rightBlock].Size;
+            } else {
+                break;
+            }
+        }
+
+        auto collapseLeft = [&] {
+            leftSize -= blocksExt->Blocks[leftBlock].Size;
+            leftBlock++;
+        };
+
+        auto collapseRight = [&] {
+            rightSize += blocksExt->Blocks[rightBlock].Size;
+            rightBlock--;
+        };
+
+        while (diff < leftSize + rightSize && (leftBlock < firstBlockIndex || previousEntry->BlockIndex < rightBlock)) {
+            if (leftBlock >= firstBlockIndex) {
+                collapseRight();
+            } else if (rightBlock <= previousEntry->BlockIndex) {
+                collapseLeft();
+            }else if (cachedBlockIndexes.contains(rightBlock)) {
+                collapseRight();
+            } else if (cachedBlockIndexes.contains(leftBlock)) {
+                collapseLeft();
+            } else if (blocksExt->Blocks[leftBlock].Size < blocksExt->Blocks[rightBlock].Size) {
+                collapseRight();
+            } else {
+                collapseLeft();
+            }
+        }
+
+        for (int index = leftBlock; index <= rightBlock; index++) {
+            if (index >= firstBlockIndex && index <= previousEntry->BlockIndex) {
+                continue;
+            }
+
+            const auto& info = blocksExt->Blocks[index];
+
+            auto blockId = TBlockId(Id_, index);
+            auto cookie = blockCache->GetBlockCookie(blockId, EBlockType::CompressedData);
+
+            EmplaceOrCrash(blockIndexToEntry, index, TReadBlockSetSession::TBlockEntry{
+                .BlockIndex = index,
+                .Cached = !cookie->IsActive(),
+                .Cookie = std::move(cookie),
+                .BeginOffset = info.Offset,
+                .EndOffset = info.Offset + info.Size,
+            });
+
+            readSize += info.Size;
+        }
+    }
+
+    i64 additionalMemory = 0;
+
+    for (auto& [blockIndex, entry] : blockIndexToEntry) {
+        additionalMemory += entry.EndOffset - entry.BeginOffset;
+    }
+
+    if (session->LocationMemoryGuard) {
+        session->LocationMemoryGuard.IncreaseSize(additionalMemory);
+    }
+
+    if (session->PendingIOGuard) {
+        auto pendingIOGuardNewSize = session->PendingIOGuard.GetSize() + additionalMemory;
+        session->PendingIOGuard = Location_->AcquirePendingIO(
+            TMemoryUsageTrackerGuard::Acquire(Location_->GetReadMemoryTracker(), pendingIOGuardNewSize),
+            EIODirection::Read,
+            session->Options.WorkloadDescriptor,
+            pendingIOGuardNewSize);
+    }
+
     YT_LOG_DEBUG(
-        "Started reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, WorkloadDescriptor: %v, ReadSessionId: %v, GapBlockCount: %v)",
+        "Started reading blob chunk blocks (BlockIds: %v:%v-%v, "
+        "LocationId: %v, WorkloadDescriptor: %v, "
+        "ReadSessionId: %v, GapBlockCount: %v, "
+        "LeftBorder: %v, RightBorder: %v, Size: %v)",
         Id_,
         firstBlockIndex,
         previousEntry->BlockIndex,
         Location_->GetId(),
         session->Options.WorkloadDescriptor,
         session->Options.ReadSessionId,
-        blocksToRead - (endEntryIndex - beginEntryIndex));
+        blocksToRead - (endEntryIndex - beginEntryIndex),
+        leftBlock,
+        rightBlock,
+        readSize);
+
+    firstBlockIndex = leftBlock;
+    blocksToRead = rightBlock - leftBlock + 1;
 
     session->ReadTimer.emplace();
 
@@ -578,7 +714,8 @@ void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
                 firstBlockIndex,
                 blocksToRead,
                 beginEntryIndex,
-                endEntryIndex)
+                endEntryIndex,
+                Passed(std::move(blockIndexToEntry)))
                 .Via(session->Invoker));
     } catch (const std::exception& ex) {
         FailSession(session, ex);
@@ -591,6 +728,7 @@ void TBlobChunkBase::OnBlocksRead(
     int blocksToRead,
     int beginEntryIndex,
     int endEntryIndex,
+    THashMap<int, TReadBlockSetSession::TBlockEntry> blockIndexToEntry,
     const TErrorOr<std::vector<TBlock>>& blocksOrError)
 {
     VERIFY_INVOKER_AFFINITY(session->Invoker);
@@ -632,13 +770,15 @@ void TBlobChunkBase::OnBlocksRead(
     TWallTimer populateCacheTimer;
     i64 usefulBlockSize = 0;
     int usefulBlockCount = 0;
-    for (int entryIndex = beginEntryIndex; entryIndex < endEntryIndex; ++entryIndex) {
-        auto& entry = session->Entries[entryIndex];
+
+    auto takeBlock = [&] (auto& entry) {
         if (!entry.Cached) {
             auto relativeBlockIndex = entry.BlockIndex - firstBlockIndex;
             auto block = blocks[relativeBlockIndex];
 
             entry.Block = block;
+
+            YT_VERIFY(entry.Block);
 
             ++usefulBlockCount;
             usefulBlockSize += block.Size();
@@ -646,7 +786,17 @@ void TBlobChunkBase::OnBlocksRead(
                 entry.Cookie->SetBlock(TCachedBlock(std::move(block)));
             }
         }
+    };
+
+    for (int entryIndex = beginEntryIndex; entryIndex < endEntryIndex; ++entryIndex) {
+        auto& entry = session->Entries[entryIndex];
+        takeBlock(entry);
     }
+
+    for (auto& [blockIndex, entry] : blockIndexToEntry) {
+        takeBlock(entry);
+    }
+
     auto populateCacheTime = populateCacheTimer.GetElapsedTime();
 
     auto gapBlockCount = blocksToRead - usefulBlockCount;
@@ -763,8 +913,12 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
 
     // Check for fast path.
     if (allCached || !options.FetchFromDisk) {
-        CompleteSession(session);
-        return session->SessionPromise.ToFuture();
+        return BIND([=, this, this_ = MakeStrong(this)] (const TReadBlockSetSessionPtr session) {
+            CompleteSession(session);
+            return session->SessionPromise.ToFuture();
+        })
+            .AsyncVia(session->Invoker)
+            .Run(session);
     }
 
     // Need blocks ext.
@@ -797,7 +951,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
                 } else {
                     FailSession(session, cachedBlocksExtOrError);
                 }
-            }));
+            }).Via(session->Invoker));
     }
 
     return session->SessionPromise.ToFuture();

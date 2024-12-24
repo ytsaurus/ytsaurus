@@ -600,13 +600,9 @@ public:
         return TreeId_;
     }
 
-    // TODO(eshcherbin): Move this method to tree scheduler?
-    TError CheckOperationIsHung(
+    TError CheckOperationIsStuck(
         TOperationId operationId,
-        TDuration safeTimeout,
-        int minScheduleAllocationCallAttempts,
-        const THashSet<EDeactivationReason>& deactivationReasons,
-        TDuration limitingAncestorSafeTimeout) override
+        const TOperationStuckCheckOptionsPtr& options) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -652,8 +648,8 @@ public:
                     firstFoundLimitingAncestorTime = it->second;
                 }
 
-                if (activationTime + limitingAncestorSafeTimeout < now &&
-                    firstFoundLimitingAncestorTime + limitingAncestorSafeTimeout < now)
+                if (activationTime + options->LimitingAncestorSafeTimeout < now &&
+                    firstFoundLimitingAncestorTime + options->LimitingAncestorSafeTimeout < now)
                 {
                     const auto& resourceLimits = limitingAncestor->MaybeSpecifiedResourceLimits();
                     YT_VERIFY(resourceLimits);
@@ -671,7 +667,7 @@ public:
                         "operation's minimum allocation resource demand",
                         limitingAncestor->GetId(),
                         violatedResourceTypes)
-                        << TErrorAttribute("safe_timeout", limitingAncestorSafeTimeout)
+                        << TErrorAttribute("safe_timeout", options->LimitingAncestorSafeTimeout)
                         << TErrorAttribute("resource_limits", *resourceLimits)
                         << TErrorAttribute("min_needed_resources", aggregatedMinNeededResources);
                 }
@@ -680,14 +676,12 @@ public:
             }
         }
 
-        auto allocationSchedulerError = TFairShareTreeAllocationScheduler::CheckOperationIsHung(
+        auto allocationSchedulerError = TFairShareTreeAllocationScheduler::CheckOperationIsStuck(
             GetTreeSnapshot(),
             element,
             now,
             activationTime,
-            safeTimeout,
-            minScheduleAllocationCallAttempts,
-            deactivationReasons);
+            options);
         if (!allocationSchedulerError.IsOK()) {
             return allocationSchedulerError;
         }

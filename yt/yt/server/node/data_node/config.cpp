@@ -632,9 +632,6 @@ void TReplicateChunkJobDynamicConfig::Register(TRegistrar registrar)
 
 void TRemoveChunkJobDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("wait_for_incremental_heartbeat_barrier", &TThis::WaitForIncrementalHeartbeatBarrier)
-        .Default(true);
-
     registrar.Parameter("delay_before_start_remove_chunk", &TThis::DelayBeforeStartRemoveChunk)
         .Default();
 }
@@ -926,6 +923,9 @@ void TDataNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("p2p", &TThis::P2P)
+        .DefaultNew();
+
+    registrar.Parameter("distributed_chunk_session_service", &TThis::DistributedChunkSessionService)
         .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {

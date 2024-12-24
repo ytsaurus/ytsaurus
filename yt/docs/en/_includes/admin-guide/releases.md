@@ -317,6 +317,23 @@ Publishes as docker images.
 
 **All releases:**
 
+{% cut "**2.4.4**" %}
+
+Maintenance release with bug fixes:
+
+- Providing network project for Livy via command line argument
+
+{% endcut %}
+
+{% cut "**2.4.3**" %}
+
+Maintenance release with bug fixes:
+
+- Specifying network project for direct submit and setting it from Livy
+- Fix read and write for structs with float value using Dataset API
+
+{% endcut %}
+
 {% cut "**2.4.2**" %}
 
 Maintenance release with bug fixes:

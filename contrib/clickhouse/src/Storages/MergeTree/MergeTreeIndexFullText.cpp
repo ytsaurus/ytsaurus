@@ -324,7 +324,7 @@ bool MergeTreeConditionFullText::mayBeTrueOnGranule(MergeTreeIndexGranulePtr idx
 
 std::optional<size_t> MergeTreeConditionFullText::getKeyIndex(const std::string & key_column_name)
 {
-    const auto it = std::find(index_columns.begin(), index_columns.end(), key_column_name);
+    const auto it = std::ranges::find(index_columns, key_column_name);
     return it == index_columns.end() ? std::nullopt : std::make_optional<size_t>(std::ranges::distance(index_columns.cbegin(), it));
 }
 
@@ -485,7 +485,7 @@ bool MergeTreeConditionFullText::traverseTreeEquals(
 
         auto value = const_value.get<String>();
         if (is_case_insensitive_scenario)
-            std::transform(value.begin(), value.end(), value.begin(), [](const auto & c) { return static_cast<char>(std::tolower(c)); });
+            std::ranges::transform(value, value.begin(), [](const auto & c) { return static_cast<char>(std::tolower(c)); });
 
         token_extractor->stringToBloomFilter(value.data(), value.size(), *out.bloom_filter);
         return true;

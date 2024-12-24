@@ -37,6 +37,7 @@ class TestOperationsPickling(object):
     def setup(self):
         yt.config["tabular_data_format"] = yt.format.JsonFormat()
         yt.config["is_local_mode"] = False
+        yt.config["operation_tracker"]["poll_period"] = 20000
         self.env = {
             "YT_CONFIG_PATCHES": dumps_yt_config(),
             "PYTHONPATH": os.environ.get("PYTHONPATH", ""),

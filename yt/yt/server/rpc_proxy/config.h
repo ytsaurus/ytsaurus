@@ -28,6 +28,8 @@
 
 #include <yt/yt/library/dynamic_config/config.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 #include <yt/yt/library/tracing/jaeger/sampler.h>
 
 namespace NYT::NRpcProxy {
@@ -119,6 +121,7 @@ DEFINE_REFCOUNTED_TYPE(TProxyMemoryLimits)
 class TProxyConfig
     : public TNativeServerConfig
     , public NAuth::TAuthenticationManagerConfig
+    , public TServerProgramConfig
 {
 public:
     //! Initial config for API service.
@@ -154,6 +157,8 @@ public:
 
     bool EnableShuffleService;
 
+    THeapProfilerConfigPtr HeapProfiler;
+
     REGISTER_YSON_STRUCT(TProxyConfig);
 
     static void Register(TRegistrar registrar);
@@ -164,7 +169,7 @@ DEFINE_REFCOUNTED_TYPE(TProxyConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProxyDynamicConfig
-    : public TNativeSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     TApiServiceDynamicConfigPtr Api;

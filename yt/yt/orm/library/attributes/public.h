@@ -4,6 +4,37 @@
 
 #include <library/cpp/yt/misc/enum.h>
 
+// Forward declarations for google::protobuf and NProtoBuf.
+namespace google {
+namespace protobuf {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class Message;
+class MessageLite;
+class Descriptor;
+class FieldDescriptor;
+class UnknownFieldSet;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace protobuf
+} // namespace google
+
+namespace NProtoBuf {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using Message = ::google::protobuf::Message;
+using MessageLite = ::google::protobuf::MessageLite;
+using Descriptor = ::google::protobuf::Descriptor;
+using FieldDescriptor = ::google::protobuf::FieldDescriptor;
+using UnknownFieldSet = ::google::protobuf::UnknownFieldSet;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NProtoBuf
+
 namespace NYT::NOrm::NAttributes {
 
 ////////////////////////////////////////////////////////////////////////////////

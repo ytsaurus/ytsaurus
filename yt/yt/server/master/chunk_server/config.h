@@ -289,6 +289,29 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChunkReincarnatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDanglingLocationCleanerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    static constexpr int DefaultMaxLocationsToCleanPerIteration = 10;
+
+    // COMPAT(koloshmet)
+    std::optional<TInstant> DefaultLastSeenTime;
+
+    TDuration CleanupPeriod;
+    TDuration ExpirationTimeout;
+    int MaxLocationsToCleanPerIteration;
+    bool Enable;
+
+    REGISTER_YSON_STRUCT(TDanglingLocationCleanerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDanglingLocationCleanerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicDataNodeTrackerConfig
     : public NYTree::TYsonStruct
 {
@@ -296,6 +319,8 @@ public:
     int MaxConcurrentFullHeartbeats;
 
     int MaxConcurrentIncrementalHeartbeats;
+
+    TDanglingLocationCleanerConfigPtr DanglingLocationCleaner;
 
     REGISTER_YSON_STRUCT(TDynamicDataNodeTrackerConfig);
 
@@ -403,17 +428,6 @@ class TDynamicAllyReplicaManagerConfig
     : public NYTree::TYsonStruct
 {
 public:
-    //! Enables scheduling of ally replica announce requests and endorsements.
-    bool EnableAllyReplicaAnnouncement;
-
-    //! If |false|, ally replica endorsements will not be stored.
-    /*!
-     *  WARNING: setting this from |true| to |false| will trigger immediate
-     *  cleanup of existing endorsement queues and may stall automaton thread
-     *  for a while.
-     */
-    bool EnableEndorsements;
-
     //! When a chunk is not fully replicated by approved replicas, its new replicas
     //! still announce replicas to allies but with a certain delay.
     TDuration UnderreplicatedChunkAnnouncementRequestDelay;

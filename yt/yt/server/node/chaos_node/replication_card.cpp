@@ -91,25 +91,13 @@ void TReplicationCard::Load(TLoadContext& context)
     Load(context, TableId_);
     Load(context, TablePath_);
     Load(context, TableClusterName_);
+    Load(context, CurrentTimestamp_);
+    Load(context, Migration_);
+    Load(context, State_);
+    Load(context, *ReplicatedTableOptions_);
+    Load(context, Collocation_);
     // COMPAT(savrus)
-    if (context.GetVersion() >= EChaosReign::CurrentTimestamp) {
-        Load(context, CurrentTimestamp_);
-    }
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EChaosReign::Migration) {
-        Load(context, Migration_);
-        Load(context, State_);
-    }
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EChaosReign::ReplicatedTableOptions) {
-        Load(context, *ReplicatedTableOptions_);
-    }
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EChaosReign::ReplicationCardCollocation) {
-        Load(context, Collocation_);
-    }
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EChaosReign::AttachDistibutedCollocation) {
+    if (context.GetVersion() >= EChaosReign::AttachDistributedCollocation) {
         Load(context, AwaitingCollocationId_);
     }
 }

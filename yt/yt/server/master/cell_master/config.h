@@ -55,6 +55,8 @@
 
 #include <yt/yt/library/program/public.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 #include <yt/yt/client/node_tracker_client/public.h>
 
 #include <yt/yt/core/bus/tcp/public.h>
@@ -261,6 +263,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicResponseKeeperConfig)
 
 class TCellMasterConfig
     : public TNativeServerConfig
+    , public TServerProgramConfig
 {
 public:
     NNodeTrackerClient::TNetworkPreferenceList Networks;
@@ -335,7 +338,7 @@ DEFINE_REFCOUNTED_TYPE(TCellMasterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicCellMasterConfig
-    : public TNativeSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     TDuration MutationTimeCommitPeriod;
@@ -402,7 +405,7 @@ public:
     NSchedulerPoolServer::TDynamicSchedulerPoolManagerConfigPtr SchedulerPoolManager;
     NSequoiaServer::TDynamicSequoiaManagerConfigPtr SequoiaManager;
     NSequoiaServer::TDynamicGroundUpdateQueueManagerConfigPtr GroundUpdateQueueManager;
-    NIncumbentServer::TDynamicIncumbentManagerConfigPtr IncumbentManager;
+    NIncumbentServer::TIncumbentManagerDynamicConfigPtr IncumbentManager;
     TDynamicQueueAgentServerConfigPtr QueueAgentServer;
     NHydra::TDynamicDistributedHydraManagerConfigPtr HydraManager;
 

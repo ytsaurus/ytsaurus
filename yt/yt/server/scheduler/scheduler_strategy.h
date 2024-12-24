@@ -318,7 +318,7 @@ struct ISchedulerStrategy
 
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
-    virtual std::vector<std::pair<TOperationId, TError>> GetHungOperations() = 0;
+    virtual std::vector<std::pair<TOperationId, TError>> GetStuckOperations() = 0;
 
     virtual void ScanPendingOperations() = 0;
 

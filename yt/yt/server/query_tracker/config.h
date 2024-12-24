@@ -16,6 +16,8 @@
 
 #include <yt/yt/library/dynamic_config/config.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 namespace NYT::NQueryTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -160,6 +162,7 @@ DEFINE_REFCOUNTED_TYPE(TQueryTrackerDynamicConfig)
 
 class TQueryTrackerServerConfig
     : public TNativeServerConfig
+    , public TServerProgramConfig
 {
 public:
     int MinRequiredStateVersion;
@@ -188,7 +191,7 @@ DEFINE_REFCOUNTED_TYPE(TQueryTrackerServerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryTrackerServerDynamicConfig
-    : public TNativeSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     NAlertManager::TAlertManagerDynamicConfigPtr AlertManager;

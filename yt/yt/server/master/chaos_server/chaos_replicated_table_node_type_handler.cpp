@@ -249,11 +249,11 @@ private:
         }
     }
 
-    void DoBeginCopy(
+    void DoSerializeNode(
         TChaosReplicatedTableNode* node,
-        TBeginCopyContext* context) override
+        TSerializeNodeContext* context) override
     {
-        TBase::DoBeginCopy(node, context);
+        TBase::DoSerializeNode(node, context);
 
         using NYT::Save;
         Save(*context, node->ChaosCellBundle());
@@ -261,13 +261,11 @@ private:
         Save(*context, node->GetOwnsReplicationCard());
     }
 
-    void DoEndCopy(
+    void DoMaterializeNode(
         TChaosReplicatedTableNode* trunkNode,
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        IAttributeDictionary* inheritedAttributes) override
+        TMaterializeNodeContext* context) override
     {
-        TBase::DoEndCopy(trunkNode, context, factory, inheritedAttributes);
+        TBase::DoMaterializeNode(trunkNode, context);
 
         using NYT::Load;
 

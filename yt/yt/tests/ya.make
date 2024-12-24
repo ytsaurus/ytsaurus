@@ -4,8 +4,13 @@ RECURSE(
     compression
     cuda_core_dump_simulator
     ysonperf
-    cpp
 )
+
+IF (NOT SANITIZER_TYPE)
+    RECURSE(
+        cpp
+    )
+ENDIF()
 
 IF (NOT OPENSOURCE)
     RECURSE(recipe)

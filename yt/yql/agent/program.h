@@ -7,8 +7,6 @@
 #include <yt/yt/library/program/program_setsid_mixin.h>
 #include <yt/yt/library/program/helpers.h>
 
-#include <yt/yt/ytlib/program/native_singletons.h>
-
 #include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
 
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
@@ -54,7 +52,7 @@ protected:
         auto config = GetConfig();
         auto configNode = GetConfigNode();
 
-        ConfigureNativeSingletons(config);
+        ConfigureSingletons(config);
 
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems

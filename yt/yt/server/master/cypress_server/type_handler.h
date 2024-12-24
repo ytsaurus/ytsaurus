@@ -71,25 +71,17 @@ struct INodeTypeHandler
         TNodeId hintId,
         const TCreateNodeContext& context) = 0;
 
-    //! Serializes the subtree rooted at #node as a part of |BeginCopy| verb handling.
-    virtual void BeginCopy(
+    //! Serializes the #node as a part of |SerializeNode| verb.
+    //! Currently only used during cross-cell copy.
+    virtual void SerializeNode(
         TCypressNode* node,
-        TBeginCopyContext* context) = 0;
+        TSerializeNodeContext* context) = 0;
 
-    //! Deserializes the subtree into a new node as a part of |EndCopy| verb handling.
-    virtual TCypressNode* EndCopy(
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        TNodeId sourceNodeId,
-        NYTree::IAttributeDictionary* inheritedAttributes) = 0;
-
-    //! Deserializes the subtree into an existing #trunkNode as a part of |EndCopy| verb handling.
-    virtual void EndCopyInplace(
-        TCypressNode* trunkNode,
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        TNodeId sourceNodeId,
-        NYTree::IAttributeDictionary* inheritedAttributes) = 0;
+    //! Materializes the node from serialized representation as a part of |MaterializeNode| verb.
+    //! Currently only used during cross-cell copy.
+    virtual TCypressNode* MaterializeNode(
+        TMaterializeNodeContext* context,
+        ICypressNodeFactory* factory) = 0;
 
     //! Fills attributes of a trunk node. Usually applied to newly created nodes.
     virtual void FillAttributes(

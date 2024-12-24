@@ -1,0 +1,33 @@
+package NYT.NOrm.NAttributes.NTests.NProto;
+
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
+
+message TSheep
+{
+    optional string name = 1;
+    optional int32 age = 2;
+}
+
+message TEngine
+{
+    optional string name = 1;
+    optional int64 horsepower = 2;
+}
+
+message TWheel
+{
+    optional float radius = 1;
+}
+
+message TCar
+{
+    optional string manufacturer = 1;
+    optional bytes model = 2;
+    optional TEngine engine = 3;
+    repeated TWheel wheels = 4;
+    repeated uint32 weights = 5;
+    repeated bool quality_controls = 6 [packed = true];
+    map<string, fixed32> owner_to_experience = 7;
+    map<fixed32, sint64> sensor_to_voltage = 8;
+}

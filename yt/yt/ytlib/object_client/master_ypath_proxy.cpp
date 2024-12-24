@@ -16,6 +16,7 @@ namespace NYT::NObjectClient {
     static_assert(true)
 
 DEFINE_VECTORIZED_REQUEST_BATCHER(NYT::NYTree::NProto, Get);
+DEFINE_VECTORIZED_REQUEST_BATCHER(NYT::NCypressClient::NProto, SerializeNode);
 
 #undef DEFINE_VECTORIZED_REQUEST_BATCHER
 

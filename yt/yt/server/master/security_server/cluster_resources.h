@@ -90,8 +90,8 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    void Save(NCypressServer::TBeginCopyContext& context) const;
-    void Load(NCypressServer::TEndCopyContext& context);
+    void Save(NCypressServer::TSerializeNodeContext& context) const;
+    void Load(NCypressServer::TMaterializeNodeContext& context);
 
 private:
     //! Space occupied on data nodes in bytes per medium.

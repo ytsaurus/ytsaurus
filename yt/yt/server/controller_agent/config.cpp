@@ -1215,9 +1215,6 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("fail_operation_on_errors_in_live_preview", &TThis::FailOperationOnErrorsInLivePreview)
         .Default(false);
 
-    registrar.Parameter("fetch_schemas_from_external_cell_tags", &TThis::FetchSchemasFromExternalCellTags)
-        .Default(false);
-
     registrar.Parameter("enable_job_fails_tolerance", &TThis::EnableJobFailsTolerance)
         .Default(false);
 
@@ -1298,6 +1295,8 @@ void TControllerAgentBootstrapConfig::Register(TRegistrar registrar)
         ->AsMap());
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
+    registrar.Parameter("heap_profiler", &TThis::HeapProfiler)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -278,7 +278,7 @@ void TNodeShard::DoCleanup()
 
     ActiveAllocationCount_ = 0;
 
-    AllocationCounter_.clear();
+    RunningAllocationCounter_.clear();
 
     AllocationsToSubmitToStrategy_.clear();
 
@@ -2194,7 +2194,7 @@ void TNodeShard::OnAllocationFinished(const TAllocationPtr& allocation)
         return;
     }
 
-    SetFinishedState(allocation);
+    SetFinishedState(allocation, /*aborted*/ false);
 
     if (auto* operationState = FindOperationState(allocation->GetOperationId())) {
         const auto& controller = operationState->Controller;
@@ -2218,7 +2218,7 @@ void TNodeShard::OnAllocationAborted(
         return;
     }
 
-    SetFinishedState(allocation);
+    SetFinishedState(allocation, /*aborted*/ true);
 
     if (auto* operationState = FindOperationState(allocation->GetOperationId())) {
         const auto& controller = operationState->Controller;
@@ -2269,7 +2269,7 @@ void TNodeShard::SubmitAllocationsToStrategy()
     }
 }
 
-void TNodeShard::UpdateProfilingCounter(const TAllocationPtr& allocation, int value)
+void TNodeShard::UpdateRunningAllocationProfilingCounter(const TAllocationPtr& allocation, int value)
 {
     auto allocationState = allocation->GetState();
 
@@ -2282,11 +2282,11 @@ void TNodeShard::UpdateProfilingCounter(const TAllocationPtr& allocation, int va
             .Gauge("/allocations/running_allocation_count");
     };
 
-    TAllocationCounterKey key(allocationState, allocation->GetTreeId());
+    TRunningAllocationCounterKey key(allocationState, allocation->GetTreeId());
 
-    auto it = AllocationCounter_.find(key);
-    if (it == AllocationCounter_.end()) {
-        it = AllocationCounter_.emplace(
+    auto it = RunningAllocationCounter_.find(key);
+    if (it == RunningAllocationCounter_.end()) {
+        it = RunningAllocationCounter_.emplace(
             std::move(key),
             std::pair(
                 0,
@@ -2298,19 +2298,44 @@ void TNodeShard::UpdateProfilingCounter(const TAllocationPtr& allocation, int va
     gauge.Update(count);
 }
 
+void TNodeShard::IncrementFinishedAllocationProfilingCounter(const TAllocationPtr& allocation, bool aborted)
+{
+    auto createCounter = [&] {
+        return SchedulerProfiler()
+            .WithTags(TTagSet(TTagList{
+                {ProfilingPoolTreeKey, allocation->GetTreeId()},
+                {"aborted", aborted ? "true" : "false"},
+            }))
+            .Counter("/allocations/finished_allocation_count");
+    };
+
+    auto key = TFinishedAllocationCounterKey(aborted, allocation->GetTreeId());
+
+    auto it = FinishedAllocationCounter_.find(key);
+    if (it == end(FinishedAllocationCounter_)) {
+        it = FinishedAllocationCounter_.emplace(
+            std::move(key),
+            createCounter()).first;
+    }
+
+    auto& counter = it->second;
+    counter.Increment();
+}
+
 void TNodeShard::SetAllocationState(const TAllocationPtr& allocation, const EAllocationState state)
 {
     YT_VERIFY(state != EAllocationState::Scheduled);
 
-    UpdateProfilingCounter(allocation, -1);
+    UpdateRunningAllocationProfilingCounter(allocation, -1);
     allocation->SetState(state);
-    UpdateProfilingCounter(allocation, 1);
+    UpdateRunningAllocationProfilingCounter(allocation, 1);
 }
 
-void TNodeShard::SetFinishedState(const TAllocationPtr& allocation)
+void TNodeShard::SetFinishedState(const TAllocationPtr& allocation, bool aborted)
 {
-    UpdateProfilingCounter(allocation, -1);
+    UpdateRunningAllocationProfilingCounter(allocation, -1);
     allocation->SetState(EAllocationState::Finished);
+    IncrementFinishedAllocationProfilingCounter(allocation, aborted);
 }
 
 void TNodeShard::ProcessOperationInfoHeartbeat(
@@ -2406,7 +2431,7 @@ void TNodeShard::RegisterAllocation(const TAllocationPtr& allocation)
     EmplaceOrCrash(node->IdToAllocation(), allocation->GetId(), allocation);
     ++ActiveAllocationCount_;
 
-    UpdateProfilingCounter(allocation, 1);
+    UpdateRunningAllocationProfilingCounter(allocation, 1);
 
     YT_LOG_DEBUG(
         "Allocation registered "

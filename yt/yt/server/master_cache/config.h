@@ -10,11 +10,11 @@
 
 #include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/yt/ytlib/program/config.h>
-
 #include <yt/yt/core/bus/tcp/public.h>
 
 #include <yt/yt/library/dynamic_config/public.h>
+
+#include <yt/yt/library/server_program/config.h>
 
 namespace NYT::NMasterCache {
 
@@ -22,6 +22,7 @@ namespace NYT::NMasterCache {
 
 class TMasterCacheConfig
     : public TNativeServerConfig
+    , public TServerProgramConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;
@@ -46,7 +47,7 @@ DEFINE_REFCOUNTED_TYPE(TMasterCacheConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterCacheDynamicConfig
-    : public TNativeSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     NObjectClient::TCachingObjectServiceDynamicConfigPtr CachingObjectService;

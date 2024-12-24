@@ -16,4 +16,8 @@ PEERDIR(
 
 TAG(ya:not_autocheck)
 
+REQUIREMENTS(
+    ram:32
+)
+
 END()

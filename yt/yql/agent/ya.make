@@ -27,6 +27,7 @@ PEERDIR(
     library/cpp/getopt
 
     library/cpp/yt/logging/backends/arcadia
+    library/cpp/yt/mlock
 
     yt/yt/library/dynamic_config
     yt/yt/library/skiff_ext
@@ -44,6 +45,7 @@ PEERDIR(
 
     yt/yt/library/query/engine
     yt/yt/library/query/row_comparer
+    yt/yt/library/monitoring
 
     yt/yql/plugin/bridge
 

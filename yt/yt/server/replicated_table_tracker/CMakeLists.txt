@@ -34,6 +34,7 @@ target_link_libraries(yt-server-replicated_table_tracker PUBLIC
   server-lib-tablet_server
   yt-library-dynamic_config
   yt-library-server_program
+  yt-library-monitoring
   yt-yt-ytlib
   yt-yt-core
   cpp-yt-memory

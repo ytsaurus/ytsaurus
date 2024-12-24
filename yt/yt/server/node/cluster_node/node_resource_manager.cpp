@@ -2,6 +2,7 @@
 #include "private.h"
 #include "bootstrap.h"
 #include "config.h"
+#include "yt/yt/library/profiling/solomon/helpers.h"
 
 #include <yt/yt/server/node/cellar_node/bootstrap.h>
 #include <yt/yt/server/node/cellar_node/bundle_dynamic_config_manager.h>
@@ -66,6 +67,7 @@ void FormatResources(
 {
     builder->AppendFormat(
         "UserSlots: %v/%v, Cpu: %v/%v, VCpu: %v/%v, Gpu: %v/%v, UserMemory: %v/%v, SystemMemory: %v/%v, Network: %v/%v, "
+        "DiskSpace: %v/%v, Inodes: %v/%v, "
         "ReplicationSlots: %v/%v, ReplicationDataSize: %v/%v, "
         "RemovalSlots: %v/%v, "
         "RepairSlots: %v/%v, RepairDataSize: %v/%v, "
@@ -92,6 +94,10 @@ void FormatResources(
         FormatMemoryUsage(limits.SystemMemory),
         // Network
         usage.Network,
+        FormatMemoryUsage(usage.DiskSpaceRequest),
+        FormatMemoryUsage(limits.DiskSpaceRequest),
+        usage.InodeRequest,
+        limits.InodeRequest,
         limits.Network,
         // Replication slots
         usage.ReplicationSlots,
@@ -155,6 +161,7 @@ void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TS
     builder->AppendFormat(
         "{"
         "UserSlots: %v, Cpu: %v, VCpu: %v, Gpu: %v, UserMemory: %v, SystemMemory: %v, Network: %v, "
+        "DiskSpace: %v, Inodes: %v, "
         "ReplicationSlots: %v, ReplicationDataSize: %v, "
         "RemovalSlots: %v, "
         "RepairSlots: %v, RepairDataSize: %v, "
@@ -170,6 +177,8 @@ void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TS
         FormatMemoryUsage(resources.UserMemory),
         FormatMemoryUsage(resources.SystemMemory),
         resources.Network,
+        FormatMemoryUsage(resources.DiskSpaceRequest),
+        resources.InodeRequest,
         resources.ReplicationSlots,
         FormatMemoryUsage(resources.ReplicationDataSize),
         resources.RemovalSlots,
@@ -583,6 +592,7 @@ void TNodeResourceManager::UpdateLimits()
 
     YT_LOG_DEBUG("Updating node resource limits");
 
+    UpdateProfilingCategory();
     UpdateMemoryFootprint();
     UpdateMemoryLimits();
     UpdateJobsCpuLimit();
@@ -649,6 +659,13 @@ void TNodeResourceManager::UpdateMemoryLimits()
         SelfMemoryGuarantee_ = selfMemoryGuarantee;
         SelfMemoryGuaranteeUpdated_.Fire(SelfMemoryGuarantee_);
     }
+}
+
+void TNodeResourceManager::UpdateProfilingCategory()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    Bootstrap_->GetNodeMemoryUsageTracker()->UpdateUsage(EMemoryCategory::Profiling, GetCountersBytesAlive());
 }
 
 void TNodeResourceManager::UpdateMemoryFootprint()

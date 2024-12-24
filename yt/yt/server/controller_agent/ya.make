@@ -35,6 +35,7 @@ SRCS(
 PEERDIR(
     library/cpp/yt/phdr_cache
 
+    yt/yt/library/monitoring
     yt/yt/library/ytprof
     yt/yt/library/server_program
 

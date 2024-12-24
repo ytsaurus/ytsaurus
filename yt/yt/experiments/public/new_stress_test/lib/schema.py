@@ -3,8 +3,10 @@ import yt.yson as yson
 from .helpers import random_string
 import random
 import copy
-import string
 import functools
+
+
+################################################################################
 
 @functools.total_ordering
 class ComparableYsonEntity(yson.YsonEntity):
@@ -19,6 +21,27 @@ class ComparableYsonEntity(yson.YsonEntity):
 def make_comparable_key(key):
     return [ComparableYsonEntity() if x is None else x for x in key]
 
+
+################################################################################
+
+class RandomStringGenerator():
+    def __init__(self):
+        self.data = ""
+        self.ptr = 0
+
+    def generate(self, n):
+        if self.ptr + n > len(self.data):
+            self._refill()
+        res = self.data[self.ptr:self.ptr + n]
+        self.ptr += n
+        return res
+
+    def _refill(self):
+        self.data = self.data[self.ptr:] + random_string(100000)
+        self.ptr = 0
+
+
+################################################################################
 
 class TInt64:
     def random():
@@ -98,22 +121,6 @@ class TDouble:
     def is_string_like():
         return False
 
-class RandomStringGenerator():
-    def __init__(self):
-        self.data = ""
-        self.ptr = 0
-
-    def generate(self, n):
-        if self.ptr + n > len(self.data):
-            self._refill()
-        res = self.data[self.ptr:self.ptr + n]
-        self.ptr += n
-        return res
-
-    def _refill(self):
-        self.data = self.data[self.ptr:] + random_string(100000)
-        self.ptr = 0
-
 class TString:
     rsg = RandomStringGenerator()
 
@@ -137,9 +144,12 @@ class TString:
     def is_string_like():
         return True
 
-class TAny:
-    scalar_types = [TInt64, TUint64, TBoolean, TString]
+SCALAR_TYPES = [TInt64, TUint64, TBoolean, TString]
 
+
+################################################################################
+
+class TAny:
     def random():
         types = random.sample(TAny.scalar_types, random.randint(0, len(TAny.scalar_types)))
         return [t.random() for t in types]
@@ -154,10 +164,13 @@ class TAny:
     def is_string_like():
         return True
 
-types = TAny.scalar_types + [TAny]
+TYPES = SCALAR_TYPES + [TAny]
 
-key_types = [t for t in types if t.comparable()]
-types_map = {t.str(): t for t in types + key_types}
+KEY_TYPES = [t for t in TYPES if t.comparable()]
+TYPES_MAP = {t.str(): t for t in TYPES}
+
+
+################################################################################
 
 class Column():
     def __init__(self, ttype, name, sort_order=None, aggregate=None, max_inline_hunk_size=None):
@@ -192,31 +205,31 @@ class Column():
 
 class Schema():
     @staticmethod
-    def from_spec(sorted, spec):
-        if sorted:
-            key_column_count = spec.schema.key_column_count or random.randint(3, 5)
-            assert key_column_count > 0
-            max_inline_hunk_size = spec.sorted.max_inline_hunk_size
-        else:
-            key_column_count = 0
-            max_inline_hunk_size = None
-
-        value_column_count = spec.schema.value_column_count or random.randint(5, 10)
+    def from_parameters(
+        key_column_count,
+        value_column_count,
+        max_inline_hunk_size=None,
+        key_column_types=None,
+        value_column_types=None,
+        allow_aggregates=True,
+        mode=None,
+    ):
+        sorted = bool(key_column_count)
         assert value_column_count > 0
 
         def _pick_columns(types, allowed_type_names, count):
             if allowed_type_names is not None:
                 types = [t for t in types if t.str() in allowed_type_names]
-            return [random.choice(types) for i in range(count)]
+            return [random.choice(types) for _ in range(count)]
 
-        key_columns = _pick_columns(key_types, spec.schema.key_column_types, key_column_count)
-        data_columns = _pick_columns(types, spec.schema.value_column_types, value_column_count)
+        key_columns = _pick_columns(KEY_TYPES, key_column_types, key_column_count)
+        data_columns = _pick_columns(TYPES, value_column_types, value_column_count)
         key_names = ["k%s" % str(i) for i in range(len(key_columns))]
         data_names = ["v%s" % str(i) for i in range(len(data_columns))]
 
         def aggr(t):
             aggregate_probability = 0.5
-            if not sorted or not spec.schema.allow_aggregates or not t.aggregatable():
+            if not sorted or not allow_aggregates or not t.aggregatable():
                 return None
             if random.random() < aggregate_probability:
                 return random.choice(t.aggregatable())
@@ -226,7 +239,37 @@ class Schema():
         return Schema(
             [Column(t, n, "ascending") for (t,n) in zip(key_columns, key_names)],
             [Column(t, n, None, aggr(t), max_inline_hunk_size) for (t,n) in zip(data_columns, data_names)],
-            1 if spec.mode == "stateless_write" else 0.95)
+            1 if mode == "stateless_write" else 0.95)
+
+    @staticmethod
+    def from_spec(spec):
+        return Schema.from_parameters(
+            spec.schema.key_column_count or random.randint(3, 5) if hasattr(spec, "sorted") else 0,
+            spec.schema.value_column_count or random.randint(5, 10),
+            spec.sorted.max_inline_hunk_size if hasattr(spec, "sorted") else None,
+            spec.schema.key_column_types,
+            spec.schema.value_column_types,
+            spec.schema.allow_aggregates,
+            spec.mode,
+        )
+
+    @staticmethod
+    def from_yson(yson):
+        s = Schema()
+        s.key_columns = []
+        s.data_columns = []
+        try:
+            for c in yson:
+                column = Column(TYPES_MAP[c["type"]], c["name"], c.get("sort_order"), c.get("aggregate"))
+                if c.get("sort_order") == "ascending":
+                    s.key_columns.append(column)
+                else:
+                    s.data_columns.append(column)
+        except Exception as e:
+            raise Exception("Failed to build schema from yson") from e
+
+        s.columns = s.key_columns + s.data_columns
+        return s
 
     def __init__(self, key_columns, data_columns, appearance_probability=0.95):
         # QWFP
@@ -235,17 +278,6 @@ class Schema():
         self.key_columns = key_columns
         self.data_columns = data_columns
         self.columns = key_columns + data_columns
-
-    def from_yson(self, yson):
-        self.key_columns = []
-        self.data_columns = []
-        for c in yson:
-            column = Column(types_map[c["type"]], c["name"], c.get("sort_order", None), c.get("aggregate", None))
-            if c.get("sort_order") == "ascending":
-                self.key_columns.append(column)
-            else:
-                self.data_columns.append(column)
-        self.columns = self.key_columns + self.data_columns
 
     def with_named_columns(self, names, types, sort_order=None):
         new_schema = copy.deepcopy(self)
@@ -259,7 +291,7 @@ class Schema():
 
     def add_key_column(self, column=None):
         if column is None:
-            type = random.choice(key_types)
+            type = random.choice(KEY_TYPES)
             name = f"k{len(self.key_columns)}"
             column = Column(type, name, "ascending")
         self.key_columns.append(column)
@@ -364,3 +396,6 @@ class Schema():
         return sum(column.type.data_weight() for column in self.columns)
     def key_data_weight(self):
         return sum(column.type.data_weight() for column in self.key_columns)
+
+
+################################################################################

@@ -101,6 +101,10 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(1)
         .DontSerializeDefault();
 
+    registrar.Parameter("cross_cell_copy_max_subtree_size", &TThis::CrossCellCopyMaxSubtreeSize)
+        .Default(100'000)
+        .GreaterThanOrEqual(0);
+
     registrar.Parameter("enable_inherit_attributes_during_copy", &TThis::EnableInheritAttributesDuringCopy)
         .Default(false);
 

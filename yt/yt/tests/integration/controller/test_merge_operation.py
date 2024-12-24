@@ -6,7 +6,7 @@ from yt_commands import (
     start_transaction, abort_transaction, insert_rows, trim_rows, read_table, write_table, merge, sort, interrupt_job,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_unfreeze_table, sync_flush_table,
     get_operation, get_singular_chunk_id, get_chunk_replication_factor,
-    create_dynamic_table, get_driver, alter_table, get_table_columnar_statistics)
+    create_dynamic_table, get_driver, alter_table, get_table_columnar_statistics, raises_yt_error)
 
 from yt_type_helpers import (
     make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type,
@@ -2773,6 +2773,22 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         op.track()
 
         assert not op.get_alerts()
+
+    @authors("apollo1321")
+    def test_sorted_merge_with_input_query_throws_error(self):
+        skip_if_old(self.Env, (24, 2), "throwing error is not supported in older versions")
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        with raises_yt_error('"input_query" is not supported in a sorted merge operation'):
+            merge(
+                mode="sorted",
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                spec={"input_query": "key where key > 1"},
+            )
+
 
 ##################################################################
 

@@ -1192,7 +1192,7 @@ TEST_F(TQueryPrepareTest, WronglyTypedAggregate)
 
     EXPECT_THROW_THAT({
         PreparePlanFragment(&PrepareMock_, "avg(a) from [//t] group by 1");
-    }, HasSubstr("Type mismatch in function \"avg\""));
+    }, HasSubstr("Wrong type for argument 1 to function \"avg\""));
 }
 
 TEST_F(TQueryPrepareTest, OrderByWithoutLimit)
@@ -8601,15 +8601,15 @@ TEST_F(TQueryEvaluateTest, AverageAgg2)
 TEST_F(TQueryEvaluateTest, AverageAgg3)
 {
     auto split = MakeSplit({
-        {"a", EValueType::Int64},
+        {"a", EValueType::Double},
         {"b", EValueType::Int64}
     });
 
     std::vector<TString> source = {
-        "a=3;b=1",
+        "a=3.0;b=1",
         "b=1",
         "b=0",
-        "a=7;b=1",
+        "a=7.0;b=1",
     };
 
     auto resultSplit = MakeSplit({

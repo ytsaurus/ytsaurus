@@ -28,6 +28,7 @@ RECURSE(
     query_tracker_chyt_liveness
     query_tracker_ql_liveness
     query_tracker_yql_liveness
+    query_tracker_dq_liveness
     queue_agent_alerts
     queue_api
     quorum_health

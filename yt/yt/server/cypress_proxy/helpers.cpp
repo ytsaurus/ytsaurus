@@ -131,7 +131,7 @@ std::vector<std::string> TokenizeUnresolvedSuffix(TYPathBuf unresolvedSuffix)
         tokenizer.Expect(ETokenType::Literal);
         pathTokens.push_back(tokenizer.GetLiteralValue());
         tokenizer.Advance();
-    };
+    }
 
     return pathTokens;
 }

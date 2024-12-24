@@ -54,56 +54,48 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Rename this to TBeginCopyNodeContext
-class TBeginCopyContext
+// TODO(h0pless): IntroduceNewPipelineForCrossCellCopy.
+// Rename this to SerializeNodeContext in a separate PR. Just to make sure that diff is more readable.
+class TSerializeNodeContext
     : public TEntityStreamSaveContext
 {
 public:
-    TBeginCopyContext(
+    TSerializeNodeContext(
         NTransactionServer::TTransaction* transaction,
         ENodeCloneMode mode,
         const TCypressNode* rootNode);
 
     void RegisterSchema(NTableServer::TMasterTableSchemaId schemaId);
-    void RegisterExternalCellTag(NObjectClient::TCellTag cellTag);
-    void RegisterPortalRoot(NCypressClient::TNodeId portalRootId);
-    void RegisterAsOpaque(const NYPath::TYPath& path);
-    void RegisterChild(TCypressNode* child);
-
-    std::optional<NTableServer::TMasterTableSchemaId> GetSchemaId() const;
-    std::optional<NObjectClient::TCellTag> GetExternalCellTag() const;
-    std::optional<NCypressClient::TNodeId> GetPortalRootId() const;
-    std::optional<NYPath::TYPath> GetPathIfOpaque() const;
-    const std::vector<TCypressNode*>& GetChildren() const;
+    NTableServer::TMasterTableSchemaId GetSchemaId() const;
 
     std::vector<TSharedRef> Finish();
 
     DEFINE_BYVAL_RO_PROPERTY(NTransactionServer::TTransaction*, Transaction);
     DEFINE_BYVAL_RO_PROPERTY(ENodeCloneMode, Mode);
     DEFINE_BYVAL_RO_PROPERTY(const TCypressNode*, RootNode);
+    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExternalCellTag, NObjectClient::NotReplicatedCellTagSentinel);
 
 private:
     TChunkedOutputStream Stream_;
 
-    std::optional<NTableServer::TMasterTableSchemaId> SchemaId_;
-    std::optional<NObjectClient::TCellTag> ExternalCellTag_;
-    std::optional<NCypressClient::TNodeId> PortalRootId_;
-    // Used iff node is marked as opaque.
-    std::optional<NYPath::TYPath> Path_;
+    NTableServer::TMasterTableSchemaId SchemaId_ = NObjectServer::NullObjectId;
     std::vector<TCypressNode*> Children_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEndCopyContext
+// TODO(h0pless): IntroduceNewPipelineForCrossCellCopy.
+// Rename this to MaterializeNodeContext in a separate PR. Just to make sure that diff is more readable.
+class TMaterializeNodeContext
     : public TEntityStreamLoadContext
 {
 public:
-    TEndCopyContext(
+    TMaterializeNodeContext(
         NCellMaster::TBootstrap* bootstrap,
         ENodeCloneMode mode,
         TRef data,
-        const THashMap<NTableServer::TMasterTableSchemaId, NTableServer::TMasterTableSchema*>& schemaIdToSchema);
+        NTableServer::TMasterTableSchemaId schemaId = NObjectServer::NullObjectId,
+        TNodeId inplaceLoadTargetNodeId = NCypressClient::NullObjectId);
 
     template <class T>
     T* GetObject(NObjectServer::TObjectId id);
@@ -112,9 +104,10 @@ public:
     const TInternRegistryPtr<T>& GetInternRegistry() const;
 
     DEFINE_BYVAL_RO_PROPERTY(ENodeCloneMode, Mode);
-    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(OpaqueChild);
+    DEFINE_BYVAL_RO_PROPERTY(TNodeId, InplaceLoadTargetNodeId);
+    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExternalCellTag);
 
-    NTableServer::TMasterTableSchema* GetSchema(NTableServer::TMasterTableSchemaId schemaId) const;
+    NTableServer::TMasterTableSchema* GetSchema() const;
 
     void RegisterChild(const std::string& key, TNodeId childId);
     bool HasChildren() const;
@@ -123,10 +116,11 @@ public:
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
 
-    const THashMap<NTableServer::TMasterTableSchemaId, NTableServer::TMasterTableSchema*>& SchemaIdToSchema_;
     TMemoryInput Stream_;
 
     std::vector<std::pair<std::string, TNodeId>> Children_;
+
+    NTableServer::TMasterTableSchemaId SchemaId_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

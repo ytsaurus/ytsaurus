@@ -321,6 +321,16 @@ const EOperationSchedulingPriorityList& GetDescendingSchedulingPriorities()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsSingleAllocationVanillaOperation(const TSchedulerOperationElement* element)
+{
+    const auto& maybeVanillaTaskSpecs = element->GetMaybeBriefVanillaTaskSpecMap();
+    return maybeVanillaTaskSpecs &&
+        (size(*maybeVanillaTaskSpecs) == 1) &&
+        (maybeVanillaTaskSpecs->begin()->second.JobCount == 1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2737,6 +2747,7 @@ void TFairShareTreeAllocationScheduler::OnOperationMaterialized(const TScheduler
     auto operationId = element->GetOperationId();
     const auto& operationState = GetOperationState(operationId);
     operationState->AggregatedInitialMinNeededResources = element->GetAggregatedInitialMinNeededResources();
+    operationState->SingleAllocationVanillaOperation = IsSingleAllocationVanillaOperation(element);
 
     SchedulingSegmentManager_.InitOrUpdateOperationSchedulingSegment(operationId, operationState);
 }
@@ -2747,14 +2758,11 @@ TError TFairShareTreeAllocationScheduler::CheckOperationSchedulingInSeveralTrees
 
     const auto& operationState = GetOperationState(element->GetOperationId());
 
-    const auto& maybeVanillaTaskSpecs = element->GetMaybeBriefVanillaTaskSpecMap();
-    bool singleJobVanillaOperation = maybeVanillaTaskSpecs &&
-        (size(*maybeVanillaTaskSpecs) == 1) &&
-        (maybeVanillaTaskSpecs->begin()->second.JobCount == 1);
+    bool singleAllocationVanillaOperation = IsSingleAllocationVanillaOperation(element);
 
     auto segment = operationState->SchedulingSegment;
     if (IsModuleAwareSchedulingSegment(*segment) &&
-        (!singleJobVanillaOperation || !Config_->AllowSingleJobLargeGpuOperationsInMultipleTrees))
+        (!singleAllocationVanillaOperation || !Config_->AllowSingleJobLargeGpuOperationsInMultipleTrees))
     {
         // NB: This error will be propagated to operation's failure only if operation is launched in several trees.
         return TError(
@@ -2913,14 +2921,12 @@ void TFairShareTreeAllocationScheduler::BuildSchedulingAttributesStringForOngoin
         (now - cachedAllocationPreemptionStatuses.UpdateTime).SecondsFloat());
 }
 
-TError TFairShareTreeAllocationScheduler::CheckOperationIsHung(
+TError TFairShareTreeAllocationScheduler::CheckOperationIsStuck(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
     const TSchedulerOperationElement* element,
     TInstant now,
     TInstant activationTime,
-    TDuration safeTimeout,
-    int minScheduleAllocationCallAttempts,
-    const THashSet<EDeactivationReason>& deactivationReasons)
+    const TOperationStuckCheckOptionsPtr& options)
 {
     if (element->PersistentAttributes().StarvationStatus == EStarvationStatus::NonStarving) {
         return TError();
@@ -2932,19 +2938,19 @@ TError TFairShareTreeAllocationScheduler::CheckOperationIsHung(
     {
         int deactivationCount = 0;
         auto deactivationReasonToCount = operationSharedState->GetDeactivationReasonsFromLastNonStarvingTime();
-        for (auto reason : deactivationReasons) {
+        for (auto reason : options->DeactivationReasons) {
             deactivationCount += deactivationReasonToCount[reason];
         }
 
         auto lastScheduleAllocationSuccessTime = operationSharedState->GetLastScheduleAllocationSuccessTime();
-        if (activationTime + safeTimeout < now &&
-            lastScheduleAllocationSuccessTime + safeTimeout < now &&
-            element->GetLastNonStarvingTime() + safeTimeout < now &&
+        if (activationTime + options->SafeTimeout < now &&
+            lastScheduleAllocationSuccessTime + options->SafeTimeout < now &&
+            element->GetLastNonStarvingTime() + options->SafeTimeout < now &&
             operationSharedState->GetRunningAllocationCount() == 0 &&
-            deactivationCount > minScheduleAllocationCallAttempts)
+            deactivationCount > options->MinScheduleAllocationAttempts)
         {
             return TError("Operation has no successful scheduled allocations for a long period")
-                << TErrorAttribute("period", safeTimeout)
+                << TErrorAttribute("period", options->SafeTimeout)
                 << TErrorAttribute("deactivation_count", deactivationCount)
                 << TErrorAttribute("last_schedule_allocation_success_time", lastScheduleAllocationSuccessTime)
                 << TErrorAttribute("last_non_starving_time", element->GetLastNonStarvingTime());

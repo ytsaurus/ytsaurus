@@ -35,6 +35,8 @@
 
 #include <yt/yt/library/dynamic_config/public.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
 #include <yt/yt/library/containers/public.h>
@@ -301,6 +303,7 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
 
 class TClusterNodeConfig
     : public TNativeServerConfig
+    , public TServerProgramConfig
 {
 public:
     //! Interval between Orchid cache rebuilds.
@@ -401,6 +404,8 @@ public:
     std::optional<TString> Rack;
     std::optional<TString> DataCenter;
 
+    THeapProfilerConfigPtr HeapProfiler;
+
     NHttp::TServerConfigPtr CreateSkynetHttpServerConfig();
 
     REGISTER_YSON_STRUCT(TClusterNodeConfig);
@@ -413,7 +418,7 @@ DEFINE_REFCOUNTED_TYPE(TClusterNodeConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterNodeDynamicConfig
-    : public TNativeSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     static constexpr bool EnableHazard = true;

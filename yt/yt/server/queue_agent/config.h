@@ -14,9 +14,11 @@
 
 #include <yt/yt/ytlib/queue_client/public.h>
 
-#include <yt/yt/core/ytree/yson_struct.h>
-
 #include <yt/yt/library/dynamic_config/config.h>
+
+#include <yt/yt/library/server_program/config.h>
+
+#include <yt/yt/library/program/config.h>
 
 namespace NYT::NQueueAgent {
 
@@ -190,6 +192,7 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentShardingManagerDynamicConfig)
 
 class TQueueAgentServerConfig
     : public TNativeServerConfig
+    , public TServerProgramConfig
 {
 public:
     TQueueAgentConfigPtr QueueAgent;
@@ -221,7 +224,7 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentServerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueueAgentServerDynamicConfig
-    : public TNativeSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     NDiscoveryClient::TMemberClientConfigPtr MemberClient;

@@ -25,6 +25,7 @@ target_link_libraries(gwp_asan_test PUBLIC
   yutil
   library-cpp-cpuid_check
   yt-library-program
+  yt-library-tcmalloc
   library-cpp-getopt
 )
 

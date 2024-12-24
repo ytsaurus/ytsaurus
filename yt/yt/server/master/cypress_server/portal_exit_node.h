@@ -30,7 +30,7 @@ public:
     void Save(NCellMaster::TSaveContext& context) const override;
     void Load(NCellMaster::TLoadContext& context) override;
 
-    void FillInheritableAttributes(TTransientAttributes* attributes, ENodeMaterializationReason mode = ENodeMaterializationReason::Create) const override;
+    void FillInheritableAttributes(TTransientAttributes* attributes, ENodeMaterializationReason reason = ENodeMaterializationReason::Create) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

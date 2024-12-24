@@ -14,6 +14,8 @@
 
 #include <yt/yt/library/dynamic_config/config.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,7 +44,7 @@ DEFINE_REFCOUNTED_TYPE(TStandaloneTabletBalancerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletBalancerDynamicConfig
-    : public TNativeSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     // Enable standalone tablet balancer. The balancer will not work at all if set to false.
@@ -112,6 +114,7 @@ DEFINE_REFCOUNTED_TYPE(TActionManagerConfig)
 
 class TTabletBalancerServerConfig
     : public TNativeServerConfig
+    , public TServerProgramConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;

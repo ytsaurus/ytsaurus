@@ -181,6 +181,7 @@ class CreateOrderedDataMapper():
     def __init__(self, schema, offsets):
         self.schema = schema
         self.offsets = list(offsets)
+
     def __call__(self, record):
         for row_index in range(record["count"]):
             row = self.schema.generate_data()
@@ -189,7 +190,8 @@ class CreateOrderedDataMapper():
             row["row_index"] = (row_index + self.offsets[tablet_index])
             yield row
 
-def create_ordered_data(schema, dst, tablet_count, offsets, spec):
+
+def create_ordered_data(schema, dst_table, tablet_count, offsets, spec):
     logger.info("Create random data for ordered table")
     with yt.TempTable() as fake_input:
         fake_input = yt.create_temp_table()
@@ -199,13 +201,13 @@ def create_ordered_data(schema, dst, tablet_count, offsets, spec):
         yt.write_table(fake_input, rows)
 
         # XXX
-        yt.remove(dst, force=True)
-        yt.create("table", dst, attributes={"schema": schema.yson()})
+        yt.remove(dst_table, force=True)
+        yt.create("table", dst_table, attributes={"schema": schema.yson()})
 
         yt.run_map(
             CreateOrderedDataMapper(schema, offsets),
             fake_input,
-            dst,
+            dst_table,
             ordered=True,
             spec={
                 "job_count": tablet_count,

@@ -169,7 +169,6 @@ void TBootstrap::Run()
         .Run()
         .Get()
         .ThrowOnError();
-    Sleep(TDuration::Max());
 }
 
 void TBootstrap::TryLoadSnapshot(const TString& fileName, bool dump)

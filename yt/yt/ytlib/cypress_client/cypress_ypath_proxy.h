@@ -20,6 +20,15 @@ struct TCypressYPathProxy
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Lock);
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Unlock);
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Copy);
+
+    // Used for cross-cell copy.
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, LockCopyDestination);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, LockCopySource);
+    DEFINE_YPATH_PROXY_METHOD(NProto, SerializeNode);
+    DEFINE_YPATH_PROXY_METHOD(NProto, CalculateInheritedAttributes);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, AssembleTreeCopy);
+
+    // COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, BeginCopy);
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, EndCopy);
 

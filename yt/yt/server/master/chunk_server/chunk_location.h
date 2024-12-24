@@ -58,6 +58,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(EChunkLocationState, State, EChunkLocationState::Offline);
     DEFINE_BYREF_RW_PROPERTY(TDomesticMediumPtr, MediumOverride);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TChunkLocationStatistics, Statistics);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
 
 public:
     using TObject::TObject;

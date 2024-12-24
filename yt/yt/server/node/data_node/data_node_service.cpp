@@ -818,17 +818,30 @@ private:
         const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
         AddBlockPeers(response->mutable_peer_descriptors(), p2pSnooper->OnBlockProbe(chunkId, blockIndexes));
 
+        auto cachedBlocks = Bootstrap_->GetBlockCache()->GetCachedBlocksByChunkId(chunkId, EBlockType::CompressedData);
+        auto cachedBlockSize = 0L;
+
+        for (const auto& blockInfo : cachedBlocks) {
+            TProbeBlockSetBlockInfo* protoBlockInfo = response->add_cached_blocks();
+            protoBlockInfo->set_block_index(blockInfo.BlockIndex);
+            protoBlockInfo->set_block_size(blockInfo.BlockSize);
+            cachedBlockSize += blockInfo.BlockSize;
+        }
+
         context->SetResponseInfo(
             "HasCompleteChunk: %v, "
             "NetThrottling: %v, NetQueueSize: %v, "
             "DiskThrottling: %v, DiskQueueSize: %v, "
-            "PeerDescriptorCount: %v",
+            "PeerDescriptorCount: %v, CachedBlockCount: %v, "
+            "CachedBlockSize: %v",
             hasCompleteChunk,
             netThrottling.Enabled,
             netThrottling.QueueSize,
             diskThrottling.Enabled,
             diskThrottling.QueueSize,
-            response->peer_descriptors_size());
+            response->peer_descriptors_size(),
+            cachedBlocks.size(),
+            cachedBlockSize);
 
         context->Reply();
     }
@@ -2446,21 +2459,6 @@ private:
             const auto& largeStatistics = selectedStatistics.LargeStatistics;
             if (!largeStatistics.Empty()) {
                 ToProto(subresponse->mutable_large_columnar_statistics(), largeStatistics);
-            }
-
-            // COMPAT(denvid): legacy response fields. Remove once all clusters are 23.2+.
-
-            subresponse->mutable_column_data_weights()->Reserve(columnStableNames.size());
-            for (const auto& columnName : columnStableNames) {
-                auto id = nameTable->FindId(columnName.Underlying());
-                if (id && *id < columnarStatisticsExt.column_data_weights().size()) {
-                    subresponse->add_column_data_weights(columnarStatisticsExt.column_data_weights(*id));
-                } else {
-                    subresponse->add_column_data_weights(0);
-                }
-            }
-            if (columnarStatisticsExt.has_timestamp_total_weight()) {
-                subresponse->set_timestamp_total_weight(columnarStatisticsExt.timestamp_total_weight());
             }
 
             YT_LOG_DEBUG("Columnar statistics extracted from chunk meta (ChunkId: %v)", chunkId);

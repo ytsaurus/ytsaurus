@@ -36,6 +36,7 @@ struct IChunkStoreHost
     virtual INodeMemoryTrackerPtr GetNodeMemoryUsageTracker() = 0;
     virtual void CancelLocationSessions(const TChunkLocationPtr& location) = 0;
     virtual bool CanPassSessionOutOfTurn(TSessionId sessionId) = 0;
+    virtual void RemoveChunkFromCache(TChunkId chunkId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkStoreHost)

@@ -130,13 +130,13 @@ void TDetailedMasterMemory::Load(NCellMaster::TLoadContext& context)
     Load(context, DetailedMasterMemory_);
 }
 
-void TDetailedMasterMemory::Save(NCypressServer::TBeginCopyContext& context) const
+void TDetailedMasterMemory::Save(NCypressServer::TSerializeNodeContext& context) const
 {
     using NYT::Save;
     Save(context, DetailedMasterMemory_);
 }
 
-void TDetailedMasterMemory::Load(NCypressServer::TEndCopyContext& context)
+void TDetailedMasterMemory::Load(NCypressServer::TMaterializeNodeContext& context)
 {
     using NYT::Load;
     Load(context, DetailedMasterMemory_);

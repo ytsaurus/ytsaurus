@@ -29,9 +29,12 @@ target_link_libraries(yt-library-server_program PUBLIC
   cpp-yt-phdr_cache
   cpp-yt-mlock
   yt-library-program
+  yt-library-containers
+  yt-library-disk_manager
+  yt-library-stockpile
 )
 
 target_sources(yt-library-server_program PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/server_program/server_program.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/server_program/config.cpp
 )
 

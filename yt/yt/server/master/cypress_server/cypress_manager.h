@@ -111,20 +111,11 @@ public:
         NYTree::IAttributeDictionary* inheritedAttributes,
         TNodeId hintId = NCypressClient::NullObjectId) = 0;
 
-    //! Deserializes a node from a tree snapshot and registers its clone.
-    virtual TCypressNode* EndCopyNode(
-        TEndCopyContext* context,
+    //! Deserializes a node and registers its clone.
+    virtual TCypressNode* MaterializeNode(
+        TMaterializeNodeContext* context,
         ICypressNodeFactory* factory,
-        TNodeId sourceNodeId,
-        NYTree::IAttributeDictionary* inheritedAttributes) = 0;
-
-    //! Deserializes an existing #trunkNode node from a tree snapshot.
-    virtual void EndCopyNodeInplace(
-        TCypressNode* trunkNode,
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory,
-        TNodeId sourceNodeId,
-        NYTree::IAttributeDictionary* inheritedAttributes) = 0;
+        TNodeId sourceNodeId) = 0;
 
     //! Returns the root node.
     virtual TCypressMapNode* GetRootNode() const = 0;
@@ -237,7 +228,7 @@ public:
         NTransactionServer::TTransaction* transaction,
         TCypressNode* trunkNode) = 0;
 
-    //! Same as GetNodeOverrides but #trunkNode is the first element.
+    //! Same as GetNodeOriginators but #trunkNode is the first element.
     virtual TCypressNodeList GetNodeReverseOriginators(
         NTransactionServer::TTransaction* transaction,
         TCypressNode* trunkNode) = 0;

@@ -266,4 +266,4 @@ void TransformWithIndexStatement(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NQueryClient::
+} // namespace NYT::NQueryClient

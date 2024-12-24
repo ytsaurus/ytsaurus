@@ -8,7 +8,11 @@ namespace NYT::NContainers {
 
 void FormatValue(TStringBuilderBase* builder, const TDevice& device, TStringBuf /*spec*/)
 {
-    builder->AppendString(device.DeviceName);
+    if (device.Access) {
+        builder->AppendFormat("{Device: %v, Access: %v}", device.DeviceName, device.Access);
+    } else {
+        builder->AppendString(device.DeviceName);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

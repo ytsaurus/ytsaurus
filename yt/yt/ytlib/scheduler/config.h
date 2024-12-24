@@ -1208,6 +1208,9 @@ public:
     //! starting with "YT_" such as "YT_JOB_ID"
     bool IgnoreYTVariablesInShellEnvironment;
 
+    //! If |false|, scheduler will ignore offloading settings defined for ancestor pools.
+    bool AllowOffloading;
+
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
     static void Register(TRegistrar registrar);
@@ -1706,8 +1709,7 @@ class TSortedMergeOperationSpec
 public:
     REGISTER_YSON_STRUCT(TSortedMergeOperationSpec);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeOperationSpec, 0x213a54d6);
@@ -1965,6 +1967,8 @@ public:
     NYPath::TRichYPath OutputTablePath;
     bool CopyAttributes;
     std::optional<std::vector<TString>> AttributeKeys;
+    // COMPAT(coteeq): Gentle runtime switch.
+    bool ForceCopySystemAttributes;
 
     // Specifies how many chunks to read/write concurrently.
     int Concurrency;

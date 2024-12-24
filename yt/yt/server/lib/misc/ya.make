@@ -5,7 +5,6 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 SRCS(
     address_helpers.cpp
     archive_reporter.cpp
-    cluster_connection.cpp
     cluster_throttlers_config.cpp
     config.cpp
     disk_health_checker.cpp
@@ -27,6 +26,7 @@ PEERDIR(
     yt/yt/ytlib/distributed_throttler
     yt/yt/library/coredumper
     yt/yt/library/process
+    yt/yt/library/tcmalloc
     yt/yt/library/ytprof
     yt/yt/library/ytprof/allocation_tag_profiler
 )

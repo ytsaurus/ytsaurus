@@ -40,7 +40,7 @@ public:
         NClusterNode::IBootstrap* bootstrap,
         TThrottlerManagerOptions options);
 
-    IThroughputThrottlerPtr GetOrCreateThrottler(EExecNodeThrottlerKind kind, EExecNodeThrottlerTrafficType trafficType, std::optional<TClusterName> remoteClusterName) override;
+    IThroughputThrottlerPtr GetOrCreateThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType trafficType, std::optional<TClusterName> remoteClusterName) override;
 
     void Reconfigure(TClusterNodeDynamicConfigPtr dynamicConfig) override;
 
@@ -69,7 +69,7 @@ private:
         IThroughputThrottlerPtr Throttler;
         TThroughputThrottlerConfigPtr ThrottlerConfig;
     };
-    TMap<TString, TThroughputThrottlerData> DistributedThrottlersHolder_;
+    TMap<TThrottlerId, TThroughputThrottlerData> DistributedThrottlersHolder_;
     TEnumIndexedArray<EExecNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> RawThrottlers_;
     TEnumIndexedArray<EExecNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
@@ -78,16 +78,16 @@ private:
 
     static bool NeedDistributedThrottlerFactory(TClusterThrottlersConfigPtr config);
 
-    static TString ToThrottlerId(EExecNodeThrottlerTrafficType trafficType, const TString& clusterName);
-    static std::pair<EExecNodeThrottlerTrafficType, TString> FromThrottlerId(const TString& throttlerId);
+    static TThrottlerId ToThrottlerId(EThrottlerTrafficType trafficType, const TClusterName& clusterName);
+    static std::pair<EThrottlerTrafficType, TClusterName> FromThrottlerId(const TThrottlerId& throttlerId);
 
-    void UpdateDistributedThrottlers();
     void TryUpdateClusterThrottlersConfig();
-
     //! Lock_ has to be taken prior to calling this method.
-    IThroughputThrottlerPtr GetLocalThrottler(EExecNodeThrottlerKind kind, EExecNodeThrottlerTrafficType trafficType) const;
+    void UpdateDistributedThrottlers();
     //! Lock_ has to be taken prior to calling this method.
-    IThroughputThrottlerPtr GetOrCreateDistributedThrottler(EExecNodeThrottlerKind kind, EExecNodeThrottlerTrafficType trafficType, std::optional<TClusterName> remoteClusterName);
+    IThroughputThrottlerPtr GetLocalThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType trafficType) const;
+    //! Lock_ has to be taken prior to calling this method.
+    IThroughputThrottlerPtr GetOrCreateDistributedThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType trafficType, std::optional<TClusterName> remoteClusterName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,17 +115,17 @@ bool TThrottlerManager::NeedDistributedThrottlerFactory(TClusterThrottlersConfig
     return !config->ClusterLimits.empty();
 }
 
-TString TThrottlerManager::ToThrottlerId(EExecNodeThrottlerTrafficType trafficType, const TString& clusterName)
+TThrottlerId TThrottlerManager::ToThrottlerId(EThrottlerTrafficType trafficType, const TClusterName& clusterName)
 {
-    return Format("%lv_%v", trafficType, clusterName);
+    return Format("%lv_%v", trafficType, clusterName.Underlying());
 }
 
-std::pair<EExecNodeThrottlerTrafficType, TString> TThrottlerManager::FromThrottlerId(const TString& throttlerId)
+std::pair<EThrottlerTrafficType, TClusterName> TThrottlerManager::FromThrottlerId(const TThrottlerId& throttlerId)
 {
-    for (auto trafficType : TEnumTraits<EExecNodeThrottlerTrafficType>::GetDomainValues()) {
+    for (auto trafficType : TEnumTraits<EThrottlerTrafficType>::GetDomainValues()) {
         auto trafficTypeString = Format("%lv_", trafficType);
         if (throttlerId.StartsWith(trafficTypeString)) {
-            return {trafficType, throttlerId.substr(trafficTypeString.size())};
+            return {trafficType, TClusterName(throttlerId.substr(trafficTypeString.size()))};
         }
     }
     THROW_ERROR_EXCEPTION("Invalid throttler id: %Qv", throttlerId);
@@ -135,12 +135,12 @@ void TThrottlerManager::UpdateDistributedThrottlers()
 {
     // Recreate throttlers with updated config.
     for (const auto& [clusterName, clusterLimits] : ClusterThrottlersConfig_->ClusterLimits) {
-        for (auto trafficType : TEnumTraits<EExecNodeThrottlerTrafficType>::GetDomainValues()) {
+        for (auto trafficType : TEnumTraits<EThrottlerTrafficType>::GetDomainValues()) {
             TThroughputThrottlerConfigPtr throttlerConfig;
-            if (trafficType == EExecNodeThrottlerTrafficType::Bandwidth) {
+            if (trafficType == EThrottlerTrafficType::Bandwidth) {
                 throttlerConfig = clusterLimits->Bandwidth;
             }
-            if (trafficType == EExecNodeThrottlerTrafficType::Rps) {
+            if (trafficType == EThrottlerTrafficType::Rps) {
                 throttlerConfig = clusterLimits->Rps;
             }
 
@@ -151,7 +151,7 @@ void TThrottlerManager::UpdateDistributedThrottlers()
                 continue;
             }
 
-            auto throttlerId = ToThrottlerId(trafficType, clusterName);
+            auto throttlerId = ToThrottlerId(trafficType, TClusterName(clusterName));
             auto it = DistributedThrottlersHolder_.find(throttlerId);
             if (it == DistributedThrottlersHolder_.end()) {
                 // This type of throttler hasn't been used yet.
@@ -214,6 +214,7 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Failed to parse cluster throttlers config (Config: %v)",
             newConfigYson);
+        auto guard = Guard(Lock_);
         DistributedThrottlersHolder_.clear();
         DistributedThrottlerFactory_.Reset();
         return;
@@ -266,13 +267,13 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
     YT_LOG_DEBUG("Updated cluster throttlers config");
 }
 
-IThroughputThrottlerPtr TThrottlerManager::GetLocalThrottler(EExecNodeThrottlerKind kind, EExecNodeThrottlerTrafficType) const
+IThroughputThrottlerPtr TThrottlerManager::GetLocalThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType) const
 {
     YT_VERIFY(static_cast<int>(kind) < std::ssize(Throttlers_));
     return Throttlers_[kind];
 }
 
-IThroughputThrottlerPtr TThrottlerManager::GetOrCreateDistributedThrottler(EExecNodeThrottlerKind, EExecNodeThrottlerTrafficType trafficType, std::optional<TClusterName> remoteClusterName)
+IThroughputThrottlerPtr TThrottlerManager::GetOrCreateDistributedThrottler(EExecNodeThrottlerKind, EThrottlerTrafficType trafficType, std::optional<TClusterName> remoteClusterName)
 {
     if (!remoteClusterName || !DistributedThrottlerFactory_ || !ClusterThrottlersConfig_) {
         YT_LOG_DEBUG("Distributed throttler is not required (ClusterName: %v, HasDistributedThrottlerFactory: %v, HasClusterThrottlersConfig: %v)",
@@ -292,9 +293,9 @@ IThroughputThrottlerPtr TThrottlerManager::GetOrCreateDistributedThrottler(EExec
     const auto& [cluster, clusterLimit] = *it;
 
     TThroughputThrottlerConfigPtr throttlerConfig;
-    if (trafficType == EExecNodeThrottlerTrafficType::Bandwidth) {
+    if (trafficType == EThrottlerTrafficType::Bandwidth) {
         throttlerConfig = clusterLimit->Bandwidth;
-    } else if (trafficType == EExecNodeThrottlerTrafficType::Rps) {
+    } else if (trafficType == EThrottlerTrafficType::Rps) {
         throttlerConfig = clusterLimit->Rps;
     }
 
@@ -305,7 +306,7 @@ IThroughputThrottlerPtr TThrottlerManager::GetOrCreateDistributedThrottler(EExec
         return nullptr;
     }
 
-    auto throttlerId = ToThrottlerId(trafficType, cluster);
+    auto throttlerId = ToThrottlerId(trafficType, TClusterName(cluster));
     auto distributedThrottlerIt = DistributedThrottlersHolder_.find(throttlerId);
     if (distributedThrottlerIt == DistributedThrottlersHolder_.end()) {
         YT_LOG_DEBUG("Creating new distributed throttler (ThrottlerId: %v, ThrottlerLimit: %v)",
@@ -374,7 +375,7 @@ TThrottlerManager::TThrottlerManager(
     ClusterThrottlersConfigUpdater_->Start();
 }
 
-IThroughputThrottlerPtr TThrottlerManager::GetOrCreateThrottler(EExecNodeThrottlerKind kind, EExecNodeThrottlerTrafficType trafficType, std::optional<TClusterName> remoteClusterName)
+IThroughputThrottlerPtr TThrottlerManager::GetOrCreateThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType trafficType, std::optional<TClusterName> remoteClusterName)
 {
     YT_LOG_DEBUG("Getting throttler (Kind: %v, TrafficType: %v, RemoteClusterName: %v)",
         kind,

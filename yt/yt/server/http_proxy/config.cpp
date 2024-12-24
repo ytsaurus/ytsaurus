@@ -265,6 +265,9 @@ void TProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("solomon_proxy", &TThis::SolomonProxy)
         .DefaultNew();
 
+    registrar.Parameter("heap_profiler", &TThis::HeapProfiler)
+        .DefaultNew();
+
     registrar.Preprocessor([] (TThis* config) {
         config->ClusterConnectionDynamicConfigPolicy = NApi::NNative::EClusterConnectionDynamicConfigPolicy::FromClusterDirectoryWithStaticPatch;
     });

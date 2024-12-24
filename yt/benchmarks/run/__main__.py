@@ -12,6 +12,8 @@ try:
 except ImportError:
     pass
 
+from . import upload_metrics # noqa
+
 ################################################################################
 
 if __name__ == "__main__":

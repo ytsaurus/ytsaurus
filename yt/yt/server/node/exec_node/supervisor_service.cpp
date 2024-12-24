@@ -95,7 +95,7 @@ private:
     {
         switch (throttlerType) {
             case EJobThrottlerType::InBandwidth:
-                return Bootstrap_->GetThrottler(EExecNodeThrottlerKind::JobIn, EExecNodeThrottlerTrafficType::Bandwidth, std::move(remoteClusterName));
+                return Bootstrap_->GetThrottler(EExecNodeThrottlerKind::JobIn, EThrottlerTrafficType::Bandwidth, std::move(remoteClusterName));
             case EJobThrottlerType::OutBandwidth:
                 return Bootstrap_->GetThrottler(EExecNodeThrottlerKind::JobOut);
             case EJobThrottlerType::OutRps:
