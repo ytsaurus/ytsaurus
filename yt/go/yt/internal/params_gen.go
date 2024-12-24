@@ -976,6 +976,10 @@ func writeInsertRowsOptions(w *yson.Writer, o *yt.InsertRowsOptions) {
 		w.MapKeyString("update")
 		w.Any(o.Update)
 	}
+	if o.Aggregate != nil {
+		w.MapKeyString("aggregate")
+		w.Any(o.Aggregate)
+	}
 	writeTransactionOptions(w, o.TransactionOptions)
 }
 
