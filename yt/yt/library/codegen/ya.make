@@ -26,6 +26,7 @@ PEERDIR(
     contrib/libs/llvm18/lib/Target/WebAssembly
     contrib/libs/llvm18/lib/Target/WebAssembly/AsmParser
     contrib/libs/llvm18/lib/Passes
+    library/cpp/yt/libcpp_assertion_handlers
     yt/yt/core
 )
 
