@@ -200,6 +200,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveDrtDisableOptions)                                      (2810))  // ponasenko-rs
     ((IntroduceNewPipelineForCrossCellCopy)                         (2811))  // h0pless
     ((DanglingLocationsCleaning)                                    (2812))  // koloshmet
+    ((AllowToMoveReplicationLogTables)                              (2813))  // osidorkin
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
