@@ -29,6 +29,7 @@ import yt.logger as logger
 import builtins
 from copy import deepcopy
 from datetime import timedelta
+import enum
 
 # Auxiliary methods
 
@@ -1148,23 +1149,12 @@ def _prepare_meta_for_dump_parquet(meta):
     return meta["thread_id"].to_bytes(4, 'little')
 
 
-def dump_parquet(table, output_file=None, output_path=None, enable_several_files=False, unordered=False, client=None):
-    """Dump table with a strict schema as `Parquet <https://parquet.apache.org/docs>` file
+class FileFormat(enum.Enum):
+    ORC = 0
+    PARQUET = 1
 
-    :param table: table
-    :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
-    :param output_file: path to output file, this option is deprecated, please use output_path
-    :type output_file: str
-    :param output_path: If option enable_several_files is disabled, you need to put the path to the file here,
-        otherwise the path to the directory where the files in the parquet format will be placed
-    :type output_path: str
-    :param enable_several_files: allowing parquet to be written to multiple files,
-        only makes sense for better acceleration in parallel mode
-    :type enable_several_files: bool
-    :param unordered: if the option is set to false, the order will be as in the original table
-    :type unordered: bool
-    """
 
+def _dump_file(table, output_file, output_path, enable_several_files, unordered, format, client):
     if not yson.HAS_PARQUET:
         raise YtError(
             'YSON bindings required.'
@@ -1247,15 +1237,50 @@ def dump_parquet(table, output_file=None, output_path=None, enable_several_files
             response_parameters=None,
             client=client)
 
-        yson.async_dump_parquet(
-            output_path=output_path,
-            is_directory=enable_several_files,
-            thread_count=c_thread_count,
-            data_size_per_thread=data_size_per_thread,
-            stream=response)
+        if format == FileFormat.ORC:
+            yson.async_dump_orc(
+                output_path=output_path,
+                is_directory=enable_several_files,
+                thread_count=c_thread_count,
+                data_size_per_thread=data_size_per_thread,
+                stream=response)
+        elif format == FileFormat.PARQUET:
+            yson.async_dump_parquet(
+                output_path=output_path,
+                is_directory=enable_several_files,
+                thread_count=c_thread_count,
+                data_size_per_thread=data_size_per_thread,
+                stream=response)
+        else:
+            raise YtError('The format "{0}" is not supported for dumping table'.format(format.name))
+
     else:
         stream = read_table(table, raw=True, format="arrow", enable_read_parallel=False, client=client)
-        yson.dump_parquet(output_path, stream)
+        if format == FileFormat.ORC:
+            yson.dump_orc(output_path, stream)
+        elif format == FileFormat.PARQUET:
+            yson.dump_parquet(output_path, stream)
+        else:
+            raise YtError('The format "{0}" is not supported for dumping table'.format(format.name))
+
+
+def dump_parquet(table, output_file=None, output_path=None, enable_several_files=False, unordered=False, client=None):
+    """Dump table with a strict schema as `Parquet <https://parquet.apache.org/docs>` file
+
+    :param table: table
+    :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param output_file: path to output file, this option is deprecated, please use output_path
+    :type output_file: str
+    :param output_path: If option enable_several_files is disabled, you need to put the path to the file here,
+        otherwise the path to the directory where the files in the parquet format will be placed
+    :type output_path: str
+    :param enable_several_files: allowing parquet to be written to multiple files,
+        only makes sense for better acceleration in parallel mode
+    :type enable_several_files: bool
+    :param unordered: if the option is set to false, the order will be as in the original table
+    :type unordered: bool
+    """
+    _dump_file(table, output_file, output_path, enable_several_files, unordered, FileFormat.PARQUET, client)
 
 
 def _merge_items_into_chunks(items, chunk_size, next_chunk):
@@ -1311,23 +1336,23 @@ def upload_parquet(table, input_file, client=None):
     write_table(table,  ItemStreamForArrowFormat(stream), raw=True, format="arrow", client=client)
 
 
-def dump_orc(table, output_file, client=None):
+def dump_orc(table, output_file=None, output_path=None, enable_several_files=False, unordered=False, client=None):
     """Dump table with a strict schema as `ORC <https://orc.apache.org/>` file
 
     :param table: table
     :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
-    :param output_file: path to output file
+    :param output_file: path to output file, this option is deprecated, please use output_path
     :type output_file: str
+    :param output_path: If option enable_several_files is disabled, you need to put the path to the file here,
+        otherwise the path to the directory where the files in the orc format will be placed
+    :type output_path: str
+    :param enable_several_files: allowing orc to be written to multiple files,
+        only makes sense for better acceleration in parallel mode
+    :type enable_several_files: bool
+    :param unordered: if the option is set to false, the order will be as in the original table
+    :type unordered: bool
     """
-    stream = read_table(table, raw=True, format="arrow", client=client)
-
-    if not yson.HAS_PARQUET:
-        raise YtError(
-            'YSON binding required.'
-            'binding is shipped as additional package and '
-            'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
-
-    yson.dump_orc(output_file, stream)
+    _dump_file(table, output_file, output_path, enable_several_files, unordered, FileFormat.ORC, client)
 
 
 def upload_orc(table, input_file, client=None):
