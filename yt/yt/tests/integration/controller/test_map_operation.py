@@ -1485,9 +1485,6 @@ print(json.dumps(input))
     @pytest.mark.parametrize("ordered", [False, True])
     @pytest.mark.parametrize("small_pipe", [False, True])
     def test_map_interrupt_job_with_pipe_capacity(self, ordered, small_pipe):
-        if "23_2" in getattr(self, "ARTIFACT_COMPONENTS", {}):
-            pytest.xfail("Is not supported for older versions of server components")
-
         create("table", "//tmp/in_1")
         write_table(
             "//tmp/in_1",
