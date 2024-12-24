@@ -42,7 +42,8 @@ DEFINE_REFCOUNTED_TYPE(IChunkReplicaCache)
 
 IChunkReplicaCachePtr CreateChunkReplicaCache(
     NApi::NNative::IConnectionPtr connection,
-    const NProfiling::TProfiler& profiler);
+    const NProfiling::TProfiler& profiler,
+    IMemoryUsageTrackerPtr memoryUsageTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

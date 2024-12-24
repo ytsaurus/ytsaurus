@@ -369,7 +369,10 @@ public:
 
         ChunkReplicaCache_ = CreateChunkReplicaCache(
             this,
-            Profiler_.WithPrefix("/chunk_replica_cache"));
+            Profiler_.WithPrefix("/chunk_replica_cache"),
+            MemoryTracker_
+                ? MemoryTracker_->WithCategory(EMemoryCategory::ChunkReplicaCache)
+                : GetNullMemoryUsageTracker());
 
         SetupTvmIdSynchronization();
     }
