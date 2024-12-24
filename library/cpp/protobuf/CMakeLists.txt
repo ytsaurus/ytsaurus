@@ -14,4 +14,3 @@
 
 add_subdirectory(runtime)
 add_subdirectory(interop)
-add_subdirectory(util)

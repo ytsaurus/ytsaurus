@@ -12,15 +12,13 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(admin)
-add_subdirectory(cypress_election)
-add_subdirectory(misc)
-add_subdirectory(state_checker)
 add_subdirectory(hive)
 add_subdirectory(election)
 add_subdirectory(chaos_node)
 add_subdirectory(transaction_supervisor)
 add_subdirectory(transaction_server)
+add_subdirectory(admin)
+add_subdirectory(misc)
 add_subdirectory(io)
 add_subdirectory(cellar_agent)
 add_subdirectory(lease_server)
@@ -42,6 +40,7 @@ add_subdirectory(scheduler)
 add_subdirectory(node_tracker_server)
 add_subdirectory(chunk_pools)
 add_subdirectory(discovery_server)
+add_subdirectory(cypress_election)
 
 add_library(ytserver INTERFACE)
 
