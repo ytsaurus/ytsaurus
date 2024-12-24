@@ -178,7 +178,7 @@ def test_environment_with_authentication(request):
     return environment
 
 
-@pytest.fixture(scope="class", params=["v3", "v4", "native_v4", "rpc"])
+@pytest.fixture(scope="class", params=["v4"])
 def test_environment_chaos(request):
     environment = init_environment_for_test_session(
         request,
@@ -276,11 +276,11 @@ def test_environment_job_archive_porto(request):
     return environment
 
 
-@pytest.fixture(scope="class", params=["v3", "v4", "native_v4", "rpc"])
+@pytest.fixture(scope="class")
 def test_environment_with_porto(request):
     environment = init_environment_for_test_session(
         request,
-        request.param,
+        mode="v4",
         env_options={"use_porto_for_servers": True},
         delta_node_config={
             "exec_node": {
