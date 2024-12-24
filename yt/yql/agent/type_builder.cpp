@@ -15,7 +15,6 @@ TLogicalTypePtr TTypeBuilder::PullResult() {
     return Pop();
 }
 
-
 template<class T>
 T TTypeBuilder::Pop()
 {

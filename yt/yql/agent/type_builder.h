@@ -63,7 +63,7 @@ private:
     void OnTupleItem() final;
     void OnEndTuple() final;
     void OnBeginStruct() final;
-    void OnStructItem(TStringBuf member);
+    void OnStructItem(TStringBuf member) final;
     void OnEndStruct() final;
     void OnBeginDict() final;
     void OnDictKey() final;
