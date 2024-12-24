@@ -12,41 +12,39 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_library(yt-library-codegen)
+add_library(cpp-yt-libcpp_assertion_handlers INTERFACE)
 
 
-target_compile_options(yt-library-codegen PRIVATE
+target_compile_options(cpp-yt-libcpp_assertion_handlers INTERFACE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
 )
 
-target_link_libraries(yt-library-codegen PUBLIC
+target_link_libraries(cpp-yt-libcpp_assertion_handlers INTERFACE
   contrib-libs-cxxsupp
   yutil
-  llvm18-lib-IR
-  llvm18-lib-AsmParser
-  llvm18-lib-CodeGen
-  llvm18-lib-ExecutionEngine
-  lib-ExecutionEngine-MCJIT
-  llvm18-lib-IRReader
-  llvm18-lib-Linker
-  lib-Transforms-IPO
-  llvm18-lib-Support
-  llvm18-lib-Target
-  lib-Target-X86
-  Target-X86-AsmParser
-  lib-Target-WebAssembly
-  Target-WebAssembly-AsmParser
-  llvm18-lib-Passes
-  cpp-yt-libcpp_assertion_handlers
-  yt-yt-core
+  cpp-yt-exception
+  cpp-yt-string
 )
 
-target_sources(yt-library-codegen PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/codegen/builder_base.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/codegen/init.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/codegen/module.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/codegen/routine_registry.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/codegen/msan.cpp
+
+add_global_library_for(cpp-yt-libcpp_assertion_handlers.global
+  cpp-yt-libcpp_assertion_handlers)
+
+
+target_compile_options(cpp-yt-libcpp_assertion_handlers.global PRIVATE
+  -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
+)
+
+target_link_libraries(cpp-yt-libcpp_assertion_handlers.global PUBLIC
+  contrib-libs-cxxsupp
+  yutil
+  cpp-yt-exception
+  cpp-yt-string
+)
+
+target_sources(cpp-yt-libcpp_assertion_handlers.global PRIVATE
+  ${PROJECT_SOURCE_DIR}/library/cpp/yt/libcpp_assertion_handlers/handlers.cpp
 )
 
