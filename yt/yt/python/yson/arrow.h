@@ -15,9 +15,15 @@ Py::Object AsyncDumpParquet(Py::Tuple& args, Py::Dict& kwargs);
 
 Py::Object UploadParquet(Py::Tuple& args, Py::Dict& kwargs);
 
+////////////////////////////////////////////////////////////////////////////////
+
 Py::Object DumpORC(Py::Tuple& args, Py::Dict& kwargs);
 
+Py::Object AsyncDumpOrc(Py::Tuple& args, Py::Dict& kwargs);
+
 Py::Object UploadORC(Py::Tuple& args, Py::Dict& kwargs);
+
+////////////////////////////////////////////////////////////////////////////////
 
 void InitArrowIteratorType();
 
