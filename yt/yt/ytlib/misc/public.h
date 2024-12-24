@@ -45,6 +45,7 @@ DEFINE_ENUM(EMemoryCategory,
     ((ReadTable)                  (30))
     ((Other)                      (31))
     ((Profiling)                  (32))
+    ((ChunkReplicaCache)          (34))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
