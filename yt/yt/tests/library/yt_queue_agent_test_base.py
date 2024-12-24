@@ -584,10 +584,4 @@ class TestQueueAgentBase(YTEnvSetup):
 
         print_debug("Synced all state; elapsed time:", time.time() - start_time)
 
-    def _should_skip_queue_producer_attributes_tests(self):
-        should_skip = "23_2" in self.ARTIFACT_COMPONENTS and "master" in self.ARTIFACT_COMPONENTS["23_2"]
-        if should_skip:
-            print_debug("Skipping test with queue producer attributes because master version is too old")
-        return should_skip
-
 ##################################################################

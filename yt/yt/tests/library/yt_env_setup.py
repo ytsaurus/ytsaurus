@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import yt_commands
 import yt_sequoia_helpers
 import yt_scheduler_helpers
@@ -42,7 +40,6 @@ import yt.test_helpers.cleanup as test_cleanup
 from yt.common import YtResponseError, format_error, update_inplace
 import yt.logger
 
-from yt_commands import print_debug
 from yt_driver_bindings import reopen_logs
 from yt_helpers import master_exit_read_only_sync
 
@@ -1052,14 +1049,6 @@ class YTEnvSetup(object):
 
         update_inplace(config, delta_node_config)
 
-        # COMPAT(pogorelov)
-        if "node" in cls.ARTIFACT_COMPONENTS.get("23_2", []):
-            config["%true"]["exec_node"]["controller_agent_connector"]["use_job_tracker_service_to_settle_jobs"] = True
-
-        # COMPAT(arkady-e1ppa)
-        if any(component in cls.ARTIFACT_COMPONENTS.get("23_2", []) for component in ["scheduler", "controller_agent"]):
-            config["%true"]["exec_node"]["job_controller"]["disable_legacy_allocation_preparation"] = False
-
         if cls._is_ground_cluster(cluster_index):
             config["%true"]["tablet_node"].setdefault("security_manager", {})
             config["%true"]["tablet_node"]["security_manager"].setdefault("resource_limits_cache", {})
@@ -1084,13 +1073,6 @@ class YTEnvSetup(object):
 
         for index, config in enumerate(configs["scheduler"]):
             config = update_inplace(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
-
-            # COMPAT(pogorelov)
-            if "scheduler" in cls.ARTIFACT_COMPONENTS.get("23_1", []):
-                config["scheduler"]["control_unknown_operation_jobs_lifetime"] = False
-            if "node" in cls.ARTIFACT_COMPONENTS.get("23_1", []):
-                config["scheduler"].pop("always_send_controller_agent_descriptors")
-                config["scheduler"].pop("send_full_controller_agent_descriptors_for_jobs")
 
             configs["scheduler"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_scheduler_config(configs["scheduler"][index], cluster_index)
@@ -1122,26 +1104,6 @@ class YTEnvSetup(object):
                 update_inplace(config, YTEnvSetup._DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG),
                 delta_config,
             )
-
-            # COMPAT(pogorelov)
-            if "controller-agent" in cls.ARTIFACT_COMPONENTS.get("23_1", []):
-                config["controller_agent"]["control_job_lifetime_at_scheduler"] = False
-                config["controller_agent"]["job_tracker"]["abort_vanished_jobs"] = True
-
-            artifact_components_23_2 = cls.ARTIFACT_COMPONENTS.get("23_2", [])
-
-            # COMPAT(kvk1920)
-            if "master" in artifact_components_23_2:
-                config["controller_agent"]["commit_operation_cypress_node_changes_via_system_transaction"] = False
-                config["controller_agent"]["set_committed_attribute_via_transaction_action"] = True
-
-            # COMPAT(arkady-e1ppa)
-            if "nodes" not in artifact_components_23_2:
-                config["controller_agent"]["job_tracker"]["enable_graceful_abort"] = True
-
-            if "node" in artifact_components_23_2:
-                print_debug("Turning off job_id_unequal_to_allocation_id flag")
-                config["controller_agent"]["job_id_unequal_to_allocation_id"] = False
 
             configs["controller_agent"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_controller_agent_config(configs["controller_agent"][index], cluster_index)

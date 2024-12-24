@@ -2155,10 +2155,6 @@ class TestSchedulerSortCommands(YTEnvSetup):
     )
     @pytest.mark.parametrize("sorted", [True, False])
     def test_hunks_in_partition_sort(self, sort_func, sorted):
-        is_compat = "23_2" in getattr(self, "ARTIFACT_COMPONENTS", {})
-        if is_compat:
-            return
-
         schema = \
             make_schema(
                 [
@@ -2297,10 +2293,6 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
     @authors("whatsername")
     def test_sort_key_complex_type_huge_any(self):
-        is_compat = "23_2" in getattr(self, "ARTIFACT_COMPONENTS", {})
-        if is_compat:
-            return
-
         max_sample_size = 64 * 1024
 
         def expand_string(sample, size):
