@@ -342,18 +342,6 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"user_job/pipes/output/*/idle_time", "Time during which the job proxy process did not read from the stream corresponding to the k-th output table, because it was writing data already subtracted from there", "ms"},
         {"user_job/pipes/output/*/busy_time", "Time during which the job proxy process read from the stream corresponding to the k-th output table", "ms"},
 
-        // COMPAT(ignat)
-        {"user_job/gpu/utilization_gpu", "Net time during which execution on GPU were performed", "ms"},
-        {"user_job/gpu/utilization_memory", "Net time during which GPU memory accesses were performed", "ms"},
-        {"user_job/gpu/utilization_power", "Time integral of the effective power of GPU relative to the maximum power", "ratio * ms"},
-        {"user_job/gpu/sm_utilization", "Time integral of SM processors utiliaztion share", "ratio * ms"},
-        {"user_job/gpu/sm_occupancy", "Time integral of SM processors occupancy share", "ratio * ms"},
-        {"user_job/gpu/load", "Time during which GPU load was non-zero", "ms"},
-        {"user_job/gpu/memory", "Integral of GPU memory usage", "ms * bytes"},
-        {"user_job/gpu/power", "Integral of GPU power usage", "ms * power"},
-        {"user_job/gpu/clocks_sm", "Integral of GPU frequency usage", "ms * frequency"},
-        {"user_job/gpu/memory_used", "Maximum registered GPU memory usage", "bytes"},
-
         {"user_job/gpu/cumulative_utilization_gpu", "Net time during which GPU calculations were performed", "ms"},
         {"user_job/gpu/cumulative_utilization_memory", "Net time during which GPU memory accesses were performed", "ms"},
         {"user_job/gpu/cumulative_utilization_clocks_sm", "The time integral of GPU frequency relative to the maximum frequency", "ratio * ms"},
