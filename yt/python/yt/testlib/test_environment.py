@@ -97,7 +97,7 @@ class YtTestEnvironment(object):
         prepare_dir = os.path.join(get_work_path(), suffix)
 
         if not os.path.exists(prepare_dir):
-            os.makedirs(prepare_dir)
+            os.makedirs(prepare_dir, exist_ok=True)
 
         self.binaries_path = arcadia_interop.prepare_yt_environment(
             prepare_dir,
