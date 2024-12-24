@@ -378,7 +378,7 @@ public:
     {
         for (auto& threadData : ThreadData_) {
             auto threadName = ::TStringBuilder() << "par_reader_" << threadData.ThreadIndex;
-            Threads_.push_back(::MakeHolder<TThread>(
+            Threads_.push_back(std::make_unique<TThread>(
                 TThread::TParams(ReaderThread, &threadData).SetName(threadName)));
         }
 
@@ -465,7 +465,7 @@ private:
     const ITableReaderFactoryPtr<TRow> Factory_;
 
     TVector<TThreadData> ThreadData_;
-    TVector<THolder<TThread>> Threads_;
+    TVector<std::unique_ptr<TThread>> Threads_;
 
     TMutex Lock_;
     int RunningThreadCount_ = 0;
@@ -618,7 +618,7 @@ public:
     {
         auto batchCountPerThread = Config_.BatchCount / Config_.ThreadCount + 1;
         for (int threadIndex = 0; threadIndex < Config_.ThreadCount; ++threadIndex) {
-            auto& bufferQueue = EmptyBuffers_.emplace_back(::MakeHolder<TQueue>(0));
+            auto& bufferQueue = EmptyBuffers_.emplace_back(std::make_unique<TQueue>(0));
             for (int j = 0; j < batchCountPerThread; ++j) {
                 auto buffer = MakeIntrusive<TReaderBuffer<TRow>>();
                 buffer->ThreadIndex = threadIndex;
@@ -713,7 +713,7 @@ private:
     TDuration WaitTime_;
 
     using TQueue = ::NThreading::TBlockingQueue<TReaderBufferPtr<TRow>>;
-    TVector<THolder<TQueue>> EmptyBuffers_;
+    TVector<std::unique_ptr<TQueue>> EmptyBuffers_;
     TQueue FilledBuffers_;
 
     template <typename T>
@@ -743,7 +743,7 @@ class TParallelTableReaderBase
     : public TDerived
 {
 public:
-    TParallelTableReaderBase(THolder<TReadManagerBase<TRow>> readManager)
+    TParallelTableReaderBase(std::unique_ptr<TReadManagerBase<TRow>> readManager)
         : ReadManager_(std::move(readManager))
     {
         ReadManager_->Start();
@@ -810,7 +810,7 @@ protected:
 
 private:
     TReaderBufferPtr<TRow> CurrentBuffer_;
-    THolder<TReadManagerBase<TRow>> ReadManager_;
+    std::unique_ptr<TReadManagerBase<TRow>> ReadManager_;
 };
 
 template <typename T>
@@ -903,7 +903,7 @@ std::pair<IClientBasePtr, TVector<TRichYPath>> CreateRangeReaderClientAndPaths(
 i64 EstimateTableRowWeight(const IClientBasePtr& client, const TVector<TRichYPath>& paths);
 
 template <typename TRow>
-THolder<TReadManagerBase<TRow>> CreateReadManager(
+std::unique_ptr<TReadManagerBase<TRow>> CreateReadManager(
     const IClientBasePtr& client,
     const TVector<TRichYPath>& paths,
     TParallelReaderRowProcessor<TRow> processor,
@@ -951,7 +951,7 @@ THolder<TReadManagerBase<TRow>> CreateReadManager(
             config.ThreadCount,
             config.BatchSize,
             config.BatchCount);
-        return ::MakeHolder<TProcessingUnorderedReadManager<TRow>>(
+        return std::make_unique<TProcessingUnorderedReadManager<TRow>>(
             std::move(rangeReaderClient),
             std::move(rangeReaderPaths),
             std::move(processor),
@@ -971,7 +971,7 @@ THolder<TReadManagerBase<TRow>> CreateReadManager(
             config.BatchSize,
             config.BatchCount,
             config.RangeCount);
-        return ::MakeHolder<TOrderedReadManager<TRow>>(
+        return std::make_unique<TOrderedReadManager<TRow>>(
             std::move(rangeReaderClient),
             std::move(rangeReaderPaths),
             config,
@@ -986,7 +986,7 @@ THolder<TReadManagerBase<TRow>> CreateReadManager(
             config.ThreadCount,
             config.BatchSize,
             config.BatchCount);
-        return ::MakeHolder<TUnorderedReadManager<TRow>>(
+        return std::make_unique<TUnorderedReadManager<TRow>>(
             std::move(rangeReaderClient),
             std::move(rangeReaderPaths),
             config,
