@@ -417,16 +417,6 @@ protected:
 
                 auto outdated = latestItem->Outdated.load(std::memory_order::acquire);
 
-                YT_LOG_DEBUG_IF(lookupKeys.size() == 1,
-                    "FoundLookupRow "
-                    "(Key: %v, Outdated: %v, UpdatedInFlush: %v, Reallocated: %v, InsertTime: %v, UpdateTime: %v)",
-                    key,
-                    outdated,
-                    latestItem->UpdatedInFlush,
-                    latestItem->Reallocated,
-                    latestItem->InsertTime,
-                    latestItem->UpdateTime);
-
                 if (!foundItemRef.IsSealed()) {
                     ++NotSealedRows_;
                 } else if (outdated) {
