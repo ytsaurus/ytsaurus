@@ -28,6 +28,12 @@ def abort_transactions(list_action, abort_action, exists_action, get_action):
             continue
         if "QueueAgent" in title:
             continue
+        if "Lock for changelog store" in title:
+            continue
+        if "Upload to //sys/hydra_persistence" in title:
+            continue
+        if "Prerequisite for cell" in title:
+            continue
 
         sequoia = False
         for cell_id in sequoia_tablet_cells:
