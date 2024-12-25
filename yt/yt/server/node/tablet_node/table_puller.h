@@ -24,7 +24,6 @@ DEFINE_REFCOUNTED_TYPE(ITablePuller)
 ITablePullerPtr CreateTablePuller(
     TTabletManagerConfigPtr config,
     TTablet* tablet,
-    NApi::NNative::IConnectionPtr localConnection,
     IAlienClusterClientCachePtr replicatorClientCache,
     ITabletSlotPtr slot,
     ITabletSnapshotStorePtr tabletSnapshotStore,

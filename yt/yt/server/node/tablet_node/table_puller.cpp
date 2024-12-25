@@ -164,6 +164,11 @@ public:
         return entryIt->second;
     }
 
+    const NNative::IClientPtr& GetLocalClient() const
+    {
+        return Underlying_->GetLocalClient();
+    }
+
 private:
     inline static const NNative::IClientPtr NullClient = nullptr;
     const IAlienClusterClientCachePtr Underlying_;
@@ -178,7 +183,6 @@ public:
     TTablePuller(
         TTabletManagerConfigPtr config,
         TTablet* tablet,
-        NNative::IConnectionPtr localConnection,
         IAlienClusterClientCachePtr replicatorClientCache,
         ITabletSlotPtr slot,
         ITabletSnapshotStorePtr tabletSnapshotStore,
@@ -186,7 +190,6 @@ public:
         IThroughputThrottlerPtr nodeInThrottler,
         IMemoryUsageTrackerPtr memoryTracker)
         : Config_(std::move(config))
-        , LocalConnection_(std::move(localConnection))
         , Slot_(std::move(slot))
         , TabletSnapshotStore_(std::move(tabletSnapshotStore))
         , WorkerInvoker_(std::move(workerInvoker))
@@ -234,7 +237,6 @@ public:
 
 private:
     const TTabletManagerConfigPtr Config_;
-    const NNative::IConnectionPtr LocalConnection_;
     const ITabletSlotPtr Slot_;
     const ITabletSnapshotStorePtr TabletSnapshotStore_;
     const IInvokerPtr WorkerInvoker_;
@@ -302,12 +304,14 @@ private:
                     << HardErrorAttribute;
             }
 
-            if (!IsReplicaLocationValid(selfReplica, tabletSnapshot->TablePath, LocalConnection_->GetClusterName().value())) {
+            auto localConnection = ReplicatorClientCache_.GetLocalClient()->GetNativeConnection();
+            const auto& clusterName = localConnection->GetClusterName().value();
+            if (!IsReplicaLocationValid(selfReplica, tabletSnapshot->TablePath, clusterName)) {
                 THROW_ERROR_EXCEPTION("Upstream replica id corresponds to another table")
                     << TErrorAttribute("upstream_replica_id", tabletSnapshot->UpstreamReplicaId)
                     << TErrorAttribute("table_path", tabletSnapshot->TablePath)
                     << TErrorAttribute("expected_path", selfReplica->ReplicaPath)
-                    << TErrorAttribute("table_cluster", *LocalConnection_->GetClusterName())
+                    << TErrorAttribute("table_cluster", clusterName)
                     << TErrorAttribute("expected_cluster", selfReplica->ClusterName)
                     << HardErrorAttribute;
             }
@@ -361,7 +365,7 @@ private:
                 }
 
                 bool committed = AdvanceTabletReplicationProgress(
-                    LocalConnection_,
+                    ReplicatorClientCache_.GetLocalClient(),
                     Logger,
                     Slot_->GetCellId(),
                     Slot_->GetOptions()->ClockClusterTag,
@@ -724,8 +728,7 @@ private:
 
             TTransactionStartOptions startOptions;
             startOptions.ClockClusterTag = Slot_->GetOptions()->ClockClusterTag;
-            auto localClient = LocalConnection_->CreateNativeClient(
-                TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
+            const auto& localClient = ReplicatorClientCache_.GetLocalClient();
             auto localTransaction = WaitFor(
                 localClient->StartNativeTransaction(ETransactionType::Tablet, startOptions))
                 .ValueOrThrow();
@@ -883,7 +886,6 @@ private:
 ITablePullerPtr CreateTablePuller(
     TTabletManagerConfigPtr config,
     TTablet* tablet,
-    NNative::IConnectionPtr localConnection,
     IAlienClusterClientCachePtr replicatorClientCache,
     ITabletSlotPtr slot,
     ITabletSnapshotStorePtr tabletSnapshotStore,
@@ -894,7 +896,6 @@ ITablePullerPtr CreateTablePuller(
     return New<TTablePuller>(
         std::move(config),
         tablet,
-        std::move(localConnection),
         std::move(replicatorClientCache),
         std::move(slot),
         std::move(tabletSnapshotStore),
