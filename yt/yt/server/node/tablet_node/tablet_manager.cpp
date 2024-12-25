@@ -4196,11 +4196,10 @@ private:
             tablet,
             Slot_,
             replicationCardId,
-            Bootstrap_->GetClient()->GetNativeConnection()));
+            Bootstrap_->GetReplicatorClientCache()->GetLocalClient()));
         tablet->SetTablePuller(CreateTablePuller(
             Config_,
             tablet,
-            Bootstrap_->GetClient()->GetNativeConnection(),
             Bootstrap_->GetReplicatorClientCache(),
             Slot_,
             Bootstrap_->GetTabletSnapshotStore(),

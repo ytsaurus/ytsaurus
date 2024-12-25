@@ -24,6 +24,7 @@ public:
         TDuration evictionPeriod)
     : TAlienClusterClientCacheBase(evictionPeriod)
     , LocalConnection_(std::move(localConnection))
+    , LocalClient_(LocalConnection_->CreateNativeClient(clientOptions))
     , ClientOptions_(std::move(clientOptions))
     { }
 
@@ -53,6 +54,11 @@ public:
         CheckAndRemoveExpired(now, true);
     }
 
+    const NApi::NNative::IClientPtr& GetLocalClient() const override
+    {
+        return LocalClient_;
+    }
+
     TDuration GetEvictionPeriod() const override
     {
         return TAlienClusterClientCacheBase::GetEvictionPeriod();
@@ -60,6 +66,7 @@ public:
 
 private:
     const NApi::NNative::IConnectionPtr LocalConnection_;
+    const NApi::NNative::IClientPtr LocalClient_;
     const NApi::TClientOptions ClientOptions_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CachedClientsLock_);
