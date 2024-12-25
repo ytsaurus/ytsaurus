@@ -26,7 +26,7 @@ def run_check(secrets, yt_client, logger, options, states):
         "chyt",
         "select x + 1 as result from `{table}`",
         Data(SCHEMA, SOURCE_DATA, RESULT_DATA),
-        {"clique": "ch_public", "cluster": options["chyt_cluster_name"]}
+        settings={"clique": "ch_public", "cluster": options["chyt_cluster_name"]}
     )
 
 
