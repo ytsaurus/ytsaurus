@@ -9,6 +9,7 @@ ELSE()
         yt/python/yt/wrapper
         yt/python/yt/testlib
         yt/python/yt/yson
+        yt/python/yt/environment/components/query_tracker
 
         library/python/resource
     )

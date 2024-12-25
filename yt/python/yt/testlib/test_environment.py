@@ -366,12 +366,32 @@ def test_method_teardown(remove_operations_archive=True):
     if yt.config["backend"] == "proxy":
         assert yt.config["proxy"]["url"].startswith("localhost")
 
+    # TODO(max42): this whole logic of ignoring part of the objects depending on the parameter of test_method_teardown
+    # looks extermely complicated and requires lots of boilerplate code around fixture definitions (how can I express
+    # a test which requires both an operation archive and a query tracker? Which yt_env_smth should register a
+    # finalizer for that?).
+    #
+    # It would be better to have flags in the YtTestEnvironment to control the omission of some objects.
+
     object_ids_to_ignore = set()
     if not remove_operations_archive:
         for table in yt.list("//sys/operations_archive"):
             for tablet in yt.get("//sys/operations_archive/{}/@tablets".format(table)):
                 object_ids_to_ignore.add(tablet["cell_id"])
         object_ids_to_ignore.add(yt.get("//sys/accounts/operations_archive/@id"))
+
+    # For simplicity, we never cleanup query tracker objects. Query tracker is enabled in the only test suite,
+    # and in that test suite tests are assuming that query tracker state is reused, so it is safe.
+    if yt.exists("//sys/users/query_tracker"):
+        object_ids_to_ignore.add(yt.get("//sys/users/query_tracker/@id"))
+    if yt.exists("//sys/query_tracker"):
+        # Never remove query tracker tablet cells.
+        cell_ids = set()
+        for object in yt.list("//sys/query_tracker", attributes=["type", "dynamic"]):
+            if object.attributes["type"] == "table" and object.attributes.get("dynamic", False):
+                for tablet in yt.get("//sys/query_tracker/{}/@tablets".format(object)):
+                    cell_ids.add(tablet["cell_id"])
+                    object_ids_to_ignore.add(tablet["cell_id"])
 
     _cleanup_transactions()
     _cleanup_operations(remove_operations_archive=remove_operations_archive)
