@@ -32,12 +32,12 @@ IChaosAgentPtr CreateChaosAgent(
     TTablet* tablet,
     ITabletSlotPtr slot,
     NChaosClient::TReplicationCardId replicationCardId,
-    NApi::NNative::IConnectionPtr localConnection);
+    NApi::NNative::IClientPtr localClient);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 bool AdvanceTabletReplicationProgress(
-    NApi::NNative::IConnectionPtr connection,
+    const NApi::NNative::IClientPtr& localClient,
     const NLogging::TLogger& Logger,
     TTabletCellId tabletCellId,
     NApi::TClusterTag clockClusterTag,
