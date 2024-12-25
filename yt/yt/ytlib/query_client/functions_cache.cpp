@@ -66,6 +66,9 @@ using NYT::ToProto;
 
 static constexpr auto& Logger = QueryClientLogger;
 
+struct TQueryUdfTag
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressFunctionDescriptor
@@ -628,7 +631,7 @@ private:
             THROW_ERROR_EXCEPTION("UDF file is empty");
         }
 
-        auto file = TSharedMutableRef::Allocate(size);
+        auto file = TSharedMutableRef::Allocate<TQueryUdfTag>(size);
         auto memoryOutput = TMemoryOutput(file.Begin(), size);
 
         for (const auto& block : blocks) {
@@ -655,7 +658,7 @@ namespace {
 TSharedRef GetImplFingerprint(const std::vector<NChunkClient::NProto::TChunkSpec>& chunks)
 {
     auto size = chunks.size();
-    auto fingerprint = TSharedMutableRef::Allocate(2 * sizeof(ui64) * size);
+    auto fingerprint = TSharedMutableRef::Allocate<TQueryUdfTag>(2 * sizeof(ui64) * size);
     auto memoryOutput = TMemoryOutput(fingerprint.Begin(), fingerprint.Size());
 
     for (const auto& chunk : chunks) {

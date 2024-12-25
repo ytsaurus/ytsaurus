@@ -17,6 +17,9 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TColumnWriterTag
+{ };
+
 TColumnWriterBase::TColumnWriterBase(
     TDataBlockWriter* blockWriter,
     IMemoryUsageTrackerPtr memoryUsageTracker)
@@ -49,7 +52,7 @@ TSharedRef TColumnWriterBase::FinishBlock(int blockIndex)
         metaSize += meta.Size();
     }
 
-    auto mergedMeta = TSharedMutableRef::Allocate(metaSize);
+    auto mergedMeta = TSharedMutableRef::Allocate<TColumnWriterTag>(metaSize);
     char* metasData = mergedMeta.Begin();
 
     for (const auto& meta : CurrentBlockSegmentMetas_) {

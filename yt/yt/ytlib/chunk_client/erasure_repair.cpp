@@ -320,6 +320,9 @@ TFuture<void> RepairErasedParts(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPartBlockSaverTag
+{ };
+
 class TPartBlockSaver
     : public IPartBlockConsumer
 {
@@ -330,7 +333,7 @@ public:
     {
         for (int index = 0; index < std::ssize(Ranges_); ++index) {
             auto size = Ranges_[index].Size();
-            Blocks_[index] = TSharedMutableRef::Allocate(size);
+            Blocks_[index] = TSharedMutableRef::Allocate<TPartBlockSaverTag>(size);
             TotalBytes_ += size;
         }
     }

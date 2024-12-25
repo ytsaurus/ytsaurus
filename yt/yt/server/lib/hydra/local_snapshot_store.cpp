@@ -30,6 +30,9 @@ using namespace NHydra::NProto;
 DECLARE_REFCOUNTED_CLASS(TLocalSnapshotReader)
 DECLARE_REFCOUNTED_CLASS(TLocalSnapshotWriter)
 
+struct TLocalSnapshotReaderTag
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr i64 ReaderBlockSize = 1_MB;
@@ -134,7 +137,9 @@ private:
                     Header_.CompressedLength);
             }
 
-            auto serializedMeta = TSharedMutableRef::Allocate(Header_.MetaSize, {.InitializeStorage = false});
+            auto serializedMeta = TSharedMutableRef::Allocate<TLocalSnapshotReaderTag>(
+                Header_.MetaSize,
+                {.InitializeStorage = false});
             ReadRef(input, serializedMeta);
             ReadPadding(input, serializedMeta.Size());
 
@@ -154,7 +159,9 @@ private:
 
     TSharedRef DoRead()
     {
-        auto block = TSharedMutableRef::Allocate(ReaderBlockSize, {.InitializeStorage = false});
+        auto block = TSharedMutableRef::Allocate<TLocalSnapshotReaderTag>(
+            ReaderBlockSize,
+            {.InitializeStorage = false});
         size_t length = FacadeInput_->Load(block.Begin(), block.Size());
         return length == 0 ? TSharedRef() : block.Slice(0, length);
     }
@@ -469,7 +476,9 @@ private:
 
     TSharedRef DoRead()
     {
-        auto block = TSharedMutableRef::Allocate(ReaderBlockSize, {.InitializeStorage = false});
+        auto block = TSharedMutableRef::Allocate<TLocalSnapshotReaderTag>(
+            ReaderBlockSize,
+            {.InitializeStorage = false});
         size_t length = FileInput_->Load(block.Begin(), block.Size());
         return length == 0 ? TSharedRef() : block.Slice(0, length);
     }
