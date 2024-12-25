@@ -12,6 +12,7 @@
 
 #include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
+#include <yt/yt/ytlib/sequoia_client/record_helpers.h>
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
@@ -88,7 +89,7 @@ void ValidateTransactionAncestors(const NRecords::TTransaction& record)
         ITableDescriptor::Get(ESequoiaTable::Transactions)->GetTableName(),
         isNested
             ? "transaction is nested but its ancestor list is empty"
-            : "transaction is topmost but its ancestor list is not empty");
+            : "transaction is progenitor but its ancestor list is not empty");
 }
 
 void ValidateTransactionAncestors(
@@ -157,28 +158,6 @@ concept CResolveRecordType =
     std::same_as<T, NRecords::TPathToNodeId> ||
     std::same_as<T, NRecords::TNodeIdToPath> ||
     std::same_as<T, NRecords::TChildNode>;
-
-bool IsTombstone(const NRecords::TNodeFork& record)
-{
-    // Every ID can occur in "node_forks" table at most twice: one creation
-    // and on removal. This allows us to derive fork kind from
-    // "topmost_transaction_id" field.
-
-    // NB: the alternative solution could be to mark such tombstone records
-    // with null path.
-
-    return record.TopmostTransactionId != record.Key.TransactionId;
-}
-
-bool IsTombstone(const NRecords::TPathFork& record)
-{
-    return !record.NodeId;
-}
-
-bool IsTombstone(const NRecords::TChildFork& record)
-{
-    return !record.ChildId;
-}
 
 template <class T>
 using TRecordKey = std::decay_t<decltype(std::declval<T>().Key)>;
@@ -258,14 +237,14 @@ auto MakeResolveRecord(const NRecords::TChildFork& forkRecord)
  *  There are 2 different cases:
  *    - if committed fork is a tombstone and fork exists only under committed
  *      and parent transactions it should completely disappear from all tables
- *      to avoid accumulation of redundant tombstone forks under the topmost
+ *      to avoid accumulation of redundant tombstone forks under the progenitor
  *      transaction.
  *    - in every other case we should just propagate all fork-related records to
  *      the parent transaction. Note that it doesn't matter if this fork is
  *      replacement, creation or removal: even tombstone should be just
  *      propagated to the parent transaction.
  *
- *  Note that propagation for topmost tx is occured only in resolve tables,
+ *  Note that propagation for progenitor tx is occured only in resolve tables,
  *  because fork tables don't contain any records for trunk nodes.
  */
 class TCypressTransactionChangesMerger
@@ -315,10 +294,10 @@ private:
             // from "forks" and "resolve" tables.
             // NB: of course, "node_forks" cannot have "replacement" records.
 
-            if (IsTombstone(record) && record.TopmostTransactionId == ParentCypressTransactionId_) {
+            if (IsTombstone(record) && record.ProgenitorTransactionId == ParentCypressTransactionId_) {
                 DeleteForkFromParent(record);
             } else {
-                // Non-topmost removal is non-distinguishable from creation: it
+                // Non-progenitor removal is non-distinguishable from creation: it
                 // is just a propagation of record (with either created node or
                 // tombstone) to parent transaction.
                 WriteForkToParent(record);
@@ -367,9 +346,9 @@ private:
 
         if constexpr (CForkRecordType<T>) {
             // On transaction commit all forks are propagated to parent tx
-            // which may cause change of "topmost_transaction_id".
-            if (record.TopmostTransactionId == record.Key.TransactionId) {
-                record.TopmostTransactionId = ParentCypressTransactionId_;
+            // which may cause change of "progenitor_transaction_id".
+            if (record.ProgenitorTransactionId == record.Key.TransactionId) {
+                record.ProgenitorTransactionId = ParentCypressTransactionId_;
             }
         }
 
@@ -1296,13 +1275,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Collects all dependent transactions transitively and finds topmost unique
+//! Collects all dependent transactions transitively and finds progenitor unique
 //! dependent transactions.
 /*!
  *  This class is used to implement transaction finishing: when transaction is
  *  committed or aborted, all its dependent (and nested) transactions are
  *  aborted too. To achieve this we have to collect all dependent transactions
- *  and find topmost ones: it's sufficient to abort only subtree's root because
+ *  and find progenitor ones: it's sufficient to abort only subtree's root because
  *  it leads to abortion of all subtree.
  *
  *  "dependent_transactions" Sequoia table does not contains transitive closure
@@ -1348,7 +1327,7 @@ public:
 
     struct TResult
     {
-        // Contains topmost dependent transactions.
+        // Contains progenitor dependent transactions.
         std::vector<TTransactionId> DependentTransactionSubtreeRoots;
         THashMap<TTransactionId, NRecords::TTransaction> Transactions;
 

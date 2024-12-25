@@ -80,4 +80,9 @@ std::string GetDistributedWeightThrottlerId(const std::string& prefix);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::string BuildMultipleTransactionSelectCondition(
+    TRange<NCypressClient::TTransactionId> transactionIds);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NCypressProxy

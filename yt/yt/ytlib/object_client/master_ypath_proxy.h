@@ -18,7 +18,8 @@ namespace NYT::NObjectClient {
     static TVectorized##method##Batcher Create##method##Batcher( \
         const NApi::NNative::IClientPtr& client, \
         const TIntrusivePtr<NYTree::TTypedYPathRequest<ns::TReq##method, ns::TRsp##method>>& typedRequestPtr, \
-        TRange<TObjectId> objectIds); \
+        TRange<TObjectId> objectIds, \
+        TTransactionId cypressTransactionId); \
     static_assert(true)
 
 ////////////////////////////////////////////////////////////////////////////////

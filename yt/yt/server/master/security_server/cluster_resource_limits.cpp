@@ -26,13 +26,13 @@ using NObjectServer::TCellTag;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClusterResourceLimits&& TClusterResourceLimits::SetMediumDiskSpace(int mediumIndex, TLimit64  diskSpace) &&
+TClusterResourceLimits&& TClusterResourceLimits::SetMediumDiskSpace(int mediumIndex, TLimit64 diskSpace) &&
 {
     SetMediumDiskSpace(mediumIndex, diskSpace);
     return std::move(*this);
 }
 
-void TClusterResourceLimits::SetMediumDiskSpace(int mediumIndex, TLimit64  diskSpace) &
+void TClusterResourceLimits::SetMediumDiskSpace(int mediumIndex, TLimit64 diskSpace) &
 {
     if (diskSpace == TLimit64(0)) {
         DiskSpace_.erase(mediumIndex);

@@ -34,9 +34,9 @@ types:
         column_name: target_path
         column_type: String
 
-      - cpp_name: TopmostTransactionId
+      - cpp_name: ProgenitorTransactionId
         cpp_type: NCypressClient::TTransactionId
-        column_name: topmost_transaction_id
+        column_name: progenitor_transaction_id
         column_type: String
 
     verbatim: |

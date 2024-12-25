@@ -2210,6 +2210,7 @@ class TestBulkInsertShardedTxCTxS(TestBulkInsertShardedTx):
 
 
 class TestBulkInsertMirroredTx(TestBulkInsertShardedTxCTxS):
+    NUM_TEST_PARTITIONS = 8
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = False

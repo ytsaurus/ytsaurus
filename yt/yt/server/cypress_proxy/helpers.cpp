@@ -251,15 +251,11 @@ TFuture<NYTree::INodePtr> FetchSingleObject(
 {
     auto request = TYPathProxy::Get();
 
-    if (objectId.TransactionId) {
-        SetTransactionId(request, objectId.TransactionId);
-    }
-
     if (attributeFilter) {
         ToProto(request->mutable_attributes(), attributeFilter);
     }
 
-    auto batcher = TMasterYPathProxy::CreateGetBatcher(client, request, {objectId.ObjectId});
+    auto batcher = TMasterYPathProxy::CreateGetBatcher(client, request, {objectId.ObjectId}, objectId.TransactionId);
 
     return batcher.Invoke().Apply(BIND([=] (const TMasterYPathProxy::TVectorizedGetBatcher::TVectorizedResponse& rsp) {
         return ConvertToNode(NYson::TYsonString(rsp.at(objectId.ObjectId).ValueOrThrow()->value()));
@@ -279,6 +275,29 @@ std::string GetRequestQueueNameForKey(const std::pair<std::string, EUserWorkload
 std::string GetDistributedWeightThrottlerId(const std::string& prefix)
 {
     return prefix + "_weight_throttler";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::string BuildMultipleTransactionSelectCondition(TRange<TTransactionId> transactionIds)
+{
+    YT_VERIFY(!transactionIds.Empty());
+
+    // NB: null GUIDs may be stored as null instead of "0-0-0-0".
+    auto formatTransactionId = [] (TStringBuilderBase* builder, TTransactionId transactionId) {
+        if (!transactionId) {
+            builder->AppendString("null, ");
+        }
+        builder->AppendFormat("%Qv", transactionId);
+    };
+
+    return Format("transaction_id in (%v)", MakeFormatterWrapper([&] (TStringBuilderBase* builder) {
+        formatTransactionId(builder, transactionIds.Front());
+        for (int i = 1; i < std::ssize(transactionIds); ++i) {
+            builder->AppendString(", ");
+            formatTransactionId(builder, transactionIds[i]);
+        }
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

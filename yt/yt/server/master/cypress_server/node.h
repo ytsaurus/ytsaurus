@@ -241,12 +241,12 @@ public:
     //! do not have |ParentId| set up properly.
     struct TImmutableSequoiaProperties
     {
-        const TString Key;
+        const std::string Key;
         const NYPath::TYPath Path;
         // NB: shouldn't be used for non-Sequoia (e.g. Cypress link) nodes.
         const TNodeId ParentId;
 
-        TImmutableSequoiaProperties(TString key, NYPath::TYPath path, TNodeId parentId);
+        TImmutableSequoiaProperties(std::string key, NYPath::TYPath path, TNodeId parentId);
 
         bool operator==(const TImmutableSequoiaProperties& rhs) const noexcept = default;
         // Save/Load methods don't work with const fields, sadly.

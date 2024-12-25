@@ -490,6 +490,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/lazy_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/record_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/table_descriptor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/transaction.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/write_set.cpp
