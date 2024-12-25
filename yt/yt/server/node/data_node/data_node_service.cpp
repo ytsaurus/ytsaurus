@@ -2457,7 +2457,7 @@ private:
                 selectedStatistics);
 
             const auto& largeStatistics = selectedStatistics.LargeStatistics;
-            if (!largeStatistics.Empty()) {
+            if (!largeStatistics.IsEmpty()) {
                 ToProto(subresponse->mutable_large_columnar_statistics(), largeStatistics);
             }
 
