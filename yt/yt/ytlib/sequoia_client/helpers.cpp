@@ -51,6 +51,10 @@ constexpr TErrorCode RetriableSequoiaErrors[] = {
 
 bool IsRetriableSequoiaError(const TError& error)
 {
+    if (error.IsOK()) {
+        return false;
+    }
+
     return AnyOf(RetriableSequoiaErrors, [&] (auto errorCode) {
         return error.FindMatching(errorCode);
     });

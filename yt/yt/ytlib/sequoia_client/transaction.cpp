@@ -155,6 +155,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        YT_VERIFY(!CommitStarted_.exchange(true));
+
         SortRequests();
 
         return
@@ -354,6 +356,9 @@ private:
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSequoiaTransactionTag());
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+
+    // For validation only.
+    std::atomic<bool> CommitStarted_ = false;
 
     struct TMasterCellCommitSession final
     {

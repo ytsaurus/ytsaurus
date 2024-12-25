@@ -32,7 +32,7 @@ void SetNode(
     const NYson::TYsonString& value,
     bool force,
     const NApi::TSuppressableAccessTrackingOptions& options,
-    const NSequoiaClient::ISequoiaTransactionPtr& transaction);
+    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
 void MultisetNodeAttributes(
     NCypressClient::TVersionedNodeId nodeId,
@@ -40,27 +40,31 @@ void MultisetNodeAttributes(
     const std::vector<TMultisetAttributesSubrequest>& subrequests,
     bool force,
     const NApi::TSuppressableAccessTrackingOptions& options,
-    const NSequoiaClient::ISequoiaTransactionPtr& transaction);
+    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
 void CreateNode(
-    NCypressClient::TNodeId id,
+    NCypressClient::TVersionedNodeId nodeId,
     NCypressClient::TNodeId parentId,
     NSequoiaClient::TAbsoluteYPathBuf path,
     const NYTree::IAttributeDictionary* explicitAttributes,
-    const NSequoiaClient::ISequoiaTransactionPtr& transaction);
+    const TProgenitorTransactionCache& progenitorTransactionCache,
+    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
 NCypressClient::TNodeId CopyNode(
     const NSequoiaClient::NRecords::TNodeIdToPath& sourceNode,
     NSequoiaClient::TAbsoluteYPathBuf destinationNodePath,
     NCypressClient::TNodeId destinationParentId,
+    NCypressClient::TTransactionId cypressTransactionId,
     const TCopyOptions& options,
-    const NSequoiaClient::ISequoiaTransactionPtr& transaction);
+    const TProgenitorTransactionCache& progenitorTransactionCache,
+    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
 //! Removes node but not detaches it from its parent.
 void RemoveNode(
     NCypressClient::TVersionedNodeId nodeId,
-    const NSequoiaClient::TMangledSequoiaPath& path,
-    const NSequoiaClient::ISequoiaTransactionPtr& transaction);
+    NSequoiaClient::TAbsoluteYPathBuf path,
+    const TProgenitorTransactionCache& progenitorTransactionCache,
+    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
 void RemoveNodeAttribute(
     NCypressClient::TVersionedNodeId nodeId,
@@ -68,24 +72,21 @@ void RemoveNodeAttribute(
     bool force,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
-//! Changes visible to user must be applied at coordinator with late prepare mode.
+//! Changes visible to user should be applied at coordinator with late prepare mode.
 void AttachChild(
-    NCypressClient::TNodeId parentId,
+    NCypressClient::TVersionedNodeId parentId,
     NCypressClient::TNodeId childId,
     const std::string& childKey,
     const NApi::TSuppressableAccessTrackingOptions& options,
-    const NSequoiaClient::ISequoiaTransactionPtr& transaction);
+    const TProgenitorTransactionCache& progenitorTransactionCache,
+    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
 void DetachChild(
-    NCypressClient::TNodeId parentId,
+    NCypressClient::TVersionedNodeId parentId,
     const std::string& childKey,
     const NApi::TSuppressableAccessTrackingOptions& options,
-    const NSequoiaClient::ISequoiaTransactionPtr& transaction);
-
-void LockRowInNodeIdToPathTable(
-    NCypressClient::TNodeId nodeId,
-    const NSequoiaClient::ISequoiaTransactionPtr& transaction,
-    NTableClient::ELockType lockType);
+    const TProgenitorTransactionCache& progenitorTransactionCache,
+    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
 NCypressClient::TLockId LockNodeInMaster(
     NCypressClient::TVersionedNodeId nodeId,
@@ -97,6 +98,16 @@ NCypressClient::TLockId LockNodeInMaster(
     const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
 void UnlockNodeInMaster(
+    NCypressClient::TVersionedNodeId nodeId,
+    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
+
+void CreateSnapshotLockInSequoia(
+    NCypressClient::TVersionedNodeId nodeId,
+    NSequoiaClient::TAbsoluteYPathBuf path,
+    std::optional<NSequoiaClient::TAbsoluteYPathBuf> targetPath,
+    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
+
+void RemoveSnapshotLockFromSequoia(
     NCypressClient::TVersionedNodeId nodeId,
     const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 

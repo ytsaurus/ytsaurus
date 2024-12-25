@@ -26,6 +26,21 @@ def not_implemented_in_sequoia(func):
     return decorator.decorate(func, wrapper)
 
 
+def cannot_be_implemented_in_sequoia(reason):
+    def wrapper_factory(func):
+        def wrapper(func, self, *args, **kwargs):
+            if isinstance(self, TestCypressLocksInSequoia):
+                pytest.skip(f"Cannot be imlpemented in Sequoia: {reason}")
+            return func(self, *args, **kwargs)
+
+        return decorator.decorate(func, wrapper)
+
+    return wrapper_factory
+
+
+##################################################################
+
+
 class TestCypressLocks(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
@@ -140,7 +155,6 @@ class TestCypressLocks(YTEnvSetup):
         assert rsp2["revision"] == 0
 
     @authors("panin")
-    @not_implemented_in_sequoia
     def test_shared_lock_inside_tx(self):
         tx_outer = start_transaction()
         create("table", "//tmp/table", tx=tx_outer)
@@ -353,7 +367,6 @@ class TestCypressLocks(YTEnvSetup):
 
     @authors("shakurov")
     @pytest.mark.parametrize("mode", ["exclusive", "shared"])
-    @not_implemented_in_sequoia
     def test_unlock_modified(self, mode):
         node_id = create("map_node", "//tmp/m1")
 
@@ -747,7 +760,7 @@ class TestCypressLocks(YTEnvSetup):
             remove("//tmp/a")
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
+    @cannot_be_implemented_in_sequoia("list nodes aren't supported")
     def test_remove_list_subtree_lock(self):
         set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         set("//tmp/a", [1])
@@ -836,7 +849,6 @@ class TestCypressLocks(YTEnvSetup):
         assert get("//tmp/a/@locks") == []
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_redundant_lock1(self):
         tx = start_transaction()
         set("//tmp/a", "x")
@@ -848,7 +860,6 @@ class TestCypressLocks(YTEnvSetup):
         assert len(get("//tmp/a/@locks")) == 1
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_redundant_lock2(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
@@ -977,7 +988,6 @@ class TestCypressLocks(YTEnvSetup):
         assert not exists("//sys/locks/" + lock_id4)
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_waitable_lock6(self):
         set("//tmp/a", 1)
 
@@ -1004,7 +1014,6 @@ class TestCypressLocks(YTEnvSetup):
         assert not exists("//sys/locks/" + lock_id2)
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_waitable_lock7(self):
         set("//tmp/a", {"b": 1})
 
@@ -1176,7 +1185,6 @@ class TestCypressLocks(YTEnvSetup):
         assert get("#" + lock_id2 + "/@transaction_id") == tx2
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_yt_144(self):
         create("table", "//tmp/t")
 
@@ -1194,7 +1202,6 @@ class TestCypressLocks(YTEnvSetup):
         assert get("//tmp/t/@parent_id") == get("//tmp/@id")
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_remove_locks(self):
         set("//tmp/a", {"b": 1})
 
@@ -1202,11 +1209,12 @@ class TestCypressLocks(YTEnvSetup):
         tx2 = start_transaction()
 
         set("//tmp/a/b", 2, tx=tx1)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take \"exclusive\" lock for node //tmp/a/b"
+                             " since \"exclusive\" lock is taken by concurrent "
+                             f"transaction {tx1}"):
             remove("//tmp/a", tx=tx2)
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_map_locks1(self):
         tx = start_transaction()
         set("//tmp/a", 1, tx=tx)
@@ -1224,7 +1232,6 @@ class TestCypressLocks(YTEnvSetup):
         assert get("//tmp") == {"a": 1}
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_map_locks2(self):
         tx1 = start_transaction()
         set("//tmp/a", 1, tx=tx1)
@@ -1244,17 +1251,16 @@ class TestCypressLocks(YTEnvSetup):
         assert get("//tmp") == {"a": 1, "b": 2}
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_map_locks3(self):
         tx1 = start_transaction()
         set("//tmp/a", 1, tx=tx1)
 
         tx2 = start_transaction()
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take lock for child \"a\" of node //tmp since"
+                             f" this child is locked by concurrent transaction {tx1}"):
             set("//tmp/a", 2, tx=tx2)
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_map_locks4(self):
         set("//tmp/a", 1)
 
@@ -1271,7 +1277,6 @@ class TestCypressLocks(YTEnvSetup):
         assert lock["child_key"] == "a"
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_map_locks5(self):
         set("//tmp/a", 1)
 
@@ -1279,18 +1284,19 @@ class TestCypressLocks(YTEnvSetup):
         remove("//tmp/a", tx=tx1)
 
         tx2 = start_transaction()
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take \"exclusive\" lock for node //tmp/a "
+                             "since \"exclusive\" lock is taken by concurrent "
+                             f"transaction {tx1}"):
             set("//tmp/a", 2, tx=tx2)
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_map_locks6(self):
         tx = start_transaction()
         set("//tmp/a", 1, tx=tx)
         assert get("//tmp/a", tx=tx) == 1
         assert get("//tmp") == {}
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Node //tmp has no child with key \"a\""):
             remove("//tmp/a")
         remove("//tmp/a", tx=tx)
         assert get("//tmp", tx=tx) == {}
@@ -1299,7 +1305,6 @@ class TestCypressLocks(YTEnvSetup):
         assert get("//tmp") == {}
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_map_locks7(self):
         set("//tmp/a", 1)
 
@@ -1326,7 +1331,7 @@ class TestCypressLocks(YTEnvSetup):
             lock("//tmp", mode="shared", tx=other_tx, child_key="a")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
+    @cannot_be_implemented_in_sequoia("map-node snapshots are forbidden")
     def test_map_snapshot_lock(self):
         create("map_node", "//tmp/a")
 

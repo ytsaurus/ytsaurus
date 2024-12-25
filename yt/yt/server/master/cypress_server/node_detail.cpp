@@ -299,10 +299,12 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCorePrologue(
     }
 
     // Copy sequoia properties.
-    if (originatingNode->IsSequoia() && originatingNode->IsNative()) {
+    if (originatingNode->IsSequoia() && originatingNode->IsNative() && originatingNode->MutableSequoiaProperties()) {
         YT_VERIFY(!originatingNode->MutableSequoiaProperties()->Tombstone);
-        branchedNode->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(
-            *originatingNode->ImmutableSequoiaProperties());
+        YT_VERIFY(!originatingNode->MutableSequoiaProperties()->BeingCreated);
+
+        branchedNode->ImmutableSequoiaProperties() =
+            std::make_unique<TCypressNode::TImmutableSequoiaProperties>(*originatingNode->ImmutableSequoiaProperties());
         branchedNode->MutableSequoiaProperties() = std::make_unique<TCypressNode::TMutableSequoiaProperties>();
     }
 
@@ -345,8 +347,10 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCorePrologue(
     TCypressNode* originatingNode,
     TCypressNode* branchedNode)
 {
+    YT_VERIFY(static_cast<bool>(originatingNode->MutableSequoiaProperties()) == static_cast<bool>(branchedNode->MutableSequoiaProperties()));
+
     // Copy Sequoia properties.
-    if (originatingNode->IsSequoia() && originatingNode->IsNative()) {
+    if (originatingNode->IsSequoia() && originatingNode->IsNative() && originatingNode->MutableSequoiaProperties()) {
         // Just a sanity check that properties did not change.
         YT_VERIFY(*originatingNode->ImmutableSequoiaProperties() == *branchedNode->ImmutableSequoiaProperties());
         YT_VERIFY(!originatingNode->MutableSequoiaProperties()->Tombstone);
@@ -1201,7 +1205,7 @@ void TMapNodeChildren<TNonOwnedChild>::Insert(const std::string& key, TNonOwnedC
 {
     MaybeVerifyIsTrunk(child);
 
-    YT_VERIFY(KeyToChild_.emplace(key, child).second);
+    EmplaceOrCrash(KeyToChild_, key, child);
     MasterMemoryUsage_ += std::ssize(key);
 
     if (child) {
@@ -1663,6 +1667,8 @@ void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoBranch(
     YT_VERIFY(!branchedNode->Children_);
 
     if (lockRequest.Mode == ELockMode::Snapshot) {
+        // TODO(kvk1920): don't copy children since accessing node via its
+        // parent snapshot is forbidden in Sequoia.
         if (originatingNode->IsTrunk()) {
             branchedNode->ChildCountDelta() = originatingNode->ChildCountDelta();
             branchedNode->AssignChildren(originatingNode->Children_);
@@ -1683,8 +1689,6 @@ void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoBranch(
             }
         }
     }
-
-    // Non-snapshot branches only hold changes, i.e. deltas. Which are empty at first.
 }
 
 template <class TImpl>

@@ -1,7 +1,5 @@
 #include "action_helpers.h"
 
-#include "private.h"
-
 #include "actions.h"
 #include "helpers.h"
 
@@ -25,8 +23,6 @@ using namespace NSequoiaClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
-
-constexpr auto Logger = CypressProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,63 +74,59 @@ TFuture<ISequoiaTransactionPtr> StartCypressProxyTransaction(
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<std::vector<NRecords::TPathToNodeId>> SelectSubtree(
+    const ISequoiaTransactionPtr& transaction,
     const TAbsoluteYPath& path,
-    const ISequoiaTransactionPtr& transaction)
+    TRange<TTransactionId> cypressTransactionIds)
 {
+    // NB: #cypressTransactionIds must contain at least 0-0-0-0 ("trunk")
+    // transaction.
+    YT_VERIFY(!cypressTransactionIds.Empty());
+
     auto mangledPath = path.ToMangledSequoiaPath();
     return transaction->SelectRows<NRecords::TPathToNodeId>({
         .WhereConjuncts = {
             Format("path >= %Qv", mangledPath),
-            Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath))
+            Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath)),
+            BuildMultipleTransactionSelectCondition(cypressTransactionIds),
         },
-        .OrderBy = {"path"}
+        .OrderBy = {"path"},
     });
 }
 
-TNodeId LookupNodeId(
-    TAbsoluteYPathBuf path,
-    const ISequoiaTransactionPtr& transaction)
-{
-    NRecords::TPathToNodeIdKey nodeKey{
-        .Path = path.ToMangledSequoiaPath(),
-    };
-    auto rows = WaitFor(transaction->LookupRows<NRecords::TPathToNodeIdKey>({nodeKey}))
-        .ValueOrThrow();
-    if (rows.size() != 1) {
-        YT_LOG_ALERT("Unexpected number of rows received while looking up a node by its path "
-            "(Path: %v, RowCount: %v)",
-            path,
-            rows.size());
-    } else if (!rows[0]) {
-        YT_LOG_ALERT("Row with null value received while looking up a node by its path (Path: %v)",
-            path);
-    }
-
-    return rows[0]->NodeId;
-}
-
-TNodeId CreateIntermediateNodes(
+TNodeId CreateIntermediateMapNodes(
     const TAbsoluteYPath& parentPath,
-    TNodeId parentId,
+    TVersionedNodeId parentId,
     TRange<std::string> nodeKeys,
     const TSuppressableAccessTrackingOptions& options,
-    const ISequoiaTransactionPtr& transaction)
+    const TProgenitorTransactionCache& progenitorTransactionCache,
+    const ISequoiaTransactionPtr& sequoiaTransaction)
 {
     auto currentNodePath = parentPath;
-    auto currentNodeId = parentId;
-    for (const auto& key : nodeKeys) {
-        currentNodePath.Append(key);
-        auto newNodeId = transaction->GenerateObjectId(EObjectType::SequoiaMapNode);
+    auto currentNodeId = parentId.ObjectId;
+    auto currentTransactionId = parentId.TransactionId;
+
+    for (int index = 0; index < std::ssize(nodeKeys); ++index) {
+        const auto& newNodeKey = nodeKeys[index];
+        currentNodePath.Append(newNodeKey);
+        auto newNodeId = sequoiaTransaction->GenerateObjectId(EObjectType::SequoiaMapNode);
 
         CreateNode(
-            newNodeId,
-            /*parentId*/ currentNodeId,
+            {newNodeId, currentTransactionId},
+            currentNodeId,
             currentNodePath,
             /*explicitAttributes*/ nullptr,
-            transaction);
-        AttachChild(currentNodeId, newNodeId, key, options, transaction);
+            progenitorTransactionCache,
+            sequoiaTransaction);
+        AttachChild(
+            {currentNodeId, currentTransactionId},
+            newNodeId,
+            newNodeKey,
+            options,
+            progenitorTransactionCache,
+            sequoiaTransaction);
         currentNodeId = newNodeId;
     }
+
     return currentNodeId;
 }
 
@@ -143,11 +135,13 @@ TNodeId CopySubtree(
     const TAbsoluteYPath& sourceRootPath,
     const TAbsoluteYPath& destinationRootPath,
     TNodeId destinationSubtreeParentId,
+    TTransactionId cypressTransactionId,
     const TCopyOptions& options,
     const THashMap<TNodeId, NSequoiaClient::TAbsoluteYPath>& subtreeLinks,
+    const TProgenitorTransactionCache& progenitorTransactionCache,
     const ISequoiaTransactionPtr& transaction)
 {
-    // Node must occur earlier then its children.
+    // Node must be placed ahead of its children.
     YT_ASSERT(IsSortedBy(sourceNodes, [] (const auto& node) {
         return node.Path.ToMangledSequoiaPath();
     }));
@@ -181,11 +175,19 @@ TNodeId CopySubtree(
             sourceRecord,
             destinationPath,
             destinationParentId,
+            cypressTransactionId,
             options,
+            progenitorTransactionCache,
             transaction);
         createdNodePathToId.emplace(destinationPath, clonedNodeId);
 
-        AttachChild(destinationParentId, clonedNodeId, destinationPath.GetBaseName(), /*options*/ {}, transaction);
+        AttachChild(
+            {destinationParentId, cypressTransactionId},
+            clonedNodeId,
+            destinationPath.GetBaseName(),
+            /*options*/ {},
+            progenitorTransactionCache,
+            transaction);
     }
 
     return GetOrCrash(createdNodePathToId, destinationRootPath);
@@ -195,6 +197,7 @@ void RemoveSelectedSubtree(
     const std::vector<TCypressNodeDescriptor>& subtreeNodes,
     const ISequoiaTransactionPtr& transaction,
     TTransactionId cypressTransactionId,
+    const TProgenitorTransactionCache& progenitorTransactionCache,
     bool removeRoot,
     TNodeId subtreeParentId,
     const TSuppressableAccessTrackingOptions& options)
@@ -213,12 +216,21 @@ void RemoveSelectedSubtree(
     }
 
     for (auto nodeIt = subtreeNodes.begin() + (removeRoot ? 0 : 1); nodeIt < subtreeNodes.end(); ++nodeIt) {
-        RemoveNode({nodeIt->Id, cypressTransactionId}, MangleSequoiaPath(nodeIt->Path.Underlying()), transaction);
+        RemoveNode(
+            {nodeIt->Id, cypressTransactionId},
+            nodeIt->Path,
+            progenitorTransactionCache,
+            transaction);
     }
 
     for (auto it = subtreeNodes.rbegin(); it < subtreeNodes.rend(); ++it) {
         if (auto parentIt = pathToNodeId.find(it->Path.GetDirPath())) {
-            DetachChild(parentIt->second, it->Path.GetBaseName(), options, transaction);
+            DetachChild(
+                {parentIt->second, cypressTransactionId},
+                it->Path.GetBaseName(),
+                options,
+                progenitorTransactionCache,
+                transaction);
         }
     }
 
@@ -228,7 +240,12 @@ void RemoveSelectedSubtree(
     }
 
     TAbsoluteYPath subtreeRootPath(subtreeNodes.front().Path);
-    DetachChild(subtreeParentId, subtreeRootPath.GetBaseName(), options, transaction);
+    DetachChild(
+        {subtreeParentId, cypressTransactionId},
+        subtreeRootPath.GetBaseName(),
+        options,
+        progenitorTransactionCache,
+        transaction);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

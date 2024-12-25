@@ -14,6 +14,7 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/server/lib/sequoia/cypress_transaction.h>
 #include <yt/yt/server/lib/sequoia/helpers.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
@@ -163,9 +164,12 @@ public:
         , ParentId_(resolveResult.ParentId)
         , ResolveResult_(std::move(resolveResult))
     {
-        // TODO(kvk1920): support snapshot branches here.
         auto nodeType = TypeFromId(Id_);
-        YT_VERIFY(ParentId_ || nodeType == EObjectType::Scion || nodeType == EObjectType::Link);
+        YT_VERIFY(
+            ParentId_ ||
+            nodeType == EObjectType::Scion ||
+            nodeType == EObjectType::Link ||
+            IsSnapshot());
     }
 
 protected:
@@ -192,6 +196,11 @@ protected:
             .SuppressModificationTracking = GetSuppressModificationTracking(context->RequestHeader()),
             .SuppressExpirationTimeoutRenewal = GetSuppressExpirationTimeoutRenewal(context->RequestHeader()),
         };
+    }
+
+    bool IsSnapshot() const
+    {
+        return ResolveResult_.IsSnapshot();
     }
 
     bool DoInvoke(const ISequoiaServiceContextPtr& context) override
@@ -242,18 +251,13 @@ protected:
             CellTagFromId(id));
     }
 
-    void ValidateCreateOptions(
-        const TCtxCreatePtr& context,
-        const TReqCreate* request)
+    void ValidateCreateOptions(const TReqCreate* request)
     {
         if (request->ignore_type_mismatch()) {
             THROW_ERROR_EXCEPTION("Create with \"ignore_type_mismatch\" flag is not supported in Sequoia yet");
         }
         if (request->lock_existing()) {
             THROW_ERROR_EXCEPTION("Create with \"lock_existing\" flag is not supported in Sequoia yet");
-        }
-        if (GetTransactionId(context->RequestHeader())) {
-            THROW_ERROR_EXCEPTION("Create with transaction is not supported in Sequoia yet");
         }
 
         auto type = FromProto<EObjectType>(request->type());
@@ -276,7 +280,7 @@ protected:
         }
 
         auto req = requestFactory(FromObjectId(Id_));
-        SetTransactionId(req, SequoiaSession_->GetCypressTransactionId());
+        SetTransactionId(req, SequoiaSession_->GetCurrentCypressTransactionId());
         SetSuppressAccessTracking(req, suppressAccessTracking);
         SetSuppressExpirationTimeoutRenewal(req, suppressExpirationTimeoutRenewal);
         SetAllowResolveFromSequoiaObject(req, true);
@@ -320,7 +324,7 @@ protected:
 
         auto suffix = GetRequestTargetYPath(context->GetRequestHeader());
         SetRequestTargetYPath(&newRequest->Header(), FromObjectId(Id_) + suffix);
-        SetTransactionId(newRequest, SequoiaSession_->GetCypressTransactionId());
+        SetTransactionId(newRequest, SequoiaSession_->GetCurrentCypressTransactionId());
         SetAccessTrackingOptions(newRequest, AccessTrackingOptions_);
         SetAllowResolveFromSequoiaObject(newRequest, true);
         auto proxy = IsRequestMutating(context->GetRequestHeader())
@@ -398,7 +402,7 @@ protected:
         std::string TargetNodeKey;
     };
 
-    //! Replaces subtree with (maybe empty) chain of map-nodes and locks
+    //! Replaces subtree with (maybe empty) chain of map-nodes and shared-locks
     //! attachment point's row in "node_id_to_path" table.
     //! Optional out parameter #removedNodes is used to report removed subtree.
     /*!
@@ -432,7 +436,12 @@ protected:
             YT_VERIFY(force);
 
             auto subtreeToRemove = SequoiaSession_->FetchSubtree(Path_);
-            SequoiaSession_->DetachAndRemoveSubtree(subtreeToRemove, ParentId_);
+
+            // Acquires shared lock on row in Sequoia table.
+            SequoiaSession_->DetachAndRemoveSubtree(
+                subtreeToRemove,
+                ParentId_,
+                /*detachInLatePrepare*/ true);
 
             if (removedNodes) {
                 *removedNodes = std::move(subtreeToRemove.Nodes);
@@ -513,8 +522,11 @@ protected:
             auto subtree = SequoiaSession_->FetchSubtree(Path_);
             // Subtree must consist of at least its root.
             YT_VERIFY(!subtree.Nodes.empty());
-            SequoiaSession_->DetachAndRemoveSubtree(subtree, ParentId_);
-        } else if (!SequoiaSession_->IsMapNodeEmpty(Id_)) {
+            SequoiaSession_->DetachAndRemoveSubtree(
+                subtree,
+                ParentId_,
+                /*detachInLatePrepare*/ true);
+        } else if (IsSequoiaCompositeNodeType(TypeFromId(Id_)) && !SequoiaSession_->IsMapNodeEmpty(Id_)) {
             THROW_ERROR_EXCEPTION("Cannot remove non-empty composite node");
         } else {
             SequoiaSession_->DetachAndRemoveSingleNode(Id_, Path_, ParentId_);
@@ -627,6 +639,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, MultisetAttributes)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetBasicAttributes)
 {
+    auto unresolvedSuffix = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
+    auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
+
+    if (!unresolvedSuffixTokens.empty()) {
+        ThrowNoSuchChild(Path_, unresolvedSuffixTokens.front());
+    }
+
     context->SetRequestInfo();
     ForwardRequestAndAbortSequoiaSession(TObjectYPathProxy::GetBasicAttributes, context);
 }
@@ -654,7 +673,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
         hintId,
         transactionId);
 
-    ValidateCreateOptions(context, request);
+    ValidateCreateOptions(request);
 
     // This alert can be safely removed since hintId is not used in this function.
     YT_LOG_ALERT_IF(hintId, "Hint ID was received on Cypress proxy (HintId: %v)", hintId);
@@ -800,6 +819,16 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
         THROW_ERROR_EXCEPTION("Cannot specify \"ignore_existing\" for move operation");
     }
 
+    Visit(originalSourcePath.GetRootDesignator().first,
+        [&] (TObjectId objectId) {
+            if (auto type = TypeFromId(objectId); !IsVersionedType(type)) {
+                THROW_ERROR_EXCEPTION("Path %v points to a nonversioned %Qlv object instead of a node",
+                    originalSourcePath,
+                    type);
+            }
+        },
+        [] (TSlashRootDesignatorTag) {});
+
     auto sourceResolveResult = ResolvePath(SequoiaSession_, originalSourcePath.ToRawYPath(), "Copy");
 
     const auto* resolvedSource = std::get_if<TSequoiaResolveResult>(&sourceResolveResult);
@@ -877,13 +906,15 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
         // least one ancestor in Sequoia.
         YT_VERIFY(sourceParentId);
 
-        SequoiaSession_->DetachAndRemoveSubtree(nodesToCopy, sourceParentId);
+        SequoiaSession_->DetachAndRemoveSubtree(
+            nodesToCopy,
+            sourceParentId,
+            /*detachInLatePrepare*/ false);
     }
 
     auto destinationRootPath = Path_ + unresolvedDestinationSuffix;
     auto destinationId = SequoiaSession_->CopySubtree(
         nodesToCopy,
-        sourceRootPath,
         destinationRootPath,
         destinationParentId,
         options);
@@ -897,7 +928,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Unlock)
 {
-    if (!SequoiaSession_->GetCypressTransactionId()) {
+    if (!SequoiaSession_->GetCurrentCypressTransactionId()) {
         THROW_ERROR_EXCEPTION("Operation cannot be performed outside of a transaction");
     }
 
@@ -915,7 +946,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Unlock)
 
     context->SetRequestInfo();
 
-    SequoiaSession_->UnlockNode(Id_);
+    SequoiaSession_->UnlockNode(Id_, IsSnapshot());
 
     context->SetResponseInfo();
 
@@ -924,7 +955,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Unlock)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
 {
-    if (!SequoiaSession_->GetCypressTransactionId()) {
+    if (!SequoiaSession_->GetCurrentCypressTransactionId()) {
         THROW_ERROR_EXCEPTION("Operation cannot be performed outside of a transaction");
     }
 
@@ -990,7 +1021,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
 
     auto asyncNode = FetchSingleObject(
         client,
-        {Id_, SequoiaSession_->GetCypressTransactionId()},
+        {Id_, SequoiaSession_->GetCurrentCypressTransactionId()},
         TAttributeFilter({externalCellTagAttribute, revisionAttribute}));
 
     // There can be a race between attribute getting and tx finishing.
@@ -1010,8 +1041,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
         .value_or(CellTagFromId(Id_));
 
     auto externalTransactionId = externalCellTag == CellTagFromId(Id_)
-        ? SequoiaSession_->GetCypressTransactionId()
-        : MakeExternalizedTransactionId(SequoiaSession_->GetCypressTransactionId(), externalCellTag);
+        ? SequoiaSession_->GetCurrentCypressTransactionId()
+        : MakeExternalizedTransactionId(SequoiaSession_->GetCurrentCypressTransactionId(), externalCellTag);
 
     ToProto(response->mutable_lock_id(), lockId);
     ToProto(response->mutable_node_id(), Id_);
@@ -1365,7 +1396,8 @@ private:
         auto vectorizedBatcher = TMasterYPathProxy::CreateGetBatcher(
             Bootstrap_->GetNativeRootClient(),
             requestTemplate,
-            nodesToFetchFromMaster);
+            nodesToFetchFromMaster,
+            SequoiaSession_->GetCurrentCypressTransactionId());
         auto nodeIdToRspOrError = WaitFor(vectorizedBatcher.Invoke())
             .ValueOrThrow();
 
@@ -1563,7 +1595,8 @@ private:
             auto vectorizedBatcher = TMasterYPathProxy::CreateGetBatcher(
                 Bootstrap_->GetNativeRootClient(),
                 requestTemplate,
-                childNodeIds);
+                childNodeIds,
+                SequoiaSession_->GetCurrentCypressTransactionId());
 
             auto nodeIdToRspOrError = WaitFor(vectorizedBatcher.Invoke())
                 .ValueOrThrow();

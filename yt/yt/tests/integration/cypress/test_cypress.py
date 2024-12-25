@@ -449,6 +449,7 @@ class TestCypress(YTEnvSetup):
         set("//tmp/map", {"a": 1}, force=True)
         tx = start_transaction()
         set("//tmp/map", {"b": 2}, tx=tx, force=True)
+        # TODO(kvk1920): implement remove(/*).
         remove("//tmp/map/*", tx=tx)
         assert get("//tmp/map", tx=tx) == {}
         assert get("//tmp/map/@count", tx=tx) == 0
@@ -457,7 +458,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/map/@count") == 0
 
     @authors("aleksandra-zh")
-    @not_implemented_in_sequoia
     def test_ref_count(self):
         create("map_node", "//tmp/d")
         assert get("//tmp/d/@ref_counter") == 1
@@ -475,7 +475,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/d/@ref_counter") == 1
 
     @authors("aleksandra-zh")
-    @not_implemented_in_sequoia
     def test_ref_count_move(self):
         create("table", "//tmp/t")
         assert get("//tmp/t/@ref_counter") == 1
@@ -490,8 +489,8 @@ class TestCypress(YTEnvSetup):
         move("//tmp/t", "//tmp/t1", tx=tx)
         assert get("//tmp/t/@ref_counter") == 2
         commit_transaction(tx)
-        # should not crash
-        with pytest.raises(YtError):
+        # Should not crash.
+        with raises_yt_error("Node //tmp has no child with key \"t\""):
             get("//tmp/t/@ref_counter")
         assert get("//tmp/t1/@ref_counter") == 1
 
@@ -555,7 +554,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/b/@x") == "y"
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_copy_simple4(self):
         set("//tmp/a", {"x1": "y1", "x2": "y2"})
         assert get("//tmp/a/@count") == 2
@@ -581,19 +579,21 @@ class TestCypress(YTEnvSetup):
             copy("//tmp/a", "//tmp/a/b")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_copy_simple6b(self):
         tx = start_transaction()
         create("map_node", "//tmp/a", tx=tx)
         create("map_node", "//tmp/a/b", tx=tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot copy or move a node to its descendant"):
             copy("//tmp/a", "//tmp/a/b/c", tx=tx)
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_copy_simple7(self):
         tx = start_transaction()
-        with pytest.raises(YtError):
+        if self.ENABLE_TMP_PORTAL:
+            msg = "Attribute \"path\" is not found"
+        else:
+            msg = f"Path #{tx} points to a nonversioned \"transaction\" object instead of a node"
+        with raises_yt_error(msg):
             copy("#" + tx, "//tmp/t")
 
     @authors("babenko", "ignat")
@@ -619,7 +619,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/b/c/d")
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_copy_tx1(self):
         tx = start_transaction()
 
@@ -635,7 +634,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/b/@count") == 2
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_copy_tx2(self):
         set("//tmp/a", {"x1": "y1", "x2": "y2"})
 
@@ -653,7 +651,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/b/@count") == 1
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_copy_tx_builtin_versioned_attributes(self):
         create(
             "table",
@@ -811,7 +808,6 @@ class TestCypress(YTEnvSetup):
         wait(lambda: not exists("//sys/tablet_cell_bundles/b"))
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_compression_codec_in_tx(self):
         create("table", "//tmp/t", attributes={"compression_codec": "none"})
         assert get("//tmp/t/@compression_codec") == "none"
@@ -825,7 +821,7 @@ class TestCypress(YTEnvSetup):
         assert locks[0]["mode"] == "shared"
         assert locks[0]["transaction_id"] == tx
         assert locks[0]["attribute_key"] == "compression_codec"
-        with pytest.raises(YtError):
+        with raises_yt_error(f"since this attribute is locked by concurrent transaction {tx}"):
             set("//tmp/t/@compression_codec", "lz4")
         commit_transaction(tx)
         assert get("//tmp/t/@compression_codec") == "lz4"
@@ -863,7 +859,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t2/@account") == "max"
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_copy_force1(self):
         create("table", "//tmp/t1")
         set("//tmp/t1/@a", 1)
@@ -873,13 +868,14 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t2/@a", 1)
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_copy_force2(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         tx = start_transaction()
         lock("//tmp/t2", tx=tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take \"exclusive\" lock for node //tmp/t2 "
+                             "since \"exclusive\" lock is taken by concurrent "
+                             f"transaction {tx}"):
             copy("//tmp/t1", "//tmp/t2", force=True)
 
     @authors("babenko")
@@ -916,7 +912,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/a2/@account") == "tmp"
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_copy_locked(self):
         create("table", "//tmp/t1")
         tx = start_transaction()
@@ -955,22 +950,23 @@ class TestCypress(YTEnvSetup):
             get("//tmp/a")
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_move_simple2(self):
         set("//tmp/a", 1)
 
         tx = start_transaction()
         lock("//tmp/a", tx=tx)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take \"exclusive\" lock for node //tmp/a "
+                             "since \"exclusive\" lock is taken by concurrent "
+                             f"transaction {tx}"):
             move("//tmp/a", "//tmp/b")
         assert not exists("//tmp/b")
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_move_simple3(self):
+        create("map_node", "//tmp/a")
         with raises_yt_error("Cannot copy or move a node to itself"):
-            move("//tmp", "//tmp/a")
+            move("//tmp/a", "//tmp/a/b")
 
     @authors("babenko", "ignat")
     @not_implemented_in_sequoia
@@ -1016,13 +1012,14 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t1")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_move_force2(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         tx = start_transaction()
         lock("//tmp/t2", tx=tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take \"exclusive\" lock for node //tmp/t2 "
+                             "since \"exclusive\" lock is taken by concurrent "
+                             f"transaction {tx}"):
             move("//tmp/t1", "//tmp/t2", force=True)
         assert exists("//tmp/t1")
 
@@ -1041,7 +1038,6 @@ class TestCypress(YTEnvSetup):
             copy("//tmp", "/", force=True)
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_move_tx_commit(self):
         create("table", "//tmp/t1")
         tx = start_transaction()
@@ -1055,7 +1051,6 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/t2")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_move_tx_abort(self):
         create("table", "//tmp/t1")
         tx = start_transaction()
@@ -1069,7 +1064,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t2")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_move_tx_nested(self):
         create("table", "//tmp/t1")
         tx1 = start_transaction()
@@ -1083,17 +1077,17 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/t3")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_move_tx_locking1(self):
         create("table", "//tmp/t1")
         tx1 = start_transaction()
         move("//tmp/t1", "//tmp/t2", tx=tx1)
         tx2 = start_transaction()
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take \"exclusive\" lock for node //tmp/t1 "
+                             "since \"exclusive\" lock is taken by concurrent "
+                             f"transaction {tx1}"):
             move("//tmp/t1", "//tmp/t3", tx=tx2)
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_move_tx_locking2(self):
         create("table", "//tmp/t1")
         tx1 = start_transaction()
@@ -1101,7 +1095,9 @@ class TestCypress(YTEnvSetup):
         tx3 = start_transaction(tx=tx1)
         move("//tmp/t1", "//tmp/t2", tx=tx1)
         move("//tmp/t2", "//tmp/t3", tx=tx2)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take \"exclusive\" lock for node //tmp/t2 "
+                             "since \"exclusive\" lock is taken by concurrent "
+                             f"transaction {tx2}"):
             move("//tmp/t2", "//tmp/t4", tx=tx3)
 
     @authors("ignat")
@@ -1273,7 +1269,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/m/t/@parent_id", tx=tx) == parent_id
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_remove_tx1(self):
         set("//tmp/a", 1)
         assert get("//tmp/@id") == get("//tmp/a/@parent_id")
@@ -1900,7 +1895,6 @@ class TestCypress(YTEnvSetup):
             set("//tmp/" + "a" * 301, 0)
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_invalid_external_cell_bias(self):
         with pytest.raises(YtError):
             create("table", "//tmp/t", attributes={"external_cell_bias": -1.0})
@@ -2654,7 +2648,7 @@ class TestCypress(YTEnvSetup):
     @authors("ignat")
     @not_implemented_in_sequoia
     def test_prerequisite_transactions(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown transaction cell tag"):
             set("//tmp/test_node", {}, prerequisite_transaction_ids=["a-b-c-d"])
 
         tx = start_transaction()
@@ -2724,7 +2718,7 @@ class TestCypress(YTEnvSetup):
         set("//tmp/d1/value", 10)
         assert get("//tmp/d1/value") == 10
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Root node has no child with key \"some\""):
             set("//tmp/d1/some/path", "hello")
 
         set("//tmp/d1/some/path", "hello", recursive=True)
@@ -2781,7 +2775,6 @@ class TestCypress(YTEnvSetup):
         assert revision11 == revision7
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_node_path_map(self):
         set("//tmp/a", 123)
         assert get("//tmp/a/@path") == "//tmp/a"
@@ -2794,7 +2787,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/a/1/@path") == "//tmp/a/1"
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_node_path_map_in_tx(self):
         tx = start_transaction()
         set("//tmp/a", 123, tx=tx)
@@ -3287,7 +3279,6 @@ class TestCypress(YTEnvSetup):
         assert revision == content_revision
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_user_attribute_removal1_yt_10192(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
@@ -3301,7 +3292,6 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/test_node/@user_attribute", tx=tx1)
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_user_attribute_removal2_yt_10192(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
@@ -3322,7 +3312,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/copy0/@user_attribute", tx=tx2)
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_user_attribute_removal3_yt_10192(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
@@ -3331,7 +3320,7 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/test_node")
         set("//tmp/test_node/@user_attribute", "some_string1", tx=tx1)
         remove("//tmp/test_node/@user_attribute", tx=tx2)
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute \"user_attribute\" is not found"):
             remove("//tmp/test_node/@user_attribute", tx=tx3)
         assert not exists("//tmp/test_node/@user_attribute", tx=tx3)
 
@@ -3348,7 +3337,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/copy0/@user_attribute", tx=tx3)
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_user_attribute_removal4_yt_10192(self):
         tx1 = start_transaction()
 
@@ -3369,7 +3357,6 @@ class TestCypress(YTEnvSetup):
     # created via the 'set' method.
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_map_child_removal1_yt_10192(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
@@ -3383,7 +3370,6 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/test_node/child", tx=tx1)
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_map_child_removal2_yt_10192(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
@@ -3409,7 +3395,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/copy0/child", tx=tx2)
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_map_child_removal3_yt_10192(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
@@ -3435,7 +3420,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/copy0/child", tx=tx3)
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_map_child_removal4_yt_10192(self):
         tx1 = start_transaction()
 
@@ -3469,7 +3453,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t2/@owner") == "oliver"
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_builtin_versioned_attributes(self):
         create(
             "table",
@@ -3592,7 +3575,6 @@ class TestCypress(YTEnvSetup):
         assert get("//test/@annotation") == get("//test/child/@annotation") == "test"
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_recursive_copy_sets_parent_on_branched_node(self):
         create_user("u")
 
@@ -3996,7 +3978,6 @@ class TestCypress(YTEnvSetup):
         set("//tmp/a", {"x": "y"}, force=True)
 
     @authors("kvk1920")
-    @not_implemented_in_sequoia
     def test_cluster_connection_attribute(self):
         with raises_yt_error("Cannot parse"):
             set("//sys/@cluster_connection", {"default_input_row_limit": "abacaba"})
@@ -4008,7 +3989,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//sys/@cluster_connection")
 
     @authors("kvk1920")
-    @not_implemented_in_sequoia
     def test_cluster_name(self):
         with raises_yt_error("too long"):
             set("//sys/@cluster_name", "a" * 129)
@@ -4020,7 +4000,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//sys/@cluster_name")
 
     @authors("h0pless")
-    @not_implemented_in_sequoia
     def test_error_on_transaction_abort(self):
         set("//tmp/node", 42)
 
@@ -4035,7 +4014,8 @@ class TestCypress(YTEnvSetup):
             get("//tmp/node")
 
         # But it's possible using object_id
-        assert get("#{}".format(object_id)) == 42
+        if not self.ENABLE_TMP_ROOTSTOCK:
+            assert get("#{}".format(object_id)) == 42
         assert get("#{}".format(object_id), tx=tx) == 42
 
         abort_transaction(tx)
@@ -4081,6 +4061,13 @@ class TestCypress(YTEnvSetup):
 class TestCypressMulticell(TestCypress):
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    @authors("kvk1920")
+    def test_invalid_external_cell_bias(self):
+        with raises_yt_error("\"external_cell_bias\" must be in range"):
+            create("table", "//tmp/t", attributes={"external_cell_bias": -1.0})
+        with raises_yt_error("\"external_cell_bias\" must be in range"):
+            create("table", "//tmp/t", attributes={"external_cell_bias": 100.0})
+
     @authors("shakurov")
     @not_implemented_in_sequoia
     def test_multiset_attributes_external(self):
@@ -4091,7 +4078,7 @@ class TestCypressMulticell(TestCypress):
                 {"name": "value", "type": "string"},
             ]
         )
-        table_id = create_dynamic_table("//tmp/t", schema=schema, external_cell_tag=11)
+        table_id = create_dynamic_table("//tmp/t", schema=schema, external_cell_tag=12)
 
         assert get("//tmp/t/@vital")
         assert get("//tmp/t/@enable_dynamic_store_read")
@@ -4101,9 +4088,9 @@ class TestCypressMulticell(TestCypress):
         assert not get("//tmp/t/@vital")
         assert not get("//tmp/t/@enable_dynamic_store_read")
 
-        assert not get(f"#{table_id}/@vital", driver=get_driver(1))
+        assert not get(f"#{table_id}/@vital", driver=get_driver(2))
         # The attribute is external but let's check anyway.
-        assert not get(f"#{table_id}/@enable_dynamic_store_read", driver=get_driver(1))
+        assert not get(f"#{table_id}/@enable_dynamic_store_read", driver=get_driver(2))
 
     @authors("babenko", "shakurov")
     @not_implemented_in_sequoia

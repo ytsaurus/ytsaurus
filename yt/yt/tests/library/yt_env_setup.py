@@ -43,6 +43,8 @@ import yt.logger
 from yt_driver_bindings import reopen_logs
 from yt_helpers import master_exit_read_only_sync
 
+import yt.yson as yson
+
 import pytest
 
 import inspect
@@ -1531,7 +1533,17 @@ class YTEnvSetup(object):
                 # Links for system stuff will still be present in sequoia tables during teardown.
                 wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.path_to_node_id.get_default_path()}] where not is_substr('//sys', path)", driver=driver) == [])
                 wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.node_id_to_path.get_default_path()}] where not is_substr('//sys', path)", driver=driver) == [])
-                wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.child_node.get_default_path()}]", driver=driver) == [])
+                wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.path_forks.get_default_path()}]", driver=driver) == [])
+                wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.node_forks.get_default_path()}]", driver=driver) == [])
+                wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.child_forks.get_default_path()}]", driver=driver) == [])
+
+                # There is a bug: select returns rows which were locked but not
+                # written. So we need a temporary workaround for tests.
+                child_nodes = yt_commands.select_rows(f"* from [{DESCRIPTORS.child_node.get_default_path()}]", driver=driver)
+                for child_node in child_nodes:
+                    assert child_node["transaction_id"] in ("0-0-0-0", None, yson.YsonEntity)
+                    assert child_node["child_id"] in ("0-0-0-0", None, yson.YsonEntity)
+                yt_sequoia_helpers.clear_table_in_ground(DESCRIPTORS.child_node, driver=driver)
 
                 for table in DESCRIPTORS.get_group("transactions"):
                     wait(lambda: yt_commands.select_rows(f"* from [{table.get_default_path()}]", driver=driver) == [])

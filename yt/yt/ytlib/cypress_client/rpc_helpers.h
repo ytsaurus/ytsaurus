@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/core/rpc/public.h>
+
 #include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
 namespace NYT::NCypressClient {

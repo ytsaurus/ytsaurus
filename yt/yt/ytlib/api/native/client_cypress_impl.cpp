@@ -615,12 +615,12 @@ protected:
 
         auto requestTemplate = TCypressYPathProxy::SerializeNode();
         SetSerializeNodeRequestParameters(requestTemplate, options);
-        SetTransactionId(requestTemplate, Transaction_->GetId());
 
         auto vectorizedBatcher = TMasterYPathProxy::CreateSerializeNodeBatcher(
             Client_,
             requestTemplate,
-            nodesToFetch);
+            nodesToFetch,
+            Transaction_->GetId());
 
         auto nodeIdToRspOrError = WaitFor(vectorizedBatcher.Invoke())
             .ValueOrThrow();

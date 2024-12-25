@@ -5,7 +5,7 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
 import "yt_proto/yt/core/ytree/proto/ypath.proto";
 
-// COMPAT(kvk1920): make |transaction_id| required in all these actions.
+// COMPAT(kvk1920): make |transaction_id| required in all these actions (in 25.2).
 
 ////////////////////////////////////////////////////////////////////////////////
 

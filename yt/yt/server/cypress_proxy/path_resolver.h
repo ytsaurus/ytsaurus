@@ -18,8 +18,9 @@ struct TSequoiaResolveResult
     NSequoiaClient::TAbsoluteYPath Path;
     NSequoiaClient::TYPath UnresolvedSuffix;
     //! May be null for resolved scion or snapshot branch.
-    // TODO(kvk1920): think of storing all resolved prefixes.
     NCypressClient::TNodeId ParentId;
+
+    bool IsSnapshot() const noexcept;
 };
 
 struct TCypressResolveResult

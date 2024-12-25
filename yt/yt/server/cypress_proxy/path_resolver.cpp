@@ -68,6 +68,10 @@ TPathPrefixes CollectPathPrefixes(const TAbsoluteYPath& path)
     tokenizer.Advance();
     YT_VERIFY(tokenizer.Skip(ETokenType::Slash));
 
+    // Root designator is a prefix too.
+    prefixes.PushBack(TAbsoluteYPathBuf(tokenizer.GetPrefix()), TYPathBuf(tokenizer.GetInput()));
+    YT_VERIFY(prefixes.Prefixes()[0].Underlying() == "/");
+
     while (tokenizer.Skip(ETokenType::Slash)) {
         if (tokenizer.GetType() != ETokenType::Literal) {
             break;
@@ -240,26 +244,36 @@ TResolveIterationResult ResolveByObjectId(
     // If path starts with "#<object-id>" we try to find it in
     // "node_id_to_path" Sequoia table. After that we replace object ID with
     // its path and continue resolving it.
-    if (auto nodePath = session->FindNodePath(rootDesignator)) {
-        // NB: ampersand should be "resolved" after current step.
+    if (auto resolvedNode = session->FindNodePath(rootDesignator)) {
+        // NB: ampersand is resolved (i.e. separated from unresolved
+        // |pathSuffix|) in the next step. But in case of ampersand absence we
+        // can do path rewriting here. Note that we don't need to distinguish
+        // regular and snapshot nodes here.
         if (IsLinkType(TypeFromId(rootDesignator)) && ShouldFollowLink(pathSuffix, method)) {
-
             auto targetPath = session->GetLinkTargetPath(rootDesignator);
             targetPath += pathSuffix;
 
             return TResolveThere{
                 .Result = {
                     .Id = rootDesignator,
-                    .Path = std::move(*nodePath),
+                    .Path = std::move(resolvedNode->Path),
                 },
                 .RewrittenTargetPath = std::move(targetPath),
             };
         }
 
-        // TODO(kvk1920): handle snapshot branches here since they aren't stored
-        // in "path_to_node_id" table.
+        if (resolvedNode->IsSnapshot) {
+            return TResolveHere{{
+                .Id = rootDesignator,
+                .Path = std::move(resolvedNode->Path),
+                .UnresolvedSuffix = pathSuffix,
+                // Snapshot locks of scions are forbidden so to use null parent
+                // ID is sufficient to distinguish snapshot from regular node.
+                .ParentId = NullObjectId,
+            }};
+        }
 
-        auto rewrittenPath = std::move(*nodePath);
+        auto rewrittenPath = std::move(resolvedNode->Path);
         rewrittenPath += pathSuffix;
         return ResolveByPath(session, std::move(rewrittenPath), method);
     }
@@ -304,6 +318,11 @@ TResolveIterationResult RunResolveIteration(
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
+
+bool TSequoiaResolveResult::IsSnapshot() const noexcept
+{
+    return TypeFromId(Id) != EObjectType::Scion && !ParentId;
+}
 
 TResolveResult ResolvePath(
     const TSequoiaSessionPtr& session,

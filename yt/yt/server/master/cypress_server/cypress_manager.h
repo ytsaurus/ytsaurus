@@ -173,9 +173,10 @@ public:
         const TLockRequest& request,
         bool recursive = false) = 0;
 
-    virtual TError CheckExclusiveLock(
+    virtual TError CheckLock(
         TCypressNode* trunkNode,
-        NTransactionServer::TTransaction* transaction) = 0;
+        NTransactionServer::TTransaction* transaction,
+        const TLockRequest& request) = 0;
 
     struct TCreateLockResult
     {

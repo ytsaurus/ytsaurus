@@ -6,6 +6,8 @@
 
 #include "object_service_proxy.h"
 
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 namespace NYT::NObjectClient {
@@ -29,11 +31,21 @@ public:
     TVectorizedRequestBatcher(
         const NApi::NNative::IClientPtr& client,
         const TTypedRequestPtr& templateRequest,
-        TRange<TObjectId> objectIds)
+        TRange<TObjectId> objectIds,
+        TTransactionId cypressTransactionId = NullTransactionId)
         : ObjectCount_(objectIds.size())
         , SerializedTemplateRequest_(templateRequest->Serialize())
         , Client_(client)
+        , CypressTransactionId_(cypressTransactionId)
     {
+        // Transaction in request template is ignored and shouldn't be set.
+        // Rationale:
+        // object service looks at request's transaction to replicate it before
+        // request execution. So we have to set transaction at least in
+        // request's header (object service doesn't know about request
+        // template).
+        YT_VERIFY(!NCypressClient::GetTransactionId(templateRequest->Header()));
+
         for (auto objectId : objectIds) {
             auto cellTag = CellTagFromId(objectId);
             CellTagToObjectId_[cellTag].push_back(objectId);
@@ -94,6 +106,7 @@ private:
     const int ObjectCount_;
     const TSharedRefArray SerializedTemplateRequest_;
     const NApi::NNative::IClientPtr Client_;
+    const TTransactionId CypressTransactionId_;
 
     std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> AsyncResults_;
 
@@ -134,6 +147,10 @@ private:
 
         // Fill object IDs info.
         ToProto(request->mutable_object_ids(), objectIds);
+
+        // Take care of Cypress transaction.
+        NCypressClient::SetTransactionId(request, CypressTransactionId_);
+
         return request;
     }
 };
