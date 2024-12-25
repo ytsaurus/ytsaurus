@@ -58,18 +58,18 @@ private:
         TCypressMapNodeTypeHandlerImpl::DoDestroy(node);
     }
 
-    void DoBeginCopy(
+    void DoSerializeNode(
         TPortalExitNode* node,
-        TBeginCopyContext* context) override
+        TSerializeNodeContext* context) override
     {
         // NB: Portal exits _must_ be snapshot-wise compatible with map nodes
-        // due to type erasure in TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore.
-        TCypressMapNodeTypeHandlerImpl::DoBeginCopy(node, context);
+        // due to type erasure in TNontemplateCypressNodeTypeHandlerBase::SerializeNodeCore.
+        TCypressMapNodeTypeHandlerImpl::DoSerializeNode(node, context);
     }
 
-    void DoEndCopy(
+    void DoMaterializeNode(
         TPortalExitNode* /*trunkNode*/,
-        TEndCopyContext* /*context*/) override
+        TMaterializeNodeContext* /*context*/) override
     {
         // Should not actually happen.
         THROW_ERROR_EXCEPTION("Portal exits cannot be materialized during cross-cell cloning");

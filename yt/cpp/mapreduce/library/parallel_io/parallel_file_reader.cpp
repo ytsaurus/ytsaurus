@@ -164,7 +164,7 @@ void TParallelFileReader::SupervisorJob() noexcept
     TSplitter splitter(
         FileSize_.value(),
         Options_.BatchSize_,
-        Options_.ReaderOptions_.GetOrElse({}).Offset_.GetOrElse(0));
+        Options_.ReaderOptions_.GetOrElse({}).Offset_);
     while (auto range = splitter.Next()) {
         TResourceGuard guard(RamLimiter_, range->Length());
         if (ReadJobException_.GetException()) {

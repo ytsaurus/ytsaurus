@@ -48,13 +48,10 @@ PEERDIR(
     contrib/restricted/boost/context
     contrib/restricted/boost/convert
     contrib/restricted/boost/dynamic_bitset
-    contrib/restricted/boost/filesystem
     contrib/restricted/boost/geometry
     contrib/restricted/boost/heap
     contrib/restricted/boost/multi_index
     contrib/restricted/boost/program_options
-    contrib/restricted/boost/system
-    contrib/restricted/boost/tti
     contrib/restricted/cityhash-1.0.2
     contrib/restricted/dragonbox
     contrib/restricted/fast_float

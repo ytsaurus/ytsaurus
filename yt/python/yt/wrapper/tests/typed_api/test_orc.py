@@ -1,7 +1,7 @@
 from __future__ import with_statement, print_function
 
 from yt.testlib import authors
-from yt.wrapper.testlib.helpers import TEST_DIR, inject_http_error
+from yt.wrapper.testlib.helpers import TEST_DIR, inject_http_error, set_config_option
 
 import yt.wrapper as yt
 
@@ -25,7 +25,8 @@ def generate_random_string(length):
 @pytest.mark.usefixtures("yt_env_v4")
 class TestOrc(object):
     @authors("nadya02")
-    def test_simple_orc(self):
+    @pytest.mark.parametrize("enable_parallel", [True, False])
+    def test_simple_orc(self, enable_parallel):
         with tempfile.NamedTemporaryFile() as temp_file:
             filename = temp_file.name
             table = TEST_DIR + "/table"
@@ -37,7 +38,9 @@ class TestOrc(object):
             yt.create("table", table, attributes={"schema": schema})
             row = {"key": 1, "value": "one", "bool" : True}
             yt.write_table(table, [row])
-            yt.dump_orc(table, filename)
+
+            with set_config_option("read_parallel/enable", enable_parallel):
+                yt.dump_orc(table, filename)
 
             output_table = TEST_DIR + "/output_table"
 
@@ -49,7 +52,8 @@ class TestOrc(object):
             assert list(yt.read_table(output_table)) == list(yt.read_table(table))
 
     @authors("nadya02")
-    def test_multi_chunks_upload_orc(self):
+    @pytest.mark.parametrize("enable_parallel", [True, False])
+    def test_multi_chunks_upload_orc(self, enable_parallel):
         with tempfile.NamedTemporaryFile() as temp_file:
             filename = temp_file.name
             input_table = TEST_DIR + "/table"
@@ -67,7 +71,8 @@ class TestOrc(object):
                     rows.append({"key": i * rows_in_chunk + j, "value": generate_random_string(5)})
                 yt.write_table(yt.TablePath(input_table, append=True), rows)
 
-            yt.dump_orc(input_table, filename)
+            with set_config_option("read_parallel/enable", enable_parallel):
+                yt.dump_orc(input_table, filename)
 
             output_table = TEST_DIR + "/output_table"
 

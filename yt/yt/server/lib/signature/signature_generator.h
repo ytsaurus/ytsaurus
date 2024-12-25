@@ -17,8 +17,9 @@ class TSignatureGenerator final
 public:
     explicit TSignatureGenerator(TSignatureGeneratorConfigPtr config, IKeyStoreWriterPtr store);
 
-    // TODO(pavook) futurize?
-    [[nodiscard]] TSignaturePtr Sign(NYson::TYsonString&& payload) const;
+    //! Fills out the Signature_ and Header_ fields in a given TSignature
+    // based on its payload.
+    void Sign(const TSignaturePtr& signature) const;
 
     [[nodiscard]] TKeyInfoPtr KeyInfo() const;
 

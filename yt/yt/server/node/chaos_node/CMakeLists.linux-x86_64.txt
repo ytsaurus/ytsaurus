@@ -45,6 +45,8 @@ target_link_libraries(server-node-chaos_node PUBLIC
   server-lib-hive
   server-lib-chaos_node
   server-lib-transaction_supervisor
+  yt-library-server_program
+  library-profiling-solomon
   contrib-libs-protobuf
 )
 

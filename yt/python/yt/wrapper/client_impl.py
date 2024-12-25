@@ -713,19 +713,30 @@ class YtClient(ClientState):
 
     def dump_orc(
             self,
-            table, output_file):
+            table,
+            output_file=None, output_path=None, enable_several_files=False, unordered=False):
         """
         Dump table with a strict schema as `ORC <https://orc.apache.org/>` file
 
         :param table: table
         :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
-        :param output_file: path to output file
+        :param output_file: path to output file, this option is deprecated, please use output_path
         :type output_file: str
+        :param output_path: If option enable_several_files is disabled, you need to put the path to the file here,
+        otherwise the path to the directory where the files in the orc format will be placed
+        :type output_path: str
+        :param enable_several_files: allowing orc to be written to multiple files,
+        only makes sense for better acceleration in parallel mode
+        :type enable_several_files: bool
+        :param unordered: if the option is set to false, the order will be as in the original table
+        :type unordered: bool
 
         """
         return client_api.dump_orc(
-            table, output_file,
-            client=self)
+            table,
+            client=self,
+            output_file=output_file, output_path=output_path, enable_several_files=enable_several_files,
+            unordered=unordered)
 
     def dump_parquet(
             self,
@@ -2499,6 +2510,38 @@ class YtClient(ClientState):
             client=self,
             sync=sync, run_operation_mutation_id=run_operation_mutation_id, enable_optimizations=enable_optimizations)
 
+    def run_query(
+            self,
+            engine, query,
+            settings=None, files=None, stage=None, annotations=None, access_control_objects=None,
+            sync=True):
+        """
+        Run query and track its progress (unless sync = false).
+
+        :param engine: one of "ql", "yql", "chyt", "spyt".
+        :type engine: str
+        :param query: text of a query
+        :type query: str
+        :param settings: a dictionary of settings
+        :type settings: dict or None
+        :param files: a YSON list of files, each of which is represented by a map with keys "name", "content", "type". Field "type" is one of "raw_inline_data", "url"
+        :type files: list or None
+        :param stage: query tracker stage, defaults to "production"
+        :type stage: str or None
+        :param annotations: a dictionary of annotations
+        :type annotations: dict or None
+        :param access_control_objects: list access control object names
+        :type access_control_objects: list or None
+        :param sync: if True, wait for query to finish, otherwise return immediately
+        :type sync: bool
+
+        """
+        return client_api.run_query(
+            engine, query,
+            client=self,
+            settings=settings, files=files, stage=stage, annotations=annotations, access_control_objects=access_control_objects,
+            sync=sync)
+
     def run_reduce(
             self,
             binary, source_table,
@@ -2815,7 +2858,7 @@ class YtClient(ClientState):
         """
         Start query.
 
-        :param engine: one of "ql", "yql".
+        :param engine: one of "ql", "yql", "chyt", "spyt".
         :type engine: str
         :param query: text of a query
         :type query: str

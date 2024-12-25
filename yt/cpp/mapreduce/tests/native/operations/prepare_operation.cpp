@@ -63,9 +63,9 @@ public:
     void Do(const TRawJobContext& context) override
     {
         TIFStream input(context.GetInputFile());
-        TVector<THolder<TOFStream>> outputs;
+        TVector<std::unique_ptr<TOFStream>> outputs;
         for (const auto& output : context.GetOutputFileList()) {
-            outputs.push_back(MakeHolder<TOFStream>(output));
+            outputs.push_back(std::make_unique<TOFStream>(output));
         }
         auto rows = NodeFromYsonStream(&input, ::NYson::EYsonType::ListFragment);
         int tableIndex = 0;
@@ -81,8 +81,8 @@ public:
             auto odd = even;
             even["even"] = 100;
             odd["odd"] = 101;
-            NodeToYsonStream(even, outputs[2 * tableIndex].Get());
-            NodeToYsonStream(odd, outputs[2 * tableIndex + 1].Get());
+            NodeToYsonStream(even, outputs[2 * tableIndex].get());
+            NodeToYsonStream(odd, outputs[2 * tableIndex + 1].get());
         }
     }
 

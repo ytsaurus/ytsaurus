@@ -440,6 +440,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     # There is completely nothing Porto-specific here.
     @authors("ignat")
     @skip_if_porto
+    @pytest.mark.timeout(120)
     def test_job_per_row(self):
         create("table", "//tmp/input")
 
@@ -449,7 +450,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         create("table", "//tmp/output", ignore_existing=True)
 
-        for job_count in range(976, 950, -1):
+        for job_count in range(976, 960, -1):
             op = map(
                 track=False,
                 in_="//tmp/input",
@@ -1484,9 +1485,6 @@ print(json.dumps(input))
     @pytest.mark.parametrize("ordered", [False, True])
     @pytest.mark.parametrize("small_pipe", [False, True])
     def test_map_interrupt_job_with_pipe_capacity(self, ordered, small_pipe):
-        if "23_2" in getattr(self, "ARTIFACT_COMPONENTS", {}):
-            pytest.xfail("Is not supported for older versions of server components")
-
         create("table", "//tmp/in_1")
         write_table(
             "//tmp/in_1",

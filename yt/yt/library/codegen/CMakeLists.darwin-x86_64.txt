@@ -38,6 +38,7 @@ target_link_libraries(yt-library-codegen PUBLIC
   lib-Target-WebAssembly
   Target-WebAssembly-AsmParser
   llvm18-lib-Passes
+  cpp-yt-libcpp_assertion_handlers
   yt-yt-core
 )
 

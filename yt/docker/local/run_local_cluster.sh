@@ -27,6 +27,7 @@ with_auth=false
 enable_debug_logging=false
 extra_yt_docker_opts=''
 yt_fqdn=''
+init_operations_archive=false
 
 network_name=yt_local_cluster_network
 ui_network=$network_name
@@ -56,6 +57,7 @@ Usage: $script_name [-h|--help]
                     [--with-auth true|false]
                     [--enable-debug-logging true|false]
                     [--extra-yt-docker-opts opts]
+                    [--init-operations-archive]
                     [--stop]
 
   --proxy-port: Sets the proxy port on docker host (default: $proxy_port)
@@ -76,6 +78,7 @@ Usage: $script_name [-h|--help]
   --with-auth: Enables authentication and creates admin user
   --enable-debug-logging: Enable debug logging in backend container (default: $enable_debug_logging)
   --extra-yt-docker-opts: Any extra configuration for backend docker container (default: $extra_yt_docker_opts)
+  --init-operations-archive: Initialize operations archive, the option is required to keep more details of operations
   --stop: Run 'docker stop ${ui_container_name} ${yt_container_name}' and exit
 EOF
     exit 0
@@ -157,6 +160,10 @@ while [[ $# -gt 0 ]]; do
         extra_yt_docker_opts="$2"
         shift 2
         ;;
+        --init-operations-archive)
+        init_operations_archive=true
+        shift
+        ;;
         --fqdn)
         yt_fqdn="$2"
         shift 2
@@ -221,6 +228,10 @@ fi
 
 if [ ${with_auth} == "true" ]; then
     params="${params} --enable-auth --create-admin-user"
+fi
+
+if [ ${init_operations_archive} == "true" ]; then
+    params="${params} --init-operations-archive"
 fi
 
 set +e

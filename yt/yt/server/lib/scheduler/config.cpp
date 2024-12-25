@@ -1026,8 +1026,9 @@ void TResourceMeteringConfig::Register(TRegistrar registrar)
     registrar.Parameter("default_abc_id", &TThis::DefaultAbcId)
         .Default(-1);
 
+    // COMPAT(ignat): drop after 25.1
     registrar.Parameter("enable_separate_schema_for_allocation", &TThis::EnableSeparateSchemaForAllocation)
-        .Default(false);
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

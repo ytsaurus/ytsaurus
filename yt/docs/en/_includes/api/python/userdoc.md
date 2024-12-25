@@ -849,32 +849,32 @@ drwxrwxr-x 7 user group 4.0K Sep 28 15:20 ..
 -rw-r--r-- 1 user group  51G Sep 29 21:22 scheduler_log_yson
 -rw-r--r-- 1 user group  51G Sep 29 21:20 test_file
 
-$ time cat scheduler_log_yson | yt write //tmp/test_yson --format yson
+$ time cat scheduler_log_yson | yt write-table //tmp/test_yson --format yson
 real    36m51.653s
 user    31m34.416s
 sys     1m5.256s
 
-$ time cat scheduler_log_json | yt write //tmp/test_json --format json
+$ time cat scheduler_log_json | yt write-table //tmp/test_json --format json
 real    88m38.745s
 user    21m7.188s
 sys     1m1.400s
 
-$ time cat test_file | yt upload //tmp/test_file
+$ time cat test_file | yt write-file //tmp/test_file
 real    35m50.723s
 user    17m31.232s
 sys     1m39.132s
 
-$ time cat scheduler_log_yson | yt write //tmp/test_yson --format yson --config "{write_parallel={enable=%true;max_thread_count=30;}}"
+$ time cat scheduler_log_yson | yt write-table //tmp/test_yson --format yson --config "{write_parallel={enable=%true;max_thread_count=30;}}"
 real    13m37.545s
 user    37m20.516s
 sys     4m16.436s
 
-$ time cat scheduler_log_json | yt write //tmp/test_json --format json --config "{write_parallel={enable=%true;max_thread_count=30;}}"
+$ time cat scheduler_log_json | yt write-table //tmp/test_json --format json --config "{write_parallel={enable=%true;max_thread_count=30;}}"
 real    3m53.308s
 user    23m21.152s
 sys     2m57.400s
 
-$ time cat test_file | yt upload //tmp/test_file --config "{write_parallel={enable=%true;max_thread_count=30;}}"
+$ time cat test_file | yt write-file //tmp/test_file --config "{write_parallel={enable=%true;max_thread_count=30;}}"
 real    1m49.368s
 user    18m30.904s
 sys     1m40.660s

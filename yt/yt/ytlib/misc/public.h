@@ -44,6 +44,9 @@ DEFINE_ENUM(EMemoryCategory,
     ((ChaosReplicationOutgoing)   (29))
     ((ReadTable)                  (30))
     ((Other)                      (31))
+    ((Profiling)                  (32))
+    ((Logging)                    (33))
+    ((ChunkReplicaCache)          (34))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

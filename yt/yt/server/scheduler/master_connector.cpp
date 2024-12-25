@@ -1244,11 +1244,6 @@ private:
             auto specString = attributes.GetYson("spec");
             auto providedSpecString = attributes.FindYson("provided_spec");
 
-            // COMPAT(gepardo): can be removed when all the running operation will have provided_spec field.
-            if (!providedSpecString) {
-                providedSpecString = specString;
-            }
-
             auto specNode = ConvertSpecStringToNode(specString);
             auto operationType = attributes.Get<EOperationType>("operation_type");
             TPreprocessedSpec preprocessedSpec;

@@ -605,7 +605,7 @@ usage: yt read-file [-h] [--params PARAMS] [--path PATH] [--file-reader FILE_REA
 uploads file to destination path from stream on local machine
 
 ```bash
-usage: yt upload [-h] [--params PARAMS] [--destination DESTINATION] [--file-writer FILE_WRITER] [--compressed] [--executable] [--compute-md5] [--no-compression] [destination]
+usage: yt write-file [-h] [--params PARAMS] [--destination DESTINATION] [--file-writer FILE_WRITER] [--compressed] [--executable] [--compute-md5] [--no-compression] [destination]
 ```
 
 #### Positional Arguments

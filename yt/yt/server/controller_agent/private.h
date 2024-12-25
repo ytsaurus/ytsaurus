@@ -86,8 +86,8 @@ struct TLivePreviewTableBase;
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, ControllerLogger, "Controller");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, ControllerAgentLogger, "ControllerAgent");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ControllerEventLogger, "ControllerEventLog");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ControllerFeatureStructuredLogger, "ControllerFeatureStructuredLog");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, ControllerEventLogger, NLogging::TLogger("ControllerEventLog").WithEssential());
+YT_DEFINE_GLOBAL(const NLogging::TLogger, ControllerFeatureStructuredLogger, NLogging::TLogger("ControllerFeatureStructuredLog").WithEssential());
 
 YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ControllerAgentProfiler, "/controller_agent");
 

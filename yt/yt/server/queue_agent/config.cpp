@@ -12,6 +12,8 @@
 
 #include <yt/yt/library/re2/re2.h>
 
+#include <yt/yt/core/bus/tcp/config.h>
+
 namespace NYT::NQueueAgent {
 
 using namespace NSecurityClient;

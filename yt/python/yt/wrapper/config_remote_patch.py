@@ -241,3 +241,16 @@ def _validate_operation_link_pattern(local_value, remote_value):
     except KeyError:
         raise RuntimeError("Wrong placeholder")
     return ret
+
+
+def _validate_query_link_pattern(local_value, remote_value):
+    ret = remote_value.replace("{query_id}", "{id}").replace("{cluster_ui_host}", "{proxy}")
+    try:
+        ret.format(
+            proxy="PROXY",
+            cluster_path="CLUSTER_PATH",
+            id="QUERY"
+        )
+    except KeyError:
+        raise RuntimeError("Wrong placeholder")
+    return ret

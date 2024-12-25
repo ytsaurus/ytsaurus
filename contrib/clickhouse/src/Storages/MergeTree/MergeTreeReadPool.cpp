@@ -65,7 +65,7 @@ MergeTreeReadPool::MergeTreeReadPool(
         column_names, virtual_column_names, prewhere_info,
         actions_settings, reader_settings, per_part_params);
 
-    if (std::count(is_part_on_remote_disk.begin(), is_part_on_remote_disk.end(), true))
+    if (std::ranges::count(is_part_on_remote_disk, true))
     {
         const auto & settings = context_->getSettingsRef();
 

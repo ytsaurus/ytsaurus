@@ -302,7 +302,7 @@ IRowStreamEncoderPtr CreateRowStreamEncoder(
             }
 
             auto fallbackEncoder = createNonArrowEncoder(arrowFallbackRowsetFormat);
-            return CreateArrowRowStreamEncoder(schema, nameTable, fallbackEncoder, controlAttributesConfig);
+            return CreateArrowRowStreamEncoder(schema, std::move(columns), nameTable, fallbackEncoder, controlAttributesConfig);
         }
         default:
             ThrowUnsupportedRowsetFormat(rowsetFormat);

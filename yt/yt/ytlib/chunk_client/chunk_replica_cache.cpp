@@ -26,7 +26,10 @@ class TChunkReplicaCache
     : public IChunkReplicaCache
 {
 public:
-    TChunkReplicaCache(NApi::NNative::IConnectionPtr connection, const TProfiler& profiler)
+    TChunkReplicaCache(
+        NApi::NNative::IConnectionPtr connection,
+        const TProfiler& profiler,
+        IMemoryUsageTrackerPtr memoryUsageTracker)
         : Connection_(connection)
         , NodeDirectory_(connection->GetNodeDirectory())
         , Logger(connection->GetLogger())
@@ -43,6 +46,7 @@ public:
             connection->GetInvoker(),
             BIND(&TChunkReplicaCache::OnExpirationSweep, MakeWeak(this)),
             connection->GetConfig()->ChunkReplicaCache->ExpirationSweepPeriod))
+        , MemoryGuard_(TMemoryUsageTrackerGuard::Build(std::move(memoryUsageTracker)))
         , ExpirationTime_(connection->GetConfig()->ChunkReplicaCache->ExpirationTime)
         , MaxChunksPerLocate_(connection->GetConfig()->ChunkReplicaCache->MaxChunksPerLocate)
     {
@@ -81,7 +85,7 @@ public:
             }
         }
 
-        CacheSizeGauge_.Update(Entries_.size());
+        UpdateToSize();
 
         return replicas;
     }
@@ -110,7 +114,7 @@ public:
                 }
             }
 
-            CacheSizeGauge_.Update(Entries_.size());
+            UpdateToSize();
         }
 
         std::vector<TPromise<TAllyReplicasInfo>> promises(chunkIds.size());
@@ -138,7 +142,7 @@ public:
                 futures[index] = entry.Future;
             }
 
-            CacheSizeGauge_.Update(Entries_.size());
+            UpdateToSize();
         }
 
         MissesCounter_.Increment(cellTagToStillMissingIndices.size());
@@ -223,7 +227,7 @@ public:
                         }
                     }
 
-                    CacheSizeGauge_.Update(Entries_.size());
+                    UpdateToSize();
                 }
             }
         }
@@ -253,7 +257,7 @@ public:
             }
         }
 
-        CacheSizeGauge_.Update(Entries_.size());
+        UpdateToSize();
     }
 
     void PingChunks(const std::vector<TChunkId>& chunkIds) override
@@ -331,7 +335,7 @@ public:
                 tryUpdate(*it->second);
             }
 
-            CacheSizeGauge_.Update(Entries_.size());
+            UpdateToSize();
         }
     }
 
@@ -358,6 +362,8 @@ private:
     const TGauge CacheSizeGauge_;
 
     const TPeriodicExecutorPtr ExpirationExecutor_;
+
+    TMemoryUsageTrackerGuard MemoryGuard_;
 
     std::atomic<TDuration> ExpirationTime_;
     std::atomic<int> MaxChunksPerLocate_;
@@ -426,7 +432,7 @@ private:
                     Entries_.erase(it);
                 }
 
-                CacheSizeGauge_.Update(Entries_.size());
+                UpdateToSize();
             }
 
             auto error = TError(rspOrError);
@@ -466,11 +472,27 @@ private:
             }
         }
 
-        CacheSizeGauge_.Update(totalChunkCount);
+        {
+            auto mapGuard = ReaderGuard(EntriesLock_);
+            UpdateToSize();
+        }
+
 
         YT_LOG_DEBUG("Finished expired chunk replica sweep (TotalChunkCount: %v, ExpiredChunkCount: %v)",
             totalChunkCount,
             expiredChunkIds.size());
+    }
+
+    void UpdateToSize()
+    {
+        // Here size estimation relies on the fact that TCompactVector in TAllyReplicasInfo
+        // does not stray too much from its specified expected size.
+        MemoryGuard_.SetSize(Entries_.size() * (
+            sizeof(TChunkId) +
+            sizeof(std::unique_ptr<TEntry>) +
+            sizeof(TEntry) +
+            sizeof(TAllyReplicasInfo)));
+        CacheSizeGauge_.Update(Entries_.size());
     }
 };
 
@@ -478,11 +500,13 @@ private:
 
 IChunkReplicaCachePtr CreateChunkReplicaCache(
     NApi::NNative::IConnectionPtr connection,
-    const TProfiler& profiler)
+    const TProfiler& profiler,
+    IMemoryUsageTrackerPtr memoryUsageTracker)
 {
     return New<TChunkReplicaCache>(
         std::move(connection),
-        profiler);
+        profiler,
+        std::move(memoryUsageTracker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

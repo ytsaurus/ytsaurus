@@ -37,6 +37,8 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
+#include <library/cpp/yt/threading/atomic_object.h>
+
 #include <library/cpp/iterator/functools.h>
 
 namespace NYT::NQueueAgent {

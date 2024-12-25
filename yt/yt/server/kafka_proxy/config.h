@@ -2,13 +2,15 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/cypress_registrar/public.h> // TODO
+#include <yt/yt/server/lib/cypress_registrar/public.h>
 
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/library/dynamic_config/public.h>
 
 #include <yt/yt/library/server_program/config.h>
+
+#include <yt/yt/library/auth_server/public.h>
 
 namespace NYT::NKafkaProxy {
 
@@ -62,7 +64,7 @@ DEFINE_REFCOUNTED_TYPE(TKafkaProxyConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TKafkaProxyDynamicConfig
-    : public TNativeSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     int PollerThreadCount;

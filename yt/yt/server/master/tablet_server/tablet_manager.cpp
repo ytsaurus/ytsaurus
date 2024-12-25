@@ -1961,7 +1961,7 @@ public:
             account);
     }
 
-    void ValidateBeginCopyTabletOwner(
+    void ValidateSerializeTabletOwner(
         TTabletOwnerBase* sourceNode,
         ENodeCloneMode mode)
     {
@@ -1974,13 +1974,13 @@ public:
         }
 
         if (IsTableType(sourceNode->GetType())) {
-            ValidateBeginCopyTable(sourceNode->As<TTableNode>(), mode);
+            ValidateSerializeTable(sourceNode->As<TTableNode>(), mode);
         } else {
             YT_ABORT();
         }
     }
 
-    void ValidateBeginCopyTable(
+    void ValidateSerializeTable(
         TTableNode* sourceTable,
         ENodeCloneMode mode)
     {
@@ -7448,7 +7448,7 @@ private:
                     break;
 
                 case ENodeCloneMode::Move:
-                    if (trunkNode->IsPhysicallyLog()) {
+                    if (trunkNode->IsReplicated()) {
                         THROW_ERROR_EXCEPTION("Cannot move a table of type %Qlv",
                             trunkNode->GetType());
                     }
@@ -7750,11 +7750,11 @@ void TTabletManager::ValidateCloneTabletOwner(
         account);
 }
 
-void TTabletManager::ValidateBeginCopyTabletOwner(
+void TTabletManager::ValidateSerializeTabletOwner(
     TTabletOwnerBase* sourceNode,
     ENodeCloneMode mode)
 {
-    return Impl_->ValidateBeginCopyTabletOwner(
+    return Impl_->ValidateSerializeTabletOwner(
         sourceNode,
         mode);
 }

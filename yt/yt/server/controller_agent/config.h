@@ -792,7 +792,7 @@ DEFINE_REFCOUNTED_TYPE(TDisallowRemoteOperationsConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TControllerAgentConfig
-    : public TNativeSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     //! Number of chunk lists to be allocated when an operation starts.
@@ -1283,6 +1283,8 @@ public:
     NYTree::IMapNodePtr CypressAnnotations;
 
     bool AbortOnUnrecognizedOptions;
+
+    THeapProfilerConfigPtr HeapProfiler;
 
     REGISTER_YSON_STRUCT(TControllerAgentBootstrapConfig);
 

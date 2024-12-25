@@ -114,6 +114,9 @@ void TProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_shuffle_service", &TThis::EnableShuffleService)
         .Default(false);
 
+    registrar.Parameter("heap_profiler", &TThis::HeapProfiler)
+        .DefaultNew();
+
     registrar.Preprocessor([] (TThis* config) {
         config->DynamicConfigManager->IgnoreConfigAbsence = true;
     });

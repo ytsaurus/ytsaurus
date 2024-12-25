@@ -313,9 +313,28 @@ Publishes as docker images.
 
 Publishes as docker images.
 
-**Current release:** 2.4.2 (`ghcr.io/ytsaurus/spyt:2.4.2`)
+**Current release:** 2.5.0 (`ghcr.io/ytsaurus/spyt:2.5.0`)
 
 **All releases:**
+
+{% cut "**2.5.0**" %}
+
+Major release that enables support for Spark 3.4.x and 3.5.x. 
+
+- Compile-time Spark version is changed from 3.2.2 to 3.5.4;
+- SPYT compile-time Spark version will be the latest available supported version since this release;
+- Backward compatibility is still preserved down to Spark 3.2.2;
+- Unit tests can be run over different Spark version than used at compile time via `-DtestSparkVersion=3.x.x` sbt flag
+
+{% endcut %}
+
+{% cut "**2.4.4**" %}
+
+Maintenance release with bug fixes:
+
+- Providing network project for Livy via command line argument
+
+{% endcut %}
 
 {% cut "**2.4.3**" %}
 

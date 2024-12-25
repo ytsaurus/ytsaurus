@@ -1,5 +1,6 @@
 #include "tablet_manager.h"
 
+#include "alien_cluster_client_cache.h"
 #include "private.h"
 #include "automaton.h"
 #include "bootstrap.h"
@@ -107,7 +108,6 @@
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/misc/ring_queue.h>
-#include <yt/yt/core/misc/string_helpers.h>
 
 #include <yt/yt/core/rpc/authentication_identity.h>
 #include <yt/yt/core/rpc/dispatcher.h>
@@ -115,6 +115,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
+
+#include <library/cpp/yt/string/string.h>
 
 #include <library/cpp/iterator/zip.h>
 
@@ -4197,6 +4199,7 @@ private:
             Config_,
             tablet,
             Bootstrap_->GetClient()->GetNativeConnection(),
+            Bootstrap_->GetReplicatorClientCache(),
             Slot_,
             Bootstrap_->GetTabletSnapshotStore(),
             CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),

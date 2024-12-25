@@ -412,8 +412,6 @@ private:
     THashMap<TCellId, TInstant> SuspendedCoordinators_;
     bool Suspended_ = false;
 
-    bool NeedRecomputeReplicationCardState_ = false;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -444,10 +442,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         ReplicationCardMap_.LoadKeys(context);
-        // COMPAT(savrus)
-        if (context.GetVersion() >= EChaosReign::ReplicationCardCollocation) {
-            CollocationMap_.LoadKeys(context);
-        }
+        CollocationMap_.LoadKeys(context);
     }
 
     void LoadValues(TLoadContext& context)
@@ -457,45 +452,12 @@ private:
         using NYT::Load;
 
         ReplicationCardMap_.LoadValues(context);
-        // COMPAT(savrus)
-        if (context.GetVersion() >= EChaosReign::ReplicationCardCollocation) {
-            CollocationMap_.LoadValues(context);
-        }
+        CollocationMap_.LoadValues(context);
+
         Load(context, CoordinatorCellIds_);
         Load(context, SuspendedCoordinators_);
-        // COMPAT(savrus)
-        if (context.GetVersion() >= EChaosReign::ChaosCellSuspension) {
-            Load(context, Suspended_);
-        }
-        // COMPAT(ponasenko-rs)
-        if (context.GetVersion() >= EChaosReign::RemoveMigratedCards) {
-            MigratedReplicationCardRemover_->Load(context);
-        }
-
-        NeedRecomputeReplicationCardState_ = context.GetVersion() < EChaosReign::Migration;
-    }
-
-    void OnAfterSnapshotLoaded() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TChaosAutomatonPart::OnAfterSnapshotLoaded();
-
-        if (NeedRecomputeReplicationCardState_) {
-            for (auto& [_, replicationCard] : ReplicationCardMap_) {
-                bool alterInProgress = false;
-                for (const auto& [_, replica] : replicationCard->Replicas()) {
-                    if (!IsStableReplicaState(replica.State) || !IsStableReplicaMode(replica.Mode)) {
-                        alterInProgress = true;
-                        break;
-                    }
-                }
-
-                replicationCard->SetState(alterInProgress
-                    ? EReplicationCardState::RevokingShortcutsForAlter
-                    : EReplicationCardState::Normal);
-            }
-        }
+        Load(context, Suspended_);
+        MigratedReplicationCardRemover_->Load(context);
     }
 
     void Clear() override
@@ -508,7 +470,6 @@ private:
         CollocationMap_.Clear();
         CoordinatorCellIds_.clear();
         SuspendedCoordinators_.clear();
-        NeedRecomputeReplicationCardState_ = false;
         MigratedReplicationCardRemover_->Clear();
     }
 
@@ -618,7 +579,7 @@ private:
             replicationCardId,
             *replicationCard);
 
-        BindReplicationCardToRTT(replicationCard);
+        BindReplicationCardToRtt(replicationCard);
 
         auto clientReplicationCard = replicationCard->ConvertToClientCard(MinimalFetchOptions);
         ReplicationCardWatcher_->RegisterReplicationCard(replicationCardId, clientReplicationCard, timestamp);
@@ -895,7 +856,7 @@ private:
         UpdateReplicationCardCollocation(
             replicationCard,
             /*collocation*/ nullptr);
-        UnbindReplicationCardFromRTT(replicationCard);
+        UnbindReplicationCardFromRtt(replicationCard);
         ReplicationCardMap_.Remove(replicationCardId);
         MigratedReplicationCardRemover_->ConfirmRemoval(replicationCardId);
 
@@ -1160,26 +1121,6 @@ private:
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
         auto* replicaInfo = replicationCard->GetReplicaOrThrow(replicaId);
 
-        // COMPAT(savrus)
-        if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(EChaosReign::AllowAlterInCataclysm)) {
-            if (!IsStableReplicaMode(replicaInfo->Mode)) {
-                THROW_ERROR_EXCEPTION("Replica mode is transitioning")
-                    << TErrorAttribute("replication_card_id", replicationCardId)
-                    << TErrorAttribute("replica_id", replicaId)
-                    << TErrorAttribute("mode", replicaInfo->Mode);
-            }
-        }
-
-        // COMPAT(savrus)
-        if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(EChaosReign::AllowAlterInCataclysm)) {
-            if (!IsStableReplicaState(replicaInfo->State)) {
-                THROW_ERROR_EXCEPTION("Replica state is transitioning")
-                    << TErrorAttribute("replication_card_id", replicationCardId)
-                    << TErrorAttribute("replica_id", replicaId)
-                    << TErrorAttribute("state", replicaInfo->State);
-            }
-        }
-
         if (replicationCard->GetState() == EReplicationCardState::RevokingShortcutsForMigration) {
             THROW_ERROR_EXCEPTION("Replication card is migrating")
                 << TErrorAttribute("replication_card_id", replicationCardId)
@@ -1190,33 +1131,17 @@ private:
         bool revoke = false;
 
         if (mode && replicaInfo->Mode != *mode) {
-            // COMPAT(savrus)
-            if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(EChaosReign::AllowAlterInCataclysm)) {
-                switch (*mode) {
-                    case ETableReplicaMode::Sync:
-                        replicaInfo->Mode = ETableReplicaMode::AsyncToSync;
-                        break;
+            switch (*mode) {
+                case ETableReplicaMode::Sync:
+                    replicaInfo->Mode = ETableReplicaMode::AsyncToSync;
+                    break;
 
-                    case ETableReplicaMode::Async:
-                        replicaInfo->Mode = ETableReplicaMode::SyncToAsync;
-                        break;
+                case ETableReplicaMode::Async:
+                    replicaInfo->Mode = ETableReplicaMode::SyncToAsync;
+                    break;
 
-                    default:
-                        YT_ABORT();
-                }
-            } else {
-                switch (replicaInfo->Mode) {
-                    case ETableReplicaMode::Sync:
-                        replicaInfo->Mode = ETableReplicaMode::SyncToAsync;
-                        break;
-
-                    case ETableReplicaMode::Async:
-                        replicaInfo->Mode = ETableReplicaMode::AsyncToSync;
-                        break;
-
-                    default:
-                        YT_ABORT();
-                }
+                default:
+                    YT_ABORT();
             }
 
             revoke = true;
@@ -1225,25 +1150,9 @@ private:
 
         bool currentlyEnabled = replicaInfo->State == ETableReplicaState::Enabled;
         if (enabled && *enabled != currentlyEnabled) {
-            // COMPAT(savrus)
-            if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(EChaosReign::AllowAlterInCataclysm)) {
-                replicaInfo->State = *enabled
-                    ? ETableReplicaState::Enabling
-                    : ETableReplicaState::Disabling;
-            } else {
-                switch (replicaInfo->State) {
-                    case ETableReplicaState::Disabled:
-                        replicaInfo->State = ETableReplicaState::Enabling;
-                        break;
-
-                    case ETableReplicaState::Enabled:
-                        replicaInfo->State = ETableReplicaState::Disabling;
-                        break;
-
-                    default:
-                        YT_ABORT();
-                }
-            }
+            replicaInfo->State = *enabled
+                ? ETableReplicaState::Enabling
+                : ETableReplicaState::Disabling;
 
             revoke = true;
             FireTableReplicaCreatedOrUpdated(replicationCardId, replicaId, *replicaInfo);
@@ -1434,12 +1343,9 @@ private:
         std::vector<TCellId> suspendedCoordinators;
 
         for (auto cellId : coordinatorCellIds) {
-            // COMPAT(savrus)
-            if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(EChaosReign::RevokeFromSuspended)) {
-                if (IsCoordinatorSuspended(cellId)) {
-                    suspendedCoordinators.push_back(cellId);
-                    continue;
-                }
+            if (IsCoordinatorSuspended(cellId)) {
+                suspendedCoordinators.push_back(cellId);
+                continue;
             }
 
             // TODO(savrus) This could happen in case if coordinator cell id has been removed from CoordinatorCellIds_ and then added.
@@ -1546,7 +1452,7 @@ private:
             auto replicationCard = GetReplicationCardOrThrow(replicationCardId);
             replicationCard->Migration().ImmigratedToCellId = migrateToCellId;
             UpdateReplicationCardState(replicationCard, EReplicationCardState::RevokingShortcutsForMigration);
-            UnbindReplicationCardFromRTT(replicationCard);
+            UnbindReplicationCardFromRtt(replicationCard);
         }
     }
 
@@ -1650,7 +1556,7 @@ private:
                 /*migration*/ true);
 
             if (!collocation) {
-                BindReplicationCardToRTT(replicationCard);
+                BindReplicationCardToRtt(replicationCard);
             }
 
             HandleReplicationCardStateTransition(replicationCard);
@@ -1761,13 +1667,7 @@ private:
         auto mailbox = hiveManager->GetOrCreateCellMailbox(immigratedToCellId);
         hiveManager->PostMessage(mailbox, req);
 
-        // COMPAT(ponasenko-rs)
-        if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(EChaosReign::ConfirmMigrations)) {
-            replicationCard->SetState(EReplicationCardState::Migrated);
-        } else {
-            replicationCard->SetState(EReplicationCardState::AwaitingMigrationConfirmation);
-        }
-
+        replicationCard->SetState(EReplicationCardState::AwaitingMigrationConfirmation);
         replicationCard->Migration().ImmigrationTime = GetCurrentMutationContext()->GetTimestamp();
         replicationCard->SetMigrationToken(migrationToken);
 
@@ -2123,11 +2023,6 @@ private:
         auto coordinatorCellId = FromProto<TCellId>(request->coordinator_cell_id());
         SuspendCoordinator(coordinatorCellId);
 
-        // COMPAT(savrus)
-        if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(EChaosReign::RevokeFromSuspended)) {
-            return;
-        }
-
         NChaosNode::NProto::TReqRevokeShortcuts req;
         ToProto(req.mutable_chaos_cell_id(), Slot_->GetCellId());
 
@@ -2156,11 +2051,6 @@ private:
     {
         auto coordinatorCellId = FromProto<TCellId>(request->coordinator_cell_id());
         ResumeCoordinator(coordinatorCellId);
-
-        // COMPAT(savrus)
-        if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(EChaosReign::RevokeFromSuspended)) {
-            return;
-        }
 
         NChaosNode::NProto::TReqGrantShortcuts req;
         ToProto(req.mutable_chaos_cell_id(), Slot_->GetCellId());
@@ -2399,14 +2289,16 @@ private:
                 replicationCard->GetCollocation()->GetId(),
                 collocation->GetId());
 
-            YT_LOG_ALERT_IF(collocation && collocation->GetState() != EReplicationCardCollocationState::Immigrating,
+            YT_LOG_ALERT_IF(
+                collocation && collocation->GetState() != EReplicationCardCollocationState::Immigrating,
                 "Unexpected replication card collocation state during migration "
                 "(ReplicationCardId: %v, NewCollocationId: %v, NewCollocationState: %v)",
                 replicationCard->GetId(),
                 collocation->GetId(),
                 collocation->GetState());
 
-            YT_LOG_ALERT_IF(oldCollocation && oldCollocation->GetState() != EReplicationCardCollocationState::Emigrating,
+            YT_LOG_ALERT_IF(
+                oldCollocation && oldCollocation->GetState() != EReplicationCardCollocationState::Emigrating,
                 "Unexpected replication card collocation state during migration "
                 "(ReplicationCardId: %v, OldCollocationId: %v, OldCollocationState: %v)",
                 replicationCard->GetId(),
@@ -2414,7 +2306,8 @@ private:
                 oldCollocation->GetState());
         }
 
-        YT_LOG_DEBUG("Updating replication card collocation (ReplicationCardId: %v, OldCollocationId: %v, NewCollocationId: %v)",
+        YT_LOG_DEBUG("Updating replication card collocation "
+            "(ReplicationCardId: %v, OldCollocationId: %v, NewCollocationId: %v)",
             replicationCard->GetId(),
             oldCollocation ? oldCollocation->GetId() : TGuid(),
             collocation ? collocation->GetId() : TGuid());
@@ -2443,7 +2336,7 @@ private:
                 FireReplicationCardCollocationUpdated(collocation);
             } else if (std::ssize(collocation->ReplicationCards()) == collocation->GetSize()) {
                 collocation->SetState(EReplicationCardCollocationState::Normal);
-                BindReplicationCardCollocationToRTT(collocation);
+                BindReplicationCardCollocationToRtt(collocation);
             }
 
             YT_LOG_DEBUG("Updated replication card collocation (Migration: %v, ReplicationCardId: %v,"
@@ -2507,16 +2400,16 @@ private:
         });
     }
 
-    void BindReplicationCardCollocationToRTT(TReplicationCardCollocation* collocation)
+    void BindReplicationCardCollocationToRtt(TReplicationCardCollocation* collocation)
     {
         for (auto* replicationCard : collocation->ReplicationCards()) {
-            BindReplicationCardToRTT(replicationCard);
+            BindReplicationCardToRtt(replicationCard);
         }
 
         FireReplicationCardCollocationUpdated(collocation);
     }
 
-    void BindReplicationCardToRTT(TReplicationCard* replicationCard)
+    void BindReplicationCardToRtt(TReplicationCard* replicationCard)
     {
         ReplicatedTableCreated_.Fire(TReplicatedTableData{
             .Id = replicationCard->GetId(),
@@ -2528,7 +2421,7 @@ private:
         }
     }
 
-    void UnbindReplicationCardFromRTT(TReplicationCard* replicationCard)
+    void UnbindReplicationCardFromRtt(TReplicationCard* replicationCard)
     {
         for (const auto& [replicaId, _] : replicationCard->Replicas()) {
             ReplicaDestroyed_.Fire(replicaId);

@@ -6,6 +6,8 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
+#include <yt/yt/library/program/helpers.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////

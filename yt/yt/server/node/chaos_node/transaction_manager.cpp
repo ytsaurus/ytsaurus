@@ -292,8 +292,6 @@ private:
     TEntityMap<TTransaction> TransactionMap_;
     TTransactionIdPool AbortTransactionIdPool_;
 
-    bool NeedClearCommittedTransactions_ = false;
-
     IYPathServicePtr OrchidService_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -366,26 +364,6 @@ private:
                         id);
                 }
             }));
-    }
-
-
-    void OnAfterSnapshotLoaded() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TChaosAutomatonPart::OnAfterSnapshotLoaded();
-
-        if (NeedClearCommittedTransactions_) {
-            std::vector<TTransactionId> transactionIds;
-            for (const auto& [transactionId, transaction] : TransactionMap_) {
-                if (transaction->GetPersistentState() == ETransactionState::Committed) {
-                    transactionIds.push_back(transactionId);
-                }
-            }
-            for (auto transactionId : transactionIds) {
-                TransactionMap_.Remove(transactionId);
-            }
-        }
     }
 
     void OnLeaderActive() override
@@ -462,8 +440,6 @@ private:
         using NYT::Load;
         TransactionMap_.LoadValues(context);
 
-        NeedClearCommittedTransactions_ = context.GetVersion() < EChaosReign::RemoveCommitted;
-
         Automaton_->RememberReign(static_cast<TReign>(context.GetVersion()));
     }
 
@@ -475,7 +451,6 @@ private:
         TChaosAutomatonPart::Clear();
 
         TransactionMap_.Clear();
-        NeedClearCommittedTransactions_ = false;
     }
 
 

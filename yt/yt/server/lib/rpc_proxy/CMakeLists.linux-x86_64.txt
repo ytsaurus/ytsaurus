@@ -32,6 +32,7 @@ target_link_libraries(server-lib-rpc_proxy PUBLIC
   yt-client-arrow
   server-lib-misc
   yt-library-error_skeleton
+  library-tracing-jaeger
   server-lib-transaction_server
   yt-yt-core
 )

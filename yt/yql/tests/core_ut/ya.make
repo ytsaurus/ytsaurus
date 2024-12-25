@@ -1,5 +1,3 @@
-IF (NOT OPENSOURCE)
-
 UNITTEST()
 
 SRCS(
@@ -25,7 +23,7 @@ PEERDIR(
     yql/essentials/public/udf
     yql/essentials/public/udf/service/exception_policy
     yql/essentials/core/type_ann
-    yql/essentials/core/ut_common
+    yt/yql/providers/yt/lib/ut_common
     yql/essentials/providers/common/provider
     yql/essentials/providers/common/schema/parser
     yql/essentials/providers/result/provider
@@ -56,4 +54,3 @@ YQL_LAST_ABI_VERSION()
 
 END()
 
-ENDIF()

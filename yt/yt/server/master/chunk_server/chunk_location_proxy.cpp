@@ -2,6 +2,7 @@
 
 #include "chunk_location.h"
 #include "chunk_manager.h"
+#include "data_node_tracker.h"
 #include "domestic_medium.h"
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
@@ -107,6 +108,11 @@ private:
             case EInternedAttributeKey::Uuid:
                 BuildYsonFluently(consumer)
                     .Value(location->GetUuid());
+                return true;
+
+            case EInternedAttributeKey::LastSeenTime:
+                BuildYsonFluently(consumer)
+                    .Value(Bootstrap_->GetDataNodeTracker()->GetChunkLocationLastSeenTime(*location));
                 return true;
 
             default:

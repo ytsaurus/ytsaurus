@@ -227,9 +227,9 @@ protected:
         TBase::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
     }
 
-    void DoBeginCopy(
+    void DoSerializeNode(
         TJournalNode* node,
-        TBeginCopyContext* context) override
+        TSerializeNodeContext* context) override
     {
         if (!node->GetSealed()) {
             THROW_ERROR_EXCEPTION("Journal is not sealed");
@@ -239,18 +239,18 @@ protected:
         Save(*context, node->GetReadQuorum());
         Save(*context, node->GetWriteQuorum());
 
-        TBase::DoBeginCopy(node, context);
+        TBase::DoSerializeNode(node, context);
     }
 
-    void DoEndCopy(
+    void DoMaterializeNode(
         TJournalNode* node,
-        TEndCopyContext* context) override
+        TMaterializeNodeContext* context) override
     {
         using NYT::Load;
         node->SetReadQuorum(Load<int>(*context));
         node->SetWriteQuorum(Load<int>(*context));
 
-        TBase::DoEndCopy(node, context);
+        TBase::DoMaterializeNode(node, context);
     }
 
     void HandleTransactionFinished(TJournalNode* branchedNode)

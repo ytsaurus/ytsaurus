@@ -34,7 +34,7 @@ bool isInjectiveFunction(const ActionsDAG::Node * node)
         if (child->type == ActionsDAG::ActionType::COLUMN)
             ++fixed_args;
     static const std::vector<String> injective = {"plus", "minus", "negate", "tuple"};
-    return (fixed_args + 1 >= node->children.size()) && (std::find(injective.begin(), injective.end(), node->function_base->getName()) != injective.end());
+    return (fixed_args + 1 >= node->children.size()) && (std::ranges::find(injective, node->function_base->getName()) != injective.end());
 }
 
 void removeInjectiveFunctionsFromResultsRecursively(const ActionsDAG::Node * node, NodeSet & irreducible, NodeSet & visited)
@@ -163,7 +163,7 @@ bool isPartitionKeySuitsGroupByKey(
 
     /// Check that PK columns is a subset of GBK columns.
     for (const auto & col : partition_actions.getRequiredColumnsNames())
-        if (std::find(gb_key_required_columns.begin(), gb_key_required_columns.end(), col) == gb_key_required_columns.end())
+        if (std::ranges::find(gb_key_required_columns, col) == gb_key_required_columns.end())
             return false;
 
     const auto irreducibe_nodes = removeInjectiveFunctionsFromResultsRecursively(group_by_actions);

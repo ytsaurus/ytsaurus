@@ -18,14 +18,13 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/ytlib/program/native_singletons.h>
-
 #include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
+#include <yt/yt/library/program/helpers.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
 
@@ -239,7 +238,7 @@ private:
         const TTcpProxyDynamicConfigPtr& /*oldConfig*/,
         const TTcpProxyDynamicConfigPtr& newConfig)
     {
-        ReconfigureNativeSingletons(newConfig);
+        ReconfigureSingletons(newConfig);
 
         Poller_->SetThreadCount(newConfig->PollerThreadCount);
         Acceptor_->SetThreadCount(newConfig->AcceptorThreadCount);

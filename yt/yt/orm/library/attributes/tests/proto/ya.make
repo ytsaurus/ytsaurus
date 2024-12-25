@@ -2,6 +2,7 @@ PROTO_LIBRARY()
 
 SRCS(
     scalar_attribute.proto
+    wire_string.proto
 )
 
 PEERDIR(

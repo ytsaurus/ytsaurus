@@ -8,11 +8,12 @@
 #include <yt/yt/server/tools/proc.h>
 #include <yt/yt/server/tools/tools.h>
 
-#include <library/cpp/yt/threading/traceless_guard.h>
-
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/statistics.h>
-#include <yt/yt/core/misc/string_helpers.h>
+
+#include <library/cpp/yt/string/string.h>
+
+#include <library/cpp/yt/threading/traceless_guard.h>
 
 #include <util/stream/file.h>
 

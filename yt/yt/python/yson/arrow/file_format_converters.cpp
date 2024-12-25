@@ -43,16 +43,22 @@ int GetFileNameWidth(int fileCount)
     return std::max(MinFileNameWidth, static_cast<int>(log10(static_cast<double>(fileCount))) + 1);
 }
 
-TString GenerateFileName(int index, int fileNameWidth)
+TString GenerateFileName(int index, int fileNameWidth, EFileFormat format)
 {
     auto stringIndex = ToString(index);
     TString zeroPrefix(fileNameWidth - stringIndex.size(), '0');
-    return Format("%v%v.par", zeroPrefix, stringIndex);
+
+    switch (format) {
+        case EFileFormat::Parquet:
+            return Format("%v%v.parquet", zeroPrefix, stringIndex);
+        case EFileFormat::ORC:
+            return Format("%v%v.orc", zeroPrefix, stringIndex);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TAsyncDumpParquetInputArguments
+struct TAsyncDumpFileInputArguments
 {
     TString OutputPath;
     bool IsDirectory;
@@ -68,10 +74,10 @@ struct TWorkerBlock
     TSharedMutableRef Block;
 };
 
-TString GetFileName(const TAsyncDumpParquetInputArguments& inputArquments, int fileIndex, int totalFileCount)
+TString GetFileName(const TAsyncDumpFileInputArguments& inputArquments, int fileIndex, int totalFileCount, EFileFormat format)
 {
     if (inputArquments.IsDirectory) {
-        return inputArquments.OutputPath + "/" + GenerateFileName(fileIndex, GetFileNameWidth(totalFileCount));
+        return inputArquments.OutputPath + "/" + GenerateFileName(fileIndex, GetFileNameWidth(totalFileCount), format);
     } else {
         return inputArquments.OutputPath;
     }
@@ -100,7 +106,7 @@ std::optional<TWorkerBlock> GetNextWorkerBlock(
     };
 }
 
-TAsyncDumpParquetInputArguments ExtractAsyncDumpParquetArguments(Py::Tuple& args, Py::Dict& kwargs)
+TAsyncDumpFileInputArguments ExtractAsyncDumpFileArguments(Py::Tuple& args, Py::Dict& kwargs)
 {
     auto outputPath = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "output_path"));
     auto isDirectory = Py::ConvertToBoolean(ExtractArgument(args, kwargs, "is_directory"));
@@ -111,7 +117,7 @@ TAsyncDumpParquetInputArguments ExtractAsyncDumpParquetArguments(Py::Tuple& args
     auto stream = CreateInputStreamWrapper(streamArg);
 
     ValidateArgumentsEmpty(args, kwargs);
-    return TAsyncDumpParquetInputArguments{
+    return TAsyncDumpFileInputArguments{
         .OutputPath = std::move(outputPath),
         .IsDirectory = isDirectory,
         .ThreadCount =  static_cast<int>(threadCount),
@@ -527,14 +533,8 @@ void DoDumpFile(
     arrowStatusCallback(formatWriter->Close());
 }
 
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-Py::Object AsyncDumpParquet(Py::Tuple& args, Py::Dict& kwargs)
+Py::Object DoAsyncDumpFile(TAsyncDumpFileInputArguments&& inputArquments, EFileFormat format)
 {
-    auto inputArquments = ExtractAsyncDumpParquetArguments(args, kwargs);
-
     auto threadPool = CreateThreadPool(inputArquments.ThreadCount, "ParquetDumperPool");
 
     std::vector<TFuture<void>> asyncResults;
@@ -563,14 +563,14 @@ Py::Object AsyncDumpParquet(Py::Tuple& args, Py::Dict& kwargs)
 
     // Сreate handlers that turn blocks into parquet format and write the result to a file.
     for (int fileIndex = 0; fileIndex < inputArquments.ThreadCount; ++fileIndex) {
-        auto fileName = GetFileName(inputArquments, fileIndex, inputArquments.ThreadCount);
+        auto fileName = GetFileName(inputArquments, fileIndex, inputArquments.ThreadCount, format);
 
-        asyncResults.push_back(BIND([pipe = pipes[fileIndex], fileName = std::move(fileName), onArrowStatusCallback] {
+        asyncResults.push_back(BIND([pipe = pipes[fileIndex], fileName = std::move(fileName), format, onArrowStatusCallback] {
             pipe->Start();
             DoDumpFile(
                 pipe,
                 fileName,
-                EFileFormat::Parquet,
+                format,
                 onArrowStatusCallback);
         })
             .AsyncVia(threadPool->GetInvoker())
@@ -609,6 +609,15 @@ Py::Object AsyncDumpParquet(Py::Tuple& args, Py::Dict& kwargs)
     return Py::None();
 }
 
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+Py::Object AsyncDumpParquet(Py::Tuple& args, Py::Dict& kwargs)
+{
+    return DoAsyncDumpFile(ExtractAsyncDumpFileArguments(args, kwargs), EFileFormat::Parquet);
+}
+
 Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs)
 {
     auto outputFilePath = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "output_file"));
@@ -629,6 +638,11 @@ Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+Py::Object AsyncDumpOrc(Py::Tuple& args, Py::Dict& kwargs)
+{
+    return DoAsyncDumpFile(ExtractAsyncDumpFileArguments(args, kwargs), EFileFormat::ORC);
+}
 
 Py::Object DumpORC(Py::Tuple& args, Py::Dict& kwargs)
 {

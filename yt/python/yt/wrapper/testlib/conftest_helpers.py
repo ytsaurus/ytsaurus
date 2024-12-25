@@ -10,6 +10,8 @@ from yt.packages import requests
 from yt.wrapper.common import GB
 from yt.wrapper.constants import UI_ADDRESS_PATTERN
 
+from yt.environment.components.query_tracker import QueryTracker
+
 import yt.wrapper as yt
 
 try:
@@ -178,7 +180,7 @@ def test_environment_with_authentication(request):
     return environment
 
 
-@pytest.fixture(scope="class", params=["v3", "v4", "native_v4", "rpc"])
+@pytest.fixture(scope="class", params=["v4"])
 def test_environment_chaos(request):
     environment = init_environment_for_test_session(
         request,
@@ -276,11 +278,11 @@ def test_environment_job_archive_porto(request):
     return environment
 
 
-@pytest.fixture(scope="class", params=["v3", "v4", "native_v4", "rpc"])
+@pytest.fixture(scope="class")
 def test_environment_with_porto(request):
     environment = init_environment_for_test_session(
         request,
-        request.param,
+        mode="v4",
         env_options={"use_porto_for_servers": True},
         delta_node_config={
             "exec_node": {
@@ -462,6 +464,27 @@ def yt_env_with_increased_memory(request, test_environment_with_increased_memory
     test_function_setup()
     register_test_function_finalizer(request)
     return test_environment_with_increased_memory
+
+
+@pytest.fixture(scope="class")
+def yt_query_tracker(test_environment):
+    """ YT cluster fixture for tests that require query tracker
+    """
+    if test_environment.config["api_version"] == "v3":
+        pytest.skip("Query tracker is not supported in v3")
+    env = test_environment.env
+    cell_id = yt.create("tablet_cell")
+    wait(lambda: yt.get("//sys/tablet_cells/{0}/@health".format(cell_id)) == "good")
+    query_tracker = QueryTracker()
+    config = query_tracker.get_default_config()
+    config["count"] = 1
+    # Simon says "Prepare!", Simon says "Init!", Simon says "Run! Wait!"...
+    query_tracker.prepare(env, config)
+    query_tracker.init()
+    query_tracker.run()
+    query_tracker.wait()
+
+    return query_tracker
 
 
 @pytest.fixture(scope="function")

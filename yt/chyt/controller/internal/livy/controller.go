@@ -48,7 +48,7 @@ func getDiscoveryServerAddresses(ctx context.Context, ytc yt.Client) (discoveryA
 }
 
 func (c *Controller) buildCommand(ctx context.Context, speclet *Speclet, alias string, sparkDistribName string,
-	globalConf *SparkGlobalConf, conf *SparkLaunchConf) (command string, env map[string]string, err error) {
+	globalConf *SparkGlobalConf, conf *SparkLaunchConf, networkProject *string) (command string, env map[string]string, err error) {
 
 	ipV6Enabled, found := conf.SparkConf["spark.hadoop.yt.preferenceIpv6.enabled"]
 	if !found {
@@ -68,6 +68,9 @@ func (c *Controller) buildCommand(ctx context.Context, speclet *Speclet, alias s
 	}
 	if speclet.SparkMasterAddress != nil {
 		livyOpts = append(livyOpts, fmt.Sprintf("--master-address %v", *speclet.SparkMasterAddress))
+	}
+	if networkProject != nil {
+		livyOpts = append(livyOpts, fmt.Sprintf("--network-project %v", *networkProject))
 	}
 	envCommand := fmt.Sprintf("./setup-spyt-env.sh --spark-home . --enable-livy --spark-distributive %v", sparkDistribName)
 	launcherCommand := "$JAVA_HOME/bin/java " + strings.Join(javaOpts[:], " ") +
@@ -178,7 +181,8 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 		return
 	}
 
-	command, env, err := c.buildCommand(ctx, &speclet, alias, sparkDistribName, &globalConf, &versionConf)
+	command, env, err := c.buildCommand(ctx, &speclet, alias, sparkDistribName, &globalConf, &versionConf,
+		oplet.StrawberrySpeclet().NetworkProject)
 	if err != nil {
 		return
 	}

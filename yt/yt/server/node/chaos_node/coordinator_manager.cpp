@@ -535,17 +535,8 @@ private:
     std::vector<TCellId> GetMetadataCellIds()
     {
         std::vector<TCellId> cells;
-
-        // COMPAT(savrus)
-        if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(EChaosReign::RevokeFromSuspended)) {
-            for (const auto& shortcut : Shortcuts_) {
-                cells.push_back(shortcut.second.CellId);
-            }
-        } else {
-            const auto& chaosManager = Slot_->GetChaosManager();
-            cells = chaosManager->CoordinatorCellIds();
-        }
-
+        const auto& chaosManager = Slot_->GetChaosManager();
+        cells = chaosManager->CoordinatorCellIds();
         SortUnique(cells);
         return cells;
     }

@@ -1613,9 +1613,6 @@ class TestMasterIntegration(TestQueueAgentBase):
 
     @authors("apachee")
     def test_producer_attributes(self):
-        if self._should_skip_queue_producer_attributes_tests():
-            return
-
         create("queue_producer", "//tmp/p")
 
         # TODO(apachee): Remove the following code after update to create queue_producer.
@@ -1718,9 +1715,6 @@ class TestMasterIntegration(TestQueueAgentBase):
 
     @authors("apachee")
     def test_revision_changes_on_producer_attribute_change(self):
-        if self._should_skip_queue_producer_attributes_tests():
-            return
-
         create("queue_producer", "//tmp/p")
 
         # TODO(apachee): Remove the following code after update to create queue_producer.
@@ -2650,9 +2644,6 @@ class TestMultiClusterReplicatedTableObjects(TestMultiClusterReplicatedTableObje
 
     @authors("apachee")
     def test_chaos_producer_attributes(self):
-        if self._should_skip_queue_producer_attributes_tests():
-            return
-
         cell_id = self._sync_create_chaos_bundle_and_cell()
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
 

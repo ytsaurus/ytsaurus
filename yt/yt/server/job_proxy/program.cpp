@@ -11,8 +11,6 @@
 #include <yt/yt/library/program/program_setsid_mixin.h>
 #include <yt/yt/library/program/helpers.h>
 
-#include <yt/yt/ytlib/program/native_singletons.h>
-
 #include <yt/yt/server/lib/job_proxy/config.h>
 
 #include <yt/yt/core/misc/fs.h>
@@ -104,7 +102,7 @@ protected:
 
         auto config = GetConfig();
 
-        ConfigureNativeSingletons(config);
+        ConfigureSingletons(config);
 
         auto jobProxy = New<TJobProxy>(std::move(config), OperationId_, JobId_);
         jobProxy->Run();

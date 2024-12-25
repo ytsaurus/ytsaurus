@@ -1231,6 +1231,7 @@ type InsertRowsOptions struct {
 	Atomicity          *Atomicity `http:"atomicity,omitnil"`
 	RequireSyncReplica *bool      `http:"require_sync_replica,omitnil"`
 	Update             *bool      `http:"update,omitnil"`
+	Aggregate          *bool      `http:"aggregate,omitnil"`
 
 	*TransactionOptions
 }

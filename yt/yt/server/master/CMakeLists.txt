@@ -49,6 +49,7 @@ target_link_libraries(yt-server-master PUBLIC
   library-cpp-getopt
   cpp-yt-phdr_cache
   yt-library-server_program
+  yt-library-monitoring
   yt-ytlib-distributed_throttler
   ytserver
   server-lib-cell_server
@@ -460,6 +461,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunk_merger.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunk_reincarnator.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/data_node_tracker.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/master_cell_chunk_statistics_collector.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cypress_server/proto/cypress_manager.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cypress_server/proto/grafting_manager.pb.h
@@ -483,6 +485,7 @@ target_proto_messages(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/chunk_manager.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/chunk_merger.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/chunk_reincarnator.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/data_node_tracker.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/master_cell_chunk_statistics_collector.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/proto/cypress_manager.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/proto/grafting_manager.proto

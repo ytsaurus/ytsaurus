@@ -1121,7 +1121,7 @@ private:
         TMutableRange<TTableReplicaInfoPtrList> replicaCandidates,
         TRange<NTabletClient::TTableMountInfoPtr> tableInfos,
         TSelectRowsOptionsBase* options,
-        std::function<void(TError*, const TString&, const TString&, const TSelectRowsOptionsBase*)> callback);
+        std::function<TError(const TString&, const TString&, const TSelectRowsOptionsBase&)> callback);
 
     TSelectRowsResult DoSelectRowsOnce(
         const TString& queryString,

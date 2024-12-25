@@ -18,6 +18,7 @@
 #include <yt/yt/server/master/chunk_server/helpers.h>
 #include <yt/yt/server/master/chunk_server/chunk_replica_fetcher.h>
 #include <yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h>
+#include <yt/yt/server/master/chunk_server/proto/data_node_tracker.pb.h>
 
 #include <yt/yt/server/master/sequoia_server/config.h>
 
@@ -39,6 +40,8 @@
 #include <yt/yt/core/ytree/helpers.h>
 
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
+
+#include <ranges>
 
 namespace NYT::NChunkServer {
 
@@ -92,6 +95,7 @@ public:
     {
         RegisterMethod(BIND_NO_PROPAGATE(&TDataNodeTracker::HydraIncrementalDataNodeHeartbeat, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TDataNodeTracker::HydraFullDataNodeHeartbeat, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TDataNodeTracker::HydraCleanExpiredDanglingLocations, Unretained(this)));
 
         RegisterLoader(
             "DataNodeTracker.Keys",
@@ -490,8 +494,11 @@ public:
                     existingNode->GetDefaultAddress());
             } else {
                 // Location is not dangling anymore.
+                auto mutationContext = GetCurrentMutationContext();
+
                 location->SetNode(node);
                 location->SetState(EChunkLocationState::Offline);
+                location->SetLastSeenTime(mutationContext->GetTimestamp());
                 node->ChunkLocations().push_back(location);
             }
         }
@@ -596,6 +603,10 @@ private:
 
     THashMap<TChunkLocationUuid, TError> LocationAlerts_;
 
+    TPeriodicExecutorPtr DanglingLocationsCleaningExecutor_;
+    // COMPAT(koloshmet)
+    TInstant DanglingLocationsDefaultLastSeenTime_;
+
     struct TFullHeartbeatRequest
         : public TRefCounted
     {
@@ -639,14 +650,19 @@ private:
     {
         std::vector<TError> alerts;
         alerts.reserve(LocationAlerts_.size());
-        std::transform(
-            LocationAlerts_.begin(),
-            LocationAlerts_.end(),
-            std::back_inserter(alerts),
-            [] (const auto& alert) {
-                return alert.second;
-            });
+        std::ranges::copy(LocationAlerts_ | std::views::values, std::back_inserter(alerts));
         return alerts;
+    }
+
+    TInstant GetChunkLocationLastSeenTime(const TChunkLocation& location) const override
+    {
+        if (auto lastSeen = location.GetLastSeenTime(); lastSeen != TInstant::Max()) {
+            return lastSeen;
+        }
+        if (auto customLastSeen = GetDynamicConfig()->DanglingLocationCleaner->DefaultLastSeenTime) {
+            return *customLastSeen;
+        }
+        return DanglingLocationsDefaultLastSeenTime_;
     }
 
     void ValidateLocationDirectory(
@@ -777,10 +793,33 @@ private:
         }
     }
 
+    void HydraCleanExpiredDanglingLocations(NProto::TReqRemoveDanglingChunkLocations* request)
+    {
+        auto now = GetCurrentMutationContext()->GetTimestamp();
+        auto expirationTimeout = GetDynamicConfig()->DanglingLocationCleaner->ExpirationTimeout;
+
+        auto danglingLocationUuids = FromProto<std::vector<TChunkLocationUuid>>(request->chunk_location_uuids());
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        for (auto uuid : danglingLocationUuids) {
+            auto* location = ChunkLocationMap_.Find(uuid);
+            if (!IsObjectAlive(location) || location->GetState() != EChunkLocationState::Dangling) {
+                continue;
+            }
+
+            if (GetChunkLocationLastSeenTime(*location) + expirationTimeout < now) {
+                objectManager->RemoveObject(location);
+            }
+        }
+    }
+
     void OnNodeUnregistered(TNode* node)
     {
+        auto mutationContext = GetCurrentMutationContext();
+
         for (auto* location : node->ChunkLocations()) {
             location->SetState(EChunkLocationState::Offline);
+            location->SetLastSeenTime(mutationContext->GetTimestamp());
         }
     }
 
@@ -826,12 +865,7 @@ private:
 
         const auto& diskFamilyWhitelist = medium->AsDomestic()->DiskFamilyWhitelist();
         auto diskFamily = location->Statistics().disk_family();
-        if (diskFamilyWhitelist &&
-            !std::binary_search(
-                diskFamilyWhitelist->begin(),
-                diskFamilyWhitelist->end(),
-                diskFamily))
-        {
+        if (diskFamilyWhitelist && !std::ranges::binary_search(*diskFamilyWhitelist, diskFamily)) {
             YT_LOG_ALERT("Inconsistent medium (LocationUuid: %v, Medium: %v, DiskFamily: %v, DiskFamilyWhitelist: %v)",
                 locationUuid,
                 medium->GetName(),
@@ -847,7 +881,11 @@ private:
         }
     }
 
-    void PopulateChunkLocationStatistics(TNode* node, const auto& statistics)
+    template <std::ranges::input_range TStatisticsRange>
+        requires std::same_as<
+            std::ranges::range_value_t<TStatisticsRange>,
+            NNodeTrackerClient::NProto::TChunkLocationStatistics>
+    void PopulateChunkLocationStatistics(TNode* node, const TStatisticsRange& statistics)
     {
         for (const auto& chunkLocationStatistics : statistics) {
             auto locationUuid = FromProto<TChunkLocationUuid>(chunkLocationStatistics.location_uuid());
@@ -872,6 +910,46 @@ private:
     {
         FullHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentFullHeartbeats);
         IncrementalHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentIncrementalHeartbeats);
+
+        if (DanglingLocationsCleaningExecutor_) {
+            DanglingLocationsCleaningExecutor_->SetPeriod(GetDynamicConfig()->DanglingLocationCleaner->CleanupPeriod);
+        }
+    }
+
+    void CleanDanglingLocations()
+    {
+        if (!GetDynamicConfig()->DanglingLocationCleaner->Enable) {
+            return;
+        }
+
+        auto now = NProfiling::GetInstant();
+        auto expirationTimeout = GetDynamicConfig()->DanglingLocationCleaner->ExpirationTimeout;
+        auto cleaningLimit = GetDynamicConfig()->DanglingLocationCleaner->MaxLocationsToCleanPerIteration;
+
+        constexpr auto defaultCleaningLimit = TDanglingLocationCleanerConfig::DefaultMaxLocationsToCleanPerIteration;
+        TCompactVector<TGuid, defaultCleaningLimit> expiredDanglingLocations;
+
+        for (auto [id, location] : ChunkLocationMap_) {
+            if (std::ssize(expiredDanglingLocations) >= cleaningLimit) {
+                break;
+            }
+
+            auto dangling = location->GetState() == EChunkLocationState::Dangling;
+            auto expired = GetChunkLocationLastSeenTime(*location) + expirationTimeout < now;
+            if (dangling && expired) {
+                expiredDanglingLocations.push_back(id);
+            }
+        }
+
+        if (!expiredDanglingLocations.empty()) {
+            YT_LOG_INFO("Removing dangling chunk locations (ChunkLocationIds: %v)", expiredDanglingLocations);
+
+            NProto::TReqRemoveDanglingChunkLocations request;
+            ToProto(request.mutable_chunk_location_uuids(), expiredDanglingLocations);
+
+            YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+                ->CommitAndLog(Logger()));
+        }
     }
 
     void Clear() override
@@ -892,7 +970,11 @@ private:
 
     void SaveValues(NCellMaster::TSaveContext& context) const
     {
+        using NYT::Save;
+
         ChunkLocationMap_.SaveValues(context);
+        // COMPAT(koloshmet)
+        Save(context, DanglingLocationsDefaultLastSeenTime_);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -902,7 +984,15 @@ private:
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
+        using NYT::Load;
+
         ChunkLocationMap_.LoadValues(context);
+        // COMPAT(koloshmet)
+        if (context.GetVersion() >= EMasterReign::DanglingLocationsCleaning) {
+            Load(context, DanglingLocationsDefaultLastSeenTime_);
+        } else {
+            DanglingLocationsDefaultLastSeenTime_ = TInstant::Max();
+        }
     }
 
     TChunkLocationId ChunkLocationIdFromUuid(TChunkLocationUuid uuid)
@@ -912,6 +1002,20 @@ private:
             Bootstrap_->GetPrimaryCellTag());
         id.Parts32[3] &= 0x3fff;
         return id;
+    }
+
+    void OnLeaderActive() override
+    {
+        TMasterAutomatonPart::OnLeaderActive();
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
+            DanglingLocationsCleaningExecutor_ = New<TPeriodicExecutor>(
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+                BIND(&TDataNodeTracker::CleanDanglingLocations, MakeWeak(this)),
+                GetDynamicConfig()->DanglingLocationCleaner->CleanupPeriod);
+            DanglingLocationsCleaningExecutor_->Start();
+        }
     }
 
     void OnEpochFinished()
@@ -924,6 +1028,11 @@ private:
     void OnStopLeading() override
     {
         TMasterAutomatonPart::OnStopLeading();
+
+        if (DanglingLocationsCleaningExecutor_) {
+            YT_UNUSED_FUTURE(DanglingLocationsCleaningExecutor_->Stop());
+            DanglingLocationsCleaningExecutor_.Reset();
+        }
 
         OnEpochFinished();
     }
@@ -941,6 +1050,11 @@ private:
 
         for (auto [locationId, location] : ChunkLocationMap_) {
             RegisterChunkLocationUuid(location);
+        }
+
+        // COMPAT(koloshmet)
+        if (DanglingLocationsDefaultLastSeenTime_ == TInstant::Max()) {
+            DanglingLocationsDefaultLastSeenTime_ = GetCurrentHydraContext()->GetTimestamp();
         }
     }
 

@@ -188,6 +188,8 @@ private:
     void UpdateLimits();
     void UpdateMemoryLimits();
     void UpdateMemoryFootprint();
+    void UpdateProfilingCategory();
+    void UpdateLoggingCategory();
     void UpdateJobsCpuLimit();
 
     NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides ComputeEffectiveResourceLimitsOverrides() const;

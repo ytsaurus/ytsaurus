@@ -1,5 +1,6 @@
 import yt.yson as yson
 
+from dataclasses import dataclass
 import enum
 import random
 
@@ -137,6 +138,7 @@ class Treasury:
         return self.shelves[type_name].take(subgrail)
 
 def get_scalar(type: TType) -> str:
+    assert isinstance(type, dict), f"type is {type} here"
     if "type" in type:
         return type["type"]
     v3 = type["type_v3"]
@@ -156,6 +158,14 @@ def is_compatible(typeA: TType, typeB: TType) -> bool:
 
 ################################################################################
 
+@dataclass
+class RegOptions:
+    max_depth: int = 5
+    forbid_throwing: bool = False
+    forbidden_kinds: tuple = tuple()
+
+################################################################################
+
 class IExpression:
     def __init__(self):
         self.type: TType
@@ -166,7 +176,7 @@ class IExpression:
         assert False, "abstract"
 
     @staticmethod
-    def make_random(schema: TSchema, desired_type: TType, depth: int, max_depth: int) -> 'IExpression':
+    def make_random(schema: TSchema, desired_type: TType, depth: int, options: RegOptions) -> 'IExpression':
         assert False, "abstract"
     @staticmethod
     def get_out_types(schema: TSchema) -> TTypes:
@@ -190,7 +200,7 @@ class Reference(IExpression):
         return row.get(self.column["name"], None)
 
     @staticmethod
-    def make_random(schema: TSchema, desired_type: TType, depth: int, max_depth: int) -> 'Reference':
+    def make_random(schema: TSchema, desired_type: TType, depth: int, options: RegOptions) -> 'Reference':
         candidates = tuple(col for col in schema if is_compatible(col, desired_type))
         assert candidates, f"Cannot form reference of the desired type {desired_type}"
         return Reference(random.choice(candidates))
@@ -235,7 +245,7 @@ class Literal(IExpression):
         return self.value
 
     @staticmethod
-    def make_random(schema: TSchema, desired_type: TType, depth: int, max_depth: int):
+    def make_random(schema: TSchema, desired_type: TType, depth: int, options: RegOptions):
         return Literal(Treasury().raid(desired_type).drink(), desired_type)
 
     @staticmethod
@@ -297,8 +307,8 @@ class Unary(IExpression):
             assert False, "unreachable"
 
     @staticmethod
-    def make_random(schema: TSchema, desired_type: TType, depth: int, max_depth: int):
-        operand = make_random_expression(schema, desired_type, depth + 1)
+    def make_random(schema: TSchema, desired_type: TType, depth: int, options: RegOptions):
+        operand = make_random_expression(schema, desired_type, depth + 1, options)
         op = UnaryOp.Not if is_compatible(desired_type, BOOLEAN) else random.choice([UnaryOp.BitNot, UnaryOp.Minus, UnaryOp.Plus])
 
         return Unary(op, operand)
@@ -313,7 +323,7 @@ class BinaryOp(enum.Enum):
     Plus = 1
     Minus = 2
     Multiply = 3
-    # Divide = 4
+    Divide = 4
 
     Modulo = 5
     # LeftShift = 6
@@ -339,7 +349,7 @@ class Binary(IExpression):
         BinaryOp.Plus : "+",
         BinaryOp.Minus : "-",
         BinaryOp.Multiply : "*",
-        # BinaryOp.Divide : "/",
+        BinaryOp.Divide : "/",
         BinaryOp.Modulo : "%",
         # BinaryOp.LeftShift : "<<",
         # BinaryOp.RightShift : ">>",
@@ -363,7 +373,7 @@ class Binary(IExpression):
             BinaryOp.Plus,
             BinaryOp.Minus,
             BinaryOp.Multiply,
-            # BinaryOp.Divide,
+            BinaryOp.Divide,
         ):
             assert is_compatible(t, INT) or is_compatible(t, UINT) or is_compatible(t, DOUBLE)
             self.type = t
@@ -400,13 +410,13 @@ class Binary(IExpression):
             res = lhs - rhs
         elif self.op == BinaryOp.Multiply:
             res = lhs * rhs
-        # elif self.op == BinaryOp.Divide:
-        #     if is_compatible(self.type, DOUBLE):
-        #         res = lhs / rhs
-        #     elif (lhs >= 0) != (rhs >= 0) and lhs % rhs:
-        #         return lhs // rhs + 1
-        #     else:
-        #         return lhs // rhs
+        elif self.op == BinaryOp.Divide:
+            if is_compatible(self.type, DOUBLE):
+                res = lhs / rhs
+            elif (lhs >= 0) != (rhs >= 0) and lhs % rhs:
+                return lhs // rhs + 1
+            else:
+                return lhs // rhs
         else:
             assert False, "unreachable"
 
@@ -492,7 +502,7 @@ class Binary(IExpression):
         if self.op in (
             BinaryOp.Plus,
             BinaryOp.Minus,
-            # BinaryOp.Divide,
+            BinaryOp.Divide,
             BinaryOp.Multiply,
         ):
             return self.eval_arithmetic(lhs_eval, rhs_eval)
@@ -513,7 +523,7 @@ class Binary(IExpression):
         assert False, "unreachable"
 
     @staticmethod
-    def make_random(schema: TSchema, desired_type: TType, depth: int, max_depth: int):
+    def make_random(schema: TSchema, desired_type: TType, depth: int, options: RegOptions):
         op = None
         lhs = None
         rhs = None
@@ -530,17 +540,20 @@ class Binary(IExpression):
                 op = random.choice([BinaryOp.Less, BinaryOp.Greater, BinaryOp.LessOrEqual, BinaryOp.GreaterOrEqual])
                 arg_type = random.choice(SCALAR_TYPES)
         elif is_compatible(desired_type, INT) or is_compatible(desired_type, UINT):
-            op = random.choice([
+            ops = [
                 BinaryOp.Plus, BinaryOp.Minus, BinaryOp.Multiply,
-                # BinaryOp.LeftShift, BinaryOp.RightShift, BinaryOp.Divide,
+                # BinaryOp.LeftShift, BinaryOp.RightShift,
                 BinaryOp.BitAnd, BinaryOp.BitOr
-            ])
+            ]
+            if not options.forbid_throwing:
+                ops.append(BinaryOp.Divide)
+            op = random.choice(ops)
             arg_type = desired_type
         elif is_compatible(desired_type, DOUBLE):
-            op = random.choice([
-                BinaryOp.Plus, BinaryOp.Minus, BinaryOp.Multiply,
-                # BinaryOp.Divide,
-            ])
+            ops = [BinaryOp.Plus, BinaryOp.Minus, BinaryOp.Multiply]
+            if not options.forbid_throwing:
+                ops.append(BinaryOp.Divide)
+            op = random.choice(ops)
             arg_type = desired_type
         elif is_compatible(desired_type, STRING):
             op = BinaryOp.Concatenate
@@ -548,8 +561,8 @@ class Binary(IExpression):
         else:
             assert "unreachable"
 
-        lhs = make_random_expression(schema, arg_type, depth + 1, max_depth)
-        rhs = make_random_expression(schema, arg_type, depth + 1, max_depth)
+        lhs = make_random_expression(schema, arg_type, depth + 1, options)
+        rhs = make_random_expression(schema, arg_type, depth + 1, options)
 
         return Binary(op, lhs, rhs)
 
@@ -575,18 +588,18 @@ class In(IExpression):
         return expr_eval in [v.eval(row) for v in self.values]
 
     @staticmethod
-    def make_random(schema: TSchema, desired_type: TType, depth: int, max_depth: int):
+    def make_random(schema: TSchema, desired_type: TType, depth: int, options: RegOptions):
         assert is_compatible(desired_type, BOOLEAN)
         arg_type = random.choice(SCALAR_TYPES)
 
-        expr = make_random_expression(schema, arg_type, depth + 1, max_depth)
+        expr = make_random_expression(schema, arg_type, depth + 1, options)
         value_count = random.randint(1, 5)
-        values = [Literal.make_random(schema, arg_type, depth + 1, max_depth) for _ in range(value_count)]
+        values = [Literal.make_random(schema, arg_type, depth + 1, options) for _ in range(value_count)]
         return In(expr, values)
 
     @staticmethod
     def get_out_types(schema: TSchema) -> TTypes:
-        return tuple(BOOLEAN)
+        return (BOOLEAN, )
 
 ################################################################################
 
@@ -622,15 +635,15 @@ class Transform(IExpression):
             return self.default.eval(row)
 
     @staticmethod
-    def make_random(schema: TSchema, desired_type: TType, depth: int, max_depth: int):
+    def make_random(schema: TSchema, desired_type: TType, depth: int, options: RegOptions):
         arg_type = random.choice(SCALAR_TYPES)
-        expr = make_random_expression(schema, arg_type, depth + 1, max_depth)
+        expr = make_random_expression(schema, arg_type, depth + 1, options)
 
         value_count = random.randint(1, 5)
-        start = [Literal.make_random(schema, arg_type, depth + 1, max_depth) for _ in range(value_count)]
-        end = [Literal.make_random(schema, desired_type, depth + 1, max_depth) for _ in range(value_count)]
+        start = [Literal.make_random(schema, arg_type, depth + 1, options) for _ in range(value_count)]
+        end = [Literal.make_random(schema, desired_type, depth + 1, options) for _ in range(value_count)]
 
-        default = make_random_expression(schema, desired_type, depth + 1, max_depth)
+        default = make_random_expression(schema, desired_type, depth + 1, options)
         return Transform(expr, start, end, default)
 
     @staticmethod
@@ -683,7 +696,7 @@ class Function(IExpression):
             assert False, "unreachable"
 
     @staticmethod
-    def make_random(schema: TSchema, desired_type: TType, depth: int, max_depth: int):
+    def make_random(schema: TSchema, desired_type: TType, depth: int, options: RegOptions):
         if is_compatible(desired_type, INT):
             name = random.choice(["int64", "if"])
         elif is_compatible(desired_type, UINT):
@@ -696,12 +709,12 @@ class Function(IExpression):
             name = "if"
         args = []
         if name in ("numeric_to_string", "int64", "uint64", "double"):
-            args.append(make_random_expression(schema, random.choice([INT, UINT, DOUBLE]), depth + 1, max_depth))
+            args.append(make_random_expression(schema, random.choice([INT, UINT, DOUBLE]), depth + 1, options))
         elif name == "if":
             args = [
-                make_random_predicate(schema, depth + 1, max_depth),
-                make_random_expression(schema, desired_type, depth + 1, max_depth),
-                make_random_expression(schema, desired_type, depth + 1, max_depth),
+                make_random_predicate(schema, depth + 1, options),
+                make_random_expression(schema, desired_type, depth + 1, options),
+                make_random_expression(schema, desired_type, depth + 1, options),
             ]
         else:
             assert False, "unreachable"
@@ -716,35 +729,38 @@ class Function(IExpression):
 def is_terminal(kind: type):
     return kind in (Reference, Literal)
 
-def get_random_expression_kind(schema: TSchema, desired_type: TType, depth:int, max_depth:int) -> type:
-    if depth >= max_depth:
+def get_random_expression_kind(schema: TSchema, desired_type: TType, depth:int, options: RegOptions) -> type:
+    if depth >= options.max_depth:
         return random.choice([
             kind for kind in (Literal, Reference)
             if any([is_compatible(desired_type, t) for t in kind.get_out_types(schema)])
         ])
+    allowed_kinds = [kind for kind in (
+        Reference,
+        Literal,
+        Unary,
+        Binary,
+        Function,
+        In,
+        # Transform
+    ) if kind not in options.forbidden_kinds]
+
     kind_weight_list = [
-        (kind, depth / max_depth if is_terminal(kind) else 1 - depth / max_depth)
-        for kind in (
-            Reference,
-            Literal,
-            Unary,
-            Binary,
-            Function,
-            # In,
-            # Transform
-        )
+        (kind, depth / options.max_depth if is_terminal(kind) else 1 - depth / options.max_depth)
+        for kind in allowed_kinds
         if any([is_compatible(desired_type, t) for t in kind.get_out_types(schema)])
     ]
     kinds, weights = zip(*kind_weight_list)
     return random.choices(kinds, weights=weights)[0]
 
-def make_random_expression(schema: TSchema, desired_type: type, depth: int=0, max_depth: int=5) -> IExpression:
-    kind = get_random_expression_kind(schema, desired_type, depth, max_depth)
-    return kind.make_random(schema, desired_type, depth, max_depth)
 
-def make_random_predicate(schema: TSchema, depth: int=0, max_depth: int=5) -> IExpression:
-    kind = get_random_expression_kind(schema, BOOLEAN, depth, max_depth)
-    return kind.make_random(schema, BOOLEAN, depth, max_depth)
+def make_random_expression(schema: TSchema, desired_type: type, depth: int=0, options: RegOptions=RegOptions()) -> IExpression:
+    kind = get_random_expression_kind(schema, desired_type, depth, options)
+    return kind.make_random(schema, desired_type, depth, options)
+
+def make_random_predicate(schema: TSchema, depth: int=0, options: RegOptions=RegOptions()) -> IExpression:
+    kind = get_random_expression_kind(schema, BOOLEAN, depth, options)
+    return kind.make_random(schema, BOOLEAN, depth, options)
 
 ################################################################################
 

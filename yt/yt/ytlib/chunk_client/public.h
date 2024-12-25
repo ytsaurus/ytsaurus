@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
 
+#include <yt/yt/core/misc/configurable_singleton_decl.h>
+
 #include <library/cpp/yt/small_containers/compact_vector.h>
 
 #include <optional>
@@ -284,6 +286,8 @@ DECLARE_REFCOUNTED_STRUCT(IReaderMemoryManagerHost)
 
 DECLARE_REFCOUNTED_STRUCT(ICachedChunkMeta)
 DECLARE_REFCOUNTED_STRUCT(IClientChunkMetaCache)
+
+YT_DECLARE_RECONFIGURABLE_SINGLETON(TDispatcherConfig, TDispatcherDynamicConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

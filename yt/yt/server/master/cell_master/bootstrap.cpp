@@ -128,7 +128,7 @@
 #include <yt/yt/ytlib/auth/native_authenticating_channel.h>
 
 #include <yt/yt/library/program/build_attributes.h>
-#include <yt/yt/ytlib/program/native_singletons.h>
+#include <yt/yt/library/program/helpers.h>
 
 #include <yt/yt/ytlib/election/config.h>
 #include <yt/yt/ytlib/election/cell_manager.h>
@@ -726,16 +726,17 @@ void TBootstrap::DoInitialize()
 
     // Override value always takes priority.
     // If expected local host name is not set we just skip host name validation.
-    auto expectedLocalHostName = Config_->AddressResolver->LocalHostNameOverride.value_or(
-        Config_->AddressResolver->ExpectedLocalHostName.value_or(actualLocalHostName));
+    auto addressResolverConfig = Config_->GetSingletonConfig<NNet::TAddressResolverConfig>();
+    auto expectedLocalHostName = addressResolverConfig->LocalHostNameOverride.value_or(
+        addressResolverConfig->ExpectedLocalHostName.value_or(actualLocalHostName));
 
     if (Config_->DryRun->EnableHostNameValidation &&
         expectedLocalHostName != actualLocalHostName)
     {
         THROW_ERROR_EXCEPTION("Local address differs from expected address specified in config")
             << TErrorAttribute("local_address", actualLocalHostName)
-            << TErrorAttribute("localhost_name", Config_->AddressResolver->ExpectedLocalHostName)
-            << TErrorAttribute("localhost_name_override", Config_->AddressResolver->LocalHostNameOverride);
+            << TErrorAttribute("localhost_name", addressResolverConfig->ExpectedLocalHostName)
+            << TErrorAttribute("localhost_name_override", addressResolverConfig->LocalHostNameOverride);
     }
 
     auto localAddress = BuildServiceAddress(expectedLocalHostName, Config_->RpcPort);
@@ -1303,7 +1304,7 @@ void TBootstrap::DoFinishDryRun()
 void TBootstrap::OnDynamicConfigChanged(const TDynamicClusterConfigPtr& /*oldConfig*/)
 {
     const auto& config = ConfigManager_->GetConfig();
-    ReconfigureNativeSingletons(config->CellMaster);
+    ReconfigureSingletons(config->CellMaster);
 
     HydraFacade_->Reconfigure(config->CellMaster);
 }

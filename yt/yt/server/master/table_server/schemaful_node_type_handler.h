@@ -45,12 +45,12 @@ protected:
         NCypressServer::ICypressNodeFactory* factory,
         NCypressServer::ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
-    void DoBeginCopy(
+    void DoSerializeNode(
         TImpl* schemafulNode,
-        NCypressServer::TBeginCopyContext* context) override;
-    void DoEndCopy(
+        NCypressServer::TSerializeNodeContext* context) override;
+    void DoMaterializeNode(
         TImpl* schemafulNode,
-        NCypressServer::TEndCopyContext* context) override;
+        NCypressServer::TMaterializeNodeContext* context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -24,6 +24,7 @@ PEERDIR(
     yt/yt/server/lib/misc
 
     yt/yt/library/error_skeleton
+    yt/yt/library/tracing/jaeger
 
     yt/yt/server/lib/transaction_server
 

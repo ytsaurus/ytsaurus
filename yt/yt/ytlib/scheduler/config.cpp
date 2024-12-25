@@ -1488,6 +1488,18 @@ void TUnorderedMergeOperationSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSortedMergeOperationSpec::Register(TRegistrar registrar)
+{
+    registrar.Postprocessor([] (TSortedMergeOperationSpec* spec) {
+        auto unrecognized = spec->GetRecursiveUnrecognized();
+        THROW_ERROR_EXCEPTION_IF(
+            unrecognized->FindChild("input_query") != nullptr,
+            "\"input_query\" is not supported in a sorted merge operation; consider using ordered merge instead");
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TEraseOperationSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("table_path", &TThis::TablePath);
@@ -2024,6 +2036,8 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("attribute_keys", &TThis::AttributeKeys)
         .Default();
+    registrar.Parameter("force_copy_system_attributes", &TThis::ForceCopySystemAttributes)
+        .Default(false);
     registrar.Parameter("concurrency", &TThis::Concurrency)
         .Default(4);
     registrar.Parameter("block_buffer_size", &TThis::BlockBufferSize)

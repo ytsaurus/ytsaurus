@@ -1529,7 +1529,7 @@ void TClient::FallbackToReplica(
     TMutableRange<TTableReplicaInfoPtrList> replicaCandidates,
     TRange<TTableMountInfoPtr> tableInfos,
     TSelectRowsOptionsBase* options,
-    std::function<void(TError*, const TString&, const TString&, const TSelectRowsOptionsBase*)> callback)
+    std::function<TError(const TString&, const TString&, const TSelectRowsOptionsBase&)> callback)
 {
     std::vector<TYPath> paths;
     for (const auto& tableInfo : tableInfos) {
@@ -1572,8 +1572,7 @@ void TClient::FallbackToReplica(
         options->ExpectedTableSchemas = std::move(expectedTableSchemas);
 
         auto updatedQueryString = NAst::FormatQuery(*astQuery);
-        TError error;
-        callback(&error, clusterName, updatedQueryString, options);
+        auto error = callback(clusterName, updatedQueryString, *options);
         if (error.IsOK()) {
             return;
         }
@@ -1624,16 +1623,15 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         TErrorOr<TSelectRowsResult> resultOrError;
         auto optionsCopy = options;
         FallbackToReplica(astQuery, replicaCandidates, tableInfos, &optionsCopy, [this, &resultOrError] (
-            TError* error,
             const TString& clusterName,
             const TString& updatedQuery,
-            const TSelectRowsOptionsBase* options) -> void
+            const TSelectRowsOptionsBase& options)
         {
             auto replicaClient = GetOrCreateReplicaClient(clusterName);
-            resultOrError = WaitFor(replicaClient->SelectRows(updatedQuery, static_cast<const TSelectRowsOptions&>(*options)));
-            if (!resultOrError.IsOK()) {
-                *error = resultOrError;
-            }
+            resultOrError = WaitFor(replicaClient->SelectRows(
+                updatedQuery,
+                static_cast<const TSelectRowsOptions&>(options)));
+            return resultOrError;
         });
 
         return resultOrError
@@ -1760,19 +1758,16 @@ NYson::TYsonString TClient::DoExplainQuery(
         TErrorOr<NYson::TYsonString> resultOrError;
         auto optionsCopy = options;
         FallbackToReplica(astQuery, replicaCandidates, tableInfos, &optionsCopy, [this, &resultOrError] (
-            TError* error,
             const TString& clusterName,
             const TString& updatedQuery,
-            const TSelectRowsOptionsBase* options) -> void
+            const TSelectRowsOptionsBase& options)
         {
             auto replicaClient = GetOrCreateReplicaClient(clusterName);
             resultOrError = WaitFor(replicaClient->ExplainQuery(
                 updatedQuery,
-                static_cast<const TExplainQueryOptions&>(*options)));
+                static_cast<const TExplainQueryOptions&>(options)));
 
-            if (!resultOrError.IsOK()) {
-                *error = resultOrError;
-            }
+            return resultOrError;
         });
 
         return resultOrError

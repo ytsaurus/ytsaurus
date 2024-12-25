@@ -6,6 +6,7 @@ RECURSE(
     experiments
     library
     python
+    scripts
     tools
     ytlib
 )
@@ -17,7 +18,6 @@ IF (NOT OPENSOURCE)
         orm
         packages/tests_package
         utilities
-        scripts
     )
 ENDIF()
 
@@ -25,8 +25,6 @@ IF (OS_LINUX)
     RECURSE(server)
 ENDIF()
 
-IF (NOT SANITIZER_TYPE)
-    RECURSE(
-        tests
-    )
-ENDIF()
+RECURSE(
+    tests
+)

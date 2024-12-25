@@ -41,10 +41,7 @@ void Load<TReplicaInfo, TLoadContext>(
     Load(context, replicaInfo.State);
     Load(context, replicaInfo.History);
     Load(context, replicaInfo.ReplicationProgress);
-    // COMPAT(savrus)
-    if (context.GetVersion() >= NChaosNode::EChaosReign::ReplicatedTableOptions) {
-        Load(context, replicaInfo.EnableReplicatedTableTracker);
-    }
+    Load(context, replicaInfo.EnableReplicatedTableTracker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
