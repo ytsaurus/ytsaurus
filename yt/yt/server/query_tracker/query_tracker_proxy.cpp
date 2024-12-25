@@ -836,7 +836,7 @@ void TQueryTrackerProxy::AbortQuery(
         const auto& idMapping = TActiveQueryDescriptor::Get()->GetIdMapping();
         TLookupRowsOptions options;
         options.Timestamp = transaction->GetStartTimestamp();
-        options.ColumnFilter = {*idMapping.State, *idMapping.Engine, *idMapping.AssignedTracker, *idMapping.StartRunningTime};
+        options.ColumnFilter = {*idMapping.State, *idMapping.Engine, *idMapping.AssignedTracker, *idMapping.ExecutionStartTime};
         options.KeepMissingRows = true;
         TActiveQueryKey key{.QueryId = queryId};
         std::vector keys{
@@ -881,22 +881,17 @@ void TQueryTrackerProxy::AbortQuery(
         THROW_ERROR error;
     }
 
-    // Save profile counter.
-    auto tags = TProfilingTags{
-        .State = record.State,
-        .Engine = record.Engine,
-        .AssignedTracker = record.AssignedTracker.value_or(NoneQueryTracker),
-    };
     {
+        // Save profile counter.
         auto now = TInstant::Now();
         auto time = now - record.StartTime;
         if (record.State == EQueryState::Running) {
-            time = now - *record.StartRunningTime;
+            time = now - *record.ExecutionStartTime;
         }
 
         auto& stateTimeGauge = GetOrCreateProfilingCounter<TStateTimeProfilingCounter>(
             QueryTrackerProfiler,
-            tags)->StateTime;
+            ProfilingTagsFromActiveQueryRecord(record))->StateTime;
         stateTimeGauge.Update(time);
     }
 }

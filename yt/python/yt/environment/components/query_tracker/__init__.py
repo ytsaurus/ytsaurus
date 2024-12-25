@@ -110,16 +110,6 @@ class QueryTracker(YTServerComponentBase, YTComponent):
         return {
             "user": self.USER_NAME,
             "create_state_tables_on_startup": True,
-            "solomon_exporter": {
-                "export_summary_as_avg": True,
-                "read_delay": 1000,
-                "shards": {
-                    "default": {
-                        "filter": ["yt/"],
-                    },
-                },
-                "thread_pool_size": 8,
-            },
         }
 
     def wait_for_readiness(self, address):

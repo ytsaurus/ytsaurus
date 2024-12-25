@@ -1031,7 +1031,7 @@ ACTIVE_QUERIES_TABLE_V12 = TableInfo(
         ("user", "string", {"lock": "client"}),
         ("access_control_objects", "any", {"lock": "client"}),
         ("start_time", "timestamp", {"lock": "client"}),
-        ("start_running_time", "timestamp", {"lock": "client"}),
+        ("execution_start_time", "timestamp", {"lock": "query_tracker"}),
         ("filter_factors", "string", {"lock": "client"}),
         ("state", "string", {"lock": "common"}),
         ("incarnation", "int64", {"lock": "query_tracker"}),
@@ -1054,10 +1054,11 @@ ACTIVE_QUERIES_TABLE_V12 = TableInfo(
     },
 )
 
-def start_time_to_start_running_time_mapper(row):
+
+def start_time_to_execution_start_time_mapper(row):
     column_names = ACTIVE_QUERIES_TABLE_V12.user_columns
     result = dict([(key, row.get(key)) for key in column_names])
-    result["start_running_time"] = row.get("start_time")
+    result["execution_start_time"] = row.get("start_time")
     yield result
 
 
@@ -1066,7 +1067,7 @@ TRANSFORMS[12] = [
         "active_queries",
         source="active_queries",
         table_info=ACTIVE_QUERIES_TABLE_V12,
-        mapper=start_time_to_start_running_time_mapper
+        mapper=start_time_to_execution_start_time_mapper
     ),
 ]
 

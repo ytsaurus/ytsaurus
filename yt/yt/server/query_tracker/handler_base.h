@@ -70,7 +70,7 @@ protected:
     int LastSavedProgressVersion_ = 0;
 
     std::optional<TInstant> LastStateChange_;
-    THashMap<EQueryState, TDuration> StateTimes;
+    THashMap<EQueryState, TDuration> StateTimes_;
 
     void StartProgressWriter();
     void StopProgressWriter();

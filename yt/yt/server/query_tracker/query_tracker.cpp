@@ -245,21 +245,16 @@ private:
         }
 
         // Save profile counters.
-        THashMap<TProfilingTags, int> counts;
+        THashMap<TProfilingTags, int> activeQueryCounts;
 
         LeakySingleton<TActiveQueriesProfilingCountersMap>()->Flush();
         LeakySingleton<TActiveQueriesProfilingCountersMap>()->IterateReadOnly([&](const TProfilingTags& tags, const TActiveQueriesProfilingCounter&) {
-            counts[tags] = 0;
+            activeQueryCounts[tags] = 0;
         });
         for (const auto& record : queryRecords) {
-            auto tags = TProfilingTags{
-                .State = record.State,
-                .Engine = record.Engine,
-                .AssignedTracker = record.AssignedTracker.value_or(NoneQueryTracker),
-            };
-            counts[tags]++;
+            ++activeQueryCounts[ProfilingTagsFromActiveQueryRecord(record)];
         }
-        for (const auto&[tags, count] : counts) {
+        for (const auto&[tags, count] : activeQueryCounts) {
             auto& activeQueriesCounter = GetOrCreateProfilingCounter<TActiveQueriesProfilingCounter>(
                 QueryTrackerProfilerGlobal,
                 tags)->ActiveQueries;
@@ -710,16 +705,11 @@ private:
                 return true;
             }
 
-            // Save profile counter.
-            auto tags = TProfilingTags{
-                .State = activeQueryRecord->State,
-                .Engine = activeQueryRecord->Engine,
-                .AssignedTracker = activeQueryRecord->AssignedTracker.value_or(NoneQueryTracker),
-            };
             {
+                // Save profile counter.
                 auto& stateTimeGauge = GetOrCreateProfilingCounter<TStateTimeProfilingCounter>(
                     QueryTrackerProfiler,
-                    tags)->StateTime;
+                    ProfilingTagsFromActiveQueryRecord(*activeQueryRecord))->StateTime;
                 auto now = TInstant::Now();
                 stateTimeGauge.Update(now - activeQueryRecord->FinishTime.value());
             }

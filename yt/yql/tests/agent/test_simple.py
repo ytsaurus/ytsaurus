@@ -8,12 +8,13 @@ from yt_commands import (authors, create, create_user, sync_mount_table,
 
 from yt_env_setup import YTEnvSetup
 
+from yt_helpers import profiler_factory
+
 from yt.wrapper import yson
 
 import yt_error_codes
 
 import pytest
-import requests
 
 
 class TestQueriesYqlBase(YTEnvSetup):
@@ -59,6 +60,9 @@ class TestQueriesYqlBase(YTEnvSetup):
 class TestMetrics(TestQueriesYqlBase):
     @authors("mpereskokova")
     def test_metrics(self, query_tracker, yql_agent):
+        yqla = ls("//sys/yql_agent/instances")[0]
+        profiler = profiler_factory().at_yql_agent(yqla)
+
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "a", "type": "int64"}]
         })
@@ -70,15 +74,8 @@ class TestMetrics(TestQueriesYqlBase):
 
         wait(lambda: self._exists_pending_stage_in_progress(query))
 
-        def filter_sensor(sensor):
-            return sensor["labels"]["sensor"] == "yt.yql_agent.active_queries"
-
-        def lastActiveQueriesMetric():
-            sensors = requests.get(f"http://localhost:{yql_agent.yql_agent.configs[0]["monitoring_port"]}/solomon/shard/default").json()["sensors"]
-            newlist = sorted(list(filter(filter_sensor, sensors)), key=lambda sensor: sensor['ts'])
-            return newlist[-1]["value"]
-
-        wait(lambda: lastActiveQueriesMetric() == 1, ignore_exceptions=True)
+        active_queries_metric = profiler.gauge("yql_agent/active_queries")
+        wait(lambda: active_queries_metric.get() == 1)
 
         set("//sys/pools/small/@resource_limits/user_slots", 1)
 
@@ -86,7 +83,7 @@ class TestMetrics(TestQueriesYqlBase):
         result = query.read_result(0)
         assert_items_equal(result, [{"result": 43}])
 
-        wait(lambda: lastActiveQueriesMetric() == 0)
+        wait(lambda: active_queries_metric.get() == 0)
 
 
 class TestSimpleQueriesYql(TestQueriesYqlBase):

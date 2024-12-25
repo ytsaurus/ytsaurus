@@ -1,8 +1,10 @@
 #pragma once
 
-#include <yt/yt/library/profiling/sensor.h>
+#include <yt/yt/ytlib/query_tracker_client/records/query.record.h>
 
 #include <yt/yt/client/query_tracker_client/public.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 #include <library/cpp/yt/threading/spin_lock.h>
 #include <library/cpp/yt/threading/public.h>
@@ -24,20 +26,6 @@ struct TProfilingTags
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NQueryTracker
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <>
-struct THash<NYT::NQueryTracker::TProfilingTags>
-{
-    size_t operator()(const NYT::NQueryTracker::TProfilingTags& tag) const;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NYT::NQueryTracker {
 
 struct TActiveQueriesProfilingCounter
 {
@@ -61,9 +49,20 @@ TProfilingCounter* GetOrCreateProfilingCounter(
     const NProfiling::TProfiler& profiler,
     const TProfilingTags& profilingTags);
 
-////////////////////////////////////////////////////////////////////////////////
+TProfilingTags ProfilingTagsFromActiveQueryRecord(NQueryTrackerClient::NRecords::TActiveQuery record);
 
 } // namespace NYT::NQueryTracker
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+struct THash<NYT::NQueryTracker::TProfilingTags>
+{
+    size_t operator()(const NYT::NQueryTracker::TProfilingTags& tag) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 #define PROFILER_INL_H_
 #include "profiler-inl.h"

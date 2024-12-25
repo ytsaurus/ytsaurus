@@ -392,7 +392,7 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
                 newRecord.ResultCount = wireRowsetOrErrors.size();
             }
             if (state == EQueryState::Running) {
-                newRecord.StartRunningTime = now;
+                newRecord.ExecutionStartTime = now;
             }
 
             std::vector newRows = {
@@ -436,20 +436,14 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        StateTimes[previousState] += now - LastStateChange_.value_or(AcquisitionTime_);
+        StateTimes_[previousState] += now - LastStateChange_.value_or(AcquisitionTime_);
         LastStateChange_ = now;
 
-        for (auto& [state, time] : StateTimes) {
+        for (auto& [state, time] : StateTimes_) {
             // Save profile counter.
-            auto tags = TProfilingTags{
-                .State = state,
-                .Engine = record.Engine,
-                .AssignedTracker = record.AssignedTracker.value_or(NoneQueryTracker),
-            };
-
             auto& stateTimeGauge = GetOrCreateProfilingCounter<TStateTimeProfilingCounter>(
                 QueryTrackerProfiler,
-                tags)->StateTime;
+                ProfilingTagsFromActiveQueryRecord(record))->StateTime;
             stateTimeGauge.Update(time);
         }
 
