@@ -39,6 +39,11 @@ using namespace NYTree;
 using NYT::FromProto;
 using NYT::ToProto;
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TPivotKeysPickerTag
+{ };
+
 constexpr double DefaultSlicingAccuracy = 0.05;
 constexpr i64 ExpectedAverageOverlapping = 10;
 constexpr i64 MaxChunkCountForSlicing = 500000;
@@ -261,7 +266,7 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
             << TErrorAttribute("split_chunk_count", std::ssize(splitChunks));
     }
 
-    auto rowBuffer = New<TRowBuffer>();
+    auto rowBuffer = New<TRowBuffer>(TPivotKeysPickerTag());
     auto chunkSliceFetcher = CreateChunkSliceFetcher(
         connection->GetConfig()->ChunkSliceFetcher,
         connection->GetNodeDirectory(),

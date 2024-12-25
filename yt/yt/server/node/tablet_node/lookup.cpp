@@ -89,6 +89,9 @@ struct TPartitionSession;
 
 class TStoreSession;
 
+struct TLookupRowsBufferTag
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EInitialQueryKind,
@@ -1608,7 +1611,10 @@ TFuture<TSharedRef> TTabletLookupRequest::RunTabletLookupSession(
 
     tabletSnapshot->WaitOnLocks(timestamp);
 
-    auto rowBuffer = New<TRowBuffer>(lookupSession->ChunkReadOptions_.MemoryUsageTracker);
+    auto rowBuffer = New<TRowBuffer>(
+        TLookupRowsBufferTag(),
+        TChunkedMemoryPool::DefaultStartChunkSize,
+        lookupSession->ChunkReadOptions_.MemoryUsageTracker);
 
     auto reader = CreateWireProtocolReader(RequestData, rowBuffer);
 
@@ -2354,7 +2360,9 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
         lookupKeys.Size(),
         useLookupCache);
 
-    auto rowBuffer = New<TRowBuffer>(memoryChunkProvider);
+    auto rowBuffer = New<TRowBuffer>(
+        TLookupRowsBufferTag(),
+        memoryChunkProvider);
 
     auto pipe = New<TSchemafulPipe>(memoryChunkProvider);
     auto reader = pipe->GetReader();

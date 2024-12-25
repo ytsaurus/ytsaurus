@@ -344,6 +344,9 @@ private:
 class TSortedReduceJobIOFactory
     : public TUserJobIOFactoryBase
 {
+    struct TSortedReduceJobIOFactoryTag
+    { };
+
 public:
     TSortedReduceJobIOFactory(
         IJobSpecHelperPtr jobSpecHelper,
@@ -360,7 +363,7 @@ public:
             std::move(outBandwidthThrottler))
         , InterruptAtKeyEdge_(interruptAtKeyEdge)
         , Logger(JobProxyClientLogger())
-        , Buffer_(New<TRowBuffer>())
+        , Buffer_(New<TRowBuffer>(TSortedReduceJobIOFactoryTag()))
     {
         TUserJobIOFactoryBase::Initialize();
     }
