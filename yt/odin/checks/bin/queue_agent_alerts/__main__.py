@@ -100,8 +100,7 @@ def run_check(secrets, yt_client, logger, options, states):
                 raise YtError(f"There are {failed_instance_count} failed instances with some of them having non-transport error {short_instances_info}",
                               inner_errors=instances_errors)
             elif failed_instance_count > 0:
-                description = str(YtError(f"There are {failed_instance_count} failed instances and {banned_instance_count} banned instances out of {len(queue_agent_instances)} instances",
-                                          inner_errors=instances_errors))
+                description = f"Some instances are not available {short_instances_info}"
                 logger.error(description)
                 return states.PARTIALLY_AVAILABLE_STATE, description
             else:
