@@ -67,6 +67,10 @@ static constexpr auto& Logger = TabletNodeLogger;
 struct TDictionaryCompressionSampleTag
 { };
 
+struct TDictionaryCompressionTag
+{ };
+
+
 static constexpr int MinSampledBlockCountPerChunk = 3;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -741,7 +745,7 @@ private:
                 auto estimatedSize = GetDictionaryCompressionCodec()->EstimateDigestedCompressionDictionarySize(
                     std::ssize(columnInfo.Dictionary),
                     tabletSnapshot->Settings.HunkReaderConfig->CompressionLevel);
-                auto storage = TSharedMutableRef::Allocate(estimatedSize, { .InitializeStorage = false });
+                auto storage = TSharedMutableRef::Allocate<TDictionaryCompressionTag>(estimatedSize, { .InitializeStorage = false });
                 Y_UNUSED(GetDictionaryCompressionCodec()->ConstructDigestedCompressionDictionary(
                     columnInfo.Dictionary,
                     storage,
@@ -749,7 +753,7 @@ private:
 
                 estimatedSize = GetDictionaryCompressionCodec()->EstimateDigestedDecompressionDictionarySize(
                     std::ssize(columnInfo.Dictionary));
-                storage = TSharedMutableRef::Allocate(estimatedSize, { .InitializeStorage = false });
+                storage = TSharedMutableRef::Allocate<TDictionaryCompressionTag>(estimatedSize, { .InitializeStorage = false });
                 Y_UNUSED(GetDictionaryCompressionCodec()->ConstructDigestedDecompressionDictionary(
                     columnInfo.Dictionary,
                     storage));

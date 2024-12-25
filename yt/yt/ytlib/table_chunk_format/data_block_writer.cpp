@@ -8,6 +8,9 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMergedMetaTag
+{ };
+
 TDataBlockWriter::TDataBlockWriter(bool enableSegmentMetaInBlocks)
     : EnableSegmentMetaInBlocks_(enableSegmentMetaInBlocks)
 { }
@@ -55,7 +58,7 @@ TBlock TDataBlockWriter::DumpBlock(int blockIndex, i64 currentRowCount)
         }
 
         auto offset = sizeof(ui32) * (columnCount + 1);
-        auto mergedMeta = TSharedMutableRef::Allocate(offset + segmentMetasSize);
+        auto mergedMeta = TSharedMutableRef::Allocate<TMergedMetaTag>(offset + segmentMetasSize);
 
         ui32* offsets = reinterpret_cast<ui32*>(mergedMeta.Begin());
         auto* metasData = reinterpret_cast<char*>(mergedMeta.Begin() + offset);

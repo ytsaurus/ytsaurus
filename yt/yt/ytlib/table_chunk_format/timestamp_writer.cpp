@@ -19,6 +19,9 @@ const int MaxTimestampCount = 128 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMergedTimestampMetaTag
+{ };
+
 class TTimestampWriter
     : public ITimestampWriter
 {
@@ -74,7 +77,7 @@ public:
 
         size_t metaSize = sizeof(NColumnarChunkFormat::TTimestampMeta) * CurrentBlockSegmentMetas_.size();
 
-        auto mergedMeta = TSharedMutableRef::Allocate(metaSize);
+        auto mergedMeta = TSharedMutableRef::Allocate<TMergedTimestampMetaTag>(metaSize);
         char* metasData = mergedMeta.Begin();
 
         for (const auto& meta : CurrentBlockSegmentMetas_) {
