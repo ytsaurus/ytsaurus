@@ -99,6 +99,8 @@ SRCS(
     query_agent/session_manager.cpp
     query_agent/tablet_replication_log_reader.cpp
 
+    tablet_node/alien_cluster_client_cache.cpp
+    tablet_node/alien_cluster_client_cache_base.cpp
     tablet_node/automaton.cpp
     tablet_node/background_activity_orchid.cpp
     tablet_node/backing_store_cleaner.cpp

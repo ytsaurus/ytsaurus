@@ -1105,6 +1105,9 @@ public:
     //! Time to keep retired tablet snapshots hoping for a rapid Hydra restart.
     TDuration TabletSnapshotEvictionTimeout;
 
+    //! Inteval between terminated cached clients evictions in per cluster client cache
+    TDuration AlienClusterClientCacheEvictionPeriod;
+
     //! Column evaluator used for handling tablet writes.
     NQueryClient::TColumnEvaluatorCacheConfigPtr ColumnEvaluatorCache;
 

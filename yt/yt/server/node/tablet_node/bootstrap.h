@@ -72,6 +72,7 @@ struct IBootstrap
     virtual const TOverloadControllerPtr& GetOverloadController() const = 0;
 
     virtual const ICompressionDictionaryManagerPtr& GetCompressionDictionaryManager() const = 0;
+    virtual const IAlienClusterClientCachePtr& GetReplicatorClientCache() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
