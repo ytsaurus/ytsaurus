@@ -89,6 +89,12 @@ Cypress can delete nodes automatically at a specified moment in time or if nodes
 
 The moment in time has to be either an isoformat string or an integer denoting the number of milliseconds since the epoch. These two methods are equivalent:
 
+{% note warning "Attention" %}
+
+You cannot restore data deleted using this mechanism. Use it with caution.
+
+{% endnote %}
+
 ```bash
 yt set //home/project/path/table/@expiration_time '"2020-05-16 15:12:34.591+03:00"'
 yt set //home/project/path/table/@expiration_time '1589631154591'
@@ -102,7 +108,7 @@ yt set //home/project/path/table/@expiration_timeout 604800000
 
 {% note warning "Attention" %}
 
-You cannot restore data deleted using this mechanism. Use it with caution.
+Setting `expiration_timeout` for directories requires extreme caution. The lifetime of a directory is only prolonged by directly accessing it but not its subtree. For instance, reading a table that resides in a directory with an `expiration_timeout` *does not prolong* the lifetime of said directory.
 
 {% endnote %}
 
