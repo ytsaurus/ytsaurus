@@ -26,6 +26,7 @@ struct TBundleSensors final
     NProfiling::TGauge KeyFilterBlockCacheSize;
     NProfiling::TGauge VersionedChunkMetaSize;
     NProfiling::TGauge LookupRowCacheSize;
+    NProfiling::TGauge QuerySize;
 
     THashMap<TString, NProfiling::TGauge> AliveNodesBySize;
     THashMap<TString, NProfiling::TGauge> AliveProxiesBySize;
