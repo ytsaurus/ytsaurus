@@ -77,7 +77,6 @@ target_sources(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/digest_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/ema_counter_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/enum_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/error_code_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/error_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/fair_scheduler_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/fenwick_tree_ut.cpp

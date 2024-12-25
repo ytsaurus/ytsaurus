@@ -2,7 +2,7 @@
 #include "dates_lut_utc.h"
 #include "dates.h"
 
-#include <yt/yt/core/misc/stripped_error.h>
+#include <library/cpp/yt/error/error.h>
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
