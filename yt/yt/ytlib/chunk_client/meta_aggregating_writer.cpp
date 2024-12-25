@@ -524,7 +524,7 @@ void TMetaAggregatingWriter::FinalizeMeta()
     }
     if (ColumnarStatistics_) {
         SetProtoExtension(ChunkMeta_->mutable_extensions(), ToProto<TColumnarStatisticsExt>(*ColumnarStatistics_));
-        if (!ColumnarStatistics_->LargeStatistics.Empty()) {
+        if (!ColumnarStatistics_->LargeStatistics.IsEmpty()) {
             SetProtoExtension(ChunkMeta_->mutable_extensions(), ToProto<TLargeColumnarStatisticsExt>(ColumnarStatistics_->LargeStatistics));
         }
     }
