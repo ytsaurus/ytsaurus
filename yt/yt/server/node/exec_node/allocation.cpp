@@ -8,11 +8,11 @@
 
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
-#include <yt/yt/core/misc/error_helpers.h>
-
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_service.h>
+
+#include <library/cpp/yt/error/error_helpers.h>
 
 #include <library/cpp/yt/yson/consumer.h>
 

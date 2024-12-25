@@ -108,7 +108,6 @@
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/misc/ring_queue.h>
-#include <yt/yt/core/misc/string_helpers.h>
 
 #include <yt/yt/core/rpc/authentication_identity.h>
 #include <yt/yt/core/rpc/dispatcher.h>
@@ -116,6 +115,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
+
+#include <library/cpp/yt/string/string.h>
 
 #include <library/cpp/iterator/zip.h>
 

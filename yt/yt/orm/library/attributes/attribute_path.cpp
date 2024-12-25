@@ -1,6 +1,6 @@
 #include "attribute_path.h"
 
-#include <yt/yt/core/misc/stripped_error.h>
+#include <library/cpp/yt/error/error.h>
 
 #include <yt/yt/core/ypath/tokenizer.h>
 
