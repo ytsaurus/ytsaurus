@@ -2875,7 +2875,9 @@ private:
             return;
         }
 
-        auto reader = CreateWireProtocolReader(TSharedRef::FromString(request->sample_keys()));
+        auto reader = CreateWireProtocolReader(
+            TSharedRef::FromString(request->sample_keys()),
+            New<TRowBuffer>(TSampleKeyListTag()));
         auto sampleKeys = reader->ReadUnversionedRowset(true);
 
         auto storeManager = tablet->GetStoreManager()->AsSorted();

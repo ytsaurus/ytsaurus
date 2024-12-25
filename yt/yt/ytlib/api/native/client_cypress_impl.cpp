@@ -1597,6 +1597,9 @@ TNodeId TClient::DoLinkNode(
     return FromProto<TNodeId>(rsp->node_id());
 }
 
+struct TNodeConcatenatorTag
+{ };
+
 class TNodeConcatenator
 {
 public:
@@ -1676,7 +1679,7 @@ private:
 
     NChunkClient::NProto::TDataStatistics DataStatistics_;
 
-    TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
+    TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TNodeConcatenatorTag());
 
     void InitializeObjects(
         const std::vector<TRichYPath>& srcPaths,

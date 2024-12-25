@@ -34,6 +34,11 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTabletWriterPoolTag
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTransactionWriteRecord::TTransactionWriteRecord(
     TTabletId tabletId,
     TSharedRef data,
@@ -203,7 +208,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        auto reader = CreateWireProtocolReader(writeRecord.Data);
+        auto reader = CreateWireProtocolReader(writeRecord.Data, New<TRowBuffer>(TTabletWriterPoolTag()));
         TWriteContext context{
             .Phase = EWritePhase::Commit,
             .CommitTimestamp = TimestampFromTransactionId(transactionId),
@@ -969,7 +974,7 @@ private:
             context.Phase = EWritePhase::Commit;
             context.CommitTimestamp = commitTimestamp;
 
-            auto reader = CreateWireProtocolReader(record.Data);
+            auto reader = CreateWireProtocolReader(record.Data, New<TRowBuffer>(TTabletWriterPoolTag()));
 
             const auto& storeManager = Tablet_->GetStoreManager();
             YT_VERIFY(storeManager->ExecuteWrites(reader.get(), &context));
@@ -1146,7 +1151,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        auto reader = CreateWireProtocolReader(writeRecord.Data);
+        auto reader = CreateWireProtocolReader(writeRecord.Data, New<TRowBuffer>(TTabletWriterPoolTag()));
         auto context = CreateWriteContext(transaction);
         context.Phase = EWritePhase::Lock;
 
@@ -1218,14 +1223,14 @@ private:
         }
 
         auto writeLogIterator = writeLog.Begin();
-        auto writeLogReader = CreateWireProtocolReader((*writeLogIterator).Data);
+        auto writeLogReader = CreateWireProtocolReader((*writeLogIterator).Data, New<TRowBuffer>(TTabletWriterPoolTag()));
 
         for (int index = 0; index < std::ssize(lockedRows); ++index) {
             const auto& rowRef = lockedRows[index];
             while (writeLogReader->IsFinished()) {
                 ++writeLogIterator;
                 YT_VERIFY(writeLogIterator != writeLog.End());
-                writeLogReader = CreateWireProtocolReader((*writeLogIterator).Data);
+                writeLogReader = CreateWireProtocolReader((*writeLogIterator).Data, New<TRowBuffer>(TTabletWriterPoolTag()));
             }
 
             auto* tablet = rowRef.StoreManager->GetTablet();

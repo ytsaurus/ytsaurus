@@ -257,7 +257,10 @@ std::vector<TPartitionKey> BuildPartitionKeysFromSamples(
 
     auto comparator = uploadSchema->ToComparator();
 
-    auto sampleRowBuffer = New<TRowBuffer>();
+    struct TSampleBufferTag
+    { };
+
+    auto sampleRowBuffer = New<TRowBuffer>(TSampleBufferTag());
 
     YT_LOG_INFO("Building partition keys by samples (SampleCount: %v, PartitionCount: %v, Comparator: %v)", samples.size(), partitionCount, comparator);
 
