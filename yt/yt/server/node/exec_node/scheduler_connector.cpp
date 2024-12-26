@@ -264,6 +264,7 @@ TError TSchedulerConnector::DoSendHeartbeat()
 
     auto req = proxy.Heartbeat();
     req->SetRequestCodec(NCompression::ECodec::Lz4);
+    req->SetTimeout(DynamicConfig_.Acquire()->HeartbeatTimeout);
 
     auto heartbeatContext = New<TSchedulerHeartbeatContext>();
     PrepareHeartbeatRequest(req, heartbeatContext);
