@@ -12,15 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(client)
-add_subdirectory(common)
-add_subdirectory(interface)
-add_subdirectory(http)
-add_subdirectory(io)
-add_subdirectory(skiff)
-add_subdirectory(raw_client)
-add_subdirectory(library)
-add_subdirectory(util)
-add_subdirectory(rpc_client)
-add_subdirectory(tests)
-add_subdirectory(examples)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
+
