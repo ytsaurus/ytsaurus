@@ -62,6 +62,7 @@ using namespace NConcurrency;
 using namespace NCoreDump;
 using namespace NKafka;
 using namespace NMonitoring;
+using namespace NOrchid;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -164,6 +165,8 @@ private:
 
     IServerPtr Server_;
 
+    NRpc::IServerPtr RpcServer_;
+
     TActionQueuePtr ControlQueue_;
 
     NHttp::IServerPtr HttpServer_;
@@ -252,15 +255,26 @@ private:
             AuthenticationManager_,
             Poller_,
             Acceptor_);
+
+        RpcServer_ = NRpc::NBus::CreateBusServer(CreateBusServer(Config_->BusServer));
+
+        RpcServer_->RegisterService(CreateOrchidService(
+            OrchidRoot_,
+            GetControlInvoker(),
+            /*authenticator*/ nullptr));
     }
 
     void DoRun()
     {
+        DynamicConfigManager_->Start();
+
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
 
         YT_LOG_INFO("Listening for Kafka requests (Port: %v)", Config_->Port);
         Server_->Start();
+
+        RpcServer_->Start();
 
         NativeConnection_->GetClusterDirectorySynchronizer()->Start();
 
