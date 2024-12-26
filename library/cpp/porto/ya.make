@@ -1,7 +1,5 @@
 LIBRARY()
 
-BUILD_ONLY_IF(WARNING WARNING LINUX)
-
 PEERDIR(
     library/cpp/porto/proto
     contrib/libs/protobuf
