@@ -148,6 +148,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraChaosNodeConfirmReplicationCardMigration, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraCreateReplicationCardCollocation, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraChaosNodeRemoveMigratedReplicationCards, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraForsakeCoordinator, Unretained(this)));
     }
 
     void Initialize() override
@@ -289,6 +290,16 @@ public:
             HydraManager_,
             context,
             &TChaosManager::HydraCreateReplicationCardCollocation,
+            this);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+    }
+
+    void ForsakeCoordinator(const TCtxForsakeCoordinatorPtr& context) override
+    {
+        auto mutation = CreateMutation(
+            HydraManager_,
+            context,
+            &TChaosManager::HydraForsakeCoordinator,
             this);
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
@@ -1377,6 +1388,53 @@ private:
             replicationCard->GetId(),
             replicationCard->GetEra(),
             suspendedCoordinators);
+    }
+
+    void HydraForsakeCoordinator(
+        const TCtxForsakeCoordinatorPtr& /*context*/,
+        NChaosClient::NProto::TReqForsakeCoordinator* request,
+        NChaosClient::NProto::TRspForsakeCoordinator* /*response*/)
+    {
+        auto coordinatorCellId = FromProto<TCellId>(request->coordinator_cell_id());
+
+        auto it = std::find(CoordinatorCellIds_.begin(), CoordinatorCellIds_.end(), coordinatorCellId);
+        if (it != CoordinatorCellIds_.end()) {
+            THROW_ERROR_EXCEPTION("Trying to forsake an alive coordinator")
+                << TErrorAttribute("coordinator_cell_id", coordinatorCellId);
+        }
+
+        for (auto* replicationCard : GetValuesSortedByKey(ReplicationCardMap_)) {
+            auto state = replicationCard->GetState();
+            if (state == EReplicationCardState::RemoteCollocationAttachPrepared) {
+                YT_LOG_DEBUG("Skipping replication card since it is attaching to remote collocation "
+                    "(ReplicationCardId: %v, Era: %v)",
+                    replicationCard->GetId(),
+                    replicationCard->GetEra());
+                continue;
+            }
+
+            if (auto it = replicationCard->Coordinators().find(coordinatorCellId);
+                it != replicationCard->Coordinators().end())
+            {
+                replicationCard->Coordinators().erase(it);
+
+                YT_LOG_DEBUG("Forsaking coordinator (ReplicationCardId: %v, Era: %v, State: %v, Coordinator: %v)",
+                replicationCard->GetId(),
+                replicationCard->GetEra(),
+                replicationCard->GetState(),
+                coordinatorCellId);
+
+                if (EqualToOneOf(
+                    state,
+                    EReplicationCardState::RevokingShortcutsForAlter,
+                    EReplicationCardState::RevokingShortcutsForMigration))
+                {
+                    HandleReplicationCardStateTransition(replicationCard);
+                } else if (state == EReplicationCardState::Normal) {
+                    UpdateReplicationCardState(replicationCard, EReplicationCardState::RevokingShortcutsForAlter);
+                }
+            }
+        }
     }
 
     void HydraMigrateReplicationCards(

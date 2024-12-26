@@ -68,6 +68,11 @@ struct IChaosManager
         NChaosClient::NProto::TRspCreateReplicationCardCollocation
     >>;
 
+    using TCtxForsakeCoordinatorPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+        NChaosClient::NProto::TReqForsakeCoordinator,
+        NChaosClient::NProto::TRspForsakeCoordinator
+    >>;
+
     virtual void GenerateReplicationCardId(const TCtxGenerateReplicationCardIdPtr& context) = 0;
     virtual void CreateReplicationCard(const TCtxCreateReplicationCardPtr& context) = 0;
     virtual void RemoveReplicationCard(const TCtxRemoveReplicationCardPtr& context) = 0;
@@ -80,6 +85,8 @@ struct IChaosManager
     virtual void ResumeChaosCell(const TCtxResumeChaosCellPtr& context) = 0;
     virtual TFuture<void> ExecuteAlterTableReplica(const NChaosClient::NProto::TReqAlterTableReplica& request) = 0;
     virtual void CreateReplicationCardCollocation(const TCtxCreateReplicationCardCollocationPtr& context) = 0;
+
+    virtual void ForsakeCoordinator(const TCtxForsakeCoordinatorPtr& context) = 0;
 
     virtual const std::vector<NObjectClient::TCellId>& CoordinatorCellIds() = 0;
     virtual bool IsCoordinatorSuspended(NObjectClient::TCellId coordinatorCellId) = 0;

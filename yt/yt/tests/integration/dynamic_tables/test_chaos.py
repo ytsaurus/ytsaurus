@@ -5168,6 +5168,171 @@ class TestChaosMetaCluster(ChaosTestBase):
             wait(lambda: get(f"//sys/chaos_cells/{alpha_cell}/@health", driver=remote_driver1) == "failed")
             wait(lambda: get(f"//sys/chaos_cells/{alpha_cell}/@health", driver=remote_driver2) == "good")
 
+
+##################################################################
+
+
+class TestChaosMetaClusterNativeProxy(TestChaosMetaCluster):
+    @authors("osidorkin")
+    def test_forsake_revoking_coordinator(self):
+        cluster_names = self.get_cluster_names()
+        peer_cluster_names = [cluster_names[0]]
+
+        cell_id = self._sync_create_chaos_bundle_and_cell(peer_cluster_names=peer_cluster_names)
+        cell_id1 = self._sync_create_chaos_cell(peer_cluster_names=peer_cluster_names)
+        cell_id2 = self._sync_create_chaos_cell(peer_cluster_names=peer_cluster_names)
+        driver0 = self._get_drivers()[0]
+
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        sorted_schema = self._get_schemas_by_name(["sorted_simple"])[0]
+        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "c", "schema": sorted_schema})
+
+        card_id = get("//tmp/crt/@replication_card_id")
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/q0"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/q1"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q2"},
+        ]
+
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
+        self._create_replica_tables(replicas, replica_ids, schema=sorted_schema)
+
+        self._sync_replication_era(card_id)
+
+        def _get_replication_card(cell, card_id, driver):
+            peer = get(f"//sys/chaos_cells/{cell}/@peers/0/address", driver=driver)
+            return get(
+                f"//sys/cluster_nodes/{peer}/orchid/chaos_cells/{cell}/chaos_manager/replication_cards/{card_id}",
+                driver=driver
+            )
+
+        replication_card = _get_replication_card(cell_id, card_id, driver0)
+        assert len(replication_card["coordinators"]) == 3
+        assert cell_id1 in replication_card["coordinators"]
+
+        replication_card = _get_replication_card(cell_id, card_id, driver0)
+        assert len(replication_card["coordinators"]) == 3
+        assert cell_id1 in replication_card["coordinators"]
+
+        # Trying to remove an alive coordinator
+        with pytest.raises(YtError):
+            execute_command(
+                "forsake_chaos_coordinator",
+                parameters={
+                    "chaos_cell_id": cell_id,
+                    "coordinator_cell_id": cell_id1
+                }
+            )
+
+        replication_card = _get_replication_card(cell_id, card_id, driver0)
+        assert len(replication_card["coordinators"]) == 3
+        assert cell_id1 in replication_card["coordinators"]
+
+        remove(f"#{cell_id1}")
+
+        def _check():
+            try:
+                get(f"#{cell_id1}/@")
+                return False
+            except Exception:
+                return True
+
+        wait(_check)
+
+        migrate_replication_cards(cell_id, [card_id], destination_cell_id=cell_id2)
+
+        execute_command(
+            "forsake_chaos_coordinator",
+            parameters={
+                "chaos_cell_id": cell_id,
+                "coordinator_cell_id": cell_id1
+            }
+        )
+
+        wait(lambda: len(_get_replication_card(cell_id2, card_id, driver0)["coordinators"]) == 2, ignore_exceptions=True)
+        wait(lambda: _get_replication_card(cell_id2, card_id, driver0)["coordinators"][cell_id] == "granted")
+        wait(lambda: _get_replication_card(cell_id2, card_id, driver0)["coordinators"][cell_id2] == "granted")
+        self._sync_replication_era(card_id)
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/crt", values)
+        wait(lambda: lookup_rows("//tmp/q0", [{"key": 0}]) == values)
+
+    @authors("osidorkin")
+    def test_forsake_granted_coordinator(self):
+        cluster_names = self.get_cluster_names()
+        peer_cluster_names = [cluster_names[0]]
+
+        cell_id = self._sync_create_chaos_bundle_and_cell(peer_cluster_names=peer_cluster_names)
+        cell_id1 = self._sync_create_chaos_cell(peer_cluster_names=peer_cluster_names)
+        cell_id2 = self._sync_create_chaos_cell(peer_cluster_names=peer_cluster_names)
+        driver0 = self._get_drivers()[0]
+
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        sorted_schema = self._get_schemas_by_name(["sorted_simple"])[0]
+        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "c", "schema": sorted_schema})
+
+        card_id = get("//tmp/crt/@replication_card_id")
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/q0"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/q1"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q2"},
+        ]
+
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
+        self._create_replica_tables(replicas, replica_ids, schema=sorted_schema)
+
+        self._sync_replication_era(card_id)
+
+        def _get_replication_card(cell, card_id, driver):
+            peer = get(f"//sys/chaos_cells/{cell}/@peers/0/address", driver=driver)
+            return get(
+                f"//sys/cluster_nodes/{peer}/orchid/chaos_cells/{cell}/chaos_manager/replication_cards/{card_id}",
+                driver=driver
+            )
+
+        replication_card = _get_replication_card(cell_id, card_id, driver0)
+        assert len(replication_card["coordinators"]) == 3
+        assert cell_id1 in replication_card["coordinators"]
+
+        replication_card = _get_replication_card(cell_id, card_id, driver0)
+        assert len(replication_card["coordinators"]) == 3
+        assert cell_id1 in replication_card["coordinators"]
+
+        remove(f"#{cell_id1}")
+
+        def _check():
+            try:
+                get(f"#{cell_id1}/@")
+                return False
+            except Exception:
+                return True
+
+        wait(_check)
+
+        execute_command(
+            "forsake_chaos_coordinator",
+            parameters={
+                "chaos_cell_id": cell_id,
+                "coordinator_cell_id": cell_id1
+            }
+        )
+
+        self._sync_replication_era(card_id)
+
+        assert len(_get_replication_card(cell_id, card_id, driver0)["coordinators"]) == 2
+        assert _get_replication_card(cell_id, card_id, driver0)["coordinators"][cell_id] == "granted"
+        assert _get_replication_card(cell_id, card_id, driver0)["coordinators"][cell_id2] == "granted"
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/crt", values)
+        wait(lambda: lookup_rows("//tmp/q0", [{"key": 0}]) == values)
+
+
 ##################################################################
 
 

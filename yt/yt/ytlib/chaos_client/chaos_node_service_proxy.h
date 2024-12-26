@@ -31,6 +31,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, GetReplicationCardCollocation);
     DEFINE_RPC_PROXY_METHOD(NProto, WatchReplicationCard);
     DEFINE_RPC_PROXY_METHOD(NProto, GetReplicationCardResidency);
+    DEFINE_RPC_PROXY_METHOD(NProto, ForsakeCoordinator);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
