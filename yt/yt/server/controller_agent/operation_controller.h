@@ -240,6 +240,15 @@ struct IOperationControllerHost
     virtual TFuture<void> UpdateAccountResourceUsageLease(
         NSecurityClient::TAccountResourceUsageLeaseId leaseId,
         const NScheduler::TDiskQuota& diskQuota) = 0;
+
+    virtual void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+        const NScheduler::TClusterName& clusterName,
+        const TCallback<void()>& callback) = 0;
+    virtual void UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+        const NScheduler::TClusterName& clusterName,
+        const TCallback<void()>& callback) = 0;
+    virtual std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const = 0;
+    virtual bool IsNetworkBandwidthAvailable(const NScheduler::TClusterName& clusterName) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerHost)

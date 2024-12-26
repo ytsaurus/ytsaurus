@@ -6,6 +6,7 @@
 #include "job_controller.h"
 #include "master_connector.h"
 #include "private.h"
+#include "throttler_manager.h"
 
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
@@ -17,6 +18,8 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/controller_agent/public.h>
+
+#include <yt/yt/ytlib/distributed_throttler/config.h>
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
 
@@ -346,6 +349,60 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::PrepareHeartbeatR
         nodeId,
         nodeDescriptor,
         request);
+
+    auto clusterTrafficUtilization = bootstrap->GetExecNodeBootstrap()->GetThrottlerManager()->GetClusterToIncomingTrafficUtilization(EThrottlerTrafficType::Bandwidth);
+    if (clusterTrafficUtilization) {
+        // I (this exe node) am the leader and so I am responsible for sending bandwidth availability to controller agents.
+        auto* cluster_network_bandwidth_availability = request->mutable_cluster_network_bandwidth_availability();
+        for (const auto& [clusterName, trafficUtilization] : *clusterTrafficUtilization) {
+            YT_VERIFY(0 < trafficUtilization.Limit);
+            auto rateLimitRatio = trafficUtilization.Rate / trafficUtilization.Limit;
+            auto isAvailable = true;
+
+            if (trafficUtilization.RateLimitRatioHardThreshold < rateLimitRatio) {
+                // Network usage is higher than the available limit.
+                isAvailable = false;
+            } else if (trafficUtilization.MinEstimatedTimeToReadPendingBytesThreshold < trafficUtilization.MinEstimatedTimeToReadPendingBytes) {
+                // There is a queue of pending read requests on every exe node.
+                isAvailable = false;
+            } else if (trafficUtilization.RateLimitRatioSoftThreshold < rateLimitRatio) {
+                // Network usage is above threshold.
+                if (trafficUtilization.MaxEstimatedTimeToReadPendingBytesThreshold < trafficUtilization.MaxEstimatedTimeToReadPendingBytes) {
+                    // There is a big queue of pending read requests on some exe node.
+                    isAvailable = false;
+                }
+            }
+
+            YT_LOG_DEBUG(
+                "Add cluster network bandwidth availability to controller agent heartbeat request "
+                "(ClusterName: %v, Rate: %v, Limit: %v, "
+                "RateLimitRatio: %v, RateLimitRatioHardThreshold: %v, RateLimitRatioSoftThreshold: %v, "
+                "MaxEstimatedTimeToReadPendingBytes: %v, MaxEstimatedTimeToReadPendingBytesThreshold: %v, "
+                "MinEstimatedTimeToReadPendingBytes: %v, MinEstimatedTimeToReadPendingBytesThreshold: %v, "
+                "PendingBytes: %v, IsAvailable: %v)",
+                clusterName,
+                trafficUtilization.Rate,
+                trafficUtilization.Limit,
+                rateLimitRatio,
+                trafficUtilization.RateLimitRatioHardThreshold,
+                trafficUtilization.RateLimitRatioSoftThreshold,
+                trafficUtilization.MaxEstimatedTimeToReadPendingBytes,
+                trafficUtilization.MaxEstimatedTimeToReadPendingBytesThreshold,
+                trafficUtilization.MinEstimatedTimeToReadPendingBytes,
+                trafficUtilization.MinEstimatedTimeToReadPendingBytesThreshold,
+                trafficUtilization.PendingBytes,
+                isAvailable);
+
+            if (isAvailable) {
+                // Skip available clusters.
+                continue;
+            }
+
+            auto* availability = cluster_network_bandwidth_availability->add_availability();
+            availability->set_cluster_name(TString(clusterName.Underlying()));
+            availability->set_is_available(isAvailable);
+        }
+    }
 
     auto error = WaitFor(BIND(
             &TControllerAgentConnector::DoPrepareHeartbeatRequest,

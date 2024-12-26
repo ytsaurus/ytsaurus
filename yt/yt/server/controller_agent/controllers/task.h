@@ -121,8 +121,9 @@ public:
 
     const TProgressCounterPtr& GetJobCounter() const;
 
-    virtual NScheduler::TCompositeNeededResources GetTotalNeededResources() const;
-    NScheduler::TCompositeNeededResources GetTotalNeededResourcesDelta();
+    virtual NScheduler::TCompositeNeededResources GetTotalNeededResources(
+        i64 maxRunnableJobCount = std::numeric_limits<i64>::max()) const;
+    virtual NScheduler::TCompositeNeededResources GetTotalNeededResourcesDelta();
 
     bool IsStderrTableEnabled() const;
 

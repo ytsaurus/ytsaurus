@@ -530,6 +530,41 @@ TFuture<void> TOperationControllerHost::UpdateAccountResourceUsageLease(
         diskQuota);
 }
 
+void TOperationControllerHost::SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+    const TClusterName& clusterName,
+    const TCallback<void()>& callback)
+{
+    return Bootstrap_->GetControllerAgent()->SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(clusterName, callback);
+}
+
+void TOperationControllerHost::UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+    const TClusterName& clusterName,
+    const TCallback<void()>& callback)
+{
+    return Bootstrap_->GetControllerAgent()->UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(clusterName, callback);
+}
+
+std::shared_ptr<const THashMap<TClusterName, bool>> TOperationControllerHost::GetClusterToNetworkBandwidthAvailability() const
+{
+    return Bootstrap_->GetControllerAgent()->GetClusterToNetworkBandwidthAvailability();
+}
+
+bool TOperationControllerHost::IsNetworkBandwidthAvailable(const TClusterName& clusterName) const
+{
+    auto availability = GetClusterToNetworkBandwidthAvailability();
+    if (!availability) {
+        return true;
+    }
+
+    if (auto it = availability->find(clusterName); it != availability->end()) {
+        if (!it->second) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent

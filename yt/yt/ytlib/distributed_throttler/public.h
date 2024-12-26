@@ -31,7 +31,8 @@ struct TThrottlerUsage
     double Rate = 0.0;
     double Limit = 0.0;
     i64 QueueByteSize = 0;
-    i64 QueueEstimatedOverrunDuration = 0;
+    i64 QueueMaxEstimatedOverrunDuration = 0;
+    i64 QueueMinEstimatedOverrunDuration = std::numeric_limits<i64>::max();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -333,6 +333,26 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+        const NScheduler::TClusterName&,
+        const TCallback<void()>&) override
+    { }
+
+    void UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+        const NScheduler::TClusterName& clusterName,
+        const TCallback<void()>& callback) override
+    { }
+
+    std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const override
+    {
+        return nullptr;
+    }
+
+    bool IsNetworkBandwidthAvailable(const NScheduler::TClusterName& clusterName) const override
+    {
+        return true;
+    }
+
 private:
     TActionQueuePtr ActionQueue_;
     IEventLogWriterPtr EventLogWriter_;

@@ -209,6 +209,16 @@ public:
      */
     void EnqueueJobMonitoringAlertUpdate();
 
+    void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+        const NScheduler::TClusterName& clusterName,
+        const TCallback<void()>& callback);
+    void UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+        const NScheduler::TClusterName& clusterName,
+        const TCallback<void()>& callback);
+    void UpdateClusterToNetworkBandwidthAvailability(
+        std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> remoteClusterToNetworkBandwidthAvailability);
+    std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const;
+
     //! Raised when connection process starts.
     //! Subscribers may throw and yield.
     DECLARE_SIGNAL(void(), SchedulerConnecting);

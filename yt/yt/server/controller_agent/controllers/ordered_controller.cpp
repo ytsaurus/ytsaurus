@@ -1194,6 +1194,26 @@ public:
                 Spec_->ClusterName,
                 "\"cluster_name\" is not set in remote copy operation spec");
         }
+
+        if (Spec_->ClusterName && Spec_->UseRemoteThrottler) {
+            UpdateNeededResourcesCallback_ = BIND(
+                &TRemoteCopyController::UpdateNeededResources,
+                MakeWeak(this))
+            .Via(GetCancelableInvoker());
+
+            Host->SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+                TClusterName(*Spec_->ClusterName),
+                UpdateNeededResourcesCallback_);
+        }
+    }
+
+    ~TRemoteCopyController()
+    {
+        if (Spec_->ClusterName && Spec_->UseRemoteThrottler) {
+            Host->UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+                TClusterName(*Spec_->ClusterName),
+                UpdateNeededResourcesCallback_);
+        }
     }
 
     void Persist(const TPersistenceContext& context) override
@@ -1259,6 +1279,41 @@ protected:
             Dependencies_.emplace_back(std::move(dependency));
         }
 
+        NScheduler::TCompositeNeededResources GetTotalNeededResources(
+            i64 maxRunnableJobCount) const override
+        {
+            return TTask::GetTotalNeededResources(
+                std::min(CurrentMaxRunnableJobCount_, maxRunnableJobCount));
+        }
+
+        NScheduler::TCompositeNeededResources GetTotalNeededResourcesDelta() override
+        {
+            if (!Controller_->Spec_->UseRemoteThrottler) {
+                return TTask::GetTotalNeededResourcesDelta();
+            }
+
+            if (Controller_->Spec_->ClusterName) {
+                TClusterName clusterName{Controller_->Spec_->ClusterName.value()};
+                if (!Controller_->Host->IsNetworkBandwidthAvailable(clusterName)) {
+                    YT_LOG_DEBUG(
+                        "Network bandwidth to remote cluster is not available now so zero out needed resources "
+                        "(ClusterName: %v, OldMaxRunnableJobCount: %v, NewMaxRunnableJobCount: %v)",
+                        clusterName,
+                        CurrentMaxRunnableJobCount_,
+                        0);
+                    // Zero out maximum runnable jobs. It will be coming back once bandwidth becomes available.
+                    CurrentMaxRunnableJobCount_ = 0;
+                    auto result = -CachedTotalNeededResources_;
+                    CachedTotalNeededResources_ = CachedTotalNeededResources_ - CachedTotalNeededResources_;
+                    return result;
+                }
+            }
+
+            // Increase maximum runnable jobs exponentially up to MaxRunnableJobCount.
+            CurrentMaxRunnableJobCount_ = std::clamp(2 * CurrentMaxRunnableJobCount_, static_cast<i64>(1), MaxRunnableJobCount);
+            return TTask::GetTotalNeededResourcesDelta();
+        }
+
     protected:
         TRemoteCopyController* Controller_;
 
@@ -1268,6 +1323,9 @@ protected:
         // Which depends on it.
         std::vector<TRemoteCopyTaskBasePtr> Dependents_;
         bool IsInitializationCompleted_;
+
+        static constexpr i64 MaxRunnableJobCount = std::numeric_limits<i32>::max();
+        i64 CurrentMaxRunnableJobCount_ = MaxRunnableJobCount;
 
         void AddDependent(TRemoteCopyTaskBasePtr dependent)
         {
@@ -1391,6 +1449,8 @@ private:
     IAttributeDictionaryPtr InputTableAttributes_;
 
     THashMap<TChunkId, TChunkId> HunkChunkIdMapping_;
+
+    TExtendedCallback<void()> UpdateNeededResourcesCallback_;
 
     void ValidateTableType(auto table) const
     {
@@ -1915,6 +1975,13 @@ private:
             auto* protoMapping = remoteCopyJobSpecExt->add_hunk_chunk_id_mapping();
             ToProto(protoMapping->mutable_input_hunk_chunk_id(), mapping.first);
             ToProto(protoMapping->mutable_output_hunk_chunk_id(), mapping.second);
+        }
+    }
+
+    void UpdateNeededResources()
+    {
+        for (auto task : OrderedTasks_) {
+            UpdateTask(task.Get());
         }
     }
 

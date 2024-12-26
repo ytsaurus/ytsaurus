@@ -21,6 +21,18 @@ void TClusterThrottlersConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("cluster_limits", &TThis::ClusterLimits)
         .Default();
+    registrar.Parameter("max_estimated_time_to_read_pending_bytes_threshold", &TThis::MaxEstimatedTimeToReadPendingBytesThreshold)
+        .Default(TDuration::Seconds(60));
+    registrar.Parameter("min_estimated_time_to_read_pending_bytes_threshold", &TThis::MinEstimatedTimeToReadPendingBytesThreshold)
+        .Default(TDuration::Seconds(0));
+    registrar.Parameter("rate_limit_ratio_hard_threshold", &TThis::RateLimitRatioHardThreshold)
+        .Default(1.0)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(1);
+    registrar.Parameter("rate_limit_ratio_soft_threshold", &TThis::RateLimitRatioSoftThreshold)
+        .Default(0.98)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(1);
     registrar.Parameter("update_period", &TThis::UpdatePeriod)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("enabled", &TThis::Enabled)

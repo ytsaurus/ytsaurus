@@ -1022,6 +1022,65 @@ public:
         .Run();
     }
 
+    void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+        const TClusterName& clusterName,
+        const TCallback<void()>& callback)
+    {
+        GetNetworkBandwidthAvailabilityCallbackList(clusterName).Subscribe(callback);
+    }
+
+    void UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+        const TClusterName& clusterName,
+        const TCallback<void()>& callback)
+    {
+        GetNetworkBandwidthAvailabilityCallbackList(clusterName).Unsubscribe(callback);
+    }
+
+    std::shared_ptr<const THashMap<TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const
+    {
+        auto guard = Guard(ClusterToNetworkBandwidthAvailabilityLock_);
+        return ClusterToNetworkBandwidthAvailability_;
+    }
+
+    void UpdateClusterToNetworkBandwidthAvailability(
+        std::shared_ptr<const THashMap<TClusterName, bool>> newAvailability)
+    {
+        std::shared_ptr<const THashMap<TClusterName, bool>> oldAvailability;
+        {
+            auto guard = Guard(ClusterToNetworkBandwidthAvailabilityLock_);
+            oldAvailability = std::exchange(ClusterToNetworkBandwidthAvailability_, newAvailability);
+        }
+
+        // Fire callbacks if bandwidth availability of a cluster has changed.
+        if (oldAvailability) {
+            for (const auto& [clusterName, availability] : *oldAvailability) {
+                if (!newAvailability) {
+                    GetNetworkBandwidthAvailabilityCallbackList(clusterName).Fire();
+                    continue;
+                }
+
+                auto it = newAvailability->find(clusterName);
+                if (it == newAvailability->end() || it->second != availability) {
+                    GetNetworkBandwidthAvailabilityCallbackList(clusterName).Fire();
+                }
+            }
+        }
+
+        if (newAvailability) {
+            for (const auto& [clusterName, availability] : *newAvailability) {
+                if (!oldAvailability) {
+                    GetNetworkBandwidthAvailabilityCallbackList(clusterName).Fire();
+                    continue;
+                }
+
+                auto it = oldAvailability->find(clusterName);
+                if (it == oldAvailability->end()) {
+                    GetNetworkBandwidthAvailabilityCallbackList(clusterName).Fire();
+                }
+            }
+        }
+    }
+
     DEFINE_SIGNAL(void(), SchedulerConnecting);
     DEFINE_SIGNAL(void(TIncarnationId), SchedulerConnected);
     DEFINE_SIGNAL(void(), SchedulerDisconnected);
@@ -1102,6 +1161,16 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ClusterToNetworkBandwidthAvailabilityLock_);
+    std::shared_ptr<const THashMap<TClusterName, bool>> ClusterToNetworkBandwidthAvailability_;
+    std::map<TClusterName, TCallbackList<void()>> ClusterToNetworkBandwidthAvailabilityCallbackLists_;
+
+    TCallbackList<void()>& GetNetworkBandwidthAvailabilityCallbackList(
+        const TClusterName& clusterName)
+    {
+        auto guard = Guard(ClusterToNetworkBandwidthAvailabilityLock_);
+        return ClusterToNetworkBandwidthAvailabilityCallbackLists_[clusterName];
+    }
 
     void ScheduleConnect(bool immediate)
     {
@@ -2451,6 +2520,32 @@ std::optional<TJobMonitoringDescriptor> TControllerAgent::TryAcquireJobMonitorin
 bool TControllerAgent::ReleaseJobMonitoringDescriptor(TOperationId operationId, TJobMonitoringDescriptor descriptor)
 {
     return Impl_->ReleaseJobMonitoringDescriptor(operationId, descriptor);
+}
+
+void TControllerAgent::SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+    const TClusterName& clusterName,
+    const TCallback<void()>& callback)
+{
+    return Impl_->SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(clusterName, callback);
+}
+
+void TControllerAgent::UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+    const TClusterName& clusterName,
+    const TCallback<void()>& callback)
+{
+    return Impl_->UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(clusterName, callback);
+}
+
+std::shared_ptr<const THashMap<TClusterName, bool>> TControllerAgent::GetClusterToNetworkBandwidthAvailability() const
+{
+    return Impl_->GetClusterToNetworkBandwidthAvailability();
+}
+
+void TControllerAgent::UpdateClusterToNetworkBandwidthAvailability(
+    std::shared_ptr<const THashMap<TClusterName, bool>> remoteClusterToNetworkBandwidthAvailability)
+{
+    return Impl_->UpdateClusterToNetworkBandwidthAvailability(
+        std::move(remoteClusterToNetworkBandwidthAvailability));
 }
 
 DELEGATE_SIGNAL(TControllerAgent, void(), SchedulerConnecting, *Impl_);
