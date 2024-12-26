@@ -11,7 +11,8 @@ namespace NYT::NYqlAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTypeBuilder
-    : public NYql::NResult::ITypeVisitor {
+    : public NYql::NResult::ITypeVisitor
+{
 public:
     TTypeBuilder();
 

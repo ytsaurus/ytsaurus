@@ -9,7 +9,8 @@ namespace NYT::NYqlAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDataBuilder
-    : public NYql::NResult::IDataVisitor {
+    : public NYql::NResult::IDataVisitor
+{
 public:
     explicit TDataBuilder(NTableClient::IValueConsumer* consumer);
 
