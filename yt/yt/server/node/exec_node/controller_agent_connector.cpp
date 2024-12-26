@@ -276,6 +276,7 @@ TError TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat
 
     TJobTrackerServiceProxy proxy(Channel_);
     auto request = proxy.Heartbeat();
+    request->SetTimeout(currentConfig->HeartbeatTimeout);
 
     auto context = New<TAgentHeartbeatContext>();
 

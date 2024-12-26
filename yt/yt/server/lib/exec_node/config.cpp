@@ -333,6 +333,9 @@ void THeartbeatReporterDynamicConfigBase::Register(TRegistrar registrar)
             },
         });
 
+    registrar.Parameter("heartbeat_timeout", &TThis::HeartbeatTimeout)
+        .Default(TDuration::Seconds(60));
+
     registrar.Parameter("enable_tracing", &TThis::EnableTracing)
         .Default(false);
 
@@ -378,9 +381,6 @@ void FormatValue(TStringBuilderBase* builder, const TControllerAgentConnectorDyn
 
 void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("heartbeat_timeout", &TThis::HeartbeatTimeout)
-        .Default(TDuration::Seconds(60));
-
     registrar.Preprocessor([] (TThis* config) {
         config->HeartbeatExecutor.Jitter = 0.3;
     });
