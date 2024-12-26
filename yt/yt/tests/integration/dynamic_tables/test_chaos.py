@@ -46,7 +46,7 @@ MAX_KEY = [yson.to_yson_type(None, attributes={"type": "max"})]
 
 class TestChaos(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 2
-    NUM_TEST_PARTITIONS = 20
+    NUM_TEST_PARTITIONS = 30
     NUM_SCHEDULERS = 1
 
     DELTA_DRIVER_CONFIG = {
@@ -4537,7 +4537,6 @@ class TestChaosNativeProxy(ChaosTestBase):
 
 class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 1
-    NUM_TEST_PARTITIONS = 20
     NUM_SCHEDULERS = 1
 
     DRIVER_BACKEND = "rpc"
